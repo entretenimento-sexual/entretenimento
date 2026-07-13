@@ -32,6 +32,18 @@ import {
   IPhotoEditorDraft,
   PhotoEditorSessionService,
 } from 'src/app/core/services/image-handling/photo-editor-session.service';
+import {
+  PhotoEditorCaptionStyle,
+  PhotoEditorDraftPrivacyRegion,
+  PhotoEditorNormalizedPoint,
+  PhotoEditorOverlay,
+  PhotoEditorTool,
+  clonePhotoEditorOverlays,
+  createPhotoEditorOverlayId,
+  drawPhotoEditorOverlays,
+  normalizePhotoEditorOverlays,
+  privacyRegionFromDraft,
+} from './photo-editor-overlay.model';
 
 export type PhotoEditorAspectRatio =
   | 'original'
@@ -49,6 +61,18 @@ interface PhotoEditorNativeStateV1 {
   aspectRatio: PhotoEditorAspectRatio;
 }
 
+interface PhotoEditorNativeStateV2 {
+  version: 2;
+  editor: 'native-canvas';
+  flattened: true;
+  rotation: number;
+  zoom: number;
+  panX: number;
+  panY: number;
+  aspectRatio: PhotoEditorAspectRatio;
+  overlays: PhotoEditorOverlay[];
+}
+
 interface OriginalFileMetadata {
   fileName: string;
   mimeType: string;
@@ -60,6 +84,7 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.05;
 const KEYBOARD_PAN_STEP = 0.025;
+const MAX_OVERLAY_HISTORY = 50;
 
 @Component({
   selector: 'app-photo-editor',
@@ -91,12 +116,34 @@ export class PhotoEditorComponent implements AfterViewInit {
   readonly photoId = input<string | null>(null);
   readonly isEditMode = input<boolean>(false);
 
+  readonly emojiOptions = ['🙈', '😎', '🔒', '❤️', '🔥', '✨', '⭐', '📍'];
+  readonly toolOptions: ReadonlyArray<{
+    value: PhotoEditorTool;
+    label: string;
+    shortLabel: string;
+  }> = [
+    { value: 'move', label: 'Mover e enquadrar', shortLabel: 'Mover' },
+    { value: 'blur', label: 'Borrar área', shortLabel: 'Borrar' },
+    { value: 'pixelate', label: 'Pixelar área', shortLabel: 'Pixelar' },
+    { value: 'emoji', label: 'Inserir emoji', shortLabel: 'Emoji' },
+    { value: 'text', label: 'Inserir texto', shortLabel: 'Texto' },
+    { value: 'datetime', label: 'Inserir data e hora', shortLabel: 'Data/hora' },
+  ];
+
   userId = '';
   rotation = 0;
   zoom = 1;
   panX = 0;
   panY = 0;
   aspectRatio: PhotoEditorAspectRatio = 'original';
+
+  activeTool: PhotoEditorTool = 'move';
+  privacyStrength = 3;
+  decorationSize = 10;
+  selectedEmoji = this.emojiOptions[0];
+  captionText = '';
+  captionStyle: PhotoEditorCaptionStyle = 'classic';
+  overlays: PhotoEditorOverlay[] = [];
 
   private sourceImage: HTMLImageElement | null = null;
   private sourceFile: File | null = null;
@@ -111,11 +158,15 @@ export class PhotoEditorComponent implements AfterViewInit {
   private renderFrame: number | null = null;
   private viewReady = false;
   private draggingPointerId: number | null = null;
+  private pointerInteraction: 'pan' | 'privacy' | null = null;
   private lastPointerX = 0;
   private lastPointerY = 0;
+  private draftPrivacyRegion: PhotoEditorDraftPrivacyRegion | null = null;
   private previewWidth = 0;
   private previewHeight = 0;
   private focusOrigin: HTMLElement | null = null;
+  private overlayHistory: PhotoEditorOverlay[][] = [[]];
+  private overlayHistoryIndex = 0;
 
   private readonly isLoadingSubject = new BehaviorSubject<boolean>(true);
   private readonly isSavingSubject = new BehaviorSubject<boolean>(false);
@@ -162,6 +213,138 @@ export class PhotoEditorComponent implements AfterViewInit {
         this.closeButtonRef.nativeElement.focus({ preventScroll: true });
       }
     });
+  }
+
+  get canUndo(): boolean {
+    return this.overlayHistoryIndex > 0;
+  }
+
+  get canRedo(): boolean {
+    return this.overlayHistoryIndex < this.overlayHistory.length - 1;
+  }
+
+  get hasOverlays(): boolean {
+    return this.overlays.length > 0;
+  }
+
+  get isPrivacyTool(): boolean {
+    return this.activeTool === 'blur' || this.activeTool === 'pixelate';
+  }
+
+  get isDecorationTool(): boolean {
+    return (
+      this.activeTool === 'emoji' ||
+      this.activeTool === 'text' ||
+      this.activeTool === 'datetime'
+    );
+  }
+
+  get toolInstruction(): string {
+    switch (this.activeTool) {
+      case 'blur':
+        return 'Arraste sobre o rosto, tatuagem ou outra área que precisa ser escondida.';
+      case 'pixelate':
+        return 'Arraste sobre a área para aplicar pixels grandes e irreversíveis na foto salva.';
+      case 'emoji':
+        return 'Escolha um emoji e clique na foto para posicionar.';
+      case 'text':
+        return this.captionText.trim()
+          ? 'Clique na foto para posicionar o texto.'
+          : 'Digite o texto antes de clicar na foto.';
+      case 'datetime':
+        return 'Clique na foto para inserir a data e hora atuais.';
+      default:
+        return 'Arraste a imagem ou use as setas do teclado para ajustar o enquadramento.';
+    }
+  }
+
+  get canvasAriaLabel(): string {
+    return `Prévia editável da foto. ${this.toolInstruction}`;
+  }
+
+  selectTool(tool: PhotoEditorTool): void {
+    if (this.isBusy()) {
+      return;
+    }
+
+    this.activeTool = tool;
+    this.cancelPointerInteraction(false);
+    this.scheduleRender();
+  }
+
+  selectEmoji(emoji: string): void {
+    if (!this.emojiOptions.includes(emoji) || this.isBusy()) {
+      return;
+    }
+
+    this.selectedEmoji = emoji;
+    this.activeTool = 'emoji';
+  }
+
+  setCaptionStyle(style: PhotoEditorCaptionStyle): void {
+    if (this.isBusy()) {
+      return;
+    }
+
+    this.captionStyle = style === 'badge' || style === 'neon' ? style : 'classic';
+  }
+
+  updatePrivacyStrength(value: number | string): void {
+    const numericValue = Number(value);
+    this.privacyStrength = this.clamp(
+      Number.isFinite(numericValue) ? numericValue : 3,
+      0.8,
+      8
+    );
+  }
+
+  updateDecorationSize(value: number | string): void {
+    const numericValue = Number(value);
+    this.decorationSize = this.clamp(
+      Number.isFinite(numericValue) ? numericValue : 10,
+      3.5,
+      28
+    );
+  }
+
+  addCurrentToolAtCenter(): void {
+    if (!this.isDecorationTool || this.isBusy()) {
+      return;
+    }
+
+    this.placeDecorationAt({ x: 0.5, y: 0.5 });
+  }
+
+  undoOverlay(): void {
+    if (!this.canUndo || this.isBusy()) {
+      return;
+    }
+
+    this.overlayHistoryIndex -= 1;
+    this.overlays = clonePhotoEditorOverlays(
+      this.overlayHistory[this.overlayHistoryIndex]
+    );
+    this.scheduleRender();
+  }
+
+  redoOverlay(): void {
+    if (!this.canRedo || this.isBusy()) {
+      return;
+    }
+
+    this.overlayHistoryIndex += 1;
+    this.overlays = clonePhotoEditorOverlays(
+      this.overlayHistory[this.overlayHistoryIndex]
+    );
+    this.scheduleRender();
+  }
+
+  clearOverlays(): void {
+    if (!this.hasOverlays || this.isBusy()) {
+      return;
+    }
+
+    this.commitOverlays([]);
   }
 
   setAspectRatio(value: PhotoEditorAspectRatio): void {
@@ -221,6 +404,11 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.panX = 0;
     this.panY = 0;
     this.aspectRatio = 'original';
+    this.activeTool = 'move';
+    this.overlays = [];
+    this.overlayHistory = [[]];
+    this.overlayHistoryIndex = 0;
+    this.draftPrivacyRegion = null;
     this.scheduleRender();
   }
 
@@ -229,10 +417,39 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
-    this.draggingPointerId = event.pointerId;
-    this.lastPointerX = event.clientX;
-    this.lastPointerY = event.clientY;
-    this.editorCanvasRef.nativeElement.setPointerCapture(event.pointerId);
+    const point = this.resolveNormalizedPointer(event);
+    if (!point) {
+      return;
+    }
+
+    if (this.activeTool === 'move') {
+      this.pointerInteraction = 'pan';
+      this.draggingPointerId = event.pointerId;
+      this.lastPointerX = event.clientX;
+      this.lastPointerY = event.clientY;
+      this.capturePointer(event.pointerId);
+      event.preventDefault();
+      return;
+    }
+
+    if (this.isPrivacyTool) {
+      this.pointerInteraction = 'privacy';
+      this.draggingPointerId = event.pointerId;
+      this.draftPrivacyRegion = {
+        kind: this.activeTool,
+        startX: point.x,
+        startY: point.y,
+        endX: point.x,
+        endY: point.y,
+        strength: this.privacyStrength / 100,
+      };
+      this.capturePointer(event.pointerId);
+      this.scheduleRender();
+      event.preventDefault();
+      return;
+    }
+
+    this.placeDecorationAt(point);
     event.preventDefault();
   }
 
@@ -241,14 +458,32 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
-    const width = Math.max(1, this.previewWidth);
-    const height = Math.max(1, this.previewHeight);
-    this.panX += (event.clientX - this.lastPointerX) / width;
-    this.panY += (event.clientY - this.lastPointerY) / height;
-    this.lastPointerX = event.clientX;
-    this.lastPointerY = event.clientY;
-    this.scheduleRender();
-    event.preventDefault();
+    if (this.pointerInteraction === 'pan') {
+      const width = Math.max(1, this.previewWidth);
+      const height = Math.max(1, this.previewHeight);
+      this.panX += (event.clientX - this.lastPointerX) / width;
+      this.panY += (event.clientY - this.lastPointerY) / height;
+      this.lastPointerX = event.clientX;
+      this.lastPointerY = event.clientY;
+      this.scheduleRender();
+      event.preventDefault();
+      return;
+    }
+
+    if (this.pointerInteraction === 'privacy' && this.draftPrivacyRegion) {
+      const point = this.resolveNormalizedPointer(event);
+      if (!point) {
+        return;
+      }
+
+      this.draftPrivacyRegion = {
+        ...this.draftPrivacyRegion,
+        endX: point.x,
+        endY: point.y,
+      };
+      this.scheduleRender();
+      event.preventDefault();
+    }
   }
 
   onPointerUp(event: PointerEvent): void {
@@ -256,16 +491,58 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
-    this.draggingPointerId = null;
-
-    const canvas = this.editorCanvasRef.nativeElement;
-    if (canvas.hasPointerCapture(event.pointerId)) {
-      canvas.releasePointerCapture(event.pointerId);
+    if (this.pointerInteraction === 'privacy' && this.draftPrivacyRegion) {
+      const overlay = privacyRegionFromDraft(this.draftPrivacyRegion);
+      if (overlay) {
+        this.commitOverlays([...this.overlays, overlay]);
+      }
     }
+
+    this.cancelPointerInteraction(true, event.pointerId);
+  }
+
+  onPointerCancel(event: PointerEvent): void {
+    if (this.draggingPointerId !== event.pointerId) {
+      return;
+    }
+
+    this.cancelPointerInteraction(true, event.pointerId);
   }
 
   onCanvasKeydown(event: KeyboardEvent): void {
     if (this.isBusy()) {
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      if (event.shiftKey) {
+        this.redoOverlay();
+      } else {
+        this.undoOverlay();
+      }
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+      event.preventDefault();
+      this.redoOverlay();
+      return;
+    }
+
+    if (event.key === 'Escape' && this.activeTool !== 'move') {
+      event.preventDefault();
+      this.selectTool('move');
+      return;
+    }
+
+    if (event.key === 'Enter' && this.isDecorationTool) {
+      event.preventDefault();
+      this.addCurrentToolAtCenter();
+      return;
+    }
+
+    if (this.activeTool !== 'move') {
       return;
     }
 
@@ -556,6 +833,39 @@ export class PhotoEditorComponent implements AfterViewInit {
     height: number,
     preview: boolean
   ): void {
+    const baseCanvas = this.document.createElement('canvas');
+    baseCanvas.width = Math.max(1, Math.round(width));
+    baseCanvas.height = Math.max(1, Math.round(height));
+    const baseContext = baseCanvas.getContext('2d');
+
+    if (!baseContext) {
+      return;
+    }
+
+    this.drawBaseImage(baseContext, width, height, preview);
+
+    context.save();
+    context.clearRect(0, 0, width, height);
+    context.drawImage(baseCanvas, 0, 0, width, height);
+    drawPhotoEditorOverlays({
+      context,
+      baseCanvas,
+      width,
+      height,
+      overlays: this.overlays,
+      draftRegion: preview ? this.draftPrivacyRegion : null,
+      preview,
+      createCanvas: () => this.document.createElement('canvas'),
+    });
+    context.restore();
+  }
+
+  private drawBaseImage(
+    context: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    preview: boolean
+  ): void {
     const image = this.sourceImage;
     if (!image) {
       return;
@@ -638,9 +948,16 @@ export class PhotoEditorComponent implements AfterViewInit {
     return fallback;
   }
 
-  private canvasToBlob(canvas: HTMLCanvasElement, mimeType: string): Promise<Blob | null> {
+  private canvasToBlob(
+    canvas: HTMLCanvasElement,
+    mimeType: string
+  ): Promise<Blob | null> {
     return new Promise((resolve) => {
-      canvas.toBlob(resolve, mimeType, mimeType === 'image/png' ? undefined : 0.88);
+      canvas.toBlob(
+        resolve,
+        mimeType,
+        mimeType === 'image/png' ? undefined : 0.88
+      );
     });
   }
 
@@ -668,26 +985,35 @@ export class PhotoEditorComponent implements AfterViewInit {
     return Math.max(0.1, width / Math.max(1, height));
   }
 
-  private buildEditorState(): PhotoEditorNativeStateV1 {
+  private buildEditorState(): PhotoEditorNativeStateV2 {
     return {
-      version: 1,
+      version: 2,
       editor: 'native-canvas',
+      flattened: true,
       rotation: this.rotation,
       zoom: Number(this.zoom.toFixed(3)),
       panX: Number(this.panX.toFixed(4)),
       panY: Number(this.panY.toFixed(4)),
       aspectRatio: this.aspectRatio,
+      overlays: clonePhotoEditorOverlays(this.overlays),
     };
   }
 
   private applyStoredEditorState(value: string | null): void {
-    if (!value) {
+    // A imagem persistida já contém as transformações e anotações achatadas.
+    // Reaplicar o estado em modo de edição duplicaria corte, texto e borrões.
+    if (!value || this.effectiveIsEditMode) {
+      this.resetOverlayHistory([]);
       return;
     }
 
     try {
-      const parsed = JSON.parse(value) as Partial<PhotoEditorNativeStateV1>;
-      if (parsed.version !== 1 || parsed.editor !== 'native-canvas') {
+      const parsed = JSON.parse(value) as
+        | Partial<PhotoEditorNativeStateV1>
+        | Partial<PhotoEditorNativeStateV2>;
+
+      if (parsed.editor !== 'native-canvas') {
+        this.resetOverlayHistory([]);
         return;
       }
 
@@ -696,8 +1022,17 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.panX = this.clamp(Number(parsed.panX ?? 0), -1, 1);
       this.panY = this.clamp(Number(parsed.panY ?? 0), -1, 1);
       this.aspectRatio = this.normalizeAspectRatio(parsed.aspectRatio);
+
+      const overlays =
+        parsed.version === 2
+          ? normalizePhotoEditorOverlays(
+              (parsed as Partial<PhotoEditorNativeStateV2>).overlays
+            )
+          : [];
+      this.resetOverlayHistory(overlays);
     } catch {
-      // Estados de editores antigos são deliberadamente ignorados.
+      this.resetOverlayHistory([]);
+      // Estados de editores antigos ou inválidos são deliberadamente ignorados.
     }
   }
 
@@ -820,6 +1155,139 @@ export class PhotoEditorComponent implements AfterViewInit {
         imageStateStr,
       })
     );
+  }
+
+  private placeDecorationAt(point: PhotoEditorNormalizedPoint): void {
+    let overlay: PhotoEditorOverlay | null = null;
+    const size = this.decorationSize / 100;
+
+    if (this.activeTool === 'emoji') {
+      overlay = {
+        id: createPhotoEditorOverlayId(),
+        kind: 'emoji',
+        x: point.x,
+        y: point.y,
+        size,
+        value: this.selectedEmoji,
+        style: this.captionStyle,
+      };
+    } else if (this.activeTool === 'text') {
+      const value = this.captionText.replace(/\s+/g, ' ').trim().slice(0, 40);
+      if (!value) {
+        return;
+      }
+
+      overlay = {
+        id: createPhotoEditorOverlayId(),
+        kind: 'text',
+        x: point.x,
+        y: point.y,
+        size,
+        value,
+        style: this.captionStyle,
+      };
+    } else if (this.activeTool === 'datetime') {
+      overlay = {
+        id: createPhotoEditorOverlayId(),
+        kind: 'datetime',
+        x: point.x,
+        y: point.y,
+        size,
+        value: this.formatDateTimeStamp(),
+        style: this.captionStyle,
+      };
+    }
+
+    if (overlay) {
+      this.commitOverlays([...this.overlays, overlay]);
+    }
+  }
+
+  private formatDateTimeStamp(): string {
+    const now = new Date();
+    const date = new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+    })
+      .format(now)
+      .replace('.', '')
+      .toUpperCase();
+    const time = new Intl.DateTimeFormat('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(now);
+
+    return `${date} • ${time}`;
+  }
+
+  private commitOverlays(next: readonly PhotoEditorOverlay[]): void {
+    const normalized = normalizePhotoEditorOverlays(next);
+    this.overlays = clonePhotoEditorOverlays(normalized);
+
+    const historyBeforeCurrent = this.overlayHistory.slice(
+      0,
+      this.overlayHistoryIndex + 1
+    );
+    historyBeforeCurrent.push(clonePhotoEditorOverlays(normalized));
+
+    if (historyBeforeCurrent.length > MAX_OVERLAY_HISTORY) {
+      historyBeforeCurrent.shift();
+    }
+
+    this.overlayHistory = historyBeforeCurrent;
+    this.overlayHistoryIndex = this.overlayHistory.length - 1;
+    this.scheduleRender();
+  }
+
+  private resetOverlayHistory(overlays: readonly PhotoEditorOverlay[]): void {
+    const normalized = normalizePhotoEditorOverlays(overlays);
+    this.overlays = clonePhotoEditorOverlays(normalized);
+    this.overlayHistory = [clonePhotoEditorOverlays(normalized)];
+    this.overlayHistoryIndex = 0;
+  }
+
+  private resolveNormalizedPointer(
+    event: PointerEvent
+  ): PhotoEditorNormalizedPoint | null {
+    const canvas = this.editorCanvasRef.nativeElement;
+    const rect = canvas.getBoundingClientRect();
+
+    if (rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+
+    return {
+      x: this.clamp((event.clientX - rect.left) / rect.width, 0, 1),
+      y: this.clamp((event.clientY - rect.top) / rect.height, 0, 1),
+    };
+  }
+
+  private capturePointer(pointerId: number): void {
+    const canvas = this.editorCanvasRef.nativeElement;
+    if (!canvas.hasPointerCapture(pointerId)) {
+      canvas.setPointerCapture(pointerId);
+    }
+  }
+
+  private cancelPointerInteraction(
+    releaseCapture: boolean,
+    pointerId = this.draggingPointerId
+  ): void {
+    const canvas = this.editorCanvasRef.nativeElement;
+
+    if (
+      releaseCapture &&
+      pointerId !== null &&
+      canvas.hasPointerCapture(pointerId)
+    ) {
+      canvas.releasePointerCapture(pointerId);
+    }
+
+    this.draggingPointerId = null;
+    this.pointerInteraction = null;
+    this.draftPrivacyRegion = null;
+    this.scheduleRender();
   }
 
   private closeWithSuccess(
