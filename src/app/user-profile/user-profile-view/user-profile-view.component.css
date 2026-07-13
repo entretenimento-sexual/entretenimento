@@ -210,6 +210,83 @@
   opacity: 0.95;
 }
 
+.profile-video-entry {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 8% 12%,
+      color-mix(in oklab, var(--primary-color) 13%, transparent),
+      transparent 26rem
+    ),
+    color-mix(in oklab, var(--background-color) 94%, white 6%);
+}
+
+.profile-video-entry__icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 28%, transparent);
+  border-radius: 17px;
+  background: color-mix(in oklab, var(--primary-color) 12%, transparent);
+  color: var(--primary-color);
+  font-size: 1.2rem;
+}
+
+.profile-video-entry__copy {
+  min-width: 0;
+}
+
+.profile-video-entry__copy .profile-kicker {
+  margin-bottom: 8px;
+}
+
+.profile-video-entry__copy h2 {
+  margin: 0;
+  color: var(--text-color);
+  font-size: clamp(1.2rem, 1.05rem + 0.5vw, 1.55rem);
+  line-height: 1.15;
+}
+
+.profile-video-entry__copy > p:last-of-type {
+  max-width: 68ch;
+  margin: 8px 0 0;
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  line-height: 1.5;
+}
+
+.profile-video-entry__features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.profile-video-entry__features span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 84%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, transparent);
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.profile-video-entry__action {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: var(--tap-target, 44px);
+  justify-content: center;
+}
+
 @media (min-width: 520px) {
   .profile-actions {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -243,6 +320,25 @@
   .links-item {
     grid-template-columns: 140px 1fr;
   }
+
+  .profile-video-entry {
+    grid-template-columns: 60px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .profile-video-entry__icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 19px;
+    font-size: 1.35rem;
+  }
+
+  .profile-video-entry__action {
+    grid-column: auto;
+    width: auto;
+    min-width: 170px;
+  }
 }
 
 @media (min-width: 1100px) {
@@ -267,10 +363,27 @@
   .profile-avatar {
     border-radius: 20px;
   }
+
+  .profile-video-entry {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .profile-video-entry__icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 15px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .profile-card {
     transition: none !important;
   }
+}
+
+html.high-contrast .profile-video-entry,
+html.high-contrast .profile-video-entry__icon,
+html.high-contrast .profile-video-entry__features span {
+  border-color: currentColor !important;
+  box-shadow: none !important;
 }
