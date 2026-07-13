@@ -22,6 +22,11 @@ export {
 } from './application/register-private-video-upload.handler';
 
 export {
+  listVideoModerationQueue,
+  reviewVideoModeration,
+} from './application/admin-video-moderation.handler';
+
+export {
   cleanupPendingPhotoDeletions,
   deleteProfilePhoto,
 } from './application/delete-profile-photo.handler';
