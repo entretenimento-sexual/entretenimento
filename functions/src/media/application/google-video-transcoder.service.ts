@@ -17,6 +17,10 @@ interface GoogleTranscoderJobResponse {
   error?: GoogleTranscoderErrorStatus | null;
 }
 
+interface GoogleTranscoderListJobsResponse {
+  jobs?: GoogleTranscoderJobResponse[];
+}
+
 export interface GoogleTranscoderJobSnapshot {
   name: string;
   state: string;
@@ -53,12 +57,22 @@ function projectId(): string {
   return resolved;
 }
 
+function parentName(): string {
+  return `projects/${projectId()}/locations/${TRANSCODER_LOCATION}`;
+}
+
 function normalizeJobName(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
 
   return /^projects\/[^/]+\/locations\/[^/]+\/jobs\/[^/]+$/.test(normalized)
     ? normalized
     : null;
+}
+
+function normalizeProcessingVersion(value: unknown): string | null {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  return /^[a-z0-9_-]{1,63}$/.test(normalized) ? normalized : null;
 }
 
 async function authorizationHeader(): Promise<string> {
@@ -102,7 +116,13 @@ function inputUri(sourceStoragePath: string): string {
 export async function submitGoogleVideoTranscoderJob(
   job: VideoProcessingJob
 ): Promise<GoogleTranscoderJobSnapshot> {
-  const parent = `projects/${projectId()}/locations/${TRANSCODER_LOCATION}`;
+  const processingVersion = normalizeProcessingVersion(job.processingVersion);
+
+  if (!processingVersion) {
+    throw new Error('Versão do processamento inválida para o Transcoder.');
+  }
+
+  const parent = parentName();
   const authorization = await authorizationHeader();
   const response = await axios.post<GoogleTranscoderJobResponse>(
     `${TRANSCODER_API_BASE_URL}/${parent}/jobs`,
@@ -114,6 +134,7 @@ export async function submitGoogleVideoTranscoderJob(
       labels: {
         source: 'entretenimento',
         media: 'profile-video',
+        processing_version: processingVersion,
       },
     },
     {
@@ -134,6 +155,42 @@ export async function submitGoogleVideoTranscoderJob(
     ...response.data,
     name,
   });
+}
+
+export async function findGoogleVideoTranscoderJob(
+  processingVersionValue: string
+): Promise<GoogleTranscoderJobSnapshot | null> {
+  const processingVersion = normalizeProcessingVersion(
+    processingVersionValue
+  );
+
+  if (!processingVersion) {
+    return null;
+  }
+
+  const authorization = await authorizationHeader();
+  const response = await axios.get<GoogleTranscoderListJobsResponse>(
+    `${TRANSCODER_API_BASE_URL}/${parentName()}/jobs`,
+    {
+      headers: { Authorization: authorization },
+      params: {
+        pageSize: 10,
+        filter: `labels.processing_version="${processingVersion}"`,
+        orderBy: 'create_time desc',
+      },
+      timeout: 30_000,
+    }
+  );
+
+  for (const candidate of response.data?.jobs ?? []) {
+    const name = normalizeJobName(candidate.name);
+
+    if (name) {
+      return normalizeSnapshot({ ...candidate, name });
+    }
+  }
+
+  return null;
 }
 
 export async function getGoogleVideoTranscoderJob(
