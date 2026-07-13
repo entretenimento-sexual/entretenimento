@@ -50,6 +50,13 @@ service firebase.storage {
       allow delete: if isSelf(uid);
     }
 
+    // Derivados produzidos exclusivamente pelo backend.
+    // O dono pode reproduzir; nenhuma escrita ou exclusão é aceita do cliente.
+    match /users/{uid}/processed/videos/{videoId}/{allPaths=**} {
+      allow read: if isSelf(uid);
+      allow write: if false;
+    }
+
     // ============================================================
     // Avatar publicado
     // ============================================================
