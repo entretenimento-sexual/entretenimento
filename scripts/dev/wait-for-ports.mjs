@@ -11,6 +11,10 @@ const host = options['--host'] || '127.0.0.1';
 const timeoutMs = Number(options['--timeout'] || 180000);
 const label = options['--label'] || 'serviços locais';
 const expectedState = options['--state'] === 'free' ? 'free' : 'used';
+const pollingIntervalMs = Math.max(
+  100,
+  Number(options['--interval'] || (expectedState === 'free' ? 250 : 500))
+);
 const ports = String(options['--ports'] || '')
   .split(',')
   .map((value) => Number(value.trim()))
@@ -26,23 +30,62 @@ if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
   process.exit(2);
 }
 
+if (!Number.isFinite(pollingIntervalMs) || pollingIntervalMs <= 0) {
+  console.error('[wait] Informe um intervalo positivo em --interval.');
+  process.exit(2);
+}
+
 const stateLabel = expectedState === 'free' ? 'livres' : 'disponíveis';
 console.log(
   `[wait] Aguardando ${label}: ${host}:${ports.join(', ')} ${stateLabel}.`
 );
 
-try {
-  await Promise.all(
-    ports.map((port) =>
-      expectedState === 'free'
-        ? tcpPortUsed.waitUntilFree(port, 250, timeoutMs, host)
-        : tcpPortUsed.waitUntilUsed(port, 500, timeoutMs, host)
-    )
+const sleep = (durationMs) =>
+  new Promise((resolve) => setTimeout(resolve, durationMs));
+
+async function readPortStates() {
+  return Promise.all(
+    ports.map(async (port) => ({
+      port,
+      used: await tcpPortUsed.check(port, host),
+    }))
   );
-  console.log(`[wait] ${label} pronto.`);
+}
+
+function pendingPorts(states) {
+  return states
+    .filter((state) =>
+      expectedState === 'free' ? state.used : !state.used
+    )
+    .map((state) => state.port);
+}
+
+const startedAt = Date.now();
+let pending = [...ports];
+
+try {
+  while (Date.now() - startedAt <= timeoutMs) {
+    const states = await readPortStates();
+    pending = pendingPorts(states);
+
+    if (pending.length === 0) {
+      console.log(`[wait] ${label} pronto.`);
+      process.exit(0);
+    }
+
+    await sleep(pollingIntervalMs);
+  }
+
+  const pendingLabel =
+    expectedState === 'free'
+      ? 'Portas ainda ocupadas'
+      : 'Portas ainda indisponíveis';
+
+  console.error(`[wait] Tempo esgotado aguardando ${label}.`);
+  console.error(`[wait] ${pendingLabel}: ${pending.join(', ')}.`);
+  process.exit(1);
 } catch (error) {
-  const action = expectedState === 'free' ? 'liberação de' : 'disponibilidade de';
-  console.error(`[wait] Tempo esgotado aguardando ${action} ${label}.`);
+  console.error(`[wait] Falha ao verificar ${label}.`);
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 }
