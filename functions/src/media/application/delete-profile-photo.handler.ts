@@ -3,7 +3,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { db, FieldValue, storage } from '../../firebaseApp';
+import { db, FieldValue, getDefaultStorageBucket } from '../../firebaseApp';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 import { deletePublishedPhotoAssetOrQueue } from './published-photo-asset.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
@@ -78,8 +78,7 @@ async function executeDeletionJob(
   );
   const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
 
-  await storage
-    .bucket()
+  await getDefaultStorageBucket()
     .file(job.storagePath)
     .delete({ ignoreNotFound: true });
 
