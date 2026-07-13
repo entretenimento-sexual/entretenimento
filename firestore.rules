@@ -1,6 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-07-12T21:07:58.050Z
+// Generated at: 2026-07-13T03:53:07.347Z
 
 // ===== _helpers.rules =====
 // ===============================================================
@@ -2453,6 +2453,11 @@ match /users/{userId}/videos/{videoId} {
     ];
   }
 
+  function validPlaybackReadyStatus() {
+    return request.resource.data.status != "ready"
+      || request.resource.data.mimeType in ["video/mp4", "video/webm"];
+  }
+
   function validOwnedVideoPath() {
     return request.resource.data.path.matches(
       "^users/" + userId + "/uploads/videos/[^/]+$"
@@ -2465,7 +2470,8 @@ match /users/{userId}/videos/{videoId} {
       || (
         request.resource.data.thumbnailPath is string
         && request.resource.data.thumbnailPath.matches(
-          "^users/" + userId + "/uploads/images/[^/]+$"
+          "^users/" + userId
+            + "/uploads/video-posters/" + videoId + "/[^/]+$"
         )
       );
   }
@@ -2481,12 +2487,13 @@ match /users/{userId}/videos/{videoId} {
       && validText("fileName", 240)
       && validMimeType()
       && request.resource.data.sizeBytes is number
-      && request.resource.data.sizeBytes >= 0
+      && request.resource.data.sizeBytes > 0
       && request.resource.data.sizeBytes <= 524288000
       && validNumberOrNull("durationMs")
       && validTextOrNull("thumbnailUrl", 2048)
       && validOwnedPosterPath()
-      && validStatus();
+      && validStatus()
+      && validPlaybackReadyStatus();
   }
 
   function validCreatePayload() {
