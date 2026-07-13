@@ -30,8 +30,8 @@ gcloud services enable transcoder.googleapis.com --project=<PROJECT_ID>
 
 3. Identificar a service account efetivamente usada pelas Functions de segunda
 geração. Não presumir o endereço; conferir a configuração implantada.
-4. Conceder a essa service account permissões para criar, consultar e excluir
-jobs do Transcoder. O papel predefinido que cobre essas operações é:
+4. Conceder a essa service account permissões para criar, listar, consultar e
+excluir jobs do Transcoder. O papel predefinido que cobre essas operações é:
 
 ```text
 roles/transcoder.admin
@@ -47,10 +47,44 @@ agent apenas o acesso necessário ao bucket de mídia.
 ```text
 VIDEO_TRANSCODER_LOCATION=us-central1
 VIDEO_TRANSCODER_TEMPLATE_ID=preset/web-hd
+VIDEO_TRANSCODER_ALLOW_LIVE_PROBE=false
 ```
 
 Sem configuração explícita, o código utiliza a região canônica das Functions e
 o preset oficial `preset/web-hd`.
+
+`VIDEO_TRANSCODER_ALLOW_LIVE_PROBE` deve permanecer ausente ou `false` durante o
+uso normal dos Emulators. Quando estiver desabilitada, a tela administrativa
+não consulta o projeto real e apresenta o estado `Emulator`.
+
+## Diagnóstico administrativo
+
+A rota administrativa de moderação de vídeos apresenta um painel de diagnóstico
+atualizado a cada minuto. O painel consulta a callable:
+
+```text
+getVideoProcessingOperationalStatus
+```
+
+A callable é restrita a administradores e executa somente operações de leitura:
+
+- solicita um token com a identidade das Functions;
+- lista no máximo um job do Transcoder para validar API, região e IAM;
+- contabiliza os jobs persistidos por estado;
+- calcula a idade aproximada do backlog ativo;
+- sinaliza uma amostra de jobs possivelmente atrasados.
+
+Estados do painel:
+
+```text
+Operacional      API e IAM responderam corretamente
+Ação necessária  API, região, projeto ou permissões falharam
+Emulator         consulta externa intencionalmente ignorada
+```
+
+O diagnóstico não cria, altera nem exclui jobs do Transcoder. Um estado
+`Operacional` confirma conectividade e permissão de listagem, mas não substitui
+o teste de processamento completo com um arquivo real.
 
 ## Estados persistidos
 
@@ -79,6 +113,7 @@ failed
 - build Angular aprovado;
 - regras de Storage revisadas;
 - API e IAM configurados somente em staging;
+- painel administrativo no estado `Operacional` em staging;
 - upload de MP4, WebM e MOV testado;
 - vídeo com menos de cinco segundos rejeitado;
 - falha transitória testada sem duplicar job;
