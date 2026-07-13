@@ -18,6 +18,10 @@ export {
 } from './application/manage-video-publication.handler';
 
 export {
+  registerPrivateVideoUpload,
+} from './application/register-private-video-upload.handler';
+
+export {
   cleanupPendingPhotoDeletions,
   deleteProfilePhoto,
 } from './application/delete-profile-photo.handler';
