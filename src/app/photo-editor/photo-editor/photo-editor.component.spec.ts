@@ -108,6 +108,29 @@ describe('PhotoEditorComponent', () => {
     expect(component.panX).toBe(0);
     expect(component.panY).toBe(0);
     expect(component.aspectRatio).toBe('original');
+    expect(component.activeTool).toBe('move');
+    expect(component.overlays).toEqual([]);
+    expect(component.canUndo).toBe(false);
+    expect(component.canRedo).toBe(false);
+  });
+
+  it('deve alternar entre ferramentas de privacidade e decoração', () => {
+    component.selectTool('blur');
+    expect(component.activeTool).toBe('blur');
+    expect(component.isPrivacyTool).toBe(true);
+
+    component.selectEmoji('🔒');
+    expect(component.activeTool).toBe('emoji');
+    expect(component.selectedEmoji).toBe('🔒');
+    expect(component.isDecorationTool).toBe(true);
+  });
+
+  it('deve limitar intensidade e tamanho aos intervalos suportados', () => {
+    component.updatePrivacyStrength(99);
+    component.updateDecorationSize(99);
+
+    expect(component.privacyStrength).toBe(8);
+    expect(component.decorationSize).toBe(28);
   });
 
   it('deve fechar o modal pelo contrato atual', () => {
