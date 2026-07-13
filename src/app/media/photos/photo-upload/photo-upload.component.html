@@ -118,7 +118,7 @@
               <button
                 type="button"
                 class="btn btn-secondary"
-                (click)="$any($event.currentTarget).blur(); editBeforeUpload()"
+                (click)="editBeforeUpload($event)"
                 [disabled]="phase !== 'READY'"
               >
                 <i class="fas fa-crop-simple" aria-hidden="true"></i>
