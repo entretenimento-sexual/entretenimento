@@ -20,7 +20,7 @@ import {
   query,
 } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, from, of } from 'rxjs';
+import { Observable, combineLatest, from, of, timer } from 'rxjs';
 import {
   catchError,
   map,
@@ -82,6 +82,8 @@ interface PrivateVideoAccessResponse {
   items: PrivateVideoAccessResponseItem[];
 }
 
+const PRIVATE_ACCESS_REFRESH_MS = 8 * 60 * 1000;
+
 @Injectable({ providedIn: 'root' })
 export class VideoLibraryService {
   private readonly firestore = inject(Firestore);
@@ -108,14 +110,21 @@ export class VideoLibraryService {
         orderBy('createdAt', 'desc'),
         limit(60)
       );
-
-      return collectionData(videosQuery, { idField: 'id' }).pipe(
+      const metadata$ = collectionData(videosQuery, { idField: 'id' }).pipe(
         map((items) =>
           (items as IVideoDoc[])
             .map((item) => this.mapVideoDoc(safeOwnerUid, item))
             .filter((item) => this.hasValidIdentityAndPath(item))
-        ),
-        switchMap((items) => this.hydratePrivateUrls$(safeOwnerUid, items))
+        )
+      );
+
+      return combineLatest([
+        metadata$,
+        timer(0, PRIVATE_ACCESS_REFRESH_MS),
+      ]).pipe(
+        switchMap(([items]) =>
+          this.hydratePrivateUrls$(safeOwnerUid, items)
+        )
       );
     }).pipe(
       catchError((error) => {
