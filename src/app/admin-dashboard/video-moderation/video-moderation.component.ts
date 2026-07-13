@@ -76,7 +76,10 @@ const PROCESSING_STATUS_REFRESH_INTERVAL_MS = 60 * 1000;
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule],
   templateUrl: './video-moderation.component.html',
-  styleUrls: ['./video-moderation.component.css'],
+  styleUrls: [
+    './video-moderation.component.css',
+    './video-moderation-recovery.component.css',
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VideoModerationComponent {
