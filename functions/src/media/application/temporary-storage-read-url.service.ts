@@ -42,10 +42,11 @@ async function ensureEmulatorDownloadToken(storagePath: string): Promise<string>
   const bucket = storage.bucket();
   const file = bucket.file(storagePath);
   const [metadata] = await file.getMetadata();
-  const customMetadata = metadata.metadata &&
-    typeof metadata.metadata === 'object'
-    ? metadata.metadata as Record<string, string>
-    : {};
+  const rawCustomMetadata = metadata.metadata;
+  const customMetadata: Record<string, string> =
+    rawCustomMetadata && typeof rawCustomMetadata === 'object'
+      ? rawCustomMetadata as Record<string, string>
+      : {};
   const existingToken = firstDownloadToken(
     customMetadata[DOWNLOAD_TOKEN_METADATA_KEY]
   );
