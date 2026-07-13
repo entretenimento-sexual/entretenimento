@@ -1,5 +1,6 @@
 const PRIVATE_VIDEO_PREFIX = 'uploads/videos';
 const PRIVATE_VIDEO_POSTER_PREFIX = 'uploads/video-posters';
+const PROCESSED_VIDEO_PREFIX = 'processed/videos';
 const PUBLISHED_VIDEO_PREFIX = 'published/videos';
 
 function escapeRegExp(value: string): string {
@@ -152,6 +153,45 @@ export function extractOwnedPrivateVideoPosterPath(
     value,
     `${PRIVATE_VIDEO_POSTER_PREFIX}/${videoSegment}/[^/]+`
   );
+}
+
+export function normalizeOwnedProcessedVideoPath(
+  ownerUid: string,
+  videoId: string,
+  value: unknown
+): string | null {
+  const safeVideoId = normalizeId(videoId);
+
+  if (!safeVideoId) {
+    return null;
+  }
+
+  return matchesOwnedPath(
+    ownerUid,
+    value,
+    `${PROCESSED_VIDEO_PREFIX}/${escapeRegExp(safeVideoId)}/[^/]+/.+`
+  );
+}
+
+export function normalizeOwnedProcessedVideoPrefix(
+  ownerUid: string,
+  videoId: string,
+  value: unknown
+): string | null {
+  const safeVideoId = normalizeId(videoId);
+  const normalized = resolveStoragePath(value)?.replace(/\/+$/, '');
+
+  if (!safeVideoId || !normalized) {
+    return null;
+  }
+
+  const matched = matchesOwnedPath(
+    ownerUid,
+    normalized,
+    `${PROCESSED_VIDEO_PREFIX}/${escapeRegExp(safeVideoId)}/[^/]+`
+  );
+
+  return matched ? `${matched}/` : null;
 }
 
 export function normalizeOwnedPublishedVideoPath(
