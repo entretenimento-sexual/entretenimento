@@ -193,8 +193,9 @@
                     class="profile-videos__publication-chip"
                     [class.profile-videos__publication-chip--published]="item.publication?.moderationStatus === 'APPROVED'"
                     [class.profile-videos__publication-chip--pending]="item.publication?.moderationStatus === 'PENDING_REVIEW'"
+                    [class.profile-videos__publication-chip--rejected]="item.publication?.moderationStatus === 'REJECTED'"
                   >
-                    {{ publicationLabel(item) }}
+                    {{ item.publication?.moderationStatus === 'REJECTED' ? 'Rejeitado' : publicationLabel(item) }}
                   </span>
                 </div>
 
@@ -211,6 +212,11 @@
                 } @else if (item.video.status === 'failed') {
                   <p class="profile-videos__helper profile-videos__helper--error" role="alert">
                     Este arquivo precisa ser reenviado antes de poder ser publicado.
+                  </p>
+                } @else if (item.publication?.moderationStatus === 'REJECTED') {
+                  <p class="profile-videos__helper profile-videos__helper--error" role="alert">
+                    A moderação rejeitou esta versão.
+                    {{ item.publication?.moderationReason || 'Exclua o arquivo e envie uma nova versão antes de tentar publicar novamente.' }}
                   </p>
                 } @else if (!isPublicPlaybackCompatible(item.video)) {
                   <p class="profile-videos__helper" role="status">
@@ -245,7 +251,7 @@
                       type="button"
                       class="app-action app-action--primary"
                       (click)="publishVideo(item)"
-                      [disabled]="!canPublish(item) || isBusy(item.video.id)"
+                      [disabled]="!canPublish(item) || isBusy(item.video.id) || item.publication?.moderationStatus === 'REJECTED'"
                       [attr.aria-busy]="isBusy(item.video.id) ? 'true' : 'false'"
                     >
                       <i class="fas fa-globe" aria-hidden="true"></i>
