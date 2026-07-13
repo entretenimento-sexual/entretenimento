@@ -5,6 +5,7 @@ import { UserListComponent } from './user-list/user-list.component';
 import { UserDetailsComponent } from './user-details/user-details.component';
 import { ModerationReportsComponent } from './moderation-reports/moderation-reports.component';
 import { OperationalOverviewComponent } from './operational-overview/operational-overview.component';
+import { VideoModerationComponent } from './video-moderation/video-moderation.component';
 import { adminCanActivateChild } from '../core/guards/access-guard/admin.guard';
 import { UserResolver } from './resolvers/user.resolver';
 
@@ -17,8 +18,13 @@ const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'operacional' },
       { path: 'operacional', component: OperationalOverviewComponent },
       { path: 'users', component: UserListComponent },
-      { path: 'users/:uid', component: UserDetailsComponent, resolve: { user: UserResolver } },
+      {
+        path: 'users/:uid',
+        component: UserDetailsComponent,
+        resolve: { user: UserResolver },
+      },
       { path: 'denuncias', component: ModerationReportsComponent },
+      { path: 'videos', component: VideoModerationComponent },
     ],
   },
 ];
