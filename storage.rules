@@ -28,6 +28,8 @@ service firebase.storage {
 
     // ============================================================
     // Upload bruto e privado do usuário
+    // - upload e rollback continuam sob controle do proprietário;
+    // - reprodução usa URL temporária emitida pelo backend.
     // ============================================================
 
     match /users/{uid}/uploads/images/{fileName} {
@@ -37,7 +39,7 @@ service firebase.storage {
     }
 
     match /users/{uid}/uploads/videos/{fileName} {
-      allow read: if isSelf(uid);
+      allow read: if false;
       allow create, update: if isSelf(uid) && isVideoCreateOrUpdate();
       allow delete: if isSelf(uid);
     }
@@ -45,16 +47,15 @@ service firebase.storage {
     // Poster gerado localmente para um vídeo privado específico.
     // O namespace separado permite limpeza segura junto do vídeo sem afetar fotos.
     match /users/{uid}/uploads/video-posters/{videoId}/{fileName} {
-      allow read: if isSelf(uid);
+      allow read: if false;
       allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
       allow delete: if isSelf(uid);
     }
 
     // Derivados produzidos exclusivamente pelo backend.
-    // O dono pode reproduzir; nenhuma escrita ou exclusão é aceita do cliente.
+    // Reprodução também ocorre somente por URL temporária emitida pelo backend.
     match /users/{uid}/processed/videos/{videoId}/{allPaths=**} {
-      allow read: if isSelf(uid);
-      allow write: if false;
+      allow read, write: if false;
     }
 
     // ============================================================
