@@ -44,10 +44,10 @@ function createHarness(options: HarnessOptions = {}) {
   const publication = Object.prototype.hasOwnProperty.call(options, 'publication')
     ? options.publication ?? null
     : {
-        isPublished: true,
-        sourceStoragePath: OLD_PRIVATE_PATH,
-        publishedStoragePath: OLD_PUBLIC_PATH,
-      };
+      isPublished: true,
+      sourceStoragePath: OLD_PRIVATE_PATH,
+      publishedStoragePath: OLD_PUBLIC_PATH,
+    };
 
   const dependencies: PhotoSyncDependencies = {
     moderationStatus: options.moderationStatus ?? 'APPROVED',
