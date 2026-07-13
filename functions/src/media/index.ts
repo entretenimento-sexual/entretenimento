@@ -37,6 +37,12 @@ export {
 } from './application/admin-video-processing-status.handler';
 
 export {
+  cleanupRetriedVideoProcessingOutputs,
+  listVideoProcessingRecoveryJobs,
+  recoverVideoProcessingJob,
+} from './application/admin-video-processing-recovery.handler';
+
+export {
   listVideoModerationQueue,
   reviewVideoModeration,
 } from './application/admin-video-moderation.handler';
