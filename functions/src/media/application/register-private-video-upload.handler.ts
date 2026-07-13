@@ -33,6 +33,17 @@ interface RegisterPrivateVideoUploadResponse {
   createdAt: number;
 }
 
+interface RegisteredVideoDocument {
+  ownerUid?: string;
+  path?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  durationMs?: number | null;
+  thumbnailPath?: string | null;
+  status?: RegisteredVideoStatus;
+  createdAt?: unknown;
+}
+
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_POSTER_SIZE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_VIDEO_TYPES = new Set([
@@ -102,6 +113,20 @@ function normalizePositiveInteger(value: unknown): number | null {
   }
 
   return Math.trunc(numberValue);
+}
+
+function timestampToMillis(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value);
+  }
+
+  const timestamp = value as { toMillis?: () => number } | null | undefined;
+
+  if (typeof timestamp?.toMillis === 'function') {
+    return timestamp.toMillis();
+  }
+
+  return Date.now();
 }
 
 function assertOwner(requesterUid: string | null, ownerUid: string): void {
@@ -204,6 +229,53 @@ async function deleteUploadedAssetsBestEffort(paths: string[]): Promise<void> {
   );
 }
 
+function buildExistingResponse(
+  videoId: string,
+  ownerUid: string,
+  videoStoragePath: string,
+  posterStoragePath: string | null,
+  existing: RegisteredVideoDocument
+): RegisterPrivateVideoUploadResponse | null {
+  const existingOwnerUid = cleanId(existing.ownerUid);
+  const existingVideoPath = extractOwnedPrivateVideoPathForId(
+    ownerUid,
+    videoId,
+    existing.path
+  );
+  const existingPosterPath = existing.thumbnailPath
+    ? extractOwnedPrivateVideoPosterPath(
+      ownerUid,
+      videoId,
+      existing.thumbnailPath
+    )
+    : null;
+  const mimeType = normalizeMimeType(existing.mimeType);
+  const sizeBytes = normalizePositiveInteger(existing.sizeBytes);
+  const status = existing.status === 'ready' ? 'ready' : 'uploaded';
+
+  if (
+    existingOwnerUid !== ownerUid ||
+    existingVideoPath !== videoStoragePath ||
+    existingPosterPath !== posterStoragePath ||
+    !ALLOWED_VIDEO_TYPES.has(mimeType) ||
+    !sizeBytes
+  ) {
+    return null;
+  }
+
+  return {
+    videoId,
+    ownerUid,
+    status,
+    mimeType,
+    sizeBytes,
+    durationMs: normalizePositiveInteger(existing.durationMs),
+    videoStoragePath,
+    posterStoragePath,
+    createdAt: timestampToMillis(existing.createdAt),
+  };
+}
+
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
 >(
@@ -260,9 +332,21 @@ export const registerPrivateVideoUpload = onCall<
       const existingVideo = await videoRef.get();
 
       if (existingVideo.exists) {
+        const existingResponse = buildExistingResponse(
+          videoId,
+          ownerUid,
+          videoStoragePath,
+          posterStoragePath,
+          existingVideo.data() as RegisteredVideoDocument
+        );
+
+        if (existingResponse) {
+          return existingResponse;
+        }
+
         throw new HttpsError(
           'already-exists',
-          'Este upload de vídeo já foi registrado.'
+          'Este identificador já pertence a outro upload.'
         );
       }
 
