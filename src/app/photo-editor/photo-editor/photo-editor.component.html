@@ -3,8 +3,8 @@
   <header class="editor-header">
     <div class="editor-title-block">
       <span class="eyebrow">Ajustar foto</span>
-      <h2 id="photo-editor-title">Enquadramento</h2>
-      <p class="subtitle">Arraste a imagem ou use as setas do teclado.</p>
+      <h2 id="photo-editor-title">Enquadramento e privacidade</h2>
+      <p class="subtitle">Ajuste a foto e proteja detalhes antes de salvar.</p>
     </div>
 
     <button
@@ -26,13 +26,16 @@
       <canvas
         #editorCanvas
         class="editor-canvas"
+        [class.is-pan-tool]="activeTool === 'move'"
+        [class.is-draw-tool]="isPrivacyTool"
+        [class.is-place-tool]="isDecorationTool"
         tabindex="0"
         role="img"
-        aria-label="Prévia editável da foto. Arraste para reposicionar. Use as setas para ajustes finos e mais ou menos para alterar o zoom."
+        [attr.aria-label]="canvasAriaLabel"
         (pointerdown)="onPointerDown($event)"
         (pointermove)="onPointerMove($event)"
         (pointerup)="onPointerUp($event)"
-        (pointercancel)="onPointerUp($event)"
+        (pointercancel)="onPointerCancel($event)"
         (keydown)="onCanvasKeydown($event)"
       ></canvas>
 
@@ -44,7 +47,195 @@
       }
     </div>
 
-    <div class="editor-controls" aria-label="Ferramentas de edição">
+    <section class="editor-toolbox" aria-label="Ferramentas da foto">
+      <div class="editor-toolbox__bar" role="toolbar" aria-label="Ferramentas">
+        @for (tool of toolOptions; track tool.value) {
+          <button
+            type="button"
+            class="editor-tool-button"
+            [class.is-active]="activeTool === tool.value"
+            [attr.aria-pressed]="activeTool === tool.value"
+            [attr.aria-label]="tool.label"
+            (click)="selectTool(tool.value)"
+          >
+            {{ tool.shortLabel }}
+          </button>
+        }
+
+        <span class="editor-toolbox__separator" aria-hidden="true"></span>
+
+        <button
+          type="button"
+          class="editor-tool-button editor-tool-button--history"
+          (click)="undoOverlay()"
+          [disabled]="!canUndo"
+          aria-label="Desfazer última proteção ou elemento"
+          title="Desfazer"
+        >
+          ↶
+        </button>
+        <button
+          type="button"
+          class="editor-tool-button editor-tool-button--history"
+          (click)="redoOverlay()"
+          [disabled]="!canRedo"
+          aria-label="Refazer última proteção ou elemento"
+          title="Refazer"
+        >
+          ↷
+        </button>
+        <button
+          type="button"
+          class="editor-tool-button editor-tool-button--danger"
+          (click)="clearOverlays()"
+          [disabled]="!hasOverlays"
+        >
+          Limpar elementos
+        </button>
+      </div>
+
+      <p class="editor-tool-hint" aria-live="polite">{{ toolInstruction }}</p>
+
+      @if (isPrivacyTool) {
+        <div class="editor-tool-panel editor-tool-panel--privacy">
+          <label class="editor-tool-field editor-tool-field--range">
+            <span>Intensidade</span>
+            <input
+              type="range"
+              min="0.8"
+              max="8"
+              step="0.2"
+              [ngModel]="privacyStrength"
+              (ngModelChange)="updatePrivacyStrength($event)"
+              [attr.aria-valuetext]="privacyStrength.toFixed(1) + ' por cento'"
+            />
+            <output>{{ privacyStrength.toFixed(1) }}%</output>
+          </label>
+          <p class="editor-tool-note">
+            A área será incorporada ao arquivo final e não poderá ser revelada pelo app.
+          </p>
+        </div>
+      }
+
+      @if (activeTool === 'emoji') {
+        <div class="editor-tool-panel editor-tool-panel--decoration">
+          <div class="editor-emoji-palette" role="group" aria-label="Escolher emoji">
+            @for (emoji of emojiOptions; track emoji) {
+              <button
+                type="button"
+                [class.is-active]="selectedEmoji === emoji"
+                [attr.aria-pressed]="selectedEmoji === emoji"
+                (click)="selectEmoji(emoji)"
+              >
+                {{ emoji }}
+              </button>
+            }
+          </div>
+
+          <label class="editor-tool-field editor-tool-field--range">
+            <span>Tamanho</span>
+            <input
+              type="range"
+              min="3.5"
+              max="28"
+              step="0.5"
+              [ngModel]="decorationSize"
+              (ngModelChange)="updateDecorationSize($event)"
+            />
+            <output>{{ decorationSize.toFixed(1) }}%</output>
+          </label>
+
+          <button type="button" class="btn btn-ghost" (click)="addCurrentToolAtCenter()">
+            Inserir no centro
+          </button>
+        </div>
+      }
+
+      @if (activeTool === 'text') {
+        <div class="editor-tool-panel editor-tool-panel--decoration">
+          <label class="editor-tool-field editor-tool-field--text">
+            <span>Texto</span>
+            <input
+              type="text"
+              maxlength="40"
+              autocomplete="off"
+              [ngModel]="captionText"
+              (ngModelChange)="captionText = $event"
+              placeholder="Digite uma legenda curta"
+            />
+          </label>
+
+          <label class="editor-tool-field">
+            <span>Estilo</span>
+            <select
+              [ngModel]="captionStyle"
+              (ngModelChange)="setCaptionStyle($event)"
+            >
+              <option value="classic">Clássico</option>
+              <option value="badge">Tarja</option>
+              <option value="neon">Neon</option>
+            </select>
+          </label>
+
+          <label class="editor-tool-field editor-tool-field--range">
+            <span>Tamanho</span>
+            <input
+              type="range"
+              min="3.5"
+              max="28"
+              step="0.5"
+              [ngModel]="decorationSize"
+              (ngModelChange)="updateDecorationSize($event)"
+            />
+            <output>{{ decorationSize.toFixed(1) }}%</output>
+          </label>
+
+          <button
+            type="button"
+            class="btn btn-ghost"
+            (click)="addCurrentToolAtCenter()"
+            [disabled]="!captionText.trim()"
+          >
+            Inserir no centro
+          </button>
+        </div>
+      }
+
+      @if (activeTool === 'datetime') {
+        <div class="editor-tool-panel editor-tool-panel--decoration">
+          <label class="editor-tool-field">
+            <span>Estilo</span>
+            <select
+              [ngModel]="captionStyle"
+              (ngModelChange)="setCaptionStyle($event)"
+            >
+              <option value="classic">Clássico</option>
+              <option value="badge">Tarja</option>
+              <option value="neon">Neon</option>
+            </select>
+          </label>
+
+          <label class="editor-tool-field editor-tool-field--range">
+            <span>Tamanho</span>
+            <input
+              type="range"
+              min="3.5"
+              max="28"
+              step="0.5"
+              [ngModel]="decorationSize"
+              (ngModelChange)="updateDecorationSize($event)"
+            />
+            <output>{{ decorationSize.toFixed(1) }}%</output>
+          </label>
+
+          <button type="button" class="btn btn-ghost" (click)="addCurrentToolAtCenter()">
+            Inserir agora
+          </button>
+        </div>
+      }
+    </section>
+
+    <div class="editor-controls" aria-label="Ferramentas de enquadramento">
       <fieldset class="editor-control-group editor-control-group--ratio">
         <legend>Formato</legend>
 
@@ -127,7 +318,7 @@
         (click)="resetEditor()"
         [disabled]="(isLoading$ | async) || (isSaving$ | async)"
       >
-        Restaurar
+        Restaurar tudo
       </button>
 
       <div class="editor-footer__actions">
