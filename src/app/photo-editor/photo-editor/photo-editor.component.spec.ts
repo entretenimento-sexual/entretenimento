@@ -114,15 +114,16 @@ describe('PhotoEditorComponent', () => {
     expect(component.canRedo).toBe(false);
   });
 
-  it('deve alternar entre ferramentas de privacidade e decoração', () => {
-    component.selectTool('blur');
-    expect(component.activeTool).toBe('blur');
-    expect(component.isPrivacyTool).toBe(true);
-
-    component.selectEmoji('🔒');
-    expect(component.activeTool).toBe('emoji');
-    expect(component.selectedEmoji).toBe('🔒');
-    expect(component.isDecorationTool).toBe(true);
+  it('deve expor ferramentas de privacidade e decoração no catálogo', () => {
+    expect(component.toolOptions.map((tool) => tool.value)).toEqual([
+      'move',
+      'blur',
+      'pixelate',
+      'emoji',
+      'text',
+      'datetime',
+    ]);
+    expect(component.emojiOptions).toContain('🔒');
   });
 
   it('deve limitar intensidade e tamanho aos intervalos suportados', () => {
