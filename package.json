@@ -40,7 +40,7 @@
     "test:rules:rooms": "npm run rules:build && npm run rules:check && firebase emulators:exec --config firebase.rules-test.json --only firestore --project demo-entretenimento-rules \"vitest run --config vitest.rules.config.ts --reporter=verbose\"",
     "seed:hot-places:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-regional-hot-places.mjs",
     "seed:venues:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-venues.mjs",
-    "seed:room-access:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-room-access.mjs",
+    "seed:room-access:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-room-access.mjs",
     "seed:intents:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-user-intent-statuses.mjs",
     "seed:notification-preferences:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-notification-preferences.mjs",
     "deploy:rules": "npm run rules:build && npm run rules:check && firebase deploy --only firestore:rules",
