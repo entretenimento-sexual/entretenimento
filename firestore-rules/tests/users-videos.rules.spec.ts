@@ -4,11 +4,10 @@
 // -----------------------------------------------------------------------------
 //
 // Escopo validado nesta suíte:
-// - criação de metadados privados de vídeo pelo dono;
 // - leitura/listagem somente pelo dono;
 // - bloqueio para terceiros e usuário deslogado;
-// - proteção de id, ownerUid, MIME type e timestamps;
-// - update restrito a campos operacionais permitidos.
+// - criação, atualização e exclusão diretas negadas inclusive ao dono;
+// - metadados operacionais são autoridade exclusiva do backend.
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -51,7 +50,9 @@ function authenticatedDb(uid: string) {
   return testEnv.authenticatedContext(uid).firestore();
 }
 
-function validVideoPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function validVideoPayload(
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
   return {
     id: VIDEO_ID,
     ownerUid: OWNER_UID,
@@ -114,10 +115,10 @@ describe('Firestore Rules / users videos', () => {
     await testEnv.cleanup();
   });
 
-  it('permite ao dono criar metadados válidos de vídeo privado', async () => {
+  it('nega ao dono criar metadados de vídeo diretamente', async () => {
     const db = authenticatedDb(OWNER_UID);
 
-    await assertSucceeds(
+    await assertFails(
       setDoc(
         doc(db, 'users', OWNER_UID, 'videos', VIDEO_ID),
         validVideoPayload()
@@ -234,12 +235,12 @@ describe('Firestore Rules / users videos', () => {
     );
   });
 
-  it('permite ao dono atualizar apenas campos operacionais permitidos', async () => {
+  it('nega ao dono atualizar campos operacionais diretamente', async () => {
     await seedVideo();
 
     const db = authenticatedDb(OWNER_UID);
 
-    await assertSucceeds(
+    await assertFails(
       updateDoc(doc(db, 'users', OWNER_UID, 'videos', VIDEO_ID), {
         status: 'ready',
         durationMs: 13000,
