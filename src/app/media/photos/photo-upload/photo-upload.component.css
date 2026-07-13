@@ -6,29 +6,25 @@
 
 .upload-page {
   display: grid;
-  gap: clamp(12px, 1.8vw, 18px);
-  width: min(100%, var(--content-wide, 1360px));
+  gap: 14px;
+  width: min(100%, 1180px);
   margin-inline: auto;
-  padding: clamp(12px, 2vw, 22px);
+  padding: clamp(10px, 2vw, 20px);
   color: var(--text-color, #f5f7fb);
 }
 
 .upload-header,
-.upload-header.app-card,
 .upload-card,
-.upload-card.app-card,
-.upload-blocked,
-.upload-blocked.app-card {
+.upload-blocked {
   min-width: 0;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
   border-radius: 16px;
   background: var(--surface-color, #101923);
   color: var(--text-color, #f5f7fb);
   box-shadow: var(--box-shadow, 0 10px 24px rgb(0 0 0 / 14%));
 }
 
-.upload-header,
-.upload-header.app-card {
+.upload-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -36,66 +32,63 @@
   padding: 14px 16px;
 }
 
-.upload-header__copy {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  text-align: right;
-}
-
 .upload-header__back-link {
-  flex: 0 0 auto;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
-  font-weight: 850;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
+  font-weight: 820;
   text-decoration: none;
 }
 
 .upload-header__back-link:hover,
 .upload-header__back-link:focus-visible {
   color: var(--primary-color, #ff7070);
-  text-decoration: underline;
+}
+
+.upload-header__copy {
+  display: grid;
+  gap: 3px;
+  text-align: right;
 }
 
 .upload-header h1,
-.upload-done__copy h2 {
+.upload-header p,
+.upload-done h2,
+.upload-done p,
+.upload-blocked p {
   margin: 0;
-  color: var(--text-color, #f5f7fb);
-  line-height: 1.08;
-  letter-spacing: -0.02em;
 }
 
-.upload-header h1 {
-  font-size: clamp(1.25rem, 2vw, 1.65rem);
-  font-weight: 900;
+.upload-header h1,
+.upload-done h2 {
+  font-size: clamp(1.2rem, 1rem + 1vw, 1.65rem);
+  line-height: 1.1;
 }
 
 .upload-header p,
-.upload-done__copy p,
+.upload-done p,
 .upload-blocked p {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
-  font-size: 0.9rem;
-  line-height: 1.45;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
+  font-size: 0.88rem;
+  line-height: 1.4;
 }
 
-.upload-blocked,
-.upload-blocked.app-card {
+.upload-blocked {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);
   gap: 12px;
-  align-items: start;
   padding: 16px;
-  border-color: color-mix(in oklab, var(--danger-color, #ef4444) 36%, var(--surface-border, rgba(255, 255, 255, 0.12)));
-}
-
-.upload-blocked strong {
-  display: block;
-  margin-bottom: 3px;
+  border-color: color-mix(
+    in oklab,
+    var(--danger-color, #ef4444) 36%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
 }
 
 .upload-blocked__icon,
-.selected-file i,
-.privacy-callout i,
+.selected-file > i,
 .file-drop__icon,
 .upload-done__fallback {
   display: grid;
@@ -107,25 +100,28 @@
   width: 42px;
   height: 42px;
   background: color-mix(in oklab, var(--danger-color, #ef4444) 14%, transparent);
-  color: color-mix(in oklab, var(--danger-color, #ef4444) 72%, var(--text-color, #f5f7fb) 28%);
+  color: var(--danger-color, #ef4444);
 }
 
-.upload-card,
-.upload-card.app-card {
-  padding: clamp(12px, 1.8vw, 18px);
+.upload-blocked strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.upload-card {
+  padding: clamp(10px, 1.8vw, 16px);
 }
 
 .upload-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
-  gap: clamp(14px, 2vw, 22px);
-  align-items: stretch;
+  grid-template-columns: minmax(260px, 0.78fr) minmax(0, 1.22fr);
+  gap: clamp(12px, 2vw, 20px);
 }
 
 .upload-panel {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -133,27 +129,32 @@
   position: relative;
   display: grid;
   place-items: center;
-  gap: 8px;
-  min-height: 172px;
-  padding: 20px;
-  border: 1px dashed color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 90%, transparent);
-  border-radius: 16px;
-  background: color-mix(in oklab, var(--surface-color, #101923) 92%, var(--text-color, #f5f7fb) 6%);
+  gap: 7px;
+  min-height: 164px;
+  padding: 18px;
+  border: 1px dashed color-mix(
+    in oklab,
+    var(--surface-border, rgb(255 255 255 / 12%)) 90%,
+    transparent
+  );
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 94%,
+    var(--text-color, #f5f7fb) 4%
+  );
   text-align: center;
   cursor: pointer;
-  transition:
-    border-color 150ms ease,
-    background-color 150ms ease,
-    transform 150ms ease;
+  transition: border-color 150ms ease, background-color 150ms ease;
 }
 
 .file-drop:hover,
 .file-drop:focus-within {
-  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 48%, var(--surface-border, rgba(255, 255, 255, 0.12)));
-}
-
-.file-drop:hover {
-  transform: translateY(-1px);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 50%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
 }
 
 .native-file-input {
@@ -168,103 +169,99 @@
 }
 
 .file-drop__icon {
-  width: 52px;
-  height: 52px;
-  background: color-mix(in oklab, var(--primary-color, #ff7070) 16%, transparent);
-  color: color-mix(in oklab, var(--primary-color, #ff7070) 78%, var(--text-color, #f5f7fb) 22%);
-  font-size: 1.25rem;
+  width: 48px;
+  height: 48px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 15%, transparent);
+  color: var(--primary-color, #ff7070);
+  font-size: 1.2rem;
 }
 
 .file-drop__title {
-  color: var(--text-color, #f5f7fb);
   font-weight: 900;
 }
 
-.file-drop__hint {
+.file-drop__hint,
+.selected-file span,
+.upload-note,
+.upload-progress__label {
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
-  font-size: 0.88rem;
+  font-size: 0.86rem;
+  line-height: 1.4;
 }
 
-.selected-file,
-.privacy-callout {
+.selected-file {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr);
   gap: 10px;
-  align-items: start;
-  padding: 12px;
-  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 82%, transparent);
-  border-radius: 14px;
-  background: color-mix(in oklab, var(--surface-color, #101923) 92%, var(--text-color, #f5f7fb) 5%);
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 12px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 94%,
+    var(--text-color, #f5f7fb) 4%
+  );
 }
 
-.privacy-callout {
-  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 28%, var(--surface-border, rgba(255, 255, 255, 0.12)));
-}
-
-.selected-file i,
-.privacy-callout i {
+.selected-file > i {
   width: 36px;
   height: 36px;
-  background: color-mix(in oklab, var(--primary-color, #ff7070) 16%, transparent);
-  color: color-mix(in oklab, var(--primary-color, #ff7070) 78%, var(--text-color, #f5f7fb) 22%);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 13%, transparent);
+  color: var(--primary-color, #ff7070);
 }
 
 .selected-file strong,
-.selected-file span,
-.privacy-callout strong,
-.privacy-callout span {
+.selected-file span {
   display: block;
-  min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.selected-file span,
-.privacy-callout span {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
-  font-size: 0.9rem;
-  line-height: 1.4;
+.upload-note {
+  margin: 0;
+  padding-inline: 2px;
 }
 
 .upload-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .upload-actions .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
   min-height: 44px;
-  padding-inline: 16px;
-  font-weight: 850;
+  padding-inline: 15px;
+  font-weight: 820;
 }
 
 .upload-progress-wrap {
   display: grid;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
 }
 
 .upload-progress {
-  position: relative;
-  height: 12px;
+  height: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 65%, transparent);
+  background: color-mix(
+    in oklab,
+    var(--surface-border, rgb(255 255 255 / 12%)) 70%,
+    transparent
+  );
 }
 
 .upload-progress__bar {
   height: 100%;
-  width: 0%;
+  width: 0;
   border-radius: inherit;
   background: var(--primary-color, #ff7070);
   transition: width 180ms linear;
-}
-
-.upload-progress__label {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
-  font-size: 0.9rem;
 }
 
 .preview-panel {
@@ -273,11 +270,11 @@
 
 .preview-card,
 .preview-empty {
-  min-height: clamp(320px, 52vh, 520px);
+  min-height: clamp(300px, 52vh, 520px);
   overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 86%, transparent);
-  border-radius: 18px;
-  background: color-mix(in oklab, var(--surface-color, #101923) 84%, black 12%);
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 16px;
+  background: #080b10;
 }
 
 .preview-card {
@@ -296,45 +293,36 @@
 .preview-empty {
   display: grid;
   place-items: center;
-  padding: 24px;
+  align-content: center;
+  gap: 10px;
+  padding: 20px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 54%, transparent);
   text-align: center;
 }
 
 .preview-empty i {
-  display: block;
-  margin-bottom: 10px;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 48%, transparent);
-  font-size: 2rem;
-}
-
-.preview-empty strong,
-.preview-empty span {
-  display: block;
-}
-
-.preview-empty span {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
+  font-size: 1.8rem;
 }
 
 .upload-done {
   display: grid;
-  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
-  gap: clamp(16px, 2vw, 24px);
+  grid-template-columns: minmax(170px, 250px) minmax(0, 1fr);
+  gap: clamp(14px, 2vw, 22px);
   align-items: center;
 }
 
 .upload-done__visual {
   min-width: 0;
   overflow: hidden;
-  border-radius: 18px;
-  background: color-mix(in oklab, var(--surface-color, #101923) 84%, black 12%);
+  border-radius: 16px;
+  background: #080b10;
 }
 
 .upload-done__visual img,
 .upload-done__fallback {
   display: block;
   width: 100%;
-  min-height: 240px;
+  min-height: 220px;
 }
 
 .upload-done__visual img {
@@ -342,23 +330,24 @@
 }
 
 .upload-done__fallback {
-  display: grid;
-  place-items: center;
   color: var(--success-color, #36d399);
   font-size: 2rem;
 }
 
 .upload-done__copy {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
-.upload-done__copy h2 {
-  font-size: clamp(1.25rem, 2vw, 1.65rem);
+.upload-header__back-link:focus-visible,
+.file-drop:focus-within,
+.upload-actions .btn:focus-visible {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 860px) {
   .upload-grid,
   .upload-done {
     grid-template-columns: 1fr;
@@ -367,11 +356,10 @@
 
 @media (max-width: 640px) {
   .upload-page {
-    padding: 12px;
+    padding: 10px;
   }
 
-  .upload-header,
-  .upload-header.app-card {
+  .upload-header {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -382,37 +370,44 @@
 
   .upload-header,
   .upload-card,
-  .upload-blocked,
-  .upload-header.app-card,
-  .upload-card.app-card,
-  .upload-blocked.app-card {
+  .upload-blocked {
     border-radius: 14px;
     box-shadow: none;
   }
 
   .upload-actions {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 
   .upload-actions .btn {
     width: 100%;
   }
 
+  .upload-actions .btn-ghost {
+    grid-column: 1 / -1;
+  }
+
   .preview-card,
   .preview-empty {
-    min-height: 300px;
+    min-height: min(52vh, 440px);
+  }
+}
+
+@media (max-width: 390px) {
+  .upload-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-actions .btn-ghost {
+    grid-column: auto;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .file-drop,
   .upload-progress__bar {
-    transition: none !important;
-  }
-
-  .file-drop:hover {
-    transform: none;
+    transition: none;
   }
 }
 
@@ -421,9 +416,10 @@ html.high-contrast .upload-card,
 html.high-contrast .upload-blocked,
 html.high-contrast .file-drop,
 html.high-contrast .selected-file,
-html.high-contrast .privacy-callout,
 html.high-contrast .preview-card,
 html.high-contrast .preview-empty {
   border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
   box-shadow: none !important;
 }
