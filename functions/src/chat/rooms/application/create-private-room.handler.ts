@@ -1,52 +1,31 @@
-// functions\src\chat\rooms\application\create-private-room.handler.ts
+// functions/src/chat/rooms/application/create-private-room.handler.ts
 // -----------------------------------------------------------------------------
 // CREATE PRIVATE ROOM HANDLER
 // -----------------------------------------------------------------------------
-//
-// Responsabilidade:
-// - criar sala privada somente por backend confiável;
-// - validar autenticação, e-mail, perfil, lifecycle e entitlement;
-// - aplicar limite transacional de sala própria ativa;
-// - criar membership inicial do owner;
-// - aceitar intenção de local apenas para premium/vip;
-// - registrar auditoria interna.
-//
-// Segurança:
-// - o cliente envia nome, descrição e intenção opcional de local;
-// - createdBy, participants, visibility, status e demais campos de controle
-//   são definidos exclusivamente pelo backend;
-// - users/{uid}.role e isSubscriber NÃO autorizam esta ação;
-// - a autorização paga vem de entitlements/platform_subscription_{uid};
-// - intenção de local não aceita coordenada precisa nem UIDs de presença.
-//
-// Compatibilidade temporária:
-// - `participants: [uid]` permanece no documento principal porque o frontend
-//   atual ainda consulta salas com base nessa estrutura;
-// - também criamos members/{uid}, preparando a migração para membership
-//   como fonte futura de autorização.
-//
-// App Check:
-// - ainda não exigido nesta callable porque o cliente/emulator não foi
-//   configurado nesta etapa;
-// - deve ser ativado antes da publicação do recurso em produção.
+// Criação transacional de sala privada com entitlement e local moderado opcional.
+// O cliente nunca define snapshots canônicos do estabelecimento.
+
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { db, FieldValue } from '../../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
+import { db, FieldValue } from '../../../firebaseApp';
+import type {
+  EntitlementDoc,
+  PlatformRole,
+} from '../../../payments/domain/billing.model';
 import {
   assertMessagingAccountOperational,
 } from '../../shared/messaging-account.policy';
 import type {
   MessagingUserDoc,
 } from '../../shared/messaging.types';
-import type {
-  EntitlementDoc,
-  PlatformRole,
-} from '../../../payments/domain/billing.model';
 import {
   PRIVATE_ROOM_POLICY_VERSION,
   resolvePrivateRoomCreationCapabilities,
 } from '../domain/room-capability-policy';
+
+const ROOM_VENUE_INTENT_DURATION_MS = 12 * 60 * 60 * 1000;
+const MAX_SCHEDULE_AHEAD_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface CreatePrivateRoomRequest {
   roomName?: unknown;
@@ -54,17 +33,26 @@ interface CreatePrivateRoomRequest {
   placeIntent?: unknown;
 }
 
-interface RoomPlaceIntentPayload {
+interface RoomPlaceIntentRequest {
+  venueId: string;
   mode: 'now' | 'scheduled';
-  visibility: 'room_members' | 'regional_teaser';
+  startsAt: number;
+}
+
+interface RoomPlaceIntentPayload {
+  venueId: string;
+  mode: 'now' | 'scheduled';
+  visibility: 'room_members';
   region: {
     uf: string;
     city: string;
   };
   label: string;
+  venueKind: string | null;
+  addressHint: string | null;
   startsAt: number;
-  endsAt: number | null;
-  source: 'owner_declared';
+  endsAt: number;
+  source: 'venue_catalog';
 }
 
 interface CreatePrivateRoomResponse {
@@ -87,9 +75,26 @@ type PlatformEntitlementData = Partial<EntitlementDoc> & {
   endsAt?: unknown;
 };
 
+interface VenueDocument {
+  name?: unknown;
+  kind?: unknown;
+  addressHint?: unknown;
+  region?: {
+    uf?: unknown;
+    city?: unknown;
+  };
+  visibility?: unknown;
+  moderation?: {
+    state?: unknown;
+  };
+  chat?: {
+    enabled?: unknown;
+  };
+}
+
 function normalizeRoomName(value: unknown): string {
   return String(value ?? '')
-    // eslint-disable-next-line no-control-regex -- Sanitização intencional de entrada textual.
+    // eslint-disable-next-line no-control-regex -- Sanitização intencional.
     .replace(/[\u0000-\u001F\u007F]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -97,7 +102,7 @@ function normalizeRoomName(value: unknown): string {
 
 function normalizeDescription(value: unknown): string | null {
   const normalized = String(value ?? '')
-    // eslint-disable-next-line no-control-regex -- Sanitização intencional de entrada textual.
+    // eslint-disable-next-line no-control-regex -- Sanitização intencional.
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
     .trim();
 
@@ -106,10 +111,15 @@ function normalizeDescription(value: unknown): string | null {
 
 function normalizeText(value: unknown): string {
   return String(value ?? '')
-    // eslint-disable-next-line no-control-regex -- Sanitização intencional de entrada textual.
+    // eslint-disable-next-line no-control-regex -- Sanitização intencional.
     .replace(/[\u0000-\u001F\u007F]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeOptionalText(value: unknown, maxLength: number): string | null {
+  const normalized = normalizeText(value);
+  return normalized ? normalized.slice(0, maxLength) : null;
 }
 
 function isPlatformRole(value: unknown): value is PlatformRole {
@@ -174,81 +184,95 @@ function resolveActiveSubscriptionRole(
   return entitlement.grantedRole as PlatformRole;
 }
 
-function normalizePlaceIntent(
+function normalizePlaceIntentRequest(
   raw: unknown,
-  grantedRole: PlatformRole,
   now: number
-): RoomPlaceIntentPayload | null {
+): RoomPlaceIntentRequest | null {
   if (raw == null) {
     return null;
   }
 
-  if (grantedRole === 'basic') {
-    throw new HttpsError(
-      'permission-denied',
-      'Local da sala é exclusivo para plano premium ou superior.'
-    );
-  }
-
   if (typeof raw !== 'object') {
-    throw new HttpsError('invalid-argument', 'Local da sala inválido.');
+    throw new HttpsError('invalid-argument', 'Estabelecimento da sala inválido.');
   }
 
   const source = raw as {
+    venueId?: unknown;
     mode?: unknown;
-    visibility?: unknown;
-    region?: unknown;
-    label?: unknown;
     startsAt?: unknown;
-    endsAt?: unknown;
   };
-
+  const venueId = normalizeText(source.venueId);
   const mode = source.mode === 'scheduled' ? 'scheduled' : 'now';
-  const visibility =
-    source.visibility === 'regional_teaser' ? 'regional_teaser' : 'room_members';
-  const region = source.region as { uf?: unknown; city?: unknown } | null;
-  const uf = normalizeText(region?.uf).toUpperCase();
-  const city = normalizeText(region?.city).toLowerCase();
-  const label = normalizeText(source.label);
   const startsAt =
     mode === 'now'
       ? now
       : typeof source.startsAt === 'number' && Number.isFinite(source.startsAt)
         ? Math.trunc(source.startsAt)
         : 0;
-  const endsAt =
-    typeof source.endsAt === 'number' && Number.isFinite(source.endsAt)
-      ? Math.trunc(source.endsAt)
-      : null;
 
-  if (!/^[A-Z]{2}$/.test(uf)) {
-    throw new HttpsError('invalid-argument', 'UF do local da sala inválida.');
+  if (!/^[A-Za-z0-9_-]{3,120}$/.test(venueId)) {
+    throw new HttpsError('invalid-argument', 'Estabelecimento da sala inválido.');
   }
 
-  if (city.length < 1 || city.length > 80) {
-    throw new HttpsError('invalid-argument', 'Cidade do local da sala inválida.');
+  if (
+    mode === 'scheduled' &&
+    (startsAt < now - 5 * 60 * 1000 || startsAt > now + MAX_SCHEDULE_AHEAD_MS)
+  ) {
+    throw new HttpsError('invalid-argument', 'Horário da sala inválido.');
   }
 
-  if (label.length < 3 || label.length > 80) {
-    throw new HttpsError('invalid-argument', 'Local da sala deve ter entre 3 e 80 caracteres.');
+  return { venueId, mode, startsAt };
+}
+
+function resolveVenuePlaceIntent(
+  venueId: string,
+  venue: VenueDocument | undefined,
+  request: RoomPlaceIntentRequest
+): RoomPlaceIntentPayload {
+  if (!venue) {
+    throw new HttpsError('not-found', 'Estabelecimento não encontrado.');
   }
 
-  if (mode === 'scheduled' && startsAt < now - 1000 * 60 * 5) {
-    throw new HttpsError('invalid-argument', 'Horário do local da sala inválido.');
+  if (
+    venue.moderation?.state !== 'active' ||
+    (venue.visibility !== 'public' && venue.visibility !== 'members_only') ||
+    venue.chat?.enabled !== true
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Estabelecimento indisponível para salas.'
+    );
   }
 
-  if (endsAt !== null && endsAt <= startsAt) {
-    throw new HttpsError('invalid-argument', 'Término do local da sala inválido.');
+  const label = normalizeText(venue.name);
+  const uf = normalizeText(venue.region?.uf).toUpperCase();
+  const city = normalizeText(venue.region?.city).toLowerCase();
+
+  if (label.length < 2 || label.length > 80) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Estabelecimento sem nome válido.'
+    );
+  }
+
+  if (!/^[A-Z]{2}$/.test(uf) || city.length < 1 || city.length > 80) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Estabelecimento sem região válida.'
+    );
   }
 
   return {
-    mode,
-    visibility,
+    venueId,
+    mode: request.mode,
+    visibility: 'room_members',
     region: { uf, city },
     label,
-    startsAt,
-    endsAt,
-    source: 'owner_declared',
+    venueKind: normalizeOptionalText(venue.kind, 40),
+    addressHint: normalizeOptionalText(venue.addressHint, 160),
+    startsAt: request.startsAt,
+    endsAt: request.startsAt + ROOM_VENUE_INTENT_DURATION_MS,
+    source: 'venue_catalog',
   };
 }
 
@@ -270,21 +294,17 @@ export const createPrivateRoom = onCall<CreatePrivateRoomRequest>(
 
     const input = assertValidInput(request.data);
     const now = Date.now();
+    const requestedPlaceIntent = normalizePlaceIntentRequest(
+      input.placeIntentRaw,
+      now
+    );
     let createdPlaceIntent: RoomPlaceIntentPayload | null = null;
 
     const userRef = db.collection('users').doc(uid);
     const entitlementRef = db
       .collection('entitlements')
       .doc(`platform_subscription_${uid}`);
-
-    /**
-     * Slot determinístico:
-     * - evita duas salas próprias ativas para o mesmo usuário;
-     * - impede corrida de duas requisições simultâneas;
-     * - será liberado futuramente por uma callable de encerramento de sala.
-     */
     const ownerSlotRef = db.collection('room_owner_slots').doc(uid);
-
     const roomRef = db.collection('rooms').doc();
     const memberRef = roomRef.collection('members').doc(uid);
     const auditRef = db.collection('room_audit').doc();
@@ -307,13 +327,11 @@ export const createPrivateRoom = onCall<CreatePrivateRoomRequest>(
       const entitlement = entitlementSnapshot.data() as
         | PlatformEntitlementData
         | undefined;
-
       const grantedRole = resolveActiveSubscriptionRole(
         entitlement,
         uid,
         now
       );
-
       const capabilities =
         resolvePrivateRoomCreationCapabilities(grantedRole);
 
@@ -324,11 +342,25 @@ export const createPrivateRoom = onCall<CreatePrivateRoomRequest>(
         );
       }
 
-      createdPlaceIntent = normalizePlaceIntent(
-        input.placeIntentRaw,
-        grantedRole,
-        now
-      );
+      if (requestedPlaceIntent && !capabilities.canUseVenueIntent) {
+        throw new HttpsError(
+          'permission-denied',
+          'Estabelecimento da sala é exclusivo para plano premium ou superior.'
+        );
+      }
+
+      if (requestedPlaceIntent) {
+        const venueRef = db
+          .collection('venues')
+          .doc(requestedPlaceIntent.venueId);
+        const venueSnapshot = await tx.get(venueRef);
+
+        createdPlaceIntent = resolveVenuePlaceIntent(
+          venueSnapshot.id,
+          venueSnapshot.data() as VenueDocument | undefined,
+          requestedPlaceIntent
+        );
+      }
 
       const activeSlot = ownerSlotSnapshot.data() as
         | { active?: boolean; roomId?: string | null }
@@ -341,18 +373,10 @@ export const createPrivateRoom = onCall<CreatePrivateRoomRequest>(
         );
       }
 
-      /**
-       * Compatibilidade com salas criadas antes da introdução do slot.
-       *
-       * Como o produto atual permite apenas uma sala própria, qualquer sala
-       * legada encontrada impede a criação de outra até a migração/encerramento
-       * seguro desse registro.
-       */
       const legacyOwnedRoomsQuery = db
         .collection('rooms')
         .where('createdBy', '==', uid)
         .limit(capabilities.maxOwnedActiveRooms);
-
       const legacyOwnedRoomsSnapshot = await tx.get(legacyOwnedRoomsQuery);
 
       if (!legacyOwnedRoomsSnapshot.empty) {
@@ -365,16 +389,10 @@ export const createPrivateRoom = onCall<CreatePrivateRoomRequest>(
       tx.set(roomRef, {
         roomName: input.roomName,
         description: input.description,
-
         createdBy: uid,
 
-        /**
-         * Campo legado temporariamente mantido para compatibilidade com
-         * leituras existentes no frontend.
-         * Não deverá permanecer como autoridade definitiva de membership.
-         */
+        // Compatibilidade temporária com as consultas atuais do frontend.
         participants: [uid],
-
         memberCount: 1,
         membershipMode: 'invite_only',
 
@@ -386,17 +404,16 @@ export const createPrivateRoom = onCall<CreatePrivateRoomRequest>(
 
         ...(createdPlaceIntent
           ? {
-            placeIntent: {
-              ...createdPlaceIntent,
-              createdAt: FieldValue.serverTimestamp(),
-              updatedAt: FieldValue.serverTimestamp(),
-            },
-          }
+              placeIntent: {
+                ...createdPlaceIntent,
+                createdAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+            }
           : {}),
 
         policyVersion: PRIVATE_ROOM_POLICY_VERSION,
         entitlementRoleAtCreation: grantedRole,
-
         creationTime: FieldValue.serverTimestamp(),
         lastActivity: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
@@ -427,6 +444,7 @@ export const createPrivateRoom = onCall<CreatePrivateRoomRequest>(
         roomId: roomRef.id,
         entitlementRole: grantedRole,
         hasPlaceIntent: createdPlaceIntent !== null,
+        placeIntentVenueId: createdPlaceIntent?.venueId ?? null,
         placeIntentRegion: createdPlaceIntent?.region ?? null,
         policyVersion: PRIVATE_ROOM_POLICY_VERSION,
         createdAt: FieldValue.serverTimestamp(),
