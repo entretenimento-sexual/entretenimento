@@ -110,6 +110,11 @@ export async function submitGoogleVideoTranscoderJob(
       inputUri: inputUri(job.sourceStoragePath),
       outputUri: outputUri(job.outputPrefix),
       templateId: TRANSCODER_TEMPLATE_ID,
+      ttlAfterCompletionDays: 7,
+      labels: {
+        source: 'entretenimento',
+        media: 'profile-video',
+      },
     },
     {
       headers: {
@@ -217,6 +222,20 @@ export function normalizeGoogleTranscoderError(
   };
 }
 
+function resolveSnapshotErrorCode(
+  error: GoogleTranscoderErrorStatus | null | undefined
+): string | null {
+  if (error?.status) {
+    return String(error.status).slice(0, 120);
+  }
+
+  if (error?.code !== undefined) {
+    return String(error.code).slice(0, 120);
+  }
+
+  return null;
+}
+
 function normalizeSnapshot(
   response: GoogleTranscoderJobResponse
 ): GoogleTranscoderJobSnapshot {
@@ -231,11 +250,7 @@ function normalizeSnapshot(
     state: String(response.state ?? 'PROCESSING_STATE_UNSPECIFIED')
       .trim()
       .toUpperCase(),
-    errorCode: response.error?.status
-      ? String(response.error.status).slice(0, 120)
-      : response.error?.code !== undefined
-        ? String(response.error.code).slice(0, 120)
-        : null,
+    errorCode: resolveSnapshotErrorCode(response.error),
     errorMessage: response.error?.message
       ? String(response.error.message).slice(0, 500)
       : null,
