@@ -1,18 +1,17 @@
 @echo off
+chcp 65001 >nul
 setlocal EnableExtensions
 
 rem -----------------------------------------------------------------------------
 rem start-auth-dev-session-win.cmd
 rem -----------------------------------------------------------------------------
-rem Abre uma sessão local de desenvolvimento Auth no Windows:
-rem - verifica se as portas necessárias estão livres, evitando reutilizar processos antigos;
-rem - limpa o cache de build do Angular antes de iniciar a nova sessão;
-rem - Terminal 1: Firebase Emulators com Java 21 + Node 22 quando disponíveis;
-rem - aguarda Auth, Firestore e Emulator UI ficarem realmente disponíveis;
-rem - Terminal 2: Angular em dev-emu, fixado em IPv4 127.0.0.1:4200;
-rem - aguarda a porta 4200 antes de abrir o navegador.
+rem Abre uma sessao local de desenvolvimento Auth no Windows:
+rem - verifica se as portas necessarias estao livres;
+rem - limpa o cache de build do Angular;
+rem - inicia Firebase Emulators e Angular em janelas separadas;
+rem - aguarda os servicos antes de abrir o navegador.
 rem
-rem Não exige administrador e não encerra processos automaticamente.
+rem Nao exige administrador e nao encerra processos automaticamente.
 rem -----------------------------------------------------------------------------
 
 set "SCRIPT_DIR=%~dp0"
@@ -21,10 +20,10 @@ for %%I in ("%SCRIPT_DIR%..\..") do set "PROJECT_ROOT=%%~fI"
 cd /d "%PROJECT_ROOT%"
 
 echo [dev:auth] Projeto: %CD%
-echo [dev:auth] Verificando se não há sessão antiga nas portas locais...
+echo [dev:auth] Verificando se nao existe sessao antiga nas portas locais...
 node "%PROJECT_ROOT%\scripts\dev\wait-for-ports.mjs" --ports=4000,4200,4400,4500,5001,8080,9099,9199 --state=free --timeout=1500 --label=portas-locais
 if errorlevel 1 (
-  echo [dev:auth] ERRO: existe uma sessão local antiga ou outro processo usando as portas necessárias.
+  echo [dev:auth] ERRO: existe uma sessao local antiga ou outro processo usando as portas necessarias.
   echo [dev:auth] Feche as janelas antigas de Angular/Firebase e execute novamente.
   echo [dev:auth] Para encerrar manualmente: npx kill-port 4000 4200 4400 4500 5001 8080 9099 9199
   exit /b 1
