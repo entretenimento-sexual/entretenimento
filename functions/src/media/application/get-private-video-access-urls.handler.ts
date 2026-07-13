@@ -43,9 +43,11 @@ const SIGNED_URL_TTL_MS = 10 * 60 * 1000;
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
 
-  return /^[A-Za-z0-9_-]{1,128}$/.test(normalized)
-    ? normalized
-    : '';
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(normalized)) {
+    return '';
+  }
+
+  return normalized;
 }
 
 function buildStorageEmulatorUrl(storagePath: string): string {
@@ -111,11 +113,14 @@ async function resolveAccessItem(
       videoId,
       video.playbackPath
     );
-  const playbackPath =
+  let playbackPath = rawPath;
+
+  if (
     String(video.status ?? '').trim().toLowerCase() === 'ready' &&
     processedPath
-      ? processedPath
-      : rawPath;
+  ) {
+    playbackPath = processedPath;
+  }
 
   if (!playbackPath) {
     return null;
