@@ -1,0 +1,147 @@
+<section class="video-moderation" aria-labelledby="video-moderation-title">
+  <header class="video-moderation__header">
+    <div>
+      <p class="video-moderation__eyebrow">Moderação de mídia</p>
+      <h2 id="video-moderation-title">Vídeos aguardando análise</h2>
+      <p>
+        A aprovação libera somente a cópia publicada. A rejeição preserva o
+        original privado do usuário e remove os ativos públicos.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      class="app-action app-action--ghost"
+      (click)="retry()"
+    >
+      <i class="fas fa-rotate" aria-hidden="true"></i>
+      Atualizar fila
+    </button>
+  </header>
+
+  @if (state$ | async; as state) {
+    @if (state.status === 'loading') {
+      <div class="video-moderation__status" role="status" aria-live="polite">
+        <span class="video-moderation__spinner" aria-hidden="true"></span>
+        <div>
+          <strong>Carregando vídeos pendentes...</strong>
+          <span>Os acessos temporários estão sendo preparados com segurança.</span>
+        </div>
+      </div>
+    } @else if (state.status === 'error') {
+      <div class="video-moderation__status video-moderation__status--error" role="alert">
+        <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+        <div>
+          <strong>Não foi possível carregar a fila.</strong>
+          <span>Verifique a sessão administrativa e tente novamente.</span>
+        </div>
+        <button type="button" class="app-action app-action--ghost" (click)="retry()">
+          Tentar novamente
+        </button>
+      </div>
+    } @else if (state.status === 'empty') {
+      <div class="video-moderation__status" role="status">
+        <i class="fas fa-circle-check" aria-hidden="true"></i>
+        <div>
+          <strong>Nenhum vídeo aguardando revisão.</strong>
+          <span>A fila será atualizada automaticamente.</span>
+        </div>
+      </div>
+    } @else {
+      @if (state.skippedItems > 0) {
+        <p class="video-moderation__warning" role="status">
+          {{ state.skippedItems }} item(ns) inconsistente(s) foram ignorados e
+          permanecem registrados no log técnico.
+        </p>
+      }
+
+      <div class="video-moderation__grid" aria-label="Fila de vídeos pendentes">
+        @for (item of state.items; track trackByVideo($index, item)) {
+          <article
+            class="video-moderation__card"
+            [attr.aria-busy]="isBusy(item) ? 'true' : 'false'"
+          >
+            <div class="video-moderation__media">
+              <video
+                [src]="item.url"
+                [poster]="item.posterUrl || null"
+                [attr.aria-label]="'Prévia administrativa de ' + item.title"
+                preload="metadata"
+                controls
+                controlsList="nodownload"
+                playsinline
+                disablePictureInPicture
+              ></video>
+            </div>
+
+            <div class="video-moderation__body">
+              <div class="video-moderation__title-row">
+                <div>
+                  <strong>{{ item.title }}</strong>
+                  <span>Perfil {{ item.ownerUid }}</span>
+                </div>
+                <span class="video-moderation__chip">Em análise</span>
+              </div>
+
+              <div class="video-moderation__meta" aria-label="Metadados do vídeo">
+                <span>{{ item.mimeType }}</span>
+                <span>{{ formatFileSize(item.sizeBytes) }}</span>
+                <span>{{ formatDuration(item.durationMs) }}</span>
+                @if (publishedDate(item.publishedAt); as date) {
+                  <span>{{ date | date:'dd/MM/yyyy HH:mm' }}</span>
+                }
+              </div>
+
+              <a
+                class="video-moderation__profile-link"
+                [routerLink]="['/outro-perfil', item.ownerUid]"
+              >
+                <i class="fas fa-user" aria-hidden="true"></i>
+                Abrir perfil relacionado
+              </a>
+
+              <label
+                class="video-moderation__reason"
+                [attr.for]="'video-moderation-reason-' + item.videoId"
+              >
+                <span>Nota da revisão</span>
+                <textarea
+                  [id]="'video-moderation-reason-' + item.videoId"
+                  rows="3"
+                  maxlength="900"
+                  [ngModel]="reason(item)"
+                  (ngModelChange)="setReason(item, $event)"
+                  [disabled]="isBusy(item)"
+                  placeholder="Obrigatória para rejeição; opcional para aprovação."
+                ></textarea>
+                <small>{{ reason(item).length }}/900</small>
+              </label>
+
+              <div class="video-moderation__actions">
+                <button
+                  type="button"
+                  class="app-action app-action--primary"
+                  (click)="approve(item)"
+                  [disabled]="isBusy(item)"
+                >
+                  <i class="fas fa-check" aria-hidden="true"></i>
+                  {{ isBusy(item) ? 'Processando...' : 'Aprovar vídeo' }}
+                </button>
+
+                <button
+                  type="button"
+                  class="app-action app-action--danger"
+                  (click)="reject(item)"
+                  [disabled]="isBusy(item)"
+                >
+                  <i class="fas fa-ban" aria-hidden="true"></i>
+                  {{ isBusy(item) ? 'Processando...' : 'Rejeitar vídeo' }}
+                </button>
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  }
+</section>
