@@ -3,6 +3,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
+import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
   normalizeOwnedPublishedVideoPath,
   normalizeOwnedPublishedVideoPosterPath,
@@ -53,40 +54,6 @@ function cleanId(value: unknown): string {
 
 function buildRequestKey(ownerUid: string, videoId: string): string {
   return `${ownerUid}:${videoId}`;
-}
-
-function buildStorageEmulatorUrl(storagePath: string): string {
-  const configuredHost = String(
-    process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? '127.0.0.1:9199'
-  ).trim();
-  const baseUrl = /^https?:\/\//i.test(configuredHost)
-    ? configuredHost
-    : `http://${configuredHost}`;
-  const bucketName = storage.bucket().name;
-  const encodedBucket = encodeURIComponent(bucketName);
-  const encodedPath = encodeURIComponent(storagePath);
-
-  return `${baseUrl}/v0/b/${encodedBucket}/o/${encodedPath}?alt=media`;
-}
-
-async function createTemporaryReadUrl(
-  storagePath: string,
-  expiresAt: number
-): Promise<string> {
-  if (process.env.FUNCTIONS_EMULATOR === 'true') {
-    return buildStorageEmulatorUrl(storagePath);
-  }
-
-  const [signedUrl] = await storage
-    .bucket()
-    .file(storagePath)
-    .getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: expiresAt,
-    });
-
-  return signedUrl;
 }
 
 async function resolveAccessItem(
@@ -149,14 +116,17 @@ async function resolveAccessItem(
     const [posterExists] = await posterFile.exists();
 
     if (posterExists) {
-      posterUrl = await createTemporaryReadUrl(posterStoragePath, expiresAt);
+      posterUrl = await createTemporaryStorageReadUrl(
+        posterStoragePath,
+        expiresAt
+      );
     }
   }
 
   return {
     ownerUid,
     videoId,
-    url: await createTemporaryReadUrl(videoStoragePath, expiresAt),
+    url: await createTemporaryStorageReadUrl(videoStoragePath, expiresAt),
     posterUrl,
     expiresAt,
   };
