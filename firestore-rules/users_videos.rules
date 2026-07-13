@@ -1,168 +1,20 @@
 // ===============================================================
 // USERS / videos
 // - Biblioteca privada de vídeos do usuário
-// - Somente o dono lê e cria metadados privados validados
-// - Exclusão fica no backend para não deixar publicação órfã
-// - Sem publicação pública direta
+// - Somente o dono pode ler a própria biblioteca
+// - Criação, processamento, publicação e exclusão ficam no backend
 // - Sem enumeração por terceiros
-// - Publicação usa projeção e ativo físico separados pelo backend
+// - Paths privados nunca são projetados diretamente para visitantes
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // firestore-rules/users_videos.rules
 // ===============================================================
 match /users/{userId}/videos/{videoId} {
-
-  function allowedKeys() {
-    return request.resource.data.keys().hasOnly([
-      "id",
-      "ownerUid",
-      "url",
-      "path",
-      "fileName",
-      "mimeType",
-      "sizeBytes",
-      "durationMs",
-      "thumbnailUrl",
-      "thumbnailPath",
-      "status",
-      "createdAt",
-      "updatedAt"
-    ]);
-  }
-
-  function requiredKeys() {
-    return request.resource.data.keys().hasAll([
-      "id",
-      "ownerUid",
-      "url",
-      "path",
-      "fileName",
-      "mimeType",
-      "sizeBytes",
-      "status",
-      "createdAt"
-    ]);
-  }
-
-  function validText(field, maxSize) {
-    return request.resource.data[field] is string
-      && request.resource.data[field].size() > 0
-      && request.resource.data[field].size() <= maxSize;
-  }
-
-  function validTextOrNull(field, maxSize) {
-    return !hasReqField(field)
-      || request.resource.data[field] == null
-      || (
-        request.resource.data[field] is string
-        && request.resource.data[field].size() <= maxSize
-      );
-  }
-
-  function validNumberOrNull(field) {
-    return !hasReqField(field)
-      || request.resource.data[field] == null
-      || (
-        request.resource.data[field] is number
-        && request.resource.data[field] >= 0
-      );
-  }
-
-  function validStatus() {
-    return request.resource.data.status in [
-      "uploaded",
-      "processing",
-      "ready",
-      "failed"
-    ];
-  }
-
-  function validMimeType() {
-    return request.resource.data.mimeType in [
-      "video/mp4",
-      "video/webm",
-      "video/quicktime"
-    ];
-  }
-
-  function validPlaybackReadyStatus() {
-    return request.resource.data.status != "ready"
-      || request.resource.data.mimeType in ["video/mp4", "video/webm"];
-  }
-
-  function validOwnedVideoPath() {
-    return request.resource.data.path.matches(
-      "^users/" + userId + "/uploads/videos/[^/]+$"
-    );
-  }
-
-  function validOwnedPosterPath() {
-    return !hasReqField("thumbnailPath")
-      || request.resource.data.thumbnailPath == null
-      || (
-        request.resource.data.thumbnailPath is string
-        && request.resource.data.thumbnailPath.matches(
-          "^users/" + userId
-            + "/uploads/video-posters/" + videoId + "/[^/]+$"
-        )
-      );
-  }
-
-  function validBasePayload() {
-    return allowedKeys()
-      && requiredKeys()
-      && request.resource.data.id == videoId
-      && request.resource.data.ownerUid == userId
-      && validText("url", 2048)
-      && validText("path", 1024)
-      && validOwnedVideoPath()
-      && validText("fileName", 240)
-      && validMimeType()
-      && request.resource.data.sizeBytes is number
-      && request.resource.data.sizeBytes > 0
-      && request.resource.data.sizeBytes <= 524288000
-      && validNumberOrNull("durationMs")
-      && validTextOrNull("thumbnailUrl", 2048)
-      && validOwnedPosterPath()
-      && validStatus()
-      && validPlaybackReadyStatus();
-  }
-
-  function validCreatePayload() {
-    return validBasePayload()
-      && request.resource.data.createdAt == request.time
-      && (
-        !hasReqField("updatedAt")
-        || request.resource.data.updatedAt == null
-        || request.resource.data.updatedAt == request.time
-      );
-  }
-
-  function validUpdatePayload() {
-    return validBasePayload()
-      && request.resource.data.id == resource.data.id
-      && request.resource.data.ownerUid == resource.data.ownerUid
-      && request.resource.data.path == resource.data.path
-      && request.resource.data.url == resource.data.url
-      && request.resource.data.createdAt == resource.data.createdAt
-      && request.resource.data.updatedAt == request.time
-      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        "status",
-        "durationMs",
-        "thumbnailUrl",
-        "thumbnailPath",
-        "updatedAt"
-      ]);
-  }
-
   allow get, list: if isSelf(userId);
+  allow create, update, delete: if false;
 
-  allow create: if isSelf(userId)
-    && validCreatePayload();
-
-  allow update: if isSelf(userId)
-    && validUpdatePayload();
-
-  allow delete: if false;
+  match /{allPaths=**} {
+    allow read, write: if false;
+  }
 }
 // ===============================================================
 //                         FIM DO USERS / VIDEOS
