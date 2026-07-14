@@ -27,7 +27,7 @@ function normalizeCount(value: unknown): number {
 function normalizeTotal(value: unknown): number | null {
   const total = Number(value);
 
-  return Number.isFinite(total) && total >= 0 ? total : null;
+  return Number.isFinite(total) && total >= 0 ? Math.round(total) : null;
 }
 
 function normalizeAverage(value: unknown): number {
@@ -61,7 +61,7 @@ export function buildNextVideoRatingAggregate(
   }
 
   const currentCount = normalizeCount(current.ratingsCount);
-  const fallbackTotal = roundAverage(
+  const fallbackTotal = Math.round(
     normalizeAverage(current.ratingAverage) * currentCount
   );
   const currentTotal = normalizeTotal(current.ratingTotal) ?? fallbackTotal;
