@@ -29,6 +29,7 @@ interface VideoPublicationDoc extends VideoPublicationSettingsInput {
   videoId?: string;
   isPublished?: boolean;
   moderationStatus?: string;
+  moderationReason?: string | null;
 }
 
 const AUTO_APPROVE_VIDEOS =
@@ -114,6 +115,9 @@ export const updateVideoPublicationSettings =
         const moderationStatus = isPublished && textChanged
           ? resolveModerationStatus()
           : currentModerationStatus;
+        const moderationReason = isPublished && textChanged
+          ? null
+          : currentPublication?.moderationReason ?? null;
         const now = Date.now();
 
         transaction.set(
@@ -124,29 +128,29 @@ export const updateVideoPublicationSettings =
             isPublished,
             moderationStatus: isPublished ? moderationStatus : 'PRIVATE',
             ...nextSettings,
-            moderationReason: isPublished && textChanged ? null :
-              currentPublication && 'moderationReason' in currentPublication
-                ? (currentPublication as { moderationReason?: unknown })
-                  .moderationReason ?? null
-                : null,
+            moderationReason,
             updatedAt: now,
           },
           { merge: true }
         );
 
         if (isPublished && publicVideoSnap.exists) {
+          const fallbackTitle = String(
+            privateVideo.fileName ?? 'Vídeo do perfil'
+          ).slice(0, 120);
+
           transaction.set(
             publicVideoRef,
             {
-              title: nextSettings.title ??
-                String(privateVideo.fileName ?? 'Vídeo do perfil').slice(0, 120),
+              title: nextSettings.title ?? fallbackTitle,
               description: nextSettings.description,
               reactionsEnabled: nextSettings.reactionsEnabled,
               commentsEnabled: nextSettings.commentsEnabled,
               ratingsEnabled: nextSettings.ratingsEnabled,
               moderationStatus,
-              moderationReason: textChanged ? null :
-                publicVideoSnap.get('moderationReason') ?? null,
+              moderationReason: textChanged
+                ? null
+                : publicVideoSnap.get('moderationReason') ?? null,
               updatedAt: now,
             },
             { merge: true }
