@@ -40,6 +40,10 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import { MediaVideoCommentsService } from 'src/app/core/services/media/media-video-comments.service';
 import {
+  MediaVideoRatingsService,
+  VideoRatingSummary,
+} from 'src/app/core/services/media/media-video-ratings.service';
+import {
   TVideoViewSource,
   VideoViewTrackingService,
 } from 'src/app/core/services/media/video-view-tracking.service';
@@ -83,6 +87,7 @@ export class PublicVideoViewerComponent {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly reactions = inject(MediaReactionsService);
   private readonly comments = inject(MediaVideoCommentsService);
+  private readonly ratings = inject(MediaVideoRatingsService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly recordedViewKeys = new Set<string>();
 
@@ -90,7 +95,9 @@ export class PublicVideoViewerComponent {
   private videoPlayer?: ElementRef<HTMLVideoElement>;
 
   index: number;
+  readonly ratingOptions = [1, 2, 3, 4, 5] as const;
   readonly commentsExpanded = signal(false);
+  readonly ratingsExpanded = signal(false);
   readonly commentControl = new FormControl('', {
     nonNullable: true,
     validators: [Validators.required, Validators.maxLength(500)],
@@ -107,6 +114,9 @@ export class PublicVideoViewerComponent {
 
   private readonly togglingLikeSubject = new BehaviorSubject(false);
   readonly togglingLike$ = this.togglingLikeSubject.asObservable();
+
+  private readonly submittingRatingSubject = new BehaviorSubject(false);
+  readonly submittingRating$ = this.submittingRatingSubject.asObservable();
 
   private readonly submittingCommentSubject = new BehaviorSubject(false);
   readonly submittingComment$ = this.submittingCommentSubject.asObservable();
@@ -162,6 +172,15 @@ export class PublicVideoViewerComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  readonly canRate$ = this.currentVideo$.pipe(
+    map((video) =>
+      video?.moderationStatus === 'APPROVED' &&
+      video.ratingsEnabled === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   readonly likesCount$ = this.currentVideoId$.pipe(
     switchMap((videoId) => videoId
       ? this.reactions.getVideoLikesCount$(this.data.ownerUid, videoId)
@@ -183,6 +202,30 @@ export class PublicVideoViewerComponent {
         )
       : of(false)),
     catchError(() => of(false)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly ratingSummary$ = this.currentVideoId$.pipe(
+    switchMap((videoId) => videoId
+      ? this.ratings.watchSummary$(this.data.ownerUid, videoId)
+      : of(this.emptyRatingSummary())),
+    catchError(() => of(this.emptyRatingSummary())),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly viewerRating$ = this.currentVideoId$.pipe(
+    switchMap((videoId) => videoId
+      ? this.viewerUid$.pipe(
+          switchMap((viewerUid) =>
+            this.ratings.watchViewerRating$(
+              this.data.ownerUid,
+              videoId,
+              viewerUid
+            )
+          )
+        )
+      : of(null)),
+    catchError(() => of(null)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -287,6 +330,16 @@ export class PublicVideoViewerComponent {
     this.commentsExpanded.update((value) => !value);
   }
 
+  toggleRatings(): void {
+    if (this.current?.ratingsEnabled !== true) {
+      this.errorNotification.showWarning(
+        'Avaliações desativadas neste vídeo.'
+      );
+      return;
+    }
+    this.ratingsExpanded.update((value) => !value);
+  }
+
   toggleLike(): void {
     const video = this.current;
 
@@ -322,6 +375,48 @@ export class PublicVideoViewerComponent {
           );
         }),
         finalize(() => this.togglingLikeSubject.next(false))
+      )
+      .subscribe();
+  }
+
+  rateVideo(rating: number): void {
+    const video = this.current;
+
+    if (!video?.id || this.submittingRatingSubject.value) {
+      return;
+    }
+
+    this.submittingRatingSubject.next(true);
+    combineLatest([this.viewerUid$, this.viewerIsOwner$, this.canRate$])
+      .pipe(
+        take(1),
+        switchMap(([viewerUid, viewerIsOwner, canRate]) => {
+          if (!viewerUid) {
+            this.errorNotification.showWarning(
+              'Entre na sua conta para avaliar.'
+            );
+            return EMPTY;
+          }
+          if (viewerIsOwner) {
+            this.errorNotification.showWarning(
+              'Você não pode avaliar o próprio vídeo.'
+            );
+            return EMPTY;
+          }
+          if (!canRate) {
+            this.errorNotification.showWarning(
+              'Avaliações indisponíveis neste vídeo.'
+            );
+            return EMPTY;
+          }
+          return this.ratings.rateVideo$(
+            this.data.ownerUid,
+            video.id,
+            viewerUid,
+            rating
+          );
+        }),
+        finalize(() => this.submittingRatingSubject.next(false))
       )
       .subscribe();
   }
@@ -467,6 +562,30 @@ export class PublicVideoViewerComponent {
     }).format(timestamp);
   }
 
+  ratingSummaryLabel(summary: VideoRatingSummary | null): string {
+    const count = summary?.ratingsCount ?? 0;
+
+    if (count <= 0) {
+      return 'Avaliar';
+    }
+
+    const average = this.formatRatingAverage(summary?.ratingAverage);
+    return `Avaliação · ${average} (${count})`;
+  }
+
+  private formatRatingAverage(value: number | null | undefined): string {
+    const average = Number(value ?? 0);
+
+    if (!Number.isFinite(average) || average <= 0) {
+      return '0';
+    }
+
+    return average.toLocaleString('pt-BR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 2,
+    });
+  }
+
   private moderateComment(
     comment: IVideoComment,
     action: 'HIDE' | 'DELETE'
@@ -508,6 +627,7 @@ export class PublicVideoViewerComponent {
     this.pauseCurrentVideo();
     this.index = nextIndex;
     this.commentsExpanded.set(false);
+    this.ratingsExpanded.set(false);
     this.commentControl.setValue('');
     this.cancelReply();
     this.syncCurrentVideoId();
@@ -573,6 +693,10 @@ export class PublicVideoViewerComponent {
 
   private cleanComment(value: string): string {
     return value.replace(/\s+/g, ' ').trim().slice(0, 500);
+  }
+
+  private emptyRatingSummary(): VideoRatingSummary {
+    return { ratingsCount: 0, ratingAverage: 0 };
   }
 
   private pauseCurrentVideo(): void {
