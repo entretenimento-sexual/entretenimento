@@ -1,42 +1,15 @@
-vi.mock('@angular/fire/firestore', () => ({
-  Firestore: class FirestoreMock {},
-  collection: vi.fn(() => ({ kind: 'collection' })),
-  collectionData: vi.fn(),
-  doc: vi.fn(() => ({ kind: 'doc' })),
-  docData: vi.fn(),
-  getDocs: vi.fn(),
-  limit: vi.fn((value: number) => ({ kind: 'limit', value })),
-  query: vi.fn(() => ({ kind: 'query' })),
-  where: vi.fn(() => ({ kind: 'where' })),
-}));
-
 import { TestBed } from '@angular/core/testing';
-import {
-  Firestore,
-  collection,
-  collectionData,
-  doc,
-  docData,
-  getDocs,
-  limit,
-  query,
-  where,
-} from '@angular/fire/firestore';
-import { firstValueFrom, from, of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 
-import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { RoomFirestoreGateway } from './room-firestore.gateway';
 import { RoomService } from './room.service';
 
-const firestoreMocks = {
-  collection: vi.mocked(collection) as any,
-  collectionData: vi.mocked(collectionData) as any,
-  doc: vi.mocked(doc) as any,
-  docData: vi.mocked(docData) as any,
-  getDocs: vi.mocked(getDocs) as any,
-  limit: vi.mocked(limit) as any,
-  query: vi.mocked(query) as any,
-  where: vi.mocked(where) as any,
+const roomGatewayMock = {
+  fetchOwnedRooms$: vi.fn(),
+  watchOwnedRooms$: vi.fn(),
+  watchMemberRooms$: vi.fn(),
+  watchRoom$: vi.fn(),
 };
 
 type RoomSpecItem = {
@@ -52,26 +25,10 @@ describe('RoomService', () => {
     TestBed.resetTestingModule();
     vi.clearAllMocks();
 
-    firestoreMocks.collection.mockReturnValue({ kind: 'collection' });
-    firestoreMocks.doc.mockReturnValue({ kind: 'doc' });
-    firestoreMocks.limit.mockImplementation((value: number) => ({
-      kind: 'limit',
-      value,
-    }));
-    firestoreMocks.query.mockReturnValue({ kind: 'query' });
-    firestoreMocks.where.mockReturnValue({ kind: 'where' });
-
     TestBed.configureTestingModule({
       providers: [
         RoomService,
-        { provide: Firestore, useValue: {} },
-        {
-          provide: FirestoreContextService,
-          useValue: {
-            deferPromise$: (task: () => Promise<unknown>) => from(task()),
-            deferObservable$: (task: () => unknown) => task(),
-          },
-        },
+        { provide: RoomFirestoreGateway, useValue: roomGatewayMock },
         {
           provide: GlobalErrorHandlerService,
           useValue: { handleError: vi.fn() },
@@ -87,20 +44,20 @@ describe('RoomService', () => {
   });
 
   it('countUserRooms retorna a contagem de salas ativas', async () => {
-    firestoreMocks.getDocs.mockResolvedValue({
-      docs: [
-        { data: () => ({ status: 'active' }) },
-        { data: () => ({ status: 'archived' }) },
-        { data: () => ({}) },
-      ],
-    });
+    roomGatewayMock.fetchOwnedRooms$.mockReturnValueOnce(
+      of([
+        { status: 'active' },
+        { status: 'archived' },
+        {},
+      ])
+    );
 
     await expect(service.countUserRooms('u1')).resolves.toBe(2);
-    expect(firestoreMocks.getDocs).toHaveBeenCalledOnce();
+    expect(roomGatewayMock.fetchOwnedRooms$).toHaveBeenCalledWith('u1');
   });
 
   it('getUserRooms emite lista owner-only normalizada', async () => {
-    firestoreMocks.collectionData.mockReturnValueOnce(
+    roomGatewayMock.watchOwnedRooms$.mockReturnValueOnce(
       of([
         {
           id: 'r1',
@@ -121,6 +78,7 @@ describe('RoomService', () => {
       service.getUserRooms('u1')
     ) as RoomSpecItem[];
 
+    expect(roomGatewayMock.watchOwnedRooms$).toHaveBeenCalledWith('u1');
     expect(rooms).toHaveLength(2);
     expect(rooms[0].id).toBe('r1');
     expect(rooms[0].roomName).toBe('Sala 1');
@@ -128,7 +86,7 @@ describe('RoomService', () => {
   });
 
   it('getRooms emite lista por membership', async () => {
-    firestoreMocks.collectionData.mockReturnValueOnce(
+    roomGatewayMock.watchMemberRooms$.mockReturnValueOnce(
       of([
         {
           id: 'r10',
@@ -143,13 +101,14 @@ describe('RoomService', () => {
       service.getRooms('u1')
     ) as RoomSpecItem[];
 
+    expect(roomGatewayMock.watchMemberRooms$).toHaveBeenCalledWith('u1');
     expect(rooms).toHaveLength(1);
     expect(rooms[0].id).toBe('r10');
     expect(rooms[0].participants).toEqual(['u1', 'u9']);
   });
 
   it('getRoomById emite documento único', async () => {
-    firestoreMocks.docData.mockReturnValueOnce(
+    roomGatewayMock.watchRoom$.mockReturnValueOnce(
       of({
         id: 'room-xyz',
         roomName: 'X',
@@ -162,6 +121,7 @@ describe('RoomService', () => {
       service.getRoomById('room-xyz')
     ) as RoomSpecItem;
 
+    expect(roomGatewayMock.watchRoom$).toHaveBeenCalledWith('room-xyz');
     expect(room.id).toBe('room-xyz');
     expect(room.roomName).toBe('X');
     expect(room.participants).toEqual(['a', 'b']);
