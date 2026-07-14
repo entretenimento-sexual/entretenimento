@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   buildNextVideoRatingAggregate,
+  buildVideoRatingAggregateAfterRemoval,
   normalizeVideoRating,
 } from './video-rating-aggregate';
 
@@ -60,6 +61,24 @@ describe('video-rating-aggregate', () => {
         ratingsCount: 3,
         ratingTotal: 13,
         ratingAverage: 4.33,
+      }
+    );
+  });
+
+  it('remove nota moderada e recalcula média', () => {
+    assert.deepEqual(
+      buildVideoRatingAggregateAfterRemoval(
+        {
+          ratingsCount: 3,
+          ratingTotal: 12,
+          ratingAverage: 4,
+        },
+        5
+      ),
+      {
+        ratingsCount: 2,
+        ratingTotal: 7,
+        ratingAverage: 3.5,
       }
     );
   });
