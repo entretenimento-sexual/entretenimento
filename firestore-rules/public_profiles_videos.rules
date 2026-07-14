@@ -40,6 +40,12 @@ match /public_profiles/{userId}/public_videos/{videoId} {
     allow create, update, delete: if false;
   }
 
+  match /ratings/{viewerUid} {
+    allow get: if signedIn() && request.auth.uid == viewerUid;
+    allow list: if false;
+    allow create, update, delete: if false;
+  }
+
   match /comments/{commentId} {
     allow get: if signedIn()
       && (
