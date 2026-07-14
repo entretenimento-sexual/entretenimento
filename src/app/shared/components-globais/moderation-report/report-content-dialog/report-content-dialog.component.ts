@@ -12,8 +12,18 @@
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, Inject, computed, signal } from '@angular/core';
-import { ReactiveFormsModule, NonNullableFormBuilder, Validators } from '@angular/forms';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  Inject,
+  computed,
+  signal,
+} from '@angular/core';
+import {
+  NonNullableFormBuilder,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import {
   MAT_DIALOG_DATA,
   MatDialogActions,
@@ -63,7 +73,9 @@ interface ReportReasonOption {
 export class ReportContentDialogComponent {
   readonly submitting = signal(false);
 
-  readonly targetLabel = computed(() => this.resolveTargetLabel(this.data.targetType));
+  readonly targetLabel = computed(() =>
+    this.resolveTargetLabel(this.data.targetType)
+  );
 
   readonly reasons: ReportReasonOption[] = [
     {
@@ -124,7 +136,10 @@ export class ReportContentDialogComponent {
 
   constructor(
     private readonly fb: NonNullableFormBuilder,
-    private readonly dialogRef: MatDialogRef<ReportContentDialogComponent, ReportContentDialogResult | null>,
+    private readonly dialogRef: MatDialogRef<
+      ReportContentDialogComponent,
+      ReportContentDialogResult | null
+    >,
     @Inject(MAT_DIALOG_DATA) public readonly data: ReportContentDialogData
   ) {}
 
@@ -158,7 +173,9 @@ export class ReportContentDialogComponent {
     return this.reasons.find((reason) => reason.value === selected)?.helper ?? null;
   }
 
-  private normalizeOptionalText(value: string | null | undefined): string | null {
+  private normalizeOptionalText(
+    value: string | null | undefined
+  ): string | null {
     const normalized = String(value ?? '').trim();
     return normalized ? normalized.slice(0, 1200) : null;
   }
@@ -169,6 +186,12 @@ export class ReportContentDialogComponent {
         return 'perfil';
       case 'photo':
         return 'foto';
+      case 'video':
+        return 'vídeo';
+      case 'video_comment':
+        return 'comentário do vídeo';
+      case 'video_rating':
+        return 'avaliação do vídeo';
       case 'message':
         return 'mensagem';
       case 'room':
