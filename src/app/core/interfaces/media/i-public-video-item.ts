@@ -23,6 +23,7 @@ export interface IPublicVideoBase {
   posterAccess?: TPublicVideoPosterAccess;
 
   title?: string | null;
+  description?: string | null;
   alt?: string | null;
   mimeType?: string | null;
   sizeBytes?: number | null;
@@ -36,6 +37,14 @@ export interface IPublicVideoBase {
   orderIndex: number;
   moderationStatus?: TPhotoModerationStatus;
   reportsCount?: number;
+
+  reactionsEnabled?: boolean;
+  commentsEnabled?: boolean;
+  ratingsEnabled?: boolean;
+  reactionsCount?: number;
+  commentsCount?: number;
+  ratingsCount?: number;
+  ratingAverage?: number;
 
   viewsCount?: number;
   uniqueViewersCount?: number;
