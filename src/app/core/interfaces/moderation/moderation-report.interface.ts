@@ -7,6 +7,7 @@
 // Observação:
 // - o documento de denúncia é privado;
 // - criação vem do usuário autenticado;
+// - denúncias de vídeo são validadas por Callable no backend;
 // - leitura/administração deve ficar restrita à moderação/admin.
 // -----------------------------------------------------------------------------
 
@@ -15,6 +16,9 @@ import { FieldValue, Timestamp } from 'firebase/firestore';
 export type ModerationReportTargetType =
   | 'profile'
   | 'photo'
+  | 'video'
+  | 'video_comment'
+  | 'video_rating'
   | 'message'
   | 'room'
   | 'status'
@@ -38,10 +42,14 @@ export type ModerationReportStatus =
   | 'resolved'
   | 'rejected';
 
+export type ModerationReportAction = 'KEEP' | 'REMOVE';
+
 export interface IModerationReportCreateInput {
   targetType: ModerationReportTargetType;
   targetId: string;
+  parentTargetId?: string | null;
   targetOwnerUid?: string | null;
+  targetAuthorUid?: string | null;
   reason: ModerationReportReason;
   details?: string | null;
   route?: string | null;
@@ -51,11 +59,14 @@ export interface IModerationReportDocument {
   reporterUid: string;
   targetType: ModerationReportTargetType;
   targetId: string;
+  parentTargetId?: string | null;
   targetOwnerUid?: string | null;
+  targetAuthorUid?: string | null;
   reason: ModerationReportReason;
   details?: string | null;
   route?: string | null;
   status: ModerationReportStatus;
+  moderationAction?: ModerationReportAction | null;
   source: 'web';
   createdAt: Timestamp | FieldValue;
   updatedAt: Timestamp | FieldValue;
