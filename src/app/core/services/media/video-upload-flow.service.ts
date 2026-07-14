@@ -1,4 +1,9 @@
-import { Injectable, inject } from '@angular/core';
+import {
+  Injectable,
+  Injector,
+  inject,
+  runInInjectionContext,
+} from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import { Firestore, collection, doc } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
@@ -91,9 +96,14 @@ export class VideoUploadFlowService {
   private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
   private readonly storage = inject(Storage);
+  private readonly injector = inject(Injector);
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
+  private readonly registerPrivateVideoUploadCallable = httpsCallable<
+    RegisterPrivateVideoUploadRequest,
+    RegisterPrivateVideoUploadResponse
+  >(this.functions, 'registerPrivateVideoUpload');
 
   uploadPrivateVideo$(
     command: IVideoUploadCommand
@@ -115,7 +125,9 @@ export class VideoUploadFlowService {
         return undefined;
       }
 
-      const videoRef = doc(collection(this.firestore, `users/${ownerUid}/videos`));
+      const videoRef = runInInjectionContext(this.injector, () =>
+        doc(collection(this.firestore, `users/${ownerUid}/videos`))
+      );
       const videoId = videoRef.id;
       const videoPath = this.buildVideoPath(ownerUid, videoId, file);
       let posterPath: string | null = null;
@@ -306,13 +318,8 @@ export class VideoUploadFlowService {
   private async registerUploadedVideo(
     payload: RegisterPrivateVideoUploadRequest
   ): Promise<RegisterPrivateVideoUploadResponse> {
-    const callable = httpsCallable<
-      RegisterPrivateVideoUploadRequest,
-      RegisterPrivateVideoUploadResponse
-    >(this.functions, 'registerPrivateVideoUpload');
-
     try {
-      const response = await callable(payload);
+      const response = await this.registerPrivateVideoUploadCallable(payload);
       return response.data;
     } catch (error) {
       if (!this.isRetryableRegistrationError(error)) {
@@ -320,7 +327,7 @@ export class VideoUploadFlowService {
       }
 
       await this.delay(REGISTER_RETRY_DELAY_MS);
-      const retryResponse = await callable(payload);
+      const retryResponse = await this.registerPrivateVideoUploadCallable(payload);
       return retryResponse.data;
     }
   }
