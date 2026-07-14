@@ -6,15 +6,22 @@
 //
 // Decisões:
 // - usa AuthSessionService.readyUid$ para aguardar Auth pronto;
-// - cria documento em moderation_reports;
+// - denúncias comuns preservam o fluxo existente em moderation_reports;
+// - denúncias de vídeo, comentário e avaliação passam por Callable validada;
 // - não expõe leitura/listagem para usuário comum;
 // - não mostra toast diretamente para manter feedback sob controle da UI;
-// - reporta falhas de escrita ao GlobalErrorHandlerService.
+// - reporta falhas ao GlobalErrorHandlerService.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
-import { Firestore, addDoc, collection, serverTimestamp } from '@angular/fire/firestore';
-import { Observable, throwError } from 'rxjs';
+import {
+  Firestore,
+  addDoc,
+  collection,
+  serverTimestamp,
+} from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+import { Observable, from, throwError } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -28,12 +35,31 @@ import {
 } from 'src/app/core/interfaces/moderation/moderation-report.interface';
 import { toErrorInstance } from 'src/app/core/utils/firebase-error-utils';
 
+interface ReportVideoContentRequest {
+  targetType: 'video' | 'video_comment' | 'video_rating';
+  ownerUid: string;
+  videoId: string;
+  targetId?: string | null;
+  reason: ModerationReportReason;
+  details?: string | null;
+  route?: string | null;
+}
+
+interface ReportVideoContentResponse {
+  reportId: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ModerationReportService {
   private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
   private readonly authSession = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly reportVideoContentCallable = httpsCallable<
+    ReportVideoContentRequest,
+    ReportVideoContentResponse
+  >(this.functions, 'reportVideoContent');
 
   createReport$(input: IModerationReportCreateInput): Observable<string> {
     const normalized = this.normalizeInput(input);
@@ -42,25 +68,80 @@ export class ModerationReportService {
       return throwError(() => new Error('Denúncia inválida.'));
     }
 
+    if (this.isVideoTargetType(normalized.targetType)) {
+      return this.createVideoReport$(normalized);
+    }
+
+    return this.createLegacyReport$(normalized);
+  }
+
+  private createVideoReport$(
+    input: IModerationReportCreateInput & {
+      targetType: 'video' | 'video_comment' | 'video_rating';
+    }
+  ): Observable<string> {
+    const ownerUid = String(input.targetOwnerUid ?? '').trim();
+    const videoId = String(
+      input.parentTargetId ??
+      (input.targetType === 'video' ? input.targetId : '')
+    ).trim();
+
+    if (!ownerUid || !videoId) {
+      return throwError(() => new Error('Referência do vídeo inválida.'));
+    }
+
+    return from(
+      this.reportVideoContentCallable({
+        targetType: input.targetType,
+        ownerUid,
+        videoId,
+        targetId: input.targetType === 'video' ? null : input.targetId,
+        reason: input.reason,
+        details: input.details,
+        route: input.route,
+      })
+    ).pipe(
+      map((response) => response.data.reportId),
+      catchError((error) => {
+        this.reportWriteError(error, 'createVideoReport', {
+          targetType: input.targetType,
+          targetId: input.targetId,
+          videoId,
+          hasOwnerUid: !!ownerUid,
+          reason: input.reason,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private createLegacyReport$(
+    input: IModerationReportCreateInput
+  ): Observable<string> {
     return this.authSession.readyUid$.pipe(
       take(1),
       switchMap((uid) => {
         const reporterUid = String(uid ?? '').trim();
 
         if (!reporterUid) {
-          return throwError(() => new Error('Entre novamente para enviar a denúncia.'));
+          return throwError(
+            () => new Error('Entre novamente para enviar a denúncia.')
+          );
         }
 
         const now = serverTimestamp();
         const payload: IModerationReportDocument = {
           reporterUid,
-          targetType: normalized.targetType,
-          targetId: normalized.targetId,
-          targetOwnerUid: normalized.targetOwnerUid || null,
-          reason: normalized.reason,
-          details: normalized.details || null,
-          route: normalized.route || null,
+          targetType: input.targetType,
+          targetId: input.targetId,
+          parentTargetId: input.parentTargetId || null,
+          targetOwnerUid: input.targetOwnerUid || null,
+          targetAuthorUid: input.targetAuthorUid || null,
+          reason: input.reason,
+          details: input.details || null,
+          route: input.route || null,
           status: 'open',
+          moderationAction: null,
           source: 'web',
           createdAt: now,
           updatedAt: now,
@@ -78,9 +159,9 @@ export class ModerationReportService {
           catchError((error) => {
             this.reportWriteError(error, 'createReport', {
               reporterUid,
-              targetType: normalized.targetType,
-              targetId: normalized.targetId,
-              reason: normalized.reason,
+              targetType: input.targetType,
+              targetId: input.targetId,
+              reason: input.reason,
             });
 
             return throwError(() => error);
@@ -93,31 +174,56 @@ export class ModerationReportService {
   private normalizeInput(
     input: IModerationReportCreateInput
   ): IModerationReportCreateInput | null {
-    const targetType = String(input?.targetType ?? '').trim() as ModerationReportTargetType;
+    const targetType = String(
+      input?.targetType ?? ''
+    ).trim() as ModerationReportTargetType;
     const targetId = String(input?.targetId ?? '').trim();
+    const parentTargetId = String(input?.parentTargetId ?? '').trim();
     const targetOwnerUid = String(input?.targetOwnerUid ?? '').trim();
-    const reason = String(input?.reason ?? '').trim() as ModerationReportReason;
+    const targetAuthorUid = String(input?.targetAuthorUid ?? '').trim();
+    const reason = String(
+      input?.reason ?? ''
+    ).trim() as ModerationReportReason;
     const details = String(input?.details ?? '').trim().slice(0, 1200);
     const route = String(input?.route ?? '').trim().slice(0, 300);
 
-    if (!this.isAllowedTargetType(targetType) || !targetId || !this.isAllowedReason(reason)) {
+    if (
+      !this.isAllowedTargetType(targetType) ||
+      !targetId ||
+      !this.isAllowedReason(reason)
+    ) {
       return null;
     }
 
     return {
       targetType,
       targetId: targetId.slice(0, 180),
+      parentTargetId: parentTargetId ? parentTargetId.slice(0, 180) : null,
       targetOwnerUid: targetOwnerUid ? targetOwnerUid.slice(0, 180) : null,
+      targetAuthorUid: targetAuthorUid ? targetAuthorUid.slice(0, 180) : null,
       reason,
       details: details || null,
       route: route || null,
     };
   }
 
-  private isAllowedTargetType(value: string): value is ModerationReportTargetType {
+  private isVideoTargetType(
+    value: ModerationReportTargetType
+  ): value is 'video' | 'video_comment' | 'video_rating' {
+    return value === 'video' ||
+      value === 'video_comment' ||
+      value === 'video_rating';
+  }
+
+  private isAllowedTargetType(
+    value: string
+  ): value is ModerationReportTargetType {
     return [
       'profile',
       'photo',
+      'video',
+      'video_comment',
+      'video_rating',
       'message',
       'room',
       'status',
