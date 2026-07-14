@@ -4,7 +4,6 @@ import {
   Component,
   ElementRef,
   HostListener,
-  Inject,
   ViewChild,
   inject,
   signal,
@@ -75,6 +74,11 @@ interface VideoCommentThread {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PublicVideoViewerComponent {
+  private readonly dialogRef = inject(
+    MatDialogRef<PublicVideoViewerComponent>
+  );
+  readonly data = inject<IPublicVideoViewerData>(MAT_DIALOG_DATA);
+
   private readonly videoViewTracking = inject(VideoViewTrackingService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly reactions = inject(MediaReactionsService);
@@ -212,13 +216,10 @@ export class PublicVideoViewerComponent {
     distinctUntilChanged()
   );
 
-  constructor(
-    private readonly dialogRef: MatDialogRef<PublicVideoViewerComponent>,
-    @Inject(MAT_DIALOG_DATA) public readonly data: IPublicVideoViewerData
-  ) {
-    const itemsCount = data.items?.length ?? 0;
+  constructor() {
+    const itemsCount = this.data.items?.length ?? 0;
     this.index = itemsCount > 0
-      ? Math.max(0, Math.min(data.startIndex ?? 0, itemsCount - 1))
+      ? Math.max(0, Math.min(this.data.startIndex ?? 0, itemsCount - 1))
       : 0;
     this.syncCurrentVideoId();
     this.recordCurrentVideoView();
