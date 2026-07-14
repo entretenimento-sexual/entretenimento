@@ -9,11 +9,17 @@
 // - usa MatDialog para foco acessível;
 // - envia via ModerationReportService;
 // - feedback centralizado por ErrorNotificationService;
-// - mantém API simples para encaixe progressivo em perfil/foto/status/chat.
+// - mantém API simples para perfil, mídia e interações sociais.
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, Input, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  Input,
+  inject,
+  signal,
+} from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { EMPTY } from 'rxjs';
@@ -46,7 +52,9 @@ export class ReportContentButtonComponent {
 
   @Input({ required: true }) targetType!: ModerationReportTargetType;
   @Input({ required: true }) targetId!: string;
+  @Input() parentTargetId: string | null = null;
   @Input() targetOwnerUid: string | null = null;
+  @Input() targetAuthorUid: string | null = null;
   @Input() label = 'Denunciar';
   @Input() title: string | null = null;
   @Input() subtitle: string | null = null;
@@ -62,7 +70,11 @@ export class ReportContentButtonComponent {
 
     const dialogRef = this.dialog.open<
       ReportContentDialogComponent,
-      { targetType: ModerationReportTargetType; title: string | null; subtitle: string | null },
+      {
+        targetType: ModerationReportTargetType;
+        title: string | null;
+        subtitle: string | null;
+      },
       ReportContentDialogResult | null
     >(ReportContentDialogComponent, {
       width: 'min(92vw, 560px)',
@@ -85,7 +97,9 @@ export class ReportContentButtonComponent {
         return this.reportService.createReport$({
           targetType: this.targetType,
           targetId,
+          parentTargetId: this.normalizeOptionalText(this.parentTargetId),
           targetOwnerUid: this.normalizeOptionalText(this.targetOwnerUid),
+          targetAuthorUid: this.normalizeOptionalText(this.targetAuthorUid),
           reason: result.reason,
           details: result.details,
           route: this.currentRoute(),
@@ -108,7 +122,8 @@ export class ReportContentButtonComponent {
   }
 
   get ariaLabel(): string {
-    const target = this.title?.trim() || this.resolveTargetLabel(this.targetType);
+    const target = this.title?.trim() ||
+      this.resolveTargetLabel(this.targetType);
     return `Denunciar ${target}`;
   }
 
@@ -116,7 +131,9 @@ export class ReportContentButtonComponent {
     return String(this.router.url ?? '').trim().slice(0, 300) || '/';
   }
 
-  private normalizeOptionalText(value: string | null | undefined): string | null {
+  private normalizeOptionalText(
+    value: string | null | undefined
+  ): string | null {
     const normalized = String(value ?? '').trim();
     return normalized || null;
   }
@@ -127,6 +144,12 @@ export class ReportContentButtonComponent {
         return 'perfil';
       case 'photo':
         return 'foto';
+      case 'video':
+        return 'vídeo';
+      case 'video_comment':
+        return 'comentário do vídeo';
+      case 'video_rating':
+        return 'avaliação do vídeo';
       case 'message':
         return 'mensagem';
       case 'room':
