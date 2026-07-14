@@ -52,6 +52,10 @@ import {
   VideoViewTrackingService,
 } from 'src/app/core/services/media/video-view-tracking.service';
 import { PublicVideoPlaybackFeedbackDirective } from './public-video-playback-feedback.directive';
+import {
+  PublicVideoQualifiedViewDetail,
+  PublicVideoViewQualificationDirective,
+} from './public-video-view-qualification.directive';
 
 export interface IPublicVideoViewerData {
   ownerUid: string;
@@ -89,6 +93,7 @@ const MAX_TIMER_DELAY_MS = 2_147_000_000;
     ReactiveFormsModule,
     MatDialogModule,
     PublicVideoPlaybackFeedbackDirective,
+    PublicVideoViewQualificationDirective,
   ],
   templateUrl: './public-video-viewer.component.html',
   styleUrls: ['./public-video-viewer.component.css'],
@@ -122,6 +127,9 @@ export class PublicVideoViewerComponent {
 
   @ViewChild(PublicVideoPlaybackFeedbackDirective)
   private playbackFeedback?: PublicVideoPlaybackFeedbackDirective;
+
+  @ViewChild(PublicVideoViewQualificationDirective)
+  private viewQualification?: PublicVideoViewQualificationDirective;
 
   index = 0;
   readonly ratingOptions = [1, 2, 3, 4, 5] as const;
@@ -296,8 +304,8 @@ export class PublicVideoViewerComponent {
       ? Math.max(0, Math.min(this.data.startIndex ?? 0, itemsCount - 1))
       : 0;
     this.syncCurrentVideoId();
-    this.recordCurrentVideoView();
     this.scheduleAccessRefresh();
+    queueMicrotask(() => this.syncViewQualification());
 
     this.destroyRef.onDestroy(() => this.clearAccessRefreshTimer());
   }
@@ -349,7 +357,14 @@ export class PublicVideoViewerComponent {
 
   @HostListener('publicVideoReady')
   onPublicVideoReady(): void {
+    this.syncViewQualification();
     this.restorePlaybackAfterRefresh();
+  }
+
+  @HostListener('publicVideoQualifiedView', ['$event'])
+  onPublicVideoQualifiedView(event: Event): void {
+    const detail = (event as CustomEvent<PublicVideoQualifiedViewDetail>).detail;
+    this.recordQualifiedVideoView(detail);
   }
 
   @HostListener('publicVideoPosterError')
@@ -701,10 +716,10 @@ export class PublicVideoViewerComponent {
     this.pendingPlaybackResume = null;
     this.playbackFeedback?.markLoading();
     this.syncCurrentVideoId();
-    this.recordCurrentVideoView();
     this.scheduleAccessRefresh();
 
     queueMicrotask(() => {
+      this.syncViewQualification();
       const player = this.videoPlayer?.nativeElement;
       if (!player) {
         return;
@@ -721,13 +736,32 @@ export class PublicVideoViewerComponent {
     this.changeDetector.markForCheck();
   }
 
-  private recordCurrentVideoView(): void {
+  private syncViewQualification(): void {
     const video = this.current;
-    const ownerUid = (video?.ownerUid ?? this.data.ownerUid ?? '').trim();
+
+    if (!video) {
+      return;
+    }
+
+    this.viewQualification?.resetForVideo(
+      `${video.ownerUid}:${video.id}`
+    );
+  }
+
+  private recordQualifiedVideoView(
+    evidence: PublicVideoQualifiedViewDetail | null | undefined
+  ): void {
+    const video = this.current;
+    const ownerUid = (video?.ownerUid ?? '').trim();
     const videoId = (video?.id ?? '').trim();
     const viewKey = `${ownerUid}:${videoId}`;
 
-    if (!ownerUid || !videoId || this.recordedViewKeys.has(viewKey)) {
+    if (
+      !ownerUid ||
+      !videoId ||
+      !evidence ||
+      this.recordedViewKeys.has(viewKey)
+    ) {
       return;
     }
 
@@ -738,11 +772,13 @@ export class PublicVideoViewerComponent {
           if (!viewerUid || viewerIsOwner) {
             return EMPTY;
           }
+
           this.recordedViewKeys.add(viewKey);
           return this.videoViewTracking.recordVideoView$(
             ownerUid,
             videoId,
-            this.data.source ?? 'unknown'
+            this.data.source ?? 'unknown',
+            evidence
           );
         }),
         catchError(() => EMPTY)
@@ -800,6 +836,7 @@ export class PublicVideoViewerComponent {
           this.scheduleAccessRefresh();
 
           queueMicrotask(() => {
+            this.syncViewQualification();
             const player = this.videoPlayer?.nativeElement;
             if (!player) {
               return;
