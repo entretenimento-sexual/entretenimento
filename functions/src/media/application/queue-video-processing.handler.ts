@@ -82,6 +82,15 @@ function statusForExistingJob(state: string): {
   return { status: 'queued', stage: 'queued' };
 }
 
+function processingJobReference(
+  ownerUid: string,
+  videoId: string
+): DocumentReference {
+  return db
+    .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
+    .doc(buildVideoProcessingJobId(ownerUid, videoId));
+}
+
 async function requestCancellationIfPresent(
   jobRef: DocumentReference
 ): Promise<void> {
@@ -114,6 +123,151 @@ async function requestCancellationIfPresent(
   });
 }
 
+/**
+ * Garante que o vídeo privado possua um único job de processamento.
+ *
+ * O callable de registro usa este caminho de forma síncrona. O trigger abaixo
+ * permanece como recuperação para documentos antigos e escritas administrativas.
+ */
+export async function ensurePrivateVideoProcessingQueued(
+  rawOwnerUid: unknown,
+  rawVideoId: unknown
+): Promise<void> {
+  const ownerUid = cleanId(rawOwnerUid);
+  const videoId = cleanId(rawVideoId);
+
+  if (!ownerUid || !videoId) {
+    throw new Error('Identificadores inválidos para fila de processamento.');
+  }
+
+  const processingJobId = buildVideoProcessingJobId(ownerUid, videoId);
+  const videoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
+  const jobRef = processingJobReference(ownerUid, videoId);
+  const queuedJob = await db.runTransaction<VideoProcessingJob | null>(
+    async (transaction) => {
+      const [videoSnap, jobSnap] = await Promise.all([
+        transaction.get(videoRef),
+        transaction.get(jobRef),
+      ]);
+
+      if (!videoSnap.exists) {
+        return null;
+      }
+
+      const video = videoSnap.data() as PrivateVideoDocument;
+
+      if (String(video.processedStoragePath ?? '').trim()) {
+        return null;
+      }
+
+      if (jobSnap.exists) {
+        const existingJob = jobSnap.data() as Partial<VideoProcessingJob>;
+        const state = String(existingJob.state ?? '').trim().toUpperCase();
+        const expected = statusForExistingJob(state);
+
+        if (
+          video.processingJobId !== processingJobId ||
+          video.status !== expected.status
+        ) {
+          transaction.set(
+            videoRef,
+            {
+              processingJobId,
+              status: expected.status,
+              processingStage: expected.stage,
+              updatedAt: Date.now(),
+            },
+            { merge: true }
+          );
+        }
+
+        return null;
+      }
+
+      const sourceStoragePath =
+        extractOwnedPrivateVideoPathForId(ownerUid, videoId, video.path) ??
+        extractOwnedPrivateVideoPathForId(ownerUid, videoId, video.url);
+      const sourcePosterStoragePath =
+        extractOwnedPrivateVideoPosterPath(
+          ownerUid,
+          videoId,
+          video.thumbnailPath
+        ) ??
+        extractOwnedPrivateVideoPosterPath(
+          ownerUid,
+          videoId,
+          video.thumbnailUrl
+        );
+      const sourceMimeType = normalizeMimeType(video.mimeType);
+      const sourceSizeBytes = normalizePositiveInteger(video.sizeBytes);
+      const sourceDurationMs = normalizePositiveInteger(video.durationMs);
+
+      if (
+        !sourceStoragePath ||
+        !ALLOWED_VIDEO_TYPES.has(sourceMimeType) ||
+        !sourceSizeBytes ||
+        sourceSizeBytes > MAX_VIDEO_SIZE_BYTES ||
+        (sourceDurationMs !== null &&
+          sourceDurationMs < MIN_VIDEO_DURATION_MS)
+      ) {
+        if (hasPersistedInvalidProcessingSourceFailure(video)) {
+          return null;
+        }
+
+        transaction.set(
+          videoRef,
+          {
+            status: 'failed',
+            processingStage: 'failed',
+            processingErrorCode: INVALID_PROCESSING_SOURCE_CODE,
+            processingErrorMessage:
+              sourceDurationMs !== null &&
+              sourceDurationMs < MIN_VIDEO_DURATION_MS
+                ? 'O vídeo precisa ter pelo menos 5 segundos.'
+                : 'O arquivo privado não pôde ser validado para processamento.',
+            updatedAt: Date.now(),
+          },
+          { merge: true }
+        );
+
+        return null;
+      }
+
+      const now = Date.now();
+      const job = buildQueuedVideoProcessingJob({
+        ownerUid,
+        videoId,
+        sourceStoragePath,
+        sourcePosterStoragePath,
+        sourceMimeType,
+        sourceSizeBytes,
+        sourceDurationMs,
+        now,
+      });
+
+      transaction.create(jobRef, job);
+      transaction.set(
+        videoRef,
+        {
+          processingJobId,
+          status: 'queued',
+          processingStage: 'queued',
+          processingErrorCode: null,
+          processingErrorMessage: null,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+
+      return job;
+    }
+  );
+
+  if (queuedJob) {
+    await completeVideoProcessingInEmulator(jobRef, queuedJob);
+  }
+}
+
 export const queuePrivateVideoProcessing = onDocumentWritten(
   {
     document: 'users/{ownerUid}/videos/{videoId}',
@@ -128,137 +282,13 @@ export const queuePrivateVideoProcessing = onDocumentWritten(
       return;
     }
 
-    const processingJobId = buildVideoProcessingJobId(ownerUid, videoId);
-    const jobRef = db
-      .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
-      .doc(processingJobId);
-    const after = event.data?.after;
-
-    if (!after?.exists) {
-      await requestCancellationIfPresent(jobRef);
+    if (!event.data?.after.exists) {
+      await requestCancellationIfPresent(
+        processingJobReference(ownerUid, videoId)
+      );
       return;
     }
 
-    const queuedJob = await db.runTransaction<VideoProcessingJob | null>(
-      async (transaction) => {
-        const [videoSnap, jobSnap] = await Promise.all([
-          transaction.get(after.ref),
-          transaction.get(jobRef),
-        ]);
-
-        if (!videoSnap.exists) {
-          return null;
-        }
-
-        const video = videoSnap.data() as PrivateVideoDocument;
-
-        if (String(video.processedStoragePath ?? '').trim()) {
-          return null;
-        }
-
-        if (jobSnap.exists) {
-          const existingJob = jobSnap.data() as Partial<VideoProcessingJob>;
-          const state = String(existingJob.state ?? '').trim().toUpperCase();
-          const expected = statusForExistingJob(state);
-
-          if (
-            video.processingJobId !== processingJobId ||
-            video.status !== expected.status
-          ) {
-            transaction.set(
-              videoSnap.ref,
-              {
-                processingJobId,
-                status: expected.status,
-                processingStage: expected.stage,
-                updatedAt: Date.now(),
-              },
-              { merge: true }
-            );
-          }
-          return null;
-        }
-
-        const sourceStoragePath =
-          extractOwnedPrivateVideoPathForId(ownerUid, videoId, video.path) ??
-          extractOwnedPrivateVideoPathForId(ownerUid, videoId, video.url);
-        const sourcePosterStoragePath =
-          extractOwnedPrivateVideoPosterPath(
-            ownerUid,
-            videoId,
-            video.thumbnailPath
-          ) ??
-          extractOwnedPrivateVideoPosterPath(
-            ownerUid,
-            videoId,
-            video.thumbnailUrl
-          );
-        const sourceMimeType = normalizeMimeType(video.mimeType);
-        const sourceSizeBytes = normalizePositiveInteger(video.sizeBytes);
-        const sourceDurationMs = normalizePositiveInteger(video.durationMs);
-
-        if (
-          !sourceStoragePath ||
-          !ALLOWED_VIDEO_TYPES.has(sourceMimeType) ||
-          !sourceSizeBytes ||
-          sourceSizeBytes > MAX_VIDEO_SIZE_BYTES ||
-          (sourceDurationMs !== null &&
-            sourceDurationMs < MIN_VIDEO_DURATION_MS)
-        ) {
-          if (hasPersistedInvalidProcessingSourceFailure(video)) {
-            return null;
-          }
-
-          transaction.set(
-            videoSnap.ref,
-            {
-              status: 'failed',
-              processingStage: 'failed',
-              processingErrorCode: INVALID_PROCESSING_SOURCE_CODE,
-              processingErrorMessage:
-                sourceDurationMs !== null &&
-                sourceDurationMs < MIN_VIDEO_DURATION_MS
-                  ? 'O vídeo precisa ter pelo menos 5 segundos.'
-                  : 'O arquivo privado não pôde ser validado para processamento.',
-              updatedAt: Date.now(),
-            },
-            { merge: true }
-          );
-          return null;
-        }
-
-        const now = Date.now();
-        const job = buildQueuedVideoProcessingJob({
-          ownerUid,
-          videoId,
-          sourceStoragePath,
-          sourcePosterStoragePath,
-          sourceMimeType,
-          sourceSizeBytes,
-          sourceDurationMs,
-          now,
-        });
-
-        transaction.create(jobRef, job);
-        transaction.set(
-          videoSnap.ref,
-          {
-            processingJobId,
-            status: 'queued',
-            processingStage: 'queued',
-            processingErrorCode: null,
-            processingErrorMessage: null,
-            updatedAt: now,
-          },
-          { merge: true }
-        );
-
-        return job;
-      }
-    );
-
-    if (queuedJob) {
-      await completeVideoProcessingInEmulator(jobRef, queuedJob);
-    }
+    await ensurePrivateVideoProcessingQueued(ownerUid, videoId);
   }
 );
