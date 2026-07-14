@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { Firestore } from '@angular/fire/firestore';
 
 const { firestoreMocks, geofireMocks } = vi.hoisted(() => ({
   firestoreMocks: {
+    Firestore: class FirestoreMock {},
     collection: vi.fn(() => ({})),
     where: vi.fn(() => ({})),
     query: vi.fn(() => ({})),
@@ -19,9 +19,10 @@ const { firestoreMocks, geofireMocks } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@firebase/firestore', () => firestoreMocks);
+vi.mock('@angular/fire/firestore', () => firestoreMocks);
 vi.mock('geofire-common', () => geofireMocks);
 
+import { Firestore } from '@angular/fire/firestore';
 import { DistanceCalculationService } from './distance-calculation.service';
 import { NearbyProfilesService } from './near-profile.service';
 
