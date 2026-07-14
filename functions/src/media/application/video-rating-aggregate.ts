@@ -43,6 +43,15 @@ function roundAverage(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function resolveCurrentTotal(current: VideoRatingAggregateInput): number {
+  const count = normalizeCount(current.ratingsCount);
+  const fallbackTotal = Math.round(
+    normalizeAverage(current.ratingAverage) * count
+  );
+
+  return normalizeTotal(current.ratingTotal) ?? fallbackTotal;
+}
+
 /**
  * Calcula a próxima média sem consultar toda a subcoleção de avaliações.
  *
@@ -62,10 +71,7 @@ export function buildNextVideoRatingAggregate(
   }
 
   const currentCount = normalizeCount(current.ratingsCount);
-  const fallbackTotal = Math.round(
-    normalizeAverage(current.ratingAverage) * currentCount
-  );
-  const currentTotal = normalizeTotal(current.ratingTotal) ?? fallbackTotal;
+  const currentTotal = resolveCurrentTotal(current);
   const ratingsCount = normalizedPrevious === null
     ? currentCount + 1
     : Math.max(1, currentCount);
@@ -82,4 +88,33 @@ export function buildNextVideoRatingAggregate(
     ratingTotal,
     ratingAverage,
   };
+}
+
+/** Remove uma avaliação confirmada pela moderação sem varrer a subcoleção. */
+export function buildVideoRatingAggregateAfterRemoval(
+  current: VideoRatingAggregateInput,
+  removedRating: unknown
+): VideoRatingAggregate {
+  const normalizedRemoved = normalizeVideoRating(removedRating);
+
+  if (normalizedRemoved === null) {
+    throw new Error('A avaliação removida é inválida.');
+  }
+
+  const currentCount = normalizeCount(current.ratingsCount);
+
+  if (currentCount <= 0) {
+    return { ratingsCount: 0, ratingTotal: 0, ratingAverage: 0 };
+  }
+
+  const ratingsCount = Math.max(0, currentCount - 1);
+  const ratingTotal = Math.max(
+    0,
+    resolveCurrentTotal(current) - normalizedRemoved
+  );
+  const ratingAverage = ratingsCount > 0
+    ? roundAverage(ratingTotal / ratingsCount)
+    : 0;
+
+  return { ratingsCount, ratingTotal, ratingAverage };
 }
