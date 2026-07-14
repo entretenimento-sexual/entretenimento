@@ -24,9 +24,9 @@ export interface IVideoPublicationConfig {
   readonly moderationReason?: string | null;
   readonly title?: string | null;
   readonly description?: string | null;
-  readonly reactionsEnabled: boolean;
-  readonly commentsEnabled: boolean;
-  readonly ratingsEnabled: boolean;
+  readonly reactionsEnabled?: boolean;
+  readonly commentsEnabled?: boolean;
+  readonly ratingsEnabled?: boolean;
   readonly publishedAt?: number | null;
   readonly updatedAt?: number | null;
 }
