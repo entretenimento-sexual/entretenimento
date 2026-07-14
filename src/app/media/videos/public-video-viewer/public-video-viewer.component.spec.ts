@@ -193,7 +193,7 @@ describe('PublicVideoViewerComponent', () => {
     );
   });
 
-  it('renova a URL quando o elemento de vídeo informa erro de acesso', () => {
+  it('renova a URL quando o elemento de vídeo informa erro de acesso', async () => {
     const renewed = createVideo({
       url: 'https://example.test/video.mp4?token=renewed',
       posterUrl: 'https://example.test/poster.jpg?token=renewed',
@@ -203,6 +203,7 @@ describe('PublicVideoViewerComponent', () => {
 
     const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
     video.dispatchEvent(new Event('error'));
+    await Promise.resolve();
     fixture.detectChanges();
 
     expect(publicVideoAccess.refreshPublicVideoUrl$).toHaveBeenCalledWith(
