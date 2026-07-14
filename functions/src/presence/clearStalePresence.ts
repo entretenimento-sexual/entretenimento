@@ -1,30 +1,11 @@
 // functions/src/presence/clearStalePresence.ts
-// ✅ FUNÇÃO PARA LIMPAR PRESENÇA STALE
-// - Roda a cada 2 minutos (ajustável via env)
-// - Marca como offline usuários com lastSeen > janela (ex: 2 minutos)
-// - Usa batch para eficiência (Firestore tem limite de 500 ops por batch)
-// - Erros são logados mas não derrubam a função (best-effort)
-//
-// Estes comentários contextualizam a lógica e as decisões de design da presença
-// online e sua integração com o PresenceService. O estado online é derivado do
-// Firestore, sem simulações em outros lugares, como o Firebase Auth.
-// Relação com o PresenceService (client):
-// - PresenceService/PresenceWriterService atualizam `presence/{uid}` com:
-//   - isOnline: boolean
-//   - presenceState: 'online' | 'away' | 'offline'   (se você estiver usando)
-//   - lastSeen: Timestamp (serverTimestamp)          (batimento/estado)
-// - Multi-aba: só a aba líder escreve (LeaderElection).
-// - Mesmo assim, quedas abruptas (crash, rede, encerramento) podem deixar `isOnline=true` “travado”.
-//   Essa CF é o "safety net": se lastSeen passou da janela, força offline.
-//
-// Importante:
-// - NÃO sobrescreve lastSeen aqui. lastSeen é “último visto” real do usuário.
-// - Só marca offline (e opcionalmente registra staleClearedAt/offlineReason para auditoria).
+// Limpa presencas online que deixaram de receber atualizacoes dentro da janela.
+// A funcao preserva lastSeen como o ultimo registro real do usuario e grava
+// somente o estado offline e os campos de auditoria da limpeza.
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue, Timestamp } from '../firebaseApp';
 
-// ✅ type-only imports: não alteram runtime, só resolvem tipagem
 import type {
   DocumentData,
   Query,
@@ -34,11 +15,7 @@ import type {
 } from 'firebase-admin/firestore';
 
 const WINDOW_SEC = Number(process.env.PRESENCE_WINDOW_SEC || '120');
-
-// Firestore: limite hard 500 ops/batch. Mantemos folga.
 const MAX_BATCH_OPS = 450;
-
-// Paginação simples (caso o volume cresça)
 const PAGE_SIZE = 1000;
 
 export const clearStalePresence = onSchedule(
@@ -49,10 +26,6 @@ export const clearStalePresence = onSchedule(
   },
   async () => {
     const cutoffTs = Timestamp.fromMillis(Date.now() - WINDOW_SEC * 1000);
-
-    // ✅ Coleção correta: presence/{uid}
-    // Query: isOnline==true && lastSeen < cutoff
-    // Obs: pode exigir índice composto (isOnline + lastSeen).
     const baseQuery: Query<DocumentData> = db
       .collection('presence')
       .where('isOnline', '==', true)
@@ -61,57 +34,63 @@ export const clearStalePresence = onSchedule(
       .limit(PAGE_SIZE);
 
     let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+    let shouldContinue = true;
 
     try {
-      while (true) {
-      // ✅ Evita ternário no inicializador (resolve TS7022)
-        let q: Query<DocumentData> = baseQuery;
-        if (lastDoc) q = q.startAfter(lastDoc);
+      while (shouldContinue) {
+        let pageQuery: Query<DocumentData> = baseQuery;
 
-        const snap: QuerySnapshot<DocumentData> = await q.get();
-        if (snap.empty) break;
+        if (lastDoc) {
+          pageQuery = pageQuery.startAfter(lastDoc);
+        }
+
+        const snapshot: QuerySnapshot<DocumentData> = await pageQuery.get();
+
+        if (snapshot.empty) {
+          shouldContinue = false;
+          continue;
+        }
 
         let batch: WriteBatch = db.batch();
-        let ops = 0;
+        let operations = 0;
 
-        for (const d of snap.docs) {
-          batch.update(d.ref, {
+        for (const documentSnapshot of snapshot.docs) {
+          batch.update(documentSnapshot.ref, {
             isOnline: false,
-
-            // Se você mantém presenceState no doc, é OK setar.
-            // Se quiser ainda mais conservador, remova esta linha e deixe só isOnline=false.
             presenceState: 'offline',
-
-            // Auditoria opcional
             staleClearedAt: FieldValue.serverTimestamp(),
             offlineReason: 'stale',
           });
 
-          ops++;
+          operations++;
 
-          if (ops >= MAX_BATCH_OPS) {
-            await safeCommit(batch, ops);
+          if (operations >= MAX_BATCH_OPS) {
+            await safeCommit(batch, operations);
             batch = db.batch();
-            ops = 0;
+            operations = 0;
           }
         }
 
-        if (ops > 0) await safeCommit(batch, ops);
+        if (operations > 0) {
+          await safeCommit(batch, operations);
+        }
 
-        lastDoc = snap.docs[snap.docs.length - 1] ?? null;
-        if (snap.size < PAGE_SIZE) break;
+        lastDoc = snapshot.docs[snapshot.docs.length - 1] ?? null;
+        shouldContinue = snapshot.size === PAGE_SIZE && lastDoc !== null;
       }
-    } catch (err) {
-    // best-effort: loga e não derruba o agendador
-      console.error('[clearStalePresence] fatal error:', err);
+    } catch (error) {
+      console.error('[clearStalePresence] fatal error:', error);
     }
-  });
+  }
+);
 
-async function safeCommit(batch: WriteBatch, ops: number) {
+async function safeCommit(batch: WriteBatch, operations: number): Promise<void> {
   try {
     await batch.commit();
-    // console.log(`[clearStalePresence] committed ${ops} docs`);
-  } catch (err) {
-    console.error(`[clearStalePresence] batch commit failed (ops=${ops})`, err);
+  } catch (error) {
+    console.error(
+      `[clearStalePresence] batch commit failed (ops=${operations})`,
+      error
+    );
   }
 }
