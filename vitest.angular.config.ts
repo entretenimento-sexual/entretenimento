@@ -1,6 +1,17 @@
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
+function resolveMaxWorkers(): number {
+  const configuredValue = Number.parseInt(
+    process.env['VITEST_MAX_WORKERS'] ?? '2',
+    10
+  );
+
+  return Number.isFinite(configuredValue) && configuredValue > 0
+    ? configuredValue
+    : 2;
+}
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -16,6 +27,9 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     css: true,
+    pool: 'threads',
+    maxWorkers: resolveMaxWorkers(),
+    fileParallelism: true,
     setupFiles: [fileURLToPath(new URL('./src/test/setup-vitest.ts', import.meta.url))],
   },
 });
