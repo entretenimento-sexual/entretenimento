@@ -29,19 +29,30 @@ import {
 } from 'rxjs/operators';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 
 interface PublicProfileVideosState {
   status: 'loading' | 'ready' | 'empty' | 'error';
   items: IPublicVideoItem[];
 }
 
+interface ViewerUserLike {
+  uid?: string | null;
+}
+
 @Component({
   selector: 'app-public-profile-videos',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatDialogModule],
+  imports: [
+    CommonModule,
+    RouterModule,
+    MatDialogModule,
+    ReportContentButtonComponent,
+  ],
   templateUrl: './public-profile-videos.component.html',
   styleUrls: ['./public-profile-videos.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -49,6 +60,7 @@ interface PublicProfileVideosState {
 export class PublicProfileVideosComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
+  private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
@@ -56,6 +68,13 @@ export class PublicProfileVideosComponent {
   private readonly refreshSubject = new BehaviorSubject<number>(0);
 
   readonly viewerOpening = signal(false);
+
+  readonly viewerUid$: Observable<string | null> =
+    this.currentUserStore.user$.pipe(
+      map((user) => (user as ViewerUserLike | null)?.uid ?? null),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly ownerUid$: Observable<string> = this.route.paramMap.pipe(
     map((params) => (params.get('id') ?? '').trim()),
@@ -187,7 +206,11 @@ export class PublicProfileVideosComponent {
     }`;
   }
 
-  getVideoAriaLabel(item: IPublicVideoItem, index: number, total: number): string {
+  getVideoAriaLabel(
+    item: IPublicVideoItem,
+    index: number,
+    total: number
+  ): string {
     const title = item.title?.trim() || item.alt?.trim() || 'vídeo público';
     return `Abrir ${title}. Vídeo ${index + 1} de ${total}.`;
   }
