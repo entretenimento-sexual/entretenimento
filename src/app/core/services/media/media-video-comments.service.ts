@@ -4,7 +4,6 @@ import {
   collection,
   collectionData,
   limit,
-  orderBy,
   query,
   where,
 } from '@angular/fire/firestore';
@@ -101,7 +100,6 @@ export class MediaVideoCommentsService {
       const commentsQuery = query(
         commentsRef,
         where('status', '==', 'VISIBLE'),
-        orderBy('createdAt', 'asc'),
         limit(safeTakeCount)
       );
 
@@ -110,9 +108,11 @@ export class MediaVideoCommentsService {
       >;
     }).pipe(
       map((items) =>
-        items.map((item) =>
-          this.normalizeComment(item, safeOwnerUid, safeVideoId)
-        )
+        items
+          .map((item) =>
+            this.normalizeComment(item, safeOwnerUid, safeVideoId)
+          )
+          .sort((left, right) => left.createdAt - right.createdAt)
       ),
       catchError((error) => {
         this.reportError(
