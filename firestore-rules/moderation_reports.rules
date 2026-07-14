@@ -4,7 +4,8 @@
 // Denúncias privadas de usuários autenticados.
 //
 // Decisões:
-// - usuário autenticado pode criar denúncia própria;
+// - usuário autenticado pode criar denúncia própria para alvos legados;
+// - vídeo, comentário e avaliação exigem Callable com validação do alvo;
 // - usuário comum não lê a fila de denúncias;
 // - admin pode ler/listar e atualizar status;
 // - cliente comum não edita nem apaga denúncia depois de enviada.
@@ -16,11 +17,14 @@ match /moderation_reports/{reportId} {
       "reporterUid",
       "targetType",
       "targetId",
+      "parentTargetId",
       "targetOwnerUid",
+      "targetAuthorUid",
       "reason",
       "details",
       "route",
       "status",
+      "moderationAction",
       "source",
       "createdAt",
       "updatedAt"
@@ -30,6 +34,7 @@ match /moderation_reports/{reportId} {
   function allowedAdminUpdateKeys() {
     return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
       "status",
+      "moderationAction",
       "reviewedBy",
       "reviewedAt",
       "resolution",
@@ -41,11 +46,22 @@ match /moderation_reports/{reportId} {
     return request.resource.data.targetType in [
       "profile",
       "photo",
+      "video",
+      "video_comment",
+      "video_rating",
       "message",
       "room",
       "status",
       "venue",
       "other"
+    ];
+  }
+
+  function isCallableOnlyTarget() {
+    return request.resource.data.targetType in [
+      "video",
+      "video_comment",
+      "video_rating"
     ];
   }
 
@@ -75,6 +91,7 @@ match /moderation_reports/{reportId} {
   function validCreatePayload() {
     return signedIn()
       && allowedCreateKeys()
+      && !isCallableOnlyTarget()
       && request.resource.data.reporterUid == uid()
       && request.resource.data.reporterUid is string
       && request.resource.data.targetId is string
@@ -82,9 +99,12 @@ match /moderation_reports/{reportId} {
       && request.resource.data.status == "open"
       && validTargetType()
       && validReason()
+      && optString("parentTargetId")
       && optString("targetOwnerUid")
+      && optString("targetAuthorUid")
       && optString("details")
       && optString("route")
+      && optString("moderationAction")
       && request.resource.data.createdAt == request.time
       && request.resource.data.updatedAt == request.time;
   }
@@ -93,6 +113,7 @@ match /moderation_reports/{reportId} {
     return isAdmin()
       && allowedAdminUpdateKeys()
       && validStatus()
+      && optString("moderationAction")
       && optString("reviewedBy")
       && optTimestamp("reviewedAt")
       && optString("resolution")
