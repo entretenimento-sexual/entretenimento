@@ -74,10 +74,9 @@
         <span>{{ formatDuration(video.durationMs) }}</span>
       </div>
 
-      <p>
-        O vídeo não inicia automaticamente. Use os controles para reproduzir,
-        pausar, ajustar volume ou ampliar.
-      </p>
+      @if (video.description) {
+        <p>{{ video.description }}</p>
+      }
     </footer>
   } @else {
     <div class="public-video-viewer__empty" role="status">
