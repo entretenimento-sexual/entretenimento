@@ -1,5 +1,6 @@
 @import './public-video-viewer-social.component.css';
 @import './public-video-viewer-ratings.component.css';
+@import './public-video-viewer-reports.component.css';
 
 :host {
   display: block;
