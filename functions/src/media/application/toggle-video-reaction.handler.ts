@@ -21,6 +21,8 @@ interface PublicVideoDoc {
   reactionsCount?: number;
   likesCount?: number;
   commentsCount?: number;
+  ratingsCount?: number;
+  ratingAverage?: number;
   scoreBreakdown?: Partial<MediaScoreBreakdown>;
 }
 
@@ -99,6 +101,8 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
       const nextScore = buildMediaEngagementScore({
         reactionsCount: nextCount,
         commentsCount: normalizeMediaCount(video.commentsCount),
+        ratingsCount: normalizeMediaCount(video.ratingsCount),
+        ratingAverage: video.ratingAverage,
         currentBreakdown: video.scoreBreakdown,
       });
       const now = Date.now();
