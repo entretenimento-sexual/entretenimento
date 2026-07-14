@@ -149,7 +149,14 @@
                   </div>
                   <div>
                     <dt>Tipo</dt>
-                    <dd>{{ targetTypeLabel(item.targetType) }}</dd>
+                    <dd>
+                      @switch (item.targetType) {
+                        @case ('video') { Vídeo }
+                        @case ('video_comment') { Comentário de vídeo }
+                        @case ('video_rating') { Avaliação de vídeo }
+                        @default { {{ targetTypeLabel(item.targetType) }} }
+                      }
+                    </dd>
                   </div>
                   <div>
                     <dt>Motivo</dt>
@@ -180,6 +187,7 @@
     } @else {
       <div class="moderation-reports__list" role="list" aria-label="Lista de denúncias">
         @for (report of vm.filteredReports; track trackByReportId($index, report)) {
+          @let videoContentReport = report.targetType === 'video' || report.targetType === 'video_comment' || report.targetType === 'video_rating';
           <article
             class="report-card"
             role="listitem"
@@ -190,7 +198,14 @@
           >
             <header class="report-card__header">
               <div>
-                <span class="report-card__type">{{ targetTypeLabel(report.targetType) }}</span>
+                <span class="report-card__type">
+                  @switch (report.targetType) {
+                    @case ('video') { Vídeo }
+                    @case ('video_comment') { Comentário de vídeo }
+                    @case ('video_rating') { Avaliação de vídeo }
+                    @default { {{ targetTypeLabel(report.targetType) }} }
+                  }
+                </span>
                 <h3>{{ reasonLabel(report.reason) }}</h3>
               </div>
 
@@ -213,10 +228,24 @@
                 <dd>{{ report.targetId }}</dd>
               </div>
 
+              @if (report.parentTargetId) {
+                <div>
+                  <dt>Vídeo</dt>
+                  <dd>{{ report.parentTargetId }}</dd>
+                </div>
+              }
+
               <div>
                 <dt>Dono do alvo</dt>
                 <dd>{{ report.targetOwnerUid || 'Não informado' }}</dd>
               </div>
+
+              @if (report.targetAuthorUid) {
+                <div>
+                  <dt>Autor do conteúdo</dt>
+                  <dd>{{ report.targetAuthorUid }}</dd>
+                </div>
+              }
 
               <div>
                 <dt>Denunciante</dt>
@@ -315,7 +344,7 @@
                   maxlength="900"
                   [ngModel]="resolutionDraft(report)"
                   (ngModelChange)="setResolutionDraft(report, $event)"
-                  placeholder="Descreva a decisão, providência tomada ou motivo da rejeição."
+                  [placeholder]="videoContentReport ? 'Justifique objetivamente por que o conteúdo será mantido ou removido.' : 'Descreva a decisão, providência tomada ou motivo da rejeição.'"
                   [attr.aria-label]="'Nota da moderação para denúncia ' + report.id"
                 ></textarea>
                 <mat-hint align="end">{{ resolutionDraftLength(report) }}/900</mat-hint>
@@ -340,7 +369,7 @@
                 (click)="resolveReport(report)"
                 [disabled]="isBusy(report) || report.status === 'resolved'"
               >
-                Resolver
+                {{ videoContentReport ? 'Remover conteúdo' : 'Resolver' }}
               </button>
 
               <button
@@ -350,7 +379,7 @@
                 (click)="rejectReport(report)"
                 [disabled]="isBusy(report) || report.status === 'rejected'"
               >
-                Rejeitar
+                {{ videoContentReport ? 'Manter conteúdo' : 'Rejeitar' }}
               </button>
             </footer>
           </article>
