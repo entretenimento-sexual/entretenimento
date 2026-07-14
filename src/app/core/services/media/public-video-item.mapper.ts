@@ -27,13 +27,25 @@ function normalizeId(value: unknown): string {
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
 }
 
+function replaceControlCharacters(value: string): string {
+  let sanitized = '';
+
+  for (let index = 0; index < value.length; index += 1) {
+    const characterCode = value.charCodeAt(index);
+    sanitized += characterCode <= 31 || characterCode === 127
+      ? ' '
+      : value[index];
+  }
+
+  return sanitized;
+}
+
 function normalizeText(
   value: unknown,
   maxLength: number,
   fallback: string | null = null
 ): string | null {
-  const normalized = String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+  const normalized = replaceControlCharacters(String(value ?? ''))
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
@@ -146,8 +158,16 @@ function normalizeOwnerSummary(
   const orientation = normalizeText(data['ownerOrientation'], 40);
   const municipio = normalizeText(data['ownerMunicipio'], 120);
   const estado = normalizeText(data['ownerEstado'], 80);
+  const hasOwnerData = !!(
+    nickname ||
+    photoURL ||
+    gender ||
+    orientation ||
+    municipio ||
+    estado
+  );
 
-  if (!nickname && !photoURL && !gender && !orientation && !municipio && !estado) {
+  if (!hasOwnerData) {
     return null;
   }
 
