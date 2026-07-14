@@ -4,6 +4,23 @@
 
 match /public_profiles/{userId}/public_videos/{videoId} {
 
+  function videoPath() {
+    return /databases/$(database)/documents/public_profiles/$(userId)/public_videos/$(videoId);
+  }
+
+  function videoExists() {
+    return exists(videoPath());
+  }
+
+  function videoData() {
+    return get(videoPath()).data;
+  }
+
+  function isApprovedPublicVideoData(data) {
+    return data.visibility == "PUBLIC"
+      && data.moderationStatus == "APPROVED";
+  }
+
   function isPublicReadableVideo() {
     return resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
@@ -17,8 +34,34 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 
   allow create, update, delete: if false;
 
-  match /{allPaths=**} {
-    allow read, write: if false;
+  match /likes/{viewerUid} {
+    allow get: if signedIn() && request.auth.uid == viewerUid;
+    allow list: if false;
+    allow create, update, delete: if false;
+  }
+
+  match /comments/{commentId} {
+    allow get: if signedIn()
+      && (
+        isSelf(userId)
+        || (
+          resource.data.status == "VISIBLE"
+          && videoExists()
+          && isApprovedPublicVideoData(videoData())
+        )
+      );
+
+    allow list: if signedIn()
+      && (
+        isSelf(userId)
+        || (
+          resource.data.status == "VISIBLE"
+          && videoExists()
+          && isApprovedPublicVideoData(videoData())
+        )
+      );
+
+    allow create, update, delete: if false;
   }
 }
 
