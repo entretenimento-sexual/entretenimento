@@ -2,7 +2,7 @@
 // -----------------------------------------------------------------------------
 // Integração isolada de vídeo:
 // upload privado -> registro -> fila -> conclusão simulada do provedor externo
-// -> publicação -> acesso temporário -> despublicação.
+// -> metadados -> publicação -> edição -> acesso temporário -> despublicação.
 // -----------------------------------------------------------------------------
 
 import assert from 'node:assert/strict';
@@ -118,6 +118,10 @@ async function run() {
   const sourceBytes = new TextEncoder().encode(`private-video-${runId}`);
   const posterBytes = new TextEncoder().encode(`private-poster-${runId}`);
   const processedBytes = new TextEncoder().encode(`processed-video-${runId}`);
+  const draftTitle = 'Uma noite especial';
+  const draftDescription = 'A história original desse momento.';
+  const editedTitle = 'Uma noite ainda mais especial';
+  const editedDescription = 'A história revisada depois da publicação.';
 
   const clientApp = initializeClientApp(
     {
@@ -200,6 +204,12 @@ async function run() {
     const privateVideoRef = adminDb.doc(
       `users/${ownerUid}/videos/${videoId}`
     );
+    const publicationRef = adminDb.doc(
+      `users/${ownerUid}/video_publications/${videoId}`
+    );
+    const publicVideoRef = adminDb.doc(
+      `public_profiles/${ownerUid}/public_videos/${videoId}`
+    );
     jobRef = adminDb.doc(
       `media_video_processing_jobs/${ownerUid}_${videoId}`
     );
@@ -275,6 +285,31 @@ async function run() {
         value?.processedStoragePath === processedPath
     );
 
+    const updateVideoPublicationSettings = httpsCallable(
+      clientFunctions,
+      'updateVideoPublicationSettings'
+    );
+    const draftResponse = await updateVideoPublicationSettings({
+      ownerUid,
+      videoId,
+      title: draftTitle,
+      description: draftDescription,
+      reactionsEnabled: false,
+      commentsEnabled: true,
+      ratingsEnabled: false,
+    });
+
+    assert.equal(draftResponse.data.videoId, videoId);
+    assert.equal(draftResponse.data.isPublished, false);
+    assert.equal(draftResponse.data.moderationStatus, 'PRIVATE');
+
+    const draftPublication = await readDocumentData(publicationRef);
+    assert.equal(draftPublication?.title, draftTitle);
+    assert.equal(draftPublication?.description, draftDescription);
+    assert.equal(draftPublication?.reactionsEnabled, false);
+    assert.equal(draftPublication?.commentsEnabled, true);
+    assert.equal(draftPublication?.ratingsEnabled, false);
+
     const publishVideo = httpsCallable(clientFunctions, 'publishVideo');
     const publicationResponse = await publishVideo({
       ownerUid,
@@ -286,22 +321,30 @@ async function run() {
     assert.equal(publicationResponse.data.videoId, videoId);
     assert.equal(publicationResponse.data.moderationStatus, 'APPROVED');
 
-    const publicationRef = adminDb.doc(
-      `users/${ownerUid}/video_publications/${videoId}`
+    const publishedState = await waitFor(
+      'metadados do vídeo chegarem à projeção pública',
+      async () => ({
+        publication: await readDocumentData(publicationRef),
+        publicVideo: await readDocumentData(publicVideoRef),
+      }),
+      (value) =>
+        value.publication?.isPublished === true &&
+        value.publicVideo?.moderationStatus === 'APPROVED' &&
+        value.publicVideo?.title === draftTitle &&
+        value.publicVideo?.description === draftDescription
     );
-    const publicVideoRef = adminDb.doc(
-      `public_profiles/${ownerUid}/public_videos/${videoId}`
-    );
-    const publication = await readDocumentData(publicationRef);
-    const publicVideo = await readDocumentData(publicVideoRef);
+    const publication = publishedState.publication;
+    const publicVideo = publishedState.publicVideo;
 
-    assert.ok(publication);
-    assert.ok(publicVideo);
-    assert.equal(publication.isPublished, true);
     assert.equal(publication.moderationStatus, 'APPROVED');
-    assert.equal(publicVideo.moderationStatus, 'APPROVED');
+    assert.equal(publication.reactionsEnabled, false);
+    assert.equal(publication.commentsEnabled, true);
+    assert.equal(publication.ratingsEnabled, false);
     assert.equal(publicVideo.mimeType, 'video/mp4');
     assert.equal(publicVideo.durationMs, 10_000);
+    assert.equal(publicVideo.reactionsEnabled, false);
+    assert.equal(publicVideo.commentsEnabled, true);
+    assert.equal(publicVideo.ratingsEnabled, false);
 
     const publishedVideoPath = String(publication.publishedStoragePath ?? '');
     const publishedPosterPath = String(
@@ -319,6 +362,41 @@ async function run() {
     const [publishedPosterBytes] = await publishedPosterFile.download();
     assert.deepEqual(publishedVideoBytes, Buffer.from(processedBytes));
     assert.deepEqual(publishedPosterBytes, Buffer.from(posterBytes));
+
+    const editedResponse = await updateVideoPublicationSettings({
+      ownerUid,
+      videoId,
+      title: editedTitle,
+      description: editedDescription,
+      reactionsEnabled: true,
+      commentsEnabled: false,
+      ratingsEnabled: true,
+    });
+
+    assert.equal(editedResponse.data.videoId, videoId);
+    assert.equal(editedResponse.data.isPublished, true);
+    assert.equal(editedResponse.data.moderationStatus, 'APPROVED');
+
+    const editedState = await waitFor(
+      'edição pública de metadados e preferências',
+      async () => ({
+        publication: await readDocumentData(publicationRef),
+        publicVideo: await readDocumentData(publicVideoRef),
+      }),
+      (value) =>
+        value.publication?.title === editedTitle &&
+        value.publication?.description === editedDescription &&
+        value.publicVideo?.title === editedTitle &&
+        value.publicVideo?.description === editedDescription &&
+        value.publicVideo?.commentsEnabled === false
+    );
+
+    assert.equal(editedState.publication.reactionsEnabled, true);
+    assert.equal(editedState.publication.commentsEnabled, false);
+    assert.equal(editedState.publication.ratingsEnabled, true);
+    assert.equal(editedState.publicVideo.reactionsEnabled, true);
+    assert.equal(editedState.publicVideo.commentsEnabled, false);
+    assert.equal(editedState.publicVideo.ratingsEnabled, true);
 
     const getPublicVideoAccessUrls = httpsCallable(
       clientFunctions,
@@ -358,6 +436,9 @@ async function run() {
 
     console.log('✔ upload privado de vídeo autorizado pelas Storage Rules');
     console.log('✔ registro autenticado e fila de processamento criados');
+    console.log('✔ metadados e preferências salvos antes da publicação');
+    console.log('✔ título, descrição e permissões propagados à projeção pública');
+    console.log('✔ edição pós-publicação sincronizada pelo backend');
     console.log('✔ derivado processado usado na publicação, não o arquivo original');
     console.log('✔ vídeo e poster públicos validados no Storage Emulator');
     console.log('✔ URL temporária pública validada com conteúdo binário');
