@@ -87,7 +87,10 @@ const DENY_UNKNOWN: IMediaPolicyResult = {
   standalone: true,
   imports: [CommonModule, ReactiveFormsModule, RouterModule],
   templateUrl: './profile-videos.component.html',
-  styleUrls: ['./profile-videos.component.css'],
+  styleUrls: [
+    './profile-videos.component.css',
+    './profile-videos-settings.component.css',
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfileVideosComponent {
