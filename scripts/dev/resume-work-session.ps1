@@ -68,11 +68,18 @@ Invoke-NativeStep "Buscando origin/$Branch" {
   git fetch origin $Branch
 }
 
-$currentBranch = String(& git branch --show-current).Trim()
+$currentBranchOutput = @(& git branch --show-current)
 
 if ($LASTEXITCODE -ne 0) {
   throw 'Não foi possível identificar a branch atual.'
 }
+
+$currentBranch = if ($currentBranchOutput.Count -gt 0) {
+  [string]$currentBranchOutput[0]
+} else {
+  ''
+}
+$currentBranch = $currentBranch.Trim()
 
 if ($currentBranch -ne $Branch) {
   & git show-ref --verify --quiet "refs/heads/$Branch"
@@ -129,7 +136,18 @@ if ($Validate) {
   }
 }
 
-$head = String(& git log -1 --oneline).Trim()
+$headOutput = @(& git log -1 --oneline)
+
+if ($LASTEXITCODE -ne 0) {
+  throw 'Não foi possível identificar o commit atual.'
+}
+
+$head = if ($headOutput.Count -gt 0) {
+  [string]$headOutput[0]
+} else {
+  'commit não identificado'
+}
+$head = $head.Trim()
 Write-Host "[work:resume] Pronto em: $head" -ForegroundColor Green
 
 $status = @(Get-RepositoryStatus)
