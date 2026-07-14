@@ -28,9 +28,11 @@ export {
 } from './application/sync-published-photo-on-private-update.handler';
 
 export {
-  publishVideo,
   unpublishVideo,
 } from './application/manage-video-publication.handler';
+export {
+  publishVideo,
+} from './application/publish-video-orchestrator.handler';
 
 export {
   updateVideoPublicationSettings,
