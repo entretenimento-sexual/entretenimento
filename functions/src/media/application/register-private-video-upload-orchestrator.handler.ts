@@ -19,8 +19,9 @@ interface RegisteredPrivateVideoResponse {
 export const registerPrivateVideoUpload = onCall(
   { region: FUNCTIONS_REGION },
   async (request) => {
-    const response = await registerPrivateVideoUploadCore.run(request as any) as
-      RegisteredPrivateVideoResponse;
+    const response = (
+      await registerPrivateVideoUploadCore.run(request as any)
+    ) as RegisteredPrivateVideoResponse;
 
     await ensurePrivateVideoProcessingQueued(
       response.ownerUid,
