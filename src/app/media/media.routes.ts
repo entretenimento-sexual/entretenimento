@@ -52,6 +52,13 @@ export const MEDIA_ROUTES: Routes = [
       ),
   },
   {
+    path: 'denunciar/video/:ownerUid/:videoId/:targetType/:targetId',
+    loadComponent: () =>
+      import('./videos/video-report-page/video-report-page.component').then(
+        (m) => m.VideoReportPageComponent
+      ),
+  },
+  {
     path: 'ultimas-fotos',
     loadComponent: () =>
       import('./photos/latest-public-photos/latest-public-photos.component').then(
