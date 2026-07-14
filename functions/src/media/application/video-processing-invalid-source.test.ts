@@ -22,7 +22,6 @@ describe('hasPersistedInvalidProcessingSourceFailure', () => {
       hasPersistedInvalidProcessingSourceFailure({
         status: 'ready',
         processingStage: 'ready',
-        processingErrorCode: null as unknown as string,
       }),
       false
     );
