@@ -21,6 +21,7 @@ import {
   buildPublicVideoKey,
   hydratePublicVideoItem,
   isPublicVideoAccessUsable,
+  mapPublicVideoProjection,
 } from './public-video-item.mapper';
 
 interface PublicVideoAccessRequestItem {
@@ -73,9 +74,17 @@ export class PublicVideoAccessService {
   hydratePublicVideoUrls$(
     projections: readonly IPublicVideoProjection[]
   ): Observable<IPublicVideoItem[]> {
-    const eligible = projections.filter((projection) =>
-      this.isEligibleProjection(projection)
-    );
+    const eligible = projections.flatMap((candidate) => {
+      const projection = mapPublicVideoProjection({
+        documentId: candidate.id,
+        expectedOwnerUid: candidate.ownerUid,
+        data: candidate,
+      });
+
+      return projection && this.isEligibleProjection(projection)
+        ? [projection]
+        : [];
+    });
 
     if (!eligible.length) {
       return of([]);
