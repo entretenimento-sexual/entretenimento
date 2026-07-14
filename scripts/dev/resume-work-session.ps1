@@ -21,7 +21,7 @@ function Invoke-NativeStep {
   & $Command
 
   if ($LASTEXITCODE -ne 0) {
-    throw "Falha em: $Label (código $LASTEXITCODE)."
+    throw "Falha em: $Label (codigo $LASTEXITCODE)."
   }
 }
 
@@ -29,21 +29,72 @@ function Get-RepositoryStatus {
   $status = @(& git status --porcelain)
 
   if ($LASTEXITCODE -ne 0) {
-    throw 'Não foi possível consultar o estado do repositório.'
+    throw 'Nao foi possivel consultar o estado do repositorio.'
   }
 
   return $status
+}
+
+function Get-DependencyLockHash {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$LockPath
+  )
+
+  if (-not (Test-Path $LockPath)) {
+    throw "Arquivo de lock ausente: $LockPath"
+  }
+
+  return (Get-FileHash -LiteralPath $LockPath -Algorithm SHA256).Hash
+}
+
+function Test-DependencyInstallCurrent {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$NodeModulesPath,
+    [Parameter(Mandatory = $true)]
+    [string]$LockPath,
+    [Parameter(Mandatory = $true)]
+    [string]$StampPath
+  )
+
+  if (-not (Test-Path $NodeModulesPath) -or -not (Test-Path $StampPath)) {
+    return $false
+  }
+
+  $expectedHash = Get-DependencyLockHash -LockPath $LockPath
+  $installedHash = (Get-Content -LiteralPath $StampPath -Raw).Trim()
+
+  return $installedHash -eq $expectedHash
+}
+
+function Save-DependencyInstallStamp {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$LockPath,
+    [Parameter(Mandatory = $true)]
+    [string]$StampPath
+  )
+
+  $stampDirectory = Split-Path -Parent $StampPath
+
+  if (-not (Test-Path $stampDirectory)) {
+    New-Item -ItemType Directory -Path $stampDirectory | Out-Null
+  }
+
+  $lockHash = Get-DependencyLockHash -LockPath $LockPath
+  Set-Content -LiteralPath $StampPath -Value $lockHash -Encoding ASCII
 }
 
 Set-Location $ProjectRoot
 Write-Host "[work:resume] Projeto: $ProjectRoot"
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-  throw 'Git não foi encontrado no PATH.'
+  throw 'Git nao foi encontrado no PATH.'
 }
 
 if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
-  throw 'npm.cmd não foi encontrado no PATH.'
+  throw 'npm.cmd nao foi encontrado no PATH.'
 }
 
 $status = @(Get-RepositoryStatus)
@@ -54,9 +105,9 @@ if ($status.Count -gt 0) {
   )
 
   if ($nonGeneratedChanges.Count -gt 0) {
-    Write-Host '[work:resume] Alterações locais detectadas:' -ForegroundColor Yellow
+    Write-Host '[work:resume] Alteracoes locais detectadas:' -ForegroundColor Yellow
     $status | ForEach-Object { Write-Host "  $_" }
-    throw 'A retomada foi interrompida para não sobrescrever trabalho local.'
+    throw 'A retomada foi interrompida para nao sobrescrever trabalho local.'
   }
 
   Invoke-NativeStep 'Restaurando firestore.rules gerado localmente' {
@@ -71,7 +122,7 @@ Invoke-NativeStep "Buscando origin/$Branch" {
 $currentBranchOutput = @(& git branch --show-current)
 
 if ($LASTEXITCODE -ne 0) {
-  throw 'Não foi possível identificar a branch atual.'
+  throw 'Nao foi possivel identificar a branch atual.'
 }
 
 $currentBranch = if ($currentBranchOutput.Count -gt 0) {
@@ -96,20 +147,43 @@ if ($currentBranch -ne $Branch) {
   }
 }
 
-Invoke-NativeStep 'Atualizando branch sem merge automático' {
+Invoke-NativeStep 'Atualizando branch somente por fast-forward' {
   git merge --ff-only "origin/$Branch"
 }
 
-if ($Install -or -not (Test-Path (Join-Path $ProjectRoot 'node_modules'))) {
-  Invoke-NativeStep 'Instalando dependências da aplicação' {
+$rootLockPath = Join-Path $ProjectRoot 'package-lock.json'
+$rootNodeModulesPath = Join-Path $ProjectRoot 'node_modules'
+$rootStampPath = Join-Path $rootNodeModulesPath '.work-resume-lock.sha256'
+$functionsLockPath = Join-Path $ProjectRoot 'functions\package-lock.json'
+$functionsNodeModulesPath = Join-Path $ProjectRoot 'functions\node_modules'
+$functionsStampPath = Join-Path $functionsNodeModulesPath '.work-resume-lock.sha256'
+
+$rootInstallCurrent = Test-DependencyInstallCurrent `
+  -NodeModulesPath $rootNodeModulesPath `
+  -LockPath $rootLockPath `
+  -StampPath $rootStampPath
+
+if ($Install -or -not $rootInstallCurrent) {
+  Invoke-NativeStep 'Sincronizando dependencias da aplicacao com package-lock.json' {
     npm.cmd ci
   }
+  Save-DependencyInstallStamp `
+    -LockPath $rootLockPath `
+    -StampPath $rootStampPath
 }
 
-if ($Install -or -not (Test-Path (Join-Path $ProjectRoot 'functions\node_modules'))) {
-  Invoke-NativeStep 'Instalando dependências das Functions' {
+$functionsInstallCurrent = Test-DependencyInstallCurrent `
+  -NodeModulesPath $functionsNodeModulesPath `
+  -LockPath $functionsLockPath `
+  -StampPath $functionsStampPath
+
+if ($Install -or -not $functionsInstallCurrent) {
+  Invoke-NativeStep 'Sincronizando dependencias das Functions com package-lock.json' {
     npm.cmd --prefix functions ci
   }
+  Save-DependencyInstallStamp `
+    -LockPath $functionsLockPath `
+    -StampPath $functionsStampPath
 }
 
 if ($Validate) {
@@ -126,7 +200,7 @@ if ($Validate) {
       npm.cmd run test:ci
     }
 
-    Invoke-NativeStep 'Executando E2E completo de vídeos' {
+    Invoke-NativeStep 'Executando E2E completo de videos' {
       npm.cmd run test:media:video:e2e
     }
   } finally {
@@ -139,13 +213,13 @@ if ($Validate) {
 $headOutput = @(& git log -1 --oneline)
 
 if ($LASTEXITCODE -ne 0) {
-  throw 'Não foi possível identificar o commit atual.'
+  throw 'Nao foi possivel identificar o commit atual.'
 }
 
 $head = if ($headOutput.Count -gt 0) {
   [string]$headOutput[0]
 } else {
-  'commit não identificado'
+  'commit nao identificado'
 }
 $head = $head.Trim()
 Write-Host "[work:resume] Pronto em: $head" -ForegroundColor Green
@@ -156,11 +230,11 @@ if ($status.Count -gt 0) {
   Write-Host '[work:resume] Estado final:' -ForegroundColor Yellow
   $status | ForEach-Object { Write-Host "  $_" }
 } else {
-  Write-Host '[work:resume] Árvore de trabalho limpa.' -ForegroundColor Green
+  Write-Host '[work:resume] Arvore de trabalho limpa.' -ForegroundColor Green
 }
 
 if ($Start) {
-  Invoke-NativeStep 'Iniciando sessão local Angular + Firebase' {
+  Invoke-NativeStep 'Iniciando sessao local Angular + Firebase' {
     npm.cmd run dev:auth:win
   }
 }
