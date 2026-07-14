@@ -97,6 +97,10 @@ if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
   throw 'npm.cmd nao foi encontrado no PATH.'
 }
 
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+  throw 'Node.js nao foi encontrado no PATH.'
+}
+
 $status = @(Get-RepositoryStatus)
 
 if ($status.Count -gt 0) {
@@ -149,6 +153,10 @@ if ($currentBranch -ne $Branch) {
 
 Invoke-NativeStep 'Atualizando branch somente por fast-forward' {
   git merge --ff-only "origin/$Branch"
+}
+
+Invoke-NativeStep 'Validando alinhamento entre package.json e package-lock.json' {
+  node "$ProjectRoot\scripts\dev\check-package-lock-sync.mjs"
 }
 
 $rootLockPath = Join-Path $ProjectRoot 'package-lock.json'
