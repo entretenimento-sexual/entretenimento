@@ -118,6 +118,25 @@ export class AdminModerationReportService {
       return throwError(() => new Error('Revisão de denúncia inválida.'));
     }
 
+    if (
+      this.isVideoContentTarget(normalized.reportTargetType) &&
+      (normalized.status === 'resolved' || normalized.status === 'rejected')
+    ) {
+      const decision: ModerationReportAction = normalized.status === 'resolved'
+        ? 'REMOVE'
+        : 'KEEP';
+      const resolution = normalized.resolution ??
+        (decision === 'REMOVE'
+          ? 'Conteúdo removido após confirmação da denúncia.'
+          : 'Conteúdo mantido após revisão da denúncia.');
+
+      return this.reviewVideoContentReport$(
+        safeReportId,
+        decision,
+        resolution
+      );
+    }
+
     return this.authSession.readyUid$.pipe(
       take(1),
       switchMap((uid) => {
@@ -273,6 +292,14 @@ export class AdminModerationReportService {
       reportTargetType: reportTargetType || null,
       resolution: resolution || null,
     };
+  }
+
+  private isVideoContentTarget(
+    value: ModerationReportTargetType | null
+  ): value is 'video' | 'video_comment' | 'video_rating' {
+    return value === 'video' ||
+      value === 'video_comment' ||
+      value === 'video_rating';
   }
 
   private reportError(
