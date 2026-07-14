@@ -14,9 +14,21 @@ export interface VideoPublicationSettings {
   ratingsEnabled: boolean;
 }
 
+function replaceControlCharacters(value: string): string {
+  let sanitized = '';
+
+  for (let index = 0; index < value.length; index += 1) {
+    const characterCode = value.charCodeAt(index);
+    sanitized += characterCode <= 31 || characterCode === 127
+      ? ' '
+      : value[index];
+  }
+
+  return sanitized;
+}
+
 function cleanText(value: unknown, maxLength: number): string | null {
-  const normalized = String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+  const normalized = replaceControlCharacters(String(value ?? ''))
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
