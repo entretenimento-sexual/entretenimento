@@ -1,6 +1,6 @@
 // scripts/tests/run-video-publication-e2e.mjs
 // -----------------------------------------------------------------------------
-// Executa o E2E de vídeo com variáveis restritas ao processo dos emuladores.
+// Executa os E2Es de vídeo com variáveis restritas ao processo dos emuladores.
 // -----------------------------------------------------------------------------
 
 import { spawn } from 'node:child_process';
@@ -15,6 +15,10 @@ const firebaseCli = path.resolve(
   'bin',
   'firebase.js'
 );
+const testCommand = [
+  'node scripts/tests/video-publication.e2e.mjs',
+  'node scripts/tests/video-social.e2e.mjs',
+].join(' && ');
 
 const child = spawn(
   process.execPath,
@@ -27,7 +31,7 @@ const child = spawn(
     'auth,firestore,storage,functions',
     '--project',
     PROJECT_ID,
-    'node scripts/tests/video-publication.e2e.mjs',
+    testCommand,
   ],
   {
     cwd: process.cwd(),
