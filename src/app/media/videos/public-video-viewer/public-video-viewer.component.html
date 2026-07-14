@@ -2,10 +2,14 @@
 @let viewerIsOwner = (viewerIsOwner$ | async) === true;
 @let canReact = (canReact$ | async) === true;
 @let canComment = (canComment$ | async) === true;
+@let canRate = (canRate$ | async) === true;
 @let liked = (likedByViewer$ | async) === true;
 @let likesCount = (likesCount$ | async) || 0;
 @let commentsCount = (commentsCount$ | async) || 0;
+@let ratingSummary = (ratingSummary$ | async);
+@let viewerRating = (viewerRating$ | async);
 @let togglingLike = (togglingLike$ | async) === true;
+@let submittingRating = (submittingRating$ | async) === true;
 @let submittingComment = (submittingComment$ | async) === true;
 @let submittingReply = (submittingReply$ | async) === true;
 @let replyingToCommentId = (replyingToCommentId$ | async);
@@ -120,8 +124,64 @@
               Comentários · {{ commentsCount }}
             </button>
           }
+
+          @if (video.ratingsEnabled) {
+            <button
+              type="button"
+              class="public-video-viewer__interaction"
+              [class.public-video-viewer__interaction--active]="ratingsExpanded()"
+              [attr.aria-expanded]="ratingsExpanded()"
+              aria-controls="public-video-ratings"
+              (click)="toggleRatings()"
+            >
+              {{ ratingSummaryLabel(ratingSummary) }}
+            </button>
+          }
         </div>
       </div>
+
+      @if (ratingsExpanded() && video.ratingsEnabled) {
+        <section
+          id="public-video-ratings"
+          class="public-video-viewer__ratings"
+          aria-label="Avaliação do vídeo"
+        >
+          <div class="public-video-viewer__ratings-copy">
+            <strong>
+              @if (viewerIsOwner) {
+                Avaliação do público
+              } @else if (viewerRating) {
+                Sua nota: {{ viewerRating }}
+              } @else {
+                Escolha uma nota
+              }
+            </strong>
+            <span>{{ ratingSummaryLabel(ratingSummary) }}</span>
+          </div>
+
+          @if (!viewerIsOwner) {
+            <div
+              class="public-video-viewer__rating-options"
+              role="radiogroup"
+              aria-label="Nota de 1 a 5"
+            >
+              @for (option of ratingOptions; track option) {
+                <button
+                  type="button"
+                  class="public-video-viewer__rating-option"
+                  [class.public-video-viewer__rating-option--active]="viewerRating === option"
+                  [attr.aria-pressed]="viewerRating === option"
+                  [attr.aria-label]="'Avaliar com nota ' + option"
+                  [disabled]="!canRate || submittingRating"
+                  (click)="rateVideo(option)"
+                >
+                  {{ option }}
+                </button>
+              }
+            </div>
+          }
+        </section>
+      }
 
       @if (commentsExpanded() && video.commentsEnabled) {
         <section
