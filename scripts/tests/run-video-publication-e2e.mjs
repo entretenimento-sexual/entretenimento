@@ -261,12 +261,17 @@ const emulatorEnvironment = {
   ...nodeRuntime.environment,
   FUNCTIONS_DISCOVERY_TIMEOUT: String(FUNCTIONS_DISCOVERY_TIMEOUT_SECONDS),
   MEDIA_AUTO_APPROVE_VIDEOS: 'true',
+  MEDIA_EMULATOR_AUTO_PROCESS_VIDEOS: 'false',
   FIREBASE_STORAGE_BUCKET: STORAGE_BUCKET,
 };
 
 console.log(
   `[video:e2e] Timeout de descoberta das Functions: ` +
     `${FUNCTIONS_DISCOVERY_TIMEOUT_SECONDS}s.`
+);
+console.log(
+  '[video:e2e] Processamento automatico local desativado para validar ' +
+    'explicitamente a fila e a conclusao simulada do provedor.'
 );
 
 const child = spawn(
