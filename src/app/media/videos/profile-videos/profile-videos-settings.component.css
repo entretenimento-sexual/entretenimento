@@ -1,0 +1,146 @@
+.profile-videos__description {
+  margin: 0;
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 74%,
+    transparent
+  );
+  font-size: 0.88rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.profile-videos__settings-form {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 94%,
+    var(--text-color, #f5f7fb) 3%
+  );
+}
+
+.profile-videos__settings-form > label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.profile-videos__settings-form input[type='text'],
+.profile-videos__settings-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 16%));
+  border-radius: 10px;
+  background: var(--background-color, #080d13);
+  color: var(--text-color, #f5f7fb);
+  font: inherit;
+}
+
+.profile-videos__settings-form input[type='text'] {
+  min-height: 42px;
+  padding: 9px 11px;
+}
+
+.profile-videos__settings-form textarea {
+  min-height: 104px;
+  padding: 10px 11px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.profile-videos__settings-form input:focus-visible,
+.profile-videos__settings-form textarea:focus-visible,
+.profile-videos__settings-form button:focus-visible {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 2px;
+}
+
+.profile-videos__settings-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.profile-videos__settings-options legend {
+  width: 100%;
+  margin-bottom: 2px;
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 68%,
+    transparent
+  );
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.profile-videos__settings-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  cursor: pointer;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.82rem;
+}
+
+.profile-videos__settings-options input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary-color, #ff6b6b);
+}
+
+.profile-videos__settings-note {
+  margin: 0;
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 64%,
+    transparent
+  );
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.profile-videos__settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.profile-videos__settings-actions .app-action {
+  min-height: 42px;
+  flex: 1 1 120px;
+}
+
+@media (max-width: 700px) {
+  .profile-videos__settings-form {
+    padding: 12px;
+  }
+
+  .profile-videos__settings-options,
+  .profile-videos__settings-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .profile-videos__settings-options label {
+    min-height: 40px;
+  }
+}
+
+html.high-contrast .profile-videos__settings-form,
+html.high-contrast .profile-videos__settings-form input,
+html.high-contrast .profile-videos__settings-form textarea {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+}
