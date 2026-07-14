@@ -19,6 +19,8 @@ interface PublicVideoDoc {
   reactionsCount?: number;
   likesCount?: number;
   commentsCount?: number;
+  ratingsCount?: number;
+  ratingAverage?: number;
   scoreBreakdown?: Partial<MediaScoreBreakdown>;
 }
 
@@ -217,6 +219,8 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
           video.reactionsCount ?? video.likesCount
         ),
         commentsCount: nextCommentsCount,
+        ratingsCount: normalizeMediaCount(video.ratingsCount),
+        ratingAverage: video.ratingAverage,
         currentBreakdown: video.scoreBreakdown,
       });
       const comment: VideoCommentDoc = {
@@ -368,6 +372,8 @@ export const moderateVideoComment = onCall<ModerateVideoCommentRequest>(
           video.reactionsCount ?? video.likesCount
         ),
         commentsCount: nextCommentsCount,
+        ratingsCount: normalizeMediaCount(video.ratingsCount),
+        ratingAverage: video.ratingAverage,
         currentBreakdown: video.scoreBreakdown,
       });
 
