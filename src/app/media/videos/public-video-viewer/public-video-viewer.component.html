@@ -1,3 +1,16 @@
+@let viewerUid = (viewerUid$ | async);
+@let viewerIsOwner = (viewerIsOwner$ | async) === true;
+@let canReact = (canReact$ | async) === true;
+@let canComment = (canComment$ | async) === true;
+@let liked = (likedByViewer$ | async) === true;
+@let likesCount = (likesCount$ | async) || 0;
+@let commentsCount = (commentsCount$ | async) || 0;
+@let togglingLike = (togglingLike$ | async) === true;
+@let submittingComment = (submittingComment$ | async) === true;
+@let submittingReply = (submittingReply$ | async) === true;
+@let replyingToCommentId = (replyingToCommentId$ | async);
+@let moderatingCommentId = (moderatingCommentId$ | async);
+
 <section
   class="public-video-viewer"
   role="dialog"
@@ -69,13 +82,193 @@
     </div>
 
     <footer class="public-video-viewer__footer">
-      <div>
-        <strong>{{ video.title || 'Vídeo do perfil' }}</strong>
-        <span>{{ formatDuration(video.durationMs) }}</span>
+      <div class="public-video-viewer__footer-main">
+        <div class="public-video-viewer__copy">
+          <div>
+            <strong>{{ video.title || 'Vídeo do perfil' }}</strong>
+            <span>{{ formatDuration(video.durationMs) }}</span>
+          </div>
+
+          @if (video.description) {
+            <p>{{ video.description }}</p>
+          }
+        </div>
+
+        <div class="public-video-viewer__interactions" aria-label="Interações do vídeo">
+          @if (video.reactionsEnabled) {
+            <button
+              type="button"
+              class="public-video-viewer__interaction"
+              [class.public-video-viewer__interaction--active]="liked"
+              [disabled]="!canReact || viewerIsOwner || togglingLike"
+              [attr.aria-pressed]="liked"
+              (click)="toggleLike()"
+            >
+              {{ liked ? 'Curtido' : 'Curtir' }} · {{ likesCount }}
+            </button>
+          }
+
+          @if (video.commentsEnabled) {
+            <button
+              type="button"
+              class="public-video-viewer__interaction"
+              [class.public-video-viewer__interaction--active]="commentsExpanded()"
+              [attr.aria-expanded]="commentsExpanded()"
+              aria-controls="public-video-comments"
+              (click)="toggleComments()"
+            >
+              Comentários · {{ commentsCount }}
+            </button>
+          }
+        </div>
       </div>
 
-      @if (video.description) {
-        <p>{{ video.description }}</p>
+      @if (commentsExpanded() && video.commentsEnabled) {
+        <section
+          id="public-video-comments"
+          class="public-video-viewer__comments"
+          aria-label="Comentários do vídeo"
+        >
+          @if (canComment) {
+            <form
+              class="public-video-viewer__comment-form"
+              (ngSubmit)="submitComment($event)"
+            >
+              <label for="public-video-comment">Comentar</label>
+              <textarea
+                id="public-video-comment"
+                [formControl]="commentControl"
+                maxlength="500"
+                rows="2"
+                placeholder="Escreva um comentário"
+              ></textarea>
+
+              <div>
+                <span>{{ (commentLength$ | async) || 0 }}/500</span>
+                <button
+                  type="submit"
+                  [disabled]="commentControl.invalid || submittingComment"
+                >
+                  {{ submittingComment ? 'Publicando...' : 'Publicar' }}
+                </button>
+              </div>
+            </form>
+          }
+
+          @if (commentThreads$ | async; as threads) {
+            @if (threads.length > 0) {
+              <div class="public-video-viewer__comment-list" role="list">
+                @for (thread of threads; track thread.root.id) {
+                  <article class="public-video-viewer__comment" role="listitem">
+                    <header>
+                      <a
+                        [routerLink]="['/perfil', thread.root.authorUid]"
+                        target="_blank"
+                        rel="noopener"
+                      >
+                        {{ thread.root.authorNickname }}
+                      </a>
+                      <time>{{ formatCommentDate(thread.root.createdAt) }}</time>
+                    </header>
+
+                    <p>{{ thread.root.content }}</p>
+
+                    <div class="public-video-viewer__comment-actions">
+                      @if (viewerIsOwner) {
+                        <button
+                          type="button"
+                          (click)="startReply(thread.root)"
+                          [disabled]="moderatingCommentId === thread.root.id"
+                        >
+                          Responder
+                        </button>
+                        <button
+                          type="button"
+                          (click)="hideComment(thread.root)"
+                          [disabled]="moderatingCommentId === thread.root.id"
+                        >
+                          Ocultar
+                        </button>
+                      }
+
+                      @if (canDeleteComment(thread.root, viewerUid, viewerIsOwner)) {
+                        <button
+                          type="button"
+                          (click)="deleteComment(thread.root)"
+                          [disabled]="moderatingCommentId === thread.root.id"
+                        >
+                          Excluir
+                        </button>
+                      }
+                    </div>
+
+                    @if (replyingToCommentId === thread.root.id) {
+                      <form
+                        class="public-video-viewer__reply-form"
+                        (ngSubmit)="submitReply(thread.root, $event)"
+                      >
+                        <textarea
+                          [formControl]="replyControl"
+                          maxlength="500"
+                          rows="2"
+                          [attr.aria-label]="'Responder a ' + thread.root.authorNickname"
+                        ></textarea>
+                        <div>
+                          <span>{{ (replyLength$ | async) || 0 }}/500</span>
+                          <button
+                            type="submit"
+                            [disabled]="replyControl.invalid || submittingReply"
+                          >
+                            Enviar
+                          </button>
+                          <button type="button" (click)="cancelReply()">
+                            Cancelar
+                          </button>
+                        </div>
+                      </form>
+                    }
+
+                    @if (thread.replies.length > 0) {
+                      <div class="public-video-viewer__replies">
+                        @for (reply of thread.replies; track reply.id) {
+                          <article class="public-video-viewer__comment public-video-viewer__comment--reply">
+                            <header>
+                              <a
+                                [routerLink]="['/perfil', reply.authorUid]"
+                                target="_blank"
+                                rel="noopener"
+                              >
+                                {{ reply.authorNickname }}
+                              </a>
+                              <time>{{ formatCommentDate(reply.createdAt) }}</time>
+                            </header>
+                            <p>{{ reply.content }}</p>
+
+                            @if (canDeleteComment(reply, viewerUid, viewerIsOwner)) {
+                              <div class="public-video-viewer__comment-actions">
+                                <button
+                                  type="button"
+                                  (click)="deleteComment(reply)"
+                                  [disabled]="moderatingCommentId === reply.id"
+                                >
+                                  Excluir
+                                </button>
+                              </div>
+                            }
+                          </article>
+                        }
+                      </div>
+                    }
+                  </article>
+                }
+              </div>
+            } @else {
+              <p class="public-video-viewer__comments-empty">
+                Nenhum comentário ainda.
+              </p>
+            }
+          }
+        </section>
       }
     </footer>
   } @else {
