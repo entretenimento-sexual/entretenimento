@@ -137,6 +137,21 @@
               {{ ratingSummaryLabel(ratingSummary) }}
             </button>
           }
+
+          @if (viewerUid && !viewerIsOwner) {
+            <a
+              class="public-video-viewer__interaction public-video-viewer__interaction--link"
+              [routerLink]="[
+                '/media/denunciar/video',
+                video.ownerUid,
+                video.id,
+                'video',
+                video.id
+              ]"
+            >
+              Denunciar
+            </a>
+          }
         </div>
       </div>
 
@@ -260,6 +275,20 @@
                           Excluir
                         </button>
                       }
+
+                      @if (viewerUid && viewerUid !== thread.root.authorUid) {
+                        <a
+                          [routerLink]="[
+                            '/media/denunciar/video',
+                            video.ownerUid,
+                            video.id,
+                            'video_comment',
+                            thread.root.id
+                          ]"
+                        >
+                          Denunciar
+                        </a>
+                      }
                     </div>
 
                     @if (replyingToCommentId === thread.root.id) {
@@ -304,15 +333,34 @@
                             </header>
                             <p>{{ reply.content }}</p>
 
-                            @if (canDeleteComment(reply, viewerUid, viewerIsOwner)) {
+                            @if (
+                              canDeleteComment(reply, viewerUid, viewerIsOwner) ||
+                              (viewerUid && viewerUid !== reply.authorUid)
+                            ) {
                               <div class="public-video-viewer__comment-actions">
-                                <button
-                                  type="button"
-                                  (click)="deleteComment(reply)"
-                                  [disabled]="moderatingCommentId === reply.id"
-                                >
-                                  Excluir
-                                </button>
+                                @if (canDeleteComment(reply, viewerUid, viewerIsOwner)) {
+                                  <button
+                                    type="button"
+                                    (click)="deleteComment(reply)"
+                                    [disabled]="moderatingCommentId === reply.id"
+                                  >
+                                    Excluir
+                                  </button>
+                                }
+
+                                @if (viewerUid && viewerUid !== reply.authorUid) {
+                                  <a
+                                    [routerLink]="[
+                                      '/media/denunciar/video',
+                                      video.ownerUid,
+                                      video.id,
+                                      'video_comment',
+                                      reply.id
+                                    ]"
+                                  >
+                                    Denunciar
+                                  </a>
+                                }
                               </div>
                             }
                           </article>
