@@ -1,41 +1,30 @@
 // src/app/core/services/geolocation/near-profile.service.ts
 // -----------------------------------------------------------------------------
-// NearbyProfilesService
+// NEARBY PROFILES SERVICE
 // -----------------------------------------------------------------------------
-//
-// Serviço para buscar perfis próximos usando geohash + cálculo real de distância.
-//
-// Ajustes desta versão:
-// - mantém a estrutura atual baseada em Promise para evitar impacto no NgRx/effects;
-// - mantém @firebase/firestore porque os testes já mockam esse módulo;
-// - mantém Firestore direto, sem reintroduzir FirestoreService legado;
-// - centraliza validação de coordenadas em geolocation-coordinate.utils.ts;
-// - evita geohashQueryBounds quando a coordenada de entrada é inválida;
-// - substitui validação fraca por typeof por extractValidGeoCoordinates().
-//
-// Observação:
-// Este service ainda pode evoluir no futuro para Observable, FirestoreContextService
-// e GlobalErrorHandlerService. Não faremos isso agora para evitar refatoração ampla.
-
-import { Injectable } from '@angular/core';
-
-import { IUserDados } from '../../interfaces/iuser-dados';
+// Busca perfis proximos por geohash e confirma a distancia real antes de emitir
+// o resultado. O contrato Promise foi preservado para nao alterar os efeitos NgRx
+// e os consumidores existentes nesta etapa.
+// -----------------------------------------------------------------------------
 
 import {
+  EnvironmentInjector,
+  Injectable,
+  runInInjectionContext,
+} from '@angular/core';
+import {
+  Firestore,
   collection,
-  query,
-  where,
   getDocs,
-  startAt,
   limit,
-} from '@firebase/firestore';
-
-import { Firestore } from '@angular/fire/firestore';
-
+  query,
+  startAt,
+  where,
+} from '@angular/fire/firestore';
 import { geohashQueryBounds } from 'geofire-common';
 
+import { IUserDados } from '../../interfaces/iuser-dados';
 import { DistanceCalculationService } from './distance-calculation.service';
-
 import {
   extractValidGeoCoordinates,
   isValidGeoCoordinatePair,
@@ -45,7 +34,8 @@ import {
 export class NearbyProfilesService {
   constructor(
     private readonly db: Firestore,
-    private readonly distanceCalculationService: DistanceCalculationService
+    private readonly distanceCalculationService: DistanceCalculationService,
+    private readonly environmentInjector: EnvironmentInjector
   ) {}
 
   async getProfilesNearLocation(
@@ -53,15 +43,9 @@ export class NearbyProfilesService {
     longitude: number,
     maxDistanceKm: number,
     userUid: string,
-    startAfterDoc?: any
+    startAfterDoc?: unknown
   ): Promise<IUserDados[]> {
     try {
-      /**
-       * Validação defensiva da coordenada de entrada.
-       *
-       * Mesmo que o método receba number na assinatura, em runtime ainda pode
-       * chegar NaN, Infinity ou valor fora do intervalo geográfico real.
-       */
       if (!isValidGeoCoordinatePair(latitude, longitude)) {
         return [];
       }
@@ -70,65 +54,56 @@ export class NearbyProfilesService {
         typeof maxDistanceKm === 'number' && Number.isFinite(maxDistanceKm)
           ? Math.max(1, maxDistanceKm)
           : 20;
-
-      const safeUserUid = (userUid ?? '').trim();
-
+      const safeUserUid = String(userUid ?? '').trim();
       const bounds = geohashQueryBounds(
         [latitude, longitude],
         safeMaxDistanceKm * 1000
       );
 
-      const promises = bounds.map((b) => {
-        let q = query(
-          collection(this.db as any, 'users'),
-          where('geohash', '>=', b[0]),
-          where('geohash', '<=', b[1]),
-          limit(50)
-        );
+      const snapshots = await Promise.all(
+        bounds.map((bound) =>
+          runInInjectionContext(this.environmentInjector, () => {
+            let nearbyProfilesQuery = query(
+              collection(this.db, 'users'),
+              where('geohash', '>=', bound[0]),
+              where('geohash', '<=', bound[1]),
+              limit(50)
+            );
 
-        /**
-         * Mantém exatamente a lógica atual.
-         *
-         * Observação: o nome startAfterDoc sugere paginação com startAfter,
-         * mas a implementação atual usa startAt. Não alteramos isso agora.
-         */
-        if (startAfterDoc) {
-          q = query(q as any, startAt(startAfterDoc));
-        }
+            // A nomenclatura legada startAfterDoc foi preservada. A consulta
+            // existente usa startAt; alterar a semantica exigiria migrar todos os
+            // consumidores e cursores em uma etapa separada.
+            if (startAfterDoc) {
+              nearbyProfilesQuery = query(
+                nearbyProfilesQuery,
+                startAt(startAfterDoc)
+              );
+            }
 
-        return getDocs(q as any);
-      });
-
-      const snapshots = await Promise.all(promises);
+            return getDocs(nearbyProfilesQuery);
+          })
+        )
+      );
       const profiles: IUserDados[] = [];
 
-      for (const snap of snapshots as any[]) {
-        for (const d of snap.docs ?? []) {
-          const profile = d.data() as IUserDados;
+      for (const snapshot of snapshots) {
+        for (const documentSnapshot of snapshot.docs) {
+          const profile = documentSnapshot.data() as IUserDados;
 
-          /**
-           * Filtra o próprio usuário.
-           */
           if (profile.uid === safeUserUid) {
             continue;
           }
 
-          /**
-           * Validação centralizada:
-           * - aceita number válido;
-           * - aceita string numérica válida, se algum dado legado vier assim;
-           * - rejeita NaN, Infinity, null, undefined e coordenada fora da faixa.
-           */
-          const profileCoords = extractValidGeoCoordinates(profile);
+          const profileCoordinates = extractValidGeoCoordinates(profile);
 
-          if (!profileCoords) {
+          if (!profileCoordinates) {
             continue;
           }
 
           const distanceInKm =
             this.distanceCalculationService.calculateDistanceInKm(
-              profileCoords.latitude,
-              profileCoords.longitude,
+              profileCoordinates.latitude,
+              profileCoordinates.longitude,
               latitude,
               longitude,
               safeMaxDistanceKm
@@ -137,8 +112,8 @@ export class NearbyProfilesService {
           if (distanceInKm !== null) {
             profiles.push({
               ...profile,
-              latitude: profileCoords.latitude,
-              longitude: profileCoords.longitude,
+              latitude: profileCoordinates.latitude,
+              longitude: profileCoordinates.longitude,
               distanciaKm: distanceInKm,
             });
           }
@@ -147,16 +122,10 @@ export class NearbyProfilesService {
 
       return profiles;
     } catch (error) {
-      /**
-       * Mantém o comportamento atual de não quebrar a UX.
-       *
-       * Futuro:
-       * - trocar console.log por GlobalErrorHandlerService com silent/skipUserNotification;
-       * - considerar Observable para alinhar com o padrão mais novo do projeto.
-       */
+      // O comportamento tolerante existente e preservado para nao interromper a
+      // descoberta quando uma consulta geografica falha.
       // eslint-disable-next-line no-console
       console.log('Erro ao buscar perfis próximos:', error);
-
       return [];
     }
   }
