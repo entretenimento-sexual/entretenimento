@@ -1,4 +1,5 @@
 @let ownerUid = (ownerUid$ | async);
+@let viewerUid = (viewerUid$ | async);
 
 @if (state$ | async; as state) {
   <section class="public-videos-page" aria-labelledby="public-profile-videos-title">
@@ -165,6 +166,19 @@
                     Aprovado
                   </span>
                 </div>
+
+                @if (viewerUid && viewerUid !== item.ownerUid) {
+                  <app-report-content-button
+                    appearance="link"
+                    label="Denunciar vídeo"
+                    targetType="video"
+                    [targetId]="item.id"
+                    [parentTargetId]="item.id"
+                    [targetOwnerUid]="item.ownerUid"
+                    [targetAuthorUid]="item.ownerUid"
+                    [title]="item.title || 'vídeo do perfil'"
+                  />
+                }
               </div>
             </article>
           }
