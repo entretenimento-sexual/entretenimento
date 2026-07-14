@@ -1,26 +1,43 @@
-import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, from, of } from 'rxjs';
-
-const { firestoreMocks } = vi.hoisted(() => ({
-  firestoreMocks: {
-    Firestore: class FirestoreMock {},
-    collection: vi.fn(() => ({ kind: 'collection' })),
-    collectionData: vi.fn(),
-    doc: vi.fn(() => ({ kind: 'doc' })),
-    docData: vi.fn(),
-    getDocs: vi.fn(),
-    limit: vi.fn((value: number) => ({ kind: 'limit', value })),
-    query: vi.fn(() => ({ kind: 'query' })),
-    where: vi.fn(() => ({ kind: 'where' })),
-  },
+vi.mock('@angular/fire/firestore', () => ({
+  Firestore: class FirestoreMock {},
+  collection: vi.fn(() => ({ kind: 'collection' })),
+  collectionData: vi.fn(),
+  doc: vi.fn(() => ({ kind: 'doc' })),
+  docData: vi.fn(),
+  getDocs: vi.fn(),
+  limit: vi.fn((value: number) => ({ kind: 'limit', value })),
+  query: vi.fn(() => ({ kind: 'query' })),
+  where: vi.fn(() => ({ kind: 'where' })),
 }));
 
-vi.mock('@angular/fire/firestore', () => firestoreMocks);
+import { TestBed } from '@angular/core/testing';
+import {
+  Firestore,
+  collection,
+  collectionData,
+  doc,
+  docData,
+  getDocs,
+  limit,
+  query,
+  where,
+} from '@angular/fire/firestore';
+import { firstValueFrom, from, of } from 'rxjs';
 
-import { Firestore } from '@angular/fire/firestore';
 import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { RoomService } from './room.service';
+
+const firestoreMocks = {
+  collection: vi.mocked(collection) as any,
+  collectionData: vi.mocked(collectionData) as any,
+  doc: vi.mocked(doc) as any,
+  docData: vi.mocked(docData) as any,
+  getDocs: vi.mocked(getDocs) as any,
+  limit: vi.mocked(limit) as any,
+  query: vi.mocked(query) as any,
+  where: vi.mocked(where) as any,
+};
 
 type RoomSpecItem = {
   id: string;
