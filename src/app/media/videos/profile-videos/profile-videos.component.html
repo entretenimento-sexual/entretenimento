@@ -196,7 +196,7 @@
                     [formGroup]="publicationSettingsForm"
                     (ngSubmit)="savePublicationSettings(item)"
                   >
-                    <label [for]="'video-title-' + item.video.id">
+                    <label>
                       <span>Título</span>
                       <input
                         [id]="'video-title-' + item.video.id"
@@ -207,7 +207,7 @@
                       />
                     </label>
 
-                    <label [for]="'video-description-' + item.video.id">
+                    <label>
                       <span>Descrição ou legenda</span>
                       <textarea
                         [id]="'video-description-' + item.video.id"
