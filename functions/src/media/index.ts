@@ -46,8 +46,10 @@ export {
 
 export {
   cleanupPendingPrivateVideoUploadAssets,
-  registerPrivateVideoUpload,
 } from './application/register-private-video-upload.handler';
+export {
+  registerPrivateVideoUpload,
+} from './application/register-private-video-upload-orchestrator.handler';
 
 export {
   queuePrivateVideoProcessing,
