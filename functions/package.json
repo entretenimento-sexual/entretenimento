@@ -14,7 +14,7 @@
     "lint:fix:chat": "eslint -c eslint.config.js \"src/chat/**/*.ts\" --fix",
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "test": "npm run build && node --test lib/media/application/sync-published-photo-on-private-update.use-case.test.js lib/media/application/video-publication-settings.test.js lib/media/application/media-engagement-score.test.js",
+    "test": "npm run build && node --test lib/media/application/sync-published-photo-on-private-update.use-case.test.js lib/media/application/video-publication-settings.test.js lib/media/application/media-engagement-score.test.js lib/media/application/video-processing-invalid-source.test.js",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
