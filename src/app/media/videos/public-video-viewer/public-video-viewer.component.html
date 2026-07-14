@@ -21,82 +21,100 @@
   aria-modal="true"
   aria-labelledby="public-video-viewer-title"
 >
-  <header class="public-video-viewer__header">
-    <div class="public-video-viewer__heading">
-      <span>Vídeo público</span>
-      <h2 id="public-video-viewer-title">
-        {{ current?.title || 'Vídeo do perfil' }}
-      </h2>
-    </div>
-
-    <div class="public-video-viewer__header-actions">
-      <span class="public-video-viewer__position" aria-live="polite">
-        {{ positionLabel }}
-      </span>
-
-      <button
-        type="button"
-        class="public-video-viewer__close"
-        (click)="close()"
-        aria-label="Fechar visualizador de vídeo"
-      >
-        <i class="fas fa-xmark" aria-hidden="true"></i>
-      </button>
-    </div>
-  </header>
-
   @if (current; as video) {
-    <div class="public-video-viewer__stage">
-      <button
-        type="button"
-        class="public-video-viewer__navigation public-video-viewer__navigation--previous"
-        (click)="previous()"
-        [disabled]="!hasPrevious"
-        aria-label="Abrir vídeo anterior"
-      >
-        <i class="fas fa-chevron-left" aria-hidden="true"></i>
-      </button>
-
-      <div class="public-video-viewer__media-frame">
-        <video
-          #videoPlayer
-          class="public-video-viewer__video"
-          [src]="video.url"
-          [poster]="video.posterUrl || null"
-          [attr.aria-label]="video.alt || video.title || 'Vídeo público do perfil'"
-          controls
-          controlsList="nodownload"
-          playsinline
-          preload="metadata"
-          disablePictureInPicture
-        >
-          Seu navegador não conseguiu reproduzir este vídeo.
-        </video>
-      </div>
-
-      <button
-        type="button"
-        class="public-video-viewer__navigation public-video-viewer__navigation--next"
-        (click)="next()"
-        [disabled]="!hasNext"
-        aria-label="Abrir próximo vídeo"
-      >
-        <i class="fas fa-chevron-right" aria-hidden="true"></i>
-      </button>
-    </div>
-
-    <footer class="public-video-viewer__footer">
-      <div class="public-video-viewer__footer-main">
-        <div class="public-video-viewer__copy">
-          <div>
-            <strong>{{ video.title || 'Vídeo do perfil' }}</strong>
-            <span>{{ formatDuration(video.durationMs) }}</span>
-          </div>
-
-          @if (video.description) {
-            <p>{{ video.description }}</p>
-          }
+    <div
+      class="public-video-viewer__body"
+      [class.public-video-viewer__body--panel-open]="commentsExpanded() || ratingsExpanded()"
+    >
+      <article class="public-video-viewer__stage">
+        <div class="public-video-viewer__media-frame">
+          <video
+            #videoPlayer
+            class="public-video-viewer__video"
+            [src]="video.url"
+            [poster]="video.posterUrl || null"
+            [attr.aria-label]="video.alt || video.title || 'Vídeo público do perfil'"
+            controls
+            controlsList="nodownload"
+            playsinline
+            preload="metadata"
+            disablePictureInPicture
+          >
+            Seu navegador não conseguiu reproduzir este vídeo.
+          </video>
         </div>
+
+        <div class="public-video-viewer__scrim" aria-hidden="true"></div>
+
+        <header class="public-video-viewer__header">
+          <a
+            class="public-video-viewer__owner"
+            [routerLink]="['/perfil', video.ownerUid]"
+            [attr.aria-label]="'Abrir perfil de ' + (video.owner?.nickname || 'usuário')"
+          >
+            @if (video.owner?.photoURL) {
+              <img
+                [src]="video.owner?.photoURL"
+                alt=""
+                width="40"
+                height="40"
+                loading="lazy"
+              />
+            } @else {
+              <span class="public-video-viewer__owner-fallback" aria-hidden="true">
+                <i class="fas fa-user"></i>
+              </span>
+            }
+
+            <span class="public-video-viewer__owner-copy">
+              <strong>{{ video.owner?.nickname || 'Perfil' }}</strong>
+              @if (video.owner?.municipio || video.owner?.estado) {
+                <small>
+                  {{ video.owner?.municipio }}
+                  @if (video.owner?.municipio && video.owner?.estado) { · }
+                  {{ video.owner?.estado }}
+                </small>
+              }
+            </span>
+          </a>
+
+          <div class="public-video-viewer__header-actions">
+            <span class="public-video-viewer__position" aria-live="polite">
+              {{ positionLabel }}
+            </span>
+
+            <button
+              type="button"
+              class="public-video-viewer__close"
+              (click)="close()"
+              aria-label="Fechar visualizador de vídeo"
+            >
+              <i class="fas fa-xmark" aria-hidden="true"></i>
+            </button>
+          </div>
+        </header>
+
+        <nav class="public-video-viewer__navigation" aria-label="Navegação entre vídeos">
+          <button
+            type="button"
+            class="public-video-viewer__navigation-button"
+            (click)="previous()"
+            [disabled]="!hasPrevious"
+            aria-label="Abrir vídeo anterior"
+          >
+            <i class="fas fa-chevron-up" aria-hidden="true"></i>
+          </button>
+
+          <button
+            type="button"
+            class="public-video-viewer__navigation-button"
+            (click)="next()"
+            [disabled]="!hasNext"
+            aria-label="Abrir próximo vídeo"
+          >
+            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+          </button>
+        </nav>
 
         <div class="public-video-viewer__interactions" aria-label="Interações do vídeo">
           @if (video.reactionsEnabled) {
@@ -106,9 +124,13 @@
               [class.public-video-viewer__interaction--active]="liked"
               [disabled]="!canReact || viewerIsOwner || togglingLike"
               [attr.aria-pressed]="liked"
+              [attr.aria-label]="(liked ? 'Remover curtida' : 'Curtir vídeo') + '. ' + likesCount + ' curtidas'"
               (click)="toggleLike()"
             >
-              {{ liked ? 'Curtido' : 'Curtir' }} · {{ likesCount }}
+              <span class="public-video-viewer__interaction-icon">
+                <i class="fas fa-heart" aria-hidden="true"></i>
+              </span>
+              <small>{{ likesCount }}</small>
             </button>
           }
 
@@ -118,10 +140,14 @@
               class="public-video-viewer__interaction"
               [class.public-video-viewer__interaction--active]="commentsExpanded()"
               [attr.aria-expanded]="commentsExpanded()"
+              [attr.aria-label]="'Comentários. ' + commentsCount + ' comentários'"
               aria-controls="public-video-comments"
               (click)="toggleComments()"
             >
-              Comentários · {{ commentsCount }}
+              <span class="public-video-viewer__interaction-icon">
+                <i class="fas fa-comment" aria-hidden="true"></i>
+              </span>
+              <small>{{ commentsCount }}</small>
             </button>
           }
 
@@ -131,16 +157,20 @@
               class="public-video-viewer__interaction"
               [class.public-video-viewer__interaction--active]="ratingsExpanded()"
               [attr.aria-expanded]="ratingsExpanded()"
+              [attr.aria-label]="ratingSummaryLabel(ratingSummary)"
               aria-controls="public-video-ratings"
               (click)="toggleRatings()"
             >
-              {{ ratingSummaryLabel(ratingSummary) }}
+              <span class="public-video-viewer__interaction-icon">
+                <i class="fas fa-star" aria-hidden="true"></i>
+              </span>
+              <small>{{ ratingSummary?.ratingAverage || 0 }}</small>
             </button>
           }
 
           @if (viewerUid && !viewerIsOwner) {
             <a
-              class="public-video-viewer__interaction public-video-viewer__interaction--link"
+              class="public-video-viewer__interaction"
               [routerLink]="[
                 '/media/denunciar/video',
                 video.ownerUid,
@@ -148,241 +178,295 @@
                 'video',
                 video.id
               ]"
+              aria-label="Denunciar vídeo"
             >
-              Denunciar
+              <span class="public-video-viewer__interaction-icon">
+                <i class="fas fa-flag" aria-hidden="true"></i>
+              </span>
+              <small>Denunciar</small>
             </a>
           }
         </div>
-      </div>
 
-      @if (ratingsExpanded() && video.ratingsEnabled) {
-        <section
-          id="public-video-ratings"
-          class="public-video-viewer__ratings"
-          aria-label="Avaliação do vídeo"
-        >
-          <div class="public-video-viewer__ratings-copy">
-            <strong>
-              @if (viewerIsOwner) {
-                Avaliação do público
-              } @else if (viewerRating) {
-                Sua nota: {{ viewerRating }}
-              } @else {
-                Escolha uma nota
-              }
-            </strong>
-            <span>{{ ratingSummaryLabel(ratingSummary) }}</span>
+        <div class="public-video-viewer__metadata">
+          <span class="public-video-viewer__eyebrow">Vídeo público</span>
+          <h2 id="public-video-viewer-title">
+            {{ video.title || 'Vídeo do perfil' }}
+          </h2>
+
+          @if (video.description) {
+            <p>{{ video.description }}</p>
+          }
+
+          <div class="public-video-viewer__metadata-stats" aria-label="Informações do vídeo">
+            <span>
+              <i class="fas fa-clock" aria-hidden="true"></i>
+              {{ formatDuration(video.durationMs) }}
+            </span>
+            <span>
+              <i class="fas fa-eye" aria-hidden="true"></i>
+              {{ video.viewsCount }} visualizações
+            </span>
+            @if (video.ratingsCount > 0) {
+              <span>
+                <i class="fas fa-star" aria-hidden="true"></i>
+                {{ video.ratingAverage }} · {{ video.ratingsCount }} avaliações
+              </span>
+            }
+          </div>
+        </div>
+      </article>
+
+      @if (commentsExpanded() || ratingsExpanded()) {
+        <aside class="public-video-viewer__footer" aria-label="Detalhes e interações do vídeo">
+          <div class="public-video-viewer__panel-heading">
+            <div>
+              <span>Interações</span>
+              <strong>{{ video.title || 'Vídeo do perfil' }}</strong>
+            </div>
+
+            <button
+              type="button"
+              class="public-video-viewer__panel-close"
+              (click)="commentsExpanded() ? toggleComments() : toggleRatings()"
+              aria-label="Fechar painel de interações"
+            >
+              <i class="fas fa-xmark" aria-hidden="true"></i>
+            </button>
           </div>
 
-          @if (!viewerIsOwner) {
-            <div
-              class="public-video-viewer__rating-options"
-              role="radiogroup"
-              aria-label="Nota de 1 a 5"
+          @if (ratingsExpanded() && video.ratingsEnabled) {
+            <section
+              id="public-video-ratings"
+              class="public-video-viewer__ratings"
+              aria-label="Avaliação do vídeo"
             >
-              @for (option of ratingOptions; track option) {
-                <button
-                  type="button"
-                  class="public-video-viewer__rating-option"
-                  [class.public-video-viewer__rating-option--active]="viewerRating === option"
-                  [attr.aria-pressed]="viewerRating === option"
-                  [attr.aria-label]="'Avaliar com nota ' + option"
-                  [disabled]="!canRate || submittingRating"
-                  (click)="rateVideo(option)"
+              <div class="public-video-viewer__ratings-copy">
+                <strong>
+                  @if (viewerIsOwner) {
+                    Avaliação do público
+                  } @else if (viewerRating) {
+                    Sua nota: {{ viewerRating }}
+                  } @else {
+                    Escolha uma nota
+                  }
+                </strong>
+                <span>{{ ratingSummaryLabel(ratingSummary) }}</span>
+              </div>
+
+              @if (!viewerIsOwner) {
+                <div
+                  class="public-video-viewer__rating-options"
+                  role="radiogroup"
+                  aria-label="Nota de 1 a 5"
                 >
-                  {{ option }}
-                </button>
+                  @for (option of ratingOptions; track option) {
+                    <button
+                      type="button"
+                      class="public-video-viewer__rating-option"
+                      [class.public-video-viewer__rating-option--active]="viewerRating === option"
+                      [attr.aria-pressed]="viewerRating === option"
+                      [attr.aria-label]="'Avaliar com nota ' + option"
+                      [disabled]="!canRate || submittingRating"
+                      (click)="rateVideo(option)"
+                    >
+                      {{ option }}
+                    </button>
+                  }
+                </div>
               }
-            </div>
+            </section>
           }
-        </section>
-      }
 
-      @if (commentsExpanded() && video.commentsEnabled) {
-        <section
-          id="public-video-comments"
-          class="public-video-viewer__comments"
-          aria-label="Comentários do vídeo"
-        >
-          @if (canComment) {
-            <form
-              class="public-video-viewer__comment-form"
-              (ngSubmit)="submitComment($event)"
+          @if (commentsExpanded() && video.commentsEnabled) {
+            <section
+              id="public-video-comments"
+              class="public-video-viewer__comments"
+              aria-label="Comentários do vídeo"
             >
-              <label for="public-video-comment">Comentar</label>
-              <textarea
-                id="public-video-comment"
-                [formControl]="commentControl"
-                maxlength="500"
-                rows="2"
-                placeholder="Escreva um comentário"
-              ></textarea>
-
-              <div>
-                <span>{{ (commentLength$ | async) || 0 }}/500</span>
-                <button
-                  type="submit"
-                  [disabled]="commentControl.invalid || submittingComment"
+              @if (canComment) {
+                <form
+                  class="public-video-viewer__comment-form"
+                  (ngSubmit)="submitComment($event)"
                 >
-                  {{ submittingComment ? 'Publicando...' : 'Publicar' }}
-                </button>
-              </div>
-            </form>
-          }
+                  <label for="public-video-comment">Comentar</label>
+                  <textarea
+                    id="public-video-comment"
+                    [formControl]="commentControl"
+                    maxlength="500"
+                    rows="2"
+                    placeholder="Escreva um comentário"
+                  ></textarea>
 
-          @if (commentThreads$ | async; as threads) {
-            @if (threads.length > 0) {
-              <div class="public-video-viewer__comment-list" role="list">
-                @for (thread of threads; track thread.root.id) {
-                  <article class="public-video-viewer__comment" role="listitem">
-                    <header>
-                      <a
-                        [routerLink]="['/perfil', thread.root.authorUid]"
-                        target="_blank"
-                        rel="noopener"
-                      >
-                        {{ thread.root.authorNickname }}
-                      </a>
-                      <time>{{ formatCommentDate(thread.root.createdAt) }}</time>
-                    </header>
+                  <div>
+                    <span>{{ (commentLength$ | async) || 0 }}/500</span>
+                    <button
+                      type="submit"
+                      [disabled]="commentControl.invalid || submittingComment"
+                    >
+                      {{ submittingComment ? 'Publicando...' : 'Publicar' }}
+                    </button>
+                  </div>
+                </form>
+              }
 
-                    <p>{{ thread.root.content }}</p>
-
-                    <div class="public-video-viewer__comment-actions">
-                      @if (viewerIsOwner) {
-                        <button
-                          type="button"
-                          (click)="startReply(thread.root)"
-                          [disabled]="moderatingCommentId === thread.root.id"
-                        >
-                          Responder
-                        </button>
-                        <button
-                          type="button"
-                          (click)="hideComment(thread.root)"
-                          [disabled]="moderatingCommentId === thread.root.id"
-                        >
-                          Ocultar
-                        </button>
-                      }
-
-                      @if (canDeleteComment(thread.root, viewerUid, viewerIsOwner)) {
-                        <button
-                          type="button"
-                          (click)="deleteComment(thread.root)"
-                          [disabled]="moderatingCommentId === thread.root.id"
-                        >
-                          Excluir
-                        </button>
-                      }
-
-                      @if (viewerUid && viewerUid !== thread.root.authorUid) {
-                        <a
-                          [routerLink]="[
-                            '/media/denunciar/video',
-                            video.ownerUid,
-                            video.id,
-                            'video_comment',
-                            thread.root.id
-                          ]"
-                        >
-                          Denunciar
-                        </a>
-                      }
-                    </div>
-
-                    @if (replyingToCommentId === thread.root.id) {
-                      <form
-                        class="public-video-viewer__reply-form"
-                        (ngSubmit)="submitReply(thread.root, $event)"
-                      >
-                        <textarea
-                          [formControl]="replyControl"
-                          maxlength="500"
-                          rows="2"
-                          [attr.aria-label]="'Responder a ' + thread.root.authorNickname"
-                        ></textarea>
-                        <div>
-                          <span>{{ (replyLength$ | async) || 0 }}/500</span>
-                          <button
-                            type="submit"
-                            [disabled]="replyControl.invalid || submittingReply"
+              @if (commentThreads$ | async; as threads) {
+                @if (threads.length > 0) {
+                  <div class="public-video-viewer__comment-list" role="list">
+                    @for (thread of threads; track thread.root.id) {
+                      <article class="public-video-viewer__comment" role="listitem">
+                        <header>
+                          <a
+                            [routerLink]="['/perfil', thread.root.authorUid]"
+                            target="_blank"
+                            rel="noopener"
                           >
-                            Enviar
-                          </button>
-                          <button type="button" (click)="cancelReply()">
-                            Cancelar
-                          </button>
+                            {{ thread.root.authorNickname }}
+                          </a>
+                          <time>{{ formatCommentDate(thread.root.createdAt) }}</time>
+                        </header>
+
+                        <p>{{ thread.root.content }}</p>
+
+                        <div class="public-video-viewer__comment-actions">
+                          @if (viewerIsOwner) {
+                            <button
+                              type="button"
+                              (click)="startReply(thread.root)"
+                              [disabled]="moderatingCommentId === thread.root.id"
+                            >
+                              Responder
+                            </button>
+                            <button
+                              type="button"
+                              (click)="hideComment(thread.root)"
+                              [disabled]="moderatingCommentId === thread.root.id"
+                            >
+                              Ocultar
+                            </button>
+                          }
+
+                          @if (canDeleteComment(thread.root, viewerUid, viewerIsOwner)) {
+                            <button
+                              type="button"
+                              (click)="deleteComment(thread.root)"
+                              [disabled]="moderatingCommentId === thread.root.id"
+                            >
+                              Excluir
+                            </button>
+                          }
+
+                          @if (viewerUid && viewerUid !== thread.root.authorUid) {
+                            <a
+                              [routerLink]="[
+                                '/media/denunciar/video',
+                                video.ownerUid,
+                                video.id,
+                                'video_comment',
+                                thread.root.id
+                              ]"
+                            >
+                              Denunciar
+                            </a>
+                          }
                         </div>
-                      </form>
-                    }
 
-                    @if (thread.replies.length > 0) {
-                      <div class="public-video-viewer__replies">
-                        @for (reply of thread.replies; track reply.id) {
-                          <article class="public-video-viewer__comment public-video-viewer__comment--reply">
-                            <header>
-                              <a
-                                [routerLink]="['/perfil', reply.authorUid]"
-                                target="_blank"
-                                rel="noopener"
+                        @if (replyingToCommentId === thread.root.id) {
+                          <form
+                            class="public-video-viewer__reply-form"
+                            (ngSubmit)="submitReply(thread.root, $event)"
+                          >
+                            <textarea
+                              [formControl]="replyControl"
+                              maxlength="500"
+                              rows="2"
+                              [attr.aria-label]="'Responder a ' + thread.root.authorNickname"
+                            ></textarea>
+                            <div>
+                              <span>{{ (replyLength$ | async) || 0 }}/500</span>
+                              <button
+                                type="submit"
+                                [disabled]="replyControl.invalid || submittingReply"
                               >
-                                {{ reply.authorNickname }}
-                              </a>
-                              <time>{{ formatCommentDate(reply.createdAt) }}</time>
-                            </header>
-                            <p>{{ reply.content }}</p>
-
-                            @if (
-                              canDeleteComment(reply, viewerUid, viewerIsOwner) ||
-                              (viewerUid && viewerUid !== reply.authorUid)
-                            ) {
-                              <div class="public-video-viewer__comment-actions">
-                                @if (canDeleteComment(reply, viewerUid, viewerIsOwner)) {
-                                  <button
-                                    type="button"
-                                    (click)="deleteComment(reply)"
-                                    [disabled]="moderatingCommentId === reply.id"
-                                  >
-                                    Excluir
-                                  </button>
-                                }
-
-                                @if (viewerUid && viewerUid !== reply.authorUid) {
-                                  <a
-                                    [routerLink]="[
-                                      '/media/denunciar/video',
-                                      video.ownerUid,
-                                      video.id,
-                                      'video_comment',
-                                      reply.id
-                                    ]"
-                                  >
-                                    Denunciar
-                                  </a>
-                                }
-                              </div>
-                            }
-                          </article>
+                                Enviar
+                              </button>
+                              <button type="button" (click)="cancelReply()">
+                                Cancelar
+                              </button>
+                            </div>
+                          </form>
                         }
-                      </div>
+
+                        @if (thread.replies.length > 0) {
+                          <div class="public-video-viewer__replies">
+                            @for (reply of thread.replies; track reply.id) {
+                              <article class="public-video-viewer__comment public-video-viewer__comment--reply">
+                                <header>
+                                  <a
+                                    [routerLink]="['/perfil', reply.authorUid]"
+                                    target="_blank"
+                                    rel="noopener"
+                                  >
+                                    {{ reply.authorNickname }}
+                                  </a>
+                                  <time>{{ formatCommentDate(reply.createdAt) }}</time>
+                                </header>
+                                <p>{{ reply.content }}</p>
+
+                                @if (
+                                  canDeleteComment(reply, viewerUid, viewerIsOwner) ||
+                                  (viewerUid && viewerUid !== reply.authorUid)
+                                ) {
+                                  <div class="public-video-viewer__comment-actions">
+                                    @if (canDeleteComment(reply, viewerUid, viewerIsOwner)) {
+                                      <button
+                                        type="button"
+                                        (click)="deleteComment(reply)"
+                                        [disabled]="moderatingCommentId === reply.id"
+                                      >
+                                        Excluir
+                                      </button>
+                                    }
+
+                                    @if (viewerUid && viewerUid !== reply.authorUid) {
+                                      <a
+                                        [routerLink]="[
+                                          '/media/denunciar/video',
+                                          video.ownerUid,
+                                          video.id,
+                                          'video_comment',
+                                          reply.id
+                                        ]"
+                                      >
+                                        Denunciar
+                                      </a>
+                                    }
+                                  </div>
+                                }
+                              </article>
+                            }
+                          </div>
+                        }
+                      </article>
                     }
-                  </article>
+                  </div>
+                } @else {
+                  <p class="public-video-viewer__comments-empty">
+                    Nenhum comentário ainda.
+                  </p>
                 }
-              </div>
-            } @else {
-              <p class="public-video-viewer__comments-empty">
-                Nenhum comentário ainda.
-              </p>
-            }
+              }
+            </section>
           }
-        </section>
+        </aside>
       }
-    </footer>
+    </div>
   } @else {
     <div class="public-video-viewer__empty" role="status">
       <i class="fas fa-video-slash" aria-hidden="true"></i>
+      <h2 id="public-video-viewer-title">Vídeo indisponível</h2>
       <p>Este vídeo não está mais disponível.</p>
+      <button type="button" (click)="close()">Fechar</button>
     </div>
   }
 </section>
