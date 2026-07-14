@@ -12,6 +12,7 @@ import { catchError, map, shareReplay } from 'rxjs/operators';
 
 import {
   IVideoPublicationConfig,
+  IVideoPublicationSettingsInput,
   TVideoPublicationModerationStatus,
   TVideoPublicationVisibility,
 } from 'src/app/core/interfaces/media/i-video-publication-config';
@@ -35,6 +36,18 @@ interface VideoIdentityRequest {
   videoId: string;
 }
 
+interface UpdateVideoPublicationSettingsRequest
+  extends IVideoPublicationSettingsInput {
+  ownerUid: string;
+  videoId: string;
+}
+
+export interface UpdateVideoPublicationSettingsResponse {
+  videoId: string;
+  moderationStatus: TVideoPublicationModerationStatus;
+  isPublished: boolean;
+}
+
 interface UnpublishVideoResponse {
   videoId: string;
 }
@@ -53,6 +66,11 @@ interface VideoPublicationDoc {
   orderIndex?: number;
   moderationStatus?: TVideoPublicationModerationStatus;
   moderationReason?: string | null;
+  title?: string | null;
+  description?: string | null;
+  reactionsEnabled?: boolean;
+  commentsEnabled?: boolean;
+  ratingsEnabled?: boolean;
   publishedAt?: unknown;
   updatedAt?: unknown;
 }
@@ -61,6 +79,26 @@ interface VideoPublicationDoc {
 export class VideoPublicationService {
   private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
+
+  private readonly publishVideoCallable = httpsCallable<
+    PublishVideoRequest,
+    PublishVideoResponse
+  >(this.functions, 'publishVideo');
+
+  private readonly unpublishVideoCallable = httpsCallable<
+    VideoIdentityRequest,
+    UnpublishVideoResponse
+  >(this.functions, 'unpublishVideo');
+
+  private readonly deleteProfileVideoCallable = httpsCallable<
+    VideoIdentityRequest,
+    DeleteProfileVideoResponse
+  >(this.functions, 'deleteProfileVideo');
+
+  private readonly updateVideoPublicationSettingsCallable = httpsCallable<
+    UpdateVideoPublicationSettingsRequest,
+    UpdateVideoPublicationSettingsResponse
+  >(this.functions, 'updateVideoPublicationSettings');
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
@@ -124,16 +162,50 @@ export class VideoPublicationService {
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
-      const callable = httpsCallable<
-        PublishVideoRequest,
-        PublishVideoResponse
-      >(this.functions, 'publishVideo');
-      const response = await callable(payload);
+      const response = await this.publishVideoCallable(payload);
       return response.data;
     }).pipe(
       catchError((error: unknown) => {
         this.reportError(error, {
           op: 'publishVideo$',
+          hasOwnerUid: true,
+          hasVideoId: true,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  updateVideoPublicationSettings$(
+    ownerUid: string,
+    videoId: string,
+    settings: IVideoPublicationSettingsInput
+  ): Observable<UpdateVideoPublicationSettingsResponse> {
+    const payload: UpdateVideoPublicationSettingsRequest = {
+      ownerUid: this.normalizeId(ownerUid),
+      videoId: this.normalizeId(videoId),
+      title: this.normalizeOptionalText(settings.title, 120),
+      description: this.normalizeOptionalText(settings.description, 1000),
+      reactionsEnabled: settings.reactionsEnabled === true,
+      commentsEnabled: settings.commentsEnabled === true,
+      ratingsEnabled: settings.ratingsEnabled === true,
+    };
+
+    if (!payload.ownerUid || !payload.videoId) {
+      return throwError(
+        () => new Error('Vídeo inválido para edição.')
+      );
+    }
+
+    return this.firestoreCtx.deferPromise$(async () => {
+      const response = await this.updateVideoPublicationSettingsCallable(
+        payload
+      );
+      return response.data;
+    }).pipe(
+      catchError((error: unknown) => {
+        this.reportError(error, {
+          op: 'updateVideoPublicationSettings$',
           hasOwnerUid: true,
           hasVideoId: true,
         });
@@ -155,11 +227,7 @@ export class VideoPublicationService {
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
-      const callable = httpsCallable<
-        VideoIdentityRequest,
-        UnpublishVideoResponse
-      >(this.functions, 'unpublishVideo');
-      const response = await callable(payload);
+      const response = await this.unpublishVideoCallable(payload);
       return response.data;
     }).pipe(
       catchError((error: unknown) => {
@@ -186,11 +254,7 @@ export class VideoPublicationService {
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
-      const callable = httpsCallable<
-        VideoIdentityRequest,
-        DeleteProfileVideoResponse
-      >(this.functions, 'deleteProfileVideo');
-      const response = await callable(payload);
+      const response = await this.deleteProfileVideoCallable(payload);
       return response.data;
     }).pipe(
       catchError((error: unknown) => {
@@ -233,6 +297,11 @@ export class VideoPublicationService {
         item.moderationStatus
       ),
       moderationReason: this.normalizeOptionalText(item.moderationReason),
+      title: this.normalizeOptionalText(item.title, 120),
+      description: this.normalizeOptionalText(item.description, 1000),
+      reactionsEnabled: item.reactionsEnabled !== false,
+      commentsEnabled: item.commentsEnabled !== false,
+      ratingsEnabled: item.ratingsEnabled !== false,
       publishedAt: this.toMillis(item.publishedAt),
       updatedAt: this.toMillis(item.updatedAt),
     };
@@ -288,8 +357,14 @@ export class VideoPublicationService {
     return 'PRIVATE';
   }
 
-  private normalizeOptionalText(value: unknown): string | null {
-    const text = String(value ?? '').trim();
+  private normalizeOptionalText(
+    value: unknown,
+    maxLength = Number.MAX_SAFE_INTEGER
+  ): string | null {
+    const text = String(value ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, maxLength);
     return text || null;
   }
 
