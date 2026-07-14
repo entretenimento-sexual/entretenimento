@@ -1,0 +1,87 @@
+@if (target$ | async; as target) {
+  <main class="video-report-page" aria-labelledby="video-report-title">
+    <section class="video-report-card">
+      <button
+        type="button"
+        class="video-report-back"
+        (click)="back(target)"
+      >
+        Voltar aos vídeos
+      </button>
+
+      <header>
+        <span>Segurança</span>
+        <h1 id="video-report-title">
+          Denunciar {{ targetLabel(target) }}
+        </h1>
+        <p>
+          Informe o motivo de forma objetiva. A denúncia é privada e será
+          analisada pela moderação.
+        </p>
+      </header>
+
+      @if (submitted()) {
+        <section class="video-report-success" role="status" aria-live="polite">
+          <strong>Denúncia enviada</strong>
+          <p>O conteúdo entrou na fila de análise.</p>
+          <button type="button" (click)="back(target)">
+            Voltar aos vídeos
+          </button>
+        </section>
+      } @else {
+        <form [formGroup]="form" (ngSubmit)="submit()">
+          <label for="video-report-reason">Motivo</label>
+          <select
+            id="video-report-reason"
+            formControlName="reason"
+            aria-describedby="video-report-reason-error"
+          >
+            <option value="" disabled>Selecione</option>
+            @for (option of reasonOptions; track option.value) {
+              <option [value]="option.value">{{ option.label }}</option>
+            }
+          </select>
+          @if (
+            form.controls.reason.touched &&
+            form.controls.reason.hasError('required')
+          ) {
+            <small id="video-report-reason-error" role="alert">
+              Selecione um motivo.
+            </small>
+          }
+
+          <label for="video-report-details">
+            Detalhes <span>opcional</span>
+          </label>
+          <textarea
+            id="video-report-details"
+            formControlName="details"
+            rows="5"
+            maxlength="1200"
+            placeholder="Descreva o problema sem incluir dados pessoais desnecessários."
+          ></textarea>
+          <div class="video-report-counter">
+            {{ (detailsLength$ | async) || 0 }}/1200
+          </div>
+
+          <button
+            type="submit"
+            class="video-report-submit"
+            [disabled]="form.invalid || submitting()"
+            [attr.aria-busy]="submitting() ? 'true' : null"
+          >
+            {{ submitting() ? 'Enviando...' : 'Enviar denúncia' }}
+          </button>
+        </form>
+      }
+    </section>
+  </main>
+} @else {
+  <main class="video-report-page">
+    <section class="video-report-card video-report-card--error" role="alert">
+      <h1>Conteúdo não identificado</h1>
+      <p>O link de denúncia está incompleto ou inválido.</p>
+      <a routerLink="/dashboard/principal">Voltar ao início</a>
+    </section>
+  </main>
+}
