@@ -11,10 +11,11 @@ export interface VideoRatingAggregate {
 }
 
 export function normalizeVideoRating(value: unknown): number | null {
-  const rating = Number(value);
-
-  return Number.isInteger(rating) && rating >= 1 && rating <= 5
-    ? rating
+  return typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 5
+    ? value
     : null;
 }
 
