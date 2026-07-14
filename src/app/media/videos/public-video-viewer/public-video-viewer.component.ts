@@ -1,13 +1,16 @@
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
+  DestroyRef,
   ElementRef,
   HostListener,
   ViewChild,
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import {
   MAT_DIALOG_DATA,
@@ -43,14 +46,16 @@ import {
   MediaVideoRatingsService,
   VideoRatingSummary,
 } from 'src/app/core/services/media/media-video-ratings.service';
+import { PublicVideoAccessService } from 'src/app/core/services/media/public-video-access.service';
 import {
   TVideoViewSource,
   VideoViewTrackingService,
 } from 'src/app/core/services/media/video-view-tracking.service';
+import { PublicVideoPlaybackFeedbackDirective } from './public-video-playback-feedback.directive';
 
 export interface IPublicVideoViewerData {
   ownerUid: string;
-  items: IPublicVideoItem[];
+  items: readonly IPublicVideoItem[];
   startIndex: number;
   source?: TVideoViewSource;
 }
@@ -64,6 +69,17 @@ interface VideoCommentThread {
   replies: IVideoComment[];
 }
 
+interface PendingPlaybackResume {
+  currentTime: number;
+  shouldResume: boolean;
+}
+
+type TAccessRefreshReason = 'automatic' | 'manual' | 'expiry';
+
+const ACCESS_REFRESH_WINDOW_MS = 60_000;
+const ACCESS_REFRESH_RETRY_MS = 15_000;
+const MAX_TIMER_DELAY_MS = 2_147_000_000;
+
 @Component({
   selector: 'app-public-video-viewer',
   standalone: true,
@@ -72,6 +88,7 @@ interface VideoCommentThread {
     RouterModule,
     ReactiveFormsModule,
     MatDialogModule,
+    PublicVideoPlaybackFeedbackDirective,
   ],
   templateUrl: './public-video-viewer.component.html',
   styleUrls: ['./public-video-viewer.component.css'],
@@ -83,18 +100,30 @@ export class PublicVideoViewerComponent {
   );
   readonly data = inject<IPublicVideoViewerData>(MAT_DIALOG_DATA);
 
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly videoViewTracking = inject(VideoViewTrackingService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly publicVideoAccess = inject(PublicVideoAccessService);
   private readonly reactions = inject(MediaReactionsService);
   private readonly comments = inject(MediaVideoCommentsService);
   private readonly ratings = inject(MediaVideoRatingsService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly recordedViewKeys = new Set<string>();
+  private readonly automaticRefreshKeys = new Set<string>();
+  private readonly items = [...(this.data.items ?? [])];
+
+  private accessRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private refreshingAccess = false;
+  private pendingPlaybackResume: PendingPlaybackResume | null = null;
 
   @ViewChild('videoPlayer')
   private videoPlayer?: ElementRef<HTMLVideoElement>;
 
-  index: number;
+  @ViewChild(PublicVideoPlaybackFeedbackDirective)
+  private playbackFeedback?: PublicVideoPlaybackFeedbackDirective;
+
+  index = 0;
   readonly ratingOptions = [1, 2, 3, 4, 5] as const;
   readonly commentsExpanded = signal(false);
   readonly ratingsExpanded = signal(false);
@@ -110,6 +139,12 @@ export class PublicVideoViewerComponent {
   private readonly currentVideoIdSubject = new BehaviorSubject<string>('');
   readonly currentVideoId$ = this.currentVideoIdSubject.pipe(
     distinctUntilChanged()
+  );
+
+  private readonly currentVideoSubject =
+    new BehaviorSubject<IPublicVideoItem | null>(null);
+  readonly currentVideo$ = this.currentVideoSubject.pipe(
+    shareReplay({ bufferSize: 1, refCount: true })
   );
 
   private readonly togglingLikeSubject = new BehaviorSubject(false);
@@ -143,14 +178,12 @@ export class PublicVideoViewerComponent {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  readonly viewerIsOwner$ = this.viewerUid$.pipe(
-    map((uid) => !!uid && uid === this.data.ownerUid),
+  readonly viewerIsOwner$ = combineLatest([
+    this.viewerUid$,
+    this.currentVideo$,
+  ]).pipe(
+    map(([uid, video]) => !!uid && !!video && uid === video.ownerUid),
     distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  readonly currentVideo$ = this.currentVideoId$.pipe(
-    map(() => this.current),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -181,57 +214,55 @@ export class PublicVideoViewerComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly likesCount$ = this.currentVideoId$.pipe(
-    switchMap((videoId) => videoId
-      ? this.reactions.getVideoLikesCount$(this.data.ownerUid, videoId)
+  readonly likesCount$ = this.currentVideo$.pipe(
+    switchMap((video) => video
+      ? this.reactions.getVideoLikesCount$(video.ownerUid, video.id)
       : of(0)),
     catchError(() => of(0)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly likedByViewer$ = this.currentVideoId$.pipe(
-    switchMap((videoId) => videoId
-      ? this.viewerUid$.pipe(
-          switchMap((viewerUid) =>
-            this.reactions.isVideoLikedByViewer$(
-              this.data.ownerUid,
-              videoId,
-              viewerUid
-            )
-          )
+  readonly likedByViewer$ = combineLatest([
+    this.currentVideo$,
+    this.viewerUid$,
+  ]).pipe(
+    switchMap(([video, viewerUid]) => video
+      ? this.reactions.isVideoLikedByViewer$(
+          video.ownerUid,
+          video.id,
+          viewerUid
         )
       : of(false)),
     catchError(() => of(false)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly ratingSummary$ = this.currentVideoId$.pipe(
-    switchMap((videoId) => videoId
-      ? this.ratings.watchSummary$(this.data.ownerUid, videoId)
+  readonly ratingSummary$ = this.currentVideo$.pipe(
+    switchMap((video) => video
+      ? this.ratings.watchSummary$(video.ownerUid, video.id)
       : of(this.emptyRatingSummary())),
     catchError(() => of(this.emptyRatingSummary())),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly viewerRating$ = this.currentVideoId$.pipe(
-    switchMap((videoId) => videoId
-      ? this.viewerUid$.pipe(
-          switchMap((viewerUid) =>
-            this.ratings.watchViewerRating$(
-              this.data.ownerUid,
-              videoId,
-              viewerUid
-            )
-          )
+  readonly viewerRating$ = combineLatest([
+    this.currentVideo$,
+    this.viewerUid$,
+  ]).pipe(
+    switchMap(([video, viewerUid]) => video
+      ? this.ratings.watchViewerRating$(
+          video.ownerUid,
+          video.id,
+          viewerUid
         )
       : of(null)),
     catchError(() => of(null)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly comments$ = this.currentVideoId$.pipe(
-    switchMap((videoId) => videoId
-      ? this.comments.watchVisibleComments$(this.data.ownerUid, videoId)
+  readonly comments$ = this.currentVideo$.pipe(
+    switchMap((video) => video
+      ? this.comments.watchVisibleComments$(video.ownerUid, video.id)
       : of([] as IVideoComment[])),
     catchError(() => of([] as IVideoComment[])),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -260,16 +291,19 @@ export class PublicVideoViewerComponent {
   );
 
   constructor() {
-    const itemsCount = this.data.items?.length ?? 0;
+    const itemsCount = this.items.length;
     this.index = itemsCount > 0
       ? Math.max(0, Math.min(this.data.startIndex ?? 0, itemsCount - 1))
       : 0;
     this.syncCurrentVideoId();
     this.recordCurrentVideoView();
+    this.scheduleAccessRefresh();
+
+    this.destroyRef.onDestroy(() => this.clearAccessRefreshTimer());
   }
 
   get current(): IPublicVideoItem | null {
-    return this.data.items?.[this.index] ?? null;
+    return this.items[this.index] ?? null;
   }
 
   get hasPrevious(): boolean {
@@ -277,11 +311,11 @@ export class PublicVideoViewerComponent {
   }
 
   get hasNext(): boolean {
-    return this.index < (this.data.items?.length ?? 0) - 1;
+    return this.index < this.items.length - 1;
   }
 
   get positionLabel(): string {
-    const total = this.data.items?.length ?? 0;
+    const total = this.items.length;
     return total > 0 ? `${this.index + 1} de ${total}` : 'Sem vídeos';
   }
 
@@ -301,6 +335,39 @@ export class PublicVideoViewerComponent {
     }
     event.preventDefault();
     this.next();
+  }
+
+  @HostListener('publicVideoAccessError')
+  onPublicVideoAccessError(): void {
+    this.refreshCurrentVideoAccess('automatic');
+  }
+
+  @HostListener('publicVideoRetry')
+  retryCurrentVideo(): void {
+    this.refreshCurrentVideoAccess('manual');
+  }
+
+  @HostListener('publicVideoReady')
+  onPublicVideoReady(): void {
+    this.restorePlaybackAfterRefresh();
+  }
+
+  @HostListener('publicVideoPosterError')
+  onPublicVideoPosterError(): void {
+    const video = this.current;
+
+    if (!video?.posterUrl) {
+      return;
+    }
+
+    const updated: IPublicVideoItem = {
+      ...video,
+      posterUrl: null,
+      posterAccess: 'NONE',
+    };
+    this.items[this.index] = updated;
+    this.currentVideoSubject.next(updated);
+    this.changeDetector.markForCheck();
   }
 
   close(): void {
@@ -369,7 +436,7 @@ export class PublicVideoViewerComponent {
             return EMPTY;
           }
           return this.reactions.toggleLikeVideo$(
-            this.data.ownerUid,
+            video.ownerUid,
             video.id,
             viewerUid
           );
@@ -410,7 +477,7 @@ export class PublicVideoViewerComponent {
             return EMPTY;
           }
           return this.ratings.rateVideo$(
-            this.data.ownerUid,
+            video.ownerUid,
             video.id,
             viewerUid,
             rating
@@ -448,7 +515,7 @@ export class PublicVideoViewerComponent {
             return of(null);
           }
           return this.comments.createComment$({
-            ownerUid: this.data.ownerUid,
+            ownerUid: video.ownerUid,
             videoId: video.id,
             content,
           });
@@ -493,7 +560,7 @@ export class PublicVideoViewerComponent {
             return of(null);
           }
           return this.comments.replyToComment$({
-            ownerUid: this.data.ownerUid,
+            ownerUid: video.ownerUid,
             videoId: video.id,
             parentCommentId: comment.id,
             content,
@@ -604,7 +671,7 @@ export class PublicVideoViewerComponent {
           if (action === 'HIDE') {
             return viewerIsOwner
               ? this.comments.hideComment$(
-                  this.data.ownerUid,
+                  video.ownerUid,
                   video.id,
                   comment.id
                 )
@@ -612,7 +679,7 @@ export class PublicVideoViewerComponent {
           }
           return this.canDeleteComment(comment, viewerUid, viewerIsOwner)
             ? this.comments.deleteComment$(
-                this.data.ownerUid,
+                video.ownerUid,
                 video.id,
                 comment.id
               )
@@ -625,22 +692,33 @@ export class PublicVideoViewerComponent {
 
   private changeIndex(nextIndex: number): void {
     this.pauseCurrentVideo();
+    this.clearAccessRefreshTimer();
     this.index = nextIndex;
     this.commentsExpanded.set(false);
     this.ratingsExpanded.set(false);
     this.commentControl.setValue('');
     this.cancelReply();
+    this.pendingPlaybackResume = null;
+    this.playbackFeedback?.markLoading();
     this.syncCurrentVideoId();
     this.recordCurrentVideoView();
+    this.scheduleAccessRefresh();
 
     queueMicrotask(() => {
-      this.videoPlayer?.nativeElement.load();
-      this.videoPlayer?.nativeElement.focus({ preventScroll: true });
+      const player = this.videoPlayer?.nativeElement;
+      if (!player) {
+        return;
+      }
+      player.load();
+      player.focus({ preventScroll: true });
     });
   }
 
   private syncCurrentVideoId(): void {
-    this.currentVideoIdSubject.next(this.current?.id ?? '');
+    const current = this.current;
+    this.currentVideoIdSubject.next(current?.id ?? '');
+    this.currentVideoSubject.next(current);
+    this.changeDetector.markForCheck();
   }
 
   private recordCurrentVideoView(): void {
@@ -672,6 +750,163 @@ export class PublicVideoViewerComponent {
       .subscribe();
   }
 
+  private refreshCurrentVideoAccess(reason: TAccessRefreshReason): void {
+    const video = this.current;
+
+    if (!video || this.refreshingAccess) {
+      return;
+    }
+
+    const refreshKey = `${video.ownerUid}:${video.id}:${video.url}`;
+
+    if (reason === 'automatic' && this.automaticRefreshKeys.has(refreshKey)) {
+      this.playbackFeedback?.markError(
+        'O vídeo continua indisponível. Tente novamente em instantes.'
+      );
+      return;
+    }
+
+    if (reason === 'automatic') {
+      this.automaticRefreshKeys.add(refreshKey);
+    }
+
+    this.refreshingAccess = true;
+    this.clearAccessRefreshTimer();
+    this.pendingPlaybackResume = this.capturePlaybackState();
+    this.playbackFeedback?.markRefreshing(
+      reason === 'expiry'
+        ? 'Renovando acesso ao vídeo...'
+        : 'Atualizando acesso ao vídeo...'
+    );
+
+    this.publicVideoAccess.refreshPublicVideoUrl$(video)
+      .pipe(
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.refreshingAccess = false;
+        })
+      )
+      .subscribe({
+        next: (refreshed) => {
+          if (!refreshed) {
+            this.handleAccessRefreshFailure(reason);
+            return;
+          }
+
+          this.items[this.index] = refreshed;
+          this.currentVideoSubject.next(refreshed);
+          this.changeDetector.markForCheck();
+          this.scheduleAccessRefresh();
+
+          queueMicrotask(() => {
+            const player = this.videoPlayer?.nativeElement;
+            if (!player) {
+              return;
+            }
+            player.load();
+            player.focus({ preventScroll: true });
+          });
+        },
+        error: () => this.handleAccessRefreshFailure(reason),
+      });
+  }
+
+  private handleAccessRefreshFailure(reason: TAccessRefreshReason): void {
+    if (reason === 'expiry') {
+      this.playbackFeedback?.markReady();
+      this.errorNotification.showWarning(
+        'Não foi possível prolongar o acesso agora. Uma nova tentativa será feita.'
+      );
+      this.accessRefreshTimer = setTimeout(
+        () => this.refreshCurrentVideoAccess('expiry'),
+        ACCESS_REFRESH_RETRY_MS
+      );
+      return;
+    }
+
+    this.pendingPlaybackResume = null;
+    this.playbackFeedback?.markError(
+      'O acesso ao vídeo não pôde ser atualizado. Verifique sua conexão.'
+    );
+    this.errorNotification.showError(
+      'Não foi possível carregar o vídeo. Tente novamente.'
+    );
+  }
+
+  private scheduleAccessRefresh(): void {
+    this.clearAccessRefreshTimer();
+
+    const expiresAt = Number(this.current?.accessExpiresAt ?? 0);
+
+    if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
+      return;
+    }
+
+    const delay = expiresAt - Date.now() - ACCESS_REFRESH_WINDOW_MS;
+
+    if (delay <= 0) {
+      queueMicrotask(() => this.refreshCurrentVideoAccess('expiry'));
+      return;
+    }
+
+    this.accessRefreshTimer = setTimeout(
+      () => this.refreshCurrentVideoAccess('expiry'),
+      Math.min(delay, MAX_TIMER_DELAY_MS)
+    );
+  }
+
+  private clearAccessRefreshTimer(): void {
+    if (this.accessRefreshTimer === null) {
+      return;
+    }
+
+    clearTimeout(this.accessRefreshTimer);
+    this.accessRefreshTimer = null;
+  }
+
+  private capturePlaybackState(): PendingPlaybackResume | null {
+    const player = this.videoPlayer?.nativeElement;
+
+    if (!player) {
+      return null;
+    }
+
+    const currentTime = Number.isFinite(player.currentTime)
+      ? Math.max(0, player.currentTime)
+      : 0;
+
+    return {
+      currentTime,
+      shouldResume: !player.paused && !player.ended,
+    };
+  }
+
+  private restorePlaybackAfterRefresh(): void {
+    const pending = this.pendingPlaybackResume;
+    const player = this.videoPlayer?.nativeElement;
+
+    if (!pending || !player || player.readyState < 1) {
+      return;
+    }
+
+    this.pendingPlaybackResume = null;
+
+    try {
+      if (pending.currentTime > 0 && pending.currentTime < player.duration) {
+        player.currentTime = pending.currentTime;
+      }
+    } catch {
+      // O navegador pode rejeitar seek antes de concluir os metadados.
+    }
+
+    if (pending.shouldResume) {
+      void player.play().catch(() => {
+        // Autoplay pode ser bloqueado; os controles continuam disponíveis.
+      });
+    }
+  }
+
   private buildCommentThreads(items: IVideoComment[]): VideoCommentThread[] {
     const roots = items.filter((comment) => !comment.parentCommentId);
     const replies = new Map<string, IVideoComment[]>();
@@ -700,8 +935,14 @@ export class PublicVideoViewerComponent {
   }
 
   private pauseCurrentVideo(): void {
+    const player = this.videoPlayer?.nativeElement;
+
+    if (!player || player.readyState === HTMLMediaElement.HAVE_NOTHING) {
+      return;
+    }
+
     try {
-      this.videoPlayer?.nativeElement.pause();
+      player.pause();
     } catch {
       // noop
     }
