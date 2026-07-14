@@ -36,6 +36,10 @@ export {
 } from './application/sync-published-video-settings.handler';
 
 export {
+  cleanupUnpublishedVideoInteractions,
+} from './application/cleanup-unpublished-video-interactions.handler';
+
+export {
   cleanupPendingPrivateVideoUploadAssets,
   registerPrivateVideoUpload,
 } from './application/register-private-video-upload.handler';
