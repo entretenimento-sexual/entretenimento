@@ -1,10 +1,16 @@
 // functions/src/media/index.ts
 export { togglePhotoReaction } from './application/toggle-photo-reaction.handler';
+export { toggleVideoReaction } from './application/toggle-video-reaction.handler';
 
 export {
   createPhotoComment,
   moderatePhotoComment,
 } from './application/manage-photo-comment.handler';
+
+export {
+  createVideoComment,
+  moderateVideoComment,
+} from './application/manage-video-comment.handler';
 
 export {
   publishPhoto,
