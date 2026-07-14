@@ -1,0 +1,238 @@
+.public-video-viewer__footer {
+  display: grid;
+  gap: 14px;
+  max-height: 44vh;
+  overflow: hidden;
+}
+
+.public-video-viewer__footer-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.public-video-viewer__copy {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 5px;
+  min-width: 0;
+}
+
+.public-video-viewer__copy > div {
+  display: grid;
+  gap: 4px;
+}
+
+.public-video-viewer__copy p {
+  max-width: 72ch;
+  margin: 0;
+  color: rgb(255 255 255 / 72%);
+  font-size: 0.84rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.public-video-viewer__interactions,
+.public-video-viewer__comment-actions,
+.public-video-viewer__comment-form > div,
+.public-video-viewer__reply-form > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.public-video-viewer__interactions {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.public-video-viewer__interaction {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 8%);
+  color: #fff;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.public-video-viewer__interaction:hover:not(:disabled),
+.public-video-viewer__interaction:focus-visible:not(:disabled) {
+  border-color: rgb(255 255 255 / 46%);
+  background: rgb(255 255 255 / 16%);
+}
+
+.public-video-viewer__interaction--active {
+  border-color: rgb(255 112 112 / 70%);
+  background: rgb(255 112 112 / 18%);
+}
+
+.public-video-viewer__interaction:disabled,
+.public-video-viewer__comments button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.public-video-viewer__interaction:focus-visible,
+.public-video-viewer__comments button:focus-visible,
+.public-video-viewer__comments textarea:focus-visible,
+.public-video-viewer__comment a:focus-visible {
+  outline: 3px solid rgb(255 112 112 / 92%);
+  outline-offset: 3px;
+}
+
+.public-video-viewer__comments {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.public-video-viewer__comment-form,
+.public-video-viewer__reply-form {
+  display: grid;
+  gap: 8px;
+}
+
+.public-video-viewer__comment-form label {
+  font-size: 0.84rem;
+  font-weight: 760;
+}
+
+.public-video-viewer__comment-form textarea,
+.public-video-viewer__reply-form textarea {
+  width: 100%;
+  min-height: 62px;
+  padding: 10px 12px;
+  resize: vertical;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 7%);
+  color: #fff;
+  font: inherit;
+  line-height: 1.4;
+}
+
+.public-video-viewer__comment-form > div,
+.public-video-viewer__reply-form > div,
+.public-video-viewer__comment-actions {
+  justify-content: flex-end;
+}
+
+.public-video-viewer__comment-form button,
+.public-video-viewer__reply-form button,
+.public-video-viewer__comment-actions button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 9px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.public-video-viewer__comment-list {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+  max-height: 22vh;
+  padding-right: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.public-video-viewer__comment {
+  display: grid;
+  gap: 7px;
+  padding: 11px 12px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 5%);
+}
+
+.public-video-viewer__comment header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.public-video-viewer__comment a {
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 780;
+  text-decoration: none;
+}
+
+.public-video-viewer__comment time,
+.public-video-viewer__comments-empty {
+  color: rgb(255 255 255 / 64%);
+  font-size: 0.78rem;
+}
+
+.public-video-viewer__comment p,
+.public-video-viewer__comments-empty {
+  margin: 0;
+}
+
+.public-video-viewer__comment p {
+  color: rgb(255 255 255 / 86%);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.public-video-viewer__comment-actions button {
+  min-height: 28px;
+  padding: 3px 7px;
+  border: 0;
+  color: rgb(255 255 255 / 68%);
+}
+
+.public-video-viewer__replies {
+  display: grid;
+  gap: 8px;
+  padding-left: 18px;
+  border-left: 2px solid rgb(255 255 255 / 10%);
+}
+
+.public-video-viewer__comment--reply {
+  background: rgb(0 0 0 / 18%);
+}
+
+@media (max-width: 700px) {
+  .public-video-viewer__footer {
+    max-height: 52vh;
+  }
+
+  .public-video-viewer__footer-main {
+    display: grid;
+    gap: 12px;
+  }
+
+  .public-video-viewer__interactions {
+    justify-content: flex-start;
+  }
+
+  .public-video-viewer__interaction {
+    flex: 1 1 140px;
+  }
+
+  .public-video-viewer__comment-list {
+    max-height: 26vh;
+  }
+}
+
+html.high-contrast .public-video-viewer__interaction,
+html.high-contrast .public-video-viewer__comment,
+html.high-contrast .public-video-viewer__comment-form textarea,
+html.high-contrast .public-video-viewer__reply-form textarea {
+  border-color: currentColor !important;
+}
