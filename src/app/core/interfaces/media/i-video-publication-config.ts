@@ -22,6 +22,19 @@ export interface IVideoPublicationConfig {
   readonly orderIndex: number;
   readonly moderationStatus: TVideoPublicationModerationStatus;
   readonly moderationReason?: string | null;
+  readonly title?: string | null;
+  readonly description?: string | null;
+  readonly reactionsEnabled: boolean;
+  readonly commentsEnabled: boolean;
+  readonly ratingsEnabled: boolean;
   readonly publishedAt?: number | null;
   readonly updatedAt?: number | null;
+}
+
+export interface IVideoPublicationSettingsInput {
+  title: string | null;
+  description: string | null;
+  reactionsEnabled: boolean;
+  commentsEnabled: boolean;
+  ratingsEnabled: boolean;
 }
