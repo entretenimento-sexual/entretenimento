@@ -22,6 +22,14 @@ export {
 } from './application/manage-video-publication.handler';
 
 export {
+  updateVideoPublicationSettings,
+} from './application/update-video-publication-settings.handler';
+
+export {
+  syncPublishedVideoSettings,
+} from './application/sync-published-video-settings.handler';
+
+export {
   cleanupPendingPrivateVideoUploadAssets,
   registerPrivateVideoUpload,
 } from './application/register-private-video-upload.handler';
