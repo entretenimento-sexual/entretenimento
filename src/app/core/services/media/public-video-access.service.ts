@@ -5,6 +5,7 @@ import { Observable, forkJoin, of, throwError } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
+  finalize,
   map,
   shareReplay,
 } from 'rxjs/operators';
@@ -45,6 +46,10 @@ export class PublicVideoAccessService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly functions = inject(Functions);
   private readonly accessCache = new Map<string, IPublicVideoAccess>();
+  private readonly inFlightRefreshes = new Map<
+    string,
+    Observable<IPublicVideoItem | null>
+  >();
   private lastSessionUid: string | null | undefined = undefined;
 
   constructor(
@@ -65,6 +70,7 @@ export class PublicVideoAccessService {
           this.lastSessionUid !== normalizedUid
         ) {
           this.accessCache.clear();
+          this.inFlightRefreshes.clear();
         }
 
         this.lastSessionUid = normalizedUid;
@@ -75,15 +81,8 @@ export class PublicVideoAccessService {
     projections: readonly IPublicVideoProjection[]
   ): Observable<IPublicVideoItem[]> {
     const eligible = projections.flatMap((candidate) => {
-      const projection = mapPublicVideoProjection({
-        documentId: candidate.id,
-        expectedOwnerUid: candidate.ownerUid,
-        data: candidate,
-      });
-
-      return projection && this.isEligibleProjection(projection)
-        ? [projection]
-        : [];
+      const projection = this.normalizeProjection(candidate);
+      return projection ? [projection] : [];
     });
 
     if (!eligible.length) {
@@ -135,7 +134,7 @@ export class PublicVideoAccessService {
         );
 
         for (const response of responses) {
-          for (const access of response.items) {
+          for (const access of response.items ?? []) {
             const identityKey = buildPublicVideoKey(
               access.ownerUid,
               access.videoId
@@ -159,6 +158,60 @@ export class PublicVideoAccessService {
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+  }
+
+  /**
+   * Renova um único item sem reutilizar a URL cacheada.
+   * Chamadas concorrentes para o mesmo vídeo compartilham a mesma requisição.
+   */
+  refreshPublicVideoUrl$(
+    candidate: IPublicVideoProjection
+  ): Observable<IPublicVideoItem | null> {
+    const projection = this.normalizeProjection(candidate);
+
+    if (!projection) {
+      return of(null);
+    }
+
+    const identityKey = buildPublicVideoKey(projection.ownerUid, projection.id);
+    const inFlight = this.inFlightRefreshes.get(identityKey);
+
+    if (inFlight) {
+      return inFlight;
+    }
+
+    this.accessCache.delete(this.buildCacheKey(projection));
+
+    const refresh$ = this.requestAccessUrls$([projection]).pipe(
+      map((response) => {
+        const now = Date.now();
+        const access = (response.items ?? []).find((item) =>
+          buildPublicVideoKey(item.ownerUid, item.videoId) === identityKey
+        );
+
+        if (!access || !isPublicVideoAccessUsable(projection, access, now)) {
+          return null;
+        }
+
+        this.accessCache.set(this.buildCacheKey(projection), access);
+        return hydratePublicVideoItem(projection, access, now);
+      }),
+      finalize(() => this.inFlightRefreshes.delete(identityKey)),
+      shareReplay({ bufferSize: 1, refCount: false })
+    );
+
+    this.inFlightRefreshes.set(identityKey, refresh$);
+    return refresh$;
+  }
+
+  invalidatePublicVideoAccess(candidate: IPublicVideoProjection): void {
+    const projection = this.normalizeProjection(candidate);
+
+    if (!projection) {
+      return;
+    }
+
+    this.accessCache.delete(this.buildCacheKey(projection));
   }
 
   private requestAccessUrls$(
@@ -204,6 +257,20 @@ export class PublicVideoAccessService {
 
       return item ? [item] : [];
     });
+  }
+
+  private normalizeProjection(
+    candidate: IPublicVideoProjection
+  ): IPublicVideoProjection | null {
+    const projection = mapPublicVideoProjection({
+      documentId: candidate.id,
+      expectedOwnerUid: candidate.ownerUid,
+      data: candidate,
+    });
+
+    return projection && this.isEligibleProjection(projection)
+      ? projection
+      : null;
   }
 
   private isEligibleProjection(
