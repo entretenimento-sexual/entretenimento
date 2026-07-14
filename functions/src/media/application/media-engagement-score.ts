@@ -8,6 +8,8 @@ export interface MediaScoreBreakdown {
 export interface MediaEngagementInput {
   reactionsCount: number;
   commentsCount: number;
+  ratingsCount?: number;
+  ratingAverage?: number;
   currentBreakdown?: Partial<MediaScoreBreakdown> | null;
 }
 
@@ -37,12 +39,26 @@ export function normalizeMediaScore(value: unknown): number {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
+export function normalizeMediaRatingAverage(value: unknown): number {
+  const rating = Number(value ?? 0);
+
+  if (!Number.isFinite(rating)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(5, rating));
+}
+
 export function buildMediaEngagementScore(
   input: MediaEngagementInput
 ): MediaEngagementResult {
   const reactionsCount = normalizeMediaCount(input.reactionsCount);
   const commentsCount = normalizeMediaCount(input.commentsCount);
-  const weightedEngagement = reactionsCount * 2 + commentsCount * 4;
+  const ratingsCount = normalizeMediaCount(input.ratingsCount);
+  const ratingAverage = normalizeMediaRatingAverage(input.ratingAverage);
+  const ratingWeight = ratingsCount * (ratingAverage / 5) * 3;
+  const weightedEngagement =
+    reactionsCount * 2 + commentsCount * 4 + ratingWeight;
   const engagementScore = normalizeMediaScore(
     Math.round(Math.log1p(weightedEngagement) * 18)
   );
