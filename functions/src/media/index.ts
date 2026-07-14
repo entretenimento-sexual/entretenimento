@@ -1,6 +1,7 @@
 // functions/src/media/index.ts
 export { togglePhotoReaction } from './application/toggle-photo-reaction.handler';
 export { toggleVideoReaction } from './application/toggle-video-reaction.handler';
+export { rateVideo } from './application/rate-video.handler';
 
 export {
   createPhotoComment,
