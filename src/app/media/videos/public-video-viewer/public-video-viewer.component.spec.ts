@@ -23,6 +23,7 @@ import {
   IPublicVideoViewerData,
   PublicVideoViewerComponent,
 } from './public-video-viewer.component';
+import { PublicVideoQualifiedViewDetail } from './public-video-view-qualification.directive';
 
 const NOW = 1_800_000_000_000;
 
@@ -87,7 +88,7 @@ describe('PublicVideoViewerComponent', () => {
   let fixture: ComponentFixture<PublicVideoViewerComponent>;
   const dialogRef = { close: vi.fn() };
   const videoViewTracking = {
-    recordVideoView$: vi.fn(() => of({ ok: true })),
+    recordVideoView$: vi.fn(() => of(void 0)),
   };
   const publicVideoAccess = {
     refreshPublicVideoUrl$: vi.fn((video: IPublicVideoItem) => of(video)),
@@ -175,7 +176,7 @@ describe('PublicVideoViewerComponent', () => {
     expect(element.textContent).toContain('120 visualizações');
   });
 
-  it('mantém os controles acessíveis e registra a visualização pública', () => {
+  it('mantém os controles acessíveis sem contar a simples abertura', () => {
     const element = fixture.nativeElement as HTMLElement;
     const closeButton = element.querySelector<HTMLButtonElement>(
       '[aria-label="Fechar visualizador de vídeo"]'
@@ -186,10 +187,36 @@ describe('PublicVideoViewerComponent', () => {
 
     expect(closeButton).not.toBeNull();
     expect(nextButton?.disabled).toBe(true);
+    expect(videoViewTracking.recordVideoView$).not.toHaveBeenCalled();
+  });
+
+  it('registra uma única vez após reprodução qualificada', () => {
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    const evidence: PublicVideoQualifiedViewDetail = {
+      sessionId: 'session_1234567890abcdef',
+      playbackMs: 6_250,
+      durationMs: 25_000,
+      qualifiedAt: NOW,
+    };
+
+    const qualifiedEvent = () => new CustomEvent<PublicVideoQualifiedViewDetail>(
+      'publicVideoQualifiedView',
+      {
+        detail: evidence,
+        bubbles: true,
+        composed: true,
+      }
+    );
+
+    video.dispatchEvent(qualifiedEvent());
+    video.dispatchEvent(qualifiedEvent());
+
+    expect(videoViewTracking.recordVideoView$).toHaveBeenCalledTimes(1);
     expect(videoViewTracking.recordVideoView$).toHaveBeenCalledWith(
       'owner-1',
       'video-1',
-      'top'
+      'top',
+      evidence
     );
   });
 
