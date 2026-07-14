@@ -207,12 +207,35 @@
   background: rgb(0 0 0 / 18%);
 }
 
+/*
+ * Este arquivo é importado antes do CSS-base do player. O seletor composto
+ * garante precedência sem !important e mantém o layout social encapsulado.
+ */
+.public-video-viewer .public-video-viewer__footer {
+  display: grid;
+  align-items: stretch;
+  justify-content: normal;
+  gap: 14px;
+}
+
+.public-video-viewer .public-video-viewer__footer-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.public-video-viewer .public-video-viewer__copy p,
+.public-video-viewer .public-video-viewer__comment p {
+  margin: 0;
+}
+
 @media (max-width: 700px) {
   .public-video-viewer__footer {
     max-height: 52vh;
   }
 
-  .public-video-viewer__footer-main {
+  .public-video-viewer .public-video-viewer__footer-main {
     display: grid;
     gap: 12px;
   }
