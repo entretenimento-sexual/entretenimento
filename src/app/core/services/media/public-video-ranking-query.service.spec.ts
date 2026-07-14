@@ -51,13 +51,17 @@ function createService(options?: {
     documentId: 'video-1',
     data: createPublicVideoData(),
   })!;
-  const item = hydratePublicVideoItem(projection, {
-    ownerUid: 'owner-1',
-    videoId: 'video-1',
-    url: 'https://example.test/video.mp4?token=temporary',
-    posterUrl: null,
-    expiresAt: ACCESS_NOW + 300_000,
-  }, ACCESS_NOW)!;
+  const item = hydratePublicVideoItem(
+    projection,
+    {
+      ownerUid: 'owner-1',
+      videoId: 'video-1',
+      url: 'https://example.test/video.mp4?token=temporary',
+      posterUrl: null,
+      expiresAt: ACCESS_NOW + 300_000,
+    },
+    ACCESS_NOW
+  )!;
   const nextCursor: IPublicVideoRankingCursor = {
     mode: 'top',
     score: 70,
@@ -66,9 +70,10 @@ function createService(options?: {
     publishedAt: PUBLISHED_AT,
     documentPath: 'public_profiles/owner-1/public_videos/video-1',
   };
+  const gatewayError = options?.gatewayError;
   const gateway = {
-    loadPage$: vi.fn(() => options?.gatewayError
-      ? throwError(() => options.gatewayError)
+    loadPage$: vi.fn(() => gatewayError
+      ? throwError(() => gatewayError)
       : of({
         documents: options?.rawDocuments ?? [{
           id: 'video-1',
