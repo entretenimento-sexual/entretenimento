@@ -11,6 +11,11 @@ import {
   inject,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  FormBuilder,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
@@ -31,7 +36,10 @@ import {
 } from 'rxjs/operators';
 
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
-import { IVideoPublicationConfig } from 'src/app/core/interfaces/media/i-video-publication-config';
+import {
+  IVideoPublicationConfig,
+  IVideoPublicationSettingsInput,
+} from 'src/app/core/interfaces/media/i-video-publication-config';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
@@ -53,7 +61,7 @@ interface ProfileVideoViewItem {
   publication: IVideoPublicationConfig | null;
 }
 
-type VideoBusyAction = 'publish' | 'unpublish' | 'delete';
+type VideoBusyAction = 'publish' | 'unpublish' | 'delete' | 'save';
 type VideoUploadUiPhase =
   | 'IDLE'
   | 'READY'
@@ -77,7 +85,7 @@ const DENY_UNKNOWN: IMediaPolicyResult = {
 @Component({
   selector: 'app-profile-videos',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule],
   templateUrl: './profile-videos.component.html',
   styleUrls: ['./profile-videos.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -85,6 +93,7 @@ const DENY_UNKNOWN: IMediaPolicyResult = {
 export class ProfileVideosComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly formBuilder = inject(FormBuilder);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly videoLibrary = inject(VideoLibraryService);
   private readonly videoPublication = inject(VideoPublicationService);
@@ -102,6 +111,19 @@ export class ProfileVideosComponent {
   >(null);
   readonly pendingDeleteVideoId$ =
     this.pendingDeleteVideoIdSubject.asObservable();
+
+  private readonly editingVideoIdSubject = new BehaviorSubject<string | null>(
+    null
+  );
+  readonly editingVideoId$ = this.editingVideoIdSubject.asObservable();
+
+  readonly publicationSettingsForm = this.formBuilder.nonNullable.group({
+    title: ['', [Validators.maxLength(120)]],
+    description: ['', [Validators.maxLength(1000)]],
+    reactionsEnabled: [true],
+    commentsEnabled: [true],
+    ratingsEnabled: [true],
+  });
 
   private readonly selectedFileSubject = new BehaviorSubject<File | null>(null);
   readonly selectedFile$ = this.selectedFileSubject.asObservable();
@@ -390,7 +412,96 @@ export class ProfileVideosComponent {
     }
   }
 
+  startEditingPublication(item: ProfileVideoViewItem): void {
+    if (this.isBusy(item.video.id)) {
+      return;
+    }
+
+    this.editingVideoIdSubject.next(item.video.id);
+    this.publicationSettingsForm.reset({
+      title: item.publication?.title ?? this.defaultVideoTitle(item.video),
+      description: item.publication?.description ?? '',
+      reactionsEnabled: item.publication?.reactionsEnabled !== false,
+      commentsEnabled: item.publication?.commentsEnabled !== false,
+      ratingsEnabled: item.publication?.ratingsEnabled !== false,
+    });
+  }
+
+  cancelEditingPublication(videoId: string): void {
+    if (
+      this.editingVideoIdSubject.value === videoId &&
+      !this.isBusy(videoId)
+    ) {
+      this.editingVideoIdSubject.next(null);
+      this.publicationSettingsForm.reset();
+    }
+  }
+
+  savePublicationSettings(item: ProfileVideoViewItem): void {
+    const videoId = item.video.id;
+
+    if (
+      this.editingVideoIdSubject.value !== videoId ||
+      this.isBusy(videoId)
+    ) {
+      return;
+    }
+
+    if (this.publicationSettingsForm.invalid) {
+      this.publicationSettingsForm.markAllAsTouched();
+      this.errorNotification.showWarning(
+        'Revise o título e a descrição antes de salvar.'
+      );
+      return;
+    }
+
+    const raw = this.publicationSettingsForm.getRawValue();
+    const settings: IVideoPublicationSettingsInput = {
+      title: raw.title.trim() || null,
+      description: raw.description.trim() || null,
+      reactionsEnabled: raw.reactionsEnabled,
+      commentsEnabled: raw.commentsEnabled,
+      ratingsEnabled: raw.ratingsEnabled,
+    };
+
+    this.setBusyAction(videoId, 'save');
+
+    this.ownerUid$.pipe(
+      take(1),
+      switchMap((ownerUid) =>
+        this.videoPublication.updateVideoPublicationSettings$(
+          ownerUid,
+          videoId,
+          settings
+        )
+      ),
+      finalize(() => this.clearBusyAction(videoId)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (result) => {
+        this.editingVideoIdSubject.next(null);
+        const message =
+          result.isPublished && result.moderationStatus === 'PENDING_REVIEW'
+            ? 'Alterações salvas e enviadas para moderação.'
+            : 'Informações do vídeo salvas.';
+        this.errorNotification.showSuccess(message);
+      },
+      error: () => {
+        this.errorNotification.showError(
+          'Não foi possível salvar as informações do vídeo.'
+        );
+      },
+    });
+  }
+
   publishVideo(item: ProfileVideoViewItem): void {
+    if (this.editingVideoIdSubject.value === item.video.id) {
+      this.errorNotification.showWarning(
+        'Salve ou cancele a edição antes de publicar.'
+      );
+      return;
+    }
+
     if (!this.canPublish(item) || this.isBusy(item.video.id)) {
       return;
     }
@@ -568,6 +679,11 @@ export class ProfileVideosComponent {
     return 'Aguardando processamento';
   }
 
+  displayVideoTitle(item: ProfileVideoViewItem): string {
+    return item.publication?.title?.trim() ||
+      this.defaultVideoTitle(item.video);
+  }
+
   trackByVideoId(_index: number, item: ProfileVideoViewItem): string {
     return item.video.id;
   }
@@ -609,6 +725,17 @@ export class ProfileVideosComponent {
     }
 
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  private defaultVideoTitle(video: IVideoItem): string {
+    const fileName = String(video.fileName ?? '').trim();
+
+    if (!fileName) {
+      return 'Vídeo';
+    }
+
+    return fileName.replace(/\.[A-Za-z0-9]{2,5}$/, '').slice(0, 120) ||
+      'Vídeo';
   }
 
   private handleUploadEvent(event: IVideoUploadFlowEvent): void {
