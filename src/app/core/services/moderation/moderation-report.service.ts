@@ -35,8 +35,10 @@ import {
 } from 'src/app/core/interfaces/moderation/moderation-report.interface';
 import { toErrorInstance } from 'src/app/core/utils/firebase-error-utils';
 
+type VideoReportTargetType = 'video' | 'video_comment' | 'video_rating';
+
 interface ReportVideoContentRequest {
-  targetType: 'video' | 'video_comment' | 'video_rating';
+  targetType: VideoReportTargetType;
   ownerUid: string;
   videoId: string;
   targetId?: string | null;
@@ -68,22 +70,25 @@ export class ModerationReportService {
       return throwError(() => new Error('Denúncia inválida.'));
     }
 
-    if (this.isVideoTargetType(normalized.targetType)) {
-      return this.createVideoReport$(normalized);
+    const videoTargetType = this.normalizeVideoTargetType(
+      normalized.targetType
+    );
+
+    if (videoTargetType) {
+      return this.createVideoReport$(normalized, videoTargetType);
     }
 
     return this.createLegacyReport$(normalized);
   }
 
   private createVideoReport$(
-    input: IModerationReportCreateInput & {
-      targetType: 'video' | 'video_comment' | 'video_rating';
-    }
+    input: IModerationReportCreateInput,
+    targetType: VideoReportTargetType
   ): Observable<string> {
     const ownerUid = String(input.targetOwnerUid ?? '').trim();
     const videoId = String(
       input.parentTargetId ??
-      (input.targetType === 'video' ? input.targetId : '')
+      (targetType === 'video' ? input.targetId : '')
     ).trim();
 
     if (!ownerUid || !videoId) {
@@ -92,10 +97,10 @@ export class ModerationReportService {
 
     return from(
       this.reportVideoContentCallable({
-        targetType: input.targetType,
+        targetType,
         ownerUid,
         videoId,
-        targetId: input.targetType === 'video' ? null : input.targetId,
+        targetId: targetType === 'video' ? null : input.targetId,
         reason: input.reason,
         details: input.details,
         route: input.route,
@@ -104,7 +109,7 @@ export class ModerationReportService {
       map((response) => response.data.reportId),
       catchError((error) => {
         this.reportWriteError(error, 'createVideoReport', {
-          targetType: input.targetType,
+          targetType,
           targetId: input.targetId,
           videoId,
           hasOwnerUid: !!ownerUid,
@@ -207,12 +212,14 @@ export class ModerationReportService {
     };
   }
 
-  private isVideoTargetType(
+  private normalizeVideoTargetType(
     value: ModerationReportTargetType
-  ): value is 'video' | 'video_comment' | 'video_rating' {
+  ): VideoReportTargetType | null {
     return value === 'video' ||
       value === 'video_comment' ||
-      value === 'video_rating';
+      value === 'video_rating'
+      ? value
+      : null;
   }
 
   private isAllowedTargetType(
