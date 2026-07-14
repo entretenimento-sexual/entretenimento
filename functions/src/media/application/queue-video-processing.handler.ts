@@ -12,6 +12,10 @@ import {
   type VideoProcessingJob,
 } from './video-processing-job';
 import {
+  hasPersistedInvalidProcessingSourceFailure,
+  INVALID_PROCESSING_SOURCE_CODE,
+} from './video-processing-invalid-source';
+import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
@@ -26,6 +30,8 @@ interface PrivateVideoDocument {
   durationMs?: number | null;
   processedStoragePath?: string | null;
   processingJobId?: string | null;
+  processingStage?: string;
+  processingErrorCode?: string;
   status?: string;
 }
 
@@ -199,12 +205,16 @@ export const queuePrivateVideoProcessing = onDocumentWritten(
           (sourceDurationMs !== null &&
             sourceDurationMs < MIN_VIDEO_DURATION_MS)
         ) {
+          if (hasPersistedInvalidProcessingSourceFailure(video)) {
+            return null;
+          }
+
           transaction.set(
             videoSnap.ref,
             {
               status: 'failed',
               processingStage: 'failed',
-              processingErrorCode: 'INVALID_PROCESSING_SOURCE',
+              processingErrorCode: INVALID_PROCESSING_SOURCE_CODE,
               processingErrorMessage:
                 sourceDurationMs !== null &&
                 sourceDurationMs < MIN_VIDEO_DURATION_MS
