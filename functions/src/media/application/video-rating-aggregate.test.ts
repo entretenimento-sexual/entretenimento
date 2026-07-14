@@ -7,12 +7,13 @@ import {
 } from './video-rating-aggregate';
 
 describe('video-rating-aggregate', () => {
-  it('aceita somente notas inteiras entre 1 e 5', () => {
+  it('aceita somente notas numéricas inteiras entre 1 e 5', () => {
     assert.equal(normalizeVideoRating(1), 1);
     assert.equal(normalizeVideoRating(5), 5);
     assert.equal(normalizeVideoRating(0), null);
     assert.equal(normalizeVideoRating(4.5), null);
-    assert.equal(normalizeVideoRating('3'), 3);
+    assert.equal(normalizeVideoRating('3'), null);
+    assert.equal(normalizeVideoRating(true), null);
   });
 
   it('adiciona a primeira avaliação', () => {
