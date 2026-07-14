@@ -19,6 +19,7 @@ const testCommand = [
   'node scripts/tests/video-publication.e2e.mjs',
   'node scripts/tests/video-social.e2e.mjs',
   'node scripts/tests/video-ratings.e2e.mjs',
+  'node scripts/tests/video-reports.e2e.mjs',
 ].join(' && ');
 
 const child = spawn(
