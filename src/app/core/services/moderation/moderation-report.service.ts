@@ -8,12 +8,18 @@
 // - usa AuthSessionService.readyUid$ para aguardar Auth pronto;
 // - denúncias comuns preservam o fluxo existente em moderation_reports;
 // - denúncias de vídeo, comentário e avaliação passam por Callable validada;
+// - Functions é resolvido somente quando uma denúncia de vídeo é enviada;
 // - não expõe leitura/listagem para usuário comum;
 // - não mostra toast diretamente para manter feedback sob controle da UI;
 // - reporta falhas ao GlobalErrorHandlerService.
 // -----------------------------------------------------------------------------
 
-import { Injectable, inject } from '@angular/core';
+import {
+  EnvironmentInjector,
+  Injectable,
+  inject,
+  runInInjectionContext,
+} from '@angular/core';
 import {
   Firestore,
   addDoc,
@@ -54,14 +60,10 @@ interface ReportVideoContentResponse {
 @Injectable({ providedIn: 'root' })
 export class ModerationReportService {
   private readonly firestore = inject(Firestore);
-  private readonly functions = inject(Functions);
+  private readonly environmentInjector = inject(EnvironmentInjector);
   private readonly authSession = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly globalError = inject(GlobalErrorHandlerService);
-  private readonly reportVideoContentCallable = httpsCallable<
-    ReportVideoContentRequest,
-    ReportVideoContentResponse
-  >(this.functions, 'reportVideoContent');
 
   createReport$(input: IModerationReportCreateInput): Observable<string> {
     const normalized = this.normalizeInput(input);
@@ -95,8 +97,10 @@ export class ModerationReportService {
       return throwError(() => new Error('Referência do vídeo inválida.'));
     }
 
+    const reportVideoContentCallable = this.createReportVideoContentCallable();
+
     return from(
-      this.reportVideoContentCallable({
+      reportVideoContentCallable({
         targetType,
         ownerUid,
         videoId,
@@ -117,6 +121,15 @@ export class ModerationReportService {
         });
         return throwError(() => error);
       })
+    );
+  }
+
+  private createReportVideoContentCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<ReportVideoContentRequest, ReportVideoContentResponse>(
+        inject(Functions),
+        'reportVideoContent'
+      )
     );
   }
 
