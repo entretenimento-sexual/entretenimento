@@ -8,12 +8,18 @@
 // - leitura/listagem depende das Firestore Rules com claim admin;
 // - atualizações genéricas preservam o fluxo existente;
 // - decisões sobre conteúdo de vídeo passam por Callable administrativa;
+// - Functions é resolvido somente quando uma decisão de vídeo é executada;
 // - decisões são registradas também em /admin_logs;
 // - operações AngularFire rodam via FirestoreContextService;
 // - erros são reportados ao GlobalErrorHandlerService.
 // -----------------------------------------------------------------------------
 
-import { Injectable, inject } from '@angular/core';
+import {
+  EnvironmentInjector,
+  Injectable,
+  inject,
+  runInInjectionContext,
+} from '@angular/core';
 import {
   Firestore,
   collection,
@@ -80,14 +86,10 @@ export interface AdminModerationReportVm extends IModerationReportVm {
 @Injectable({ providedIn: 'root' })
 export class AdminModerationReportService {
   private readonly firestore = inject(Firestore);
-  private readonly functions = inject(Functions);
+  private readonly environmentInjector = inject(EnvironmentInjector);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly authSession = inject(AuthSessionService);
   private readonly globalError = inject(GlobalErrorHandlerService);
-  private readonly reviewVideoContentReportCallable = httpsCallable<
-    ReviewVideoContentReportRequest,
-    ReviewVideoContentReportResponse
-  >(this.functions, 'reviewVideoContentReport');
 
   listReports$(): Observable<AdminModerationReportVm[]> {
     return this.firestoreContext.deferObservable$(() => {
@@ -213,8 +215,11 @@ export class AdminModerationReportService {
       );
     }
 
+    const reviewVideoContentReportCallable =
+      this.createReviewVideoContentReportCallable();
+
     return from(
-      this.reviewVideoContentReportCallable({
+      reviewVideoContentReportCallable({
         reportId: safeReportId,
         decision,
         resolution: safeResolution,
@@ -228,6 +233,18 @@ export class AdminModerationReportService {
         });
         return throwError(() => error);
       })
+    );
+  }
+
+  private createReviewVideoContentReportCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReviewVideoContentReportRequest,
+        ReviewVideoContentReportResponse
+      >(
+        inject(Functions),
+        'reviewVideoContentReport'
+      )
     );
   }
 
