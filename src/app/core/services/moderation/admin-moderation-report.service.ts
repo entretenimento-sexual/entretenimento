@@ -6,11 +6,11 @@
 //
 // Decisões:
 // - leitura/listagem depende das Firestore Rules com claim admin;
-// - usuário comum não deve conseguir usar este service com sucesso;
-// - atualizações são restritas a status/resolução/campos de revisão;
-// - decisões são registradas também em /admin_logs na mesma escrita atômica;
+// - atualizações genéricas preservam o fluxo existente;
+// - decisões sobre conteúdo de vídeo passam por Callable administrativa;
+// - decisões são registradas também em /admin_logs;
 // - operações AngularFire rodam via FirestoreContextService;
-// - erros são reportados ao GlobalErrorHandlerService para debug centralizado.
+// - erros são reportados ao GlobalErrorHandlerService.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -24,7 +24,8 @@ import {
   serverTimestamp,
   writeBatch,
 } from '@angular/fire/firestore';
-import { Observable, throwError } from 'rxjs';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+import { Observable, from, throwError } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -32,6 +33,7 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
   IModerationReportVm,
+  ModerationReportAction,
   ModerationReportReason,
   ModerationReportStatus,
   ModerationReportTargetType,
@@ -56,6 +58,19 @@ interface NormalizedModerationReportReviewPatch {
   resolution: string | null;
 }
 
+interface ReviewVideoContentReportRequest {
+  reportId: string;
+  decision: ModerationReportAction;
+  resolution: string;
+}
+
+interface ReviewVideoContentReportResponse {
+  reportId: string;
+  decision: ModerationReportAction;
+  targetType: 'video' | 'video_comment' | 'video_rating';
+  cleanupPending: boolean;
+}
+
 export interface AdminModerationReportVm extends IModerationReportVm {
   reviewedBy?: string | null;
   reviewedAt?: unknown;
@@ -65,16 +80,24 @@ export interface AdminModerationReportVm extends IModerationReportVm {
 @Injectable({ providedIn: 'root' })
 export class AdminModerationReportService {
   private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly authSession = inject(AuthSessionService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly reviewVideoContentReportCallable = httpsCallable<
+    ReviewVideoContentReportRequest,
+    ReviewVideoContentReportResponse
+  >(this.functions, 'reviewVideoContentReport');
 
   listReports$(): Observable<AdminModerationReportVm[]> {
     return this.firestoreContext.deferObservable$(() => {
       const reportsRef = collection(this.firestore, 'moderation_reports');
       const reportsQuery = query(reportsRef, orderBy('createdAt', 'desc'));
 
-      return collectionData(reportsQuery, { idField: 'id' }) as Observable<AdminModerationReportVm[]>;
+      return collectionData(
+        reportsQuery,
+        { idField: 'id' }
+      ) as Observable<AdminModerationReportVm[]>;
     }).pipe(
       map((reports) => reports.map((report) => this.normalizeReport(report))),
       catchError((error) => {
@@ -84,7 +107,10 @@ export class AdminModerationReportService {
     );
   }
 
-  reviewReport$(reportId: string, patch: ModerationReportReviewPatch): Observable<void> {
+  reviewReport$(
+    reportId: string,
+    patch: ModerationReportReviewPatch
+  ): Observable<void> {
     const safeReportId = String(reportId ?? '').trim();
     const normalized = this.normalizePatch(patch);
 
@@ -98,12 +124,18 @@ export class AdminModerationReportService {
         const reviewerUid = String(uid ?? '').trim();
 
         if (!reviewerUid) {
-          return throwError(() => new Error('Sessão administrativa não identificada.'));
+          return throwError(
+            () => new Error('Sessão administrativa não identificada.')
+          );
         }
 
         return this.firestoreContext.deferPromise$(() => {
           const batch = writeBatch(this.firestore);
-          const reportRef = doc(this.firestore, 'moderation_reports', safeReportId);
+          const reportRef = doc(
+            this.firestore,
+            'moderation_reports',
+            safeReportId
+          );
           const adminLogRef = doc(collection(this.firestore, 'admin_logs'));
           const timestamp = serverTimestamp();
 
@@ -131,9 +163,7 @@ export class AdminModerationReportService {
           });
 
           return batch.commit();
-        }).pipe(
-          map(() => void 0)
-        );
+        }).pipe(map(() => void 0));
       }),
       catchError((error) => {
         this.reportError(error, 'reviewReport', {
@@ -146,18 +176,59 @@ export class AdminModerationReportService {
     );
   }
 
-  private normalizeReport(report: AdminModerationReportVm): AdminModerationReportVm {
+  reviewVideoContentReport$(
+    reportId: string,
+    decision: ModerationReportAction,
+    resolution: string
+  ): Observable<void> {
+    const safeReportId = String(reportId ?? '').trim();
+    const safeResolution = String(resolution ?? '').trim().slice(0, 900);
+
+    if (
+      !safeReportId ||
+      !['KEEP', 'REMOVE'].includes(decision) ||
+      safeResolution.length < 8
+    ) {
+      return throwError(
+        () => new Error('Decisão de conteúdo de vídeo inválida.')
+      );
+    }
+
+    return from(
+      this.reviewVideoContentReportCallable({
+        reportId: safeReportId,
+        decision,
+        resolution: safeResolution,
+      })
+    ).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(error, 'reviewVideoContentReport', {
+          hasReportId: !!safeReportId,
+          decision,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private normalizeReport(
+    report: AdminModerationReportVm
+  ): AdminModerationReportVm {
     return {
       ...report,
       id: String(report.id ?? '').trim(),
       reporterUid: String(report.reporterUid ?? '').trim(),
       targetType: report.targetType,
       targetId: String(report.targetId ?? '').trim(),
+      parentTargetId: String(report.parentTargetId ?? '').trim() || null,
       targetOwnerUid: String(report.targetOwnerUid ?? '').trim() || null,
+      targetAuthorUid: String(report.targetAuthorUid ?? '').trim() || null,
       reason: report.reason,
       details: String(report.details ?? '').trim() || null,
       route: String(report.route ?? '').trim() || null,
       status: report.status,
+      moderationAction: report.moderationAction ?? null,
       source: report.source,
       resolution: String(report.resolution ?? '').trim() || null,
       reviewedBy: String(report.reviewedBy ?? '').trim() || null,
@@ -167,11 +238,19 @@ export class AdminModerationReportService {
   private normalizePatch(
     patch: ModerationReportReviewPatch
   ): NormalizedModerationReportReviewPatch | null {
-    const status = String(patch?.status ?? '').trim() as ModerationReportReviewPatch['status'];
-    const previousStatus = String(patch?.previousStatus ?? 'open').trim() as ModerationReportStatus;
+    const status = String(
+      patch?.status ?? ''
+    ).trim() as ModerationReportReviewPatch['status'];
+    const previousStatus = String(
+      patch?.previousStatus ?? 'open'
+    ).trim() as ModerationReportStatus;
     const targetUserUid = String(patch?.targetUserUid ?? '').trim();
-    const reportReason = String(patch?.reportReason ?? '').trim() as ModerationReportReason;
-    const reportTargetType = String(patch?.reportTargetType ?? '').trim() as ModerationReportTargetType;
+    const reportReason = String(
+      patch?.reportReason ?? ''
+    ).trim() as ModerationReportReason;
+    const reportTargetType = String(
+      patch?.reportTargetType ?? ''
+    ).trim() as ModerationReportTargetType;
     const resolution = String(patch?.resolution ?? '').trim().slice(0, 900);
 
     if (!['reviewing', 'resolved', 'rejected'].includes(status)) {
