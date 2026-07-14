@@ -2,7 +2,14 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
@@ -10,6 +17,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import { MediaVideoCommentsService } from 'src/app/core/services/media/media-video-comments.service';
 import { MediaVideoRatingsService } from 'src/app/core/services/media/media-video-ratings.service';
+import { PublicVideoAccessService } from 'src/app/core/services/media/public-video-access.service';
 import { VideoViewTrackingService } from 'src/app/core/services/media/video-view-tracking.service';
 import {
   IPublicVideoViewerData,
@@ -18,7 +26,7 @@ import {
 
 const NOW = 1_800_000_000_000;
 
-function createVideo(): IPublicVideoItem {
+function createVideo(overrides: Partial<IPublicVideoItem> = {}): IPublicVideoItem {
   return {
     id: 'video-1',
     ownerUid: 'owner-1',
@@ -71,6 +79,7 @@ function createVideo(): IPublicVideoItem {
     url: 'https://example.test/video.mp4?token=temporary',
     posterUrl: 'https://example.test/poster.jpg?token=temporary',
     accessExpiresAt: NOW + 300_000,
+    ...overrides,
   };
 }
 
@@ -79,6 +88,10 @@ describe('PublicVideoViewerComponent', () => {
   const dialogRef = { close: vi.fn() };
   const videoViewTracking = {
     recordVideoView$: vi.fn(() => of({ ok: true })),
+  };
+  const publicVideoAccess = {
+    refreshPublicVideoUrl$: vi.fn((video: IPublicVideoItem) => of(video)),
+    invalidatePublicVideoAccess: vi.fn(),
   };
   const reactions = {
     getVideoLikesCount$: vi.fn(() => of(12)),
@@ -113,6 +126,12 @@ describe('PublicVideoViewerComponent', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause')
+      .mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'load')
+      .mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'play')
+      .mockImplementation(() => Promise.resolve());
 
     await TestBed.configureTestingModule({
       imports: [PublicVideoViewerComponent],
@@ -125,6 +144,7 @@ describe('PublicVideoViewerComponent', () => {
           useValue: { user$: of({ uid: 'viewer-1' }) },
         },
         { provide: VideoViewTrackingService, useValue: videoViewTracking },
+        { provide: PublicVideoAccessService, useValue: publicVideoAccess },
         { provide: MediaReactionsService, useValue: reactions },
         { provide: MediaVideoCommentsService, useValue: comments },
         { provide: MediaVideoRatingsService, useValue: ratings },
@@ -134,6 +154,11 @@ describe('PublicVideoViewerComponent', () => {
 
     fixture = TestBed.createComponent(PublicVideoViewerComponent);
     fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    vi.restoreAllMocks();
   });
 
   it('renderiza o palco vertical com vídeo, perfil, metadados e trilho de ações', () => {
@@ -168,7 +193,37 @@ describe('PublicVideoViewerComponent', () => {
     );
   });
 
-  it('fecha o diálogo pelo controle principal', () => {
+  it('renova a URL quando o elemento de vídeo informa erro de acesso', () => {
+    const renewed = createVideo({
+      url: 'https://example.test/video.mp4?token=renewed',
+      posterUrl: 'https://example.test/poster.jpg?token=renewed',
+      accessExpiresAt: NOW + 600_000,
+    });
+    publicVideoAccess.refreshPublicVideoUrl$.mockReturnValueOnce(of(renewed));
+
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    video.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+
+    expect(publicVideoAccess.refreshPublicVideoUrl$).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'video-1', ownerUid: 'owner-1' })
+    );
+    expect(fixture.componentInstance.current?.url).toContain('token=renewed');
+    expect(video.load).toHaveBeenCalled();
+  });
+
+  it('remove o estado ocupado quando o navegador sinaliza que pode reproduzir', () => {
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+
+    expect(video.getAttribute('aria-busy')).toBe('true');
+
+    video.dispatchEvent(new Event('canplay'));
+    fixture.detectChanges();
+
+    expect(video.getAttribute('aria-busy')).toBeNull();
+  });
+
+  it('fecha o diálogo pelo controle principal sem ruído da API de mídia', () => {
     const closeButton = fixture.nativeElement.querySelector(
       '[aria-label="Fechar visualizador de vídeo"]'
     ) as HTMLButtonElement;
