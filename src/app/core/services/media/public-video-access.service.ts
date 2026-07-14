@@ -10,12 +10,18 @@ import {
 } from 'rxjs/operators';
 
 import {
+  IPublicVideoAccess,
   IPublicVideoItem,
   IPublicVideoProjection,
 } from 'src/app/core/interfaces/media/i-public-video-item';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import {
+  buildPublicVideoKey,
+  hydratePublicVideoItem,
+  isPublicVideoAccessUsable,
+} from './public-video-item.mapper';
 
 interface PublicVideoAccessRequestItem {
   ownerUid: string;
@@ -26,22 +32,8 @@ interface PublicVideoAccessRequest {
   items: PublicVideoAccessRequestItem[];
 }
 
-interface PublicVideoAccessResponseItem {
-  ownerUid: string;
-  videoId: string;
-  url: string;
-  posterUrl: string | null;
-  expiresAt: number;
-}
-
 interface PublicVideoAccessResponse {
-  items: PublicVideoAccessResponseItem[];
-}
-
-interface PublicVideoAccessCacheEntry {
-  url: string;
-  posterUrl: string | null;
-  expiresAt: number;
+  items: IPublicVideoAccess[];
 }
 
 const MAX_ITEMS_PER_REQUEST = 16;
@@ -51,10 +43,7 @@ const CACHE_EXPIRY_SAFETY_MS = 30_000;
 export class PublicVideoAccessService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly functions = inject(Functions);
-  private readonly accessCache = new Map<
-    string,
-    PublicVideoAccessCacheEntry
-  >();
+  private readonly accessCache = new Map<string, IPublicVideoAccess>();
   private lastSessionUid: string | null | undefined = undefined;
 
   constructor(
@@ -92,7 +81,7 @@ export class PublicVideoAccessService {
       return of([]);
     }
 
-    const resolved = new Map<string, PublicVideoAccessCacheEntry>();
+    const resolved = new Map<string, IPublicVideoAccess>();
     const pending: IPublicVideoProjection[] = [];
     const now = Date.now();
 
@@ -102,10 +91,11 @@ export class PublicVideoAccessService {
 
       if (
         cached &&
-        cached.expiresAt > now + CACHE_EXPIRY_SAFETY_MS
+        cached.expiresAt > now + CACHE_EXPIRY_SAFETY_MS &&
+        isPublicVideoAccessUsable(projection, cached, now)
       ) {
         resolved.set(
-          this.buildIdentityKey(projection.ownerUid, projection.id),
+          buildPublicVideoKey(projection.ownerUid, projection.id),
           cached
         );
         continue;
@@ -119,7 +109,7 @@ export class PublicVideoAccessService {
     }
 
     if (!pending.length) {
-      return of(this.materializeItems(eligible, resolved));
+      return of(this.materializeItems(eligible, resolved, now));
     }
 
     const requests = this.chunkItems(pending, MAX_ITEMS_PER_REQUEST).map(
@@ -128,35 +118,35 @@ export class PublicVideoAccessService {
 
     return forkJoin(requests).pipe(
       map((responses) => {
-        for (const response of responses) {
-          for (const accessItem of response.items) {
-            const identityKey = this.buildIdentityKey(
-              accessItem.ownerUid,
-              accessItem.videoId
-            );
-            const projection = eligible.find(
-              (item) =>
-                this.buildIdentityKey(item.ownerUid, item.id) === identityKey
-            );
+        const projectionByIdentity = new Map(
+          eligible.map((projection) => [
+            buildPublicVideoKey(projection.ownerUid, projection.id),
+            projection,
+          ])
+        );
 
-            if (!projection || !this.isHttpUrl(accessItem.url)) {
+        for (const response of responses) {
+          for (const access of response.items) {
+            const identityKey = buildPublicVideoKey(
+              access.ownerUid,
+              access.videoId
+            );
+            const projection = projectionByIdentity.get(identityKey);
+
+            if (!projection || !isPublicVideoAccessUsable(
+              projection,
+              access,
+              now
+            )) {
               continue;
             }
 
-            const cacheEntry: PublicVideoAccessCacheEntry = {
-              url: accessItem.url,
-              posterUrl: this.isHttpUrl(accessItem.posterUrl)
-                ? accessItem.posterUrl
-                : null,
-              expiresAt: accessItem.expiresAt,
-            };
-
-            resolved.set(identityKey, cacheEntry);
-            this.accessCache.set(this.buildCacheKey(projection), cacheEntry);
+            resolved.set(identityKey, access);
+            this.accessCache.set(this.buildCacheKey(projection), access);
           }
         }
 
-        return this.materializeItems(eligible, resolved);
+        return this.materializeItems(eligible, resolved, now);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -192,41 +182,34 @@ export class PublicVideoAccessService {
 
   private materializeItems(
     projections: readonly IPublicVideoProjection[],
-    resolved: ReadonlyMap<string, PublicVideoAccessCacheEntry>
+    resolved: ReadonlyMap<string, IPublicVideoAccess>,
+    now: number
   ): IPublicVideoItem[] {
     return projections.flatMap((projection) => {
       const access = resolved.get(
-        this.buildIdentityKey(projection.ownerUid, projection.id)
+        buildPublicVideoKey(projection.ownerUid, projection.id)
       );
+      const item = access
+        ? hydratePublicVideoItem(projection, access, now)
+        : null;
 
-      if (!access) {
-        return [];
-      }
-
-      return [{
-        ...projection,
-        url: access.url,
-        posterUrl: access.posterUrl,
-      }];
+      return item ? [item] : [];
     });
   }
 
   private isEligibleProjection(
     projection: IPublicVideoProjection
   ): boolean {
-    return (
-      !!projection.ownerUid?.trim() &&
+    return !!projection.ownerUid?.trim() &&
       !!projection.id?.trim() &&
       projection.mediaType === 'VIDEO' &&
       projection.visibility === 'PUBLIC' &&
       projection.moderationStatus === 'APPROVED' &&
-      projection.assetAccess === 'SIGNED_URL'
-    );
+      projection.assetAccess === 'SIGNED_URL';
   }
 
   private buildCacheKey(projection: IPublicVideoProjection): string {
-    const version = this.toMillis(projection.updatedAt) ||
-      this.toMillis(projection.publishedAt);
+    const version = projection.updatedAt || projection.publishedAt;
 
     return [
       'public-video-access',
@@ -234,10 +217,6 @@ export class PublicVideoAccessService {
       projection.id,
       String(version),
     ].join(':');
-  }
-
-  private buildIdentityKey(ownerUid: string, videoId: string): string {
-    return `${ownerUid.trim()}:${videoId.trim()}`;
   }
 
   private chunkItems<T>(items: readonly T[], size: number): T[][] {
@@ -248,28 +227,6 @@ export class PublicVideoAccessService {
     }
 
     return chunks;
-  }
-
-  private isHttpUrl(value: unknown): value is string {
-    return /^https?:\/\//i.test(String(value ?? '').trim());
-  }
-
-  private toMillis(value: unknown): number {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-
-    if (value instanceof Date) {
-      return value.getTime();
-    }
-
-    const maybeTimestamp = value as {
-      toMillis?: () => number;
-    } | null | undefined;
-
-    return typeof maybeTimestamp?.toMillis === 'function'
-      ? maybeTimestamp.toMillis()
-      : 0;
   }
 
   private reportError(
