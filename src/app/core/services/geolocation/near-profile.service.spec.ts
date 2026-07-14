@@ -1,30 +1,48 @@
-import { TestBed } from '@angular/core/testing';
-
-const { firestoreMocks, geofireMocks } = vi.hoisted(() => ({
-  firestoreMocks: {
-    Firestore: class FirestoreMock {},
-    collection: vi.fn(() => ({})),
-    where: vi.fn(() => ({})),
-    query: vi.fn(() => ({})),
-    getDocs: vi.fn(),
-    startAt: vi.fn(() => ({})),
-    limit: vi.fn((_value: number) => ({})),
-  },
-  geofireMocks: {
-    geohashQueryBounds: vi.fn(
-      (_center: [number, number], _radiusM: number) => [
-        ['aaaa', 'zzzz'],
-      ]
-    ),
-  },
+vi.mock('@angular/fire/firestore', () => ({
+  Firestore: class FirestoreMock {},
+  collection: vi.fn(() => ({})),
+  where: vi.fn(() => ({})),
+  query: vi.fn(() => ({})),
+  getDocs: vi.fn(),
+  startAt: vi.fn(() => ({})),
+  limit: vi.fn((_value: number) => ({})),
 }));
 
-vi.mock('@angular/fire/firestore', () => firestoreMocks);
-vi.mock('geofire-common', () => geofireMocks);
+vi.mock('geofire-common', () => ({
+  geohashQueryBounds: vi.fn(
+    (_center: [number, number], _radiusM: number) => [
+      ['aaaa', 'zzzz'],
+    ]
+  ),
+}));
 
-import { Firestore } from '@angular/fire/firestore';
+import { TestBed } from '@angular/core/testing';
+import {
+  Firestore,
+  collection,
+  getDocs,
+  limit,
+  query,
+  startAt,
+  where,
+} from '@angular/fire/firestore';
+import { geohashQueryBounds } from 'geofire-common';
+
 import { DistanceCalculationService } from './distance-calculation.service';
 import { NearbyProfilesService } from './near-profile.service';
+
+const firestoreMocks = {
+  collection: vi.mocked(collection) as any,
+  where: vi.mocked(where) as any,
+  query: vi.mocked(query) as any,
+  getDocs: vi.mocked(getDocs) as any,
+  startAt: vi.mocked(startAt) as any,
+  limit: vi.mocked(limit) as any,
+};
+
+const geofireMocks = {
+  geohashQueryBounds: vi.mocked(geohashQueryBounds) as any,
+};
 
 class DistanceCalculationServiceStub {
   calculateDistanceInKm = vi.fn(
