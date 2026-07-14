@@ -43,7 +43,7 @@ export class NearbyProfilesService {
     longitude: number,
     maxDistanceKm: number,
     userUid: string,
-    startAfterDoc?: unknown
+    startAfterDoc?: any
   ): Promise<IUserDados[]> {
     try {
       if (!isValidGeoCoordinatePair(latitude, longitude)) {
