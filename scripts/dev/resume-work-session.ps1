@@ -35,6 +35,23 @@ function Get-RepositoryStatus {
   return $status
 }
 
+function Get-GitScalar {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string[]]$Arguments,
+    [Parameter(Mandatory = $true)]
+    [string]$FailureMessage
+  )
+
+  $output = @(& git @Arguments)
+
+  if ($LASTEXITCODE -ne 0 -or $output.Count -eq 0) {
+    throw $FailureMessage
+  }
+
+  return ([string]$output[0]).Trim()
+}
+
 function Get-DependencyLockHash {
   param(
     [Parameter(Mandatory = $true)]
@@ -123,18 +140,9 @@ Invoke-NativeStep "Buscando origin/$Branch" {
   git fetch origin $Branch
 }
 
-$currentBranchOutput = @(& git branch --show-current)
-
-if ($LASTEXITCODE -ne 0) {
-  throw 'Nao foi possivel identificar a branch atual.'
-}
-
-$currentBranch = if ($currentBranchOutput.Count -gt 0) {
-  [string]$currentBranchOutput[0]
-} else {
-  ''
-}
-$currentBranch = $currentBranch.Trim()
+$currentBranch = Get-GitScalar `
+  -Arguments @('branch', '--show-current') `
+  -FailureMessage 'Nao foi possivel identificar a branch atual.'
 
 if ($currentBranch -ne $Branch) {
   & git show-ref --verify --quiet "refs/heads/$Branch"
@@ -154,6 +162,19 @@ if ($currentBranch -ne $Branch) {
 Invoke-NativeStep 'Atualizando branch somente por fast-forward' {
   git merge --ff-only "origin/$Branch"
 }
+
+$localHead = Get-GitScalar `
+  -Arguments @('rev-parse', 'HEAD') `
+  -FailureMessage 'Nao foi possivel identificar o HEAD local.'
+$remoteHead = Get-GitScalar `
+  -Arguments @('rev-parse', "origin/$Branch") `
+  -FailureMessage 'Nao foi possivel identificar o HEAD remoto.'
+
+if ($localHead -ne $remoteHead) {
+  throw "Branch local e remota divergentes. Local: $localHead Remoto: $remoteHead"
+}
+
+Write-Host "[work:resume] Checkpoint sincronizado: $localHead" -ForegroundColor Green
 
 Invoke-NativeStep 'Validando alinhamento entre package.json e package-lock.json' {
   node "$ProjectRoot\scripts\dev\check-package-lock-sync.mjs"
@@ -196,8 +217,8 @@ if ($Install -or -not $functionsInstallCurrent) {
 
 if ($Validate) {
   try {
-    Invoke-NativeStep 'Compilando Functions' {
-      npm.cmd run functions:build
+    Invoke-NativeStep 'Executando build e testes das Functions' {
+      npm.cmd --prefix functions run test
     }
 
     Invoke-NativeStep 'Validando lint completo das Functions' {
@@ -206,6 +227,10 @@ if ($Validate) {
 
     Invoke-NativeStep 'Executando testes Angular' {
       npm.cmd run test:ci
+    }
+
+    Invoke-NativeStep 'Executando build Angular de producao' {
+      npm.cmd run build
     }
 
     Invoke-NativeStep 'Executando E2E completo de videos' {
@@ -218,19 +243,11 @@ if ($Validate) {
   }
 }
 
-$headOutput = @(& git log -1 --oneline)
-
-if ($LASTEXITCODE -ne 0) {
-  throw 'Nao foi possivel identificar o commit atual.'
-}
-
-$head = if ($headOutput.Count -gt 0) {
-  [string]$headOutput[0]
-} else {
-  'commit nao identificado'
-}
-$head = $head.Trim()
+$head = Get-GitScalar `
+  -Arguments @('log', '-1', '--oneline') `
+  -FailureMessage 'Nao foi possivel identificar o commit atual.'
 Write-Host "[work:resume] Pronto em: $head" -ForegroundColor Green
+Write-Host "[work:resume] SHA confirmado: $localHead" -ForegroundColor Green
 
 $status = @(Get-RepositoryStatus)
 
