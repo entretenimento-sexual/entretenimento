@@ -4,6 +4,14 @@
 
 match /public_profiles/{userId}/public_videos/{videoId} {
 
+  function publicProfilePath() {
+    return /databases/$(database)/documents/public_profiles/$(userId);
+  }
+
+  function publicProfileExists() {
+    return exists(publicProfilePath());
+  }
+
   function videoPath() {
     return /databases/$(database)/documents/public_profiles/$(userId)/public_videos/$(videoId);
   }
@@ -22,15 +30,14 @@ match /public_profiles/{userId}/public_videos/{videoId} {
   }
 
   function isPublicReadableVideo() {
-    return resource.data.visibility == "PUBLIC"
+    return publicProfileExists()
+      && resource.data.visibility == "PUBLIC"
       && resource.data.moderationStatus == "APPROVED";
   }
 
   allow get: if signedIn() && (isSelf(userId) || isPublicReadableVideo());
 
-  allow list: if signedIn()
-    && resource.data.visibility == "PUBLIC"
-    && resource.data.moderationStatus == "APPROVED";
+  allow list: if signedIn() && isPublicReadableVideo();
 
   allow create, update, delete: if false;
 
@@ -51,7 +58,8 @@ match /public_profiles/{userId}/public_videos/{videoId} {
       && (
         isSelf(userId)
         || (
-          resource.data.status == "VISIBLE"
+          publicProfileExists()
+          && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
         )
@@ -61,7 +69,8 @@ match /public_profiles/{userId}/public_videos/{videoId} {
       && (
         isSelf(userId)
         || (
-          resource.data.status == "VISIBLE"
+          publicProfileExists()
+          && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
         )
@@ -75,11 +84,20 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 // Collection group: public_videos
 // ------------------------------------------------------------
 match /{path=**}/public_videos/{videoId} {
+  function ownerPublicProfileExists() {
+    return resource.data.ownerUid is string
+      && exists(
+        /databases/$(database)/documents/public_profiles/$(resource.data.ownerUid)
+      );
+  }
+
   allow list: if signedIn()
+    && ownerPublicProfileExists()
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
   allow get: if signedIn()
+    && ownerPublicProfileExists()
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
