@@ -14,12 +14,42 @@ export type PublicVisibility = 'visible' | 'hidden';
 
 export type LifecycleActorSource = 'self' | 'moderator' | 'system';
 
+export type AgeReverificationStatus =
+  | 'NONE'
+  | 'REQUIRED'
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'VERIFIED'
+  | 'REJECTED'
+  | 'EXPIRED';
+
+export type AgeReverificationResult =
+  | 'ADULT'
+  | 'INCONCLUSIVE'
+  | 'UNDERAGE';
+
 export interface IUserAdultConsent {
   accepted: boolean;
   version: string;
   acceptedAt?: number | null;
   updatedAt?: number | null;
   source?: string | null;
+}
+
+export interface IUserAgeReverification {
+  status: AgeReverificationStatus;
+  caseId?: string | null;
+  reportId?: string | null;
+  source?: 'MINOR_SAFETY_PROFILE_REPORT' | null;
+  requestedAt?: number | null;
+  dueAt?: number | null;
+  submittedAt?: number | null;
+  reviewedAt?: number | null;
+  reviewedBy?: string | null;
+  result?: AgeReverificationResult | null;
+  method?: 'SELF_DECLARATION_REVIEW' | 'EXTERNAL_PROVIDER' | 'MANUAL_REVIEW' | null;
+  declaredAgeBand?: '18_PLUS' | 'UNDER_18' | null;
+  resolution?: string | null;
 }
 
 export interface IUserTermsAcceptance {
@@ -66,6 +96,8 @@ export interface IUserDados {
   firstLogin?: number | null;
   createdAt?: number | null;
   registrationDate?: number | null;
+  registrationCompletedAt?: number | null;
+  registrationFlowVersion?: string | null;
 
   emailVerified?: boolean;
 
@@ -74,6 +106,19 @@ export interface IUserDados {
   // ---------------------------------------------------------------------------
   adultConsent?: IUserAdultConsent | null;
   acceptedTerms?: IUserTermsAcceptance | null;
+
+  /**
+   * Apenas contas criadas no fluxo versionado recebem `true`.
+   * Ausência do campo identifica conta legada e não força novo aceite.
+   */
+  initialAdultConsentRequired?: boolean;
+
+  /**
+   * Estado excepcional, independente do aceite inicial, criado somente após
+   * decisão administrativa em denúncia de perfil por possível menoridade.
+   */
+  ageReverification?: IUserAgeReverification | null;
+  ageReverificationRestrictedAt?: number | null;
 
   // ---------------------------------------------------------------------------
   // Perfil
