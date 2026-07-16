@@ -104,9 +104,9 @@ export class DirectReceiptsService {
     const messageIds = messages
       .map((message): string | null => {
         const messageId = String(message?.id ?? '').trim();
-        const senderUid = String(
-          message?.senderUid ?? message?.senderId ?? ''
-        ).trim();
+        const senderUid =
+          String(message?.senderUid ?? '').trim() ||
+          String(message?.senderId ?? '').trim();
         const status = message?.status;
 
         if (!messageId || !senderUid || senderUid === currentUserUid) {
