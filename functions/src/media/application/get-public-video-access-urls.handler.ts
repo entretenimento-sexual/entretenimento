@@ -61,18 +61,25 @@ async function resolveAccessItem(
   videoId: string,
   expiresAt: number
 ): Promise<PublicVideoAccessResponseItem | null> {
+  const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
   const publicVideoRef = db.doc(
     `public_profiles/${ownerUid}/public_videos/${videoId}`
   );
   const publicationRef = db.doc(
     `users/${ownerUid}/video_publications/${videoId}`
   );
-  const [publicVideoSnap, publicationSnap] = await Promise.all([
-    publicVideoRef.get(),
-    publicationRef.get(),
-  ]);
+  const [publicProfileSnap, publicVideoSnap, publicationSnap] =
+    await Promise.all([
+      publicProfileRef.get(),
+      publicVideoRef.get(),
+      publicationRef.get(),
+    ]);
 
-  if (!publicVideoSnap.exists || !publicationSnap.exists) {
+  if (
+    !publicProfileSnap.exists ||
+    !publicVideoSnap.exists ||
+    !publicationSnap.exists
+  ) {
     return null;
   }
 
@@ -101,7 +108,9 @@ async function resolveAccessItem(
   const [videoExists] = await videoFile.exists();
 
   if (!videoExists) {
-    throw new Error('O ativo publicado do vídeo não foi encontrado no Storage.');
+    throw new Error(
+      'O ativo publicado do vídeo não foi encontrado no Storage.'
+    );
   }
 
   const posterStoragePath = normalizeOwnedPublishedVideoPosterPath(
