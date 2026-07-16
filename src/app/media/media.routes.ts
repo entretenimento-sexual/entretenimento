@@ -1,9 +1,18 @@
 // src/app/media/media.routes.ts
 import { Routes } from '@angular/router';
 
+import {
+  mediaOwnerCanMatch,
+  mediaUploadEligibilityCanMatch,
+} from './guards/media-route.guard';
+
 export const MEDIA_ROUTES: Routes = [
   {
     path: 'photos',
+    canMatch: [mediaOwnerCanMatch],
+    data: {
+      mediaOwnerRedirectKind: 'fotos',
+    },
     loadComponent: () =>
       import('./photos/profile-photos/profile-photos.component').then(
         (m) => m.ProfilePhotosComponent
@@ -11,6 +20,10 @@ export const MEDIA_ROUTES: Routes = [
   },
   {
     path: 'videos',
+    canMatch: [mediaOwnerCanMatch],
+    data: {
+      mediaOwnerRedirectKind: 'videos',
+    },
     loadComponent: () =>
       import('./videos/profile-videos/profile-videos.component').then(
         (m) => m.ProfileVideosComponent
@@ -18,6 +31,11 @@ export const MEDIA_ROUTES: Routes = [
   },
   {
     path: 'perfil/:id/fotos',
+    canMatch: [mediaOwnerCanMatch],
+    data: {
+      mediaOwnerSegmentIndex: 1,
+      mediaOwnerRedirectKind: 'fotos',
+    },
     loadComponent: () =>
       import('./photos/profile-photos/profile-photos.component').then(
         (m) => m.ProfilePhotosComponent
@@ -25,6 +43,11 @@ export const MEDIA_ROUTES: Routes = [
   },
   {
     path: 'perfil/:id/videos',
+    canMatch: [mediaOwnerCanMatch],
+    data: {
+      mediaOwnerSegmentIndex: 1,
+      mediaOwnerRedirectKind: 'videos',
+    },
     loadComponent: () =>
       import('./videos/profile-videos/profile-videos.component').then(
         (m) => m.ProfileVideosComponent
@@ -32,6 +55,11 @@ export const MEDIA_ROUTES: Routes = [
   },
   {
     path: 'perfil/:id/fotos/upload',
+    canMatch: [mediaOwnerCanMatch, mediaUploadEligibilityCanMatch],
+    data: {
+      mediaOwnerSegmentIndex: 1,
+      mediaOwnerRedirectKind: 'fotos',
+    },
     loadComponent: () =>
       import('./photos/photo-upload/photo-upload.component').then(
         (m) => m.PhotoUploadComponent
