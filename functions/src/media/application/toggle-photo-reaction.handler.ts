@@ -13,10 +13,14 @@
 // - cliente não escreve score;
 // - cliente não escreve contador;
 // - cliente não escreve documento público da foto;
-// - cada usuário só possui um like ativo por foto.
+// - cada usuário só possui um like ativo por foto;
+// - conta com interações bloqueadas não altera reações.
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  assertInteractionAccessInTransaction,
+} from '../../account_lifecycle/interaction-access.policy';
 import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 
@@ -162,6 +166,8 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
     const likeRef = photoRef.collection('likes').doc(viewerUid);
 
     return db.runTransaction(async (transaction) => {
+      await assertInteractionAccessInTransaction(transaction, viewerUid);
+
       const photoSnap = await transaction.get(photoRef);
 
       if (!photoSnap.exists) {
