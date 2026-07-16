@@ -34,7 +34,7 @@
               {
                 "glob": "pintura.css",
                 "input": "node_modules/@pqina/pintura",
-                "output": "assets/pintura"
+                "output": "/assets/pintura/"
               }
             ],
             "styles": [
