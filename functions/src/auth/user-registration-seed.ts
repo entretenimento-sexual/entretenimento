@@ -3,6 +3,7 @@ import type { UserRecord } from 'firebase-admin/auth';
 import { FieldValue } from '../firebaseApp';
 
 export const INITIAL_TERMS_VERSION = 'v1';
+export const REGISTRATION_FLOW_VERSION = 'v2';
 
 export interface InitialUserSeedOptions {
   nowMs?: number;
@@ -43,6 +44,9 @@ export function buildInitialUserSeed(
     subscriptionStatus: 'inactive',
     accountStatus: 'active',
     profileCompleted: false,
+    registrationFlowVersion: REGISTRATION_FLOW_VERSION,
+    initialAdultConsentRequired: true,
+    registrationCompletedAt: null,
 
     acceptedTerms: {
       accepted: false,
