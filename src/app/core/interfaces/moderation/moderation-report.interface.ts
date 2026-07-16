@@ -8,6 +8,7 @@
 // - o documento de denúncia é privado;
 // - criação vem do usuário autenticado;
 // - denúncias de vídeo são validadas por Callable no backend;
+// - denúncia de perfil por possível menoridade também passa por Callable;
 // - leitura/administração deve ficar restrita à moderação/admin.
 // -----------------------------------------------------------------------------
 
@@ -44,6 +45,14 @@ export type ModerationReportStatus =
 
 export type ModerationReportAction = 'KEEP' | 'REMOVE';
 
+export type ModerationAgeReverificationStatus =
+  | 'REQUIRED'
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'VERIFIED'
+  | 'REJECTED'
+  | 'EXPIRED';
+
 export interface IModerationReportCreateInput {
   targetType: ModerationReportTargetType;
   targetId: string;
@@ -67,6 +76,9 @@ export interface IModerationReportDocument {
   route?: string | null;
   status: ModerationReportStatus;
   moderationAction?: ModerationReportAction | null;
+  ageReverificationCaseId?: string | null;
+  ageReverificationStatus?: ModerationAgeReverificationStatus | null;
+  ageReverificationSubmittedAt?: Timestamp | FieldValue | null;
   source: 'web';
   createdAt: Timestamp | FieldValue;
   updatedAt: Timestamp | FieldValue;
