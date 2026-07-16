@@ -9,7 +9,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Firestore, doc, docData } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
@@ -35,6 +35,33 @@ interface PublicReactionProjection {
 }
 
 type PublicMediaKind = 'photo' | 'video';
+
+export type PublicMediaActionIds = Readonly<{
+  ownerUid: string;
+  mediaId: string;
+  viewerUid: string;
+}>;
+
+export function normalizePublicMediaActionIds(
+  ownerUid: string | null | undefined,
+  mediaId: string | null | undefined,
+  viewerUid: string | null | undefined
+): PublicMediaActionIds | null {
+  const cleanId = (value: string | null | undefined): string => {
+    const normalized = String(value ?? '').trim();
+    return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
+  };
+
+  const normalized = {
+    ownerUid: cleanId(ownerUid),
+    mediaId: cleanId(mediaId),
+    viewerUid: cleanId(viewerUid),
+  };
+
+  return normalized.ownerUid && normalized.mediaId && normalized.viewerUid
+    ? normalized
+    : null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class MediaReactionsService {
@@ -188,12 +215,27 @@ export class MediaReactionsService {
     mediaId: string,
     viewerUid: string | null
   ): Observable<void> {
-    const safeOwnerUid = this.cleanId(ownerUid);
-    const safeMediaId = this.cleanId(mediaId);
-    const safeViewerUid = this.cleanId(viewerUid);
+    const ids = normalizePublicMediaActionIds(ownerUid, mediaId, viewerUid);
 
-    if (!safeOwnerUid || !safeMediaId || !safeViewerUid) {
-      return of(void 0);
+    if (!ids) {
+      const validationError = new Error(
+        `Dados inválidos para atualizar curtida do ${this.kindLabel(kind)}.`
+      );
+
+      this.reportError(
+        validationError.message,
+        validationError,
+        {
+          op: 'toggleLike$',
+          kind,
+          hasOwnerUid: !!this.cleanId(ownerUid),
+          hasMediaId: !!this.cleanId(mediaId),
+          hasViewerUid: !!this.cleanId(viewerUid),
+        },
+        true
+      );
+
+      return throwError(() => validationError);
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
@@ -201,10 +243,10 @@ export class MediaReactionsService {
         ? this.togglePhotoReactionCallable
         : this.toggleVideoReactionCallable;
       const payload: ToggleReactionRequest = {
-        ownerUid: safeOwnerUid,
+        ownerUid: ids.ownerUid,
         ...(kind === 'photo'
-          ? { photoId: safeMediaId }
-          : { videoId: safeMediaId }),
+          ? { photoId: ids.mediaId }
+          : { videoId: ids.mediaId }),
       };
 
       await callable(payload);
@@ -217,12 +259,14 @@ export class MediaReactionsService {
           {
             op: 'toggleLike$',
             kind,
-            hasOwnerUid: !!safeOwnerUid,
-            hasMediaId: !!safeMediaId,
-            hasViewerUid: !!safeViewerUid,
-          }
+            hasOwnerUid: true,
+            hasMediaId: true,
+            hasViewerUid: true,
+          },
+          true
         );
-        return of(void 0);
+
+        return throwError(() => error);
       })
     );
   }
