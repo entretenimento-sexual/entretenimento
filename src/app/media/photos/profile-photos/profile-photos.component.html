@@ -223,7 +223,7 @@
                     @switch (item.publication.moderationStatus) {
                       @case ('PENDING_REVIEW') {
                         <span class="status-chip status-chip--pending app-chip app-chip--overlay">
-                          Em análise
+                          Liberar publicação
                         </span>
                       }
 
@@ -341,7 +341,24 @@
                     }
                   </button>
                 } @else {
-                  @if (!item.publication.isCover) {
+                  @if (item.publication.moderationStatus === 'PENDING_REVIEW') {
+                    <button
+                      type="button"
+                      class="management-action management-action--primary app-action app-action--primary"
+                      (click)="publishPhoto(item, $event)"
+                      [disabled]="!publicationFeatureReady || publishingPhotoId === item.id || savingDisplayDateId === item.id"
+                      aria-label="Liberar foto para o perfil e atualizações"
+                      title="Publicar agora"
+                    >
+                      @if (publishingPhotoId === item.id) {
+                        Publicando...
+                      } @else {
+                        Publicar agora
+                      }
+                    </button>
+                  }
+
+                  @if (!item.publication.isCover && item.publication.moderationStatus !== 'PENDING_REVIEW') {
                     <button
                       type="button"
                       class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
