@@ -3,6 +3,7 @@ import type {
   QuerySnapshot,
   Transaction,
 } from 'firebase-admin/firestore';
+import { HttpsError } from 'firebase-functions/v2/https';
 
 import { db, FieldValue } from '../firebaseApp';
 
@@ -33,9 +34,10 @@ export async function readProfilePublicMediaSnapshots(
   const total = photos.size + videos.size;
 
   if (total > MAX_TRANSACTIONAL_PUBLIC_MEDIA) {
-    throw new Error(
-      `O perfil possui ${total} mídias públicas; o limite transacional é ` +
-      `${MAX_TRANSACTIONAL_PUBLIC_MEDIA}.`
+    throw new HttpsError(
+      'failed-precondition',
+      'O perfil possui mais mídias públicas do que esta revisão pode ' +
+        'processar de forma transacional. Encaminhe o caso ao suporte técnico.'
     );
   }
 
