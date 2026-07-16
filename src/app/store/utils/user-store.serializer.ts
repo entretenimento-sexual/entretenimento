@@ -70,6 +70,14 @@ export function sanitizeUserForStore(u: IUserDados): IUserDados {
     singleRoomCreationRightExpires: toSerializableEpoch(anyU.singleRoomCreationRightExpires),
 
     lastStateChangeAt: toSerializableEpoch(anyU.lastStateChangeAt),
+
+    /**
+     * SUPRESSÃO EXPLÍCITA:
+     * o Timestamp original de mediaMetricsUpdatedAt não entra no NgRx.
+     * O epoch preserva ordenação e comparação sem acoplar o Store ao SDK.
+     */
+    mediaMetricsUpdatedAt: toSerializableEpoch(anyU.mediaMetricsUpdatedAt),
+
     adultConsent: sanitizeConsent(anyU.adultConsent),
     acceptedTerms: sanitizeTermsAcceptance(anyU.acceptedTerms),
   } as IUserDados;
