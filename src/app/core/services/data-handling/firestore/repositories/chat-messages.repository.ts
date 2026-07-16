@@ -12,6 +12,7 @@
 // - remove warning de query/collection/doc fora de injection context
 // - mantém compat com paginação e status de mensagem
 // - permite persistir reação por usuário em mensagens diretas
+// - consolida avanço de receipts em transação para evitar disputas entre snapshots
 
 import { Injectable } from '@angular/core';
 import { Observable, defer, from, of } from 'rxjs';
@@ -29,6 +30,7 @@ import {
   limit,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   startAfter,
   updateDoc,
@@ -159,6 +161,88 @@ export class ChatMessagesRepository {
       catchError((err) => {
         this.reportSilent('updateMessageStatus$', err);
         return of(void 0);
+      })
+    );
+  }
+
+  /**
+   * Avança receipts de mensagens recebidas usando o estado atual do Firestore.
+   *
+   * A transação evita que snapshots concorrentes tentem repetir uma transição
+   * já concluída. Mensagens legadas sem status explícito são ignoradas porque as
+   * Rules exigem que o estado anterior seja exatamente sent ou delivered.
+   */
+  advanceMessageReceipts$(
+    chatId: string,
+    currentUserUid: string,
+    messageIds: readonly string[]
+  ): Observable<number> {
+    const cid = this.normChatId(chatId);
+    const safeUid = String(currentUserUid ?? '').trim();
+    const safeMessageIds = Array.from(
+      new Set(
+        (messageIds ?? [])
+          .map((messageId) => this.normMessageId(messageId))
+          .filter(Boolean)
+      )
+    ).slice(0, 50);
+
+    if (!cid || !safeUid || !safeMessageIds.length) {
+      return of(0);
+    }
+
+    return defer(() =>
+      from(
+        this.ctx.run(() =>
+          runTransaction(this.db, async (transaction) => {
+            const messageRefs = safeMessageIds.map((messageId) =>
+              this.messageRef(cid, messageId)
+            );
+            const snapshots = await Promise.all(
+              messageRefs.map((messageRef) => transaction.get(messageRef))
+            );
+
+            let updatedCount = 0;
+
+            snapshots.forEach((snapshot, index) => {
+              if (!snapshot.exists()) {
+                return;
+              }
+
+              const data = snapshot.data() as Partial<Message>;
+              const senderUid = String(
+                data.senderUid ?? data.senderId ?? ''
+              ).trim();
+              const currentStatus = data.status;
+
+              if (!senderUid || senderUid === safeUid) {
+                return;
+              }
+
+              const nextStatus =
+                currentStatus === 'sent'
+                  ? 'delivered'
+                  : currentStatus === 'delivered'
+                    ? 'read'
+                    : null;
+
+              if (!nextStatus) {
+                return;
+              }
+
+              transaction.update(messageRefs[index], { status: nextStatus });
+              updatedCount += 1;
+            });
+
+            return updatedCount;
+          })
+        )
+      )
+    ).pipe(
+      map((updatedCount) => Math.max(0, Number(updatedCount ?? 0))),
+      catchError((err) => {
+        this.reportSilent('advanceMessageReceipts$', err);
+        return of(0);
       })
     );
   }
