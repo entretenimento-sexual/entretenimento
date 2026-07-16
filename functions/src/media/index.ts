@@ -114,5 +114,9 @@ export {
   getPublicVideoAccessUrls,
 } from './application/get-public-video-access-urls.handler';
 
-export { recordPhotoView } from './application/record-photo-view.handler';
-export { recordVideoView } from './application/record-video-view.handler';
+export {
+  recordPhotoView,
+} from './application/record-photo-view-orchestrator.handler';
+export {
+  recordVideoView,
+} from './application/record-video-view-orchestrator.handler';
