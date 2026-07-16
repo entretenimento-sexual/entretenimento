@@ -210,9 +210,9 @@ export class ChatMessagesRepository {
               }
 
               const data = snapshot.data() as Partial<Message>;
-              const senderUid = String(
-                data.senderUid ?? data.senderId ?? ''
-              ).trim();
+              const senderUid =
+                String(data.senderUid ?? '').trim() ||
+                String(data.senderId ?? '').trim();
               const currentStatus = data.status;
 
               if (!senderUid || senderUid === safeUid) {
