@@ -59,6 +59,21 @@ async function waitFor(label, readValue, predicate) {
   throw new Error(`Timeout aguardando ${label}: ${JSON.stringify(lastValue)}`);
 }
 
+async function expectCallableFailure(callable, payload) {
+  try {
+    await callable(payload);
+  } catch (error) {
+    assert.match(
+      String(error?.code ?? ''),
+      /failed-precondition/,
+      'A restrição deveria retornar failed-precondition.'
+    );
+    return;
+  }
+
+  assert.fail('A Callable aceitou uma ação durante a revalidação.');
+}
+
 function createClient(name) {
   const app = initializeClientApp(
     {
@@ -171,11 +186,18 @@ async function run() {
     const photoId = `photo-${runId}`;
     const targetUserRef = db.doc(`users/${targetUid}`);
     const publicProfileRef = db.doc(`public_profiles/${targetUid}`);
+    const nicknameIndexRef = db.doc(`public_index/nickname:${nickname}`);
     const publicVideoRef = db.doc(
       `public_profiles/${targetUid}/public_videos/${videoId}`
     );
     const publicPhotoRef = db.doc(
       `public_profiles/${targetUid}/public_photos/${photoId}`
+    );
+    const videoPublicationRef = db.doc(
+      `users/${targetUid}/video_publications/${videoId}`
+    );
+    const photoPublicationRef = db.doc(
+      `users/${targetUid}/photo_publications/${photoId}`
     );
 
     await Promise.all([
@@ -205,21 +227,27 @@ async function run() {
         nickname,
         nicknameNormalized: nickname,
         role: 'free',
+        municipio: 'Rio de Janeiro',
+        publicVideosCount: 7,
+        coverVideoId: 'cover-before-review',
         createdAt: Date.now(),
         updatedAt: Date.now(),
       }),
-      db.doc(`public_index/nickname:${nickname}`).set({
+      nicknameIndexRef.set({
         uid: targetUid,
         type: 'nickname',
         value: nickname,
-        createdAt: Date.now(),
-        lastChangedAt: Date.now(),
+        createdAt: 123456,
+        lastChangedAt: 123456,
       }),
       publicVideoRef.set({
         id: videoId,
         ownerUid: targetUid,
         visibility: 'PUBLIC',
         moderationStatus: 'APPROVED',
+        reactionsEnabled: true,
+        commentsEnabled: true,
+        ratingsEnabled: true,
         publishedAt: Date.now(),
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -229,18 +257,21 @@ async function run() {
         ownerUid: targetUid,
         visibility: 'PUBLIC',
         moderationStatus: 'APPROVED',
+        reactionsEnabled: true,
+        commentsEnabled: true,
+        commentsPolicy: 'EVERYONE',
         publishedAt: Date.now(),
         createdAt: Date.now(),
         updatedAt: Date.now(),
       }),
-      db.doc(`users/${targetUid}/video_publications/${videoId}`).set({
+      videoPublicationRef.set({
         videoId,
         ownerUid: targetUid,
         isPublished: true,
         visibility: 'PUBLIC',
         publishedStoragePath: `public/videos/${targetUid}/${videoId}/video.mp4`,
       }),
-      db.doc(`users/${targetUid}/photo_publications/${photoId}`).set({
+      photoPublicationRef.set({
         photoId,
         ownerUid: targetUid,
         isPublished: true,
@@ -273,6 +304,55 @@ async function run() {
       reporterClient.functions,
       'getPublicPhotoAccessUrls'
     );
+    const restrictedCallables = [
+      [
+        httpsCallable(targetClient.functions, 'toggleVideoReaction'),
+        { ownerUid: reporterUid, videoId: 'other-video' },
+      ],
+      [
+        httpsCallable(targetClient.functions, 'togglePhotoReaction'),
+        { ownerUid: reporterUid, photoId: 'other-photo' },
+      ],
+      [
+        httpsCallable(targetClient.functions, 'rateVideo'),
+        { ownerUid: reporterUid, videoId: 'other-video', rating: 5 },
+      ],
+      [
+        httpsCallable(targetClient.functions, 'createVideoComment'),
+        {
+          ownerUid: reporterUid,
+          videoId: 'other-video',
+          content: 'Ação que deve ser bloqueada.',
+        },
+      ],
+      [
+        httpsCallable(targetClient.functions, 'createPhotoComment'),
+        {
+          ownerUid: reporterUid,
+          photoId: 'other-photo',
+          content: 'Ação que deve ser bloqueada.',
+        },
+      ],
+      [
+        httpsCallable(targetClient.functions, 'publishVideo'),
+        { ownerUid: targetUid, videoId },
+      ],
+      [
+        httpsCallable(targetClient.functions, 'publishPhoto'),
+        { ownerUid: targetUid, photoId },
+      ],
+      [
+        httpsCallable(
+          targetClient.functions,
+          'updateVideoPublicationSettings'
+        ),
+        {
+          ownerUid: targetUid,
+          videoId,
+          title: 'Alteração bloqueada',
+        },
+      ],
+    ];
 
     const reportResponse = await reportProfileMinorSafety({
       targetUid,
@@ -286,10 +366,12 @@ async function run() {
     });
 
     const hiddenMedia = await waitFor(
-      'mídia pública ficar privada',
+      'mídia pública e publicações ficarem privadas',
       async () => ({
         video: await readData(publicVideoRef),
         photo: await readData(publicPhotoRef),
+        videoPublication: await readData(videoPublicationRef),
+        photoPublication: await readData(photoPublicationRef),
         profile: await readData(publicProfileRef),
       }),
       (state) =>
@@ -297,11 +379,24 @@ async function run() {
         state.video?.ageReverificationHidden === true &&
         state.photo?.visibility === 'PRIVATE' &&
         state.photo?.ageReverificationHidden === true &&
+        state.videoPublication?.visibility === 'PRIVATE' &&
+        state.videoPublication?.ageReverificationHidden === true &&
+        state.photoPublication?.visibility === 'PRIVATE' &&
+        state.photoPublication?.ageReverificationHidden === true &&
         state.profile === null
     );
     const caseId = hiddenMedia.video.ageReverificationCaseId;
+    const ageCaseRef = db.doc(`age_reverification_cases/${caseId}`);
 
     assert.equal(hiddenMedia.photo.ageReverificationCaseId, caseId);
+    assert.equal(
+      hiddenMedia.videoPublication.ageReverificationCaseId,
+      caseId
+    );
+    assert.equal(
+      hiddenMedia.photoPublication.ageReverificationCaseId,
+      caseId
+    );
     assert.equal(
       hiddenMedia.video.ageReverificationPreviousVisibility,
       'PUBLIC'
@@ -309,6 +404,12 @@ async function run() {
     assert.equal(
       hiddenMedia.photo.ageReverificationPreviousVisibility,
       'PUBLIC'
+    );
+
+    await Promise.all(
+      restrictedCallables.map(([callable, payload]) =>
+        expectCallableFailure(callable, payload)
+      )
     );
 
     const [videoAccess, photoAccess] = await Promise.all([
@@ -334,24 +435,42 @@ async function run() {
       resolution: 'Maioridade confirmada após revisão administrativa.',
     });
 
-    await waitFor(
-      'mídia pública ser restaurada',
+    const restoredState = await waitFor(
+      'mídia, publicações e perfil serem restaurados',
       async () => ({
         video: await readData(publicVideoRef),
         photo: await readData(publicPhotoRef),
+        videoPublication: await readData(videoPublicationRef),
+        photoPublication: await readData(photoPublicationRef),
         profile: await readData(publicProfileRef),
+        nicknameIndex: await readData(nicknameIndexRef),
+        ageCase: await readData(ageCaseRef),
       }),
       (state) =>
         state.video?.visibility === 'PUBLIC' &&
         state.video?.ageReverificationHidden !== true &&
         state.photo?.visibility === 'PUBLIC' &&
         state.photo?.ageReverificationHidden !== true &&
-        state.profile?.uid === targetUid
+        state.videoPublication?.visibility === 'PUBLIC' &&
+        state.videoPublication?.ageReverificationHidden !== true &&
+        state.photoPublication?.visibility === 'PUBLIC' &&
+        state.photoPublication?.ageReverificationHidden !== true &&
+        state.profile?.uid === targetUid &&
+        state.nicknameIndex?.uid === targetUid &&
+        state.ageCase?.publicProfileBackup === undefined &&
+        state.ageCase?.nicknameIndexBackup === undefined
     );
 
-    console.log('✔ fotos e vídeos foram ocultados na mesma decisão administrativa');
+    assert.equal(restoredState.profile.municipio, 'Rio de Janeiro');
+    assert.equal(restoredState.profile.publicVideosCount, 7);
+    assert.equal(restoredState.profile.coverVideoId, 'cover-before-review');
+    assert.equal(restoredState.nicknameIndex.createdAt, 123456);
+
+    console.log('✔ projeções e publicações foram ocultadas na mesma decisão');
+    console.log('✔ chamadas manuais de publicação e interação foram bloqueadas');
     console.log('✔ Callables de URL recusaram mídia durante a revalidação');
-    console.log('✔ visibilidade anterior foi restaurada após confirmação adulta');
+    console.log('✔ perfil enriquecido, índice e visibilidade foram restaurados');
+    console.log('✔ backups privados foram removidos ao encerrar o caso');
   } finally {
     await Promise.allSettled(
       authenticatedUsers.map((user) => deleteUser(user).catch(() => undefined))
