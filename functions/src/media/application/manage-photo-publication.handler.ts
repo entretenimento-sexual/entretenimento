@@ -5,7 +5,9 @@
 // Segurança:
 // - somente o dono publica/despublica/define capa;
 // - cliente não grava projeção pública, score ou contadores;
-// - métricas públicas são recalculadas no backend.
+// - métricas públicas são recalculadas no backend;
+// - publicação comum ganha alcance imediato;
+// - pré-moderação bloqueante só é ativada explicitamente por configuração.
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -64,9 +66,16 @@ interface SetCoverPhotoResponse {
   photoId: string;
 }
 
-const AUTO_APPROVE_PHOTOS =
-  process.env.FUNCTIONS_EMULATOR === 'true' ||
-  process.env.MEDIA_AUTO_APPROVE_PHOTOS === 'true';
+/**
+ * A publicação imediata é o comportamento padrão do produto.
+ *
+ * Use MEDIA_REQUIRE_PREMODERATION=true somente em uma operação controlada na
+ * qual toda nova foto realmente precise ficar retida antes de ganhar alcance.
+ * Moderação posterior, denúncias e ocultação continuam sendo responsabilidades
+ * do backend e não exigem transformar toda publicação comum em fila.
+ */
+const REQUIRE_PHOTO_PREMODERATION =
+  process.env.MEDIA_REQUIRE_PREMODERATION === 'true';
 
 function cleanId(value: unknown): string {
   return String(value ?? '').trim();
@@ -131,7 +140,7 @@ function buildInitialScoreBreakdown(): ScoreBreakdown {
 }
 
 function resolveModerationStatus(): ModerationStatus {
-  return AUTO_APPROVE_PHOTOS ? 'APPROVED' : 'PENDING_REVIEW';
+  return REQUIRE_PHOTO_PREMODERATION ? 'PENDING_REVIEW' : 'APPROVED';
 }
 
 function assertOwner(requesterUid: string | null, ownerUid: string): void {
