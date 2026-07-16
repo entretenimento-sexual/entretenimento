@@ -21,6 +21,9 @@ import {
   ModerationReportTargetType,
 } from 'src/app/core/interfaces/moderation/moderation-report.interface';
 import { isAgedOpenModerationReport } from './moderation-report-age.util';
+import {
+  ProfileAgeReverificationAdminActionsComponent,
+} from './profile-age-reverification-admin-actions.component';
 
 type AdminReportFilter = ModerationReportStatus | 'all' | 'aged_open';
 type ResolutionDrafts = Record<string, string>;
@@ -56,7 +59,13 @@ interface AdminModerationReportsVm {
 @Component({
   selector: 'app-moderation-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule, AdminMaterialModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterModule,
+    AdminMaterialModule,
+    ProfileAgeReverificationAdminActionsComponent,
+  ],
   templateUrl: './moderation-reports.component.html',
   styleUrls: ['./moderation-reports.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -254,6 +263,12 @@ export class ModerationReportsComponent {
         return 'Perfil';
       case 'photo':
         return 'Foto';
+      case 'video':
+        return 'Vídeo';
+      case 'video_comment':
+        return 'Comentário de vídeo';
+      case 'video_rating':
+        return 'Avaliação de vídeo';
       case 'message':
         return 'Mensagem';
       case 'room':
@@ -427,6 +442,8 @@ export class ModerationReportsComponent {
       report.resolution,
       report.status,
       report.reason,
+      report.ageReverificationStatus,
+      report.ageReverificationCaseId,
       this.reasonLabel(report.reason),
       report.targetType,
       this.targetTypeLabel(report.targetType),
@@ -465,7 +482,18 @@ export class ModerationReportsComponent {
 
   private safeTargetType(value: unknown): ModerationReportTargetType | null {
     const type = String(value ?? '').trim() as ModerationReportTargetType;
-    return ['profile', 'photo', 'message', 'room', 'status', 'venue', 'other'].includes(type) ? type : null;
+    return [
+      'profile',
+      'photo',
+      'video',
+      'video_comment',
+      'video_rating',
+      'message',
+      'room',
+      'status',
+      'venue',
+      'other',
+    ].includes(type) ? type : null;
   }
 
   private normalizeSearchTerm(value: string): string {
