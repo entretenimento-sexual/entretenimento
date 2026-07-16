@@ -31,6 +31,29 @@ interface ReviewProfileAgeReverificationRequest {
 interface AgeReverificationCaseDocument {
   result?: string | null;
   declaredAgeBand?: string | null;
+  publicProfileBackup?: Record<string, unknown> | null;
+  nicknameIndexBackup?: Record<string, unknown> | null;
+  nicknameIndexDocId?: string | null;
+}
+
+function cleanIndexDocumentId(value: unknown): string {
+  const normalized = String(value ?? '').trim();
+
+  if (
+    !normalized ||
+    normalized.length > 180 ||
+    normalized.includes('/')
+  ) {
+    return '';
+  }
+
+  return normalized;
+}
+
+function asBackupRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }
 
 export const reviewProfileAgeReverification = onCall<
@@ -133,7 +156,11 @@ export const reviewProfileAgeReverification = onCall<
       const publicProfileRef = db
         .collection('public_profiles')
         .doc(targetUid);
-      const nicknameIndexDocId = getNicknameIndexDocId(user);
+      const fallbackIndexDocId = getNicknameIndexDocId(user);
+      const backupIndexDocId = cleanIndexDocumentId(
+        ageCase.nicknameIndexDocId
+      );
+      const nicknameIndexDocId = backupIndexDocId || fallbackIndexDocId;
       const dedupRef = db
         .collection('moderation_report_dedup')
         .doc(profileMinorReportDedupId(reporterUid, targetUid));
@@ -163,6 +190,13 @@ export const reviewProfileAgeReverification = onCall<
         );
 
         if (canRestoreAccess && mediaSnapshots) {
+          const publicProfileBackup = asBackupRecord(
+            ageCase.publicProfileBackup
+          );
+          const nicknameIndexBackup = asBackupRecord(
+            ageCase.nicknameIndexBackup
+          );
+
           restoreProfileMediaVisibility(
             transaction,
             mediaSnapshots,
@@ -171,22 +205,32 @@ export const reviewProfileAgeReverification = onCall<
           );
           transaction.set(
             publicProfileRef,
-            buildPublicProfileSeed(user, targetUid, reviewedAt),
-            { merge: true }
+            publicProfileBackup
+              ? {
+                  ...publicProfileBackup,
+                  uid: targetUid,
+                  updatedAt: timestamp,
+                }
+              : buildPublicProfileSeed(user, targetUid, reviewedAt)
           );
 
           if (nicknameIndexDocId) {
             transaction.set(
               db.collection('public_index').doc(nicknameIndexDocId),
-              {
-                type: 'nickname',
-                value: String(user.nicknameNormalized ?? '').trim() ||
-                  normalizeNicknameForIndex(user.nickname),
-                uid: targetUid,
-                createdAt: reviewedAt,
-                lastChangedAt: reviewedAt,
-              },
-              { merge: true }
+              nicknameIndexBackup
+                ? {
+                    ...nicknameIndexBackup,
+                    uid: targetUid,
+                    lastChangedAt: timestamp,
+                  }
+                : {
+                    type: 'nickname',
+                    value: String(user.nicknameNormalized ?? '').trim() ||
+                      normalizeNicknameForIndex(user.nickname),
+                    uid: targetUid,
+                    createdAt: reviewedAt,
+                    lastChangedAt: reviewedAt,
+                  }
             );
           }
         }
@@ -236,6 +280,9 @@ export const reviewProfileAgeReverification = onCall<
           reviewedBy: adminUid,
           resolution,
           restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
+          publicProfileBackup: FieldValue.delete(),
+          nicknameIndexBackup: FieldValue.delete(),
+          nicknameIndexDocId: FieldValue.delete(),
           updatedAt: timestamp,
         },
         { merge: true }
