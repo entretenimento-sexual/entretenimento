@@ -1,12 +1,21 @@
 import { TestBed } from '@angular/core/testing';
 import { CanMatchFn, Route, Router, UrlSegment, UrlTree } from '@angular/router';
-import { BehaviorSubject, firstValueFrom, isObservable, of } from 'rxjs';
+import {
+  BehaviorSubject,
+  Observable,
+  firstValueFrom,
+  isObservable,
+  of,
+} from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { MediaPolicyService } from 'src/app/core/services/media/media-policy.service';
+import {
+  IMediaPolicyResult,
+  MediaPolicyService,
+} from 'src/app/core/services/media/media-policy.service';
 import {
   mediaOwnerCanMatch,
   mediaUploadEligibilityCanMatch,
@@ -42,8 +51,11 @@ describe('media route guards', () => {
   const showWarning = vi.fn();
   const showError = vi.fn();
   const handleError = vi.fn();
-  const canUploadProfilePhotosForViewer$ = vi.fn(() =>
-    of({ decision: 'ALLOW' as const })
+  const canUploadProfilePhotosForViewer$ = vi.fn(
+    (
+      _viewer: unknown,
+      _ownerUid: string
+    ): Observable<IMediaPolicyResult> => of({ decision: 'ALLOW' })
   );
 
   beforeEach(() => {
@@ -66,7 +78,7 @@ describe('media route guards', () => {
     handleError.mockClear();
     canUploadProfilePhotosForViewer$.mockReset();
     canUploadProfilePhotosForViewer$.mockReturnValue(
-      of({ decision: 'ALLOW' as const })
+      of({ decision: 'ALLOW' })
     );
 
     TestBed.configureTestingModule({
@@ -143,7 +155,7 @@ describe('media route guards', () => {
   it('redireciona upload quando o e-mail ainda não foi verificado', async () => {
     emailVerifiedSubject.next(false);
     canUploadProfilePhotosForViewer$.mockReturnValue(
-      of({ decision: 'DENY' as const, reason: 'EMAIL_UNVERIFIED' as const })
+      of({ decision: 'DENY', reason: 'EMAIL_UNVERIFIED' })
     );
 
     const result = await runGuard(
@@ -214,8 +226,8 @@ async function runGuard(
   const result = TestBed.runInInjectionContext(() => guard(route, urlSegments));
 
   if (isObservable(result)) {
-    return firstValueFrom(result);
+    return firstValueFrom(result) as Promise<boolean | UrlTree>;
   }
 
-  return Promise.resolve(result);
+  return Promise.resolve(result as boolean | UrlTree);
 }
