@@ -16,9 +16,9 @@
 // Importante sobre conformidade:
 // - o seed nasce com acceptedTerms.accepted=false;
 // - o aceite efetivo é registrado pela Cloud Function acceptPlatformTerms;
-// - isso garante versão, horário do servidor e trilha em compliance_audit;
-// - o checkbox inicial continua sendo uma precondição de cadastro, mas não
-//   substitui a confirmação auditável do backend.
+// - o aceite inicial de maioridade é marcado como obrigatório somente no cadastro;
+// - a Cloud Function acceptAdultConsent encerra essa obrigação e registra auditoria;
+// - revalidação pós-denúncia usa estado separado e nunca é gravada pelo cliente.
 // =============================================================================
 
 import { Injectable } from '@angular/core';
@@ -39,6 +39,8 @@ import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registratio
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
 import { NicknameUtils } from '@core/utils/nickname-utils';
+
+const REGISTRATION_FLOW_VERSION = 'v2';
 
 export interface EmailPasswordRegistrationBootstrapInput {
   uid: string;
@@ -110,6 +112,9 @@ export class RegistrationBootstrapService {
           subscriptionStatus: 'inactive',
           accountStatus: 'active',
           profileCompleted: false,
+          registrationFlowVersion: REGISTRATION_FLOW_VERSION,
+          initialAdultConsentRequired: true,
+          registrationCompletedAt: null,
 
           /**
            * O aceite definitivo não é confiado ao cliente.
@@ -199,6 +204,9 @@ export class RegistrationBootstrapService {
         subscriptionStatus: 'inactive',
         accountStatus: 'active',
         profileCompleted: false,
+        registrationFlowVersion: REGISTRATION_FLOW_VERSION,
+        initialAdultConsentRequired: true,
+        registrationCompletedAt: null,
 
         acceptedTerms: {
           accepted: false,
