@@ -79,12 +79,26 @@ export const acceptAdultConsent = onCall(
         String(
           (currentConsent as Record<string, unknown>)['version'] ?? ''
         ).trim() === ADULT_CONSENT_VERSION;
+      const now = FieldValue.serverTimestamp();
 
       if (alreadyAccepted) {
+        if (
+          user['initialAdultConsentRequired'] === true ||
+          !user['registrationCompletedAt']
+        ) {
+          transaction.set(
+            userRef,
+            {
+              initialAdultConsentRequired: false,
+              registrationCompletedAt: user['registrationCompletedAt'] || now,
+              updatedAt: now,
+            },
+            { merge: true }
+          );
+        }
+
         return;
       }
-
-      const now = FieldValue.serverTimestamp();
 
       transaction.set(
         userRef,
@@ -97,6 +111,9 @@ export const acceptAdultConsent = onCall(
             updatedAt: now,
             source: 'web',
           },
+          initialAdultConsentRequired: false,
+          registrationCompletedAt: now,
+          updatedAt: now,
         },
         { merge: true }
       );
