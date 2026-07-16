@@ -8,7 +8,8 @@
 // - usa AuthSessionService.readyUid$ para aguardar Auth pronto;
 // - denúncias comuns preservam o fluxo existente em moderation_reports;
 // - denúncias de vídeo, comentário e avaliação passam por Callable validada;
-// - Functions é resolvido somente quando uma denúncia de vídeo é enviada;
+// - denúncia de perfil por possível menoridade passa por Callable específica;
+// - Functions é resolvido somente quando uma Callable é necessária;
 // - não expõe leitura/listagem para usuário comum;
 // - não mostra toast diretamente para manter feedback sob controle da UI;
 // - reporta falhas ao GlobalErrorHandlerService.
@@ -57,6 +58,16 @@ interface ReportVideoContentResponse {
   reportId: string;
 }
 
+interface ReportProfileMinorSafetyRequest {
+  targetUid: string;
+  details?: string | null;
+  route?: string | null;
+}
+
+interface ReportProfileMinorSafetyResponse {
+  reportId: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ModerationReportService {
   private readonly firestore = inject(Firestore);
@@ -78,6 +89,10 @@ export class ModerationReportService {
 
     if (videoTargetType) {
       return this.createVideoReport$(normalized, videoTargetType);
+    }
+
+    if (this.isMinorProfileReport(normalized)) {
+      return this.createProfileMinorSafetyReport$(normalized);
     }
 
     return this.createLegacyReport$(normalized);
@@ -124,11 +139,53 @@ export class ModerationReportService {
     );
   }
 
+  private createProfileMinorSafetyReport$(
+    input: IModerationReportCreateInput
+  ): Observable<string> {
+    const targetUid = String(
+      input.targetOwnerUid || input.targetId || ''
+    ).trim();
+
+    if (!targetUid) {
+      return throwError(() => new Error('Perfil denunciado inválido.'));
+    }
+
+    const callable = this.createReportProfileMinorSafetyCallable();
+
+    return from(callable({
+      targetUid,
+      details: input.details,
+      route: input.route,
+    })).pipe(
+      map((response) => response.data.reportId),
+      catchError((error) => {
+        this.reportWriteError(error, 'createProfileMinorSafetyReport', {
+          targetUid,
+          targetType: input.targetType,
+          reason: input.reason,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
   private createReportVideoContentCallable() {
     return runInInjectionContext(this.environmentInjector, () =>
       httpsCallable<ReportVideoContentRequest, ReportVideoContentResponse>(
         inject(Functions),
         'reportVideoContent'
+      )
+    );
+  }
+
+  private createReportProfileMinorSafetyCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReportProfileMinorSafetyRequest,
+        ReportProfileMinorSafetyResponse
+      >(
+        inject(Functions),
+        'reportProfileMinorSafety'
       )
     );
   }
@@ -160,6 +217,9 @@ export class ModerationReportService {
           route: input.route || null,
           status: 'open',
           moderationAction: null,
+          ageReverificationCaseId: null,
+          ageReverificationStatus: null,
+          ageReverificationSubmittedAt: null,
           source: 'web',
           createdAt: now,
           updatedAt: now,
@@ -233,6 +293,12 @@ export class ModerationReportService {
       value === 'video_rating'
       ? value
       : null;
+  }
+
+  private isMinorProfileReport(
+    input: IModerationReportCreateInput
+  ): boolean {
+    return input.targetType === 'profile' && input.reason === 'minor_safety';
   }
 
   private isAllowedTargetType(
