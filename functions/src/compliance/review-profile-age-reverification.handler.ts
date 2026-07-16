@@ -8,6 +8,10 @@ import {
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  readProfilePublicMediaSnapshots,
+  restoreProfilePublicMedia,
+} from './profile-age-reverification-media';
+import {
   type AgeReverificationUserDocument,
   type ModerationReportDocument,
   assertComplianceModerator,
@@ -118,6 +122,13 @@ export const reviewProfileAgeReverification = onCall<
         );
       }
 
+      const accountStatus = String(user.accountStatus ?? 'active').trim();
+      const canRestoreAccess = decision === 'VERIFY' &&
+        accountStatus === 'active' &&
+        user.suspended !== true;
+      const mediaSnapshots = canRestoreAccess
+        ? await readProfilePublicMediaSnapshots(transaction, targetUid)
+        : null;
       const timestamp = FieldValue.serverTimestamp();
       const publicProfileRef = db
         .collection('public_profiles')
@@ -128,12 +139,6 @@ export const reviewProfileAgeReverification = onCall<
         .doc(profileMinorReportDedupId(reporterUid, targetUid));
 
       if (decision === 'VERIFY') {
-        const accountStatus = String(
-          user.accountStatus ?? 'active'
-        ).trim();
-        const canRestoreAccess = accountStatus === 'active' &&
-          user.suspended !== true;
-
         transaction.set(
           userRef,
           {
@@ -157,7 +162,13 @@ export const reviewProfileAgeReverification = onCall<
           { merge: true }
         );
 
-        if (canRestoreAccess) {
+        if (canRestoreAccess && mediaSnapshots) {
+          restoreProfilePublicMedia(
+            transaction,
+            mediaSnapshots,
+            caseId,
+            reviewedAt
+          );
           transaction.set(
             publicProfileRef,
             buildPublicProfileSeed(user, targetUid, reviewedAt),
@@ -224,6 +235,7 @@ export const reviewProfileAgeReverification = onCall<
           reviewedAt,
           reviewedBy: adminUid,
           resolution,
+          restoredPublicMediaCount: mediaSnapshots?.total ?? 0,
           updatedAt: timestamp,
         },
         { merge: true }
@@ -261,6 +273,7 @@ export const reviewProfileAgeReverification = onCall<
           caseId,
           decision,
           nextStatus: finalStatus,
+          restoredPublicMediaCount: mediaSnapshots?.total ?? 0,
           resolution,
         },
         timestamp,
@@ -276,6 +289,7 @@ export const reviewProfileAgeReverification = onCall<
         actorUid: adminUid,
         result: decision === 'VERIFY' ? 'ADULT' : 'UNDERAGE',
         source: 'moderation',
+        restoredPublicMediaCount: mediaSnapshots?.total ?? 0,
         createdAt: timestamp,
         createdAtMs: reviewedAt,
       });
