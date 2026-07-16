@@ -22,7 +22,7 @@ import {
 } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, of, throwError } from 'rxjs';
-import { catchError, map, shareReplay } from 'rxjs/operators';
+import { catchError, map, retry, shareReplay } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -323,7 +323,23 @@ export class MediaPublicationService {
     const safePhotoId = (photoId ?? '').trim();
 
     if (!safeOwnerUid || !safePhotoId) {
-      return of(void 0);
+      const validationError = new Error(
+        'Dados inválidos para registrar visualização da foto.'
+      );
+
+      this.reportError(
+        validationError.message,
+        validationError,
+        {
+          op: 'recordPhotoView$',
+          hasOwnerUid: !!safeOwnerUid,
+          hasPhotoId: !!safePhotoId,
+          source,
+        },
+        true
+      );
+
+      return throwError(() => validationError);
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
@@ -338,6 +354,7 @@ export class MediaPublicationService {
         source,
       });
     }).pipe(
+      retry({ count: 1, delay: 250 }),
       map(() => void 0),
       catchError((error) => {
         this.reportError(
@@ -352,7 +369,7 @@ export class MediaPublicationService {
           true
         );
 
-        return of(void 0);
+        return throwError(() => error);
       })
     );
   }
