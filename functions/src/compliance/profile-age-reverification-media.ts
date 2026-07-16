@@ -7,51 +7,70 @@ import { HttpsError } from 'firebase-functions/v2/https';
 
 import { db, FieldValue } from '../firebaseApp';
 
-const MAX_TRANSACTIONAL_PUBLIC_MEDIA = 420;
+const MAX_TRANSACTIONAL_MEDIA_DOCUMENTS = 420;
 
-interface PublicMediaDocument {
+interface MediaVisibilityDocument {
   visibility?: unknown;
   ageReverificationHidden?: unknown;
   ageReverificationCaseId?: unknown;
   ageReverificationPreviousVisibility?: unknown;
 }
 
-export interface ProfilePublicMediaSnapshots {
-  readonly photos: QuerySnapshot;
-  readonly videos: QuerySnapshot;
-  readonly total: number;
+export interface ProfileMediaVisibilitySnapshots {
+  readonly publicPhotos: QuerySnapshot;
+  readonly publicVideos: QuerySnapshot;
+  readonly photoPublications: QuerySnapshot;
+  readonly videoPublications: QuerySnapshot;
+  readonly totalDocuments: number;
 }
 
-export async function readProfilePublicMediaSnapshots(
+export async function readProfileMediaVisibilitySnapshots(
   transaction: Transaction,
   targetUid: string
-): Promise<ProfilePublicMediaSnapshots> {
+): Promise<ProfileMediaVisibilitySnapshots> {
   const publicProfileRef = db.collection('public_profiles').doc(targetUid);
-  const [photos, videos] = await Promise.all([
+  const userRef = db.collection('users').doc(targetUid);
+  const [
+    publicPhotos,
+    publicVideos,
+    photoPublications,
+    videoPublications,
+  ] = await Promise.all([
     transaction.get(publicProfileRef.collection('public_photos')),
     transaction.get(publicProfileRef.collection('public_videos')),
+    transaction.get(userRef.collection('photo_publications')),
+    transaction.get(userRef.collection('video_publications')),
   ]);
-  const total = photos.size + videos.size;
+  const totalDocuments = publicPhotos.size +
+    publicVideos.size +
+    photoPublications.size +
+    videoPublications.size;
 
-  if (total > MAX_TRANSACTIONAL_PUBLIC_MEDIA) {
+  if (totalDocuments > MAX_TRANSACTIONAL_MEDIA_DOCUMENTS) {
     throw new HttpsError(
       'failed-precondition',
-      'O perfil possui mais mídias públicas do que esta revisão pode ' +
+      'O perfil possui mais documentos de mídia do que esta revisão pode ' +
         'processar de forma transacional. Encaminhe o caso ao suporte técnico.'
     );
   }
 
-  return { photos, videos, total };
+  return {
+    publicPhotos,
+    publicVideos,
+    photoPublications,
+    videoPublications,
+    totalDocuments,
+  };
 }
 
-export function hideProfilePublicMedia(
+export function hideProfileMediaVisibility(
   transaction: Transaction,
-  snapshots: ProfilePublicMediaSnapshots,
+  snapshots: ProfileMediaVisibilitySnapshots,
   caseId: string,
   hiddenAt: number
 ): void {
   for (const document of allDocuments(snapshots)) {
-    const data = document.data() as PublicMediaDocument;
+    const data = document.data() as MediaVisibilityDocument;
     const currentVisibility = normalizeVisibility(data.visibility);
 
     if (
@@ -76,14 +95,14 @@ export function hideProfilePublicMedia(
   }
 }
 
-export function restoreProfilePublicMedia(
+export function restoreProfileMediaVisibility(
   transaction: Transaction,
-  snapshots: ProfilePublicMediaSnapshots,
+  snapshots: ProfileMediaVisibilitySnapshots,
   caseId: string,
   restoredAt: number
 ): void {
   for (const document of allDocuments(snapshots)) {
-    const data = document.data() as PublicMediaDocument;
+    const data = document.data() as MediaVisibilityDocument;
     const hiddenByCurrentCase = data.ageReverificationHidden === true &&
       String(data.ageReverificationCaseId ?? '').trim() === caseId;
 
@@ -110,9 +129,14 @@ export function restoreProfilePublicMedia(
 }
 
 function allDocuments(
-  snapshots: ProfilePublicMediaSnapshots
+  snapshots: ProfileMediaVisibilitySnapshots
 ): readonly DocumentSnapshot[] {
-  return [...snapshots.photos.docs, ...snapshots.videos.docs];
+  return [
+    ...snapshots.publicPhotos.docs,
+    ...snapshots.publicVideos.docs,
+    ...snapshots.photoPublications.docs,
+    ...snapshots.videoPublications.docs,
+  ];
 }
 
 function normalizeVisibility(value: unknown): string {
