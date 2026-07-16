@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, type GuardResult } from '@angular/router';
-import { Observable, of } from 'rxjs';
+import { Observable, combineLatest, of } from 'rxjs';
 import { catchError, filter, map, take } from 'rxjs/operators';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -26,17 +26,19 @@ export const ageReverificationGuard: CanActivateFn = (
     });
   };
 
-  return currentUser.user$.pipe(
-    filter((appUser) => {
-      if (!session.snapshotUid()) {
-        return true;
-      }
-
+  return combineLatest([
+    session.ready$,
+    session.authUser$,
+    currentUser.user$,
+  ]).pipe(
+    filter(([ready, authUser, appUser]) => {
+      if (!ready) return false;
+      if (!authUser) return true;
       return appUser !== undefined;
     }),
     take(1),
-    map((appUser): GuardResult => {
-      if (!session.snapshotUid()) {
+    map(([_, authUser, appUser]): GuardResult => {
+      if (!authUser) {
         return true;
       }
 
