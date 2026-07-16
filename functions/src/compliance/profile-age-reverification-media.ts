@@ -11,9 +11,15 @@ const MAX_TRANSACTIONAL_MEDIA_DOCUMENTS = 420;
 
 interface MediaVisibilityDocument {
   visibility?: unknown;
+  isPublished?: unknown;
   ageReverificationHidden?: unknown;
   ageReverificationCaseId?: unknown;
   ageReverificationPreviousVisibility?: unknown;
+}
+
+interface MediaVisibilityEntry {
+  readonly document: DocumentSnapshot;
+  readonly fallbackVisibility: 'PUBLIC' | 'PRIVATE';
 }
 
 export interface ProfileMediaVisibilitySnapshots {
@@ -23,6 +29,11 @@ export interface ProfileMediaVisibilitySnapshots {
   readonly videoPublications: QuerySnapshot;
   readonly totalDocuments: number;
 }
+
+type ProfileMediaQueries = Omit<
+  ProfileMediaVisibilitySnapshots,
+  'totalDocuments'
+>;
 
 export async function readProfileMediaVisibilitySnapshots(
   transaction: Transaction,
@@ -41,10 +52,13 @@ export async function readProfileMediaVisibilitySnapshots(
     transaction.get(userRef.collection('photo_publications')),
     transaction.get(userRef.collection('video_publications')),
   ]);
-  const totalDocuments = publicPhotos.size +
-    publicVideos.size +
-    photoPublications.size +
-    videoPublications.size;
+  const queries: ProfileMediaQueries = {
+    publicPhotos,
+    publicVideos,
+    photoPublications,
+    videoPublications,
+  };
+  const totalDocuments = visibilityEntries(queries).length;
 
   if (totalDocuments > MAX_TRANSACTIONAL_MEDIA_DOCUMENTS) {
     throw new HttpsError(
@@ -55,10 +69,7 @@ export async function readProfileMediaVisibilitySnapshots(
   }
 
   return {
-    publicPhotos,
-    publicVideos,
-    photoPublications,
-    videoPublications,
+    ...queries,
     totalDocuments,
   };
 }
@@ -69,9 +80,12 @@ export function hideProfileMediaVisibility(
   caseId: string,
   hiddenAt: number
 ): void {
-  for (const document of allDocuments(snapshots)) {
-    const data = document.data() as MediaVisibilityDocument;
-    const currentVisibility = normalizeVisibility(data.visibility);
+  for (const entry of visibilityEntries(snapshots)) {
+    const data = entry.document.data() as MediaVisibilityDocument;
+    const currentVisibility = normalizeVisibility(
+      data.visibility,
+      entry.fallbackVisibility
+    );
 
     if (
       data.ageReverificationHidden === true &&
@@ -81,7 +95,7 @@ export function hideProfileMediaVisibility(
     }
 
     transaction.set(
-      document.ref,
+      entry.document.ref,
       {
         visibility: 'PRIVATE',
         ageReverificationHidden: true,
@@ -101,8 +115,8 @@ export function restoreProfileMediaVisibility(
   caseId: string,
   restoredAt: number
 ): void {
-  for (const document of allDocuments(snapshots)) {
-    const data = document.data() as MediaVisibilityDocument;
+  for (const entry of visibilityEntries(snapshots)) {
+    const data = entry.document.data() as MediaVisibilityDocument;
     const hiddenByCurrentCase = data.ageReverificationHidden === true &&
       String(data.ageReverificationCaseId ?? '').trim() === caseId;
 
@@ -111,10 +125,11 @@ export function restoreProfileMediaVisibility(
     }
 
     transaction.set(
-      document.ref,
+      entry.document.ref,
       {
         visibility: normalizeVisibility(
-          data.ageReverificationPreviousVisibility
+          data.ageReverificationPreviousVisibility,
+          entry.fallbackVisibility
         ),
         ageReverificationHidden: FieldValue.delete(),
         ageReverificationCaseId: FieldValue.delete(),
@@ -128,18 +143,41 @@ export function restoreProfileMediaVisibility(
   }
 }
 
-function allDocuments(
-  snapshots: ProfileMediaVisibilitySnapshots
-): readonly DocumentSnapshot[] {
-  return [
-    ...snapshots.publicPhotos.docs,
-    ...snapshots.publicVideos.docs,
+function visibilityEntries(
+  snapshots: ProfileMediaQueries
+): readonly MediaVisibilityEntry[] {
+  const publicationEntries = [
     ...snapshots.photoPublications.docs,
     ...snapshots.videoPublications.docs,
+  ]
+    .filter((document) => {
+      const data = document.data() as MediaVisibilityDocument;
+
+      return data.isPublished === true ||
+        data.ageReverificationHidden === true;
+    })
+    .map((document) => ({
+      document,
+      fallbackVisibility: 'PRIVATE' as const,
+    }));
+
+  return [
+    ...snapshots.publicPhotos.docs.map((document) => ({
+      document,
+      fallbackVisibility: 'PUBLIC' as const,
+    })),
+    ...snapshots.publicVideos.docs.map((document) => ({
+      document,
+      fallbackVisibility: 'PUBLIC' as const,
+    })),
+    ...publicationEntries,
   ];
 }
 
-function normalizeVisibility(value: unknown): string {
+function normalizeVisibility(
+  value: unknown,
+  fallback: 'PUBLIC' | 'PRIVATE'
+): string {
   const visibility = String(value ?? '').trim().toUpperCase();
 
   return [
@@ -150,5 +188,5 @@ function normalizeVisibility(value: unknown): string {
     'PUBLIC',
   ].includes(visibility)
     ? visibility
-    : 'PUBLIC';
+    : fallback;
 }
