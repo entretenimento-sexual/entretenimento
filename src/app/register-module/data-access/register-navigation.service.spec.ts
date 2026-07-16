@@ -16,6 +16,7 @@ describe('RegisterNavigationService', () => {
     termsAccepted: true,
     profileCompleted: true,
     adultConsentAccepted: true,
+    initialAdultConsentRequired: true,
   };
 
   it('deve priorizar verificação de e-mail antes da recuperação', () => {
@@ -60,14 +61,26 @@ describe('RegisterNavigationService', () => {
     expect(vm.nextRoute).toBe('/register/finalizar-cadastro');
   });
 
-  it('deve exigir consentimento adulto depois do perfil', () => {
+  it('deve exigir consentimento adulto depois do perfil em cadastro versionado', () => {
     const vm = service.resolveVm({
       ...readyState,
       adultConsentAccepted: false,
+      initialAdultConsentRequired: true,
     });
 
     expect(vm.currentStep).toBe('adultConsent');
     expect(vm.nextRoute).toBe('/adulto/confirmar');
+  });
+
+  it('não deve reabrir consentimento inicial em conta legada registrada', () => {
+    const vm = service.resolveVm({
+      ...readyState,
+      adultConsentAccepted: false,
+      initialAdultConsentRequired: undefined,
+    });
+
+    expect(vm.currentStep).toBe('preferences');
+    expect(vm.nextRoute).toBe('/preferencias/editar/u1');
   });
 
   it('deve finalizar em preferências quando todas as etapas estiverem concluídas', () => {
