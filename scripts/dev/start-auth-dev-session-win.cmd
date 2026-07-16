@@ -5,9 +5,11 @@ setlocal EnableExtensions
 rem -----------------------------------------------------------------------------
 rem start-auth-dev-session-win.cmd
 rem -----------------------------------------------------------------------------
-rem Abre uma sessao local de desenvolvimento Auth no Windows:
-rem - verifica se as portas necessarias estao livres;
-rem - limpa o cache de build do Angular;
+rem Abre ou reutiliza uma sessao local de desenvolvimento Auth no Windows:
+rem - inicia uma nova sessao quando todas as portas estao livres;
+rem - reutiliza Angular + Firebase quando a sessao existente esta saudavel;
+rem - bloqueia ocupacao parcial ou processos nao reconhecidos;
+rem - limpa o cache de build do Angular antes de uma nova inicializacao;
 rem - inicia Firebase Emulators e Angular em janelas separadas;
 rem - aguarda os servicos antes de abrir o navegador.
 rem
@@ -16,15 +18,23 @@ rem ----------------------------------------------------------------------------
 
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..\..") do set "PROJECT_ROOT=%%~fI"
+set "SESSION_REUSED=0"
 
 cd /d "%PROJECT_ROOT%"
 
 echo [dev:auth] Projeto: %CD%
-echo [dev:auth] Verificando se nao existe sessao antiga nas portas locais...
-node "%PROJECT_ROOT%\scripts\dev\wait-for-ports.mjs" --ports=4000,4200,4400,4500,5001,8080,9099,9199 --state=free --timeout=1500 --label=portas-locais
-if errorlevel 1 (
-  echo [dev:auth] ERRO: existe uma sessao local antiga ou outro processo usando as portas necessarias.
-  echo [dev:auth] Feche as janelas antigas de Angular/Firebase e execute novamente.
+echo [dev:auth] Verificando o estado da sessao local...
+node "%PROJECT_ROOT%\scripts\dev\check-local-dev-session.mjs"
+set "SESSION_STATE=%ERRORLEVEL%"
+
+if "%SESSION_STATE%"=="10" (
+  set "SESSION_REUSED=1"
+  goto open_browser
+)
+
+if not "%SESSION_STATE%"=="0" (
+  echo [dev:auth] ERRO: as portas locais estao ocupadas de forma parcial ou inconsistente.
+  echo [dev:auth] Feche apenas as janelas antigas de Angular/Firebase e execute novamente.
   echo [dev:auth] Para encerrar manualmente: npx kill-port 4000 4200 4400 4500 5001 8080 9099 9199
   exit /b 1
 )
@@ -62,12 +72,20 @@ if errorlevel 1 (
   exit /b 1
 )
 
+:open_browser
+if "%SESSION_REUSED%"=="1" (
+  echo [dev:auth] Sessao existente reconhecida. Nenhum processo duplicado sera iniciado.
+) else (
+  echo [dev:auth] Nova sessao local iniciada com sucesso.
+)
+
 echo [dev:auth] Abrindo navegador...
 start "" "http://127.0.0.1:4200/login"
 start "" "http://127.0.0.1:4200/register"
 start "" "http://127.0.0.1:4000/"
 
-echo [dev:auth] Sessao iniciada com Firebase e Angular prontos.
+echo [dev:auth] Angular e Firebase estao prontos.
 echo [dev:auth] Mantenha as duas janelas abertas enquanto testa.
 
 endlocal
+exit /b 0
