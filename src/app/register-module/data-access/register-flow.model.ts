@@ -20,6 +20,7 @@ export interface RegisterFlowVm {
   termsAccepted: boolean;
   profileCompleted: boolean;
   adultConsentAccepted: boolean;
+  initialAdultConsentRequired?: boolean;
   currentStep: RegisterFlowStep;
   nextRoute: string;
   progress: number;
@@ -39,4 +40,5 @@ export interface RegisterFlowAccessState {
   termsAccepted: boolean;
   profileCompleted: boolean;
   adultConsentAccepted: boolean;
+  initialAdultConsentRequired?: boolean;
 }
