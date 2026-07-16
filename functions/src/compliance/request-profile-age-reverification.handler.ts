@@ -95,6 +95,26 @@ export const requestProfileAgeReverification = onCall<
         );
       }
 
+      const accountStatus = String(user.accountStatus ?? 'active')
+        .trim()
+        .toLowerCase();
+      const publicVisibility = String(user.publicVisibility ?? 'visible')
+        .trim()
+        .toLowerCase();
+
+      if (
+        accountStatus !== 'active' ||
+        user.suspended === true ||
+        user.interactionBlocked === true ||
+        publicVisibility !== 'visible'
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'O perfil já possui outra restrição ativa e não pode iniciar esta ' +
+            'revalidação automaticamente.'
+        );
+      }
+
       const nicknameIndexDocId = getNicknameIndexDocId(user);
       const nicknameIndexRef = nicknameIndexDocId
         ? db.collection('public_index').doc(nicknameIndexDocId)
@@ -103,6 +123,14 @@ export const requestProfileAgeReverification = onCall<
       const nicknameIndexSnapshot = nicknameIndexRef
         ? await transaction.get(nicknameIndexRef)
         : null;
+
+      if (!publicProfileSnapshot.exists) {
+        throw new HttpsError(
+          'failed-precondition',
+          'O perfil já não está disponível publicamente.'
+        );
+      }
+
       const mediaSnapshots = await readProfileMediaVisibilitySnapshots(
         transaction,
         targetUid
@@ -157,9 +185,7 @@ export const requestProfileAgeReverification = onCall<
         dueAt,
         requestedBy: adminUid,
         hiddenMediaDocumentCount: mediaSnapshots.totalDocuments,
-        publicProfileBackup: publicProfileSnapshot.exists
-          ? publicProfileSnapshot.data()
-          : null,
+        publicProfileBackup: publicProfileSnapshot.data(),
         nicknameIndexBackup: nicknameIndexSnapshot?.exists
           ? nicknameIndexSnapshot.data()
           : null,
