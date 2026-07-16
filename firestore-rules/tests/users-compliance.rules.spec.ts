@@ -33,7 +33,9 @@ function authenticatedDb() {
   }).firestore();
 }
 
-function validUserSeed(overrides: Record<string, unknown> = {}) {
+function validUserSeed(
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
   return {
     uid: USER_UID,
     email: 'compliance@example.test',
@@ -108,7 +110,7 @@ describe('Firestore Rules / users compliance', () => {
   it('nega criação sem confirmação inicial marcada como obrigatória', async () => {
     const db = authenticatedDb();
     const invalid = validUserSeed();
-    delete invalid.initialAdultConsentRequired;
+    delete invalid['initialAdultConsentRequired'];
 
     await assertFails(setDoc(doc(db, 'users', USER_UID), invalid));
   });
