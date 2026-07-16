@@ -4,12 +4,18 @@
 // AJUSTES DESTA VERSÃO:
 // - continua sem store fake
 // - continua lendo do PhotoFirestoreService
-// - agora expõe path, fileName e displayDate para gestão direta na galeria
+// - expõe path, fileName e displayDate para gestão direta na galeria
 // - mantém stream reativa e contrato de leitura
+// - datas ausentes/corrompidas permanecem desconhecidas, sem Date.now artificial
 
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { catchError, distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  shareReplay,
+} from 'rxjs/operators';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
@@ -36,7 +42,11 @@ export class MediaQueryService {
     }
 
     return this.photoFirestoreService.getPhotosByUser(safeOwnerUid).pipe(
-      map((items) => items.map((photo) => this.mapPhotoToMediaItem(safeOwnerUid, photo))),
+      map((items) =>
+        items.map((photo) =>
+          this.mapPhotoToMediaItem(safeOwnerUid, photo)
+        )
+      ),
       distinctUntilChanged((a, b) => this.sameItems(a, b)),
       catchError(() => {
         this.errorNotifier.showError('Erro ao carregar fotos do perfil.');
@@ -59,44 +69,70 @@ export class MediaQueryService {
     };
   }
 
+  /**
+   * SUPRESSÃO EXPLÍCITA:
+   * - removido o fallback Date.now() para data ausente ou inválida.
+   *
+   * Motivo:
+   * - um horário inventado altera ordenação e faz mídia antiga parecer nova;
+   * - zero preserva o contrato numérico e representa data desconhecida.
+   */
   private normalizeCreatedAt(value: unknown): number {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
+    return this.normalizeDateMs(value) ?? 0;
+  }
+
+  private normalizeOptionalDateMs(value: unknown): number | null {
+    return this.normalizeDateMs(value);
+  }
+
+  private normalizeDateMs(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      return Math.trunc(value);
     }
 
     if (value instanceof Date) {
-      return value.getTime();
+      const dateMs = value.getTime();
+      return Number.isFinite(dateMs) && dateMs > 0 ? Math.trunc(dateMs) : null;
     }
 
-    if (
-      typeof value === 'object' &&
-      value !== null &&
-      'toDate' in value &&
-      typeof (value as { toDate?: unknown }).toDate === 'function'
-    ) {
+    if (typeof value !== 'object' || value === null) {
+      return null;
+    }
+
+    const timestamp = value as {
+      toMillis?: () => number;
+      toDate?: () => Date;
+      seconds?: unknown;
+    };
+
+    if (typeof timestamp.toMillis === 'function') {
       try {
-        const date = (value as { toDate: () => Date }).toDate();
-        return date.getTime();
+        const millis = timestamp.toMillis();
+        return Number.isFinite(millis) && millis > 0
+          ? Math.trunc(millis)
+          : null;
       } catch {
-        return Date.now();
+        return null;
+      }
+    }
+
+    if (typeof timestamp.toDate === 'function') {
+      try {
+        const millis = timestamp.toDate().getTime();
+        return Number.isFinite(millis) && millis > 0
+          ? Math.trunc(millis)
+          : null;
+      } catch {
+        return null;
       }
     }
 
     if (
-      typeof value === 'object' &&
-      value !== null &&
-      'seconds' in value &&
-      typeof (value as { seconds?: unknown }).seconds === 'number'
+      typeof timestamp.seconds === 'number' &&
+      Number.isFinite(timestamp.seconds) &&
+      timestamp.seconds > 0
     ) {
-      return Number((value as { seconds: number }).seconds) * 1000;
-    }
-
-    return Date.now();
-  }
-
-  private normalizeOptionalDateMs(value: unknown): number | null {
-    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-      return Math.trunc(value);
+      return Math.trunc(timestamp.seconds * 1000);
     }
 
     return null;
