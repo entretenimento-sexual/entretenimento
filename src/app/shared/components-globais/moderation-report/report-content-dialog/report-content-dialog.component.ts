@@ -8,6 +8,7 @@
 // - não grava Firestore diretamente;
 // - retorna somente dados já normalizados para o botão/orquestrador;
 // - usa formulário reativo para validação simples e acessível;
+// - possível menoridade aparece somente em denúncia de perfil;
 // - mantém textos claros e sem expor termos técnicos ao usuário.
 // -----------------------------------------------------------------------------
 
@@ -55,6 +56,56 @@ interface ReportReasonOption {
   helper: string;
 }
 
+const GENERAL_REPORT_REASONS: readonly ReportReasonOption[] = [
+  {
+    value: 'spam',
+    label: 'Spam ou golpe',
+    helper: 'Divulgação repetitiva, link suspeito ou tentativa de golpe.',
+  },
+  {
+    value: 'fake_profile',
+    label: 'Perfil falso',
+    helper: 'Identidade enganosa, foto falsa ou tentativa de se passar por outra pessoa.',
+  },
+  {
+    value: 'harassment',
+    label: 'Assédio ou ameaça',
+    helper: 'Insistência, intimidação, ameaça ou contato abusivo.',
+  },
+  {
+    value: 'hate_or_abuse',
+    label: 'Ódio ou abuso',
+    helper: 'Ataques contra pessoa ou grupo protegido.',
+  },
+  {
+    value: 'sexual_boundary',
+    label: 'Limite sexual violado',
+    helper: 'Conteúdo ou abordagem sexual fora do consentimento ou das regras.',
+  },
+  {
+    value: 'illegal_content',
+    label: 'Conteúdo ilegal',
+    helper: 'Material proibido, exploração, coerção ou conduta criminosa.',
+  },
+  {
+    value: 'privacy',
+    label: 'Privacidade',
+    helper: 'Exposição de dados, imagem ou informação pessoal sem autorização.',
+  },
+  {
+    value: 'other',
+    label: 'Outro motivo',
+    helper: 'Use os detalhes para explicar o problema.',
+  },
+];
+
+const MINOR_PROFILE_REASON: ReportReasonOption = {
+  value: 'minor_safety',
+  label: 'Possível pessoa menor de 18 anos',
+  helper:
+    'Use esta opção apenas quando acreditar que a pessoa responsável pelo perfil é menor de idade.',
+};
+
 @Component({
   selector: 'app-report-content-dialog',
   standalone: true,
@@ -77,53 +128,17 @@ export class ReportContentDialogComponent {
     this.resolveTargetLabel(this.data.targetType)
   );
 
-  readonly reasons: ReportReasonOption[] = [
-    {
-      value: 'spam',
-      label: 'Spam ou golpe',
-      helper: 'Divulgação repetitiva, link suspeito ou tentativa de golpe.',
-    },
-    {
-      value: 'fake_profile',
-      label: 'Perfil falso',
-      helper: 'Identidade enganosa, foto falsa ou tentativa de se passar por outra pessoa.',
-    },
-    {
-      value: 'harassment',
-      label: 'Assédio ou ameaça',
-      helper: 'Insistência, intimidação, ameaça ou contato abusivo.',
-    },
-    {
-      value: 'hate_or_abuse',
-      label: 'Ódio ou abuso',
-      helper: 'Ataques contra pessoa ou grupo protegido.',
-    },
-    {
-      value: 'sexual_boundary',
-      label: 'Limite sexual violado',
-      helper: 'Conteúdo ou abordagem sexual fora do consentimento ou das regras.',
-    },
-    {
-      value: 'illegal_content',
-      label: 'Conteúdo ilegal',
-      helper: 'Material proibido, exploração, coerção ou conduta criminosa.',
-    },
-    {
-      value: 'privacy',
-      label: 'Privacidade',
-      helper: 'Exposição de dados, imagem ou informação pessoal sem autorização.',
-    },
-    {
-      value: 'minor_safety',
-      label: 'Segurança de menores',
-      helper: 'Qualquer suspeita envolvendo menor de idade.',
-    },
-    {
-      value: 'other',
-      label: 'Outro motivo',
-      helper: 'Use os detalhes para explicar o problema.',
-    },
-  ];
+  readonly reasons = computed<readonly ReportReasonOption[]>(() => {
+    if (this.data.targetType !== 'profile') {
+      return GENERAL_REPORT_REASONS;
+    }
+
+    return [
+      ...GENERAL_REPORT_REASONS.slice(0, -1),
+      MINOR_PROFILE_REASON,
+      GENERAL_REPORT_REASONS[GENERAL_REPORT_REASONS.length - 1],
+    ];
+  });
 
   readonly form = this.fb.group({
     reason: this.fb.control<ModerationReportReason | ''>('', {
@@ -151,8 +166,8 @@ export class ReportContentDialogComponent {
 
     const reason = this.form.controls.reason.value;
 
-    if (!reason) {
-      this.form.controls.reason.setErrors({ required: true });
+    if (!reason || !this.isReasonAllowedForTarget(reason)) {
+      this.form.controls.reason.setErrors({ targetMismatch: true });
       return;
     }
 
@@ -170,7 +185,11 @@ export class ReportContentDialogComponent {
 
   get selectedReasonHelper(): string | null {
     const selected = this.form.controls.reason.value;
-    return this.reasons.find((reason) => reason.value === selected)?.helper ?? null;
+    return this.reasons().find((reason) => reason.value === selected)?.helper ?? null;
+  }
+
+  private isReasonAllowedForTarget(reason: ModerationReportReason): boolean {
+    return this.reasons().some((option) => option.value === reason);
   }
 
   private normalizeOptionalText(
