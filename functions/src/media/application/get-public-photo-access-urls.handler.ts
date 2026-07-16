@@ -61,18 +61,25 @@ async function resolveAccessItem(
   photoId: string,
   expiresAt: number
 ): Promise<PublicPhotoAccessResponseItem | null> {
+  const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
   const publicPhotoRef = db.doc(
     `public_profiles/${ownerUid}/public_photos/${photoId}`
   );
   const publicationRef = db.doc(
     `users/${ownerUid}/photo_publications/${photoId}`
   );
-  const [publicPhotoSnap, publicationSnap] = await Promise.all([
-    publicPhotoRef.get(),
-    publicationRef.get(),
-  ]);
+  const [publicProfileSnap, publicPhotoSnap, publicationSnap] =
+    await Promise.all([
+      publicProfileRef.get(),
+      publicPhotoRef.get(),
+      publicationRef.get(),
+    ]);
 
-  if (!publicPhotoSnap.exists || !publicationSnap.exists) {
+  if (
+    !publicProfileSnap.exists ||
+    !publicPhotoSnap.exists ||
+    !publicationSnap.exists
+  ) {
     return null;
   }
 
