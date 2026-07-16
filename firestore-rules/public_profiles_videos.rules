@@ -82,22 +82,15 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 
 // ------------------------------------------------------------
 // Collection group: public_videos
+// A revalidação muda a projeção para PRIVATE na mesma transação;
+// por isso a consulta global continua filtrável por visibility.
 // ------------------------------------------------------------
 match /{path=**}/public_videos/{videoId} {
-  function ownerPublicProfileExists() {
-    return resource.data.ownerUid is string
-      && exists(
-        /databases/$(database)/documents/public_profiles/$(resource.data.ownerUid)
-      );
-  }
-
   allow list: if signedIn()
-    && ownerPublicProfileExists()
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
   allow get: if signedIn()
-    && ownerPublicProfileExists()
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
