@@ -8,8 +8,8 @@ import {
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
-  readProfilePublicMediaSnapshots,
-  restoreProfilePublicMedia,
+  readProfileMediaVisibilitySnapshots,
+  restoreProfileMediaVisibility,
 } from './profile-age-reverification-media';
 import {
   type AgeReverificationUserDocument,
@@ -127,7 +127,7 @@ export const reviewProfileAgeReverification = onCall<
         accountStatus === 'active' &&
         user.suspended !== true;
       const mediaSnapshots = canRestoreAccess
-        ? await readProfilePublicMediaSnapshots(transaction, targetUid)
+        ? await readProfileMediaVisibilitySnapshots(transaction, targetUid)
         : null;
       const timestamp = FieldValue.serverTimestamp();
       const publicProfileRef = db
@@ -163,7 +163,7 @@ export const reviewProfileAgeReverification = onCall<
         );
 
         if (canRestoreAccess && mediaSnapshots) {
-          restoreProfilePublicMedia(
+          restoreProfileMediaVisibility(
             transaction,
             mediaSnapshots,
             caseId,
@@ -235,7 +235,7 @@ export const reviewProfileAgeReverification = onCall<
           reviewedAt,
           reviewedBy: adminUid,
           resolution,
-          restoredPublicMediaCount: mediaSnapshots?.total ?? 0,
+          restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
           updatedAt: timestamp,
         },
         { merge: true }
@@ -273,7 +273,7 @@ export const reviewProfileAgeReverification = onCall<
           caseId,
           decision,
           nextStatus: finalStatus,
-          restoredPublicMediaCount: mediaSnapshots?.total ?? 0,
+          restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
           resolution,
         },
         timestamp,
@@ -289,7 +289,7 @@ export const reviewProfileAgeReverification = onCall<
         actorUid: adminUid,
         result: decision === 'VERIFY' ? 'ADULT' : 'UNDERAGE',
         source: 'moderation',
-        restoredPublicMediaCount: mediaSnapshots?.total ?? 0,
+        restoredMediaDocumentCount: mediaSnapshots?.totalDocuments ?? 0,
         createdAt: timestamp,
         createdAtMs: reviewedAt,
       });
