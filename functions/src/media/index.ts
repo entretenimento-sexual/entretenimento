@@ -9,16 +9,22 @@ export {
 
 export {
   createPhotoComment,
+} from './application/create-photo-comment-orchestrator.handler';
+export {
   moderatePhotoComment,
 } from './application/manage-photo-comment.handler';
 
 export {
   createVideoComment,
+} from './application/create-video-comment-orchestrator.handler';
+export {
   moderateVideoComment,
 } from './application/manage-video-comment.handler';
 
 export {
   publishPhoto,
+} from './application/publish-photo-orchestrator.handler';
+export {
   unpublishPhoto,
   setCoverPhoto,
 } from './application/manage-photo-publication.handler';
