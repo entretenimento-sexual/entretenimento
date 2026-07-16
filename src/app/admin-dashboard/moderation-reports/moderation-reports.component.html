@@ -188,6 +188,7 @@
       <div class="moderation-reports__list" role="list" aria-label="Lista de denúncias">
         @for (report of vm.filteredReports; track trackByReportId($index, report)) {
           @let videoContentReport = report.targetType === 'video' || report.targetType === 'video_comment' || report.targetType === 'video_rating';
+          @let minorProfileReport = report.targetType === 'profile' && report.reason === 'minor_safety';
           <article
             class="report-card"
             role="listitem"
@@ -262,6 +263,20 @@
                   }
                 </dd>
               </div>
+
+              @if (minorProfileReport && report.ageReverificationStatus) {
+                <div>
+                  <dt>Revalidação</dt>
+                  <dd>{{ report.ageReverificationStatus }}</dd>
+                </div>
+              }
+
+              @if (minorProfileReport && report.ageReverificationCaseId) {
+                <div>
+                  <dt>Caso</dt>
+                  <dd>{{ report.ageReverificationCaseId }}</dd>
+                </div>
+              }
             </dl>
 
             @if (report.reviewedBy || dateValue(report.reviewedAt)) {
@@ -344,44 +359,51 @@
                   maxlength="900"
                   [ngModel]="resolutionDraft(report)"
                   (ngModelChange)="setResolutionDraft(report, $event)"
-                  [placeholder]="videoContentReport ? 'Justifique objetivamente por que o conteúdo será mantido ou removido.' : 'Descreva a decisão, providência tomada ou motivo da rejeição.'"
+                  [placeholder]="videoContentReport ? 'Justifique objetivamente por que o conteúdo será mantido ou removido.' : minorProfileReport ? 'Registre os indícios, a solicitação ou a decisão sobre a revalidação.' : 'Descreva a decisão, providência tomada ou motivo da rejeição.'"
                   [attr.aria-label]="'Nota da moderação para denúncia ' + report.id"
                 ></textarea>
                 <mat-hint align="end">{{ resolutionDraftLength(report) }}/900</mat-hint>
               </mat-form-field>
             </section>
 
-            <footer class="report-card__actions" aria-label="Ações da denúncia">
-              <button
-                mat-stroked-button
-                type="button"
-                color="primary"
-                (click)="markReviewing(report)"
-                [disabled]="isBusy(report) || report.status === 'reviewing' || report.status === 'resolved'"
-              >
-                {{ isBusy(report) ? 'Atualizando...' : 'Marcar em análise' }}
-              </button>
+            @if (minorProfileReport) {
+              <app-profile-age-reverification-admin-actions
+                [report]="report"
+                [resolution]="resolutionDraft(report)"
+              />
+            } @else {
+              <footer class="report-card__actions" aria-label="Ações da denúncia">
+                <button
+                  mat-stroked-button
+                  type="button"
+                  color="primary"
+                  (click)="markReviewing(report)"
+                  [disabled]="isBusy(report) || report.status === 'reviewing' || report.status === 'resolved'"
+                >
+                  {{ isBusy(report) ? 'Atualizando...' : 'Marcar em análise' }}
+                </button>
 
-              <button
-                mat-flat-button
-                type="button"
-                color="primary"
-                (click)="resolveReport(report)"
-                [disabled]="isBusy(report) || report.status === 'resolved'"
-              >
-                {{ videoContentReport ? 'Remover conteúdo' : 'Resolver' }}
-              </button>
+                <button
+                  mat-flat-button
+                  type="button"
+                  color="primary"
+                  (click)="resolveReport(report)"
+                  [disabled]="isBusy(report) || report.status === 'resolved'"
+                >
+                  {{ videoContentReport ? 'Remover conteúdo' : 'Resolver' }}
+                </button>
 
-              <button
-                mat-stroked-button
-                type="button"
-                color="warn"
-                (click)="rejectReport(report)"
-                [disabled]="isBusy(report) || report.status === 'rejected'"
-              >
-                {{ videoContentReport ? 'Manter conteúdo' : 'Rejeitar' }}
-              </button>
-            </footer>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  color="warn"
+                  (click)="rejectReport(report)"
+                  [disabled]="isBusy(report) || report.status === 'rejected'"
+                >
+                  {{ videoContentReport ? 'Manter conteúdo' : 'Rejeitar' }}
+                </button>
+              </footer>
+            }
           </article>
         }
       </div>
