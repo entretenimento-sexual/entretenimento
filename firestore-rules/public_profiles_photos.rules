@@ -77,23 +77,15 @@ match /public_profiles/{userId}/public_photos/{photoId} {
 
 // ------------------------------------------------------------
 // Collection group: public_photos
-// Necessário para queries globais de Descobrir, Top, Últimas e Turbo.
+// A revalidação muda a projeção para PRIVATE na mesma transação;
+// por isso a consulta global continua filtrável por visibility.
 // ------------------------------------------------------------
 match /{path=**}/public_photos/{photoId} {
-  function ownerPublicProfileExists() {
-    return resource.data.ownerUid is string
-      && exists(
-        /databases/$(database)/documents/public_profiles/$(resource.data.ownerUid)
-      );
-  }
-
   allow list: if signedIn()
-    && ownerPublicProfileExists()
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
   allow get: if signedIn()
-    && ownerPublicProfileExists()
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
