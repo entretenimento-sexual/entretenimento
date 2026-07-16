@@ -6,8 +6,8 @@ import {
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
-  hideProfilePublicMedia,
-  readProfilePublicMediaSnapshots,
+  hideProfileMediaVisibility,
+  readProfileMediaVisibilitySnapshots,
 } from './profile-age-reverification-media';
 import { buildAgeReverificationDueAt } from './profile-age-reverification.policy';
 import {
@@ -95,14 +95,14 @@ export const requestProfileAgeReverification = onCall<
         );
       }
 
-      const mediaSnapshots = await readProfilePublicMediaSnapshots(
+      const mediaSnapshots = await readProfileMediaVisibilitySnapshots(
         transaction,
         targetUid
       );
       const nicknameIndexDocId = getNicknameIndexDocId(user);
       const timestamp = FieldValue.serverTimestamp();
 
-      hideProfilePublicMedia(
+      hideProfileMediaVisibility(
         transaction,
         mediaSnapshots,
         caseRef.id,
@@ -151,7 +151,7 @@ export const requestProfileAgeReverification = onCall<
         requestedAt,
         dueAt,
         requestedBy: adminUid,
-        hiddenPublicMediaCount: mediaSnapshots.total,
+        hiddenMediaDocumentCount: mediaSnapshots.totalDocuments,
         createdAt: timestamp,
         updatedAt: timestamp,
       });
@@ -175,7 +175,7 @@ export const requestProfileAgeReverification = onCall<
           caseId: caseRef.id,
           reason: 'minor_safety',
           targetType: 'profile',
-          hiddenPublicMediaCount: mediaSnapshots.total,
+          hiddenMediaDocumentCount: mediaSnapshots.totalDocuments,
           resolution,
         },
         timestamp,
@@ -188,7 +188,7 @@ export const requestProfileAgeReverification = onCall<
         caseId: caseRef.id,
         actorUid: adminUid,
         source: 'moderation',
-        hiddenPublicMediaCount: mediaSnapshots.total,
+        hiddenMediaDocumentCount: mediaSnapshots.totalDocuments,
         createdAt: timestamp,
         createdAtMs: requestedAt,
       });
