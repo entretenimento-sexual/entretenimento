@@ -1,5 +1,8 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  assertInteractionAccessInTransaction,
+} from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
@@ -96,6 +99,8 @@ export const rateVideo = onCall<RateVideoRequest>(
     const ratingRef = videoRef.collection('ratings').doc(viewerUid);
 
     return db.runTransaction(async (transaction) => {
+      await assertInteractionAccessInTransaction(transaction, viewerUid);
+
       const [videoSnap, ratingSnap] = await Promise.all([
         transaction.get(videoRef),
         transaction.get(ratingRef),
