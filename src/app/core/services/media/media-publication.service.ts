@@ -45,6 +45,11 @@ export interface IPublishPhotoCommand {
   reactionsEnabled?: boolean;
 }
 
+export interface IPublishPhotoResult {
+  photoId: string;
+  moderationStatus: 'PENDING_REVIEW' | 'APPROVED';
+}
+
 type TRecordPhotoViewSource = 'discover' | 'profile' | 'latest' | 'top' | 'boosted' | 'unknown';
 
 interface PublishPhotoCallableRequest {
@@ -58,10 +63,7 @@ interface PublishPhotoCallableRequest {
   reactionsEnabled: boolean;
 }
 
-interface PublishPhotoCallableResponse {
-  photoId: string;
-  moderationStatus: 'PENDING_REVIEW' | 'APPROVED';
-}
+type PublishPhotoCallableResponse = IPublishPhotoResult;
 
 interface PhotoIdCallableRequest {
   ownerUid: string;
@@ -194,12 +196,12 @@ export class MediaPublicationService {
     };
   }
 
-  publishPhoto$(command: IPublishPhotoCommand): Observable<void> {
+  publishPhoto$(command: IPublishPhotoCommand): Observable<IPublishPhotoResult> {
     const safeOwnerUid = (command.ownerUid ?? '').trim();
     const safePhotoId = (command.photo?.id ?? '').trim();
 
     if (!safeOwnerUid || !safePhotoId) {
-      return of(void 0);
+      return throwError(() => new Error('Foto inválida para publicação.'));
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
@@ -208,7 +210,7 @@ export class MediaPublicationService {
         PublishPhotoCallableResponse
       >(this.functions, 'publishPhoto');
 
-      await callable({
+      const response = await callable({
         ownerUid: safeOwnerUid,
         photoId: safePhotoId,
         visibility: command.visibility,
@@ -218,8 +220,9 @@ export class MediaPublicationService {
         commentsPolicy: command.commentsPolicy ?? 'EVERYONE',
         reactionsEnabled: command.reactionsEnabled ?? true,
       });
+
+      return response.data;
     }).pipe(
-      map(() => void 0),
       catchError((error) => {
         this.reportError(
           'Erro ao publicar a foto.',
