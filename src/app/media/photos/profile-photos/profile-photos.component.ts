@@ -689,7 +689,7 @@ export class ProfilePhotosComponent {
               ownerUid,
               url: item.url,
               alt: item.alt,
-              createdAt: item.createdAt,
+              createdAt: item.createdAt ?? 0,
               path: item.path,
               fileName: item.fileName,
             },
