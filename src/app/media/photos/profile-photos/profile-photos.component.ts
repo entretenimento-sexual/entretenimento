@@ -67,6 +67,7 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { MediaPolicyService, IMediaPolicyResult } from 'src/app/core/services/media/media-policy.service';
 import { MediaQueryService } from 'src/app/core/services/media/media-query.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
+import { getPhotoPublicationFeedback } from 'src/app/core/services/media/photo-publication-feedback';
 import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/photo-editor-session.service';
 import { IPhotoPublicationConfig } from 'src/app/core/interfaces/media/i-photo-publication-config';
@@ -688,7 +689,7 @@ export class ProfilePhotosComponent {
               ownerUid,
               url: item.url,
               alt: item.alt,
-              createdAt: item.createdAt ?? Date.now(),
+              createdAt: item.createdAt,
               path: item.path,
               fileName: item.fileName,
             },
@@ -699,8 +700,15 @@ export class ProfilePhotosComponent {
             commentsPolicy: 'EVERYONE',
             reactionsEnabled: true,
           }).pipe(
-            tap(() => {
-              this.errorNotifier.showSuccess('Foto publicada com sucesso.');
+            tap((result) => {
+              const feedback = getPhotoPublicationFeedback(result);
+
+              if (feedback.kind === 'warning') {
+                this.errorNotifier.showWarning(feedback.message);
+                return;
+              }
+
+              this.errorNotifier.showSuccess(feedback.message);
             }),
             catchError((error) => {
               this.reportError(
