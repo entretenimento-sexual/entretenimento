@@ -37,6 +37,11 @@ match /users/{userId} {
     return request.resource.data.diff(resource.data).changedKeys().hasAny([
       "adultConsent",
       "acceptedTerms",
+      "registrationFlowVersion",
+      "initialAdultConsentRequired",
+      "registrationCompletedAt",
+      "ageReverification",
+      "ageReverificationRestrictedAt",
 
       "role",
       "tier",
@@ -104,6 +109,14 @@ match /users/{userId} {
       && request.resource.data.uid == uid()
 
       && !hasField("adultConsent")
+      && !hasField("ageReverification")
+      && !hasField("ageReverificationRestrictedAt")
+      && hasField("registrationFlowVersion")
+      && request.resource.data.registrationFlowVersion == "v2"
+      && hasField("initialAdultConsentRequired")
+      && request.resource.data.initialAdultConsentRequired == true
+      && hasField("registrationCompletedAt")
+      && request.resource.data.registrationCompletedAt == null
 
       && (!hasField("role") || request.resource.data.role == "free")
       && (!hasField("tier") || request.resource.data.tier == "free")
