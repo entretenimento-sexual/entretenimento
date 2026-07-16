@@ -257,8 +257,16 @@ export class VideoLibraryService {
     return text || null;
   }
 
+  /**
+   * SUPRESSÃO EXPLÍCITA:
+   * - removido o fallback Date.now() para createdAt ausente ou corrompido.
+   *
+   * Motivo:
+   * - data inventada altera ordenação e faz vídeo antigo parecer recém-enviado;
+   * - zero preserva o contrato numérico e representa data desconhecida.
+   */
   private normalizeDateMs(value: unknown): number {
-    return this.normalizeOptionalDateMs(value) ?? Date.now();
+    return this.normalizeOptionalDateMs(value) ?? 0;
   }
 
   private normalizeOptionalDateMs(value: unknown): number | null {
@@ -267,29 +275,50 @@ export class VideoLibraryService {
     }
 
     if (value instanceof Date) {
-      return value.getTime();
+      const millis = value.getTime();
+      return Number.isFinite(millis) && millis > 0
+        ? Math.trunc(millis)
+        : null;
     }
 
-    if (
-      typeof value === 'object' &&
-      value !== null &&
-      'toDate' in value &&
-      typeof (value as { toDate?: unknown }).toDate === 'function'
-    ) {
+    if (typeof value !== 'object' || value === null) {
+      return null;
+    }
+
+    const timestamp = value as {
+      toMillis?: () => number;
+      toDate?: () => Date;
+      seconds?: unknown;
+    };
+
+    if (typeof timestamp.toMillis === 'function') {
       try {
-        return (value as { toDate: () => Date }).toDate().getTime();
+        const millis = timestamp.toMillis();
+        return Number.isFinite(millis) && millis > 0
+          ? Math.trunc(millis)
+          : null;
+      } catch {
+        return null;
+      }
+    }
+
+    if (typeof timestamp.toDate === 'function') {
+      try {
+        const millis = timestamp.toDate().getTime();
+        return Number.isFinite(millis) && millis > 0
+          ? Math.trunc(millis)
+          : null;
       } catch {
         return null;
       }
     }
 
     if (
-      typeof value === 'object' &&
-      value !== null &&
-      'seconds' in value &&
-      typeof (value as { seconds?: unknown }).seconds === 'number'
+      typeof timestamp.seconds === 'number' &&
+      Number.isFinite(timestamp.seconds) &&
+      timestamp.seconds > 0
     ) {
-      return Number((value as { seconds: number }).seconds) * 1000;
+      return Math.trunc(timestamp.seconds * 1000);
     }
 
     return null;
