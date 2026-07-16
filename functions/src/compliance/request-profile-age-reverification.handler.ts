@@ -95,11 +95,18 @@ export const requestProfileAgeReverification = onCall<
         );
       }
 
+      const nicknameIndexDocId = getNicknameIndexDocId(user);
+      const nicknameIndexRef = nicknameIndexDocId
+        ? db.collection('public_index').doc(nicknameIndexDocId)
+        : null;
+      const publicProfileSnapshot = await transaction.get(publicProfileRef);
+      const nicknameIndexSnapshot = nicknameIndexRef
+        ? await transaction.get(nicknameIndexRef)
+        : null;
       const mediaSnapshots = await readProfileMediaVisibilitySnapshots(
         transaction,
         targetUid
       );
-      const nicknameIndexDocId = getNicknameIndexDocId(user);
       const timestamp = FieldValue.serverTimestamp();
 
       hideProfileMediaVisibility(
@@ -136,10 +143,8 @@ export const requestProfileAgeReverification = onCall<
 
       transaction.delete(publicProfileRef);
 
-      if (nicknameIndexDocId) {
-        transaction.delete(
-          db.collection('public_index').doc(nicknameIndexDocId)
-        );
+      if (nicknameIndexRef) {
+        transaction.delete(nicknameIndexRef);
       }
 
       transaction.create(caseRef, {
@@ -152,6 +157,13 @@ export const requestProfileAgeReverification = onCall<
         dueAt,
         requestedBy: adminUid,
         hiddenMediaDocumentCount: mediaSnapshots.totalDocuments,
+        publicProfileBackup: publicProfileSnapshot.exists
+          ? publicProfileSnapshot.data()
+          : null,
+        nicknameIndexBackup: nicknameIndexSnapshot?.exists
+          ? nicknameIndexSnapshot.data()
+          : null,
+        nicknameIndexDocId: nicknameIndexDocId || null,
         createdAt: timestamp,
         updatedAt: timestamp,
       });
