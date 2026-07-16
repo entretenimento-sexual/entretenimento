@@ -1,5 +1,8 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  assertInteractionAccessInTransaction,
+} from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
@@ -76,6 +79,8 @@ export const updateVideoPublicationSettings =
       );
 
       return db.runTransaction(async (transaction) => {
+        await assertInteractionAccessInTransaction(transaction, ownerUid);
+
         const [privateVideoSnap, publicationSnap, publicVideoSnap] =
           await Promise.all([
             transaction.get(privateVideoRef),
