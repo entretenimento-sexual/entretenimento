@@ -38,6 +38,8 @@ export class RegisterFlowFacade {
         termsAccepted: hasAcceptedCurrentTerms(user?.acceptedTerms),
         profileCompleted: user?.profileCompleted === true,
         adultConsentAccepted: adultConsentAccepted === true,
+        initialAdultConsentRequired:
+          user?.initialAdultConsentRequired === true,
       };
 
       return this.navigation.resolveVm(state);
@@ -73,6 +75,7 @@ export class RegisterFlowFacade {
       a.termsAccepted === b.termsAccepted &&
       a.profileCompleted === b.profileCompleted &&
       a.adultConsentAccepted === b.adultConsentAccepted &&
+      a.initialAdultConsentRequired === b.initialAdultConsentRequired &&
       a.currentStep === b.currentStep &&
       a.nextRoute === b.nextRoute &&
       a.progress === b.progress &&
