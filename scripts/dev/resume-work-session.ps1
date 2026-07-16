@@ -236,6 +236,10 @@ if ($Validate) {
     Invoke-NativeStep 'Executando E2E completo de videos' {
       npm.cmd run test:media:video:e2e
     }
+
+    Invoke-NativeStep 'Executando E2E de revalidacao de idade' {
+      npm.cmd run test:compliance:age:e2e
+    }
   } finally {
     if (Test-Path (Join-Path $ProjectRoot 'firestore.rules')) {
       & git restore -- firestore.rules
