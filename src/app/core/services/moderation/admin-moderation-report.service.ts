@@ -8,7 +8,8 @@
 // - leitura/listagem depende das Firestore Rules com claim admin;
 // - atualizações genéricas preservam o fluxo existente;
 // - decisões sobre conteúdo de vídeo passam por Callable administrativa;
-// - Functions é resolvido somente quando uma decisão de vídeo é executada;
+// - possível menoridade em perfil usa Callables específicas e auditáveis;
+// - Functions é resolvido somente quando uma decisão especializada é executada;
 // - decisões são registradas também em /admin_logs;
 // - operações AngularFire rodam via FirestoreContextService;
 // - erros são reportados ao GlobalErrorHandlerService.
@@ -39,6 +40,7 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
   IModerationReportVm,
+  ModerationAgeReverificationStatus,
   ModerationReportAction,
   ModerationReportReason,
   ModerationReportStatus,
@@ -77,10 +79,44 @@ interface ReviewVideoContentReportResponse {
   cleanupPending: boolean;
 }
 
+interface RequestProfileAgeReverificationRequest {
+  reportId: string;
+  resolution: string;
+}
+
+interface RequestProfileAgeReverificationResponse {
+  caseId: string;
+  status: 'REQUIRED';
+}
+
+interface ReviewProfileAgeReverificationRequest {
+  reportId: string;
+  decision: 'VERIFY' | 'REJECT';
+  resolution: string;
+}
+
+interface ReviewProfileAgeReverificationResponse {
+  reportId: string;
+  status: 'VERIFIED' | 'REJECTED';
+}
+
+interface ReviewProfileMinorSafetyReportRequest {
+  reportId: string;
+  resolution: string;
+}
+
+interface ReviewProfileMinorSafetyReportResponse {
+  reportId: string;
+  status: 'rejected';
+}
+
 export interface AdminModerationReportVm extends IModerationReportVm {
   reviewedBy?: string | null;
   reviewedAt?: unknown;
   resolution?: string | null;
+  ageReverificationCaseId?: string | null;
+  ageReverificationStatus?: ModerationAgeReverificationStatus | null;
+  ageReverificationSubmittedAt?: unknown;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -118,6 +154,27 @@ export class AdminModerationReportService {
 
     if (!safeReportId || !normalized) {
       return throwError(() => new Error('Revisão de denúncia inválida.'));
+    }
+
+    if (
+      normalized.reportTargetType === 'profile' &&
+      normalized.reportReason === 'minor_safety'
+    ) {
+      if (normalized.status === 'rejected') {
+        return this.rejectProfileMinorSafetyReport$(
+          safeReportId,
+          normalized.resolution ??
+            'Denúncia rejeitada por ausência de indícios suficientes.'
+        );
+      }
+
+      if (normalized.status === 'resolved') {
+        return throwError(
+          () => new Error(
+            'Use a decisão específica de revalidação para encerrar esta denúncia.'
+          )
+        );
+      }
     }
 
     if (
@@ -203,7 +260,7 @@ export class AdminModerationReportService {
     resolution: string
   ): Observable<void> {
     const safeReportId = String(reportId ?? '').trim();
-    const safeResolution = String(resolution ?? '').trim().slice(0, 900);
+    const safeResolution = this.normalizeResolution(resolution);
 
     if (
       !safeReportId ||
@@ -215,11 +272,8 @@ export class AdminModerationReportService {
       );
     }
 
-    const reviewVideoContentReportCallable =
-      this.createReviewVideoContentReportCallable();
-
     return from(
-      reviewVideoContentReportCallable({
+      this.createReviewVideoContentReportCallable()({
         reportId: safeReportId,
         decision,
         resolution: safeResolution,
@@ -230,6 +284,100 @@ export class AdminModerationReportService {
         this.reportError(error, 'reviewVideoContentReport', {
           hasReportId: !!safeReportId,
           decision,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  requestProfileAgeReverification$(
+    reportId: string,
+    resolution: string
+  ): Observable<void> {
+    const safeReportId = String(reportId ?? '').trim();
+    const safeResolution = this.normalizeResolution(resolution);
+
+    if (!safeReportId || safeResolution.length < 8) {
+      return throwError(
+        () => new Error('Solicitação de revalidação inválida.')
+      );
+    }
+
+    return from(
+      this.createRequestProfileAgeReverificationCallable()({
+        reportId: safeReportId,
+        resolution: safeResolution,
+      })
+    ).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(error, 'requestProfileAgeReverification', {
+          hasReportId: !!safeReportId,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  reviewProfileAgeReverification$(
+    reportId: string,
+    decision: 'VERIFY' | 'REJECT',
+    resolution: string
+  ): Observable<void> {
+    const safeReportId = String(reportId ?? '').trim();
+    const safeResolution = this.normalizeResolution(resolution);
+
+    if (
+      !safeReportId ||
+      !['VERIFY', 'REJECT'].includes(decision) ||
+      safeResolution.length < 8
+    ) {
+      return throwError(
+        () => new Error('Decisão de revalidação inválida.')
+      );
+    }
+
+    return from(
+      this.createReviewProfileAgeReverificationCallable()({
+        reportId: safeReportId,
+        decision,
+        resolution: safeResolution,
+      })
+    ).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(error, 'reviewProfileAgeReverification', {
+          hasReportId: !!safeReportId,
+          decision,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  rejectProfileMinorSafetyReport$(
+    reportId: string,
+    resolution: string
+  ): Observable<void> {
+    const safeReportId = String(reportId ?? '').trim();
+    const safeResolution = this.normalizeResolution(resolution);
+
+    if (!safeReportId || safeResolution.length < 8) {
+      return throwError(
+        () => new Error('Rejeição da denúncia inválida.')
+      );
+    }
+
+    return from(
+      this.createReviewProfileMinorSafetyReportCallable()({
+        reportId: safeReportId,
+        resolution: safeResolution,
+      })
+    ).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(error, 'rejectProfileMinorSafetyReport', {
+          hasReportId: !!safeReportId,
         });
         return throwError(() => error);
       })
@@ -248,9 +396,49 @@ export class AdminModerationReportService {
     );
   }
 
+  private createRequestProfileAgeReverificationCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        RequestProfileAgeReverificationRequest,
+        RequestProfileAgeReverificationResponse
+      >(
+        inject(Functions),
+        'requestProfileAgeReverification'
+      )
+    );
+  }
+
+  private createReviewProfileAgeReverificationCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReviewProfileAgeReverificationRequest,
+        ReviewProfileAgeReverificationResponse
+      >(
+        inject(Functions),
+        'reviewProfileAgeReverification'
+      )
+    );
+  }
+
+  private createReviewProfileMinorSafetyReportCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReviewProfileMinorSafetyReportRequest,
+        ReviewProfileMinorSafetyReportResponse
+      >(
+        inject(Functions),
+        'reviewProfileMinorSafetyReport'
+      )
+    );
+  }
+
   private normalizeReport(
     report: AdminModerationReportVm
   ): AdminModerationReportVm {
+    const ageStatus = String(report.ageReverificationStatus ?? '')
+      .trim()
+      .toUpperCase();
+
     return {
       ...report,
       id: String(report.id ?? '').trim(),
@@ -265,6 +453,18 @@ export class AdminModerationReportService {
       route: String(report.route ?? '').trim() || null,
       status: report.status,
       moderationAction: report.moderationAction ?? null,
+      ageReverificationCaseId:
+        String(report.ageReverificationCaseId ?? '').trim() || null,
+      ageReverificationStatus: [
+        'REQUIRED',
+        'SUBMITTED',
+        'UNDER_REVIEW',
+        'VERIFIED',
+        'REJECTED',
+        'EXPIRED',
+      ].includes(ageStatus)
+        ? ageStatus as ModerationAgeReverificationStatus
+        : null,
       source: report.source,
       resolution: String(report.resolution ?? '').trim() || null,
       reviewedBy: String(report.reviewedBy ?? '').trim() || null,
@@ -287,7 +487,7 @@ export class AdminModerationReportService {
     const reportTargetType = String(
       patch?.reportTargetType ?? ''
     ).trim() as ModerationReportTargetType;
-    const resolution = String(patch?.resolution ?? '').trim().slice(0, 900);
+    const resolution = this.normalizeResolution(patch?.resolution);
 
     if (!['reviewing', 'resolved', 'rejected'].includes(status)) {
       return null;
@@ -309,6 +509,10 @@ export class AdminModerationReportService {
       reportTargetType: reportTargetType || null,
       resolution: resolution || null,
     };
+  }
+
+  private normalizeResolution(value: unknown): string {
+    return String(value ?? '').trim().slice(0, 900);
   }
 
   private isVideoContentTarget(
