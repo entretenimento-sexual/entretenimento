@@ -21,7 +21,7 @@
       <mat-form-field appearance="outline">
         <mat-label>Motivo da denúncia</mat-label>
         <mat-select formControlName="reason" required aria-label="Motivo da denúncia">
-          @for (reason of reasons; track reason.value) {
+          @for (reason of reasons(); track reason.value) {
             <mat-option [value]="reason.value">
               {{ reason.label }}
             </mat-option>
@@ -30,6 +30,9 @@
 
         @if (form.controls.reason.touched && form.controls.reason.hasError('required')) {
           <mat-error>Selecione um motivo para continuar.</mat-error>
+        }
+        @if (form.controls.reason.hasError('targetMismatch')) {
+          <mat-error>Este motivo não é válido para o tipo de conteúdo denunciado.</mat-error>
         }
       </mat-form-field>
 
