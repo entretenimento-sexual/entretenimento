@@ -179,10 +179,10 @@ export const reviewProfileAgeReverification = onCall<
             },
             ...(canRestoreAccess
               ? {
-                  publicVisibility: 'visible',
-                  interactionBlocked: false,
-                  ageReverificationRestrictedAt: null,
-                }
+                publicVisibility: 'visible',
+                interactionBlocked: false,
+                ageReverificationRestrictedAt: null,
+              }
               : {}),
             updatedAt: timestamp,
           },
@@ -207,10 +207,10 @@ export const reviewProfileAgeReverification = onCall<
             publicProfileRef,
             publicProfileBackup
               ? {
-                  ...publicProfileBackup,
-                  uid: targetUid,
-                  updatedAt: timestamp,
-                }
+                ...publicProfileBackup,
+                uid: targetUid,
+                updatedAt: timestamp,
+              }
               : buildPublicProfileSeed(user, targetUid, reviewedAt)
           );
 
@@ -219,18 +219,18 @@ export const reviewProfileAgeReverification = onCall<
               db.collection('public_index').doc(nicknameIndexDocId),
               nicknameIndexBackup
                 ? {
-                    ...nicknameIndexBackup,
-                    uid: targetUid,
-                    lastChangedAt: timestamp,
-                  }
+                  ...nicknameIndexBackup,
+                  uid: targetUid,
+                  lastChangedAt: timestamp,
+                }
                 : {
-                    type: 'nickname',
-                    value: String(user.nicknameNormalized ?? '').trim() ||
-                      normalizeNicknameForIndex(user.nickname),
-                    uid: targetUid,
-                    createdAt: reviewedAt,
-                    lastChangedAt: reviewedAt,
-                  }
+                  type: 'nickname',
+                  value: String(user.nicknameNormalized ?? '').trim() ||
+                    normalizeNicknameForIndex(user.nickname),
+                  uid: targetUid,
+                  createdAt: reviewedAt,
+                  lastChangedAt: reviewedAt,
+                }
             );
           }
         }
