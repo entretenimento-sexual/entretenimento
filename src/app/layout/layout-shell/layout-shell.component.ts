@@ -230,7 +230,17 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
         sidebarShouldOverlay,
         sidebarShouldCompact,
         navbarContextActions: shellContextActions.slice(0, 1),
-        sidebarQuickActions: shellContextActions,
+        /**
+         * SUPRESSÃO EXPLÍCITA:
+         * - Editar preferências deixa de ser ação rápida do sidebar.
+         *
+         * Motivo:
+         * - a mesma rota agora pertence ao submenu Conta;
+         * - o atalho contextual da navbar continua disponível.
+         */
+        sidebarQuickActions: shellContextActions.filter(
+          (action) => action.id !== 'edit-preferences'
+        ),
       };
     }),
     distinctUntilChanged((a, b) =>
