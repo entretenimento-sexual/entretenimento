@@ -23,6 +23,8 @@
       [lockCollapsed]="vm.isChatLayout"
       (toggleRequested)="onToggleSidebar()"
       (collapseRequested)="onToggleCollapse()"
+      (groupToggleRequested)="onToggleSidebarGroup($event)"
+      (groupCloseRequested)="onCloseSidebarGroup($event)"
     ></app-universal-sidebar>
 
     <div
