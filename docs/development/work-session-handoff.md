@@ -3,8 +3,8 @@
 ## Branch e checkpoint funcional
 
 - Branch: `feat/auth-password-recovery-polish`
-- Último checkpoint funcional: `89b5f946cd41c2605568064317e3dcc2329d9bbd`
-- Commit funcional: `fix(navigation): consume account subscription composition directly`
+- Último checkpoint funcional: `082f0244625f750d95c68a1d05350ce77839e1dc`
+- Commit funcional: `test(navigation): assert service exposes subscription under account`
 
 O topo remoto pode conter commits posteriores apenas de documentação. O commit funcional acima deve aparecer no histórico recente da branch.
 
@@ -57,6 +57,7 @@ npm.cmd run work:resume:start
 Confirme no histórico recente a presença de:
 
 ```text
+082f0244 test(navigation): assert service exposes subscription under account
 89b5f946 fix(navigation): consume account subscription composition directly
 ```
 
