@@ -67,7 +67,7 @@ if errorlevel 1 (
 
 echo [emu:full] Processamento local de MP4/WebM: habilitado
 echo [emu:full] Subindo auth, firestore, storage e functions...
-call npm.cmd run emu:media
+call npm.cmd run emu:media:start
 set "EMU_EXIT=%ERRORLEVEL%"
 
 if not "%EMU_EXIT%"=="0" (
