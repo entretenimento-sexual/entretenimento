@@ -130,6 +130,10 @@ export class UniversalSidebarComponent {
     return isSidebarGroupItem(item);
   }
 
+  asLinkItem(item: SidebarItem): SidebarLinkItem | null {
+    return isSidebarGroupItem(item) ? null : item;
+  }
+
   isGroupExpanded(group: SidebarGroupItem): boolean {
     const explicitlyExpanded = this.vm?.expandedGroupIds?.includes(group.id) === true;
 
