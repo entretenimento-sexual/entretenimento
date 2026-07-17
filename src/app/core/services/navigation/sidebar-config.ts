@@ -18,6 +18,7 @@
 // - mantém Conversas como entrada única na sidebar;
 // - mantém rotas de friends/chat reconhecidas como área Conversas;
 // - expõe Fotos e Vídeos como entradas próprias da área de mídia;
+// - agrupa os destinos pessoais sob o menu Conta;
 // - subações ficam no contexto interno do Chat.
 export type SidebarSectionKey =
   | 'dashboard'
@@ -30,7 +31,7 @@ export type SidebarSectionKey =
   | 'settings'
   | 'unknown';
 
-export interface SidebarItem {
+export interface SidebarLinkItem {
   id: string;
   label: string;
   route: string;
@@ -42,11 +43,37 @@ export interface SidebarItem {
   badgeLabel?: string | null;
 }
 
-export interface SidebarItemConfig extends SidebarItem {
+export interface SidebarGroupItem {
+  kind: 'group';
+  id: string;
+  label: string;
+  icon?: string;
+  ariaLabel?: string;
+  disabled?: boolean;
+  children: SidebarLinkItem[];
+}
+
+export type SidebarItem = SidebarLinkItem | SidebarGroupItem;
+
+interface SidebarAccessRequirements {
   requiresSubscriber?: boolean;
   requiresVip?: boolean;
   requiresAdmin?: boolean;
 }
+
+export interface SidebarLinkItemConfig
+  extends SidebarLinkItem,
+    SidebarAccessRequirements {}
+
+export interface SidebarGroupItemConfig
+  extends SidebarGroupItem,
+    SidebarAccessRequirements {
+  children: SidebarLinkItemConfig[];
+}
+
+export type SidebarItemConfig =
+  | SidebarLinkItemConfig
+  | SidebarGroupItemConfig;
 
 export interface SidebarSection {
   key: SidebarSectionKey;
@@ -213,39 +240,48 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
   },
   {
     key: 'settings',
-    title: 'Perfil',
+    title: '',
     items: [
       {
-        id: 'my-profile',
-        label: 'Meu perfil',
-        route: '/perfil',
-        icon: '🙍',
-        exact: false,
-        ariaLabel: 'Ir para meu perfil',
-      },
-      {
-        id: 'preferences',
-        label: 'Preferências',
-        route: '/preferencias',
-        icon: '⚙️',
-        exact: false,
-        ariaLabel: 'Ir para preferências',
-      },
-      {
-        id: 'my-account',
-        label: 'Minha conta',
-        route: '/conta',
-        icon: '🧾',
-        exact: false,
-        ariaLabel: 'Ir para a área da conta',
-      },
-      {
-        id: 'safety-center',
-        label: 'Segurança',
-        route: '/dashboard/seguranca',
-        icon: '🛡️',
-        exact: false,
-        ariaLabel: 'Abrir central de segurança e confiança',
+        kind: 'group',
+        id: 'account',
+        label: 'Conta',
+        icon: '👤',
+        ariaLabel: 'Abrir opções da conta',
+        children: [
+          {
+            id: 'my-profile',
+            label: 'Meu perfil',
+            route: '/perfil',
+            icon: '🙍',
+            exact: false,
+            ariaLabel: 'Ir para meu perfil',
+          },
+          {
+            id: 'preferences',
+            label: 'Preferências',
+            route: '/preferencias',
+            icon: '⚙️',
+            exact: false,
+            ariaLabel: 'Ir para preferências',
+          },
+          {
+            id: 'my-account',
+            label: 'Dados da conta',
+            route: '/conta',
+            icon: '🧾',
+            exact: false,
+            ariaLabel: 'Ir para dados da conta',
+          },
+          {
+            id: 'safety-center',
+            label: 'Segurança',
+            route: '/dashboard/seguranca',
+            icon: '🛡️',
+            exact: false,
+            ariaLabel: 'Abrir central de segurança e confiança',
+          },
+        ],
       },
     ],
   },
@@ -266,6 +302,12 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
   },
 ] as const;
 
+export function isSidebarGroupItem(
+  item: SidebarItem
+): item is SidebarGroupItem {
+  return 'kind' in item && item.kind === 'group';
+}
+
 export function resolveSidebarSectionFromUrl(url: string): SidebarSectionKey {
   const clean = (url ?? '').trim();
 
@@ -279,22 +321,53 @@ export function resolveSidebarSectionFromUrl(url: string): SidebarSectionKey {
 }
 
 export function buildSidebarSections(flags: SidebarAccessFlags): SidebarSection[] {
+  return AUTH_SIDEBAR_CONFIG
+    .map((section): SidebarSection => ({
+      key: section.key,
+      title: section.title,
+      items: section.items
+        .map((item) => buildVisibleItem(item, flags))
+        .filter((item): item is SidebarItem => item !== null),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
+function buildVisibleItem(
+  item: SidebarItemConfig,
+  flags: SidebarAccessFlags
+): SidebarItem | null {
+  if (!hasSidebarAccess(item, flags)) {
+    return null;
+  }
+
+  if ('kind' in item && item.kind === 'group') {
+    const children = item.children.filter((child) =>
+      hasSidebarAccess(child, flags)
+    );
+
+    return children.length > 0
+      ? {
+          ...item,
+          children,
+        }
+      : null;
+  }
+
+  return item;
+}
+
+function hasSidebarAccess(
+  item: SidebarAccessRequirements,
+  flags: SidebarAccessFlags
+): boolean {
   const {
     isSubscriber,
     isVip,
     isAdmin = false,
   } = flags;
 
-  return AUTH_SIDEBAR_CONFIG
-    .map((section): SidebarSection => ({
-      key: section.key,
-      title: section.title,
-      items: section.items.filter((item) => {
-        if (item.requiresAdmin && !isAdmin) return false;
-        if (item.requiresVip && !isVip) return false;
-        if (item.requiresSubscriber && !isSubscriber) return false;
-        return true;
-      }),
-    }))
-    .filter((section) => section.items.length > 0);
+  if (item.requiresAdmin && !isAdmin) return false;
+  if (item.requiresVip && !isVip) return false;
+  if (item.requiresSubscriber && !isSubscriber) return false;
+  return true;
 }
