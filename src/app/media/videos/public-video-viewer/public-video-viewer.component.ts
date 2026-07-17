@@ -89,7 +89,6 @@ export class PublicVideoViewerComponent {
   private readonly comments = inject(MediaVideoCommentsService);
   private readonly ratings = inject(MediaVideoRatingsService);
   private readonly errorNotification = inject(ErrorNotificationService);
-  private readonly recordedViewKeys = new Set<string>();
 
   @ViewChild('videoPlayer')
   private videoPlayer?: ElementRef<HTMLVideoElement>;
@@ -374,6 +373,10 @@ export class PublicVideoViewerComponent {
             viewerUid
           );
         }),
+        catchError(() => {
+          this.errorNotification.showError('Erro ao atualizar curtida.');
+          return EMPTY;
+        }),
         finalize(() => this.togglingLikeSubject.next(false))
       )
       .subscribe();
@@ -647,9 +650,8 @@ export class PublicVideoViewerComponent {
     const video = this.current;
     const ownerUid = (video?.ownerUid ?? this.data.ownerUid ?? '').trim();
     const videoId = (video?.id ?? '').trim();
-    const viewKey = `${ownerUid}:${videoId}`;
 
-    if (!ownerUid || !videoId || this.recordedViewKeys.has(viewKey)) {
+    if (!ownerUid || !videoId) {
       return;
     }
 
@@ -660,7 +662,6 @@ export class PublicVideoViewerComponent {
           if (!viewerUid || viewerIsOwner) {
             return EMPTY;
           }
-          this.recordedViewKeys.add(viewKey);
           return this.videoViewTracking.recordVideoView$(
             ownerUid,
             videoId,
