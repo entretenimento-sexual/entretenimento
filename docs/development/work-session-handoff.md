@@ -1,10 +1,12 @@
 # Retomada da sessão de desenvolvimento
 
-## Branch e checkpoint
+## Branch e checkpoint funcional
 
 - Branch: `feat/auth-password-recovery-polish`
-- Checkpoint remoto: `89b5f946cd41c2605568064317e3dcc2329d9bbd`
-- Commit: `fix(navigation): consume account subscription composition directly`
+- Último checkpoint funcional: `89b5f946cd41c2605568064317e3dcc2329d9bbd`
+- Commit funcional: `fix(navigation): consume account subscription composition directly`
+
+O topo remoto pode conter commits posteriores apenas de documentação. O commit funcional acima deve aparecer no histórico recente da branch.
 
 ## Estado atual do sidebar universal
 
@@ -48,11 +50,11 @@ cd C:\entretenimento
 git status --short
 git switch feat/auth-password-recovery-polish
 git pull --ff-only
-git log -1 --oneline
+git log -5 --oneline
 npm.cmd run work:resume:start
 ```
 
-Checkpoint esperado:
+Confirme no histórico recente a presença de:
 
 ```text
 89b5f946 fix(navigation): consume account subscription composition directly
