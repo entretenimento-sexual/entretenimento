@@ -406,11 +406,9 @@ async function run() {
       'PUBLIC'
     );
 
-    await Promise.all(
-      restrictedCallables.map(([callable, payload]) =>
-        expectCallableFailure(callable, payload)
-      )
-    );
+    for (const [callable, payload] of restrictedCallables) {
+      await expectCallableFailure(callable, payload);
+    }
 
     const [videoAccess, photoAccess] = await Promise.all([
       getPublicVideoAccessUrls({
