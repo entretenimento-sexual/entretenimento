@@ -78,28 +78,28 @@ const freePorts = states.filter((state) => !state.used).map((state) => state.por
 
 if (occupiedPorts.length === 0) {
   console.log('[dev:session] Todas as portas esperadas estão livres.');
-  process.exit(0);
-}
-
-if (freePorts.length > 0) {
+  process.exitCode = 0;
+} else if (freePorts.length > 0) {
   console.error('[dev:session] Ambiente local parcialmente ocupado.');
   console.error(`[dev:session] Portas ocupadas: ${occupiedPorts.join(', ')}.`);
   console.error(`[dev:session] Portas livres: ${freePorts.join(', ')}.`);
-  process.exit(1);
+  process.exitCode = 1;
+} else {
+  const health = await isExpectedSessionHealthy();
+
+  if (health.healthy) {
+    console.log('[dev:session] Angular e Firebase já estão ativos e saudáveis.');
+    process.exitCode = 10;
+  } else {
+    console.error(
+      '[dev:session] Todas as portas estão ocupadas, mas a sessão não foi reconhecida como saudável.'
+    );
+    console.error(
+      `[dev:session] Angular status=${health.angularStatus} assinatura=${health.angularSignature}.`
+    );
+    console.error(
+      `[dev:session] Firebase UI status=${health.firebaseUiStatus} assinatura=${health.firebaseSignature}.`
+    );
+    process.exitCode = 1;
+  }
 }
-
-const health = await isExpectedSessionHealthy();
-
-if (health.healthy) {
-  console.log('[dev:session] Angular e Firebase já estão ativos e saudáveis.');
-  process.exit(10);
-}
-
-console.error('[dev:session] Todas as portas estão ocupadas, mas a sessão não foi reconhecida como saudável.');
-console.error(
-  `[dev:session] Angular status=${health.angularStatus} assinatura=${health.angularSignature}.`
-);
-console.error(
-  `[dev:session] Firebase UI status=${health.firebaseUiStatus} assinatura=${health.firebaseSignature}.`
-);
-process.exit(1);
