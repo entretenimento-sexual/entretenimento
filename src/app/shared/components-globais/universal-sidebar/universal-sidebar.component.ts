@@ -294,7 +294,10 @@ export class UniversalSidebarComponent {
 
   @HostListener('document:keydown.escape')
   onEscapePressed(): void {
-    const expandedGroupId = this.vm?.expandedGroupIds?.at(-1);
+    const expandedGroupIds = this.vm?.expandedGroupIds ?? [];
+    const expandedGroupId = expandedGroupIds.length > 0
+      ? expandedGroupIds[expandedGroupIds.length - 1]
+      : undefined;
 
     if (expandedGroupId) {
       this.groupCloseRequested.emit(expandedGroupId);
