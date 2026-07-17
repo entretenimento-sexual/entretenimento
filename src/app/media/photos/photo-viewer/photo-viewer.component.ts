@@ -623,7 +623,10 @@ export class PhotoViewerComponent {
             this.data.source ?? 'profile'
           );
         }),
-        catchError(() => EMPTY)
+        catchError(() => {
+          this.recordedViewKeys.delete(viewKey);
+          return EMPTY;
+        })
       )
       .subscribe();
   }
