@@ -68,7 +68,10 @@ export interface UniversalSidebarQuickAction {
   standalone: true,
   imports: [CommonModule, RouterModule],
   templateUrl: './universal-sidebar.component.html',
-  styleUrls: ['./universal-sidebar.component.css'],
+  styleUrls: [
+    './universal-sidebar.component.css',
+    './universal-sidebar-groups.css',
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UniversalSidebarComponent {
