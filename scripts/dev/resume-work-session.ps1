@@ -2,11 +2,12 @@
 param(
   [switch]$Install,
   [switch]$Validate,
+  [switch]$Full,
   [switch]$Start
 )
 
 $ErrorActionPreference = 'Stop'
-$Branch = 'feat/auth-password-recovery-polish'
+$Branch = 'recovery/latest-stable-90fb03fd'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 function Invoke-NativeStep {
@@ -88,6 +89,7 @@ function Save-DependencyInstallStamp {
 
 Set-Location $ProjectRoot
 Write-Host "[work:resume] Projeto: $ProjectRoot"
+Write-Host "[work:resume] Branch: $Branch"
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
   throw 'Git nao foi encontrado no PATH.'
@@ -194,22 +196,28 @@ if ($Install -or -not $functionsInstallCurrent) {
     -StampPath $functionsStampPath
 }
 
-if ($Validate) {
+if ($Validate -or $Full) {
   try {
     Invoke-NativeStep 'Compilando Functions' {
       npm.cmd run functions:build
-    }
-
-    Invoke-NativeStep 'Validando lint completo das Functions' {
-      npm.cmd --prefix functions run lint:deploy:all
     }
 
     Invoke-NativeStep 'Executando testes Angular' {
       npm.cmd run test:ci
     }
 
-    Invoke-NativeStep 'Executando E2E completo de videos' {
-      npm.cmd run test:media:video:e2e
+    Invoke-NativeStep 'Validando Rules e build Angular' {
+      npm.cmd run build:safe
+    }
+
+    if ($Full) {
+      Invoke-NativeStep 'Validando lint completo das Functions' {
+        npm.cmd --prefix functions run lint:deploy:all
+      }
+
+      Invoke-NativeStep 'Executando E2E completo de videos' {
+        npm.cmd run test:media:video:e2e
+      }
     }
   } finally {
     if (Test-Path (Join-Path $ProjectRoot 'firestore.rules')) {
