@@ -8,6 +8,14 @@
   cursor: pointer;
 }
 
+.universal-sidebar__group-toggle:focus-visible {
+  outline: var(
+    --focus-ring,
+    3px solid color-mix(in oklab, var(--primary-color) 58%, white)
+  );
+  outline-offset: var(--focus-offset, 2px);
+}
+
 .universal-sidebar__group-toggle:disabled {
   opacity: 0.55;
   cursor: not-allowed;
