@@ -207,12 +207,21 @@ async function run() {
     const publicationRef = adminDb.doc(
       `users/${ownerUid}/video_publications/${videoId}`
     );
+    const publicProfileRef = adminDb.doc(`public_profiles/${ownerUid}`);
     const publicVideoRef = adminDb.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
     jobRef = adminDb.doc(
       `media_video_processing_jobs/${ownerUid}_${videoId}`
     );
+
+    await publicProfileRef.set({
+      uid: ownerUid,
+      nickname: 'Autor do vídeo E2E',
+      publicVisibility: 'visible',
+      updatedAt: Date.now(),
+    });
+    assert.ok(await readDocumentData(publicProfileRef));
 
     const queuedState = await waitFor(
       'vídeo privado entrar na fila de processamento',
