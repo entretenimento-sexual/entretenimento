@@ -12,7 +12,8 @@
 // - mantém aliases legados usados por componentes antigos
 //
 // Observação desta fase:
-// - a configuração estrutural do menu fica em sidebar-config.ts
+// - a configuração estrutural base fica em sidebar-config.ts
+// - a composição pública fica em sidebar-config.runtime.ts
 // - este service apenas combina:
 //   1) contexto de rota
 //   2) viewport/mobile
@@ -37,7 +38,7 @@ import {
   SidebarSectionKey,
   buildSidebarSections,
   resolveSidebarSectionFromUrl,
-} from '@core/services/navigation/sidebar-config';
+} from '@core/services/navigation/sidebar-config.runtime';
 
 export interface SidebarVm {
   isMobile: boolean;
@@ -116,6 +117,7 @@ export class SidebarService {
    *
    * Fonte:
    * - regras puras do sidebar-config.ts
+   * - composição pública do sidebar-config.runtime.ts
    * - capacidades derivadas pelo AccessControlService
    */
   readonly sections$: Observable<SidebarSection[]> = combineLatest([
