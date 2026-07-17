@@ -84,6 +84,8 @@ export interface IModerationReportDocument {
   updatedAt: Timestamp | FieldValue;
 }
 
-export interface IModerationReportVm extends IModerationReportDocument {
+export interface IModerationReportVm
+  extends Omit<IModerationReportDocument, 'ageReverificationSubmittedAt'> {
   id: string;
+  ageReverificationSubmittedAt?: unknown;
 }
