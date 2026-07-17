@@ -4,6 +4,7 @@
 // Responsabilidades:
 // - controlar abertura/fechamento
 // - controlar colapso/expansão
+// - controlar grupos e submenus
 // - derivar seção ativa pela rota
 // - expor VM reativa para shell/sidebar
 //
@@ -44,6 +45,7 @@ export interface SidebarVm {
   isCollapsed: boolean;
   currentUrl: string;
   currentSection: SidebarSectionKey;
+  expandedGroupIds: readonly string[];
   sections: SidebarSection[];
 }
 
@@ -58,6 +60,7 @@ export class SidebarService {
    */
   private readonly isOpenSubject = new BehaviorSubject<boolean>(false);
   private readonly isCollapsedSubject = new BehaviorSubject<boolean>(false);
+  private readonly expandedGroupIdsSubject = new BehaviorSubject<readonly string[]>([]);
 
   readonly isOpen$ = this.isOpenSubject.asObservable().pipe(
     distinctUntilChanged(),
@@ -66,6 +69,11 @@ export class SidebarService {
 
   readonly isCollapsed$ = this.isCollapsedSubject.asObservable().pipe(
     distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly expandedGroupIds$ = this.expandedGroupIdsSubject.asObservable().pipe(
+    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -135,14 +143,24 @@ export class SidebarService {
     this.isCollapsed$,
     this.currentUrl$,
     this.currentSection$,
+    this.expandedGroupIds$,
     this.sections$,
   ]).pipe(
-    map(([isMobile, isOpen, isCollapsed, currentUrl, currentSection, sections]): SidebarVm => ({
+    map(([
+      isMobile,
+      isOpen,
+      isCollapsed,
+      currentUrl,
+      currentSection,
+      expandedGroupIds,
+      sections,
+    ]): SidebarVm => ({
       isMobile,
       isOpen: isMobile ? isOpen : true,
       isCollapsed: isMobile ? false : isCollapsed,
       currentUrl,
       currentSection,
+      expandedGroupIds,
       sections,
     })),
     distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
@@ -156,6 +174,7 @@ export class SidebarService {
           isCollapsed: false,
           currentUrl: '/',
           currentSection: 'unknown',
+          expandedGroupIds: [],
           sections: [],
         },
         err
@@ -194,6 +213,40 @@ export class SidebarService {
     this.isCollapsedSubject.next(!this.isCollapsedSubject.value);
   }
 
+  openGroup(groupId: string): void {
+    const safeGroupId = this.normalizeGroupId(groupId);
+    if (!safeGroupId) return;
+
+    const current = this.expandedGroupIdsSubject.value;
+    if (current.includes(safeGroupId)) return;
+
+    this.expandedGroupIdsSubject.next([...current, safeGroupId]);
+  }
+
+  closeGroup(groupId: string): void {
+    const safeGroupId = this.normalizeGroupId(groupId);
+    if (!safeGroupId) return;
+
+    const current = this.expandedGroupIdsSubject.value;
+    if (!current.includes(safeGroupId)) return;
+
+    this.expandedGroupIdsSubject.next(
+      current.filter((item) => item !== safeGroupId)
+    );
+  }
+
+  toggleGroup(groupId: string): void {
+    const safeGroupId = this.normalizeGroupId(groupId);
+    if (!safeGroupId) return;
+
+    if (this.expandedGroupIdsSubject.value.includes(safeGroupId)) {
+      this.closeGroup(safeGroupId);
+      return;
+    }
+
+    this.openGroup(safeGroupId);
+  }
+
   closeIfMobile(isMobile: boolean): void {
     if (!isMobile) return;
     this.close();
@@ -213,6 +266,10 @@ export class SidebarService {
 
   toggleSidebar(): void {
     this.toggle();
+  }
+
+  private normalizeGroupId(groupId: string): string {
+    return String(groupId ?? '').trim();
   }
 
   private handleStreamError<T>(context: string, fallback: T, err: unknown): Observable<T> {
