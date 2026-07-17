@@ -2,11 +2,11 @@
 param(
   [switch]$Install,
   [switch]$Validate,
-  [switch]$Start
+  [switch]$Start,
+  [string]$Branch = ''
 )
 
 $ErrorActionPreference = 'Stop'
-$Branch = 'feat/auth-password-recovery-polish'
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 function Invoke-NativeStep {
@@ -136,38 +136,46 @@ if ($status.Count -gt 0) {
   }
 }
 
-Invoke-NativeStep "Buscando origin/$Branch" {
-  git fetch origin $Branch
-}
-
 $currentBranch = Get-GitScalar `
   -Arguments @('branch', '--show-current') `
   -FailureMessage 'Nao foi possivel identificar a branch atual.'
+$requestedBranch = String($Branch ?? '').Trim()
+$targetBranch = if ($requestedBranch) { $requestedBranch } else { $currentBranch }
 
-if ($currentBranch -ne $Branch) {
-  & git show-ref --verify --quiet "refs/heads/$Branch"
+if (-not $targetBranch) {
+  throw 'Branch de retomada ausente. Abra uma branch local ou informe -Branch.'
+}
+
+Write-Host "[work:resume] Branch selecionada: $targetBranch"
+
+Invoke-NativeStep "Buscando origin/$targetBranch" {
+  git fetch origin $targetBranch
+}
+
+if ($currentBranch -ne $targetBranch) {
+  & git show-ref --verify --quiet "refs/heads/$targetBranch"
   $localBranchExists = $LASTEXITCODE -eq 0
 
   if ($localBranchExists) {
-    Invoke-NativeStep "Alternando para $Branch" {
-      git switch $Branch
+    Invoke-NativeStep "Alternando explicitamente para $targetBranch" {
+      git switch $targetBranch
     }
   } else {
-    Invoke-NativeStep "Criando branch local $Branch" {
-      git switch --track -c $Branch "origin/$Branch"
+    Invoke-NativeStep "Criando branch local explicita $targetBranch" {
+      git switch --track -c $targetBranch "origin/$targetBranch"
     }
   }
 }
 
 Invoke-NativeStep 'Atualizando branch somente por fast-forward' {
-  git merge --ff-only "origin/$Branch"
+  git merge --ff-only "origin/$targetBranch"
 }
 
 $localHead = Get-GitScalar `
   -Arguments @('rev-parse', 'HEAD') `
   -FailureMessage 'Nao foi possivel identificar o HEAD local.'
 $remoteHead = Get-GitScalar `
-  -Arguments @('rev-parse', "origin/$Branch") `
+  -Arguments @('rev-parse', "origin/$targetBranch") `
   -FailureMessage 'Nao foi possivel identificar o HEAD remoto.'
 
 if ($localHead -ne $remoteHead) {
