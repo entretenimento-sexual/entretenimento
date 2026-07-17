@@ -159,6 +159,7 @@
     <section
       class="universal-sidebar__section"
       *ngFor="let section of vm.sections; trackBy: trackSection"
+      [attr.aria-label]="section.title || 'Opções da conta'"
     >
       <h2
         class="universal-sidebar__title"
@@ -264,50 +265,52 @@
           </ng-container>
 
           <ng-template #simpleLinkItem>
-            <ng-container *ngIf="!item.disabled; else disabledItem">
-              <a
-                class="universal-sidebar__link"
-                [routerLink]="item.route"
-                routerLinkActive="universal-sidebar__link--active"
-                [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
-                #rla="routerLinkActive"
-                [attr.aria-label]="item.ariaLabel || item.label"
-                [attr.aria-current]="rla.isActive ? 'page' : null"
-                [attr.title]="isCollapsedMode ? item.label : null"
-                (click)="onItemActivated()"
-              >
-                <span class="universal-sidebar__icon" aria-hidden="true">
-                  {{ item.icon || '•' }}
-                </span>
-
-                <span
-                  class="universal-sidebar__label"
-                  *ngIf="shouldShowExpandedContent"
+            <ng-container *ngIf="asLinkItem(item) as linkItem">
+              <ng-container *ngIf="!linkItem.disabled; else disabledItem">
+                <a
+                  class="universal-sidebar__link"
+                  [routerLink]="linkItem.route"
+                  routerLinkActive="universal-sidebar__link--active"
+                  [routerLinkActiveOptions]="{ exact: linkItem.exact ?? false }"
+                  #rla="routerLinkActive"
+                  [attr.aria-label]="linkItem.ariaLabel || linkItem.label"
+                  [attr.aria-current]="rla.isActive ? 'page' : null"
+                  [attr.title]="isCollapsedMode ? linkItem.label : null"
+                  (click)="onItemActivated()"
                 >
-                  {{ item.label }}
+                  <span class="universal-sidebar__icon" aria-hidden="true">
+                    {{ linkItem.icon || '•' }}
+                  </span>
+
+                  <span
+                    class="universal-sidebar__label"
+                    *ngIf="shouldShowExpandedContent"
+                  >
+                    {{ linkItem.label }}
+                  </span>
+                </a>
+              </ng-container>
+
+              <ng-template #disabledItem>
+                <span
+                  class="universal-sidebar__link universal-sidebar__link--disabled"
+                  aria-disabled="true"
+                  [attr.aria-label]="linkItem.ariaLabel || linkItem.label"
+                  [attr.title]="isCollapsedMode ? linkItem.label : null"
+                >
+                  <span class="universal-sidebar__icon" aria-hidden="true">
+                    {{ linkItem.icon || '•' }}
+                  </span>
+
+                  <span
+                    class="universal-sidebar__label"
+                    *ngIf="shouldShowExpandedContent"
+                  >
+                    {{ linkItem.label }}
+                  </span>
                 </span>
-              </a>
+              </ng-template>
             </ng-container>
-
-            <ng-template #disabledItem>
-              <span
-                class="universal-sidebar__link universal-sidebar__link--disabled"
-                aria-disabled="true"
-                [attr.aria-label]="item.ariaLabel || item.label"
-                [attr.title]="isCollapsedMode ? item.label : null"
-              >
-                <span class="universal-sidebar__icon" aria-hidden="true">
-                  {{ item.icon || '•' }}
-                </span>
-
-                <span
-                  class="universal-sidebar__label"
-                  *ngIf="shouldShowExpandedContent"
-                >
-                  {{ item.label }}
-                </span>
-              </span>
-            </ng-template>
           </ng-template>
         </li>
       </ul>
