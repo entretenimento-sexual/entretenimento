@@ -5,8 +5,19 @@
     "outDir": "./out-tsc/app",
     "types": [
       "@angular/localize"
-    ], // ← redundante, mas força no alvo
-    "useDefineForClassFields": false
+    ],
+    "useDefineForClassFields": false,
+    "paths": {
+      "src/*": ["./src/*"],
+      "@app/*": ["./src/app/*"],
+      "@core/services/navigation/sidebar-config": [
+        "./src/app/core/services/navigation/sidebar-config.runtime.ts"
+      ],
+      "@core/*": ["./src/app/core/*"],
+      "@shared/*": ["./src/app/shared/*"],
+      "@env/*": ["./src/environments/*"],
+      "@store/*": ["./src/app/store/*"]
+    }
   },
   "files": ["src/main.ts"],
   "include": ["src/**/*.ts"],
