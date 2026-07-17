@@ -137,6 +137,7 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
       sidebarIsMobile: vm.sidebar.isMobile,
       sidebarIsOpen: vm.sidebar.isOpen,
       sidebarIsCollapsed: vm.sidebar.isCollapsed,
+      sidebarExpandedGroupIds: vm.sidebar.expandedGroupIds,
       hasSidebarUser: !!vm.sidebarUser,
       sidebarUserUid: vm.sidebarUser?.uid ?? null,
       sidebarUserHasEmail: !!vm.sidebarUser?.email,
@@ -245,6 +246,8 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
       a.sidebar.isOpen === b.sidebar.isOpen &&
       a.sidebar.isCollapsed === b.sidebar.isCollapsed &&
       a.sidebar.currentSection === b.sidebar.currentSection &&
+      JSON.stringify(a.sidebar.expandedGroupIds) ===
+        JSON.stringify(b.sidebar.expandedGroupIds) &&
       JSON.stringify(a.sidebar.sections) === JSON.stringify(b.sidebar.sections) &&
       JSON.stringify(a.navbarContextActions) === JSON.stringify(b.navbarContextActions) &&
       JSON.stringify(a.sidebarQuickActions) === JSON.stringify(b.sidebarQuickActions) &&
@@ -286,6 +289,14 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
 
   onToggleCollapse(): void {
     this.sidebar.toggleCollapse();
+  }
+
+  onToggleSidebarGroup(groupId: string): void {
+    this.sidebar.toggleGroup(groupId);
+  }
+
+  onCloseSidebarGroup(groupId: string): void {
+    this.sidebar.closeGroup(groupId);
   }
 
   /**
