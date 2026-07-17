@@ -1,18 +1,23 @@
-/* Grupos e submenus do sidebar universal. */
+.universal-sidebar__item {
+  position: relative;
+}
+
 .universal-sidebar__group-toggle {
   width: 100%;
+  box-sizing: border-box;
+  appearance: none;
   border: 0;
+  margin: 0;
   background: transparent;
+  color: var(--text-color);
   font: inherit;
+  line-height: inherit;
   text-align: left;
   cursor: pointer;
 }
 
 .universal-sidebar__group-toggle:focus-visible {
-  outline: var(
-    --focus-ring,
-    3px solid color-mix(in oklab, var(--primary-color) 58%, white)
-  );
+  outline: var(--focus-ring, 3px solid color-mix(in oklab, var(--primary-color) 58%, white));
   outline-offset: var(--focus-offset, 2px);
 }
 
@@ -25,19 +30,39 @@
   margin-left: auto;
   min-width: 1.25rem;
   color: color-mix(in oklab, var(--text-color) 70%, transparent);
-  font-size: 0.9rem;
+  font-size: 0;
   line-height: 1;
   text-align: center;
 }
 
+.universal-sidebar__group-indicator::before {
+  content: '⌃';
+  font-size: 0.9rem;
+}
+
+.universal-sidebar__group-toggle[aria-expanded='true'] .universal-sidebar__group-indicator::before {
+  content: '⌄';
+}
+
 .universal-sidebar__submenu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 0.45rem);
+  z-index: 12;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  margin: 0.3rem 0 0;
-  padding: 0.25rem 0 0.25rem 1rem;
+  max-height: min(52dvh, 292px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0.5rem;
   list-style: none;
-  border-left: 1px solid color-mix(in oklab, var(--surface-border) 85%, transparent);
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  background: var(--surface-color);
+  box-shadow: var(--box-shadow);
 }
 
 .universal-sidebar__submenu-item {
@@ -45,9 +70,10 @@
 }
 
 .universal-sidebar__submenu-link {
-  min-height: var(--tap-target-sm, 40px);
-  padding-block: 0.6rem;
+  min-height: var(--tap-target, 44px);
+  padding: 0.68rem 0.75rem;
   font-size: 0.94rem;
+  background: transparent;
 }
 
 .universal-sidebar__submenu-link .universal-sidebar__icon {
@@ -62,20 +88,19 @@
 }
 
 .universal-sidebar__submenu--collapsed {
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 0.35rem);
   gap: 0.2rem;
-  margin-top: 0.25rem;
-  padding: 0.3rem 0;
-  border-left: 0;
-  border-top: 1px solid color-mix(in oklab, var(--surface-border) 75%, transparent);
-  border-bottom: 1px solid color-mix(in oklab, var(--surface-border) 75%, transparent);
-  background: color-mix(in oklab, var(--input-background) 75%, transparent);
-  border-radius: 12px;
+  max-height: min(58dvh, 260px);
+  padding: 0.35rem;
+  border-radius: 14px;
 }
 
 .universal-sidebar__submenu--collapsed .universal-sidebar__submenu-link {
   justify-content: center;
   min-height: var(--tap-target-sm, 40px);
-  padding: 0.45rem 0.25rem;
+  padding: 0.48rem 0.25rem;
   border-radius: 12px;
 }
 
@@ -99,12 +124,14 @@ html.high-contrast .universal-sidebar__submenu-link:focus-visible {
 }
 
 html.high-contrast .universal-sidebar__submenu {
-  border-color: currentColor;
+  border: 2px solid currentColor;
+  background: var(--background-color) !important;
+  box-shadow: none;
 }
 
 @media (max-width: 350px) {
   .universal-sidebar__submenu {
-    padding-left: 0.65rem;
+    padding: 0.4rem;
   }
 }
 
