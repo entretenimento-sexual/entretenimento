@@ -139,7 +139,7 @@ if ($status.Count -gt 0) {
 $currentBranch = Get-GitScalar `
   -Arguments @('branch', '--show-current') `
   -FailureMessage 'Nao foi possivel identificar a branch atual.'
-$requestedBranch = String($Branch ?? '').Trim()
+$requestedBranch = ([string]$Branch).Trim()
 $targetBranch = if ($requestedBranch) { $requestedBranch } else { $currentBranch }
 
 if (-not $targetBranch) {
