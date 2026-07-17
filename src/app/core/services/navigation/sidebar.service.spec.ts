@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 
+import { isSidebarGroupItem } from './sidebar-config.runtime';
 import { SidebarService, type SidebarVm } from './sidebar.service';
 
 describe('SidebarService groups', () => {
@@ -62,6 +63,32 @@ describe('SidebarService groups', () => {
 
     expect(emissions.at(-1)?.expandedGroupIds).toEqual(['account']);
     expect(emissions.at(-1)?.sections.length).toBeGreaterThan(0);
+
+    subscription.unsubscribe();
+  });
+
+  it('expõe Assinatura somente dentro do grupo Conta', () => {
+    const service = createService();
+    const emissions: SidebarVm[] = [];
+    const subscription = service.vm$.subscribe((value) => emissions.push(value));
+    const sections = emissions.at(-1)?.sections ?? [];
+    const settings = sections.find(({ key }) => key === 'settings');
+    const account = settings?.items.find(({ id }) => id === 'account');
+
+    expect(account && isSidebarGroupItem(account)).toBe(true);
+
+    if (!account || !isSidebarGroupItem(account)) {
+      throw new Error('Grupo Conta não foi exposto pelo SidebarService.');
+    }
+
+    expect(account.children.map(({ id }) => id)).toEqual([
+      'my-profile',
+      'preferences',
+      'my-account',
+      'subscription-plan',
+      'safety-center',
+    ]);
+    expect(sections.some(({ key }) => key === 'subscriptions')).toBe(false);
 
     subscription.unsubscribe();
   });
