@@ -13,6 +13,7 @@
 // - suprime perfil expandido e quick actions quando o rail estiver travado
 // - impede expansão manual do sidebar no modo chat
 // - adiciona fallback visual quando avatar remoto falhar
+// - suporta grupos e submenus controlados pelo SidebarService
 //
 // Observação arquitetural:
 // - este componente NÃO consulta sessão diretamente
@@ -32,9 +33,12 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 
 import type { SidebarVm } from '../../../core/services/navigation/sidebar.service';
-import type {
-  SidebarItem,
-  SidebarSection,
+import {
+  isSidebarGroupItem,
+  type SidebarGroupItem,
+  type SidebarItem,
+  type SidebarLinkItem,
+  type SidebarSection,
 } from '@core/services/navigation/sidebar-config';
 
 export interface UniversalSidebarUserSummary {
@@ -98,6 +102,8 @@ export class UniversalSidebarComponent {
 
   @Output() toggleRequested = new EventEmitter<void>();
   @Output() collapseRequested = new EventEmitter<void>();
+  @Output() groupToggleRequested = new EventEmitter<string>();
+  @Output() groupCloseRequested = new EventEmitter<string>();
 
   @ViewChild('sidebarRoot', { read: ElementRef })
   private sidebarRoot?: ElementRef<HTMLElement>;
@@ -112,8 +118,48 @@ export class UniversalSidebarComponent {
     return item.id;
   }
 
+  trackChild(_: number, item: SidebarLinkItem): string {
+    return item.id;
+  }
+
   trackQuickAction(_: number, action: UniversalSidebarQuickAction): string {
     return action.id;
+  }
+
+  isGroupItem(item: SidebarItem): item is SidebarGroupItem {
+    return isSidebarGroupItem(item);
+  }
+
+  isGroupExpanded(group: SidebarGroupItem): boolean {
+    const explicitlyExpanded = this.vm?.expandedGroupIds?.includes(group.id) === true;
+
+    if (this.isCollapsedMode) {
+      return explicitlyExpanded;
+    }
+
+    return explicitlyExpanded || this.isGroupActive(group);
+  }
+
+  isGroupActive(group: SidebarGroupItem): boolean {
+    return group.children.some((child) => this.isLinkActive(child));
+  }
+
+  isLinkActive(item: SidebarLinkItem): boolean {
+    const currentUrl = this.normalizeUrl(this.vm?.currentUrl);
+    const route = this.normalizeUrl(item.route);
+
+    if (!route) return false;
+    if (item.exact === true) return currentUrl === route;
+
+    return currentUrl === route || currentUrl.startsWith(`${route}/`);
+  }
+
+  groupPanelId(groupId: string): string {
+    const safeId = String(groupId ?? '')
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, '-');
+
+    return `sidebar-group-${safeId || 'menu'}`;
   }
 
   formatBadgeCount(count: number | null | undefined): string {
@@ -181,6 +227,16 @@ export class UniversalSidebarComponent {
     image.src = this.fallbackAvatarSrc;
   }
 
+  onGroupToggle(group: SidebarGroupItem): void {
+    if (group.disabled) return;
+    this.groupToggleRequested.emit(group.id);
+  }
+
+  onChildActivated(groupId: string): void {
+    this.groupCloseRequested.emit(groupId);
+    this.onItemActivated();
+  }
+
   onItemActivated(): void {
     if (this.isOverlayMode && this.vm?.isOpen) {
       this.closeOverlaySidebar();
@@ -225,8 +281,22 @@ export class UniversalSidebarComponent {
     }
   }
 
+  private normalizeUrl(url: string | null | undefined): string {
+    const clean = String(url ?? '').trim().split('?')[0].split('#')[0];
+
+    if (!clean || clean === '/') return clean;
+    return clean.endsWith('/') ? clean.slice(0, -1) : clean;
+  }
+
   @HostListener('document:keydown.escape')
   onEscapePressed(): void {
+    const expandedGroupId = this.vm?.expandedGroupIds?.at(-1);
+
+    if (expandedGroupId) {
+      this.groupCloseRequested.emit(expandedGroupId);
+      return;
+    }
+
     if (this.isOverlayMode && this.vm?.isOpen) {
       this.closeOverlaySidebar();
     }
