@@ -10,12 +10,12 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
-import {
-  evaluatePlatformSubscriptionEntitlement,
-  hasMinimumPlatformRole,
-  isPlatformRole,
-} from '../payments/application/platform-subscription-entitlement.service';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import {
+  assertCommunityMembershipActorEligible,
+  isCommunityMembershipEntitlementAllowed,
+  resolveCommunityMembershipRequirement,
+} from './community-membership-eligibility.service';
 import {
   CommunityJoinPolicy,
   CommunityMembershipStatus,
@@ -55,90 +55,6 @@ function normalizeMembershipStatus(
     || value === 'left'
     ? value
     : null;
-}
-
-function isAdultEligible(user: Record<string, unknown>): boolean {
-  const idade = user['idade'];
-  const adultConsent = (user['adultConsent'] ?? {}) as Record<string, unknown>;
-  const ageReverification = (user['ageReverification'] ?? {}) as Record<
-    string,
-    unknown
-  >;
-  const ageStatus = String(ageReverification['status'] ?? '')
-    .trim()
-    .toUpperCase();
-
-  if (typeof idade === 'number' && idade < 18) return false;
-  if (ageReverification['result'] === 'UNDERAGE') return false;
-  if (
-    ['REQUIRED', 'SUBMITTED', 'UNDER_REVIEW', 'REJECTED', 'EXPIRED']
-      .includes(ageStatus)
-  ) {
-    return false;
-  }
-  if (adultConsent['accepted'] === false) return false;
-  if (
-    user['initialAdultConsentRequired'] === true
-    && adultConsent['accepted'] !== true
-  ) {
-    return false;
-  }
-
-  return true;
-}
-
-function assertActorEligible(rawUser: unknown, uid: string): void {
-  const user = (rawUser ?? {}) as Record<string, unknown>;
-
-  if (user['uid'] !== uid) {
-    throw new HttpsError('not-found', 'Perfil não localizado.', {
-      reason: 'profile_incomplete',
-      recommendedAction: 'complete_profile',
-    });
-  }
-
-  const accountStatus = String(user['accountStatus'] ?? 'active')
-    .trim()
-    .toLowerCase();
-  const restricted =
-    accountStatus !== 'active'
-    || user['suspended'] === true
-    || user['interactionBlocked'] === true
-    || user['accountLocked'] === true
-    || user['loginAllowed'] === false;
-
-  if (restricted) {
-    throw new HttpsError(
-      'permission-denied',
-      'Sua conta não pode participar agora.',
-      {
-        reason: 'account_restricted',
-        recommendedAction: 'review_account',
-      }
-    );
-  }
-
-  if (!isAdultEligible(user)) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Confirmação de acesso adulto necessária.',
-      {
-        reason: 'adult_access_required',
-        recommendedAction: 'confirm_adult_access',
-      }
-    );
-  }
-
-  if (user['profileCompleted'] !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Complete seu perfil para continuar.',
-      {
-        reason: 'profile_incomplete',
-        recommendedAction: 'complete_profile',
-      }
-    );
-  }
 }
 
 function throwDecisionError(
@@ -232,7 +148,7 @@ export const requestCommunityMembership =
           throw new HttpsError('not-found', 'Comunidade não encontrada.');
         }
 
-        assertActorEligible(
+        assertCommunityMembershipActorEligible(
           userSnapshot.exists ? userSnapshot.data() : null,
           uid
         );
@@ -246,31 +162,20 @@ export const requestCommunityMembership =
           unknown
         >;
         const access = (community['access'] ?? {}) as Record<string, unknown>;
-        const contentAccess = (access['contentAccess'] ?? {}) as Record<
-          string,
-          unknown
-        >;
         const join = normalizeJoin(access['join']);
-        const minimumRole = isPlatformRole(contentAccess['minimumRole'])
-          ? contentAccess['minimumRole']
-          : 'basic';
-        const requiresEntitlement =
-          contentAccess['requiresActiveSubscription'] === true
-          || isPlatformRole(contentAccess['minimumRole']);
-        let entitlementAllowed = !requiresEntitlement;
+        const requirement = resolveCommunityMembershipRequirement(community);
+        let entitlementAllowed = !requirement.requiresEntitlement;
 
-        if (requiresEntitlement) {
+        if (requirement.requiresEntitlement) {
           const entitlementRef = db
             .collection('entitlements')
             .doc(`platform_subscription_${uid}`);
           const entitlementSnapshot = await transaction.get(entitlementRef);
-          const entitlement = evaluatePlatformSubscriptionEntitlement(
+          entitlementAllowed = isCommunityMembershipEntitlementAllowed(
             entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
-            uid
+            uid,
+            requirement
           );
-          entitlementAllowed =
-            entitlement.active
-            && hasMinimumPlatformRole(entitlement.role, minimumRole);
         }
 
         const existingStatus = normalizeMembershipStatus(
@@ -292,7 +197,7 @@ export const requestCommunityMembership =
         });
 
         if (!decision.allowed || !decision.targetStatus) {
-          throwDecisionError(decision.denialReason, minimumRole);
+          throwDecisionError(decision.denialReason, requirement.minimumRole);
         }
 
         if (!decision.idempotent) {
