@@ -1,0 +1,95 @@
+<!-- src/app/community/preview/community-preview-page.component.html -->
+@if (state$ | async; as state) {
+  <main class="community-preview">
+    <nav class="community-preview__topbar" aria-label="Navegação da comunidade">
+      <a routerLink="/dashboard/comunidades" aria-label="Voltar para comunidades">
+        <i class="fas fa-arrow-left" aria-hidden="true"></i>
+      </a>
+    </nav>
+
+    @if (state.status === 'loading') {
+      <div class="community-preview__state" role="status" aria-live="polite">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Carregando...</span>
+      </div>
+    } @else if (state.status === 'error') {
+      <div class="community-preview__state" role="alert">
+        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+        <span>Comunidade indisponível.</span>
+      </div>
+    } @else if (state.preview; as preview) {
+      <article class="community-preview__content">
+        <div class="community-preview__cover" aria-hidden="true">
+          @if (preview.community.coverUrl) {
+            <img
+              [src]="preview.community.coverUrl"
+              alt=""
+              appImageFallback
+            />
+          }
+        </div>
+
+        <header class="community-preview__identity">
+          <span class="community-preview__avatar" aria-hidden="true">
+            @if (preview.community.avatarUrl) {
+              <img
+                [src]="preview.community.avatarUrl"
+                alt=""
+                appImageFallback
+              />
+            } @else {
+              <i
+                class="fas {{ preview.community.source.type === 'venue' ? 'fa-location-dot' : 'fa-user-group' }}"
+              ></i>
+            }
+          </span>
+
+          <div class="community-preview__copy">
+            <div class="community-preview__labels">
+              <span>{{ sourceLabel(preview.community) }}</span>
+              <span>{{ viewerLabel(preview.viewerMode) }}</span>
+              @if (accessLabel(preview.community); as access) {
+                <span>{{ access }}</span>
+              }
+            </div>
+
+            <h1>{{ preview.community.name }}</h1>
+
+            @if (preview.community.description) {
+              <p>{{ preview.community.description }}</p>
+            }
+          </div>
+        </header>
+
+        <div class="community-preview__metrics" aria-label="Resumo da comunidade">
+          <span>
+            <i class="fas fa-users" aria-hidden="true"></i>
+            {{ preview.community.metrics.memberCount }}
+          </span>
+          <span>
+            <i class="far fa-message" aria-hidden="true"></i>
+            {{ preview.community.metrics.postCount }}
+          </span>
+          <span>
+            <i class="far fa-image" aria-hidden="true"></i>
+            {{ preview.community.metrics.mediaCount }}
+          </span>
+        </div>
+
+        <section class="community-preview__readonly" aria-label="Modo de acesso">
+          <i class="far fa-eye" aria-hidden="true"></i>
+          @if (preview.canInteract) {
+            <span>Prévia somente leitura nesta etapa.</span>
+          } @else {
+            <span>Você pode acompanhar. A interação é reservada aos membros.</span>
+          }
+        </section>
+
+        <section class="community-preview__feed-state" role="status">
+          <i class="far fa-comments" aria-hidden="true"></i>
+          <span>Nenhuma publicação disponível nesta prévia.</span>
+        </section>
+      </article>
+    }
+  </main>
+}
