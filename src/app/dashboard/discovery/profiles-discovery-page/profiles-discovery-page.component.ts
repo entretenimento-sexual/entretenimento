@@ -1,22 +1,3 @@
-// src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.ts
-// -----------------------------------------------------------------------------
-// ProfilesDiscoveryPageComponent
-// -----------------------------------------------------------------------------
-//
-// Página pai da descoberta de perfis.
-//
-// Responsabilidade:
-// - manter "Todos" como modo padrão;
-// - controlar o modo ativo da barra de descoberta;
-// - renderizar apenas modos realmente disponíveis;
-// - bloquear defensivamente ativação de modos desabilitados/planned;
-// - integrar o modo Hoje com status temporários e radar regional;
-// - manter a barra visual desacoplada da regra de busca.
-//
-// Observação:
-// - modos futuros ficam no model, mas não entram na navegação principal enquanto
-//   não tiverem entrega real.
-
 import {
   ChangeDetectionStrategy,
   Component,
@@ -43,7 +24,7 @@ import {
   DiscoveryMode,
   DiscoveryModeTab,
   isDiscoveryModeEnabled,
-  normalizeDiscoveryMode,
+  normalizeDiscoveryExperienceMode,
 } from '../models/discovery-mode.model';
 
 @Component({
@@ -87,7 +68,7 @@ export class ProfilesDiscoveryPageComponent {
   readonly activeMode = signal<DiscoveryMode>(DEFAULT_DISCOVERY_MODE);
 
   onDiscoveryModeChange(mode: DiscoveryMode): void {
-    const normalizedMode = normalizeDiscoveryMode(mode);
+    const normalizedMode = normalizeDiscoveryExperienceMode(mode);
 
     if (!isDiscoveryModeEnabled(normalizedMode)) {
       return;
