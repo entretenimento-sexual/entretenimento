@@ -33,8 +33,6 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 
-import { StoreDevtoolsModule } from '@ngrx/store-devtools';
-
 import { AppComponent } from './app.component';
 import { AppRoutingModule } from './app-routing.module';
 import { HeaderModule } from './header/header.module';
@@ -333,10 +331,6 @@ export function authRestoreInitializer(
     HeaderModule,
     FooterModule,
     AppStoreModule,
-
-    ...(environment.production
-      ? []
-      : [StoreDevtoolsModule.instrument({ maxAge: 25, trace: true })]),
 
     AdminLinkComponent,
   ],
