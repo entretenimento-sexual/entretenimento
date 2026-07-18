@@ -25,7 +25,7 @@
 // Camadas consumidoras esperadas:
 // - DiscoveryModeTabsComponent: usa tabs visuais;
 // - ProfilesDiscoveryPageComponent: decide qual fluxo renderizar;
-// - DiscoveryCardEnrichmentService: usa mode para aplicar score/filtros;
+// - DiscoveryCardEnrichmentService: usa apenas modos de ranking de perfis;
 // - futuras facades/orchestrators: usam source/requiresLocation/requiresOnlinePresence.
 
 export const DISCOVERY_MODE_VALUES = [
@@ -40,6 +40,14 @@ export const DISCOVERY_MODE_VALUES = [
 ] as const;
 
 export type DiscoveryMode = (typeof DISCOVERY_MODE_VALUES)[number];
+
+/**
+ * Modos compatíveis com o pipeline de public_profiles + score.
+ *
+ * "today" fica fora porque usa user_intent_statuses como fonte própria e não
+ * deve ser encaminhado ao motor de ranking de perfis.
+ */
+export type DiscoveryProfileRankingMode = Exclude<DiscoveryMode, 'today'>;
 
 export type DiscoveryModeSource =
   | 'public_profiles'
@@ -132,7 +140,7 @@ export interface DiscoveryModeTab {
  * - usa ranking refinado;
  * - online, distância e compatibilidade entram como bônus, não como bloqueio.
  */
-export const DEFAULT_DISCOVERY_MODE: DiscoveryMode = 'all';
+export const DEFAULT_DISCOVERY_MODE: DiscoveryProfileRankingMode = 'all';
 
 export const DISCOVERY_MODE_CONFIGS: Record<DiscoveryMode, DiscoveryModeConfig> = {
   all: {
@@ -263,14 +271,38 @@ export function isDiscoveryMode(value: unknown): value is DiscoveryMode {
   return DISCOVERY_MODE_VALUES.includes(value as DiscoveryMode);
 }
 
-export function normalizeDiscoveryMode(value: unknown): DiscoveryMode {
+export function isDiscoveryProfileRankingMode(
+  value: unknown
+): value is DiscoveryProfileRankingMode {
+  return isDiscoveryMode(value) && value !== 'today';
+}
+
+/**
+ * Normaliza a navegação completa da descoberta, incluindo experiências com
+ * fonte própria, como o modo "Hoje".
+ */
+export function normalizeDiscoveryExperienceMode(value: unknown): DiscoveryMode {
   return isDiscoveryMode(value) ? value : DEFAULT_DISCOVERY_MODE;
+}
+
+/**
+ * Mantém o nome histórico usado pelo pipeline de cards públicos.
+ *
+ * Modos com fonte própria não entram no score. Caso "today" seja recebido por
+ * um consumidor antigo, o fallback defensivo é "all".
+ */
+export function normalizeDiscoveryMode(
+  value: unknown
+): DiscoveryProfileRankingMode {
+  return isDiscoveryProfileRankingMode(value)
+    ? value
+    : DEFAULT_DISCOVERY_MODE;
 }
 
 export function getDiscoveryModeConfig(
   mode: DiscoveryMode | null | undefined
 ): DiscoveryModeConfig {
-  return DISCOVERY_MODE_CONFIGS[normalizeDiscoveryMode(mode)];
+  return DISCOVERY_MODE_CONFIGS[normalizeDiscoveryExperienceMode(mode)];
 }
 
 export function isDiscoveryModeEnabled(
