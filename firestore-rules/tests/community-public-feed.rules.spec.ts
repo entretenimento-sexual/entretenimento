@@ -5,7 +5,15 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+} from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
 const PROJECT_ID = 'demo-entretenimento-rules';
@@ -27,6 +35,10 @@ function postData() {
   };
 }
 
+function authenticatedDb() {
+  return testEnv.authenticatedContext('viewer').firestore();
+}
+
 describe('Firestore Rules / community_public_feed', () => {
   beforeAll(async () => {
     testEnv = await initializeTestEnvironment({
@@ -43,7 +55,13 @@ describe('Firestore Rules / community_public_feed', () => {
     await testEnv.clearFirestore();
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await setDoc(
-        doc(context.firestore(), 'community_public_feed', COMMUNITY_ID, 'items', POST_ID),
+        doc(
+          context.firestore(),
+          'community_public_feed',
+          COMMUNITY_ID,
+          'items',
+          POST_ID
+        ),
         postData()
       );
     });
@@ -51,19 +69,50 @@ describe('Firestore Rules / community_public_feed', () => {
 
   afterAll(async () => testEnv.cleanup());
 
-  it('nega leitura e listagem ao cliente autenticado', async () => {
-    const db = testEnv.authenticatedContext('viewer').firestore();
-    await assertFails(getDoc(doc(db, 'community_public_feed', COMMUNITY_ID, 'items', POST_ID)));
-    await assertFails(getDocs(collection(db, 'community_public_feed', COMMUNITY_ID, 'items')));
+  it('nega documento pai, item e listagem ao cliente autenticado', async () => {
+    const db = authenticatedDb();
+
+    await assertFails(getDoc(doc(db, 'community_public_feed', COMMUNITY_ID)));
+    await assertFails(
+      getDoc(doc(db, 'community_public_feed', COMMUNITY_ID, 'items', POST_ID))
+    );
+    await assertFails(
+      getDocs(collection(db, 'community_public_feed', COMMUNITY_ID, 'items'))
+    );
   });
 
   it('nega criação direta ao cliente autenticado', async () => {
-    const db = testEnv.authenticatedContext('viewer').firestore();
-    await assertFails(setDoc(doc(db, 'community_public_feed', COMMUNITY_ID, 'items', 'post-2'), postData()));
+    await assertFails(
+      setDoc(
+        doc(
+          authenticatedDb(),
+          'community_public_feed',
+          COMMUNITY_ID,
+          'items',
+          'post-2'
+        ),
+        postData()
+      )
+    );
+  });
+
+  it('nega atualização e exclusão direta', async () => {
+    const itemRef = doc(
+      authenticatedDb(),
+      'community_public_feed',
+      COMMUNITY_ID,
+      'items',
+      POST_ID
+    );
+
+    await assertFails(updateDoc(itemRef, { text: 'Alterado' }));
+    await assertFails(deleteDoc(itemRef));
   });
 
   it('nega leitura sem autenticação', async () => {
     const db = testEnv.unauthenticatedContext().firestore();
-    await assertFails(getDoc(doc(db, 'community_public_feed', COMMUNITY_ID, 'items', POST_ID)));
+    await assertFails(
+      getDoc(doc(db, 'community_public_feed', COMMUNITY_ID, 'items', POST_ID))
+    );
   });
 });
