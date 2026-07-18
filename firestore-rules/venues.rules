@@ -2,14 +2,17 @@
 // ============================================================================
 // VENUES / ESTABELECIMENTOS
 // ============================================================================
-// Locais gerenciáveis para Status de Hoje, salas de local e patrocínio futuro.
+// Locais gerenciáveis para Status de Hoje, intenção temporária de sala privada
+// e patrocínio futuro.
 //
 // Segurança:
 // - leitura exige login;
 // - leitura comum apenas de locais ativos e visíveis;
 // - escrita inicial apenas por admin;
 // - sem coordenada precisa nesta fase;
-// - chat/sponsorship são configuração moderada, não decisão do cliente comum.
+// - chat/sponsorship são configuração moderada, não decisão do cliente comum;
+// - o catálogo não guarda roomId: sala oficial e salas privadas associadas são
+//   recursos distintos, com autorização própria.
 // ============================================================================
 match /venues/{venueId} {
   function isVisibleVenue() {
@@ -154,22 +157,13 @@ match /venues/{venueId} {
 
   function validChatConfig() {
     return request.resource.data.chat is map
-      && request.resource.data.chat.keys().hasOnly(["enabled", "mode", "roomId"])
+      && request.resource.data.chat.keys().hasOnly(["enabled", "mode"])
       && request.resource.data.chat.enabled is bool
       && request.resource.data.chat.mode in [
         "public_preview",
         "frequenters_only",
         "hybrid"
-      ]
-      && validOptionalChatRoomId();
-  }
-
-  function validOptionalChatRoomId() {
-    return !request.resource.data.chat.keys().hasAny(["roomId"])
-      || request.resource.data.chat.roomId == null
-      || (request.resource.data.chat.roomId is string
-        && request.resource.data.chat.roomId.size() >= 3
-        && request.resource.data.chat.roomId.size() <= 160);
+      ];
   }
 
   function validOwnerFields() {
