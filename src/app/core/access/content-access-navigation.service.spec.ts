@@ -53,7 +53,7 @@ describe('resolveContentAccessNavigationTarget', () => {
     });
   });
 
-  it('evita returnUrl circular quando o usuário já está no destino', () => {
+  it('evita returnUrl circular mesmo com query string', () => {
     expect(
       resolveContentAccessNavigationTarget(
         createDecision({
@@ -61,7 +61,7 @@ describe('resolveContentAccessNavigationTarget', () => {
           recommendedAction: 'sign_in',
           minimumRole: null,
         }),
-        '/login'
+        '/login?returnUrl=/descobrir'
       )
     ).toEqual({ commands: ['/login'] });
   });
@@ -89,7 +89,7 @@ describe('resolveContentAccessNavigationTarget', () => {
           recommendedAction: 'complete_profile',
           minimumRole: null,
         }),
-        'https://example.com'
+        '//example.com/path'
       )
     ).toEqual({ commands: ['/register/finalizar-cadastro'] });
   });
