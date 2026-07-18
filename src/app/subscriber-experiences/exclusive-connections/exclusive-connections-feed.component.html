@@ -1,0 +1,122 @@
+<section class="exclusive-connections-feed" aria-label="Conexões exclusivas">
+  <h2 class="sr-only">Conexões exclusivas</h2>
+
+  @if (state$ | async; as state) {
+    @switch (state.status) {
+      @case ('loading') {
+        <div
+          class="exclusive-connections-feed__state"
+          role="status"
+          aria-live="polite"
+        >
+          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          <span>Carregando...</span>
+        </div>
+      }
+
+      @case ('empty') {
+        <div class="exclusive-connections-feed__state" role="status">
+          <i class="fas fa-user-group" aria-hidden="true"></i>
+          <span>Ainda não há conexões selecionadas.</span>
+        </div>
+      }
+
+      @case ('error') {
+        <div class="exclusive-connections-feed__state" role="alert">
+          <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+          <span>Não foi possível carregar.</span>
+          <button type="button" (click)="retry()">
+            <i class="fas fa-rotate-right" aria-hidden="true"></i>
+            <span>Tentar novamente</span>
+          </button>
+        </div>
+      }
+
+      @case ('ready') {
+        <div class="exclusive-connections-feed__grid">
+          @for (item of state.items; track item.candidateUid) {
+            <article class="exclusive-connections-feed__card">
+              <a
+                class="exclusive-connections-feed__avatar"
+                [routerLink]="['/outro-perfil', item.candidateUid]"
+                [attr.aria-label]="'Abrir perfil de ' + item.nickname"
+              >
+                @if (item.photoURL) {
+                  <img
+                    [src]="item.photoURL"
+                    appImageFallback
+                    [alt]="'Foto de ' + item.nickname"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                } @else {
+                  <i class="fas fa-user" aria-hidden="true"></i>
+                }
+              </a>
+
+              <div class="exclusive-connections-feed__content">
+                <div class="exclusive-connections-feed__identity">
+                  <h3>{{ item.nickname }}</h3>
+                  <span
+                    class="exclusive-connections-feed__score"
+                    [attr.aria-label]="
+                      item.compatibilityScore + ' por cento de compatibilidade'
+                    "
+                  >
+                    {{ item.compatibilityScore }}%
+                  </span>
+                </div>
+
+                <p class="exclusive-connections-feed__region">
+                  <i class="fas fa-location-dot" aria-hidden="true"></i>
+                  <span>{{ item.region.city }}, {{ item.region.uf }}</span>
+                </p>
+
+                <p class="exclusive-connections-feed__intent">
+                  {{ item.intentLabel }}
+                </p>
+
+                @if (item.reasonTags.length) {
+                  <ul
+                    class="exclusive-connections-feed__tags"
+                    aria-label="Pontos em comum"
+                  >
+                    @for (tag of item.reasonTags; track tag) {
+                      <li>{{ tag }}</li>
+                    }
+                  </ul>
+                }
+
+                <a
+                  class="exclusive-connections-feed__profile-action"
+                  [routerLink]="['/outro-perfil', item.candidateUid]"
+                >
+                  <i class="fas fa-user" aria-hidden="true"></i>
+                  <span>Perfil</span>
+                </a>
+              </div>
+            </article>
+          }
+        </div>
+
+        @if (state.nextCursor) {
+          <button
+            class="exclusive-connections-feed__more"
+            type="button"
+            [disabled]="state.loadingMore"
+            [attr.aria-busy]="state.loadingMore"
+            (click)="loadMore(state.nextCursor)"
+          >
+            @if (state.loadingMore) {
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Carregando...</span>
+            } @else {
+              <i class="fas fa-chevron-down" aria-hidden="true"></i>
+              <span>Ver mais</span>
+            }
+          </button>
+        }
+      }
+    }
+  }
+</section>
