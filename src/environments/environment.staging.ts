@@ -62,6 +62,7 @@ export const environment: AppEnvironment = {
     showGuestBanner: true,
     restrictedRoutesWhenUnverified: ['/dashboard', '/chat', '/friends'],
     subscriberExperiencesPreview: false,
+    communityPreview: false,
   },
 
   friendsPageSize: 24,
