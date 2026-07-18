@@ -37,9 +37,12 @@ type MembershipRequestsState =
   | { status: 'error'; items: readonly CommunityMembershipRequestItem[] };
 
 type MembershipReviewActionState =
-  | { status: 'idle'; memberId: null }
-  | { status: 'loading'; memberId: string }
-  | { status: 'error'; memberId: string };
+  | { status: 'idle'; memberId: null; action: null }
+  | {
+      status: 'loading' | 'error';
+      memberId: string;
+      action: CommunityMembershipReviewAction;
+    };
 
 interface MembershipReviewCommand {
   request: CommunityMembershipRequestItem;
@@ -119,11 +122,13 @@ export class CommunityMembershipManagementComponent {
             (): MembershipReviewActionState => ({
               status: 'idle',
               memberId: null,
+              action: null,
             })
           ),
           startWith<MembershipReviewActionState>({
             status: 'loading',
             memberId: request.memberId,
+            action,
           }),
           catchError((error: unknown) => {
             this.reportError(
@@ -134,11 +139,16 @@ export class CommunityMembershipManagementComponent {
             return of<MembershipReviewActionState>({
               status: 'error',
               memberId: request.memberId,
+              action,
             });
           })
         )
     ),
-    startWith<MembershipReviewActionState>({ status: 'idle', memberId: null }),
+    startWith<MembershipReviewActionState>({
+      status: 'idle',
+      memberId: null,
+      action: null,
+    }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
