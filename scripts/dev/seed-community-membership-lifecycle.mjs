@@ -2,8 +2,9 @@
 // -----------------------------------------------------------------------------
 // SEED DEV/EMULATOR - COMMUNITY MEMBERSHIP LIFECYCLE
 // -----------------------------------------------------------------------------
-// - exige Firestore Emulator;
-// - exige COMMUNITY_MODERATOR_UID explícito;
+// - exige Firestore Emulator e Auth Emulator;
+// - exige COMMUNITY_MODERATOR_UID explícito, real e existente no Auth Emulator;
+// - exige e-mail verificado para reproduzir o contrato das callables;
 // - promove somente esse UID como moderador da comunidade fictícia;
 // - cria duas solicitações pendentes com IDs reservados ao seed;
 // - não cria usuários no Auth Emulator;
@@ -12,11 +13,14 @@
 // -----------------------------------------------------------------------------
 
 import { applicationDefault, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const PLACEHOLDER_UID_PATTERN = /^(?:UID_REAL_DO_AUTH_EMULATOR|COLE_AQUI(?:_O)?_UID_REAL|SEU_UID|PLACEHOLDER)$/i;
 const projectId = process.env.FIREBASE_PROJECT_ID || 'entretenimento-sexual';
 const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST;
+const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
 const moderatorUid = String(process.env.COMMUNITY_MODERATOR_UID ?? '').trim();
 const communityId = 'community-rj-centro';
 
@@ -27,9 +31,19 @@ if (!emulatorHost) {
   process.exit(1);
 }
 
-if (!SAFE_ID_PATTERN.test(moderatorUid)) {
+if (!authEmulatorHost) {
   console.error(
-    '[seed:community-memberships] Abortado: defina COMMUNITY_MODERATOR_UID com o UID do usuário autenticado no Auth Emulator.'
+    '[seed:community-memberships] Abortado: FIREBASE_AUTH_EMULATOR_HOST ausente.'
+  );
+  process.exit(1);
+}
+
+if (
+  !SAFE_ID_PATTERN.test(moderatorUid)
+  || PLACEHOLDER_UID_PATTERN.test(moderatorUid)
+) {
+  console.error(
+    '[seed:community-memberships] Abortado: defina COMMUNITY_MODERATOR_UID com um UID real do usuário autenticado no Auth Emulator.'
   );
   process.exit(1);
 }
@@ -55,6 +69,26 @@ if (pendingUsers.some((user) => user.uid === moderatorUid)) {
 }
 
 initializeApp({ projectId, credential: applicationDefault() });
+
+const auth = getAuth();
+let moderatorUser;
+
+try {
+  moderatorUser = await auth.getUser(moderatorUid);
+} catch (error) {
+  console.error(
+    `[seed:community-memberships] Abortado: o UID ${moderatorUid} não existe no Auth Emulator.`,
+    error instanceof Error ? error.message : error
+  );
+  process.exit(1);
+}
+
+if (!moderatorUser.emailVerified) {
+  console.error(
+    '[seed:community-memberships] Abortado: a conta moderadora precisa ter e-mail verificado no Auth Emulator.'
+  );
+  process.exit(1);
+}
 
 const db = getFirestore();
 const now = Date.now();
@@ -144,7 +178,7 @@ for (const user of pendingUsers) {
 await batch.commit();
 
 console.log(
-  `[seed:community-memberships] Projeto=${projectId} | Emulador=${emulatorHost}`
+  `[seed:community-memberships] Projeto=${projectId} | Firestore=${emulatorHost} | Auth=${authEmulatorHost}`
 );
 console.log(
   `[seed:community-memberships] Moderador=${moderatorUid} | Comunidade=${communityId}`
