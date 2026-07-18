@@ -86,10 +86,11 @@ test('descarta projeções ocultas, pausadas ou malformadas', () => {
 });
 
 test('aceita documento restrito somente para avaliação de membro', () => {
-  const { moderationState: _ignored, ...raw } = projection({
+  const raw: Record<string, unknown> = projection({
     visibility: 'members_only',
     moderation: { state: 'active' },
   });
+  Reflect.deleteProperty(raw, 'moderationState');
 
   assert.equal(
     sanitizeCommunityDocument('community-1', raw)?.communityId,
