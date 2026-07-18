@@ -1,18 +1,9 @@
 <main class="exclusive-connections-page">
+  <h1 class="sr-only">Conexões exclusivas</h1>
+
   @if (accessDecision$ | async; as decision) {
     @if (decision.allowed) {
-      <section
-        class="exclusive-connections-page__preview"
-        aria-label="Conexões exclusivas"
-      >
-        <h1 class="sr-only">Conexões exclusivas</h1>
-
-        <span class="exclusive-connections-page__icon" aria-hidden="true">
-          <i class="fas fa-heart-circle-bolt"></i>
-        </span>
-
-        <p>Seleção por compatibilidade e intenção em preparação.</p>
-      </section>
+      <app-exclusive-connections-feed />
     } @else {
       <app-content-access-notice [decision]="decision" />
     }
