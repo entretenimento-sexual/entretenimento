@@ -33,4 +33,8 @@ export class ExclusiveConnectionsPageComponent {
   private readonly access = inject(ExclusiveConnectionsAccessService);
 
   readonly accessDecision$ = this.access.evaluate$();
+
+  retryAccess(): void {
+    this.access.refresh();
+  }
 }
