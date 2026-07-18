@@ -106,6 +106,15 @@ export function buildContentAccessNoticeViewModel(
         ariaLabel: 'Assinatura ativa necessária para esta experiência.',
       };
 
+    case 'access_check_unavailable':
+      return {
+        message: 'Não foi possível verificar o acesso agora.',
+        actionLabel: null,
+        icon: 'fa-circle-exclamation',
+        actionIcon: null,
+        ariaLabel: 'Verificação de acesso temporariamente indisponível.',
+      };
+
     case null:
     default:
       return {
