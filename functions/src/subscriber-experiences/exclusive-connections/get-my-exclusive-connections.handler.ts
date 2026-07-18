@@ -7,6 +7,8 @@
 // Segurança:
 // - disponível somente no Functions Emulator enquanto o produto está em prévia;
 // - usa request.auth.uid como escopo obrigatório;
+// - exige e-mail verificado;
+// - revalida conta, perfil, consentimento adulto e campos mínimos no backend;
 // - revalida entitlement ativo e vigente no backend;
 // - exige plano Premium ou VIP;
 // - lê somente a subcoleção pertencente ao viewer autenticado;
@@ -25,6 +27,9 @@ import {
 import {
   isFunctionsEmulatorRuntime,
 } from '../../shared/runtime/functions-runtime.guard';
+import {
+  assertExclusiveConnectionsEligibility,
+} from './exclusive-connections-access.policy';
 import {
   ExclusiveConnectionCard,
   ExclusiveConnectionsPageRequest,
@@ -67,11 +72,25 @@ export const getMyExclusiveConnectionsPage =
         throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
       }
 
+      if (request.auth?.token.email_verified !== true) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Verifique seu e-mail para continuar.'
+        );
+      }
+
       const pageRequest = normalizeExclusiveConnectionsPageRequest(request.data);
       assertValidCursorInput(request.data, pageRequest.cursor);
 
-      const entitlement =
-        await getActivePlatformSubscriptionEntitlement(uid);
+      const [userSnapshot, entitlement] = await Promise.all([
+        db.collection('users').doc(uid).get(),
+        getActivePlatformSubscriptionEntitlement(uid),
+      ]);
+
+      assertExclusiveConnectionsEligibility(
+        userSnapshot.exists ? userSnapshot.data() : null,
+        uid
+      );
 
       if (
         !entitlement.active
@@ -96,8 +115,11 @@ export const getMyExclusiveConnectionsPage =
         const cursorSnapshot = await candidateCollection
           .doc(pageRequest.cursor)
           .get();
+        const cursorScore = Number(
+          cursorSnapshot.data()?.['compatibilityScore']
+        );
 
-        if (!cursorSnapshot.exists) {
+        if (!cursorSnapshot.exists || !Number.isFinite(cursorScore)) {
           throw new HttpsError(
             'invalid-argument',
             'Cursor de paginação não encontrado.'
