@@ -11,7 +11,10 @@
       (ngSubmit)="onSubmit()"
     >
       <div class="form-group">
-        <label for="roomName">Nome da sala</label>
+        <label for="roomName">
+          <i class="fas fa-users" aria-hidden="true"></i>
+          <span>Nome</span>
+        </label>
 
         <input
           id="roomName"
@@ -21,28 +24,31 @@
           minlength="3"
           maxlength="60"
           autocomplete="off"
+          placeholder="Ex.: Encontro no Centro"
           required
           [attr.aria-invalid]="
             roomForm.controls.roomName.touched &&
             roomForm.controls.roomName.invalid
           "
-          aria-describedby="roomName-help roomName-error"
+          aria-describedby="roomName-error"
         />
-
-        <p id="roomName-help" class="form-hint">Entre 3 e 60 caracteres.</p>
 
         @if (
           roomForm.controls.roomName.touched &&
           roomForm.controls.roomName.invalid
         ) {
           <p id="roomName-error" class="form-error" role="alert">
-            Informe um nome entre 3 e 60 caracteres.
+            Informe entre 3 e 60 caracteres.
           </p>
         }
       </div>
 
       <div class="form-group">
-        <label for="description">Descrição</label>
+        <label for="description">
+          <i class="fas fa-align-left" aria-hidden="true"></i>
+          <span>Descrição</span>
+          <span class="form-optional">Opcional</span>
+        </label>
 
         <textarea
           id="description"
@@ -50,50 +56,51 @@
           formControlName="description"
           rows="3"
           maxlength="280"
-          aria-describedby="description-help description-error"
+          placeholder="Defina a proposta da sala."
+          aria-describedby="description-error"
           [attr.aria-invalid]="
             roomForm.controls.description.touched &&
             roomForm.controls.description.invalid
           "
         ></textarea>
 
-        <p id="description-help" class="form-hint">Opcional · até 280 caracteres.</p>
-
         @if (
           roomForm.controls.description.touched &&
           roomForm.controls.description.invalid
         ) {
           <p id="description-error" class="form-error" role="alert">
-            A descrição deve ter no máximo 280 caracteres.
+            Use no máximo 280 caracteres.
           </p>
         }
       </div>
 
-      <section class="place-intent" aria-labelledby="place-intent-title">
-        <div class="place-intent__header">
-          <div>
-            <h3 id="place-intent-title">Estabelecimento da sala</h3>
-            <p>
-              Associe a sala a um local moderado da sua região. O vínculo fica
-              ativo por até 12 horas e não divulga coordenadas precisas.
-            </p>
-          </div>
-
-          <span class="place-intent__badge">Premium</span>
-        </div>
+      <fieldset class="place-intent">
+        <legend class="sr-only">Local associado à sala</legend>
 
         @if (canUsePlaceIntent) {
           @if (venues$ | async; as venues) {
             @if (venues.length > 0) {
               <label class="place-intent__toggle">
-                <input type="checkbox" formControlName="placeEnabled" />
-                <span>Adicionar estabelecimento</span>
+                <span class="place-intent__toggle-copy">
+                  <i class="fas fa-location-dot" aria-hidden="true"></i>
+                  <span>Vincular local</span>
+                </span>
+
+                <input
+                  type="checkbox"
+                  formControlName="placeEnabled"
+                  aria-label="Vincular um local moderado à sala"
+                />
               </label>
 
               @if (roomForm.controls.placeEnabled.value) {
                 <div class="place-intent__grid">
                   <div class="form-group place-intent__wide">
-                    <label for="placeVenueId">Estabelecimento</label>
+                    <label for="placeVenueId">
+                      <i class="fas fa-building" aria-hidden="true"></i>
+                      <span>Local</span>
+                    </label>
+
                     <select
                       id="placeVenueId"
                       class="input-field"
@@ -102,9 +109,9 @@
                         roomForm.controls.placeVenueId.touched &&
                         roomForm.controls.placeVenueId.invalid
                       "
-                      aria-describedby="placeVenueId-help placeVenueId-error"
+                      aria-describedby="placeVenueId-error"
                     >
-                      <option value="">Selecione um local</option>
+                      <option value="">Selecione</option>
                       @for (venue of venues; track venue.id) {
                         <option [value]="venue.id">
                           {{ venue.name }} · {{ venue.regionLabel }}
@@ -112,22 +119,22 @@
                       }
                     </select>
 
-                    <p id="placeVenueId-help" class="form-hint">
-                      Somente locais ativos e liberados para salas são exibidos.
-                    </p>
-
                     @if (
                       roomForm.controls.placeVenueId.touched &&
                       roomForm.controls.placeVenueId.invalid
                     ) {
                       <p id="placeVenueId-error" class="form-error" role="alert">
-                        Selecione um estabelecimento válido.
+                        Selecione um local válido.
                       </p>
                     }
                   </div>
 
                   <div class="form-group">
-                    <label for="placeMode">Quando?</label>
+                    <label for="placeMode">
+                      <i class="fas fa-clock" aria-hidden="true"></i>
+                      <span>Quando</span>
+                    </label>
+
                     <select
                       id="placeMode"
                       class="input-field"
@@ -140,7 +147,11 @@
 
                   @if (roomForm.controls.placeMode.value === 'scheduled') {
                     <div class="form-group">
-                      <label for="placeStartsAt">Data e horário</label>
+                      <label for="placeStartsAt">
+                        <i class="fas fa-calendar" aria-hidden="true"></i>
+                        <span>Data e horário</span>
+                      </label>
+
                       <input
                         id="placeStartsAt"
                         type="datetime-local"
@@ -167,17 +178,19 @@
                 </div>
               }
             } @else {
-              <div class="place-intent__locked" role="status" aria-live="polite">
-                Nenhum estabelecimento está liberado para salas na sua região.
+              <div class="place-intent__state" role="status" aria-live="polite">
+                <i class="fas fa-location-dot" aria-hidden="true"></i>
+                <span>Nenhum local liberado na sua região.</span>
               </div>
             }
           }
         } @else {
-          <div class="place-intent__locked" role="note">
-            A associação com estabelecimento é exclusiva para plano premium ou superior.
+          <div class="place-intent__state" role="note">
+            <i class="fas fa-crown" aria-hidden="true"></i>
+            <span>Local disponível no Premium.</span>
           </div>
         }
-      </section>
+      </fieldset>
     </form>
   </div>
 
@@ -196,7 +209,8 @@
       class="btn btn-primary"
       [disabled]="roomForm.invalid"
     >
-      {{ isEditing ? 'Salvar alterações' : 'Criar sala' }}
+      <i class="fas {{ isEditing ? 'fa-check' : 'fa-plus' }}" aria-hidden="true"></i>
+      <span>{{ isEditing ? 'Salvar' : 'Criar' }}</span>
     </button>
   </div>
 </app-base-modal>
