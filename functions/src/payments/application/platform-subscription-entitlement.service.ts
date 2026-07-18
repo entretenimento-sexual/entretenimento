@@ -16,10 +16,7 @@
 // -----------------------------------------------------------------------------
 
 import { db } from '../../firebaseApp';
-import {
-  EntitlementDoc,
-  PlatformRole,
-} from '../domain/billing.model';
+import { PlatformRole } from '../domain/billing.model';
 
 export interface PlatformSubscriptionEntitlementStatus {
   active: boolean;
@@ -28,16 +25,6 @@ export interface PlatformSubscriptionEntitlementStatus {
   endsAt: number | null;
   updatedAt: number | null;
 }
-
-type EntitlementData = Partial<EntitlementDoc> & {
-  active?: unknown;
-  buyerUid?: unknown;
-  scope?: unknown;
-  grantedRole?: unknown;
-  startsAt?: unknown;
-  endsAt?: unknown;
-  updatedAt?: unknown;
-};
 
 const PLATFORM_ROLE_WEIGHT: Readonly<Record<PlatformRole, number>> =
   Object.freeze({
@@ -65,24 +52,25 @@ export function hasMinimumPlatformRole(
 }
 
 export function evaluatePlatformSubscriptionEntitlement(
-  rawEntitlement: EntitlementData | null | undefined,
+  rawEntitlement: unknown,
   expectedBuyerUid: string,
   now = Date.now()
 ): PlatformSubscriptionEntitlementStatus {
-  const entitlement = rawEntitlement ?? {};
-  const role = isPlatformRole(entitlement.grantedRole)
-    ? entitlement.grantedRole
+  const entitlement = (rawEntitlement ?? {}) as Record<string, unknown>;
+  const role = isPlatformRole(entitlement['grantedRole'])
+    ? entitlement['grantedRole']
     : null;
-  const startsAt = toFiniteNumberOrNull(entitlement.startsAt);
-  const endsAt = entitlement.endsAt == null
+  const startsAt = toFiniteNumberOrNull(entitlement['startsAt']);
+  const rawEndsAt = entitlement['endsAt'];
+  const endsAt = rawEndsAt == null
     ? null
-    : toFiniteNumberOrNull(entitlement.endsAt);
-  const updatedAt = toFiniteNumberOrNull(entitlement.updatedAt);
+    : toFiniteNumberOrNull(rawEndsAt);
+  const updatedAt = toFiniteNumberOrNull(entitlement['updatedAt']);
 
   const active =
-    entitlement.active === true
-    && entitlement.buyerUid === expectedBuyerUid
-    && entitlement.scope === 'platform_subscription'
+    entitlement['active'] === true
+    && entitlement['buyerUid'] === expectedBuyerUid
+    && entitlement['scope'] === 'platform_subscription'
     && role !== null
     && startsAt !== null
     && startsAt <= now
@@ -112,12 +100,8 @@ export async function getActivePlatformSubscriptionEntitlement(
     .doc(entitlementId)
     .get();
 
-  if (!snapshot.exists) {
-    return evaluatePlatformSubscriptionEntitlement(null, uid, now);
-  }
-
   return evaluatePlatformSubscriptionEntitlement(
-    snapshot.data() as EntitlementData,
+    snapshot.exists ? snapshot.data() : null,
     uid,
     now
   );
