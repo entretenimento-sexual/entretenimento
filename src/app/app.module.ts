@@ -503,7 +503,11 @@ export function authRestoreInitializer(
       return storage;
     }),
 
-    { provide: ErrorHandler, useClass: GlobalErrorHandlerService },
+    GlobalErrorHandlerService,
+    {
+      provide: ErrorHandler,
+      useExisting: GlobalErrorHandlerService,
+    },
     ErrorNotificationService,
     { provide: LOCALE_ID, useValue: 'pt-BR' },
   ],
