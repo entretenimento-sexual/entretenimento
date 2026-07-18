@@ -3,7 +3,7 @@
 // EXCLUSIVE CONNECTIONS PAGE
 // -----------------------------------------------------------------------------
 // Primeira superfície preparada para conteúdo de assinantes.
-// O feed protegido só é instanciado quando a política permite acesso.
+// O feed protegido só é instanciado quando perfil e entitlement são aprovados.
 // -----------------------------------------------------------------------------
 
 import { AsyncPipe } from '@angular/common';
@@ -13,9 +13,8 @@ import {
   inject,
 } from '@angular/core';
 
-import { ContentAccessPolicyService } from 'src/app/core/access/content-access-policy.service';
 import { ContentAccessNoticeComponent } from 'src/app/shared/components/content-access-notice/content-access-notice.component';
-import { EXCLUSIVE_CONNECTIONS_ACCESS_POLICY } from './exclusive-connections-access.policy';
+import { ExclusiveConnectionsAccessService } from './exclusive-connections-access.service';
 import { ExclusiveConnectionsFeedComponent } from './exclusive-connections-feed.component';
 
 @Component({
@@ -31,9 +30,7 @@ import { ExclusiveConnectionsFeedComponent } from './exclusive-connections-feed.
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExclusiveConnectionsPageComponent {
-  private readonly accessPolicy = inject(ContentAccessPolicyService);
+  private readonly access = inject(ExclusiveConnectionsAccessService);
 
-  readonly accessDecision$ = this.accessPolicy.evaluate$(
-    EXCLUSIVE_CONNECTIONS_ACCESS_POLICY
-  );
+  readonly accessDecision$ = this.access.evaluate$();
 }
