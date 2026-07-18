@@ -79,6 +79,7 @@ export const environment: AppEnvironment = {
       '/upload',
     ],
     subscriberExperiencesPreview: false,
+    communityPreview: false,
   },
 
   friendsPageSize: 24,
