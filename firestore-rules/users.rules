@@ -21,6 +21,10 @@ match /users/{userId} {
     return request.resource.data.keys().hasAny([field]);
   }
 
+  function affectedUserKeys() {
+    return request.resource.data.diff(resource.data).affectedKeys();
+  }
+
   function emailVerifiedMatchesToken() {
     return !hasField("emailVerified")
       || request.resource.data.emailVerified
@@ -28,13 +32,13 @@ match /users/{userId} {
   }
 
   function emailVerifiedSafeOnUpdate() {
-    return !request.resource.data.diff(resource.data).changedKeys().hasAny(["emailVerified"])
+    return !affectedUserKeys().hasAny(["emailVerified"])
       || request.resource.data.emailVerified
         == (request.auth.token.email_verified == true);
   }
 
   function selfChangingSensitiveKeys() {
-    return request.resource.data.diff(resource.data).changedKeys().hasAny([
+    return affectedUserKeys().hasAny([
       "adultConsent",
       "acceptedTerms",
       "registrationFlowVersion",
@@ -94,7 +98,7 @@ match /users/{userId} {
   }
 
   function adminModerationOnly() {
-    return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+    return affectedUserKeys().hasOnly([
       "accountLocked",
       "suspended",
       "suspensionReason",
