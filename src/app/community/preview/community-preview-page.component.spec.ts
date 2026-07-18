@@ -3,13 +3,33 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ContentAccessNavigationService } from 'src/app/core/access/content-access-navigation.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
+import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityPreviewPageComponent } from './community-preview-page.component';
 
-function preview() {
+function preview(
+  overrides: Partial<ReturnType<typeof basePreview>> = {}
+) {
+  const base = basePreview();
+  return {
+    ...base,
+    ...overrides,
+    community: {
+      ...base.community,
+      ...(overrides.community ?? {}),
+      access: {
+        ...base.community.access,
+        ...(overrides.community?.access ?? {}),
+      },
+    },
+  };
+}
+
+function basePreview() {
   return {
     community: {
       communityId: 'community-1',
@@ -21,12 +41,12 @@ function preview() {
       coverUrl: null,
       metrics: { memberCount: 12, postCount: 4, mediaCount: 3 },
       access: {
-        join: 'approval' as const,
-        minimumRole: null,
+        join: 'approval' as 'open' | 'approval' | 'invite_only',
+        minimumRole: null as 'basic' | 'premium' | 'vip' | null,
         requiresActiveSubscription: false,
       },
     },
-    viewerMode: 'visitor' as const,
+    viewerMode: 'visitor' as 'visitor' | 'pending' | 'member' | 'moderator' | 'manager',
     canInteract: false,
     generatedAt: 123,
   };
@@ -35,6 +55,12 @@ function preview() {
 describe('CommunityPreviewPageComponent', () => {
   const previewRepositoryMock = { getPreview$: vi.fn() };
   const feedRepositoryMock = { getPage$: vi.fn() };
+  const membershipRepositoryMock = { requestMembership$: vi.fn() };
+  const accessNavigationMock = { navigateForDecision: vi.fn() };
+  const errorNotifierMock = {
+    showError: vi.fn(),
+    showSuccess: vi.fn(),
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -42,6 +68,10 @@ describe('CommunityPreviewPageComponent', () => {
     feedRepositoryMock.getPage$.mockReturnValue(
       of({ items: [], nextCursor: null, generatedAt: 123 })
     );
+    membershipRepositoryMock.requestMembership$.mockReturnValue(
+      of({ status: 'pending', viewerMode: 'pending', canInteract: false })
+    );
+    accessNavigationMock.navigateForDecision.mockResolvedValue(true);
 
     TestBed.configureTestingModule({
       imports: [CommunityPreviewPageComponent],
@@ -55,7 +85,9 @@ describe('CommunityPreviewPageComponent', () => {
         },
         { provide: CommunityPreviewRepository, useValue: previewRepositoryMock },
         { provide: CommunityFeedRepository, useValue: feedRepositoryMock },
-        { provide: ErrorNotificationService, useValue: { showError: vi.fn() } },
+        { provide: CommunityMembershipRepository, useValue: membershipRepositoryMock },
+        { provide: ContentAccessNavigationService, useValue: accessNavigationMock },
+        { provide: ErrorNotificationService, useValue: errorNotifierMock },
         { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
       ],
     });
@@ -92,12 +124,13 @@ describe('CommunityPreviewPageComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Sobre');
   });
 
-  it('não repete a descrição no cabeçalho ou mural', () => {
+  it('não repete descrição ou rótulo de visitante no cabeçalho', () => {
     const fixture = createFixture();
 
     expect(fixture.nativeElement.textContent).not.toContain(
       'Atualizações e fotos do local.'
     );
+    expect(fixture.nativeElement.textContent).not.toContain('Visitante');
   });
 
   it('mostra descrição e métricas somente em Sobre', () => {
@@ -128,5 +161,59 @@ describe('CommunityPreviewPageComponent', () => {
     expect(feedRepositoryMock.getPage$).toHaveBeenCalledWith(
       expect.objectContaining({ view: 'photos' })
     );
+  });
+
+  it('envia a adesão somente pela callable e recarrega a prévia', () => {
+    const fixture = createFixture();
+    const action = fixture.nativeElement.querySelector(
+      '.community-preview__membership-action'
+    ) as HTMLButtonElement;
+
+    expect(action.textContent).toContain('Solicitar');
+    action.click();
+    fixture.detectChanges();
+
+    expect(membershipRepositoryMock.requestMembership$).toHaveBeenCalledWith(
+      'community-1'
+    );
+    expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith(
+      'Solicitação enviada.'
+    );
+    expect(previewRepositoryMock.getPreview$).toHaveBeenCalledTimes(2);
+  });
+
+  it('substitui a ação por estado pendente e não cria botão redundante', () => {
+    previewRepositoryMock.getPreview$.mockReturnValue(
+      of(preview({ viewerMode: 'pending' }))
+    );
+
+    const fixture = createFixture();
+
+    expect(
+      fixture.nativeElement.querySelector('.community-preview__membership-action')
+    ).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Solicitação enviada');
+  });
+
+  it('não oferece adesão em comunidade somente por convite', () => {
+    previewRepositoryMock.getPreview$.mockReturnValue(
+      of(
+        preview({
+          community: {
+            ...basePreview().community,
+            access: {
+              ...basePreview().community.access,
+              join: 'invite_only',
+            },
+          },
+        })
+      )
+    );
+
+    const fixture = createFixture();
+
+    expect(
+      fixture.nativeElement.querySelector('.community-preview__membership-action')
+    ).toBeNull();
   });
 });
