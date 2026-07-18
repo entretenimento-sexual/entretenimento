@@ -11,6 +11,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import { canViewerReadCommunityFeedProjection } from './community-feed-access.policy';
 import {
   CommunityFeedItem,
   CommunityFeedPageRequest,
@@ -101,11 +102,14 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
         now
       );
 
-      if (!projection) continue;
-      if (projection.audience === 'members_only' && !context.activeMembership) {
-        continue;
-      }
-      if (pageRequest.view === 'photos' && projection.item.kind !== 'photo') {
+      if (
+        !projection
+        || !canViewerReadCommunityFeedProjection(
+          projection,
+          pageRequest.view,
+          context.activeMembership
+        )
+      ) {
         continue;
       }
 
