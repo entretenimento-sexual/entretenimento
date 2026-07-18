@@ -1,0 +1,29 @@
+<main class="exclusive-connections-page">
+  @if (accessDecision$ | async; as decision) {
+    @if (decision.allowed) {
+      <section
+        class="exclusive-connections-page__preview"
+        aria-label="Conexões exclusivas"
+      >
+        <h1 class="sr-only">Conexões exclusivas</h1>
+
+        <span class="exclusive-connections-page__icon" aria-hidden="true">
+          <i class="fas fa-heart-circle-bolt"></i>
+        </span>
+
+        <p>Seleção por compatibilidade e intenção em preparação.</p>
+      </section>
+    } @else {
+      <app-content-access-notice [decision]="decision" />
+    }
+  } @else {
+    <div
+      class="exclusive-connections-page__loading"
+      role="status"
+      aria-live="polite"
+    >
+      <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+      <span>Verificando acesso...</span>
+    </div>
+  }
+</main>
