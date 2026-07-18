@@ -164,6 +164,17 @@ test('saída já concluída é idempotente e owner exige transferência', () => 
   assert.equal(owner.denialReason, 'owner_transfer_required');
 });
 
+test('nega saída quando o vínculo não possui papel válido', () => {
+  const decision = evaluateCommunityMembershipLeave({
+    existingStatus: 'active',
+    existingRole: null,
+  });
+
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.denialReason, 'membership_not_found');
+  assert.equal(decision.decrementMemberCount, false);
+});
+
 test('moderador aprova pendência e incrementa membros', () => {
   const decision = evaluateCommunityMembershipReview({
     actorActive: true,
@@ -196,7 +207,31 @@ test('moderador rejeita pendência sem alterar contagem', () => {
   assert.equal(decision.auditAction, 'community-membership-rejected');
 });
 
-test('revisão exige papel, alvo pendente e impede autorrevisão', () => {
+test('revisão repetida preserva aprovação ou rejeição sem nova métrica', () => {
+  const approved = evaluateCommunityMembershipReview({
+    actorActive: true,
+    actorRole: 'moderator',
+    targetIsActor: false,
+    targetStatus: 'active',
+    targetRole: 'member',
+    action: 'approve',
+  });
+  const rejected = evaluateCommunityMembershipReview({
+    actorActive: true,
+    actorRole: 'moderator',
+    targetIsActor: false,
+    targetStatus: 'left',
+    targetRole: 'member',
+    action: 'reject',
+  });
+
+  assert.equal(approved.idempotent, true);
+  assert.equal(approved.incrementMemberCount, false);
+  assert.equal(rejected.idempotent, true);
+  assert.equal(rejected.incrementMemberCount, false);
+});
+
+test('revisão exige papel, alvo válido e impede autorrevisão', () => {
   assert.equal(
     evaluateCommunityMembershipReview({
       actorActive: true,
@@ -227,6 +262,17 @@ test('revisão exige papel, alvo pendente e impede autorrevisão', () => {
       targetStatus: 'active',
       targetRole: 'moderator',
       action: 'reject',
+    }).denialReason,
+    'protected_membership'
+  );
+  assert.equal(
+    evaluateCommunityMembershipReview({
+      actorActive: true,
+      actorRole: 'owner',
+      targetIsActor: false,
+      targetStatus: 'pending',
+      targetRole: null,
+      action: 'approve',
     }).denialReason,
     'protected_membership'
   );
