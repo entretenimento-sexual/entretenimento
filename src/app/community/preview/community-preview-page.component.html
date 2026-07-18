@@ -48,7 +48,10 @@
             <div class="community-preview__copy">
               <div class="community-preview__labels">
                 <span>{{ sourceLabel(preview.community) }}</span>
-                @if (preview.viewerMode !== 'visitor') {
+                @if (
+                  preview.viewerMode === 'moderator'
+                  || preview.viewerMode === 'manager'
+                ) {
                   <span>{{ viewerLabel(preview.viewerMode) }}</span>
                 }
                 @if (accessLabel(preview.community); as access) {
@@ -179,7 +182,15 @@
                 @if (!preview.canInteract) {
                   <span>
                     <i class="fas fa-lock" aria-hidden="true"></i>
-                    Interação reservada aos membros
+                    @if (
+                      preview.viewerMode !== 'visitor'
+                      && preview.viewerMode !== 'pending'
+                      && preview.community.access.requiresActiveSubscription
+                    ) {
+                      Assinatura necessária para interagir
+                    } @else {
+                      Interação reservada aos membros
+                    }
                   </span>
                 }
                 @if (accessLabel(preview.community); as access) {
