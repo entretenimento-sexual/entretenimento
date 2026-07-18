@@ -30,10 +30,11 @@ function buildCommunity(overrides: Partial<ICommunity> = {}): ICommunity {
 
 function buildMembership(
   role: CommunityMemberRole = 'member',
-  status: CommunityMemberStatus = 'active'
+  status: CommunityMemberStatus = 'active',
+  communityId = 'community-1'
 ): ICommunityMembership {
   return {
-    communityId: 'community-1',
+    communityId,
     uid: 'user-1',
     role,
     status,
@@ -72,6 +73,18 @@ describe('resolveCommunityViewerCapabilities', () => {
     expect(decision.canInteract).toBe(true);
   });
 
+  it('ignora membership pertencente a outra comunidade', () => {
+    const decision = resolveCommunityViewerCapabilities(
+      buildCommunity({ visibility: 'members_only' }),
+      buildMembership('owner', 'active', 'community-other')
+    );
+
+    expect(decision.mode).toBe('visitor');
+    expect(decision.canPreview).toBe(false);
+    expect(decision.canInteract).toBe(false);
+    expect(decision.canManage).toBe(false);
+  });
+
   it('mantém membership pendente sem interação', () => {
     const decision = resolveCommunityViewerCapabilities(
       buildCommunity(),
@@ -82,6 +95,17 @@ describe('resolveCommunityViewerCapabilities', () => {
     expect(decision.canPreview).toBe(true);
     expect(decision.canInteract).toBe(false);
     expect(decision.canRequestMembership).toBe(false);
+  });
+
+  it('permite nova solicitação depois de saída voluntária', () => {
+    const decision = resolveCommunityViewerCapabilities(
+      buildCommunity(),
+      buildMembership('member', 'left')
+    );
+
+    expect(decision.mode).toBe('visitor');
+    expect(decision.canInteract).toBe(false);
+    expect(decision.canRequestMembership).toBe(true);
   });
 
   it('bloqueia completamente membership marcada como blocked', () => {
@@ -133,6 +157,22 @@ describe('resolveCommunityViewerCapabilities', () => {
     );
 
     expect(decision.canPreview).toBe(true);
+    expect(decision.canRequestMembership).toBe(false);
+  });
+
+  it('não trata configuração members_only como prévia pública', () => {
+    const decision = resolveCommunityViewerCapabilities(
+      buildCommunity({
+        access: {
+          preview: 'members_only',
+          interaction: 'members_only',
+          join: 'approval',
+        },
+      }),
+      null
+    );
+
+    expect(decision.canPreview).toBe(false);
     expect(decision.canRequestMembership).toBe(false);
   });
 
