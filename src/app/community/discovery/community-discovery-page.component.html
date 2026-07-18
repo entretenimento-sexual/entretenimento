@@ -1,0 +1,121 @@
+<!-- src/app/community/discovery/community-discovery-page.component.html -->
+@if (state$ | async; as state) {
+  <main class="community-discovery" aria-labelledby="community-discovery-title">
+    <header class="community-discovery__header">
+      <div>
+        <h1 id="community-discovery-title">Comunidades</h1>
+        @if (state.status === 'ready') {
+          <span aria-live="polite">{{ state.items.length }}</span>
+        }
+      </div>
+    </header>
+
+    @if (state.status === 'loading') {
+      <div class="community-discovery__state" role="status" aria-live="polite">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Carregando...</span>
+      </div>
+    } @else if (state.status === 'error') {
+      <div class="community-discovery__state" role="alert">
+        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+        <span>Não foi possível carregar.</span>
+        <button type="button" (click)="retry()">Tentar novamente</button>
+      </div>
+    } @else if (state.status === 'empty') {
+      <div class="community-discovery__state" role="status">
+        <i class="far fa-compass" aria-hidden="true"></i>
+        <span>Nenhuma comunidade disponível.</span>
+      </div>
+    } @else {
+      <ul class="community-discovery__grid" aria-label="Comunidades disponíveis">
+        @for (item of state.items; track item.communityId) {
+          <li>
+            <a
+              class="community-card"
+              [routerLink]="['/dashboard/comunidades', item.communityId]"
+              [attr.aria-label]="'Abrir ' + item.name"
+            >
+              <div class="community-card__media" aria-hidden="true">
+                @if (item.coverUrl) {
+                  <img
+                    [src]="item.coverUrl"
+                    alt=""
+                    loading="lazy"
+                    appImageFallback
+                  />
+                }
+
+                <span class="community-card__avatar">
+                  @if (item.avatarUrl) {
+                    <img
+                      [src]="item.avatarUrl"
+                      alt=""
+                      loading="lazy"
+                      appImageFallback
+                    />
+                  } @else {
+                    <i
+                      class="fas {{ item.source.type === 'venue' ? 'fa-location-dot' : 'fa-user-group' }}"
+                    ></i>
+                  }
+                </span>
+              </div>
+
+              <div class="community-card__body">
+                <div class="community-card__heading">
+                  <div>
+                    <span class="community-card__kind">
+                      {{ sourceLabel(item) }}
+                    </span>
+                    <h2>{{ item.name }}</h2>
+                  </div>
+
+                  @if (accessLabel(item); as label) {
+                    <span class="community-card__access">{{ label }}</span>
+                  }
+                </div>
+
+                @if (item.description) {
+                  <p>{{ item.description }}</p>
+                }
+
+                <div class="community-card__metrics" aria-label="Resumo da comunidade">
+                  <span>
+                    <i class="fas fa-users" aria-hidden="true"></i>
+                    {{ item.metrics.memberCount }}
+                  </span>
+                  <span>
+                    <i class="far fa-message" aria-hidden="true"></i>
+                    {{ item.metrics.postCount }}
+                  </span>
+                  <span>
+                    <i class="far fa-image" aria-hidden="true"></i>
+                    {{ item.metrics.mediaCount }}
+                  </span>
+                </div>
+              </div>
+            </a>
+          </li>
+        }
+      </ul>
+
+      @if (state.nextCursor) {
+        <div class="community-discovery__more">
+          <button
+            type="button"
+            [disabled]="state.loadingMore"
+            (click)="loadMore(state.nextCursor)"
+          >
+            @if (state.loadingMore) {
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Carregando</span>
+            } @else {
+              <i class="fas fa-chevron-down" aria-hidden="true"></i>
+              <span>Ver mais</span>
+            }
+          </button>
+        </div>
+      }
+    }
+  </main>
+}
