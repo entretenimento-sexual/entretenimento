@@ -11,7 +11,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
-import { canViewerReadCommunityFeedProjection } from './community-feed-access.policy';
+import {
+  canViewerReadCommunityFeedAudience,
+  canViewerReadCommunityFeedProjection,
+} from './community-feed-access.policy';
 import {
   CommunityFeedItem,
   CommunityFeedPageRequest,
@@ -71,14 +74,28 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
       .doc(pageRequest.communityId)
       .collection('items');
     const scanLimit = pageRequest.limit * 3 + 1;
+    const now = Date.now();
     let pageQuery = feedCollection
       .orderBy('publishedAt', 'desc')
       .limit(scanLimit);
 
     if (pageRequest.cursor) {
       const cursorSnapshot = await feedCollection.doc(pageRequest.cursor).get();
+      const cursorProjection = cursorSnapshot.exists
+        ? sanitizeCommunityFeedProjection(
+            cursorSnapshot.id,
+            cursorSnapshot.data(),
+            now
+          )
+        : null;
 
-      if (!cursorSnapshot.exists) {
+      if (
+        !cursorProjection
+        || !canViewerReadCommunityFeedAudience(
+          cursorProjection,
+          context.activeMembership
+        )
+      ) {
         throw new HttpsError(
           'invalid-argument',
           'Cursor de paginação não encontrado.'
@@ -88,7 +105,6 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
       pageQuery = pageQuery.startAfter(cursorSnapshot);
     }
 
-    const now = Date.now();
     const querySnapshot = await pageQuery.get();
     const items: CommunityFeedItem[] = [];
     let lastConsumedIndex = -1;
