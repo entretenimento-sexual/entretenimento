@@ -63,6 +63,7 @@ export const environment: AppEnvironment = {
       '/dashboard/featured-profiles',
     ],
     subscriberExperiencesPreview: false,
+    communityPreview: false,
   },
 
   friendsPageSize: 24,
