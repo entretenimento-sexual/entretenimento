@@ -28,6 +28,8 @@
 // - DiscoveryCardEnrichmentService: usa apenas modos de ranking de perfis;
 // - futuras facades/orchestrators: usam source/requiresLocation/requiresOnlinePresence.
 
+import type { ContentAccessPolicy } from 'src/app/core/access/content-access-policy.model';
+
 export const DISCOVERY_MODE_VALUES = [
   'all',
   'online',
@@ -105,9 +107,7 @@ export interface DiscoveryModeConfig {
    */
   availability: DiscoveryModeAvailability;
 
-  /**
-   * Campos visuais usados pela barra.
-   */
+  /** Campos visuais usados pela barra. */
   label: string;
   shortLabel?: string;
   icon: string;
@@ -116,10 +116,10 @@ export interface DiscoveryModeConfig {
   description?: string;
 
   /**
-   * Futuro:
-   * - pode controlar liberação por assinatura sem espalhar regra.
+   * Política opcional de acesso. Mantém perfil, assinatura e elegibilidade em
+   * um único contrato, sem acoplar a descoberta ao provedor de pagamento.
    */
-  minimumRole?: 'free' | 'basic' | 'premium' | 'vip';
+  accessPolicy?: Readonly<ContentAccessPolicy>;
 }
 
 export interface DiscoveryModeTab {
@@ -303,6 +303,12 @@ export function getDiscoveryModeConfig(
   mode: DiscoveryMode | null | undefined
 ): DiscoveryModeConfig {
   return DISCOVERY_MODE_CONFIGS[normalizeDiscoveryExperienceMode(mode)];
+}
+
+export function getDiscoveryModeAccessPolicy(
+  mode: DiscoveryMode | null | undefined
+): Readonly<ContentAccessPolicy> | null {
+  return getDiscoveryModeConfig(mode).accessPolicy ?? null;
 }
 
 export function isDiscoveryModeEnabled(
