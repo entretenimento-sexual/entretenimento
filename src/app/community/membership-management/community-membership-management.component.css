@@ -1,0 +1,233 @@
+/* src/app/community/membership-management/community-membership-management.component.css */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.community-membership-management {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  color: var(--text-color, #222);
+}
+
+.community-membership-management__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.community-membership-management__header > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.community-membership-management__header h2 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.community-membership-management__header span {
+  min-width: 1.55rem;
+  height: 1.55rem;
+  display: inline-grid;
+  place-items: center;
+  padding-inline: 0.35rem;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 86%,
+    var(--primary-color, #d83768) 14%
+  );
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.community-membership-management__refresh {
+  width: 2.65rem;
+  height: 2.65rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-color, #222);
+  cursor: pointer;
+}
+
+.community-membership-management__refresh:disabled,
+.community-membership-management__actions button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.community-membership-management__refresh:focus-visible,
+.community-membership-management__actions button:focus-visible {
+  outline: 3px solid color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 34%,
+    transparent
+  );
+  outline-offset: 2px;
+}
+
+.community-membership-management__state {
+  min-height: 9rem;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.6rem;
+  text-align: center;
+  font-size: 0.86rem;
+  opacity: 0.78;
+}
+
+.community-membership-management__state i {
+  color: var(--primary-color, #d83768);
+  font-size: 1.1rem;
+}
+
+.community-membership-management__list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.community-membership-management__list li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: 0.9rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 96%,
+    var(--primary-color, #d83768) 4%
+  );
+}
+
+.community-membership-management__avatar {
+  width: 2.8rem;
+  height: 2.8rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 84%,
+    var(--primary-color, #d83768) 16%
+  );
+  color: var(--primary-color, #d83768);
+}
+
+.community-membership-management__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.community-membership-management__copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.community-membership-management__copy strong,
+.community-membership-management__copy span {
+  overflow-wrap: anywhere;
+}
+
+.community-membership-management__copy strong {
+  font-size: 0.86rem;
+}
+
+.community-membership-management__copy span {
+  font-size: 0.72rem;
+  opacity: 0.68;
+}
+
+.community-membership-management__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.community-membership-management__actions button {
+  min-height: 2.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.73rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.community-membership-management__actions .is-approve {
+  background: var(--primary-color, #d83768);
+  color: var(--on-primary-color, #fff);
+}
+
+.community-membership-management__actions .is-reject {
+  border-color: var(--surface-border, #d5d5d5);
+  background: transparent;
+  color: var(--text-color, #222);
+}
+
+@media (max-width: 38rem) {
+  .community-membership-management__list li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .community-membership-management__actions {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 24rem) {
+  .community-membership-management {
+    padding-inline: 0.75rem;
+  }
+
+  .community-membership-management__actions button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .community-membership-management__actions button {
+    width: 2.55rem;
+    padding: 0;
+  }
+}
+
+:host-context(.high-contrast) .community-membership-management__refresh,
+:host-context(.high-contrast) .community-membership-management__list li,
+:host-context(.high-contrast) .community-membership-management__actions button {
+  border-color: currentColor;
+  border-width: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .community-membership-management__refresh,
+  .community-membership-management__actions button {
+    scroll-behavior: auto;
+  }
+}
