@@ -46,6 +46,32 @@
         />
       }
 
+      @case ('today') {
+        <!--
+          Hoje:
+          - status temporário publicado pelo próprio usuário;
+          - região declarada, sem GPS preciso;
+          - leitura e publicação protegidas por Rules e Cloud Functions.
+        -->
+        @if (currentUser$ | async; as currentUser) {
+          <section
+            class="profiles-discovery-page__today"
+            aria-label="Status de hoje e pessoas disponíveis"
+          >
+            <app-user-intent-status-composer [user]="currentUser" />
+            <app-user-intent-status-radar [user]="currentUser" />
+          </section>
+        } @else {
+          <section
+            class="profiles-discovery-page__empty"
+            role="status"
+            aria-live="polite"
+          >
+            <p>Preparando sua experiência de hoje...</p>
+          </section>
+        }
+      }
+
       @default {
         <section class="profiles-discovery-page__empty" role="status">
           <p>Este modo de descoberta será liberado em breve.</p>
