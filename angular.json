@@ -45,7 +45,6 @@
               "src/styles/global-forms.css",
               "src/styles/profile-completion-polish.css",
               "src/styles/global-animations.css",
-              "src/app/shared/components-globais/universal-sidebar/universal-sidebar-groups.css",
               "src/styles.css"
             ],
             "scripts": [],
