@@ -3,19 +3,19 @@
 // FIRESTORE RULES BUILD
 // -----------------------------------------------------------------------------
 //
-// Constrói firestore.rules a partir de fragments modulares em ordem fixa.
+// Constrói firestore.rules a partir dos fragments do manifesto canônico.
 //
 // Decisões:
 // - firestore.rules é artefato gerado; não deve ser editado manualmente;
 // - fragments sensíveis ficam versionados em firestore-rules/;
-// - billing.rules entra logo após users.rules por tratar dados privados e
-//   financeiros internos;
-// - projeções de assinantes permanecem fechadas ao cliente;
+// - build e checker usam exatamente a mesma ordem de arquivos;
 // - os marcadores por arquivo permanecem no resultado para diagnóstico.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { FIRESTORE_RULE_PARTS } from './firestore-rules-parts.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,62 +25,13 @@ const root = path.resolve(__dirname, '..', '..');
 const srcDir = path.join(root, 'firestore-rules');
 const outFile = path.join(root, 'firestore.rules');
 
-const parts = [
-  '_helpers.rules',
-
-  // Documentos privados e domínios internos sensíveis.
-  'users.rules',
-  'billing.rules',
-  'exclusive_connection_candidates.rules',
-
-  // Discovery, presença e vitrines regionais moderadas.
-  'public_profiles.rules',
-  'public_profiles_photos.rules',
-  'public_profiles_videos.rules',
-  'presence.rules',
-  'user_intent_statuses.rules',
-  'venues.rules',
-  'regional_hot_places.rules',
-
-  // Relações, comunicação e notificações.
-  'friendRequests.rules',
-  'friends_root.rules',
-  'chats.rules',
-  'rooms.rules',
-  'rooms_participants.rules',
-  'public_index.rules',
-  'notifications.rules',
-
-  // Dados privados/públicos complementares de perfil.
-  'users_profile_socialLinks.rules',
-  'public_social_links.rules',
-  'preferences.rules',
-  'users_friends.rules',
-  'user_profile.rules',
-  'users_photos.rules',
-  'users_videos.rules',
-  'users_photo_publications.rules',
-  'users_video_publications.rules',
-  'users_blocks.rules',
-
-  // Moderação e auditoria operacional.
-  'moderation_reports.rules',
-
-  // Demais módulos.
-  'communities.rules',
-  'invites.rules',
-  'admin_logs.rules',
-
-  '_footer.rules',
-];
-
 function build() {
   const banner =
     '// AUTO-GENERATED FILE. DO NOT EDIT.\n' +
     '// Source: firestore-rules/*\n' +
     `// Generated at: ${new Date().toISOString()}\n\n`;
 
-  const content = parts
+  const content = FIRESTORE_RULE_PARTS
     .map((part) => {
       const file = path.join(srcDir, part);
 
