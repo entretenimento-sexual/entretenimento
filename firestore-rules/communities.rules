@@ -10,7 +10,8 @@
 // - membership bloqueada nega acesso inclusive à prévia;
 // - listagem global direta fica bloqueada até existir projeção/callable paginada;
 // - criação, adesão, moderação e mutações são exclusivas do backend;
-// - o cliente só pode ler o próprio documento de membership.
+// - o cliente só pode ler o próprio documento de membership;
+// - projeções de descoberta e índice pessoal são backend-only.
 // =============================================================================
 
 match /communities/{communityId} {
@@ -63,6 +64,11 @@ match /communities/{communityId}/members/{memberUid} {
 
   // Listas de membros, adesão e mudanças de papel passam pelo backend.
   allow list, create, update, delete: if false;
+}
+
+// Projeção sanitizada usada exclusivamente pela callable de descoberta.
+match /community_discovery_index/{communityId} {
+  allow read, write: if false;
 }
 
 // Projeção futura das comunidades do usuário. Backend-only nesta fase.
