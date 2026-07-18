@@ -14,9 +14,11 @@
 // Emulator. Não confiar em NODE_ENV, query string, body ou frontend.
 import { HttpsError } from 'firebase-functions/v2/https';
 
-export function isFunctionsEmulatorRuntime(): boolean {
-  return process.env.FUNCTIONS_EMULATOR === 'true';
-}
+import {
+  isFunctionsEmulatorRuntime,
+} from '../../shared/runtime/functions-runtime.guard';
+
+export { isFunctionsEmulatorRuntime };
 
 export function assertEmulatorPaymentRuntime(operation: string): void {
   if (isFunctionsEmulatorRuntime()) {
