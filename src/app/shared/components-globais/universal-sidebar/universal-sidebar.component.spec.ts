@@ -46,9 +46,17 @@ function buildVm(
 }
 
 describe('UniversalSidebarComponent account group', () => {
-  it('abre automaticamente o grupo da rota ativa no sidebar expandido', () => {
+  it('mantém a rota filha ativa sem forçar a abertura do grupo', () => {
     const component = new UniversalSidebarComponent();
     component.vm = buildVm('/preferencias/editar/u1');
+
+    expect(component.isGroupActive(accountGroup)).toBe(true);
+    expect(component.isGroupExpanded(accountGroup)).toBe(false);
+  });
+
+  it('abre o grupo somente por expansão explícita', () => {
+    const component = new UniversalSidebarComponent();
+    component.vm = buildVm('/perfil', false, ['account']);
 
     expect(component.isGroupActive(accountGroup)).toBe(true);
     expect(component.isGroupExpanded(accountGroup)).toBe(true);

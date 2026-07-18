@@ -138,13 +138,7 @@ export class UniversalSidebarComponent {
   }
 
   isGroupExpanded(group: SidebarGroupItem): boolean {
-    const explicitlyExpanded = this.vm?.expandedGroupIds?.includes(group.id) === true;
-
-    if (this.isCollapsedMode) {
-      return explicitlyExpanded;
-    }
-
-    return explicitlyExpanded || this.isGroupActive(group);
+    return this.vm?.expandedGroupIds?.includes(group.id) === true;
   }
 
   isGroupActive(group: SidebarGroupItem): boolean {
