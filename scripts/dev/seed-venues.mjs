@@ -6,6 +6,7 @@
 // - destinado ao Firebase Emulator do app;
 // - exige FIRESTORE_EMULATOR_HOST para evitar escrita acidental fora do emulador;
 // - usa set(..., { merge: true }) para NÃO apagar dados manuais já criados;
+// - remove somente o campo legado chat.roomId;
 // - popula estabelecimentos fictícios e moderados em venues;
 // - não grava coordenadas precisas nem dados privados;
 // - chat define somente política de associação, sem roomId.
@@ -18,7 +19,7 @@
 // -----------------------------------------------------------------------------
 
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 
 const DEFAULT_PROJECT_ID = 'entretenimento-sexual';
 const projectId = process.env.FIREBASE_PROJECT_ID || DEFAULT_PROJECT_ID;
@@ -199,7 +200,11 @@ console.log(
 
 for (const venue of venues) {
   const { id, ...data } = venue;
-  await db.collection('venues').doc(id).set(data, { merge: true });
+  const venueRef = db.collection('venues').doc(id);
+
+  await venueRef.set(data, { merge: true });
+  await venueRef.update({ 'chat.roomId': FieldValue.delete() });
+
   console.log(`[seed:venues] upsert venues/${id}`);
 }
 
