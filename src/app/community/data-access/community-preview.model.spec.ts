@@ -1,0 +1,71 @@
+// src/app/community/data-access/community-preview.model.spec.ts
+import { describe, expect, it } from 'vitest';
+
+import {
+  normalizeCommunityDiscoveryPageResponse,
+  normalizeCommunityPreviewResponse,
+} from './community-preview.model';
+
+function card(overrides: Record<string, unknown> = {}) {
+  return {
+    communityId: 'community-1',
+    name: 'Comunidade do Centro',
+    slug: 'comunidade-do-centro',
+    description: 'Atualizações do local.',
+    source: { type: 'venue', id: 'venue-1' },
+    avatarUrl: 'https://example.com/avatar.jpg',
+    coverUrl: null,
+    metrics: { memberCount: 8, postCount: 3, mediaCount: 2 },
+    access: {
+      join: 'approval',
+      minimumRole: 'premium',
+      requiresActiveSubscription: true,
+    },
+    ...overrides,
+  };
+}
+
+describe('community preview normalization', () => {
+  it('normaliza uma página válida e preserva acesso neutro', () => {
+    const page = normalizeCommunityDiscoveryPageResponse({
+      items: [card()],
+      nextCursor: 'community-1',
+      generatedAt: 100,
+    });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]?.access.minimumRole).toBe('premium');
+    expect(page.items[0]?.access.requiresActiveSubscription).toBe(true);
+    expect(page.nextCursor).toBe('community-1');
+  });
+
+  it('remove cards malformados e URLs não HTTPS', () => {
+    const page = normalizeCommunityDiscoveryPageResponse({
+      items: [
+        card({ communityId: '../invalid' }),
+        card({ avatarUrl: 'http://example.com/avatar.jpg' }),
+      ],
+    });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]?.avatarUrl).toBeNull();
+  });
+
+  it('normaliza a prévia e rejeita viewerMode desconhecido', () => {
+    expect(
+      normalizeCommunityPreviewResponse({
+        community: card(),
+        viewerMode: 'member',
+        canInteract: true,
+        generatedAt: 200,
+      })?.canInteract
+    ).toBe(true);
+
+    expect(
+      normalizeCommunityPreviewResponse({
+        community: card(),
+        viewerMode: 'root',
+      })
+    ).toBeNull();
+  });
+});
