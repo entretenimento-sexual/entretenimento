@@ -48,6 +48,22 @@ describe('buildContentAccessNoticeViewModel', () => {
       ).actionLabel
     ).toBe('Completar');
   });
+
+  it('não oferece compra quando a verificação está indisponível', () => {
+    expect(
+      buildContentAccessNoticeViewModel(
+        createDecision({
+          reason: 'access_check_unavailable',
+          recommendedAction: null,
+        })
+      )
+    ).toEqual(
+      expect.objectContaining({
+        message: 'Não foi possível verificar o acesso agora.',
+        actionLabel: null,
+      })
+    );
+  });
 });
 
 describe('ContentAccessNoticeComponent', () => {
