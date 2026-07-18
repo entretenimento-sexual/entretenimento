@@ -61,20 +61,39 @@ describe('CommunityPreviewPageComponent', () => {
     });
   });
 
-  it('mantém título único e submenu contextual enxuto', () => {
+  function createFixture() {
     const fixture = TestBed.createComponent(CommunityPreviewPageComponent);
     fixture.detectChanges();
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  function sectionButton(
+    fixture: ReturnType<typeof createFixture>,
+    index: number
+  ): HTMLButtonElement {
+    const button = fixture.nativeElement.querySelectorAll(
+      '.community-preview__tabs button'
+    ).item(index) as HTMLButtonElement | null;
+
+    if (!button) throw new Error(`Botão comunitário ${index} ausente.`);
+    return button;
+  }
+
+  it('mantém título único e submenu contextual enxuto', () => {
+    const fixture = createFixture();
 
     expect(fixture.nativeElement.querySelectorAll('h1')).toHaveLength(1);
-    expect(fixture.nativeElement.querySelectorAll('.community-preview__tabs button')).toHaveLength(3);
+    expect(
+      fixture.nativeElement.querySelectorAll('.community-preview__tabs button')
+    ).toHaveLength(3);
     expect(fixture.nativeElement.textContent).toContain('Mural');
     expect(fixture.nativeElement.textContent).toContain('Fotos');
     expect(fixture.nativeElement.textContent).toContain('Sobre');
   });
 
   it('não repete a descrição no cabeçalho ou mural', () => {
-    const fixture = TestBed.createComponent(CommunityPreviewPageComponent);
-    fixture.detectChanges();
+    const fixture = createFixture();
 
     expect(fixture.nativeElement.textContent).not.toContain(
       'Atualizações e fotos do local.'
@@ -82,13 +101,9 @@ describe('CommunityPreviewPageComponent', () => {
   });
 
   it('mostra descrição e métricas somente em Sobre', () => {
-    const fixture = TestBed.createComponent(CommunityPreviewPageComponent);
-    fixture.detectChanges();
+    const fixture = createFixture();
 
-    const buttons = fixture.nativeElement.querySelectorAll(
-      '.community-preview__tabs button'
-    ) as NodeListOf<HTMLButtonElement>;
-    buttons[2].click();
+    sectionButton(fixture, 2).click();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain(
@@ -101,17 +116,13 @@ describe('CommunityPreviewPageComponent', () => {
   });
 
   it('consulta fotos somente após selecionar a galeria', () => {
-    const fixture = TestBed.createComponent(CommunityPreviewPageComponent);
-    fixture.detectChanges();
+    const fixture = createFixture();
 
     expect(feedRepositoryMock.getPage$).toHaveBeenCalledWith(
       expect.objectContaining({ view: 'feed' })
     );
 
-    const buttons = fixture.nativeElement.querySelectorAll(
-      '.community-preview__tabs button'
-    ) as NodeListOf<HTMLButtonElement>;
-    buttons[1].click();
+    sectionButton(fixture, 1).click();
     fixture.detectChanges();
 
     expect(feedRepositoryMock.getPage$).toHaveBeenCalledWith(
