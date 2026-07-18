@@ -113,10 +113,13 @@ export function normalizeExclusiveConnectionsPageRequest(
       )
     : EXCLUSIVE_CONNECTIONS_DEFAULT_PAGE_SIZE;
 
-  const rawCursor = normalizeText(rawRequest?.cursor, 128);
-  const cursor = rawCursor && /^[A-Za-z0-9:_-]+$/.test(rawCursor)
-    ? rawCursor
-    : null;
+  const rawCursor = String(rawRequest?.cursor ?? '').trim();
+  const cursor =
+    rawCursor.length > 0
+    && rawCursor.length <= 128
+    && /^[A-Za-z0-9:_-]+$/.test(rawCursor)
+      ? rawCursor
+      : null;
 
   return { limit, cursor };
 }
