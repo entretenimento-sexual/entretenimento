@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ContentAccessNavigationService } from 'src/app/core/access/content-access-navigation.service';
@@ -182,6 +182,49 @@ describe('CommunityPreviewPageComponent', () => {
     expect(previewRepositoryMock.getPreview$).toHaveBeenCalledTimes(2);
   });
 
+  it('encaminha assinatura insuficiente pelo padrão global de acesso', () => {
+    previewRepositoryMock.getPreview$.mockReturnValue(
+      of(
+        preview({
+          community: {
+            ...basePreview().community,
+            access: {
+              join: 'open',
+              minimumRole: 'premium',
+              requiresActiveSubscription: true,
+            },
+          },
+        })
+      )
+    );
+    membershipRepositoryMock.requestMembership$.mockReturnValue(
+      throwError(() => ({
+        details: {
+          reason: 'subscription_inactive',
+          recommendedAction: 'upgrade_subscription',
+          minimumRole: 'premium',
+        },
+      }))
+    );
+
+    const fixture = createFixture();
+    const action = fixture.nativeElement.querySelector(
+      '.community-preview__membership-action'
+    ) as HTMLButtonElement;
+    action.click();
+    fixture.detectChanges();
+
+    expect(accessNavigationMock.navigateForDecision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowed: false,
+        reason: 'subscription_inactive',
+        recommendedAction: 'upgrade_subscription',
+        minimumRole: 'premium',
+      })
+    );
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
+  });
+
   it('substitui a ação por estado pendente e não cria botão redundante', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
       of(preview({ viewerMode: 'pending' }))
@@ -193,6 +236,7 @@ describe('CommunityPreviewPageComponent', () => {
       fixture.nativeElement.querySelector('.community-preview__membership-action')
     ).toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Solicitação enviada');
+    expect(fixture.nativeElement.textContent).not.toContain('Pendente');
   });
 
   it('não oferece adesão em comunidade somente por convite', () => {
@@ -215,5 +259,35 @@ describe('CommunityPreviewPageComponent', () => {
     expect(
       fixture.nativeElement.querySelector('.community-preview__membership-action')
     ).toBeNull();
+  });
+
+  it('explica assinatura vencida ao membro sem tratá-lo como visitante', () => {
+    previewRepositoryMock.getPreview$.mockReturnValue(
+      of(
+        preview({
+          viewerMode: 'member',
+          canInteract: false,
+          community: {
+            ...basePreview().community,
+            access: {
+              join: 'open',
+              minimumRole: 'premium',
+              requiresActiveSubscription: true,
+            },
+          },
+        })
+      )
+    );
+
+    const fixture = createFixture();
+    sectionButton(fixture, 2).click();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Assinatura necessária para interagir'
+    );
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Interação reservada aos membros'
+    );
   });
 });
