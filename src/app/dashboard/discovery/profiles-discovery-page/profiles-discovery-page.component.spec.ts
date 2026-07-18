@@ -12,9 +12,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProfilesDiscoveryPageComponent } from './profiles-discovery-page.component';
 import { DiscoveryPublicProfilesFacade } from '../application/discovery-public-profiles.facade';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 
 import { OnlineUsersFullComponent } from '../../online/online-users-full/online-users-full.component';
 import { PublicProfilesListComponent } from '../public-profiles-list/public-profiles-list.component';
+import { UserIntentStatusComposerComponent } from '../../user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
+import { UserIntentStatusRadarComponent } from '../../user-intent-status/user-intent-status-radar/user-intent-status-radar.component';
 
 @Component({
   selector: 'app-online-users-full',
@@ -43,6 +46,24 @@ class MockPublicProfilesListComponent {
   @Output() retry = new EventEmitter<void>();
 }
 
+@Component({
+  selector: 'app-user-intent-status-composer',
+  standalone: true,
+  template: '<div data-testid="mock-user-intent-composer"></div>',
+})
+class MockUserIntentStatusComposerComponent {
+  @Input() user: unknown;
+}
+
+@Component({
+  selector: 'app-user-intent-status-radar',
+  standalone: true,
+  template: '<div data-testid="mock-user-intent-radar"></div>',
+})
+class MockUserIntentStatusRadarComponent {
+  @Input() user: unknown;
+}
+
 describe('ProfilesDiscoveryPageComponent', () => {
   let component: ProfilesDiscoveryPageComponent;
   let fixture: ComponentFixture<ProfilesDiscoveryPageComponent>;
@@ -58,6 +79,15 @@ describe('ProfilesDiscoveryPageComponent', () => {
     retry: vi.fn(),
   };
 
+  const currentUserStoreMock = {
+    user$: of({
+      uid: 'u1',
+      nickname: 'Pessoa',
+      estado: 'RJ',
+      municipio: 'rio de janeiro',
+    }),
+  };
+
   beforeEach(async () => {
     vi.clearAllMocks();
 
@@ -69,6 +99,10 @@ describe('ProfilesDiscoveryPageComponent', () => {
           provide: DiscoveryPublicProfilesFacade,
           useValue: facadeMock,
         },
+        {
+          provide: CurrentUserStoreService,
+          useValue: currentUserStoreMock,
+        },
       ],
     })
       .overrideComponent(ProfilesDiscoveryPageComponent, {
@@ -76,12 +110,16 @@ describe('ProfilesDiscoveryPageComponent', () => {
           imports: [
             OnlineUsersFullComponent,
             PublicProfilesListComponent,
+            UserIntentStatusComposerComponent,
+            UserIntentStatusRadarComponent,
           ],
         },
         add: {
           imports: [
             MockOnlineUsersFullComponent,
             MockPublicProfilesListComponent,
+            MockUserIntentStatusComposerComponent,
+            MockUserIntentStatusRadarComponent,
           ],
         },
       })
@@ -107,6 +145,19 @@ describe('ProfilesDiscoveryPageComponent', () => {
     expect(component.activeMode()).toBe('online');
   });
 
+  it('deve alternar para hoje e renderizar composer e radar', () => {
+    component.onDiscoveryModeChange('today');
+    fixture.detectChanges();
+
+    expect(component.activeMode()).toBe('today');
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="mock-user-intent-composer"]')
+    ).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="mock-user-intent-radar"]')
+    ).toBeTruthy();
+  });
+
   it('deve normalizar modo inválido para todos', () => {
     component.onDiscoveryModeChange('modo-invalido' as any);
     fixture.detectChanges();
@@ -119,6 +170,13 @@ describe('ProfilesDiscoveryPageComponent', () => {
 
     expect(allTab).toBeTruthy();
     expect(allTab?.disabled).not.toBe(true);
+  });
+
+  it('deve conter aba hoje habilitada', () => {
+    const todayTab = component.tabs.find((tab) => tab.id === 'today');
+
+    expect(todayTab).toBeTruthy();
+    expect(todayTab?.disabled).not.toBe(true);
   });
 
   it('deve manter aba perto fora da navegação enquanto estiver desabilitada', () => {
