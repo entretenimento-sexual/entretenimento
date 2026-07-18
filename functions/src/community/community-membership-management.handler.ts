@@ -12,6 +12,11 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  assertCommunityMembershipActorEligible,
+  isCommunityMembershipEntitlementAllowed,
+  resolveCommunityMembershipRequirement,
+} from './community-membership-eligibility.service';
+import {
   CommunityMembershipReviewAction,
   CommunityMembershipRole,
   CommunityMembershipStatus,
@@ -42,9 +47,9 @@ interface CommunityMembershipRequestsResponse {
 }
 
 interface CommunityMembershipLifecycleResponse {
-  status: 'active' | 'left';
-  viewerMode: 'member' | 'visitor';
-  canInteract: boolean;
+  status: 'left';
+  viewerMode: 'visitor';
+  canInteract: false;
 }
 
 interface CommunityMembershipReviewResponse {
@@ -65,16 +70,18 @@ function assertPreviewRuntime(): void {
   );
 }
 
-function assertAuthenticatedUid(
-  auth: { uid?: string; token?: Record<string, unknown> } | undefined
-): string {
-  const uid = String(auth?.uid ?? '').trim();
+function assertAuthenticatedUid(auth: unknown): string {
+  const source = (auth ?? {}) as {
+    uid?: unknown;
+    token?: Record<string, unknown>;
+  };
+  const uid = String(source.uid ?? '').trim();
 
   if (!uid) {
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
   }
 
-  if (auth?.token?.['email_verified'] !== true) {
+  if (source.token?.['email_verified'] !== true) {
     throw new HttpsError(
       'failed-precondition',
       'Verifique seu e-mail para continuar.'
@@ -194,7 +201,7 @@ function assertCommunityManageable(rawCommunity: unknown): void {
 
 function assertModerator(
   membership: unknown
-): { status: CommunityMembershipStatus | null; role: CommunityMembershipRole | null } {
+): { status: 'active'; role: 'owner' | 'admin' | 'moderator' } {
   const source = (membership ?? {}) as Record<string, unknown>;
   const status = normalizeMembershipStatus(source['status']);
   const role = normalizeMembershipRole(source['role']);
@@ -259,6 +266,20 @@ function throwReviewDecisionError(reason: string | null): never {
   throw new HttpsError(
     'failed-precondition',
     'A solicitação já foi processada ou não está pendente.'
+  );
+}
+
+function throwSubscriptionRequired(
+  minimumRole: 'basic' | 'premium' | 'vip'
+): never {
+  throw new HttpsError(
+    'permission-denied',
+    'Assinatura compatível necessária.',
+    {
+      reason: 'subscription_inactive',
+      recommendedAction: 'upgrade_subscription',
+      minimumRole,
+    }
   );
 }
 
@@ -464,6 +485,7 @@ export const reviewCommunityMembership =
         const targetMembershipRef = communityRef
           .collection('members')
           .doc(memberId);
+        const targetUserRef = db.collection('users').doc(memberId);
         const auditRef = db.collection('community_membership_audit').doc();
         const [
           communitySnapshot,
@@ -481,7 +503,8 @@ export const reviewCommunityMembership =
           throw new HttpsError('not-found', 'Comunidade não encontrada.');
         }
 
-        assertCommunityManageable(communitySnapshot.data());
+        const community = communitySnapshot.data() ?? null;
+        assertCommunityManageable(community);
         const actor = assertModerator(
           actorMembershipSnapshot.exists ? actorMembershipSnapshot.data() : null
         );
@@ -499,6 +522,31 @@ export const reviewCommunityMembership =
 
         if (!decision.allowed || !decision.targetStatus) {
           throwReviewDecisionError(decision.denialReason);
+        }
+
+        if (!decision.idempotent && decision.targetStatus === 'active') {
+          const targetUserSnapshot = await transaction.get(targetUserRef);
+          assertCommunityMembershipActorEligible(
+            targetUserSnapshot.exists ? targetUserSnapshot.data() : null,
+            memberId
+          );
+
+          const requirement = resolveCommunityMembershipRequirement(community);
+          if (requirement.requiresEntitlement) {
+            const entitlementRef = db
+              .collection('entitlements')
+              .doc(`platform_subscription_${memberId}`);
+            const entitlementSnapshot = await transaction.get(entitlementRef);
+            const entitlementAllowed = isCommunityMembershipEntitlementAllowed(
+              entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
+              memberId,
+              requirement
+            );
+
+            if (!entitlementAllowed) {
+              throwSubscriptionRequired(requirement.minimumRole);
+            }
+          }
         }
 
         if (!decision.idempotent) {
@@ -522,9 +570,7 @@ export const reviewCommunityMembership =
           );
 
           if (decision.incrementMemberCount) {
-            const nextMemberCount = normalizeMemberCount(
-              communitySnapshot.data()
-            ) + 1;
+            const nextMemberCount = normalizeMemberCount(community) + 1;
             transaction.update(communityRef, {
               'metrics.memberCount': nextMemberCount,
               updatedAt: now,
