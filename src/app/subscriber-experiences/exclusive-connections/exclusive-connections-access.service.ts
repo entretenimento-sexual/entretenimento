@@ -52,6 +52,16 @@ function denied(
   };
 }
 
+function verificationUnavailable(): ContentAccessDecision {
+  return {
+    allowed: false,
+    reason: 'access_check_unavailable',
+    recommendedAction: null,
+    minimumRole: EXCLUSIVE_CONNECTIONS_MINIMUM_ROLE,
+    missingProfileFields: [],
+  };
+}
+
 function allowed(): ContentAccessDecision {
   return {
     allowed: true,
@@ -116,7 +126,7 @@ export class ExclusiveConnectionsAccessService {
             map(evaluateExclusiveConnectionsBillingSnapshot),
             catchError((error: unknown) => {
               this.reportSnapshotError(error);
-              return of(denied('subscription_inactive'));
+              return of(verificationUnavailable());
             })
           );
         }),
