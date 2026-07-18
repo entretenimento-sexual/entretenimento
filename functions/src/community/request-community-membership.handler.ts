@@ -209,16 +209,24 @@ export const requestCommunityMembership =
 
       return db.runTransaction(async (transaction) => {
         const communityRef = db.collection('communities').doc(communityId);
+        const discoveryRef = db
+          .collection('community_discovery_index')
+          .doc(communityId);
         const membershipRef = communityRef.collection('members').doc(uid);
         const userRef = db.collection('users').doc(uid);
         const auditRef = db.collection('community_membership_audit').doc();
 
-        const [communitySnapshot, membershipSnapshot, userSnapshot] =
-          await Promise.all([
-            transaction.get(communityRef),
-            transaction.get(membershipRef),
-            transaction.get(userRef),
-          ]);
+        const [
+          communitySnapshot,
+          discoverySnapshot,
+          membershipSnapshot,
+          userSnapshot,
+        ] = await Promise.all([
+          transaction.get(communityRef),
+          transaction.get(discoveryRef),
+          transaction.get(membershipRef),
+          transaction.get(userRef),
+        ]);
 
         if (!communitySnapshot.exists) {
           throw new HttpsError('not-found', 'Comunidade não encontrada.');
@@ -313,6 +321,13 @@ export const requestCommunityMembership =
               'metrics.memberCount': FieldValue.increment(1),
               updatedAt: now,
             });
+
+            if (discoverySnapshot.exists) {
+              transaction.update(discoveryRef, {
+                'metrics.memberCount': FieldValue.increment(1),
+                updatedAt: now,
+              });
+            }
           }
 
           transaction.set(auditRef, {
