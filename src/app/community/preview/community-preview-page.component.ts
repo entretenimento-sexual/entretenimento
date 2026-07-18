@@ -9,23 +9,37 @@ import {
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   catchError,
+  combineLatest,
+  exhaustMap,
+  from,
   map,
+  Observable,
   of,
   shareReplay,
   startWith,
+  Subject,
   switchMap,
+  tap,
 } from 'rxjs';
 
+import {
+  ContentAccessDecision,
+  ContentAccessDenialReason,
+  ContentAccessMinimumRole,
+  ContentAccessRecommendedAction,
+} from 'src/app/core/access/content-access-policy.model';
+import { ContentAccessNavigationService } from 'src/app/core/access/content-access-navigation.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
+import { CommunityFeedComponent } from '../feed/community-feed.component';
+import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import {
   CommunityPreviewCard,
   CommunityPreviewResponse,
   CommunityPreviewViewerMode,
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
-import { CommunityFeedComponent } from '../feed/community-feed.component';
 
 export type CommunityPreviewSection = 'feed' | 'photos' | 'about';
 
@@ -33,6 +47,30 @@ type CommunityPreviewState =
   | { status: 'loading'; preview: null }
   | { status: 'ready'; preview: CommunityPreviewResponse }
   | { status: 'error'; preview: null };
+
+type CommunityMembershipActionState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'error' };
+
+const ACCESS_ACTIONS = new Set<Exclude<ContentAccessRecommendedAction, null>>([
+  'sign_in',
+  'review_account',
+  'confirm_adult_access',
+  'complete_profile',
+  'upgrade_subscription',
+]);
+
+const ACCESS_REASONS = new Set<ContentAccessDenialReason>([
+  'unauthenticated',
+  'account_restricted',
+  'adult_access_required',
+  'profile_incomplete',
+  'profile_field_missing',
+  'role_insufficient',
+  'subscription_inactive',
+  'access_check_unavailable',
+]);
 
 @Component({
   selector: 'app-community-preview-page',
@@ -49,20 +87,31 @@ type CommunityPreviewState =
 })
 export class CommunityPreviewPageComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly repository = inject(CommunityPreviewRepository);
+  private readonly previewRepository = inject(CommunityPreviewRepository);
+  private readonly membershipRepository = inject(CommunityMembershipRepository);
+  private readonly accessNavigation = inject(ContentAccessNavigationService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly refreshPreview$ = new Subject<void>();
+  private readonly membershipRequests$ = new Subject<CommunityPreviewCard>();
 
   readonly activeSection = signal<CommunityPreviewSection>('feed');
 
-  readonly state$ = this.route.paramMap.pipe(
+  private readonly communityId$ = this.route.paramMap.pipe(
     map((params) => String(params.get('communityId') ?? '').trim()),
-    switchMap((communityId) => {
-      if (!communityId) {
-        throw new Error('Identificador de comunidade ausente.');
-      }
+    map((communityId) => {
+      if (!communityId) throw new Error('Identificador de comunidade ausente.');
+      return communityId;
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
-      return this.repository.getPreview$(communityId).pipe(
+  readonly state$ = combineLatest([
+    this.communityId$,
+    this.refreshPreview$.pipe(startWith(undefined)),
+  ]).pipe(
+    switchMap(([communityId]) =>
+      this.previewRepository.getPreview$(communityId).pipe(
         map(
           (preview): CommunityPreviewState => ({
             status: 'ready',
@@ -70,17 +119,50 @@ export class CommunityPreviewPageComponent {
           })
         ),
         startWith<CommunityPreviewState>({ status: 'loading', preview: null })
-      );
-    }),
+      )
+    ),
     catchError((error: unknown) => {
-      this.reportError(error);
+      this.reportPreviewError(error);
       return of<CommunityPreviewState>({ status: 'error', preview: null });
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  readonly membershipAction$ = this.membershipRequests$.pipe(
+    exhaustMap((community) =>
+      this.membershipRepository
+        .requestMembership$(community.communityId)
+        .pipe(
+          tap((result) => {
+            this.errorNotifier.showSuccess(
+              result.status === 'active'
+                ? 'Você entrou na comunidade.'
+                : 'Solicitação enviada.'
+            );
+            this.refreshPreview$.next();
+          }),
+          map((): CommunityMembershipActionState => ({ status: 'idle' })),
+          startWith<CommunityMembershipActionState>({ status: 'loading' }),
+          catchError((error: unknown) =>
+            this.handleMembershipError(error, community)
+          )
+        )
+    ),
+    startWith<CommunityMembershipActionState>({ status: 'idle' }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   selectSection(section: CommunityPreviewSection): void {
     this.activeSection.set(section);
+  }
+
+  requestMembership(community: CommunityPreviewCard): void {
+    if (community.access.join === 'invite_only') return;
+    this.membershipRequests$.next(community);
+  }
+
+  membershipActionLabel(community: CommunityPreviewCard): string {
+    return community.access.join === 'open' ? 'Participar' : 'Solicitar';
   }
 
   sourceLabel(community: CommunityPreviewCard): string {
@@ -120,9 +202,80 @@ export class CommunityPreviewPageComponent {
     return labels[community.access.join];
   }
 
-  private reportError(error: unknown): void {
+  private handleMembershipError(
+    error: unknown,
+    community: CommunityPreviewCard
+  ): Observable<CommunityMembershipActionState> {
+    const accessDecision = this.resolveAccessDecision(error, community);
+
+    if (accessDecision) {
+      return from(
+        this.accessNavigation.navigateForDecision(accessDecision)
+      ).pipe(map(() => ({ status: 'idle' }) as CommunityMembershipActionState));
+    }
+
+    this.reportMembershipError(error);
+    return of<CommunityMembershipActionState>({ status: 'error' });
+  }
+
+  private resolveAccessDecision(
+    error: unknown,
+    community: CommunityPreviewCard
+  ): ContentAccessDecision | null {
+    const details = ((error as { details?: unknown } | null)?.details ?? {}) as
+      Record<string, unknown>;
+    const recommendedAction = details['recommendedAction'];
+    const reason = details['reason'];
+
+    if (
+      typeof recommendedAction !== 'string'
+      || !ACCESS_ACTIONS.has(
+        recommendedAction as Exclude<ContentAccessRecommendedAction, null>
+      )
+      || typeof reason !== 'string'
+      || !ACCESS_REASONS.has(reason as ContentAccessDenialReason)
+    ) {
+      return null;
+    }
+
+    const rawMinimumRole = details['minimumRole'];
+    const minimumRole: ContentAccessMinimumRole | null =
+      rawMinimumRole === 'basic'
+      || rawMinimumRole === 'premium'
+      || rawMinimumRole === 'vip'
+      || rawMinimumRole === 'free'
+        ? rawMinimumRole
+        : community.access.minimumRole;
+
+    return {
+      allowed: false,
+      reason: reason as ContentAccessDenialReason,
+      recommendedAction:
+        recommendedAction as Exclude<ContentAccessRecommendedAction, null>,
+      minimumRole,
+      missingProfileFields: [],
+    };
+  }
+
+  private reportPreviewError(error: unknown): void {
+    this.reportError(
+      error,
+      'Não foi possível abrir esta comunidade.',
+      'loadPreview'
+    );
+  }
+
+  private reportMembershipError(error: unknown): void {
+    this.reportError(
+      error,
+      'Não foi possível concluir a participação agora.',
+      'requestMembership'
+    );
+  }
+
+  private reportError(error: unknown, message: string, op: string): void {
     try {
-      this.errorNotifier.showError('Não foi possível abrir esta comunidade.');
+      this.errorNotifier.showError(message);
     } catch {
       // O diagnóstico técnico abaixo permanece ativo.
     }
@@ -135,7 +288,7 @@ export class CommunityPreviewPageComponent {
       };
       contextual.context = {
         scope: 'CommunityPreviewPageComponent',
-        op: 'loadPreview',
+        op,
       };
       contextual.skipUserNotification = true;
       this.globalError.handleError(contextual);
