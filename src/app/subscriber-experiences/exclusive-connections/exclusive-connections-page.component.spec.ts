@@ -5,9 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ContentAccessNavigationService } from 'src/app/core/access/content-access-navigation.service';
 import { ContentAccessDecision } from 'src/app/core/access/content-access-policy.model';
-import { ContentAccessPolicyService } from 'src/app/core/access/content-access-policy.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ExclusiveConnectionsAccessService } from './exclusive-connections-access.service';
 import { ExclusiveConnectionsPageComponent } from './exclusive-connections-page.component';
 import { ExclusiveConnectionsRepository } from './exclusive-connections.repository';
 
@@ -25,7 +25,7 @@ function createDecision(
 }
 
 describe('ExclusiveConnectionsPageComponent', () => {
-  const accessPolicyMock = { evaluate$: vi.fn() };
+  const accessMock = { evaluate$: vi.fn() };
   const accessNavigationMock = { navigateForDecision: vi.fn() };
   const repositoryMock = { getPage$: vi.fn() };
   const errorNotifierMock = { showError: vi.fn() };
@@ -41,7 +41,7 @@ describe('ExclusiveConnectionsPageComponent', () => {
       imports: [ExclusiveConnectionsPageComponent],
       providers: [
         provideRouter([]),
-        { provide: ContentAccessPolicyService, useValue: accessPolicyMock },
+        { provide: ExclusiveConnectionsAccessService, useValue: accessMock },
         { provide: ContentAccessNavigationService, useValue: accessNavigationMock },
         { provide: ExclusiveConnectionsRepository, useValue: repositoryMock },
         { provide: ErrorNotificationService, useValue: errorNotifierMock },
@@ -51,7 +51,7 @@ describe('ExclusiveConnectionsPageComponent', () => {
   });
 
   it('não instancia o feed nem consulta dados quando o acesso é negado', () => {
-    accessPolicyMock.evaluate$.mockReturnValue(of(createDecision()));
+    accessMock.evaluate$.mockReturnValue(of(createDecision()));
 
     const fixture = TestBed.createComponent(ExclusiveConnectionsPageComponent);
     fixture.detectChanges();
@@ -65,8 +65,8 @@ describe('ExclusiveConnectionsPageComponent', () => {
     expect(repositoryMock.getPage$).not.toHaveBeenCalled();
   });
 
-  it('instancia o feed somente quando o acesso é permitido', () => {
-    accessPolicyMock.evaluate$.mockReturnValue(
+  it('instancia o feed somente quando perfil e entitlement são permitidos', () => {
+    accessMock.evaluate$.mockReturnValue(
       of(
         createDecision({
           allowed: true,
@@ -88,19 +88,11 @@ describe('ExclusiveConnectionsPageComponent', () => {
     expect(repositoryMock.getPage$).toHaveBeenCalledTimes(1);
   });
 
-  it('avalia a política específica da experiência', () => {
-    accessPolicyMock.evaluate$.mockReturnValue(of(createDecision()));
+  it('consulta o serviço autoritativo de acesso uma única vez por instância', () => {
+    accessMock.evaluate$.mockReturnValue(of(createDecision()));
 
     TestBed.createComponent(ExclusiveConnectionsPageComponent);
 
-    expect(accessPolicyMock.evaluate$).toHaveBeenCalledTimes(1);
-    expect(accessPolicyMock.evaluate$).toHaveBeenCalledWith(
-      expect.objectContaining({
-        minimumRole: 'premium',
-        requiresActiveSubscription: true,
-        requiresCompletedProfile: true,
-        requiresAdultAccess: true,
-      })
-    );
+    expect(accessMock.evaluate$).toHaveBeenCalledTimes(1);
   });
 });
