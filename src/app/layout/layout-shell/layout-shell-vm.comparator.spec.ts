@@ -109,12 +109,19 @@ describe('areLayoutShellVmsEqual', () => {
     const previous = createVm();
     const current = createVm();
     current.sidebar.sections[0].items[0] = {
-      ...current.sidebar.sections[0].items[0],
+      kind: 'group',
+      id: 'account',
+      label: 'Conta',
+      icon: '👤',
+      ariaLabel: 'Abrir opções da conta',
       children: [
         {
           id: 'my-profile',
           label: 'Meu perfil',
           route: '/perfil',
+          icon: '🙍',
+          exact: false,
+          ariaLabel: 'Ir para meu perfil',
           badgeCount: 1,
         },
       ],
