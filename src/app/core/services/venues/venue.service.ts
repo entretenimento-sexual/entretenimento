@@ -6,14 +6,15 @@
 //
 // Produto:
 // - alimentar seleção de local no Status de Hoje;
-// - preparar salas de estabelecimento;
+// - permitir intenção temporária de sala privada vinculada ao local;
 // - preparar destaque patrocinado;
 // - manter texto livre separado de local gerenciado.
 //
 // Segurança:
 // - leitura respeita Rules;
 // - sem fallback global quando região está ausente;
-// - escrita direta de cliente comum não é oferecida.
+// - escrita direta de cliente comum não é oferecida;
+// - a política de chat não transporta roomId nem simula sala oficial.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -68,6 +69,14 @@ interface VenueFirestoreDocument {
   updatedAt?: unknown;
 }
 
+interface VenueServiceError extends Error {
+  feature?: string;
+  operation?: string;
+  context?: Record<string, unknown>;
+  original?: unknown;
+  skipUserNotification?: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class VenueService {
   private readonly firestore = inject(Firestore);
@@ -113,14 +122,17 @@ export class VenueService {
       where('region.city', '==', normalizedRegion.city),
       where('moderation.state', '==', 'active'),
       where('visibility', 'in', ['public', 'members_only']),
-      orderBy('sponsorship.priority', 'desc'),
-      orderBy('name', 'asc'),
-      firestoreLimit(resultLimit),
     ];
 
     if (options.kind && options.kind !== 'any') {
-      constraints.splice(4, 0, where('kind', '==', options.kind));
+      constraints.push(where('kind', '==', options.kind));
     }
+
+    if (options.includeSponsoredFirst !== false) {
+      constraints.push(orderBy('sponsorship.priority', 'desc'));
+    }
+
+    constraints.push(orderBy('name', 'asc'), firestoreLimit(resultLimit));
 
     return this.firestoreContext.deferObservable$(() => {
       const venuesRef = collection(this.firestore, 'venues');
@@ -133,7 +145,7 @@ export class VenueService {
       map((items) =>
         (items ?? [])
           .map((item) => this.toVenueCardVm(item))
-          .filter((item): item is IVenueCardVm => !!item)
+          .filter((item): item is IVenueCardVm => item !== null)
       ),
       catchError((error) =>
         this.handleReadError<IVenueCardVm>(
@@ -170,7 +182,10 @@ export class VenueService {
       chat: this.normalizeChat(raw.chat),
       ownerUid: this.normalizeOptionalText(raw.ownerUid),
       adminUids: Array.isArray(raw.adminUids)
-        ? raw.adminUids.filter((uid): uid is string => typeof uid === 'string')
+        ? raw.adminUids.filter(
+            (uid): uid is string =>
+              typeof uid === 'string' && uid.trim().length > 0
+          )
         : [],
       createdAt: this.toMillis(raw.createdAt),
       updatedAt: this.toMillis(raw.updatedAt),
@@ -180,7 +195,7 @@ export class VenueService {
       ...venue,
       regionLabel: this.formatRegion(venue.region),
       kindLabel: this.formatKind(venue.kind),
-      sponsorshipLabel: this.formatSponsorship(venue.sponsorship.state),
+      sponsorshipLabel: this.formatSponsorship(venue.sponsorship),
       canShowChatEntry: venue.chat.enabled,
     };
   }
@@ -190,7 +205,9 @@ export class VenueService {
   ): IVenueRegion | null {
     const uf = String(region?.uf ?? '').trim().toUpperCase();
     const city = String(region?.city ?? '').trim().toLowerCase();
-    const district = this.normalizeOptionalText((region as IVenueRegion | null)?.district);
+    const district = this.normalizeOptionalText(
+      (region as IVenueRegion | null)?.district
+    );
 
     if (!uf || !city) {
       return null;
@@ -233,7 +250,6 @@ export class VenueService {
         mode === 'hybrid'
           ? mode
           : 'hybrid',
-      roomId: this.normalizeOptionalText(source?.roomId),
     };
   }
 
@@ -348,13 +364,18 @@ export class VenueService {
     return labels[kind];
   }
 
-  private formatSponsorship(state: VenueSponsorshipState): string | null {
-    if (state === 'sponsored') {
-      return 'Patrocinado';
-    }
+  private formatSponsorship(
+    sponsorship: IVenue['sponsorship'],
+    now = Date.now()
+  ): string | null {
+    const startsAt = sponsorship.startsAt ?? null;
+    const endsAt = sponsorship.endsAt ?? null;
+    const inActiveWindow =
+      (startsAt === null || startsAt <= now) &&
+      (endsAt === null || endsAt > now);
 
-    if (state === 'eligible') {
-      return 'Elegível para destaque';
+    if (sponsorship.state === 'sponsored' && inActiveWindow) {
+      return 'Patrocinado';
     }
 
     return null;
@@ -366,20 +387,20 @@ export class VenueService {
     context: Record<string, unknown>
   ): Observable<T[]> {
     try {
-      const normalizedError =
+      const normalizedError: VenueServiceError =
         error instanceof Error
           ? error
           : new Error(`[VenueService.${operation}] leitura falhou.`);
 
-      (normalizedError as any).feature = 'venues';
-      (normalizedError as any).operation = operation;
-      (normalizedError as any).context = context;
-      (normalizedError as any).original = error;
-      (normalizedError as any).skipUserNotification = true;
+      normalizedError.feature = 'venues';
+      normalizedError.operation = operation;
+      normalizedError.context = context;
+      normalizedError.original = error;
+      normalizedError.skipUserNotification = true;
 
       this.globalError.handleError(normalizedError);
     } catch {
-      // noop
+      // A leitura continua com estado vazio mesmo se a observabilidade falhar.
     }
 
     return of([]);
