@@ -49,6 +49,22 @@ test('mantém membership ativa ou pendente de forma idempotente', () => {
   assert.equal(pending.targetStatus, 'pending');
 });
 
+test('membership existente continua exigindo entitlement vigente', () => {
+  const active = evaluateCommunityMembershipRequest({
+    ...BASE_INPUT,
+    existingStatus: 'active',
+    entitlementAllowed: false,
+  });
+  const pending = evaluateCommunityMembershipRequest({
+    ...BASE_INPUT,
+    existingStatus: 'pending',
+    entitlementAllowed: false,
+  });
+
+  assert.equal(active.denialReason, 'subscription_required');
+  assert.equal(pending.denialReason, 'subscription_required');
+});
+
 test('permite nova entrada depois de saída voluntária', () => {
   const decision = evaluateCommunityMembershipRequest({
     ...BASE_INPUT,
