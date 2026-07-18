@@ -25,15 +25,20 @@ function createProfileDecision(
   };
 }
 
+function createPremiumSnapshot() {
+  return {
+    role: 'premium' as const,
+    tier: 'premium' as const,
+    isSubscriber: true,
+    entitlements: ['platform_subscription'],
+  };
+}
+
 describe('evaluateExclusiveConnectionsBillingSnapshot', () => {
   it('permite Premium e VIP com entitlement ativo da plataforma', () => {
     expect(
-      evaluateExclusiveConnectionsBillingSnapshot({
-        role: 'premium',
-        tier: 'premium',
-        isSubscriber: true,
-        entitlements: ['platform_subscription'],
-      }).allowed
+      evaluateExclusiveConnectionsBillingSnapshot(createPremiumSnapshot())
+        .allowed
     ).toBe(true);
 
     expect(
@@ -135,12 +140,7 @@ describe('ExclusiveConnectionsAccessService', () => {
   it('permite somente após perfil aprovado e snapshot Premium autoritativo', async () => {
     contentAccessMock.evaluate$.mockReturnValue(of(createProfileDecision()));
     billingRepositoryMock.getMyBillingSnapshot$.mockReturnValue(
-      of({
-        role: 'premium',
-        tier: 'premium',
-        isSubscriber: true,
-        entitlements: ['platform_subscription'],
-      })
+      of(createPremiumSnapshot())
     );
 
     const service = TestBed.inject(ExclusiveConnectionsAccessService);
@@ -176,5 +176,29 @@ describe('ExclusiveConnectionsAccessService', () => {
       'Não foi possível verificar sua assinatura agora.'
     );
     expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
+  });
+
+  it('refaz somente o snapshot ao receber uma nova tentativa', () => {
+    contentAccessMock.evaluate$.mockReturnValue(of(createProfileDecision()));
+    billingRepositoryMock.getMyBillingSnapshot$
+      .mockReturnValueOnce(
+        throwError(() => new Error('functions/unavailable'))
+      )
+      .mockReturnValueOnce(of(createPremiumSnapshot()));
+
+    const service = TestBed.inject(ExclusiveConnectionsAccessService);
+    const decisions: ContentAccessDecision[] = [];
+    const subscription = service.evaluate$().subscribe((decision) => {
+      decisions.push(decision);
+    });
+
+    expect(decisions.at(-1)?.reason).toBe('access_check_unavailable');
+
+    service.refresh();
+
+    expect(billingRepositoryMock.getMyBillingSnapshot$).toHaveBeenCalledTimes(2);
+    expect(decisions.at(-1)?.allowed).toBe(true);
+
+    subscription.unsubscribe();
   });
 });
