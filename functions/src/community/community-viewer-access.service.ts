@@ -2,13 +2,17 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY VIEWER ACCESS
 // -----------------------------------------------------------------------------
-// Centraliza a leitura da comunidade e do vínculo do usuário. A UI nunca concede
-// acesso; os handlers usam este serviço antes de devolver metadados ou mural.
+// Centraliza comunidade, membership e entitlement. A UI nunca concede acesso;
+// handlers usam este contexto antes de devolver metadados ou mural.
 // -----------------------------------------------------------------------------
 
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import { db } from '../firebaseApp';
+import {
+  getActivePlatformSubscriptionEntitlement,
+  hasMinimumPlatformRole,
+} from '../payments/application/platform-subscription-entitlement.service';
 import {
   CommunityPreviewCard,
   CommunityViewerMode,
@@ -20,8 +24,29 @@ export interface CommunityViewerContext {
   community: CommunityPreviewCard;
   viewerMode: CommunityViewerMode;
   activeMembership: boolean;
+  memberContentAccess: boolean;
   operational: boolean;
   canInteract: boolean;
+}
+
+async function resolveMemberContentAccess(
+  uid: string,
+  community: CommunityPreviewCard,
+  activeMembership: boolean
+): Promise<boolean> {
+  if (!activeMembership) return false;
+
+  const requiresEntitlement =
+    community.access.requiresActiveSubscription
+    || community.access.minimumRole !== null;
+
+  if (!requiresEntitlement) return true;
+
+  const minimumRole = community.access.minimumRole ?? 'basic';
+  const entitlement = await getActivePlatformSubscriptionEntitlement(uid);
+
+  return entitlement.active
+    && hasMinimumPlatformRole(entitlement.role, minimumRole);
 }
 
 export async function getCommunityViewerContext(
@@ -61,11 +86,18 @@ export async function getCommunityViewerContext(
     );
   }
 
+  const memberContentAccess = await resolveMemberContentAccess(
+    uid,
+    community,
+    viewer.active
+  );
+
   return {
     community,
     viewerMode: viewer.mode,
     activeMembership: viewer.active,
+    memberContentAccess,
     operational,
-    canInteract: viewer.active && operational,
+    canInteract: viewer.active && memberContentAccess && operational,
   };
 }
