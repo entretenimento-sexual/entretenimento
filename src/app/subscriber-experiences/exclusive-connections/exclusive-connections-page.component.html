@@ -5,7 +5,10 @@
     @if (decision.allowed) {
       <app-exclusive-connections-feed />
     } @else {
-      <app-content-access-notice [decision]="decision" />
+      <app-content-access-notice
+        [decision]="decision"
+        (retryRequested)="retryAccess()"
+      />
     }
   } @else {
     <div
