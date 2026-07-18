@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { canViewerReadCommunityFeedProjection } from './community-feed-access.policy';
+import {
+  canViewerReadCommunityFeedAudience,
+  canViewerReadCommunityFeedProjection,
+} from './community-feed-access.policy';
 import { SanitizedCommunityFeedProjection } from './community-feed.model';
 
 function projection(
@@ -74,4 +77,11 @@ test('galeria aceita somente publicações com foto', () => {
     ),
     true
   );
+});
+
+test('cursor reservado também exige membership ativa', () => {
+  const membersOnly = projection('members_only', 'photo');
+
+  assert.equal(canViewerReadCommunityFeedAudience(membersOnly, false), false);
+  assert.equal(canViewerReadCommunityFeedAudience(membersOnly, true), true);
 });
