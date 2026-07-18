@@ -6,15 +6,18 @@
 //
 // Produto:
 // - permite que Status de Hoje aponte para um estabelecimento real;
-// - prepara salas de bate-papo por local;
+// - permite intenção temporária de sala privada associada ao local;
+// - prepara uma futura sala oficial do estabelecimento em domínio próprio;
 // - prepara patrocínio e destaque de estabelecimentos;
 // - diferencia texto livre de local moderado/gerenciado.
 //
 // Segurança:
-// - não armazena coordenada precisa nesta primeira fase;
+// - não armazena coordenada precisa nesta fase;
 // - dados visíveis são moderados;
 // - gestão do local não é liberada diretamente ao cliente comum;
-// - ownerUid/adminUids existem para governança futura, mas a escrita inicial é admin.
+// - ownerUid/adminUids existem para governança futura, mas a escrita inicial é admin;
+// - configuração de chat não contém roomId: salas privadas podem ser múltiplas e
+//   a futura sala oficial terá contrato, coleção e autorização próprios.
 // -----------------------------------------------------------------------------
 
 export type VenueKind =
@@ -60,10 +63,13 @@ export interface IVenueSponsorship {
   endsAt?: number | null;
 }
 
+/**
+ * Política do catálogo para associação temporária de salas privadas ao local.
+ * Não representa uma sala oficial e não guarda identificador de sala.
+ */
 export interface IVenueChatConfig {
   enabled: boolean;
   mode: 'public_preview' | 'frequenters_only' | 'hybrid';
-  roomId?: string | null;
 }
 
 export interface IVenue {
