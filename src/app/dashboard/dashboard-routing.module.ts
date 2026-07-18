@@ -10,6 +10,7 @@ import { OnlineUsersComponent } from './online/online-users/online-users.compone
 import { OnlineUsersFullComponent } from './online/online-users-full/online-users-full.component';
 
 import { authGuard } from '../core/guards/auth-guard/auth.guard';
+import { requireFeatureFlag } from '../core/guards/access-guard/feature-flag.guard';
 import { emailVerifiedGuard } from '../core/guards/profile-guard/email-verified.guard';
 import { profileCompletedGuard } from '../core/guards/profile-guard/profile-completed.guard';
 
@@ -103,6 +104,24 @@ const routes: Routes = [
         path: 'suggested-profiles',
         redirectTo: 'perfis-sugeridos',
         pathMatch: 'full',
+      },
+
+      /**
+       * Experiências de assinantes em preparação.
+       *
+       * A flag impede download e exposição fora do ambiente controlado. A
+       * política interna da página continua responsável por perfil e assinatura.
+       */
+      {
+        path: 'exclusivos',
+        canMatch: [requireFeatureFlag('subscriberExperiencesPreview')],
+        canActivate: [authGuard, emailVerifiedGuard],
+        data: {
+          requireVerified: true,
+        },
+        loadChildren: () =>
+          import('../subscriber-experiences/subscriber-experiences.routes')
+            .then((routes) => routes.SUBSCRIBER_EXPERIENCES_ROUTES),
       },
 
       /**
