@@ -1,0 +1,103 @@
+<!-- src/app/community/feed/community-feed.component.html -->
+@if (state$ | async; as state) {
+  <section
+    class="community-feed"
+    [class.community-feed--photos]="view() === 'photos'"
+    [attr.aria-label]="view() === 'photos' ? 'Fotos da comunidade' : 'Mural da comunidade'"
+  >
+    @if (state.status === 'loading') {
+      <div class="community-feed__state" role="status" aria-live="polite">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Carregando...</span>
+      </div>
+    } @else if (state.status === 'error') {
+      <div class="community-feed__state" role="alert">
+        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+        <span>Não foi possível carregar.</span>
+        <button type="button" (click)="retry()">Tentar novamente</button>
+      </div>
+    } @else if (state.status === 'empty') {
+      <div class="community-feed__state" role="status">
+        <i
+          class="far {{ view() === 'photos' ? 'fa-images' : 'fa-comments' }}"
+          aria-hidden="true"
+        ></i>
+        <span>{{ emptyLabel() }}</span>
+      </div>
+    } @else {
+      <ul class="community-feed__items" role="list">
+        @for (item of state.items; track item.postId) {
+          <li>
+            <article class="community-post">
+              <header class="community-post__header">
+                <span class="community-post__avatar" aria-hidden="true">
+                  @if (item.author.avatarUrl) {
+                    <img
+                      [src]="item.author.avatarUrl"
+                      alt=""
+                      loading="lazy"
+                      appImageFallback
+                    />
+                  } @else {
+                    <i class="fas fa-user-group"></i>
+                  }
+                </span>
+
+                <div>
+                  <strong>{{ item.author.label }}</strong>
+                  <time [attr.datetime]="item.publishedAt">
+                    {{ publishedLabel(item.publishedAt) }}
+                  </time>
+                </div>
+              </header>
+
+              @if (item.image) {
+                <figure class="community-post__media">
+                  <img
+                    [src]="item.image.url"
+                    [alt]="item.image.alt"
+                    loading="lazy"
+                    appImageFallback
+                  />
+                </figure>
+              }
+
+              @if (item.text) {
+                <p>{{ item.text }}</p>
+              }
+
+              <footer class="community-post__metrics" aria-label="Atividade da publicação">
+                <span [attr.aria-label]="item.metrics.reactionCount + ' reações'">
+                  <i class="far fa-heart" aria-hidden="true"></i>
+                  {{ item.metrics.reactionCount }}
+                </span>
+                <span [attr.aria-label]="item.metrics.commentCount + ' comentários'">
+                  <i class="far fa-comment" aria-hidden="true"></i>
+                  {{ item.metrics.commentCount }}
+                </span>
+              </footer>
+            </article>
+          </li>
+        }
+      </ul>
+
+      @if (state.nextCursor) {
+        <div class="community-feed__more">
+          <button
+            type="button"
+            [disabled]="state.loadingMore"
+            (click)="loadMore(state.nextCursor)"
+          >
+            @if (state.loadingMore) {
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Carregando</span>
+            } @else {
+              <i class="fas fa-chevron-down" aria-hidden="true"></i>
+              <span>Ver mais</span>
+            }
+          </button>
+        </div>
+      }
+    }
+  </section>
+}
