@@ -5,6 +5,7 @@ import {
   DISCOVERY_MODE_TABS,
   discoveryModeRequiresLocation,
   discoveryModeRequiresOnlinePresence,
+  getDiscoveryModeAccessPolicy,
   isDiscoveryModeEnabled,
   normalizeDiscoveryExperienceMode,
   normalizeDiscoveryMode,
@@ -28,6 +29,11 @@ describe('discovery-mode.model', () => {
   it('não exige GPS nem presença online para o modo hoje', () => {
     expect(discoveryModeRequiresLocation('today')).toBe(false);
     expect(discoveryModeRequiresOnlinePresence('today')).toBe(false);
+  });
+
+  it('mantém os modos atuais sem bloqueio de assinatura implícito', () => {
+    expect(getDiscoveryModeAccessPolicy('all')).toBeNull();
+    expect(getDiscoveryModeAccessPolicy('today')).toBeNull();
   });
 
   it('expõe hoje como aba navegável e mantém perto planejado', () => {
