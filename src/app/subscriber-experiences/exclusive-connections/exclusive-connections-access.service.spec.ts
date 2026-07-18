@@ -167,7 +167,8 @@ describe('ExclusiveConnectionsAccessService', () => {
     expect(decision).toEqual(
       expect.objectContaining({
         allowed: false,
-        reason: 'subscription_inactive',
+        reason: 'access_check_unavailable',
+        recommendedAction: null,
         minimumRole: 'premium',
       })
     );
