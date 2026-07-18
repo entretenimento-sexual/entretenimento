@@ -325,45 +325,56 @@ export const getCommunityMembershipRequests = onCall<CommunityIdPayload>(
       throw new HttpsError('invalid-argument', 'Comunidade inválida.');
     }
 
-    const communityRef = db.collection('communities').doc(communityId);
-    const actorMembershipRef = communityRef.collection('members').doc(actorUid);
-    const [communitySnapshot, actorMembershipSnapshot] = await Promise.all([
-      communityRef.get(),
-      actorMembershipRef.get(),
-    ]);
+    return db.runTransaction(async (transaction) => {
+      const communityRef = db.collection('communities').doc(communityId);
+      const actorMembershipRef = communityRef
+        .collection('members')
+        .doc(actorUid);
+      const actorUserRef = db.collection('users').doc(actorUid);
+      const [communitySnapshot, actorMembershipSnapshot, actorUserSnapshot] =
+        await Promise.all([
+          transaction.get(communityRef),
+          transaction.get(actorMembershipRef),
+          transaction.get(actorUserRef),
+        ]);
 
-    if (!communitySnapshot.exists) {
-      throw new HttpsError('not-found', 'Comunidade não encontrada.');
-    }
+      if (!communitySnapshot.exists) {
+        throw new HttpsError('not-found', 'Comunidade não encontrada.');
+      }
 
-    assertCommunityManageable(communitySnapshot.data());
-    assertModerator(
-      actorMembershipSnapshot.exists ? actorMembershipSnapshot.data() : null
-    );
+      assertCommunityMembershipActorEligible(
+        actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
+        actorUid
+      );
+      assertCommunityManageable(communitySnapshot.data());
+      assertModerator(
+        actorMembershipSnapshot.exists ? actorMembershipSnapshot.data() : null
+      );
 
-    const pendingSnapshot = await communityRef
-      .collection('members')
-      .where('status', '==', 'pending')
-      .limit(MAX_PENDING_REQUESTS)
-      .get();
-    const userSnapshots = await Promise.all(
-      pendingSnapshot.docs.map((document) =>
-        db.collection('users').doc(document.id).get()
-      )
-    );
-
-    const items = pendingSnapshot.docs
-      .map((document, index) =>
-        sanitizePendingRequest(
-          document.id,
-          document.data(),
-          userSnapshots[index]?.exists ? userSnapshots[index]?.data() : null
+      const pendingQuery = communityRef
+        .collection('members')
+        .where('status', '==', 'pending')
+        .limit(MAX_PENDING_REQUESTS);
+      const pendingSnapshot = await transaction.get(pendingQuery);
+      const userSnapshots = await Promise.all(
+        pendingSnapshot.docs.map((document) =>
+          transaction.get(db.collection('users').doc(document.id))
         )
-      )
-      .filter((item): item is CommunityMembershipRequestItem => item !== null)
-      .sort((left, right) => right.requestedAt - left.requestedAt);
+      );
 
-    return { items, generatedAt: Date.now() };
+      const items = pendingSnapshot.docs
+        .map((document, index) =>
+          sanitizePendingRequest(
+            document.id,
+            document.data(),
+            userSnapshots[index]?.exists ? userSnapshots[index]?.data() : null
+          )
+        )
+        .filter((item): item is CommunityMembershipRequestItem => item !== null)
+        .sort((left, right) => right.requestedAt - left.requestedAt);
+
+      return { items, generatedAt: Date.now() };
+    });
   }
 );
 
@@ -485,6 +496,7 @@ export const reviewCommunityMembership =
         const targetMembershipRef = communityRef
           .collection('members')
           .doc(memberId);
+        const actorUserRef = db.collection('users').doc(actorUid);
         const targetUserRef = db.collection('users').doc(memberId);
         const auditRef = db.collection('community_membership_audit').doc();
         const [
@@ -492,17 +504,23 @@ export const reviewCommunityMembership =
           discoverySnapshot,
           actorMembershipSnapshot,
           targetMembershipSnapshot,
+          actorUserSnapshot,
         ] = await Promise.all([
           transaction.get(communityRef),
           transaction.get(discoveryRef),
           transaction.get(actorMembershipRef),
           transaction.get(targetMembershipRef),
+          transaction.get(actorUserRef),
         ]);
 
         if (!communitySnapshot.exists) {
           throw new HttpsError('not-found', 'Comunidade não encontrada.');
         }
 
+        assertCommunityMembershipActorEligible(
+          actorUserSnapshot.exists ? actorUserSnapshot.data() : null,
+          actorUid
+        );
         const community = communitySnapshot.data() ?? null;
         assertCommunityManageable(community);
         const actor = assertModerator(
