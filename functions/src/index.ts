@@ -29,3 +29,4 @@ export * from './compliance';
 export * from './discovery';
 export * from './friendship';
 export * from './media';
+export * from './subscriber-experiences';
