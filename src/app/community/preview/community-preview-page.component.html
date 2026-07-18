@@ -60,16 +60,13 @@
 
         <nav
           class="community-preview__tabs"
-          role="tablist"
           aria-label="Conteúdo da comunidade"
         >
           <button
             id="community-tab-feed"
             type="button"
-            role="tab"
             aria-controls="community-panel-feed"
-            [attr.aria-selected]="activeSection() === 'feed'"
-            [attr.tabindex]="activeSection() === 'feed' ? 0 : -1"
+            [attr.aria-pressed]="activeSection() === 'feed'"
             [class.is-active]="activeSection() === 'feed'"
             (click)="selectSection('feed')"
           >
@@ -80,10 +77,8 @@
           <button
             id="community-tab-photos"
             type="button"
-            role="tab"
             aria-controls="community-panel-photos"
-            [attr.aria-selected]="activeSection() === 'photos'"
-            [attr.tabindex]="activeSection() === 'photos' ? 0 : -1"
+            [attr.aria-pressed]="activeSection() === 'photos'"
             [class.is-active]="activeSection() === 'photos'"
             (click)="selectSection('photos')"
           >
@@ -94,14 +89,12 @@
           <button
             id="community-tab-about"
             type="button"
-            role="tab"
             aria-controls="community-panel-about"
-            [attr.aria-selected]="activeSection() === 'about'"
-            [attr.tabindex]="activeSection() === 'about' ? 0 : -1"
+            [attr.aria-pressed]="activeSection() === 'about'"
             [class.is-active]="activeSection() === 'about'"
             (click)="selectSection('about')"
           >
-            <i class="far fa-circle-info" aria-hidden="true"></i>
+            <i class="fas fa-circle-info" aria-hidden="true"></i>
             <span>Sobre</span>
           </button>
         </nav>
@@ -109,7 +102,6 @@
         @if (activeSection() === 'feed') {
           <section
             id="community-panel-feed"
-            role="tabpanel"
             aria-labelledby="community-tab-feed"
           >
             <app-community-feed
@@ -120,7 +112,6 @@
         } @else if (activeSection() === 'photos') {
           <section
             id="community-panel-photos"
-            role="tabpanel"
             aria-labelledby="community-tab-photos"
           >
             <app-community-feed
@@ -132,7 +123,6 @@
           <section
             id="community-panel-about"
             class="community-preview__about"
-            role="tabpanel"
             aria-labelledby="community-tab-about"
           >
             @if (preview.community.description) {
@@ -168,7 +158,7 @@
               @if (accessLabel(preview.community); as access) {
                 <span>
                   <i class="fas fa-crown" aria-hidden="true"></i>
-                  Conteúdo {{ access }}
+                  Recursos {{ access }}
                 </span>
               }
             </div>
