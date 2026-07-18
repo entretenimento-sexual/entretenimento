@@ -72,6 +72,7 @@
                   @if (
                     action.status === 'loading'
                     && action.memberId === request.memberId
+                    && action.action === 'approve'
                   ) {
                     <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                   } @else {
@@ -87,7 +88,15 @@
                   [attr.aria-label]="'Recusar solicitação de ' + request.label"
                   (click)="review(request, 'reject')"
                 >
-                  <i class="fas fa-xmark" aria-hidden="true"></i>
+                  @if (
+                    action.status === 'loading'
+                    && action.memberId === request.memberId
+                    && action.action === 'reject'
+                  ) {
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  } @else {
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
+                  }
                   <span>Recusar</span>
                 </button>
               </div>
