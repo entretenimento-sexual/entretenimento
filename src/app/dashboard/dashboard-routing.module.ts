@@ -107,6 +107,25 @@ const routes: Routes = [
       },
 
       /**
+       * Prévia comunitária somente leitura.
+       *
+       * A flag impede exposição e download fora do ambiente emulado. As callables
+       * repetem a mesma restrição no backend e não liberam interação ou mídia.
+       */
+      {
+        path: 'comunidades',
+        canMatch: [requireFeatureFlag('communityPreview')],
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+        loadChildren: () =>
+          import('../community/community.routes')
+            .then((module) => module.COMMUNITY_ROUTES),
+      },
+
+      /**
        * Experiências de assinantes em preparação.
        *
        * A flag impede download e exposição fora do ambiente controlado. A
