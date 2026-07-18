@@ -6,12 +6,18 @@ import {
   discoveryModeRequiresLocation,
   discoveryModeRequiresOnlinePresence,
   isDiscoveryModeEnabled,
+  normalizeDiscoveryExperienceMode,
   normalizeDiscoveryMode,
 } from './discovery-mode.model';
 
 describe('discovery-mode.model', () => {
   it('mantém todos como fallback para valores desconhecidos', () => {
     expect(normalizeDiscoveryMode('desconhecido')).toBe('all');
+  });
+
+  it('separa experiência de hoje do pipeline de ranking de perfis', () => {
+    expect(normalizeDiscoveryExperienceMode('today')).toBe('today');
+    expect(normalizeDiscoveryMode('today')).toBe('all');
   });
 
   it('declara hoje como modo habilitado baseado em status temporário', () => {
