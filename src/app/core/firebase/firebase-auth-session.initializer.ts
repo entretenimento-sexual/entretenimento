@@ -9,9 +9,9 @@ import {
   resolveFirebaseAuthEmulatorPersistenceMode,
 } from './firebase-environment.config';
 
-interface AuthWithStateReady extends Auth {
+type AuthWithOptionalStateReady = Auth & {
   authStateReady?: () => Promise<void>;
-}
+};
 
 const INVALID_SESSION_ERROR_CODES = new Set([
   'auth/user-not-found',
@@ -44,7 +44,7 @@ export function authRestoreInitializer(
 ): () => Promise<void> {
   return async (): Promise<void> => {
     try {
-      await ((auth as AuthWithStateReady).authStateReady?.() ??
+      await ((auth as AuthWithOptionalStateReady).authStateReady?.() ??
         Promise.resolve());
 
       const authEmulatorEndpoint = getFirebaseEmulatorEndpoint('auth');
