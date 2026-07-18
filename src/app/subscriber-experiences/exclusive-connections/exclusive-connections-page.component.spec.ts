@@ -25,7 +25,10 @@ function createDecision(
 }
 
 describe('ExclusiveConnectionsPageComponent', () => {
-  const accessMock = { evaluate$: vi.fn() };
+  const accessMock = {
+    evaluate$: vi.fn(),
+    refresh: vi.fn(),
+  };
   const accessNavigationMock = { navigateForDecision: vi.fn() };
   const repositoryMock = { getPage$: vi.fn() };
   const errorNotifierMock = { showError: vi.fn() };
@@ -94,5 +97,27 @@ describe('ExclusiveConnectionsPageComponent', () => {
     TestBed.createComponent(ExclusiveConnectionsPageComponent);
 
     expect(accessMock.evaluate$).toHaveBeenCalledTimes(1);
+  });
+
+  it('encaminha a ação de nova tentativa ao serviço de acesso', () => {
+    accessMock.evaluate$.mockReturnValue(
+      of(
+        createDecision({
+          reason: 'access_check_unavailable',
+          recommendedAction: null,
+        })
+      )
+    );
+
+    const fixture = TestBed.createComponent(ExclusiveConnectionsPageComponent);
+    fixture.detectChanges();
+
+    const retryButton = fixture.nativeElement.querySelector(
+      'app-content-access-notice button'
+    ) as HTMLButtonElement;
+    retryButton.click();
+
+    expect(accessMock.refresh).toHaveBeenCalledTimes(1);
+    expect(accessNavigationMock.navigateForDecision).not.toHaveBeenCalled();
   });
 });
