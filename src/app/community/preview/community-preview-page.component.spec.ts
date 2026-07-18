@@ -55,7 +55,12 @@ function basePreview() {
 describe('CommunityPreviewPageComponent', () => {
   const previewRepositoryMock = { getPreview$: vi.fn() };
   const feedRepositoryMock = { getPage$: vi.fn() };
-  const membershipRepositoryMock = { requestMembership$: vi.fn() };
+  const membershipRepositoryMock = {
+    requestMembership$: vi.fn(),
+    leaveMembership$: vi.fn(),
+    getMembershipRequests$: vi.fn(),
+    reviewMembership$: vi.fn(),
+  };
   const accessNavigationMock = { navigateForDecision: vi.fn() };
   const errorNotifierMock = {
     showError: vi.fn(),
@@ -70,6 +75,15 @@ describe('CommunityPreviewPageComponent', () => {
     );
     membershipRepositoryMock.requestMembership$.mockReturnValue(
       of({ status: 'pending', viewerMode: 'pending', canInteract: false })
+    );
+    membershipRepositoryMock.leaveMembership$.mockReturnValue(
+      of({ status: 'left', viewerMode: 'visitor', canInteract: false })
+    );
+    membershipRepositoryMock.getMembershipRequests$.mockReturnValue(
+      of({ items: [], generatedAt: 123 })
+    );
+    membershipRepositoryMock.reviewMembership$.mockReturnValue(
+      of({ memberId: 'member-1', status: 'active', viewerMode: 'member' })
     );
     accessNavigationMock.navigateForDecision.mockResolvedValue(true);
 
@@ -225,18 +239,54 @@ describe('CommunityPreviewPageComponent', () => {
     expect(errorNotifierMock.showError).not.toHaveBeenCalled();
   });
 
-  it('substitui a ação por estado pendente e não cria botão redundante', () => {
+  it('mantém estado pendente e permite cancelamento pela callable', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
       of(preview({ viewerMode: 'pending' }))
     );
 
     const fixture = createFixture();
+    const cancel = fixture.nativeElement.querySelector(
+      '.community-preview__membership-leave-action'
+    ) as HTMLButtonElement;
 
     expect(
       fixture.nativeElement.querySelector('.community-preview__membership-action')
     ).toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Solicitação enviada');
     expect(fixture.nativeElement.textContent).not.toContain('Pendente');
+
+    cancel.click();
+    fixture.detectChanges();
+
+    expect(membershipRepositoryMock.leaveMembership$).toHaveBeenCalledWith(
+      'community-1'
+    );
+    expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith(
+      'Solicitação cancelada.'
+    );
+  });
+
+  it('permite saída voluntária do membro e retorna ao mural', () => {
+    previewRepositoryMock.getPreview$.mockReturnValue(
+      of(preview({ viewerMode: 'member', canInteract: true }))
+    );
+
+    const fixture = createFixture();
+    sectionButton(fixture, 2).click();
+    fixture.detectChanges();
+    const leave = fixture.nativeElement.querySelector(
+      '.community-preview__membership-leave-action'
+    ) as HTMLButtonElement;
+    leave.click();
+    fixture.detectChanges();
+
+    expect(membershipRepositoryMock.leaveMembership$).toHaveBeenCalledWith(
+      'community-1'
+    );
+    expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith(
+      'Você saiu da comunidade.'
+    );
+    expect(fixture.componentInstance.activeSection()).toBe('feed');
   });
 
   it('não oferece adesão em comunidade somente por convite', () => {
@@ -259,6 +309,30 @@ describe('CommunityPreviewPageComponent', () => {
     expect(
       fixture.nativeElement.querySelector('.community-preview__membership-action')
     ).toBeNull();
+  });
+
+  it('carrega a fila somente quando a moderação abre a aba contextual', () => {
+    previewRepositoryMock.getPreview$.mockReturnValue(
+      of(preview({ viewerMode: 'moderator', canInteract: true }))
+    );
+
+    const fixture = createFixture();
+
+    expect(
+      fixture.nativeElement.querySelectorAll('.community-preview__tabs button')
+    ).toHaveLength(4);
+    expect(membershipRepositoryMock.getMembershipRequests$).not.toHaveBeenCalled();
+
+    sectionButton(fixture, 3).click();
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(membershipRepositoryMock.getMembershipRequests$).toHaveBeenCalledWith(
+      'community-1'
+    );
+    expect(fixture.nativeElement.textContent).toContain(
+      'Nenhuma solicitação pendente.'
+    );
   });
 
   it('explica assinatura vencida ao membro sem tratá-lo como visitante', () => {
