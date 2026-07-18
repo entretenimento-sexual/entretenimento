@@ -7,124 +7,132 @@
 
 .intent-composer,
 .intent-composer.app-card {
+  --intent-control-height: 44px;
+  --intent-radius: 18px;
+
   display: grid;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
-  padding: clamp(16px, 2vw, 22px);
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 22px;
+  padding: clamp(14px, 2vw, 18px);
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, rgba(255, 255, 255, 0.12)) 88%,
+    transparent
+  );
+  border-radius: var(--intent-radius);
   background: var(--surface-color, #101923);
   color: var(--text-color, #f5f7fb);
-  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
+  box-shadow: 0 8px 22px rgb(0 0 0 / 8%);
 }
 
 .intent-composer__header,
-.intent-composer__footer,
-.intent-composer__row,
 .intent-composer__active,
-.intent-composer__venues-header {
+.intent-composer__active-main,
+.intent-composer__footer,
+.intent-composer__footer-actions,
+.intent-composer__row,
+.intent-composer__venues-header,
+.intent-composer__summary,
+.intent-composer__hint,
+.intent-composer__venue-selected {
   display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.intent-composer__header,
+.intent-composer__active,
+.intent-composer__footer,
+.intent-composer__venues-header {
+  justify-content: space-between;
   gap: 12px;
 }
 
-.intent-composer__header,
-.intent-composer__footer,
-.intent-composer__active,
-.intent-composer__venues-header {
-  align-items: flex-start;
-  justify-content: space-between;
+.intent-composer__summary {
+  gap: 10px;
 }
 
-.intent-composer__eyebrow {
-  display: block;
-  margin-bottom: 4px;
+.intent-composer__summary-icon {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
   color: var(--primary-color, #ff7070);
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  line-height: 1.1;
-  text-transform: uppercase;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 12%, transparent);
 }
 
-.intent-composer h2 {
+.intent-composer__summary p,
+.intent-composer__hint,
+.intent-composer__active p,
+.intent-composer__venues-empty,
+.intent-composer__venue-selected {
   margin: 0;
-  color: var(--text-color, #f5f7fb);
-  font-size: clamp(1.1rem, 1.8vw, 1.45rem);
-  font-weight: 950;
-  line-height: 1.1;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font-size: 0.84rem;
+  line-height: 1.4;
 }
 
-.intent-composer__badge {
+.intent-composer__summary p {
+  max-width: 40rem;
+  font-weight: 650;
+}
+
+.intent-composer__toggle,
+.intent-composer__hide,
+.intent-composer__clear-venue,
+.intent-composer__submit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 28px;
-  padding-inline: 10px;
-  border: 1px solid rgba(255, 112, 112, 0.35);
-  border-radius: 999px;
-  color: var(--primary-color, #ff7070);
-  font-size: 0.72rem;
-  font-weight: 900;
+  gap: 7px;
+  min-height: 40px;
   white-space: nowrap;
-}
-
-.intent-composer__description,
-.intent-composer__footer p {
-  margin: 0;
-  color: var(--text-color, #f5f7fb);
-  opacity: 0.74;
-  font-size: 0.86rem;
-  line-height: 1.45;
 }
 
 .intent-composer__active {
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid rgba(255, 112, 112, 0.25);
-  border-radius: 16px;
-  background: rgba(255, 112, 112, 0.08);
+  padding: 11px 12px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 24%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 7%, transparent);
 }
 
-.intent-composer__active div {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
+.intent-composer__active-main {
+  gap: 9px;
 }
 
-.intent-composer__active span {
+.intent-composer__active-main > i {
+  flex: 0 0 auto;
   color: var(--primary-color, #ff7070);
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+}
+
+.intent-composer__active-main > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .intent-composer__active strong {
+  overflow: hidden;
   color: var(--text-color, #f5f7fb);
-  font-size: 0.96rem;
-  line-height: 1.2;
+  font-size: 0.92rem;
+  font-weight: 850;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .intent-composer__active p {
-  margin: 0;
-  color: var(--text-color, #f5f7fb);
-  opacity: 0.72;
-  font-size: 0.82rem;
-  line-height: 1.35;
   overflow-wrap: anywhere;
-}
-
-.intent-composer__hide {
-  flex: 0 0 auto;
-  min-height: 40px;
-  white-space: nowrap;
 }
 
 .intent-composer__form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 11px;
   min-width: 0;
+  padding-top: 2px;
 }
 
 .intent-composer__field {
@@ -135,76 +143,63 @@
 
 .intent-composer__field--wide,
 .intent-composer__footer,
-.intent-composer__venues {
+.intent-composer__venues,
+.intent-composer__row {
   grid-column: 1 / -1;
 }
 
-.intent-composer__field span {
-  color: var(--text-color, #f5f7fb);
-  opacity: 0.78;
-  font-size: 0.78rem;
-  font-weight: 850;
+.intent-composer__field > span,
+.intent-composer__venues-header strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 80%, transparent);
+  font-size: 0.77rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.intent-composer__field > span i,
+.intent-composer__venues-header strong i,
+.intent-composer__hint i,
+.intent-composer__venue-selected i {
+  color: var(--primary-color, #ff7070);
 }
 
 .intent-composer__field input,
 .intent-composer__field select {
   width: 100%;
-  min-height: 44px;
+  min-height: var(--intent-control-height);
   padding: 0 12px;
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--background-color, #0b1118);
   color: var(--text-color, #f5f7fb);
   font: inherit;
   outline: none;
 }
 
-.intent-composer__field input:focus,
-.intent-composer__field select:focus {
-  border-color: var(--primary-color, #ff7070);
+.intent-composer__field input:focus-visible,
+.intent-composer__field select:focus-visible,
+.intent-composer__venue-option:focus-visible,
+.intent-composer button:focus-visible {
+  outline: 2px solid var(--primary-color, #ff7070);
+  outline-offset: 2px;
 }
 
 .intent-composer__venues {
   display: grid;
-  gap: 10px;
+  gap: 9px;
   min-width: 0;
-  padding: 12px;
+  padding: 11px;
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 16px;
-  background: var(--background-color, #0b1118);
-}
-
-.intent-composer__venues-header div {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.intent-composer__venues-header strong,
-.intent-composer__venue-selected strong {
-  color: var(--text-color, #f5f7fb);
-  font-size: 0.88rem;
-  font-weight: 920;
-}
-
-.intent-composer__venues-header span,
-.intent-composer__venues-empty,
-.intent-composer__venue-selected {
-  margin: 0;
-  color: var(--text-color, #f5f7fb);
-  opacity: 0.72;
-  font-size: 0.78rem;
-  line-height: 1.35;
-}
-
-.intent-composer__clear-venue {
-  min-height: 36px;
-  white-space: nowrap;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--background-color, #0b1118) 90%, transparent);
 }
 
 .intent-composer__venue-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 8px;
 }
 
@@ -214,7 +209,7 @@
   min-width: 0;
   padding: 10px;
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--surface-color, #101923);
   color: var(--text-color, #f5f7fb);
   text-align: left;
@@ -222,50 +217,61 @@
 }
 
 .intent-composer__venue-option:hover,
-.intent-composer__venue-option:focus-visible,
 .intent-composer__venue-option--selected {
-  border-color: var(--primary-color, #ff7070);
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 72%, transparent);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 6%, var(--surface-color, #101923));
 }
 
 .intent-composer__venue-option strong {
   overflow: hidden;
-  color: var(--text-color, #f5f7fb);
   font-size: 0.84rem;
-  font-weight: 920;
+  font-weight: 850;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .intent-composer__venue-option span,
 .intent-composer__venue-option small {
-  color: var(--text-color, #f5f7fb);
-  opacity: 0.7;
-  font-size: 0.74rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.73rem;
   line-height: 1.3;
 }
 
 .intent-composer__venue-option small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--primary-color, #ff7070);
-  font-weight: 900;
-  opacity: 1;
+  font-weight: 800;
+}
+
+.intent-composer__venue-selected {
+  gap: 6px;
 }
 
 .intent-composer__row {
-  grid-column: 1 / -1;
-  min-width: 0;
+  gap: 10px;
 }
 
 .intent-composer__row .intent-composer__field:first-child {
-  flex: 0 0 84px;
+  flex: 0 0 82px;
 }
 
 .intent-composer__row .intent-composer__field:last-child {
   flex: 1 1 auto;
 }
 
-.intent-composer__submit {
-  min-height: 44px;
-  white-space: nowrap;
+.intent-composer__footer {
+  padding-top: 2px;
+}
+
+.intent-composer__hint {
+  gap: 7px;
+}
+
+.intent-composer__footer-actions {
+  flex: 0 0 auto;
+  gap: 8px;
 }
 
 @media (max-width: 640px) {
@@ -280,13 +286,40 @@
   }
 
   .intent-composer__header,
-  .intent-composer__footer,
   .intent-composer__active,
-  .intent-composer__venues-header {
+  .intent-composer__footer {
+    align-items: stretch;
+  }
+
+  .intent-composer__summary {
+    flex: 1 1 auto;
+  }
+
+  .intent-composer__footer {
     flex-direction: column;
   }
 
-  .intent-composer__submit,
+  .intent-composer__footer-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .intent-composer__cancel,
+  .intent-composer__submit {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .intent-composer__header,
+  .intent-composer__active,
+  .intent-composer__venues-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .intent-composer__toggle,
   .intent-composer__hide,
   .intent-composer__clear-venue {
     width: 100%;
@@ -300,5 +333,18 @@
 
   .intent-composer__row .intent-composer__field:first-child {
     flex-basis: auto;
+  }
+
+  .intent-composer__footer-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intent-composer *,
+  .intent-composer *::before,
+  .intent-composer *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
   }
 }
