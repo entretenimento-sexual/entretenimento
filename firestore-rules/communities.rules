@@ -11,7 +11,7 @@
 // - listagem global direta fica bloqueada até existir projeção/callable paginada;
 // - criação, adesão, moderação e mutações são exclusivas do backend;
 // - o cliente só pode ler o próprio documento de membership;
-// - projeções de descoberta, mural e índice pessoal são backend-only.
+// - projeções, mural, índices e auditoria são backend-only.
 // =============================================================================
 
 match /communities/{communityId} {
@@ -78,6 +78,11 @@ match /community_public_feed/{communityId} {
 }
 
 match /community_public_feed/{communityId}/items/{postId} {
+  allow read, write: if false;
+}
+
+// Auditoria de solicitações e entradas comunitárias.
+match /community_membership_audit/{auditId} {
   allow read, write: if false;
 }
 
