@@ -1,0 +1,100 @@
+<!-- src/app/community/membership-management/community-membership-management.component.html -->
+@if (state$ | async; as state) {
+  @if (action$ | async; as action) {
+    <section
+      class="community-membership-management"
+      aria-labelledby="community-membership-management-title"
+    >
+      <header class="community-membership-management__header">
+        <div>
+          <h2 id="community-membership-management-title">Solicitações</h2>
+          @if (state.status === 'ready') {
+            <span aria-live="polite">{{ state.items.length }}</span>
+          }
+        </div>
+
+        <button
+          type="button"
+          class="community-membership-management__refresh"
+          [disabled]="state.status === 'loading' || action.status === 'loading'"
+          aria-label="Atualizar solicitações"
+          (click)="refresh()"
+        >
+          <i
+            class="fas {{ state.status === 'loading' ? 'fa-spinner fa-spin' : 'fa-rotate' }}"
+            aria-hidden="true"
+          ></i>
+        </button>
+      </header>
+
+      @if (state.status === 'loading') {
+        <div class="community-membership-management__state" role="status" aria-live="polite">
+          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          <span>Carregando solicitações...</span>
+        </div>
+      } @else if (state.status === 'error') {
+        <div class="community-membership-management__state" role="alert">
+          <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+          <span>Fila indisponível.</span>
+        </div>
+      } @else if (state.items.length === 0) {
+        <div class="community-membership-management__state" role="status">
+          <i class="far fa-circle-check" aria-hidden="true"></i>
+          <span>Nenhuma solicitação pendente.</span>
+        </div>
+      } @else {
+        <ul class="community-membership-management__list">
+          @for (request of state.items; track request.memberId) {
+            <li>
+              <span class="community-membership-management__avatar" aria-hidden="true">
+                @if (request.avatarUrl) {
+                  <img [src]="request.avatarUrl" alt="" />
+                } @else {
+                  <i class="fas fa-user" aria-hidden="true"></i>
+                }
+              </span>
+
+              <div class="community-membership-management__copy">
+                <strong>{{ request.label }}</strong>
+                <span>
+                  Enviada em {{ request.requestedAt | date: 'short' }}
+                </span>
+              </div>
+
+              <div class="community-membership-management__actions">
+                <button
+                  type="button"
+                  class="is-approve"
+                  [disabled]="action.status === 'loading'"
+                  [attr.aria-label]="'Aprovar solicitação de ' + request.label"
+                  (click)="review(request, 'approve')"
+                >
+                  @if (
+                    action.status === 'loading'
+                    && action.memberId === request.memberId
+                  ) {
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  } @else {
+                    <i class="fas fa-check" aria-hidden="true"></i>
+                  }
+                  <span>Aprovar</span>
+                </button>
+
+                <button
+                  type="button"
+                  class="is-reject"
+                  [disabled]="action.status === 'loading'"
+                  [attr.aria-label]="'Recusar solicitação de ' + request.label"
+                  (click)="review(request, 'reject')"
+                >
+                  <i class="fas fa-xmark" aria-hidden="true"></i>
+                  <span>Recusar</span>
+                </button>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+}
