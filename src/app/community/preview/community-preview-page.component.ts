@@ -4,6 +4,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   inject,
+  signal,
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
@@ -24,6 +25,9 @@ import {
   CommunityPreviewViewerMode,
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
+import { CommunityFeedComponent } from '../feed/community-feed.component';
+
+export type CommunityPreviewSection = 'feed' | 'photos' | 'about';
 
 type CommunityPreviewState =
   | { status: 'loading'; preview: null }
@@ -33,7 +37,12 @@ type CommunityPreviewState =
 @Component({
   selector: 'app-community-preview-page',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, ImageFallbackDirective],
+  imports: [
+    AsyncPipe,
+    RouterLink,
+    ImageFallbackDirective,
+    CommunityFeedComponent,
+  ],
   templateUrl: './community-preview-page.component.html',
   styleUrl: './community-preview-page.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -43,6 +52,8 @@ export class CommunityPreviewPageComponent {
   private readonly repository = inject(CommunityPreviewRepository);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+
+  readonly activeSection = signal<CommunityPreviewSection>('feed');
 
   readonly state$ = this.route.paramMap.pipe(
     map((params) => String(params.get('communityId') ?? '').trim()),
@@ -67,6 +78,10 @@ export class CommunityPreviewPageComponent {
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  selectSection(section: CommunityPreviewSection): void {
+    this.activeSection.set(section);
+  }
 
   sourceLabel(community: CommunityPreviewCard): string {
     return community.source.type === 'venue' ? 'Local' : 'Sala';
@@ -93,6 +108,16 @@ export class CommunityPreviewPageComponent {
       : minimumRole === 'premium'
         ? 'Premium'
         : 'Assinantes';
+  }
+
+  joinLabel(community: CommunityPreviewCard): string {
+    const labels = {
+      open: 'Entrada aberta',
+      approval: 'Entrada por aprovação',
+      invite_only: 'Somente convite',
+    } as const;
+
+    return labels[community.access.join];
   }
 
   private reportError(error: unknown): void {
