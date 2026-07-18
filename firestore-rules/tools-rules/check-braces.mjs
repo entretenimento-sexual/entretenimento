@@ -11,54 +11,19 @@
 // - detectar blocos abertos/fechamentos faltando antes da compilação Firebase.
 //
 // Limite:
-// - esta checagem não substitui o parser/compilador oficial das rules.
+// - esta checagem não substitui o parser/compilador oficial das Rules.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { FIRESTORE_RULE_PARTS } from './firestore-rules-parts.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const root = path.resolve(__dirname, '..', '..');
 const srcDir = path.join(root, 'firestore-rules');
-
-const parts = [
-  '_helpers.rules',
-
-  'users.rules',
-  'billing.rules',
-
-  'public_profiles.rules',
-  'public_profiles_photos.rules',
-  'presence.rules',
-  'user_intent_statuses.rules',
-  'venues.rules',
-  'regional_hot_places.rules',
-
-  'friendRequests.rules',
-  'friends_root.rules',
-  'chats.rules',
-  'rooms.rules',
-  'rooms_participants.rules',
-  'public_index.rules',
-  'notifications.rules',
-
-  'users_profile_socialLinks.rules',
-  'public_social_links.rules',
-  'preferences.rules',
-  'users_friends.rules',
-  'user_profile.rules',
-  'users_photos.rules',
-  'users_photo_publications.rules',
-  'users_blocks.rules',
-
-  'communities.rules',
-  'invites.rules',
-  'admin_logs.rules',
-
-  '_footer.rules',
-];
 
 function stripComments(input) {
   return input
@@ -73,12 +38,12 @@ function countChar(text, char) {
 let total = 0;
 let hasError = false;
 
-for (const part of parts) {
+for (const part of FIRESTORE_RULE_PARTS) {
   const file = path.join(srcDir, part);
 
   if (!fs.existsSync(file)) {
     hasError = true;
-    console.error(`${part.padEnd(34)} MISSING`);
+    console.error(`${part.padEnd(40)} MISSING`);
     continue;
   }
 
@@ -87,7 +52,6 @@ for (const part of parts) {
     .replace(/\r\n/g, '\n');
 
   const clean = stripComments(body);
-
   const opens = countChar(clean, '{');
   const closes = countChar(clean, '}');
   const delta = opens - closes;
@@ -95,7 +59,7 @@ for (const part of parts) {
   total += delta;
 
   console.log(
-    `${part.padEnd(34)} opens=${String(opens).padStart(3)} ` +
+    `${part.padEnd(40)} opens=${String(opens).padStart(3)} ` +
       `closes=${String(closes).padStart(3)} ` +
       `delta=${String(delta).padStart(3)} ` +
       `total=${String(total).padStart(3)}`
