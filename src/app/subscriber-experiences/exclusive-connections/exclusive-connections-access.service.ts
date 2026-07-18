@@ -20,11 +20,11 @@ import {
   switchMap,
 } from 'rxjs';
 
+import { ContentAccessDecision } from 'src/app/core/access/content-access-policy.model';
 import {
   areContentAccessDecisionsEqual,
-  ContentAccessDecision,
+  ContentAccessPolicyService,
 } from 'src/app/core/access/content-access-policy.service';
-import { ContentAccessPolicyService } from 'src/app/core/access/content-access-policy.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { BillingSnapshotResult } from 'src/app/payments-core/domain/models/billing-return.model';
