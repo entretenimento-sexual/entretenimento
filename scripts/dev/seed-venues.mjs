@@ -4,10 +4,11 @@
 // -----------------------------------------------------------------------------
 // Uso seguro:
 // - destinado ao Firebase Emulator do app;
-// - exige FIRESTORE_EMULATOR_HOST para evitar escrita acidental em produção;
+// - exige FIRESTORE_EMULATOR_HOST para evitar escrita acidental fora do emulador;
 // - usa set(..., { merge: true }) para NÃO apagar dados manuais já criados;
 // - popula estabelecimentos fictícios e moderados em venues;
-// - não grava coordenadas precisas nem dados privados.
+// - não grava coordenadas precisas nem dados privados;
+// - chat define somente política de associação, sem roomId.
 //
 // Execução sugerida:
 //   npm run seed:venues:emu
@@ -64,7 +65,6 @@ const venues = [
     chat: {
       enabled: true,
       mode: 'hybrid',
-      roomId: null,
     },
     ownerUid: null,
     adminUids: [],
@@ -95,7 +95,6 @@ const venues = [
     chat: {
       enabled: true,
       mode: 'public_preview',
-      roomId: null,
     },
     ownerUid: null,
     adminUids: [],
@@ -126,7 +125,6 @@ const venues = [
     chat: {
       enabled: false,
       mode: 'hybrid',
-      roomId: null,
     },
     ownerUid: null,
     adminUids: [],
@@ -157,7 +155,6 @@ const venues = [
     chat: {
       enabled: true,
       mode: 'frequenters_only',
-      roomId: null,
     },
     ownerUid: null,
     adminUids: [],
@@ -188,7 +185,6 @@ const venues = [
     chat: {
       enabled: false,
       mode: 'hybrid',
-      roomId: null,
     },
     ownerUid: null,
     adminUids: [],
