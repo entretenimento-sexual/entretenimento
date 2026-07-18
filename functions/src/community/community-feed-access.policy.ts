@@ -6,17 +6,17 @@ import {
 
 export function canViewerReadCommunityFeedAudience(
   projection: Readonly<SanitizedCommunityFeedProjection>,
-  activeMembership: boolean
+  memberContentAccess: boolean
 ): boolean {
-  return projection.audience === 'public_preview' || activeMembership;
+  return projection.audience === 'public_preview' || memberContentAccess;
 }
 
 export function canViewerReadCommunityFeedProjection(
   projection: Readonly<SanitizedCommunityFeedProjection>,
   view: CommunityFeedView,
-  activeMembership: boolean
+  memberContentAccess: boolean
 ): boolean {
-  if (!canViewerReadCommunityFeedAudience(projection, activeMembership)) {
+  if (!canViewerReadCommunityFeedAudience(projection, memberContentAccess)) {
     return false;
   }
 
