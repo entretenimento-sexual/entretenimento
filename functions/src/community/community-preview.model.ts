@@ -228,9 +228,10 @@ export function sanitizeCommunityDocument(
 ): CommunityPreviewCard | null {
   const source = (raw ?? {}) as Record<string, unknown>;
   const moderation = (source['moderation'] ?? {}) as Record<string, unknown>;
+  const validStatus = source['status'] === 'active' || source['status'] === 'paused';
 
   if (
-    source['status'] !== 'active'
+    !validStatus
     || moderation['state'] !== 'active'
     || (source['visibility'] !== 'public_preview'
       && source['visibility'] !== 'members_only')
