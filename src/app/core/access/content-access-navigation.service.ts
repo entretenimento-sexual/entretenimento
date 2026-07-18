@@ -31,14 +31,27 @@ const ROUTE_BY_ACTION: Readonly<
   upgrade_subscription: ['/subscription-plan'],
 });
 
-function normalizeReturnUrl(value: string | null | undefined): string | null {
+function normalizeInternalReturnUrl(
+  value: string | null | undefined
+): string | null {
   const route = String(value ?? '').trim();
 
-  if (!route || route === '/' || !route.startsWith('/')) {
+  if (
+    !route ||
+    route === '/' ||
+    !route.startsWith('/') ||
+    route.startsWith('//') ||
+    route.includes('\\')
+  ) {
     return null;
   }
 
   return route;
+}
+
+function normalizePathForComparison(value: string): string {
+  const [path] = value.split(/[?#]/, 1);
+  return (path || '/').replace(/\/+/g, '/');
 }
 
 export function resolveContentAccessNavigationTarget(
@@ -52,11 +65,14 @@ export function resolveContentAccessNavigationTarget(
   }
 
   const commands = [...ROUTE_BY_ACTION[action]];
-  const returnUrl = normalizeReturnUrl(currentUrl);
-  const targetPath = commands.join('/').replace(/\/+/g, '/');
+  const returnUrl = normalizeInternalReturnUrl(currentUrl);
+  const targetPath = normalizePathForComparison(commands.join('/'));
   const queryParams: Params = {};
 
-  if (returnUrl && returnUrl !== targetPath) {
+  if (
+    returnUrl &&
+    normalizePathForComparison(returnUrl) !== targetPath
+  ) {
     queryParams['returnUrl'] = returnUrl;
   }
 
