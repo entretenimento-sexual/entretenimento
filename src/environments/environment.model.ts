@@ -60,6 +60,12 @@ export interface FeaturesConfig {
    * assinantes. Não substitui política de acesso, Rules ou autorização backend.
    */
   subscriberExperiencesPreview?: boolean;
+
+  /**
+   * Libera descoberta e página comunitária somente leitura no ambiente emulado.
+   * Não habilita feed, mídia, membership ou interação.
+   */
+  communityPreview?: boolean;
 }
 
 // ---------------------------
