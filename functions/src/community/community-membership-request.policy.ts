@@ -53,6 +53,13 @@ export function evaluateCommunityMembershipRequest(
     return denied('membership_blocked');
   }
 
+  if (
+    (input.existingStatus === 'active' || input.existingStatus === 'pending')
+    && !input.entitlementAllowed
+  ) {
+    return denied('subscription_required');
+  }
+
   if (input.existingStatus === 'active') {
     return {
       allowed: true,
