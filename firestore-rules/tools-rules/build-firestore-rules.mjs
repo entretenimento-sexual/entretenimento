@@ -10,6 +10,7 @@
 // - fragments sensíveis ficam versionados em firestore-rules/;
 // - billing.rules entra logo após users.rules por tratar dados privados e
 //   financeiros internos;
+// - projeções de assinantes permanecem fechadas ao cliente;
 // - os marcadores por arquivo permanecem no resultado para diagnóstico.
 
 import fs from 'node:fs';
@@ -30,6 +31,7 @@ const parts = [
   // Documentos privados e domínios internos sensíveis.
   'users.rules',
   'billing.rules',
+  'exclusive_connection_candidates.rules',
 
   // Discovery, presença e vitrines regionais moderadas.
   'public_profiles.rules',
