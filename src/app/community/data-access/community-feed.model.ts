@@ -41,6 +41,8 @@ export interface CommunityFeedPageRequest {
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const MIN_PUBLISHED_AT = Date.UTC(2000, 0, 1);
+const MAX_FUTURE_SKEW_MS = 5 * 60_000;
 
 function normalizeText(value: unknown, maxLength: number): string {
   return String(value ?? '')
@@ -90,7 +92,8 @@ function normalizeItem(raw: unknown): CommunityFeedItem | null {
     || (kind !== 'text' && kind !== 'photo')
     || authorLabel.length < 2
     || !Number.isFinite(publishedAt)
-    || publishedAt <= 0
+    || publishedAt < MIN_PUBLISHED_AT
+    || publishedAt > Date.now() + MAX_FUTURE_SKEW_MS
   ) {
     return null;
   }
