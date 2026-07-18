@@ -77,14 +77,18 @@ export function resolveCommunityViewerCapabilities(
   membership: Readonly<ICommunityMembership> | null | undefined,
   authenticated = true
 ): Readonly<CommunityViewerCapabilities> {
-  const mode = resolveViewerMode(membership);
-  const activeMembership = isActiveMembership(membership);
+  const communityMembership =
+    membership?.communityId === community.id ? membership : null;
+  const mode = resolveViewerMode(communityMembership);
+  const activeMembership = isActiveMembership(communityMembership);
   const operational =
     community.status === 'active' && community.moderation.state === 'active';
   const publicPreview =
-    operational && community.visibility === 'public_preview';
+    operational &&
+    community.visibility === 'public_preview' &&
+    community.access.preview === 'authenticated';
   const privilegedMembership =
-    activeMembership && isModerationRole(membership.role);
+    activeMembership && isModerationRole(communityMembership.role);
 
   if (!authenticated || mode === 'blocked') {
     return Object.freeze({
@@ -103,12 +107,14 @@ export function resolveCommunityViewerCapabilities(
     privilegedMembership && community.status !== 'archived';
   const canManage =
     activeMembership &&
-    isManagementRole(membership.role) &&
+    isManagementRole(communityMembership.role) &&
     community.status !== 'archived';
+  const canStartMembership =
+    !communityMembership || communityMembership.status === 'left';
   const canRequestMembership =
     operational &&
     publicPreview &&
-    !membership &&
+    canStartMembership &&
     community.access.join !== 'invite_only';
 
   return Object.freeze({
