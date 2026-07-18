@@ -2,7 +2,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { evaluateCommunityMembershipRequest } from './community-membership-request.policy';
+import {
+  evaluateCommunityMembershipLeave,
+  evaluateCommunityMembershipRequest,
+  evaluateCommunityMembershipReview,
+} from './community-membership-request.policy';
 
 const BASE_INPUT = Object.freeze({
   operational: true,
@@ -120,4 +124,110 @@ test('nega quando o entitlement exigido não foi confirmado', () => {
 
   assert.equal(decision.allowed, false);
   assert.equal(decision.denialReason, 'subscription_required');
+});
+
+test('saída ativa reduz contagem e cancelamento pendente não reduz', () => {
+  const active = evaluateCommunityMembershipLeave({
+    existingStatus: 'active',
+    existingRole: 'member',
+  });
+  const pending = evaluateCommunityMembershipLeave({
+    existingStatus: 'pending',
+    existingRole: 'member',
+  });
+
+  assert.equal(active.allowed, true);
+  assert.equal(active.targetStatus, 'left');
+  assert.equal(active.decrementMemberCount, true);
+  assert.equal(active.auditAction, 'community-membership-left');
+  assert.equal(pending.allowed, true);
+  assert.equal(pending.decrementMemberCount, false);
+  assert.equal(
+    pending.auditAction,
+    'community-membership-request-cancelled'
+  );
+});
+
+test('saída já concluída é idempotente e owner exige transferência', () => {
+  const left = evaluateCommunityMembershipLeave({
+    existingStatus: 'left',
+    existingRole: 'member',
+  });
+  const owner = evaluateCommunityMembershipLeave({
+    existingStatus: 'active',
+    existingRole: 'owner',
+  });
+
+  assert.equal(left.allowed, true);
+  assert.equal(left.idempotent, true);
+  assert.equal(owner.allowed, false);
+  assert.equal(owner.denialReason, 'owner_transfer_required');
+});
+
+test('moderador aprova pendência e incrementa membros', () => {
+  const decision = evaluateCommunityMembershipReview({
+    actorActive: true,
+    actorRole: 'moderator',
+    targetIsActor: false,
+    targetStatus: 'pending',
+    targetRole: 'member',
+    action: 'approve',
+  });
+
+  assert.equal(decision.allowed, true);
+  assert.equal(decision.targetStatus, 'active');
+  assert.equal(decision.incrementMemberCount, true);
+  assert.equal(decision.auditAction, 'community-membership-approved');
+});
+
+test('moderador rejeita pendência sem alterar contagem', () => {
+  const decision = evaluateCommunityMembershipReview({
+    actorActive: true,
+    actorRole: 'admin',
+    targetIsActor: false,
+    targetStatus: 'pending',
+    targetRole: 'member',
+    action: 'reject',
+  });
+
+  assert.equal(decision.allowed, true);
+  assert.equal(decision.targetStatus, 'left');
+  assert.equal(decision.incrementMemberCount, false);
+  assert.equal(decision.auditAction, 'community-membership-rejected');
+});
+
+test('revisão exige papel, alvo pendente e impede autorrevisão', () => {
+  assert.equal(
+    evaluateCommunityMembershipReview({
+      actorActive: true,
+      actorRole: 'member',
+      targetIsActor: false,
+      targetStatus: 'pending',
+      targetRole: 'member',
+      action: 'approve',
+    }).denialReason,
+    'moderator_required'
+  );
+  assert.equal(
+    evaluateCommunityMembershipReview({
+      actorActive: true,
+      actorRole: 'moderator',
+      targetIsActor: true,
+      targetStatus: 'pending',
+      targetRole: 'member',
+      action: 'approve',
+    }).denialReason,
+    'self_review_forbidden'
+  );
+  assert.equal(
+    evaluateCommunityMembershipReview({
+      actorActive: true,
+      actorRole: 'owner',
+      targetIsActor: false,
+      targetStatus: 'active',
+      targetRole: 'moderator',
+      action: 'reject',
+    }).denialReason,
+    'protected_membership'
+  );
 });
