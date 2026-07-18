@@ -32,7 +32,6 @@ import { ContentAccessNavigationService } from 'src/app/core/access/content-acce
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
-import { CommunityFeedComponent } from '../feed/community-feed.component';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import {
   CommunityPreviewCard,
@@ -40,18 +39,28 @@ import {
   CommunityPreviewViewerMode,
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
+import { CommunityFeedComponent } from '../feed/community-feed.component';
+import { CommunityMembershipManagementComponent } from '../membership-management/community-membership-management.component';
 
-export type CommunityPreviewSection = 'feed' | 'photos' | 'about';
+export type CommunityPreviewSection = 'feed' | 'photos' | 'about' | 'requests';
 
 type CommunityPreviewState =
   | { status: 'loading'; preview: null }
   | { status: 'ready'; preview: CommunityPreviewResponse }
   | { status: 'error'; preview: null };
 
+type CommunityMembershipActionKind = 'request' | 'leave';
+
 type CommunityMembershipActionState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'error' };
+  | { status: 'idle'; kind: null }
+  | { status: 'loading'; kind: CommunityMembershipActionKind }
+  | { status: 'error'; kind: CommunityMembershipActionKind };
+
+interface CommunityMembershipCommand {
+  kind: CommunityMembershipActionKind;
+  community: CommunityPreviewCard;
+  pending: boolean;
+}
 
 const ACCESS_ACTIONS = new Set<Exclude<ContentAccessRecommendedAction, null>>([
   'sign_in',
@@ -80,6 +89,7 @@ const ACCESS_REASONS = new Set<ContentAccessDenialReason>([
     RouterLink,
     ImageFallbackDirective,
     CommunityFeedComponent,
+    CommunityMembershipManagementComponent,
   ],
   templateUrl: './community-preview-page.component.html',
   styleUrl: './community-preview-page.component.css',
@@ -93,7 +103,7 @@ export class CommunityPreviewPageComponent {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly refreshPreview$ = new Subject<void>();
-  private readonly membershipRequests$ = new Subject<CommunityPreviewCard>();
+  private readonly membershipCommands$ = new Subject<CommunityMembershipCommand>();
 
   readonly activeSection = signal<CommunityPreviewSection>('feed');
 
@@ -128,27 +138,46 @@ export class CommunityPreviewPageComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly membershipAction$ = this.membershipRequests$.pipe(
-    exhaustMap((community) =>
-      this.membershipRepository
-        .requestMembership$(community.communityId)
-        .pipe(
-          tap((result) => {
-            this.errorNotifier.showSuccess(
-              result.status === 'active'
+  readonly membershipAction$ = this.membershipCommands$.pipe(
+    exhaustMap((command) => {
+      const operation$ = command.kind === 'request'
+        ? this.membershipRepository.requestMembership$(
+            command.community.communityId
+          )
+        : this.membershipRepository.leaveMembership$(
+            command.community.communityId
+          );
+
+      return operation$.pipe(
+        tap((result) => {
+          this.errorNotifier.showSuccess(
+            command.kind === 'request'
+              ? result.status === 'active'
                 ? 'Você entrou na comunidade.'
                 : 'Solicitação enviada.'
-            );
-            this.refreshPreview$.next();
-          }),
-          map((): CommunityMembershipActionState => ({ status: 'idle' })),
-          startWith<CommunityMembershipActionState>({ status: 'loading' }),
-          catchError((error: unknown) =>
-            this.handleMembershipError(error, community)
-          )
+              : command.pending
+                ? 'Solicitação cancelada.'
+                : 'Você saiu da comunidade.'
+          );
+          this.activeSection.set('feed');
+          this.refreshPreview$.next();
+        }),
+        map(
+          (): CommunityMembershipActionState => ({
+            status: 'idle',
+            kind: null,
+          })
+        ),
+        startWith<CommunityMembershipActionState>({
+          status: 'loading',
+          kind: command.kind,
+        }),
+        catchError((error: unknown) =>
+          this.handleMembershipError(error, command.community, command.kind)
         )
-    ),
-    startWith<CommunityMembershipActionState>({ status: 'idle' }),
+      );
+    }),
+    startWith<CommunityMembershipActionState>({ status: 'idle', kind: null }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -158,11 +187,38 @@ export class CommunityPreviewPageComponent {
 
   requestMembership(community: CommunityPreviewCard): void {
     if (community.access.join === 'invite_only') return;
-    this.membershipRequests$.next(community);
+    this.membershipCommands$.next({
+      kind: 'request',
+      community,
+      pending: false,
+    });
+  }
+
+  leaveMembership(
+    community: CommunityPreviewCard,
+    viewerMode: CommunityPreviewViewerMode
+  ): void {
+    this.membershipCommands$.next({
+      kind: 'leave',
+      community,
+      pending: viewerMode === 'pending',
+    });
   }
 
   membershipActionLabel(community: CommunityPreviewCard): string {
     return community.access.join === 'open' ? 'Participar' : 'Solicitar';
+  }
+
+  canLeave(mode: CommunityPreviewViewerMode): boolean {
+    return mode === 'pending' || mode === 'member' || mode === 'moderator';
+  }
+
+  canManage(mode: CommunityPreviewViewerMode): boolean {
+    return mode === 'moderator' || mode === 'manager';
+  }
+
+  membershipReviewed(): void {
+    this.refreshPreview$.next();
   }
 
   sourceLabel(community: CommunityPreviewCard): string {
@@ -204,18 +260,26 @@ export class CommunityPreviewPageComponent {
 
   private handleMembershipError(
     error: unknown,
-    community: CommunityPreviewCard
+    community: CommunityPreviewCard,
+    kind: CommunityMembershipActionKind
   ): Observable<CommunityMembershipActionState> {
     const accessDecision = this.resolveAccessDecision(error, community);
 
     if (accessDecision) {
       return from(
         this.accessNavigation.navigateForDecision(accessDecision)
-      ).pipe(map(() => ({ status: 'idle' }) as CommunityMembershipActionState));
+      ).pipe(
+        map(
+          (): CommunityMembershipActionState => ({
+            status: 'idle',
+            kind: null,
+          })
+        )
+      );
     }
 
-    this.reportMembershipError(error);
-    return of<CommunityMembershipActionState>({ status: 'error' });
+    this.reportMembershipError(error, kind);
+    return of<CommunityMembershipActionState>({ status: 'error', kind });
   }
 
   private resolveAccessDecision(
@@ -265,11 +329,16 @@ export class CommunityPreviewPageComponent {
     );
   }
 
-  private reportMembershipError(error: unknown): void {
+  private reportMembershipError(
+    error: unknown,
+    kind: CommunityMembershipActionKind
+  ): void {
     this.reportError(
       error,
-      'Não foi possível concluir a participação agora.',
-      'requestMembership'
+      kind === 'leave'
+        ? 'Não foi possível sair da comunidade agora.'
+        : 'Não foi possível concluir a participação agora.',
+      kind === 'leave' ? 'leaveMembership' : 'requestMembership'
     );
   }
 
