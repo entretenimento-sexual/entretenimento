@@ -62,37 +62,79 @@
               <h1>{{ preview.community.name }}</h1>
             </div>
 
-            @if (
-              preview.viewerMode === 'visitor'
-              && preview.community.access.join !== 'invite_only'
-            ) {
-              <button
-                class="community-preview__membership-action"
-                type="button"
-                [disabled]="membershipAction.status === 'loading'"
-                [attr.aria-label]="membershipActionLabel(preview.community) + ' de ' + preview.community.name"
-                (click)="requestMembership(preview.community)"
-              >
-                @if (membershipAction.status === 'loading') {
-                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                } @else {
-                  <i
-                    class="fas {{ preview.community.access.join === 'open' ? 'fa-user-plus' : 'fa-paper-plane' }}"
-                    aria-hidden="true"
-                  ></i>
-                }
-                <span>{{ membershipActionLabel(preview.community) }}</span>
-              </button>
-            } @else if (preview.viewerMode === 'pending') {
-              <span class="community-preview__membership-state" role="status">
-                <i class="far fa-clock" aria-hidden="true"></i>
-                <span>Solicitação enviada</span>
-              </span>
-            }
+            <div class="community-preview__membership-controls">
+              @if (
+                preview.viewerMode === 'visitor'
+                && preview.community.access.join !== 'invite_only'
+              ) {
+                <button
+                  class="community-preview__membership-action"
+                  type="button"
+                  [disabled]="membershipAction.status === 'loading'"
+                  [attr.aria-label]="membershipActionLabel(preview.community) + ' de ' + preview.community.name"
+                  (click)="requestMembership(preview.community)"
+                >
+                  @if (
+                    membershipAction.status === 'loading'
+                    && membershipAction.kind === 'request'
+                  ) {
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  } @else {
+                    <i
+                      class="fas {{ preview.community.access.join === 'open' ? 'fa-user-plus' : 'fa-paper-plane' }}"
+                      aria-hidden="true"
+                    ></i>
+                  }
+                  <span>{{ membershipActionLabel(preview.community) }}</span>
+                </button>
+              } @else if (preview.viewerMode === 'pending') {
+                <span class="community-preview__membership-state" role="status">
+                  <i class="far fa-clock" aria-hidden="true"></i>
+                  <span>Solicitação enviada</span>
+                </span>
+
+                <button
+                  class="community-preview__membership-leave-action"
+                  type="button"
+                  [disabled]="membershipAction.status === 'loading'"
+                  aria-label="Cancelar solicitação de participação"
+                  (click)="leaveMembership(preview.community, preview.viewerMode)"
+                >
+                  @if (
+                    membershipAction.status === 'loading'
+                    && membershipAction.kind === 'leave'
+                  ) {
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  } @else {
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
+                  }
+                  <span>Cancelar</span>
+                </button>
+              } @else if (canLeave(preview.viewerMode)) {
+                <button
+                  class="community-preview__membership-leave-action"
+                  type="button"
+                  [disabled]="membershipAction.status === 'loading'"
+                  [attr.aria-label]="'Sair de ' + preview.community.name"
+                  (click)="leaveMembership(preview.community, preview.viewerMode)"
+                >
+                  @if (
+                    membershipAction.status === 'loading'
+                    && membershipAction.kind === 'leave'
+                  ) {
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  } @else {
+                    <i class="fas fa-arrow-right-from-bracket" aria-hidden="true"></i>
+                  }
+                  <span>Sair</span>
+                </button>
+              }
+            </div>
           </header>
 
           <nav
             class="community-preview__tabs"
+            [class.has-management]="canManage(preview.viewerMode)"
             aria-label="Conteúdo da comunidade"
           >
             <button
@@ -127,6 +169,19 @@
               <i class="fas fa-circle-info" aria-hidden="true"></i>
               <span>Sobre</span>
             </button>
+
+            @if (canManage(preview.viewerMode)) {
+              <button
+                id="community-tab-requests"
+                type="button"
+                [attr.aria-pressed]="activeSection() === 'requests'"
+                [class.is-active]="activeSection() === 'requests'"
+                (click)="selectSection('requests')"
+              >
+                <i class="fas fa-user-check" aria-hidden="true"></i>
+                <span>Solicitações</span>
+              </button>
+            }
           </nav>
 
           @if (activeSection() === 'feed') {
@@ -147,6 +202,16 @@
               <app-community-feed
                 [communityId]="preview.community.communityId"
                 view="photos"
+              />
+            </section>
+          } @else if (activeSection() === 'requests' && canManage(preview.viewerMode)) {
+            <section
+              id="community-panel-requests"
+              aria-labelledby="community-tab-requests"
+            >
+              <app-community-membership-management
+                [communityId]="preview.community.communityId"
+                (membershipChanged)="membershipReviewed()"
               />
             </section>
           } @else {
