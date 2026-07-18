@@ -3,7 +3,7 @@
 // - Sem emuladores
 // - Políticas rígidas
 // - Debug tools desligadas
-import { AppEnvironment } from "./environment.model";
+import { AppEnvironment } from './environment.model';
 
 export const environment: AppEnvironment = {
   production: true,
@@ -27,11 +27,11 @@ export const environment: AppEnvironment = {
   enableDebugTools: false,
 
   privacyLogging: {
-  enabled: false,
-  allowSensitiveConsoleData: false,
-  allowCacheTrace: false,
-  includeStackTrace: false,
-},
+    enabled: false,
+    allowSensitiveConsoleData: false,
+    allowCacheTrace: false,
+    includeStackTrace: false,
+  },
 
   monitoring: {
     sentry: {
@@ -43,11 +43,11 @@ export const environment: AppEnvironment = {
 
   integrations: {
     virusTotal: {
-      enabled: false,   // ⬅️ deixe off até decidir usar proxy + chave no backend
+      enabled: false, // ⬅️ deixe off até decidir usar proxy + chave no backend
       apiKey: undefined,
       useProxy: true,
       region: 'us-central1',
-    }
+    },
   },
   appCheck: {
     enabled: true,
@@ -72,7 +72,13 @@ export const environment: AppEnvironment = {
   features: {
     enforceEmailVerified: true,
     showGuestBanner: false,
-    restrictedRoutesWhenUnverified: ['/dashboard', '/chat', '/friends', '/upload'],
+    restrictedRoutesWhenUnverified: [
+      '/dashboard',
+      '/chat',
+      '/friends',
+      '/upload',
+    ],
+    subscriberExperiencesPreview: false,
   },
 
   friendsPageSize: 24,
