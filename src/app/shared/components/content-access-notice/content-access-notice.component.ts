@@ -17,6 +17,7 @@ import {
   computed,
   inject,
   input,
+  output,
   signal,
 } from '@angular/core';
 
@@ -109,9 +110,9 @@ export function buildContentAccessNoticeViewModel(
     case 'access_check_unavailable':
       return {
         message: 'Não foi possível verificar o acesso agora.',
-        actionLabel: null,
+        actionLabel: 'Tentar novamente',
         icon: 'fa-circle-exclamation',
-        actionIcon: null,
+        actionIcon: 'fa-rotate-right',
         ariaLabel: 'Verificação de acesso temporariamente indisponível.',
       };
 
@@ -139,6 +140,7 @@ export class ContentAccessNoticeComponent {
 
   readonly decision = input.required<ContentAccessDecision>();
   readonly compact = input(false);
+  readonly retryRequested = output<void>();
 
   readonly navigating = signal(false);
   readonly viewModel = computed(() =>
@@ -148,11 +150,16 @@ export class ContentAccessNoticeComponent {
   async handleAction(): Promise<void> {
     const decision = this.decision();
 
-    if (
-      this.navigating() ||
-      decision.allowed ||
-      decision.recommendedAction === null
-    ) {
+    if (this.navigating() || decision.allowed) {
+      return;
+    }
+
+    if (decision.reason === 'access_check_unavailable') {
+      this.retryRequested.emit();
+      return;
+    }
+
+    if (decision.recommendedAction === null) {
       return;
     }
 
