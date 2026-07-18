@@ -45,7 +45,7 @@
 
                 <div>
                   <strong>{{ item.author.label }}</strong>
-                  <time [attr.datetime]="item.publishedAt">
+                  <time [attr.datetime]="publishedIso(item.publishedAt)">
                     {{ publishedLabel(item.publishedAt) }}
                   </time>
                 </div>
