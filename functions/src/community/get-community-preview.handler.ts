@@ -20,9 +20,7 @@ import {
 } from './community-preview.model';
 
 function assertPreviewRuntime(): void {
-  if (isFunctionsEmulatorRuntime()) {
-    return;
-  }
+  if (isFunctionsEmulatorRuntime()) return;
 
   throw new HttpsError(
     'failed-precondition',
@@ -36,10 +34,7 @@ export const getCommunityPreview = onCall<CommunityPreviewRequest>(
     assertPreviewRuntime();
 
     const uid = request.auth?.uid ?? null;
-
-    if (!uid) {
-      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
-    }
+    if (!uid) throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
 
     if (request.auth?.token.email_verified !== true) {
       throw new HttpsError(
@@ -49,7 +44,6 @@ export const getCommunityPreview = onCall<CommunityPreviewRequest>(
     }
 
     const communityId = normalizeCommunityId(request.data?.communityId);
-
     if (!communityId) {
       throw new HttpsError('invalid-argument', 'Comunidade inválida.');
     }
@@ -74,9 +68,10 @@ export const getCommunityPreview = onCall<CommunityPreviewRequest>(
     const raw = (communityRaw ?? {}) as Record<string, unknown>;
     const moderation = (raw['moderation'] ?? {}) as Record<string, unknown>;
     const access = (raw['access'] ?? {}) as Record<string, unknown>;
+    const operational =
+      raw['status'] === 'active' && moderation['state'] === 'active';
     const publicPreview =
-      raw['status'] === 'active'
-      && moderation['state'] === 'active'
+      operational
       && raw['visibility'] === 'public_preview'
       && access['preview'] === 'authenticated';
 
@@ -90,7 +85,7 @@ export const getCommunityPreview = onCall<CommunityPreviewRequest>(
     return {
       community,
       viewerMode: viewer.mode,
-      canInteract: viewer.active,
+      canInteract: viewer.active && operational,
       generatedAt: Date.now(),
     };
   }
