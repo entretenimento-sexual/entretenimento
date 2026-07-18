@@ -8,7 +8,6 @@
 
 import type {
   CommunityMemberRole,
-  CommunityMemberStatus,
   ICommunity,
   ICommunityMembership,
 } from './community.model';
@@ -31,8 +30,8 @@ export interface CommunityViewerCapabilities {
 }
 
 function isActiveMembership(
-  membership: ICommunityMembership | null | undefined
-): membership is ICommunityMembership {
+  membership: Readonly<ICommunityMembership> | null | undefined
+): membership is Readonly<ICommunityMembership> {
   return membership?.status === 'active';
 }
 
@@ -45,7 +44,7 @@ function isManagementRole(role: CommunityMemberRole): boolean {
 }
 
 function resolveViewerMode(
-  membership: ICommunityMembership | null | undefined
+  membership: Readonly<ICommunityMembership> | null | undefined
 ): CommunityViewerMode {
   if (membership?.status === 'blocked') {
     return 'blocked';
