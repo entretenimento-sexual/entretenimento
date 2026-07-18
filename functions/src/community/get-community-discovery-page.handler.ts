@@ -61,12 +61,10 @@ export const getCommunityDiscoveryPage =
       assertValidCursor(request.data, pageRequest.cursor);
 
       const projection = db.collection('community_discovery_index');
+      const scanLimit = pageRequest.limit * 3 + 1;
       let pageQuery = projection
-        .where('status', '==', 'active')
-        .where('moderationState', '==', 'active')
-        .where('visibility', '==', 'public_preview')
         .orderBy('rankScore', 'desc')
-        .limit(pageRequest.limit + 1);
+        .limit(scanLimit);
 
       if (pageRequest.cursor) {
         const cursorSnapshot = await projection.doc(pageRequest.cursor).get();
@@ -82,22 +80,41 @@ export const getCommunityDiscoveryPage =
       }
 
       const querySnapshot = await pageQuery.get();
-      const pageDocuments = querySnapshot.docs.slice(0, pageRequest.limit);
-      const items = pageDocuments
-        .map((document): CommunityPreviewCard | null =>
-          sanitizeCommunityDiscoveryProjection(
-            document.id,
-            document.data()
-          )
-        )
-        .filter((item): item is CommunityPreviewCard => item !== null);
+      const items: CommunityPreviewCard[] = [];
+      let lastConsumedIndex = -1;
+
+      for (let index = 0; index < querySnapshot.docs.length; index += 1) {
+        const document = querySnapshot.docs[index];
+        lastConsumedIndex = index;
+
+        const item = sanitizeCommunityDiscoveryProjection(
+          document.id,
+          document.data()
+        );
+
+        if (item) {
+          items.push(item);
+        }
+
+        if (items.length >= pageRequest.limit) {
+          break;
+        }
+      }
+
+      const lastConsumedDocument =
+        lastConsumedIndex >= 0
+          ? querySnapshot.docs[lastConsumedIndex]
+          : null;
+      const hasBufferedDocuments =
+        lastConsumedIndex >= 0
+        && lastConsumedIndex < querySnapshot.docs.length - 1;
+      const mayHaveAnotherPage =
+        querySnapshot.docs.length === scanLimit || hasBufferedDocuments;
 
       return {
         items,
         nextCursor:
-          querySnapshot.docs.length > pageRequest.limit
-            ? (pageDocuments.at(-1)?.id ?? null)
-            : null,
+          mayHaveAnotherPage ? (lastConsumedDocument?.id ?? null) : null,
         generatedAt: Date.now(),
       };
     }
