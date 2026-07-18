@@ -16,7 +16,7 @@ function item(overrides: Record<string, unknown> = {}) {
       alt: 'Foto do local',
     },
     metrics: { commentCount: 2, reactionCount: 7 },
-    publishedAt: 1_800_000_000_000,
+    publishedAt: Date.now() - 60_000,
     ...overrides,
   };
 }
@@ -76,5 +76,16 @@ describe('normalizeCommunityFeedPageResponse', () => {
 
     expect(page.items[0].metrics.commentCount).toBe(0);
     expect(page.items[0].metrics.reactionCount).toBe(1_000_000_000);
+  });
+
+  it('descarta datas muito futuras ou anteriores ao ano 2000', () => {
+    const page = normalizeCommunityFeedPageResponse({
+      items: [
+        item({ publishedAt: Date.now() + 10 * 60_000 }),
+        item({ postId: 'post-2', publishedAt: Date.UTC(1999, 11, 31) }),
+      ],
+    });
+
+    expect(page.items).toEqual([]);
   });
 });
