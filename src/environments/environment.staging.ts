@@ -6,7 +6,6 @@
 import type { AppEnvironment } from './environment.model';
 
 export const environment: AppEnvironment = {
-
   production: false,
   stage: true,
   env: 'staging',
@@ -29,11 +28,11 @@ export const environment: AppEnvironment = {
   enableDebugTools: true,
 
   privacyLogging: {
-  enabled: true,
-  allowSensitiveConsoleData: false,
-  allowCacheTrace: false,
-  includeStackTrace: false,
-},
+    enabled: true,
+    allowSensitiveConsoleData: false,
+    allowCacheTrace: false,
+    includeStackTrace: false,
+  },
 
   monitoring: {
     sentry: {
@@ -49,7 +48,7 @@ export const environment: AppEnvironment = {
       apiKey: undefined,
       useProxy: true,
       region: 'us-central1',
-    }
+    },
   },
 
   appCheck: {
@@ -62,6 +61,7 @@ export const environment: AppEnvironment = {
     enforceEmailVerified: true, // exigir verificação
     showGuestBanner: true,
     restrictedRoutesWhenUnverified: ['/dashboard', '/chat', '/friends'],
+    subscriberExperiencesPreview: false,
   },
 
   friendsPageSize: 24,
