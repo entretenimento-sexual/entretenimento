@@ -11,7 +11,7 @@
 // - listagem global direta fica bloqueada até existir projeção/callable paginada;
 // - criação, adesão, moderação e mutações são exclusivas do backend;
 // - o cliente só pode ler o próprio documento de membership;
-// - projeções de descoberta e índice pessoal são backend-only.
+// - projeções de descoberta, mural e índice pessoal são backend-only.
 // =============================================================================
 
 match /communities/{communityId} {
@@ -68,6 +68,16 @@ match /communities/{communityId}/members/{memberUid} {
 
 // Projeção sanitizada usada exclusivamente pela callable de descoberta.
 match /community_discovery_index/{communityId} {
+  allow read, write: if false;
+}
+
+// Mural público/membros sanitizado. Mesmo itens públicos passam pela callable,
+// que revalida comunidade, membership e audiência antes de responder.
+match /community_public_feed/{communityId} {
+  allow read, write: if false;
+}
+
+match /community_public_feed/{communityId}/items/{postId} {
   allow read, write: if false;
 }
 
