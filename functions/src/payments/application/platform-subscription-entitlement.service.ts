@@ -11,7 +11,7 @@
 // - role deve ser reconhecida;
 // - startsAt deve existir e já ter iniciado;
 // - endsAt ausente/null significa sem expiração definida; quando presente, deve
-//   estar no futuro;
+//   ser um número finito no futuro;
 // - projeções em users/{uid} nunca substituem este entitlement.
 // -----------------------------------------------------------------------------
 
@@ -62,9 +62,11 @@ export function evaluatePlatformSubscriptionEntitlement(
     : null;
   const startsAt = toFiniteNumberOrNull(entitlement['startsAt']);
   const rawEndsAt = entitlement['endsAt'];
-  const endsAt = rawEndsAt == null
-    ? null
-    : toFiniteNumberOrNull(rawEndsAt);
+  const hasDefinedEndsAt = rawEndsAt !== null && rawEndsAt !== undefined;
+  const endsAt = hasDefinedEndsAt
+    ? toFiniteNumberOrNull(rawEndsAt)
+    : null;
+  const hasValidEndsAt = !hasDefinedEndsAt || endsAt !== null;
   const updatedAt = toFiniteNumberOrNull(entitlement['updatedAt']);
 
   const active =
@@ -74,7 +76,8 @@ export function evaluatePlatformSubscriptionEntitlement(
     && role !== null
     && startsAt !== null
     && startsAt <= now
-    && (endsAt === null || endsAt > now);
+    && hasValidEndsAt
+    && (!hasDefinedEndsAt || (endsAt !== null && endsAt > now));
 
   return {
     active,
