@@ -50,6 +50,31 @@ export interface SidebarVm {
   sections: SidebarSection[];
 }
 
+function areStringArraysEqual(
+  previous: readonly string[],
+  current: readonly string[]
+): boolean {
+  if (previous === current) return true;
+  if (previous.length !== current.length) return false;
+
+  return previous.every((value, index) => value === current[index]);
+}
+
+function areSidebarVmsEqual(previous: SidebarVm, current: SidebarVm): boolean {
+  return (
+    previous.isMobile === current.isMobile &&
+    previous.isOpen === current.isOpen &&
+    previous.isCollapsed === current.isCollapsed &&
+    previous.currentUrl === current.currentUrl &&
+    previous.currentSection === current.currentSection &&
+    areStringArraysEqual(
+      previous.expandedGroupIds,
+      current.expandedGroupIds
+    ) &&
+    previous.sections === current.sections
+  );
+}
+
 @Injectable({ providedIn: 'root' })
 export class SidebarService {
   /**
@@ -74,7 +99,7 @@ export class SidebarService {
   );
 
   readonly expandedGroupIds$ = this.expandedGroupIdsSubject.asObservable().pipe(
-    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    distinctUntilChanged(areStringArraysEqual),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -125,6 +150,15 @@ export class SidebarService {
     this.access.hasAny$(['vip']),
     this.access.hasAny$(['admin']),
   ]).pipe(
+    distinctUntilChanged(
+      (
+        [previousSubscriber, previousVip, previousAdmin],
+        [currentSubscriber, currentVip, currentAdmin]
+      ) =>
+        previousSubscriber === currentSubscriber &&
+        previousVip === currentVip &&
+        previousAdmin === currentAdmin
+    ),
     map(([isSubscriber, isVip, isAdmin]) =>
       buildSidebarSections({
         isSubscriber,
@@ -132,7 +166,6 @@ export class SidebarService {
         isAdmin,
       })
     ),
-    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError((err): Observable<SidebarSection[]> =>
       this.handleStreamError<SidebarSection[]>('sections$', [], err)
@@ -165,7 +198,7 @@ export class SidebarService {
       expandedGroupIds,
       sections,
     })),
-    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    distinctUntilChanged(areSidebarVmsEqual),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError((err): Observable<SidebarVm> =>
       this.handleStreamError<SidebarVm>(
