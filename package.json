@@ -43,6 +43,7 @@
     "test:compliance:age:e2e": "npm run rules:build && npm run rules:check && npm run functions:build && node scripts/tests/run-profile-age-reverification-e2e.mjs",
     "seed:hot-places:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-regional-hot-places.mjs",
     "seed:venues:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-venues.mjs",
+    "seed:communities:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-community-preview.mjs",
     "seed:room-access:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-room-access.mjs",
     "seed:intents:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-user-intent-statuses.mjs",
     "seed:notification-preferences:emu": "set FIRESTORE_EMULATOR_HOST=127.0.0.1:8080&& set FIREBASE_PROJECT_ID=entretenimento-sexual&& node scripts/dev/seed-notification-preferences.mjs",
@@ -90,7 +91,7 @@
     "ngx-toastr": "19.1.0",
     "rxfire": "^6.1.0",
     "rxjs": "^7.8.2",
-    "ts-evaluator": "^2.0.0",
+    "ts-evaluator": "^0.0.20",
     "tslib": "^2.8.1",
     "zone.js": "^0.15.1"
   },
