@@ -19,6 +19,10 @@ import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
 import { setLogLevel } from 'firebase/firestore';
 
 import { AppModule } from './app/app.module';
+import {
+  FIREBASE_AUTH_EMULATOR_PERSISTENCE_STORAGE_KEY as EMU_AUTH_PERSIST_KEY,
+  type FirebaseAuthEmulatorPersistenceMode as EmuAuthPersistMode,
+} from './app/core/firebase/firebase-runtime.constants';
 import { environment } from './environments/environment';
 
 // =============================================================================
@@ -35,20 +39,8 @@ import { environment } from './environments/environment';
  */
 const DBG_KEY = '__DBG_ON__';
 
-/**
- * Chave usada para controlar a persistência do Auth no emulator.
- *
- * Valores suportados:
- * - "memory"
- * - "session"
- *
- * Importante:
- * - Esta mesma chave é lida no AppModule.
- * - Portanto, o nome precisa permanecer sincronizado.
- */
-const EMU_AUTH_PERSIST_KEY = '__EMU_AUTH_PERSIST__';
-
-type EmuAuthPersistMode = 'memory' | 'session';
+// A chave e o tipo da persistência do Auth Emulator são compartilhados pela
+// camada core/firebase para impedir divergência entre bootstrap e serviços.
 
 // =============================================================================
 // Tipagem dos helpers globais expostos no window
