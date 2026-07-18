@@ -9,15 +9,13 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
   CommunityPreviewRequest,
   CommunityPreviewResponse,
   normalizeCommunityId,
-  resolveCommunityViewerMode,
-  sanitizeCommunityDocument,
 } from './community-preview.model';
+import { getCommunityViewerContext } from './community-viewer-access.service';
 
 function assertPreviewRuntime(): void {
   if (isFunctionsEmulatorRuntime()) return;
@@ -34,7 +32,9 @@ export const getCommunityPreview = onCall<CommunityPreviewRequest>(
     assertPreviewRuntime();
 
     const uid = request.auth?.uid ?? null;
-    if (!uid) throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    if (!uid) {
+      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    }
 
     if (request.auth?.token.email_verified !== true) {
       throw new HttpsError(
@@ -48,44 +48,12 @@ export const getCommunityPreview = onCall<CommunityPreviewRequest>(
       throw new HttpsError('invalid-argument', 'Comunidade inválida.');
     }
 
-    const communityRef = db.collection('communities').doc(communityId);
-    const membershipRef = communityRef.collection('members').doc(uid);
-    const [communitySnapshot, membershipSnapshot] = await Promise.all([
-      communityRef.get(),
-      membershipRef.get(),
-    ]);
-
-    if (!communitySnapshot.exists) {
-      throw new HttpsError('not-found', 'Comunidade não encontrada.');
-    }
-
-    const communityRaw = communitySnapshot.data() ?? null;
-    const community = sanitizeCommunityDocument(communityId, communityRaw);
-    const membershipRaw = membershipSnapshot.exists
-      ? membershipSnapshot.data()
-      : null;
-    const viewer = resolveCommunityViewerMode(membershipRaw);
-    const raw = (communityRaw ?? {}) as Record<string, unknown>;
-    const moderation = (raw['moderation'] ?? {}) as Record<string, unknown>;
-    const access = (raw['access'] ?? {}) as Record<string, unknown>;
-    const operational =
-      raw['status'] === 'active' && moderation['state'] === 'active';
-    const publicPreview =
-      operational
-      && raw['visibility'] === 'public_preview'
-      && access['preview'] === 'authenticated';
-
-    if (viewer.blocked || !community || (!publicPreview && !viewer.active)) {
-      throw new HttpsError(
-        'permission-denied',
-        'Você não possui acesso a esta comunidade.'
-      );
-    }
+    const context = await getCommunityViewerContext(uid, communityId);
 
     return {
-      community,
-      viewerMode: viewer.mode,
-      canInteract: viewer.active && operational,
+      community: context.community,
+      viewerMode: context.viewerMode,
+      canInteract: context.canInteract,
       generatedAt: Date.now(),
     };
   }
