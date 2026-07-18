@@ -64,18 +64,24 @@ export function normalizeCommunityMembershipResponse(
   const source = (raw ?? {}) as Record<string, unknown>;
   const status = source['status'];
   const viewerMode = source['viewerMode'];
-  const validPair =
-    (status === 'active' && viewerMode === 'member')
-    || (status === 'pending' && viewerMode === 'pending')
-    || (status === 'left' && viewerMode === 'visitor');
 
-  if (!validPair) return null;
+  if (status === 'active' && viewerMode === 'member') {
+    return {
+      status,
+      viewerMode,
+      canInteract: source['canInteract'] === true,
+    };
+  }
 
-  return {
-    status,
-    viewerMode,
-    canInteract: status === 'active' && source['canInteract'] === true,
-  };
+  if (status === 'pending' && viewerMode === 'pending') {
+    return { status, viewerMode, canInteract: false };
+  }
+
+  if (status === 'left' && viewerMode === 'visitor') {
+    return { status, viewerMode, canInteract: false };
+  }
+
+  return null;
 }
 
 export function normalizeCommunityMembershipRequestsResponse(
@@ -119,15 +125,15 @@ export function normalizeCommunityMembershipReviewResponse(
   const status = source['status'];
   const viewerMode = source['viewerMode'];
 
-  if (
-    !SAFE_ID_PATTERN.test(memberId)
-    || (
-      (status !== 'active' || viewerMode !== 'member')
-      && (status !== 'left' || viewerMode !== 'visitor')
-    )
-  ) {
-    return null;
+  if (!SAFE_ID_PATTERN.test(memberId)) return null;
+
+  if (status === 'active' && viewerMode === 'member') {
+    return { memberId, status, viewerMode };
   }
 
-  return { memberId, status, viewerMode };
+  if (status === 'left' && viewerMode === 'visitor') {
+    return { memberId, status, viewerMode };
+  }
+
+  return null;
 }
