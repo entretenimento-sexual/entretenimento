@@ -98,6 +98,20 @@ test('aceita documento restrito somente para avaliação de membro', () => {
   );
 });
 
+test('preserva documento pausado para prévia de membro', () => {
+  const raw: Record<string, unknown> = projection({
+    status: 'paused',
+    visibility: 'members_only',
+    moderation: { state: 'active' },
+  });
+  Reflect.deleteProperty(raw, 'moderationState');
+
+  assert.equal(
+    sanitizeCommunityDocument('community-1', raw)?.communityId,
+    'community-1'
+  );
+});
+
 test('resolve visitante, pendente, membro, moderador e gestor', () => {
   assert.deepEqual(resolveCommunityViewerMode(null), {
     mode: 'visitor',
