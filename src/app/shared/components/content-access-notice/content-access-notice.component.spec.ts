@@ -49,7 +49,7 @@ describe('buildContentAccessNoticeViewModel', () => {
     ).toBe('Completar');
   });
 
-  it('não oferece compra quando a verificação está indisponível', () => {
+  it('oferece nova verificação sem encaminhar para compra', () => {
     expect(
       buildContentAccessNoticeViewModel(
         createDecision({
@@ -60,7 +60,7 @@ describe('buildContentAccessNoticeViewModel', () => {
     ).toEqual(
       expect.objectContaining({
         message: 'Não foi possível verificar o acesso agora.',
-        actionLabel: null,
+        actionLabel: 'Tentar novamente',
       })
     );
   });
@@ -126,5 +126,26 @@ describe('ContentAccessNoticeComponent', () => {
     await fixture.whenStable();
 
     expect(navigationMock.navigateForDecision).toHaveBeenCalledWith(decision);
+  });
+
+  it('emite nova tentativa sem navegar para planos', async () => {
+    const fixture = TestBed.createComponent(ContentAccessNoticeComponent);
+    const retrySpy = vi.fn();
+    fixture.componentRef.setInput(
+      'decision',
+      createDecision({
+        reason: 'access_check_unavailable',
+        recommendedAction: null,
+      })
+    );
+    fixture.componentInstance.retryRequested.subscribe(retrySpy);
+    fixture.detectChanges();
+
+    const button = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+    button.click();
+    await fixture.whenStable();
+
+    expect(retrySpy).toHaveBeenCalledTimes(1);
+    expect(navigationMock.navigateForDecision).not.toHaveBeenCalled();
   });
 });
