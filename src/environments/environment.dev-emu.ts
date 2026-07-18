@@ -70,6 +70,7 @@ export const environment: AppEnvironment = {
       '/dashboard/chat',
       '/dashboard/featured-profiles',
     ],
+    subscriberExperiencesPreview: true,
   },
 
   friendsPageSize: 24,
