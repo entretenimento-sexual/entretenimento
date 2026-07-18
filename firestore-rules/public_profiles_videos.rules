@@ -84,13 +84,11 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 // Collection group: public_videos
 // A revalidação muda a projeção para PRIVATE na mesma transação;
 // por isso a consulta global continua filtrável por visibility.
+// Leituras diretas permanecem no match específico acima, que também
+// confirma a existência do perfil público pai.
 // ------------------------------------------------------------
 match /{path=**}/public_videos/{videoId} {
   allow list: if signedIn()
-    && resource.data.visibility == "PUBLIC"
-    && resource.data.moderationStatus == "APPROVED";
-
-  allow get: if signedIn()
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
