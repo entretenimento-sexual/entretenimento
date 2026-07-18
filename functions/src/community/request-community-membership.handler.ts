@@ -2,7 +2,7 @@
 // -----------------------------------------------------------------------------
 // REQUEST COMMUNITY MEMBERSHIP
 // -----------------------------------------------------------------------------
-// Único comando de adesão desta fase. O cliente não escreve memberships.
+// Comando de adesão desta fase. O cliente não escreve memberships.
 // Entrada aberta ativa imediatamente; aprovação cria estado pendente.
 // -----------------------------------------------------------------------------
 
@@ -309,6 +309,9 @@ export const requestCommunityMembership =
               requestedAt: targetStatus === 'pending' ? now : null,
               joinedAt: targetStatus === 'active' ? now : null,
               leftAt: null,
+              reviewedAt: null,
+              reviewedBy: null,
+              requestResolution: null,
               updatedAt: now,
               policyVersion: 1,
               source: 'callable',
@@ -336,6 +339,7 @@ export const requestCommunityMembership =
               : 'community-membership-requested',
             communityId,
             actorUid: uid,
+            subjectUid: uid,
             status: targetStatus,
             createdAt: now,
             source: 'callable',
