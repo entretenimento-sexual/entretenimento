@@ -103,10 +103,13 @@ export function normalizeExclusiveConnectionsPageResponse(
         .map(normalizeCard)
         .filter((item): item is ExclusiveConnectionCard => item !== null)
     : [];
-  const rawCursor = normalizeText(source['nextCursor'], 128);
-  const nextCursor = rawCursor && /^[A-Za-z0-9:_-]+$/.test(rawCursor)
-    ? rawCursor
-    : null;
+  const rawCursor = String(source['nextCursor'] ?? '').trim();
+  const nextCursor =
+    rawCursor.length > 0
+    && rawCursor.length <= 128
+    && /^[A-Za-z0-9:_-]+$/.test(rawCursor)
+      ? rawCursor
+      : null;
   const generatedAt = Number(source['generatedAt']);
 
   return {
