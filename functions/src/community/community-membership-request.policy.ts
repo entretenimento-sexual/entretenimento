@@ -185,7 +185,7 @@ export function evaluateCommunityMembershipLeave(
     };
   }
 
-  if (input.existingStatus === null) {
+  if (input.existingStatus === null || input.existingRole === null) {
     return {
       allowed: false,
       targetStatus: null,
@@ -263,7 +263,7 @@ export function evaluateCommunityMembershipReview(
     };
   }
 
-  if (input.targetRole !== null && input.targetRole !== 'member') {
+  if (input.targetRole !== 'member') {
     return {
       allowed: false,
       targetStatus: null,
