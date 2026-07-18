@@ -31,6 +31,7 @@
 export const DISCOVERY_MODE_VALUES = [
   'all',
   'online',
+  'today',
   'nearby',
   'region',
   'recent',
@@ -43,6 +44,7 @@ export type DiscoveryMode = (typeof DISCOVERY_MODE_VALUES)[number];
 export type DiscoveryModeSource =
   | 'public_profiles'
   | 'presence'
+  | 'intent_status'
   | 'geolocation'
   | 'score'
   | 'compatibility';
@@ -62,6 +64,7 @@ export interface DiscoveryModeConfig {
    * Exemplo:
    * - "Todos" nasce de public_profiles, mas pode receber presença como bônus;
    * - "Online" nasce da presence, mas usa public_profiles para o card;
+   * - "Hoje" nasce de status temporários publicados pelo próprio usuário;
    * - "Perto" pode nascer de public_profiles + geohash/localização.
    */
   source: DiscoveryModeSource;
@@ -71,7 +74,7 @@ export interface DiscoveryModeConfig {
    *
    * Exemplo:
    * - nearby: true;
-   * - all/online/region: false.
+   * - all/online/today/region: false.
    */
   requiresLocation: boolean;
 
@@ -154,6 +157,19 @@ export const DISCOVERY_MODE_CONFIGS: Record<DiscoveryMode, DiscoveryModeConfig> 
     label: 'Online',
     icon: 'fas fa-bolt',
     ariaLabel: 'Ver perfis online',
+  },
+
+  today: {
+    id: 'today',
+    source: 'intent_status',
+    requiresLocation: false,
+    requiresOnlinePresence: false,
+    availability: 'enabled',
+
+    label: 'Hoje',
+    icon: 'fas fa-calendar-day',
+    ariaLabel: 'Ver pessoas disponíveis hoje',
+    description: 'Status temporários por região, sem localização precisa.',
   },
 
   nearby: {
