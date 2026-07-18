@@ -71,9 +71,15 @@
   background: transparent;
 }
 
-.profiles-discovery-page__content {
+.profiles-discovery-page__content,
+.profiles-discovery-page__today {
   display: grid;
+  min-width: 0;
   gap: var(--discovery-gap);
+}
+
+.profiles-discovery-page__today > * {
+  min-width: 0;
 }
 
 .profiles-discovery-page__empty {
@@ -123,6 +129,7 @@
     --discovery-content-max: 100%;
     --discovery-inline-padding: 0.72rem;
     --discovery-top-padding: 0.3rem;
+    --discovery-gap: 0.65rem;
   }
 
   .profiles-discovery-page {
