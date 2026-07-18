@@ -49,7 +49,7 @@ test('visitante não lê publicação reservada a membros', () => {
   );
 });
 
-test('membro ativo lê publicação reservada', () => {
+test('membro autorizado lê publicação reservada', () => {
   assert.equal(
     canViewerReadCommunityFeedProjection(
       projection('members_only', 'text'),
@@ -57,6 +57,17 @@ test('membro ativo lê publicação reservada', () => {
       true
     ),
     true
+  );
+});
+
+test('membership sem entitlement não libera publicação reservada', () => {
+  assert.equal(
+    canViewerReadCommunityFeedProjection(
+      projection('members_only', 'photo'),
+      'feed',
+      false
+    ),
+    false
   );
 });
 
@@ -79,7 +90,7 @@ test('galeria aceita somente publicações com foto', () => {
   );
 });
 
-test('cursor reservado também exige membership ativa', () => {
+test('cursor reservado também exige autorização de conteúdo', () => {
   const membersOnly = projection('members_only', 'photo');
 
   assert.equal(canViewerReadCommunityFeedAudience(membersOnly, false), false);
