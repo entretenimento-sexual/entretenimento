@@ -2,8 +2,7 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY FEED
 // -----------------------------------------------------------------------------
-// Mural e galeria somente leitura. O componente é instanciado apenas depois que
-// a página comunitária foi autorizada pela callable de prévia.
+// Mural e galeria somente leitura, carregados apenas após a prévia autorizada.
 // -----------------------------------------------------------------------------
 
 import { AsyncPipe } from '@angular/common';
@@ -15,9 +14,11 @@ import {
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import {
-  combineLatest,
   catchError,
+  combineLatest,
+  distinctUntilChanged,
   exhaustMap,
+  filter,
   map,
   of,
   scan,
@@ -30,87 +31,23 @@ import {
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
-import {
-  CommunityFeedItem,
-  CommunityFeedPage,
-  CommunityFeedView,
-} from '../data-access/community-feed.model';
+import { CommunityFeedView } from '../data-access/community-feed.model';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
+import {
+  CommunityFeedLoadEvent,
+  CommunityFeedLoadRequest,
+  INITIAL_COMMUNITY_FEED_STATE,
+  reduceCommunityFeedState,
+} from './community-feed-state.model';
+import {
+  formatCommunityFeedIso,
+  formatCommunityFeedTime,
+} from './community-feed-time.util';
 
-export type CommunityFeedStatus = 'loading' | 'ready' | 'empty' | 'error';
-
-export interface CommunityFeedState {
-  status: CommunityFeedStatus;
-  items: readonly CommunityFeedItem[];
-  nextCursor: string | null;
-  loadingMore: boolean;
-}
-
-interface CommunityFeedLoadRequest {
-  cursor: string | null;
-  append: boolean;
-}
-
-type CommunityFeedLoadEvent =
-  | { type: 'loading'; request: CommunityFeedLoadRequest }
-  | { type: 'success'; request: CommunityFeedLoadRequest; page: CommunityFeedPage }
-  | { type: 'error'; request: CommunityFeedLoadRequest };
-
-export const INITIAL_COMMUNITY_FEED_STATE: CommunityFeedState = Object.freeze({
-  status: 'loading',
-  items: [],
-  nextCursor: null,
-  loadingMore: false,
-});
-
-function mergeUniqueItems(
-  currentItems: readonly CommunityFeedItem[],
-  incomingItems: readonly CommunityFeedItem[]
-): readonly CommunityFeedItem[] {
-  const merged = new Map<string, CommunityFeedItem>();
-
-  for (const item of currentItems) merged.set(item.postId, item);
-  for (const item of incomingItems) merged.set(item.postId, item);
-
-  return [...merged.values()];
-}
-
-export function reduceCommunityFeedState(
-  state: CommunityFeedState,
-  event: CommunityFeedLoadEvent
-): CommunityFeedState {
-  if (event.type === 'loading') {
-    return event.request.append
-      ? { ...state, loadingMore: true }
-      : INITIAL_COMMUNITY_FEED_STATE;
-  }
-
-  if (event.type === 'error') {
-    return event.request.append && state.items.length > 0
-      ? { ...state, status: 'ready', loadingMore: false }
-      : {
-          status: 'error',
-          items: [],
-          nextCursor: null,
-          loadingMore: false,
-        };
-  }
-
-  const items = event.request.append
-    ? mergeUniqueItems(state.items, event.page.items)
-    : event.page.items;
-
-  return {
-    status: items.length > 0 ? 'ready' : 'empty',
-    items,
-    nextCursor: event.page.nextCursor,
-    loadingMore: false,
-  };
-}
-
-const relativeFormatter = new Intl.RelativeTimeFormat('pt-BR', {
-  numeric: 'auto',
-});
+export {
+  INITIAL_COMMUNITY_FEED_STATE,
+  reduceCommunityFeedState,
+} from './community-feed-state.model';
 
 @Component({
   selector: 'app-community-feed',
@@ -126,13 +63,19 @@ export class CommunityFeedComponent {
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly loadRequests$ = new Subject<CommunityFeedLoadRequest>();
 
-  readonly communityId = input.required<string>();
+  readonly communityId = input<string>('');
   readonly view = input<CommunityFeedView>('feed');
 
   readonly state$ = combineLatest([
     toObservable(this.communityId),
     toObservable(this.view),
   ]).pipe(
+    map(([communityId, view]) => [communityId.trim(), view] as const),
+    filter(([communityId]) => communityId.length > 0),
+    distinctUntilChanged(
+      ([previousId, previousView], [currentId, currentView]) =>
+        previousId === currentId && previousView === currentView
+    ),
     switchMap(([communityId, view]) =>
       this.loadRequests$.pipe(
         startWith<CommunityFeedLoadRequest>({ cursor: null, append: false }),
@@ -182,25 +125,12 @@ export class CommunityFeedComponent {
       : 'Nenhuma publicação disponível.';
   }
 
+  publishedIso(publishedAt: number): string {
+    return formatCommunityFeedIso(publishedAt);
+  }
+
   publishedLabel(publishedAt: number): string {
-    const elapsed = publishedAt - Date.now();
-    const absolute = Math.abs(elapsed);
-
-    if (absolute < 60_000) return 'agora';
-    if (absolute < 3_600_000) {
-      return relativeFormatter.format(Math.round(elapsed / 60_000), 'minute');
-    }
-    if (absolute < 86_400_000) {
-      return relativeFormatter.format(Math.round(elapsed / 3_600_000), 'hour');
-    }
-    if (absolute < 7 * 86_400_000) {
-      return relativeFormatter.format(Math.round(elapsed / 86_400_000), 'day');
-    }
-
-    return new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: 'short',
-    }).format(publishedAt);
+    return formatCommunityFeedTime(publishedAt);
   }
 
   private reportLoadError(error: unknown, view: CommunityFeedView): void {
