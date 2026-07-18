@@ -12,11 +12,14 @@
 import { Injectable, inject } from '@angular/core';
 import {
   catchError,
+  combineLatest,
   distinctUntilChanged,
   map,
   Observable,
   of,
   shareReplay,
+  startWith,
+  Subject,
   switchMap,
 } from 'rxjs';
 
@@ -112,27 +115,33 @@ export class ExclusiveConnectionsAccessService {
   private readonly billingRepository = inject(BillingRepository);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly refreshRequests$ = new Subject<void>();
 
   evaluate$(): Observable<ContentAccessDecision> {
-    return this.contentAccess
-      .evaluate$(EXCLUSIVE_CONNECTIONS_PROFILE_ACCESS_POLICY)
-      .pipe(
-        switchMap((profileDecision) => {
-          if (!profileDecision.allowed) {
-            return of(withMinimumRole(profileDecision));
-          }
+    return combineLatest([
+      this.contentAccess.evaluate$(EXCLUSIVE_CONNECTIONS_PROFILE_ACCESS_POLICY),
+      this.refreshRequests$.pipe(startWith(undefined)),
+    ]).pipe(
+      switchMap(([profileDecision]) => {
+        if (!profileDecision.allowed) {
+          return of(withMinimumRole(profileDecision));
+        }
 
-          return this.billingRepository.getMyBillingSnapshot$().pipe(
-            map(evaluateExclusiveConnectionsBillingSnapshot),
-            catchError((error: unknown) => {
-              this.reportSnapshotError(error);
-              return of(verificationUnavailable());
-            })
-          );
-        }),
-        distinctUntilChanged(areContentAccessDecisionsEqual),
-        shareReplay({ bufferSize: 1, refCount: true })
-      );
+        return this.billingRepository.getMyBillingSnapshot$().pipe(
+          map(evaluateExclusiveConnectionsBillingSnapshot),
+          catchError((error: unknown) => {
+            this.reportSnapshotError(error);
+            return of(verificationUnavailable());
+          })
+        );
+      }),
+      distinctUntilChanged(areContentAccessDecisionsEqual),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
+  refresh(): void {
+    this.refreshRequests$.next();
   }
 
   private reportSnapshotError(error: unknown): void {
