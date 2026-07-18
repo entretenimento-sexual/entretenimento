@@ -22,6 +22,7 @@
 // - "Todos" é mais exigente, porque funciona como feed geral qualificado;
 // - "Online" não deve morrer por ausência de cidade/gênero se o perfil tem
 //   uid, nickname e presença online;
+// - "Hoje" usa status temporários moderados como fonte principal;
 // - "Perto" depende de coordenadas;
 // - "Região" depende de estado ou município;
 // - modos futuros podem começar com regra mínima e depois ganhar critérios.
@@ -31,6 +32,7 @@ import { extractValidGeoCoordinates } from 'src/app/core/services/geolocation/ut
 export type PublicDiscoveryMode =
   | 'all'
   | 'online'
+  | 'today'
   | 'nearby'
   | 'region'
   | 'recent'
@@ -146,6 +148,14 @@ export function getPublicDiscoveryProfileRejectionReason(
         return 'missing_region';
       }
 
+      return null;
+    }
+
+    case 'today': {
+      /**
+       * A listagem de Hoje nasce de user_intent_statuses e já exige um perfil
+       * mínimo, moderação ativa e expiração válida antes de chegar à interface.
+       */
       return null;
     }
 
