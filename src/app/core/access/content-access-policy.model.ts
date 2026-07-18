@@ -28,7 +28,8 @@ export type ContentAccessDenialReason =
   | 'profile_incomplete'
   | 'profile_field_missing'
   | 'role_insufficient'
-  | 'subscription_inactive';
+  | 'subscription_inactive'
+  | 'access_check_unavailable';
 
 export type ContentAccessRecommendedAction =
   | 'sign_in'
