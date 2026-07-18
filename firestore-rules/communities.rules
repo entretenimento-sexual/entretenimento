@@ -1,42 +1,71 @@
 // firestore-rules/communities.rules
-// =========================================================================
-// COMMUNITIES (MVP)
-// - Read: signedIn (produto normalmente precisa discovery)
-// - Write: apenas creator (createdBy == uid)
-// - Sem list pública: aqui deixei list liberado p/ signedIn (ajuste se quiser anti-scraping)
-//✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
-// uso de helpers globais
-// =========================================================================
+// =============================================================================
+// COMMUNITIES
+// =============================================================================
+// Comunidades sociais originadas de locais ou salas.
+//
+// Segurança:
+// - usuário autenticado pode abrir uma comunidade com prévia pública;
+// - membro ativo pode abrir comunidade restrita;
+// - membership bloqueada nega acesso inclusive à prévia;
+// - listagem global direta fica bloqueada até existir projeção/callable paginada;
+// - criação, adesão, moderação e mutações são exclusivas do backend;
+// - o cliente só pode ler o próprio documento de membership.
+// =============================================================================
 
 match /communities/{communityId} {
-
-  function isOwner() {
-    return signedIn()
-      && resource.data.keys().hasAny(["createdBy"])
-      && resource.data.createdBy == uid();
+  function communityMembershipPath() {
+    return /databases/$(database)/documents/communities/$(communityId)/members/$(uid());
   }
 
-  function allowedKeys() {
-    // MVP: não travar demais para não quebrar seu addDoc atual
-    // mas ainda evita keys absurdas caso você queira.
-    // Se quiser schema rígido depois, a gente endurece.
-    return true;
+  function communityMembershipExists() {
+    return signedIn() && exists(communityMembershipPath());
   }
 
-  allow get, list: if signedIn();
+  function communityMembershipStatus() {
+    return get(communityMembershipPath()).data.status;
+  }
 
-  allow create: if signedIn()
-    && request.resource.data.keys().hasAny(["createdBy"])
-    && request.resource.data.createdBy == uid()
-    && allowedKeys();
+  function hasActiveCommunityMembership() {
+    return communityMembershipExists()
+      && communityMembershipStatus() == "active";
+  }
 
-  allow update: if isOwner()
-  && request.resource.data.keys().hasAny(["createdBy"])
-  && request.resource.data.createdBy == resource.data.createdBy
-  && allowedKeys();
+  function hasBlockedCommunityMembership() {
+    return communityMembershipExists()
+      && communityMembershipStatus() == "blocked";
+  }
 
-  allow delete: if false;
+  function isPublicPreviewCommunity() {
+    return resource.data.status == "active"
+      && resource.data.moderation.state == "active"
+      && resource.data.visibility == "public_preview"
+      && resource.data.access.preview == "authenticated";
+  }
+
+  allow get: if signedIn()
+    && !hasBlockedCommunityMembership()
+    && (
+      isPublicPreviewCommunity()
+      || hasActiveCommunityMembership()
+    );
+
+  // Descoberta será feita por projeção/callable, evitando enumeração direta.
+  allow list: if false;
+
+  // Admin SDK não depende destas permissões.
+  allow create, update, delete: if false;
 }
-// ================================================================
-                        // FIM DO COMMUNITIES.RULES
-// ================================================================
+
+match /communities/{communityId}/members/{memberUid} {
+  // O usuário conhece somente o próprio vínculo e papel.
+  allow get: if signedIn() && memberUid == uid();
+
+  // Listas de membros, adesão e mudanças de papel passam pelo backend.
+  allow list, create, update, delete: if false;
+}
+
+// Projeção futura das comunidades do usuário. Backend-only nesta fase.
+match /community_user_index/{userId}/items/{communityId} {
+  allow read, write: if false;
+}
