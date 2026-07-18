@@ -93,7 +93,7 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
         !cursorProjection
         || !canViewerReadCommunityFeedAudience(
           cursorProjection,
-          context.activeMembership
+          context.memberContentAccess
         )
       ) {
         throw new HttpsError(
@@ -123,7 +123,7 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
         || !canViewerReadCommunityFeedProjection(
           projection,
           pageRequest.view,
-          context.activeMembership
+          context.memberContentAccess
         )
       ) {
         continue;
