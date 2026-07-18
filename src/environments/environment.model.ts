@@ -54,6 +54,12 @@ export interface FeaturesConfig {
   enforceEmailVerified?: boolean;
   showGuestBanner?: boolean;
   restrictedRoutesWhenUnverified?: string[];
+
+  /**
+   * Libera somente em ambiente controlado a primeira experiência preparada para
+   * assinantes. Não substitui política de acesso, Rules ou autorização backend.
+   */
+  subscriberExperiencesPreview?: boolean;
 }
 
 // ---------------------------
