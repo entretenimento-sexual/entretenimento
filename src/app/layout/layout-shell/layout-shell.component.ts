@@ -34,6 +34,11 @@ import {
 } from '../../shared/components-globais/universal-sidebar/universal-sidebar.component';
 import { MobileBottomNavComponent } from '../../shared/components-globais/mobile-bottom-nav/mobile-bottom-nav.component';
 import { UserActivityHubComponent } from '../../notifications/user-activity-hub/user-activity-hub.component';
+import {
+  areLayoutShellVmsEqual,
+  type LayoutShellVm,
+  type ShellMode,
+} from './layout-shell-vm.comparator';
 
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
@@ -44,43 +49,6 @@ import * as InviteActions from 'src/app/store/actions/actions.chat/invite.action
 import { selectPendingInvitesCount } from 'src/app/store/selectors/selectors.chat/invite.selectors';
 import { selectInboundRequestsCount, selectOutboundRequestsCount } from 'src/app/store/selectors/selectors.interactions/friends';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
-
-type ShellMode = 'guest' | 'onboarding' | 'auth';
-
-interface NavbarContextAction {
-  id: string;
-  label: string;
-  route: any[] | string;
-  queryParams?: Record<string, string> | null;
-  icon?: string | null;
-  ariaLabel?: string | null;
-  variant?: 'primary' | 'secondary' | 'ghost';
-}
-
-interface LayoutShellVm {
-  currentUrl: string;
-  shellMode: ShellMode;
-  showSidebar: boolean;
-  showFooter: boolean;
-  friendRequestsCount: number;
-
-  /**
-   * Modo especial do shell para chat.
-   *
-   * Regras:
-   * - sidebar universal fica permanentemente recolhido no desktop
-   * - usuário não pode expandir manualmente enquanto estiver no chat
-   * - perfil/quick actions grandes saem de cena para não competir com a thread
-   */
-  isChatLayout: boolean;
-
-  sidebar: SidebarVm;
-  sidebarUser: UniversalSidebarUserSummary | null;
-  sidebarShouldOverlay: boolean;
-  sidebarShouldCompact: boolean;
-  navbarContextActions: NavbarContextAction[];
-  sidebarQuickActions: UniversalSidebarQuickAction[];
-}
 
 @Component({
   selector: 'app-auth-shell',
@@ -243,32 +211,7 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
         ),
       };
     }),
-    distinctUntilChanged((a, b) =>
-      a.currentUrl === b.currentUrl &&
-      a.shellMode === b.shellMode &&
-      a.showSidebar === b.showSidebar &&
-      a.showFooter === b.showFooter &&
-      a.isChatLayout === b.isChatLayout &&
-      a.friendRequestsCount === b.friendRequestsCount &&
-      a.sidebarShouldOverlay === b.sidebarShouldOverlay &&
-      a.sidebarShouldCompact === b.sidebarShouldCompact &&
-      a.sidebar.isMobile === b.sidebar.isMobile &&
-      a.sidebar.isOpen === b.sidebar.isOpen &&
-      a.sidebar.isCollapsed === b.sidebar.isCollapsed &&
-      a.sidebar.currentSection === b.sidebar.currentSection &&
-      JSON.stringify(a.sidebar.expandedGroupIds) ===
-        JSON.stringify(b.sidebar.expandedGroupIds) &&
-      JSON.stringify(a.sidebar.sections) === JSON.stringify(b.sidebar.sections) &&
-      JSON.stringify(a.navbarContextActions) === JSON.stringify(b.navbarContextActions) &&
-      JSON.stringify(a.sidebarQuickActions) === JSON.stringify(b.sidebarQuickActions) &&
-      (a.sidebarUser?.uid ?? null) === (b.sidebarUser?.uid ?? null) &&
-      (a.sidebarUser?.displayName ?? null) === (b.sidebarUser?.displayName ?? null) &&
-      (a.sidebarUser?.email ?? null) === (b.sidebarUser?.email ?? null) &&
-      (a.sidebarUser?.subtitle ?? null) === (b.sidebarUser?.subtitle ?? null) &&
-      (a.sidebarUser?.photoURL ?? null) === (b.sidebarUser?.photoURL ?? null) &&
-      JSON.stringify(a.sidebarUser?.profileRoute ?? null) ===
-        JSON.stringify(b.sidebarUser?.profileRoute ?? null)
-    ),
+    distinctUntilChanged(areLayoutShellVmsEqual),
     tap((vm) => {
       if (!this.canDebug()) return;
 
