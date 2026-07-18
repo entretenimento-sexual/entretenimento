@@ -1,13 +1,16 @@
 <!-- src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.html -->
 
-<section class="intent-composer app-card" aria-labelledby="intent-composer-title">
+<section
+  class="intent-composer app-card"
+  [attr.aria-label]="isComposerExpanded ? 'Editar status de hoje' : 'Status de hoje'"
+>
   <header class="intent-composer__header">
-    <div>
-      <span class="intent-composer__eyebrow">Disponibilidade</span>
-      <h2 id="intent-composer-title">Status de hoje</h2>
-      <p class="intent-composer__description">
-        Mostre se você está disponível, para onde pretende ir e quem pode encontrar seu perfil na descoberta.
-      </p>
+    <div class="intent-composer__summary">
+      <span class="intent-composer__summary-icon" aria-hidden="true">
+        <i class="fas fa-bolt"></i>
+      </span>
+
+      <p>Mostre onde estará e quem pode encontrar você.</p>
     </div>
 
     <button
@@ -17,16 +20,25 @@
       [attr.aria-controls]="'intent-composer-form'"
       (click)="toggleComposer()"
     >
-      {{ isComposerExpanded ? 'Fechar' : 'Criar status' }}
+      <i
+        class="fas"
+        [class.fa-xmark]="isComposerExpanded"
+        [class.fa-plus]="!isComposerExpanded"
+        aria-hidden="true"
+      ></i>
+      <span>{{ isComposerExpanded ? 'Fechar' : 'Criar' }}</span>
     </button>
   </header>
 
   @if (activeStatus$ | async; as activeStatus) {
     <aside class="intent-composer__active" aria-label="Seu status atual">
-      <div>
-        <span>Ativo agora</span>
-        <strong>{{ activeStatus.availabilityLabel }}</strong>
-        <p>{{ activeStatus.destinationLabel }} · {{ activeStatus.expiresInLabel }}</p>
+      <div class="intent-composer__active-main">
+        <i class="fas fa-circle-check" aria-hidden="true"></i>
+
+        <div>
+          <strong>{{ activeStatus.availabilityLabel }}</strong>
+          <p>{{ activeStatus.destinationLabel }} · {{ activeStatus.expiresInLabel }}</p>
+        </div>
       </div>
 
       <button
@@ -35,7 +47,8 @@
         [disabled]="hiding"
         (click)="hideCurrentStatus()"
       >
-        {{ hiding ? 'Encerrando...' : 'Encerrar status' }}
+        <i class="fas fa-circle-stop" aria-hidden="true"></i>
+        <span>{{ hiding ? 'Encerrando...' : 'Encerrar' }}</span>
       </button>
     </aside>
   }
@@ -48,7 +61,10 @@
       (ngSubmit)="publish()"
     >
       <label class="intent-composer__field">
-        <span>Disponibilidade</span>
+        <span>
+          <i class="fas fa-clock" aria-hidden="true"></i>
+          Disponibilidade
+        </span>
         <select formControlName="availability">
           <option value="available_now">Disponível agora</option>
           <option value="available_today">Disponível hoje</option>
@@ -57,7 +73,10 @@
       </label>
 
       <label class="intent-composer__field">
-        <span>Destino</span>
+        <span>
+          <i class="fas fa-location-dot" aria-hidden="true"></i>
+          Destino
+        </span>
         <select formControlName="destinationKind">
           <option value="region">Região</option>
           <option value="venue">Local</option>
@@ -69,7 +88,10 @@
       @if ((destinationKind$ | async) === 'venue') {
         <section class="intent-composer__venues" aria-label="Locais disponíveis">
           <div class="intent-composer__venues-header">
-            <strong>Locais</strong>
+            <strong>
+              <i class="fas fa-map-pin" aria-hidden="true"></i>
+              Locais
+            </strong>
 
             @if (form.controls.venueId.value) {
               <button
@@ -77,15 +99,16 @@
                 class="btn btn-ghost intent-composer__clear-venue"
                 (click)="clearVenueSelection()"
               >
-                Usar texto livre
+                <i class="fas fa-pen" aria-hidden="true"></i>
+                <span>Texto livre</span>
               </button>
             }
           </div>
 
           @if (venues$ | async; as venues) {
             @if (venues.length === 0) {
-              <p class="intent-composer__venues-empty">
-                Nenhum local cadastrado na sua região.
+              <p class="intent-composer__venues-empty" role="status">
+                Nenhum local cadastrado nesta região.
               </p>
             } @else {
               <div class="intent-composer__venue-list" role="list">
@@ -100,7 +123,10 @@
                     <span>{{ venue.kindLabel }} · {{ venue.regionLabel }}</span>
 
                     @if (venue.sponsorshipLabel) {
-                      <small>{{ venue.sponsorshipLabel }}</small>
+                      <small>
+                        <i class="fas fa-star" aria-hidden="true"></i>
+                        {{ venue.sponsorshipLabel }}
+                      </small>
                     }
                   </button>
                 }
@@ -110,6 +136,7 @@
 
           @if (selectedVenue$ | async; as selectedVenue) {
             <p class="intent-composer__venue-selected" role="status">
+              <i class="fas fa-circle-check" aria-hidden="true"></i>
               <strong>{{ selectedVenue.name }}</strong>
             </p>
           }
@@ -117,7 +144,10 @@
       }
 
       <label class="intent-composer__field intent-composer__field--wide">
-        <span>Região ou local</span>
+        <span>
+          <i class="fas fa-map-location-dot" aria-hidden="true"></i>
+          Região ou local
+        </span>
         <input
           type="text"
           formControlName="destinationLabel"
@@ -152,7 +182,10 @@
       </div>
 
       <label class="intent-composer__field intent-composer__field--wide">
-        <span>Visibilidade</span>
+        <span>
+          <i class="fas fa-shield-halved" aria-hidden="true"></i>
+          Visibilidade
+        </span>
         <select formControlName="visibility">
           <option value="public_discovery">Descoberta pública</option>
           <option value="members_only">Somente membros</option>
@@ -161,8 +194,9 @@
       </label>
 
       <footer class="intent-composer__footer">
-        <p>
-          O status é temporário e pode ser encerrado a qualquer momento.
+        <p class="intent-composer__hint">
+          <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+          Expira em até 12h e pode ser encerrado antes.
         </p>
 
         <div class="intent-composer__footer-actions">
@@ -180,7 +214,8 @@
             class="btn btn-primary intent-composer__submit"
             [disabled]="publishing"
           >
-            {{ publishing ? 'Publicando...' : 'Publicar status' }}
+            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+            <span>{{ publishing ? 'Publicando...' : 'Publicar' }}</span>
           </button>
         </div>
       </footer>
