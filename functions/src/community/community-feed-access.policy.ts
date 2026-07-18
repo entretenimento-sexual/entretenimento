@@ -4,18 +4,21 @@ import {
   SanitizedCommunityFeedProjection,
 } from './community-feed.model';
 
+export function canViewerReadCommunityFeedAudience(
+  projection: Readonly<SanitizedCommunityFeedProjection>,
+  activeMembership: boolean
+): boolean {
+  return projection.audience === 'public_preview' || activeMembership;
+}
+
 export function canViewerReadCommunityFeedProjection(
   projection: Readonly<SanitizedCommunityFeedProjection>,
   view: CommunityFeedView,
   activeMembership: boolean
 ): boolean {
-  if (projection.audience === 'members_only' && !activeMembership) {
+  if (!canViewerReadCommunityFeedAudience(projection, activeMembership)) {
     return false;
   }
 
-  if (view === 'photos' && projection.item.kind !== 'photo') {
-    return false;
-  }
-
-  return true;
+  return view !== 'photos' || projection.item.kind === 'photo';
 }
