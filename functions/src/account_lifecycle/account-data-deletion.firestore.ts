@@ -120,7 +120,9 @@ export class FirestoreAccountDataDeletionAdapter
   private async deleteDocumentRefs(
     refs: readonly FirebaseFirestore.DocumentReference[]
   ): Promise<void> {
-    const uniqueRefs = [...new Map(refs.map((ref) => [ref.path, ref])).values()];
+    const byPath = new Map<string, FirebaseFirestore.DocumentReference>();
+    refs.forEach((ref) => byPath.set(ref.path, ref));
+    const uniqueRefs = [...byPath.values()];
 
     for (let offset = 0; offset < uniqueRefs.length; offset += MAX_BATCH_WRITES) {
       const chunk = uniqueRefs.slice(offset, offset + MAX_BATCH_WRITES);
