@@ -1,25 +1,30 @@
 <!-- src/app/community/discovery/community-discovery-page.component.html -->
 @if (state$ | async; as state) {
   <main class="community-discovery" aria-labelledby="community-discovery-title">
-    <nav class="community-discovery__tabs" aria-label="Categorias de comunidades">
+    <nav class="community-discovery__tabs" aria-label="Descobrir espaços">
       <a
         routerLink="/dashboard/comunidades"
         routerLinkActive="is-active"
         [routerLinkActiveOptions]="{ exact: true }"
       >
-        Para você
+        Comunidades
       </a>
       <a
-        routerLink="/dashboard/comunidades/locais"
+        routerLink="/dashboard/locais"
         routerLinkActive="is-active"
+        [routerLinkActiveOptions]="{ exact: true }"
       >
         Locais
+      </a>
+      <a routerLink="/chat/rooms">
+        Salas
       </a>
     </nav>
 
     <header class="community-discovery__header">
       <div>
         <h1 id="community-discovery-title">{{ title }}</h1>
+        <p>{{ description }}</p>
         @if (state.status === 'ready') {
           <span aria-live="polite">{{ state.items.length }}</span>
         }
@@ -28,11 +33,11 @@
       @if (canCreateVenue) {
         <a
           class="community-discovery__create"
-          routerLink="/dashboard/comunidades/locais/novo"
+          routerLink="/dashboard/locais/novo"
           aria-label="Criar um novo Local"
         >
           <i class="fas fa-plus" aria-hidden="true"></i>
-          <span>Criar</span>
+          <span>Criar Local</span>
         </a>
       }
     </header>
@@ -55,9 +60,9 @@
         @if (canCreateVenue) {
           <a
             class="community-discovery__empty-create"
-            routerLink="/dashboard/comunidades/locais/novo"
+            routerLink="/dashboard/locais/novo"
           >
-            Criar o primeiro
+            Criar o primeiro Local
           </a>
         }
       </div>
@@ -68,7 +73,7 @@
             <a
               class="community-card"
               [routerLink]="detailsRoute(item)"
-              [attr.aria-label]="'Abrir ' + item.name"
+              [attr.aria-label]="'Abrir ' + sourceLabel(item) + ' ' + item.name"
             >
               <div class="community-card__media" aria-hidden="true">
                 @if (item.coverUrl) {
@@ -114,7 +119,10 @@
                   <p>{{ item.description }}</p>
                 }
 
-                <div class="community-card__metrics" aria-label="Resumo da comunidade">
+                <div
+                  class="community-card__metrics"
+                  [attr.aria-label]="'Resumo do ' + sourceLabel(item)"
+                >
                   <span>
                     <i class="fas fa-users" aria-hidden="true"></i>
                     {{ item.metrics.memberCount }}
