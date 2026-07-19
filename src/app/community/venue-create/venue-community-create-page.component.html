@@ -10,9 +10,11 @@
     </a>
 
     <div>
-      <h1 id="venue-create-title">Criar Local</h1>
+      <h1 id="venue-create-title">Cadastrar Local</h1>
       <p>{{ venueDefinition.description }}</p>
-      <p>Você será o Proprietário deste Local.</p>
+      <p>
+        O cadastro ficará vinculado à sua conta para administração. A propriedade deverá ser verificada antes da publicação em produção.
+      </p>
     </div>
   </header>
 
@@ -108,7 +110,7 @@
       <label>
         <span>Quem pode acompanhar e interagir</span>
         <select formControlName="joinPolicy">
-          <option value="approval">Aprovação do Proprietário</option>
+          <option value="approval">Aprovação da administração</option>
           <option value="open">Acompanhamento imediato</option>
         </select>
       </label>
@@ -123,10 +125,10 @@
       <button type="submit" [disabled]="submitting()">
         @if (submitting()) {
           <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-          <span>Criando</span>
+          <span>Cadastrando</span>
         } @else {
           <i class="fas fa-plus" aria-hidden="true"></i>
-          <span>Criar Local</span>
+          <span>Cadastrar Local</span>
         }
       </button>
     </div>
