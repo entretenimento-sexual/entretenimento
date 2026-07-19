@@ -85,6 +85,54 @@ match /public_profiles/{userId} {
       || (lat != null && lng != null && gh != null);
   }
 
+  // -----------------------------------------------------------------------
+  // Private-to-public eligibility
+  // -----------------------------------------------------------------------
+
+  function privateUserPath() {
+    return /databases/$(database)/documents/users/$(userId);
+  }
+
+  function hasAcceptedTerms(data) {
+    return data.keys().hasAny(["acceptedTerms"])
+      && data.acceptedTerms is map
+      && data.acceptedTerms.keys().hasAny(["accepted"])
+      && data.acceptedTerms.accepted == true;
+  }
+
+  function hasRequiredAdultConsent(data) {
+    return !data.keys().hasAny(["initialAdultConsentRequired"])
+      || data.initialAdultConsentRequired != true
+      || (
+        data.keys().hasAny(["adultConsent"])
+        && data.adultConsent is map
+        && data.adultConsent.keys().hasAny(["accepted"])
+        && data.adultConsent.accepted == true
+      );
+  }
+
+  function eligiblePrivateUserData(data) {
+    return data.keys().hasAll([
+        "accountStatus",
+        "emailVerified",
+        "profileCompleted",
+        "publicVisibility",
+        "interactionBlocked"
+      ])
+      && data.accountStatus == "active"
+      && data.emailVerified == true
+      && data.profileCompleted == true
+      && data.publicVisibility == "visible"
+      && data.interactionBlocked == false
+      && hasAcceptedTerms(data)
+      && hasRequiredAdultConsent(data);
+  }
+
+  function eligiblePrivateUserAfter() {
+    return existsAfter(privateUserPath())
+      && eligiblePrivateUserData(getAfter(privateUserPath()).data);
+  }
+
   function noClientManagedFieldsOnCreate() {
     return !request.resource.data.keys().hasAny([
       "normalizedGender",
@@ -271,6 +319,7 @@ match /public_profiles/{userId} {
 
   allow create: if (
     isSelf(userId)
+    && eligiblePrivateUserAfter()
     && validPublicProfileCreatePayload()
     && noClientManagedFieldsOnCreate()
     && request.resource.data.createdAt == request.time
@@ -280,6 +329,7 @@ match /public_profiles/{userId} {
 
   allow update: if (
     isSelf(userId)
+    && eligiblePrivateUserAfter()
     && backendManagedFieldsUnchangedOnUpdate()
     && (
       avatarOnlyUpdate()
