@@ -10,6 +10,7 @@ import {
   getNicknameIndexDocId,
   normalizeOptionalReason,
 } from './_shared';
+import { evaluateAccountDeletionOwnedResources } from './account-deletion-owned-resources.policy';
 
 interface RequestAccountDeletionRequest {
   reason?: string | null;
@@ -42,6 +43,21 @@ function normalizeRestorableStatus(value: unknown): RestorableAccountStatus {
     : 'active';
 }
 
+function countOwnedCommunityMemberships(
+  snapshot: FirebaseFirestore.QuerySnapshot,
+  uid: string
+): number {
+  return snapshot.docs.filter((documentSnapshot) => {
+    const segments = documentSnapshot.ref.path.split('/');
+    return (
+      segments.length === 4 &&
+      segments[0] === 'communities' &&
+      segments[2] === 'members' &&
+      segments[3] === uid
+    );
+  }).length;
+}
+
 export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
   { region: ACCOUNT_LIFECYCLE_REGION },
   async (request): Promise<AccountLifecycleCommandResult> => {
@@ -62,8 +78,28 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
       async (tx: FirebaseFirestore.Transaction): Promise<DeletionSchedule> => {
         const userRef = db.collection('users').doc(uid);
         const publicProfileRef = db.collection('public_profiles').doc(uid);
+        const ownerSlotRef = db.collection('room_owner_slots').doc(uid);
+        const ownedRoomsQuery = db
+          .collection('rooms')
+          .where('createdBy', '==', uid);
+        const ownedCommunityMembershipsQuery = db
+          .collectionGroup('members')
+          .where('uid', '==', uid)
+          .where('role', '==', 'owner')
+          .limit(10);
 
-        const userSnap = await tx.get(userRef);
+        const [
+          userSnap,
+          ownerSlotSnapshot,
+          ownedRoomsSnapshot,
+          ownedCommunityMembershipsSnapshot,
+        ] = await Promise.all([
+          tx.get(userRef),
+          tx.get(ownerSlotRef),
+          tx.get(ownedRoomsQuery),
+          tx.get(ownedCommunityMembershipsQuery),
+        ]);
+
         if (!userSnap.exists) {
           throw new HttpsError('not-found', 'Usuário não encontrado.');
         }
@@ -108,6 +144,32 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
             purgeAfter: existingPurgeAfter,
             statusUpdatedAt: existingStatusUpdatedAt || existingRequestedAt,
           };
+        }
+
+        const ownedResourceDecision = evaluateAccountDeletionOwnedResources({
+          ownedRoomStatuses: ownedRoomsSnapshot.docs.map(
+            (documentSnapshot) => documentSnapshot.data()?.['status']
+          ),
+          activeOwnerSlot: ownerSlotSnapshot.data()?.['active'] === true,
+          ownedCommunityCount: countOwnedCommunityMemberships(
+            ownedCommunityMembershipsSnapshot,
+            uid
+          ),
+        });
+
+        if (!ownedResourceDecision.allowed) {
+          throw new HttpsError(
+            'failed-precondition',
+            'Resolva os espaços sob sua responsabilidade antes de excluir a conta.',
+            {
+              reason: 'owned-resources-require-resolution',
+              activeOwnedRoomCount:
+                ownedResourceDecision.activeOwnedRoomCount,
+              ownedCommunityCount:
+                ownedResourceDecision.ownedCommunityCount,
+              recommendedAction: 'resolve-owned-spaces',
+            }
+          );
         }
 
         const restoreStatus = normalizeRestorableStatus(currentStatus);
