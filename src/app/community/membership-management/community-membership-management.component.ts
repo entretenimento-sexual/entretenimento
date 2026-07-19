@@ -30,6 +30,7 @@ import {
   CommunityMembershipReviewAction,
 } from '../data-access/community-membership.model';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
+import { CommunityPreviewSourceType } from '../data-access/community-preview.model';
 
 type MembershipRequestsState =
   | { status: 'loading'; items: readonly CommunityMembershipRequestItem[] }
@@ -65,6 +66,7 @@ export class CommunityMembershipManagementComponent {
   private readonly reviewRequests$ = new Subject<MembershipReviewCommand>();
 
   readonly communityId = input.required<string>();
+  readonly sourceType = input<CommunityPreviewSourceType>('community');
   readonly membershipChanged = output<void>();
 
   private readonly communityId$ = toObservable(this.communityId).pipe(
@@ -90,7 +92,9 @@ export class CommunityMembershipManagementComponent {
         catchError((error: unknown) => {
           this.reportError(
             error,
-            'Não foi possível carregar as solicitações.',
+            this.sourceType() === 'venue'
+              ? 'Não foi possível carregar as solicitações de acesso.'
+              : 'Não foi possível carregar as solicitações de entrada.',
             'loadMembershipRequests'
           );
           return of<MembershipRequestsState>({ status: 'error', items: [] });
@@ -112,7 +116,7 @@ export class CommunityMembershipManagementComponent {
           tap(() => {
             this.errorNotifier.showSuccess(
               action === 'approve'
-                ? `${request.label} entrou na comunidade.`
+                ? this.approvalSuccessMessage(request.label)
                 : `Solicitação de ${request.label} recusada.`
             );
             this.membershipChanged.emit();
@@ -133,7 +137,9 @@ export class CommunityMembershipManagementComponent {
           catchError((error: unknown) => {
             this.reportError(
               error,
-              'Não foi possível revisar esta solicitação.',
+              this.sourceType() === 'venue'
+                ? 'Não foi possível revisar esta solicitação de acesso.'
+                : 'Não foi possível revisar esta solicitação de entrada.',
               'reviewMembership'
             );
             return of<MembershipReviewActionState>({
@@ -152,6 +158,18 @@ export class CommunityMembershipManagementComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  managementTitle(): string {
+    return this.sourceType() === 'venue'
+      ? 'Solicitações de acesso'
+      : 'Solicitações de entrada';
+  }
+
+  emptyMessage(): string {
+    return this.sourceType() === 'venue'
+      ? 'Nenhuma solicitação de acesso pendente.'
+      : 'Nenhuma solicitação de entrada pendente.';
+  }
+
   refresh(): void {
     this.refreshRequests$.next();
   }
@@ -161,6 +179,12 @@ export class CommunityMembershipManagementComponent {
     action: CommunityMembershipReviewAction
   ): void {
     this.reviewRequests$.next({ request, action });
+  }
+
+  private approvalSuccessMessage(label: string): string {
+    return this.sourceType() === 'venue'
+      ? `${label} recebeu acesso ao Local.`
+      : `${label} entrou na Comunidade.`;
   }
 
   private reportError(error: unknown, message: string, op: string): void {
@@ -179,6 +203,7 @@ export class CommunityMembershipManagementComponent {
       contextual.context = {
         scope: 'CommunityMembershipManagementComponent',
         op,
+        sourceType: this.sourceType(),
       };
       contextual.skipUserNotification = true;
       this.globalError.handleError(contextual);
