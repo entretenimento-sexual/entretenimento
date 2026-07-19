@@ -88,7 +88,7 @@ describe('VenueCommunityCreatePageComponent', () => {
       },
       joinPolicy: 'approval',
     });
-    expect(showSuccess).toHaveBeenCalledWith('Local criado.');
+    expect(showSuccess).toHaveBeenCalledWith('Local cadastrado.');
     expect(navigate).toHaveBeenCalledWith([
       '/dashboard/locais',
       'community-request-1234567890',
