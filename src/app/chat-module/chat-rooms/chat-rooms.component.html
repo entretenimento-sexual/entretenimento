@@ -13,7 +13,7 @@
 
           @if (!vm.loading && !vm.loadFailed) {
             <span aria-live="polite">
-              {{ vm.rooms.length }} {{ vm.rooms.length === 1 ? 'sala' : 'salas' }}
+              {{ vm.activeRooms.length }} {{ vm.activeRooms.length === 1 ? 'ativa' : 'ativas' }}
             </span>
           }
         </div>
@@ -63,95 +63,155 @@
           <span>Nenhuma sala disponível.</span>
         </div>
       } @else {
-        <ul class="chat-rooms__list" aria-label="Lista de salas privadas">
-          @for (room of vm.rooms; track room.id) {
-            <li class="chat-rooms__card">
-              <article aria-labelledby="room-title-{{ room.id }}">
-                <header class="chat-rooms__card-header">
-                  <div class="chat-rooms__room-heading">
-                    <h2 id="room-title-{{ room.id }}">
-                      {{ room.roomName }}
-                    </h2>
+        <section class="chat-rooms__group" aria-labelledby="active-rooms-title">
+          <header class="chat-rooms__group-header">
+            <h2 id="active-rooms-title">Ativas</h2>
+            <span>{{ vm.activeRooms.length }}</span>
+          </header>
 
-                    <span class="chat-rooms__access">
-                      <i
-                        class="fas {{ room.isOwner ? 'fa-shield-halved' : 'fa-user-check' }}"
-                        aria-hidden="true"
-                      ></i>
-                      {{ room.isOwner ? 'Administrada por você' : 'Participante' }}
-                    </span>
-                  </div>
+          @if (vm.activeRooms.length === 0) {
+            <div class="chat-rooms__state chat-rooms__state--compact" role="status">
+              <i class="far fa-comments" aria-hidden="true"></i>
+              <span>Nenhuma sala ativa.</span>
+            </div>
+          } @else {
+            <ul class="chat-rooms__list" aria-label="Salas ativas">
+              @for (room of vm.activeRooms; track room.id) {
+                <li class="chat-rooms__card">
+                  <article aria-labelledby="room-title-{{ room.id }}">
+                    <header class="chat-rooms__card-header">
+                      <div class="chat-rooms__room-heading">
+                        <h3 id="room-title-{{ room.id }}">
+                          {{ room.roomName }}
+                        </h3>
 
-                  <span
-                    class="chat-rooms__status"
-                    [class.chat-rooms__status--closed]="room.status === 'closed' || room.status === 'archived'"
-                    [attr.aria-label]="room.status === 'closed' || room.status === 'archived' ? 'Sala encerrada' : 'Sala ativa'"
-                  >
-                    <i
-                      class="fas {{ room.status === 'closed' || room.status === 'archived' ? 'fa-circle-xmark' : 'fa-circle-check' }}"
-                      aria-hidden="true"
-                    ></i>
-                    <span>
-                      {{ room.status === 'closed' || room.status === 'archived' ? 'Encerrada' : 'Ativa' }}
-                    </span>
-                  </span>
-                </header>
+                        <span class="chat-rooms__access">
+                          <i
+                            class="fas {{ room.isOwner ? 'fa-shield-halved' : 'fa-user-check' }}"
+                            aria-hidden="true"
+                          ></i>
+                          {{ room.isOwner ? 'Administrada por você' : 'Participante' }}
+                        </span>
+                      </div>
 
-                @if (room.description) {
-                  <p class="chat-rooms__description">{{ room.description }}</p>
-                }
+                      <span class="chat-rooms__status" aria-label="Sala ativa">
+                        <i class="fas fa-circle-check" aria-hidden="true"></i>
+                        <span>Ativa</span>
+                      </span>
+                    </header>
 
-                <div class="chat-rooms__summary">
-                  <span>
-                    <i class="fas fa-users" aria-hidden="true"></i>
-                    {{ room.memberCount }}
-                  </span>
+                    @if (room.description) {
+                      <p class="chat-rooms__description">{{ room.description }}</p>
+                    }
 
-                  <span>
-                    <i class="fas fa-lock" aria-hidden="true"></i>
-                    Privada
-                  </span>
-                </div>
-
-                @if (room.placeIntent; as place) {
-                  <section
-                    class="chat-rooms__place"
-                    aria-label="Local moderado associado à sala"
-                  >
-                    <i class="fas fa-location-dot" aria-hidden="true"></i>
-
-                    <div>
-                      <strong>{{ place.label }}</strong>
+                    <div class="chat-rooms__summary">
                       <span>
-                        {{ place.region.city }}, {{ place.region.uf }} ·
-                        {{ place.mode === 'scheduled' ? 'mais tarde' : 'agora' }}
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        {{ room.memberCount }}
+                      </span>
+
+                      <span>
+                        <i class="fas fa-lock" aria-hidden="true"></i>
+                        Privada
                       </span>
                     </div>
-                  </section>
-                }
 
-                @if (room.canClose) {
-                  <footer class="chat-rooms__card-footer">
-                    <button
-                      type="button"
-                      class="chat-rooms__close-action"
-                      [disabled]="isClosingRoom(room.id)"
-                      (click)="closeRoom(room)"
-                    >
-                      @if (isClosingRoom(room.id)) {
-                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                        <span>Encerrando</span>
-                      } @else {
-                        <i class="fas fa-circle-xmark" aria-hidden="true"></i>
-                        <span>Encerrar</span>
-                      }
-                    </button>
-                  </footer>
-                }
-              </article>
-            </li>
+                    @if (room.placeIntent; as place) {
+                      <section
+                        class="chat-rooms__place"
+                        aria-label="Local moderado associado à sala"
+                      >
+                        <i class="fas fa-location-dot" aria-hidden="true"></i>
+
+                        <div>
+                          <strong>{{ place.label }}</strong>
+                          <span>
+                            {{ place.region.city }}, {{ place.region.uf }} ·
+                            {{ place.mode === 'scheduled' ? 'mais tarde' : 'agora' }}
+                          </span>
+                        </div>
+                      </section>
+                    }
+
+                    @if (room.canClose) {
+                      <footer class="chat-rooms__card-footer">
+                        <button
+                          type="button"
+                          class="chat-rooms__close-action"
+                          [disabled]="isClosingRoom(room.id)"
+                          (click)="closeRoom(room)"
+                        >
+                          @if (isClosingRoom(room.id)) {
+                            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                            <span>Encerrando</span>
+                          } @else {
+                            <i class="fas fa-circle-xmark" aria-hidden="true"></i>
+                            <span>Encerrar</span>
+                          }
+                        </button>
+                      </footer>
+                    }
+                  </article>
+                </li>
+              }
+            </ul>
           }
-        </ul>
+        </section>
+
+        @if (vm.closedRooms.length > 0) {
+          <details class="chat-rooms__history">
+            <summary>
+              <span>
+                <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+                Encerradas
+              </span>
+              <span>{{ vm.closedRooms.length }}</span>
+            </summary>
+
+            <ul class="chat-rooms__list chat-rooms__list--history" aria-label="Histórico de salas encerradas">
+              @for (room of vm.closedRooms; track room.id) {
+                <li class="chat-rooms__card chat-rooms__card--closed">
+                  <article aria-labelledby="closed-room-title-{{ room.id }}">
+                    <header class="chat-rooms__card-header">
+                      <div class="chat-rooms__room-heading">
+                        <h3 id="closed-room-title-{{ room.id }}">
+                          {{ room.roomName }}
+                        </h3>
+                        <span class="chat-rooms__access">
+                          <i class="fas fa-box-archive" aria-hidden="true"></i>
+                          Histórico preservado
+                        </span>
+                      </div>
+
+                      <span
+                        class="chat-rooms__status chat-rooms__status--closed"
+                        aria-label="Sala encerrada"
+                      >
+                        <i class="fas fa-circle-xmark" aria-hidden="true"></i>
+                        <span>Encerrada</span>
+                      </span>
+                    </header>
+
+                    @if (room.description) {
+                      <p class="chat-rooms__description">{{ room.description }}</p>
+                    }
+
+                    <div class="chat-rooms__summary">
+                      <span>
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        {{ room.memberCount }}
+                      </span>
+                      <span>
+                        <i class="fas fa-lock" aria-hidden="true"></i>
+                        Somente histórico
+                      </span>
+                    </div>
+                  </article>
+                </li>
+              }
+            </ul>
+          </details>
+        }
       }
     </section>
   </main>
