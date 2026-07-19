@@ -5,7 +5,7 @@ import {
   Component,
   inject,
 } from '@angular/core';
-import { ActivatedRoute, RouterLink, RouterLinkActive } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   catchError,
   exhaustMap,
@@ -102,12 +102,7 @@ function reduceState(
 @Component({
   selector: 'app-community-discovery-page',
   standalone: true,
-  imports: [
-    AsyncPipe,
-    RouterLink,
-    RouterLinkActive,
-    ImageFallbackDirective,
-  ],
+  imports: [AsyncPipe, RouterLink, ImageFallbackDirective],
   templateUrl: './community-discovery-page.component.html',
   styleUrl: './community-discovery-page.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
