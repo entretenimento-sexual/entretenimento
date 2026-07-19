@@ -1,57 +1,111 @@
-/* src\app\shared\components-globais\confirmacao-dialog\confirmacao-dialog.component.css */
+/* src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component.css */
+:host {
+  display: block;
+  min-width: 0;
+  color: var(--text-color, #222);
+}
 
 .dialog-container {
-  padding: 20px;
-  border-radius: 10px;
-  background: #f7f7f7;  /* Fundo mais claro */
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);  /* Sombra mais suave */
-  padding: 10%;
+  min-width: min(22rem, 82vw);
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: clamp(1rem, 4vw, 1.35rem);
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #222);
 }
 
 .dialog-title {
-  margin-bottom: 20px;
-  color: #5c6bc0;
-  /* Cor mais suave */
-  font-size: 22px;  /* Tamanho ligeiramente menor */
+  margin: 0;
+  padding: 0;
+  color: var(--text-color, #222);
+  font-size: clamp(1.05rem, 4vw, 1.3rem);
+  font-weight: 760;
+  line-height: 1.25;
+}
+
+.dialog-container--danger .dialog-title {
+  color: var(--danger-color, #b3261e);
+}
+
+.dialog-content {
+  margin-top: 0.75rem;
+  padding: 0;
 }
 
 .dialog-content p {
-  margin-bottom: 20px;
-  color: #666;
-  font-size: 16px;
-  line-height: 1.4;    /* Espaçamento de linha para melhor leitura */
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: var(--text-color, #222);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  opacity: 0.78;
 }
 
 .dialog-actions {
   display: flex;
-  justify-content: space-between;
-  /* Botões mais espaçados */
-  margin-top: 20px;
-  /* Espaçamento superior */
-}
-
-.dialog-button,
-.dialog-button-no {
-  border-radius: 4px;
-  /* Bordas arredondadas */
-  padding: 10px 15px;
-  /* Padding maior para botões mais 'clicáveis' */
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.1rem;
+  padding: 0;
 }
 
 .dialog-button {
-  color: #1976d2;
-  border: 2px solid #1976d2;
-  /* Bordas definidas */
+  min-height: var(--tap-target, 2.75rem);
+  min-width: 6rem;
+  padding-inline: 1rem;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
 }
 
-.dialog-button:hover,
-.dialog-button-no:hover {
-  opacity: 0.8;
-  /* Efeito de hover suave */
+.dialog-button--cancel {
+  border: 1px solid var(--surface-border, #d5d5d5);
+  background: transparent;
+  color: var(--text-color, #222);
 }
 
-.dialog-button-no {
-  color: #d32f2f;
-  border: 2px solid #d32f2f;
-  /* Bordas definidas para o botão 'Não' */
+.dialog-button--confirm {
+  border: 1px solid var(--primary-color, #d83768);
+  background: var(--primary-color, #d83768);
+  color: var(--text-on-primary, #fff);
+}
+
+.dialog-container--danger .dialog-button--confirm {
+  border-color: var(--danger-color, #b3261e);
+  background: var(--danger-color, #b3261e);
+  color: #fff;
+}
+
+.dialog-button:focus-visible {
+  outline: 3px solid var(--focus-ring, var(--primary-color, #d83768));
+  outline-offset: 2px;
+}
+
+@media (max-width: 22rem) {
+  .dialog-container {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .dialog-button {
+    width: 100%;
+  }
+}
+
+html.high-contrast .dialog-container,
+html.high-contrast .dialog-button {
+  border: 2px solid var(--text-color, #222);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog-button {
+    transition: none;
+  }
 }
