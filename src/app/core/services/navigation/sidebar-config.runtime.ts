@@ -7,7 +7,6 @@
 // - mover a gestão da assinatura para o grupo Conta;
 // - manter Área VIP e Recursos premium como destinos condicionais;
 // - remover seções que fiquem vazias após a composição.
-import { isFeatureEnabled } from '@core/guards/access-guard/feature-flag.guard';
 import {
   SOCIAL_SPACE_DEFINITIONS,
 } from '@core/domain/social-space.definition';
@@ -38,13 +37,17 @@ export type {
 
 export { isSidebarGroupItem } from './sidebar-config';
 
+export interface SidebarRuntimeOptions {
+  readonly communityPreviewEnabled?: boolean;
+}
+
 const ACCOUNT_GROUP_ID = 'account';
 const SUBSCRIPTION_ITEM_ID = 'subscription-plan';
 const SAFETY_ITEM_ID = 'safety-center';
-const COMMUNITY_PREVIEW_ENABLED = isFeatureEnabled('communityPreview');
 
 export function buildSidebarSections(
-  flags: SidebarAccessFlags
+  flags: SidebarAccessFlags,
+  options: SidebarRuntimeOptions = {}
 ): SidebarSection[] {
   const baseSections = buildBaseSidebarSections(flags);
   let subscriptionItem: SidebarLinkItem | null = null;
@@ -75,7 +78,10 @@ export function buildSidebarSections(
     })
     .filter((section) => section.items.length > 0);
 
-  const domainSections = composeDomainNavigation(sectionsWithoutSubscription);
+  const domainSections = composeDomainNavigation(
+    sectionsWithoutSubscription,
+    options.communityPreviewEnabled !== false
+  );
 
   if (!subscriptionItem) {
     return domainSections;
@@ -120,7 +126,8 @@ export function resolveSidebarSectionFromUrl(
 }
 
 function composeDomainNavigation(
-  sections: readonly SidebarSection[]
+  sections: readonly SidebarSection[],
+  communityPreviewEnabled: boolean
 ): SidebarSection[] {
   return sections
     .filter((section) => section.key !== 'communities')
@@ -135,7 +142,7 @@ function composeDomainNavigation(
           ariaLabel: 'Descobrir pessoas e perfis',
         };
 
-        const socialItems: SidebarLinkItem[] = COMMUNITY_PREVIEW_ENABLED
+        const socialItems: SidebarLinkItem[] = communityPreviewEnabled
           ? [
               {
                 id: 'discover-venues',
