@@ -49,17 +49,55 @@ describe('sidebar runtime composition', () => {
     );
   });
 
-  it('adds one global Communities entry and resolves Local routes', () => {
+  it('separa Pessoas, Locais e Comunidades dentro de Descobrir', () => {
     const sections = buildSidebarSections({
       isSubscriber: false,
       isVip: false,
       isAdmin: false,
     });
-    const communities = sections.find(({ key }) => key === 'communities');
+    const explore = sections.find(({ key }) => key === 'explore');
 
-    expect(communities?.items.map(({ id }) => id)).toEqual(['communities']);
-    expect(
-      resolveSidebarSectionFromUrl('/dashboard/comunidades/locais/novo')
-    ).toBe('communities');
+    expect(explore?.items.map(({ id }) => id)).toEqual([
+      'discover-people',
+      'discover-venues',
+      'discover-communities',
+    ]);
+    expect(sections.some(({ key }) => key === 'communities')).toBe(false);
+    expect(resolveSidebarSectionFromUrl('/dashboard/locais/novo')).toBe('explore');
+    expect(resolveSidebarSectionFromUrl('/dashboard/comunidades/grupo-1')).toBe(
+      'explore'
+    );
+  });
+
+  it('separa Mensagens e Salas dentro de Conversas', () => {
+    const sections = buildSidebarSections({
+      isSubscriber: false,
+      isVip: false,
+      isAdmin: false,
+    });
+    const chat = sections.find(({ key }) => key === 'chat');
+
+    expect(chat?.items.map(({ id }) => id)).toEqual([
+      'chat-list',
+      'chat-rooms',
+    ]);
+    expect(chat?.items.map(({ route }) => route)).toEqual([
+      '/chat',
+      '/chat/rooms',
+    ]);
+  });
+
+  it('oculta somente Locais e Comunidades quando a feature está desligada', () => {
+    const sections = buildSidebarSections(
+      {
+        isSubscriber: false,
+        isVip: false,
+        isAdmin: false,
+      },
+      { communityPreviewEnabled: false }
+    );
+    const explore = sections.find(({ key }) => key === 'explore');
+
+    expect(explore?.items.map(({ id }) => id)).toEqual(['discover-people']);
   });
 });
