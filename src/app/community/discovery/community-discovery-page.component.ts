@@ -5,7 +5,7 @@ import {
   Component,
   inject,
 } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink, RouterLinkActive } from '@angular/router';
 import {
   catchError,
   exhaustMap,
@@ -23,6 +23,7 @@ import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback
 import {
   CommunityDiscoveryPage,
   CommunityPreviewCard,
+  CommunityPreviewSourceType,
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 
@@ -100,7 +101,12 @@ function reduceState(
 @Component({
   selector: 'app-community-discovery-page',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, ImageFallbackDirective],
+  imports: [
+    AsyncPipe,
+    RouterLink,
+    RouterLinkActive,
+    ImageFallbackDirective,
+  ],
   templateUrl: './community-discovery-page.component.html',
   styleUrl: './community-discovery-page.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -109,13 +115,27 @@ export class CommunityDiscoveryPageComponent {
   private readonly repository = inject(CommunityPreviewRepository);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly route = inject(ActivatedRoute);
   private readonly loadRequests$ = new Subject<LoadRequest>();
+
+  readonly sourceType: CommunityPreviewSourceType | null =
+    this.route.snapshot.data['sourceType'] === 'venue' ? 'venue' : null;
+  readonly title = this.sourceType === 'venue' ? 'Locais' : 'Comunidades';
+  readonly emptyMessage =
+    this.sourceType === 'venue'
+      ? 'Nenhum Local disponível.'
+      : 'Nenhuma comunidade disponível.';
+  readonly canCreateVenue = this.sourceType === 'venue';
 
   readonly state$ = this.loadRequests$.pipe(
     startWith<LoadRequest>({ cursor: null, append: false }),
     exhaustMap((request) =>
       this.repository
-        .getDiscoveryPage$({ limit: 12, cursor: request.cursor })
+        .getDiscoveryPage$({
+          limit: 12,
+          cursor: request.cursor,
+          sourceType: this.sourceType,
+        })
         .pipe(
           map(
             (page): LoadEvent => ({
@@ -154,9 +174,19 @@ export class CommunityDiscoveryPageComponent {
     return role === 'vip' ? 'VIP' : role === 'premium' ? 'Premium' : 'Assinantes';
   }
 
+  detailsRoute(item: CommunityPreviewCard): readonly string[] {
+    return item.source.type === 'venue'
+      ? ['/dashboard/comunidades/locais', item.communityId]
+      : ['/dashboard/comunidades', item.communityId];
+  }
+
   private reportError(error: unknown): void {
     try {
-      this.errorNotifier.showError('Não foi possível carregar as comunidades.');
+      this.errorNotifier.showError(
+        this.sourceType === 'venue'
+          ? 'Não foi possível carregar os Locais.'
+          : 'Não foi possível carregar as comunidades.'
+      );
     } catch {
       // A observabilidade abaixo permanece ativa.
     }
@@ -170,6 +200,7 @@ export class CommunityDiscoveryPageComponent {
       contextual.context = {
         scope: 'CommunityDiscoveryPageComponent',
         op: 'loadPage',
+        sourceType: this.sourceType,
       };
       contextual.skipUserNotification = true;
       this.globalError.handleError(contextual);
