@@ -7,6 +7,7 @@ import { CurrentUserStoreService } from '@core/services/autentication/auth/curre
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { AccountLifecycleFacade } from '../../application/account-lifecycle.facade';
 import { AccountLifecycleService } from '../../application/account-lifecycle.service';
+import { AccountReauthenticationService } from '../../application/account-reauthentication.service';
 import { AccountStatusComponent } from './account-status.component';
 
 describe('AccountStatusComponent', () => {
@@ -15,6 +16,7 @@ describe('AccountStatusComponent', () => {
   const showSuccess = vi.fn();
   const reactivateSelfSuspension$ = vi.fn();
   const cancelAccountDeletion$ = vi.fn();
+  const reauthenticateForSensitiveAction$ = vi.fn(() => of(void 0));
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -77,6 +79,13 @@ describe('AccountStatusComponent', () => {
           },
         },
         {
+          provide: AccountReauthenticationService,
+          useValue: {
+            getCurrentMode: vi.fn(() => 'password'),
+            reauthenticateForSensitiveAction$,
+          },
+        },
+        {
           provide: CurrentUserStoreService,
           useValue: { patch },
         },
@@ -88,12 +97,29 @@ describe('AccountStatusComponent', () => {
     }).compileComponents();
   });
 
-  it('não torna pública uma conta reativada que o backend manteve privada', () => {
+  it('abre confirmação antes de reativar a conta', () => {
     const fixture = TestBed.createComponent(AccountStatusComponent);
     const component = fixture.componentInstance;
 
     component.onReactivateSelfSuspension();
 
+    expect(component.lifecycleDialogIntent()).toBe('reactivate_self_suspend');
+    expect(reactivateSelfSuspension$).not.toHaveBeenCalled();
+  });
+
+  it('não torna pública uma conta reativada que o backend manteve privada', () => {
+    const fixture = TestBed.createComponent(AccountStatusComponent);
+    const component = fixture.componentInstance;
+
+    component.onLifecycleDialogConfirmed({
+      intent: 'reactivate_self_suspend',
+      password: 'senha-atual',
+    });
+
+    expect(reauthenticateForSensitiveAction$).toHaveBeenCalledWith(
+      'senha-atual'
+    );
+    expect(reactivateSelfSuspension$).toHaveBeenCalledTimes(1);
     expect(patch).toHaveBeenCalledWith(
       expect.objectContaining({
         accountStatus: 'active',
@@ -110,8 +136,15 @@ describe('AccountStatusComponent', () => {
     const fixture = TestBed.createComponent(AccountStatusComponent);
     const component = fixture.componentInstance;
 
-    component.onCancelDeletion();
+    component.onLifecycleDialogConfirmed({
+      intent: 'cancel_pending_deletion',
+      password: 'senha-atual',
+    });
 
+    expect(reauthenticateForSensitiveAction$).toHaveBeenCalledWith(
+      'senha-atual'
+    );
+    expect(cancelAccountDeletion$).toHaveBeenCalledTimes(1);
     expect(patch).toHaveBeenCalledWith(
       expect.objectContaining({
         accountStatus: 'active',
