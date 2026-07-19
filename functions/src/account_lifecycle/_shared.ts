@@ -4,10 +4,6 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 
-/**
- * Alias mantido para preservar os imports já existentes no domínio de
- * lifecycle, mas a fonte real da região passa a ser centralizada.
- */
 export const ACCOUNT_LIFECYCLE_REGION = FUNCTIONS_REGION;
 export const MAX_LIFECYCLE_REASON_LENGTH = 500;
 export const RECENT_AUTH_MAX_AGE_SECONDS = 10 * 60;
@@ -29,6 +25,8 @@ export type RestorableAccountStatus = Exclude<
 export type UserDoc = {
   uid?: string;
   email?: string | null;
+  emailVerified?: boolean | null;
+  profileCompleted?: boolean | null;
 
   nickname?: string | null;
   nicknameNormalized?: string | null;
@@ -40,6 +38,15 @@ export type UserDoc = {
   orientation?: string | null;
 
   role?: string | null;
+  acceptedTerms?: {
+    accepted?: boolean | null;
+    version?: string | null;
+  } | null;
+  adultConsent?: {
+    accepted?: boolean | null;
+    version?: string | null;
+  } | null;
+  initialAdultConsentRequired?: boolean | null;
 
   accountStatus?: AccountStatus | string | null;
   publicVisibility?: 'visible' | 'hidden' | null;
@@ -74,10 +81,6 @@ export type UserDoc = {
   superadmin?: boolean | null;
 };
 
-/**
- * Ações que mudam visibilidade, acesso ou retenção da conta exigem login
- * recente. Isso impede que uma sessão antiga ou abandonada altere o lifecycle.
- */
 export function assertRecentAuthentication(
   authToken: Record<string, unknown> | undefined,
   maxAgeSeconds = RECENT_AUTH_MAX_AGE_SECONDS
@@ -144,30 +147,59 @@ export function normalizeNicknameForIndex(raw?: string | null): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
+    .replace(/[^a-z0-9._-]+/g, '_')
+    .replace(/^[._-]+|[._-]+$/g, '')
+    .slice(0, 40);
+}
+
+export function resolveNicknameNormalized(user: UserDoc): string {
+  const stored = String(user.nicknameNormalized ?? '').trim().toLowerCase();
+  return /^[a-z0-9._-]{3,40}$/.test(stored)
+    ? stored
+    : normalizeNicknameForIndex(user.nickname);
 }
 
 export function getNicknameIndexDocId(user: UserDoc): string | null {
-  const normalized =
-    String(user.nicknameNormalized ?? '').trim() ||
-    normalizeNicknameForIndex(user.nickname);
-
-  return normalized ? `nickname:${normalized}` : null;
+  const normalized = resolveNicknameNormalized(user);
+  return /^[a-z0-9._-]{3,40}$/.test(normalized)
+    ? `nickname:${normalized}`
+    : null;
 }
 
-export function buildPublicProfileSeed(user: UserDoc, uid: string, now: number) {
+export function isUserEligibleForPublicProjection(user: UserDoc): boolean {
+  const normalized = resolveNicknameNormalized(user);
+  const adultConsentRequired =
+    user.initialAdultConsentRequired !== false;
+
+  return (
+    user.emailVerified === true &&
+    user.profileCompleted === true &&
+    user.acceptedTerms?.accepted === true &&
+    (!adultConsentRequired || user.adultConsent?.accepted === true) &&
+    /^[a-z0-9._-]{3,40}$/.test(normalized) &&
+    String(user.nickname ?? '').trim().length >= 3
+  );
+}
+
+/**
+ * Projeção pública mínima. Entitlement, tier e papel financeiro não são
+ * copiados; o campo role público nasce neutro.
+ */
+export function buildPublicProfileSeed(
+  user: UserDoc,
+  uid: string,
+  now: number
+) {
   return {
     uid,
-    nickname: user.nickname ?? null,
-    nicknameNormalized:
-      String(user.nicknameNormalized ?? '').trim() ||
-      normalizeNicknameForIndex(user.nickname),
+    nickname: String(user.nickname ?? '').trim(),
+    nicknameNormalized: resolveNicknameNormalized(user),
     avatarUrl: user.photoURL ?? null,
     municipio: user.municipio ?? null,
     estado: user.estado ?? null,
     gender: user.gender ?? null,
     orientation: user.orientation ?? null,
-    role: user.role ?? 'basic',
+    role: 'free',
     createdAt: now,
     updatedAt: now,
   };
