@@ -50,7 +50,20 @@ describe('ChatModuleLayoutComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('deve ser criado', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('mantém somente atalhos funcionais e oculta Convites legados', () => {
+    const text = fixture.nativeElement.textContent as string;
+    const hrefs = Array.from(
+      fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
+    ).map((link) => link.getAttribute('href'));
+
+    expect(text).toContain('Conexões');
+    expect(text).toContain('Solicitações');
+    expect(text).toContain('Salas');
+    expect(text).not.toContain('Convites');
+    expect(hrefs).not.toContain('/chat/invite-list');
   });
 });
