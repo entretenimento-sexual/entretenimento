@@ -1,6 +1,6 @@
+// src/app/register-module/data-access/profile-completion-write.service.ts
 import { Injectable } from '@angular/core';
 import { Firestore, doc } from '@angular/fire/firestore';
-
 import {
   Timestamp,
   runTransaction,
@@ -57,27 +57,32 @@ export class ProfileCompletionWriteService {
   complete$(input: AtomicProfileCompletionInput): Observable<void> {
     const uid = this.cleanText(input.uid);
     const nickname = NicknameUtils.normalizarApelido(input.nickname);
-    const nicknameNormalized = NicknameUtils.normalizarApelidoParaIndice(nickname);
+    const nicknameNormalized =
+      NicknameUtils.normalizarApelidoParaIndice(nickname);
     const gender = this.cleanText(input.gender).toLowerCase();
     const orientation = this.cleanText(input.orientation).toLowerCase();
     const estado = this.cleanText(input.estado).toUpperCase();
     const municipio = this.cleanText(input.municipio);
 
     if (!uid) {
-      return throwError(() => this.createError(
-        'registration/invalid-uid',
-        'UID inválido para conclusão do perfil.'
-      ));
+      return throwError(() =>
+        this.createError(
+          'registration/invalid-uid',
+          'UID inválido para conclusão do perfil.'
+        )
+      );
     }
 
     if (
       !NicknameUtils.isApelidoValido(nickname) ||
       !NicknameUtils.isApelidoIndiceValido(nickname)
     ) {
-      return throwError(() => this.createError(
-        'nickname/invalid',
-        'O apelido informado é inválido.'
-      ));
+      return throwError(() =>
+        this.createError(
+          'nickname/invalid',
+          'O apelido informado é inválido.'
+        )
+      );
     }
 
     const validationError = this.validateRequiredProfileFields({
@@ -86,122 +91,180 @@ export class ProfileCompletionWriteService {
       estado,
       municipio,
     });
-
-    if (validationError) {
-      return throwError(() => validationError);
-    }
+    if (validationError) return throwError(() => validationError);
 
     const userRef = this.ctx.run(() => doc(this.db, 'users', uid));
-    const publicProfileRef = this.ctx.run(() => doc(this.db, 'public_profiles', uid));
+    const publicProfileRef = this.ctx.run(() =>
+      doc(this.db, 'public_profiles', uid)
+    );
     const nicknameIndexRef = this.ctx.run(() =>
       doc(this.db, 'public_index', `nickname:${nicknameNormalized}`)
     );
 
-    return this.ctx.deferPromise$(() =>
-      runTransaction(this.db as any, async (transaction) => {
-        const userSnap = await transaction.get(userRef as any);
-        const publicProfileSnap = await transaction.get(publicProfileRef as any);
-        const nicknameIndexSnap = await transaction.get(nicknameIndexRef as any);
+    return this.ctx
+      .deferPromise$(() =>
+        runTransaction(this.db as any, async (transaction) => {
+          const [userSnapshot, publicProfileSnapshot, nicknameIndexSnapshot] =
+            await Promise.all([
+              transaction.get(userRef as any),
+              transaction.get(publicProfileRef as any),
+              transaction.get(nicknameIndexRef as any),
+            ]);
 
-        if (!userSnap.exists()) {
-          throw this.createError(
-            'registration/user-document-missing',
-            'Os dados básicos da conta ainda não foram recuperados.'
-          );
-        }
-
-        const userData = userSnap.data() as Record<string, unknown>;
-        const existingNickname = this.cleanText(userData?.['nickname']);
-        const existingNormalized = NicknameUtils.normalizarApelidoParaIndice(
-          existingNickname
-        );
-
-        if (existingNormalized && existingNormalized !== nicknameNormalized) {
-          throw this.createError(
-            'nickname/change-not-allowed',
-            'O apelido existente não pode ser alterado nesta etapa.'
-          );
-        }
-
-        if (nicknameIndexSnap.exists()) {
-          const indexUid = this.cleanText(
-            (nicknameIndexSnap.data() as Record<string, unknown>)?.['uid']
-          );
-
-          if (indexUid !== uid) {
+          if (!userSnapshot.exists()) {
             throw this.createError(
-              'nickname/in-use',
-              'Este apelido já está em uso.'
+              'registration/user-document-missing',
+              'Os dados básicos da conta ainda não foram recuperados.'
             );
           }
-        }
 
-        const nowMs = Date.now();
-        const userPatch: Record<string, unknown> = {
-          uid,
-          nickname,
-          gender,
-          orientation,
-          estado,
-          municipio,
-          profileCompleted: true,
-          updatedAt: serverTimestamp(),
-          updatedAtMs: nowMs,
-        };
+          const userData = userSnapshot.data() as Record<string, unknown>;
+          this.assertEligibleForPublicProfile(userData);
 
-        if (!existingNormalized) {
-          userPatch['nicknameHistory'] = [
-            {
-              nickname: nicknameNormalized,
-              date: Timestamp.fromMillis(nowMs),
-            },
-          ];
-        }
+          const existingNickname = this.cleanText(userData['nickname']);
+          const existingNormalized =
+            NicknameUtils.normalizarApelidoParaIndice(existingNickname);
 
-        transaction.set(userRef as any, userPatch, { merge: true });
+          if (
+            existingNormalized &&
+            existingNormalized !== nicknameNormalized
+          ) {
+            throw this.createError(
+              'nickname/change-not-allowed',
+              'O apelido existente não pode ser alterado nesta etapa.'
+            );
+          }
 
-        const publicProfilePatch: Record<string, unknown> = {
-          uid,
-          nickname,
-          nicknameNormalized,
-          gender,
-          orientation: orientation || null,
-          estado,
-          municipio,
-          updatedAt: serverTimestamp(),
-        };
+          if (nicknameIndexSnapshot.exists()) {
+            const indexUid = this.cleanText(
+              (nicknameIndexSnapshot.data() as Record<string, unknown>)['uid']
+            );
 
-        if (!publicProfileSnap.exists()) {
-          publicProfilePatch['role'] = this.cleanText(userData?.['role']) || 'free';
-          publicProfilePatch['createdAt'] = serverTimestamp();
-        }
+            if (indexUid !== uid) {
+              throw this.createError(
+                'nickname/in-use',
+                'Este apelido já está em uso.'
+              );
+            }
+          }
 
-        transaction.set(
-          publicProfileRef as any,
-          publicProfilePatch,
-          { merge: true }
-        );
-
-        if (!nicknameIndexSnap.exists()) {
-          // O SDK web não possui transaction.create(). Como o documento foi lido
-          // e confirmado ausente dentro desta mesma transação, set() mantém a
-          // reserva atômica; as rules ainda exigem create-only e UID do próprio usuário.
-          transaction.set(nicknameIndexRef as any, {
+          const nowMs = Date.now();
+          const userPatch: Record<string, unknown> = {
             uid,
-            type: 'nickname',
-            value: nicknameNormalized,
-            createdAt: serverTimestamp(),
-            lastChangedAt: serverTimestamp(),
-          });
-        }
-      })
-    ).pipe(
-      map(() => void 0),
-      catchError((error) => {
-        this.reportError(error, uid, nicknameNormalized);
-        return throwError(() => error);
-      })
-    );
+            nickname,
+            gender,
+            orientation,
+            estado,
+            municipio,
+            profileCompleted: true,
+            publicVisibility: 'visible',
+            interactionBlocked: false,
+            registrationCompletedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            updatedAtMs: nowMs,
+          };
+
+          if (!existingNormalized) {
+            userPatch['nicknameHistory'] = [
+              {
+                nickname: nicknameNormalized,
+                date: Timestamp.fromMillis(nowMs),
+              },
+            ];
+          }
+
+          transaction.set(userRef as any, userPatch, { merge: true });
+
+          const publicProfilePatch: Record<string, unknown> = {
+            uid,
+            nickname,
+            nicknameNormalized,
+            gender,
+            orientation: orientation || null,
+            estado,
+            municipio,
+            updatedAt: serverTimestamp(),
+          };
+
+          if (!publicProfileSnapshot.exists()) {
+            /**
+             * A projeção pública não carrega entitlement. O papel inicial é
+             * deliberadamente neutro; assinatura permanece no backend privado.
+             */
+            publicProfilePatch['role'] = 'free';
+            publicProfilePatch['createdAt'] = serverTimestamp();
+          }
+
+          transaction.set(
+            publicProfileRef as any,
+            publicProfilePatch,
+            { merge: true }
+          );
+
+          if (!nicknameIndexSnapshot.exists()) {
+            transaction.set(nicknameIndexRef as any, {
+              uid,
+              type: 'nickname',
+              value: nicknameNormalized,
+              createdAt: serverTimestamp(),
+              lastChangedAt: serverTimestamp(),
+            });
+          }
+        })
+      )
+      .pipe(
+        map(() => void 0),
+        catchError((error) => {
+          this.reportError(error, uid, nicknameNormalized);
+          return throwError(() => error);
+        })
+      );
+  }
+
+  private assertEligibleForPublicProfile(
+    userData: Record<string, unknown>
+  ): void {
+    const acceptedTerms = (userData['acceptedTerms'] ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const adultConsent = (userData['adultConsent'] ?? {}) as Record<
+      string,
+      unknown
+    >;
+    const initialAdultConsentRequired =
+      userData['initialAdultConsentRequired'] === true;
+
+    if (userData['accountStatus'] !== 'active') {
+      throw this.createError(
+        'account/not-active',
+        'A conta precisa estar ativa para publicar o perfil.'
+      );
+    }
+
+    if (userData['emailVerified'] !== true) {
+      throw this.createError(
+        'registration/email-unverified',
+        'Verifique o e-mail antes de concluir o perfil.'
+      );
+    }
+
+    if (acceptedTerms['accepted'] !== true) {
+      throw this.createError(
+        'registration/terms-required',
+        'Aceite os termos atuais antes de concluir o perfil.'
+      );
+    }
+
+    if (
+      initialAdultConsentRequired &&
+      adultConsent['accepted'] !== true
+    ) {
+      throw this.createError(
+        'registration/adult-consent-required',
+        'Confirme o acesso adulto antes de publicar o perfil.'
+      );
+    }
   }
 
   private validateRequiredProfileFields(input: {
@@ -217,7 +280,10 @@ export class ProfileCompletionWriteService {
       );
     }
 
-    if (input.orientation && !ALLOWED_ORIENTATIONS.has(input.orientation)) {
+    if (
+      input.orientation &&
+      !ALLOWED_ORIENTATIONS.has(input.orientation)
+    ) {
       return this.createError(
         'profile/invalid-orientation',
         'A orientação informada é inválida.'
@@ -250,8 +316,8 @@ export class ProfileCompletionWriteService {
   }
 
   private createError(code: string, message: string): Error {
-    const error = new Error(message);
-    (error as any).code = code;
+    const error = new Error(message) as Error & { code?: string };
+    error.code = code;
     return error;
   }
 
@@ -261,19 +327,25 @@ export class ProfileCompletionWriteService {
     nicknameNormalized: string
   ): void {
     try {
-      const err = error instanceof Error
-        ? error
-        : new Error('[ProfileCompletionWriteService] transaction failed');
-
-      (err as any).context = 'ProfileCompletionWriteService';
-      (err as any).operation = 'complete';
-      (err as any).extra = { uid, nicknameNormalized };
-      (err as any).original = error;
-      (err as any).skipUserNotification = true;
-
-      this.globalErrorHandler.handleError(err);
+      const normalized =
+        error instanceof Error
+          ? error
+          : new Error('[ProfileCompletionWriteService] transaction failed');
+      const contextual = normalized as Error & {
+        context?: unknown;
+        operation?: string;
+        extra?: unknown;
+        original?: unknown;
+        skipUserNotification?: boolean;
+      };
+      contextual.context = 'ProfileCompletionWriteService';
+      contextual.operation = 'complete';
+      contextual.extra = { uid, nicknameNormalized };
+      contextual.original = error;
+      contextual.skipUserNotification = true;
+      this.globalErrorHandler.handleError(contextual);
     } catch {
-      // noop
+      // Diagnóstico não interrompe o erro original.
     }
   }
 }
