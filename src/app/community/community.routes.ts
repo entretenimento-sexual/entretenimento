@@ -28,8 +28,23 @@ export const COMMUNITY_ROUTES: Routes = [
     pathMatch: 'full',
   },
   {
+    path: 'nova',
+    loadComponent: () =>
+      import('./community-create/community-create-page.component').then(
+        (module) => module.CommunityCreatePageComponent
+      ),
+  },
+  {
+    path: 'minhas',
+    data: { sourceType: 'community', discoveryMode: 'mine' },
+    loadComponent: () =>
+      import('./discovery/community-discovery-page.component').then(
+        (module) => module.CommunityDiscoveryPageComponent
+      ),
+  },
+  {
     path: '',
-    data: { sourceType: 'community' },
+    data: { sourceType: 'community', discoveryMode: 'explore' },
     loadComponent: () =>
       import('./discovery/community-discovery-page.component').then(
         (module) => module.CommunityDiscoveryPageComponent
