@@ -14,6 +14,7 @@ export type CommunityViewerMode =
   | 'member'
   | 'moderator'
   | 'manager';
+export type CommunityViewerRole = 'owner' | 'admin' | 'moderator' | 'member';
 export type CommunityMinimumRole = 'basic' | 'premium' | 'vip';
 
 export interface CommunityDiscoveryPageRequest {
@@ -62,6 +63,7 @@ export interface CommunityDiscoveryPageResponse {
 export interface CommunityPreviewResponse {
   community: CommunityPreviewCard;
   viewerMode: CommunityViewerMode;
+  viewerRole: CommunityViewerRole | null;
   canInteract: boolean;
   generatedAt: number;
 }
@@ -113,6 +115,15 @@ function normalizeCount(value: unknown): number {
 
 function normalizeSourceType(value: unknown): CommunitySourceType | null {
   return value === 'venue' || value === 'room' ? value : null;
+}
+
+function normalizeViewerRole(value: unknown): CommunityViewerRole | null {
+  return value === 'owner'
+    || value === 'admin'
+    || value === 'moderator'
+    || value === 'member'
+    ? value
+    : null;
 }
 
 function normalizeSource(raw: unknown): CommunityPreviewCard['source'] | null {
@@ -251,32 +262,33 @@ export function sanitizeCommunityDocument(
 
 export function resolveCommunityViewerMode(rawMembership: unknown): {
   mode: CommunityViewerMode;
+  role: CommunityViewerRole | null;
   active: boolean;
   blocked: boolean;
 } {
   const membership = (rawMembership ?? {}) as Record<string, unknown>;
   const status = membership['status'];
-  const role = membership['role'];
+  const role = normalizeViewerRole(membership['role']);
 
   if (status === 'blocked') {
-    return { mode: 'visitor', active: false, blocked: true };
+    return { mode: 'visitor', role: null, active: false, blocked: true };
   }
 
   if (status === 'pending') {
-    return { mode: 'pending', active: false, blocked: false };
+    return { mode: 'pending', role, active: false, blocked: false };
   }
 
   if (status !== 'active') {
-    return { mode: 'visitor', active: false, blocked: false };
+    return { mode: 'visitor', role: null, active: false, blocked: false };
   }
 
   if (role === 'owner' || role === 'admin') {
-    return { mode: 'manager', active: true, blocked: false };
+    return { mode: 'manager', role, active: true, blocked: false };
   }
 
   if (role === 'moderator') {
-    return { mode: 'moderator', active: true, blocked: false };
+    return { mode: 'moderator', role, active: true, blocked: false };
   }
 
-  return { mode: 'member', active: true, blocked: false };
+  return { mode: 'member', role, active: true, blocked: false };
 }
