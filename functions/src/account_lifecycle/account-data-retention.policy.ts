@@ -13,7 +13,7 @@
 // - a política é serializável e registrada no tombstone para auditoria/retry.
 // -----------------------------------------------------------------------------
 
-export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 2;
+export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 3;
 
 export type AccountDataDomain =
   | 'public_profile'
@@ -116,7 +116,7 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     phase: 'pre_finalize',
     automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Notificações privadas são removidas por executor paginado e idempotente.',
+    reason: 'Notificações próprias e referências de autoria são removidas por executor paginado.',
   },
   {
     domain: 'preferences',
@@ -130,9 +130,9 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     domain: 'presence_and_location',
     disposition: 'delete',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Presença, localização e check-ins são dados sensíveis e temporários.',
+    reason: 'Presença, coordenadas precisas e status temporários são removidos de forma idempotente.',
   },
   {
     domain: 'relationship_edges',
