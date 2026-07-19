@@ -16,6 +16,7 @@ import {
 import {
   CommunityPreviewCard,
   CommunityViewerMode,
+  CommunityViewerRole,
   resolveCommunityViewerMode,
   sanitizeCommunityDocument,
 } from './community-preview.model';
@@ -23,6 +24,7 @@ import {
 export interface CommunityViewerContext {
   community: CommunityPreviewCard;
   viewerMode: CommunityViewerMode;
+  viewerRole: CommunityViewerRole | null;
   activeMembership: boolean;
   memberContentAccess: boolean;
   operational: boolean;
@@ -95,6 +97,7 @@ export async function getCommunityViewerContext(
   return {
     community,
     viewerMode: viewer.mode,
+    viewerRole: viewer.role,
     activeMembership: viewer.active,
     memberContentAccess,
     operational,
