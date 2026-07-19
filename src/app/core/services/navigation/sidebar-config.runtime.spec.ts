@@ -81,7 +81,11 @@ describe('sidebar runtime composition', () => {
       'chat-list',
       'chat-rooms',
     ]);
-    expect(chat?.items.map(({ route }) => route)).toEqual([
+    expect(
+      chat?.items.map((item) =>
+        isSidebarGroupItem(item) ? null : item.route
+      )
+    ).toEqual([
       '/chat',
       '/chat/rooms',
     ]);
