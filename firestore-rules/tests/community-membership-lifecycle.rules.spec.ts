@@ -24,6 +24,7 @@ const COMMUNITY_ID = 'community-lifecycle';
 const MEMBER_UID = 'community-member';
 const MODERATOR_UID = 'community-moderator';
 const PENDING_UID = 'community-pending';
+const CREATION_REQUEST_ID = 'request-local-lifecycle';
 
 let testEnv: RulesTestEnvironment;
 
@@ -85,6 +86,17 @@ async function seed(): Promise<void> {
         createdAt: new Date(),
         source: 'callable',
       }),
+      setDoc(
+        doc(db, 'venue_community_creation_requests', CREATION_REQUEST_ID),
+        {
+          actorUid: MEMBER_UID,
+          venueId: 'venue-request-local-lifecycle',
+          communityId: 'community-request-local-lifecycle',
+          status: 'completed',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+      ),
     ]);
   });
 }
@@ -169,6 +181,28 @@ describe('Firestore Rules / community membership lifecycle', () => {
       setDoc(doc(db, 'community_membership_audit', 'audit-client'), {
         action: 'community-membership-approved',
       })
+    );
+  });
+
+  it('nega leitura e escrita do registro idempotente de criação de Local', async () => {
+    const db = testEnv.authenticatedContext(MEMBER_UID).firestore();
+    const requestRef = doc(
+      db,
+      'venue_community_creation_requests',
+      CREATION_REQUEST_ID
+    );
+
+    await assertFails(getDoc(requestRef));
+    await assertFails(
+      setDoc(
+        doc(db, 'venue_community_creation_requests', 'request-client-local'),
+        {
+          actorUid: MEMBER_UID,
+          venueId: 'venue-client',
+          communityId: 'community-client',
+          status: 'completed',
+        }
+      )
     );
   });
 });
