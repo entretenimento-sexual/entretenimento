@@ -11,7 +11,7 @@
 // - listagem global direta fica bloqueada até existir projeção/callable paginada;
 // - criação, adesão, moderação e mutações são exclusivas do backend;
 // - o cliente só pode ler o próprio documento de membership;
-// - projeções, mural, índices e auditoria são backend-only.
+// - projeções, mural, índices, idempotência e auditoria são backend-only.
 // =============================================================================
 
 match /communities/{communityId} {
@@ -81,8 +81,14 @@ match /community_public_feed/{communityId}/items/{postId} {
   allow read, write: if false;
 }
 
-// Auditoria de solicitações e entradas comunitárias.
+// Auditoria de solicitações, entradas e criação comunitária.
 match /community_membership_audit/{auditId} {
+  allow read, write: if false;
+}
+
+// Registro idempotente da criação de Local. Contém ator e IDs internos e nunca
+// deve ser consultado ou alterado pelo navegador.
+match /venue_community_creation_requests/{requestId} {
   allow read, write: if false;
 }
 
