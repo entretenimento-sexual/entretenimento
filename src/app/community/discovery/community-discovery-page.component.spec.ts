@@ -62,7 +62,7 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
     });
   });
 
-  it('carrega somente comunidades originadas de Local', async () => {
+  it('carrega somente Locais e usa a rota canônica', async () => {
     const component = TestBed.runInInjectionContext(
       () => new CommunityDiscoveryPageComponent()
     );
@@ -74,6 +74,7 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
     );
 
     expect(component.title).toBe('Locais');
+    expect(component.description).toContain('Lugar físico');
     expect(component.canCreateVenue).toBe(true);
     expect(getDiscoveryPage$).toHaveBeenCalledWith({
       limit: 12,
@@ -82,7 +83,7 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
     });
     expect(state.items).toHaveLength(1);
     expect(component.detailsRoute(state.items[0])).toEqual([
-      '/dashboard/comunidades/locais',
+      '/dashboard/locais',
       'community-local-1',
     ]);
   });
