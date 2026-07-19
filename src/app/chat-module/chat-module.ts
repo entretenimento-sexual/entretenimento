@@ -17,6 +17,7 @@ import { ChatMessageComponent } from './chat-message/chat-message.component';
 import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layout.component';
 import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-list.component';
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
+import { InviteListComponent } from './invite-list/invite-list.component';
 import { RoomCreationConfirmationModalComponent } from './modals/room-create-confirm-modal/room-creation-confirmation-modal.component';
 import { chatReducer } from '../store/reducers/reducers.chat/chat.reducer';
 import { RoomInteractionComponent } from './rooms/room-interaction/room-interaction.component';
@@ -48,6 +49,7 @@ import { ChatReplyQuotePipe } from './pipes/chat-reply-quote.pipe';
     ChatRoomsComponent,
     ChatMessagesListComponent,
     CreateRoomModalComponent,
+    InviteListComponent,
     RoomCreationConfirmationModalComponent,
     RoomInteractionComponent,
     DeleteMessageConfirmDialogComponent,
