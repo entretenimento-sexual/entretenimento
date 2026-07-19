@@ -1,5 +1,9 @@
 // src/app/core/services/autentication/auth/auth-session.service.ts
-import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
+import {
+  EnvironmentInjector,
+  Injectable,
+  runInInjectionContext,
+} from '@angular/core';
 import { Observable, Subject, defer, from, merge, of } from 'rxjs';
 import {
   catchError,
@@ -40,15 +44,34 @@ export class AuthSessionService {
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {
     const idTokenUser$ = new Observable<User | null>((subscriber) => {
-      const unsub = onIdTokenChanged(
+      const unsubscribe = onIdTokenChanged(
         this.auth,
         (user) => subscriber.next(user),
-        (err) => subscriber.error(err)
+        (error) => subscriber.error(error)
       );
-      return () => unsub();
-    });
+      return () => unsubscribe();
+    }).pipe(
+      catchError((error: unknown) => {
+        this.dbg('onIdTokenChanged error', error);
+        /**
+         * Falha fechada:
+         * - não inventa UID;
+         * - emite apenas o snapshot local disponível;
+         * - o canal manual continua apto a publicar refresh posterior.
+         */
+        return of(this.auth.currentUser ?? null);
+      })
+    );
 
-    this.authUser$ = merge(idTokenUser$, this.manualAuthUserRefresh$).pipe(
+    this.authUser$ = merge(
+      idTokenUser$,
+      this.manualAuthUserRefresh$
+    ).pipe(
+      distinctUntilChanged(
+        (previous, current) =>
+          previous?.uid === current?.uid &&
+          previous?.emailVerified === current?.emailVerified
+      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
@@ -61,8 +84,13 @@ export class AuthSessionService {
     this.ready$ = defer(() => from(this.whenReady())).pipe(
       map(() => true),
       startWith(false),
-      catchError((err) => {
-        this.dbg('ready$ error', err);
+      catchError((error: unknown) => {
+        this.dbg('ready$ error', error);
+        /**
+         * `ready=true` encerra o estado de espera, mas authUser$ continuará nulo
+         * quando não houver uma sessão confirmada. Guards podem então encaminhar
+         * ao login em vez de permanecerem presos em loading infinito.
+         */
         return of(true);
       }),
       distinctUntilChanged(),
@@ -94,8 +122,8 @@ export class AuthSessionService {
 
         return defer(() => from(user.getIdToken())).pipe(
           map(() => user),
-          catchError((err) => {
-            this.dbg('readyAuthUser$ token error', err);
+          catchError((error: unknown) => {
+            this.dbg('readyAuthUser$ token error', error);
             return of(null);
           })
         );
@@ -113,11 +141,13 @@ export class AuthSessionService {
   whenReady(): Promise<void> {
     if (this.readyPromise) return this.readyPromise;
 
-    const authAny = this.auth as any;
+    const authWithReady = this.auth as Auth & {
+      authStateReady?: () => Promise<void>;
+    };
 
     const basePromise: Promise<void> =
-      typeof authAny?.authStateReady === 'function'
-        ? Promise.resolve(authAny.authStateReady()).then(() => void 0)
+      typeof authWithReady.authStateReady === 'function'
+        ? Promise.resolve(authWithReady.authStateReady()).then(() => void 0)
         : new Promise<void>((resolve, reject) => {
             const unsubscribe = onAuthStateChanged(
               this.auth,
@@ -128,19 +158,28 @@ export class AuthSessionService {
                 resolve();
                 unsubscribe();
               },
-              (err) => {
-                this.dbg('whenReady rejected (onAuthStateChanged)', err);
-                reject(err);
+              (error) => {
+                this.dbg('whenReady rejected (onAuthStateChanged)', error);
+                reject(error);
                 unsubscribe();
               }
             );
           });
 
-    this.readyPromise = basePromise.then(() => {
-      this.dbg('whenReady resolved', {
-        uid: this.auth.currentUser?.uid ?? null,
+    this.readyPromise = basePromise
+      .then(() => {
+        this.dbg('whenReady resolved', {
+          uid: this.auth.currentUser?.uid ?? null,
+        });
+      })
+      .catch((error: unknown) => {
+        /**
+         * A promessa rejeitada não pode ficar memorizada: a próxima chamada deve
+         * poder tentar novamente após uma oscilação de rede/emulador.
+         */
+        this.readyPromise = null;
+        throw error;
       });
-    });
 
     return this.readyPromise;
   }
@@ -160,8 +199,8 @@ export class AuthSessionService {
         tap((refreshedUser) => {
           this.manualAuthUserRefresh$.next(refreshedUser);
         }),
-        catchError((err) => {
-          this.dbg('refreshCurrentUser$ error', err);
+        catchError((error: unknown) => {
+          this.dbg('refreshCurrentUser$ error', error);
           const fallback = this.auth.currentUser ?? null;
           this.manualAuthUserRefresh$.next(fallback);
           return of(fallback);
