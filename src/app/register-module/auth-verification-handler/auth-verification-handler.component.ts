@@ -2,11 +2,10 @@
 // -----------------------------------------------------------------------------
 // AuthVerificationHandlerComponent
 // -----------------------------------------------------------------------------
-//
 // Responsabilidade exclusiva:
 // - processar links de verificação de e-mail;
-// - processar links de redefinição de senha;
-// - exibir feedback para link inválido, expirado ou já utilizado.
+// - validar e processar links de redefinição de senha;
+// - exibir feedback para link inválido, expirado, já utilizado ou indisponível.
 //
 // Este componente NÃO deve:
 // - completar perfil;
@@ -14,11 +13,7 @@
 // - gravar gender/orientation/estado/municipio;
 // - fazer upload de avatar;
 // - decidir onboarding.
-//
-// Separação correta:
-// - Verificar e-mail grava somente emailVerified.
-// - Completar perfil grava somente profileCompleted e dados mínimos do perfil.
-
+// -----------------------------------------------------------------------------
 import { Component, OnDestroy, OnInit, NgZone } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -28,9 +23,13 @@ import {
   EmailVerificationService,
   VerifyEmailResult,
 } from 'src/app/core/services/autentication/register/email-verification.service';
-
+import {
+  PasswordResetCodeValidationResult,
+  PasswordResetCodeValidationService,
+} from 'src/app/core/services/autentication/password-reset-code-validation.service';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ValidatorService } from 'src/app/core/services/general/validator.service';
 
 import { EmailInputModalComponent } from 'src/app/authentication/email-input-modal/email-input-modal.component';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
@@ -78,6 +77,9 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   public passwordResetOk = false;
   public passwordResetCompleted = false;
   public passwordResetUnavailable = false;
+  public passwordResetCodeValidated = false;
+  public passwordResetValidationRetryAvailable = false;
+  public passwordResetTargetEmail = '';
 
   private readonly ngUnsubscribe = new Subject<void>();
 
@@ -87,6 +89,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     private readonly ngZone: NgZone,
 
     private readonly emailVerificationService: EmailVerificationService,
+    private readonly passwordResetCodeValidation: PasswordResetCodeValidationService,
     private readonly loginService: LoginService,
     private readonly globalErrorHandlerService: GlobalErrorHandlerService,
     private readonly emailInputModalService: EmailInputModalService
@@ -99,10 +102,11 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   get canSubmitPasswordReset(): boolean {
     return (
       !this.isLoading &&
+      this.passwordResetCodeValidated &&
       !this.passwordResetCompleted &&
       !this.passwordResetUnavailable &&
-      this.newPassword.length >= 8 &&
-      this.confirmPassword.length >= 8
+      ValidatorService.isValidPassword(this.newPassword, 8) &&
+      this.newPassword === this.confirmPassword
     );
   }
 
@@ -137,11 +141,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         }
 
         if (this.mode === 'resetPassword') {
-          /**
-           * Reset de senha só é executado após submit do usuário.
-           * Não chamamos confirmPasswordReset automaticamente.
-           */
-          this.isLoading = false;
+          this.processPasswordResetLink();
           return;
         }
 
@@ -155,21 +155,12 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.ngUnsubscribe.complete();
   }
 
-  /**
-   * Processa exclusivamente a verificação de e-mail.
-   *
-   * O service chamado deve atualizar apenas emailVerified.
-   * Não deve atualizar profileCompleted.
-   */
   private processVerifyEmail(): void {
     this.isLoading = true;
 
     this.emailVerificationService
       .handleEmailVerification()
-      .pipe(
-        take(1),
-        takeUntil(this.ngUnsubscribe)
-      )
+      .pipe(take(1), takeUntil(this.ngUnsubscribe))
       .subscribe({
         next: (res: VerifyEmailResult) => {
           this.isLoading = false;
@@ -178,7 +169,8 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
             this.verifyOk = true;
 
             if (res.reason === 'not-logged-in') {
-              this.message = 'Seu e-mail foi verificado. Faça login para continuar.';
+              this.message =
+                'Seu e-mail foi verificado. Faça login para continuar.';
               this.showGoToLoginCTA = true;
               this.showResendVerifyCTA = false;
               return;
@@ -191,21 +183,14 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
             this.showGoToLoginCTA = false;
             this.showResendVerifyCTA = false;
 
-            /**
-             * Após verificar o e-mail, não mandamos automaticamente para finalizar
-             * cadastro nem marcamos perfil como completo.
-             *
-             * A navegação posterior será decidida pelos guards/gates com base nos
-             * dois estados separados:
-             * - emailVerified
-             * - profileCompleted
-             */
             this.ngZone.run(() => {
               setTimeout(() => {
-                this.router.navigate(['/register/welcome'], {
-                  queryParams: { autocheck: '1' },
-                  replaceUrl: true,
-                }).catch(() => {});
+                this.router
+                  .navigate(['/register/welcome'], {
+                    queryParams: { autocheck: '1' },
+                    replaceUrl: true,
+                  })
+                  .catch(() => {});
               }, 1200);
             });
 
@@ -217,17 +202,20 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
           switch (res.reason) {
             case 'expired':
-              this.message = 'O link de verificação expirou. Reenvie um novo e-mail.';
+              this.message =
+                'O link de verificação expirou. Reenvie um novo e-mail.';
               this.showResendVerifyCTA = true;
               break;
 
             case 'invalid':
-              this.message = 'O link de verificação é inválido ou já foi utilizado.';
+              this.message =
+                'O link de verificação é inválido ou já foi utilizado.';
               this.showResendVerifyCTA = true;
               break;
 
             case 'not-verified':
-              this.message = 'Quase lá. Processamos o link, mas sua sessão ainda não refletiu a verificação.';
+              this.message =
+                'Quase lá. Processamos o link, mas sua sessão ainda não refletiu a verificação.';
               this.showResendVerifyCTA = true;
               break;
 
@@ -247,6 +235,79 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       });
   }
 
+  private processPasswordResetLink(): void {
+    if (this.mode !== 'resetPassword' || !this.oobCode || this.isLoading) {
+      return;
+    }
+
+    this.isLoading = true;
+    this.message = '';
+    this.passwordResetCodeValidated = false;
+    this.passwordResetUnavailable = false;
+    this.passwordResetValidationRetryAvailable = false;
+    this.shouldShowRecoveryLink = false;
+    this.passwordResetTargetEmail = '';
+
+    this.passwordResetCodeValidation
+      .validate$(this.oobCode)
+      .pipe(take(1), takeUntil(this.ngUnsubscribe))
+      .subscribe({
+        next: (result) => this.applyPasswordResetCodeValidation(result),
+        error: (error: unknown) => {
+          this.applyPasswordResetCodeValidation({
+            ok: false,
+            reason: 'unavailable',
+            message:
+              'Não foi possível validar o link agora. Verifique sua conexão e tente novamente.',
+          });
+
+          const operationalError = new Error(
+            '[AuthVerificationHandler] Falha inesperada ao validar link de redefinição.'
+          ) as Error & {
+            original?: unknown;
+            skipUserNotification?: boolean;
+          };
+          operationalError.original = error;
+          operationalError.skipUserNotification = true;
+          this.globalErrorHandlerService.handleError(operationalError);
+        },
+      });
+  }
+
+  private applyPasswordResetCodeValidation(
+    result: PasswordResetCodeValidationResult
+  ): void {
+    this.isLoading = false;
+    this.passwordResetCodeValidated = result.ok;
+    this.passwordResetUnavailable = !result.ok;
+    this.passwordResetTargetEmail = result.ok ? result.email ?? '' : '';
+
+    if (result.ok) {
+      this.message = '';
+      this.shouldShowRecoveryLink = false;
+      this.passwordResetValidationRetryAvailable = false;
+      return;
+    }
+
+    this.message = result.message;
+    this.shouldShowRecoveryLink = true;
+    this.passwordResetValidationRetryAvailable =
+      result.reason === 'unavailable';
+  }
+
+  retryPasswordResetValidation(): void {
+    if (
+      this.mode !== 'resetPassword' ||
+      !this.oobCode ||
+      this.isLoading ||
+      !this.passwordResetValidationRetryAvailable
+    ) {
+      return;
+    }
+
+    this.processPasswordResetLink();
+  }
+
   resendVerificationEmail(): void {
     if (this.isLoading) return;
 
@@ -258,7 +319,9 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         take(1),
         timeout({ first: 15_000 }),
         tap((txt) => {
-          this.message = txt || 'E-mail reenviado. Verifique sua caixa de entrada e spam.';
+          this.message =
+            txt ||
+            'E-mail reenviado. Verifique sua caixa de entrada e spam.';
           this.verifyOk = false;
           this.showResendVerifyCTA = false;
         }),
@@ -280,10 +343,12 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   }
 
   goToWelcome(): void {
-    this.router.navigate(['/register/welcome'], {
-      queryParams: { autocheck: '1' },
-      replaceUrl: true,
-    }).catch(() => {});
+    this.router
+      .navigate(['/register/welcome'], {
+        queryParams: { autocheck: '1' },
+        replaceUrl: true,
+      })
+      .catch(() => {});
   }
 
   async onSubmit(): Promise<void> {
@@ -295,6 +360,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   async resetPassword(): Promise<void> {
     if (
       this.mode !== 'resetPassword' ||
+      !this.passwordResetCodeValidated ||
       this.passwordResetCompleted ||
       this.passwordResetUnavailable
     ) {
@@ -311,21 +377,28 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.newPassword.length < 8) {
-      this.message = 'A senha deve ter pelo menos 8 caracteres.';
+    if (!ValidatorService.isValidPassword(this.newPassword, 8)) {
+      this.message =
+        'Use ao menos 8 caracteres, com letra maiúscula, minúscula e número.';
       this.isLoading = false;
       return;
     }
 
     try {
       await firstValueFrom(
-        this.loginService.confirmPasswordReset$(this.oobCode, this.newPassword)
+        this.loginService.confirmPasswordReset$(
+          this.oobCode,
+          this.newPassword
+        )
       );
 
       this.passwordResetOk = true;
       this.passwordResetCompleted = true;
       this.passwordResetUnavailable = false;
-      this.message = 'Senha redefinida com sucesso. Redirecionando para o login...';
+      this.passwordResetCodeValidated = false;
+      this.passwordResetValidationRetryAvailable = false;
+      this.message =
+        'Senha redefinida com sucesso. Redirecionando para o login...';
       this.newPassword = '';
       this.confirmPassword = '';
 
@@ -343,13 +416,18 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
   private handlePasswordResetError(error: unknown): void {
     const code = String((error as { code?: unknown })?.code ?? '');
-    const resetErrors = ['auth/expired-action-code', 'auth/invalid-action-code'];
+    const resetErrors = [
+      'auth/expired-action-code',
+      'auth/invalid-action-code',
+    ];
 
     this.passwordResetOk = false;
     this.shouldShowRecoveryLink = true;
 
     if (resetErrors.includes(code)) {
       this.passwordResetUnavailable = true;
+      this.passwordResetCodeValidated = false;
+      this.passwordResetValidationRetryAvailable = false;
       this.message =
         code === 'auth/expired-action-code'
           ? 'O link de redefinição de senha expirou.'
@@ -358,7 +436,9 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     }
 
     this.passwordResetUnavailable = false;
-    this.message = 'Não foi possível redefinir a senha agora. Tente novamente.';
+    this.passwordResetValidationRetryAvailable = false;
+    this.message =
+      'Não foi possível redefinir a senha agora. Tente novamente.';
 
     const operationalError = new Error(
       '[AuthVerificationHandler] Falha técnica ao redefinir senha.'
@@ -395,5 +475,8 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.passwordResetOk = false;
     this.passwordResetCompleted = false;
     this.passwordResetUnavailable = false;
+    this.passwordResetCodeValidated = false;
+    this.passwordResetValidationRetryAvailable = false;
+    this.passwordResetTargetEmail = '';
   }
 }
