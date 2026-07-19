@@ -7,7 +7,7 @@ import { AppNotificationService } from 'src/app/core/services/notifications/app-
 import { UserActivityHubComponent } from './user-activity-hub.component';
 
 describe('UserActivityHubComponent', () => {
-  it('mantém apenas pendências e central, sem duplicar Locais ou Salas', () => {
+  it('mantém pendências globais sem misturar Conexões com convites de Sala', () => {
     TestBed.configureTestingModule({
       imports: [UserActivityHubComponent],
       providers: [
@@ -38,6 +38,17 @@ describe('UserActivityHubComponent', () => {
                 createdAt: 2,
                 updatedAt: 2,
               },
+              {
+                id: 'notification-connection-1',
+                userId: 'user-1',
+                type: 'social',
+                title: 'Solicitação de conexão',
+                body: 'Uma pessoa quer se conectar.',
+                route: '/friends/requests',
+                readAt: null,
+                createdAt: 3,
+                updatedAt: 3,
+              },
             ]),
           },
         },
@@ -50,10 +61,14 @@ describe('UserActivityHubComponent', () => {
     const labels = Array.from(
       fixture.nativeElement.querySelectorAll('.activity-bar__label') as NodeListOf<HTMLElement>
     ).map((element) => element.textContent?.trim());
+    const connectionLink = Array.from(
+      fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
+    ).find((link) => link.textContent?.includes('Conexões'));
 
     expect(labels).toEqual(['Mensagens', 'Conexões', 'Status', 'Central']);
     expect(labels).not.toContain('Locais');
     expect(labels).not.toContain('Salas');
-    expect(fixture.nativeElement.textContent).toContain('2');
+    expect(connectionLink?.getAttribute('href')).toBe('/friends/requests');
+    expect(fixture.nativeElement.textContent).toContain('3');
   });
 });
