@@ -2,7 +2,7 @@
 // -----------------------------------------------------------------------------
 // ACCOUNT DATA DELETION EXECUTOR
 // -----------------------------------------------------------------------------
-// Orquestra os primeiros domínios realmente automatizados da matriz de retenção.
+// Orquestra os domínios automatizados da matriz de retenção.
 //
 // Garantias:
 // - paginação limitada por execução para preservar timeout e memória;
@@ -13,6 +13,7 @@
 // -----------------------------------------------------------------------------
 import type { AccountDataDomain } from './account-data-retention.policy';
 
+export type NotificationReferenceDirection = 'recipient' | 'actor';
 export type FriendRequestDirection = 'requester' | 'target';
 
 export interface AccountBlockReferenceSummary {
@@ -21,8 +22,16 @@ export interface AccountBlockReferenceSummary {
 }
 
 export interface AccountDataDeletionAdapter {
-  deleteNotificationsPage(uid: string, limit: number): Promise<number>;
+  deleteNotificationsPage(
+    uid: string,
+    direction: NotificationReferenceDirection,
+    limit: number
+  ): Promise<number>;
   deletePreferences(uid: string): Promise<number>;
+  deletePresence(uid: string): Promise<number>;
+  clearPrivateLocation(uid: string): Promise<number>;
+  deleteUserIntentStatusesPage(uid: string, limit: number): Promise<number>;
+  deleteUserIntentStatusAuditPage(uid: string, limit: number): Promise<number>;
   deleteFriendRequestsPage(
     uid: string,
     direction: FriendRequestDirection,
@@ -103,15 +112,24 @@ export async function executeAccountDataDeletionDomains(
   const results: AccountDataDeletionDomainExecution[] = [];
 
   results.push(
-    await executePagedDomain(
-      'notifications',
-      () => adapter.deleteNotificationsPage(uid, pageSize),
+    await executeNotificationsDomain(
+      adapter,
+      uid,
       pageSize,
       maxPagesPerDomain
     )
   );
 
   results.push(await executePreferencesDomain(adapter, uid));
+
+  results.push(
+    await executePresenceAndLocationDomain(
+      adapter,
+      uid,
+      pageSize,
+      maxPagesPerDomain
+    )
+  );
 
   results.push(
     await executeFriendRequestsDomain(
@@ -141,6 +159,41 @@ export async function executeAccountDataDeletionDomains(
   };
 }
 
+async function executeNotificationsDomain(
+  adapter: AccountDataDeletionAdapter,
+  uid: string,
+  pageSize: number,
+  maxPages: number
+): Promise<AccountDataDeletionDomainExecution> {
+  try {
+    const recipient = await executePagedStep(
+      () => adapter.deleteNotificationsPage(uid, 'recipient', pageSize),
+      pageSize,
+      maxPages
+    );
+    const actor = await executePagedStep(
+      () => adapter.deleteNotificationsPage(uid, 'actor', pageSize),
+      pageSize,
+      maxPages
+    );
+    const completed = recipient.completed && actor.completed;
+
+    return {
+      domain: 'notifications',
+      status: completed ? 'completed' : 'partial',
+      processed: recipient.processed + actor.processed,
+      pages: recipient.pages + actor.pages,
+      ...(completed ? {} : { blocker: 'pagination-limit-reached' }),
+      details: {
+        recipientNotificationsProcessed: recipient.processed,
+        actorNotificationsProcessed: actor.processed,
+      },
+    };
+  } catch (error: unknown) {
+    return failedResult('notifications', error);
+  }
+}
+
 async function executePreferencesDomain(
   adapter: AccountDataDeletionAdapter,
   uid: string
@@ -155,6 +208,53 @@ async function executePreferencesDomain(
     };
   } catch (error: unknown) {
     return failedResult('preferences', error);
+  }
+}
+
+async function executePresenceAndLocationDomain(
+  adapter: AccountDataDeletionAdapter,
+  uid: string,
+  pageSize: number,
+  maxPages: number
+): Promise<AccountDataDeletionDomainExecution> {
+  try {
+    const presenceProcessed = normalizeProcessedCount(
+      await adapter.deletePresence(uid)
+    );
+    const privateLocationProcessed = normalizeProcessedCount(
+      await adapter.clearPrivateLocation(uid)
+    );
+    const statuses = await executePagedStep(
+      () => adapter.deleteUserIntentStatusesPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const statusAudit = await executePagedStep(
+      () => adapter.deleteUserIntentStatusAuditPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const completed = statuses.completed && statusAudit.completed;
+
+    return {
+      domain: 'presence_and_location',
+      status: completed ? 'completed' : 'partial',
+      processed:
+        presenceProcessed +
+        privateLocationProcessed +
+        statuses.processed +
+        statusAudit.processed,
+      pages: statuses.pages + statusAudit.pages + 2,
+      ...(completed ? {} : { blocker: 'pagination-limit-reached' }),
+      details: {
+        presenceDocumentsProcessed: presenceProcessed,
+        privateLocationDocumentsProcessed: privateLocationProcessed,
+        intentStatusesProcessed: statuses.processed,
+        intentStatusAuditProcessed: statusAudit.processed,
+      },
+    };
+  } catch (error: unknown) {
+    return failedResult('presence_and_location', error);
   }
 }
 
@@ -260,27 +360,6 @@ async function executeRelationshipEdgesDomain(
     };
   } catch (error: unknown) {
     return failedResult('relationship_edges', error);
-  }
-}
-
-async function executePagedDomain(
-  domain: AccountDataDomain,
-  operation: () => Promise<number>,
-  pageSize: number,
-  maxPages: number
-): Promise<AccountDataDeletionDomainExecution> {
-  try {
-    const result = await executePagedStep(operation, pageSize, maxPages);
-
-    return {
-      domain,
-      status: result.completed ? 'completed' : 'partial',
-      processed: result.processed,
-      pages: result.pages,
-      ...(result.completed ? {} : { blocker: 'pagination-limit-reached' }),
-    };
-  } catch (error: unknown) {
-    return failedResult(domain, error);
   }
 }
 
