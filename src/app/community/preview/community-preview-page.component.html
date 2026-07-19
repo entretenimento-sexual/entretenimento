@@ -22,22 +22,14 @@
         <article class="community-preview__content">
           <div class="community-preview__cover" aria-hidden="true">
             @if (preview.community.coverUrl) {
-              <img
-                [src]="preview.community.coverUrl"
-                alt=""
-                appImageFallback
-              />
+              <img [src]="preview.community.coverUrl" alt="" appImageFallback />
             }
           </div>
 
           <header class="community-preview__identity">
             <span class="community-preview__avatar" aria-hidden="true">
               @if (preview.community.avatarUrl) {
-                <img
-                  [src]="preview.community.avatarUrl"
-                  alt=""
-                  appImageFallback
-                />
+                <img [src]="preview.community.avatarUrl" alt="" appImageFallback />
               } @else {
                 <i
                   class="fas {{ preview.community.source.type === 'venue' ? 'fa-location-dot' : 'fa-user-group' }}"
@@ -197,30 +189,23 @@
           </nav>
 
           @if (activeSection() === 'feed') {
-            <section
-              id="community-panel-feed"
-              aria-labelledby="community-tab-feed"
-            >
+            <section id="community-panel-feed" aria-labelledby="community-tab-feed">
               <app-community-feed
                 [communityId]="preview.community.communityId"
+                [sourceType]="preview.community.source.type"
                 view="feed"
               />
             </section>
           } @else if (activeSection() === 'photos') {
-            <section
-              id="community-panel-photos"
-              aria-labelledby="community-tab-photos"
-            >
+            <section id="community-panel-photos" aria-labelledby="community-tab-photos">
               <app-community-feed
                 [communityId]="preview.community.communityId"
+                [sourceType]="preview.community.source.type"
                 view="photos"
               />
             </section>
           } @else if (activeSection() === 'requests' && canManage(preview.viewerMode)) {
-            <section
-              id="community-panel-requests"
-              aria-labelledby="community-tab-requests"
-            >
+            <section id="community-panel-requests" aria-labelledby="community-tab-requests">
               <app-community-membership-management
                 [communityId]="preview.community.communityId"
                 [sourceType]="preview.community.source.type"
