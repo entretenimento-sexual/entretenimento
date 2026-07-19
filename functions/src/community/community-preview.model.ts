@@ -4,9 +4,14 @@
 // -----------------------------------------------------------------------------
 // Contratos sanitizados para descoberta paginada e página comunitária somente
 // leitura. Nenhum campo financeiro, privado ou de localização precisa é exposto.
+//
+// Definições de domínio preservadas neste contrato:
+// - `community`: grupo permanente de pessoas com membros, regras e mural;
+// - `venue`: Local físico que reutiliza infraestrutura social internamente;
+// - Sala não é uma origem comunitária. Salas pertencem ao domínio `/chat/rooms`.
 // -----------------------------------------------------------------------------
 
-export type CommunitySourceType = 'venue' | 'room';
+export type CommunitySourceType = 'community' | 'venue';
 export type CommunityJoinPolicy = 'open' | 'approval' | 'invite_only';
 export type CommunityViewerMode =
   | 'visitor'
@@ -114,7 +119,7 @@ function normalizeCount(value: unknown): number {
 }
 
 function normalizeSourceType(value: unknown): CommunitySourceType | null {
-  return value === 'venue' || value === 'room' ? value : null;
+  return value === 'community' || value === 'venue' ? value : null;
 }
 
 function normalizeViewerRole(value: unknown): CommunityViewerRole | null {
