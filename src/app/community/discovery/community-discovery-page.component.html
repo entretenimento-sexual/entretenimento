@@ -1,26 +1,6 @@
 <!-- src/app/community/discovery/community-discovery-page.component.html -->
 @if (state$ | async; as state) {
   <main class="community-discovery" aria-labelledby="community-discovery-title">
-    <nav class="community-discovery__tabs" aria-label="Descobrir espaços">
-      <a
-        routerLink="/dashboard/comunidades"
-        routerLinkActive="is-active"
-        [routerLinkActiveOptions]="{ exact: true }"
-      >
-        Comunidades
-      </a>
-      <a
-        routerLink="/dashboard/locais"
-        routerLinkActive="is-active"
-        [routerLinkActiveOptions]="{ exact: true }"
-      >
-        Locais
-      </a>
-      <a routerLink="/chat/rooms">
-        Salas
-      </a>
-    </nav>
-
     <header class="community-discovery__header">
       <div>
         <h1 id="community-discovery-title">{{ title }}</h1>
