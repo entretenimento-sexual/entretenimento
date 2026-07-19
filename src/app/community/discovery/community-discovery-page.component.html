@@ -1,13 +1,40 @@
 <!-- src/app/community/discovery/community-discovery-page.component.html -->
 @if (state$ | async; as state) {
   <main class="community-discovery" aria-labelledby="community-discovery-title">
+    <nav class="community-discovery__tabs" aria-label="Categorias de comunidades">
+      <a
+        routerLink="/dashboard/comunidades"
+        routerLinkActive="is-active"
+        [routerLinkActiveOptions]="{ exact: true }"
+      >
+        Para você
+      </a>
+      <a
+        routerLink="/dashboard/comunidades/locais"
+        routerLinkActive="is-active"
+      >
+        Locais
+      </a>
+    </nav>
+
     <header class="community-discovery__header">
       <div>
-        <h1 id="community-discovery-title">Comunidades</h1>
+        <h1 id="community-discovery-title">{{ title }}</h1>
         @if (state.status === 'ready') {
           <span aria-live="polite">{{ state.items.length }}</span>
         }
       </div>
+
+      @if (canCreateVenue) {
+        <a
+          class="community-discovery__create"
+          routerLink="/dashboard/comunidades/locais/novo"
+          aria-label="Criar um novo Local"
+        >
+          <i class="fas fa-plus" aria-hidden="true"></i>
+          <span>Criar</span>
+        </a>
+      }
     </header>
 
     @if (state.status === 'loading') {
@@ -24,15 +51,23 @@
     } @else if (state.status === 'empty') {
       <div class="community-discovery__state" role="status">
         <i class="far fa-compass" aria-hidden="true"></i>
-        <span>Nenhuma comunidade disponível.</span>
+        <span>{{ emptyMessage }}</span>
+        @if (canCreateVenue) {
+          <a
+            class="community-discovery__empty-create"
+            routerLink="/dashboard/comunidades/locais/novo"
+          >
+            Criar o primeiro
+          </a>
+        }
       </div>
     } @else {
-      <ul class="community-discovery__grid" aria-label="Comunidades disponíveis">
+      <ul class="community-discovery__grid" [attr.aria-label]="title + ' disponíveis'">
         @for (item of state.items; track item.communityId) {
           <li>
             <a
               class="community-card"
-              [routerLink]="['/dashboard/comunidades', item.communityId]"
+              [routerLink]="detailsRoute(item)"
               [attr.aria-label]="'Abrir ' + item.name"
             >
               <div class="community-card__media" aria-hidden="true">
