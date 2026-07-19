@@ -1,4 +1,4 @@
-//functions\src\account_lifecycle\_shared.ts
+// functions/src/account_lifecycle/_shared.ts
 import { createHash } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
@@ -9,6 +9,8 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
  * lifecycle, mas a fonte real da região passa a ser centralizada.
  */
 export const ACCOUNT_LIFECYCLE_REGION = FUNCTIONS_REGION;
+export const MAX_LIFECYCLE_REASON_LENGTH = 500;
+export const RECENT_AUTH_MAX_AGE_SECONDS = 10 * 60;
 
 export type StaffPermission = 'users:suspend' | 'users:delete';
 
@@ -18,6 +20,11 @@ export type AccountStatus =
   | 'moderation_suspended'
   | 'pending_deletion'
   | 'deleted';
+
+export type RestorableAccountStatus = Exclude<
+  AccountStatus,
+  'pending_deletion' | 'deleted'
+>;
 
 export type UserDoc = {
   uid?: string;
@@ -38,6 +45,7 @@ export type UserDoc = {
   publicVisibility?: 'visible' | 'hidden' | null;
   interactionBlocked?: boolean | null;
   loginAllowed?: boolean | null;
+  suspended?: boolean | null;
 
   suspensionReason?: string | null;
   suspensionSource?: 'self' | 'moderator' | null;
@@ -48,6 +56,12 @@ export type UserDoc = {
   deletionUndoUntil?: number | null;
   purgeAfter?: number | null;
   deletedAt?: number | null;
+
+  deletionRestoreStatus?: RestorableAccountStatus | null;
+  deletionRestoreSuspended?: boolean | null;
+  deletionRestoreSuspensionReason?: string | null;
+  deletionRestoreSuspensionSource?: 'self' | 'moderator' | null;
+  deletionRestoreSuspensionEndsAt?: number | null;
 
   legalHold?: boolean;
   billingHold?: boolean;
@@ -60,13 +74,68 @@ export type UserDoc = {
   superadmin?: boolean | null;
 };
 
+/**
+ * Ações que mudam visibilidade, acesso ou retenção da conta exigem login
+ * recente. Isso impede que uma sessão antiga ou abandonada altere o lifecycle.
+ */
+export function assertRecentAuthentication(
+  authToken: Record<string, unknown> | undefined,
+  maxAgeSeconds = RECENT_AUTH_MAX_AGE_SECONDS
+): void {
+  const authTimeSeconds = Number(authToken?.['auth_time']);
+  const nowSeconds = Math.floor(Date.now() / 1_000);
+  const ageSeconds = nowSeconds - authTimeSeconds;
+
+  if (
+    !Number.isFinite(authTimeSeconds) ||
+    authTimeSeconds <= 0 ||
+    ageSeconds < -60 ||
+    ageSeconds > maxAgeSeconds
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Autenticação recente necessária para alterar o estado da conta.',
+      {
+        reason: 'recent-authentication-required',
+        recommendedAction: 'sign_in_again',
+        maxAgeSeconds,
+      }
+    );
+  }
+}
+
 export function normalizeOptionalReason(reason?: string | null): string | null {
-  const safe = String(reason ?? '').trim();
-  return safe || null;
+  return normalizeLifecycleReason(reason, false);
 }
 
 export function normalizeRequiredReason(reason?: string | null): string {
-  return String(reason ?? '').trim();
+  return normalizeLifecycleReason(reason, true) ?? '';
+}
+
+function normalizeLifecycleReason(
+  reason: unknown,
+  required: boolean
+): string | null {
+  const safe = String(reason ?? '')
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!safe) {
+    if (required) {
+      throw new HttpsError('invalid-argument', 'Motivo obrigatório.');
+    }
+    return null;
+  }
+
+  if (safe.length > MAX_LIFECYCLE_REASON_LENGTH) {
+    throw new HttpsError(
+      'invalid-argument',
+      `O motivo deve ter no máximo ${MAX_LIFECYCLE_REASON_LENGTH} caracteres.`
+    );
+  }
+
+  return safe;
 }
 
 export function normalizeNicknameForIndex(raw?: string | null): string {
@@ -169,7 +238,9 @@ export async function assertStaffAuthorization(params: {
     throw new HttpsError('unauthenticated', 'Moderador não autenticado.');
   }
 
-  const fromClaims = collectRolesAndPermissions((authToken ?? {}) as Record<string, unknown>);
+  const fromClaims = collectRolesAndPermissions(
+    (authToken ?? {}) as Record<string, unknown>
+  );
   if (
     hasElevatedRole(fromClaims.roles) ||
     hasRequiredPermission(fromClaims.permissions, requiredPermission)
@@ -180,7 +251,9 @@ export async function assertStaffAuthorization(params: {
   const actorSnap = await db.collection('users').doc(actorUid).get();
   const actorData = (actorSnap.data() ?? {}) as UserDoc;
 
-  const fromUserDoc = collectRolesAndPermissions(actorData as Record<string, unknown>);
+  const fromUserDoc = collectRolesAndPermissions(
+    actorData as Record<string, unknown>
+  );
   if (
     hasElevatedRole(fromUserDoc.roles) ||
     hasRequiredPermission(fromUserDoc.permissions, requiredPermission)
