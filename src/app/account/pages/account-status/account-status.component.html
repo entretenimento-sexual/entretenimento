@@ -79,6 +79,16 @@
           </a>
         }
       </section>
+
+      @if (lifecycleDialogIntent()) {
+        <app-account-lifecycle-dialog
+          [intent]="lifecycleDialogIntent()!"
+          [busy]="isBusy()"
+          [reauthenticationMode]="lifecycleReauthenticationMode()"
+          (closed)="closeLifecycleDialog()"
+          (confirmed)="onLifecycleDialogConfirmed($event)"
+        />
+      }
     } @else {
       <section class="account-status-card" role="status" aria-live="polite">
         <p>Carregando o estado da conta...</p>
