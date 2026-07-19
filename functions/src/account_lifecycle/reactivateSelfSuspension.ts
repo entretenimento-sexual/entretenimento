@@ -8,14 +8,15 @@ import {
   buildPublicProfileSeed,
   createLifecycleAudit,
   getNicknameIndexDocId,
-  normalizeNicknameForIndex,
+  isUserEligibleForPublicProjection,
+  resolveNicknameNormalized,
 } from './_shared';
 
 interface AccountLifecycleCommandResult {
   ok: boolean;
   accountStatus: 'active';
-  publicVisibility: 'visible';
-  interactionBlocked: false;
+  publicVisibility: 'visible' | 'hidden';
+  interactionBlocked: boolean;
   suspended: false;
   suspensionReason: null;
   suspensionSource: null;
@@ -39,102 +40,120 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
 
     const now = Date.now();
 
-    await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-      const userRef = db.collection('users').doc(uid);
-      const publicProfileRef = db.collection('public_profiles').doc(uid);
+    const restored = await db.runTransaction(
+      async (tx: FirebaseFirestore.Transaction) => {
+        const userRef = db.collection('users').doc(uid);
+        const publicProfileRef = db.collection('public_profiles').doc(uid);
 
-      const userSnap = await tx.get(userRef);
-      if (!userSnap.exists) {
-        throw new HttpsError('not-found', 'Usuário não encontrado.');
-      }
+        const userSnap = await tx.get(userRef);
+        if (!userSnap.exists) {
+          throw new HttpsError('not-found', 'Usuário não encontrado.');
+        }
 
-      const user = (userSnap.data() ?? {}) as UserDoc;
-      const currentStatus = String(user.accountStatus ?? 'active');
+        const user = (userSnap.data() ?? {}) as UserDoc;
+        const currentStatus = String(user.accountStatus ?? 'active');
 
-      if (currentStatus === 'deleted') {
-        throw new HttpsError('failed-precondition', 'Conta já excluída.');
-      }
+        if (currentStatus === 'deleted') {
+          throw new HttpsError('failed-precondition', 'Conta já excluída.');
+        }
 
-      if (currentStatus === 'active') {
-        return;
-      }
+        if (currentStatus === 'active') {
+          return {
+            publicVisibility:
+              user.publicVisibility === 'visible' ? 'visible' : 'hidden',
+            interactionBlocked: user.interactionBlocked === true,
+          } as const;
+        }
 
-      if (currentStatus !== 'self_suspended') {
-        throw new HttpsError(
-          'permission-denied',
-          'Somente uma autossuspensão pode ser reativada por este fluxo.'
-        );
-      }
+        if (currentStatus !== 'self_suspended') {
+          throw new HttpsError(
+            'permission-denied',
+            'Somente uma autossuspensão pode ser reativada por este fluxo.'
+          );
+        }
 
-      tx.set(
-        userRef,
-        {
-          accountStatus: 'active',
-          publicVisibility: 'visible',
-          interactionBlocked: false,
-          loginAllowed: true,
+        const canPublish = isUserEligibleForPublicProjection(user);
+        const publicVisibility = canPublish ? 'visible' : 'hidden';
+        const interactionBlocked = !canPublish;
 
-          suspended: false,
-          suspensionReason: null,
-          suspensionSource: null,
-          suspensionEndsAt: null,
-
-          unsuspendedAtMs: now,
-          unsuspendedBy: 'self',
-
-          statusUpdatedAt: now,
-          statusUpdatedBy: 'self',
-        },
-        { merge: true }
-      );
-
-      tx.set(
-        publicProfileRef,
-        buildPublicProfileSeed(user, uid, now),
-        { merge: true }
-      );
-
-      const nicknameIndexDocId = getNicknameIndexDocId(user);
-      if (nicknameIndexDocId) {
         tx.set(
-          db.collection('public_index').doc(nicknameIndexDocId),
+          userRef,
           {
-            type: 'nickname',
-            value:
-              String(user.nicknameNormalized ?? '').trim() ||
-              normalizeNicknameForIndex(user.nickname),
-            uid,
-            createdAt: now,
-            lastChangedAt: now,
+            accountStatus: 'active',
+            publicVisibility,
+            interactionBlocked,
+            loginAllowed: true,
+            suspended: false,
+            suspensionReason: null,
+            suspensionSource: null,
+            suspensionEndsAt: null,
+            unsuspendedAtMs: now,
+            unsuspendedBy: 'self',
+            statusUpdatedAt: now,
+            statusUpdatedBy: 'self',
           },
           { merge: true }
         );
-      }
 
-      createLifecycleAudit(tx, {
-        uid,
-        actorUid: uid,
-        action: 'reactivate_self_suspension',
-        previousAccountStatus: 'self_suspended',
-        accountStatus: 'active',
-        source: 'self',
-        moderationReason: null,
-        createdAt: now,
-        updatedAt: now,
-      });
-    });
+        const nicknameIndexDocId = getNicknameIndexDocId(user);
+
+        if (canPublish) {
+          tx.set(
+            publicProfileRef,
+            buildPublicProfileSeed(user, uid, now),
+            { merge: true }
+          );
+
+          if (nicknameIndexDocId) {
+            tx.set(
+              db.collection('public_index').doc(nicknameIndexDocId),
+              {
+                type: 'nickname',
+                value: resolveNicknameNormalized(user),
+                uid,
+                createdAt: now,
+                lastChangedAt: now,
+              },
+              { merge: true }
+            );
+          }
+        } else {
+          tx.delete(publicProfileRef);
+          if (nicknameIndexDocId) {
+            tx.delete(db.collection('public_index').doc(nicknameIndexDocId));
+          }
+        }
+
+        createLifecycleAudit(tx, {
+          uid,
+          actorUid: uid,
+          action: 'reactivate_self_suspension',
+          previousAccountStatus: 'self_suspended',
+          accountStatus: 'active',
+          publicProjectionRestored: canPublish,
+          source: 'self',
+          moderationReason: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        return { publicVisibility, interactionBlocked } as const;
+      }
+    );
 
     return {
       ok: true,
       accountStatus: 'active',
-      publicVisibility: 'visible',
-      interactionBlocked: false,
+      ...restored,
       suspended: false,
       suspensionReason: null,
       suspensionSource: null,
       suspensionEndsAt: null,
       statusUpdatedAt: now,
-      message: 'Conta reativada com sucesso.',
+      message:
+        restored.publicVisibility === 'visible'
+          ? 'Conta reativada com sucesso.'
+          : 'Conta reativada. Conclua as verificações pendentes para voltar a aparecer e interagir.',
     };
   }
 );
