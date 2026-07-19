@@ -1,9 +1,12 @@
 // scripts/dev/seed-community-preview.mjs
 // -----------------------------------------------------------------------------
-// SEED DEV/EMULATOR - COMMUNITY PREVIEW
+// SEED DEV/EMULATOR - LOCAIS E COMUNIDADES
 // -----------------------------------------------------------------------------
 // - exige FIRESTORE_EMULATOR_HOST;
-// - cria somente comunidades e publicações fictícias;
+// - cria um Local e duas Comunidades fictícias;
+// - Local é um lugar físico ou estabelecimento real;
+// - Comunidade é um grupo permanente de pessoas;
+// - Sala é conversa em tempo real e não é criada por este seed;
 // - não grava coordenadas ou informações pessoais;
 // - imagens usam domínio reservado .invalid e acionam o fallback local;
 // - usa merge para preservar ajustes manuais do emulador.
@@ -30,9 +33,9 @@ const now = Date.now();
 const communities = [
   {
     id: 'community-rj-centro',
-    name: 'Centro à noite',
-    slug: 'centro-a-noite',
-    description: 'Novidades e encontros em locais moderados da região central.',
+    name: 'Bar Luz Centro',
+    slug: 'bar-luz-centro',
+    description: 'Local fictício com novidades, fotos e encontros na região central.',
     source: { type: 'venue', id: 'rj-centro-bar-luz' },
     status: 'active',
     visibility: 'public_preview',
@@ -49,8 +52,8 @@ const communities = [
     id: 'community-zona-sul',
     name: 'Zona Sul agora',
     slug: 'zona-sul-agora',
-    description: 'Movimento, fotos e atualizações de uma comunidade local.',
-    source: { type: 'venue', id: 'rj-zona-sul-club-noite' },
+    description: 'Comunidade de pessoas interessadas em movimento e encontros na Zona Sul.',
+    source: { type: 'community', id: 'community-zona-sul' },
     status: 'active',
     visibility: 'public_preview',
     access: {
@@ -67,11 +70,11 @@ const communities = [
     rankScore: 88,
   },
   {
-    id: 'community-sala-conexoes',
+    id: 'community-conexoes-discretas',
     name: 'Conexões discretas',
     slug: 'conexoes-discretas',
-    description: 'Sala comunitária fictícia para validar a experiência somente leitura.',
-    source: { type: 'room', id: 'room-community-preview' },
+    description: 'Comunidade fictícia para pessoas que valorizam discrição e respeito.',
+    source: { type: 'community', id: 'community-conexoes-discretas' },
     status: 'active',
     visibility: 'public_preview',
     access: {
@@ -91,11 +94,11 @@ const communityPosts = {
       id: 'centro-photo-1',
       kind: 'photo',
       audience: 'public_preview',
-      author: { label: 'Equipe do local', avatarUrl: null },
+      author: { label: 'Equipe do Local', avatarUrl: null },
       text: 'Ambiente preparado para a noite.',
       image: {
         url: 'https://community-preview.invalid/centro-noite-1.webp',
-        alt: 'Área social do local preparada para a noite',
+        alt: 'Área social do Local preparada para a noite',
       },
       metrics: { commentCount: 4, reactionCount: 19 },
       offsetMs: 22 * 60_000,
@@ -104,7 +107,7 @@ const communityPosts = {
       id: 'centro-text-1',
       kind: 'text',
       audience: 'public_preview',
-      author: { label: 'Moderação', avatarUrl: null },
+      author: { label: 'Equipe do Local', avatarUrl: null },
       text: 'Movimento tranquilo e entrada organizada.',
       image: null,
       metrics: { commentCount: 2, reactionCount: 8 },
@@ -114,11 +117,11 @@ const communityPosts = {
       id: 'centro-photo-members',
       kind: 'photo',
       audience: 'members_only',
-      author: { label: 'Comunidade', avatarUrl: null },
-      text: 'Registro reservado aos membros.',
+      author: { label: 'Equipe do Local', avatarUrl: null },
+      text: 'Registro reservado às pessoas autorizadas no Local.',
       image: {
         url: 'https://community-preview.invalid/centro-membros.webp',
-        alt: 'Registro reservado da comunidade',
+        alt: 'Registro reservado do Local',
       },
       metrics: { commentCount: 1, reactionCount: 6 },
       offsetMs: 110 * 60_000,
@@ -129,11 +132,11 @@ const communityPosts = {
       id: 'zona-sul-photo-1',
       kind: 'photo',
       audience: 'public_preview',
-      author: { label: 'Equipe do local', avatarUrl: null },
-      text: 'Espaço aberto e fluxo moderado.',
+      author: { label: 'Moderação da Comunidade', avatarUrl: null },
+      text: 'Encontro comunitário aberto para acompanhamento.',
       image: {
         url: 'https://community-preview.invalid/zona-sul-1.webp',
-        alt: 'Espaço social da comunidade',
+        alt: 'Encontro fictício da Comunidade',
       },
       metrics: { commentCount: 9, reactionCount: 31 },
       offsetMs: 35 * 60_000,
@@ -142,7 +145,7 @@ const communityPosts = {
       id: 'zona-sul-text-1',
       kind: 'text',
       audience: 'public_preview',
-      author: { label: 'Moderação', avatarUrl: null },
+      author: { label: 'Moderação da Comunidade', avatarUrl: null },
       text: 'Atualizações públicas permanecem visíveis para visitantes.',
       image: null,
       metrics: { commentCount: 3, reactionCount: 12 },
@@ -152,46 +155,46 @@ const communityPosts = {
       id: 'zona-sul-photo-2',
       kind: 'photo',
       audience: 'public_preview',
-      author: { label: 'Equipe do local', avatarUrl: null },
+      author: { label: 'Comunidade', avatarUrl: null },
       text: null,
       image: {
         url: 'https://community-preview.invalid/zona-sul-2.webp',
-        alt: 'Detalhe do ambiente comunitário',
+        alt: 'Registro fictício da Comunidade',
       },
       metrics: { commentCount: 1, reactionCount: 10 },
       offsetMs: 150 * 60_000,
     },
   ],
-  'community-sala-conexoes': [
+  'community-conexoes-discretas': [
     {
-      id: 'sala-text-1',
+      id: 'conexoes-text-1',
       kind: 'text',
       audience: 'public_preview',
-      author: { label: 'Moderação da sala', avatarUrl: null },
-      text: 'A prévia mostra o movimento, mas não libera interação.',
+      author: { label: 'Moderação da Comunidade', avatarUrl: null },
+      text: 'A prévia mostra publicações, mas não libera interação.',
       image: null,
       metrics: { commentCount: 0, reactionCount: 4 },
       offsetMs: 18 * 60_000,
     },
     {
-      id: 'sala-photo-1',
+      id: 'conexoes-photo-1',
       kind: 'photo',
       audience: 'public_preview',
-      author: { label: 'Moderação da sala', avatarUrl: null },
-      text: 'Imagem fictícia para validar a galeria.',
+      author: { label: 'Moderação da Comunidade', avatarUrl: null },
+      text: 'Imagem fictícia para validar a galeria comunitária.',
       image: {
-        url: 'https://community-preview.invalid/sala-1.webp',
-        alt: 'Imagem fictícia da sala comunitária',
+        url: 'https://community-preview.invalid/conexoes-1.webp',
+        alt: 'Imagem fictícia da Comunidade',
       },
       metrics: { commentCount: 0, reactionCount: 7 },
       offsetMs: 55 * 60_000,
     },
     {
-      id: 'sala-text-members',
+      id: 'conexoes-text-members',
       kind: 'text',
       audience: 'members_only',
       author: { label: 'Comunidade', avatarUrl: null },
-      text: 'Publicação reservada aos integrantes ativos.',
+      text: 'Publicação reservada aos membros ativos.',
       image: null,
       metrics: { commentCount: 2, reactionCount: 5 },
       offsetMs: 95 * 60_000,
@@ -200,7 +203,7 @@ const communityPosts = {
 };
 
 console.log(
-  `[seed:communities] Projeto=${projectId} | Emulador=${emulatorHost} | Comunidades=${communities.length}`
+  `[seed:communities] Projeto=${projectId} | Emulador=${emulatorHost} | Espaços=${communities.length}`
 );
 
 for (const community of communities) {
@@ -256,7 +259,7 @@ for (const community of communities) {
   }
 
   console.log(
-    `[seed:communities] upsert communities/${id} | posts=${communityPosts[id]?.length ?? 0}`
+    `[seed:communities] upsert communities/${id} | source=${data.source.type} | posts=${communityPosts[id]?.length ?? 0}`
   );
 }
 
