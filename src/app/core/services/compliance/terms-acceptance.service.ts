@@ -24,20 +24,16 @@ export interface AcceptedPlatformTermsResult {
 }
 
 /**
- * Compatibilidade controlada:
- * - ausência total do campo representa conta legada e não bloqueia esta migração;
- * - accepted=false sempre exige a etapa;
+ * Termos são fail-closed:
+ * - ausência de registro exige aceite;
+ * - accepted=false exige aceite;
  * - registros versionados devem coincidir com a versão atual;
- * - accepted=true sem versão é tratado como v1 somente nesta migração inicial.
+ * - accepted=true sem versão é compatível apenas com v1 nesta migração inicial.
  */
 export function hasAcceptedCurrentTerms(
   record: IUserTermsAcceptance | null | undefined
 ): boolean {
-  if (record == null) {
-    return true;
-  }
-
-  if (record.accepted !== true) {
+  if (record == null || record.accepted !== true) {
     return false;
   }
 
@@ -95,7 +91,9 @@ export class TermsAcceptanceService {
           result.version !== TERMS_ACCEPTANCE_VERSION ||
           !Number.isFinite(result.acceptedAtMs)
         ) {
-          throw new Error('A confirmação dos termos retornou dados inválidos.');
+          throw new Error(
+            'A confirmação dos termos retornou dados inválidos.'
+          );
         }
 
         const record: IUserTermsAcceptance = {
@@ -139,7 +137,7 @@ export class TermsAcceptanceService {
 
       this.globalError.handleError(err);
     } catch {
-      // noop
+      // Falha de diagnóstico não interfere na aceitação dos termos.
     }
   }
 }
