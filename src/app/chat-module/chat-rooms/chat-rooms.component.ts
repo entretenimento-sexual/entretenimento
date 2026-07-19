@@ -70,6 +70,7 @@ import { RoomManagementService } from 'src/app/core/services/batepapo/room-servi
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 
 import { InfoCriaSalaBpComponent } from 'src/app/core/textos-globais/info-cria-sala-bp/info-cria-sala-bp.component';
 import { RoomCreationConfirmationModalComponent } from '../modals/room-create-confirm-modal/room-creation-confirmation-modal.component';
@@ -141,7 +142,6 @@ export class ChatRoomsComponent implements OnInit {
         uid: String(uid ?? '').trim() || null,
         user,
       })),
-
       distinctUntilChanged(
         (previous, current) =>
           previous.uid === current.uid &&
@@ -150,14 +150,12 @@ export class ChatRoomsComponent implements OnInit {
           (previous.user as IUserDados | null | undefined)?.profileCompleted ===
             (current.user as IUserDados | null | undefined)?.profileCompleted
       ),
-
       tap(({ user }) => {
         this.currentUser =
           user && user !== undefined
             ? (user as IUserDados)
             : null;
       }),
-
       switchMap(({ uid }) => {
         if (!uid) {
           return of(this.buildViewModel(null, [], false, false));
@@ -172,13 +170,10 @@ export class ChatRoomsComponent implements OnInit {
           })
         );
       }),
-
       tap((viewModel) => {
         this.latestVm = viewModel;
       }),
-
       shareReplay({ bufferSize: 1, refCount: true }),
-
       takeUntilDestroyed(this.destroyRef)
     );
   }
@@ -192,31 +187,15 @@ export class ChatRoomsComponent implements OnInit {
   selectRoom(roomId: string): void {
     const id = String(roomId ?? '').trim();
 
-    if (!id) {
-      return;
-    }
-
+    if (!id) return;
     this.roomSelected.emit(id);
   }
 
-  /**
-   * Abre o formulário de criação e executa a escrita uma única vez.
-   *
-   * Segurança:
-   * - a UI impede nova solicitação quando já reconhece uma sala própria ativa;
-   * - esse bloqueio visual não substitui a validação backend;
-   * - a callable resolve autenticação, entitlement, lifecycle e limite real;
-   * - nenhuma informação estrutural sensível é escolhida pelo cliente.
-   */
   openCreateRoomModal(): void {
-    if (this.creatingRoom) {
-      return;
-    }
+    if (this.creatingRoom) return;
 
     if (this.latestVm.loading) {
-      this.errorNotifier.showInfo(
-        'Aguarde enquanto suas salas são carregadas.'
-      );
+      this.errorNotifier.showInfo('Aguarde enquanto suas salas são carregadas.');
       return;
     }
 
@@ -246,7 +225,6 @@ export class ChatRoomsComponent implements OnInit {
     from(this.authSession.whenReady())
       .pipe(
         switchMap(() => this.authSession.uid$.pipe(take(1))),
-
         switchMap((rawUid) => {
           const uid = String(rawUid ?? '').trim();
 
@@ -279,7 +257,6 @@ export class ChatRoomsComponent implements OnInit {
 
           return dialogRef.afterClosed().pipe(
             take(1),
-
             switchMap((result: CreateRoomModalResult | null) => {
               if (!result?.success || result.action !== 'created') {
                 return of(null);
@@ -306,30 +283,21 @@ export class ChatRoomsComponent implements OnInit {
                     'created'
                   );
                 }),
-
                 finalize(() => {
                   this.creatingRoom = false;
                 }),
-
-                /**
-                 * RoomManagementService já traduz a falha da callable para
-                 * feedback seguro. Evitamos duplicar toast aqui.
-                 */
                 catchError(() => of(null))
               );
             })
           );
         }),
-
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
   }
 
   closeRoom(room: RoomCardViewModel): void {
-    if (!room.canClose || this.closingRoomId) {
-      return;
-    }
+    if (!room.canClose || this.closingRoomId) return;
 
     const roomId = String(room.id ?? '').trim();
 
@@ -338,24 +306,35 @@ export class ChatRoomsComponent implements OnInit {
       return;
     }
 
-    const confirmed = window.confirm(
-      'Encerrar esta sala? A conversa ficará indisponível para novas ações e você poderá criar outra sala depois.'
-    );
+    const confirmation = this.dialog.open(ConfirmacaoDialogComponent, {
+      width: 'min(92vw, 30rem)',
+      maxWidth: '92vw',
+      autoFocus: 'dialog',
+      restoreFocus: true,
+      data: {
+        title: 'Encerrar sala?',
+        message:
+          'A conversa ficará indisponível para novas ações. O histórico será preservado e você poderá criar outra sala depois.',
+      },
+    });
 
-    if (!confirmed) {
-      return;
-    }
+    confirmation.afterClosed().pipe(
+      take(1),
+      switchMap((confirmed: boolean | undefined) => {
+        if (confirmed !== true) return EMPTY;
 
-    this.closingRoomId = roomId;
+        this.closingRoomId = roomId;
 
-    this.roomManagement.closeRoom(roomId).pipe(
-      tap(() => {
-        this.errorNotifier.showSuccess('Sala encerrada com segurança.');
+        return this.roomManagement.closeRoom(roomId).pipe(
+          tap(() => {
+            this.errorNotifier.showSuccess('Sala encerrada com segurança.');
+          }),
+          finalize(() => {
+            this.closingRoomId = null;
+          }),
+          catchError(() => of(null))
+        );
       }),
-      finalize(() => {
-        this.closingRoomId = null;
-      }),
-      catchError(() => of(null)),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe();
   }
@@ -364,9 +343,6 @@ export class ChatRoomsComponent implements OnInit {
     return this.closingRoomId === roomId;
   }
 
-  /**
-   * Abre a confirmação respeitando o contrato canônico do modal.
-   */
   private openRoomCreationConfirmationModal(
     room: IRoom,
     exceededLimit: boolean,
@@ -440,16 +416,9 @@ export class ChatRoomsComponent implements OnInit {
 
   private canUsePlaceIntent(user: IUserDados): boolean {
     const role = String(user.tier ?? user.role ?? '') as UserTierRole;
-
     return role === 'premium' || role === 'vip' || role === 'admin';
   }
 
-  /**
-   * Tratamento centralizado:
-   * - mensagem útil para a interface;
-   * - rastreabilidade técnica no handler global;
-   * - sem exposição de detalhes Firestore ao usuário.
-   */
   private handleError(error: unknown, userMessage: string): void {
     try {
       this.errorNotifier.showError(userMessage);
