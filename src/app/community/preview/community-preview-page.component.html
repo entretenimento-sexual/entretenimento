@@ -127,7 +127,11 @@
                     <i class="fas fa-arrow-right-from-bracket" aria-hidden="true"></i>
                   }
                   <span>
-                    {{ preview.community.source.type === 'venue' ? 'Deixar de seguir' : 'Sair' }}
+                    @if (preview.community.source.type === 'venue') {
+                      {{ preview.community.access.join === 'open' ? 'Deixar de seguir' : 'Sair do Local' }}
+                    } @else {
+                      Sair
+                    }
                   </span>
                 </button>
               }
@@ -147,7 +151,7 @@
               (click)="selectSection('feed')"
             >
               <i class="far fa-comments" aria-hidden="true"></i>
-              <span>Mural</span>
+              <span>{{ preview.community.source.type === 'venue' ? 'Novidades' : 'Mural' }}</span>
             </button>
 
             <button
@@ -180,8 +184,8 @@
                 [class.is-active]="activeSection() === 'requests'"
                 (click)="selectSection('requests')"
               >
-                <i class="fas fa-user-check" aria-hidden="true"></i>
-                <span>Solicitações</span>
+                <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                <span>Gestão</span>
               </button>
             }
           </nav>
@@ -213,6 +217,7 @@
             >
               <app-community-membership-management
                 [communityId]="preview.community.communityId"
+                [sourceType]="preview.community.source.type"
                 (membershipChanged)="membershipReviewed()"
               />
             </section>
@@ -234,7 +239,8 @@
               >
                 <span>
                   <i class="fas fa-users" aria-hidden="true"></i>
-                  {{ preview.community.metrics.memberCount }} integrantes
+                  {{ preview.community.metrics.memberCount }}
+                  {{ preview.community.source.type === 'venue' ? 'pessoas conectadas' : 'integrantes' }}
                 </span>
                 <span>
                   <i class="far fa-message" aria-hidden="true"></i>
@@ -261,7 +267,7 @@
                     ) {
                       Assinatura necessária para interagir
                     } @else if (preview.community.source.type === 'venue') {
-                      Interação reservada aos integrantes autorizados do Local
+                      Interação reservada às pessoas autorizadas no Local
                     } @else {
                       Interação reservada aos membros da Comunidade
                     }
