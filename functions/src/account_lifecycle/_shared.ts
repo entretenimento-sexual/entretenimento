@@ -64,6 +64,12 @@ export type UserDoc = {
   purgeAfter?: number | null;
   deletedAt?: number | null;
 
+  purgeStartedAt?: number | null;
+  purgeAttemptCount?: number | null;
+  purgeLastAttemptAt?: number | null;
+  purgeBlockedReason?: string | null;
+  purgeBlockedDomains?: string[] | null;
+
   deletionRestoreStatus?: RestorableAccountStatus | null;
   deletionRestoreSuspended?: boolean | null;
   deletionRestoreSuspensionReason?: string | null;
