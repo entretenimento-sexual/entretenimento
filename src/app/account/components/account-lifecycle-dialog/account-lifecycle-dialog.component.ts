@@ -1,5 +1,6 @@
 // src/app/account/components/account-lifecycle-dialog/account-lifecycle-dialog.component.ts
 import {
+  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   HostListener,
@@ -9,6 +10,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { A11yModule } from '@angular/cdk/a11y';
 
 import {
   AccountLifecycleDialogConfirmEvent,
@@ -18,12 +20,12 @@ import {
 @Component({
   selector: 'app-account-lifecycle-dialog',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, A11yModule],
   templateUrl: './account-lifecycle-dialog.component.html',
   styleUrl: './account-lifecycle-dialog.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AccountLifecycleDialogComponent {
+export class AccountLifecycleDialogComponent implements AfterViewInit {
   readonly intent = input.required<AccountLifecycleDialogIntent>();
   readonly busy = input<boolean>(false);
 
@@ -32,6 +34,9 @@ export class AccountLifecycleDialogComponent {
 
   readonly reason = signal('');
   readonly reasonTouched = signal(false);
+  readonly maxReasonLength = 500;
+
+  private previousActiveElement: HTMLElement | null = null;
 
   readonly isDanger = computed(() => {
     const intent = this.intent();
@@ -65,17 +70,17 @@ export class AccountLifecycleDialogComponent {
   readonly description = computed(() => {
     switch (this.intent()) {
       case 'self_suspend':
-        return 'Sua conta ficará invisível para outras pessoas e todas as interações serão bloqueadas até a reativação.';
+        return 'Sua conta ficará invisível e as interações serão bloqueadas até você reativá-la. Uma suspensão aplicada pela moderação não pode ser removida por este fluxo.';
       case 'self_delete':
-        return 'Sua conta entrará em exclusão pendente, ficará invisível e as interações serão bloqueadas. Ainda haverá uma janela curta para arrependimento.';
+        return 'Sua conta ficará invisível imediatamente. Você poderá cancelar a solicitação por 24 horas; depois desse prazo, a exclusão definitiva poderá ser iniciada.';
       case 'reactivate_self_suspend':
         return 'Sua conta voltará a ficar visível e poderá interagir normalmente na plataforma.';
       case 'cancel_pending_deletion':
-        return 'A exclusão pendente será cancelada e sua conta voltará ao estado ativo.';
+        return 'A exclusão pendente será cancelada e o estado que a conta possuía antes da solicitação será restaurado.';
       case 'moderator_suspend':
-        return 'A conta ficará invisível para terceiros, com interações totalmente bloqueadas e acesso redirecionado para a página de status.';
+        return 'A conta ficará invisível para terceiros, com interações bloqueadas e acesso restrito à página de status.';
       case 'moderator_delete':
-        return 'A conta entrará em exclusão pendente, ficará invisível imediatamente e seguirá para retenção mínima e expurgo posterior.';
+        return 'A conta entrará em exclusão pendente, ficará invisível imediatamente e seguirá para retenção e expurgo posterior.';
       default:
         return 'Confirme a ação.';
     }
@@ -86,7 +91,7 @@ export class AccountLifecycleDialogComponent {
       case 'self_suspend':
         return 'Confirmar suspensão';
       case 'self_delete':
-        return 'Confirmar exclusão';
+        return 'Solicitar exclusão';
       case 'reactivate_self_suspend':
         return 'Reativar conta';
       case 'cancel_pending_deletion':
@@ -106,7 +111,6 @@ export class AccountLifecycleDialogComponent {
       case 'moderator_delete':
         return 'Motivo obrigatório';
       case 'self_suspend':
-        return 'Motivo opcional';
       case 'self_delete':
         return 'Motivo opcional';
       default:
@@ -121,7 +125,7 @@ export class AccountLifecycleDialogComponent {
       case 'moderator_delete':
         return 'Explique de forma objetiva a razão da exclusão.';
       case 'self_suspend':
-        return 'Ex.: pausa pessoal, necessidade de se afastar, discrição.';
+        return 'Ex.: pausa pessoal ou necessidade de discrição.';
       case 'self_delete':
         return 'Ex.: não desejo mais manter a conta.';
       default:
@@ -129,18 +133,30 @@ export class AccountLifecycleDialogComponent {
     }
   });
 
-  readonly reasonError = computed(() => {
-    if (!this.requiresReason()) return null;
-    if (!this.reasonTouched()) return null;
+  readonly reasonLength = computed(() => this.reason().length);
 
-    return this.reason().trim() ? null : 'O motivo é obrigatório para esta ação.';
+  readonly reasonError = computed(() => {
+    if (this.reasonLength() > this.maxReasonLength) {
+      return `O motivo deve ter no máximo ${this.maxReasonLength} caracteres.`;
+    }
+
+    if (!this.requiresReason() || !this.reasonTouched()) return null;
+    return this.reason().trim()
+      ? null
+      : 'O motivo é obrigatório para esta ação.';
   });
 
   readonly canConfirm = computed(() => {
-    if (this.busy()) return false;
+    if (this.busy() || this.reasonLength() > this.maxReasonLength) return false;
     if (!this.requiresReason()) return true;
     return this.reason().trim().length > 0;
   });
+
+  ngAfterViewInit(): void {
+    if (typeof document !== 'undefined') {
+      this.previousActiveElement = document.activeElement as HTMLElement | null;
+    }
+  }
 
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
@@ -167,21 +183,23 @@ export class AccountLifecycleDialogComponent {
   }
 
   onClose(): void {
+    const focusTarget = this.previousActiveElement;
+    this.previousActiveElement = null;
     this.closed.emit();
+
+    if (focusTarget?.isConnected) {
+      setTimeout(() => focusTarget.focus(), 0);
+    }
   }
 
   onConfirm(): void {
     this.reasonTouched.set(true);
 
-    if (!this.canConfirm()) {
-      return;
-    }
+    if (!this.canConfirm()) return;
 
-    const payload: AccountLifecycleDialogConfirmEvent = {
+    this.confirmed.emit({
       intent: this.intent(),
       reason: this.reason().trim() || null,
-    };
-
-    this.confirmed.emit(payload);
+    });
   }
 }
