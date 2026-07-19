@@ -2,7 +2,8 @@
 // =============================================================================
 // COMMUNITIES
 // =============================================================================
-// Comunidades sociais originadas de locais ou salas.
+// Comunidades sociais próprias ou infraestrutura social vinculada a Locais.
+// Salas pertencem exclusivamente ao domínio de conversas.
 //
 // Segurança:
 // - usuário autenticado pode abrir uma comunidade com prévia pública;
@@ -86,13 +87,18 @@ match /community_membership_audit/{auditId} {
   allow read, write: if false;
 }
 
-// Registro idempotente da criação de Local. Contém ator e IDs internos e nunca
-// deve ser consultado ou alterado pelo navegador.
+// Registros idempotentes contêm ator e identificadores internos e nunca devem
+// ser consultados ou alterados pelo navegador.
+match /community_creation_requests/{requestId} {
+  allow read, write: if false;
+}
+
 match /venue_community_creation_requests/{requestId} {
   allow read, write: if false;
 }
 
-// Projeção futura das comunidades do usuário. Backend-only nesta fase.
+// Projeção privada das Comunidades e Locais do próprio usuário. Continua
+// backend-only; a leitura sanitizada ocorre por callable paginada.
 match /community_user_index/{userId}/items/{communityId} {
   allow read, write: if false;
 }
