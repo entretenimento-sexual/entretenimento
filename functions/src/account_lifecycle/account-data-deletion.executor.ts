@@ -9,16 +9,23 @@
 // - idempotência: todas as operações podem ser repetidas;
 // - falha isolada por domínio;
 // - nenhuma mensagem, mídia, denúncia ou registro financeiro é apagado aqui;
-// - owners de Comunidades e bloqueios com eventos permanecem bloqueadores.
+// - owners de Comunidades, owners de Salas ativas e bloqueios permanecem bloqueadores.
 // -----------------------------------------------------------------------------
 import type { AccountDataDomain } from './account-data-retention.policy';
 
 export type NotificationReferenceDirection = 'recipient' | 'actor';
 export type FriendRequestDirection = 'requester' | 'target';
+export type RoomInviteDirection = 'sender' | 'receiver';
 
 export interface AccountBlockReferenceSummary {
   owned: number;
   inbound: number;
+}
+
+export interface RoomParticipationPageSummary {
+  scanned: number;
+  processed: number;
+  blockingOwners: number;
 }
 
 export interface AccountDataDeletionAdapter {
@@ -39,6 +46,29 @@ export interface AccountDataDeletionAdapter {
   ): Promise<number>;
   unlinkCommunityMembershipsPage(uid: string, limit: number): Promise<number>;
   inspectOwnedCommunityMemberships(uid: string): Promise<number>;
+  deleteRoomInvitesPage(
+    uid: string,
+    direction: RoomInviteDirection,
+    limit: number
+  ): Promise<number>;
+  unlinkRoomParticipationsPage(
+    uid: string,
+    limit: number
+  ): Promise<RoomParticipationPageSummary>;
+  unlinkRoomMembershipsPage(
+    uid: string,
+    limit: number
+  ): Promise<RoomParticipationPageSummary>;
+  deleteRoomParticipantDocumentsPage(
+    uid: string,
+    limit: number
+  ): Promise<RoomParticipationPageSummary>;
+  resolveOwnedRoomReferencesPage(
+    uid: string,
+    limit: number
+  ): Promise<RoomParticipationPageSummary>;
+  anonymizeRoomAuditPage(uid: string, limit: number): Promise<number>;
+  clearPrivateRoomReferences(uid: string): Promise<number>;
   unlinkOwnedFriendshipsPage(uid: string, limit: number): Promise<number>;
   deleteInboundFriendshipReferencesPage(
     uid: string,
@@ -86,6 +116,10 @@ interface PagedExecutionResult {
   completed: boolean;
   processed: number;
   pages: number;
+}
+
+interface RoomPagedExecutionResult extends PagedExecutionResult {
+  blockingOwners: number;
 }
 
 export async function executeAccountDataDeletionDomains(
@@ -144,6 +178,15 @@ export async function executeAccountDataDeletionDomains(
 
   results.push(
     await executeCommunityMembershipsDomain(
+      adapter,
+      uid,
+      pageSize,
+      maxPagesPerDomain
+    )
+  );
+
+  results.push(
+    await executeRoomParticipationDomain(
       adapter,
       uid,
       pageSize,
@@ -361,6 +404,154 @@ async function executeCommunityMembershipsDomain(
   }
 }
 
+async function executeRoomParticipationDomain(
+  adapter: AccountDataDeletionAdapter,
+  uid: string,
+  pageSize: number,
+  maxPages: number
+): Promise<AccountDataDeletionDomainExecution> {
+  try {
+    const sentInvites = await executePagedStep(
+      () => adapter.deleteRoomInvitesPage(uid, 'sender', pageSize),
+      pageSize,
+      maxPages
+    );
+    const receivedInvites = await executePagedStep(
+      () => adapter.deleteRoomInvitesPage(uid, 'receiver', pageSize),
+      pageSize,
+      maxPages
+    );
+    const legacyParticipations = await executeRoomPagedStep(
+      () => adapter.unlinkRoomParticipationsPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const memberships = await executeRoomPagedStep(
+      () => adapter.unlinkRoomMembershipsPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const participantDocuments = await executeRoomPagedStep(
+      () => adapter.deleteRoomParticipantDocumentsPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const ownedRooms = await executeRoomPagedStep(
+      () => adapter.resolveOwnedRoomReferencesPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const roomAudit = await executePagedStep(
+      () => adapter.anonymizeRoomAuditPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const privateReferences = normalizeProcessedCount(
+      await adapter.clearPrivateRoomReferences(uid)
+    );
+
+    const blockingOwners =
+      legacyParticipations.blockingOwners +
+      memberships.blockingOwners +
+      participantDocuments.blockingOwners +
+      ownedRooms.blockingOwners;
+    const paginationCompleted =
+      sentInvites.completed &&
+      receivedInvites.completed &&
+      legacyParticipations.completed &&
+      memberships.completed &&
+      participantDocuments.completed &&
+      ownedRooms.completed &&
+      roomAudit.completed;
+    const processed =
+      sentInvites.processed +
+      receivedInvites.processed +
+      legacyParticipations.processed +
+      memberships.processed +
+      participantDocuments.processed +
+      ownedRooms.processed +
+      roomAudit.processed +
+      privateReferences;
+    const pages =
+      sentInvites.pages +
+      receivedInvites.pages +
+      legacyParticipations.pages +
+      memberships.pages +
+      participantDocuments.pages +
+      ownedRooms.pages +
+      roomAudit.pages +
+      1;
+
+    if (blockingOwners > 0) {
+      return {
+        domain: 'room_participation',
+        status: 'blocked',
+        processed,
+        pages,
+        blocker: 'active-room-owner-close-or-transfer-required',
+        details: buildRoomParticipationDetails({
+          sentInvites,
+          receivedInvites,
+          legacyParticipations,
+          memberships,
+          participantDocuments,
+          ownedRooms,
+          roomAudit,
+          privateReferences,
+          blockingOwners,
+        }),
+      };
+    }
+
+    return {
+      domain: 'room_participation',
+      status: paginationCompleted ? 'completed' : 'partial',
+      processed,
+      pages,
+      ...(paginationCompleted
+        ? {}
+        : { blocker: 'pagination-limit-reached' }),
+      details: buildRoomParticipationDetails({
+        sentInvites,
+        receivedInvites,
+        legacyParticipations,
+        memberships,
+        participantDocuments,
+        ownedRooms,
+        roomAudit,
+        privateReferences,
+        blockingOwners: 0,
+      }),
+    };
+  } catch (error: unknown) {
+    return failedResult('room_participation', error);
+  }
+}
+
+function buildRoomParticipationDetails(input: {
+  sentInvites: PagedExecutionResult;
+  receivedInvites: PagedExecutionResult;
+  legacyParticipations: RoomPagedExecutionResult;
+  memberships: RoomPagedExecutionResult;
+  participantDocuments: RoomPagedExecutionResult;
+  ownedRooms: RoomPagedExecutionResult;
+  roomAudit: PagedExecutionResult;
+  privateReferences: number;
+  blockingOwners: number;
+}): Record<string, number> {
+  return {
+    sentInvitesProcessed: input.sentInvites.processed,
+    receivedInvitesProcessed: input.receivedInvites.processed,
+    legacyRoomParticipationsProcessed: input.legacyParticipations.processed,
+    roomMembershipsProcessed: input.memberships.processed,
+    roomParticipantDocumentsProcessed: input.participantDocuments.processed,
+    ownedRoomReferencesProcessed: input.ownedRooms.processed,
+    roomAuditRecordsProcessed: input.roomAudit.processed,
+    privateRoomReferencesProcessed: input.privateReferences,
+    blockingOwnedRooms: input.blockingOwners,
+  };
+}
+
 async function executeRelationshipEdgesDomain(
   adapter: AccountDataDeletionAdapter,
   uid: string,
@@ -450,6 +641,47 @@ async function executePagedStep(
   }
 
   return { completed: false, processed, pages };
+}
+
+async function executeRoomPagedStep(
+  operation: () => Promise<RoomParticipationPageSummary>,
+  pageSize: number,
+  maxPages: number
+): Promise<RoomPagedExecutionResult> {
+  let processed = 0;
+  let pages = 0;
+  let blockingOwners = 0;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const summary = normalizeRoomPageSummary(await operation());
+    processed += summary.processed;
+    blockingOwners += summary.blockingOwners;
+    pages += 1;
+
+    if (blockingOwners > 0) {
+      return { completed: false, processed, pages, blockingOwners };
+    }
+
+    if (summary.scanned < pageSize) {
+      return { completed: true, processed, pages, blockingOwners: 0 };
+    }
+
+    if (summary.scanned > 0 && summary.processed === 0) {
+      return { completed: false, processed, pages, blockingOwners: 0 };
+    }
+  }
+
+  return { completed: false, processed, pages, blockingOwners };
+}
+
+function normalizeRoomPageSummary(
+  value: RoomParticipationPageSummary
+): RoomParticipationPageSummary {
+  return {
+    scanned: normalizeProcessedCount(value?.scanned),
+    processed: normalizeProcessedCount(value?.processed),
+    blockingOwners: normalizeProcessedCount(value?.blockingOwners),
+  };
 }
 
 function failedResult(
