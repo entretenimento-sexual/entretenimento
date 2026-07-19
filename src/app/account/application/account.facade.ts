@@ -7,6 +7,7 @@
 // - Não anuncia senha, 2FA ou gestão de dispositivos sem evidência real.
 // -----------------------------------------------------------------------------
 import { Injectable, inject } from '@angular/core';
+import { User } from 'firebase/auth';
 import { combineLatest, Observable, of } from 'rxjs';
 import {
   catchError,
@@ -38,12 +39,15 @@ export class AccountFacade {
   private readonly billingSnapshot$ = this.authSession.readyUid$.pipe(
     map((uid) => String(uid ?? '').trim() || null),
     distinctUntilChanged(),
-    switchMap((uid) =>
-      uid ? this.billingRepository.getMyBillingSnapshot$() : of(null)
-    ),
-    catchError((error: unknown) => {
-      this.reportSilent(error, 'loadBillingSnapshot');
-      return of(null);
+    switchMap((uid) => {
+      if (!uid) return of(null);
+
+      return this.billingRepository.getMyBillingSnapshot$().pipe(
+        catchError((error: unknown) => {
+          this.reportSilent(error, 'loadBillingSnapshot');
+          return of(null);
+        })
+      );
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -54,7 +58,7 @@ export class AccountFacade {
       startWith(null)
     ),
     this.authSession.authUser$.pipe(
-      map((authUser) => authUser ?? null),
+      map((authUser): User | null => authUser ?? null),
       startWith(null)
     ),
     this.billingSnapshot$.pipe(startWith(null)),
@@ -69,7 +73,7 @@ export class AccountFacade {
 
   private buildVm(
     user: IUserDados | null,
-    authUser: any | null,
+    authUser: User | null,
     billingSnapshot: BillingSnapshotResult | null
   ): AccountOverviewVm {
     const nickname = String(user?.nickname ?? '').trim() || null;
@@ -79,7 +83,7 @@ export class AccountFacade {
       user?.emailVerified === true || authUser?.emailVerified === true;
 
     const providerIds = (authUser?.providerData ?? [])
-      .map((provider: any) => String(provider?.providerId ?? '').trim())
+      .map((provider) => String(provider?.providerId ?? '').trim())
       .filter(Boolean);
 
     const googleLinked = providerIds.includes('google.com');
