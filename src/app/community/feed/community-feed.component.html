@@ -3,17 +3,17 @@
   <section
     class="community-feed"
     [class.community-feed--photos]="view() === 'photos'"
-    [attr.aria-label]="view() === 'photos' ? 'Fotos da comunidade' : 'Mural da comunidade'"
+    [attr.aria-label]="sectionAriaLabel()"
   >
     @if (state.status === 'loading') {
       <div class="community-feed__state" role="status" aria-live="polite">
         <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-        <span>Carregando...</span>
+        <span>{{ loadingLabel() }}</span>
       </div>
     } @else if (state.status === 'error') {
       <div class="community-feed__state" role="alert">
         <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
-        <span>Não foi possível carregar.</span>
+        <span>{{ errorStateLabel() }}</span>
         <button type="button" (click)="retry()">Tentar novamente</button>
       </div>
     } @else if (state.status === 'empty') {
