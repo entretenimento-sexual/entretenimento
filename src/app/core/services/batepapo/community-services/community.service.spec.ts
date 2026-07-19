@@ -1,23 +1,7 @@
 // src/app/core/services/batepapo/community-services/community.service.spec.ts
 import { TestBed } from '@angular/core/testing';
-import { vi } from 'vitest';
-
-const firestoreMocks = vi.hoisted(() => ({
-  getFirestore: vi.fn(() => ({})),
-  collection: vi.fn(() => ({})),
-  addDoc: vi.fn(),
-  doc: vi.fn(() => ({})),
-  setDoc: vi.fn(),
-  updateDoc: vi.fn(),
-  deleteDoc: vi.fn(),
-  serverTimestamp: vi.fn(() => new Date(0)),
-  query: vi.fn(() => ({})),
-  where: vi.fn(() => ({})),
-  getDocs: vi.fn(),
-  onSnapshot: vi.fn(() => vi.fn()),
-}));
-
-vi.mock('firebase/firestore', () => firestoreMocks);
+import { firstValueFrom } from 'rxjs';
+import { describe, expect, it, beforeEach } from 'vitest';
 
 import { CommunityService } from './community.service';
 
@@ -29,7 +13,19 @@ describe('CommunityService', () => {
     service = TestBed.inject(CommunityService);
   });
 
-  it('should be created', () => {
+  it('deve ser criado', () => {
     expect(service).toBeTruthy();
+  });
+
+  it('deve bloquear criação direta pelo fluxo legado', async () => {
+    await expect(
+      service.createCommunity({} as never)
+    ).rejects.toThrow('fluxo legado');
+  });
+
+  it('deve bloquear enumeração direta de membros', async () => {
+    await expect(
+      firstValueFrom(service.observeCommunityMembers('community-1'))
+    ).rejects.toThrow('fluxo legado');
   });
 });
