@@ -48,4 +48,18 @@ describe('sidebar runtime composition', () => {
       'settings'
     );
   });
+
+  it('adds one global Communities entry and resolves Local routes', () => {
+    const sections = buildSidebarSections({
+      isSubscriber: false,
+      isVip: false,
+      isAdmin: false,
+    });
+    const communities = sections.find(({ key }) => key === 'communities');
+
+    expect(communities?.items.map(({ id }) => id)).toEqual(['communities']);
+    expect(
+      resolveSidebarSectionFromUrl('/dashboard/comunidades/locais/novo')
+    ).toBe('communities');
+  });
 });
