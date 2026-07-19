@@ -33,6 +33,7 @@ export class CommunityPreviewRepository {
         this.getDiscoveryPageCallable({
           limit: request.limit ?? 12,
           cursor: request.cursor ?? null,
+          sourceType: request.sourceType ?? null,
         })
       )
     ).pipe(
