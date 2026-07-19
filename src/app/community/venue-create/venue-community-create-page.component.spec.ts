@@ -58,7 +58,7 @@ describe('VenueCommunityCreatePageComponent', () => {
     expect(createVenueCommunity$).not.toHaveBeenCalled();
   });
 
-  it('cria Local, preserva owner no backend e abre a rota canônica', () => {
+  it('cadastra Local, preserva owner no backend e abre a rota canônica', () => {
     const fixture = TestBed.createComponent(VenueCommunityCreatePageComponent);
     const component = fixture.componentInstance;
     const router = TestBed.inject(Router);
@@ -95,19 +95,23 @@ describe('VenueCommunityCreatePageComponent', () => {
     ]);
   });
 
-  it('expõe a definição canônica de Local na tela', () => {
+  it('expõe definição, administração provisória e verificação futura', () => {
     const fixture = TestBed.createComponent(VenueCommunityCreatePageComponent);
 
     fixture.detectChanges();
 
+    expect(fixture.nativeElement.textContent).toContain('Cadastrar Local');
     expect(fixture.nativeElement.textContent).toContain(
       'Lugar físico ou estabelecimento real.'
     );
     expect(fixture.nativeElement.textContent).toContain(
-      'Você será o Proprietário deste Local.'
+      'O cadastro ficará vinculado à sua conta para administração.'
+    );
+    expect(fixture.nativeElement.textContent).toContain(
+      'A propriedade deverá ser verificada antes da publicação em produção.'
     );
     expect(fixture.nativeElement.textContent).not.toContain(
-      'proprietário da comunidade vinculada'
+      'Você será o Proprietário deste Local.'
     );
   });
 });
