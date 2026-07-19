@@ -239,7 +239,7 @@ export class CommunityPreviewPageComponent {
     sourceType: CommunityPreviewSourceType = 'community'
   ): string {
     if (role === 'owner') {
-      return sourceType === 'venue' ? 'Proprietário' : 'Criador';
+      return sourceType === 'venue' ? 'Responsável' : 'Criador';
     }
     if (role === 'admin') return 'Administração';
 
