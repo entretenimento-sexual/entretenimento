@@ -50,27 +50,34 @@ describe('CommunityFeedComponent', () => {
     });
   });
 
-  function create(view: 'feed' | 'photos' = 'feed') {
+  function create(
+    view: 'feed' | 'photos' = 'feed',
+    sourceType: 'community' | 'venue' = 'community'
+  ) {
     const fixture = TestBed.createComponent(CommunityFeedComponent);
     fixture.componentRef.setInput('communityId', 'community-1');
     fixture.componentRef.setInput('view', view);
+    fixture.componentRef.setInput('sourceType', sourceType);
     fixture.detectChanges();
     return fixture;
   }
 
   it('renderiza publicação sem controles de interação', () => {
     repositoryMock.getPage$.mockReturnValue(of(page()));
-    const fixture = create();
+    const fixture = create('feed', 'venue');
 
     expect(fixture.nativeElement.textContent).toContain('Equipe do local');
     expect(fixture.nativeElement.textContent).toContain('Movimento tranquilo.');
     expect(fixture.nativeElement.querySelector('.community-post')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('button[aria-label*="Curtir"]')).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.community-feed')?.getAttribute('aria-label')
+    ).toBe('Novidades do Local');
   });
 
   it('consulta a visualização de fotos e aplica grade contextual', () => {
     repositoryMock.getPage$.mockReturnValue(of(page()));
-    const fixture = create('photos');
+    const fixture = create('photos', 'venue');
 
     expect(repositoryMock.getPage$).toHaveBeenCalledWith(
       expect.objectContaining({ communityId: 'community-1', view: 'photos' })
@@ -78,25 +85,44 @@ describe('CommunityFeedComponent', () => {
     expect(
       fixture.nativeElement.querySelector('.community-feed--photos')
     ).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.community-feed')?.getAttribute('aria-label')
+    ).toBe('Fotos do Local');
   });
 
-  it('mostra estado vazio enxuto', () => {
+  it('mostra estados vazios coerentes por contexto', () => {
     repositoryMock.getPage$.mockReturnValue(
       of({ items: [], nextCursor: null, generatedAt: Date.now() })
     );
-    const fixture = create('photos');
 
-    expect(fixture.nativeElement.textContent).toContain('Nenhuma foto disponível.');
+    const local = create('feed', 'venue');
+    expect(local.nativeElement.textContent).toContain(
+      'Nenhuma novidade publicada.'
+    );
+
+    const community = create('feed', 'community');
+    expect(community.nativeElement.textContent).toContain(
+      'Nenhuma publicação no mural.'
+    );
+
+    const photos = create('photos', 'community');
+    expect(photos.nativeElement.textContent).toContain(
+      'Nenhuma foto publicada.'
+    );
   });
 
-  it('centraliza feedback e diagnóstico em falha', () => {
+  it('centraliza feedback e diagnóstico de Local em falha', () => {
     repositoryMock.getPage$.mockReturnValue(
       throwError(() => new Error('permission-denied'))
     );
-    const fixture = create();
+    const fixture = create('feed', 'venue');
 
-    expect(fixture.nativeElement.textContent).toContain('Não foi possível carregar.');
-    expect(errorNotifierMock.showError).toHaveBeenCalledTimes(1);
+    expect(fixture.nativeElement.textContent).toContain(
+      'Não foi possível carregar as novidades.'
+    );
+    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
+      'Não foi possível carregar as novidades do Local agora.'
+    );
     expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
   });
 
