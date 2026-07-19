@@ -9,11 +9,11 @@
         </span>
 
         <div class="chat-rooms__identity-copy">
-          <h1 id="chat-rooms-title">Salas</h1>
+          <h1 id="chat-rooms-title">Minhas salas</h1>
 
           @if (!vm.loading && !vm.loadFailed) {
             <span aria-live="polite">
-              {{ vm.rooms.length }} {{ vm.rooms.length === 1 ? 'ativa' : 'ativas' }}
+              {{ vm.rooms.length }} {{ vm.rooms.length === 1 ? 'sala' : 'salas' }}
             </span>
           }
         </div>
@@ -46,7 +46,7 @@
       </p>
     }
 
-    <section class="chat-rooms__collection" aria-label="Salas privadas">
+    <section class="chat-rooms__collection" aria-label="Salas privadas do usuário">
       @if (vm.loading) {
         <div class="chat-rooms__state" role="status" aria-live="polite">
           <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
@@ -55,12 +55,12 @@
       } @else if (vm.loadFailed) {
         <div class="chat-rooms__state chat-rooms__state--error" role="alert">
           <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
-          <span>Não foi possível carregar as salas.</span>
+          <span>Não foi possível carregar suas salas.</span>
         </div>
       } @else if (vm.rooms.length === 0) {
         <div class="chat-rooms__state" role="status">
           <i class="far fa-comments" aria-hidden="true"></i>
-          <span>Nenhuma sala ativa.</span>
+          <span>Nenhuma sala disponível.</span>
         </div>
       } @else {
         <ul class="chat-rooms__list" aria-label="Lista de salas privadas">
@@ -84,13 +84,16 @@
 
                   <span
                     class="chat-rooms__status"
-                    [class.chat-rooms__status--closed]="room.status === 'closed'"
-                    [attr.aria-label]="room.status === 'closed' ? 'Sala encerrada' : 'Sala ativa'"
+                    [class.chat-rooms__status--closed]="room.status === 'closed' || room.status === 'archived'"
+                    [attr.aria-label]="room.status === 'closed' || room.status === 'archived' ? 'Sala encerrada' : 'Sala ativa'"
                   >
                     <i
-                      class="fas {{ room.status === 'closed' ? 'fa-circle-xmark' : 'fa-circle-check' }}"
+                      class="fas {{ room.status === 'closed' || room.status === 'archived' ? 'fa-circle-xmark' : 'fa-circle-check' }}"
                       aria-hidden="true"
                     ></i>
+                    <span>
+                      {{ room.status === 'closed' || room.status === 'archived' ? 'Encerrada' : 'Ativa' }}
+                    </span>
                   </span>
                 </header>
 
