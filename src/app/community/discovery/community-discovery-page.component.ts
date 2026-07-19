@@ -17,6 +17,7 @@ import {
   Subject,
 } from 'rxjs';
 
+import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
@@ -118,13 +119,12 @@ export class CommunityDiscoveryPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly loadRequests$ = new Subject<LoadRequest>();
 
-  readonly sourceType: CommunityPreviewSourceType | null =
-    this.route.snapshot.data['sourceType'] === 'venue' ? 'venue' : null;
-  readonly title = this.sourceType === 'venue' ? 'Locais' : 'Comunidades';
-  readonly emptyMessage =
-    this.sourceType === 'venue'
-      ? 'Nenhum Local disponível.'
-      : 'Nenhuma comunidade disponível.';
+  readonly sourceType: CommunityPreviewSourceType =
+    this.route.snapshot.data['sourceType'] === 'venue' ? 'venue' : 'community';
+  readonly definition = getSocialSpaceDefinition(this.sourceType);
+  readonly title = this.definition.pluralLabel;
+  readonly description = this.definition.description;
+  readonly emptyMessage = `Nenhum ${this.definition.label} disponível.`;
   readonly canCreateVenue = this.sourceType === 'venue';
 
   readonly state$ = this.loadRequests$.pipe(
@@ -164,7 +164,7 @@ export class CommunityDiscoveryPageComponent {
   }
 
   sourceLabel(item: CommunityPreviewCard): string {
-    return item.source.type === 'venue' ? 'Local' : 'Sala';
+    return getSocialSpaceDefinition(item.source.type).label;
   }
 
   accessLabel(item: CommunityPreviewCard): string | null {
@@ -176,16 +176,14 @@ export class CommunityDiscoveryPageComponent {
 
   detailsRoute(item: CommunityPreviewCard): readonly string[] {
     return item.source.type === 'venue'
-      ? ['/dashboard/comunidades/locais', item.communityId]
+      ? ['/dashboard/locais', item.communityId]
       : ['/dashboard/comunidades', item.communityId];
   }
 
   private reportError(error: unknown): void {
     try {
       this.errorNotifier.showError(
-        this.sourceType === 'venue'
-          ? 'Não foi possível carregar os Locais.'
-          : 'Não foi possível carregar as comunidades.'
+        `Não foi possível carregar ${this.definition.pluralLabel.toLowerCase()}.`
       );
     } catch {
       // A observabilidade abaixo permanece ativa.
