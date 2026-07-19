@@ -107,10 +107,8 @@ const routes: Routes = [
       },
 
       /**
-       * Prévia comunitária somente leitura.
-       *
-       * A flag impede exposição e download fora do ambiente emulado. As callables
-       * repetem a mesma restrição no backend e não liberam interação ou mídia.
+       * Comunidade é um grupo permanente de pessoas com membros, regras e mural.
+       * A rota não lista Locais e não carrega Salas de conversa.
        */
       {
         path: 'comunidades',
@@ -123,6 +121,23 @@ const routes: Routes = [
         loadChildren: () =>
           import('../community/community.routes')
             .then((module) => module.COMMUNITY_ROUTES),
+      },
+
+      /**
+       * Local é um lugar físico ou estabelecimento real. Ele possui descoberta e
+       * criação próprias, embora reutilize internamente feed e permissões sociais.
+       */
+      {
+        path: 'locais',
+        canMatch: [requireFeatureFlag('communityPreview')],
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+        loadChildren: () =>
+          import('../community/venue.routes')
+            .then((module) => module.VENUE_ROUTES),
       },
 
       /**
