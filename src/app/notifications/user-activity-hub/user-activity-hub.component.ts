@@ -7,7 +7,8 @@
 // Decisões:
 // - não funciona como uma segunda navegação de domínio;
 // - Locais e Salas permanecem exclusivamente na navegação canônica do sidebar;
-// - exibe somente atalhos associados a atividade pendente e à central;
+// - Conexões aponta somente para solicitações entre pessoas;
+// - convites de Sala permanecem classificados como atividade de Sala/Central;
 // - badges aparecem apenas quando houver pendência;
 // - usa o stream reativo já protegido por Rules;
 // - não escreve no Firestore;
@@ -70,10 +71,10 @@ export class UserActivityHubComponent {
     {
       id: 'connections',
       label: 'Conexões',
-      description: 'Solicitações e conexões aceitas',
+      description: 'Solicitações e conexões entre pessoas',
       count: 0,
       icon: '🤝',
-      route: '/chat/invite-list',
+      route: '/friends/requests',
       priority: 90,
     },
     {
@@ -172,8 +173,8 @@ export class UserActivityHubComponent {
   }
 
   private isConnectionActivity(route: string, searchable: string): boolean {
-    return route.includes('/chat/invite-list') ||
-      route.startsWith('/friends/requests') ||
+    return route.startsWith('/friends/requests') ||
+      route.startsWith('/friends/list') ||
       route.startsWith('/perfil/') && searchable.includes('conexao') ||
       searchable.includes('solicitacao de conexao') ||
       searchable.includes('conexao aceita') ||
@@ -182,6 +183,7 @@ export class UserActivityHubComponent {
 
   private isRoomActivity(route: string, searchable: string): boolean {
     return route.startsWith('/chat/rooms') ||
+      route.includes('/chat/invite-list') ||
       searchable.includes('sala') ||
       searchable.includes('convite');
   }
