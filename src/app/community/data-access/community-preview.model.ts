@@ -13,6 +13,11 @@ export type CommunityPreviewViewerMode =
   | 'member'
   | 'moderator'
   | 'manager';
+export type CommunityPreviewViewerRole =
+  | 'owner'
+  | 'admin'
+  | 'moderator'
+  | 'member';
 export type CommunityPreviewMinimumRole = 'basic' | 'premium' | 'vip';
 
 export interface CommunityPreviewCard {
@@ -53,6 +58,7 @@ export interface CommunityDiscoveryPageRequest {
 export interface CommunityPreviewResponse {
   community: CommunityPreviewCard;
   viewerMode: CommunityPreviewViewerMode;
+  viewerRole: CommunityPreviewViewerRole | null;
   canInteract: boolean;
   generatedAt: number;
 }
@@ -92,6 +98,17 @@ function normalizeCount(value: unknown): number {
   return Number.isFinite(parsed)
     ? Math.min(Math.max(Math.trunc(parsed), 0), 1_000_000_000)
     : 0;
+}
+
+function normalizeViewerRole(
+  value: unknown
+): CommunityPreviewViewerRole | null {
+  return value === 'owner'
+    || value === 'admin'
+    || value === 'moderator'
+    || value === 'member'
+    ? value
+    : null;
 }
 
 function normalizeCard(raw: unknown): CommunityPreviewCard | null {
@@ -187,6 +204,7 @@ export function normalizeCommunityPreviewResponse(
   return {
     community,
     viewerMode,
+    viewerRole: normalizeViewerRole(source['viewerRole']),
     canInteract: source['canInteract'] === true,
     generatedAt: Number.isFinite(generatedAt) ? generatedAt : Date.now(),
   };
