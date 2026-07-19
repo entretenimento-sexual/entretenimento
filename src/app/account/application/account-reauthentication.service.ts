@@ -28,7 +28,7 @@ import { catchError, map, switchMap, timeout } from 'rxjs/operators';
 
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { AccountReauthenticationMode } from '../models/account-lifecycle.model';
+import type { AccountReauthenticationMode } from '../models/account-lifecycle.model';
 
 const REAUTHENTICATION_TIMEOUT_MS = 30_000;
 
@@ -154,9 +154,6 @@ export class AccountReauthenticationService {
     };
     error.code = code;
     error.skipUserNotification = true;
-
-    this.report(error, this.getCurrentMode());
-    this.notify.showError(message);
     return throwError(() => error);
   }
 
@@ -171,6 +168,14 @@ export class AccountReauthenticationService {
       code.includes('invalid-login-credentials')
     ) {
       return 'A senha informada não confere.';
+    }
+
+    if (code.includes('password-required')) {
+      return 'Informe sua senha atual para confirmar esta ação.';
+    }
+
+    if (code.includes('email-unavailable')) {
+      return 'Não foi possível localizar o e-mail desta conta para confirmar a identidade.';
     }
 
     if (code.includes('user-mismatch')) {
