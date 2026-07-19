@@ -1,6 +1,6 @@
 // src/app/community/discovery/community-discovery-page.component.spec.ts
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, provideRouter } from '@angular/router';
 import { filter, firstValueFrom, of, take } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -41,7 +41,9 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
     );
 
     TestBed.configureTestingModule({
+      imports: [CommunityDiscoveryPageComponent],
       providers: [
+        provideRouter([]),
         {
           provide: ActivatedRoute,
           useValue: { snapshot: { data: { sourceType: 'venue' } } },
@@ -86,5 +88,17 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
       '/dashboard/locais',
       'community-local-1',
     ]);
+  });
+
+  it('não repete Comunidades, Locais e Salas como navegação no corpo', () => {
+    const fixture = TestBed.createComponent(CommunityDiscoveryPageComponent);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('.community-discovery__tabs')
+    ).toBeNull();
+    expect(fixture.nativeElement.querySelectorAll('h1')).toHaveLength(1);
+    expect(fixture.nativeElement.textContent).toContain('Locais');
+    expect(fixture.nativeElement.textContent).not.toContain('Salas');
   });
 });
