@@ -35,7 +35,6 @@ describe('RegisterComponent', () => {
   let component: RegisterComponent;
 
   let registerService: MockRegisterService;
-  let emailVerification: MockEmailVerificationService;
   let errorNotification: MockErrorNotificationService;
   let router: Router;
 
@@ -57,7 +56,6 @@ describe('RegisterComponent', () => {
     component = fixture.componentInstance;
 
     registerService = TestBed.inject(RegisterService) as unknown as MockRegisterService;
-    emailVerification = TestBed.inject(EmailVerificationService) as unknown as MockEmailVerificationService;
     errorNotification = TestBed.inject(ErrorNotificationService) as unknown as MockErrorNotificationService;
     router = TestBed.inject(Router);
 
@@ -77,12 +75,36 @@ describe('RegisterComponent', () => {
     expect(registerService.registerUser).not.toHaveBeenCalled();
   });
 
-  it('deve chamar register, verificar e navegar quando o form estiver válido', async () => {
+  it('mantém o formulário inválido quando as senhas não coincidem', () => {
+    component.form.patchValue({
+      password: 'Senha123',
+      confirmPassword: 'Outra123',
+    });
+
+    expect(component.form.hasError('passwordMismatch')).toBe(true);
+    expect(component.getError('confirmPassword')).toBe(
+      'As senhas não coincidem.'
+    );
+  });
+
+  it('rejeita senha sem a complexidade mínima', () => {
+    component.form.patchValue({
+      password: '12345678',
+      confirmPassword: '12345678',
+    });
+
+    expect(component.form.get('password')?.hasError('invalidPassword')).toBe(
+      true
+    );
+  });
+
+  it('deve chamar register e navegar quando o form estiver válido', async () => {
     component.form.patchValue({
       apelidoPrincipal: 'john',
       complementoApelido: 'doe',
       email: 'jd@example.com',
-      password: '12345678',
+      password: 'Senha123',
+      confirmPassword: 'Senha123',
       aceitarTermos: true,
     });
 
@@ -97,7 +119,7 @@ describe('RegisterComponent', () => {
         acceptedTerms: expect.objectContaining({ accepted: true }),
         emailVerified: false,
       }),
-      '12345678'
+      'Senha123'
     );
 
     expect(router.navigate).toHaveBeenCalledWith(
@@ -106,9 +128,31 @@ describe('RegisterComponent', () => {
     );
   });
 
-  it('togglePasswordVisibility deve alternar o sinal', () => {
-    const initial = component.showPassword();
+  it('não envia a confirmação de senha ao serviço de registro', async () => {
+    component.form.patchValue({
+      apelidoPrincipal: 'maria',
+      complementoApelido: '',
+      email: 'maria@example.com',
+      password: 'Segura123',
+      confirmPassword: 'Segura123',
+      aceitarTermos: true,
+    });
+
+    component.onSubmit();
+    await fixture.whenStable();
+
+    const [payload] = registerService.registerUser.mock.calls[0];
+    expect(payload).not.toHaveProperty('confirmPassword');
+  });
+
+  it('alterna separadamente a visibilidade da senha e da confirmação', () => {
+    const initialPassword = component.showPassword();
+    const initialConfirmation = component.showConfirmPassword();
+
     component.togglePasswordVisibility();
-    expect(component.showPassword()).toBe(!initial);
+    component.toggleConfirmPasswordVisibility();
+
+    expect(component.showPassword()).toBe(!initialPassword);
+    expect(component.showConfirmPassword()).toBe(!initialConfirmation);
   });
 });
