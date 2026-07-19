@@ -5,10 +5,12 @@ import { CommunityPreviewPageComponent } from './community-preview-page.componen
 
 describe('CommunityPreviewPageComponent owner label', () => {
   it('distingue proprietário, administração e moderação', () => {
-    const viewerLabel = CommunityPreviewPageComponent.prototype.viewerLabel;
+    const component = Object.create(
+      CommunityPreviewPageComponent.prototype
+    ) as CommunityPreviewPageComponent;
 
-    expect(viewerLabel.call(null, 'manager', 'owner')).toBe('Proprietário');
-    expect(viewerLabel.call(null, 'manager', 'admin')).toBe('Administração');
-    expect(viewerLabel.call(null, 'moderator', 'moderator')).toBe('Moderação');
+    expect(component.viewerLabel('manager', 'owner')).toBe('Proprietário');
+    expect(component.viewerLabel('manager', 'admin')).toBe('Administração');
+    expect(component.viewerLabel('moderator', 'moderator')).toBe('Moderação');
   });
 });
