@@ -9,7 +9,7 @@
 // - idempotência: todas as operações podem ser repetidas;
 // - falha isolada por domínio;
 // - nenhuma mensagem, mídia, denúncia ou registro financeiro é apagado aqui;
-// - bloqueios com eventos de segurança permanecem como bloqueador explícito.
+// - owners de Comunidades e bloqueios com eventos permanecem bloqueadores.
 // -----------------------------------------------------------------------------
 import type { AccountDataDomain } from './account-data-retention.policy';
 
@@ -37,6 +37,8 @@ export interface AccountDataDeletionAdapter {
     direction: FriendRequestDirection,
     limit: number
   ): Promise<number>;
+  unlinkCommunityMembershipsPage(uid: string, limit: number): Promise<number>;
+  inspectOwnedCommunityMemberships(uid: string): Promise<number>;
   unlinkOwnedFriendshipsPage(uid: string, limit: number): Promise<number>;
   deleteInboundFriendshipReferencesPage(
     uid: string,
@@ -133,6 +135,15 @@ export async function executeAccountDataDeletionDomains(
 
   results.push(
     await executeFriendRequestsDomain(
+      adapter,
+      uid,
+      pageSize,
+      maxPagesPerDomain
+    )
+  );
+
+  results.push(
+    await executeCommunityMembershipsDomain(
       adapter,
       uid,
       pageSize,
@@ -291,6 +302,62 @@ async function executeFriendRequestsDomain(
     };
   } catch (error: unknown) {
     return failedResult('friend_requests', error);
+  }
+}
+
+async function executeCommunityMembershipsDomain(
+  adapter: AccountDataDeletionAdapter,
+  uid: string,
+  pageSize: number,
+  maxPages: number
+): Promise<AccountDataDeletionDomainExecution> {
+  try {
+    const memberships = await executePagedStep(
+      () => adapter.unlinkCommunityMembershipsPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+
+    if (!memberships.completed) {
+      return {
+        domain: 'community_memberships',
+        status: 'partial',
+        processed: memberships.processed,
+        pages: memberships.pages,
+        blocker: 'pagination-limit-reached',
+      };
+    }
+
+    const ownerMemberships = normalizeProcessedCount(
+      await adapter.inspectOwnedCommunityMemberships(uid)
+    );
+
+    if (ownerMemberships > 0) {
+      return {
+        domain: 'community_memberships',
+        status: 'blocked',
+        processed: memberships.processed,
+        pages: memberships.pages + 1,
+        blocker: 'owner-transfer-or-community-archive-required',
+        details: {
+          membershipsProcessed: memberships.processed,
+          ownerMemberships,
+        },
+      };
+    }
+
+    return {
+      domain: 'community_memberships',
+      status: 'completed',
+      processed: memberships.processed,
+      pages: memberships.pages + 1,
+      details: {
+        membershipsProcessed: memberships.processed,
+        ownerMemberships: 0,
+      },
+    };
+  } catch (error: unknown) {
+    return failedResult('community_memberships', error);
   }
 }
 
