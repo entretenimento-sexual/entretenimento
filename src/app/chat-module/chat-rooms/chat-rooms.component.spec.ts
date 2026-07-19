@@ -28,31 +28,27 @@ describe('ChatRoomsComponent', () => {
   let matDialogMock: {
     open: Mock;
   };
-
   let authSessionMock: {
     uid$: ReturnType<BehaviorSubject<string | null>['asObservable']>;
     whenReady: Mock;
   };
-
   let currentUserStoreMock: {
     user$: ReturnType<BehaviorSubject<any>['asObservable']>;
     getSnapshot: Mock;
   };
-
   let roomServiceMock: {
     getRooms: Mock;
   };
-
   let roomManagementMock: {
     createRoom: Mock;
+    closeRoom: Mock;
   };
-
   let errorNotifierMock: {
     showError: Mock;
     showWarning: Mock;
     showInfo: Mock;
+    showSuccess: Mock;
   };
-
   let globalErrorHandlerMock: {
     handleError: Mock;
   };
@@ -125,21 +121,17 @@ describe('ChatRoomsComponent', () => {
         afterClosed: () => of(null),
       })),
     };
-
     authSessionMock = {
       uid$: authUidSubject.asObservable(),
       whenReady: vi.fn(() => Promise.resolve()),
     };
-
     currentUserStoreMock = {
       user$: currentUserSubject.asObservable(),
       getSnapshot: vi.fn(() => currentUserSubject.value),
     };
-
     roomServiceMock = {
       getRooms: vi.fn(() => of([])),
     };
-
     roomManagementMock = {
       createRoom: vi.fn(() =>
         of({
@@ -152,14 +144,16 @@ describe('ChatRoomsComponent', () => {
           visibility: 'hidden',
         })
       ),
+      closeRoom: vi.fn(() =>
+        of({ roomId: 'r1', status: 'closed', slotReleased: true })
+      ),
     };
-
     errorNotifierMock = {
       showError: vi.fn(),
       showWarning: vi.fn(),
       showInfo: vi.fn(),
+      showSuccess: vi.fn(),
     };
-
     globalErrorHandlerMock = {
       handleError: vi.fn(),
     };
@@ -203,6 +197,8 @@ describe('ChatRoomsComponent', () => {
 
     expect(viewModel.uid).toBe('u1');
     expect(viewModel.rooms).toEqual([]);
+    expect(viewModel.activeRooms).toEqual([]);
+    expect(viewModel.closedRooms).toEqual([]);
     expect(viewModel.loading).toBe(false);
     expect(viewModel.loadFailed).toBe(false);
     expect(viewModel.hasOwnedActiveRoom).toBe(false);
@@ -231,8 +227,41 @@ describe('ChatRoomsComponent', () => {
     );
 
     expect(viewModel.rooms[0]?.isOwner).toBe(true);
+    expect(viewModel.activeRooms).toHaveLength(1);
+    expect(viewModel.closedRooms).toHaveLength(0);
     expect(viewModel.hasOwnedActiveRoom).toBe(true);
     expect(viewModel.ownedActiveRoomCount).toBe(1);
+  });
+
+  it('separa salas ativas do histórico encerrado', async () => {
+    roomServiceMock.getRooms.mockImplementation((uid: string) =>
+      uid === 'u2'
+        ? of([
+            buildRoom({ id: 'active', roomId: 'active', createdBy: 'u2' }),
+            buildRoom({
+              id: 'closed',
+              roomId: 'closed',
+              createdBy: 'u2',
+              status: 'closed',
+            }),
+          ])
+        : of([])
+    );
+
+    emitUser('u2');
+
+    const viewModel = await firstValueFrom(
+      component.roomsVm$.pipe(
+        filter(
+          (value) => value.uid === 'u2' && !value.loading && value.rooms.length === 2
+        ),
+        take(1)
+      )
+    );
+
+    expect(viewModel.activeRooms.map((room) => room.id)).toEqual(['active']);
+    expect(viewModel.closedRooms.map((room) => room.id)).toEqual(['closed']);
+    expect(viewModel.closedRooms[0]?.canClose).toBe(false);
   });
 
   it('deve emitir roomSelected ao selecionar uma sala válida', () => {
@@ -262,11 +291,13 @@ describe('ChatRoomsComponent', () => {
     );
 
     expect(viewModel.rooms).toEqual([]);
+    expect(viewModel.activeRooms).toEqual([]);
+    expect(viewModel.closedRooms).toEqual([]);
     expect(viewModel.hasOwnedActiveRoom).toBe(false);
     expect(component.currentUser).toBeNull();
   });
 
-  it('deve mostrar warning ao tentar criar sala sem usuário autenticado', async () => {
+  it('deve mostrar warning ao tentar criar sala sem usuário autenticado', () => {
     emitUser(null);
     currentUserStoreMock.getSnapshot.mockReturnValue(null);
 
@@ -365,8 +396,48 @@ describe('ChatRoomsComponent', () => {
       roomName: 'Sala Nova',
       description: 'Teste seguro',
     });
-
     expect(matDialogMock.open).toHaveBeenCalledTimes(2);
+  });
+
+  it('confirma encerramento em diálogo e usa somente a callable', () => {
+    matDialogMock.open.mockReturnValue({
+      afterClosed: () => of(true),
+    });
+    const room = buildRoom({ createdBy: 'u1' }) as RoomListItem & {
+      isOwner: boolean;
+      canClose: boolean;
+    };
+    room.isOwner = true;
+    room.canClose = true;
+
+    component.closeRoom(room);
+
+    expect(matDialogMock.open).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        data: expect.objectContaining({ title: 'Encerrar sala?' }),
+      })
+    );
+    expect(roomManagementMock.closeRoom).toHaveBeenCalledWith('r1');
+    expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith(
+      'Sala encerrada com segurança.'
+    );
+  });
+
+  it('não encerra a sala quando o usuário cancela o diálogo', () => {
+    matDialogMock.open.mockReturnValue({
+      afterClosed: () => of(false),
+    });
+    const room = buildRoom({ createdBy: 'u1' }) as RoomListItem & {
+      isOwner: boolean;
+      canClose: boolean;
+    };
+    room.isOwner = true;
+    room.canClose = true;
+
+    component.closeRoom(room);
+
+    expect(roomManagementMock.closeRoom).not.toHaveBeenCalled();
   });
 
   it('deve apresentar falha de carregamento quando a leitura de salas falhar', async () => {
