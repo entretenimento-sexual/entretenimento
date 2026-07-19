@@ -53,6 +53,7 @@ export const getCommunityPreview = onCall<CommunityPreviewRequest>(
     return {
       community: context.community,
       viewerMode: context.viewerMode,
+      viewerRole: context.viewerRole,
       canInteract: context.canInteract,
       generatedAt: Date.now(),
     };
