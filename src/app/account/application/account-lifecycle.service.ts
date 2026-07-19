@@ -379,6 +379,10 @@ export class AccountLifecycleService {
       return 'O prazo para cancelar a exclusão já terminou.';
     }
 
+    if (reason === 'owned-resources-require-resolution') {
+      return this.resolveOwnedResourcesMessage(details);
+    }
+
     if (code.includes('unauthenticated')) {
       return 'Sua sessão terminou. Entre novamente para continuar.';
     }
@@ -394,6 +398,36 @@ export class AccountLifecycleService {
     }
 
     return fallback;
+  }
+
+  private resolveOwnedResourcesMessage(
+    details: Record<string, unknown>
+  ): string {
+    const activeRoomCount = this.normalizeNonNegativeCount(
+      details['activeOwnedRoomCount']
+    );
+    const ownedCommunityCount = this.normalizeNonNegativeCount(
+      details['ownedCommunityCount']
+    );
+
+    if (activeRoomCount > 0 && ownedCommunityCount > 0) {
+      return 'Encerre suas Salas ativas e transfira ou arquive suas Comunidades antes de excluir a conta.';
+    }
+
+    if (activeRoomCount > 0) {
+      return 'Encerre suas Salas ativas antes de excluir a conta.';
+    }
+
+    if (ownedCommunityCount > 0) {
+      return 'Transfira ou arquive suas Comunidades antes de excluir a conta.';
+    }
+
+    return 'Resolva os espaços sob sua responsabilidade antes de excluir a conta.';
+  }
+
+  private normalizeNonNegativeCount(value: unknown): number {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
   }
 
   // ---------------------------------------------------------------------------
