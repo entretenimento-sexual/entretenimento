@@ -14,9 +14,7 @@
 // - Este serviço NÃO consulta Firestore.
 // - Ele só mantém o runtime do perfil e faz bootstrap compatível por HOT_KEYS.
 // - Perfil runtime do app: fluxo oficial AuthSessionSyncEffects + UserEffects + CurrentUserStoreService
-//* - este service NÃO escreve no perfil runtime do app.
-//* - o perfil continua sob a fonte única:
-//*   AuthSessionSyncEffects + UserEffects + CurrentUserStoreService
+// - este service NÃO escreve no perfil runtime do app.
 import { Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import { BehaviorSubject, Observable } from 'rxjs';
@@ -32,6 +30,53 @@ import { AuthSessionService } from './auth-session.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 type UserTriState = IUserDados | null | undefined;
+
+const RESTRICTED_ACCOUNT_STATUSES = new Set([
+  'self_suspended',
+  'moderation_suspended',
+  'pending_deletion',
+  'deleted',
+  'suspended',
+  'locked',
+]);
+
+/**
+ * Defesa de runtime para todas as origens de autenticação.
+ *
+ * O backend e as Rules continuam sendo a autoridade. Esta normalização impede
+ * que seeds locais, respostas temporárias de login social ou cache legado
+ * representem uma conta incompleta/restrita como pública antes da hidratação
+ * canônica terminar.
+ */
+export function normalizeCurrentUserRuntimeVisibility(
+  user: IUserDados
+): IUserDados {
+  const status = String(user.accountStatus ?? 'active')
+    .trim()
+    .toLowerCase();
+  const profileIncomplete = user.profileCompleted !== true;
+  const lifecycleRestricted =
+    RESTRICTED_ACCOUNT_STATUSES.has(status) ||
+    user.suspended === true ||
+    user.accountLocked === true;
+
+  if (!profileIncomplete && !lifecycleRestricted) {
+    return user;
+  }
+
+  if (
+    user.publicVisibility === 'hidden' &&
+    user.interactionBlocked === true
+  ) {
+    return user;
+  }
+
+  return {
+    ...user,
+    publicVisibility: 'hidden',
+    interactionBlocked: true,
+  } as IUserDados;
+}
 
 @Injectable({ providedIn: 'root' })
 export class CurrentUserStoreService {
@@ -77,29 +122,38 @@ export class CurrentUserStoreService {
   set(user: IUserDados): void {
     if (!user?.uid) return;
 
+    const safeUser = normalizeCurrentUserRuntimeVisibility(user);
     const current = this.userSubject.value;
-    if (current && current !== null && this.areUsersEquivalent(current, user)) {
+    if (
+      current &&
+      current !== null &&
+      this.areUsersEquivalent(current, safeUser)
+    ) {
       return;
     }
 
-    this.userSubject.next(user);
+    this.userSubject.next(safeUser);
 
     /**
      * Compat hot keys:
      * - leitura síncrona no bootstrap
      * - não são fonte primária do perfil
      */
-    this.cache.set(this.keyUser, user, undefined, { persist: false });
-    this.cache.set(this.keyUid, user.uid, undefined, { persist: false });
+    this.cache.set(this.keyUser, safeUser, undefined, { persist: false });
+    this.cache.set(this.keyUid, safeUser.uid, undefined, { persist: false });
 
-    this.dbg('set(user)', { uid: user.uid });
+    this.dbg('set(user)', {
+      uid: safeUser.uid,
+      normalizedVisibility: safeUser !== user,
+    });
   }
 
   patch(partial: Partial<IUserDados>): void {
     const current = this.userSubject.value;
     if (!current || current === null) return;
 
-    const next = { ...current, ...partial } as IUserDados;
+    const merged = { ...current, ...partial } as IUserDados;
+    const next = normalizeCurrentUserRuntimeVisibility(merged);
     if (!next?.uid) return;
     if (this.areUsersEquivalent(current, next)) return;
 
@@ -110,6 +164,7 @@ export class CurrentUserStoreService {
     this.dbg('patch(user)', {
       uid: next.uid,
       keys: Object.keys(partial ?? {}),
+      normalizedVisibility: next !== merged,
     });
   }
 
@@ -252,14 +307,30 @@ export class CurrentUserStoreService {
     const cached = this.cache.getSync<IUserDados>(this.keyUser);
 
     if (cached?.uid && cached.uid === authUid) {
+      const safeCached = normalizeCurrentUserRuntimeVisibility(cached);
       const current = this.userSubject.value;
-      if (!(current && current !== null && this.areUsersEquivalent(current, cached))) {
-        this.userSubject.next(cached);
+      if (
+        !(
+          current &&
+          current !== null &&
+          this.areUsersEquivalent(current, safeCached)
+        )
+      ) {
+        this.userSubject.next(safeCached);
+      }
+
+      if (safeCached !== cached) {
+        this.cache.set(this.keyUser, safeCached, undefined, {
+          persist: false,
+        });
       }
 
       this.cache.set(this.keyUid, authUid, undefined, { persist: false });
-      this.dbg('restoreFromCacheForUid() -> restored', { uid: authUid });
-      return cached;
+      this.dbg('restoreFromCacheForUid() -> restored', {
+        uid: authUid,
+        normalizedVisibility: safeCached !== cached,
+      });
+      return safeCached;
     }
 
     if (cached?.uid && cached.uid !== authUid) {
@@ -270,7 +341,9 @@ export class CurrentUserStoreService {
         authUid,
       });
     } else {
-      this.dbg('restoreFromCacheForUid() -> nothing to restore', { authUid });
+      this.dbg('restoreFromCacheForUid() -> nothing to restore', {
+        authUid,
+      });
     }
 
     return null;
