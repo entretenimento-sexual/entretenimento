@@ -95,7 +95,8 @@
 }
 
 .chat-rooms__create-action:focus-visible,
-.chat-rooms__close-action:focus-visible {
+.chat-rooms__close-action:focus-visible,
+.chat-rooms__history summary:focus-visible {
   outline: 3px solid var(--focus-ring, var(--primary-color));
   outline-offset: 3px;
 }
@@ -114,8 +115,50 @@
   opacity: 0.76;
 }
 
-.chat-rooms__collection {
+.chat-rooms__collection,
+.chat-rooms__group {
   min-width: 0;
+}
+
+.chat-rooms__collection {
+  display: grid;
+  gap: 1rem;
+}
+
+.chat-rooms__group {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.chat-rooms__group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.chat-rooms__group-header h2 {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 760;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.chat-rooms__group-header > span {
+  min-width: 1.65rem;
+  min-height: 1.65rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 88%,
+    var(--primary-color) 12%
+  );
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .chat-rooms__state {
@@ -130,6 +173,10 @@
   background: var(--surface-color);
   text-align: center;
   font-size: 0.9rem;
+}
+
+.chat-rooms__state--compact {
+  min-height: 6rem;
 }
 
 .chat-rooms__state > i {
@@ -162,6 +209,14 @@
   overflow: hidden;
 }
 
+.chat-rooms__card--closed {
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 96%,
+    var(--text-color) 4%
+  );
+}
+
 .chat-rooms__card article {
   height: 100%;
   padding: clamp(0.85rem, 2vw, 1rem);
@@ -182,7 +237,7 @@
   min-width: 0;
 }
 
-.chat-rooms__room-heading h2 {
+.chat-rooms__room-heading h3 {
   margin: 0;
   overflow-wrap: anywhere;
   font-size: 1rem;
@@ -201,15 +256,31 @@
 
 .chat-rooms__status {
   flex: 0 0 auto;
-  display: inline-grid;
-  place-items: center;
+  min-height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding-inline: 0.5rem;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 88%,
+    var(--success-color) 12%
+  );
   color: var(--success-color);
-  font-size: 0.95rem;
+  font-size: 0.7rem;
+  font-weight: 720;
 }
 
 .chat-rooms__status--closed {
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 90%,
+    var(--text-color) 10%
+  );
   color: var(--text-color);
-  opacity: 0.45;
+  opacity: 0.68;
 }
 
 .chat-rooms__description {
@@ -297,6 +368,53 @@
   color: var(--danger-color);
 }
 
+.chat-rooms__history {
+  min-width: 0;
+  border-top: 1px solid var(--surface-border);
+  padding-top: 0.25rem;
+}
+
+.chat-rooms__history summary {
+  min-height: var(--tap-target);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.15rem;
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.chat-rooms__history summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-rooms__history summary > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.chat-rooms__history summary > span:last-child {
+  min-width: 1.65rem;
+  min-height: 1.65rem;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 90%,
+    var(--text-color) 10%
+  );
+  font-size: 0.72rem;
+}
+
+.chat-rooms__list--history {
+  padding-top: 0.65rem;
+}
+
 @media (min-width: 40rem) {
   .chat-rooms__list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -335,6 +453,20 @@
   .chat-rooms__state {
     border-radius: var(--radius-md);
   }
+
+  .chat-rooms__status span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .chat-rooms__status {
+    width: 1.9rem;
+    padding-inline: 0;
+  }
 }
 
 html.high-contrast .chat-rooms__identity-icon,
@@ -342,7 +474,8 @@ html.high-contrast .chat-rooms__limit-note,
 html.high-contrast .chat-rooms__state,
 html.high-contrast .chat-rooms__card,
 html.high-contrast .chat-rooms__place,
-html.high-contrast .chat-rooms__close-action {
+html.high-contrast .chat-rooms__close-action,
+html.high-contrast .chat-rooms__status {
   border: 2px solid var(--text-color);
   box-shadow: none;
 }
