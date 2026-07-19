@@ -3,12 +3,7 @@
 // PUBLIC PROFILES (consultable / discovery)
 // =========================================================================
 match /public_profiles/{userId} {
-  // Read requires login.
   allow get, list: if signedIn();
-
-  // -----------------------------------------------------------------------
-  // Local helpers
-  // -----------------------------------------------------------------------
 
   function hasField(field) {
     return request.resource.data.keys().hasAny([field]);
@@ -101,8 +96,10 @@ match /public_profiles/{userId} {
   }
 
   function hasRequiredAdultConsent(data) {
-    return !data.keys().hasAny(["initialAdultConsentRequired"])
-      || data.initialAdultConsentRequired != true
+    return (
+        data.keys().hasAny(["initialAdultConsentRequired"])
+        && data.initialAdultConsentRequired == false
+      )
       || (
         data.keys().hasAny(["adultConsent"])
         && data.adultConsent is map
@@ -345,7 +342,6 @@ match /public_profiles/{userId} {
 
   allow delete: if false;
 
-  // Índice privado de audiência real. Somente Cloud Functions/Admin SDK acessa.
   match /profile_viewers/{viewerUid} {
     allow read, write: if false;
   }
