@@ -1,20 +1,23 @@
 // src/app/core/services/autentication/register/email-verification.service.ts
-// EmailVerificationService: gerencia o fluxo de verificação de e-mail.
+// -----------------------------------------------------------------------------
+// EMAIL VERIFICATION SERVICE
+// -----------------------------------------------------------------------------
+// - envia e aplica códigos de verificação do Firebase Auth;
+// - sincroniza users/{uid}.emailVerified somente com sessão autenticada;
+// - não enumera users por e-mail no navegador;
+// - preserva os nomes públicos existentes.
+// -----------------------------------------------------------------------------
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
-
 import { Auth } from '@angular/fire/auth';
 import {
+  ActionCodeSettings,
   User,
-  sendEmailVerification,
   applyActionCode,
   checkActionCode,
-  ActionCodeSettings,
+  sendEmailVerification,
 } from 'firebase/auth';
-
-import { Firestore } from '@angular/fire/firestore';
-
-import { from, of, throwError, Observable } from 'rxjs';
+import { Observable, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, tap, timeout } from 'rxjs/operators';
 
 import { IUserDados } from '../../../interfaces/iuser-dados';
@@ -40,27 +43,34 @@ export interface VerifyEmailResult {
 
 @Injectable({ providedIn: 'root' })
 export class EmailVerificationService {
-  private readonly NET_TIMEOUT_MS = 12000;
+  private readonly NET_TIMEOUT_MS = 12_000;
 
   constructor(
     private readonly router: Router,
-    private readonly firestore: Firestore,
     private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly userWrite: FirestoreUserWriteService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly notify: ErrorNotificationService,
-    private readonly auth: Auth,
+    private readonly auth: Auth
   ) {
-    try { this.auth.languageCode = 'pt-BR'; } catch { /* noop */ }
+    try {
+      this.auth.languageCode = 'pt-BR';
+    } catch {
+      // Configuração de idioma não bloqueia a verificação.
+    }
   }
 
-  // -------------------------------------------------------
-  // Helpers de ambiente / URLs
-  // -------------------------------------------------------
   private isEmulator(): boolean {
-    const cfg: any = environment as any;
-    return !environment.production && !!cfg?.useEmulators && !!cfg?.emulators?.auth;
+    const config = environment as typeof environment & {
+      useEmulators?: boolean;
+      emulators?: { auth?: unknown };
+    };
+    return (
+      !environment.production &&
+      config.useEmulators === true &&
+      !!config.emulators?.auth
+    );
   }
 
   private isLocalHost(): boolean {
@@ -69,30 +79,48 @@ export class EmailVerificationService {
   }
 
   private preferredBaseUrl(): string {
-    const envAny: any = environment as any;
+    const config = environment as typeof environment & {
+      authActionHandlerBaseUrl?: string;
+      appBaseUrl?: string;
+    };
 
-    if (this.isEmulator() && typeof location !== 'undefined' && location.origin) {
+    if (
+      this.isEmulator() &&
+      typeof location !== 'undefined' &&
+      location.origin
+    ) {
       return location.origin;
     }
 
-    const configured = envAny?.authActionHandlerBaseUrl || envAny?.appBaseUrl;
+    const configured =
+      config.authActionHandlerBaseUrl || config.appBaseUrl;
     if (configured) return String(configured);
 
-    if (this.isLocalHost() && typeof location !== 'undefined' && location.origin) {
+    if (
+      this.isLocalHost() &&
+      typeof location !== 'undefined' &&
+      location.origin
+    ) {
       return location.origin;
     }
 
-    if (typeof location !== 'undefined' && location.origin) return location.origin;
+    if (typeof location !== 'undefined' && location.origin) {
+      return location.origin;
+    }
 
-    return `https://${environment.firebase?.authDomain}`;
+    return `https://${environment.firebase.authDomain}`;
   }
 
   private safeBaseUrl(): string {
-    if (this.isEmulator() && typeof location !== 'undefined' && location.origin) {
+    if (
+      this.isEmulator() &&
+      typeof location !== 'undefined' &&
+      location.origin
+    ) {
       return location.origin;
     }
 
-    return `https://${environment.firebase?.authDomain}`;
+    return `https://${environment.firebase.authDomain}`;
   }
 
   private buildContinueUrl(base: string): string {
@@ -101,22 +129,20 @@ export class EmailVerificationService {
 
   private buildActionCodeSettings(base?: string): ActionCodeSettings {
     const continueBase = base ?? this.preferredBaseUrl();
-    const acs: ActionCodeSettings = {
+    const settings: ActionCodeSettings = {
       url: this.buildContinueUrl(continueBase),
       handleCodeInApp: true,
     };
 
-    const envAny: any = environment as any;
-    if (envAny?.dynamicLinkDomain) {
-      acs.dynamicLinkDomain = envAny.dynamicLinkDomain;
+    const config = environment as typeof environment & {
+      dynamicLinkDomain?: string;
+    };
+    if (config.dynamicLinkDomain) {
+      settings.dynamicLinkDomain = config.dynamicLinkDomain;
     }
 
-    return acs;
+    return settings;
   }
-
-  // -------------------------------------------------------
-  // API pública
-  // -------------------------------------------------------
 
   reloadCurrentUser(): Observable<boolean> {
     return this.authSession.refreshCurrentUser$().pipe(
@@ -127,108 +153,113 @@ export class EmailVerificationService {
         }
       }),
       map((user) => user?.emailVerified === true),
-      catchError((error) => {
-        console.log('[EmailVerificationService] Erro ao recarregar usuário:', error);
+      catchError((error: unknown) => {
+        this.reportError(error, 'reloadCurrentUser');
         return of(false);
       })
     );
   }
 
-  sendEmailVerification(user: User, redirectUrl?: string): Observable<void> {
-    const primaryAcs = redirectUrl
+  sendEmailVerification(
+    user: User,
+    redirectUrl?: string
+  ): Observable<void> {
+    const primarySettings = redirectUrl
       ? ({ url: redirectUrl, handleCodeInApp: true } as ActionCodeSettings)
       : this.buildActionCodeSettings();
+    const fallbackSettings = this.buildActionCodeSettings(
+      this.safeBaseUrl()
+    );
 
-    const safeAcs = this.buildActionCodeSettings(this.safeBaseUrl());
-
-    return from(sendEmailVerification(user, primaryAcs)).pipe(
+    return from(sendEmailVerification(user, primarySettings)).pipe(
       timeout({ each: this.NET_TIMEOUT_MS }),
-      tap(() => console.log('[EmailVerificationService] E-mail de verificação enviado (ACS primário).')),
       map(() => void 0),
-      catchError((error) => {
-        const code = error?.code || 'email-verification-failed';
+      catchError((error: unknown) => {
+        const code = this.errorCode(error);
 
-        if (code === 'auth/unauthorized-domain' || code === 'auth/invalid-continue-uri') {
-          console.log('[EmailVerificationService] Dominio/URL não autorizado. Tentando fallback no authDomain…');
-          return from(sendEmailVerification(user, safeAcs)).pipe(
+        if (
+          code === 'auth/unauthorized-domain' ||
+          code === 'auth/invalid-continue-uri'
+        ) {
+          return from(
+            sendEmailVerification(user, fallbackSettings)
+          ).pipe(
             timeout({ each: this.NET_TIMEOUT_MS }),
-            tap(() => console.log('[EmailVerificationService] E-mail de verificação enviado (fallback authDomain).')),
             map(() => void 0),
-            catchError((err2) => {
-              const code2 = err2?.code || 'email-verification-failed';
-              const message2 =
-                code2 === 'deadline-exceeded'
-                  ? 'Tempo de resposta excedido ao enviar e-mail. Tente novamente.'
-                  : 'Erro ao enviar e-mail de verificação (fallback também falhou).';
-              return throwError(() => ({ code: code2, message: message2 }));
+            catchError((fallbackError: unknown) => {
+              this.reportError(
+                fallbackError,
+                'sendEmailVerificationFallback'
+              );
+              return throwError(() =>
+                this.toVerificationError(fallbackError)
+              );
             })
           );
         }
 
-        const message =
-          code === 'deadline-exceeded'
-            ? 'Tempo de resposta excedido ao enviar e-mail. Tente novamente.'
-            : 'Erro ao enviar e-mail de verificação.';
-        return throwError(() => ({ code, message }));
+        this.reportError(error, 'sendEmailVerification');
+        return throwError(() => this.toVerificationError(error));
       })
     );
   }
 
   verifyEmail(actionCode: string): Observable<void> {
-    return from(applyActionCode(this.auth, actionCode)).pipe(
+    const safeCode = String(actionCode ?? '').trim();
+    if (!safeCode) {
+      return throwError(
+        () => new Error('Código de verificação ausente.')
+      );
+    }
+
+    return from(applyActionCode(this.auth, safeCode)).pipe(
       timeout({ each: this.NET_TIMEOUT_MS }),
-      tap(() => console.log('[EmailVerificationService] E-mail verificado com sucesso.')),
       map(() => void 0),
-      catchError((error) => {
-        const message = this.mapErrorCodeToMessage(error?.code);
-        return throwError(() => ({ code: error?.code, message }));
+      catchError((error: unknown) => {
+        this.reportError(error, 'verifyEmail');
+        return throwError(() => ({
+          code: this.errorCode(error),
+          message: this.mapErrorCodeToMessage(this.errorCode(error)),
+        }));
       })
     );
   }
 
   handleEmailVerification(): Observable<VerifyEmailResult> {
     const tree = this.router.parseUrl(this.router.url || '');
-    const qp = tree?.queryParams ?? {};
-
-    const mode = (qp['mode'] as string | undefined) ?? null;
-    const actionCode = (qp['oobCode'] as string | undefined) ?? null;
+    const queryParams = tree?.queryParams ?? {};
+    const mode = String(queryParams['mode'] ?? '').trim() || null;
+    const actionCode =
+      String(queryParams['oobCode'] ?? '').trim() || null;
 
     if (mode && mode !== 'verifyEmail') {
-      return of({ ok: false, reason: 'unknown' } as VerifyEmailResult);
+      return of({ ok: false, reason: 'unknown' });
     }
 
     if (!actionCode) {
-      return throwError(() => new Error('Código de verificação ausente na URL.'));
+      return throwError(
+        () => new Error('Código de verificação ausente na URL.')
+      );
     }
 
     return from(checkActionCode(this.auth, actionCode)).pipe(
       timeout({ each: this.NET_TIMEOUT_MS }),
-      switchMap((info) => this.verifyEmail(actionCode).pipe(map(() => info))),
-      switchMap((info) => {
-        const emailFromCode = (info?.data as any)?.email as string | undefined;
-        const u = this.auth.currentUser;
+      switchMap(() => this.verifyEmail(actionCode)),
+      switchMap(() => {
+        const currentUser = this.auth.currentUser;
 
-        if (!u) {
-          if (!emailFromCode) {
-            return of<VerifyEmailResult>({
-              ok: true,
-              reason: 'not-logged-in',
-            });
-          }
-
-          return this.userWrite.patchEmailVerifiedByEmail$(emailFromCode, true).pipe(
-            map(() => ({
-              ok: true,
-              firestoreUpdated: true,
-            } as VerifyEmailResult)),
-            catchError(() =>
-              of<VerifyEmailResult>({
-                ok: true,
-                firestoreUpdated: false,
-                reason: 'not-logged-in',
-              })
-            )
-          );
+        /**
+         * SUPRESSÃO EXPLÍCITA:
+         * o antigo patchEmailVerifiedByEmail$ foi removido deste fluxo. Sem uma
+         * sessão autenticada, o navegador não pode listar users por e-mail nem
+         * alterar um documento privado. A sincronização ocorrerá após o login.
+         */
+        if (!currentUser) {
+          return of<VerifyEmailResult>({
+            ok: true,
+            firestoreUpdated: false,
+            reason: 'not-logged-in',
+          });
         }
 
         return this.authSession.refreshCurrentUser$().pipe(
@@ -243,24 +274,31 @@ export class EmailVerificationService {
 
             this.currentUserStore.patch({ emailVerified: true });
 
-            return this.updateEmailVerificationStatus(refreshed.uid, true).pipe(
+            return this.updateEmailVerificationStatus(
+              refreshed.uid,
+              true
+            ).pipe(
               map(() => ({
                 ok: true,
                 firestoreUpdated: true,
               } as VerifyEmailResult)),
-              catchError(() =>
-                of<VerifyEmailResult>({
+              catchError((error: unknown) => {
+                this.reportError(
+                  error,
+                  'syncEmailVerificationAfterActionCode'
+                );
+                return of<VerifyEmailResult>({
                   ok: true,
                   firestoreUpdated: false,
-                })
-              )
+                });
+              })
             );
           })
         );
       }),
-      catchError((err) => {
-        const code = err?.code as string | undefined;
-
+      catchError((error: unknown) => {
+        this.reportError(error, 'handleEmailVerification');
+        const code = this.errorCode(error);
         const reason: VerifyEmailReason =
           code === 'auth/expired-action-code'
             ? 'expired'
@@ -268,60 +306,122 @@ export class EmailVerificationService {
               ? 'invalid'
               : 'unknown';
 
-        return of<VerifyEmailResult>({
-          ok: false,
-          reason,
-        });
+        return of({ ok: false, reason });
       })
     );
   }
 
-  updateEmailVerificationStatus(uid: string, status: boolean): Observable<void> {
+  updateEmailVerificationStatus(
+    uid: string,
+    status: boolean
+  ): Observable<void> {
     return this.userWrite.patchEmailVerified$(uid, status).pipe(
       tap(() => {
-        this.currentUserStore.patch({ emailVerified: status === true });
+        this.currentUserStore.patch({
+          emailVerified: status === true,
+        });
       }),
-      catchError((err) => {
-        this.notify.showError('Não foi possível atualizar a verificação agora. Tente novamente.');
-
-        const e = new Error('Falha ao atualizar emailVerified no Firestore.');
-        (e as any).skipUserNotification = true;
-        (e as any).original = err;
-        (e as any).context = 'email-verification.patchEmailVerified';
-        try { this.globalError.handleError(e); } catch { /* noop */ }
-
-        return throwError(() => err);
+      catchError((error: unknown) => {
+        this.notify.showError(
+          'Não foi possível atualizar a verificação agora. Entre novamente e repita a conferência.'
+        );
+        this.reportError(error, 'updateEmailVerificationStatus', {
+          uid,
+        });
+        return throwError(() => error);
       })
     );
   }
 
-  saveUserDataAfterEmailVerification(user: IUserDados): Observable<void> {
+  saveUserDataAfterEmailVerification(
+    user: IUserDados
+  ): Observable<void> {
     return this.userWrite.saveUserDataAfterEmailVerification$(user);
   }
 
   getCurrentUserUid(): Observable<string | null> {
-    const uid = this.auth.currentUser?.uid ?? null;
-    return of(uid);
+    return of(this.auth.currentUser?.uid ?? null);
   }
 
-  resendVerificationEmail(redirectUrl?: string): Observable<string> {
+  resendVerificationEmail(
+    redirectUrl?: string
+  ): Observable<string> {
     const user = this.auth.currentUser;
-    if (!user) return throwError(() => new Error('Nenhum usuário autenticado encontrado.'));
+    if (!user) {
+      return throwError(
+        () => new Error('Nenhum usuário autenticado encontrado.')
+      );
+    }
 
     return this.sendEmailVerification(user, redirectUrl).pipe(
-      map(() => `E-mail reenviado para ${user.email}. Verifique sua caixa de entrada.`),
-      catchError((error) => {
-        console.log('[EmailVerificationService] Falha ao reenviar e-mail:', error);
-        return throwError(() => new Error('Erro ao reenviar e-mail de verificação.'));
+      map(() =>
+        `E-mail reenviado para ${user.email}. Verifique sua caixa de entrada.`
+      ),
+      catchError((error: unknown) => {
+        this.reportError(error, 'resendVerificationEmail');
+        return throwError(
+          () => new Error('Erro ao reenviar e-mail de verificação.')
+        );
       })
     );
   }
 
+  private errorCode(error: unknown): string {
+    return String(
+      (error as { code?: unknown } | null)?.code ?? ''
+    );
+  }
+
+  private toVerificationError(error: unknown): {
+    code: string;
+    message: string;
+  } {
+    const code = this.errorCode(error) || 'email-verification-failed';
+    return {
+      code,
+      message:
+        code === 'deadline-exceeded'
+          ? 'Tempo de resposta excedido ao enviar o e-mail. Tente novamente.'
+          : 'Não foi possível enviar o e-mail de verificação.',
+    };
+  }
+
   private mapErrorCodeToMessage(code?: string): string {
     switch (code) {
-      case 'auth/expired-action-code': return 'O link expirou. Solicite um novo.';
-      case 'auth/invalid-action-code': return 'O link é inválido. Solicite um novo.';
-      default: return 'Erro ao verificar o e-mail.';
+      case 'auth/expired-action-code':
+        return 'O link expirou. Solicite um novo.';
+      case 'auth/invalid-action-code':
+        return 'O link é inválido. Solicite um novo.';
+      default:
+        return 'Erro ao verificar o e-mail.';
+    }
+  }
+
+  private reportError(
+    error: unknown,
+    operation: string,
+    extra: Record<string, unknown> = {}
+  ): void {
+    try {
+      const normalized =
+        error instanceof Error
+          ? error
+          : new Error('[EmailVerificationService] operação falhou');
+      const contextual = normalized as Error & {
+        original?: unknown;
+        context?: unknown;
+        skipUserNotification?: boolean;
+      };
+      contextual.original = error;
+      contextual.context = {
+        scope: 'EmailVerificationService',
+        operation,
+        ...extra,
+      };
+      contextual.skipUserNotification = true;
+      this.globalError.handleError(contextual);
+    } catch {
+      // Diagnóstico não interfere no fluxo de verificação.
     }
   }
 }
