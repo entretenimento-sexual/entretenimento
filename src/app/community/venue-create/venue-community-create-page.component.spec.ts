@@ -1,6 +1,6 @@
 // src/app/community/venue-create/venue-community-create-page.component.spec.ts
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,7 +11,6 @@ import { VenueCommunityCreatePageComponent } from './venue-community-create-page
 
 describe('VenueCommunityCreatePageComponent', () => {
   const createVenueCommunity$ = vi.fn();
-  const navigate = vi.fn();
   const showWarning = vi.fn();
   const showSuccess = vi.fn();
   const showError = vi.fn();
@@ -26,18 +25,14 @@ describe('VenueCommunityCreatePageComponent', () => {
         created: true,
       })
     );
-    navigate.mockResolvedValue(true);
 
     await TestBed.configureTestingModule({
       imports: [VenueCommunityCreatePageComponent],
       providers: [
+        provideRouter([]),
         {
           provide: VenueCommunityRepository,
           useValue: { createVenueCommunity$ },
-        },
-        {
-          provide: Router,
-          useValue: { navigate, createUrlTree: vi.fn(), serializeUrl: vi.fn() },
         },
         {
           provide: ErrorNotificationService,
@@ -66,6 +61,8 @@ describe('VenueCommunityCreatePageComponent', () => {
   it('cria Local, preserva owner no backend e abre a comunidade', () => {
     const fixture = TestBed.createComponent(VenueCommunityCreatePageComponent);
     const component = fixture.componentInstance;
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
     component.form.setValue({
       name: 'Espaço Funcional',
