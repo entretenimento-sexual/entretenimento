@@ -32,7 +32,7 @@ test('policy covers shared content, moderation and financial domains safely', ()
   );
 });
 
-test('policy marks implemented private and temporary executors correctly', () => {
+test('policy marks implemented private, temporary and membership executors', () => {
   const byDomain = new Map(
     ACCOUNT_DATA_RETENTION_POLICY.map((entry) => [entry.domain, entry])
   );
@@ -45,10 +45,14 @@ test('policy marks implemented private and temporary executors correctly', () =>
   );
   assert.equal(byDomain.get('friend_requests')?.automation, 'implemented');
   assert.equal(
+    byDomain.get('community_memberships')?.automation,
+    'implemented'
+  );
+  assert.equal(
     byDomain.get('relationship_edges')?.automation,
     'contract_required'
   );
-  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 3);
+  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 4);
 });
 
 test('current plan remains blocked until every pre-finalize contract is completed', () => {
@@ -67,6 +71,7 @@ test('current plan remains blocked until every pre-finalize contract is complete
   assert.equal(canFinalizePrivateUserDeletion(plan), false);
   assert.ok(plan.blockingDomains.includes('notifications'));
   assert.ok(plan.blockingDomains.includes('presence_and_location'));
+  assert.ok(plan.blockingDomains.includes('community_memberships'));
   assert.ok(plan.blockingDomains.includes('owned_media_and_storage'));
   assert.ok(plan.blockingDomains.includes('shared_messages'));
   assert.ok(
@@ -83,6 +88,7 @@ test('completed domains are recorded and removed from blockers', () => {
       'public_profile',
       'nickname_index',
       'presence_and_location',
+      'community_memberships',
     ],
   });
 
@@ -90,10 +96,12 @@ test('completed domains are recorded and removed from blockers', () => {
     'public_profile',
     'nickname_index',
     'presence_and_location',
+    'community_memberships',
   ]);
   assert.ok(!plan.blockingDomains.includes('public_profile'));
   assert.ok(!plan.blockingDomains.includes('nickname_index'));
   assert.ok(!plan.blockingDomains.includes('presence_and_location'));
+  assert.ok(!plan.blockingDomains.includes('community_memberships'));
   assert.ok(plan.blockingDomains.includes('auth_identity'));
 });
 
