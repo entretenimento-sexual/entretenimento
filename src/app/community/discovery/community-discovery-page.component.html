@@ -24,7 +24,6 @@
     <header class="community-discovery__header">
       <div>
         <h1 id="community-discovery-title">{{ title }}</h1>
-        <p>{{ description }}</p>
         @if (state.status === 'ready') {
           <span aria-live="polite">{{ state.items.length }}</span>
         }
@@ -41,6 +40,8 @@
         </a>
       }
     </header>
+
+    <p class="community-discovery__definition">{{ description }}</p>
 
     @if (state.status === 'loading') {
       <div class="community-discovery__state" role="status" aria-live="polite">
