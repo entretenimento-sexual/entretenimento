@@ -89,13 +89,81 @@
         </div>
       }
 
+      @if (requiresIdentityConfirmation()) {
+        <div class="account-lifecycle-dialog__field account-lifecycle-dialog__identity">
+          <span class="account-lifecycle-dialog__label">Confirme sua identidade</span>
+
+          @if (requiresPassword()) {
+            <label
+              class="account-lifecycle-dialog__field-help"
+              for="account-lifecycle-dialog-password"
+            >
+              Digite a senha atual desta conta.
+            </label>
+
+            <div class="account-lifecycle-dialog__password-wrap">
+              <input
+                id="account-lifecycle-dialog-password"
+                class="input-field account-lifecycle-dialog__password"
+                [type]="showPassword() ? 'text' : 'password'"
+                autocomplete="current-password"
+                [value]="password()"
+                [disabled]="busy()"
+                [attr.aria-invalid]="passwordError() ? 'true' : 'false'"
+                [attr.aria-describedby]="passwordError()
+                  ? 'account-lifecycle-dialog-password-help account-lifecycle-dialog-password-error'
+                  : 'account-lifecycle-dialog-password-help'"
+                (input)="onPasswordInput($event)"
+                (blur)="onPasswordBlur()"
+              />
+
+              <button
+                type="button"
+                class="account-lifecycle-dialog__password-toggle"
+                [disabled]="busy()"
+                [attr.aria-pressed]="showPassword()"
+                [attr.aria-label]="showPassword() ? 'Ocultar senha' : 'Mostrar senha'"
+                (click)="togglePasswordVisibility()"
+              >
+                {{ showPassword() ? 'Ocultar' : 'Mostrar' }}
+              </button>
+            </div>
+
+            <p
+              id="account-lifecycle-dialog-password-help"
+              class="account-lifecycle-dialog__field-help"
+            >
+              A senha não é enviada ao backend da plataforma; ela é validada pelo Firebase Auth.
+            </p>
+
+            @if (passwordError()) {
+              <p
+                id="account-lifecycle-dialog-password-error"
+                class="account-lifecycle-dialog__error"
+                role="alert"
+              >
+                {{ passwordError() }}
+              </p>
+            }
+          } @else if (usesGoogleConfirmation()) {
+            <p class="account-lifecycle-dialog__provider-note" role="note">
+              Ao confirmar, o Google solicitará novamente a conta vinculada a este perfil.
+            </p>
+          } @else {
+            <p class="account-lifecycle-dialog__error" role="alert">
+              O provedor desta conta ainda não possui confirmação segura nesta versão.
+              A ação permanece bloqueada.
+            </p>
+          }
+        </div>
+      }
+
       @if (isDanger()) {
         <div class="account-lifecycle-dialog__risk-box" role="note">
           <strong>Atenção</strong>
           <p>
-            Esta ação exige autenticação recente. A exclusão não é imediata:
-            o perfil será ocultado e haverá 24 horas para cancelamento antes
-            do início da exclusão definitiva.
+            A exclusão não é imediata: o perfil será ocultado e haverá 24 horas
+            para cancelamento antes do início da exclusão definitiva.
           </p>
         </div>
       }
@@ -121,7 +189,7 @@
         [attr.aria-busy]="busy()"
         (click)="onConfirm()"
       >
-        {{ busy() ? 'Processando...' : ctaLabel() }}
+        {{ busy() ? 'Confirmando identidade...' : ctaLabel() }}
       </button>
     </footer>
   </section>
