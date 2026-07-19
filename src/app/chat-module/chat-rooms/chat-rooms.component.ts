@@ -6,6 +6,7 @@
 // Responsabilidade:
 // - renderizar a área "Minhas salas";
 // - observar salas em tempo real por participação;
+// - separar salas ativas do histórico encerrado;
 // - iniciar o fluxo seguro de criação privada;
 // - iniciar o fluxo seguro de encerramento da sala própria.
 //
@@ -21,6 +22,7 @@
 // - a view consome roomsVm$ pelo async pipe;
 // - não há atribuição manual de array dentro de tap() para renderização;
 // - AuthSessionService continua sendo a fonte canônica de UID.
+// -----------------------------------------------------------------------------
 
 import {
   Component,
@@ -84,6 +86,8 @@ type RoomCardViewModel = RoomListItem & {
 interface ChatRoomsViewModel {
   uid: string | null;
   rooms: RoomCardViewModel[];
+  activeRooms: RoomCardViewModel[];
+  closedRooms: RoomCardViewModel[];
   loading: boolean;
   loadFailed: boolean;
   hasOwnedActiveRoom: boolean;
@@ -108,6 +112,8 @@ export class ChatRoomsComponent implements OnInit {
   private latestVm: ChatRoomsViewModel = {
     uid: null,
     rooms: [],
+    activeRooms: [],
+    closedRooms: [],
     loading: true,
     loadFailed: false,
     hasOwnedActiveRoom: false,
@@ -408,25 +414,28 @@ export class ChatRoomsComponent implements OnInit {
       canClose:
         !!uid &&
         room.createdBy === uid &&
-        room.status !== 'closed' &&
-        room.status !== 'archived',
+        this.isActiveRoom(room),
     }));
-
-    const ownedActiveRoomCount = roomCards.filter(
-      (room) =>
-        room.isOwner &&
-        room.status !== 'closed' &&
-        room.status !== 'archived'
+    const activeRooms = roomCards.filter((room) => this.isActiveRoom(room));
+    const closedRooms = roomCards.filter((room) => !this.isActiveRoom(room));
+    const ownedActiveRoomCount = activeRooms.filter(
+      (room) => room.isOwner
     ).length;
 
     return {
       uid,
       rooms: roomCards,
+      activeRooms,
+      closedRooms,
       loading,
       loadFailed,
       hasOwnedActiveRoom: ownedActiveRoomCount > 0,
       ownedActiveRoomCount,
     };
+  }
+
+  private isActiveRoom(room: Pick<RoomListItem, 'status'>): boolean {
+    return room.status !== 'closed' && room.status !== 'archived';
   }
 
   private canUsePlaceIntent(user: IUserDados): boolean {
