@@ -85,21 +85,73 @@
   gap: 0.5rem;
 }
 
+.account-lifecycle-dialog__identity {
+  padding: 0.9rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--surface-color) 94%, var(--primary-color) 6%);
+}
+
 .account-lifecycle-dialog__textarea {
   min-height: 120px;
   resize: vertical;
   margin-bottom: 0;
 }
 
+.account-lifecycle-dialog__password-wrap {
+  position: relative;
+  display: grid;
+}
+
+.account-lifecycle-dialog__password {
+  min-height: var(--tap-target);
+  margin-bottom: 0;
+  padding-right: 6.5rem;
+}
+
+.account-lifecycle-dialog__password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  min-width: 5.5rem;
+  min-height: calc(var(--tap-target) - 0.5rem);
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--primary-color);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.account-lifecycle-dialog__password-toggle:focus-visible {
+  outline: 3px solid var(--focus-ring, var(--primary-color));
+  outline-offset: 1px;
+}
+
+.account-lifecycle-dialog__password-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .account-lifecycle-dialog__field-help,
-.account-lifecycle-dialog__error {
+.account-lifecycle-dialog__error,
+.account-lifecycle-dialog__provider-note {
   margin: 0;
   font-size: 0.82rem;
   line-height: 1.4;
 }
 
-.account-lifecycle-dialog__field-help {
+.account-lifecycle-dialog__field-help,
+.account-lifecycle-dialog__provider-note {
   color: color-mix(in oklab, var(--text-color) 68%, transparent);
+}
+
+.account-lifecycle-dialog__provider-note {
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--primary-color) 8%, transparent);
 }
 
 .account-lifecycle-dialog__error {
@@ -175,6 +227,7 @@
 }
 
 html.high-contrast .account-lifecycle-dialog,
+html.high-contrast .account-lifecycle-dialog__identity,
 html.high-contrast .account-lifecycle-dialog__risk-box {
   border-width: 2px;
   box-shadow: none;
