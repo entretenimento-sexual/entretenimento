@@ -31,14 +31,21 @@ function projection(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test('normaliza paginação e limita o tamanho máximo', () => {
+test('normaliza paginação, fonte e limita o tamanho máximo', () => {
   assert.deepEqual(
     normalizeCommunityDiscoveryPageRequest({
       limit: 999,
       cursor: 'community-1',
+      sourceType: 'venue',
     }),
-    { limit: 24, cursor: 'community-1' }
+    { limit: 24, cursor: 'community-1', sourceType: 'venue' }
   );
+
+  assert.deepEqual(normalizeCommunityDiscoveryPageRequest({ sourceType: 'other' }), {
+    limit: 12,
+    cursor: null,
+    sourceType: null,
+  });
 });
 
 test('descarta cursor e communityId com formato inseguro', () => {
