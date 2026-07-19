@@ -13,7 +13,12 @@ export type AccountLifecycleSource =
   | 'system'
   | null;
 
-  export type AccountLifecycleDialogIntent =
+export type AccountReauthenticationMode =
+  | 'password'
+  | 'google'
+  | 'unsupported';
+
+export type AccountLifecycleDialogIntent =
   | 'self_suspend'
   | 'self_delete'
   | 'reactivate_self_suspend'
@@ -24,6 +29,7 @@ export type AccountLifecycleSource =
 export interface AccountLifecycleDialogConfirmEvent {
   intent: AccountLifecycleDialogIntent;
   reason?: string | null;
+  password?: string | null;
 }
 
 export interface AccountLifecycleState {
