@@ -29,6 +29,7 @@ import {
   ContentAccessRecommendedAction,
 } from 'src/app/core/access/content-access-policy.model';
 import { ContentAccessNavigationService } from 'src/app/core/access/content-access-navigation.service';
+import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
@@ -107,11 +108,14 @@ export class CommunityPreviewPageComponent {
   private readonly membershipCommands$ = new Subject<CommunityMembershipCommand>();
 
   readonly activeSection = signal<CommunityPreviewSection>('feed');
+  readonly backRoute = String(
+    this.route.snapshot.data['backRoute'] ?? '/dashboard/comunidades'
+  );
 
   private readonly communityId$ = this.route.paramMap.pipe(
     map((params) => String(params.get('communityId') ?? '').trim()),
     map((communityId) => {
-      if (!communityId) throw new Error('Identificador de comunidade ausente.');
+      if (!communityId) throw new Error('Identificador do espaço social ausente.');
       return communityId;
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -152,13 +156,7 @@ export class CommunityPreviewPageComponent {
       return operation$.pipe(
         tap((result) => {
           this.errorNotifier.showSuccess(
-            command.kind === 'request'
-              ? result.status === 'active'
-                ? 'Você entrou na comunidade.'
-                : 'Solicitação enviada.'
-              : command.pending
-                ? 'Solicitação cancelada.'
-                : 'Você saiu da comunidade.'
+            this.membershipSuccessMessage(command, result.status)
           );
           this.activeSection.set('feed');
           this.refreshPreview$.next();
@@ -207,6 +205,10 @@ export class CommunityPreviewPageComponent {
   }
 
   membershipActionLabel(community: CommunityPreviewCard): string {
+    if (community.source.type === 'venue') {
+      return community.access.join === 'open' ? 'Seguir' : 'Solicitar acesso';
+    }
+
     return community.access.join === 'open' ? 'Participar' : 'Solicitar';
   }
 
@@ -223,7 +225,11 @@ export class CommunityPreviewPageComponent {
   }
 
   sourceLabel(community: CommunityPreviewCard): string {
-    return community.source.type === 'venue' ? 'Local' : 'Sala';
+    return getSocialSpaceDefinition(community.source.type).label;
+  }
+
+  sourceDescription(community: CommunityPreviewCard): string {
+    return getSocialSpaceDefinition(community.source.type).description;
   }
 
   viewerLabel(
@@ -256,13 +262,44 @@ export class CommunityPreviewPageComponent {
   }
 
   joinLabel(community: CommunityPreviewCard): string {
-    const labels = {
-      open: 'Entrada aberta',
+    if (community.source.type === 'venue') {
+      const venueLabels = {
+        open: 'Acompanhamento aberto',
+        approval: 'Acesso por aprovação',
+        invite_only: 'Acesso por convite',
+      } as const;
+      return venueLabels[community.access.join];
+    }
+
+    const communityLabels = {
+      open: 'Participação aberta',
       approval: 'Entrada por aprovação',
       invite_only: 'Somente convite',
     } as const;
+    return communityLabels[community.access.join];
+  }
 
-    return labels[community.access.join];
+  metricsAriaLabel(community: CommunityPreviewCard): string {
+    return `Resumo do ${this.sourceLabel(community)}`;
+  }
+
+  private membershipSuccessMessage(
+    command: CommunityMembershipCommand,
+    resultStatus: 'active' | 'pending' | 'left'
+  ): string {
+    const isVenue = command.community.source.type === 'venue';
+
+    if (command.kind === 'request') {
+      if (resultStatus === 'active') {
+        return isVenue
+          ? 'Você começou a seguir o Local.'
+          : 'Você entrou na Comunidade.';
+      }
+      return isVenue ? 'Solicitação de acesso enviada.' : 'Solicitação enviada.';
+    }
+
+    if (command.pending) return 'Solicitação cancelada.';
+    return isVenue ? 'Você deixou de seguir o Local.' : 'Você saiu da Comunidade.';
   }
 
   private handleMembershipError(
@@ -285,7 +322,7 @@ export class CommunityPreviewPageComponent {
       );
     }
 
-    this.reportMembershipError(error, kind);
+    this.reportMembershipError(error, community, kind);
     return of<CommunityMembershipActionState>({ status: 'error', kind });
   }
 
@@ -331,20 +368,22 @@ export class CommunityPreviewPageComponent {
   private reportPreviewError(error: unknown): void {
     this.reportError(
       error,
-      'Não foi possível abrir esta comunidade.',
+      'Não foi possível abrir este espaço agora.',
       'loadPreview'
     );
   }
 
   private reportMembershipError(
     error: unknown,
+    community: CommunityPreviewCard,
     kind: CommunityMembershipActionKind
   ): void {
+    const label = this.sourceLabel(community);
     this.reportError(
       error,
       kind === 'leave'
-        ? 'Não foi possível sair da comunidade agora.'
-        : 'Não foi possível concluir a participação agora.',
+        ? `Não foi possível sair deste ${label} agora.`
+        : `Não foi possível concluir a participação neste ${label} agora.`,
       kind === 'leave' ? 'leaveMembership' : 'requestMembership'
     );
   }
