@@ -4,26 +4,11 @@
       "collectionGroup": "public_videos",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "visibility",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "moderationStatus",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "orderIndex",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "publishedAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "moderationStatus", "order": "ASCENDING" },
+        { "fieldPath": "orderIndex", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -31,34 +16,13 @@
       "collectionGroup": "public_videos",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "visibility",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "moderationStatus",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "score",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "uniqueViewersCount",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "viewsCount",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "publishedAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "moderationStatus", "order": "ASCENDING" },
+        { "fieldPath": "score", "order": "DESCENDING" },
+        { "fieldPath": "uniqueViewersCount", "order": "DESCENDING" },
+        { "fieldPath": "viewsCount", "order": "DESCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -66,22 +30,10 @@
       "collectionGroup": "public_videos",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "visibility",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "moderationStatus",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "publishedAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "moderationStatus", "order": "ASCENDING" },
+        { "fieldPath": "publishedAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -89,18 +41,9 @@
       "collectionGroup": "public_profiles",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "compatibilityReady",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "updatedAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "compatibilityReady", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -108,22 +51,10 @@
       "collectionGroup": "invites",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "receiverId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "status",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "sentAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "receiverId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "sentAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -131,18 +62,9 @@
       "collectionGroup": "notifications",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "userId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -150,18 +72,9 @@
       "collectionGroup": "chats",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "participants",
-          "arrayConfig": "CONTAINS"
-        },
-        {
-          "fieldPath": "timestamp",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "participants", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -169,26 +82,11 @@
       "collectionGroup": "regional_hot_places",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "region.uf",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "region.city",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "moderation.visibility",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "metrics.score",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "region.uf", "order": "ASCENDING" },
+        { "fieldPath": "region.city", "order": "ASCENDING" },
+        { "fieldPath": "moderation.visibility", "order": "ASCENDING" },
+        { "fieldPath": "metrics.score", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -196,30 +94,12 @@
       "collectionGroup": "regional_hot_places",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "region.uf",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "region.city",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "moderation.visibility",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "audience",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "metrics.score",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "region.uf", "order": "ASCENDING" },
+        { "fieldPath": "region.city", "order": "ASCENDING" },
+        { "fieldPath": "moderation.visibility", "order": "ASCENDING" },
+        { "fieldPath": "audience", "order": "ASCENDING" },
+        { "fieldPath": "metrics.score", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -227,30 +107,12 @@
       "collectionGroup": "user_intent_statuses",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "destination.region.uf",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "destination.region.city",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "moderation.state",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "visibility",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "expiresAt",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "destination.region.uf", "order": "ASCENDING" },
+        { "fieldPath": "destination.region.city", "order": "ASCENDING" },
+        { "fieldPath": "moderation.state", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -258,34 +120,13 @@
       "collectionGroup": "user_intent_statuses",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "destination.region.uf",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "destination.region.city",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "moderation.state",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "visibility",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "destination.venueId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "expiresAt",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "destination.region.uf", "order": "ASCENDING" },
+        { "fieldPath": "destination.region.city", "order": "ASCENDING" },
+        { "fieldPath": "moderation.state", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "destination.venueId", "order": "ASCENDING" },
+        { "fieldPath": "expiresAt", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -293,18 +134,9 @@
       "collectionGroup": "community_discovery_index",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "source.type",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "rankScore",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "source.type", "order": "ASCENDING" },
+        { "fieldPath": "rankScore", "order": "DESCENDING" },
+        { "fieldPath": "__name__", "order": "DESCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -312,34 +144,13 @@
       "collectionGroup": "venues",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "region.uf",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "region.city",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "moderation.state",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "visibility",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "sponsorship.priority",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "name",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "region.uf", "order": "ASCENDING" },
+        { "fieldPath": "region.city", "order": "ASCENDING" },
+        { "fieldPath": "moderation.state", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "sponsorship.priority", "order": "DESCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     },
@@ -347,41 +158,32 @@
       "collectionGroup": "venues",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "region.uf",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "region.city",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "moderation.state",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "visibility",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "kind",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "sponsorship.priority",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "name",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "region.uf", "order": "ASCENDING" },
+        { "fieldPath": "region.city", "order": "ASCENDING" },
+        { "fieldPath": "moderation.state", "order": "ASCENDING" },
+        { "fieldPath": "visibility", "order": "ASCENDING" },
+        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "sponsorship.priority", "order": "DESCENDING" },
+        { "fieldPath": "name", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
       ],
       "density": "SPARSE_ALL"
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "friends",
+      "fieldPath": "friendUid",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "collectionGroup": "blocks",
+      "fieldPath": "uid",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
 }
