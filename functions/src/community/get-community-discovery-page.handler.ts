@@ -62,9 +62,12 @@ export const getCommunityDiscoveryPage =
 
       const projection = db.collection('community_discovery_index');
       const scanLimit = pageRequest.limit * 3 + 1;
-      let pageQuery = projection
-        .orderBy('rankScore', 'desc')
-        .limit(scanLimit);
+      let pageQuery = pageRequest.sourceType
+        ? projection
+            .where('source.type', '==', pageRequest.sourceType)
+            .orderBy('rankScore', 'desc')
+            .limit(scanLimit)
+        : projection.orderBy('rankScore', 'desc').limit(scanLimit);
 
       if (pageRequest.cursor) {
         const cursorSnapshot = await projection.doc(pageRequest.cursor).get();
@@ -74,6 +77,20 @@ export const getCommunityDiscoveryPage =
             'invalid-argument',
             'Cursor de paginação não encontrado.'
           );
+        }
+
+        if (pageRequest.sourceType) {
+          const cursorSource = (cursorSnapshot.data()?.['source'] ?? {}) as Record<
+            string,
+            unknown
+          >;
+
+          if (cursorSource['type'] !== pageRequest.sourceType) {
+            throw new HttpsError(
+              'invalid-argument',
+              'O cursor não pertence a esta categoria.'
+            );
+          }
         }
 
         pageQuery = pageQuery.startAfter(cursorSnapshot);
@@ -92,7 +109,10 @@ export const getCommunityDiscoveryPage =
           document.data()
         );
 
-        if (item) {
+        if (
+          item
+          && (!pageRequest.sourceType || item.source.type === pageRequest.sourceType)
+        ) {
           items.push(item);
         }
 
