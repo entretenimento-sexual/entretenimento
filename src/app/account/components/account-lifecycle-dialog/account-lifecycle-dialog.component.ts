@@ -15,6 +15,7 @@ import { A11yModule } from '@angular/cdk/a11y';
 import {
   AccountLifecycleDialogConfirmEvent,
   AccountLifecycleDialogIntent,
+  AccountReauthenticationMode,
 } from '../../models/account-lifecycle.model';
 
 @Component({
@@ -28,6 +29,9 @@ import {
 export class AccountLifecycleDialogComponent implements AfterViewInit {
   readonly intent = input.required<AccountLifecycleDialogIntent>();
   readonly busy = input<boolean>(false);
+  readonly reauthenticationMode = input<AccountReauthenticationMode>(
+    'unsupported'
+  );
 
   readonly closed = output<void>();
   readonly confirmed = output<AccountLifecycleDialogConfirmEvent>();
@@ -35,6 +39,10 @@ export class AccountLifecycleDialogComponent implements AfterViewInit {
   readonly reason = signal('');
   readonly reasonTouched = signal(false);
   readonly maxReasonLength = 500;
+
+  readonly password = signal('');
+  readonly passwordTouched = signal(false);
+  readonly showPassword = signal(false);
 
   private previousActiveElement: HTMLElement | null = null;
 
@@ -47,6 +55,34 @@ export class AccountLifecycleDialogComponent implements AfterViewInit {
     const intent = this.intent();
     return intent === 'moderator_suspend' || intent === 'moderator_delete';
   });
+
+  readonly requiresIdentityConfirmation = computed(() => {
+    const intent = this.intent();
+    return (
+      intent === 'self_suspend' ||
+      intent === 'self_delete' ||
+      intent === 'reactivate_self_suspend' ||
+      intent === 'cancel_pending_deletion'
+    );
+  });
+
+  readonly requiresPassword = computed(
+    () =>
+      this.requiresIdentityConfirmation() &&
+      this.reauthenticationMode() === 'password'
+  );
+
+  readonly usesGoogleConfirmation = computed(
+    () =>
+      this.requiresIdentityConfirmation() &&
+      this.reauthenticationMode() === 'google'
+  );
+
+  readonly hasUnsupportedConfirmation = computed(
+    () =>
+      this.requiresIdentityConfirmation() &&
+      this.reauthenticationMode() === 'unsupported'
+  );
 
   readonly title = computed(() => {
     switch (this.intent()) {
@@ -74,7 +110,7 @@ export class AccountLifecycleDialogComponent implements AfterViewInit {
       case 'self_delete':
         return 'Sua conta ficará invisível imediatamente. Você poderá cancelar a solicitação por 24 horas; depois desse prazo, a exclusão definitiva poderá ser iniciada.';
       case 'reactivate_self_suspend':
-        return 'Sua conta voltará a ficar visível e poderá interagir normalmente na plataforma.';
+        return 'A conta voltará ao estado ativo. A visibilidade pública só será restaurada quando as verificações obrigatórias continuarem válidas.';
       case 'cancel_pending_deletion':
         return 'A exclusão pendente será cancelada e o estado que a conta possuía antes da solicitação será restaurado.';
       case 'moderator_suspend':
@@ -146,10 +182,19 @@ export class AccountLifecycleDialogComponent implements AfterViewInit {
       : 'O motivo é obrigatório para esta ação.';
   });
 
+  readonly passwordError = computed(() => {
+    if (!this.requiresPassword() || !this.passwordTouched()) return null;
+    return this.password().length > 0
+      ? null
+      : 'Informe sua senha atual para confirmar esta ação.';
+  });
+
   readonly canConfirm = computed(() => {
     if (this.busy() || this.reasonLength() > this.maxReasonLength) return false;
-    if (!this.requiresReason()) return true;
-    return this.reason().trim().length > 0;
+    if (this.requiresReason() && !this.reason().trim()) return false;
+    if (this.hasUnsupportedConfirmation()) return false;
+    if (this.requiresPassword() && !this.password()) return false;
+    return true;
   });
 
   ngAfterViewInit(): void {
@@ -182,9 +227,24 @@ export class AccountLifecycleDialogComponent implements AfterViewInit {
     this.reasonTouched.set(true);
   }
 
+  onPasswordInput(event: Event): void {
+    const target = event.target as HTMLInputElement | null;
+    this.password.set(target?.value ?? '');
+  }
+
+  onPasswordBlur(): void {
+    this.passwordTouched.set(true);
+  }
+
+  togglePasswordVisibility(): void {
+    if (this.busy()) return;
+    this.showPassword.update((visible) => !visible);
+  }
+
   onClose(): void {
     const focusTarget = this.previousActiveElement;
     this.previousActiveElement = null;
+    this.password.set('');
     this.closed.emit();
 
     if (focusTarget?.isConnected) {
@@ -194,12 +254,14 @@ export class AccountLifecycleDialogComponent implements AfterViewInit {
 
   onConfirm(): void {
     this.reasonTouched.set(true);
+    this.passwordTouched.set(true);
 
     if (!this.canConfirm()) return;
 
     this.confirmed.emit({
       intent: this.intent(),
       reason: this.reason().trim() || null,
+      password: this.requiresPassword() ? this.password() : null,
     });
   }
 }
