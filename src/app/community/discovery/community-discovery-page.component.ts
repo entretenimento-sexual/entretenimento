@@ -5,7 +5,7 @@ import {
   Component,
   inject,
 } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink, RouterLinkActive } from '@angular/router';
 import {
   catchError,
   exhaustMap,
@@ -29,6 +29,7 @@ import {
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 
 type CommunityDiscoveryStatus = 'loading' | 'ready' | 'empty' | 'error';
+type CommunityDiscoveryMode = 'explore' | 'mine';
 
 interface CommunityDiscoveryState {
   status: CommunityDiscoveryStatus;
@@ -102,7 +103,12 @@ function reduceState(
 @Component({
   selector: 'app-community-discovery-page',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, ImageFallbackDirective],
+  imports: [
+    AsyncPipe,
+    RouterLink,
+    RouterLinkActive,
+    ImageFallbackDirective,
+  ],
   templateUrl: './community-discovery-page.component.html',
   styleUrl: './community-discovery-page.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -116,38 +122,57 @@ export class CommunityDiscoveryPageComponent {
 
   readonly sourceType: CommunityPreviewSourceType =
     this.route.snapshot.data['sourceType'] === 'venue' ? 'venue' : 'community';
+  readonly discoveryMode: CommunityDiscoveryMode =
+    this.sourceType === 'community'
+    && this.route.snapshot.data['discoveryMode'] === 'mine'
+      ? 'mine'
+      : 'explore';
   readonly definition = getSocialSpaceDefinition(this.sourceType);
-  readonly title = this.definition.pluralLabel;
-  readonly description = this.definition.description;
+  readonly title = this.discoveryMode === 'mine'
+    ? 'Minhas comunidades'
+    : this.definition.pluralLabel;
+  readonly description = this.discoveryMode === 'mine'
+    ? 'Comunidades das quais você participa ou administra.'
+    : this.definition.description;
   readonly emptyMessage = this.sourceType === 'venue'
     ? 'Nenhum Local disponível.'
-    : 'Nenhuma Comunidade disponível.';
+    : this.discoveryMode === 'mine'
+      ? 'Você ainda não participa de nenhuma Comunidade.'
+      : 'Nenhuma Comunidade disponível.';
   readonly canCreateVenue = this.sourceType === 'venue';
+  readonly canCreateCommunity = this.sourceType === 'community';
+  readonly showCommunityNavigation = this.sourceType === 'community';
 
   readonly state$ = this.loadRequests$.pipe(
     startWith<LoadRequest>({ cursor: null, append: false }),
-    exhaustMap((request) =>
-      this.repository
-        .getDiscoveryPage$({
-          limit: 12,
-          cursor: request.cursor,
-          sourceType: this.sourceType,
-        })
-        .pipe(
-          map(
-            (page): LoadEvent => ({
-              type: 'success',
-              request,
-              page,
-            })
-          ),
-          startWith<LoadEvent>({ type: 'loading', request }),
-          catchError((error: unknown) => {
-            this.reportError(error);
-            return of<LoadEvent>({ type: 'error', request });
+    exhaustMap((request) => {
+      const page$ = this.discoveryMode === 'mine'
+        ? this.repository.getMyCommunitiesPage$({
+            limit: 12,
+            cursor: request.cursor,
+            sourceType: 'community',
           })
-        )
-    ),
+        : this.repository.getDiscoveryPage$({
+            limit: 12,
+            cursor: request.cursor,
+            sourceType: this.sourceType,
+          });
+
+      return page$.pipe(
+        map(
+          (page): LoadEvent => ({
+            type: 'success',
+            request,
+            page,
+          })
+        ),
+        startWith<LoadEvent>({ type: 'loading', request }),
+        catchError((error: unknown) => {
+          this.reportError(error);
+          return of<LoadEvent>({ type: 'error', request });
+        })
+      );
+    }),
     scan(reduceState, INITIAL_STATE),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -180,7 +205,7 @@ export class CommunityDiscoveryPageComponent {
   private reportError(error: unknown): void {
     try {
       this.errorNotifier.showError(
-        `Não foi possível carregar ${this.definition.pluralLabel.toLowerCase()}.`
+        `Não foi possível carregar ${this.title.toLowerCase()}.`
       );
     } catch {
       // A observabilidade abaixo permanece ativa.
@@ -196,6 +221,7 @@ export class CommunityDiscoveryPageComponent {
         scope: 'CommunityDiscoveryPageComponent',
         op: 'loadPage',
         sourceType: this.sourceType,
+        discoveryMode: this.discoveryMode,
       };
       contextual.skipUserNotification = true;
       this.globalError.handleError(contextual);
