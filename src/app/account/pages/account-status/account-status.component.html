@@ -5,16 +5,14 @@
       <header class="account-status-hero">
         <p class="account-status-hero__eyebrow">Estado da conta</p>
         <h1>{{ vm.title }}</h1>
-        <p class="account-status-hero__subtitle">
-          {{ vm.description }}
-        </p>
+        <p class="account-status-hero__subtitle">{{ vm.description }}</p>
 
-        <span class="account-status-badge">
+        <span class="account-status-badge" role="status">
           {{ vm.badgeLabel }}
         </span>
       </header>
 
-      <section class="account-status-card">
+      <section class="account-status-card" aria-label="Detalhes do estado da conta">
         @if (vm.suspensionReason) {
           <article class="account-status-item">
             <span class="label">Motivo</span>
@@ -24,21 +22,21 @@
 
         @if (vm.suspensionEndsAt) {
           <article class="account-status-item">
-            <span class="label">Fim previsto</span>
+            <span class="label">Fim previsto da suspensão</span>
             <strong>{{ vm.suspensionEndsAt | date:'dd/MM/yyyy HH:mm' }}</strong>
           </article>
         }
 
         @if (vm.deletionUndoUntil) {
           <article class="account-status-item">
-            <span class="label">Prazo para arrependimento</span>
+            <span class="label">Prazo para cancelar a solicitação</span>
             <strong>{{ vm.deletionUndoUntil | date:'dd/MM/yyyy HH:mm' }}</strong>
           </article>
         }
 
         @if (vm.purgeAfter) {
           <article class="account-status-item">
-            <span class="label">Expurgo previsto</span>
+            <span class="label">Exclusão definitiva prevista a partir de</span>
             <strong>{{ vm.purgeAfter | date:'dd/MM/yyyy HH:mm' }}</strong>
           </article>
         }
@@ -46,25 +44,27 @@
 
       <section class="account-status-actions" aria-label="Ações de status da conta">
         @if (vm.canReactivateSelfSuspension) {
-        <button
+          <button
             type="button"
             class="btn btn-primary"
             [disabled]="isBusy()"
+            [attr.aria-busy]="isReactivating()"
             (click)="onReactivateSelfSuspension()"
-        >
+          >
             {{ isReactivating() ? 'Reativando...' : 'Reativar conta' }}
-        </button>
+          </button>
         }
 
         @if (vm.canCancelDeletion) {
-        <button
+          <button
             type="button"
             class="btn btn-primary"
             [disabled]="isBusy()"
+            [attr.aria-busy]="isCancelingDeletion()"
             (click)="onCancelDeletion()"
-        >
-            {{ isCancelingDeletion() ? 'Cancelando...' : 'Cancelar exclusão' }}
-        </button>
+          >
+            {{ isCancelingDeletion() ? 'Cancelando...' : 'Cancelar solicitação de exclusão' }}
+          </button>
         }
 
         @if (vm.canGoToAccountHome) {
@@ -78,6 +78,10 @@
             Ir para meu perfil
           </a>
         }
+      </section>
+    } @else {
+      <section class="account-status-card" role="status" aria-live="polite">
+        <p>Carregando o estado da conta...</p>
       </section>
     }
   </section>
