@@ -141,6 +141,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         }
 
         if (this.mode === 'resetPassword') {
+          this.isLoading = false;
           this.processPasswordResetLink();
           return;
         }
