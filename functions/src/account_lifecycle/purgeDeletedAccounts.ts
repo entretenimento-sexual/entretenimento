@@ -15,6 +15,11 @@ import {
   buildAccountDataDeletionPlan,
   canFinalizePrivateUserDeletion,
 } from './account-data-retention.policy';
+import {
+  AccountDataDeletionExecutionSummary,
+  executeAccountDataDeletionDomains,
+} from './account-data-deletion.executor';
+import { FirestoreAccountDataDeletionAdapter } from './account-data-deletion.firestore';
 
 const SCHEDULE = 'every day 03:17';
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -29,6 +34,8 @@ const AUTH_COMPLETED_DOMAINS: readonly AccountDataDomain[] = [
   ...CLAIM_COMPLETED_DOMAINS,
   'auth_identity',
 ];
+
+const deletionAdapter = new FirestoreAccountDataDeletionAdapter();
 
 type PurgeCandidate = {
   uid: string;
@@ -59,6 +66,7 @@ export const purgeDeletedAccounts = onSchedule(
     let skipped = 0;
     let retryPending = 0;
     let blockedByPolicy = 0;
+    let domainFailures = 0;
 
     for (const userSnapshot of candidatesSnapshot.docs) {
       const candidate = toCandidate(
@@ -84,13 +92,30 @@ export const purgeDeletedAccounts = onSchedule(
           continue;
         }
 
+        const execution = await executeAccountDataDeletionDomains(
+          deletionAdapter,
+          {
+            uid: candidate.uid,
+            generatedAt: now,
+          }
+        );
+
+        domainFailures += execution.results.filter(
+          (result) => result.status === 'failed'
+        ).length;
+
+        const completedDomains = uniqueDomains([
+          ...AUTH_COMPLETED_DOMAINS,
+          ...execution.completedDomains,
+        ]);
+
         const dataPlan = buildAccountDataDeletionPlan({
           uid: candidate.uid,
           generatedAt: now,
-          completedDomains: AUTH_COMPLETED_DOMAINS,
+          completedDomains,
         });
 
-        await persistDataDeletionPlan(candidate, dataPlan, now);
+        await persistDataDeletionPlan(candidate, dataPlan, execution, now);
 
         const finalized = await finalizePrivateUserDeletion(
           candidate,
@@ -120,6 +145,7 @@ export const purgeDeletedAccounts = onSchedule(
       skipped,
       retryPending,
       blockedByPolicy,
+      domainFailures,
       policyVersion: ACCOUNT_DATA_RETENTION_POLICY_VERSION,
       now,
     });
@@ -146,6 +172,12 @@ function isPurgeCandidate(user: UserDoc, now: number): boolean {
     user.legalHold !== true &&
     user.billingHold !== true
   );
+}
+
+function uniqueDomains(
+  domains: readonly AccountDataDomain[]
+): AccountDataDomain[] {
+  return [...new Set(domains)];
 }
 
 /**
@@ -308,6 +340,7 @@ async function deleteAuthUser(
 async function persistDataDeletionPlan(
   candidate: PurgeCandidate,
   plan: AccountDataDeletionPlan,
+  execution: AccountDataDeletionExecutionSummary,
   now: number
 ): Promise<void> {
   const batch = db.batch();
@@ -315,6 +348,9 @@ async function persistDataDeletionPlan(
   const tombstoneRef = db
     .collection('deleted_accounts_audit')
     .doc(candidate.uid);
+  const executionAuditRef = db
+    .collection('account_data_deletion_audit')
+    .doc();
 
   batch.set(
     tombstoneRef,
@@ -324,6 +360,7 @@ async function persistDataDeletionPlan(
       dataDeletionCompletedDomains: plan.completedDomains,
       dataDeletionBlockers: plan.blockingDomains,
       dataDeletionPlan: plan.steps,
+      dataDeletionDomainProgress: execution.results,
       dataDeletionLastPlannedAt: now,
       updatedAt: now,
     },
@@ -334,15 +371,28 @@ async function persistDataDeletionPlan(
     userRef,
     {
       purgeLastAttemptAt: now,
-      purgeBlockedReason: plan.status === 'blocked'
-        ? 'data-contract-required'
-        : FieldValue.delete(),
-      purgeBlockedDomains: plan.status === 'blocked'
-        ? plan.blockingDomains
-        : FieldValue.delete(),
+      purgeBlockedReason:
+        plan.status === 'blocked'
+          ? 'data-contract-required'
+          : FieldValue.delete(),
+      purgeBlockedDomains:
+        plan.status === 'blocked'
+          ? plan.blockingDomains
+          : FieldValue.delete(),
     },
     { merge: true }
   );
+
+  batch.set(executionAuditRef, {
+    uid: candidate.uid,
+    policyVersion: plan.policyVersion,
+    planStatus: plan.status,
+    completedDomains: plan.completedDomains,
+    blockingDomains: plan.blockingDomains,
+    domainResults: execution.results,
+    createdAt: now,
+    source: 'scheduled-account-purge',
+  });
 
   await batch.commit();
 }
