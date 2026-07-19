@@ -47,6 +47,7 @@ export interface CommunityDiscoveryPage {
 export interface CommunityDiscoveryPageRequest {
   limit?: number;
   cursor?: string | null;
+  sourceType?: CommunityPreviewSourceType | null;
 }
 
 export interface CommunityPreviewResponse {
