@@ -49,10 +49,15 @@ test('policy marks implemented private, temporary and membership executors', () 
     'implemented'
   );
   assert.equal(
+    byDomain.get('room_participation')?.automation,
+    'implemented'
+  );
+  assert.equal(byDomain.get('room_participation')?.disposition, 'unlink');
+  assert.equal(
     byDomain.get('relationship_edges')?.automation,
     'contract_required'
   );
-  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 4);
+  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 5);
 });
 
 test('current plan remains blocked until every pre-finalize contract is completed', () => {
@@ -72,6 +77,7 @@ test('current plan remains blocked until every pre-finalize contract is complete
   assert.ok(plan.blockingDomains.includes('notifications'));
   assert.ok(plan.blockingDomains.includes('presence_and_location'));
   assert.ok(plan.blockingDomains.includes('community_memberships'));
+  assert.ok(plan.blockingDomains.includes('room_participation'));
   assert.ok(plan.blockingDomains.includes('owned_media_and_storage'));
   assert.ok(plan.blockingDomains.includes('shared_messages'));
   assert.ok(
@@ -89,6 +95,7 @@ test('completed domains are recorded and removed from blockers', () => {
       'nickname_index',
       'presence_and_location',
       'community_memberships',
+      'room_participation',
     ],
   });
 
@@ -97,11 +104,13 @@ test('completed domains are recorded and removed from blockers', () => {
     'nickname_index',
     'presence_and_location',
     'community_memberships',
+    'room_participation',
   ]);
   assert.ok(!plan.blockingDomains.includes('public_profile'));
   assert.ok(!plan.blockingDomains.includes('nickname_index'));
   assert.ok(!plan.blockingDomains.includes('presence_and_location'));
   assert.ok(!plan.blockingDomains.includes('community_memberships'));
+  assert.ok(!plan.blockingDomains.includes('room_participation'));
   assert.ok(plan.blockingDomains.includes('auth_identity'));
 });
 
