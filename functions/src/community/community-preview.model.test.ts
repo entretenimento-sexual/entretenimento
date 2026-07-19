@@ -14,8 +14,8 @@ function projection(overrides: Record<string, unknown> = {}) {
   return {
     name: 'Comunidade do Centro',
     slug: 'comunidade-do-centro',
-    description: 'Atualizações e fotos do local.',
-    source: { type: 'venue', id: 'venue-1' },
+    description: 'Grupo permanente de pessoas da região central.',
+    source: { type: 'community', id: 'community-1' },
     status: 'active',
     moderationState: 'active',
     visibility: 'public_preview',
@@ -41,7 +41,12 @@ test('normaliza paginação, fonte e limita o tamanho máximo', () => {
     { limit: 24, cursor: 'community-1', sourceType: 'venue' }
   );
 
-  assert.deepEqual(normalizeCommunityDiscoveryPageRequest({ sourceType: 'other' }), {
+  assert.deepEqual(
+    normalizeCommunityDiscoveryPageRequest({ sourceType: 'community' }),
+    { limit: 12, cursor: null, sourceType: 'community' }
+  );
+
+  assert.deepEqual(normalizeCommunityDiscoveryPageRequest({ sourceType: 'room' }), {
     limit: 12,
     cursor: null,
     sourceType: null,
@@ -56,16 +61,33 @@ test('descarta cursor e communityId com formato inseguro', () => {
   assert.equal(normalizeCommunityId('../community'), null);
 });
 
-test('sanitiza uma projeção pública válida', () => {
+test('sanitiza uma projeção comunitária pública válida', () => {
   const card = sanitizeCommunityDiscoveryProjection(
     'community-1',
     projection()
   );
 
   assert.equal(card?.communityId, 'community-1');
-  assert.equal(card?.source.type, 'venue');
+  assert.equal(card?.source.type, 'community');
   assert.equal(card?.access.minimumRole, 'premium');
   assert.equal(card?.access.requiresActiveSubscription, true);
+});
+
+test('sanitiza Local e rejeita Sala como origem comunitária', () => {
+  assert.equal(
+    sanitizeCommunityDiscoveryProjection(
+      'community-local',
+      projection({ source: { type: 'venue', id: 'venue-1' } })
+    )?.source.type,
+    'venue'
+  );
+  assert.equal(
+    sanitizeCommunityDiscoveryProjection(
+      'community-room',
+      projection({ source: { type: 'room', id: 'room-1' } })
+    ),
+    null
+  );
 });
 
 test('descarta projeções ocultas, pausadas ou malformadas', () => {
@@ -86,7 +108,7 @@ test('descarta projeções ocultas, pausadas ou malformadas', () => {
   assert.equal(
     sanitizeCommunityDiscoveryProjection(
       'community-1',
-      projection({ source: { type: 'invalid', id: 'venue-1' } })
+      projection({ source: { type: 'invalid', id: 'community-1' } })
     ),
     null
   );
