@@ -232,8 +232,8 @@ export class ProfileCompletionWriteService {
       string,
       unknown
     >;
-    const initialAdultConsentRequired =
-      userData['initialAdultConsentRequired'] === true;
+    const adultConsentRequired =
+      userData['initialAdultConsentRequired'] !== false;
 
     if (userData['accountStatus'] !== 'active') {
       throw this.createError(
@@ -257,7 +257,7 @@ export class ProfileCompletionWriteService {
     }
 
     if (
-      initialAdultConsentRequired &&
+      adultConsentRequired &&
       adultConsent['accepted'] !== true
     ) {
       throw this.createError(
