@@ -19,6 +19,8 @@ class FakeAdapter implements AccountDataDeletionAdapter {
   intentStatusAudit: number[] = [0];
   requesterRequests: number[] = [0];
   targetRequests: number[] = [0];
+  communityMemberships: number[] = [0];
+  ownedCommunityMemberships = 0;
   ownedFriendships: number[] = [0];
   inboundFriendships: number[] = [0];
   blockReferences: AccountBlockReferenceSummary = { owned: 0, inbound: 0 };
@@ -63,6 +65,14 @@ class FakeAdapter implements AccountDataDeletionAdapter {
       : this.targetRequests.shift() ?? 0;
   }
 
+  async unlinkCommunityMembershipsPage(): Promise<number> {
+    return this.communityMemberships.shift() ?? 0;
+  }
+
+  async inspectOwnedCommunityMemberships(): Promise<number> {
+    return this.ownedCommunityMemberships;
+  }
+
   async unlinkOwnedFriendshipsPage(): Promise<number> {
     return this.ownedFriendships.shift() ?? 0;
   }
@@ -87,6 +97,7 @@ test('executor completes private, temporary and social domains idempotently', as
   adapter.intentStatusAudit = [2];
   adapter.requesterRequests = [1];
   adapter.targetRequests = [2];
+  adapter.communityMemberships = [2];
   adapter.ownedFriendships = [3];
   adapter.inboundFriendships = [1];
 
@@ -102,6 +113,7 @@ test('executor completes private, temporary and social domains idempotently', as
     'preferences',
     'presence_and_location',
     'friend_requests',
+    'community_memberships',
     'relationship_edges',
   ]);
   assert.equal(result.results.every((item) => item.status === 'completed'), true);
@@ -159,6 +171,54 @@ test('presence domain removes live presence, precise location and temporary stat
     intentStatusesProcessed: 2,
     intentStatusAuditProcessed: 3,
   });
+});
+
+test('community memberships complete after all non-owner links are removed', async () => {
+  const adapter = new FakeAdapter();
+  adapter.communityMemberships = [3];
+
+  const result = await executeAccountDataDeletionDomains(adapter, {
+    uid: 'community-member',
+    generatedAt: 1_800_000_000_000,
+    pageSize: 10,
+  });
+
+  const memberships = result.results.find(
+    (item) => item.domain === 'community_memberships'
+  );
+
+  assert.equal(memberships?.status, 'completed');
+  assert.equal(memberships?.processed, 3);
+  assert.deepEqual(memberships?.details, {
+    membershipsProcessed: 3,
+    ownerMemberships: 0,
+  });
+});
+
+test('community ownership blocks account finalization until transfer or archive', async () => {
+  const adapter = new FakeAdapter();
+  adapter.communityMemberships = [2];
+  adapter.ownedCommunityMemberships = 1;
+
+  const result = await executeAccountDataDeletionDomains(adapter, {
+    uid: 'community-owner',
+    generatedAt: 1_800_000_000_000,
+    pageSize: 10,
+  });
+
+  const memberships = result.results.find(
+    (item) => item.domain === 'community_memberships'
+  );
+
+  assert.equal(memberships?.status, 'blocked');
+  assert.equal(
+    memberships?.blocker,
+    'owner-transfer-or-community-archive-required'
+  );
+  assert.equal(
+    result.completedDomains.includes('community_memberships'),
+    false
+  );
 });
 
 test('executor keeps relationship domain blocked while block history exists', async () => {
@@ -221,6 +281,25 @@ test('presence domain remains partial while status pagination is incomplete', as
   assert.equal(presence?.status, 'partial');
   assert.equal(presence?.blocker, 'pagination-limit-reached');
   assert.equal(result.completedDomains.includes('presence_and_location'), false);
+});
+
+test('community membership domain remains partial at pagination limit', async () => {
+  const adapter = new FakeAdapter();
+  adapter.communityMemberships = [2, 2];
+
+  const result = await executeAccountDataDeletionDomains(adapter, {
+    uid: 'community-member-partial',
+    generatedAt: 1_800_000_000_000,
+    pageSize: 2,
+    maxPagesPerDomain: 2,
+  });
+
+  const memberships = result.results.find(
+    (item) => item.domain === 'community_memberships'
+  );
+
+  assert.equal(memberships?.status, 'partial');
+  assert.equal(memberships?.blocker, 'pagination-limit-reached');
 });
 
 test('executor isolates a domain failure and continues the remaining domains', async () => {
