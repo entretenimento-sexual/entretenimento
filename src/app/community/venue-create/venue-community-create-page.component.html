@@ -3,7 +3,7 @@
   <header class="venue-create__header">
     <a
       class="venue-create__back"
-      routerLink="/dashboard/comunidades/locais"
+      routerLink="/dashboard/locais"
       aria-label="Voltar para Locais"
     >
       <i class="fas fa-arrow-left" aria-hidden="true"></i>
@@ -11,7 +11,8 @@
 
     <div>
       <h1 id="venue-create-title">Criar Local</h1>
-      <p>Você será o proprietário da comunidade vinculada.</p>
+      <p>{{ venueDefinition.description }}</p>
+      <p>Você será o Proprietário deste Local.</p>
     </div>
   </header>
 
@@ -26,7 +27,7 @@
           formControlName="name"
           maxlength="80"
           autocomplete="organization"
-          placeholder="Nome do local"
+          placeholder="Nome do Local"
         />
       </label>
 
@@ -45,7 +46,7 @@
           formControlName="description"
           maxlength="240"
           rows="3"
-          placeholder="O que acontece neste local?"
+          placeholder="O que existe ou acontece neste Local?"
         ></textarea>
       </label>
     </section>
@@ -102,23 +103,23 @@
     </section>
 
     <section aria-labelledby="venue-create-access-title">
-      <h2 id="venue-create-access-title">Entrada</h2>
+      <h2 id="venue-create-access-title">Acompanhamento e acesso</h2>
 
       <label>
-        <span>Quem pode participar</span>
+        <span>Quem pode acompanhar e interagir</span>
         <select formControlName="joinPolicy">
-          <option value="approval">Aprovação do proprietário</option>
-          <option value="open">Entrada imediata</option>
+          <option value="approval">Aprovação do Proprietário</option>
+          <option value="open">Acompanhamento imediato</option>
         </select>
       </label>
 
       <p class="venue-create__note">
-        Visitantes poderão acompanhar a prévia pública. Somente integrantes poderão interagir.
+        Visitantes poderão ver a prévia pública. A interação ficará reservada às pessoas autorizadas no Local.
       </p>
     </section>
 
     <div class="venue-create__actions">
-      <a routerLink="/dashboard/comunidades/locais">Cancelar</a>
+      <a routerLink="/dashboard/locais">Cancelar</a>
       <button type="submit" [disabled]="submitting()">
         @if (submitting()) {
           <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
