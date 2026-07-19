@@ -2,15 +2,15 @@
 // Serviço de comandos de sala. Criação e encerramento passam por Cloud Functions.
 
 import { Injectable, inject } from '@angular/core';
-import {
-  Firestore,
-  deleteDoc,
-  doc,
-  updateDoc,
-} from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { serverTimestamp } from 'firebase/firestore';
-import { Observable, defer, from, map, throwError } from 'rxjs';
+import {
+  Observable,
+  defer,
+  firstValueFrom,
+  from,
+  map,
+  throwError,
+} from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
 import {
@@ -55,7 +55,6 @@ interface ClosePrivateRoomResponse {
 
 @Injectable({ providedIn: 'root' })
 export class RoomManagementService {
-  private readonly db = inject(Firestore);
   private readonly functions = inject(Functions);
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly notify = inject(ErrorNotificationService);
@@ -133,48 +132,38 @@ export class RoomManagementService {
   }
 
   /**
-   * Compatibilidade temporária. Rules devem bloquear mutações estruturais
-   * diretas; a edição definitiva deverá usar callable própria.
+   * Compatibilidade de nomenclatura.
+   *
+   * A edição estrutural direta foi suprimida porque as Rules a bloqueiam e porque
+   * ainda não existe uma callable de edição com contrato, auditoria e validação de
+   * papel. O método permanece para não quebrar consumidores antigos, mas falha de
+   * forma explícita e observável em vez de tentar uma escrita insegura.
    */
   async updateRoom(
     roomId: string,
-    roomDetails: Partial<IRoom>
+    _roomDetails: Partial<IRoom>
   ): Promise<void> {
-    try {
-      const safeRoomId = String(roomId ?? '').trim();
+    void _roomDetails;
+    const safeRoomId = String(roomId ?? '').trim();
+    const error = new Error(
+      safeRoomId
+        ? 'A edição protegida de sala ainda não está disponível.'
+        : 'roomId inválido.'
+    );
 
-      if (!safeRoomId) {
-        throw new Error('roomId inválido.');
-      }
-
-      const roomRef = doc(this.db, 'rooms', safeRoomId);
-      await updateDoc(roomRef, {
-        ...roomDetails,
-        lastActivity: serverTimestamp(),
-      } as any);
-    } catch (error) {
-      this.reportError(error, 'updateRoom');
-      this.notify.showError('Erro ao atualizar sala.');
-      throw error;
-    }
+    this.reportError(error, 'updateRoom');
+    this.notify.showInfo('A edição da sala ainda não está disponível.');
+    throw error;
   }
 
-  /** Compatibilidade temporária; o fluxo seguro é closeRoom(). */
+  /**
+   * Compatibilidade de nomenclatura.
+   *
+   * “Excluir” uma Sala significa encerrá-la logicamente. O histórico e a auditoria
+   * são preservados e o slot do proprietário é liberado pela callable canônica.
+   */
   async deleteRoom(roomId: string): Promise<void> {
-    try {
-      const safeRoomId = String(roomId ?? '').trim();
-
-      if (!safeRoomId) {
-        throw new Error('roomId inválido.');
-      }
-
-      const roomRef = doc(this.db, 'rooms', safeRoomId);
-      await deleteDoc(roomRef);
-    } catch (error) {
-      this.reportError(error, 'deleteRoom');
-      this.notify.showError('Não foi possível encerrar a sala.');
-      throw error;
-    }
+    await firstValueFrom(this.closeRoom(roomId));
   }
 
   private toPlaceIntentInput(
