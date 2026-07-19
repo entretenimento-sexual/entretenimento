@@ -13,7 +13,7 @@
 // - a política é serializável e registrada no tombstone para auditoria/retry.
 // -----------------------------------------------------------------------------
 
-export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 1;
+export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 2;
 
 export type AccountDataDomain =
   | 'public_profile'
@@ -114,17 +114,17 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     domain: 'notifications',
     disposition: 'delete',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Notificações privadas e tokens derivados não possuem valor compartilhado.',
+    reason: 'Notificações privadas são removidas por executor paginado e idempotente.',
   },
   {
     domain: 'preferences',
     disposition: 'delete',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Preferências privadas devem ser removidas com a conta.',
+    reason: 'Preferências privadas são removidas diretamente pelo executor do lifecycle.',
   },
   {
     domain: 'presence_and_location',
@@ -140,15 +140,15 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     phase: 'pre_finalize',
     automation: 'contract_required',
     blocksFinalization: true,
-    reason: 'Amizades e bloqueios possuem cópias ou referências em contas de terceiros.',
+    reason: 'Amizades já são desvinculadas; bloqueios e seus eventos ainda exigem contrato de retenção de segurança.',
   },
   {
     domain: 'friend_requests',
     disposition: 'unlink',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Solicitações pendentes devem ser canceladas e registros históricos minimizados.',
+    reason: 'Solicitações recebidas e enviadas são removidas por consultas paginadas e idempotentes.',
   },
   {
     domain: 'community_memberships',
