@@ -122,10 +122,14 @@ test('preserva documento pausado para prévia de membro', () => {
 test('resolve visitante, pendente, membro, moderador e gestor', () => {
   assert.deepEqual(resolveCommunityViewerMode(null), {
     mode: 'visitor',
+    role: null,
     active: false,
     blocked: false,
   });
-  assert.equal(resolveCommunityViewerMode({ status: 'pending' }).mode, 'pending');
+  assert.deepEqual(
+    resolveCommunityViewerMode({ status: 'pending', role: 'member' }),
+    { mode: 'pending', role: 'member', active: false, blocked: false }
+  );
   assert.equal(
     resolveCommunityViewerMode({ status: 'active', role: 'member' }).mode,
     'member'
@@ -134,15 +138,16 @@ test('resolve visitante, pendente, membro, moderador e gestor', () => {
     resolveCommunityViewerMode({ status: 'active', role: 'moderator' }).mode,
     'moderator'
   );
-  assert.equal(
-    resolveCommunityViewerMode({ status: 'active', role: 'owner' }).mode,
-    'manager'
+  assert.deepEqual(
+    resolveCommunityViewerMode({ status: 'active', role: 'owner' }),
+    { mode: 'manager', role: 'owner', active: true, blocked: false }
   );
 });
 
 test('marca membership bloqueada sem expor um modo privilegiado', () => {
   assert.deepEqual(resolveCommunityViewerMode({ status: 'blocked', role: 'owner' }), {
     mode: 'visitor',
+    role: null,
     active: false,
     blocked: true,
   });
