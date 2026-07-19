@@ -13,7 +13,7 @@
 // - a política é serializável e registrada no tombstone para auditoria/retry.
 // -----------------------------------------------------------------------------
 
-export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 4;
+export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 5;
 
 export type AccountDataDomain =
   | 'public_profile'
@@ -162,9 +162,9 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     domain: 'room_participation',
     disposition: 'unlink',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Participações, convites e papéis em Salas não podem manter acesso residual.',
+    reason: 'Convites e participações são removidos; Salas encerradas são pseudonimizadas e owners ativos precisam encerrar ou transferir.',
   },
   {
     domain: 'owned_media_and_storage',
