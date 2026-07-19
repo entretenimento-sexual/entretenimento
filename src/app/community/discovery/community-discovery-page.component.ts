@@ -124,7 +124,9 @@ export class CommunityDiscoveryPageComponent {
   readonly definition = getSocialSpaceDefinition(this.sourceType);
   readonly title = this.definition.pluralLabel;
   readonly description = this.definition.description;
-  readonly emptyMessage = `Nenhum ${this.definition.label} disponível.`;
+  readonly emptyMessage = this.sourceType === 'venue'
+    ? 'Nenhum Local disponível.'
+    : 'Nenhuma Comunidade disponível.';
   readonly canCreateVenue = this.sourceType === 'venue';
 
   readonly state$ = this.loadRequests$.pipe(
