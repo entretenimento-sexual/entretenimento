@@ -1,25 +1,24 @@
 // src/app/core/services/autentication/login.service.ts
-// ===============================================================
-// LoginService
+// -----------------------------------------------------------------------------
+// LOGIN SERVICE
+// -----------------------------------------------------------------------------
+// Responsabilidades:
+// - autenticar por e-mail/senha;
+// - definir persistência da sessão;
+// - resolver um snapshot leve do perfil após o Auth;
+// - executar recuperação, confirmação de senha e reautenticação.
 //
-// Responsabilidade deste service:
-// - autenticar via Firebase Auth
-// - definir persistência da sessão
-// - montar um estado mínimo do usuário autenticado
-// - hidratar CurrentUserStoreService de forma leve
-//
-// NÃO é responsabilidade deste service:
-// - seed de sessão
-// - watchers
-// - presence
-// - keepAlive
-// - geolocalização
-// - pós-login de domínio
-//
-// Tudo isso continua no AuthOrchestrator / serviços correlatos.
-// ==============================================================
+// Não executa onboarding, presença, geolocalização ou navegação pós-login.
+// Todos os métodos públicos anteriores foram preservados.
+// -----------------------------------------------------------------------------
 import { Injectable } from '@angular/core';
-import { Observable, defer, firstValueFrom, of } from 'rxjs';
+import {
+  Observable,
+  defer,
+  firstValueFrom,
+  of,
+  throwError,
+} from 'rxjs';
 import {
   catchError,
   map,
@@ -42,7 +41,6 @@ import {
   type Persistence,
   type User,
 } from 'firebase/auth';
-
 import { Auth } from '@angular/fire/auth';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
@@ -58,15 +56,6 @@ export interface LoginResult {
   code?: string;
   message?: string;
   needsProfileCompletion?: boolean;
-
-  /**
-   * resolved:
-   * - users/{uid} foi lido de forma resolvida
-   *
-   * unknown:
-   * - houve fallback para Auth mínimo
-   * - não tratar como decisão final de onboarding
-   */
   profileResolution?: 'resolved' | 'unknown';
 }
 
@@ -85,9 +74,9 @@ export class LoginService {
     private readonly ctx: FirestoreContextService
   ) {}
 
-  // ----------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // Ambiente / debug
-  // ----------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   private isBrowser(): boolean {
     return typeof window !== 'undefined';
@@ -96,9 +85,9 @@ export class LoginService {
   private debugEnabled(): boolean {
     return (
       !environment.production &&
-      !!environment.enableDebugTools &&
+      environment.enableDebugTools === true &&
       this.isBrowser() &&
-      (window as any).__DBG_ON__ === true
+      (window as Window & { __DBG_ON__?: boolean }).__DBG_ON__ === true
     );
   }
 
@@ -106,9 +95,12 @@ export class LoginService {
     if (!this.debugEnabled()) return;
 
     try {
-      (window as any)?.DBG?.(`[LoginService] ${message}`, extra ?? '');
+      const debugWindow = window as Window & {
+        DBG?: (message: string, extra?: unknown) => void;
+      };
+      debugWindow.DBG?.(`[LoginService] ${message}`, extra ?? '');
     } catch {
-      // noop
+      // Debug nunca interfere na autenticação.
     }
   }
 
@@ -116,27 +108,22 @@ export class LoginService {
     if (!this.debugEnabled()) return;
 
     try {
-      (window as any)?.DBG?.(`[LoginService][WARN] ${message}`, extra ?? '');
+      const debugWindow = window as Window & {
+        DBG?: (message: string, extra?: unknown) => void;
+      };
+      debugWindow.DBG?.(`[LoginService][WARN] ${message}`, extra ?? '');
     } catch {
-      // noop
+      // Debug nunca interfere na autenticação.
     }
   }
 
   private safeEmail(email: string | null | undefined): string {
-    const e = (email ?? '').trim();
-    if (!e) return '';
+    const normalized = String(email ?? '').trim();
+    if (!normalized) return '';
 
-    const [user, domain] = e.split('@');
-    if (!user || !domain) return e;
-
-    return `${user.slice(0, 2)}***@${domain}`;
-  }
-
-  private persistenceLabel(p: Persistence): string {
-    if (p === browserLocalPersistence) return 'local';
-    if (p === browserSessionPersistence) return 'session';
-    if (p === inMemoryPersistence) return 'memory';
-    return 'custom';
+    const [localPart, domain] = normalized.split('@');
+    if (!localPart || !domain) return '***';
+    return `${localPart.slice(0, 2)}***@${domain}`;
   }
 
   private reportSilent(
@@ -145,78 +132,52 @@ export class LoginService {
     extra?: Record<string, unknown>
   ): void {
     try {
-      const e = new Error(message);
-      (e as any).silent = true;
-      (e as any).skipUserNotification = true;
-      (e as any).original = original;
-      (e as any).context = 'LoginService';
-      (e as any).extra = extra;
-
-      this.globalErrorHandler.handleError(e);
+      const error = new Error(message) as Error & {
+        silent?: boolean;
+        skipUserNotification?: boolean;
+        original?: unknown;
+        context?: unknown;
+      };
+      error.silent = true;
+      error.skipUserNotification = true;
+      error.original = original;
+      error.context = { scope: 'LoginService', ...(extra ?? {}) };
+      this.globalErrorHandler.handleError(error);
     } catch {
-      // noop
+      // Diagnóstico secundário não altera o resultado principal.
     }
   }
 
   // ---------------------------------------------------------------------------
-  // Emulator / persistência
+  // Persistência
   // ---------------------------------------------------------------------------
 
-  /**
-   * Auth Emulator ativo?
-   *
-   * Mantém a checagem compatível com o seu environment atual:
-   * - exige dev
-   * - exige useEmulators=true
-   * - exige host/port do auth
-   */
   private isAuthEmuActive(): boolean {
-    const cfg: any = environment as any;
+    const config = environment as typeof environment & {
+      useEmulators?: boolean;
+      emulators?: { auth?: { host?: string; port?: number } };
+    };
 
     return (
       !environment.production &&
-      cfg?.useEmulators === true &&
-      !!cfg?.emulators?.auth?.host &&
-      !!cfg?.emulators?.auth?.port
+      config.useEmulators === true &&
+      !!config.emulators?.auth?.host &&
+      !!config.emulators?.auth?.port
     );
   }
 
- /**
- * Lê o modo de persistência do Auth Emulator.
- *
- * Deve ficar coerente com:
- * - src/main.ts
- * - src/app/app.module.ts
- *
- * Default:
- * - session
- *
- * Motivo:
- * - o projeto deve manter a sessão no refresh também em dev-emu
- * - "memory" fica apenas como ferramenta manual de troubleshooting
- */
   private getEmuPersistMode(): EmuPersistMode {
     if (!this.isBrowser()) return 'session';
 
-    const raw = (localStorage.getItem(this.EMU_AUTH_PERSIST_KEY) || '')
+    const raw = String(
+      localStorage.getItem(this.EMU_AUTH_PERSIST_KEY) ?? ''
+    )
       .trim()
       .toLowerCase();
 
     return raw === 'memory' ? 'memory' : 'session';
   }
 
-  /**
-   * Resolve a persistência final.
-   *
-   * Regras:
-   * - Cloud/prod:
-   *   - respeita local/session/none
-   * - Emulator:
-   *   - ignora "local"
-   *   - usa a convenção global do projeto:
-   *     - session -> browserSessionPersistence
-   *     - memory  -> inMemoryPersistence
-   */
   private resolvePersistence(
     input: SessionMode | Persistence
   ): Persistence {
@@ -231,103 +192,70 @@ export class LoginService {
     switch (input) {
       case 'local':
         return browserLocalPersistence;
-
       case 'session':
         return browserSessionPersistence;
-
       case 'none':
+      default:
         return inMemoryPersistence;
     }
   }
 
-  /**
-   * Define persistência de forma resiliente.
-   *
-   * Estratégia:
-   * - tenta a persistência desejada
-   * - se falhar, tenta um fallback
-   * - por fim tenta memory
-   *
-   * Importante:
-   * - falha aqui não deve derrubar a UX inteira
-   * - o erro é observado pelo GlobalErrorHandler
-   */
+  private persistenceLabel(persistence: Persistence): string {
+    if (persistence === browserLocalPersistence) return 'local';
+    if (persistence === browserSessionPersistence) return 'session';
+    if (persistence === inMemoryPersistence) return 'memory';
+    return 'custom';
+  }
+
   setSessionPersistence$(
     modeOrPersistence: SessionMode | Persistence
   ): Observable<void> {
     const requested = this.resolvePersistence(modeOrPersistence);
-
-    const trySet$ = (p: Persistence) =>
-      this.ctx.deferPromise$(() => setPersistence(this.auth, p)).pipe(
-        timeout({ each: this.NET_TIMEOUT_MS }),
-        map(() => void 0)
-      );
-
-    const fallback1 =
+    const fallback =
       requested === browserLocalPersistence
         ? browserSessionPersistence
         : inMemoryPersistence;
 
+    const trySet$ = (persistence: Persistence) =>
+      this.ctx
+        .deferPromise$(() => setPersistence(this.auth, persistence))
+        .pipe(
+          timeout({ each: this.NET_TIMEOUT_MS }),
+          map(() => void 0)
+        );
+
     this.dbg('setSessionPersistence:start', {
-      usingEmu: this.isAuthEmuActive(),
       requested: this.persistenceLabel(requested),
-      fallback1: this.persistenceLabel(fallback1),
+      fallback: this.persistenceLabel(fallback),
+      usingEmulator: this.isAuthEmuActive(),
     });
 
     return trySet$(requested).pipe(
-      map(() => {
-        this.dbg('setSessionPersistence:ok', {
-          resolved: this.persistenceLabel(requested),
-        });
-        return void 0;
-      }),
+      catchError((firstError: unknown) => {
+        this.warn('setSessionPersistence:fallback', firstError);
 
-      catchError((err1) => {
-        this.warn('setSessionPersistence:fallback1', {
-          requested: this.persistenceLabel(requested),
-          fallback1: this.persistenceLabel(fallback1),
-          err1,
-        });
-
-        return trySet$(fallback1).pipe(
-          map(() => {
-            this.dbg('setSessionPersistence:ok:fallback1', {
-              resolved: this.persistenceLabel(fallback1),
-            });
-            return void 0;
-          }),
-
-          catchError((err2) => {
-            this.warn('setSessionPersistence:fallback2', {
-              requested: this.persistenceLabel(requested),
-              fallback1: this.persistenceLabel(fallback1),
-              fallback2: this.persistenceLabel(inMemoryPersistence),
-              err2,
-            });
+        return trySet$(fallback).pipe(
+          catchError((secondError: unknown) => {
+            if (fallback === inMemoryPersistence) {
+              this.reportSilent(
+                'Não foi possível definir a persistência da sessão.',
+                secondError,
+                { operation: 'setSessionPersistence$', firstError }
+              );
+              return of(void 0);
+            }
 
             return trySet$(inMemoryPersistence).pipe(
-              map(() => {
-                this.dbg('setSessionPersistence:ok:fallback2', {
-                  resolved: this.persistenceLabel(inMemoryPersistence),
-                });
-                return void 0;
-              }),
-
-              catchError((err3) => {
+              catchError((thirdError: unknown) => {
                 this.reportSilent(
-                  '[LoginService] setPersistence falhou em todas as tentativas.',
-                  err3,
+                  'Não foi possível definir a persistência da sessão.',
+                  thirdError,
                   {
-                    requested: this.persistenceLabel(requested),
-                    fallback1: this.persistenceLabel(fallback1),
-                    fallback2: this.persistenceLabel(inMemoryPersistence),
-                    err1,
-                    err2,
-                    err3,
+                    operation: 'setSessionPersistence$',
+                    firstError,
+                    secondError,
                   }
                 );
-
-                // Não bloqueia o fluxo inteiro.
                 return of(void 0);
               })
             );
@@ -338,57 +266,31 @@ export class LoginService {
   }
 
   // ---------------------------------------------------------------------------
-  // Model helpers
+  // Resolução leve do perfil
   // ---------------------------------------------------------------------------
 
-/**
- * Estado mínimo derivado do Firebase Auth.
- *
- * Ajuste:
- * - não marcamos mais profileCompleted=false como verdade forte.
- * - isso evita empurrar onboarding prematuro quando o Firestore ainda não respondeu.
- */
-private minimalFromAuth(user: User): IUserDados {
-  return {
-    uid: user.uid,
-    email: user.email ?? '',
-    nickname: user.displayName ?? (user.email ? user.email.split('@')[0] : 'Usuário'),
-    emailVerified: !!user.emailVerified,
-    isSubscriber: false,
-
-    /**
-     * SUPRESSÃO EXPLÍCITA:
-     * - removido profileCompleted: false no fallback mínimo.
-     *
-     * Motivo:
-     * - fallback de Auth não deve fingir que o perfil foi resolvido como incompleto.
-     */
-    profileCompleted: undefined,
-
-    role: 'basic' as any,
-  } as IUserDados;
-}
-
-  /**
-   * Regras mínimas de completude.
-   *
-   * Mantém o comportamento atual:
-   * - se profileCompleted vier explícito, ele manda
-   * - senão, inferimos por nickname/gender
-   */
-  private needsProfileCompletion(user: IUserDados): boolean {
-    if (typeof (user as any)?.profileCompleted === 'boolean') {
-      return !(user as any).profileCompleted;
-    }
-
-    return !user?.nickname || !(user as any)?.gender;
+  private minimalFromAuth(user: User): IUserDados {
+    return {
+      uid: user.uid,
+      email: user.email ?? '',
+      nickname:
+        user.displayName ??
+        (user.email ? user.email.split('@')[0] : 'Usuário'),
+      emailVerified: user.emailVerified === true,
+      isSubscriber: false,
+      profileCompleted: undefined,
+      role: 'basic' as IUserDados['role'],
+    } as IUserDados;
   }
 
-  /**
-   * Monta o usuário efetivo combinando:
-   * - snapshot do Firestore (quando disponível)
-   * - dados do Auth como fonte mais confiável para uid/email/emailVerified
-   */
+  private needsProfileCompletion(user: IUserDados): boolean {
+    if (typeof user.profileCompleted === 'boolean') {
+      return !user.profileCompleted;
+    }
+
+    return !user.nickname || !user.gender;
+  }
+
   private buildEffectiveUser(
     authUser: User,
     firestoreUser: IUserDados | null | undefined
@@ -399,92 +301,66 @@ private minimalFromAuth(user: User): IUserDados {
       ...base,
       uid: authUser.uid,
       email: authUser.email ?? base.email,
-      emailVerified: !!authUser.emailVerified,
+      emailVerified: authUser.emailVerified === true,
     } as IUserDados;
   }
 
-/**
- * Faz um snapshot único do users/{uid} após login.
- *
- * Ajuste:
- * - erro de leitura agora cai em "unknown", não em "incomplete resolvido"
- * - null continua significando leitura resolvida sem doc
- * - undefined significa fallback por falha/timeout
- */
-private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
-  if (!authUser?.uid) {
-    return of({
-      success: false,
-      code: 'auth/no-user',
-      message: 'Não foi possível autenticar agora.',
-    });
+  private loadEffectiveUserAfterLogin$(
+    authUser: User
+  ): Observable<LoginResult> {
+    if (!authUser.uid) {
+      return of({
+        success: false,
+        code: 'auth/no-user',
+        message: 'Não foi possível autenticar agora.',
+      });
+    }
+
+    return this.firestoreUserQuery.getUser$(authUser.uid).pipe(
+      timeout({ each: this.NET_TIMEOUT_MS }),
+      retry({ count: 2, delay: 200 }),
+      take(1),
+      catchError((error: unknown) => {
+        this.reportSilent(
+          'Falha ao carregar o perfil após o login.',
+          error,
+          { operation: 'loadEffectiveUserAfterLogin$', uid: authUser.uid }
+        );
+        return of(undefined);
+      }),
+      map((firestoreUser) => {
+        const effectiveUser = this.buildEffectiveUser(
+          authUser,
+          firestoreUser as IUserDados | null | undefined
+        );
+        const profileResolution: 'resolved' | 'unknown' =
+          firestoreUser === undefined ? 'unknown' : 'resolved';
+
+        return {
+          success: true,
+          emailVerified: authUser.emailVerified === true,
+          user: effectiveUser,
+          profileResolution,
+          needsProfileCompletion:
+            profileResolution === 'resolved'
+              ? this.needsProfileCompletion(effectiveUser)
+              : undefined,
+        };
+      })
+    );
   }
 
-  return this.firestoreUserQuery.getUser$(authUser.uid).pipe(
-    timeout({ each: this.NET_TIMEOUT_MS }),
-    retry({ count: 2, delay: 200 }),
-    take(1),
-    catchError((err) => {
-      this.reportSilent(
-        '[LoginService] Falha ao ler users/{uid} após login. Seguindo com fallback do Auth.',
-        err,
-        { uid: authUser.uid }
-      );
-
-      /**
-       * undefined = profile não resolvido
-       * null      = resolvido, mas sem doc
-       */
-      return of(undefined);
-    }),
-    map((firestoreUser) => {
-      const effectiveUser = this.buildEffectiveUser(
-        authUser,
-        firestoreUser as IUserDados | null | undefined
-      );
-
-      const profileResolution: 'resolved' | 'unknown' =
-        firestoreUser === undefined ? 'unknown' : 'resolved';
-
-      return {
-        success: true,
-        emailVerified: !!authUser.emailVerified,
-        user: effectiveUser,
-        profileResolution,
-        needsProfileCompletion:
-          profileResolution === 'resolved'
-            ? this.needsProfileCompletion(effectiveUser)
-            : undefined,
-      } as LoginResult;
-    })
-  );
-}
-
-  // --------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // Login
-  // --------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
-  /**
-   * Login principal.
-   *
-   * Fluxo:
-   * 1) define persistência
-   * 2) autentica no Firebase Auth
-   * 3) tenta snapshot único do users/{uid}
-   * 4) se Firestore falhar, usa fallback do Auth
-   *
-   * Observação:
-   * - não chamamos user.reload() logo após signIn
-   * - o objeto retornado pelo signIn já é suficiente para este momento
-   * - isso reduz ruído e round-trips desnecessários
-   */
   login$(
     email: string,
     password: string,
     rememberMe?: boolean
   ): Observable<LoginResult> {
-    const safeEmail = (email ?? '').trim();
-    const safePassword = password ?? '';
+    const safeEmail = String(email ?? '').trim().toLowerCase();
+    const safePassword = String(password ?? '');
 
     if (!safeEmail || !safePassword) {
       return of({
@@ -494,12 +370,6 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
       });
     }
 
-    /**
-     * Se estiver em emulator local, navigator.onLine=false não é motivo suficiente
-     * para abortar, porque localhost ainda pode estar acessível.
-     *
-     * Já em cloud, offline real deve abortar cedo.
-     */
     if (
       !this.isAuthEmuActive() &&
       typeof navigator !== 'undefined' &&
@@ -512,16 +382,6 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
       });
     }
 
-    /**
-     * Cloud:
-     * - rememberMe=true  -> local
-     * - rememberMe=false -> session
-     * - undefined        -> local
-     *
-     * Emulator:
-     * - respeitamos a convenção global (memory/session)
-     * - local não é usado
-     */
     const requestedMode: SessionMode =
       typeof rememberMe === 'boolean'
         ? rememberMe
@@ -535,36 +395,29 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
 
     this.dbg('login:start', {
       email: this.safeEmail(safeEmail),
-      rememberMe: typeof rememberMe === 'boolean' ? rememberMe : 'default',
       requestedMode,
-      usingEmu: this.isAuthEmuActive(),
-      emuPersistMode: this.isAuthEmuActive() ? this.getEmuPersistMode() : 'cloud',
+      usingEmulator: this.isAuthEmuActive(),
     });
 
     return this.setSessionPersistence$(requestedMode).pipe(
       timeout({ each: this.NET_TIMEOUT_MS }),
-
       switchMap(() =>
-        this.ctx.deferPromise$(() =>
-          signInWithEmailAndPassword(this.auth, safeEmail, safePassword)
-        ).pipe(timeout({ each: this.NET_TIMEOUT_MS }))
+        this.ctx
+          .deferPromise$(() =>
+            signInWithEmailAndPassword(
+              this.auth,
+              safeEmail,
+              safePassword
+            )
+          )
+          .pipe(timeout({ each: this.NET_TIMEOUT_MS }))
       ),
-
-      switchMap(({ user }) => {
-        this.dbg('login:signIn:ok', {
-          uid: user?.uid ?? null,
-          emailVerified: !!user?.emailVerified,
-        });
-
-        return this.loadEffectiveUserAfterLogin$(user);
-      }),
-
-      catchError((err) => {
-        const mapped = this.mapAuthError(err);
-
-        this.reportSilent(mapped.message, err, {
+      switchMap(({ user }) => this.loadEffectiveUserAfterLogin$(user)),
+      catchError((error: unknown) => {
+        const mapped = this.mapAuthError(error);
+        this.reportSilent(mapped.message, error, {
+          operation: 'login$',
           code: mapped.code,
-          service: 'LoginService.login$',
           email: this.safeEmail(safeEmail),
         });
 
@@ -578,16 +431,33 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
   }
 
   // ---------------------------------------------------------------------------
-  // Reset / Confirm / Reauth
+  // Recuperação, confirmação e reautenticação
   // ---------------------------------------------------------------------------
 
   sendPasswordReset$(email: string): Observable<void> {
-    return this.ctx.deferPromise$(() =>
-      sendPasswordResetEmailFn(this.auth, (email ?? '').trim())
-    ).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      map(() => void 0)
-    );
+    const safeEmail = String(email ?? '').trim().toLowerCase();
+
+    if (!this.isValidEmail(safeEmail)) {
+      return this.failClosed$(
+        'Informe um e-mail válido.',
+        'validation/invalid-email',
+        'sendPasswordReset$'
+      );
+    }
+
+    return this.ctx
+      .deferPromise$(() =>
+        sendPasswordResetEmailFn(this.auth, safeEmail)
+      )
+      .pipe(
+        timeout({ each: this.NET_TIMEOUT_MS }),
+        map(() => void 0),
+        catchError((error: unknown) =>
+          this.reportAndRethrow$(error, 'sendPasswordReset$', {
+            email: this.safeEmail(safeEmail),
+          })
+        )
+      );
   }
 
   sendPasswordResetEmail$(email: string): Observable<void> {
@@ -598,34 +468,81 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
     oobCode: string,
     newPassword: string
   ): Observable<void> {
-    return this.ctx.deferPromise$(() =>
-      confirmPasswordReset(this.auth, oobCode, newPassword)
-    ).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      map(() => void 0)
-    );
+    const safeCode = String(oobCode ?? '').trim();
+    const safePassword = String(newPassword ?? '');
+
+    if (!safeCode) {
+      return this.failClosed$(
+        'O link de redefinição é inválido ou está incompleto.',
+        'validation/invalid-oob-code',
+        'confirmPasswordReset$'
+      );
+    }
+
+    if (safePassword.length < 8) {
+      return this.failClosed$(
+        'A nova senha deve ter pelo menos 8 caracteres.',
+        'validation/weak-password',
+        'confirmPasswordReset$'
+      );
+    }
+
+    return this.ctx
+      .deferPromise$(() =>
+        confirmPasswordReset(this.auth, safeCode, safePassword)
+      )
+      .pipe(
+        timeout({ each: this.NET_TIMEOUT_MS }),
+        map(() => void 0),
+        catchError((error: unknown) =>
+          this.reportAndRethrow$(error, 'confirmPasswordReset$')
+        )
+      );
   }
 
   reauthenticateUser$(password: string): Observable<void> {
     const user = this.auth.currentUser;
+    const safePassword = String(password ?? '');
 
     if (!user?.email) {
-      return of(void 0);
+      return this.failClosed$(
+        'Não foi possível confirmar uma conta com senha nesta sessão.',
+        'auth/password-provider-unavailable',
+        'reauthenticateUser$'
+      );
     }
 
-    const credential = EmailAuthProvider.credential(user.email, password);
+    if (!safePassword) {
+      return this.failClosed$(
+        'Informe sua senha para confirmar a identidade.',
+        'validation/password-required',
+        'reauthenticateUser$'
+      );
+    }
 
-    return this.ctx.deferPromise$(() =>
-      reauthenticateWithCredential(user, credential)
-    ).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      map(() => void 0)
+    const credential = EmailAuthProvider.credential(
+      user.email,
+      safePassword
     );
+
+    return this.ctx
+      .deferPromise$(() =>
+        reauthenticateWithCredential(user, credential)
+      )
+      .pipe(
+        timeout({ each: this.NET_TIMEOUT_MS }),
+        map(() => void 0),
+        catchError((error: unknown) =>
+          this.reportAndRethrow$(error, 'reauthenticateUser$', {
+            uid: user.uid,
+          })
+        )
+      );
   }
 
-  // ---------------------------------------------------------------
-  // Wrappers Promise
-  // ---------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Wrappers Promise preservados
+  // ---------------------------------------------------------------------------
 
   setSessionPersistence(
     persistence: SessionMode | Persistence
@@ -660,28 +577,58 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
     return firstValueFrom(this.reauthenticateUser$(password));
   }
 
-  // -------------------------------------------------------------
-  // Mapeamento de erros Auth
-  // -------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Erros e validação
+  // ---------------------------------------------------------------------------
 
-  /**
-   * Converte erros técnicos em mensagem de UX.
-   *
-   * Observação:
-   * - erros que revelariam existência de e-mail foram unificados.
-   * - o código técnico continua indo para o debug/global handler, mas a UX não expõe enumeração de conta.
-   */
+  private isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  private failClosed$<T>(
+    message: string,
+    code: string,
+    operation: string
+  ): Observable<T> {
+    const error = new Error(message) as Error & {
+      code?: string;
+      skipUserNotification?: boolean;
+    };
+    error.code = code;
+    error.skipUserNotification = true;
+    this.reportSilent(message, error, { operation, code });
+    return throwError(() => error);
+  }
+
+  private reportAndRethrow$<T>(
+    error: unknown,
+    operation: string,
+    extra?: Record<string, unknown>
+  ): Observable<T> {
+    this.reportSilent(
+      `Falha em ${operation}.`,
+      error,
+      { operation, ...(extra ?? {}) }
+    );
+    return throwError(() => error);
+  }
+
   private mapAuthError(
-    error: any
+    error: unknown
   ): { code?: string; message: string } {
-    if (error?.name === 'TimeoutError') {
+    const source = error as {
+      name?: unknown;
+      code?: unknown;
+    } | null;
+
+    if (source?.name === 'TimeoutError') {
       return {
         code: 'timeout',
         message: 'Tempo de resposta excedido. Tente novamente.',
       };
     }
 
-    const code = error?.code as string | undefined;
+    const code = String(source?.code ?? '') || undefined;
     let message = 'Erro ao realizar login. Tente novamente.';
 
     switch (code) {
@@ -694,39 +641,20 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
       case 'auth/user-not-found':
         message = 'E-mail ou senha incorretos.';
         break;
-
       case 'auth/invalid-email':
         message = 'Formato de e-mail inválido.';
         break;
-
       case 'auth/user-disabled':
-        message = 'Este usuário foi desativado.';
+        message = 'Esta conta está desativada.';
         break;
-
       case 'auth/too-many-requests':
         message = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
         break;
-
-      case 'auth/network-request-failed': {
-        const cfg: any = environment as any;
-        const usingAuthEmu =
-          !environment.production &&
-          cfg?.useEmulators === true &&
-          !!cfg?.emulators?.auth?.host &&
-          !!cfg?.emulators?.auth?.port;
-
-        if (usingAuthEmu) {
-          const { host, port } = cfg.emulators.auth;
-          message =
-            `Falha de conexão ao autenticar. ` +
-            `Se você está em dev-emu, verifique o Auth Emulator em http://${host}:${port}.`;
-        } else {
-          message =
-            'Falha de conexão ao autenticar. Verifique sua internet e tente novamente.';
-        }
+      case 'auth/network-request-failed':
+        message = this.isAuthEmuActive()
+          ? 'Falha ao acessar o Auth Emulator. Verifique os emuladores locais.'
+          : 'Falha de conexão. Verifique sua internet e tente novamente.';
         break;
-      }
-
       case 'deadline-exceeded':
         message = 'Tempo de resposta excedido. Tente novamente.';
         break;
@@ -734,9 +662,4 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
 
     return { code, message };
   }
-} // fim do login.service.ts
-// Verificar migrações de responsabilidades para:
-// 1 - auth-route-context.service.ts
-// 2 - auth-user-document-watch.service.ts
-// 3 - auth-session-monitor.service.ts
-// 4 - ou qualquer função daqui pra service mais especifico
+}
