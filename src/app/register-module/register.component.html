@@ -196,8 +196,9 @@
 
         <div class="input-wrapper password-field">
           <input id="password" [type]="showPassword() ? 'text' : 'password'" formControlName="password"
-            class="input-field" name="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres"
-            aria-label="Senha" aria-describedby="passwordTooltip" [attr.aria-invalid]="
+            class="input-field" name="password" autocomplete="new-password" placeholder="Crie uma senha segura"
+            spellcheck="false" autocapitalize="none" maxlength="128" aria-label="Senha"
+            aria-describedby="passwordHint passwordTooltip" [attr.aria-invalid]="
               (submitted() || form.get('password')?.touched)
               && form.get('password')?.invalid
                 ? true
@@ -226,9 +227,62 @@
           </button>
         </div>
 
+        <small id="passwordHint" class="field-hint">
+          Use pelo menos 8 caracteres, com letra maiúscula, minúscula e número.
+        </small>
+
         <div *ngIf="getError('password') && (submitted() || form.get('password')?.touched)" id="passwordTooltip"
           class="tooltip-error">
           {{ getError('password') }}
+        </div>
+      </div>
+
+      <!-- Confirmação de senha -->
+      <div class="form-field">
+        <label for="confirmPassword">Confirmar senha *</label>
+
+        <div class="input-wrapper password-field">
+          <input id="confirmPassword" [type]="showConfirmPassword() ? 'text' : 'password'"
+            formControlName="confirmPassword" class="input-field" name="confirmPassword"
+            autocomplete="new-password" placeholder="Digite a mesma senha novamente" spellcheck="false"
+            autocapitalize="none" maxlength="128" aria-label="Confirmar senha"
+            aria-describedby="confirmPasswordTooltip" [attr.aria-invalid]="
+              (submitted() || form.get('confirmPassword')?.touched)
+              && (form.get('confirmPassword')?.invalid || form.hasError('passwordMismatch'))
+                ? true
+                : null
+            " [ngClass]="{
+              'is-invalid':
+                (submitted() || form.get('confirmPassword')?.touched)
+                && (form.get('confirmPassword')?.invalid || form.hasError('passwordMismatch')),
+              'is-valid':
+                (submitted() || form.get('confirmPassword')?.touched)
+                && form.get('confirmPassword')?.valid
+                && !form.hasError('passwordMismatch')
+            }" />
+
+          <button type="button" class="toggle-input" (click)="toggleConfirmPasswordVisibility()"
+            [attr.aria-pressed]="showConfirmPassword() ? 'true' : 'false'"
+            [attr.aria-label]="showConfirmPassword() ? 'Ocultar confirmação de senha' : 'Mostrar confirmação de senha'">
+            @if (showConfirmPassword()) {
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M3 3l18 18" />
+                <path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6 0 9.5 7 9.5 7a16.5 16.5 0 0 1-2.7 3.3" />
+                <path d="M6.2 6.8A16.3 16.3 0 0 0 2.5 12s3.5 7 9.5 7c1.8 0 3.4-.5 4.8-1.2" />
+                <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+              </svg>
+            } @else {
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            }
+          </button>
+        </div>
+
+        <div *ngIf="getError('confirmPassword') && (submitted() || form.get('confirmPassword')?.touched)"
+          id="confirmPasswordTooltip" class="tooltip-error" aria-live="polite">
+          {{ getError('confirmPassword') }}
         </div>
       </div>
 
