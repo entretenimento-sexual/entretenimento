@@ -10,6 +10,44 @@
   padding: clamp(0.75rem, 2vw, 1.25rem);
 }
 
+.community-discovery__tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.15rem;
+  scrollbar-width: none;
+}
+
+.community-discovery__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.community-discovery__tabs a {
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 0.85rem;
+  border-radius: 999px;
+  color: var(--text-color, #222);
+  font-size: 0.82rem;
+  font-weight: 680;
+  text-decoration: none;
+  white-space: nowrap;
+  opacity: 0.66;
+}
+
+.community-discovery__tabs a.is-active {
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 12%,
+    transparent
+  );
+  color: var(--primary-color, #d83768);
+  opacity: 1;
+}
+
 .community-discovery__header {
   display: flex;
   align-items: center;
@@ -35,6 +73,22 @@
   color: var(--text-color, #222);
   font-size: 0.82rem;
   opacity: 0.58;
+}
+
+.community-discovery__create,
+.community-discovery__empty-create {
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding-inline: 0.85rem;
+  border-radius: 999px;
+  background: var(--primary-color, #d83768);
+  color: var(--primary-contrast, #fff);
+  font-size: 0.82rem;
+  font-weight: 720;
+  text-decoration: none;
 }
 
 .community-discovery__state {
@@ -111,6 +165,9 @@
 }
 
 .community-card:focus-visible,
+.community-discovery__tabs a:focus-visible,
+.community-discovery__create:focus-visible,
+.community-discovery__empty-create:focus-visible,
 .community-discovery__state button:focus-visible,
 .community-discovery__more button:focus-visible {
   outline: 3px solid color-mix(
@@ -276,9 +333,21 @@
   .community-card__metrics {
     gap: 0.55rem;
   }
+
+  .community-discovery__create span {
+    display: none;
+  }
+
+  .community-discovery__create {
+    width: var(--tap-target, 2.75rem);
+    padding-inline: 0;
+  }
 }
 
 :host-context(.high-contrast) .community-card,
+:host-context(.high-contrast) .community-discovery__tabs a.is-active,
+:host-context(.high-contrast) .community-discovery__create,
+:host-context(.high-contrast) .community-discovery__empty-create,
 :host-context(.high-contrast) .community-discovery__state button,
 :host-context(.high-contrast) .community-discovery__more button {
   border: 2px solid var(--text-color, #222);
