@@ -32,16 +32,23 @@ test('policy covers shared content, moderation and financial domains safely', ()
   );
 });
 
-test('policy marks the first real deletion executors as implemented', () => {
+test('policy marks implemented private and temporary executors correctly', () => {
   const byDomain = new Map(
     ACCOUNT_DATA_RETENTION_POLICY.map((entry) => [entry.domain, entry])
   );
 
   assert.equal(byDomain.get('notifications')?.automation, 'implemented');
   assert.equal(byDomain.get('preferences')?.automation, 'implemented');
+  assert.equal(
+    byDomain.get('presence_and_location')?.automation,
+    'implemented'
+  );
   assert.equal(byDomain.get('friend_requests')?.automation, 'implemented');
-  assert.equal(byDomain.get('relationship_edges')?.automation, 'contract_required');
-  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 2);
+  assert.equal(
+    byDomain.get('relationship_edges')?.automation,
+    'contract_required'
+  );
+  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 3);
 });
 
 test('current plan remains blocked until every pre-finalize contract is completed', () => {
@@ -59,9 +66,12 @@ test('current plan remains blocked until every pre-finalize contract is complete
   assert.equal(plan.status, 'blocked');
   assert.equal(canFinalizePrivateUserDeletion(plan), false);
   assert.ok(plan.blockingDomains.includes('notifications'));
+  assert.ok(plan.blockingDomains.includes('presence_and_location'));
   assert.ok(plan.blockingDomains.includes('owned_media_and_storage'));
   assert.ok(plan.blockingDomains.includes('shared_messages'));
-  assert.ok(plan.blockingDomains.includes('financial_records_and_entitlements'));
+  assert.ok(
+    plan.blockingDomains.includes('financial_records_and_entitlements')
+  );
   assert.ok(!plan.blockingDomains.includes('private_user_document'));
 });
 
@@ -69,15 +79,21 @@ test('completed domains are recorded and removed from blockers', () => {
   const plan = buildAccountDataDeletionPlan({
     uid: 'user-2',
     generatedAt: 1_800_000_000_000,
-    completedDomains: ['public_profile', 'nickname_index'],
+    completedDomains: [
+      'public_profile',
+      'nickname_index',
+      'presence_and_location',
+    ],
   });
 
   assert.deepEqual(plan.completedDomains, [
     'public_profile',
     'nickname_index',
+    'presence_and_location',
   ]);
   assert.ok(!plan.blockingDomains.includes('public_profile'));
   assert.ok(!plan.blockingDomains.includes('nickname_index'));
+  assert.ok(!plan.blockingDomains.includes('presence_and_location'));
   assert.ok(plan.blockingDomains.includes('auth_identity'));
 });
 
