@@ -1,29 +1,17 @@
 // src/app/core/services/autentication/register/registration-bootstrap.service.ts
 // =============================================================================
-// RegistrationBootstrapService
-//
-// Fonte canônica para criação inicial dos documentos de conta.
-//
-// Objetivo arquitetural:
-// - concentrar a política de nascimento do usuário;
-// - evitar que register-module, RegisterService, SocialAuthService ou effects
-//   criem seeds divergentes;
-// - manter usuários criados por e-mail/senha e por login social compatíveis;
-// - preservar writes reativos com Observable;
-// - manter compatibilidade com rules atuais.
+// REGISTRATION BOOTSTRAP SERVICE
 // =============================================================================
+// Fonte canônica para o nascimento do documento privado da conta.
 //
-// Importante sobre conformidade:
-// - o seed nasce com acceptedTerms.accepted=false;
-// - o aceite efetivo é registrado pela Cloud Function acceptPlatformTerms;
-// - o aceite inicial de maioridade é marcado como obrigatório somente no cadastro;
-// - a Cloud Function acceptAdultConsent encerra essa obrigação e registra auditoria;
-// - revalidação pós-denúncia usa estado separado e nunca é gravada pelo cliente.
+// Privacidade por padrão:
+// - o cadastro inicial NÃO cria public_profiles/{uid};
+// - a projeção pública nasce atomicamente apenas em ProfileCompletionWriteService;
+// - o perfil não fica consultável antes de e-mail/termos/consentimento/onboarding;
+// - a reserva de nickname permanece no public_index durante esta migração.
 // =============================================================================
-
 import { Injectable } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
-
 import {
   doc,
   runTransaction,
@@ -31,7 +19,6 @@ import {
   Timestamp,
   writeBatch,
 } from 'firebase/firestore';
-
 import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
@@ -40,7 +27,7 @@ import { GlobalErrorHandlerService } from '../../error-handler/global-error-hand
 import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
 import { NicknameUtils } from '@core/utils/nickname-utils';
 
-const REGISTRATION_FLOW_VERSION = 'v2';
+const REGISTRATION_FLOW_VERSION = 'v3-private-by-default';
 
 export interface EmailPasswordRegistrationBootstrapInput {
   uid: string;
@@ -73,192 +60,201 @@ export class RegistrationBootstrapService {
   ): Observable<void> {
     const uid = this.cleanText(input.uid);
     const nickname = this.cleanText(input.userData?.nickname);
-    const email = this.cleanText(input.userData?.email);
+    const email = this.cleanText(input.userData?.email).toLowerCase();
     const normalized = this.normalizeNickname(nickname);
     const nowMs = Date.now();
 
     if (!uid) {
-      return throwError(() => new Error('[RegistrationBootstrapService] UID inválido.'));
+      return throwError(
+        () => new Error('[RegistrationBootstrapService] UID inválido.')
+      );
     }
 
     if (!nickname || !this.NICKNAME_NORM_RE.test(normalized)) {
-      return throwError(() => new Error('[RegistrationBootstrapService] Apelido inválido.'));
+      return throwError(
+        () => new Error('[RegistrationBootstrapService] Apelido inválido.')
+      );
     }
 
     const userRef = doc(this.db as any, 'users', uid);
-    const indexRef = doc(this.db as any, 'public_index', `nickname:${normalized}`);
-    const publicProfileRef = doc(this.db as any, 'public_profiles', uid);
-
-    return this.ctx.deferPromise$(() =>
-      runTransaction(this.db as any, async (tx) => {
-        const idxSnap = await tx.get(indexRef);
-
-        if (idxSnap.exists()) {
-          const err: any = new Error('Apelido já está em uso.');
-          err.code = 'nickname/in-use';
-          throw err;
-        }
-
-        tx.set(userRef, {
-          uid,
-          email,
-          nickname,
-
-          role: 'free',
-          tier: 'free',
-
-          emailVerified: false,
-          isSubscriber: false,
-          subscriptionStatus: 'inactive',
-          accountStatus: 'active',
-          profileCompleted: false,
-          registrationFlowVersion: REGISTRATION_FLOW_VERSION,
-          initialAdultConsentRequired: true,
-          registrationCompletedAt: null,
-
-          /**
-           * O aceite definitivo não é confiado ao cliente.
-           * RegisterService tentará registrá-lo logo após o bootstrap pela
-           * Cloud Function. Se essa chamada falhar, o fluxo canônico exibirá
-           * /register/aceitar-termos posteriormente.
-           */
-          acceptedTerms: {
-            accepted: false,
-            date: serverTimestamp(),
-          },
-
-          createdAt: serverTimestamp(),
-          registrationDate: serverTimestamp(),
-          firstLogin: serverTimestamp(),
-
-          nicknameHistory: [
-            { nickname: normalized, date: Timestamp.fromMillis(nowMs) },
-          ],
-        }, { merge: true });
-
-        tx.set(indexRef, {
-          uid,
-          type: 'nickname',
-          value: normalized,
-          createdAt: serverTimestamp(),
-          lastChangedAt: serverTimestamp(),
-        });
-
-        tx.set(publicProfileRef, {
-          uid,
-          nickname,
-          nicknameNormalized: normalized,
-          role: 'free',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      })
-    ).pipe(
-      map(() => void 0),
-      catchError((err) => {
-        this.safeHandle(
-          '[RegistrationBootstrapService] createEmailPasswordSeed$ falhou.',
-          err,
-          {
-            uid,
-            traceId: input.traceId ?? null,
-            nickname,
-            normalized,
-          }
-        );
-
-        return throwError(() => err);
-      })
+    const indexRef = doc(
+      this.db as any,
+      'public_index',
+      `nickname:${normalized}`
     );
+
+    return this.ctx
+      .deferPromise$(() =>
+        runTransaction(this.db as any, async (tx) => {
+          const indexSnapshot = await tx.get(indexRef);
+
+          if (indexSnapshot.exists()) {
+            const error = new Error('Apelido já está em uso.') as Error & {
+              code?: string;
+            };
+            error.code = 'nickname/in-use';
+            throw error;
+          }
+
+          tx.set(
+            userRef,
+            {
+              uid,
+              email,
+              nickname,
+
+              role: 'free',
+              tier: 'free',
+
+              emailVerified: false,
+              isSubscriber: false,
+              subscriptionStatus: 'inactive',
+              accountStatus: 'active',
+              profileCompleted: false,
+              publicVisibility: 'hidden',
+              interactionBlocked: true,
+              loginAllowed: true,
+              registrationFlowVersion: REGISTRATION_FLOW_VERSION,
+              initialAdultConsentRequired: true,
+              registrationCompletedAt: null,
+
+              acceptedTerms: {
+                accepted: false,
+                date: serverTimestamp(),
+              },
+
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              registrationDate: serverTimestamp(),
+              firstLogin: serverTimestamp(),
+
+              nicknameHistory: [
+                {
+                  nickname: normalized,
+                  date: Timestamp.fromMillis(nowMs),
+                },
+              ],
+            },
+            { merge: true }
+          );
+
+          tx.set(indexRef, {
+            uid,
+            type: 'nickname',
+            value: normalized,
+            createdAt: serverTimestamp(),
+            lastChangedAt: serverTimestamp(),
+          });
+        })
+      )
+      .pipe(
+        map(() => void 0),
+        catchError((error) => {
+          this.safeHandle(
+            '[RegistrationBootstrapService] createEmailPasswordSeed$ falhou.',
+            error,
+            {
+              uid,
+              traceId: input.traceId ?? null,
+              nickname,
+              normalized,
+            }
+          );
+          return throwError(() => error);
+        })
+      );
   }
 
-  createSocialSeed$(input: SocialRegistrationBootstrapInput): Observable<void> {
+  createSocialSeed$(
+    input: SocialRegistrationBootstrapInput
+  ): Observable<void> {
     const uid = this.cleanText(input.uid);
-    const email = this.cleanText(input.email);
+    const email = this.cleanText(input.email).toLowerCase();
     const photoURL = this.cleanText(input.photoURL);
     const providerIds = this.cleanStringList(input.providerIds);
     const providerId = this.cleanText(input.providerId) || 'google.com';
-    const nowMs = Number.isFinite(input.nowMs) ? Number(input.nowMs) : Date.now();
+    const nowMs = Number.isFinite(input.nowMs)
+      ? Number(input.nowMs)
+      : Date.now();
 
     if (!uid) {
-      return throwError(() => new Error('[RegistrationBootstrapService] UID inválido.'));
+      return throwError(
+        () => new Error('[RegistrationBootstrapService] UID inválido.')
+      );
     }
 
     const userRef = doc(this.db as any, 'users', uid);
-    const publicProfileRef = doc(this.db as any, 'public_profiles', uid);
 
-    return this.ctx.deferPromise$(async () => {
-      const batch = writeBatch(this.db as any);
+    return this.ctx
+      .deferPromise$(async () => {
+        const batch = writeBatch(this.db as any);
 
-      batch.set(userRef, {
-        uid,
-        email,
-        nickname: '',
-        ...(photoURL ? { photoURL } : {}),
-
-        role: 'free',
-        tier: 'free',
-
-        emailVerified: input.emailVerified === true,
-        isSubscriber: false,
-        subscriptionStatus: 'inactive',
-        accountStatus: 'active',
-        profileCompleted: false,
-        registrationFlowVersion: REGISTRATION_FLOW_VERSION,
-        initialAdultConsentRequired: true,
-        registrationCompletedAt: null,
-
-        acceptedTerms: {
-          accepted: false,
-          date: Timestamp.fromMillis(nowMs),
-        },
-
-        roles: ['user'],
-        permissions: [],
-        entitlements: [],
-
-        suspended: false,
-        accountLocked: false,
-        publicVisibility: 'visible',
-        interactionBlocked: false,
-        loginAllowed: true,
-
-        authProviders: Array.from(new Set([...providerIds, providerId])),
-        lastProvider: providerId,
-
-        firstLogin: Timestamp.fromMillis(nowMs),
-        registrationDate: Timestamp.fromMillis(nowMs),
-        lastLogin: Timestamp.fromMillis(nowMs),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        updatedAtMs: nowMs,
-      }, { merge: true });
-
-      batch.set(publicProfileRef, {
-        uid,
-        ...(photoURL ? { photoURL } : {}),
-        role: 'free',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-
-      await batch.commit();
-    }).pipe(
-      map(() => void 0),
-      catchError((err) => {
-        this.safeHandle(
-          '[RegistrationBootstrapService] createSocialSeed$ falhou.',
-          err,
+        batch.set(
+          userRef,
           {
             uid,
-            emailPresent: !!email,
-            providerId,
-          }
+            email,
+            nickname: '',
+            ...(photoURL ? { photoURL } : {}),
+
+            role: 'free',
+            tier: 'free',
+
+            emailVerified: input.emailVerified === true,
+            isSubscriber: false,
+            subscriptionStatus: 'inactive',
+            accountStatus: 'active',
+            profileCompleted: false,
+            publicVisibility: 'hidden',
+            interactionBlocked: true,
+            loginAllowed: true,
+            registrationFlowVersion: REGISTRATION_FLOW_VERSION,
+            initialAdultConsentRequired: true,
+            registrationCompletedAt: null,
+
+            acceptedTerms: {
+              accepted: false,
+              date: Timestamp.fromMillis(nowMs),
+            },
+
+            roles: ['user'],
+            permissions: [],
+            entitlements: [],
+            suspended: false,
+            accountLocked: false,
+
+            authProviders: Array.from(
+              new Set([...providerIds, providerId])
+            ),
+            lastProvider: providerId,
+
+            firstLogin: Timestamp.fromMillis(nowMs),
+            registrationDate: Timestamp.fromMillis(nowMs),
+            lastLogin: Timestamp.fromMillis(nowMs),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            updatedAtMs: nowMs,
+          },
+          { merge: true }
         );
 
-        return throwError(() => err);
+        await batch.commit();
       })
-    );
+      .pipe(
+        map(() => void 0),
+        catchError((error) => {
+          this.safeHandle(
+            '[RegistrationBootstrapService] createSocialSeed$ falhou.',
+            error,
+            {
+              uid,
+              emailPresent: !!email,
+              providerId,
+            }
+          );
+          return throwError(() => error);
+        })
+      );
   }
 
   private normalizeNickname(nickname: string): string {
@@ -266,7 +262,7 @@ export class RegistrationBootstrapService {
   }
 
   private cleanText(value: unknown): string {
-    return (value ?? '').toString().trim();
+    return String(value ?? '').trim();
   }
 
   private cleanStringList(value: unknown): string[] {
@@ -278,19 +274,24 @@ export class RegistrationBootstrapService {
   }
 
   private safeHandle(
-    msg: string,
+    message: string,
     original: unknown,
     meta?: Record<string, unknown>
   ): void {
     try {
-      const e = new Error(msg);
-      (e as any).original = original;
-      (e as any).meta = meta;
-      (e as any).skipUserNotification = true;
-      (e as any).silent = true;
-      this.globalErrorHandler.handleError(e);
+      const error = new Error(message) as Error & {
+        original?: unknown;
+        meta?: unknown;
+        skipUserNotification?: boolean;
+        silent?: boolean;
+      };
+      error.original = original;
+      error.meta = meta;
+      error.skipUserNotification = true;
+      error.silent = true;
+      this.globalErrorHandler.handleError(error);
     } catch {
-      // noop
+      // Falha de diagnóstico não interrompe a operação principal.
     }
   }
 }
