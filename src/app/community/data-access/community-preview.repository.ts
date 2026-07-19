@@ -20,6 +20,11 @@ export class CommunityPreviewRepository {
     unknown
   >(this.functions, 'getCommunityDiscoveryPage');
 
+  private readonly getMyCommunitiesPageCallable = httpsCallable<
+    CommunityDiscoveryPageRequest,
+    unknown
+  >(this.functions, 'getMyCommunitiesPage');
+
   private readonly getPreviewCallable = httpsCallable<
     { communityId: string },
     unknown
@@ -34,6 +39,21 @@ export class CommunityPreviewRepository {
           limit: request.limit ?? 12,
           cursor: request.cursor ?? null,
           sourceType: request.sourceType ?? null,
+        })
+      )
+    ).pipe(
+      map((result) => normalizeCommunityDiscoveryPageResponse(result.data))
+    );
+  }
+
+  getMyCommunitiesPage$(
+    request: CommunityDiscoveryPageRequest = {}
+  ): Observable<CommunityDiscoveryPage> {
+    return defer(() =>
+      from(
+        this.getMyCommunitiesPageCallable({
+          limit: request.limit ?? 12,
+          cursor: request.cursor ?? null,
         })
       )
     ).pipe(
