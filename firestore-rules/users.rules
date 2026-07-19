@@ -4,7 +4,8 @@
 // - ordinary profile fields remain self-editable;
 // - auth, privilege, billing, lifecycle and compliance fields are protected;
 // - profileCompleted is a one-way, eligibility-checked registration transition;
-// - new accounts are private and interaction-blocked until completion.
+// - new accounts are private and interaction-blocked until completion;
+// - accepted terms start false and can only become true through trusted backend.
 // ==============================================================
 
 match /users/{userId} {
@@ -15,10 +16,6 @@ match /users/{userId} {
 
   function hasField(field) {
     return request.resource.data.keys().hasAny([field]);
-  }
-
-  function hasExistingField(field) {
-    return resource.data.keys().hasAny([field]);
   }
 
   function affectedUserKeys() {
@@ -120,6 +117,13 @@ match /users/{userId} {
     ]);
   }
 
+  function initialTermsDefaultsOk() {
+    return hasField("acceptedTerms")
+      && request.resource.data.acceptedTerms is map
+      && request.resource.data.acceptedTerms.keys().hasAny(["accepted"])
+      && request.resource.data.acceptedTerms.accepted == false;
+  }
+
   function commonCreateDefaultsOk() {
     return request.resource.data.keys().hasAny(["uid"])
       && request.resource.data.uid == uid()
@@ -133,6 +137,7 @@ match /users/{userId} {
       && request.resource.data.registrationCompletedAt == null
       && hasField("profileCompleted")
       && request.resource.data.profileCompleted == false
+      && initialTermsDefaultsOk()
 
       && (!hasField("role") || request.resource.data.role == "free")
       && (!hasField("tier") || request.resource.data.tier == "free")
@@ -203,7 +208,10 @@ match /users/{userId} {
   }
 
   function adultConsentReady() {
-    return request.resource.data.initialAdultConsentRequired != true
+    return (
+        request.resource.data.keys().hasAny(["initialAdultConsentRequired"])
+        && request.resource.data.initialAdultConsentRequired == false
+      )
       || (
         request.resource.data.keys().hasAny(["adultConsent"])
         && request.resource.data.adultConsent is map
@@ -214,9 +222,15 @@ match /users/{userId} {
 
   function selfCompletingRegistration() {
     return isSelf(userId)
-      && resource.data.profileCompleted != true
+      && (
+        !resource.data.keys().hasAny(["profileCompleted"])
+        || resource.data.profileCompleted != true
+      )
       && request.resource.data.profileCompleted == true
-      && resource.data.accountStatus == "active"
+      && (
+        !resource.data.keys().hasAny(["accountStatus"])
+        || resource.data.accountStatus == "active"
+      )
       && request.resource.data.accountStatus == "active"
       && request.auth.token.email_verified == true
       && request.resource.data.emailVerified == true
