@@ -1,0 +1,119 @@
+<!-- src/app/community/community-create/community-create-page.component.html -->
+<main class="community-create" aria-labelledby="community-create-title">
+  <header class="community-create__header">
+    <a
+      class="community-create__back"
+      routerLink="/dashboard/comunidades"
+      aria-label="Voltar para Comunidades"
+    >
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+    </a>
+
+    <div>
+      <h1 id="community-create-title">Criar Comunidade</h1>
+      <p>{{ communityDefinition.description }}</p>
+      <p>Você será o Proprietário desta Comunidade.</p>
+    </div>
+  </header>
+
+  <form
+    class="community-create__form"
+    [formGroup]="form"
+    (ngSubmit)="submit()"
+    novalidate
+  >
+    <section aria-labelledby="community-create-identity-title">
+      <h2 id="community-create-identity-title">Identidade</h2>
+
+      <label>
+        <span>Nome</span>
+        <input
+          type="text"
+          formControlName="name"
+          maxlength="80"
+          autocomplete="off"
+          placeholder="Nome da Comunidade"
+        />
+      </label>
+
+      <label>
+        <span>Tema principal</span>
+        <select formControlName="theme">
+          @for (option of themeOptions; track option.value) {
+            <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        <span>Descrição</span>
+        <textarea
+          formControlName="description"
+          maxlength="240"
+          rows="3"
+          placeholder="Qual é o propósito deste grupo?"
+        ></textarea>
+      </label>
+    </section>
+
+    <section aria-labelledby="community-create-rules-title">
+      <h2 id="community-create-rules-title">Regras</h2>
+
+      <label>
+        <span>Convivência e limites</span>
+        <textarea
+          formControlName="rules"
+          maxlength="1200"
+          rows="6"
+          placeholder="Descreva as regras essenciais da Comunidade."
+          aria-describedby="community-create-rules-help"
+        ></textarea>
+      </label>
+
+      <p id="community-create-rules-help" class="community-create__note">
+        As regras serão apresentadas antes da participação e orientarão a moderação.
+      </p>
+    </section>
+
+    <section aria-labelledby="community-create-access-title">
+      <h2 id="community-create-access-title">Entrada e acesso</h2>
+
+      <label>
+        <span>Como novos membros entram</span>
+        <select formControlName="joinPolicy">
+          <option value="approval">Aprovação da gestão</option>
+          <option value="open">Entrada imediata</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Quem pode participar</span>
+        <select formControlName="accessTier">
+          <option value="all">Todos os perfis elegíveis</option>
+          <option value="premium">Assinantes Premium ou VIP</option>
+          <option value="vip">Somente assinantes VIP</option>
+        </select>
+      </label>
+
+      <p class="community-create__note">
+        Visitantes autenticados verão apenas a prévia pública. Publicações e interações ficarão restritas aos membros autorizados.
+      </p>
+      <p class="community-create__note">
+        Uma restrição Premium ou VIP só será aceita quando seu próprio plano for compatível.
+      </p>
+    </section>
+
+    <div class="community-create__actions">
+      <a routerLink="/dashboard/comunidades">Cancelar</a>
+      <button type="submit" [disabled]="submitting()">
+        @if (submitting()) {
+          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          <span>Criando</span>
+        } @else {
+          <i class="fas fa-plus" aria-hidden="true"></i>
+          <span>Criar Comunidade</span>
+        }
+      </button>
+    </div>
+  </form>
+</main>
