@@ -49,13 +49,14 @@
   @if (
     !isLoading &&
     mode === 'resetPassword' &&
+    passwordResetCodeValidated &&
     !passwordResetCompleted &&
     !passwordResetUnavailable
   ) {
     <div class="form-container">
       <h1 class="form-header">Redefinir senha</h1>
       <p id="password-reset-help" class="form-help">
-        Crie uma senha com pelo menos 8 caracteres.
+        Use pelo menos 8 caracteres, com letra maiúscula, minúscula e número.
       </p>
 
       <form
@@ -73,7 +74,10 @@
             name="newPassword"
             required
             minlength="8"
+            maxlength="128"
             autocomplete="new-password"
+            spellcheck="false"
+            autocapitalize="none"
             class="input-field"
             aria-describedby="password-reset-help"
             [disabled]="isLoading"
@@ -102,7 +106,10 @@
             name="confirmPassword"
             required
             minlength="8"
+            maxlength="128"
             autocomplete="new-password"
+            spellcheck="false"
+            autocapitalize="none"
             class="input-field"
             aria-describedby="password-reset-help"
             [disabled]="isLoading"
@@ -134,7 +141,17 @@
   }
 
   @if (!isLoading && mode === 'resetPassword' && shouldShowRecoveryLink) {
-    <div class="hint-row">
+    <div class="hint-row" aria-label="Opções para recuperação de senha">
+      @if (passwordResetValidationRetryAvailable) {
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="retryPasswordResetValidation()"
+        >
+          Validar link novamente
+        </button>
+      }
+
       <button type="button" class="link-button" (click)="openPasswordRecoveryModal()">
         Solicitar um novo link de recuperação
       </button>
