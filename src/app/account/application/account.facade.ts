@@ -14,6 +14,7 @@ import {
   map,
   shareReplay,
   startWith,
+  switchMap,
 } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
@@ -35,16 +36,10 @@ export class AccountFacade {
   private readonly globalError = inject(GlobalErrorHandlerService);
 
   private readonly billingSnapshot$ = this.authSession.readyUid$.pipe(
-    distinctUntilChanged(),
     map((uid) => String(uid ?? '').trim() || null),
-    // A callable só é consultada com sessão pronta.
-    // Sem sessão, o snapshot é nulo e não concede acesso visual.
-    // switchMap é importado dinamicamente abaixo pelo pipe nativo do RxJS.
-    // Mantemos o fluxo como Observable, sem subscribe interno.
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    switchMapUid((uid, repository) =>
-      uid ? repository.getMyBillingSnapshot$() : of(null),
-      this.billingRepository
+    distinctUntilChanged(),
+    switchMap((uid) =>
+      uid ? this.billingRepository.getMyBillingSnapshot$() : of(null)
     ),
     catchError((error: unknown) => {
       this.reportSilent(error, 'loadBillingSnapshot');
@@ -231,16 +226,4 @@ export class AccountFacade {
       // Falha de diagnóstico não interrompe o estado fail-closed da conta.
     }
   }
-}
-
-// Operador local pequeno para manter a composição Observable-first sem subscribe.
-import { switchMap } from 'rxjs/operators';
-function switchMapUid<T>(
-  project: (
-    uid: string | null,
-    repository: BillingRepository
-  ) => Observable<T>,
-  repository: BillingRepository
-) {
-  return switchMap((uid: string | null) => project(uid, repository));
 }
