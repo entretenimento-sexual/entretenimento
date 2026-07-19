@@ -11,8 +11,8 @@ function card(overrides: Record<string, unknown> = {}) {
     communityId: 'community-1',
     name: 'Comunidade do Centro',
     slug: 'comunidade-do-centro',
-    description: 'Atualizações do local.',
-    source: { type: 'venue', id: 'venue-1' },
+    description: 'Grupo permanente de pessoas da região central.',
+    source: { type: 'community', id: 'community-1' },
     avatarUrl: 'https://example.com/avatar.jpg',
     coverUrl: null,
     metrics: { memberCount: 8, postCount: 3, mediaCount: 2 },
@@ -26,23 +26,38 @@ function card(overrides: Record<string, unknown> = {}) {
 }
 
 describe('community preview normalization', () => {
-  it('normaliza uma página válida e preserva acesso neutro', () => {
+  it('normaliza Comunidade e Local como origens distintas', () => {
     const page = normalizeCommunityDiscoveryPageResponse({
-      items: [card()],
-      nextCursor: 'community-1',
+      items: [
+        card(),
+        card({
+          communityId: 'community-venue-1',
+          slug: 'local-centro',
+          source: { type: 'venue', id: 'venue-1' },
+        }),
+      ],
+      nextCursor: 'community-venue-1',
       generatedAt: 100,
     });
 
-    expect(page.items).toHaveLength(1);
+    expect(page.items.map((item) => item.source.type)).toEqual([
+      'community',
+      'venue',
+    ]);
     expect(page.items[0]?.access.minimumRole).toBe('premium');
     expect(page.items[0]?.access.requiresActiveSubscription).toBe(true);
-    expect(page.nextCursor).toBe('community-1');
+    expect(page.nextCursor).toBe('community-venue-1');
   });
 
-  it('remove cards malformados e URLs não HTTPS', () => {
+  it('remove Sala, cards malformados e URLs não HTTPS', () => {
     const page = normalizeCommunityDiscoveryPageResponse({
       items: [
         card({ communityId: '../invalid' }),
+        card({
+          communityId: 'community-room-1',
+          slug: 'sala-legada',
+          source: { type: 'room', id: 'room-1' },
+        }),
         card({ avatarUrl: 'http://example.com/avatar.jpg' }),
       ],
     });
