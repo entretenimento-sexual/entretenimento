@@ -1,14 +1,10 @@
 // ==============================================================
 // USERS (private)
 // ==============================================================
-//
-// Responsibilities:
-// - allow users to update their own ordinary profile fields;
-// - block client-side changes to auth, privilege, billing, lifecycle,
-//   and compliance fields;
-// - allow initial creation only with safe defaults;
-// - reserve administrative, financial, and compliance updates for trusted
-//   backend code.
+// - ordinary profile fields remain self-editable;
+// - auth, privilege, billing, lifecycle and compliance fields are protected;
+// - profileCompleted is a one-way, eligibility-checked registration transition;
+// - new accounts are private and interaction-blocked until completion.
 // ==============================================================
 
 match /users/{userId} {
@@ -19,6 +15,10 @@ match /users/{userId} {
 
   function hasField(field) {
     return request.resource.data.keys().hasAny([field]);
+  }
+
+  function hasExistingField(field) {
+    return resource.data.keys().hasAny([field]);
   }
 
   function affectedUserKeys() {
@@ -44,6 +44,7 @@ match /users/{userId} {
       "registrationFlowVersion",
       "initialAdultConsentRequired",
       "registrationCompletedAt",
+      "profileCompleted",
       "ageReverification",
       "ageReverificationRestrictedAt",
 
@@ -88,6 +89,15 @@ match /users/{userId} {
       "deletionRequestedBy",
       "deletionUndoUntil",
       "purgeAfter",
+      "deletedAt",
+      "deletionRestoreStatus",
+      "deletionRestoreSuspended",
+      "deletionRestoreSuspensionReason",
+      "deletionRestoreSuspensionSource",
+      "deletionRestoreSuspensionEndsAt",
+      "purgeStartedAt",
+      "purgeAttemptCount",
+      "purgeLastAttemptAt",
 
       "statusUpdatedAt",
       "statusUpdatedBy",
@@ -110,19 +120,19 @@ match /users/{userId} {
     ]);
   }
 
-  function createDefaultsOk() {
+  function commonCreateDefaultsOk() {
     return request.resource.data.keys().hasAny(["uid"])
       && request.resource.data.uid == uid()
-
       && !hasField("adultConsent")
       && !hasField("ageReverification")
       && !hasField("ageReverificationRestrictedAt")
       && hasField("registrationFlowVersion")
-      && request.resource.data.registrationFlowVersion == "v2"
       && hasField("initialAdultConsentRequired")
       && request.resource.data.initialAdultConsentRequired == true
       && hasField("registrationCompletedAt")
       && request.resource.data.registrationCompletedAt == null
+      && hasField("profileCompleted")
+      && request.resource.data.profileCompleted == false
 
       && (!hasField("role") || request.resource.data.role == "free")
       && (!hasField("tier") || request.resource.data.tier == "free")
@@ -147,10 +157,6 @@ match /users/{userId} {
 
       && (!hasField("accountLocked") || request.resource.data.accountLocked == false)
       && (!hasField("accountStatus") || request.resource.data.accountStatus == "active")
-      && (!hasField("publicVisibility")
-        || request.resource.data.publicVisibility == "visible")
-      && (!hasField("interactionBlocked")
-        || request.resource.data.interactionBlocked == false)
       && (!hasField("loginAllowed") || request.resource.data.loginAllowed == true)
       && (!hasField("suspended") || request.resource.data.suspended == false)
       && (!hasField("suspensionReason")
@@ -168,6 +174,73 @@ match /users/{userId} {
       && (!hasField("purgeAfter") || request.resource.data.purgeAfter == null);
   }
 
+  function createVisibilityDefaultsOk() {
+    return (
+        request.resource.data.registrationFlowVersion == "v2"
+        && (!hasField("publicVisibility")
+          || request.resource.data.publicVisibility == "visible")
+        && (!hasField("interactionBlocked")
+          || request.resource.data.interactionBlocked == false)
+      )
+      || (
+        request.resource.data.registrationFlowVersion == "v3-private-by-default"
+        && hasField("publicVisibility")
+        && request.resource.data.publicVisibility == "hidden"
+        && hasField("interactionBlocked")
+        && request.resource.data.interactionBlocked == true
+      );
+  }
+
+  function createDefaultsOk() {
+    return commonCreateDefaultsOk() && createVisibilityDefaultsOk();
+  }
+
+  function acceptedTermsReady() {
+    return request.resource.data.keys().hasAny(["acceptedTerms"])
+      && request.resource.data.acceptedTerms is map
+      && request.resource.data.acceptedTerms.keys().hasAny(["accepted"])
+      && request.resource.data.acceptedTerms.accepted == true;
+  }
+
+  function adultConsentReady() {
+    return request.resource.data.initialAdultConsentRequired != true
+      || (
+        request.resource.data.keys().hasAny(["adultConsent"])
+        && request.resource.data.adultConsent is map
+        && request.resource.data.adultConsent.keys().hasAny(["accepted"])
+        && request.resource.data.adultConsent.accepted == true
+      );
+  }
+
+  function selfCompletingRegistration() {
+    return isSelf(userId)
+      && resource.data.profileCompleted != true
+      && request.resource.data.profileCompleted == true
+      && resource.data.accountStatus == "active"
+      && request.resource.data.accountStatus == "active"
+      && request.auth.token.email_verified == true
+      && request.resource.data.emailVerified == true
+      && acceptedTermsReady()
+      && adultConsentReady()
+      && request.resource.data.publicVisibility == "visible"
+      && request.resource.data.interactionBlocked == false
+      && request.resource.data.registrationCompletedAt == request.time
+      && affectedUserKeys().hasOnly([
+        "nickname",
+        "nicknameHistory",
+        "gender",
+        "orientation",
+        "estado",
+        "municipio",
+        "profileCompleted",
+        "publicVisibility",
+        "interactionBlocked",
+        "registrationCompletedAt",
+        "updatedAt",
+        "updatedAtMs"
+      ]);
+  }
+
   allow get: if isSelf(userId) || isAdminActor();
   allow list: if false;
 
@@ -181,6 +254,7 @@ match /users/{userId} {
       && !selfChangingSensitiveKeys()
       && emailVerifiedSafeOnUpdate()
     )
+    || selfCompletingRegistration()
     || (
       isAdminActor()
       && adminModerationOnly()
