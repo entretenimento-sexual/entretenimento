@@ -2,7 +2,8 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY FEED
 // -----------------------------------------------------------------------------
-// Mural e galeria somente leitura, carregados apenas após a prévia autorizada.
+// Mural comunitário, novidades de Local e galeria somente leitura, carregados
+// apenas após a prévia autorizada.
 // -----------------------------------------------------------------------------
 
 import { AsyncPipe } from '@angular/common';
@@ -33,6 +34,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { CommunityFeedView } from '../data-access/community-feed.model';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
+import { CommunityPreviewSourceType } from '../data-access/community-preview.model';
 import {
   CommunityFeedLoadEvent,
   CommunityFeedLoadRequest,
@@ -65,6 +67,7 @@ export class CommunityFeedComponent {
 
   readonly communityId = input<string>('');
   readonly view = input<CommunityFeedView>('feed');
+  readonly sourceType = input<CommunityPreviewSourceType>('community');
 
   readonly state$ = combineLatest([
     toObservable(this.communityId),
@@ -119,10 +122,37 @@ export class CommunityFeedComponent {
     this.loadRequests$.next({ cursor: null, append: false });
   }
 
+  sectionAriaLabel(): string {
+    if (this.view() === 'photos') {
+      return this.sourceType() === 'venue'
+        ? 'Fotos do Local'
+        : 'Fotos da Comunidade';
+    }
+
+    return this.sourceType() === 'venue'
+      ? 'Novidades do Local'
+      : 'Mural da Comunidade';
+  }
+
+  loadingLabel(): string {
+    if (this.view() === 'photos') return 'Carregando fotos...';
+    return this.sourceType() === 'venue'
+      ? 'Carregando novidades...'
+      : 'Carregando mural...';
+  }
+
+  errorStateLabel(): string {
+    if (this.view() === 'photos') return 'Não foi possível carregar as fotos.';
+    return this.sourceType() === 'venue'
+      ? 'Não foi possível carregar as novidades.'
+      : 'Não foi possível carregar o mural.';
+  }
+
   emptyLabel(): string {
-    return this.view() === 'photos'
-      ? 'Nenhuma foto disponível.'
-      : 'Nenhuma publicação disponível.';
+    if (this.view() === 'photos') return 'Nenhuma foto publicada.';
+    return this.sourceType() === 'venue'
+      ? 'Nenhuma novidade publicada.'
+      : 'Nenhuma publicação no mural.';
   }
 
   publishedIso(publishedAt: number): string {
@@ -138,7 +168,9 @@ export class CommunityFeedComponent {
       this.errorNotifier.showError(
         view === 'photos'
           ? 'Não foi possível carregar as fotos agora.'
-          : 'Não foi possível carregar o mural agora.'
+          : this.sourceType() === 'venue'
+            ? 'Não foi possível carregar as novidades do Local agora.'
+            : 'Não foi possível carregar o mural da Comunidade agora.'
       );
     } catch {
       // O diagnóstico técnico abaixo permanece ativo.
@@ -154,6 +186,7 @@ export class CommunityFeedComponent {
         scope: 'CommunityFeedComponent',
         op: 'loadPage',
         view,
+        sourceType: this.sourceType(),
       };
       contextual.skipUserNotification = true;
       this.globalError.handleError(contextual);
