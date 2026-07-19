@@ -1,5 +1,4 @@
 // src/app/account/pages/account-home/account-home.component.ts
-// Não esquecer comentários explicativos e ferramentas de debug
 import {
   ChangeDetectionStrategy,
   Component,
@@ -12,7 +11,13 @@ import {
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { finalize, firstValueFrom, of } from 'rxjs';
-import { distinctUntilChanged, map, shareReplay, take, tap } from 'rxjs/operators';
+import {
+  distinctUntilChanged,
+  map,
+  shareReplay,
+  take,
+  tap,
+} from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AccountFacade } from '../../application/account.facade';
@@ -25,6 +30,7 @@ import {
 import { AccountLifecycleDialogComponent } from '../../components/account-lifecycle-dialog/account-lifecycle-dialog.component';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
+import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { IncompleteProfileSubscriptionNoticeService } from 'src/app/subscriptions/application/incomplete-profile-subscription-notice.service';
 import { SubscriptionCheckoutFacade } from 'src/app/subscriptions/application/subscription-checkout.facade';
 
@@ -42,10 +48,15 @@ export class AccountHomeComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly currentUserStore = inject(CurrentUserStoreService);
-  private readonly noticeService = inject(IncompleteProfileSubscriptionNoticeService);
-  private readonly subscriptionCheckoutFacade = inject(SubscriptionCheckoutFacade);
+  private readonly noticeService = inject(
+    IncompleteProfileSubscriptionNoticeService
+  );
+  private readonly subscriptionCheckoutFacade = inject(
+    SubscriptionCheckoutFacade
+  );
   private readonly accountLifecycleFacade = inject(AccountLifecycleFacade);
   private readonly accountLifecycleService = inject(AccountLifecycleService);
+  private readonly notify = inject(ErrorNotificationService);
 
   readonly accountFacade = inject(AccountFacade);
   readonly vm$ = this.accountFacade.vm$;
@@ -56,7 +67,8 @@ export class AccountHomeComponent implements OnInit {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly shouldUseStatusPage$ = this.accountLifecycleFacade.shouldUseStatusPage$;
+  readonly shouldUseStatusPage$ =
+    this.accountLifecycleFacade.shouldUseStatusPage$;
 
   readonly shouldShowPostPaymentNotice$ = this.noticeService.shouldShow$(
     this.currentUser$,
@@ -68,10 +80,14 @@ export class AccountHomeComponent implements OnInit {
     of('account')
   );
 
-  readonly lifecycleDialogIntent = signal<AccountLifecycleDialogIntent | null>(null);
-  readonly lifecycleBusyIntent = signal<AccountLifecycleDialogIntent | null>(null);
+  readonly lifecycleDialogIntent =
+    signal<AccountLifecycleDialogIntent | null>(null);
+  readonly lifecycleBusyIntent =
+    signal<AccountLifecycleDialogIntent | null>(null);
 
-  readonly isLifecycleBusy = computed(() => this.lifecycleBusyIntent() !== null);
+  readonly isLifecycleBusy = computed(
+    () => this.lifecycleBusyIntent() !== null
+  );
 
   ngOnInit(): void {
     this.currentUser$
@@ -108,7 +124,9 @@ export class AccountHomeComponent implements OnInit {
   }
 
   async onCompleteProfile(): Promise<void> {
-    const user = await firstValueFrom(this.currentUser$.pipe(take(1))).catch(() => null);
+    const user = await firstValueFrom(this.currentUser$.pipe(take(1))).catch(
+      () => null
+    );
 
     if (user?.emailVerified !== true) {
       this.router.navigate(['/register/welcome'], {
@@ -158,7 +176,9 @@ export class AccountHomeComponent implements OnInit {
     this.lifecycleDialogIntent.set(null);
   }
 
-  onLifecycleDialogConfirmed(event: AccountLifecycleDialogConfirmEvent): void {
+  onLifecycleDialogConfirmed(
+    event: AccountLifecycleDialogConfirmEvent
+  ): void {
     switch (event.intent) {
       case 'self_suspend':
         this.executeSelfSuspension(event.reason);
@@ -185,7 +205,7 @@ export class AccountHomeComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
-        next: () => {
+        next: (result) => {
           this.currentUserStore.patch({
             accountStatus: 'self_suspended',
             publicVisibility: 'hidden',
@@ -195,18 +215,22 @@ export class AccountHomeComponent implements OnInit {
             suspensionReason: (reason ?? '').trim() || null,
             suspensionSource: 'self',
             suspensionEndsAt: null,
-            statusUpdatedAt: Date.now(),
+            statusUpdatedAt:
+              this.normalizeEpoch(result.statusUpdatedAt) ?? Date.now(),
             statusUpdatedBy: 'self',
           });
 
           this.lifecycleDialogIntent.set(null);
+          this.notify.showSuccess(
+            result.message ?? 'Conta suspensa com sucesso.'
+          );
 
           this.router.navigate(['/conta/status'], {
             replaceUrl: true,
           });
         },
         error: () => {
-          // Feedback já tratado no service.
+          // Feedback já tratado no AccountLifecycleService.
         },
       });
   }
@@ -223,27 +247,50 @@ export class AccountHomeComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
-        next: () => {
+        next: (result) => {
+          const statusUpdatedAt =
+            this.normalizeEpoch(result.statusUpdatedAt) ?? Date.now();
+
           this.currentUserStore.patch({
             accountStatus: 'pending_deletion',
             publicVisibility: 'hidden',
             interactionBlocked: true,
             loginAllowed: true,
-            deletionRequestedAt: Date.now(),
+            suspended: false,
+            suspensionReason: null,
+            suspensionSource: null,
+            suspensionEndsAt: null,
+            deletionRequestedAt:
+              this.normalizeEpoch(result.deletionRequestedAt) ??
+              statusUpdatedAt,
             deletionRequestedBy: 'self',
-            statusUpdatedAt: Date.now(),
+            deletionUndoUntil: this.normalizeEpoch(
+              result.deletionUndoUntil
+            ),
+            purgeAfter: this.normalizeEpoch(result.purgeAfter),
+            statusUpdatedAt,
             statusUpdatedBy: 'self',
           });
 
           this.lifecycleDialogIntent.set(null);
+          this.notify.showSuccess(
+            result.message ?? 'Exclusão da conta iniciada.'
+          );
 
           this.router.navigate(['/conta/status'], {
             replaceUrl: true,
           });
         },
         error: () => {
-          // Feedback já tratado no service.
+          // Feedback já tratado no AccountLifecycleService.
         },
       });
+  }
+
+  private normalizeEpoch(value: unknown): number | null {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.trunc(parsed)
+      : null;
   }
 }
