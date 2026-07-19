@@ -19,6 +19,7 @@ export type CommunityMinimumRole = 'basic' | 'premium' | 'vip';
 export interface CommunityDiscoveryPageRequest {
   limit?: unknown;
   cursor?: unknown;
+  sourceType?: unknown;
 }
 
 export interface CommunityPreviewRequest {
@@ -68,6 +69,7 @@ export interface CommunityPreviewResponse {
 export interface NormalizedCommunityDiscoveryPageRequest {
   limit: number;
   cursor: string | null;
+  sourceType: CommunitySourceType | null;
 }
 
 const DEFAULT_PAGE_LIMIT = 12;
@@ -109,12 +111,16 @@ function normalizeCount(value: unknown): number {
     : 0;
 }
 
+function normalizeSourceType(value: unknown): CommunitySourceType | null {
+  return value === 'venue' || value === 'room' ? value : null;
+}
+
 function normalizeSource(raw: unknown): CommunityPreviewCard['source'] | null {
   const source = (raw ?? {}) as Record<string, unknown>;
-  const type = source['type'];
+  const type = normalizeSourceType(source['type']);
   const id = normalizeSafeId(source['id']);
 
-  if ((type !== 'venue' && type !== 'room') || !id) {
+  if (!type || !id) {
     return null;
   }
 
@@ -198,6 +204,7 @@ export function normalizeCommunityDiscoveryPageRequest(
   return {
     limit,
     cursor: normalizeSafeId(raw?.cursor),
+    sourceType: normalizeSourceType(raw?.sourceType),
   };
 }
 
