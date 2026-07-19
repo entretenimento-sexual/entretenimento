@@ -371,13 +371,13 @@ describe('CommunityPreviewPageComponent / Local', () => {
     );
   });
 
-  it('usa Proprietário para Local e Criador para Comunidade', () => {
+  it('usa Responsável para Local não verificado e Criador para Comunidade', () => {
     const component = TestBed.createComponent(
       CommunityPreviewPageComponent
     ).componentInstance;
 
     expect(component.viewerLabel('manager', 'owner', 'venue')).toBe(
-      'Proprietário'
+      'Responsável'
     );
     expect(component.viewerLabel('manager', 'owner', 'community')).toBe(
       'Criador'
