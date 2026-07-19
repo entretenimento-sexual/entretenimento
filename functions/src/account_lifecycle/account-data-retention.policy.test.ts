@@ -32,6 +32,18 @@ test('policy covers shared content, moderation and financial domains safely', ()
   );
 });
 
+test('policy marks the first real deletion executors as implemented', () => {
+  const byDomain = new Map(
+    ACCOUNT_DATA_RETENTION_POLICY.map((entry) => [entry.domain, entry])
+  );
+
+  assert.equal(byDomain.get('notifications')?.automation, 'implemented');
+  assert.equal(byDomain.get('preferences')?.automation, 'implemented');
+  assert.equal(byDomain.get('friend_requests')?.automation, 'implemented');
+  assert.equal(byDomain.get('relationship_edges')?.automation, 'contract_required');
+  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 2);
+});
+
 test('current plan remains blocked until every pre-finalize contract is completed', () => {
   const plan = buildAccountDataDeletionPlan({
     uid: 'user-1',
