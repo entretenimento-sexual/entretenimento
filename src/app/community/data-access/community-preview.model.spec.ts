@@ -51,21 +51,33 @@ describe('community preview normalization', () => {
     expect(page.items[0]?.avatarUrl).toBeNull();
   });
 
-  it('normaliza a prévia e rejeita viewerMode desconhecido', () => {
-    expect(
-      normalizeCommunityPreviewResponse({
-        community: card(),
-        viewerMode: 'member',
-        canInteract: true,
-        generatedAt: 200,
-      })?.canInteract
-    ).toBe(true);
+  it('normaliza a prévia, o papel próprio e rejeita viewerMode desconhecido', () => {
+    const preview = normalizeCommunityPreviewResponse({
+      community: card(),
+      viewerMode: 'manager',
+      viewerRole: 'owner',
+      canInteract: true,
+      generatedAt: 200,
+    });
+
+    expect(preview?.canInteract).toBe(true);
+    expect(preview?.viewerRole).toBe('owner');
 
     expect(
       normalizeCommunityPreviewResponse({
         community: card(),
         viewerMode: 'root',
       })
+    ).toBeNull();
+  });
+
+  it('não aceita papel próprio desconhecido', () => {
+    expect(
+      normalizeCommunityPreviewResponse({
+        community: card(),
+        viewerMode: 'manager',
+        viewerRole: 'root',
+      })?.viewerRole
     ).toBeNull();
   });
 });
