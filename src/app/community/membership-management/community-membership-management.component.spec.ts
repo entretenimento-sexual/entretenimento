@@ -36,26 +36,38 @@ describe('CommunityMembershipManagementComponent', () => {
     });
   });
 
-  function createFixture() {
+  function createFixture(sourceType: 'community' | 'venue' = 'community') {
     const fixture = TestBed.createComponent(
       CommunityMembershipManagementComponent
     );
     fixture.componentRef.setInput('communityId', 'community-1');
+    fixture.componentRef.setInput('sourceType', sourceType);
     fixture.detectChanges();
     fixture.detectChanges();
     return fixture;
   }
 
-  it('mostra estado vazio sem expor uma lista falsa', () => {
+  it('mostra estado vazio de Comunidade sem expor uma lista falsa', () => {
     const fixture = createFixture();
 
     expect(repositoryMock.getMembershipRequests$).toHaveBeenCalledWith(
       'community-1'
     );
     expect(fixture.nativeElement.textContent).toContain(
-      'Nenhuma solicitação pendente.'
+      'Nenhuma solicitação de entrada pendente.'
     );
     expect(fixture.nativeElement.querySelector('ul')).toBeNull();
+  });
+
+  it('usa solicitações de acesso no contexto de Local', () => {
+    const fixture = createFixture('venue');
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Solicitações de acesso'
+    );
+    expect(fixture.nativeElement.textContent).toContain(
+      'Nenhuma solicitação de acesso pendente.'
+    );
   });
 
   it('aprova pela callable, informa sucesso e atualiza a fila', () => {
@@ -88,9 +100,36 @@ describe('CommunityMembershipManagementComponent', () => {
       'approve'
     );
     expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith(
-      'Pessoa Um entrou na comunidade.'
+      'Pessoa Um entrou na Comunidade.'
     );
     expect(repositoryMock.getMembershipRequests$).toHaveBeenCalledTimes(2);
+  });
+
+  it('aprova acesso de Local sem chamar a pessoa de membro de Comunidade', () => {
+    repositoryMock.getMembershipRequests$.mockReturnValue(
+      of({
+        items: [
+          {
+            memberId: 'member-1',
+            label: 'Pessoa Um',
+            avatarUrl: null,
+            requestedAt: 100,
+          },
+        ],
+        generatedAt: 200,
+      })
+    );
+
+    const fixture = createFixture('venue');
+    const action = fixture.nativeElement.querySelector(
+      '.community-membership-management__actions .is-approve'
+    ) as HTMLButtonElement;
+    action.click();
+    fixture.detectChanges();
+
+    expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith(
+      'Pessoa Um recebeu acesso ao Local.'
+    );
   });
 
   it('recusa sem alterar a nomenclatura pública do repositório', () => {
