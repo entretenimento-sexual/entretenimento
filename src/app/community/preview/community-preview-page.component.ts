@@ -37,6 +37,7 @@ import { CommunityMembershipRepository } from '../data-access/community-membersh
 import {
   CommunityPreviewCard,
   CommunityPreviewResponse,
+  CommunityPreviewSourceType,
   CommunityPreviewViewerMode,
   CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
@@ -234,9 +235,12 @@ export class CommunityPreviewPageComponent {
 
   viewerLabel(
     mode: CommunityPreviewViewerMode,
-    role: CommunityPreviewViewerRole | null = null
+    role: CommunityPreviewViewerRole | null = null,
+    sourceType: CommunityPreviewSourceType = 'community'
   ): string {
-    if (role === 'owner') return 'Proprietário';
+    if (role === 'owner') {
+      return sourceType === 'venue' ? 'Proprietário' : 'Criador';
+    }
     if (role === 'admin') return 'Administração';
 
     const labels: Record<CommunityPreviewViewerMode, string> = {
@@ -299,7 +303,7 @@ export class CommunityPreviewPageComponent {
     }
 
     if (command.pending) return 'Solicitação cancelada.';
-    return isVenue ? 'Você deixou de seguir o Local.' : 'Você saiu da Comunidade.';
+    return isVenue ? 'Você saiu do Local.' : 'Você saiu da Comunidade.';
   }
 
   private handleMembershipError(
@@ -378,12 +382,18 @@ export class CommunityPreviewPageComponent {
     community: CommunityPreviewCard,
     kind: CommunityMembershipActionKind
   ): void {
-    const label = this.sourceLabel(community);
+    const isVenue = community.source.type === 'venue';
+    const message = kind === 'leave'
+      ? isVenue
+        ? 'Não foi possível sair deste Local agora.'
+        : 'Não foi possível sair desta Comunidade agora.'
+      : isVenue
+        ? 'Não foi possível solicitar acesso a este Local agora.'
+        : 'Não foi possível concluir a participação nesta Comunidade agora.';
+
     this.reportError(
       error,
-      kind === 'leave'
-        ? `Não foi possível sair deste ${label} agora.`
-        : `Não foi possível concluir a participação neste ${label} agora.`,
+      message,
       kind === 'leave' ? 'leaveMembership' : 'requestMembership'
     );
   }
