@@ -128,7 +128,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
     return button;
   }
 
-  it('mantém título único, rota de retorno e submenu contextual', () => {
+  it('mantém título único, rota de retorno e submenu contextual de Local', () => {
     const fixture = createFixture();
 
     expect(fixture.componentInstance.backRoute).toBe('/dashboard/locais');
@@ -136,9 +136,10 @@ describe('CommunityPreviewPageComponent / Local', () => {
     expect(
       fixture.nativeElement.querySelectorAll('.community-preview__tabs button')
     ).toHaveLength(3);
-    expect(fixture.nativeElement.textContent).toContain('Mural');
+    expect(fixture.nativeElement.textContent).toContain('Novidades');
     expect(fixture.nativeElement.textContent).toContain('Fotos');
     expect(fixture.nativeElement.textContent).toContain('Sobre');
+    expect(fixture.nativeElement.textContent).not.toContain('Mural');
   });
 
   it('não repete descrição ou rótulo de visitante no cabeçalho', () => {
@@ -150,7 +151,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Visitante');
   });
 
-  it('mostra definição, descrição e métricas somente em Sobre', () => {
+  it('mostra definição, descrição e métricas contextualizadas somente em Sobre', () => {
     const fixture = createFixture();
 
     sectionButton(fixture, 2).click();
@@ -162,9 +163,9 @@ describe('CommunityPreviewPageComponent / Local', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Atualizações e fotos do Local.'
     );
-    expect(fixture.nativeElement.textContent).toContain('12 integrantes');
+    expect(fixture.nativeElement.textContent).toContain('12 pessoas conectadas');
     expect(fixture.nativeElement.textContent).toContain(
-      'Interação reservada aos integrantes autorizados do Local'
+      'Interação reservada às pessoas autorizadas no Local'
     );
   });
 
@@ -272,7 +273,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
     );
   });
 
-  it('permite deixar de seguir o Local e retorna ao mural', () => {
+  it('permite sair do Local com aprovação e retorna às Novidades', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
       of(preview({ viewerMode: 'member', viewerRole: 'member', canInteract: true }))
     );
@@ -284,7 +285,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
       '.community-preview__membership-leave-action'
     ) as HTMLButtonElement;
 
-    expect(leave.textContent).toContain('Deixar de seguir');
+    expect(leave.textContent).toContain('Sair do Local');
     leave.click();
     fixture.detectChanges();
 
@@ -292,9 +293,35 @@ describe('CommunityPreviewPageComponent / Local', () => {
       'community-1'
     );
     expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith(
-      'Você deixou de seguir o Local.'
+      'Você saiu do Local.'
     );
     expect(fixture.componentInstance.activeSection()).toBe('feed');
+  });
+
+  it('mantém Deixar de seguir apenas para Local com acompanhamento aberto', () => {
+    previewRepositoryMock.getPreview$.mockReturnValue(
+      of(
+        preview({
+          viewerMode: 'member',
+          viewerRole: 'member',
+          canInteract: true,
+          community: {
+            ...basePreview().community,
+            access: {
+              ...basePreview().community.access,
+              join: 'open',
+            },
+          },
+        })
+      )
+    );
+
+    const fixture = createFixture();
+    const leave = fixture.nativeElement.querySelector(
+      '.community-preview__membership-leave-action'
+    ) as HTMLButtonElement;
+
+    expect(leave.textContent).toContain('Deixar de seguir');
   });
 
   it('não oferece acesso em Local somente por convite', () => {
@@ -319,7 +346,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
     ).toBeNull();
   });
 
-  it('carrega a fila somente quando a moderação abre a aba contextual', () => {
+  it('carrega a fila somente quando a moderação abre Gestão', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
       of(preview({ viewerMode: 'moderator', viewerRole: 'moderator', canInteract: true }))
     );
@@ -329,6 +356,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
     expect(
       fixture.nativeElement.querySelectorAll('.community-preview__tabs button')
     ).toHaveLength(4);
+    expect(fixture.nativeElement.textContent).toContain('Gestão');
     expect(membershipRepositoryMock.getMembershipRequests$).not.toHaveBeenCalled();
 
     sectionButton(fixture, 3).click();
@@ -339,7 +367,20 @@ describe('CommunityPreviewPageComponent / Local', () => {
       'community-1'
     );
     expect(fixture.nativeElement.textContent).toContain(
-      'Nenhuma solicitação pendente.'
+      'Nenhuma solicitação de acesso pendente.'
+    );
+  });
+
+  it('usa Proprietário para Local e Criador para Comunidade', () => {
+    const component = TestBed.createComponent(
+      CommunityPreviewPageComponent
+    ).componentInstance;
+
+    expect(component.viewerLabel('manager', 'owner', 'venue')).toBe(
+      'Proprietário'
+    );
+    expect(component.viewerLabel('manager', 'owner', 'community')).toBe(
+      'Criador'
     );
   });
 
@@ -370,7 +411,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
       'Assinatura necessária para interagir'
     );
     expect(fixture.nativeElement.textContent).not.toContain(
-      'Interação reservada aos integrantes autorizados do Local'
+      'Interação reservada às pessoas autorizadas no Local'
     );
   });
 });
