@@ -24,7 +24,8 @@ const COMMUNITY_ID = 'community-lifecycle';
 const MEMBER_UID = 'community-member';
 const MODERATOR_UID = 'community-moderator';
 const PENDING_UID = 'community-pending';
-const CREATION_REQUEST_ID = 'request-local-lifecycle';
+const VENUE_CREATION_REQUEST_ID = 'request-local-lifecycle';
+const COMMUNITY_CREATION_REQUEST_ID = 'request-community-lifecycle';
 
 let testEnv: RulesTestEnvironment;
 
@@ -87,13 +88,42 @@ async function seed(): Promise<void> {
         source: 'callable',
       }),
       setDoc(
-        doc(db, 'venue_community_creation_requests', CREATION_REQUEST_ID),
+        doc(
+          db,
+          'venue_community_creation_requests',
+          VENUE_CREATION_REQUEST_ID
+        ),
         {
           actorUid: MEMBER_UID,
           venueId: 'venue-request-local-lifecycle',
           communityId: 'community-request-local-lifecycle',
           status: 'completed',
           createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+      ),
+      setDoc(
+        doc(
+          db,
+          'community_creation_requests',
+          COMMUNITY_CREATION_REQUEST_ID
+        ),
+        {
+          actorUid: MEMBER_UID,
+          communityId: 'community-request-lifecycle',
+          status: 'completed',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+      ),
+      setDoc(
+        doc(db, 'community_user_index', MEMBER_UID, 'items', COMMUNITY_ID),
+        {
+          communityId: COMMUNITY_ID,
+          name: 'Comunidade de ciclo',
+          source: { type: 'community', id: COMMUNITY_ID },
+          role: 'member',
+          status: 'active',
           updatedAt: new Date(),
         }
       ),
@@ -184,25 +214,53 @@ describe('Firestore Rules / community membership lifecycle', () => {
     );
   });
 
-  it('nega leitura e escrita do registro idempotente de criação de Local', async () => {
+  it('nega leitura e escrita dos registros idempotentes de criação', async () => {
     const db = testEnv.authenticatedContext(MEMBER_UID).firestore();
-    const requestRef = doc(
+    const venueRequestRef = doc(
       db,
       'venue_community_creation_requests',
-      CREATION_REQUEST_ID
+      VENUE_CREATION_REQUEST_ID
+    );
+    const communityRequestRef = doc(
+      db,
+      'community_creation_requests',
+      COMMUNITY_CREATION_REQUEST_ID
     );
 
-    await assertFails(getDoc(requestRef));
+    await assertFails(getDoc(venueRequestRef));
+    await assertFails(getDoc(communityRequestRef));
     await assertFails(
       setDoc(
-        doc(db, 'venue_community_creation_requests', 'request-client-local'),
+        doc(db, 'community_creation_requests', 'request-client-community'),
         {
           actorUid: MEMBER_UID,
-          venueId: 'venue-client',
           communityId: 'community-client',
           status: 'completed',
         }
       )
+    );
+  });
+
+  it('nega leitura, listagem e escrita direta do índice privado', async () => {
+    const db = testEnv.authenticatedContext(MEMBER_UID).firestore();
+    const indexRef = doc(
+      db,
+      'community_user_index',
+      MEMBER_UID,
+      'items',
+      COMMUNITY_ID
+    );
+
+    await assertFails(getDoc(indexRef));
+    await assertFails(
+      getDocs(collection(db, 'community_user_index', MEMBER_UID, 'items'))
+    );
+    await assertFails(
+      setDoc(indexRef, {
+        communityId: COMMUNITY_ID,
+        role: 'owner',
+        status: 'active',
+      })
     );
   });
 });
