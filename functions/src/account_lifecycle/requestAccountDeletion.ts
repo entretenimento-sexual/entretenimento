@@ -36,11 +36,16 @@ interface DeletionSchedule {
 }
 
 const DEFAULT_UNDO_WINDOW_MS = 24 * 60 * 60 * 1_000;
+const TERMINAL_ROOM_STATUSES = new Set(['closed', 'archived']);
 
 function normalizeRestorableStatus(value: unknown): RestorableAccountStatus {
   return value === 'self_suspended' || value === 'moderation_suspended'
     ? value
     : 'active';
+}
+
+function normalizeRoomStatus(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase();
 }
 
 function countOwnedCommunityMemberships(
@@ -146,11 +151,24 @@ export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
           };
         }
 
+        const ownedRoomStatuses = ownedRoomsSnapshot.docs.map(
+          (documentSnapshot) => ({
+            roomId: documentSnapshot.id,
+            status: normalizeRoomStatus(documentSnapshot.data()?.['status']),
+          })
+        );
+        const ownerSlot = ownerSlotSnapshot.data() ?? {};
+        const ownerSlotRoomId = String(ownerSlot['roomId'] ?? '').trim();
+        const ownerSlotRoom = ownedRoomStatuses.find(
+          (room) => room.roomId === ownerSlotRoomId
+        );
+        const activeOwnerSlot =
+          ownerSlot['active'] === true &&
+          !!ownerSlotRoom &&
+          !TERMINAL_ROOM_STATUSES.has(ownerSlotRoom.status);
         const ownedResourceDecision = evaluateAccountDeletionOwnedResources({
-          ownedRoomStatuses: ownedRoomsSnapshot.docs.map(
-            (documentSnapshot) => documentSnapshot.data()?.['status']
-          ),
-          activeOwnerSlot: ownerSlotSnapshot.data()?.['active'] === true,
+          ownedRoomStatuses: ownedRoomStatuses.map((room) => room.status),
+          activeOwnerSlot,
           ownedCommunityCount: countOwnedCommunityMemberships(
             ownedCommunityMembershipsSnapshot,
             uid
