@@ -33,9 +33,9 @@ function basePreview() {
   return {
     community: {
       communityId: 'community-1',
-      name: 'Comunidade do Centro',
-      slug: 'comunidade-do-centro',
-      description: 'Atualizações e fotos do local.',
+      name: 'Local do Centro',
+      slug: 'local-do-centro',
+      description: 'Atualizações e fotos do Local.',
       source: { type: 'venue' as const, id: 'venue-1' },
       avatarUrl: null,
       coverUrl: null,
@@ -47,12 +47,13 @@ function basePreview() {
       },
     },
     viewerMode: 'visitor' as 'visitor' | 'pending' | 'member' | 'moderator' | 'manager',
+    viewerRole: null as 'owner' | 'admin' | 'moderator' | 'member' | null,
     canInteract: false,
     generatedAt: 123,
   };
 }
 
-describe('CommunityPreviewPageComponent', () => {
+describe('CommunityPreviewPageComponent / Local', () => {
   const previewRepositoryMock = { getPreview$: vi.fn() };
   const feedRepositoryMock = { getPage$: vi.fn() };
   const membershipRepositoryMock = {
@@ -94,6 +95,7 @@ describe('CommunityPreviewPageComponent', () => {
         {
           provide: ActivatedRoute,
           useValue: {
+            snapshot: { data: { backRoute: '/dashboard/locais' } },
             paramMap: of(convertToParamMap({ communityId: 'community-1' })),
           },
         },
@@ -122,13 +124,14 @@ describe('CommunityPreviewPageComponent', () => {
       '.community-preview__tabs button'
     ).item(index) as HTMLButtonElement | null;
 
-    if (!button) throw new Error(`Botão comunitário ${index} ausente.`);
+    if (!button) throw new Error(`Botão do espaço ${index} ausente.`);
     return button;
   }
 
-  it('mantém título único e submenu contextual enxuto', () => {
+  it('mantém título único, rota de retorno e submenu contextual', () => {
     const fixture = createFixture();
 
+    expect(fixture.componentInstance.backRoute).toBe('/dashboard/locais');
     expect(fixture.nativeElement.querySelectorAll('h1')).toHaveLength(1);
     expect(
       fixture.nativeElement.querySelectorAll('.community-preview__tabs button')
@@ -142,23 +145,26 @@ describe('CommunityPreviewPageComponent', () => {
     const fixture = createFixture();
 
     expect(fixture.nativeElement.textContent).not.toContain(
-      'Atualizações e fotos do local.'
+      'Atualizações e fotos do Local.'
     );
     expect(fixture.nativeElement.textContent).not.toContain('Visitante');
   });
 
-  it('mostra descrição e métricas somente em Sobre', () => {
+  it('mostra definição, descrição e métricas somente em Sobre', () => {
     const fixture = createFixture();
 
     sectionButton(fixture, 2).click();
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain(
-      'Atualizações e fotos do local.'
+      'Lugar físico ou estabelecimento real.'
     );
-    expect(fixture.nativeElement.textContent).toContain('12 membros');
     expect(fixture.nativeElement.textContent).toContain(
-      'Interação reservada aos membros'
+      'Atualizações e fotos do Local.'
+    );
+    expect(fixture.nativeElement.textContent).toContain('12 integrantes');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Interação reservada aos integrantes autorizados do Local'
     );
   });
 
@@ -177,13 +183,13 @@ describe('CommunityPreviewPageComponent', () => {
     );
   });
 
-  it('envia a adesão somente pela callable e recarrega a prévia', () => {
+  it('solicita acesso somente pela callable e recarrega a prévia', () => {
     const fixture = createFixture();
     const action = fixture.nativeElement.querySelector(
       '.community-preview__membership-action'
     ) as HTMLButtonElement;
 
-    expect(action.textContent).toContain('Solicitar');
+    expect(action.textContent).toContain('Solicitar acesso');
     action.click();
     fixture.detectChanges();
 
@@ -191,7 +197,7 @@ describe('CommunityPreviewPageComponent', () => {
       'community-1'
     );
     expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith(
-      'Solicitação enviada.'
+      'Solicitação de acesso enviada.'
     );
     expect(previewRepositoryMock.getPreview$).toHaveBeenCalledTimes(2);
   });
@@ -241,7 +247,7 @@ describe('CommunityPreviewPageComponent', () => {
 
   it('mantém estado pendente e permite cancelamento pela callable', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
-      of(preview({ viewerMode: 'pending' }))
+      of(preview({ viewerMode: 'pending', viewerRole: 'member' }))
     );
 
     const fixture = createFixture();
@@ -266,9 +272,9 @@ describe('CommunityPreviewPageComponent', () => {
     );
   });
 
-  it('permite saída voluntária do membro e retorna ao mural', () => {
+  it('permite deixar de seguir o Local e retorna ao mural', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
-      of(preview({ viewerMode: 'member', canInteract: true }))
+      of(preview({ viewerMode: 'member', viewerRole: 'member', canInteract: true }))
     );
 
     const fixture = createFixture();
@@ -277,6 +283,8 @@ describe('CommunityPreviewPageComponent', () => {
     const leave = fixture.nativeElement.querySelector(
       '.community-preview__membership-leave-action'
     ) as HTMLButtonElement;
+
+    expect(leave.textContent).toContain('Deixar de seguir');
     leave.click();
     fixture.detectChanges();
 
@@ -284,12 +292,12 @@ describe('CommunityPreviewPageComponent', () => {
       'community-1'
     );
     expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith(
-      'Você saiu da comunidade.'
+      'Você deixou de seguir o Local.'
     );
     expect(fixture.componentInstance.activeSection()).toBe('feed');
   });
 
-  it('não oferece adesão em comunidade somente por convite', () => {
+  it('não oferece acesso em Local somente por convite', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
       of(
         preview({
@@ -313,7 +321,7 @@ describe('CommunityPreviewPageComponent', () => {
 
   it('carrega a fila somente quando a moderação abre a aba contextual', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
-      of(preview({ viewerMode: 'moderator', canInteract: true }))
+      of(preview({ viewerMode: 'moderator', viewerRole: 'moderator', canInteract: true }))
     );
 
     const fixture = createFixture();
@@ -335,11 +343,12 @@ describe('CommunityPreviewPageComponent', () => {
     );
   });
 
-  it('explica assinatura vencida ao membro sem tratá-lo como visitante', () => {
+  it('explica assinatura vencida ao integrante sem tratá-lo como visitante', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
       of(
         preview({
           viewerMode: 'member',
+          viewerRole: 'member',
           canInteract: false,
           community: {
             ...basePreview().community,
@@ -361,7 +370,7 @@ describe('CommunityPreviewPageComponent', () => {
       'Assinatura necessária para interagir'
     );
     expect(fixture.nativeElement.textContent).not.toContain(
-      'Interação reservada aos membros'
+      'Interação reservada aos integrantes autorizados do Local'
     );
   });
 });
