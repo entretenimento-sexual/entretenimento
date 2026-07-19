@@ -14,15 +14,17 @@
 // - não consulta Router;
 // - não consulta Firestore.
 //
-// Ajustes desta revisão:
+// Diretriz de navegação:
+// - mantém uma única entrada global para Comunidades;
+// - Locais e demais categorias são subnavegação contextual da página;
 // - mantém Conversas como entrada única na sidebar;
 // - mantém rotas de friends/chat reconhecidas como área Conversas;
 // - expõe Fotos e Vídeos como entradas próprias da área de mídia;
-// - agrupa os destinos pessoais sob o menu Conta;
-// - subações ficam no contexto interno do Chat.
+// - agrupa os destinos pessoais sob o menu Conta.
 export type SidebarSectionKey =
   | 'dashboard'
   | 'explore'
+  | 'communities'
   | 'profiles'
   | 'chat'
   | 'media'
@@ -112,6 +114,10 @@ const SECTION_MATCHERS: ReadonlyArray<{
     ],
   },
   {
+    key: 'communities',
+    prefixes: ['/dashboard/comunidades'],
+  },
+  {
     key: 'explore',
     prefixes: [
       '/dashboard/explorar',
@@ -167,6 +173,20 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         icon: '✨',
         exact: false,
         ariaLabel: 'Descobrir perfis, status e recomendações',
+      },
+    ],
+  },
+  {
+    key: 'communities',
+    title: 'Comunidades',
+    items: [
+      {
+        id: 'communities',
+        label: 'Comunidades',
+        route: '/dashboard/comunidades',
+        icon: '👥',
+        exact: false,
+        ariaLabel: 'Abrir comunidades, Locais e salas',
       },
     ],
   },
