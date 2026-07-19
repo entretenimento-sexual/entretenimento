@@ -5,12 +5,18 @@ import {
   AccountBlockReferenceSummary,
   AccountDataDeletionAdapter,
   FriendRequestDirection,
+  NotificationReferenceDirection,
   executeAccountDataDeletionDomains,
 } from './account-data-deletion.executor';
 
 class FakeAdapter implements AccountDataDeletionAdapter {
-  notifications: number[] = [0];
+  recipientNotifications: number[] = [0];
+  actorNotifications: number[] = [0];
   preferences = 0;
+  presence = 0;
+  privateLocation = 0;
+  intentStatuses: number[] = [0];
+  intentStatusAudit: number[] = [0];
   requesterRequests: number[] = [0];
   targetRequests: number[] = [0];
   ownedFriendships: number[] = [0];
@@ -18,13 +24,34 @@ class FakeAdapter implements AccountDataDeletionAdapter {
   blockReferences: AccountBlockReferenceSummary = { owned: 0, inbound: 0 };
   notificationError: unknown = null;
 
-  async deleteNotificationsPage(): Promise<number> {
+  async deleteNotificationsPage(
+    _uid: string,
+    direction: NotificationReferenceDirection
+  ): Promise<number> {
     if (this.notificationError) throw this.notificationError;
-    return this.notifications.shift() ?? 0;
+    return direction === 'recipient'
+      ? this.recipientNotifications.shift() ?? 0
+      : this.actorNotifications.shift() ?? 0;
   }
 
   async deletePreferences(): Promise<number> {
     return this.preferences;
+  }
+
+  async deletePresence(): Promise<number> {
+    return this.presence;
+  }
+
+  async clearPrivateLocation(): Promise<number> {
+    return this.privateLocation;
+  }
+
+  async deleteUserIntentStatusesPage(): Promise<number> {
+    return this.intentStatuses.shift() ?? 0;
+  }
+
+  async deleteUserIntentStatusAuditPage(): Promise<number> {
+    return this.intentStatusAudit.shift() ?? 0;
   }
 
   async deleteFriendRequestsPage(
@@ -49,10 +76,15 @@ class FakeAdapter implements AccountDataDeletionAdapter {
   }
 }
 
-test('executor completes notifications, preferences, requests and friendships idempotently', async () => {
+test('executor completes private, temporary and social domains idempotently', async () => {
   const adapter = new FakeAdapter();
-  adapter.notifications = [2];
+  adapter.recipientNotifications = [2];
+  adapter.actorNotifications = [3];
   adapter.preferences = 1;
+  adapter.presence = 1;
+  adapter.privateLocation = 1;
+  adapter.intentStatuses = [1];
+  adapter.intentStatusAudit = [2];
   adapter.requesterRequests = [1];
   adapter.targetRequests = [2];
   adapter.ownedFriendships = [3];
@@ -68,10 +100,65 @@ test('executor completes notifications, preferences, requests and friendships id
   assert.deepEqual(result.completedDomains, [
     'notifications',
     'preferences',
+    'presence_and_location',
     'friend_requests',
     'relationship_edges',
   ]);
   assert.equal(result.results.every((item) => item.status === 'completed'), true);
+  assert.equal(
+    result.results.every((item) => !Object.hasOwn(item, 'blocker')),
+    true
+  );
+});
+
+test('notification domain removes recipient and actor references', async () => {
+  const adapter = new FakeAdapter();
+  adapter.recipientNotifications = [4];
+  adapter.actorNotifications = [6];
+
+  const result = await executeAccountDataDeletionDomains(adapter, {
+    uid: 'user-notification',
+    generatedAt: 1_800_000_000_000,
+    pageSize: 20,
+  });
+
+  const notifications = result.results.find(
+    (item) => item.domain === 'notifications'
+  );
+
+  assert.equal(notifications?.status, 'completed');
+  assert.equal(notifications?.processed, 10);
+  assert.deepEqual(notifications?.details, {
+    recipientNotificationsProcessed: 4,
+    actorNotificationsProcessed: 6,
+  });
+});
+
+test('presence domain removes live presence, precise location and temporary statuses', async () => {
+  const adapter = new FakeAdapter();
+  adapter.presence = 1;
+  adapter.privateLocation = 1;
+  adapter.intentStatuses = [2];
+  adapter.intentStatusAudit = [3];
+
+  const result = await executeAccountDataDeletionDomains(adapter, {
+    uid: 'user-presence',
+    generatedAt: 1_800_000_000_000,
+    pageSize: 10,
+  });
+
+  const presence = result.results.find(
+    (item) => item.domain === 'presence_and_location'
+  );
+
+  assert.equal(presence?.status, 'completed');
+  assert.equal(presence?.processed, 7);
+  assert.deepEqual(presence?.details, {
+    presenceDocumentsProcessed: 1,
+    privateLocationDocumentsProcessed: 1,
+    intentStatusesProcessed: 2,
+    intentStatusAuditProcessed: 3,
+  });
 });
 
 test('executor keeps relationship domain blocked while block history exists', async () => {
@@ -95,9 +182,9 @@ test('executor keeps relationship domain blocked while block history exists', as
   assert.equal(result.completedDomains.includes('relationship_edges'), false);
 });
 
-test('executor marks a domain partial when pagination limit is reached', async () => {
+test('executor marks notification domain partial when pagination limit is reached', async () => {
   const adapter = new FakeAdapter();
-  adapter.notifications = [2, 2];
+  adapter.recipientNotifications = [2, 2];
 
   const result = await executeAccountDataDeletionDomains(adapter, {
     uid: 'user-3',
@@ -116,10 +203,31 @@ test('executor marks a domain partial when pagination limit is reached', async (
   assert.equal(result.completedDomains.includes('notifications'), false);
 });
 
+test('presence domain remains partial while status pagination is incomplete', async () => {
+  const adapter = new FakeAdapter();
+  adapter.intentStatuses = [2, 2];
+
+  const result = await executeAccountDataDeletionDomains(adapter, {
+    uid: 'user-presence-partial',
+    generatedAt: 1_800_000_000_000,
+    pageSize: 2,
+    maxPagesPerDomain: 2,
+  });
+
+  const presence = result.results.find(
+    (item) => item.domain === 'presence_and_location'
+  );
+
+  assert.equal(presence?.status, 'partial');
+  assert.equal(presence?.blocker, 'pagination-limit-reached');
+  assert.equal(result.completedDomains.includes('presence_and_location'), false);
+});
+
 test('executor isolates a domain failure and continues the remaining domains', async () => {
   const adapter = new FakeAdapter();
   adapter.notificationError = { code: 'firestore/unavailable' };
   adapter.preferences = 1;
+  adapter.presence = 1;
 
   const result = await executeAccountDataDeletionDomains(adapter, {
     uid: 'user-4',
@@ -134,6 +242,7 @@ test('executor isolates a domain failure and continues the remaining domains', a
   assert.equal(notifications?.errorCode, 'firestore/unavailable');
   assert.equal(result.completedDomains.includes('notifications'), false);
   assert.equal(result.completedDomains.includes('preferences'), true);
+  assert.equal(result.completedDomains.includes('presence_and_location'), true);
 });
 
 test('executor rejects an empty uid before any deletion attempt', async () => {
