@@ -9,7 +9,8 @@ import {
   buildPublicProfileSeed,
   createLifecycleAudit,
   getNicknameIndexDocId,
-  normalizeNicknameForIndex,
+  isUserEligibleForPublicProjection,
+  resolveNicknameNormalized,
 } from './_shared';
 
 interface AccountLifecycleCommandResult {
@@ -87,18 +88,20 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
         const accountStatus = normalizeRestoreStatus(
           user.deletionRestoreStatus
         );
-        const restricted = accountStatus !== 'active';
-        const publicVisibility = restricted ? 'hidden' : 'visible';
-        const interactionBlocked = restricted;
-        const suspended = restricted;
-        const suspensionReason = restricted
+        const suspended = accountStatus !== 'active';
+        const canPublish =
+          accountStatus === 'active' &&
+          isUserEligibleForPublicProjection(user);
+        const publicVisibility = canPublish ? 'visible' : 'hidden';
+        const interactionBlocked = suspended || !canPublish;
+        const suspensionReason = suspended
           ? user.deletionRestoreSuspensionReason ?? null
           : null;
-        const suspensionSource = restricted
+        const suspensionSource = suspended
           ? user.deletionRestoreSuspensionSource ??
             (accountStatus === 'self_suspended' ? 'self' : 'moderator')
           : null;
-        const suspensionEndsAt = restricted
+        const suspensionEndsAt = suspended
           ? user.deletionRestoreSuspensionEndsAt ?? null
           : null;
 
@@ -113,7 +116,6 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
             suspensionReason,
             suspensionSource,
             suspensionEndsAt,
-
             deletionRequestedAt: null,
             deletionRequestedBy: null,
             deletionUndoUntil: null,
@@ -123,7 +125,6 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
             deletionRestoreSuspensionReason: FieldValue.delete(),
             deletionRestoreSuspensionSource: FieldValue.delete(),
             deletionRestoreSuspensionEndsAt: FieldValue.delete(),
-
             statusUpdatedAt: now,
             statusUpdatedBy: 'self',
           },
@@ -132,7 +133,7 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
 
         const nicknameIndexDocId = getNicknameIndexDocId(user);
 
-        if (accountStatus === 'active') {
+        if (canPublish) {
           tx.set(
             publicProfileRef,
             buildPublicProfileSeed(user, uid, now),
@@ -144,9 +145,7 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
               db.collection('public_index').doc(nicknameIndexDocId),
               {
                 type: 'nickname',
-                value:
-                  String(user.nicknameNormalized ?? '').trim() ||
-                  normalizeNicknameForIndex(user.nickname),
+                value: resolveNicknameNormalized(user),
                 uid,
                 createdAt: now,
                 lastChangedAt: now,
@@ -167,6 +166,7 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
           action: 'cancel_account_deletion',
           previousAccountStatus: 'pending_deletion',
           accountStatus,
+          publicProjectionRestored: canPublish,
           source: 'self',
           moderationReason: null,
           createdAt: now,
@@ -186,11 +186,16 @@ export const cancelAccountDeletion = onCall<Record<string, never>>(
       }
     );
 
+    const activeButRestricted =
+      restored.accountStatus === 'active' &&
+      restored.publicVisibility === 'hidden';
+
     return {
       ok: true,
       ...restored,
-      message:
-        restored.accountStatus === 'active'
+      message: activeButRestricted
+        ? 'Exclusão cancelada. Conclua as verificações pendentes para voltar a aparecer e interagir.'
+        : restored.accountStatus === 'active'
           ? 'Exclusão cancelada. Sua conta voltou ao estado ativo.'
           : 'Exclusão cancelada. O estado anterior da conta foi restaurado.',
     };
