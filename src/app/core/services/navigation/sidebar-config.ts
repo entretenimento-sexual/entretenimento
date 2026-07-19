@@ -14,17 +14,18 @@
 // - não consulta Router;
 // - não consulta Firestore.
 //
-// Diretriz de navegação:
-// - mantém uma única entrada global para Comunidades;
-// - Locais e demais categorias são subnavegação contextual da página;
-// - mantém Conversas como entrada única na sidebar;
-// - mantém rotas de friends/chat reconhecidas como área Conversas;
-// - expõe Fotos e Vídeos como entradas próprias da área de mídia;
-// - agrupa os destinos pessoais sob o menu Conta.
+// Definições de navegação:
+// - Pessoas: perfis encontrados na descoberta;
+// - Locais: lugares físicos ou estabelecimentos reais;
+// - Comunidades: grupos permanentes de pessoas com membros, regras e mural;
+// - Salas: espaços de conversa em tempo real dentro de Conversas.
+//
+// Sala não é Comunidade. Local não é Comunidade. A infraestrutura interna pode
+// ser compartilhada, mas os destinos e rótulos apresentados são distintos.
 export type SidebarSectionKey =
   | 'dashboard'
   | 'explore'
-  | 'communities'
+  | 'communities' // legado de tipagem; a composição pública usa `explore`.
   | 'profiles'
   | 'chat'
   | 'media'
@@ -114,13 +115,11 @@ const SECTION_MATCHERS: ReadonlyArray<{
     ],
   },
   {
-    key: 'communities',
-    prefixes: ['/dashboard/comunidades'],
-  },
-  {
     key: 'explore',
     prefixes: [
       '/dashboard/explorar',
+      '/dashboard/locais',
+      '/dashboard/comunidades',
       '/descobrir',
       '/dashboard/online',
       '/dashboard/online-users',
@@ -167,26 +166,28 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
     title: 'Descobrir',
     items: [
       {
-        id: 'discover',
-        label: 'Descobrir',
+        id: 'discover-people',
+        label: 'Pessoas',
         route: '/dashboard/explorar',
         icon: '✨',
         exact: false,
-        ariaLabel: 'Descobrir perfis, status e recomendações',
+        ariaLabel: 'Descobrir pessoas e perfis',
       },
-    ],
-  },
-  {
-    key: 'communities',
-    title: 'Comunidades',
-    items: [
       {
-        id: 'communities',
+        id: 'discover-venues',
+        label: 'Locais',
+        route: '/dashboard/locais',
+        icon: '📍',
+        exact: false,
+        ariaLabel: 'Descobrir lugares físicos e estabelecimentos reais',
+      },
+      {
+        id: 'discover-communities',
         label: 'Comunidades',
         route: '/dashboard/comunidades',
         icon: '👥',
         exact: false,
-        ariaLabel: 'Abrir comunidades, Locais e salas',
+        ariaLabel: 'Descobrir grupos permanentes de pessoas',
       },
     ],
   },
@@ -196,11 +197,19 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
     items: [
       {
         id: 'chat-list',
-        label: 'Conversas',
+        label: 'Mensagens',
         route: '/chat',
         icon: '💬',
+        exact: true,
+        ariaLabel: 'Abrir mensagens diretas',
+      },
+      {
+        id: 'chat-rooms',
+        label: 'Salas',
+        route: '/chat/rooms',
+        icon: '🗨️',
         exact: false,
-        ariaLabel: 'Abrir conversas, conexões, salas e convites',
+        ariaLabel: 'Abrir espaços de conversa em tempo real',
       },
     ],
   },
