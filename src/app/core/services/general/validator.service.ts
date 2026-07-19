@@ -15,11 +15,10 @@ import { NicknameUtils } from '@core/utils/nickname-utils';
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const FACEBOOK_REGEX = /^https?:\/\/www\.facebook\.com\/.+$/;
 const INSTAGRAM_REGEX = /^https:\/\/www\.instagram\.com\/.+$/;
-// trocar pra hotvips 
+// trocar pra hotvips
 const BUUPE_REGEX = /^https:\/\/www\.buupe\.com\/.+$/;
 
-// Obs.: Estas constantes existiam, mas você hoje usa regex gerada dentro do passwordValidator.
-// Mantidas para referência/coerência do arquivo.
+// Obs.: Esta constante é mantida como documentação da política canônica.
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d!@#$%^&*(),.?":{}|<>_-]{8,}$/;
 const PASSWORD_BLACKLIST = ['password', '123456', 'qwerty', '111111', '000000'];
 
@@ -146,29 +145,52 @@ export class ValidatorService {
   /** Validação de Senha como ValidatorFn para Reactive Forms. */
   public static passwordValidator(minLength: number = 8): ValidatorFn {
     return (control: AbstractControl): { [key: string]: any } | null => {
-      const password = control.value;
+      const password = String(control.value ?? '');
 
       if (!password) return null;
 
-      const passwordRegex = new RegExp(
-        `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d!@#$%^&*(),.?":{}|<>_-]{${minLength},}$`
-      );
+      const passwordRegex = minLength === 8
+        ? PASSWORD_REGEX
+        : new RegExp(
+          `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d!@#$%^&*(),.?":{}|<>_-]{${minLength},}$`
+        );
 
-      const isBlacklisted = PASSWORD_BLACKLIST.includes(password);
+      const isBlacklisted = PASSWORD_BLACKLIST.includes(password.toLowerCase());
       const isInvalidByRegex = !passwordRegex.test(password);
 
       return (isInvalidByRegex || isBlacklisted)
-        ? { invalidPassword: { value: password } }
+        ? { invalidPassword: true }
         : null;
+    };
+  }
+
+  /**
+   * Compara senha e confirmação no FormGroup sem copiar a senha para outro estado.
+   * Campos vazios ficam sob responsabilidade de Validators.required.
+   */
+  public static passwordsMatchValidator(
+    passwordControlName: string = 'password',
+    confirmationControlName: string = 'confirmPassword'
+  ): ValidatorFn {
+    return (group: AbstractControl): { [key: string]: boolean } | null => {
+      const password = String(group.get(passwordControlName)?.value ?? '');
+      const confirmation = String(
+        group.get(confirmationControlName)?.value ?? ''
+      );
+
+      if (!password || !confirmation) return null;
+      return password === confirmation ? null : { passwordMismatch: true };
     };
   }
 
   /** Validação de Senha como função utilitária estática. */
   public static isValidPassword(password: string, minLength: number = 8): boolean {
-    const passwordRegex = new RegExp(
-      `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d!@#$%^&*(),.?":{}|<>_-]{${minLength},}$`
-    );
-    return passwordRegex.test(password) && !PASSWORD_BLACKLIST.includes(password);
+    const passwordRegex = minLength === 8
+      ? PASSWORD_REGEX
+      : new RegExp(
+        `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d!@#$%^&*(),.?":{}|<>_-]{${minLength},}$`
+      );
+    return passwordRegex.test(password) && !PASSWORD_BLACKLIST.includes(password.toLowerCase());
   }
 
   // ---------------------------------------------------------------------------
@@ -193,7 +215,7 @@ export class ValidatorService {
 
   /** Validação de URL do B.uupe.
    *trocar pra hotvips depois que tiver o domínio e regras definidas.
-  */
+   */
   public static buupeValidator(): ValidatorFn {
     return (control: AbstractControl): { [key: string]: any } | null => {
       const buupeUrl = control.value;
@@ -213,7 +235,7 @@ export class ValidatorService {
       return cpf && !cpfRegex.test(cpf) ? { invalidCPF: { value: cpf } } : null;
     };
   }
-} // 211 linhas - Fim do ValidatorService
+}
 
 /*
 Observação importante: este ValidatorService é focado em validações de formato e regras de negócio simples (e.g., regex, tamanho, blacklist).
