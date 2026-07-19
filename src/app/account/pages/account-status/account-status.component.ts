@@ -14,9 +14,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AccountLifecycleFacade } from '../../application/account-lifecycle.facade';
 import { AccountLifecycleService } from '../../application/account-lifecycle.service';
-import {
-  AccountStatus,
-} from '../../models/account-lifecycle.model';
+import { AccountStatus } from '../../models/account-lifecycle.model';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
@@ -62,10 +60,15 @@ export class AccountStatusComponent {
       )
       .subscribe({
         next: (result) => {
+          const publicVisibility =
+            result.publicVisibility === 'visible' ? 'visible' : 'hidden';
+          const interactionBlocked =
+            result.interactionBlocked !== false;
+
           this.currentUserStore.patch({
             accountStatus: 'active',
-            publicVisibility: 'visible',
-            interactionBlocked: false,
+            publicVisibility,
+            interactionBlocked,
             loginAllowed: true,
             suspended: false,
             suspensionReason: null,
@@ -103,24 +106,29 @@ export class AccountStatusComponent {
           const accountStatus = this.normalizeAccountStatus(
             result.accountStatus
           );
-          const restricted = accountStatus !== 'active';
+          const suspended =
+            result.suspended ?? accountStatus !== 'active';
+          const publicVisibility =
+            result.publicVisibility === 'visible' ? 'visible' : 'hidden';
+          const interactionBlocked =
+            result.interactionBlocked !== false;
 
           this.currentUserStore.patch({
             accountStatus,
-            publicVisibility: restricted ? 'hidden' : 'visible',
-            interactionBlocked: restricted,
+            publicVisibility,
+            interactionBlocked,
             loginAllowed: true,
-            suspended: result.suspended ?? restricted,
-            suspensionReason: restricted
+            suspended,
+            suspensionReason: suspended
               ? result.suspensionReason ?? null
               : null,
-            suspensionSource: restricted
+            suspensionSource: suspended
               ? result.suspensionSource ??
                 (accountStatus === 'self_suspended'
                   ? 'self'
                   : 'moderator')
               : null,
-            suspensionEndsAt: restricted
+            suspensionEndsAt: suspended
               ? this.normalizeEpoch(result.suspensionEndsAt)
               : null,
             deletionRequestedAt: null,
