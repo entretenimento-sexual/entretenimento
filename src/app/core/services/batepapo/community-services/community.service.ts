@@ -1,138 +1,94 @@
-//src\app\core\services\batepapo\community.service.ts
+// src/app/core/services/batepapo/community-services/community.service.ts
+// -----------------------------------------------------------------------------
+// LEGACY COMMUNITY SERVICE
+// -----------------------------------------------------------------------------
+//
+// As nomenclaturas públicas são preservadas para não quebrar consumidores antigos,
+// mas os acessos diretos a `communities`, `members` e `invites` foram suprimidos.
+// Essas operações agora pertencem exclusivamente a repositories/callables que
+// validam autenticação, assinatura, papel, moderação, idempotência e auditoria.
+// -----------------------------------------------------------------------------
+
 import { Injectable } from '@angular/core';
-import { getFirestore, collection, addDoc, doc, setDoc, updateDoc, deleteDoc, serverTimestamp, query, where, getDocs, onSnapshot } from 'firebase/firestore';
-import { Observable } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
+
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 import { Community } from 'src/app/core/interfaces/interfaces-chat/community.interface';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class CommunityService {
-  private db = getFirestore();
-
-  constructor() { }
+  /**
+   * @deprecated Use CommunityCreateRepository.createCommunity$().
+   */
+  async createCommunity(
+    _communityData: Omit<Community, 'id' | 'createdAt'>
+  ): Promise<string> {
+    void _communityData;
+    throw this.unsupported('createCommunity');
+  }
 
   /**
-   * Cria uma nova comunidade.
-   * @param communityData Dados da comunidade (nome, descrição, criador, etc.)
+   * @deprecated Use CommunityPreviewRepository.getMyCommunitiesPage$().
    */
-  async createCommunity(communityData: Omit<Community, 'id' | 'createdAt'>): Promise<string> {
-    console.log('Criando nova comunidade com dados:', communityData);
-    const community = {
-      ...communityData,
-      createdAt: serverTimestamp()
+  getUserCommunities(_userId: string): Observable<Community[]> {
+    void _userId;
+    return throwError(() => this.unsupported('getUserCommunities'));
+  }
+
+  /**
+   * @deprecated A edição será exposta por callable própria quando o contrato de
+   * gestão, auditoria e revisão de moderação estiver concluído.
+   */
+  async updateCommunity(
+    _communityId: string,
+    _updateData: Partial<Community>
+  ): Promise<void> {
+    void _communityId;
+    void _updateData;
+    throw this.unsupported('updateCommunity');
+  }
+
+  /**
+   * @deprecated A exclusão física foi substituída pelo futuro ciclo auditável de
+   * arquivamento/encerramento. Nenhum cliente pode apagar a estrutura diretamente.
+   */
+  async deleteCommunity(_communityId: string): Promise<void> {
+    void _communityId;
+    throw this.unsupported('deleteCommunity');
+  }
+
+  /**
+   * @deprecated Convites devem passar por backend autoritativo. O fluxo legado
+   * gravava o documento diretamente e não garantia o ciclo completo de segurança.
+   */
+  async sendInvite(_inviteData: Omit<Invite, 'id'>): Promise<void> {
+    void _inviteData;
+    throw this.unsupported('sendInvite');
+  }
+
+  /**
+   * @deprecated Listas de membros são privadas e precisam ser sanitizadas por
+   * callable com validação de papel. As Rules bloqueiam enumeração direta.
+   */
+  observeCommunityMembers(_communityId: string): Observable<unknown[]> {
+    void _communityId;
+    return throwError(() => this.unsupported('observeCommunityMembers'));
+  }
+
+  private unsupported(operation: string): Error {
+    const error = new Error(
+      `CommunityService.${operation} pertence ao fluxo legado e foi desativado. Use o repository/callable protegido correspondente.`
+    );
+
+    (error as Error & { context?: unknown; skipUserNotification?: boolean }).context = {
+      scope: 'CommunityService',
+      operation,
+      reason: 'legacy-direct-write-disabled',
     };
+    (error as Error & { skipUserNotification?: boolean }).skipUserNotification = true;
 
-    try {
-      const communityRef = await addDoc(collection(this.db, 'communities'), community);
-      console.log('Comunidade criada com sucesso, ID:', communityRef.id);
-      return communityRef.id;
-    } catch (error) {
-      console.log('Erro ao criar comunidade:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtém as comunidades criadas pelo usuário.
-   * @param userId ID do usuário.
-   */
-  getUserCommunities(userId: string): Observable<Community[]> {
-    console.log('Obtendo comunidades criadas pelo usuário com ID:', userId);
-    const communitiesRef = collection(this.db, 'communities');
-    const userCommunitiesQuery = query(communitiesRef, where('createdBy', '==', userId));
-
-    return new Observable(observer => {
-      const unsubscribe = onSnapshot(userCommunitiesQuery, snapshot => {
-        const communities = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data() as Community
-        }));
-        observer.next(communities);
-      }, error => {
-        console.log('Erro ao carregar comunidades do usuário:', error);
-        observer.error(error);
-      });
-
-      return () => unsubscribe();
-    });
-  }
-
-  /**
-   * Atualiza dados de uma comunidade.
-   * @param communityId ID da comunidade.
-   * @param updateData Dados a serem atualizados.
-   */
-  async updateCommunity(communityId: string, updateData: Partial<Community>): Promise<void> {
-    console.log('Atualizando comunidade ID:', communityId, 'com dados:', updateData);
-    try {
-      const communityRef = doc(this.db, 'communities', communityId);
-      await updateDoc(communityRef, updateData);
-      console.log('Comunidade atualizada com sucesso.');
-    } catch (error) {
-      console.log('Erro ao atualizar comunidade:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Deleta uma comunidade.
-   * @param communityId ID da comunidade a ser deletada.
-   */
-  async deleteCommunity(communityId: string): Promise<void> {
-    console.log('Deletando comunidade com ID:', communityId);
-    try {
-      const communityRef = doc(this.db, 'communities', communityId);
-      await deleteDoc(communityRef);
-      console.log('Comunidade deletada com sucesso.');
-    } catch (error) {
-      console.log('Erro ao deletar comunidade:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Gerencia convites para uma comunidade.
-   * @param inviteData Dados do convite.
-   */
-  async sendInvite(inviteData: Omit<Invite, 'id'>): Promise<void> {
-    console.log('Enviando convite para comunidade com dados:', inviteData);
-    const invite = {
-      ...inviteData,
-      sentAt: serverTimestamp(),
-      status: 'pending'
-    };
-
-    try {
-      await addDoc(collection(this.db, 'invites'), invite);
-      console.log('Convite enviado com sucesso.');
-    } catch (error) {
-      console.log('Erro ao enviar convite:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Observa membros de uma comunidade.
-   * @param communityId ID da comunidade.
-   */
-  observeCommunityMembers(communityId: string): Observable<any[]> {
-    console.log('Observando membros da comunidade ID:', communityId);
-    const membersRef = collection(this.db, `communities/${communityId}/members`);
-    return new Observable(observer => {
-      const unsubscribe = onSnapshot(membersRef, snapshot => {
-        const members = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        observer.next(members);
-      }, error => {
-        console.log('Erro ao observar membros da comunidade:', error);
-        observer.error(error);
-      });
-
-      return () => unsubscribe();
-    });
+    return error;
   }
 }
