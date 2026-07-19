@@ -1,62 +1,27 @@
-//functions\src\account_lifecycle\reactivateSelfSuspension.ts
+// functions/src/account_lifecycle/reactivateSelfSuspension.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
-import { ACCOUNT_LIFECYCLE_REGION } from './_shared';
 import { db } from '../firebaseApp';
+import {
+  ACCOUNT_LIFECYCLE_REGION,
+  UserDoc,
+  assertRecentAuthentication,
+  buildPublicProfileSeed,
+  createLifecycleAudit,
+  getNicknameIndexDocId,
+  normalizeNicknameForIndex,
+} from './_shared';
 
 interface AccountLifecycleCommandResult {
   ok: boolean;
-  accountStatus?: string | null;
-  message?: string | null;
-}
-
-type UserDoc = {
-  uid?: string;
-  nickname?: string | null;
-  nicknameNormalized?: string | null;
-  photoURL?: string | null;
-  municipio?: string | null;
-  estado?: string | null;
-  gender?: string | null;
-  orientation?: string | null;
-  role?: string | null;
-  accountStatus?: string | null;
-  publicVisibility?: 'visible' | 'hidden' | null;
-  interactionBlocked?: boolean | null;
-};
-
-function normalizeNicknameForIndex(raw?: string | null): string {
-  return String(raw ?? '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
-}
-
-function getNicknameIndexDocId(user: UserDoc): string | null {
-  const normalized =
-    String(user.nicknameNormalized ?? '').trim() ||
-    normalizeNicknameForIndex(user.nickname);
-
-  return normalized ? `nickname:${normalized}` : null;
-}
-
-function buildPublicProfileSeed(user: UserDoc, now: number) {
-  return {
-    uid: user.uid ?? null,
-    nickname: user.nickname ?? null,
-    nicknameNormalized:
-      String(user.nicknameNormalized ?? '').trim() ||
-      normalizeNicknameForIndex(user.nickname),
-    avatarUrl: user.photoURL ?? null,
-    municipio: user.municipio ?? null,
-    estado: user.estado ?? null,
-    gender: user.gender ?? null,
-    orientation: user.orientation ?? null,
-    role: user.role ?? 'basic',
-    updatedAt: now,
-    createdAt: now,
-  };
+  accountStatus: 'active';
+  publicVisibility: 'visible';
+  interactionBlocked: false;
+  suspended: false;
+  suspensionReason: null;
+  suspensionSource: null;
+  suspensionEndsAt: null;
+  statusUpdatedAt: number;
+  message: string;
 }
 
 export const reactivateSelfSuspension = onCall<Record<string, never>>(
@@ -67,6 +32,10 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
     if (!uid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
+
+    assertRecentAuthentication(
+      request.auth?.token as Record<string, unknown> | undefined
+    );
 
     const now = Date.now();
 
@@ -86,8 +55,15 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
         throw new HttpsError('failed-precondition', 'Conta já excluída.');
       }
 
-      if (currentStatus !== 'self_suspended') {
+      if (currentStatus === 'active') {
         return;
+      }
+
+      if (currentStatus !== 'self_suspended') {
+        throw new HttpsError(
+          'permission-denied',
+          'Somente uma autossuspensão pode ser reativada por este fluxo.'
+        );
       }
 
       tx.set(
@@ -112,13 +88,16 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
         { merge: true }
       );
 
-      tx.set(publicProfileRef, buildPublicProfileSeed({ ...user, uid }, now), { merge: true });
+      tx.set(
+        publicProfileRef,
+        buildPublicProfileSeed(user, uid, now),
+        { merge: true }
+      );
 
       const nicknameIndexDocId = getNicknameIndexDocId(user);
       if (nicknameIndexDocId) {
-        const nicknameIndexRef = db.collection('public_index').doc(nicknameIndexDocId);
         tx.set(
-          nicknameIndexRef,
+          db.collection('public_index').doc(nicknameIndexDocId),
           {
             type: 'nickname',
             value:
@@ -132,10 +111,11 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
         );
       }
 
-      const auditRef = db.collection('account_lifecycle_audit').doc();
-      tx.set(auditRef, {
+      createLifecycleAudit(tx, {
         uid,
+        actorUid: uid,
         action: 'reactivate_self_suspension',
+        previousAccountStatus: 'self_suspended',
         accountStatus: 'active',
         source: 'self',
         moderationReason: null,
@@ -147,6 +127,13 @@ export const reactivateSelfSuspension = onCall<Record<string, never>>(
     return {
       ok: true,
       accountStatus: 'active',
+      publicVisibility: 'visible',
+      interactionBlocked: false,
+      suspended: false,
+      suspensionReason: null,
+      suspensionSource: null,
+      suspensionEndsAt: null,
+      statusUpdatedAt: now,
       message: 'Conta reativada com sucesso.',
     };
   }
