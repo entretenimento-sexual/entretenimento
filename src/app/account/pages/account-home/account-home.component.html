@@ -338,6 +338,7 @@
           <app-account-lifecycle-dialog
             [intent]="lifecycleDialogIntent()!"
             [busy]="isLifecycleBusy()"
+            [reauthenticationMode]="lifecycleReauthenticationMode()"
             (closed)="closeLifecycleDialog()"
             (confirmed)="onLifecycleDialogConfirmed($event)"
           />
