@@ -1,4 +1,12 @@
 // src/app/community/venue-create/venue-community-create-page.component.ts
+// -----------------------------------------------------------------------------
+// CRIAÇÃO DE LOCAL
+// -----------------------------------------------------------------------------
+// Local é um lugar físico ou estabelecimento real. O componente não apresenta
+// ao usuário a infraestrutura comunitária interna usada para feed, permissões e
+// moderação. O criador torna-se Proprietário do Local.
+// -----------------------------------------------------------------------------
+
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import {
   FormControl,
@@ -9,6 +17,7 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 
+import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
@@ -44,6 +53,7 @@ export class VenueCommunityCreatePageComponent {
   private readonly requestId = this.createRequestId();
 
   readonly submitting = signal(false);
+  readonly venueDefinition = getSocialSpaceDefinition('venue');
 
   readonly kindOptions: ReadonlyArray<{
     value: VenueCommunityCreateKind;
@@ -102,7 +112,7 @@ export class VenueCommunityCreatePageComponent {
 
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.notifications.showWarning('Revise os campos obrigatórios do local.');
+      this.notifications.showWarning('Revise os campos obrigatórios do Local.');
       return;
     }
 
@@ -130,7 +140,7 @@ export class VenueCommunityCreatePageComponent {
             result.created ? 'Local criado.' : 'Local recuperado com segurança.'
           );
           void this.router.navigate([
-            '/dashboard/comunidades/locais',
+            '/dashboard/locais',
             result.communityId,
           ]);
         },
@@ -158,7 +168,7 @@ export class VenueCommunityCreatePageComponent {
 
   private reportError(error: unknown): void {
     try {
-      this.notifications.showError('Não foi possível criar o local agora.');
+      this.notifications.showError('Não foi possível criar o Local agora.');
     } catch {
       // A observabilidade abaixo permanece ativa.
     }
