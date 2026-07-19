@@ -5,11 +5,12 @@
 // Implementa somente domínios cujo contrato já está definido.
 // Não toca em mensagens, mídias, denúncias, billing ou eventos de bloqueio.
 // -----------------------------------------------------------------------------
-import { db } from '../firebaseApp';
+import { db, FieldValue } from '../firebaseApp';
 import type {
   AccountBlockReferenceSummary,
   AccountDataDeletionAdapter,
   FriendRequestDirection,
+  NotificationReferenceDirection,
 } from './account-data-deletion.executor';
 
 const MAX_BATCH_WRITES = 450;
@@ -17,10 +18,15 @@ const MAX_BATCH_WRITES = 450;
 export class FirestoreAccountDataDeletionAdapter
   implements AccountDataDeletionAdapter
 {
-  async deleteNotificationsPage(uid: string, limit: number): Promise<number> {
+  async deleteNotificationsPage(
+    uid: string,
+    direction: NotificationReferenceDirection,
+    limit: number
+  ): Promise<number> {
+    const field = direction === 'recipient' ? 'userId' : 'actorUid';
     const snapshot = await db
       .collection('notifications')
-      .where('userId', '==', uid)
+      .where(field, '==', uid)
       .limit(limit)
       .get();
 
@@ -36,6 +42,76 @@ export class FirestoreAccountDataDeletionAdapter
 
     await ref.delete();
     return 1;
+  }
+
+  async deletePresence(uid: string): Promise<number> {
+    const ref = db.collection('presence').doc(uid);
+    const snapshot = await ref.get();
+
+    if (!snapshot.exists) return 0;
+
+    await ref.delete();
+    return 1;
+  }
+
+  async clearPrivateLocation(uid: string): Promise<number> {
+    const ref = db.collection('users').doc(uid);
+    const snapshot = await ref.get();
+
+    if (!snapshot.exists) return 0;
+
+    const data = snapshot.data() ?? {};
+    const locationFields = [
+      'latitude',
+      'longitude',
+      'geohash',
+      'locationUpdatedAt',
+    ];
+    const hasLocationField = locationFields.some((field) =>
+      Object.prototype.hasOwnProperty.call(data, field)
+    );
+
+    if (!hasLocationField) return 0;
+
+    await ref.set(
+      {
+        latitude: FieldValue.delete(),
+        longitude: FieldValue.delete(),
+        geohash: FieldValue.delete(),
+        locationUpdatedAt: FieldValue.delete(),
+      },
+      { merge: true }
+    );
+
+    return 1;
+  }
+
+  async deleteUserIntentStatusesPage(
+    uid: string,
+    limit: number
+  ): Promise<number> {
+    const snapshot = await db
+      .collection('user_intent_statuses')
+      .where('uid', '==', uid)
+      .limit(limit)
+      .get();
+
+    await this.deleteDocumentRefs(snapshot.docs.map((doc) => doc.ref));
+    return snapshot.size;
+  }
+
+  async deleteUserIntentStatusAuditPage(
+    uid: string,
+    limit: number
+  ): Promise<number> {
+    const snapshot = await db
+      .collection('user_intent_status_audit')
+      .where('actorUid', '==', uid)
+      .limit(limit)
+      .get();
+
+    await this.deleteDocumentRefs(snapshot.docs.map((doc) => doc.ref));
+    return snapshot.size;
   }
 
   async deleteFriendRequestsPage(
