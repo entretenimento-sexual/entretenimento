@@ -7,7 +7,7 @@
     >
       <header class="community-membership-management__header">
         <div>
-          <h2 id="community-membership-management-title">Solicitações</h2>
+          <h2 id="community-membership-management-title">{{ managementTitle() }}</h2>
           @if (state.status === 'ready') {
             <span aria-live="polite">{{ state.items.length }}</span>
           }
@@ -17,7 +17,7 @@
           type="button"
           class="community-membership-management__refresh"
           [disabled]="state.status === 'loading' || action.status === 'loading'"
-          aria-label="Atualizar solicitações"
+          [attr.aria-label]="'Atualizar ' + managementTitle().toLowerCase()"
           (click)="refresh()"
         >
           <i
@@ -40,7 +40,7 @@
       } @else if (state.items.length === 0) {
         <div class="community-membership-management__state" role="status">
           <i class="far fa-circle-check" aria-hidden="true"></i>
-          <span>Nenhuma solicitação pendente.</span>
+          <span>{{ emptyMessage() }}</span>
         </div>
       } @else {
         <ul class="community-membership-management__list">
