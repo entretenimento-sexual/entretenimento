@@ -8,10 +8,27 @@ import {
   getNicknameIndexDocId,
   hashEmail,
 } from './_shared';
+import {
+  ACCOUNT_DATA_RETENTION_POLICY_VERSION,
+  AccountDataDeletionPlan,
+  AccountDataDomain,
+  buildAccountDataDeletionPlan,
+  canFinalizePrivateUserDeletion,
+} from './account-data-retention.policy';
 
 const SCHEDULE = 'every day 03:17';
 const TIME_ZONE = 'America/Sao_Paulo';
 const BATCH_LIMIT = 200;
+
+const CLAIM_COMPLETED_DOMAINS: readonly AccountDataDomain[] = [
+  'public_profile',
+  'nickname_index',
+];
+
+const AUTH_COMPLETED_DOMAINS: readonly AccountDataDomain[] = [
+  ...CLAIM_COMPLETED_DOMAINS,
+  'auth_identity',
+];
 
 type PurgeCandidate = {
   uid: string;
@@ -19,6 +36,8 @@ type PurgeCandidate = {
   nicknameIndexDocId: string | null;
   emailHash: string | null;
 };
+
+type FinalizeDeletionResult = 'success' | 'blocked' | 'retry';
 
 export const purgeDeletedAccounts = onSchedule(
   {
@@ -39,6 +58,7 @@ export const purgeDeletedAccounts = onSchedule(
     let processed = 0;
     let skipped = 0;
     let retryPending = 0;
+    let blockedByPolicy = 0;
 
     for (const userSnapshot of candidatesSnapshot.docs) {
       const candidate = toCandidate(
@@ -64,9 +84,24 @@ export const purgeDeletedAccounts = onSchedule(
           continue;
         }
 
-        const finalized = await finalizePrivateUserDeletion(candidate, now);
-        if (finalized) {
+        const dataPlan = buildAccountDataDeletionPlan({
+          uid: candidate.uid,
+          generatedAt: now,
+          completedDomains: AUTH_COMPLETED_DOMAINS,
+        });
+
+        await persistDataDeletionPlan(candidate, dataPlan, now);
+
+        const finalized = await finalizePrivateUserDeletion(
+          candidate,
+          dataPlan,
+          now
+        );
+
+        if (finalized === 'success') {
           processed += 1;
+        } else if (finalized === 'blocked') {
+          blockedByPolicy += 1;
         } else {
           retryPending += 1;
         }
@@ -84,6 +119,8 @@ export const purgeDeletedAccounts = onSchedule(
       processed,
       skipped,
       retryPending,
+      blockedByPolicy,
+      policyVersion: ACCOUNT_DATA_RETENTION_POLICY_VERSION,
       now,
     });
   }
@@ -112,13 +149,19 @@ function isPurgeCandidate(user: UserDoc, now: number): boolean {
 }
 
 /**
- * Fase 1: torna a exclusão irreversível para o fluxo do usuário e mantém o
- * documento privado como marcador de retry até Auth e finalização concluírem.
+ * Fase 1: torna a exclusão irreversível para o fluxo do usuário, remove a
+ * projeção pública e registra o primeiro plano de retenção no tombstone.
  */
 async function claimDeletion(
   candidate: PurgeCandidate,
   now: number
 ): Promise<boolean> {
+  const claimPlan = buildAccountDataDeletionPlan({
+    uid: candidate.uid,
+    generatedAt: now,
+    completedDomains: CLAIM_COMPLETED_DOMAINS,
+  });
+
   return db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
     const userRef = db.collection('users').doc(candidate.uid);
     const publicProfileRef = db
@@ -147,6 +190,8 @@ async function claimDeletion(
           deletedAt: now,
           purgeStartedAt: now,
           purgeAttemptCount: FieldValue.increment(1),
+          purgeBlockedReason: 'data-contract-required',
+          purgeBlockedDomains: claimPlan.blockingDomains,
           statusUpdatedAt: now,
           statusUpdatedBy: 'system',
         },
@@ -176,6 +221,8 @@ async function claimDeletion(
         {
           purgeAttemptCount: FieldValue.increment(1),
           purgeLastAttemptAt: now,
+          purgeBlockedReason: 'data-contract-required',
+          purgeBlockedDomains: claimPlan.blockingDomains,
         },
         { merge: true }
       );
@@ -188,7 +235,7 @@ async function claimDeletion(
         status: 'deleted',
         source: currentUser.deletionRequestedBy ?? 'system',
         emailHash: candidate.emailHash,
-        nickname: currentUser.nickname ?? null,
+        nickname: FieldValue.delete(),
         deletionRequestedAt: currentUser.deletionRequestedAt ?? null,
         deletionUndoUntil: currentUser.deletionUndoUntil ?? null,
         deletedAt: currentUser.deletedAt ?? now,
@@ -197,8 +244,14 @@ async function claimDeletion(
         billingHold: currentUser.billingHold ?? false,
         authDeletionStatus: 'pending',
         firestoreDeletionStatus: 'pending',
+        dataRetentionPolicyVersion: claimPlan.policyVersion,
+        dataDeletionStatus: claimPlan.status,
+        dataDeletionCompletedDomains: claimPlan.completedDomains,
+        dataDeletionBlockers: claimPlan.blockingDomains,
+        dataDeletionPlan: claimPlan.steps,
+        dataDeletionLastPlannedAt: now,
         updatedAt: now,
-        createdAt: now,
+        createdAt: currentUser.purgeStartedAt ?? now,
       },
       { merge: true }
     );
@@ -252,15 +305,58 @@ async function deleteAuthUser(
   return true;
 }
 
+async function persistDataDeletionPlan(
+  candidate: PurgeCandidate,
+  plan: AccountDataDeletionPlan,
+  now: number
+): Promise<void> {
+  const batch = db.batch();
+  const userRef = db.collection('users').doc(candidate.uid);
+  const tombstoneRef = db
+    .collection('deleted_accounts_audit')
+    .doc(candidate.uid);
+
+  batch.set(
+    tombstoneRef,
+    {
+      dataRetentionPolicyVersion: plan.policyVersion,
+      dataDeletionStatus: plan.status,
+      dataDeletionCompletedDomains: plan.completedDomains,
+      dataDeletionBlockers: plan.blockingDomains,
+      dataDeletionPlan: plan.steps,
+      dataDeletionLastPlannedAt: now,
+      updatedAt: now,
+    },
+    { merge: true }
+  );
+
+  batch.set(
+    userRef,
+    {
+      purgeLastAttemptAt: now,
+      purgeBlockedReason: plan.status === 'blocked'
+        ? 'data-contract-required'
+        : FieldValue.delete(),
+      purgeBlockedDomains: plan.status === 'blocked'
+        ? plan.blockingDomains
+        : FieldValue.delete(),
+    },
+    { merge: true }
+  );
+
+  await batch.commit();
+}
+
 /**
- * Fase 3: apaga o documento privado somente depois da credencial. A transação é
- * retryable: se falhar, o usuário continua marcado como deleted e será encontrado
- * novamente pela query de purgeAfter.
+ * Fase 3: remove users/{uid} somente quando a matriz de dados confirmar que
+ * todas as etapas pre_finalize estão concluídas. Enquanto houver contratos
+ * pendentes, o documento privado permanece como marcador de retry e auditoria.
  */
 async function finalizePrivateUserDeletion(
   candidate: PurgeCandidate,
+  plan: AccountDataDeletionPlan,
   now: number
-): Promise<boolean> {
+): Promise<FinalizeDeletionResult> {
   return db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
     const userRef = db.collection('users').doc(candidate.uid);
     const tombstoneRef = db
@@ -274,11 +370,12 @@ async function finalizePrivateUserDeletion(
         {
           firestoreDeletionStatus: 'success',
           firestoreDeletedAt: now,
+          dataDeletionStatus: 'ready',
           updatedAt: now,
         },
         { merge: true }
       );
-      return true;
+      return 'success';
     }
 
     const currentUser = (currentSnapshot.data() ?? {}) as UserDoc;
@@ -287,7 +384,31 @@ async function finalizePrivateUserDeletion(
       currentUser.legalHold === true ||
       currentUser.billingHold === true
     ) {
-      return false;
+      return 'retry';
+    }
+
+    if (!canFinalizePrivateUserDeletion(plan)) {
+      tx.set(
+        userRef,
+        {
+          purgeLastAttemptAt: now,
+          purgeBlockedReason: 'data-contract-required',
+          purgeBlockedDomains: plan.blockingDomains,
+        },
+        { merge: true }
+      );
+      tx.set(
+        tombstoneRef,
+        {
+          firestoreDeletionStatus: 'blocked',
+          dataDeletionStatus: 'blocked',
+          dataDeletionBlockers: plan.blockingDomains,
+          dataDeletionLastCheckedAt: now,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+      return 'blocked';
     }
 
     createLifecycleAudit(tx, {
@@ -305,11 +426,13 @@ async function finalizePrivateUserDeletion(
       {
         firestoreDeletionStatus: 'success',
         firestoreDeletedAt: now,
+        dataDeletionStatus: 'ready',
+        dataDeletionBlockers: [],
         updatedAt: now,
       },
       { merge: true }
     );
     tx.delete(userRef);
-    return true;
+    return 'success';
   });
 }
