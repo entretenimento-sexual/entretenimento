@@ -29,6 +29,7 @@ import { BreakpointObserver } from '@angular/cdk/layout';
 import { BehaviorSubject, Observable, combineLatest, of } from 'rxjs';
 import { catchError, distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
 
+import { isFeatureEnabled } from '@core/guards/access-guard/feature-flag.guard';
 import { AuthRouteContextService } from '@core/services/autentication/auth/auth-route-context.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -49,6 +50,8 @@ export interface SidebarVm {
   expandedGroupIds: readonly string[];
   sections: SidebarSection[];
 }
+
+const COMMUNITY_PREVIEW_ENABLED = isFeatureEnabled('communityPreview');
 
 function areStringArraysEqual(
   previous: readonly string[],
@@ -144,6 +147,7 @@ export class SidebarService {
    * - regras puras do sidebar-config.ts
    * - composição pública do sidebar-config.runtime.ts
    * - capacidades derivadas pelo AccessControlService
+   * - mesma feature flag aplicada no canMatch da rota de comunidades
    */
   readonly sections$: Observable<SidebarSection[]> = combineLatest([
     this.access.isSubscriber$,
@@ -159,13 +163,17 @@ export class SidebarService {
         previousVip === currentVip &&
         previousAdmin === currentAdmin
     ),
-    map(([isSubscriber, isVip, isAdmin]) =>
-      buildSidebarSections({
+    map(([isSubscriber, isVip, isAdmin]) => {
+      const sections = buildSidebarSections({
         isSubscriber,
         isVip,
         isAdmin,
-      })
-    ),
+      });
+
+      return COMMUNITY_PREVIEW_ENABLED
+        ? sections
+        : sections.filter((section) => section.key !== 'communities');
+    }),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError((err): Observable<SidebarSection[]> =>
       this.handleStreamError<SidebarSection[]>('sections$', [], err)
