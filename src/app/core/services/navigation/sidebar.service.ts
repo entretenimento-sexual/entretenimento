@@ -147,7 +147,7 @@ export class SidebarService {
    * - regras puras do sidebar-config.ts
    * - composição pública do sidebar-config.runtime.ts
    * - capacidades derivadas pelo AccessControlService
-   * - mesma feature flag aplicada no canMatch da rota de comunidades
+   * - feature flag comunitária passada explicitamente para a composição
    */
   readonly sections$: Observable<SidebarSection[]> = combineLatest([
     this.access.isSubscriber$,
@@ -163,17 +163,18 @@ export class SidebarService {
         previousVip === currentVip &&
         previousAdmin === currentAdmin
     ),
-    map(([isSubscriber, isVip, isAdmin]) => {
-      const sections = buildSidebarSections({
-        isSubscriber,
-        isVip,
-        isAdmin,
-      });
-
-      return COMMUNITY_PREVIEW_ENABLED
-        ? sections
-        : sections.filter((section) => section.key !== 'communities');
-    }),
+    map(([isSubscriber, isVip, isAdmin]) =>
+      buildSidebarSections(
+        {
+          isSubscriber,
+          isVip,
+          isAdmin,
+        },
+        {
+          communityPreviewEnabled: COMMUNITY_PREVIEW_ENABLED,
+        }
+      )
+    ),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError((err): Observable<SidebarSection[]> =>
       this.handleStreamError<SidebarSection[]>('sections$', [], err)
@@ -287,7 +288,7 @@ export class SidebarService {
       return;
     }
 
-    this.openGroup(safeGroupId);
+    this.openGroup(groupId);
   }
 
   closeIfMobile(isMobile: boolean): void {
