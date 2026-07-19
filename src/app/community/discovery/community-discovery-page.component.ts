@@ -197,8 +197,12 @@ export class CommunityDiscoveryPageComponent {
   }
 
   detailsRoute(item: CommunityPreviewCard): readonly string[] {
-    return item.source.type === 'venue'
-      ? ['/dashboard/locais', item.communityId]
+    if (item.source.type === 'venue') {
+      return ['/dashboard/locais', item.communityId];
+    }
+
+    return this.discoveryMode === 'mine'
+      ? ['/dashboard/comunidades/minhas', item.communityId]
       : ['/dashboard/comunidades', item.communityId];
   }
 
