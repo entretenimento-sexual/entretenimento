@@ -35,6 +35,14 @@ export const COMMUNITY_ROUTES: Routes = [
       ),
   },
   {
+    path: 'minhas/:communityId',
+    data: { backRoute: '/dashboard/comunidades/minhas' },
+    loadComponent: () =>
+      import('./preview/community-preview-page.component').then(
+        (module) => module.CommunityPreviewPageComponent
+      ),
+  },
+  {
     path: 'minhas',
     data: { sourceType: 'community', discoveryMode: 'mine' },
     loadComponent: () =>
