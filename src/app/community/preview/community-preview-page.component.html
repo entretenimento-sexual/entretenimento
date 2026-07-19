@@ -1,8 +1,8 @@
 <!-- src/app/community/preview/community-preview-page.component.html -->
 @if (state$ | async; as state) {
   <main class="community-preview">
-    <nav class="community-preview__topbar" aria-label="Navegação da comunidade">
-      <a routerLink="../" aria-label="Voltar para a lista anterior">
+    <nav class="community-preview__topbar" aria-label="Navegação do espaço">
+      <a [routerLink]="backRoute" aria-label="Voltar para a lista anterior">
         <i class="fas fa-arrow-left" aria-hidden="true"></i>
       </a>
     </nav>
@@ -15,7 +15,7 @@
     } @else if (state.status === 'error') {
       <div class="community-preview__state" role="alert">
         <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
-        <span>Comunidade indisponível.</span>
+        <span>Espaço indisponível.</span>
       </div>
     } @else if (state.preview; as preview) {
       @if (membershipAction$ | async; as membershipAction) {
@@ -71,7 +71,7 @@
                   class="community-preview__membership-action"
                   type="button"
                   [disabled]="membershipAction.status === 'loading'"
-                  [attr.aria-label]="membershipActionLabel(preview.community) + ' de ' + preview.community.name"
+                  [attr.aria-label]="membershipActionLabel(preview.community) + ' ' + preview.community.name"
                   (click)="requestMembership(preview.community)"
                 >
                   @if (
@@ -97,7 +97,7 @@
                   class="community-preview__membership-leave-action"
                   type="button"
                   [disabled]="membershipAction.status === 'loading'"
-                  aria-label="Cancelar solicitação de participação"
+                  aria-label="Cancelar solicitação"
                   (click)="leaveMembership(preview.community, preview.viewerMode)"
                 >
                   @if (
@@ -126,7 +126,9 @@
                   } @else {
                     <i class="fas fa-arrow-right-from-bracket" aria-hidden="true"></i>
                   }
-                  <span>Sair</span>
+                  <span>
+                    {{ preview.community.source.type === 'venue' ? 'Deixar de seguir' : 'Sair' }}
+                  </span>
                 </button>
               }
             </div>
@@ -135,7 +137,7 @@
           <nav
             class="community-preview__tabs"
             [class.has-management]="canManage(preview.viewerMode)"
-            aria-label="Conteúdo da comunidade"
+            [attr.aria-label]="'Conteúdo do ' + sourceLabel(preview.community)"
           >
             <button
               id="community-tab-feed"
@@ -220,14 +222,19 @@
               class="community-preview__about"
               aria-labelledby="community-tab-about"
             >
+              <p>{{ sourceDescription(preview.community) }}</p>
+
               @if (preview.community.description) {
                 <p>{{ preview.community.description }}</p>
               }
 
-              <div class="community-preview__metrics" aria-label="Resumo da comunidade">
+              <div
+                class="community-preview__metrics"
+                [attr.aria-label]="metricsAriaLabel(preview.community)"
+              >
                 <span>
                   <i class="fas fa-users" aria-hidden="true"></i>
-                  {{ preview.community.metrics.memberCount }} membros
+                  {{ preview.community.metrics.memberCount }} integrantes
                 </span>
                 <span>
                   <i class="far fa-message" aria-hidden="true"></i>
@@ -253,8 +260,10 @@
                       && preview.community.access.requiresActiveSubscription
                     ) {
                       Assinatura necessária para interagir
+                    } @else if (preview.community.source.type === 'venue') {
+                      Interação reservada aos integrantes autorizados do Local
                     } @else {
-                      Interação reservada aos membros
+                      Interação reservada aos membros da Comunidade
                     }
                   </span>
                 }
