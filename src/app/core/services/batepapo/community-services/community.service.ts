@@ -72,7 +72,7 @@ export class CommunityService {
    * @deprecated Listas de membros são privadas e precisam ser sanitizadas por
    * callable com validação de papel. As Rules bloqueiam enumeração direta.
    */
-  observeCommunityMembers(_communityId: string): Observable<unknown[]> {
+  observeCommunityMembers(_communityId: string): Observable<any[]> {
     void _communityId;
     return throwError(() => this.unsupported('observeCommunityMembers'));
   }
