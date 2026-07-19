@@ -52,7 +52,13 @@
                   preview.viewerMode === 'moderator'
                   || preview.viewerMode === 'manager'
                 ) {
-                  <span>{{ viewerLabel(preview.viewerMode, preview.viewerRole) }}</span>
+                  <span>
+                    {{ viewerLabel(
+                      preview.viewerMode,
+                      preview.viewerRole,
+                      preview.community.source.type
+                    ) }}
+                  </span>
                 }
                 @if (accessLabel(preview.community); as access) {
                   <span>{{ access }}</span>
