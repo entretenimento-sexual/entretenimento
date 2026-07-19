@@ -6,8 +6,16 @@ import {
   AccountDataDeletionAdapter,
   FriendRequestDirection,
   NotificationReferenceDirection,
+  RoomInviteDirection,
+  RoomParticipationPageSummary,
   executeAccountDataDeletionDomains,
 } from './account-data-deletion.executor';
+
+const EMPTY_ROOM_PAGE: RoomParticipationPageSummary = {
+  scanned: 0,
+  processed: 0,
+  blockingOwners: 0,
+};
 
 class FakeAdapter implements AccountDataDeletionAdapter {
   recipientNotifications: number[] = [0];
@@ -21,10 +29,27 @@ class FakeAdapter implements AccountDataDeletionAdapter {
   targetRequests: number[] = [0];
   communityMemberships: number[] = [0];
   ownedCommunityMemberships = 0;
+  sentRoomInvites: number[] = [0];
+  receivedRoomInvites: number[] = [0];
+  legacyRoomParticipations: RoomParticipationPageSummary[] = [
+    { ...EMPTY_ROOM_PAGE },
+  ];
+  roomMemberships: RoomParticipationPageSummary[] = [
+    { ...EMPTY_ROOM_PAGE },
+  ];
+  roomParticipantDocuments: RoomParticipationPageSummary[] = [
+    { ...EMPTY_ROOM_PAGE },
+  ];
+  ownedRoomReferences: RoomParticipationPageSummary[] = [
+    { ...EMPTY_ROOM_PAGE },
+  ];
+  roomAudit: number[] = [0];
+  privateRoomReferences = 0;
   ownedFriendships: number[] = [0];
   inboundFriendships: number[] = [0];
   blockReferences: AccountBlockReferenceSummary = { owned: 0, inbound: 0 };
   notificationError: unknown = null;
+  roomError: unknown = null;
 
   async deleteNotificationsPage(
     _uid: string,
@@ -73,6 +98,40 @@ class FakeAdapter implements AccountDataDeletionAdapter {
     return this.ownedCommunityMemberships;
   }
 
+  async deleteRoomInvitesPage(
+    _uid: string,
+    direction: RoomInviteDirection
+  ): Promise<number> {
+    if (this.roomError) throw this.roomError;
+    return direction === 'sender'
+      ? this.sentRoomInvites.shift() ?? 0
+      : this.receivedRoomInvites.shift() ?? 0;
+  }
+
+  async unlinkRoomParticipationsPage(): Promise<RoomParticipationPageSummary> {
+    return this.legacyRoomParticipations.shift() ?? { ...EMPTY_ROOM_PAGE };
+  }
+
+  async unlinkRoomMembershipsPage(): Promise<RoomParticipationPageSummary> {
+    return this.roomMemberships.shift() ?? { ...EMPTY_ROOM_PAGE };
+  }
+
+  async deleteRoomParticipantDocumentsPage(): Promise<RoomParticipationPageSummary> {
+    return this.roomParticipantDocuments.shift() ?? { ...EMPTY_ROOM_PAGE };
+  }
+
+  async resolveOwnedRoomReferencesPage(): Promise<RoomParticipationPageSummary> {
+    return this.ownedRoomReferences.shift() ?? { ...EMPTY_ROOM_PAGE };
+  }
+
+  async anonymizeRoomAuditPage(): Promise<number> {
+    return this.roomAudit.shift() ?? 0;
+  }
+
+  async clearPrivateRoomReferences(): Promise<number> {
+    return this.privateRoomReferences;
+  }
+
   async unlinkOwnedFriendshipsPage(): Promise<number> {
     return this.ownedFriendships.shift() ?? 0;
   }
@@ -98,6 +157,22 @@ test('executor completes private, temporary and social domains idempotently', as
   adapter.requesterRequests = [1];
   adapter.targetRequests = [2];
   adapter.communityMemberships = [2];
+  adapter.sentRoomInvites = [2];
+  adapter.receivedRoomInvites = [1];
+  adapter.legacyRoomParticipations = [
+    { scanned: 2, processed: 2, blockingOwners: 0 },
+  ];
+  adapter.roomMemberships = [
+    { scanned: 1, processed: 1, blockingOwners: 0 },
+  ];
+  adapter.roomParticipantDocuments = [
+    { scanned: 1, processed: 1, blockingOwners: 0 },
+  ];
+  adapter.ownedRoomReferences = [
+    { scanned: 1, processed: 1, blockingOwners: 0 },
+  ];
+  adapter.roomAudit = [2];
+  adapter.privateRoomReferences = 1;
   adapter.ownedFriendships = [3];
   adapter.inboundFriendships = [1];
 
@@ -114,6 +189,7 @@ test('executor completes private, temporary and social domains idempotently', as
     'presence_and_location',
     'friend_requests',
     'community_memberships',
+    'room_participation',
     'relationship_edges',
   ]);
   assert.equal(result.results.every((item) => item.status === 'completed'), true);
@@ -221,6 +297,99 @@ test('community ownership blocks account finalization until transfer or archive'
   );
 });
 
+test('room participation removes invites and all transitional membership projections', async () => {
+  const adapter = new FakeAdapter();
+  adapter.sentRoomInvites = [3];
+  adapter.receivedRoomInvites = [2];
+  adapter.legacyRoomParticipations = [
+    { scanned: 2, processed: 2, blockingOwners: 0 },
+  ];
+  adapter.roomMemberships = [
+    { scanned: 1, processed: 1, blockingOwners: 0 },
+  ];
+  adapter.roomParticipantDocuments = [
+    { scanned: 1, processed: 1, blockingOwners: 0 },
+  ];
+  adapter.ownedRoomReferences = [
+    { scanned: 1, processed: 1, blockingOwners: 0 },
+  ];
+  adapter.roomAudit = [2];
+  adapter.privateRoomReferences = 1;
+
+  const result = await executeAccountDataDeletionDomains(adapter, {
+    uid: 'room-member',
+    generatedAt: 1_800_000_000_000,
+    pageSize: 10,
+  });
+
+  const roomParticipation = result.results.find(
+    (item) => item.domain === 'room_participation'
+  );
+
+  assert.equal(roomParticipation?.status, 'completed');
+  assert.equal(roomParticipation?.processed, 13);
+  assert.deepEqual(roomParticipation?.details, {
+    sentInvitesProcessed: 3,
+    receivedInvitesProcessed: 2,
+    legacyRoomParticipationsProcessed: 2,
+    roomMembershipsProcessed: 1,
+    roomParticipantDocumentsProcessed: 1,
+    ownedRoomReferencesProcessed: 1,
+    roomAuditRecordsProcessed: 2,
+    privateRoomReferencesProcessed: 1,
+    blockingOwnedRooms: 0,
+  });
+});
+
+test('active room ownership blocks finalization until the room is closed or transferred', async () => {
+  const adapter = new FakeAdapter();
+  adapter.ownedRoomReferences = [
+    { scanned: 1, processed: 0, blockingOwners: 1 },
+  ];
+
+  const result = await executeAccountDataDeletionDomains(adapter, {
+    uid: 'room-owner',
+    generatedAt: 1_800_000_000_000,
+    pageSize: 10,
+  });
+
+  const roomParticipation = result.results.find(
+    (item) => item.domain === 'room_participation'
+  );
+
+  assert.equal(roomParticipation?.status, 'blocked');
+  assert.equal(
+    roomParticipation?.blocker,
+    'active-room-owner-close-or-transfer-required'
+  );
+  assert.equal(
+    result.completedDomains.includes('room_participation'),
+    false
+  );
+});
+
+test('room participation remains partial when a projection reaches pagination limit', async () => {
+  const adapter = new FakeAdapter();
+  adapter.roomMemberships = [
+    { scanned: 2, processed: 2, blockingOwners: 0 },
+    { scanned: 2, processed: 2, blockingOwners: 0 },
+  ];
+
+  const result = await executeAccountDataDeletionDomains(adapter, {
+    uid: 'room-member-partial',
+    generatedAt: 1_800_000_000_000,
+    pageSize: 2,
+    maxPagesPerDomain: 2,
+  });
+
+  const roomParticipation = result.results.find(
+    (item) => item.domain === 'room_participation'
+  );
+
+  assert.equal(roomParticipation?.status, 'partial');
+  assert.equal(roomParticipation?.blocker, 'pagination-limit-reached');
+});
+
 test('executor keeps relationship domain blocked while block history exists', async () => {
   const adapter = new FakeAdapter();
   adapter.blockReferences = { owned: 1, inbound: 1 };
@@ -322,6 +491,7 @@ test('executor isolates a domain failure and continues the remaining domains', a
   assert.equal(result.completedDomains.includes('notifications'), false);
   assert.equal(result.completedDomains.includes('preferences'), true);
   assert.equal(result.completedDomains.includes('presence_and_location'), true);
+  assert.equal(result.completedDomains.includes('room_participation'), true);
 });
 
 test('executor rejects an empty uid before any deletion attempt', async () => {
