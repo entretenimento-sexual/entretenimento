@@ -183,7 +183,7 @@ async function executeFriendRequestsDomain(
       status: completed ? 'completed' : 'partial',
       processed: outbound.processed + inbound.processed,
       pages: outbound.pages + inbound.pages,
-      blocker: completed ? undefined : 'pagination-limit-reached',
+      ...(completed ? {} : { blocker: 'pagination-limit-reached' }),
       details: {
         outboundProcessed: outbound.processed,
         inboundProcessed: inbound.processed,
@@ -277,7 +277,7 @@ async function executePagedDomain(
       status: result.completed ? 'completed' : 'partial',
       processed: result.processed,
       pages: result.pages,
-      blocker: result.completed ? undefined : 'pagination-limit-reached',
+      ...(result.completed ? {} : { blocker: 'pagination-limit-reached' }),
     };
   } catch (error: unknown) {
     return failedResult(domain, error);
