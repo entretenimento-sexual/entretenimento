@@ -1,6 +1,6 @@
 // src/app/register-module/register.component.ts
 // Componente de registro por e-mail/senha.
-// - Validação síncrona para apelido, e-mail, senha e aceite dos termos.
+// - Validação síncrona para apelido, e-mail, senha, confirmação e aceite dos termos.
 // - Checagem reativa de disponibilidade do apelido via Observable.
 // - Submit faz checagem estrita antes de criar a conta.
 // - Feedback visual fica na UI; detalhes técnicos só aparecem em dev autorizado.
@@ -122,8 +122,21 @@ export class RegisterComponent {
       }),
 
       password: this.fb.control('', {
-        validators: [Validators.required, Validators.minLength(8)],
-        updateOn: 'blur',
+        validators: [
+          Validators.required,
+          Validators.minLength(8),
+          Validators.maxLength(128),
+          ValidatorService.passwordValidator(8),
+        ],
+        updateOn: 'change',
+      }),
+
+      confirmPassword: this.fb.control('', {
+        validators: [
+          Validators.required,
+          Validators.maxLength(128),
+        ],
+        updateOn: 'change',
       }),
 
       aceitarTermos: this.fb.control(false, {
@@ -132,13 +145,17 @@ export class RegisterComponent {
       }),
     },
     {
-      validators: [ValidatorService.fullNicknameValidator()],
+      validators: [
+        ValidatorService.fullNicknameValidator(),
+        ValidatorService.passwordsMatchValidator(),
+      ],
     }
   );
 
   // ---------------- UI state ----------------
   readonly isLoading = signal(false);
   readonly showPassword = signal(false);
+  readonly showConfirmPassword = signal(false);
   readonly infoMessage = signal<string | null>(null);
 
   readonly banner = signal<UiBanner | null>(null);
@@ -418,8 +435,11 @@ export class RegisterComponent {
       complementoApelido: '',
       email: '',
       password: '',
+      confirmPassword: '',
       aceitarTermos: false,
     });
+    this.showPassword.set(false);
+    this.showConfirmPassword.set(false);
     this.banner.set(null);
     this.infoMessage.set(null);
     this.nicknameCheckState.set('idle');
@@ -437,6 +457,10 @@ export class RegisterComponent {
     this.showPassword.update((v) => !v);
   }
 
+  toggleConfirmPasswordVisibility(): void {
+    this.showConfirmPassword.update((v) => !v);
+  }
+
   getError(controlName: string): string | null {
     const ctrl = this.form.get(controlName);
     if (!ctrl) return null;
@@ -451,6 +475,26 @@ export class RegisterComponent {
     }
 
     if (errs['required']) return 'Campo obrigatório';
+
+    if (controlName === 'email' && errs['email']) {
+      return 'Formato de e-mail inválido';
+    }
+
+    if (controlName === 'password' && errs['minlength']) {
+      return `Senha precisa ter ao menos ${errs['minlength'].requiredLength} caracteres.`;
+    }
+
+    if (controlName === 'password' && errs['invalidPassword']) {
+      return 'Use ao menos uma letra maiúscula, uma minúscula e um número.';
+    }
+
+    if (
+      controlName === 'confirmPassword' &&
+      this.form.hasError('passwordMismatch')
+    ) {
+      return 'As senhas não coincidem.';
+    }
+
     if (errs['minlength']) {
       return `Mínimo de ${errs['minlength'].requiredLength} caracteres.`;
     }
@@ -459,13 +503,6 @@ export class RegisterComponent {
     }
     if (errs['invalidNickname']) return 'Contém caracteres inválidos.';
     if (errs['apelidoEmUso']) return 'Este apelido já está em uso.';
-
-    if (controlName === 'email' && errs['email']) {
-      return 'Formato de e-mail inválido';
-    }
-    if (controlName === 'password' && errs['minlength']) {
-      return `Senha precisa ter ao menos ${errs['minlength'].requiredLength} caracteres.`;
-    }
 
     return null;
   }
@@ -644,9 +681,10 @@ export class RegisterComponent {
 
 /*
 Fluxo de registro:
-1. Usuário preenche apelido principal, complemento, email, senha e aceita termos.
+1. Usuário preenche apelido principal, complemento, e-mail, senha, confirmação e aceita termos.
 2. Enquanto digita o apelido, após 3s de inatividade ou no blur, checa disponibilidade em modo soft.
-3. No submit, faz validação completa e checagem estrita de disponibilidade do apelido.
-4. Se tudo ok, cria conta, registra o aceite auditável e espera a sessão aparecer.
-5. Se a auditoria de termos falhar temporariamente, o fluxo canônico solicitará o aceite novamente depois.
+3. No submit, valida complexidade e igualdade das senhas e faz checagem estrita do apelido.
+4. Apenas a senha principal segue para o Firebase Auth; a confirmação permanece somente no formulário.
+5. Se tudo estiver válido, cria a conta, registra o aceite auditável e espera a sessão aparecer.
+6. Se a auditoria de termos falhar temporariamente, o fluxo canônico solicitará o aceite novamente depois.
 */
