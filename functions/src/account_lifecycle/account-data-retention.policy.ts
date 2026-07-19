@@ -13,7 +13,7 @@
 // - a política é serializável e registrada no tombstone para auditoria/retry.
 // -----------------------------------------------------------------------------
 
-export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 3;
+export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 4;
 
 export type AccountDataDomain =
   | 'public_profile'
@@ -154,9 +154,9 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     domain: 'community_memberships',
     disposition: 'unlink',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Memberships, papéis e índices privados precisam ser removidos de forma coordenada.',
+    reason: 'Vínculos não proprietários são removidos; owners exigem transferência ou arquivamento seguro.',
   },
   {
     domain: 'room_participation',
