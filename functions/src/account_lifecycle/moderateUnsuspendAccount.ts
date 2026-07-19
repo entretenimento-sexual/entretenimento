@@ -49,6 +49,13 @@ export const moderateUnsuspendAccount = onCall<ModerateUnsuspendAccountRequest>(
       throw new HttpsError('invalid-argument', 'UID alvo inválido.');
     }
 
+    if (targetUid === actorUid) {
+      throw new HttpsError(
+        'failed-precondition',
+        'A moderação não pode alterar o próprio lifecycle por este fluxo.'
+      );
+    }
+
     const restored = await db.runTransaction(
       async (tx: FirebaseFirestore.Transaction) => {
         const userRef = db.collection('users').doc(targetUid);
