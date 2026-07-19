@@ -37,6 +37,7 @@ import {
   CommunityPreviewCard,
   CommunityPreviewResponse,
   CommunityPreviewViewerMode,
+  CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityFeedComponent } from '../feed/community-feed.component';
@@ -225,7 +226,13 @@ export class CommunityPreviewPageComponent {
     return community.source.type === 'venue' ? 'Local' : 'Sala';
   }
 
-  viewerLabel(mode: CommunityPreviewViewerMode): string {
+  viewerLabel(
+    mode: CommunityPreviewViewerMode,
+    role: CommunityPreviewViewerRole | null = null
+  ): string {
+    if (role === 'owner') return 'Proprietário';
+    if (role === 'admin') return 'Administração';
+
     const labels: Record<CommunityPreviewViewerMode, string> = {
       visitor: 'Visitante',
       pending: 'Pendente',
