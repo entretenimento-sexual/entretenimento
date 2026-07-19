@@ -2,11 +2,12 @@
 // -----------------------------------------------------------------------------
 // USER ACTIVITY HUB
 // -----------------------------------------------------------------------------
-// Barra discreta de atalhos vivos logo abaixo do header.
+// Barra discreta de pendências logo abaixo do header.
 //
 // Decisões:
-// - não duplica a página /notificacoes;
-// - exibe categorias fixas para navegação previsível;
+// - não funciona como uma segunda navegação de domínio;
+// - Locais e Salas permanecem exclusivamente na navegação canônica do sidebar;
+// - exibe somente atalhos associados a atividade pendente e à central;
 // - badges aparecem apenas quando houver pendência;
 // - usa o stream reativo já protegido por Rules;
 // - não escreve no Firestore;
@@ -74,24 +75,6 @@ export class UserActivityHubComponent {
       icon: '🤝',
       route: '/chat/invite-list',
       priority: 90,
-    },
-    {
-      id: 'rooms',
-      label: 'Salas',
-      description: 'Convites e salas com movimento',
-      count: 0,
-      icon: '🚪',
-      route: '/chat/rooms',
-      priority: 80,
-    },
-    {
-      id: 'places',
-      label: 'Locais',
-      description: 'Pontos relevantes para sua região',
-      count: 0,
-      icon: '📍',
-      route: '/descobrir',
-      priority: 70,
     },
     {
       id: 'status',
@@ -204,7 +187,8 @@ export class UserActivityHubComponent {
   }
 
   private isPlaceActivity(route: string, searchable: string): boolean {
-    return route.startsWith('/locais') ||
+    return route.startsWith('/dashboard/locais') ||
+      route.startsWith('/locais') ||
       searchable.includes('local') ||
       searchable.includes('locais') ||
       searchable.includes('estabelecimento');
