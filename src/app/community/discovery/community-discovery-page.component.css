@@ -10,6 +10,49 @@
   padding: clamp(0.75rem, 2vw, 1.25rem);
 }
 
+.community-discovery__scope-nav {
+  width: fit-content;
+  max-width: 100%;
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  margin-bottom: 0.85rem;
+  padding: 0.2rem;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: 999px;
+  background: var(--surface-color, #fff);
+  scrollbar-width: none;
+}
+
+.community-discovery__scope-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.community-discovery__scope-nav a {
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 0.9rem;
+  border-radius: 999px;
+  color: var(--text-color, #222);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  opacity: 0.68;
+}
+
+.community-discovery__scope-nav a.is-active {
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 14%,
+    transparent
+  );
+  color: var(--primary-color, #d83768);
+  opacity: 1;
+}
+
 .community-discovery__header {
   display: flex;
   align-items: center;
@@ -127,6 +170,7 @@
 }
 
 .community-card:focus-visible,
+.community-discovery__scope-nav a:focus-visible,
 .community-discovery__create:focus-visible,
 .community-discovery__empty-create:focus-visible,
 .community-discovery__state button:focus-visible,
@@ -306,6 +350,8 @@
 }
 
 :host-context(.high-contrast) .community-card,
+:host-context(.high-contrast) .community-discovery__scope-nav,
+:host-context(.high-contrast) .community-discovery__scope-nav a.is-active,
 :host-context(.high-contrast) .community-discovery__create,
 :host-context(.high-contrast) .community-discovery__empty-create,
 :host-context(.high-contrast) .community-discovery__state button,
