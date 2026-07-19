@@ -2,7 +2,6 @@
 <div
   class="account-lifecycle-dialog-backdrop"
   (click)="onBackdropClick()"
-  aria-hidden="true"
 >
   <section
     class="account-lifecycle-dialog"
@@ -10,17 +9,15 @@
     aria-modal="true"
     aria-labelledby="account-lifecycle-dialog-title"
     aria-describedby="account-lifecycle-dialog-description"
+    cdkTrapFocus
+    [cdkTrapFocusAutoCapture]="true"
     (click)="onDialogClick($event)"
   >
     <header class="account-lifecycle-dialog__header">
       <div class="account-lifecycle-dialog__title-group">
-        <p class="account-lifecycle-dialog__eyebrow">
-          Gerenciar conta
-        </p>
+        <p class="account-lifecycle-dialog__eyebrow">Gerenciar conta</p>
 
-        <h2 id="account-lifecycle-dialog-title">
-          {{ title() }}
-        </h2>
+        <h2 id="account-lifecycle-dialog-title">{{ title() }}</h2>
       </div>
 
       <button
@@ -63,13 +60,29 @@
             [value]="reason()"
             [placeholder]="reasonPlaceholder()"
             [attr.aria-invalid]="reasonError() ? 'true' : 'false'"
+            [attr.aria-describedby]="reasonError()
+              ? 'account-lifecycle-dialog-reason-help account-lifecycle-dialog-reason-error'
+              : 'account-lifecycle-dialog-reason-help'"
+            [attr.maxlength]="maxReasonLength + 1"
             [disabled]="busy()"
             (input)="onReasonInput($event)"
             (blur)="onReasonBlur()"
           ></textarea>
 
+          <p
+            id="account-lifecycle-dialog-reason-help"
+            class="account-lifecycle-dialog__field-help"
+            aria-live="polite"
+          >
+            {{ reasonLength() }} de {{ maxReasonLength }} caracteres.
+          </p>
+
           @if (reasonError()) {
-            <p class="account-lifecycle-dialog__error" role="alert">
+            <p
+              id="account-lifecycle-dialog-reason-error"
+              class="account-lifecycle-dialog__error"
+              role="alert"
+            >
               {{ reasonError() }}
             </p>
           }
@@ -77,10 +90,12 @@
       }
 
       @if (isDanger()) {
-        <div class="account-lifecycle-dialog__risk-box">
+        <div class="account-lifecycle-dialog__risk-box" role="note">
           <strong>Atenção</strong>
           <p>
-            Esta ação altera o estado operacional da conta e pode limitar fortemente o uso da plataforma.
+            Esta ação exige autenticação recente. A exclusão não é imediata:
+            o perfil será ocultado e haverá 24 horas para cancelamento antes
+            do início da exclusão definitiva.
           </p>
         </div>
       }
@@ -90,6 +105,7 @@
       <button
         type="button"
         class="btn btn-secondary"
+        cdkFocusInitial
         (click)="onClose()"
         [disabled]="busy()"
       >
@@ -102,6 +118,7 @@
         [class.btn-danger]="isDanger()"
         [class.btn-primary]="!isDanger()"
         [disabled]="!canConfirm()"
+        [attr.aria-busy]="busy()"
         (click)="onConfirm()"
       >
         {{ busy() ? 'Processando...' : ctaLabel() }}
