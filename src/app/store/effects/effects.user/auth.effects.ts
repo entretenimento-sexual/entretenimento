@@ -1,46 +1,21 @@
 // src/app/store/effects/effects.user/auth.effects.ts
 // =============================================================================
 // AUTH EFFECTS
-//
-// Objetivo:
-// - Orquestrar intents de login/registro vindas da UI
-// - Delegar autenticação real aos services
-// - Transformar resposta em actions de sucesso/falha
-//
-// Importante nesta arquitetura:
-// - A verdade da sessão NÃO nasce aqui.
-// - A verdade da sessão nasce em:
-//   1) Firebase Auth
-//   2) AuthSessionService
-//   3) AuthSessionSyncEffects
-//
-// Portanto:
-// - Se o login autenticou, mesmo com emailVerified=false,
-//   isso NÃO deve virar loginFailure.
-// - O gating de usuário não verificado pertence ao fluxo de auth/orchestrator/guards,
-//   não a este effect.
-//
-// Ajuste desta versão:
-// - manter a regra: sessão válida => sucesso de sessão
-// - não materializar no UserStore um perfil mínimo ainda não confirmado
-// - NÃO tratar profileResolution='unknown' como loginFailure
-// - NÃO decidir onboarding/perfil aqui
 // =============================================================================
-
+// - Orquestra intents legadas de login/registro.
+// - A verdade da sessão permanece em Firebase Auth + AuthSessionService.
+// - Não decide onboarding, presença ou lifecycle da conta.
+// - Nunca cria evidência de aceite dos termos em nome do usuário.
+// =============================================================================
 import { Injectable } from '@angular/core';
-
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-
 import { of } from 'rxjs';
 import { catchError, exhaustMap, map, tap } from 'rxjs/operators';
-
 import { UserCredential } from 'firebase/auth';
 
 import { environment } from 'src/environments/environment';
-
 import { LoginService } from 'src/app/core/services/autentication/login.service';
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
-
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 
 import {
@@ -56,47 +31,62 @@ import {
 @Injectable()
 export class AuthEffects {
   private readonly debug =
-    !environment.production && !!(environment as any)?.enableDebugTools;
+    !environment.production && environment.enableDebugTools === true;
 
   constructor(
     private readonly actions$: Actions,
     private readonly loginService: LoginService,
-    private readonly registerService: RegisterService,
+    private readonly registerService: RegisterService
   ) {}
 
-  // ---------------------------------------------------------------------------
-  // Debug helpers
-  // ---------------------------------------------------------------------------
   private dbg(message: string, extra?: unknown): void {
     if (!this.debug) return;
     // eslint-disable-next-line no-console
-    console.log(`[AuthEffects] ${message}`, extra ?? '');
+    console.debug(`[AuthEffects] ${message}`, extra ?? '');
   }
 
   private maskEmail(email: string | null | undefined): string {
-    const e = (email ?? '').trim();
-    if (!e) return '';
+    const normalized = String(email ?? '').trim();
+    if (!normalized) return '';
 
-    const [user, domain] = e.split('@');
-    if (!user || !domain) return e;
-
-    return `${user.slice(0, 2)}***@${domain}`;
+    const [localPart, domain] = normalized.split('@');
+    return localPart && domain
+      ? `${localPart.slice(0, 2)}***@${domain}`
+      : '***';
   }
 
-  // ---------------------------------------------------------------------------
-  // REGISTER
-  // ---------------------------------------------------------------------------
   register$ = createEffect(() =>
     this.actions$.pipe(
       ofType(register),
+      exhaustMap(({ email, password, nickname, acceptedTerms }) => {
+        const acceptedAt = Number(acceptedTerms?.date ?? 0);
+        const hasValidTermsEvidence =
+          acceptedTerms?.accepted === true &&
+          Number.isFinite(acceptedAt) &&
+          acceptedAt > 0 &&
+          acceptedAt <= Date.now() + 60_000;
 
-      exhaustMap(({ email, password, nickname }) => {
+        if (!hasValidTermsEvidence) {
+          this.dbg('register:blocked-without-terms', {
+            email: this.maskEmail(email),
+          });
+
+          return of(
+            registerFailure({
+              error:
+                'Confirme o aceite dos termos atuais antes de criar a conta.',
+            })
+          );
+        }
+
         const now = Date.now();
-
         const userRegistrationData: IUserRegistrationData = {
-          email,
-          nickname,
-          acceptedTerms: { accepted: true, date: now },
+          email: String(email ?? '').trim().toLowerCase(),
+          nickname: String(nickname ?? '').trim(),
+          acceptedTerms: {
+            accepted: true,
+            date: Math.trunc(acceptedAt),
+          },
           emailVerified: false,
           isSubscriber: false,
           firstLogin: now,
@@ -106,64 +96,57 @@ export class AuthEffects {
 
         this.dbg('register:start', {
           email: this.maskEmail(email),
-          nicknameLength: (nickname ?? '').trim().length,
+          nicknameLength: userRegistrationData.nickname.length,
         });
 
-        return this.registerService.registerUser(userRegistrationData, password).pipe(
-          tap((cred: UserCredential) =>
-            this.dbg('register:success', {
-              uid: cred.user?.uid ?? null,
-              emailVerified: cred.user?.emailVerified === true,
+        return this.registerService
+          .registerUser(userRegistrationData, password)
+          .pipe(
+            tap((credential: UserCredential) =>
+              this.dbg('register:success', {
+                uid: credential.user?.uid ?? null,
+                emailVerified:
+                  credential.user?.emailVerified === true,
+              })
+            ),
+            map((credential: UserCredential) =>
+              registerSuccess({ user: credential.user })
+            ),
+            catchError((error: unknown) => {
+              const source = error as {
+                message?: unknown;
+                code?: unknown;
+              } | null;
+              const message = String(
+                source?.message ??
+                  'Erro desconhecido durante o registro.'
+              );
+
+              this.dbg('register:failure', {
+                email: this.maskEmail(email),
+                message,
+                code: source?.code ?? null,
+              });
+
+              return of(registerFailure({ error: message }));
             })
-          ),
-
-          map((cred: UserCredential) => registerSuccess({ user: cred.user })),
-
-          catchError((error: any) => {
-            const msg = error?.message || 'Erro desconhecido durante o registro.';
-
-            this.dbg('register:failure', {
-              email: this.maskEmail(email),
-              message: msg,
-              code: error?.code ?? null,
-            });
-
-            return of(registerFailure({ error: msg }));
-          })
-        );
+          );
       })
     )
   );
 
-  // ---------------------------------------------------------------------------
-  // LOGIN
-  //
-  // Regra arquitetural:
-  // - success=false => falha real
-  // - success=true  => sessão existe
-  //
-  // Ajuste:
-  // - perfil resolvido pode alimentar loginSuccess
-  // - perfil desconhecido/transitório encerra o loading com loginSessionReady
-  // - onboarding e gating continuam fora deste effect
-  // ---------------------------------------------------------------------------
   login$ = createEffect(() =>
     this.actions$.pipe(
       ofType(login),
-
       exhaustMap(({ email, password }) => {
-        this.dbg('login:start', {
-          email: this.maskEmail(email),
-        });
+        this.dbg('login:start', { email: this.maskEmail(email) });
 
         return this.loginService.login$(email, password).pipe(
           map((response) => {
-            // ---------------------------------------------------------------
-            // Falha real de autenticação
-            // ---------------------------------------------------------------
             if (!response.success || !response.user) {
               const message =
-                response.message || 'Credenciais inválidas ou usuário não encontrado.';
+                response.message ??
+                'Credenciais inválidas ou usuário não encontrado.';
 
               this.dbg('login:failure', {
                 email: this.maskEmail(email),
@@ -181,40 +164,31 @@ export class AuthEffects {
             this.dbg('login:success', {
               uid: response.user.uid,
               emailVerified: response.emailVerified === true,
-              profileResolution: response.profileResolution ?? 'unknown',
+              profileResolution:
+                response.profileResolution ?? 'unknown',
               profileConfirmed,
-              hasNeedsProfileCompletion:
-                typeof response.needsProfileCompletion === 'boolean',
             });
 
             /**
              * SUPRESSÃO EXPLÍCITA:
-             * - não enviamos o fallback mínimo do Auth para loginSuccess quando
-             *   users/{uid} ainda não foi confirmado.
-             *
-             * Motivo:
-             * - loginSuccess é consumido pelo UserReducer legado e materializa o
-             *   objeto recebido como currentUser hidratado;
-             * - isso poderia expor temporariamente apelido inferido, tier default
-             *   ou profileCompleted não resolvido;
-             * - a sessão continua válida e é refletida por authSessionChanged;
-             * - a hidratação real continua em UserEffects/CurrentUserStoreService.
+             * o fallback mínimo do Auth não é enviado ao loginSuccess enquanto
+             * users/{uid} não tiver sido confirmado. A sessão continua válida e
+             * a hidratação oficial permanece nos efeitos/store canônicos.
              */
-            if (!profileConfirmed) {
-              return loginSessionReady();
-            }
-
-            return loginSuccess({ user: response.user });
+            return profileConfirmed
+              ? loginSuccess({ user: response.user })
+              : loginSessionReady();
           }),
-
-          catchError((error: any) => {
-            const errorMessage =
-              error?.message || 'Erro desconhecido durante o login.';
+          catchError((error: unknown) => {
+            const source = error as { message?: unknown; code?: unknown } | null;
+            const errorMessage = String(
+              source?.message ?? 'Erro desconhecido durante o login.'
+            );
 
             this.dbg('login:exception', {
               email: this.maskEmail(email),
               message: errorMessage,
-              code: error?.code ?? null,
+              code: source?.code ?? null,
             });
 
             return of(loginFailure({ error: errorMessage }));
@@ -223,4 +197,4 @@ export class AuthEffects {
       })
     )
   );
-} // Linha 212
+}
