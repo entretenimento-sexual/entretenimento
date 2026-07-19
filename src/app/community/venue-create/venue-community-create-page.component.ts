@@ -1,10 +1,12 @@
 // src/app/community/venue-create/venue-community-create-page.component.ts
 // -----------------------------------------------------------------------------
-// CRIAÇÃO DE LOCAL
+// CADASTRO DE LOCAL
 // -----------------------------------------------------------------------------
 // Local é um lugar físico ou estabelecimento real. O componente não apresenta
 // ao usuário a infraestrutura comunitária interna usada para feed, permissões e
-// moderação. O criador torna-se Proprietário do Local.
+// moderação. No Emulator, o cadastrante recebe administração provisória; antes de
+// produção, a propriedade deverá passar por fluxo próprio de reivindicação e
+// verificação.
 // -----------------------------------------------------------------------------
 
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
@@ -137,7 +139,9 @@ export class VenueCommunityCreatePageComponent {
       .subscribe({
         next: (result) => {
           this.notifications.showSuccess(
-            result.created ? 'Local criado.' : 'Local recuperado com segurança.'
+            result.created
+              ? 'Local cadastrado.'
+              : 'Cadastro do Local recuperado com segurança.'
           );
           void this.router.navigate([
             '/dashboard/locais',
@@ -168,7 +172,7 @@ export class VenueCommunityCreatePageComponent {
 
   private reportError(error: unknown): void {
     try {
-      this.notifications.showError('Não foi possível criar o Local agora.');
+      this.notifications.showError('Não foi possível cadastrar o Local agora.');
     } catch {
       // A observabilidade abaixo permanece ativa.
     }
