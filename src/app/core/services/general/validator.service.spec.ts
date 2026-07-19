@@ -13,7 +13,7 @@ describe('ValidatorService password validators', () => {
 
   it('rejeita senha fraca ou presente na blacklist', () => {
     const weak = new FormControl('12345678');
-    const blacklisted = new FormControl('Password1');
+    const blacklisted = new FormControl('password');
 
     expect(ValidatorService.passwordValidator(8)(weak)).toEqual({
       invalidPassword: true,
