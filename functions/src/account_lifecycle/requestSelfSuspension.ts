@@ -1,7 +1,14 @@
-//functions\src\account_lifecycle\requestSelfSuspension.ts
+// functions/src/account_lifecycle/requestSelfSuspension.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
-import { ACCOUNT_LIFECYCLE_REGION } from './_shared';
+import {
+  ACCOUNT_LIFECYCLE_REGION,
+  UserDoc,
+  assertRecentAuthentication,
+  createLifecycleAudit,
+  getNicknameIndexDocId,
+  normalizeOptionalReason,
+} from './_shared';
 
 interface RequestSelfSuspensionRequest {
   reason?: string | null;
@@ -9,51 +16,11 @@ interface RequestSelfSuspensionRequest {
 
 interface AccountLifecycleCommandResult {
   ok: boolean;
-  accountStatus?: string | null;
-  message?: string | null;
-}
-
-type AccountStatus =
-  | 'active'
-  | 'self_suspended'
-  | 'moderation_suspended'
-  | 'pending_deletion'
-  | 'deleted';
-
-type UserDoc = {
-  uid?: string;
-  nickname?: string | null;
-  nicknameNormalized?: string | null;
-  photoURL?: string | null;
-  municipio?: string | null;
-  estado?: string | null;
-  gender?: string | null;
-  orientation?: string | null;
-  role?: string | null;
-  accountStatus?: AccountStatus;
-  deletionRequestedBy?: 'self' | 'moderator' | null;
-};
-
-function normalizeOptionalReason(reason?: string | null): string | null {
-  const safe = String(reason ?? '').trim();
-  return safe || null;
-}
-
-function normalizeNicknameForIndex(raw?: string | null): string {
-  return String(raw ?? '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ');
-}
-
-function getNicknameIndexDocId(user: UserDoc): string | null {
-  const normalized =
-    String(user.nicknameNormalized ?? '').trim() ||
-    normalizeNicknameForIndex(user.nickname);
-
-  return normalized ? `nickname:${normalized}` : null;
+  accountStatus: 'self_suspended';
+  publicVisibility: 'hidden';
+  interactionBlocked: true;
+  statusUpdatedAt: number;
+  message: string;
 }
 
 export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
@@ -64,6 +31,10 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
     if (!uid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
+
+    assertRecentAuthentication(
+      request.auth?.token as Record<string, unknown> | undefined
+    );
 
     const reason = normalizeOptionalReason(request.data?.reason);
     const now = Date.now();
@@ -78,19 +49,40 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
       }
 
       const user = (userSnap.data() ?? {}) as UserDoc;
-      const currentStatus = user.accountStatus ?? 'active';
+      const currentStatus = String(user.accountStatus ?? 'active');
 
       if (currentStatus === 'deleted') {
-        throw new HttpsError(
-          'failed-precondition',
-          'Conta já excluída.'
-        );
+        throw new HttpsError('failed-precondition', 'Conta já excluída.');
       }
 
       if (currentStatus === 'pending_deletion') {
         throw new HttpsError(
           'failed-precondition',
-          'Conta em exclusão pendente não pode ser auto suspensa.'
+          'Conta em exclusão pendente não pode ser suspensa por este fluxo.'
+        );
+      }
+
+      /**
+       * Uma suspensão aplicada pela moderação jamais pode ser substituída por uma
+       * autossuspensão. Caso contrário, o usuário conseguiria reativar a própria
+       * conta e contornar a decisão administrativa.
+       */
+      if (currentStatus === 'moderation_suspended') {
+        throw new HttpsError(
+          'permission-denied',
+          'A suspensão aplicada pela moderação não pode ser alterada por este fluxo.',
+          { reason: 'moderation-suspension-active' }
+        );
+      }
+
+      if (currentStatus === 'self_suspended') {
+        return;
+      }
+
+      if (currentStatus !== 'active') {
+        throw new HttpsError(
+          'failed-precondition',
+          'A conta não pode ser suspensa no estado atual.'
         );
       }
 
@@ -126,14 +118,14 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
       tx.delete(publicProfileRef);
 
       if (nicknameIndexDocId) {
-        const nicknameIndexRef = db.collection('public_index').doc(nicknameIndexDocId);
-        tx.delete(nicknameIndexRef);
+        tx.delete(db.collection('public_index').doc(nicknameIndexDocId));
       }
 
-      const auditRef = db.collection('account_lifecycle_audit').doc();
-      tx.set(auditRef, {
+      createLifecycleAudit(tx, {
         uid,
+        actorUid: uid,
         action: 'request_self_suspension',
+        previousAccountStatus: currentStatus,
         accountStatus: 'self_suspended',
         source: 'self',
         moderationReason: reason,
@@ -145,6 +137,9 @@ export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
     return {
       ok: true,
       accountStatus: 'self_suspended',
+      publicVisibility: 'hidden',
+      interactionBlocked: true,
+      statusUpdatedAt: now,
       message: 'Conta suspensa com sucesso.',
     };
   }
