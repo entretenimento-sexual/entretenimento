@@ -15,6 +15,7 @@ import {
   distinctUntilChanged,
   map,
   shareReplay,
+  switchMap,
   take,
   tap,
 } from 'rxjs/operators';
@@ -23,9 +24,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AccountFacade } from '../../application/account.facade';
 import { AccountLifecycleFacade } from '../../application/account-lifecycle.facade';
 import { AccountLifecycleService } from '../../application/account-lifecycle.service';
+import { AccountReauthenticationService } from '../../application/account-reauthentication.service';
 import {
   AccountLifecycleDialogConfirmEvent,
   AccountLifecycleDialogIntent,
+  AccountReauthenticationMode,
 } from '../../models/account-lifecycle.model';
 import { AccountLifecycleDialogComponent } from '../../components/account-lifecycle-dialog/account-lifecycle-dialog.component';
 
@@ -56,6 +59,9 @@ export class AccountHomeComponent implements OnInit {
   );
   private readonly accountLifecycleFacade = inject(AccountLifecycleFacade);
   private readonly accountLifecycleService = inject(AccountLifecycleService);
+  private readonly accountReauthentication = inject(
+    AccountReauthenticationService
+  );
   private readonly notify = inject(ErrorNotificationService);
 
   readonly accountFacade = inject(AccountFacade);
@@ -84,6 +90,8 @@ export class AccountHomeComponent implements OnInit {
     signal<AccountLifecycleDialogIntent | null>(null);
   readonly lifecycleBusyIntent =
     signal<AccountLifecycleDialogIntent | null>(null);
+  readonly lifecycleReauthenticationMode =
+    signal<AccountReauthenticationMode>('unsupported');
 
   readonly isLifecycleBusy = computed(
     () => this.lifecycleBusyIntent() !== null
@@ -163,12 +171,12 @@ export class AccountHomeComponent implements OnInit {
 
   openSelfSuspendDialog(): void {
     if (this.isLifecycleBusy()) return;
-    this.lifecycleDialogIntent.set('self_suspend');
+    this.openLifecycleDialog('self_suspend');
   }
 
   openSelfDeleteDialog(): void {
     if (this.isLifecycleBusy()) return;
-    this.lifecycleDialogIntent.set('self_delete');
+    this.openLifecycleDialog('self_delete');
   }
 
   closeLifecycleDialog(): void {
@@ -181,11 +189,11 @@ export class AccountHomeComponent implements OnInit {
   ): void {
     switch (event.intent) {
       case 'self_suspend':
-        this.executeSelfSuspension(event.reason);
+        this.executeSelfSuspension(event.reason, event.password);
         return;
 
       case 'self_delete':
-        this.executeSelfDeletion(event.reason);
+        this.executeSelfDeletion(event.reason, event.password);
         return;
 
       default:
@@ -193,14 +201,27 @@ export class AccountHomeComponent implements OnInit {
     }
   }
 
-  private executeSelfSuspension(reason?: string | null): void {
+  private openLifecycleDialog(intent: AccountLifecycleDialogIntent): void {
+    this.lifecycleReauthenticationMode.set(
+      this.accountReauthentication.getCurrentMode()
+    );
+    this.lifecycleDialogIntent.set(intent);
+  }
+
+  private executeSelfSuspension(
+    reason?: string | null,
+    password?: string | null
+  ): void {
     if (this.isLifecycleBusy()) return;
 
     this.lifecycleBusyIntent.set('self_suspend');
 
-    this.accountLifecycleService
-      .requestSelfSuspension$(reason)
+    this.accountReauthentication
+      .reauthenticateForSensitiveAction$(password)
       .pipe(
+        switchMap(() =>
+          this.accountLifecycleService.requestSelfSuspension$(reason)
+        ),
         finalize(() => this.lifecycleBusyIntent.set(null)),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -230,19 +251,25 @@ export class AccountHomeComponent implements OnInit {
           });
         },
         error: () => {
-          // Feedback já tratado no AccountLifecycleService.
+          // Reautenticação e lifecycle centralizam diagnóstico e feedback.
         },
       });
   }
 
-  private executeSelfDeletion(reason?: string | null): void {
+  private executeSelfDeletion(
+    reason?: string | null,
+    password?: string | null
+  ): void {
     if (this.isLifecycleBusy()) return;
 
     this.lifecycleBusyIntent.set('self_delete');
 
-    this.accountLifecycleService
-      .requestAccountDeletion$(reason)
+    this.accountReauthentication
+      .reauthenticateForSensitiveAction$(password)
       .pipe(
+        switchMap(() =>
+          this.accountLifecycleService.requestAccountDeletion$(reason)
+        ),
         finalize(() => this.lifecycleBusyIntent.set(null)),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -282,7 +309,7 @@ export class AccountHomeComponent implements OnInit {
           });
         },
         error: () => {
-          // Feedback já tratado no AccountLifecycleService.
+          // Reautenticação e lifecycle centralizam diagnóstico e feedback.
         },
       });
   }
