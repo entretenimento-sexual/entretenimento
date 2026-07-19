@@ -3,9 +3,16 @@
 // COMMUNITY PREVIEW CLIENT CONTRACTS
 // -----------------------------------------------------------------------------
 // O frontend normaliza novamente toda resposta das callables.
+//
+// Domínios aceitos nesta projeção:
+// - `community`: grupo permanente de pessoas;
+// - `venue`: Local físico com superfície social vinculada.
+//
+// Sala não faz parte deste contrato. Salas são espaços de conversa e ficam no
+// domínio `/chat/rooms`.
 // -----------------------------------------------------------------------------
 
-export type CommunityPreviewSourceType = 'venue' | 'room';
+export type CommunityPreviewSourceType = 'community' | 'venue';
 export type CommunityPreviewJoinPolicy = 'open' | 'approval' | 'invite_only';
 export type CommunityPreviewViewerMode =
   | 'visitor'
@@ -125,7 +132,7 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
   if (
     !communityId
     || !sourceId
-    || (sourceType !== 'venue' && sourceType !== 'room')
+    || (sourceType !== 'community' && sourceType !== 'venue')
     || name.length < 2
     || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
   ) {
