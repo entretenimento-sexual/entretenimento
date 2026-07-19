@@ -9,7 +9,7 @@
               <p class="account-hero__eyebrow">Área da conta</p>
               <h1>Minha conta</h1>
               <p class="account-hero__subtitle">
-                Segurança, assinatura e dados principais da sua conta em um só lugar.
+                Segurança, assinatura e dados principais da conta em um só lugar.
               </p>
             </div>
 
@@ -17,7 +17,6 @@
               <a class="btn btn-primary" routerLink="/subscription-plan">
                 Gerenciar assinatura
               </a>
-
               <a class="btn btn-secondary" routerLink="/perfil">
                 Voltar ao perfil
               </a>
@@ -28,7 +27,7 @@
             <article class="account-overview__card account-overview__card--highlight">
               <span class="overline">Plano</span>
               <strong>{{ vm.activePlanLabel || vm.subscriptionLabel }}</strong>
-              <small>Seu status atual dentro da plataforma.</small>
+              <small>Confirmado pelo estado autorizado de billing.</small>
             </article>
 
             <article class="account-overview__card">
@@ -42,7 +41,7 @@
               <strong>
                 {{ vm.lastLoginAt ? (vm.lastLoginAt | date:'dd/MM/yyyy HH:mm') : 'Não disponível' }}
               </strong>
-              <small>Seu acesso mais recente registrado.</small>
+              <small>Último acesso registrado no perfil.</small>
             </article>
 
             @if (vm.tokensBalance !== null) {
@@ -64,10 +63,10 @@
             >
               <div class="account-context-panel__content">
                 <p class="account-context-panel__eyebrow">Atualização da assinatura</p>
-                <h2 id="account-post-payment-title">Plano ativado com sucesso</h2>
-
+                <h2 id="account-post-payment-title">Plano confirmado</h2>
                 <p id="account-post-payment-description">
-                  Seu plano já está ativo. Como seu perfil ainda está em conclusão, algumas funções sociais e de descoberta podem continuar limitadas por enquanto.
+                  O acesso pago foi confirmado. Algumas funções sociais ainda podem
+                  depender da conclusão do perfil e das demais verificações de conta.
                 </p>
               </div>
 
@@ -75,7 +74,6 @@
                 <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
                   Completar perfil agora
                 </button>
-
                 <button
                   type="button"
                   class="btn btn-secondary"
@@ -85,39 +83,36 @@
                 </button>
               </div>
             </section>
-          } @else {
-            @if (shouldShowIncompleteProfileBanner$ | async) {
-              <section
-                class="account-context-panel account-context-panel--info"
-                aria-labelledby="account-incomplete-profile-banner-title"
-                aria-describedby="account-incomplete-profile-banner-description"
-              >
-                <div class="account-context-panel__content">
-                  <p class="account-context-panel__eyebrow">Perfil em conclusão</p>
-                  <h2 id="account-incomplete-profile-banner-title">
-                    Seu plano está ativo, mas o perfil ainda pode melhorar
-                  </h2>
+          } @else if (shouldShowIncompleteProfileBanner$ | async) {
+            <section
+              class="account-context-panel account-context-panel--info"
+              aria-labelledby="account-incomplete-profile-banner-title"
+              aria-describedby="account-incomplete-profile-banner-description"
+            >
+              <div class="account-context-panel__content">
+                <p class="account-context-panel__eyebrow">Perfil em conclusão</p>
+                <h2 id="account-incomplete-profile-banner-title">
+                  Conclua o perfil para ampliar sua participação
+                </h2>
+                <p id="account-incomplete-profile-banner-description">
+                  A navegação básica continua disponível, mas visibilidade e
+                  interações podem permanecer limitadas até a conclusão do perfil.
+                </p>
+              </div>
 
-                  <p id="account-incomplete-profile-banner-description">
-                    Você pode continuar navegando normalmente, mas sua visibilidade e algumas interações podem continuar limitadas até concluir o perfil.
-                  </p>
-                </div>
-
-                <div class="account-context-panel__actions">
-                  <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
-                    Finalizar perfil
-                  </button>
-
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    (click)="onSnoozeIncompleteProfileBanner(currentUser)"
-                  >
-                    Lembrar depois
-                  </button>
-                </div>
-              </section>
-            }
+              <div class="account-context-panel__actions">
+                <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
+                  Finalizar perfil
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  (click)="onSnoozeIncompleteProfileBanner(currentUser)"
+                >
+                  Lembrar depois
+                </button>
+              </div>
+            </section>
           }
         }
 
@@ -128,7 +123,9 @@
           @if (vm.tokensBalance !== null) {
             <a class="account-nav__link" href="#tokens">Tokens</a>
           }
-          <a class="account-nav__link account-nav__link--danger" href="#gerenciar">Gerenciar</a>
+          <a class="account-nav__link account-nav__link--danger" href="#gerenciar">
+            Gerenciar
+          </a>
         </nav>
 
         <section id="conta" class="account-card">
@@ -137,23 +134,20 @@
               <p class="account-section-head__eyebrow">Visão geral</p>
               <h2>Informações da conta</h2>
             </div>
-
-            <a class="btn btn-secondary" routerLink="/perfil">
-              Abrir perfil
-            </a>
+            <a class="btn btn-secondary" routerLink="/perfil">Abrir perfil</a>
           </div>
 
           <div class="account-grid">
             <article class="account-item">
               <span class="label">Perfil público</span>
               <strong class="value">{{ vm.profilePath || 'Não definido' }}</strong>
-              <small class="support">Endereço principal do seu perfil na plataforma.</small>
+              <small class="support">Endereço principal do perfil na plataforma.</small>
             </article>
 
             <article class="account-item">
               <span class="label">Apelido</span>
               <strong class="value">{{ vm.nickname || 'Não definido' }}</strong>
-              <small class="support">Nome principal exibido na sua conta.</small>
+              <small class="support">Nome exibido para outras pessoas.</small>
             </article>
 
             <article class="account-item">
@@ -203,43 +197,40 @@
             </article>
 
             <article class="account-item">
-              <span class="label">Vinculação Google</span>
+              <span class="label">Login com Google</span>
               <strong class="value">
-                {{ vm.googleLinked ? 'Vinculada' : 'Não vinculada' }}
+                {{ vm.googleLinked ? 'Vinculado' : 'Não vinculado' }}
               </strong>
               <small class="support">
-                {{ vm.googleLinked ? 'Login social disponível.' : 'Você poderá vincular sua conta Google.' }}
+                {{ vm.googleLinked
+                  ? 'Este provedor pode ser usado para entrar.'
+                  : 'Nenhum provedor Google vinculado foi confirmado.' }}
               </small>
             </article>
 
             <article class="account-item">
               <span class="label">Senha</span>
               <strong class="value">
-                {{ vm.passwordConfigured ? '●●●●●●●●●●' : 'Não configurada' }}
+                {{ vm.passwordConfigured ? 'Configurada' : 'Não confirmada para esta conta' }}
               </strong>
-              <small class="support">Área de gerenciamento de senha pode ser expandida depois.</small>
+              <small class="support">
+                O estado é derivado dos provedores vinculados ao Firebase Auth.
+              </small>
             </article>
 
             <article class="account-item">
-              <span class="label">Autenticação 2FA</span>
-              <strong class="value">
-                {{ vm.twoFactorEnabled ? 'Ativada' : 'Desativada' }}
-              </strong>
+              <span class="label">Autenticação em duas etapas</span>
+              <strong class="value">Não disponível nesta versão</strong>
               <p class="hint">{{ vm.twoFactorHint }}</p>
             </article>
 
             <article class="account-item">
-              <span class="label">Dispositivos logados</span>
-              <strong class="value">
-                {{ vm.canManageDevices ? 'Disponível' : 'Indisponível' }}
-              </strong>
-              <small class="support">Gerencie sessões e acessos ativos nesta área.</small>
-
-              <div class="actions">
-                <a class="btn btn-secondary" [routerLink]="vm.devicesRoute">
-                  Acessar dispositivos logados
-                </a>
-              </div>
+              <span class="label">Sessões e dispositivos</span>
+              <strong class="value">Não disponível nesta versão</strong>
+              <small class="support">
+                A plataforma ainda não possui uma lista confiável de dispositivos
+                nem encerramento remoto de sessões.
+              </small>
             </article>
           </div>
         </section>
@@ -250,36 +241,25 @@
               <p class="account-section-head__eyebrow">Cobrança</p>
               <h2>Assinatura</h2>
             </div>
-
-            <a class="btn btn-secondary" routerLink="/subscription-plan">
-              Ver planos
-            </a>
+            <a class="btn btn-secondary" routerLink="/subscription-plan">Ver planos</a>
           </div>
 
           <div class="account-grid">
             <article class="account-item account-item--highlight">
               <span class="label">Status da assinatura</span>
               <strong class="value">{{ vm.subscriptionLabel }}</strong>
-              <small class="support">Seu estado atual de assinatura dentro da plataforma.</small>
+              <small class="support">
+                Resultado baseado no entitlement consultado no backend.
+              </small>
             </article>
 
             <article class="account-item">
               <span class="label">Plano atual</span>
-              <strong class="value">{{ vm.activePlanLabel || 'Sem plano ativo' }}</strong>
-              <small class="support">Ajuste, upgrade ou revisão do plano na central de assinatura.</small>
-            </article>
-
-            <article class="account-item">
-              <span class="label">Compra rápida</span>
               <strong class="value">
-                {{
-                  vm.quickPurchaseEnabled === null
-                    ? 'Indisponível nesta etapa'
-                    : (vm.quickPurchaseEnabled ? 'Ativada' : 'Desativada')
-                }}
+                {{ vm.activePlanLabel || 'Nenhum plano ativo confirmado' }}
               </strong>
               <small class="support">
-                Controle futuro para acelerar assinatura e compra de tokens com segurança.
+                Ajustes e upgrades ficam concentrados na central de assinatura.
               </small>
             </article>
           </div>
@@ -317,7 +297,9 @@
               <article class="account-item account-item--danger">
                 <span class="label">Suspender conta</span>
                 <p class="hint">
-                  Sua conta ficará invisível para outras pessoas e todas as interações serão bloqueadas até a reativação.
+                  O perfil ficará invisível e as interações serão bloqueadas até
+                  a reativação. Suspensões aplicadas pela moderação não podem ser
+                  removidas por este fluxo.
                 </p>
                 <div class="actions">
                   <button
@@ -332,9 +314,10 @@
               </article>
 
               <article class="account-item account-item--danger">
-                <span class="label">Excluir conta</span>
+                <span class="label">Solicitar exclusão</span>
                 <p class="hint">
-                  Sua conta entrará em exclusão pendente, ficará invisível imediatamente e ainda terá uma janela curta para arrependimento.
+                  O perfil ficará invisível imediatamente. A solicitação poderá
+                  ser cancelada por 24 horas antes do início da exclusão definitiva.
                 </p>
                 <div class="actions">
                   <button
@@ -343,7 +326,7 @@
                     [disabled]="isLifecycleBusy()"
                     (click)="openSelfDeleteDialog()"
                   >
-                    Excluir conta
+                    Solicitar exclusão
                   </button>
                 </div>
               </article>
@@ -351,21 +334,21 @@
           </div>
         </details>
 
-      @if (lifecycleDialogIntent()) {
-        <app-account-lifecycle-dialog
-          [intent]="lifecycleDialogIntent()!"
-          [busy]="isLifecycleBusy()"
-          (closed)="closeLifecycleDialog()"
-          (confirmed)="onLifecycleDialogConfirmed($event)">
-        </app-account-lifecycle-dialog>
-      }
+        @if (lifecycleDialogIntent()) {
+          <app-account-lifecycle-dialog
+            [intent]="lifecycleDialogIntent()!"
+            [busy]="isLifecycleBusy()"
+            (closed)="closeLifecycleDialog()"
+            (confirmed)="onLifecycleDialogConfirmed($event)"
+          />
+        }
       } @else {
-        <section class="account-card">
+        <section class="account-card" role="alert">
           <p>Você precisa estar autenticado para acessar sua conta.</p>
         </section>
       }
     } @else {
-      <section class="account-card">
+      <section class="account-card" role="status" aria-live="polite">
         <p>Carregando dados da conta...</p>
       </section>
     }
