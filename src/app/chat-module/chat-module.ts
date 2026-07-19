@@ -1,4 +1,4 @@
-//src\app\chat-module\chat-module.ts
+// src/app/chat-module/chat-module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { StoreModule } from '@ngrx/store';
@@ -18,7 +18,6 @@ import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layo
 import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-list.component';
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
 import { RoomCreationConfirmationModalComponent } from './modals/room-create-confirm-modal/room-creation-confirmation-modal.component';
-import { InviteListComponent } from './invite-list/invite-list.component';
 import { chatReducer } from '../store/reducers/reducers.chat/chat.reducer';
 import { RoomInteractionComponent } from './rooms/room-interaction/room-interaction.component';
 
@@ -49,7 +48,6 @@ import { ChatReplyQuotePipe } from './pipes/chat-reply-quote.pipe';
     ChatRoomsComponent,
     ChatMessagesListComponent,
     CreateRoomModalComponent,
-    InviteListComponent,
     RoomCreationConfirmationModalComponent,
     RoomInteractionComponent,
     DeleteMessageConfirmDialogComponent,
