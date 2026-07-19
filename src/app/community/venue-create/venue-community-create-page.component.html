@@ -1,0 +1,133 @@
+<!-- src/app/community/venue-create/venue-community-create-page.component.html -->
+<main class="venue-create" aria-labelledby="venue-create-title">
+  <header class="venue-create__header">
+    <a
+      class="venue-create__back"
+      routerLink="/dashboard/comunidades/locais"
+      aria-label="Voltar para Locais"
+    >
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+    </a>
+
+    <div>
+      <h1 id="venue-create-title">Criar Local</h1>
+      <p>Você será o proprietário da comunidade vinculada.</p>
+    </div>
+  </header>
+
+  <form class="venue-create__form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <section aria-labelledby="venue-create-basic-title">
+      <h2 id="venue-create-basic-title">Identificação</h2>
+
+      <label>
+        <span>Nome</span>
+        <input
+          type="text"
+          formControlName="name"
+          maxlength="80"
+          autocomplete="organization"
+          placeholder="Nome do local"
+        />
+      </label>
+
+      <label>
+        <span>Tipo</span>
+        <select formControlName="kind">
+          @for (option of kindOptions; track option.value) {
+            <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        <span>Descrição</span>
+        <textarea
+          formControlName="description"
+          maxlength="240"
+          rows="3"
+          placeholder="O que acontece neste local?"
+        ></textarea>
+      </label>
+    </section>
+
+    <section aria-labelledby="venue-create-region-title">
+      <h2 id="venue-create-region-title">Região</h2>
+
+      <div class="venue-create__row venue-create__row--region">
+        <label>
+          <span>UF</span>
+          <input
+            type="text"
+            formControlName="uf"
+            maxlength="2"
+            autocomplete="address-level1"
+            inputmode="text"
+            placeholder="RJ"
+          />
+        </label>
+
+        <label>
+          <span>Cidade</span>
+          <input
+            type="text"
+            formControlName="city"
+            maxlength="80"
+            autocomplete="address-level2"
+            placeholder="Rio de Janeiro"
+          />
+        </label>
+      </div>
+
+      <label>
+        <span>Bairro</span>
+        <input
+          type="text"
+          formControlName="district"
+          maxlength="80"
+          autocomplete="address-level3"
+          placeholder="Opcional"
+        />
+      </label>
+
+      <label>
+        <span>Referência pública</span>
+        <input
+          type="text"
+          formControlName="addressHint"
+          maxlength="160"
+          autocomplete="off"
+          placeholder="Sem endereço preciso"
+        />
+      </label>
+    </section>
+
+    <section aria-labelledby="venue-create-access-title">
+      <h2 id="venue-create-access-title">Entrada</h2>
+
+      <label>
+        <span>Quem pode participar</span>
+        <select formControlName="joinPolicy">
+          <option value="approval">Aprovação do proprietário</option>
+          <option value="open">Entrada imediata</option>
+        </select>
+      </label>
+
+      <p class="venue-create__note">
+        Visitantes poderão acompanhar a prévia pública. Somente integrantes poderão interagir.
+      </p>
+    </section>
+
+    <div class="venue-create__actions">
+      <a routerLink="/dashboard/comunidades/locais">Cancelar</a>
+      <button type="submit" [disabled]="submitting()">
+        @if (submitting()) {
+          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          <span>Criando</span>
+        } @else {
+          <i class="fas fa-plus" aria-hidden="true"></i>
+          <span>Criar Local</span>
+        }
+      </button>
+    </div>
+  </form>
+</main>
