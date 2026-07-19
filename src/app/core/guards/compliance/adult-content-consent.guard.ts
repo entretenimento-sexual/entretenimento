@@ -6,6 +6,9 @@
 // Controles essenciais de conta — status, suspensão, reativação, privacidade e
 // cancelamento de exclusão — permanecem acessíveis após autenticação, mesmo sem
 // consentimento. O authGuard da rota continua responsável pela sessão.
+//
+// Fail-closed: campo ausente exige consentimento; somente o valor explícito false
+// dispensa a etapa para um fluxo que tenha justificativa própria.
 // -----------------------------------------------------------------------------
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, type GuardResult } from '@angular/router';
@@ -63,10 +66,10 @@ export const adultContentConsentGuard: CanActivateFn = (
       if (!authUser) return true;
 
       const initialConsentRequired =
-        appUser?.initialAdultConsentRequired === true;
+        appUser?.initialAdultConsentRequired !== false;
 
       if (!initialConsentRequired) {
-        guardLog('adult-consent', 'not-required-after-registration', {
+        guardLog('adult-consent', 'explicitly-not-required', {
           url: state.url,
         });
         return true;
