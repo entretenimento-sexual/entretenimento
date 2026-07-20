@@ -13,6 +13,13 @@ import {
   type ExecuteAccountDataDeletionInput,
 } from './account-data-deletion.executor';
 import {
+  executeModerationEvidenceRetentionDomain,
+  type AccountModerationEvidenceRetentionAdapter,
+} from './account-moderation-evidence-retention.executor';
+import {
+  FirestoreAccountModerationEvidenceRetentionAdapter,
+} from './account-moderation-evidence-retention.firestore';
+import {
   executeOwnedMediaAndStorageDomain,
   type AccountOwnedMediaDeletionAdapter,
 } from './account-owned-media-deletion.executor';
@@ -44,12 +51,15 @@ const defaultSharedPublicationAdapter =
   new FirestoreAccountSharedPublicationAnonymizationAdapter();
 const defaultRelationshipEdgeAdapter =
   new FirestoreAccountRelationshipEdgeRetentionAdapter();
+const defaultModerationEvidenceAdapter =
+  new FirestoreAccountModerationEvidenceRetentionAdapter();
 
 export async function executeAccountDataDeletionDomains(
   adapter: AccountDataDeletionOrchestratorAdapter,
   input: ExecuteAccountDataDeletionInput,
   sharedPublicationAdapter?: AccountSharedPublicationAnonymizationAdapter,
-  relationshipEdgeAdapter?: AccountRelationshipEdgeRetentionAdapter
+  relationshipEdgeAdapter?: AccountRelationshipEdgeRetentionAdapter,
+  moderationEvidenceAdapter?: AccountModerationEvidenceRetentionAdapter
 ): Promise<AccountDataDeletionExecutionSummary> {
   const sharedMessages = await executeSharedMessageAnonymizationDomain(
     adapter,
@@ -80,6 +90,14 @@ export async function executeAccountDataDeletionDomains(
       maxPagesPerDirection: input.maxPagesPerDomain,
     }
   );
+  const moderationEvidence = await executeModerationEvidenceRetentionDomain(
+    moderationEvidenceAdapter ?? defaultModerationEvidenceAdapter,
+    {
+      uid: input.uid,
+      pageSize: input.pageSize,
+      maxPagesPerStep: input.maxPagesPerDomain,
+    }
+  );
   const legacyRelationship = coreSummary.results.find(
     (result) => result.domain === 'relationship_edges'
   );
@@ -98,6 +116,7 @@ export async function executeAccountDataDeletionDomains(
   const results = [
     sharedMessages,
     sharedPublications,
+    moderationEvidence,
     ...coreResultsWithoutRelationship,
     relationshipEdges,
     ownedMedia,
