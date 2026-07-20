@@ -17,6 +17,7 @@ import {
   exhaustMap,
   filter,
   map,
+  Observable,
   of,
   shareReplay,
   startWith,
@@ -111,15 +112,16 @@ export class CommunityOwnershipManagementComponent {
 
   readonly action$ = this.commands$.pipe(
     exhaustMap((command) => {
-      const operation$ = command.kind === 'transfer' && command.candidate
-        ? this.repository.transferOwnership$(
-            this.communityId().trim(),
-            command.candidate.uid
-          )
-        : this.repository.archiveCommunity$(
-            this.communityId().trim(),
-            'Arquivamento solicitado pelo proprietário.'
-          );
+      const operation$: Observable<unknown> =
+        command.kind === 'transfer' && command.candidate
+          ? this.repository.transferOwnership$(
+              this.communityId().trim(),
+              command.candidate.uid
+            )
+          : this.repository.archiveCommunity$(
+              this.communityId().trim(),
+              'Arquivamento solicitado pelo proprietário.'
+            );
 
       return operation$.pipe(
         tap(() => {
