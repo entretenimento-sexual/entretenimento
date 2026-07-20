@@ -13,7 +13,7 @@
 // - a política é serializável e registrada no tombstone para auditoria/retry.
 // -----------------------------------------------------------------------------
 
-export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 10;
+export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 11;
 
 export type AccountDataDomain =
   | 'public_profile'
@@ -215,10 +215,12 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     domain: 'financial_records_and_entitlements',
     disposition: 'retain',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
     retentionDays: null,
-    reason: 'Registros financeiros exigem cancelamento, conciliação, retenção legal e pseudonimização.',
+    reason:
+      'Checkouts pendentes são cancelados localmente, entitlements são revogados ' +
+      'e arquivados, e transações e auditorias permanecem pseudonimizadas.',
   },
   {
     domain: 'private_user_document',
