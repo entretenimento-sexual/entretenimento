@@ -207,17 +207,19 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
     if (control.disabled || control.valid) return 0;
 
     if (control instanceof FormGroup) {
-      return Object.keys(control.controls).reduce(
+      const childCount = Object.keys(control.controls).reduce(
         (total, name) => total + this.countInvalidControls(control.controls[name]),
         0
       );
+      return childCount || (control.errors ? 1 : 0);
     }
 
     if (control instanceof FormArray) {
-      return control.controls.reduce(
+      const childCount = control.controls.reduce(
         (total, child) => total + this.countInvalidControls(child),
         0
       );
+      return childCount || (control.errors ? 1 : 0);
     }
 
     return 1;
