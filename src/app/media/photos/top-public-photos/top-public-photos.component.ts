@@ -15,6 +15,7 @@ import {
 } from 'rxjs/operators';
 
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { PublicMediaSnapshotService } from 'src/app/core/services/media/public-media-snapshot.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { GlobalActivityService } from 'src/app/core/services/network/global-activity.service';
@@ -59,6 +60,7 @@ interface TopPhotosViewModel extends TopPhotosLoadState {
 })
 export class TopPublicPhotosComponent {
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
+  private readonly snapshots = inject(PublicMediaSnapshotService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
   private readonly network = inject(NetworkStatusService);
@@ -71,44 +73,44 @@ export class TopPublicPhotosComponent {
   private readonly selectedIndexSubject = new BehaviorSubject<number | null>(null);
   readonly selectedIndex$ = this.selectedIndexSubject.asObservable();
 
-  private lastSuccessfulItems: IPublicPhotoItem[] = [];
-
   private readonly loadState$: Observable<TopPhotosLoadState> =
-    this.loadCount$.pipe(
-      switchMap((count) =>
-        this.activity.track$(
-          this.mediaPublicQuery.getTopPublicPhotos$(count).pipe(
-            retryIdempotentRead({
-              maximumRetries: 2,
-              isOnline: () => this.network.isOnlineSnapshot(),
-            }),
-            tap((items) => {
-              this.lastSuccessfulItems = items;
-            }),
-            map((items) => ({
-              items,
-              loading: false,
-              error: false,
-              stale: false,
-            })),
-            catchError((error: unknown) => {
-              this.reportError('Erro ao carregar fotos em destaque.', error, {
-                op: 'topPhotos$',
-              });
+    this.snapshots.read$('top-photos').pipe(
+      switchMap((cachedItems) =>
+        this.loadCount$.pipe(
+          switchMap((count) =>
+            this.activity.track$(
+              this.mediaPublicQuery.getTopPublicPhotos$(count).pipe(
+                retryIdempotentRead({
+                  maximumRetries: 2,
+                  isOnline: () => this.network.isOnlineSnapshot(),
+                }),
+                tap((items) => this.snapshots.write('top-photos', items)),
+                map((items) => ({
+                  items,
+                  loading: false,
+                  error: false,
+                  stale: false,
+                })),
+                catchError((error: unknown) => {
+                  this.reportError('Erro ao carregar fotos em destaque.', error, {
+                    op: 'topPhotos$',
+                  });
 
-              return of({
-                items: this.lastSuccessfulItems,
-                loading: false,
-                error: true,
-                stale: this.lastSuccessfulItems.length > 0,
-              });
-            }),
-            startWith({
-              items: this.lastSuccessfulItems,
-              loading: true,
-              error: false,
-              stale: this.lastSuccessfulItems.length > 0,
-            })
+                  return of({
+                    items: cachedItems,
+                    loading: false,
+                    error: true,
+                    stale: cachedItems.length > 0,
+                  });
+                }),
+                startWith({
+                  items: cachedItems,
+                  loading: true,
+                  error: false,
+                  stale: cachedItems.length > 0,
+                })
+              )
+            )
           )
         )
       ),
