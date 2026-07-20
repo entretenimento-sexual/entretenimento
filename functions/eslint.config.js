@@ -56,4 +56,18 @@ module.exports = [
       'no-undef': 'off',
     },
   },
+  {
+    // Estes contratos removem deliberadamente faixas Unicode de controle.
+    // A exceção permanece limitada aos sanitizadores explícitos e testados.
+    files: [
+      'src/account_lifecycle/_shared.ts',
+      'src/community/community-feed.model.ts',
+      'src/community/community-membership-management.handler.ts',
+      'src/community/community-preview.model.ts',
+      'src/community/community-user-index.projection.ts',
+    ],
+    rules: {
+      'no-control-regex': 'off',
+    },
+  },
 ];
