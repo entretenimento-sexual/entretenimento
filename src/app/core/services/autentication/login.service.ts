@@ -14,7 +14,6 @@
 import { Injectable } from '@angular/core';
 import {
   Observable,
-  defer,
   firstValueFrom,
   of,
   throwError,
@@ -84,10 +83,10 @@ export class LoginService {
 
   private debugEnabled(): boolean {
     return (
-      !environment.production &&
-      environment.enableDebugTools === true &&
-      this.isBrowser() &&
-      (window as Window & { __DBG_ON__?: boolean }).__DBG_ON__ === true
+      !environment.production
+      && environment.enableDebugTools === true
+      && this.isBrowser()
+      && (window as Window & { __DBG_ON__?: boolean }).__DBG_ON__ === true
     );
   }
 
@@ -159,10 +158,10 @@ export class LoginService {
     };
 
     return (
-      !environment.production &&
-      config.useEmulators === true &&
-      !!config.emulators?.auth?.host &&
-      !!config.emulators?.auth?.port
+      !environment.production
+      && config.useEmulators === true
+      && !!config.emulators?.auth?.host
+      && !!config.emulators?.auth?.port
     );
   }
 
@@ -216,9 +215,9 @@ export class LoginService {
         ? browserSessionPersistence
         : inMemoryPersistence;
 
-    const trySet$ = (persistence: Persistence) =>
+    const trySet$ = (persistence: Persistence): Observable<void> =>
       this.ctx
-        .deferPromise$(() => setPersistence(this.auth, persistence))
+        .deferPromise$<void>(() => setPersistence(this.auth, persistence))
         .pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
           map(() => void 0)
@@ -274,8 +273,8 @@ export class LoginService {
       uid: user.uid,
       email: user.email ?? '',
       nickname:
-        user.displayName ??
-        (user.email ? user.email.split('@')[0] : 'Usuário'),
+        user.displayName
+        ?? (user.email ? user.email.split('@')[0] : 'Usuário'),
       emailVerified: user.emailVerified === true,
       isSubscriber: false,
       profileCompleted: undefined,
@@ -371,9 +370,9 @@ export class LoginService {
     }
 
     if (
-      !this.isAuthEmuActive() &&
-      typeof navigator !== 'undefined' &&
-      navigator.onLine === false
+      !this.isAuthEmuActive()
+      && typeof navigator !== 'undefined'
+      && navigator.onLine === false
     ) {
       return of({
         success: false,
@@ -446,7 +445,7 @@ export class LoginService {
     }
 
     return this.ctx
-      .deferPromise$(() =>
+      .deferPromise$<void>(() =>
         sendPasswordResetEmailFn(this.auth, safeEmail)
       )
       .pipe(
@@ -488,7 +487,7 @@ export class LoginService {
     }
 
     return this.ctx
-      .deferPromise$(() =>
+      .deferPromise$<void>(() =>
         confirmPasswordReset(this.auth, safeCode, safePassword)
       )
       .pipe(
@@ -600,11 +599,11 @@ export class LoginService {
     return throwError(() => error);
   }
 
-  private reportAndRethrow$<T>(
+  private reportAndRethrow$(
     error: unknown,
     operation: string,
     extra?: Record<string, unknown>
-  ): Observable<T> {
+  ): Observable<never> {
     this.reportSilent(
       `Falha em ${operation}.`,
       error,
