@@ -8,6 +8,7 @@
 import {
   executeAccountDataDeletionDomains as executeCoreAccountDataDeletionDomains,
   type AccountDataDeletionAdapter,
+  type AccountDataDeletionDomainExecution,
   type AccountDataDeletionExecutionSummary,
   type ExecuteAccountDataDeletionInput,
 } from './account-data-deletion.executor';
@@ -15,6 +16,13 @@ import {
   executeOwnedMediaAndStorageDomain,
   type AccountOwnedMediaDeletionAdapter,
 } from './account-owned-media-deletion.executor';
+import {
+  executeRelationshipEdgeRetentionDomain,
+  type AccountRelationshipEdgeRetentionAdapter,
+} from './account-relationship-edge-retention.executor';
+import {
+  FirestoreAccountRelationshipEdgeRetentionAdapter,
+} from './account-relationship-edge-retention.firestore';
 import {
   executeSharedMessageAnonymizationDomain,
   type AccountSharedMessageAnonymizationAdapter,
@@ -34,12 +42,14 @@ export type AccountDataDeletionOrchestratorAdapter =
 
 const defaultSharedPublicationAdapter =
   new FirestoreAccountSharedPublicationAnonymizationAdapter();
+const defaultRelationshipEdgeAdapter =
+  new FirestoreAccountRelationshipEdgeRetentionAdapter();
 
 export async function executeAccountDataDeletionDomains(
   adapter: AccountDataDeletionOrchestratorAdapter,
   input: ExecuteAccountDataDeletionInput,
-  sharedPublicationAdapter: AccountSharedPublicationAnonymizationAdapter =
-  defaultSharedPublicationAdapter
+  sharedPublicationAdapter?: AccountSharedPublicationAnonymizationAdapter,
+  relationshipEdgeAdapter?: AccountRelationshipEdgeRetentionAdapter
 ): Promise<AccountDataDeletionExecutionSummary> {
   const sharedMessages = await executeSharedMessageAnonymizationDomain(
     adapter,
@@ -51,7 +61,7 @@ export async function executeAccountDataDeletionDomains(
   );
   const sharedPublications =
     await executeSharedPublicationAnonymizationDomain(
-      sharedPublicationAdapter,
+      sharedPublicationAdapter ?? defaultSharedPublicationAdapter,
       {
         uid: input.uid,
         pageSize: input.pageSize,
@@ -62,15 +72,34 @@ export async function executeAccountDataDeletionDomains(
     adapter,
     input
   );
+  const relationshipRetention = await executeRelationshipEdgeRetentionDomain(
+    relationshipEdgeAdapter ?? defaultRelationshipEdgeAdapter,
+    {
+      uid: input.uid,
+      pageSize: input.pageSize,
+      maxPagesPerDirection: input.maxPagesPerDomain,
+    }
+  );
+  const legacyRelationship = coreSummary.results.find(
+    (result) => result.domain === 'relationship_edges'
+  );
+  const relationshipEdges = mergeRelationshipEdgeResults(
+    legacyRelationship,
+    relationshipRetention
+  );
   const ownedMedia = await executeOwnedMediaAndStorageDomain(adapter, {
     uid: input.uid,
     pageSize: input.pageSize,
     maxPagesPerStep: input.maxPagesPerDomain,
   });
+  const coreResultsWithoutRelationship = coreSummary.results.filter(
+    (result) => result.domain !== 'relationship_edges'
+  );
   const results = [
     sharedMessages,
     sharedPublications,
-    ...coreSummary.results,
+    ...coreResultsWithoutRelationship,
+    relationshipEdges,
     ownedMedia,
   ];
   const completedDomains = results
@@ -81,5 +110,57 @@ export async function executeAccountDataDeletionDomains(
     ...coreSummary,
     completedDomains: [...new Set(completedDomains)],
     results,
+  };
+}
+
+function mergeRelationshipEdgeResults(
+  legacy: AccountDataDeletionDomainExecution | undefined,
+  retention: AccountDataDeletionDomainExecution
+): AccountDataDeletionDomainExecution {
+  if (!legacy) return retention;
+
+  const details = {
+    ...(legacy.details ?? {}),
+    ...(retention.details ?? {}),
+  };
+  const common = {
+    domain: 'relationship_edges' as const,
+    processed: legacy.processed + retention.processed,
+    pages: legacy.pages + retention.pages,
+    details,
+  };
+
+  if (legacy.status === 'failed' || legacy.status === 'partial') {
+    return {
+      ...common,
+      status: legacy.status,
+      ...(legacy.blocker ? { blocker: legacy.blocker } : {}),
+      ...(legacy.errorCode ? { errorCode: legacy.errorCode } : {}),
+    };
+  }
+
+  if (retention.status !== 'completed') {
+    return {
+      ...common,
+      status: retention.status,
+      ...(retention.blocker ? { blocker: retention.blocker } : {}),
+      ...(retention.errorCode ? { errorCode: retention.errorCode } : {}),
+    };
+  }
+
+  if (
+    legacy.status === 'blocked' &&
+    legacy.blocker !== 'block-event-retention-contract-required'
+  ) {
+    return {
+      ...common,
+      status: 'blocked',
+      ...(legacy.blocker ? { blocker: legacy.blocker } : {}),
+    };
+  }
+
+  return {
+    ...common,
+    status: 'completed',
   };
 }
