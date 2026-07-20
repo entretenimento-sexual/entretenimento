@@ -13,7 +13,7 @@
 // - a política é serializável e registrada no tombstone para auditoria/retry.
 // -----------------------------------------------------------------------------
 
-export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 8;
+export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 9;
 
 export type AccountDataDomain =
   | 'public_profile'
@@ -138,9 +138,11 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     domain: 'relationship_edges',
     disposition: 'unlink',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Amizades já são desvinculadas; bloqueios e seus eventos ainda exigem contrato de retenção de segurança.',
+    reason:
+      'Amizades são desvinculadas; bloqueios e eventos são preservados em ' +
+      'auditoria interna com pseudonimização do usuário excluído.',
   },
   {
     domain: 'friend_requests',
