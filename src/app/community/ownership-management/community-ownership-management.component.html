@@ -1,0 +1,164 @@
+<!-- src/app/community/ownership-management/community-ownership-management.component.html -->
+@if (state$ | async; as state) {
+  @if (action$ | async; as action) {
+    <section
+      class="community-ownership-management"
+      aria-labelledby="community-ownership-management-title"
+    >
+      <header class="community-ownership-management__header">
+        <div>
+          <span class="community-ownership-management__eyebrow">Proprietário</span>
+          <h2 id="community-ownership-management-title">Propriedade e encerramento</h2>
+        </div>
+
+        <button
+          type="button"
+          class="community-ownership-management__refresh"
+          [disabled]="state.status === 'loading' || action.status === 'loading'"
+          aria-label="Atualizar membros elegíveis à transferência"
+          (click)="refresh()"
+        >
+          <i
+            class="fas {{ state.status === 'loading' ? 'fa-spinner fa-spin' : 'fa-rotate' }}"
+            aria-hidden="true"
+          ></i>
+        </button>
+      </header>
+
+      <p class="community-ownership-management__intro">
+        Transfira a propriedade antes de sair ou arquive a Comunidade para encerrar
+        as interações sem apagar o histórico.
+      </p>
+
+      @if (confirmation(); as pendingConfirmation) {
+        <section
+          class="community-ownership-management__confirmation"
+          role="alertdialog"
+          aria-modal="false"
+          aria-labelledby="community-ownership-confirmation-title"
+          aria-describedby="community-ownership-confirmation-description"
+        >
+          <i
+            class="fas {{ pendingConfirmation.kind === 'archive' ? 'fa-box-archive' : 'fa-right-left' }}"
+            aria-hidden="true"
+          ></i>
+
+          <div>
+            <h3 id="community-ownership-confirmation-title">
+              {{ confirmationTitle(pendingConfirmation) }}
+            </h3>
+            <p id="community-ownership-confirmation-description">
+              {{ confirmationDescription(pendingConfirmation) }}
+            </p>
+          </div>
+
+          <div class="community-ownership-management__confirmation-actions">
+            <button
+              type="button"
+              class="is-secondary"
+              [disabled]="action.status === 'loading'"
+              (click)="cancelConfirmation()"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              class="{{ pendingConfirmation.kind === 'archive' ? 'is-danger' : 'is-primary' }}"
+              [disabled]="action.status === 'loading'"
+              (click)="confirmAction()"
+            >
+              @if (action.status === 'loading') {
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              } @else {
+                <i class="fas fa-check" aria-hidden="true"></i>
+              }
+              <span>Confirmar</span>
+            </button>
+          </div>
+        </section>
+      } @else {
+        <section
+          class="community-ownership-management__transfer"
+          aria-labelledby="community-ownership-transfer-title"
+        >
+          <div class="community-ownership-management__section-heading">
+            <div>
+              <h3 id="community-ownership-transfer-title">Transferir propriedade</h3>
+              <p>Somente membros ativos e com conta elegível aparecem nesta lista.</p>
+            </div>
+          </div>
+
+          @if (state.status === 'loading') {
+            <div class="community-ownership-management__state" role="status" aria-live="polite">
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Carregando membros elegíveis...</span>
+            </div>
+          } @else if (state.status === 'error') {
+            <div class="community-ownership-management__state" role="alert">
+              <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+              <span>Lista de transferência indisponível.</span>
+            </div>
+          } @else if (state.items.length === 0) {
+            <div class="community-ownership-management__state" role="status">
+              <i class="fas fa-user-shield" aria-hidden="true"></i>
+              <span>Nenhum membro pode assumir a propriedade agora.</span>
+            </div>
+          } @else {
+            <ul class="community-ownership-management__list">
+              @for (candidate of state.items; track candidate.uid) {
+                <li>
+                  <span class="community-ownership-management__avatar" aria-hidden="true">
+                    @if (candidate.avatarUrl) {
+                      <img [src]="candidate.avatarUrl" alt="" />
+                    } @else {
+                      <i class="fas fa-user" aria-hidden="true"></i>
+                    }
+                  </span>
+
+                  <div class="community-ownership-management__copy">
+                    <strong>{{ candidate.label }}</strong>
+                    <span>{{ roleLabel(candidate.role) }}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    class="community-ownership-management__transfer-action"
+                    [disabled]="action.status === 'loading'"
+                    [attr.aria-label]="'Transferir propriedade para ' + candidate.label"
+                    (click)="requestTransfer(candidate)"
+                  >
+                    <i class="fas fa-right-left" aria-hidden="true"></i>
+                    <span>Transferir</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        <section
+          class="community-ownership-management__danger-zone"
+          aria-labelledby="community-ownership-archive-title"
+        >
+          <div>
+            <h3 id="community-ownership-archive-title">Arquivar Comunidade</h3>
+            <p>
+              Remove a Comunidade da descoberta e bloqueia novas interações, mas
+              preserva documentos e auditoria.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            [disabled]="action.status === 'loading'"
+            (click)="requestArchive()"
+          >
+            <i class="fas fa-box-archive" aria-hidden="true"></i>
+            <span>Arquivar</span>
+          </button>
+        </section>
+      }
+    </section>
+  }
+}
