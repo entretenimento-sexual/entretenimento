@@ -6,7 +6,7 @@
 // próprio usuário. Mensagens, denúncias, evidências e registros financeiros não
 // são tocados por este adaptador.
 // -----------------------------------------------------------------------------
-import { db, FieldValue, storage } from '../firebaseApp';
+import { db, storage } from '../firebaseApp';
 import { deletePublishedPhotoAssetOrQueue } from '../media/application/published-photo-asset.service';
 import { deletePublishedVideoAssetOrQueue } from '../media/application/published-video-asset.service';
 import { extractOwnedPrivatePhotoPath } from '../media/application/photo-storage-path';
