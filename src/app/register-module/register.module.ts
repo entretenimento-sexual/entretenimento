@@ -24,6 +24,8 @@ import { WelcomeComponent } from './welcome/welcome.component';
 
 import { RegisterErrorMessagePipe } from '../shared/pipes/register-error-message.pipe';
 import { EmailInputModalComponent } from '../authentication/email-input-modal/email-input-modal.component';
+import { ActionStateDirective } from '../shared/action-state/action-state.directive';
+import { FormValidationFocusDirective } from '../shared/form-validation-focus/form-validation-focus.directive';
 
 @NgModule({
   declarations: [
@@ -38,6 +40,8 @@ import { EmailInputModalComponent } from '../authentication/email-input-modal/em
     RegisterRoutingModule,
     RegisterErrorMessagePipe,
     EmailInputModalComponent,
+    ActionStateDirective,
+    FormValidationFocusDirective,
   ]
 })
 export class RegisterModule { }
