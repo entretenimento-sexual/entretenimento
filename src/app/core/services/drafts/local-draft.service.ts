@@ -216,7 +216,8 @@ export class LocalDraftService {
   private read(key: string): string | null {
     try {
       if (typeof localStorage !== 'undefined') {
-        return localStorage.getItem(key);
+        const storedValue = localStorage.getItem(key);
+        if (storedValue !== null) return storedValue;
       }
     } catch {
       // Usa fallback em memória quando o storage está bloqueado.
