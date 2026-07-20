@@ -1,134 +1,131 @@
-/* src\app\chat-module\modals\base-modal\base-modal.component.css */
-/* Overlay para escurecer o fundo */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.7);  /* Fundo mais escuro e sofisticado */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
+/* src/app/chat-module/modals/base-modal/base-modal.component.css */
+:host {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
 }
 
-/* Contêiner do modal */
-.modal-content {
-  background-color: #ffffff;
-  border-radius: 16px;
-  padding: 30px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-  max-width: 600px;
-  min-width: 320px;
-  width: 90%;
-  color: #333333;
-  animation: fadeIn 0.3s ease-out;
-  display: flex;
-  flex-direction: column;
+.modal-shell {
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-block-size: min(88dvh, 52rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgba(17, 24, 39, 0.14));
+  border-radius: var(--radius-xl, 1rem);
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #1f2937);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.18);
 }
 
-/* Cabeçalho do modal */
 .modal-header {
+  min-inline-size: 0;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 15px;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: clamp(0.9rem, 3vw, 1.2rem);
+  border-bottom: 1px solid var(--surface-border, rgba(17, 24, 39, 0.14));
+  background: var(--surface-color, #fff);
 }
 
 .modal-header h2 {
-  font-size: 1.8rem;
-  color: #333333;
-  font-weight: bold;
+  min-inline-size: 0;
   margin: 0;
+  overflow-wrap: anywhere;
+  color: inherit;
+  font-size: clamp(1.05rem, 4vw, 1.35rem);
+  font-weight: 800;
+  line-height: 1.25;
 }
 
 .close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
+  inline-size: var(--tap-target, 2.75rem);
+  block-size: var(--tap-target, 2.75rem);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  font: inherit;
+  font-size: 1.65rem;
+  line-height: 1;
   cursor: pointer;
-  color: #999999;
-  transition: transform 0.2s ease, color 0.3s ease;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
 }
 
 .close-btn:hover {
-  transform: scale(1.2);
-  color: #ff4f4f;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 10%,
+    transparent
+  );
+  color: var(--primary-color, #d83768);
 }
 
-/* Corpo do modal */
+.close-btn:active {
+  transform: scale(0.96);
+}
+
+.close-btn:focus-visible {
+  outline: 3px solid var(--focus-ring, var(--primary-color, #d83768));
+  outline-offset: 2px;
+}
+
 .modal-body {
-  font-size: 1rem;
-  line-height: 1.6;
-  color: #555555;
-  margin-bottom: 25px;
-  overflow-y: auto;
-  max-height: 50vh;  /* Limite para rolagem */
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: clamp(0.9rem, 3vw, 1.2rem);
+  color: inherit;
+  line-height: 1.5;
+  scrollbar-gutter: stable;
 }
 
-/* Rodapé do modal */
 .modal-footer {
-justify-content: space-between !important;
-  margin-top: 20px;
-  padding-top: 15px;
-  border-top: 1px solid #ddd;  /* Linha para separar o rodapé */
-
+  min-inline-size: 0;
+  padding: 0 clamp(0.9rem, 3vw, 1.2rem)
+    calc(clamp(0.9rem, 3vw, 1.2rem) + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-color, #fff);
 }
 
-/* Botões */
-.modal-footer .btn {
-  font-size: 1rem;
-  font-weight: bold;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.2s ease, background-color 0.3s ease;
-  border: none;
+.modal-footer:empty {
+  display: none;
 }
 
-/* Botão principal */
-.modal-footer .btn-primary {
-  background-color: #ff4f4f;
-  color: #fff;
-}
-
-.modal-footer .btn-primary:hover {
-  background-color: #ff3333;
-  transform: scale(1.05);
-}
-
-/* Botão secundário */
-.modal-footer .btn-secondary {
-  background-color: #f4f4f4;
-  color: #333;
-}
-
-.modal-footer .btn-secondary:hover {
-  background-color: #e6e6e6;
-  transform: scale(1.05);
-}
-
-/* Botão de cancelar ou excluir */
-.modal-footer .btn-danger {
-  background-color: #dc3545;
-  color: #fff;
-}
-
-.modal-footer .btn-danger:hover {
-  background-color: #c82333;
-  transform: scale(1.05);
-}
-
-/* Responsividade */
-@media (max-width: 480px) {
-  .modal-footer {
-    flex-direction: column;    /* Empilha os botões verticalmente em telas pequenas */
-    gap: 15px;    /* Espaçamento adicional entre botões */
+@media (max-width: 30rem) {
+  .modal-shell {
+    max-block-size: calc(100dvh - 1rem - env(safe-area-inset-top, 0px));
+    border-radius: var(--radius-lg, 0.875rem);
   }
 
-  .modal-footer .btn {
-    width: 100%;    /* Botões ocupam toda a largura */
+  .modal-header,
+  .modal-body {
+    padding-inline: 0.85rem;
+  }
+
+  .modal-footer {
+    padding-inline: 0.85rem;
+  }
+}
+
+:host-context(.high-contrast) .modal-shell,
+:host-context(.high-contrast) .close-btn {
+  border: 2px solid var(--text-color, #111);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .close-btn {
+    transition: none;
   }
 }
