@@ -3,6 +3,7 @@ import { Component, NO_ERRORS_SCHEMA } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
+import { By } from '@angular/platform-browser';
 import { firstValueFrom } from 'rxjs';
 import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 
@@ -77,6 +78,20 @@ describe('AppComponent', () => {
   it(`should have title 'entretenimento'`, () => {
     const fixture = TestBed.createComponent(AppComponent);
     expect(fixture.componentInstance.title).toBe('entretenimento');
+  });
+
+  it('expõe um link de salto para o conteúdo roteado', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+
+    const skipLink = fixture.debugElement.query(By.css('.skip-link'))
+      .nativeElement as HTMLAnchorElement;
+    const target = fixture.debugElement.query(By.css('#route-content'))
+      .nativeElement as HTMLElement;
+
+    expect(skipLink.getAttribute('href')).toBe('#route-content');
+    expect(skipLink.textContent?.trim()).toBe('Ir para o conteúdo principal');
+    expect(target.getAttribute('tabindex')).toBe('-1');
   });
 
   it('ngOnInit should start orchestrators and keep footer visibility route-aware', async () => {
