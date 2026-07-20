@@ -1,80 +1,165 @@
 /* src/app/shared/components-globais/upload-photo/upload-photo.component.css */
+:host {
+  display: block;
+  color: var(--text-color);
+}
+
 .upload-modal-content {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 5%;
-  background-color: #f9f9f9;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 32rem);
+  padding: 1.25rem;
+  box-sizing: border-box;
+  border: 1px solid var(--surface-border);
+  border-radius: 1.25rem;
+  background: var(--surface-color);
+  color: var(--text-color);
+  box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 16%);
+}
+
+.upload-modal-content h2 {
+  margin: 0;
+  padding-right: 3rem;
+  font-size: clamp(1.15rem, 4vw, 1.4rem);
+  line-height: 1.2;
 }
 
 .btn-close {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  background: none;
-  border: none;
-  font-size: 24px;
-  font-weight: bold;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
   cursor: pointer;
-  color: #575757;
+}
+
+.btn-close:hover:not(:disabled),
+.btn-close:focus-visible {
+  background: var(--header-hover-bg);
+}
+
+.btn-close:focus-visible,
+.file-input:focus-visible,
+.file-input-label:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.file-input-label {
+  font-weight: 800;
 }
 
 .file-input {
+  display: block;
   width: 100%;
-  padding: 6%;
-  margin-bottom: 20px;
-  border-radius: 10px;
-  border: 2px solid #b6b6b6;
-  font-size: 16px;
+  min-height: var(--tap-target, 44px);
+  padding: 0.75rem;
+  box-sizing: border-box;
+  border: 1px dashed color-mix(in oklab, var(--primary-color) 52%, var(--surface-border));
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--primary-color) 5%, var(--surface-color));
+  color: var(--text-color);
+  font: inherit;
+  cursor: pointer;
 }
 
-#selectFotoComponent {
-  padding-top: 20px;
-  font-size: 18px;
-  font-weight: bold;
-  margin-bottom: 20px;
-  color: #575757;
-  text-align: center;
+.file-input::file-selector-button {
+  min-height: 2.5rem;
+  margin-right: 0.75rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--primary-color);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.upload-photo-help {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
 .loading-spinner {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 1050;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  background-color: rgba(255, 255, 255, 0.8);
-  padding: 20px;
-  border-radius: 10px;
+  gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--primary-color) 8%, var(--surface-color));
+}
+
+.loading-spinner p {
+  margin: 0;
+  font-weight: 750;
 }
 
 .spinner {
-  border: 8px solid #f3f3f3;
-  border-top: 8px solid #3498db;
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 3px solid color-mix(in oklab, var(--primary-color) 18%, transparent);
+  border-top-color: var(--primary-color);
   border-radius: 50%;
-  width: 60px;
-  height: 60px;
-  animation: spin 1.5s linear infinite;
+  animation: upload-photo-spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
+.alert {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 0.9rem;
+  line-height: 1.4;
+}
 
-  100% {
+@keyframes upload-photo-spin {
+  to {
     transform: rotate(360deg);
   }
 }
 
-/* Considerar sempre futuras versões .apk, mobile,
-Tentativa de inspiração no melhor das grandes plataformas e a super, ultra, mega, responsividade.
-De forma que considere das menores e diversas telas de smartphones,
-diversos tipos de monitores, de notebook, e telas gigantes de televisões monitores,
-tanto em retrato ou paisagem. */
+@media (max-width: 480px) {
+  .upload-modal-content {
+    width: 100%;
+    padding: 1rem;
+    border-radius: 1rem;
+  }
+
+  .file-input::file-selector-button {
+    display: block;
+    width: 100%;
+    margin: 0 0 0.65rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.6s;
+  }
+}
+
+html.high-contrast .upload-modal-content,
+html.high-contrast .file-input,
+html.high-contrast .btn-close,
+html.high-contrast .loading-spinner,
+html.high-contrast .alert {
+  border: 2px solid currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: none !important;
+}
