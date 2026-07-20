@@ -1,0 +1,122 @@
+:host {
+  display: contents;
+}
+
+.global-operation-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 3000;
+  height: 3px;
+  overflow: hidden;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #d64d4d) 16%,
+    transparent
+  );
+}
+
+.global-operation-progress span {
+  display: block;
+  width: 34%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary-color, #d64d4d);
+  animation: global-operation-progress 1.15s ease-in-out infinite;
+}
+
+.network-notice {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2900;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding:
+    calc(10px + env(safe-area-inset-top, 0px))
+    max(14px, env(safe-area-inset-right, 0px))
+    10px
+    max(14px, env(safe-area-inset-left, 0px));
+  border-block-end: 1px solid currentColor;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.network-notice--offline {
+  color: #713f12;
+  background: #fef3c7;
+}
+
+.network-notice--online {
+  color: #14532d;
+  background: #dcfce7;
+}
+
+.network-notice__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 950;
+}
+
+.network-notice strong,
+.network-notice p {
+  display: block;
+  margin: 0;
+}
+
+.network-notice strong {
+  font-size: 0.92rem;
+  font-weight: 900;
+}
+
+.network-notice p {
+  margin-block-start: 2px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+@keyframes global-operation-progress {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  50% {
+    transform: translateX(115%);
+  }
+
+  100% {
+    transform: translateX(310%);
+  }
+}
+
+@media (min-width: 768px) {
+  .network-notice {
+    padding-inline: max(24px, env(safe-area-inset-left, 0px));
+  }
+
+  .network-notice p {
+    font-size: 0.86rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .global-operation-progress span {
+    width: 100%;
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .global-operation-progress,
+  .network-notice {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+}
