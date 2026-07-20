@@ -104,7 +104,7 @@ export const getAccountDeletionOperations = onCall<unknown>(
     return {
       items: selectedItems,
       metrics,
-      nextCursor: hasMore
+      nextCursor: hasMore && cursorItem
         ? cursorForAccountDeletionOperation(cursorItem)
         : null,
       hasMore,
