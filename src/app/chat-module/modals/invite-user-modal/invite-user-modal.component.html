@@ -1,81 +1,178 @@
-<!-- src\app\chat-module\invite-user-modal\invite-user-modal.component.html -->
-<app-base-modal title="Convidar Usuários" (closeModal)="dialogRef.close()">
-  <!-- Barra de busca -->
-  <div class="search-container">
-    <input type="text" [(ngModel)]="searchTerm" (input)="onFilterChange()"
-      placeholder="Digite um nome para buscar usuários..." class="input-field" />
-      <span class="search-icon" (click)="onFilterChange()">🔍</span>
-    </div>
+<!-- src/app/chat-module/modals/invite-user-modal/invite-user-modal.component.html -->
+<app-base-modal title="Convidar usuários" (closeModal)="dialogRef.close()">
+  <div body-content>
+    <form
+      class="invite-filters"
+      role="search"
+      (ngSubmit)="onFilterChange()"
+    >
+      <div class="filter-field">
+        <label for="invite-search">Buscar pessoas</label>
 
-    <!-- Filtros adicionais -->
-    <div class="filters-container">
-      <label class="region-container">
-        Região:
-        <select [(ngModel)]="selectedRegion.uf" (change)="onRegionChange()" class="input-field"
-          [disabled]="!isRegionFieldEditable()">
-          <option value="">Selecione o Estado</option>
-          @for (uf of availableStates; track uf) {
-            <option [value]="uf">{{ uf }}</option>
-          }
-        </select>
+        <div class="search-container">
+          <input
+            id="invite-search"
+            type="search"
+            [(ngModel)]="searchTerm"
+            name="searchTerm"
+            (input)="onFilterChange()"
+            placeholder="Digite um nome"
+            class="input-field input-field--search"
+            autocomplete="off"
+            aria-describedby="invite-search-hint"
+          />
 
-        <select [(ngModel)]="selectedRegion.city" (change)="onFilterChange()" class="input-field"
-          [disabled]="!isRegionFieldEditable() || !selectedRegion.uf">
-          <option value="">Selecione a Cidade</option>
-          @for (city of availableCities; track city) {
-            <option [value]="city">{{ city }}</option>
-          }
-        </select>
-      </label>
+          <button
+            type="submit"
+            class="search-button"
+            aria-label="Buscar usuários"
+            title="Buscar"
+          >
+            <span aria-hidden="true">🔍</span>
+          </button>
+        </div>
 
-      <label>
-        Gênero:
-        <select [(ngModel)]="selectedGender" (change)="onFilterChange()" class="input-field">
-          <option value="">Todos</option>
-          @for (gender of availableGenders; track gender) {
-            <option [value]="gender">
-              {{ gender | titlecase }}
-            </option>
-          }
-        </select>
-      </label>
-    </div>
+        <p id="invite-search-hint" class="field-hint">
+          Use o nome, o gênero ou a região para refinar a lista.
+        </p>
+      </div>
 
-    <!-- Resultados -->
-    @if (!isLoading && availableUsers.length === 0 && !(searchTerm || selectedGender || selectedRegion.uf || selectedRegion.city)) {
-      <div
-        >
-        <p>Use os filtros acima para encontrar usuários.</p>
+      <fieldset class="filters-container">
+        <legend>Filtros de busca</legend>
+
+        <div class="filters-grid">
+          <div class="filter-field">
+            <label for="invite-region-uf">Estado</label>
+            <select
+              id="invite-region-uf"
+              [(ngModel)]="selectedRegion.uf"
+              name="selectedRegionUf"
+              (change)="onRegionChange()"
+              class="input-field"
+              [disabled]="!isRegionFieldEditable()"
+            >
+              <option value="">Todos os estados</option>
+              @for (uf of availableStates; track uf) {
+                <option [value]="uf">{{ uf }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="filter-field">
+            <label for="invite-region-city">Cidade</label>
+            <select
+              id="invite-region-city"
+              [(ngModel)]="selectedRegion.city"
+              name="selectedRegionCity"
+              (change)="onFilterChange()"
+              class="input-field"
+              [disabled]="!isRegionFieldEditable() || !selectedRegion.uf"
+            >
+              <option value="">Todas as cidades</option>
+              @for (city of availableCities; track city) {
+                <option [value]="city">{{ city }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="filter-field">
+            <label for="invite-gender">Gênero</label>
+            <select
+              id="invite-gender"
+              [(ngModel)]="selectedGender"
+              name="selectedGender"
+              (change)="onFilterChange()"
+              class="input-field"
+            >
+              <option value="">Todos</option>
+              @for (gender of availableGenders; track gender) {
+                <option [value]="gender">
+                  {{ gender | titlecase }}
+                </option>
+              }
+            </select>
+          </div>
+        </div>
+      </fieldset>
+    </form>
+
+    @if (isLoading) {
+      <div class="result-state" role="status" aria-live="polite">
+        Buscando usuários...
       </div>
     }
-    @if (!isLoading && availableUsers.length === 0 && (searchTerm || selectedGender || selectedRegion.uf || selectedRegion.city)) {
-      <div
-        >
-        <p>Nenhum usuário encontrado para os critérios aplicados.</p>
+
+    @if (
+      !isLoading &&
+      availableUsers.length === 0 &&
+      !(searchTerm || selectedGender || selectedRegion.uf || selectedRegion.city)
+    ) {
+      <div class="result-state" role="status">
+        Use os filtros acima para encontrar usuários.
+      </div>
+    }
+
+    @if (
+      !isLoading &&
+      availableUsers.length === 0 &&
+      (searchTerm || selectedGender || selectedRegion.uf || selectedRegion.city)
+    ) {
+      <div class="result-state" role="status" aria-live="polite">
+        Nenhum usuário encontrado para os critérios aplicados.
       </div>
     }
 
     @if (availableUsers.length > 0) {
-      <div class="user-results">
-        @for (user of availableUsers; track user) {
-          <div class="user-card">
-            <img [src]="user.photoURL || defaultAvatar" alt="{{ user.nickname }}" class="avatar" />
+      <div
+        class="user-results"
+        role="list"
+        aria-label="Usuários disponíveis para convite"
+      >
+        @for (user of availableUsers; track user.uid || user.nickname) {
+          <article class="user-card" role="listitem">
+            <img
+              [src]="user.photoURL || defaultAvatar"
+              [alt]="'Foto de ' + user.nickname"
+              class="avatar"
+              width="50"
+              height="50"
+            />
+
             <div class="user-details">
               <span class="nickname">{{ user.nickname }}</span>
-              <button class="invite-btn" (click)="toggleUserSelection(user)" [class.selected]="user.selected">
+
+              <button
+                type="button"
+                class="invite-btn"
+                (click)="toggleUserSelection(user)"
+                [class.selected]="user.selected"
+                [attr.aria-pressed]="user.selected ? 'true' : 'false'"
+              >
                 {{ user.selected ? 'Selecionado' : 'Selecionar' }}
               </button>
             </div>
-          </div>
+          </article>
         }
       </div>
     }
+  </div>
 
-    <!-- Ações -->
-    <div class="footer-actions">
-      <button class="btn btn-secondary" (click)="dialogRef.close()">Cancelar</button>
-      <button class="btn btn-primary" [disabled]="!isAnyUserSelected()" (click)="confirmSelection()">
-        Enviar Convites
-      </button>
-    </div>
-  </app-base-modal>
+  <div class="footer-actions">
+    <button
+      type="button"
+      class="btn btn-secondary"
+      (click)="dialogRef.close()"
+    >
+      Cancelar
+    </button>
+
+    <button
+      type="button"
+      class="btn btn-primary"
+      [disabled]="!isAnyUserSelected()"
+      (click)="confirmSelection()"
+    >
+      Enviar convites
+    </button>
+  </div>
+</app-base-modal>
