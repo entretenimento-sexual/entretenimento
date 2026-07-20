@@ -39,7 +39,7 @@ export async function executeAccountDataDeletionDomains(
   adapter: AccountDataDeletionOrchestratorAdapter,
   input: ExecuteAccountDataDeletionInput,
   sharedPublicationAdapter: AccountSharedPublicationAnonymizationAdapter =
-    defaultSharedPublicationAdapter
+  defaultSharedPublicationAdapter
 ): Promise<AccountDataDeletionExecutionSummary> {
   const sharedMessages = await executeSharedMessageAnonymizationDomain(
     adapter,
