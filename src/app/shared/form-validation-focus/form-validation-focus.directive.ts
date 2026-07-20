@@ -125,7 +125,7 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
 
       if (target) {
         target.focus({ preventScroll: true });
-        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        this.scrollElementIntoView(target, 'center');
         return;
       }
 
@@ -134,8 +134,16 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
         this.renderer.setAttribute(formElement, 'tabindex', '-1');
       }
       formElement.focus({ preventScroll: true });
-      formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      this.scrollElementIntoView(formElement, 'start');
     }, 0);
+  }
+
+  private scrollElementIntoView(
+    element: HTMLElement,
+    block: ScrollLogicalPosition
+  ): void {
+    if (typeof element.scrollIntoView !== 'function') return;
+    element.scrollIntoView({ behavior: 'smooth', block });
   }
 
   private findControlElement(controlName: string | null): HTMLElement | null {
@@ -176,7 +184,8 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
     if (control.disabled || control.valid) return null;
 
     if (control instanceof FormGroup) {
-      for (const [name, child] of Object.entries(control.controls)) {
+      for (const name of Object.keys(control.controls)) {
+        const child = control.controls[name];
         const result = this.findFirstInvalidControlName(child, name);
         if (result) return result;
       }
@@ -198,8 +207,8 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
     if (control.disabled || control.valid) return 0;
 
     if (control instanceof FormGroup) {
-      return Object.values(control.controls).reduce(
-        (total, child) => total + this.countInvalidControls(child),
+      return Object.keys(control.controls).reduce(
+        (total, name) => total + this.countInvalidControls(control.controls[name]),
         0
       );
     }
