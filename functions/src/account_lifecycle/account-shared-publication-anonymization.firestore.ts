@@ -14,7 +14,6 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from '../media/application/media-engagement-score';
-import { FirestoreAccountDataDeletionFullAdapter } from './account-shared-message-anonymization.firestore';
 import type { AccountSharedPublicationAnonymizationAdapter } from './account-shared-publication-anonymization.executor';
 
 interface PhotoCommentDocument {
@@ -47,8 +46,7 @@ interface PublicPhotoInteractionPath {
 
 const DELETED_USER_LABEL = 'Usuário excluído';
 
-export class FirestoreAccountDataDeletionSharedContentAdapter
-extends FirestoreAccountDataDeletionFullAdapter
+export class FirestoreAccountSharedPublicationAnonymizationAdapter
 implements AccountSharedPublicationAnonymizationAdapter
 {
   async anonymizePhotoCommentAuthorsPage(
