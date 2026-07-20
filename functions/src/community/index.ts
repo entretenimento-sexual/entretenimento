@@ -9,6 +9,11 @@ export {
   leaveCommunityMembership,
   reviewCommunityMembership,
 } from './community-membership-management.handler';
+export {
+  archiveCommunity,
+  getCommunityOwnershipCandidates,
+  transferCommunityOwnership,
+} from './community-ownership-lifecycle.handler';
 export { getCommunityPreview } from './get-community-preview.handler';
 export { requestCommunityMembership } from './request-community-membership.handler';
 export { syncCommunityUserIndex } from './sync-community-user-index.trigger';
