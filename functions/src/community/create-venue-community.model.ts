@@ -53,9 +53,17 @@ export interface CreateVenueCommunityResponse {
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{16,64}$/;
 
+function stripControlCharacters(value: unknown): string {
+  return [...String(value ?? '')]
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join('');
+}
+
 function normalizeText(value: unknown, maxLength: number): string {
-  return String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, '')
+  return stripControlCharacters(value)
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
