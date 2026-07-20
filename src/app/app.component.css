@@ -2,10 +2,46 @@
 :host {
   display: block;
   min-height: 100dvh;
+  min-width: 0;
 }
 
-/* Considerar sempre futuras versões .apk, mobile,
-Tentativa de inspiração no melhor das grandes plataformas e a super, ultra, mega, responsividade.
-De forma que considere das menores e diversas telas de smartphones,
-diversos tipos de monitores, de notebook, e telas gigantes de televisões monitores,
-tanto em retrato ou paisagem. */
+.skip-link {
+  position: fixed;
+  inset-block-start: max(0.5rem, env(safe-area-inset-top, 0px));
+  inset-inline-start: max(0.5rem, env(safe-area-inset-left, 0px));
+  z-index: 10000;
+  max-inline-size: calc(100vw - 1rem);
+  padding: 0.7rem 1rem;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #111827);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-decoration: none;
+  transform: translateY(calc(-100% - 1rem));
+  transition: transform 160ms ease;
+}
+
+.skip-link:focus-visible {
+  outline: 3px solid var(--focus-ring, var(--primary-color, #d83768));
+  outline-offset: 3px;
+  transform: translateY(0);
+}
+
+.route-content {
+  min-width: 0;
+  outline: none;
+}
+
+.route-content:focus-visible {
+  outline: 3px solid var(--focus-ring, var(--primary-color, #d83768));
+  outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skip-link {
+    transition: none;
+  }
+}
