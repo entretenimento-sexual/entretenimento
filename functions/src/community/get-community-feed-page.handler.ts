@@ -83,10 +83,10 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
       const cursorSnapshot = await feedCollection.doc(pageRequest.cursor).get();
       const cursorProjection = cursorSnapshot.exists
         ? sanitizeCommunityFeedProjection(
-            cursorSnapshot.id,
-            cursorSnapshot.data(),
-            now
-          )
+          cursorSnapshot.id,
+          cursorSnapshot.data(),
+          now
+        )
         : null;
 
       if (
