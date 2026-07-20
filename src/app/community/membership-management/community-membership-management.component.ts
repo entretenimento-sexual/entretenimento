@@ -30,7 +30,11 @@ import {
   CommunityMembershipReviewAction,
 } from '../data-access/community-membership.model';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
-import { CommunityPreviewSourceType } from '../data-access/community-preview.model';
+import {
+  CommunityPreviewSourceType,
+  CommunityPreviewViewerRole,
+} from '../data-access/community-preview.model';
+import { CommunityOwnershipManagementComponent } from '../ownership-management/community-ownership-management.component';
 
 type MembershipRequestsState =
   | { status: 'loading'; items: readonly CommunityMembershipRequestItem[] }
@@ -53,7 +57,7 @@ interface MembershipReviewCommand {
 @Component({
   selector: 'app-community-membership-management',
   standalone: true,
-  imports: [AsyncPipe, DatePipe],
+  imports: [AsyncPipe, DatePipe, CommunityOwnershipManagementComponent],
   templateUrl: './community-membership-management.component.html',
   styleUrl: './community-membership-management.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -67,6 +71,7 @@ export class CommunityMembershipManagementComponent {
 
   readonly communityId = input.required<string>();
   readonly sourceType = input<CommunityPreviewSourceType>('community');
+  readonly viewerRole = input<CommunityPreviewViewerRole | null>(null);
   readonly membershipChanged = output<void>();
 
   private readonly communityId$ = toObservable(this.communityId).pipe(
