@@ -11,7 +11,7 @@ import {
   MatDialogRef,
 } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import {
   afterEach,
   beforeEach,
@@ -31,12 +31,28 @@ describe('CreateRoomModalComponent', () => {
   let closeMock: ReturnType<typeof vi.fn>;
   let dialogOpenMock: ReturnType<typeof vi.fn>;
   let dialogResult: boolean;
+  let backdropClick$: Subject<MouseEvent>;
+  let keydownEvents$: Subject<KeyboardEvent>;
+  let dialogRefMock: {
+    close: ReturnType<typeof vi.fn>;
+    disableClose: boolean;
+    backdropClick: () => Subject<MouseEvent>;
+    keydownEvents: () => Subject<KeyboardEvent>;
+  };
 
   beforeEach(async () => {
     localStorage.clear();
     vi.useFakeTimers();
     closeMock = vi.fn();
     dialogResult = false;
+    backdropClick$ = new Subject<MouseEvent>();
+    keydownEvents$ = new Subject<KeyboardEvent>();
+    dialogRefMock = {
+      close: closeMock,
+      disableClose: false,
+      backdropClick: () => backdropClick$,
+      keydownEvents: () => keydownEvents$,
+    };
     dialogOpenMock = vi.fn(() => ({
       afterClosed: () => of(dialogResult),
     }));
@@ -52,7 +68,7 @@ describe('CreateRoomModalComponent', () => {
       ],
       providers: [
         { provide: Auth, useValue: { currentUser: { uid: 'room-owner' } } },
-        { provide: MatDialogRef, useValue: { close: closeMock } },
+        { provide: MatDialogRef, useValue: dialogRefMock },
         { provide: MAT_DIALOG_DATA, useValue: {} },
         { provide: MatDialog, useValue: { open: dialogOpenMock } },
         {
@@ -72,13 +88,16 @@ describe('CreateRoomModalComponent', () => {
 
   afterEach(() => {
     fixture.destroy();
+    backdropClick$.complete();
+    keydownEvents$.complete();
     vi.clearAllTimers();
     vi.useRealTimers();
     localStorage.clear();
   });
 
-  it('deve ser criado', () => {
+  it('deve ser criado e impedir fechamento silencioso do MatDialog', () => {
     expect(component).toBeTruthy();
+    expect(dialogRefMock.disableClose).toBe(true);
   });
 
   it('deve validar o mesmo limite de nome usado pelo backend', () => {
@@ -166,5 +185,25 @@ describe('CreateRoomModalComponent', () => {
 
     expect(dialogOpenMock).toHaveBeenCalled();
     expect(closeMock).toHaveBeenCalledWith(null);
+  });
+
+  it('encaminha Escape para a confirmação de descarte', () => {
+    component.roomForm.controls.roomName.setValue('Sala alterada');
+    component.roomForm.markAsDirty();
+
+    keydownEvents$.next(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(dialogOpenMock).toHaveBeenCalledTimes(1);
+    expect(closeMock).not.toHaveBeenCalled();
+  });
+
+  it('encaminha clique no backdrop para a confirmação de descarte', () => {
+    component.roomForm.controls.roomName.setValue('Sala alterada');
+    component.roomForm.markAsDirty();
+
+    backdropClick$.next(new MouseEvent('click'));
+
+    expect(dialogOpenMock).toHaveBeenCalledTimes(1);
+    expect(closeMock).not.toHaveBeenCalled();
   });
 });
