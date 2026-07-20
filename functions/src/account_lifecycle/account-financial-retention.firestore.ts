@@ -237,10 +237,16 @@ function buildArchivedCheckout(
   const previousStatus = normalizeText(data.status, 40).toLowerCase();
   const canceled = CANCELLABLE_CHECKOUT_STATUSES.has(previousStatus);
   const history = normalizeStatusHistory(data.statusHistory);
+  const sourceCheckoutSessionId =
+    normalizeNullableText(data.id, 180) ??
+    normalizeNullableText(sourcePath.split('/')[1], 180);
 
   return {
     id: archiveId,
-    sourceCheckoutSessionIdHash: hashValue(String(data.id ?? sourcePath)),
+    sourceCheckoutSessionId,
+    sourceCheckoutSessionIdHash: hashValue(
+      String(sourceCheckoutSessionId ?? sourcePath)
+    ),
     buyerUid: pseudonymizeParty(data.buyerUid, deletedUid),
     sellerUid: pseudonymizeNullableParty(data.sellerUid, deletedUid),
     scope: normalizeText(data.scope, 80),
