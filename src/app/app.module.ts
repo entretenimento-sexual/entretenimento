@@ -32,6 +32,7 @@ import { HeaderModule } from './header/header.module';
 import { FooterModule } from './footer/footer.module';
 import { AppStoreModule } from './store/store.module';
 import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.component';
+import { GlobalNetworkStatusComponent } from './core/components/global-network-status/global-network-status.component';
 import { FIREBASE_APPLICATION_PROVIDERS } from './core/firebase/firebase.providers';
 import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';
@@ -54,6 +55,7 @@ registerLocaleData(localePt, 'pt-BR');
     FooterModule,
     AppStoreModule,
     AdminLinkComponent,
+    GlobalNetworkStatusComponent,
   ],
 
   providers: [
