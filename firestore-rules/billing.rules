@@ -38,6 +38,14 @@ match /checkout_sessions/{checkoutSessionId} {
   allow read, write: if false;
 }
 
+match /financial_checkout_audit/{auditId} {
+  /**
+   * Arquivo pseudonimizado de checkouts encerrados por exclusão de conta.
+   * Não participa do settlement e permanece estritamente interno.
+   */
+  allow read, write: if false;
+}
+
 match /payment_events/{paymentEventId} {
   /**
    * Eventos recebidos e validados de provedores.
