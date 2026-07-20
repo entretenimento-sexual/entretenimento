@@ -15,7 +15,7 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
   'exclusive_connection_candidates.rules',
 
   // Discovery, presença e vitrines regionais moderadas.
-  'public_profiles.rules',
+  'public_profiles_next.rules',
   'public_profiles_photos.rules',
   'public_profiles_videos.rules',
   'presence.rules',
