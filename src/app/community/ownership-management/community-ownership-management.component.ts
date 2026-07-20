@@ -28,6 +28,7 @@ import {
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ActionStateDirective } from 'src/app/shared/action-state/action-state.directive';
 import {
   CommunityOwnershipCandidate,
   CommunityOwnershipCandidateRole,
@@ -59,7 +60,7 @@ interface OwnershipCommand {
 @Component({
   selector: 'app-community-ownership-management',
   standalone: true,
-  imports: [AsyncPipe],
+  imports: [AsyncPipe, ActionStateDirective],
   templateUrl: './community-ownership-management.component.html',
   styleUrl: './community-ownership-management.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -224,6 +225,18 @@ export class CommunityOwnershipManagementComponent {
     return 'A Comunidade sairá da descoberta, ficará sem interação e será preservada apenas para histórico e auditoria.';
   }
 
+  confirmationActionLabel(confirmation: OwnershipConfirmation): string {
+    return confirmation.kind === 'transfer'
+      ? 'Transferir propriedade'
+      : 'Arquivar Comunidade';
+  }
+
+  confirmationBusyLabel(confirmation: OwnershipConfirmation): string {
+    return confirmation.kind === 'transfer'
+      ? 'Transferindo propriedade...'
+      : 'Arquivando Comunidade...';
+  }
+
   private reportError(error: unknown, fallback: string, op: string): void {
     const message = this.resolveUserMessage(error, fallback);
 
@@ -270,9 +283,9 @@ export class CommunityOwnershipManagementComponent {
     }
 
     if (
-      typeof source.message === 'string'
-      && source.message.trim()
-      && !source.message.toLowerCase().includes('internal')
+      typeof source.message === 'string' &&
+      source.message.trim() &&
+      !source.message.toLowerCase().includes('internal')
     ) {
       return source.message;
     }
