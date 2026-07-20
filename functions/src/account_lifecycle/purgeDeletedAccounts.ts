@@ -1,5 +1,8 @@
 // functions/src/account_lifecycle/purgeDeletedAccounts.ts
+import { randomUUID } from 'node:crypto';
+
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+
 import { auth, db, FieldValue } from '../firebaseApp';
 import {
   ACCOUNT_LIFECYCLE_REGION,
@@ -15,11 +18,25 @@ import {
   buildAccountDataDeletionPlan,
   canFinalizePrivateUserDeletion,
 } from './account-data-retention.policy';
-import type { AccountDataDeletionExecutionSummary } from './account-data-deletion.executor';
+import type {
+  AccountDataDeletionExecutionSummary,
+} from './account-data-deletion.executor';
 import { executeAccountDataDeletionDomains } from './account-data-deletion.orchestrator';
-import { FirestoreAccountDataDeletionFullAdapter } from './account-shared-message-anonymization.firestore';
+import {
+  ACCOUNT_DELETION_PURGE_LEASE_MS,
+  AccountDeletionPurgePhase,
+  buildAccountDeletionRetrySchedule,
+  buildPurgeCandidateReference,
+  isAccountDeletionLeaseAvailable,
+  isAccountDeletionRetryDue,
+  normalizePurgeAttemptCount,
+  sanitizePurgeError,
+} from './account-deletion-purge.policy';
+import {
+  FirestoreAccountDataDeletionFullAdapter,
+} from './account-shared-message-anonymization.firestore';
 
-const SCHEDULE = 'every day 03:17';
+const SCHEDULE = 'every 60 minutes';
 const TIME_ZONE = 'America/Sao_Paulo';
 const BATCH_LIMIT = 200;
 
@@ -35,14 +52,33 @@ const AUTH_COMPLETED_DOMAINS: readonly AccountDataDomain[] = [
 
 const deletionAdapter = new FirestoreAccountDataDeletionFullAdapter();
 
-type PurgeCandidate = {
-  uid: string;
-  user: UserDoc;
-  nicknameIndexDocId: string | null;
-  emailHash: string | null;
+type PurgeUserDoc = UserDoc & {
+  purgeNextAttemptAt?: number | null;
+  purgeLeaseOwner?: string | null;
+  purgeLeaseUntil?: number | null;
+  purgePhase?: AccountDeletionPurgePhase | null;
+  purgeLastErrorCode?: string | null;
+  purgeLastErrorCategory?: string | null;
+  purgeLastErrorPhase?: AccountDeletionPurgePhase | null;
 };
 
-type FinalizeDeletionResult = 'success' | 'blocked' | 'retry';
+type PurgeCandidate = {
+  uid: string;
+  user: PurgeUserDoc;
+  nicknameIndexDocId: string | null;
+  emailHash: string | null;
+  reference: string;
+};
+
+type PurgeClaim = {
+  attemptCount: number;
+};
+
+type AuthDeletionResult =
+  | { success: true }
+  | { success: false; error: unknown };
+
+type FinalizeDeletionResult = 'success' | 'retry';
 
 export const purgeDeletedAccounts = onSchedule(
   {
@@ -54,6 +90,7 @@ export const purgeDeletedAccounts = onSchedule(
   },
   async () => {
     const now = Date.now();
+    const executionId = randomUUID();
     const candidatesSnapshot = await db
       .collection('users')
       .where('purgeAfter', '<=', now)
@@ -69,7 +106,7 @@ export const purgeDeletedAccounts = onSchedule(
     for (const userSnapshot of candidatesSnapshot.docs) {
       const candidate = toCandidate(
         userSnapshot.id,
-        userSnapshot.data() as UserDoc
+        userSnapshot.data() as PurgeUserDoc
       );
 
       if (!isPurgeCandidate(candidate.user, now)) {
@@ -77,18 +114,42 @@ export const purgeDeletedAccounts = onSchedule(
         continue;
       }
 
+      let claim: PurgeClaim | null = null;
+
       try {
-        const claimed = await claimDeletion(candidate, now);
-        if (!claimed) {
+        claim = await claimDeletion(candidate, now, executionId);
+        if (!claim) {
           skipped += 1;
           continue;
         }
 
-        const authDeleted = await deleteAuthUser(candidate, now);
-        if (!authDeleted) {
+        await markPurgePhase(
+          candidate.uid,
+          executionId,
+          'auth_deletion',
+          now
+        );
+
+        const authResult = await deleteAuthUser(candidate, now);
+        if (!authResult.success) {
+          await schedulePurgeRetry({
+            candidate,
+            executionId,
+            attemptCount: claim.attemptCount,
+            phase: 'auth_deletion',
+            now,
+            error: authResult.error,
+          });
           retryPending += 1;
           continue;
         }
+
+        await markPurgePhase(
+          candidate.uid,
+          executionId,
+          'data_cleanup',
+          now
+        );
 
         const execution = await executeAccountDataDeletionDomains(
           deletionAdapter,
@@ -106,38 +167,95 @@ export const purgeDeletedAccounts = onSchedule(
           ...AUTH_COMPLETED_DOMAINS,
           ...execution.completedDomains,
         ]);
-
         const dataPlan = buildAccountDataDeletionPlan({
           uid: candidate.uid,
           generatedAt: now,
           completedDomains,
         });
 
-        await persistDataDeletionPlan(candidate, dataPlan, execution, now);
+        await persistDataDeletionPlan({
+          candidate,
+          executionId,
+          plan: dataPlan,
+          execution,
+          now,
+        });
+
+        if (!canFinalizePrivateUserDeletion(dataPlan)) {
+          await schedulePurgeRetry({
+            candidate,
+            executionId,
+            attemptCount: claim.attemptCount,
+            phase: 'blocked',
+            now,
+            error: { code: 'data-cleanup-incomplete' },
+            blockingDomains: dataPlan.blockingDomains,
+          });
+          blockedByPolicy += 1;
+          continue;
+        }
+
+        await markPurgePhase(
+          candidate.uid,
+          executionId,
+          'finalization',
+          now
+        );
 
         const finalized = await finalizePrivateUserDeletion(
           candidate,
           dataPlan,
+          executionId,
           now
         );
 
         if (finalized === 'success') {
           processed += 1;
-        } else if (finalized === 'blocked') {
-          blockedByPolicy += 1;
         } else {
+          await schedulePurgeRetry({
+            candidate,
+            executionId,
+            attemptCount: claim.attemptCount,
+            phase: 'finalization',
+            now,
+            error: { code: 'account-state-changed-during-finalization' },
+          });
           retryPending += 1;
         }
-      } catch (error) {
+      } catch (error: unknown) {
         retryPending += 1;
+        const sanitized = sanitizePurgeError(error);
+
+        if (claim) {
+          try {
+            await schedulePurgeRetry({
+              candidate,
+              executionId,
+              attemptCount: claim.attemptCount,
+              phase: 'retry_scheduled',
+              now,
+              error,
+            });
+          } catch (retryError: unknown) {
+            const retrySanitized = sanitizePurgeError(retryError);
+            console.error('[purgeDeletedAccounts] retry persistence failed', {
+              candidateReference: candidate.reference,
+              errorCode: retrySanitized.code,
+              errorCategory: retrySanitized.category,
+            });
+          }
+        }
+
         console.error('[purgeDeletedAccounts] candidate failed', {
-          uid: candidate.uid,
-          error,
+          candidateReference: candidate.reference,
+          errorCode: sanitized.code,
+          errorCategory: sanitized.category,
         });
       }
     }
 
     console.log('[purgeDeletedAccounts] summary', {
+      executionId,
       scanned: candidatesSnapshot.size,
       processed,
       skipped,
@@ -150,16 +268,17 @@ export const purgeDeletedAccounts = onSchedule(
   }
 );
 
-function toCandidate(uid: string, user: UserDoc): PurgeCandidate {
+function toCandidate(uid: string, user: PurgeUserDoc): PurgeCandidate {
   return {
     uid,
     user,
     nicknameIndexDocId: getNicknameIndexDocId(user),
     emailHash: hashEmail(user.email),
+    reference: buildPurgeCandidateReference(uid),
   };
 }
 
-function isPurgeCandidate(user: UserDoc, now: number): boolean {
+function isPurgeCandidate(user: PurgeUserDoc, now: number): boolean {
   const status = String(user.accountStatus ?? 'active');
   const purgeAfter = Number(user.purgeAfter ?? 0);
 
@@ -168,7 +287,8 @@ function isPurgeCandidate(user: UserDoc, now: number): boolean {
     purgeAfter > 0 &&
     purgeAfter <= now &&
     user.legalHold !== true &&
-    user.billingHold !== true
+    user.billingHold !== true &&
+    isAccountDeletionRetryDue(user, now)
   );
 }
 
@@ -178,14 +298,11 @@ function uniqueDomains(
   return [...new Set(domains)];
 }
 
-/**
- * Fase 1: torna a exclusão irreversível para o fluxo do usuário, remove a
- * projeção pública e registra o primeiro plano de retenção no tombstone.
- */
 async function claimDeletion(
   candidate: PurgeCandidate,
-  now: number
-): Promise<boolean> {
+  now: number,
+  executionId: string
+): Promise<PurgeClaim | null> {
   const claimPlan = buildAccountDataDeletionPlan({
     uid: candidate.uid,
     generatedAt: now,
@@ -202,12 +319,34 @@ async function claimDeletion(
       .doc(candidate.uid);
     const currentSnapshot = await tx.get(userRef);
 
-    if (!currentSnapshot.exists) return false;
+    if (!currentSnapshot.exists) return null;
 
-    const currentUser = (currentSnapshot.data() ?? {}) as UserDoc;
-    if (!isPurgeCandidate(currentUser, now)) return false;
+    const currentUser = (currentSnapshot.data() ?? {}) as PurgeUserDoc;
+    if (
+      !isPurgeCandidate(currentUser, now) ||
+      !isAccountDeletionLeaseAvailable(currentUser, now, executionId)
+    ) {
+      return null;
+    }
 
     const currentStatus = String(currentUser.accountStatus ?? 'active');
+    const attemptCount = normalizePurgeAttemptCount(
+      currentUser.purgeAttemptCount
+    ) + 1;
+    const leaseUntil = now + ACCOUNT_DELETION_PURGE_LEASE_MS;
+    const operationalPatch = {
+      purgeAttemptCount: attemptCount,
+      purgeLastAttemptAt: now,
+      purgeNextAttemptAt: FieldValue.delete(),
+      purgeLeaseOwner: executionId,
+      purgeLeaseUntil: leaseUntil,
+      purgePhase: 'claimed' as AccountDeletionPurgePhase,
+      purgeLastErrorCode: FieldValue.delete(),
+      purgeLastErrorCategory: FieldValue.delete(),
+      purgeLastErrorPhase: FieldValue.delete(),
+      purgeBlockedReason: 'cleanup-in-progress',
+      purgeBlockedDomains: claimPlan.blockingDomains,
+    };
 
     if (currentStatus === 'pending_deletion') {
       tx.set(
@@ -219,11 +358,9 @@ async function claimDeletion(
           loginAllowed: false,
           deletedAt: now,
           purgeStartedAt: now,
-          purgeAttemptCount: FieldValue.increment(1),
-          purgeBlockedReason: 'data-contract-required',
-          purgeBlockedDomains: claimPlan.blockingDomains,
           statusUpdatedAt: now,
           statusUpdatedBy: 'system',
+          ...operationalPatch,
         },
         { merge: true }
       );
@@ -246,16 +383,7 @@ async function claimDeletion(
         updatedAt: now,
       });
     } else {
-      tx.set(
-        userRef,
-        {
-          purgeAttemptCount: FieldValue.increment(1),
-          purgeLastAttemptAt: now,
-          purgeBlockedReason: 'data-contract-required',
-          purgeBlockedDomains: claimPlan.blockingDomains,
-        },
-        { merge: true }
-      );
+      tx.set(userRef, operationalPatch, { merge: true });
     }
 
     tx.set(
@@ -272,8 +400,21 @@ async function claimDeletion(
         purgeAfter: currentUser.purgeAfter ?? now,
         legalHold: currentUser.legalHold ?? false,
         billingHold: currentUser.billingHold ?? false,
-        authDeletionStatus: 'pending',
-        firestoreDeletionStatus: 'pending',
+        ...(currentStatus === 'pending_deletion'
+          ? {
+            authDeletionStatus: 'pending',
+            firestoreDeletionStatus: 'pending',
+          }
+          : {}),
+        purgeAttemptCount: attemptCount,
+        purgeLastAttemptAt: now,
+        purgeNextAttemptAt: FieldValue.delete(),
+        purgeLeaseOwner: executionId,
+        purgeLeaseUntil: leaseUntil,
+        purgePhase: 'claimed',
+        purgeLastErrorCode: FieldValue.delete(),
+        purgeLastErrorCategory: FieldValue.delete(),
+        purgeLastErrorPhase: FieldValue.delete(),
         dataRetentionPolicyVersion: claimPlan.policyVersion,
         dataDeletionStatus: claimPlan.status,
         dataDeletionCompletedDomains: claimPlan.completedDomains,
@@ -286,36 +427,70 @@ async function claimDeletion(
       { merge: true }
     );
 
-    return true;
+    return { attemptCount };
   });
 }
 
-/** Fase 2: remove a credencial. Falhas permanecem retryable. */
+async function markPurgePhase(
+  uid: string,
+  executionId: string,
+  phase: AccountDeletionPurgePhase,
+  now: number
+): Promise<void> {
+  await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+    const userRef = db.collection('users').doc(uid);
+    const tombstoneRef = db.collection('deleted_accounts_audit').doc(uid);
+    const userSnapshot = await tx.get(userRef);
+
+    if (userSnapshot.exists) {
+      const user = (userSnapshot.data() ?? {}) as PurgeUserDoc;
+      if (String(user.purgeLeaseOwner ?? '') !== executionId) {
+        throw Object.assign(new Error('Purge lease ownership lost.'), {
+          code: 'purge/lease-lost',
+        });
+      }
+      tx.update(userRef, {
+        purgePhase: phase,
+        purgeLastAttemptAt: now,
+      });
+    }
+
+    tx.set(
+      tombstoneRef,
+      {
+        purgePhase: phase,
+        purgeLastAttemptAt: now,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+  });
+}
+
 async function deleteAuthUser(
   candidate: PurgeCandidate,
   now: number
-): Promise<boolean> {
+): Promise<AuthDeletionResult> {
   try {
     await auth.deleteUser(candidate.uid);
   } catch (error: unknown) {
-    const code = String(
-      (error as { code?: unknown } | null)?.code ?? ''
-    );
+    const sanitized = sanitizePurgeError(error);
 
-    if (code !== 'auth/user-not-found') {
+    if (sanitized.code !== 'auth/user-not-found') {
       await db
         .collection('deleted_accounts_audit')
         .doc(candidate.uid)
         .set(
           {
             authDeletionStatus: 'failed',
-            authDeletionErrorCode: code || 'unknown',
+            authDeletionErrorCode: sanitized.code,
+            authDeletionErrorCategory: sanitized.category,
             authDeletionLastAttemptAt: now,
             updatedAt: now,
           },
           { merge: true }
         );
-      return false;
+      return { success: false, error };
     }
   }
 
@@ -326,21 +501,24 @@ async function deleteAuthUser(
       {
         authDeletionStatus: 'success',
         authDeletionErrorCode: FieldValue.delete(),
+        authDeletionErrorCategory: FieldValue.delete(),
         authDeletedAt: now,
         updatedAt: now,
       },
       { merge: true }
     );
 
-  return true;
+  return { success: true };
 }
 
-async function persistDataDeletionPlan(
-  candidate: PurgeCandidate,
-  plan: AccountDataDeletionPlan,
-  execution: AccountDataDeletionExecutionSummary,
-  now: number
-): Promise<void> {
+async function persistDataDeletionPlan(input: {
+  candidate: PurgeCandidate;
+  executionId: string;
+  plan: AccountDataDeletionPlan;
+  execution: AccountDataDeletionExecutionSummary;
+  now: number;
+}): Promise<void> {
+  const { candidate, executionId, plan, execution, now } = input;
   const batch = db.batch();
   const userRef = db.collection('users').doc(candidate.uid);
   const tombstoneRef = db
@@ -353,6 +531,7 @@ async function persistDataDeletionPlan(
   batch.set(
     tombstoneRef,
     {
+      purgePhase: 'data_cleanup',
       dataRetentionPolicyVersion: plan.policyVersion,
       dataDeletionStatus: plan.status,
       dataDeletionCompletedDomains: plan.completedDomains,
@@ -365,24 +544,23 @@ async function persistDataDeletionPlan(
     { merge: true }
   );
 
-  batch.set(
-    userRef,
-    {
-      purgeLastAttemptAt: now,
-      purgeBlockedReason:
-        plan.status === 'blocked'
-          ? 'data-contract-required'
-          : FieldValue.delete(),
-      purgeBlockedDomains:
-        plan.status === 'blocked'
-          ? plan.blockingDomains
-          : FieldValue.delete(),
-    },
-    { merge: true }
-  );
+  batch.update(userRef, {
+    purgePhase: 'data_cleanup',
+    purgeLastAttemptAt: now,
+    purgeBlockedReason:
+      plan.status === 'blocked'
+        ? 'data-cleanup-incomplete'
+        : FieldValue.delete(),
+    purgeBlockedDomains:
+      plan.status === 'blocked'
+        ? plan.blockingDomains
+        : FieldValue.delete(),
+  });
 
   batch.set(executionAuditRef, {
     uid: candidate.uid,
+    candidateReference: candidate.reference,
+    executionId,
     policyVersion: plan.policyVersion,
     planStatus: plan.status,
     completedDomains: plan.completedDomains,
@@ -395,14 +573,10 @@ async function persistDataDeletionPlan(
   await batch.commit();
 }
 
-/**
- * Fase 3: remove users/{uid} somente quando a matriz de dados confirmar que
- * todas as etapas pre_finalize estão concluídas. Enquanto houver contratos
- * pendentes, o documento privado permanece como marcador de retry e auditoria.
- */
 async function finalizePrivateUserDeletion(
   candidate: PurgeCandidate,
   plan: AccountDataDeletionPlan,
+  executionId: string,
   now: number
 ): Promise<FinalizeDeletionResult> {
   return db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
@@ -416,9 +590,14 @@ async function finalizePrivateUserDeletion(
       tx.set(
         tombstoneRef,
         {
+          purgePhase: 'completed',
+          purgeLeaseOwner: FieldValue.delete(),
+          purgeLeaseUntil: FieldValue.delete(),
+          purgeNextAttemptAt: FieldValue.delete(),
           firestoreDeletionStatus: 'success',
           firestoreDeletedAt: now,
           dataDeletionStatus: 'ready',
+          dataDeletionBlockers: [],
           updatedAt: now,
         },
         { merge: true }
@@ -426,37 +605,15 @@ async function finalizePrivateUserDeletion(
       return 'success';
     }
 
-    const currentUser = (currentSnapshot.data() ?? {}) as UserDoc;
+    const currentUser = (currentSnapshot.data() ?? {}) as PurgeUserDoc;
     if (
       String(currentUser.accountStatus ?? '') !== 'deleted' ||
       currentUser.legalHold === true ||
-      currentUser.billingHold === true
+      currentUser.billingHold === true ||
+      String(currentUser.purgeLeaseOwner ?? '') !== executionId ||
+      !canFinalizePrivateUserDeletion(plan)
     ) {
       return 'retry';
-    }
-
-    if (!canFinalizePrivateUserDeletion(plan)) {
-      tx.set(
-        userRef,
-        {
-          purgeLastAttemptAt: now,
-          purgeBlockedReason: 'data-contract-required',
-          purgeBlockedDomains: plan.blockingDomains,
-        },
-        { merge: true }
-      );
-      tx.set(
-        tombstoneRef,
-        {
-          firestoreDeletionStatus: 'blocked',
-          dataDeletionStatus: 'blocked',
-          dataDeletionBlockers: plan.blockingDomains,
-          dataDeletionLastCheckedAt: now,
-          updatedAt: now,
-        },
-        { merge: true }
-      );
-      return 'blocked';
     }
 
     createLifecycleAudit(tx, {
@@ -472,6 +629,13 @@ async function finalizePrivateUserDeletion(
     tx.set(
       tombstoneRef,
       {
+        purgePhase: 'completed',
+        purgeLeaseOwner: FieldValue.delete(),
+        purgeLeaseUntil: FieldValue.delete(),
+        purgeNextAttemptAt: FieldValue.delete(),
+        purgeLastErrorCode: FieldValue.delete(),
+        purgeLastErrorCategory: FieldValue.delete(),
+        purgeLastErrorPhase: FieldValue.delete(),
         firestoreDeletionStatus: 'success',
         firestoreDeletedAt: now,
         dataDeletionStatus: 'ready',
@@ -482,5 +646,83 @@ async function finalizePrivateUserDeletion(
     );
     tx.delete(userRef);
     return 'success';
+  });
+}
+
+async function schedulePurgeRetry(input: {
+  candidate: PurgeCandidate;
+  executionId: string;
+  attemptCount: number;
+  phase: AccountDeletionPurgePhase;
+  now: number;
+  error: unknown;
+  blockingDomains?: readonly AccountDataDomain[];
+}): Promise<void> {
+  const {
+    candidate,
+    executionId,
+    attemptCount,
+    phase,
+    now,
+    error,
+    blockingDomains = [],
+  } = input;
+  const retry = buildAccountDeletionRetrySchedule({ attemptCount, now });
+  const sanitized = sanitizePurgeError(error);
+  const retryPhase: AccountDeletionPurgePhase = phase === 'blocked'
+    ? 'blocked'
+    : 'retry_scheduled';
+
+  await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+    const userRef = db.collection('users').doc(candidate.uid);
+    const tombstoneRef = db
+      .collection('deleted_accounts_audit')
+      .doc(candidate.uid);
+    const userSnapshot = await tx.get(userRef);
+
+    if (userSnapshot.exists) {
+      const user = (userSnapshot.data() ?? {}) as PurgeUserDoc;
+      const leaseOwner = String(user.purgeLeaseOwner ?? '');
+
+      if (leaseOwner && leaseOwner !== executionId) {
+        throw Object.assign(new Error('Purge lease ownership lost.'), {
+          code: 'purge/lease-lost',
+        });
+      }
+
+      tx.update(userRef, {
+        purgePhase: retryPhase,
+        purgeNextAttemptAt: retry.retryAt,
+        purgeLeaseOwner: FieldValue.delete(),
+        purgeLeaseUntil: FieldValue.delete(),
+        purgeLastErrorCode: sanitized.code,
+        purgeLastErrorCategory: sanitized.category,
+        purgeLastErrorPhase: phase,
+        purgeBlockedReason:
+          phase === 'blocked'
+            ? 'data-cleanup-incomplete'
+            : 'retry-scheduled',
+        purgeBlockedDomains: blockingDomains,
+        purgeLastAttemptAt: now,
+      });
+    }
+
+    tx.set(
+      tombstoneRef,
+      {
+        purgePhase: retryPhase,
+        purgeAttemptCount: retry.attemptCount,
+        purgeNextAttemptAt: retry.retryAt,
+        purgeRetryDelayMs: retry.delayMs,
+        purgeLeaseOwner: FieldValue.delete(),
+        purgeLeaseUntil: FieldValue.delete(),
+        purgeLastErrorCode: sanitized.code,
+        purgeLastErrorCategory: sanitized.category,
+        purgeLastErrorPhase: phase,
+        dataDeletionBlockers: blockingDomains,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
   });
 }
