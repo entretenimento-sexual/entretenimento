@@ -539,9 +539,9 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
     const dialogRef = this.dialog.open(ConfirmacaoDialogComponent, {
       width: '400px',
       data: {
-        title: 'Confirmar Exclusão',
+        title: 'Encerrar Sala',
         message:
-          'Tem certeza que deseja excluir esta sala? Esta ação irá remover permanentemente a sala, todos os perfis adicionados e todas as mensagens trocadas.',
+          'Tem certeza que deseja encerrar esta Sala? Ela deixará de aceitar novas interações, os participantes perderão o acesso operacional e o histórico será preservado para segurança e auditoria.',
       },
     });
 
@@ -552,8 +552,13 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
 
       this.roomManagement
         .deleteRoom(safeRoomId)
-        .then(() => this.dbg('Sala excluída', { roomId: safeRoomId }))
-        .catch((err) => this.handleError('RoomManagementService.deleteRoom', err, true));
+        .then(() => {
+          this.dbg('Sala encerrada', { roomId: safeRoomId });
+          this.notifier.showSuccess('Sala encerrada com sucesso.');
+        })
+        .catch((err) =>
+          this.handleError('RoomManagementService.deleteRoom', err, false)
+        );
     });
   }
 
