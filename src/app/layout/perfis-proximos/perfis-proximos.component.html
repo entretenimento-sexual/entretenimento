@@ -2,41 +2,25 @@
 <div class="container mt-3">
   <h2 class="profiles-title">Perfis Próximos</h2>
 
-  <!--
-    Aviso leve sobre verificação de e-mail.
-    Não bloqueia a tela nem tenta ativar localização.
-    Apenas informa que precisão e raio podem ser limitados.
-  -->
   @if (user$ | async; as user) {
     @if (!user?.emailVerified) {
       <div class="alert alert-warning" role="status" aria-live="polite">
-        Sua conta ainda não está verificada. A precisão da localização e o raio de busca
-        podem ficar limitados por segurança e privacidade.
+        Sua conta ainda não está verificada. A precisão da localização e o raio
+        de busca podem ficar limitados por segurança e privacidade.
       </div>
     }
   }
 
-  <!--
-    Estado sem localização:
-    - o usuário ainda não ativou localização nesta área
-    - mostramos o CTA principal
-    - se o clique detectar que o perfil mínimo ainda não foi concluído,
-      exibimos o aviso contextual abaixo
-  -->
   @if (!userLocation()) {
     <div class="alert alert-info" role="status" aria-live="polite">
-      Ative sua localização para listar perfis próximos respeitando sua privacidade e nível de acesso.
+      Ative sua localização para listar perfis próximos respeitando sua
+      privacidade e nível de acesso.
     </div>
 
-    <!--
-      Prompt contextual:
-      aparece apenas após a tentativa do usuário de ativar localização
-      com perfil mínimo ainda incompleto
-    -->
     @if (showProfileCompletionPrompt()) {
       <div class="alert alert-warning mt-3" role="alert" aria-live="assertive">
-        Para ativar a localização nesta área, falta concluir uma etapa rápida do seu perfil.
-        Deseja finalizar agora ou continuar sem localização?
+        Para ativar a localização nesta área, falta concluir uma etapa rápida
+        do seu perfil. Deseja finalizar agora ou continuar sem localização?
       </div>
 
       <div class="d-flex flex-wrap gap-2 mt-2">
@@ -56,11 +40,6 @@
       </div>
     }
 
-    <!--
-      CTA principal.
-      A decisão de seguir com geolocalização ou exibir o prompt
-      fica no TypeScript.
-    -->
     <button
       type="button"
       class="btn btn-primary mt-3"
@@ -70,18 +49,10 @@
     </button>
 
     <p id="locHelpText" class="form-text text-muted mt-2">
-      A precisão e o raio de busca variam conforme seu plano e verificação de e-mail.
+      A precisão e o raio de busca variam conforme seu plano e verificação de
+      e-mail.
     </p>
-  }
-
-  @else {
-    <!--
-      Estado com localização:
-      - mostramos controles de raio
-      - exibimos feedbacks de carregamento/erro
-      - renderizamos os perfis retornados
-    -->
-
+  } @else {
     <div class="card mb-3" aria-labelledby="distControlTitle">
       <div class="card-body">
         <h3 class="h6 mb-3" id="distControlTitle">Ajustar raio de busca</h3>
@@ -102,35 +73,36 @@
           <div class="col-12 col-sm-4">
             <div class="d-flex justify-content-between small text-muted">
               <span>1 km</span>
-              <span>{{ uiDistanceKm() }} / {{ policyMaxDistanceKm() }} km máx.</span>
+              <span>
+                {{ uiDistanceKm() }} / {{ policyMaxDistanceKm() }} km máx.
+              </span>
             </div>
           </div>
         </div>
 
         <p class="form-text mt-2">
-          O valor selecionado é limitado ao máximo permitido pelo seu plano e status de verificação.
+          O valor selecionado é limitado ao máximo permitido pelo seu plano e
+          status de verificação.
         </p>
       </div>
     </div>
 
-    <!-- Feedback de carregamento -->
-    @if (nearbyLoading$ | async) {
-      <div class="alert alert-secondary" role="status" aria-live="polite">
-        Carregando perfis…
-      </div>
+    @if (contentState$ | async; as contentState) {
+      <app-content-state
+        class="d-block mb-3"
+        [state]="contentState.state"
+        [title]="contentState.title"
+        [message]="contentState.message"
+        [actionLabel]="contentState.actionLabel"
+        [compact]="contentState.compact"
+        [skeletonRows]="4"
+        (action)="retryNearbyProfiles()"
+      />
     }
 
-    <!-- Feedback de erro -->
-    @if (nearbyError$ | async; as err) {
-      <div class="alert alert-danger" role="alert" aria-live="assertive">
-        {{ err }}
-      </div>
-    }
-
-    <!-- Lista de perfis -->
     @if (profiles$ | async; as profiles) {
       @if (profiles.length > 0) {
-        <div class="profiles-row mt-3">
+        <div class="profiles-row mt-3" aria-label="Perfis próximos encontrados">
           @for (profile of profiles; track profile.uid) {
             <div class="profile-card">
               <app-user-card
@@ -140,10 +112,6 @@
             </div>
           }
         </div>
-      } @else {
-        <p class="no-profiles text-center mt-4">
-          Nenhum perfil próximo foi encontrado.
-        </p>
       }
     }
   }
