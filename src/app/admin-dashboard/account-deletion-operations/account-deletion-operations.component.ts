@@ -5,7 +5,7 @@ import {
   Component,
   inject,
 } from '@angular/core';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { BehaviorSubject, Observable, merge, of } from 'rxjs';
 import {
   catchError,
   map,
@@ -14,6 +14,8 @@ import {
   switchMap,
   tap,
 } from 'rxjs/operators';
+
+import { NetworkStatusService } from '@core/services/network/network-status.service';
 
 import { AdminMaterialModule } from '../admin-material.module';
 import {
@@ -69,6 +71,7 @@ const PAGE_SIZE = 20;
 })
 export class AccountDeletionOperationsComponent {
   private readonly repository = inject(AccountDeletionOperationsRepository);
+  private readonly networkStatus = inject(NetworkStatusService);
   private readonly querySubject =
     new BehaviorSubject<AccountDeletionOperationsQueryState>({
       filter: 'attention',
@@ -80,8 +83,19 @@ export class AccountDeletionOperationsComponent {
   private cursorHistory: Array<AccountDeletionOperationsCursor | null> = [null];
   private latestResponse: AccountDeletionOperationsResponse | null = null;
 
+  private readonly reconnectQuery$: Observable<AccountDeletionOperationsQueryState> =
+    this.networkStatus.reconnected$.pipe(
+      map(() => {
+        const current = this.querySubject.value;
+        return {
+          ...current,
+          refreshToken: current.refreshToken + 1,
+        };
+      })
+    );
+
   private readonly state$: Observable<AccountDeletionOperationsLoadState> =
-    this.querySubject.pipe(
+    merge(this.querySubject, this.reconnectQuery$).pipe(
       switchMap((query) =>
         this.repository
           .listOperations$({
