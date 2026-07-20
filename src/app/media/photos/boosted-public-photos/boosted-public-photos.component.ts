@@ -2,15 +2,47 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { BehaviorSubject, Observable, of } from 'rxjs';
-import { catchError, distinctUntilChanged, map, shareReplay, switchMap, take } from 'rxjs/operators';
+import { BehaviorSubject, Observable, combineLatest, of } from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  shareReplay,
+  startWith,
+  switchMap,
+  take,
+  tap,
+} from 'rxjs/operators';
 
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { PublicMediaSnapshotService } from 'src/app/core/services/media/public-media-snapshot.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { GlobalActivityService } from 'src/app/core/services/network/global-activity.service';
+import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
+import { retryIdempotentRead } from 'src/app/core/services/network/network-retry.policy';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { ContentStateComponent } from 'src/app/shared/content-state/content-state.component';
 import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
 import { PublicPhotoLightboxComponent } from '../../shared/components/public-photo-lightbox/public-photo-lightbox.component';
+
+interface BoostedPhotosLoadState {
+  items: IPublicPhotoItem[];
+  loading: boolean;
+  error: boolean;
+  stale: boolean;
+}
+
+interface BoostedPhotosViewModel extends BoostedPhotosLoadState {
+  offline: boolean;
+  hasItems: boolean;
+  showInitialLoading: boolean;
+  showBlockingError: boolean;
+  showOfflineEmpty: boolean;
+  showEmpty: boolean;
+  showStaleNotice: boolean;
+  canLoadMore: boolean;
+}
 
 @Component({
   selector: 'app-boosted-public-photos',
@@ -18,6 +50,7 @@ import { PublicPhotoLightboxComponent } from '../../shared/components/public-pho
   imports: [
     CommonModule,
     RouterModule,
+    ContentStateComponent,
     PublicPhotoCardComponent,
     PublicPhotoLightboxComponent,
   ],
@@ -27,8 +60,11 @@ import { PublicPhotoLightboxComponent } from '../../shared/components/public-pho
 })
 export class BoostedPublicPhotosComponent {
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
+  private readonly snapshots = inject(PublicMediaSnapshotService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
+  private readonly network = inject(NetworkStatusService);
+  private readonly activity = inject(GlobalActivityService);
 
   private readonly pageSize = 24;
   private readonly loadCountSubject = new BehaviorSubject<number>(this.pageSize);
@@ -37,25 +73,99 @@ export class BoostedPublicPhotosComponent {
   private readonly selectedIndexSubject = new BehaviorSubject<number | null>(null);
   readonly selectedIndex$ = this.selectedIndexSubject.asObservable();
 
-  readonly boostedPhotos$: Observable<IPublicPhotoItem[]> = this.loadCount$.pipe(
-    distinctUntilChanged(),
-    switchMap((count) => this.mediaPublicQuery.getBoostedPublicPhotos$(count)),
-    catchError((error: unknown) => {
-      this.reportError('Erro ao carregar fotos turbinadas.', error, {
-        op: 'boostedPhotos$',
-      });
-      return of([]);
+  private readonly loadState$: Observable<BoostedPhotosLoadState> =
+    this.snapshots.read$('boosted-photos').pipe(
+      switchMap((cachedItems) =>
+        this.loadCount$.pipe(
+          distinctUntilChanged(),
+          switchMap((count) =>
+            this.activity.track$(
+              this.mediaPublicQuery.getBoostedPublicPhotos$(count).pipe(
+                retryIdempotentRead({
+                  maximumRetries: 2,
+                  isOnline: () => this.network.isOnlineSnapshot(),
+                }),
+                tap((items) => this.snapshots.write('boosted-photos', items)),
+                map((items) => ({
+                  items,
+                  loading: false,
+                  error: false,
+                  stale: false,
+                })),
+                catchError((error: unknown) => {
+                  this.reportError('Erro ao carregar fotos turbinadas.', error, {
+                    op: 'boostedPhotos$',
+                  });
+
+                  return of({
+                    items: cachedItems,
+                    loading: false,
+                    error: true,
+                    stale: cachedItems.length > 0,
+                  });
+                }),
+                startWith({
+                  items: cachedItems,
+                  loading: true,
+                  error: false,
+                  stale: cachedItems.length > 0,
+                })
+              )
+            )
+          )
+        )
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly vm$: Observable<BoostedPhotosViewModel> = combineLatest([
+    this.loadState$,
+    this.network.isOffline$,
+  ]).pipe(
+    map(([state, offline]) => {
+      const hasItems = state.items.length > 0;
+
+      return {
+        ...state,
+        offline,
+        hasItems,
+        showInitialLoading: state.loading && !hasItems,
+        showBlockingError: state.error && !offline && !hasItems,
+        showOfflineEmpty: offline && !hasItems,
+        showEmpty: !state.loading && !state.error && !offline && !hasItems,
+        showStaleNotice: hasItems && (state.stale || offline),
+        canLoadMore:
+          !state.loading &&
+          !offline &&
+          state.items.length >= this.loadCountSubject.value,
+      };
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly canLoadMore$: Observable<boolean> = this.boostedPhotos$.pipe(
-    map((items) => items.length >= this.loadCountSubject.value),
+  readonly boostedPhotos$: Observable<IPublicPhotoItem[]> = this.vm$.pipe(
+    map((vm) => vm.items),
+    distinctUntilChanged()
+  );
+
+  readonly canLoadMore$: Observable<boolean> = this.vm$.pipe(
+    map((vm) => vm.canLoadMore),
     distinctUntilChanged()
   );
 
   loadMore(): void {
+    if (!this.network.isOnlineSnapshot()) {
+      this.errorNotifier.showWarning(
+        'Aguarde a conexão voltar para carregar mais fotos.'
+      );
+      return;
+    }
+
     this.loadCountSubject.next(this.loadCountSubject.value + this.pageSize);
+  }
+
+  retry(): void {
+    this.loadCountSubject.next(this.loadCountSubject.value);
   }
 
   openPhoto(index: number): void {
@@ -84,7 +194,11 @@ export class BoostedPublicPhotosComponent {
       .pipe(take(1))
       .subscribe((items) => {
         const currentIndex = this.selectedIndexSubject.value;
-        if (currentIndex === null || currentIndex >= items.length - 1 || items.length === 0) {
+        if (
+          currentIndex === null ||
+          currentIndex >= items.length - 1 ||
+          items.length === 0
+        ) {
           return;
         }
 
