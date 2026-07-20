@@ -64,9 +64,9 @@ export const getCommunityDiscoveryPage =
       const scanLimit = pageRequest.limit * 3 + 1;
       let pageQuery = pageRequest.sourceType
         ? projection
-            .where('source.type', '==', pageRequest.sourceType)
-            .orderBy('rankScore', 'desc')
-            .limit(scanLimit)
+          .where('source.type', '==', pageRequest.sourceType)
+          .orderBy('rankScore', 'desc')
+          .limit(scanLimit)
         : projection.orderBy('rankScore', 'desc').limit(scanLimit);
 
       if (pageRequest.cursor) {
@@ -139,3 +139,4 @@ export const getCommunityDiscoveryPage =
       };
     }
   );
+}
