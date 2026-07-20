@@ -22,6 +22,7 @@ import { RegisterComponent } from './register.component';
 import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
 import { WelcomeComponent } from './welcome/welcome.component';
 
+import { SharedModule } from '../shared/shared.module';
 import { RegisterErrorMessagePipe } from '../shared/pipes/register-error-message.pipe';
 import { EmailInputModalComponent } from '../authentication/email-input-modal/email-input-modal.component';
 import { ActionStateDirective } from '../shared/action-state/action-state.directive';
@@ -37,11 +38,12 @@ import { FormValidationFocusDirective } from '../shared/form-validation-focus/fo
     CommonModule,
     ReactiveFormsModule,
     FormsModule,
+    SharedModule,
     RegisterRoutingModule,
     RegisterErrorMessagePipe,
     EmailInputModalComponent,
     ActionStateDirective,
     FormValidationFocusDirective,
-  ]
+  ],
 })
-export class RegisterModule { }
+export class RegisterModule {}
