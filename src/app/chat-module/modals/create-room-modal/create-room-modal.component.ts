@@ -4,8 +4,17 @@
 // -----------------------------------------------------------------------------
 // Formulário reativo para criação/edição de sala.
 // A associação premium usa exclusivamente estabelecimentos moderados do catálogo.
+// Rascunhos locais preservam somente dados não sensíveis e expiram automaticamente.
 
-import { Component, Inject, OnInit, ViewChild } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  HostListener,
+  Inject,
+  OnInit,
+  ViewChild,
+  inject,
+} from '@angular/core';
 import {
   FormBuilder,
   FormControl,
@@ -14,10 +23,12 @@ import {
 } from '@angular/forms';
 import {
   MAT_DIALOG_DATA,
+  MatDialog,
   MatDialogRef,
 } from '@angular/material/dialog';
 import { Observable, of } from 'rxjs';
-import { map, shareReplay } from 'rxjs/operators';
+import { debounceTime, filter, map, shareReplay, take, tap } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import {
   IRoomPlaceIntent,
@@ -25,7 +36,12 @@ import {
   RoomPlaceIntentMode,
 } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 import { IVenueCardVm } from 'src/app/core/interfaces/venues/venue.interface';
+import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
 import { VenueService } from 'src/app/core/services/venues/venue.service';
+import {
+  ConfirmacaoDialogComponent,
+  ConfirmacaoDialogData,
+} from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { FormValidationFocusDirective } from 'src/app/shared/form-validation-focus/form-validation-focus.directive';
 
 export interface CreateRoomModalData {
@@ -63,6 +79,8 @@ type CreateRoomFormGroup = FormGroup<{
   placeStartsAt: FormControl<string>;
 }>;
 
+type RoomDraft = ReturnType<CreateRoomFormGroup['getRawValue']>;
+
 @Component({
   selector: 'app-create-room-modal',
   templateUrl: './create-room-modal.component.html',
@@ -73,6 +91,10 @@ export class CreateRoomModalComponent implements OnInit {
   @ViewChild(FormValidationFocusDirective)
   private validationFocus?: FormValidationFocusDirective;
 
+  private readonly destroyRef = inject(DestroyRef);
+  private draftReady = false;
+  private draftKey = 'room:create';
+
   roomForm!: CreateRoomFormGroup;
   isEditing = false;
   roomId = '';
@@ -81,6 +103,8 @@ export class CreateRoomModalComponent implements OnInit {
   constructor(
     private readonly formBuilder: FormBuilder,
     private readonly venueService: VenueService,
+    private readonly localDraft: LocalDraftService,
+    private readonly dialog: MatDialog,
     public readonly dialogRef: MatDialogRef<CreateRoomModalComponent>,
     @Inject(MAT_DIALOG_DATA)
     public readonly data: CreateRoomModalData | null
@@ -118,6 +142,19 @@ export class CreateRoomModalComponent implements OnInit {
         placeStartsAt: this.toDateTimeLocalValue(placeIntent.startsAt),
       });
     }
+
+    this.draftKey = this.isEditing && this.roomId
+      ? `room:edit:${this.roomId}`
+      : 'room:create';
+    this.restoreDraft();
+    this.observeDraftChanges();
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (!this.hasUnsavedChanges()) return;
+    event.preventDefault();
+    event.returnValue = '';
   }
 
   initializeForm(): void {
@@ -166,6 +203,8 @@ export class CreateRoomModalComponent implements OnInit {
       return;
     }
 
+    this.localDraft.remove(this.draftKey);
+    this.roomForm.markAsPristine();
     this.dialogRef.close({
       success: true,
       action: this.isEditing ? 'updated' : 'created',
@@ -179,7 +218,76 @@ export class CreateRoomModalComponent implements OnInit {
   }
 
   cancel(): void {
-    this.dialogRef.close(null);
+    if (!this.hasUnsavedChanges()) {
+      this.dialogRef.close(null);
+      return;
+    }
+
+    const data: ConfirmacaoDialogData = {
+      title: 'Descartar alterações da Sala?',
+      message:
+        'Os dados ainda não foram salvos. O rascunho local também será removido.',
+      confirmLabel: 'Descartar alterações',
+      cancelLabel: 'Continuar editando',
+      tone: 'danger',
+    };
+
+    this.dialog
+      .open(ConfirmacaoDialogComponent, {
+        data,
+        width: 'min(92vw, 440px)',
+        disableClose: true,
+        autoFocus: 'dialog',
+        restoreFocus: true,
+      })
+      .afterClosed()
+      .pipe(take(1))
+      .subscribe((confirmed) => {
+        if (confirmed !== true) return;
+        this.localDraft.remove(this.draftKey);
+        this.roomForm.markAsPristine();
+        this.dialogRef.close(null);
+      });
+  }
+
+  hasUnsavedChanges(): boolean {
+    return this.draftReady && this.roomForm.dirty;
+  }
+
+  private restoreDraft(): void {
+    const draft = this.localDraft.load<RoomDraft>(this.draftKey);
+    this.draftReady = true;
+
+    if (!draft) {
+      this.roomForm.markAsPristine();
+      return;
+    }
+
+    this.roomForm.patchValue({
+      roomName: String(draft.roomName ?? ''),
+      description: String(draft.description ?? ''),
+      placeEnabled: draft.placeEnabled === true,
+      placeMode: draft.placeMode === 'scheduled' ? 'scheduled' : 'now',
+      placeVenueId: String(draft.placeVenueId ?? ''),
+      placeStartsAt: String(draft.placeStartsAt ?? ''),
+    }, { emitEvent: false });
+    this.roomForm.markAsDirty();
+  }
+
+  private observeDraftChanges(): void {
+    this.roomForm.valueChanges
+      .pipe(
+        debounceTime(450),
+        filter(() => this.draftReady && this.roomForm.dirty),
+        tap(() => {
+          this.localDraft.save<RoomDraft>(
+            this.draftKey,
+            this.roomForm.getRawValue()
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   private initializeVenues(): void {
