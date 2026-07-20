@@ -1,0 +1,259 @@
+name: Quality Gate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  firestore-indexes:
+    name: Firestore indexes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Validate firestore.indexes.json
+        shell: bash
+        run: |
+          mkdir -p logs
+          set -o pipefail
+          node <<'NODE' 2>&1 | tee logs/firestore-indexes.log
+          const fs = require('node:fs');
+
+          const filePath = 'firestore.indexes.json';
+          const document = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+          if (!Array.isArray(document.indexes)) {
+            throw new Error('firestore.indexes.json precisa conter o array "indexes".');
+          }
+
+          if (!Array.isArray(document.fieldOverrides)) {
+            throw new Error(
+              'firestore.indexes.json precisa conter o array "fieldOverrides".'
+            );
+          }
+
+          for (const [indexPosition, indexDefinition] of document.indexes.entries()) {
+            if (
+              typeof indexDefinition.collectionGroup !== 'string' ||
+              indexDefinition.collectionGroup.trim().length === 0
+            ) {
+              throw new Error(
+                `Índice ${indexPosition} sem "collectionGroup" válido.`
+              );
+            }
+
+            if (
+              indexDefinition.queryScope !== 'COLLECTION' &&
+              indexDefinition.queryScope !== 'COLLECTION_GROUP'
+            ) {
+              throw new Error(
+                `Índice ${indexPosition} com "queryScope" inválido.`
+              );
+            }
+
+            if (
+              !Array.isArray(indexDefinition.fields) ||
+              indexDefinition.fields.length === 0
+            ) {
+              throw new Error(`Índice ${indexPosition} sem campos.`);
+            }
+          }
+
+          console.log(
+            `firestore.indexes.json válido: ${document.indexes.length} índices e ${document.fieldOverrides.length} sobrescritas.`
+          );
+          NODE
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: quality-gate-firestore-indexes-${{ github.run_id }}-${{ github.run_attempt }}
+          path: logs/
+          if-no-files-found: error
+          retention-days: 14
+
+  functions:
+    name: Functions lint, build and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Prepare logs
+        run: mkdir -p logs
+
+      - name: Install Functions dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npm --prefix functions ci 2>&1 | tee logs/functions-install.log
+
+      - name: Lint Functions
+        shell: bash
+        run: |
+          set -o pipefail
+          npm --prefix functions run lint 2>&1 | tee logs/functions-lint.log
+
+      - name: Build and test Functions
+        shell: bash
+        run: |
+          set -o pipefail
+          npm --prefix functions run test 2>&1 | tee logs/functions-test.log
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: quality-gate-functions-${{ github.run_id }}-${{ github.run_attempt }}
+          path: logs/
+          if-no-files-found: error
+          retention-days: 14
+
+  angular-tests:
+    name: Angular tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Prepare logs
+        run: mkdir -p logs
+
+      - name: Install application dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee logs/angular-install.log
+
+      - name: Run Angular test suite
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:ci 2>&1 | tee logs/angular-tests.log
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: quality-gate-angular-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: logs/
+          if-no-files-found: error
+          retention-days: 14
+
+  angular-build:
+    name: Angular safe build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Prepare logs
+        run: mkdir -p logs
+
+      - name: Install application dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee logs/angular-build-install.log
+
+      - name: Run safe build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build:safe 2>&1 | tee logs/angular-build.log
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: quality-gate-angular-build-${{ github.run_id }}-${{ github.run_attempt }}
+          path: logs/
+          if-no-files-found: error
+          retention-days: 14
+
+  firestore-rules:
+    name: Firestore Rules tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Prepare logs
+        run: mkdir -p logs
+
+      - name: Install application dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee logs/firestore-rules-install.log
+
+      - name: Run Firestore Rules tests
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:rules 2>&1 | tee logs/firestore-rules-tests.log
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: quality-gate-firestore-rules-${{ github.run_id }}-${{ github.run_attempt }}
+          path: logs/
+          if-no-files-found: error
+          retention-days: 14
