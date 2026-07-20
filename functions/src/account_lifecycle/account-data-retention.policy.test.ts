@@ -32,7 +32,7 @@ test('policy covers shared content, moderation and financial domains safely', ()
   );
 });
 
-test('policy marks lifecycle, membership and shared content executors implemented', () => {
+test('policy marks lifecycle, relationship and shared content executors implemented', () => {
   const byDomain = new Map(
     ACCOUNT_DATA_RETENTION_POLICY.map((entry) => [entry.domain, entry])
   );
@@ -70,9 +70,10 @@ test('policy marks lifecycle, membership and shared content executors implemente
   assert.equal(byDomain.get('shared_publications')?.disposition, 'anonymize');
   assert.equal(
     byDomain.get('relationship_edges')?.automation,
-    'contract_required'
+    'implemented'
   );
-  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 8);
+  assert.equal(byDomain.get('relationship_edges')?.disposition, 'unlink');
+  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 9);
 });
 
 test('current plan remains blocked until every pre-finalize contract is completed', () => {
@@ -91,6 +92,7 @@ test('current plan remains blocked until every pre-finalize contract is complete
   assert.equal(canFinalizePrivateUserDeletion(plan), false);
   assert.ok(plan.blockingDomains.includes('notifications'));
   assert.ok(plan.blockingDomains.includes('presence_and_location'));
+  assert.ok(plan.blockingDomains.includes('relationship_edges'));
   assert.ok(plan.blockingDomains.includes('community_memberships'));
   assert.ok(plan.blockingDomains.includes('room_participation'));
   assert.ok(plan.blockingDomains.includes('owned_media_and_storage'));
@@ -110,6 +112,7 @@ test('completed domains are recorded and removed from blockers', () => {
       'public_profile',
       'nickname_index',
       'presence_and_location',
+      'relationship_edges',
       'community_memberships',
       'room_participation',
       'owned_media_and_storage',
@@ -122,6 +125,7 @@ test('completed domains are recorded and removed from blockers', () => {
     'public_profile',
     'nickname_index',
     'presence_and_location',
+    'relationship_edges',
     'community_memberships',
     'room_participation',
     'owned_media_and_storage',
@@ -131,6 +135,7 @@ test('completed domains are recorded and removed from blockers', () => {
   assert.ok(!plan.blockingDomains.includes('public_profile'));
   assert.ok(!plan.blockingDomains.includes('nickname_index'));
   assert.ok(!plan.blockingDomains.includes('presence_and_location'));
+  assert.ok(!plan.blockingDomains.includes('relationship_edges'));
   assert.ok(!plan.blockingDomains.includes('community_memberships'));
   assert.ok(!plan.blockingDomains.includes('room_participation'));
   assert.ok(!plan.blockingDomains.includes('owned_media_and_storage'));
