@@ -19,6 +19,7 @@ import { ChatNotificationService } from '../../core/services/batepapo/chat-notif
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
+import { ContentStateComponent } from '../../shared/content-state/content-state.component';
 
 describe('ChatListComponent', () => {
   let component: ChatListComponent;
@@ -27,7 +28,7 @@ describe('ChatListComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       declarations: [ChatListComponent],
-      imports: [FormsModule],
+      imports: [FormsModule, ContentStateComponent],
       providers: [
         {
           provide: AuthSessionService,
