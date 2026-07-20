@@ -15,6 +15,8 @@ import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dia
 import { UploadPhotoComponent } from './components-globais/upload-photo/upload-photo.component';
 import { UniversalSidebarComponent } from './components-globais/universal-sidebar/universal-sidebar.component';
 import { ReportContentButtonComponent } from './components-globais/moderation-report/report-content-button/report-content-button.component';
+import { ActionStateDirective } from './action-state/action-state.directive';
+import { FormValidationFocusDirective } from './form-validation-focus/form-validation-focus.directive';
 
 @NgModule({
   declarations: [
@@ -34,6 +36,8 @@ import { ReportContentButtonComponent } from './components-globais/moderation-re
     MatSnackBarModule,
     UniversalSidebarComponent,
     ReportContentButtonComponent,
+    ActionStateDirective,
+    FormValidationFocusDirective,
   ],
   exports: [
     UniversalSidebarComponent,
@@ -42,6 +46,8 @@ import { ReportContentButtonComponent } from './components-globais/moderation-re
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
     UploadPhotoComponent,
+    ActionStateDirective,
+    FormValidationFocusDirective,
   ]
 })
 export class SharedModule {}
