@@ -15,21 +15,35 @@ import {
   executeOwnedMediaAndStorageDomain,
   type AccountOwnedMediaDeletionAdapter,
 } from './account-owned-media-deletion.executor';
+import {
+  executeSharedMessageAnonymizationDomain,
+  type AccountSharedMessageAnonymizationAdapter,
+} from './account-shared-message-anonymization.executor';
 
 export type AccountDataDeletionOrchestratorAdapter =
-  AccountDataDeletionAdapter & AccountOwnedMediaDeletionAdapter;
+  AccountDataDeletionAdapter &
+  AccountOwnedMediaDeletionAdapter &
+  AccountSharedMessageAnonymizationAdapter;
 
 export async function executeAccountDataDeletionDomains(
   adapter: AccountDataDeletionOrchestratorAdapter,
   input: ExecuteAccountDataDeletionInput
 ): Promise<AccountDataDeletionExecutionSummary> {
+  const sharedMessages = await executeSharedMessageAnonymizationDomain(
+    adapter,
+    {
+      uid: input.uid,
+      pageSize: input.pageSize,
+      maxPagesPerStep: input.maxPagesPerDomain,
+    }
+  );
   const coreSummary = await executeCoreAccountDataDeletionDomains(adapter, input);
   const ownedMedia = await executeOwnedMediaAndStorageDomain(adapter, {
     uid: input.uid,
     pageSize: input.pageSize,
     maxPagesPerStep: input.maxPagesPerDomain,
   });
-  const results = [...coreSummary.results, ownedMedia];
+  const results = [sharedMessages, ...coreSummary.results, ownedMedia];
   const completedDomains = results
     .filter((result) => result.status === 'completed')
     .map((result) => result.domain);
