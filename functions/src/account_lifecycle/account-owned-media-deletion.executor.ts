@@ -22,6 +22,10 @@ export interface OwnedVideoProcessingPageSummary {
 export interface AccountOwnedMediaDeletionAdapter {
   deleteOwnedPhotosPage(uid: string, limit: number): Promise<number>;
   deleteOwnedVideosPage(uid: string, limit: number): Promise<number>;
+  deleteOwnedPhotoPublicationsPage(uid: string, limit: number): Promise<number>;
+  deleteOwnedVideoPublicationsPage(uid: string, limit: number): Promise<number>;
+  deleteOwnedImageStatesPage(uid: string, limit: number): Promise<number>;
+  deleteOwnedPublicMediaProjection(uid: string): Promise<number>;
   resolveOwnedVideoProcessingJobsPage(
     uid: string,
     limit: number
@@ -48,6 +52,15 @@ interface PagedExecutionResult {
 
 interface ProcessingExecutionResult extends PagedExecutionResult {
   blocking: number;
+}
+
+interface MediaMetadataExecution {
+  photos: PagedExecutionResult;
+  videos: PagedExecutionResult;
+  photoPublications: PagedExecutionResult;
+  videoPublications: PagedExecutionResult;
+  imageStates: PagedExecutionResult;
+  publicProjection: number;
 }
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -85,28 +98,23 @@ export async function executeOwnedMediaAndStorageDomain(
   }
 
   try {
-    const photos = await executePagedStep(
-      () => adapter.deleteOwnedPhotosPage(uid, pageSize),
+    const metadata = await executeMetadataSteps(
+      adapter,
+      uid,
       pageSize,
       maxPages
     );
-    const videos = await executePagedStep(
-      () => adapter.deleteOwnedVideosPage(uid, pageSize),
-      pageSize,
-      maxPages
-    );
+    const metadataProcessed = countMetadataProcessed(metadata);
+    const metadataPages = countMetadataPages(metadata);
 
-    if (!photos.completed || !videos.completed) {
+    if (!metadataCompleted(metadata)) {
       return {
         domain: 'owned_media_and_storage',
         status: 'partial',
-        processed: photos.processed + videos.processed,
-        pages: photos.pages + videos.pages,
+        processed: metadataProcessed,
+        pages: metadataPages,
         blocker: 'pagination-limit-reached',
-        details: {
-          photosProcessed: photos.processed,
-          videosProcessed: videos.processed,
-        },
+        details: metadataDetails(metadata),
       };
     }
 
@@ -120,13 +128,11 @@ export async function executeOwnedMediaAndStorageDomain(
       return {
         domain: 'owned_media_and_storage',
         status: 'blocked',
-        processed:
-          photos.processed + videos.processed + processing.processed,
-        pages: photos.pages + videos.pages + processing.pages,
+        processed: metadataProcessed + processing.processed,
+        pages: metadataPages + processing.pages,
         blocker: 'video-processing-cancellation-pending',
         details: {
-          photosProcessed: photos.processed,
-          videosProcessed: videos.processed,
+          ...metadataDetails(metadata),
           processingJobsProcessed: processing.processed,
           processingJobsBlocking: processing.blocking,
         },
@@ -137,13 +143,11 @@ export async function executeOwnedMediaAndStorageDomain(
       return {
         domain: 'owned_media_and_storage',
         status: 'partial',
-        processed:
-          photos.processed + videos.processed + processing.processed,
-        pages: photos.pages + videos.pages + processing.pages,
+        processed: metadataProcessed + processing.processed,
+        pages: metadataPages + processing.pages,
         blocker: 'pagination-limit-reached',
         details: {
-          photosProcessed: photos.processed,
-          videosProcessed: videos.processed,
+          ...metadataDetails(metadata),
           processingJobsProcessed: processing.processed,
           processingJobsBlocking: 0,
         },
@@ -161,40 +165,24 @@ export async function executeOwnedMediaAndStorageDomain(
         domain: 'owned_media_and_storage',
         status: 'partial',
         processed:
-          photos.processed +
-          videos.processed +
-          processing.processed +
-          storageObjects.processed,
-        pages:
-          photos.pages +
-          videos.pages +
-          processing.pages +
-          storageObjects.pages,
+          metadataProcessed + processing.processed + storageObjects.processed,
+        pages: metadataPages + processing.pages + storageObjects.pages,
         blocker: 'pagination-limit-reached',
         details: {
-          photosProcessed: photos.processed,
-          videosProcessed: videos.processed,
+          ...metadataDetails(metadata),
           processingJobsProcessed: processing.processed,
+          processingJobsBlocking: 0,
           storageObjectsDeleted: storageObjects.processed,
         },
       };
     }
 
-    const cleanupResults: Record<OwnedMediaCleanupJobKind, PagedExecutionResult> = {
-      photo_deletion: emptyPagedResult(),
-      video_deletion: emptyPagedResult(),
-      published_photo_asset: emptyPagedResult(),
-      published_video_asset: emptyPagedResult(),
-    };
-
-    for (const kind of CLEANUP_KINDS) {
-      cleanupResults[kind] = await executePagedStep(
-        () => adapter.deleteOwnedMediaCleanupJobsPage(uid, kind, pageSize),
-        pageSize,
-        maxPages
-      );
-    }
-
+    const cleanupResults = await executeCleanupSteps(
+      adapter,
+      uid,
+      pageSize,
+      maxPages
+    );
     const cleanupCompleted = CLEANUP_KINDS.every(
       (kind) => cleanupResults[kind].completed
     );
@@ -206,28 +194,23 @@ export async function executeOwnedMediaAndStorageDomain(
       (total, kind) => total + cleanupResults[kind].pages,
       0
     );
-    const processed =
-      photos.processed +
-      videos.processed +
-      processing.processed +
-      storageObjects.processed +
-      cleanupProcessed;
-    const pages =
-      photos.pages +
-      videos.pages +
-      processing.pages +
-      storageObjects.pages +
-      cleanupPages;
 
     return {
       domain: 'owned_media_and_storage',
       status: cleanupCompleted ? 'completed' : 'partial',
-      processed,
-      pages,
+      processed:
+        metadataProcessed +
+        processing.processed +
+        storageObjects.processed +
+        cleanupProcessed,
+      pages:
+        metadataPages +
+        processing.pages +
+        storageObjects.pages +
+        cleanupPages,
       ...(cleanupCompleted ? {} : { blocker: 'pagination-limit-reached' }),
       details: {
-        photosProcessed: photos.processed,
-        videosProcessed: videos.processed,
+        ...metadataDetails(metadata),
         processingJobsProcessed: processing.processed,
         processingJobsBlocking: 0,
         storageObjectsDeleted: storageObjects.processed,
@@ -244,6 +227,121 @@ export async function executeOwnedMediaAndStorageDomain(
   } catch (error: unknown) {
     return failedResult(error);
   }
+}
+
+async function executeMetadataSteps(
+  adapter: AccountOwnedMediaDeletionAdapter,
+  uid: string,
+  pageSize: number,
+  maxPages: number
+): Promise<MediaMetadataExecution> {
+  const photos = await executePagedStep(
+    () => adapter.deleteOwnedPhotosPage(uid, pageSize),
+    pageSize,
+    maxPages
+  );
+  const videos = await executePagedStep(
+    () => adapter.deleteOwnedVideosPage(uid, pageSize),
+    pageSize,
+    maxPages
+  );
+  const photoPublications = await executePagedStep(
+    () => adapter.deleteOwnedPhotoPublicationsPage(uid, pageSize),
+    pageSize,
+    maxPages
+  );
+  const videoPublications = await executePagedStep(
+    () => adapter.deleteOwnedVideoPublicationsPage(uid, pageSize),
+    pageSize,
+    maxPages
+  );
+  const imageStates = await executePagedStep(
+    () => adapter.deleteOwnedImageStatesPage(uid, pageSize),
+    pageSize,
+    maxPages
+  );
+  const publicProjection = normalizeProcessedCount(
+    await adapter.deleteOwnedPublicMediaProjection(uid),
+    1
+  );
+
+  return {
+    photos,
+    videos,
+    photoPublications,
+    videoPublications,
+    imageStates,
+    publicProjection,
+  };
+}
+
+async function executeCleanupSteps(
+  adapter: AccountOwnedMediaDeletionAdapter,
+  uid: string,
+  pageSize: number,
+  maxPages: number
+): Promise<Record<OwnedMediaCleanupJobKind, PagedExecutionResult>> {
+  const results: Record<OwnedMediaCleanupJobKind, PagedExecutionResult> = {
+    photo_deletion: emptyPagedResult(),
+    video_deletion: emptyPagedResult(),
+    published_photo_asset: emptyPagedResult(),
+    published_video_asset: emptyPagedResult(),
+  };
+
+  for (const kind of CLEANUP_KINDS) {
+    results[kind] = await executePagedStep(
+      () => adapter.deleteOwnedMediaCleanupJobsPage(uid, kind, pageSize),
+      pageSize,
+      maxPages
+    );
+  }
+
+  return results;
+}
+
+function metadataCompleted(metadata: MediaMetadataExecution): boolean {
+  return (
+    metadata.photos.completed &&
+    metadata.videos.completed &&
+    metadata.photoPublications.completed &&
+    metadata.videoPublications.completed &&
+    metadata.imageStates.completed
+  );
+}
+
+function countMetadataProcessed(metadata: MediaMetadataExecution): number {
+  return (
+    metadata.photos.processed +
+    metadata.videos.processed +
+    metadata.photoPublications.processed +
+    metadata.videoPublications.processed +
+    metadata.imageStates.processed +
+    metadata.publicProjection
+  );
+}
+
+function countMetadataPages(metadata: MediaMetadataExecution): number {
+  return (
+    metadata.photos.pages +
+    metadata.videos.pages +
+    metadata.photoPublications.pages +
+    metadata.videoPublications.pages +
+    metadata.imageStates.pages +
+    1
+  );
+}
+
+function metadataDetails(
+  metadata: MediaMetadataExecution
+): Record<string, number> {
+  return {
+    photosProcessed: metadata.photos.processed,
+    videosProcessed: metadata.videos.processed,
+    photoPublicationsProcessed: metadata.photoPublications.processed,
+    videoPublicationsProcessed: metadata.videoPublications.processed,
+    imageStatesProcessed: metadata.imageStates.processed,
+    publicProjectionProcessed: metadata.publicProjection,
+  };
 }
 
 async function executePagedStep(
@@ -309,7 +407,10 @@ function normalizeProcessingSummary(
   };
 }
 
-function normalizeProcessedCount(value: unknown, max = Number.MAX_SAFE_INTEGER): number {
+function normalizeProcessedCount(
+  value: unknown,
+  max = Number.MAX_SAFE_INTEGER
+): number {
   const parsed = Math.trunc(Number(value));
   return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), max) : 0;
 }
