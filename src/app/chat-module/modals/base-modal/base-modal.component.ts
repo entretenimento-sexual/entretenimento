@@ -9,8 +9,10 @@ import {
   Component,
   EventEmitter,
   Output,
+  inject,
   input,
 } from '@angular/core';
+import { MatDialogRef } from '@angular/material/dialog';
 
 @Component({
   selector: 'app-base-modal',
@@ -21,11 +23,16 @@ import {
 })
 export class BaseModalComponent {
   private static nextTitleId = 0;
+  private readonly dialogRef = inject(MatDialogRef, { optional: true });
 
   readonly title = input<string>('');
   readonly titleId = `base-modal-title-${BaseModalComponent.nextTitleId += 1}`;
 
   @Output() closeModal = new EventEmitter<void>();
+
+  constructor() {
+    this.dialogRef?.updateSize('min(92vw, 40rem)');
+  }
 
   onClose(): void {
     this.closeModal.emit();
