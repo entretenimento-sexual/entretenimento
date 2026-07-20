@@ -1,11 +1,18 @@
 // src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.ts
-import { Component, OnInit, DestroyRef, inject } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  HostListener,
+  OnInit,
+  inject,
+} from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { EMPTY, Observable, of } from 'rxjs';
+import { EMPTY, Observable, Subject, of } from 'rxjs';
 import {
   catchError,
+  debounceTime,
   filter,
   finalize,
   map,
@@ -13,10 +20,11 @@ import {
   take,
   tap,
 } from 'rxjs/operators';
-
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
+import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import type {
@@ -29,8 +37,21 @@ import { RegisterFlowVm } from '../data-access/register-flow.model';
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
 
 type ProfileCompletionField = 'nickname' | 'gender' | 'estado' | 'municipio';
-type ProfileCompletionMessageKind = 'success' | 'error' | 'warning' | 'info' | null;
+type ProfileCompletionMessageKind =
+  | 'success'
+  | 'error'
+  | 'warning'
+  | 'info'
+  | null;
 type ReportableError = Error | HttpErrorResponse;
+
+type ProfileCompletionDraft = {
+  nickname: string;
+  gender: string;
+  orientation: string;
+  estado: string;
+  municipio: string;
+};
 
 @Component({
   selector: 'app-finalizar-cadastro',
@@ -38,12 +59,16 @@ type ReportableError = Error | HttpErrorResponse;
   styleUrls: ['./finalizar-cadastro.component.css'],
   standalone: false,
 })
-export class FinalizarCadastroComponent implements OnInit {
+export class FinalizarCadastroComponent
+implements OnInit, UnsavedChangesAware
+{
   private readonly destroyRef = inject(DestroyRef);
+  private readonly draftChanges$ = new Subject<void>();
 
   public entryReason: 'profile_incomplete' | 'email_unverified' | null = null;
   public pageTitle = 'Complete seu perfil';
-  public introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
+  public introText =
+    'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
 
   public email = '';
   public nickname = '';
@@ -69,16 +94,92 @@ export class FinalizarCadastroComponent implements OnInit {
   public formErrors: Partial<Record<ProfileCompletionField, string>> = {};
 
   private latestVm: RegisterFlowVm | null = null;
+  private draftReady = false;
+  private draftKey = '';
+  private initialDraftSnapshot = '';
 
   constructor(
     private readonly registerFlow: RegisterFlowFacade,
     private readonly profileCompletion: ProfileCompletionFacade,
     private readonly currentUserStore: CurrentUserStoreService,
+    private readonly localDraft: LocalDraftService,
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotification: ErrorNotificationService
   ) {}
+
+  ngOnInit(): void {
+    this.resolveEntryContext();
+    this.loadEstados();
+    this.observeDraftChanges();
+
+    this.registerFlow.vm$
+      .pipe(
+        tap((vm) => {
+          this.latestVm = vm;
+        }),
+        filter((vm) => vm.authReady),
+        take(1),
+        switchMap((vm) => {
+          if (!vm.uid) {
+            this.router
+              .navigate(['/login'], { replaceUrl: true })
+              .catch(() => {});
+            return of(void 0);
+          }
+
+          if (vm.currentStep !== 'profileCompletion') {
+            this.router
+              .navigateByUrl(vm.nextRoute || '/register/welcome', {
+                replaceUrl: true,
+              })
+              .catch(() => {});
+            return of(void 0);
+          }
+
+          return this.loadUserForFormByUid$(vm.uid, vm);
+        }),
+        finalize(() => {
+          this.isLoading = false;
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe({
+        error: (error) => {
+          this.reportError(
+            error,
+            'Erro ao carregar seus dados. Tente novamente.'
+          );
+        },
+      });
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (!this.hasUnsavedChanges()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  }
+
+  hasUnsavedChanges(): boolean {
+    if (!this.draftReady || this.isSubmitting) return false;
+    return (
+      this.currentDraftSnapshot() !== this.initialDraftSnapshot ||
+      this.avatarFile !== null
+    );
+  }
+
+  discardUnsavedChanges(): void {
+    this.localDraft.remove(this.draftKey);
+    this.initialDraftSnapshot = this.currentDraftSnapshot();
+    this.avatarFile = null;
+  }
+
+  onDraftChange(): void {
+    if (!this.draftReady || this.isSubmitting) return;
+    this.draftChanges$.next();
+  }
 
   private clearSubmitMessages(): void {
     this.message = '';
@@ -103,20 +204,24 @@ export class FinalizarCadastroComponent implements OnInit {
     this.messageKind = 'success';
   }
 
-  private normalizeReportableError(err: unknown): ReportableError {
-    if (err instanceof Error || err instanceof HttpErrorResponse) {
-      return err;
+  private normalizeReportableError(error: unknown): ReportableError {
+    if (error instanceof Error || error instanceof HttpErrorResponse) {
+      return error;
     }
 
-    if (typeof err === 'string' && err.trim()) {
-      return new Error(err.trim());
+    if (typeof error === 'string' && error.trim()) {
+      return new Error(error.trim());
     }
 
-    return new Error('[FinalizarCadastroComponent] Erro desconhecido.');
+    return new Error(
+      '[FinalizarCadastroComponent] Erro desconhecido.'
+    );
   }
 
-  private reportError(err: unknown, message: string): void {
-    this.globalErrorHandler.handleError(this.normalizeReportableError(err));
+  private reportError(error: unknown, message: string): void {
+    this.globalErrorHandler.handleError(
+      this.normalizeReportableError(error)
+    );
     this.setErrorMessage(message);
   }
 
@@ -132,63 +237,34 @@ export class FinalizarCadastroComponent implements OnInit {
     this.uploadMessage = '';
   }
 
-  ngOnInit(): void {
-    this.resolveEntryContext();
-    this.loadEstados();
-
-    this.registerFlow.vm$
-      .pipe(
-        tap((vm) => {
-          this.latestVm = vm;
-        }),
-        filter((vm) => vm.authReady),
-        take(1),
-        switchMap((vm) => {
-          if (!vm.uid) {
-            this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {});
-            return of(void 0);
-          }
-
-          if (vm.currentStep !== 'profileCompletion') {
-            this.router.navigateByUrl(vm.nextRoute || '/register/welcome', {
-              replaceUrl: true,
-            }).catch(() => {});
-
-            return of(void 0);
-          }
-
-          return this.loadUserForFormByUid$(vm.uid, vm);
-        }),
-        finalize(() => {
-          this.isLoading = false;
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe({
-        error: (err) => {
-          this.reportError(err, 'Erro ao carregar seus dados. Tente novamente.');
-        },
-      });
-  }
-
-  private loadUserForFormByUid$(uid: string, vm: RegisterFlowVm): Observable<void> {
+  private loadUserForFormByUid$(
+    uid: string,
+    vm: RegisterFlowVm
+  ): Observable<void> {
     return this.profileCompletion.loadUserForFormByUid$(uid, vm).pipe(
       take(1),
       tap((initialData) => {
         if (!initialData) {
-          this.setErrorMessage('Não encontramos os dados da sua conta. Tente entrar novamente.');
-          this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {});
+          this.setErrorMessage(
+            'Não encontramos os dados da sua conta. Tente entrar novamente.'
+          );
+          this.router
+            .navigate(['/login'], { replaceUrl: true })
+            .catch(() => {});
           return;
         }
 
         this.email = initialData.email;
-        this.nickname = NicknameUtils.normalizarApelido(initialData.nickname);
+        this.nickname = NicknameUtils.normalizarApelido(
+          initialData.nickname
+        );
         this.needsNickname = !this.nickname;
-
         this.gender = initialData.gender;
         this.orientation = initialData.orientation;
         this.selectedEstado = initialData.estado;
         this.selectedMunicipio = initialData.municipio;
+
+        this.initializeDraftState(uid);
 
         if (this.selectedEstado) {
           this.loadMunicipiosForEstado(this.selectedEstado);
@@ -206,8 +282,8 @@ export class FinalizarCadastroComponent implements OnInit {
         next: (estados) => {
           this.estados = estados;
         },
-        error: (err) => {
-          this.reportError(err, 'Erro ao carregar estados.');
+        error: (error) => {
+          this.reportError(error, 'Erro ao carregar estados.');
         },
       });
   }
@@ -220,8 +296,8 @@ export class FinalizarCadastroComponent implements OnInit {
         next: (municipios) => {
           this.municipios = municipios;
         },
-        error: (err) => {
-          this.reportError(err, 'Erro ao carregar municípios.');
+        error: (error) => {
+          this.reportError(error, 'Erro ao carregar municípios.');
         },
       });
   }
@@ -230,15 +306,23 @@ export class FinalizarCadastroComponent implements OnInit {
     if (!this.selectedEstado) {
       this.municipios = [];
       this.selectedMunicipio = '';
-      this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
+      this.checkFieldValidity(
+        'municipio',
+        this.selectedMunicipio,
+        'Município'
+      );
+      this.onDraftChange();
       return;
     }
 
     this.loadMunicipiosForEstado(this.selectedEstado);
+    this.onDraftChange();
   }
 
   private resolveSafeRedirectTo(): string | null {
-    const raw = String(this.route.snapshot.queryParamMap.get('redirectTo') ?? '').trim();
+    const raw = String(
+      this.route.snapshot.queryParamMap.get('redirectTo') ?? ''
+    ).trim();
 
     if (
       !raw ||
@@ -262,15 +346,16 @@ export class FinalizarCadastroComponent implements OnInit {
       const query = redirectTo
         ? `?redirectTo=${encodeURIComponent(redirectTo)}`
         : '';
-
       return `/adulto/confirmar${query}`;
     }
 
-    if (redirectTo) {
-      return redirectTo;
-    }
+    if (redirectTo) return redirectTo;
 
-    if (vm?.uid === uid && vm.nextRoute && vm.nextRoute !== '/register/finalizar-cadastro') {
+    if (
+      vm?.uid === uid &&
+      vm.nextRoute &&
+      vm.nextRoute !== '/register/finalizar-cadastro'
+    ) {
       return vm.nextRoute;
     }
 
@@ -286,23 +371,27 @@ export class FinalizarCadastroComponent implements OnInit {
     }
 
     if (!vm.emailVerified) {
-      this.setWarningMessage('Confirme seu e-mail antes de finalizar o cadastro.');
-
-      this.router.navigate(['/register/welcome'], {
-        replaceUrl: true,
-        queryParams: { reason: 'email_unverified' },
-      }).catch(() => {});
-
+      this.setWarningMessage(
+        'Confirme seu e-mail antes de finalizar o cadastro.'
+      );
+      this.router
+        .navigate(['/register/welcome'], {
+          replaceUrl: true,
+          queryParams: { reason: 'email_unverified' },
+        })
+        .catch(() => {});
       return false;
     }
 
     if (vm.currentStep !== 'profileCompletion') {
-      this.setWarningMessage('Esta etapa do cadastro não está disponível agora.');
-
-      this.router.navigateByUrl(vm.nextRoute || '/register/welcome', {
-        replaceUrl: true,
-      }).catch(() => {});
-
+      this.setWarningMessage(
+        'Esta etapa do cadastro não está disponível agora.'
+      );
+      this.router
+        .navigateByUrl(vm.nextRoute || '/register/welcome', {
+          replaceUrl: true,
+        })
+        .catch(() => {});
       return false;
     }
 
@@ -311,27 +400,28 @@ export class FinalizarCadastroComponent implements OnInit {
 
   onSubmit(): void {
     if (this.isSubmitting) return;
-
-    if (!this.canSubmitProfileCompletion()) {
-      return;
-    }
+    if (!this.canSubmitProfileCompletion()) return;
 
     const uid = this.latestVm?.uid?.trim() || null;
-
-    if (!uid) {
-      return;
-    }
-
     const vm = this.latestVm;
-
-    if (!vm) {
-      return;
-    }
+    if (!uid || !vm) return;
 
     this.checkFieldValidity('nickname', this.nickname, 'Apelido');
-    this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
-    this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
-    this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
+    this.checkFieldValidity(
+      'gender',
+      this.gender,
+      'Quero me cadastrar como'
+    );
+    this.checkFieldValidity(
+      'estado',
+      this.selectedEstado,
+      'Estado'
+    );
+    this.checkFieldValidity(
+      'municipio',
+      this.selectedMunicipio,
+      'Município'
+    );
 
     if (
       this.isFieldInvalid('nickname') ||
@@ -339,7 +429,9 @@ export class FinalizarCadastroComponent implements OnInit {
       this.isFieldInvalid('estado') ||
       this.isFieldInvalid('municipio')
     ) {
-      this.setErrorMessage('Por favor, preencha os campos obrigatórios.');
+      this.setErrorMessage(
+        'Por favor, preencha os campos obrigatórios.'
+      );
       return;
     }
 
@@ -364,23 +456,31 @@ export class FinalizarCadastroComponent implements OnInit {
           this.isSubmitting = false;
         }),
         takeUntilDestroyed(this.destroyRef),
-        catchError((err) => {
-          const code = String((err as any)?.code ?? '');
+        catchError((error) => {
+          const code = String(
+            (error as { code?: unknown })?.code ?? ''
+          );
 
           if (code === 'nickname/in-use') {
-            this.formErrors['nickname'] = 'Este apelido já está em uso.';
-            this.setErrorMessage('Escolha outro apelido para continuar.');
+            this.formErrors['nickname'] =
+              'Este apelido já está em uso.';
+            this.setErrorMessage(
+              'Escolha outro apelido para continuar.'
+            );
             return EMPTY;
           }
 
           if (code === 'nickname/invalid') {
-            this.formErrors['nickname'] = 'Informe um apelido válido.';
+            this.formErrors['nickname'] =
+              'Informe um apelido válido.';
             this.setErrorMessage('Revise o apelido informado.');
             return EMPTY;
           }
 
-          this.reportError(err, 'Ocorreu um erro ao finalizar o cadastro. Tente novamente.');
-
+          this.reportError(
+            error,
+            'Ocorreu um erro ao finalizar o cadastro. Tente novamente.'
+          );
           return EMPTY;
         })
       )
@@ -388,7 +488,8 @@ export class FinalizarCadastroComponent implements OnInit {
         next: () => {
           this.setSuccessMessage('Perfil finalizado com sucesso!');
 
-          const normalizedNickname = NicknameUtils.normalizarApelido(this.nickname);
+          const normalizedNickname =
+            NicknameUtils.normalizarApelido(this.nickname);
 
           this.currentUserStore.patch({
             nickname: normalizedNickname,
@@ -399,16 +500,20 @@ export class FinalizarCadastroComponent implements OnInit {
             municipio: this.selectedMunicipio,
           });
 
+          this.localDraft.remove(this.draftKey);
+          this.initialDraftSnapshot = this.currentDraftSnapshot();
+          this.avatarFile = null;
+
           const target = this.getRedirectToAfterCompletion(uid);
-          this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
+          this.router
+            .navigateByUrl(target, { replaceUrl: true })
+            .catch(() => {});
         },
       });
   }
 
   private uploadAvatarAfterProfileSave$(uid: string): Observable<void> {
-    if (!this.avatarFile) {
-      return of(void 0);
-    }
+    if (!this.avatarFile) return of(void 0);
 
     this.isUploading = true;
     this.progressValue = 0;
@@ -420,14 +525,19 @@ export class FinalizarCadastroComponent implements OnInit {
         file: this.avatarFile,
         onProgress: (progress) => {
           this.isUploading = true;
-          this.progressValue = Math.max(0, Math.min(100, Math.round(progress || 0)));
+          this.progressValue = Math.max(
+            0,
+            Math.min(100, Math.round(progress || 0))
+          );
         },
       })
       .pipe(
         tap((result) => {
           if (result.status === 'uploaded' && result.photoURL) {
             this.progressValue = 100;
-            this.currentUserStore.patch({ photoURL: result.photoURL });
+            this.currentUserStore.patch({
+              photoURL: result.photoURL,
+            });
             return;
           }
 
@@ -440,7 +550,9 @@ export class FinalizarCadastroComponent implements OnInit {
           }
 
           if (result.status === 'upload_failed') {
-            this.setUploadWarning('Perfil salvo. Não foi possível enviar a foto agora.');
+            this.setUploadWarning(
+              'Perfil salvo. Não foi possível enviar a foto agora.'
+            );
           }
         }),
         finalize(() => {
@@ -455,24 +567,87 @@ export class FinalizarCadastroComponent implements OnInit {
     const file = input?.files?.[0] ?? null;
 
     this.resetAvatarSelectionState();
-
     if (!file) {
+      this.onDraftChange();
       return;
     }
 
-    if (!file.type?.startsWith('image/')) {
-      this.setErrorMessage('Selecione uma imagem válida.');
+    const acceptedTypes = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+    ]);
+
+    if (!acceptedTypes.has(file.type?.toLowerCase())) {
+      this.setErrorMessage(
+        'Selecione uma imagem em JPG, PNG ou WebP.'
+      );
       return;
     }
 
     const maxSizeBytes = 10 * 1024 * 1024;
-
     if (file.size > maxSizeBytes) {
       this.setErrorMessage('A foto deve ter no máximo 10 MB.');
       return;
     }
 
     this.avatarFile = file;
+    this.onDraftChange();
+  }
+
+  private initializeDraftState(uid: string): void {
+    this.draftKey = `profile-completion:${uid}`;
+    this.initialDraftSnapshot = this.currentDraftSnapshot();
+
+    const draft = this.localDraft.load<ProfileCompletionDraft>(
+      this.draftKey
+    );
+
+    if (draft) {
+      if (this.needsNickname) {
+        this.nickname = NicknameUtils.normalizarApelido(
+          draft.nickname
+        );
+      }
+      this.gender = String(draft.gender ?? '');
+      this.orientation = String(draft.orientation ?? '');
+      this.selectedEstado = String(draft.estado ?? '');
+      this.selectedMunicipio = String(draft.municipio ?? '');
+    }
+
+    this.draftReady = true;
+  }
+
+  private observeDraftChanges(): void {
+    this.draftChanges$
+      .pipe(
+        debounceTime(500),
+        filter(() => this.hasUnsavedChanges()),
+        tap(() => {
+          this.localDraft.save(
+            this.draftKey,
+            this.currentDraftValue()
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
+  private currentDraftValue(): ProfileCompletionDraft {
+    return {
+      nickname: this.needsNickname
+        ? NicknameUtils.normalizarApelido(this.nickname)
+        : '',
+      gender: String(this.gender ?? '').trim(),
+      orientation: String(this.orientation ?? '').trim(),
+      estado: String(this.selectedEstado ?? '').trim(),
+      municipio: String(this.selectedMunicipio ?? '').trim(),
+    };
+  }
+
+  private currentDraftSnapshot(): string {
+    return JSON.stringify(this.currentDraftValue());
   }
 
   private resolveEntryContext(): void {
@@ -481,7 +656,8 @@ export class FinalizarCadastroComponent implements OnInit {
     if (reason === 'profile_incomplete') {
       this.entryReason = 'profile_incomplete';
       this.pageTitle = 'Complete seu perfil';
-      this.introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
+      this.introText =
+        'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
       return;
     }
 
@@ -495,10 +671,15 @@ export class FinalizarCadastroComponent implements OnInit {
 
     this.entryReason = null;
     this.pageTitle = 'Complete seu perfil';
-    this.introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
+    this.introText =
+      'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
   }
 
-  checkFieldValidity(field: ProfileCompletionField, value: unknown, label?: string): void {
+  checkFieldValidity(
+    field: ProfileCompletionField,
+    value: unknown,
+    label?: string
+  ): void {
     const nice = label || field;
     const clean = String(value ?? '').trim();
 
@@ -511,12 +692,14 @@ export class FinalizarCadastroComponent implements OnInit {
       this.formErrors[field] = valid
         ? ''
         : 'Use de 4 a 24 caracteres: letras, números, espaço, ponto, hífen ou sublinhado.';
+      this.onDraftChange();
       return;
     }
 
     this.formErrors[field] = clean
       ? ''
       : `O campo "${nice}" é obrigatório.`;
+    this.onDraftChange();
   }
 
   isFieldInvalid(field: ProfileCompletionField): boolean {
