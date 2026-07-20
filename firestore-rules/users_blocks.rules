@@ -45,6 +45,12 @@ match /users/{ownerUid}/blocks/{targetUid} {
   // events
   // -----------------------------------------------------------------------
   match /events/{eventId} {
+    function blockStateExists() {
+      return exists(
+        /databases/$(database)/documents/users/$(ownerUid)/blocks/$(targetUid)
+      );
+    }
+
     function allowedEventKeys() {
       return request.resource.data.keys().hasOnly([
         "type",
@@ -65,7 +71,9 @@ match /users/{ownerUid}/blocks/{targetUid} {
     }
 
     allow get, list: if isSelf(ownerUid);
-    allow create: if isSelf(ownerUid) && validEventPayload();
+    allow create: if isSelf(ownerUid)
+      && blockStateExists()
+      && validEventPayload();
     allow update, delete: if false;
   }
 }
