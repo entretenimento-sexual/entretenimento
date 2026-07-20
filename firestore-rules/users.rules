@@ -263,12 +263,12 @@ match /users/{userId} {
     && createDefaultsOk();
 
   allow update: if
-    (
+    selfCompletingRegistration()
+    || (
       isSelf(userId)
       && !selfChangingSensitiveKeys()
       && emailVerifiedSafeOnUpdate()
     )
-    || selfCompletingRegistration()
     || (
       isAdminActor()
       && adminModerationOnly()
