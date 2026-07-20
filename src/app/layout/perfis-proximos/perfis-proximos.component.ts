@@ -15,7 +15,14 @@
 //   no fluxo atual. A abertura do modal continua ocorrendo corretamente via MatDialog
 //   + ModalMensagemComponent no método abrirModalMensagem().
 
-import { Component, DestroyRef, inject, signal, computed, effect } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import { geohashForLocation } from 'geofire-common';
 import { AsyncPipe, CommonModule } from '@angular/common';
@@ -27,12 +34,13 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import {
   GeolocationService,
   GeolocationError,
-  GeolocationErrorCode
+  GeolocationErrorCode,
 } from 'src/app/core/services/geolocation/geolocation.service';
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { NetworkStatusService } from 'src/app/core/services/network/network-status.service';
 
 import {
   take,
@@ -41,13 +49,22 @@ import {
   map,
   filter,
   tap,
-  shareReplay
+  shareReplay,
 } from 'rxjs/operators';
-import { BehaviorSubject, Observable, combineLatest, firstValueFrom } from 'rxjs';
+import {
+  BehaviorSubject,
+  Observable,
+  combineLatest,
+  firstValueFrom,
+} from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { MatDialog } from '@angular/material/dialog';
 import { ModalMensagemComponent } from 'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component';
+import {
+  ContentStateComponent,
+  ContentStateKind,
+} from 'src/app/shared/content-state/content-state.component';
 import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
 
 // Auth infra
@@ -64,15 +81,29 @@ import { NearbyProfilesActions } from 'src/app/store/actions/actions.location/ne
 import * as LocationActions from 'src/app/store/actions/actions.location/location.actions';
 import {
   selectLocationNearbyVMByUid,
-  selectMaxDistanceKm
+  selectMaxDistanceKm,
 } from 'src/app/store/selectors/selectors.location/location.selectors';
+
+interface NearbyContentStateVm {
+  state: ContentStateKind;
+  title: string;
+  message: string;
+  actionLabel: string;
+  compact: boolean;
+}
 
 @Component({
   selector: 'app-perfis-proximos',
   templateUrl: './perfis-proximos.component.html',
   styleUrls: ['./perfis-proximos.component.css', '../layout-profile-exibe.css'],
   standalone: true,
-  imports: [CommonModule, AsyncPipe, FormsModule, UserCardComponent]
+  imports: [
+    CommonModule,
+    AsyncPipe,
+    FormsModule,
+    ContentStateComponent,
+    UserCardComponent,
+  ],
 })
 export class PerfisProximosComponent {
   private readonly destroyRef = inject(DestroyRef);
@@ -82,27 +113,26 @@ export class PerfisProximosComponent {
   // Signals locais: estado de localização, política, UX e prompt contextual
   // ===========================================================================
 
-  // Localização efetivamente usada pela UI
   private readonly _userLocation = signal<GeoCoordinates | null>(null);
   readonly userLocation = computed(() => this._userLocation());
 
-  // Limite máximo de raio permitido pela policy atual
   private readonly _policyMaxDistanceKm = signal<number>(20);
   readonly policyMaxDistanceKm = computed(() => this._policyMaxDistanceKm());
 
-  // Valor do slider controlado pela UI (persistido em cache leve)
-  private readonly _uiDistanceKm =
-    signal<number | undefined>(this.cache.getSync<number>('uiDistanceKm') ?? undefined);
-  readonly uiDistanceKm = computed(() => this._uiDistanceKm() ?? this.policyMaxDistanceKm());
+  private readonly _uiDistanceKm = signal<number | undefined>(
+    this.cache.getSync<number>('uiDistanceKm') ?? undefined
+  );
+  readonly uiDistanceKm = computed(
+    () => this._uiDistanceKm() ?? this.policyMaxDistanceKm()
+  );
 
-  // Último erro amigável de localização
   private readonly _lastError = signal<string | null>(null);
   readonly lastError = computed(() => this._lastError());
 
-  // Prompt contextual exibido apenas quando o usuário clica para ativar localização
-  // sem ter concluído o perfil mínimo
   private readonly _showProfileCompletionPrompt = signal(false);
-  readonly showProfileCompletionPrompt = computed(() => this._showProfileCompletionPrompt());
+  readonly showProfileCompletionPrompt = computed(
+    () => this._showProfileCompletionPrompt()
+  );
 
   // ===========================================================================
   // Dependências
@@ -112,6 +142,7 @@ export class PerfisProximosComponent {
   private readonly userProfileService = inject(UserProfileService);
   private readonly errorNotificationService = inject(ErrorNotificationService);
   private readonly globalErrorHandlerService = inject(GlobalErrorHandlerService);
+  private readonly network = inject(NetworkStatusService);
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
 
@@ -134,18 +165,20 @@ export class PerfisProximosComponent {
   // Sincronização do slider com o slice de location
   // ===========================================================================
 
-  private readonly syncUiWithStore$ = this.store.select(selectMaxDistanceKm).pipe(
-    tap((v) => {
-      if (typeof v === 'number' && Number.isFinite(v)) {
-        if (this._uiDistanceKm() !== v) {
-          this._uiDistanceKm.set(v);
+  private readonly syncUiWithStore$ = this.store
+    .select(selectMaxDistanceKm)
+    .pipe(
+      tap((v) => {
+        if (typeof v === 'number' && Number.isFinite(v)) {
+          if (this._uiDistanceKm() !== v) {
+            this._uiDistanceKm.set(v);
+          }
         }
-      }
-    }),
-    takeUntilDestroyed(this.destroyRef)
-  ).subscribe();
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    )
+    .subscribe();
 
-  // Trigger manual para recalcular VM / disparar reload
   private readonly reload$ = new BehaviorSubject<void>(undefined);
 
   // ===========================================================================
@@ -158,8 +191,6 @@ export class PerfisProximosComponent {
     switchMap((uid) =>
       this.store.select(selectLocationNearbyVMByUid(uid)).pipe(
         tap((vm) => {
-          // Cache-first:
-          // só carrega do backend quando houver key/location e o cache não estiver fresh
           if (vm.key && vm.currentLocation && !vm.isFresh) {
             const params = {
               uid,
@@ -176,13 +207,83 @@ export class PerfisProximosComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  // Observables consumidos pelo template
-  readonly profiles$: Observable<IUserDados[]> = this.vm$.pipe(map((vm) => vm.list));
-  readonly nearbyLoading$: Observable<boolean> = this.vm$.pipe(map((vm) => vm.loading));
-  readonly nearbyError$: Observable<string | null> = this.vm$.pipe(map((vm) => vm.error));
-  readonly ttlLeftMs$: Observable<number> = this.vm$.pipe(map((vm) => vm.ttlLeftMs));
+  readonly profiles$: Observable<IUserDados[]> = this.vm$.pipe(
+    map((vm) => vm.list)
+  );
+  readonly nearbyLoading$: Observable<boolean> = this.vm$.pipe(
+    map((vm) => vm.loading)
+  );
+  readonly nearbyError$: Observable<string | null> = this.vm$.pipe(
+    map((vm) => vm.error)
+  );
+  readonly ttlLeftMs$: Observable<number> = this.vm$.pipe(
+    map((vm) => vm.ttlLeftMs)
+  );
 
-  // Persistência leve do slider (TTL 15 min)
+  readonly contentState$: Observable<NearbyContentStateVm | null> =
+    combineLatest([this.vm$, this.network.isOffline$]).pipe(
+      map(([vm, offline]) => {
+        const hasProfiles = vm.list.length > 0;
+
+        if (hasProfiles && (offline || !!vm.error)) {
+          return {
+            state: 'stale',
+            title: 'Exibindo perfis já carregados',
+            message: offline
+              ? 'A conexão está indisponível. Os resultados serão atualizados quando você estiver online.'
+              : 'A atualização falhou, mas o último resultado válido foi preservado.',
+            actionLabel: 'Atualizar',
+            compact: true,
+          };
+        }
+
+        if (vm.loading && !hasProfiles) {
+          return {
+            state: 'loading',
+            title: '',
+            message: 'Carregando perfis próximos.',
+            actionLabel: '',
+            compact: false,
+          };
+        }
+
+        if (offline && !hasProfiles) {
+          return {
+            state: 'offline',
+            title: 'Perfis indisponíveis sem conexão',
+            message:
+              'Conecte-se à internet para buscar perfis próximos pela primeira vez.',
+            actionLabel: 'Tentar novamente',
+            compact: false,
+          };
+        }
+
+        if (vm.error && !hasProfiles) {
+          return {
+            state: 'error',
+            title: 'Não foi possível carregar os perfis',
+            message: String(vm.error),
+            actionLabel: 'Tentar novamente',
+            compact: false,
+          };
+        }
+
+        if (!vm.loading && !hasProfiles) {
+          return {
+            state: 'empty',
+            title: 'Nenhum perfil próximo encontrado',
+            message:
+              'Aumente o raio de busca ou tente novamente quando houver mais pessoas na região.',
+            actionLabel: 'Atualizar',
+            compact: false,
+          };
+        }
+
+        return null;
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
   private readonly uiDistancePersistEffect = effect(() => {
     const v = this._uiDistanceKm();
     if (v && Number.isFinite(v)) {
@@ -194,11 +295,6 @@ export class PerfisProximosComponent {
   // UX: navegação segura para finalizar cadastro
   // ===========================================================================
 
-  /**
-   * Normaliza a rota de retorno para evitar valores inválidos.
-   * Mantém a experiência fluida: o usuário finaliza o cadastro e volta
-   * para a área de perfis próximos.
-   */
   private normalizeRedirectTarget(url: string | null | undefined): string {
     const clean = (url ?? '').trim();
 
@@ -210,59 +306,42 @@ export class PerfisProximosComponent {
     return clean;
   }
 
-  /**
-   * Usuário optou por continuar na área sem ativar localização.
-   * Apenas ocultamos o prompt contextual.
-   */
   continueWithoutLocation(): void {
     this._showProfileCompletionPrompt.set(false);
   }
 
-  /**
-   * Usuário optou por concluir a etapa obrigatória agora.
-   *
-   * Ordem obrigatória do onboarding:
-   * - se o e-mail ainda não foi verificado, volta para /register/welcome
-   * - se o e-mail já foi verificado, segue para finalizar cadastro
-   */
   async goToFinishMinimumProfile(): Promise<void> {
     this._showProfileCompletionPrompt.set(false);
 
     const redirectTo = this.normalizeRedirectTarget(this.router.url);
-    const user = await firstValueFrom(this.user$.pipe(take(1))).catch(() => null);
+    const user = await firstValueFrom(this.user$.pipe(take(1))).catch(
+      () => null
+    );
 
     if (user?.emailVerified !== true) {
-      this.router.navigate(
-        ['/register/welcome'],
-        {
+      this.router
+        .navigate(['/register/welcome'], {
           queryParams: {
             autocheck: '1',
             reason: 'email_unverified',
             redirectTo,
           },
-        }
-      ).catch(() => {});
+        })
+        .catch(() => {});
       return;
     }
 
-    this.router.navigate(
-      ['/register/finalizar-cadastro'],
-      { queryParams: { redirectTo } }
-    ).catch(() => {});
+    this.router
+      .navigate(['/register/finalizar-cadastro'], {
+        queryParams: { redirectTo },
+      })
+      .catch(() => {});
   }
 
   // ===========================================================================
   // Ações de UI
   // ===========================================================================
 
-  /**
-   * Clique explícito do usuário para ativar localização.
-   *
-   * Nova regra de UX:
-   * - se o perfil mínimo não estiver concluído, não mostramos erro seco;
-   *   exibimos um aviso contextual com escolha do usuário
-   * - se o perfil estiver apto, seguimos com a ativação normal da localização
-   */
   async onEnableLocationClick(): Promise<void> {
     try {
       await this.authSession.whenReady();
@@ -275,23 +354,19 @@ export class PerfisProximosComponent {
         return;
       }
 
-      // Perfil mínimo = nickname + finalizar cadastro
-      // Aqui usamos o gate já consolidado pela AccessControlService.
       const profileEligible = await firstValueFrom(
         this.accessControl.profileEligible$.pipe(take(1))
       );
 
       if (!profileEligible) {
-        // Não tratamos como "erro": é uma orientação contextual.
         this._showProfileCompletionPrompt.set(true);
         return;
       }
 
-      // Se o perfil já estiver apto, escondemos eventual prompt antigo.
       this._showProfileCompletionPrompt.set(false);
 
       const precise = await this.geolocationService.getCurrentLocation({
-        requireUserGesture: true
+        requireUserGesture: true,
       });
 
       const { coords: safeCoords, geohash, policy } =
@@ -301,7 +376,6 @@ export class PerfisProximosComponent {
           !!user.emailVerified
         );
 
-      // Atualiza signals locais de UX/policy
       this._userLocation.set(safeCoords);
       this._policyMaxDistanceKm.set(policy.maxDistanceKm || 20);
 
@@ -309,19 +383,21 @@ export class PerfisProximosComponent {
         this._uiDistanceKm.set(this._policyMaxDistanceKm());
       }
 
-      // Atualiza slice de location no store
       this.store.dispatch(
         LocationActions.updateCurrentLocation({
           latitude: safeCoords.latitude!,
-          longitude: safeCoords.longitude!
+          longitude: safeCoords.longitude!,
         })
       );
 
-      // Atualiza coarse location do perfil (best-effort)
       const finalHash =
-        geohash ?? geohashForLocation([safeCoords.latitude!, safeCoords.longitude!]);
+        geohash ??
+        geohashForLocation([
+          safeCoords.latitude!,
+          safeCoords.longitude!,
+        ]);
 
-      if (navigator.onLine) {
+      if (this.network.isOnlineSnapshot()) {
         await this.userProfileService
           .updateUserLocation(
             user.uid,
@@ -331,38 +407,39 @@ export class PerfisProximosComponent {
           .catch(() => {});
       }
 
-      // Dispara recomputação da VM / load sob demanda
       this.reload$.next();
-
     } catch (err) {
       this.handleGeoError(err);
     }
   }
 
-  /**
-   * Alteração do raio pelo slider.
-   * Sempre aplica cap pelo máximo permitido na policy.
-   */
+  retryNearbyProfiles(): void {
+    if (!this.network.isOnlineSnapshot()) {
+      this.errorNotificationService.showWarning(
+        'Aguarde a conexão voltar para atualizar os perfis.'
+      );
+      return;
+    }
+
+    this.reload$.next();
+  }
+
   onDistanceChangeKm(next: number | string): void {
     const asNumber = Math.floor(Number(next) || 1);
-    const capped = Math.min(Math.max(1, asNumber), this.policyMaxDistanceKm());
+    const capped = Math.min(
+      Math.max(1, asNumber),
+      this.policyMaxDistanceKm()
+    );
 
-    // Atualiza UI local
     this._uiDistanceKm.set(capped);
 
-    // Atualiza no slice de location
     this.store.dispatch(
       LocationActions.setMaxDistance({ maxDistanceKm: capped })
     );
 
-    // Nova key / novo cache / possível reload
     this.reload$.next();
   }
 
-  /**
-   * Abre modal de mensagem para o perfil selecionado.
-   * Mantido como estava, apenas com comentários explicativos.
-   */
   abrirModalMensagem(uid: string): void {
     this.profiles$
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
@@ -382,11 +459,14 @@ export class PerfisProximosComponent {
           data: { profile: perfilSelecionado },
         });
 
-        dialogRef.afterClosed().pipe(take(1)).subscribe((result) => {
-          if (result) {
-            this.router.navigate(['/chat', uid]);
-          }
-        });
+        dialogRef
+          .afterClosed()
+          .pipe(take(1))
+          .subscribe((result) => {
+            if (result) {
+              this.router.navigate(['/chat', uid]);
+            }
+          });
       });
   }
 
