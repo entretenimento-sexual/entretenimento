@@ -1,0 +1,185 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.content-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--surface-border, rgba(17, 24, 39, 0.14));
+  border-radius: 18px;
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #111827);
+}
+
+.content-state--compact {
+  padding: 12px 14px;
+  border-radius: 14px;
+}
+
+.content-state--error {
+  border-color: color-mix(in oklab, #dc2626 38%, transparent);
+  background: color-mix(in oklab, #dc2626 8%, var(--surface-color, #fff));
+}
+
+.content-state--offline,
+.content-state--stale {
+  border-color: color-mix(in oklab, #d97706 34%, transparent);
+  background: color-mix(in oklab, #d97706 8%, var(--surface-color, #fff));
+}
+
+.content-state--empty {
+  background: color-mix(in oklab, var(--surface-color, #fff) 94%, #64748b 6%);
+}
+
+.content-state__icon {
+  inline-size: 38px;
+  block-size: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #d64d4d) 12%, transparent);
+  color: var(--primary-color, #d64d4d);
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.content-state__copy {
+  min-width: 0;
+}
+
+.content-state__copy h3,
+.content-state__copy p {
+  margin: 0;
+}
+
+.content-state__copy h3 {
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.content-state__copy p {
+  margin-top: 4px;
+  color: var(--text-muted, #64748b);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.content-state__action {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #d64d4d) 58%, transparent);
+  border-radius: 999px;
+  background: var(--primary-color, #d64d4d);
+  color: #fff;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.content-state__action:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--primary-color, #d64d4d) 34%, transparent);
+  outline-offset: 3px;
+}
+
+.content-state--loading {
+  display: block;
+}
+
+.content-state__skeleton {
+  display: grid;
+  gap: 12px;
+}
+
+.content-state__skeleton-row {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.content-state__skeleton-avatar,
+.content-state__skeleton-copy span {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--surface-color, #fff) 82%, #64748b 18%) 25%,
+    color-mix(in oklab, var(--surface-color, #fff) 92%, #64748b 8%) 50%,
+    color-mix(in oklab, var(--surface-color, #fff) 82%, #64748b 18%) 75%
+  );
+  background-size: 220% 100%;
+  animation: content-state-shimmer 1.4s ease-in-out infinite;
+}
+
+.content-state__skeleton-avatar {
+  inline-size: 46px;
+  block-size: 46px;
+  border-radius: 14px;
+}
+
+.content-state__skeleton-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.content-state__skeleton-copy span {
+  block-size: 12px;
+  border-radius: 999px;
+}
+
+.content-state__skeleton-copy span:first-child {
+  inline-size: min(240px, 72%);
+}
+
+.content-state__skeleton-copy span:last-child {
+  inline-size: min(360px, 92%);
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes content-state-shimmer {
+  from {
+    background-position: 110% 0;
+  }
+  to {
+    background-position: -110% 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .content-state {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .content-state__action {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-state__skeleton-avatar,
+  .content-state__skeleton-copy span {
+    animation: none;
+  }
+}
