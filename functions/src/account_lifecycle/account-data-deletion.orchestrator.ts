@@ -23,7 +23,9 @@ import {
   executeSharedPublicationAnonymizationDomain,
   type AccountSharedPublicationAnonymizationAdapter,
 } from './account-shared-publication-anonymization.executor';
-import { FirestoreAccountSharedPublicationAnonymizationAdapter } from './account-shared-publication-anonymization.firestore';
+import {
+  FirestoreAccountSharedPublicationAnonymizationAdapter,
+} from './account-shared-publication-anonymization.firestore';
 
 export type AccountDataDeletionOrchestratorAdapter =
   AccountDataDeletionAdapter &
@@ -56,7 +58,10 @@ export async function executeAccountDataDeletionDomains(
         maxPagesPerStep: input.maxPagesPerDomain,
       }
     );
-  const coreSummary = await executeCoreAccountDataDeletionDomains(adapter, input);
+  const coreSummary = await executeCoreAccountDataDeletionDomains(
+    adapter,
+    input
+  );
   const ownedMedia = await executeOwnedMediaAndStorageDomain(adapter, {
     uid: input.uid,
     pageSize: input.pageSize,
