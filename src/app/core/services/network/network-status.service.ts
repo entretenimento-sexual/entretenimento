@@ -14,6 +14,7 @@ import {
   filter,
   map,
   pairwise,
+  share,
   shareReplay,
   startWith,
 } from 'rxjs/operators';
@@ -57,7 +58,7 @@ export class NetworkStatusService {
       pairwise(),
       filter(([previous, current]) => !previous.online && current.online),
       map(([, current]) => current),
-      shareReplay({ bufferSize: 1, refCount: true })
+      share()
     );
 
   isOnlineSnapshot(): boolean {
