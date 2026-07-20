@@ -252,45 +252,30 @@
       }
 
       @if (vm.showLoadingState) {
-        <section
-          class="conversation-list__empty"
-          role="status"
-          aria-live="polite"
-        >
-          <p class="conversation-list__empty-title">
-            Carregando conversas...
-          </p>
-
-          <p class="conversation-list__empty-text">
-            Aguarde enquanto atualizamos suas mensagens, salas e convites.
-          </p>
-        </section>
+        <app-content-state
+          class="conversation-list__state"
+          state="loading"
+          message="Carregando suas conversas, salas e convites."
+          [skeletonRows]="5"
+        />
       }
 
       @if (vm.shouldShowEmptyState) {
-        <section
-          class="conversation-list__empty"
-          role="status"
-          aria-live="polite"
-        >
-          @if (vm.hasSearch || vm.activeFilter !== 'all') {
-            <p class="conversation-list__empty-title">
-              Nenhum resultado encontrado.
-            </p>
-
-            <p class="conversation-list__empty-text">
-              Ajuste o filtro ou limpe a busca para localizar conversas e salas.
-            </p>
-          } @else {
-            <p class="conversation-list__empty-title">
-              Nenhuma conversa ainda.
-            </p>
-
-            <p class="conversation-list__empty-text">
-              Conexões, conversas diretas e salas aparecerão aqui quando houver atividade.
-            </p>
-          }
-        </section>
+        @if (vm.hasSearch || vm.activeFilter !== 'all') {
+          <app-content-state
+            class="conversation-list__state"
+            state="empty"
+            title="Nenhum resultado encontrado"
+            message="Ajuste o filtro ou limpe a busca para localizar conversas e salas."
+          />
+        } @else {
+          <app-content-state
+            class="conversation-list__state"
+            state="empty"
+            title="Nenhuma conversa ainda"
+            message="Conexões, conversas diretas e salas aparecerão aqui quando houver atividade."
+          />
+        }
       }
     </div>
   }
