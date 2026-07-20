@@ -7,6 +7,9 @@
 // - anuncia a quantidade de campos que exigem revisão;
 // - move o foco para o primeiro controle inválido;
 // - mantém a regra de domínio e o submit no componente consumidor.
+//
+// A diretiva é aplicada automaticamente a forms reativos nos módulos que a
+// importam. Isso evita implementações divergentes entre cadastro, perfil e chat.
 // -----------------------------------------------------------------------------
 import {
   AfterViewInit,
@@ -26,7 +29,7 @@ import {
 } from '@angular/forms';
 
 @Directive({
-  selector: 'form[appFormValidationFocus]',
+  selector: 'form[formGroup]',
   standalone: true,
 })
 export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
