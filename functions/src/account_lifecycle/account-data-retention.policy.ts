@@ -13,7 +13,7 @@
 // - a política é serializável e registrada no tombstone para auditoria/retry.
 // -----------------------------------------------------------------------------
 
-export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 9;
+export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 10;
 
 export type AccountDataDomain =
   | 'public_profile'
@@ -204,10 +204,12 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     domain: 'moderation_reports_and_evidence',
     disposition: 'retain',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
     retentionDays: null,
-    reason: 'Denúncias e evidências precisam de pseudonimização e retenção definida por segurança e obrigação legal.',
+    reason:
+      'Denúncias e auditorias permanecem como evidência interna restrita; UIDs ' +
+      'são pseudonimizados e deduplicação e backups operacionais são removidos.',
   },
   {
     domain: 'financial_records_and_entitlements',
