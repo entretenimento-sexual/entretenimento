@@ -27,10 +27,11 @@ import {
   MatDialogRef,
 } from '@angular/material/dialog';
 import { Auth } from '@angular/fire/auth';
-import { Observable, of } from 'rxjs';
+import { Observable, merge, of } from 'rxjs';
 import {
   debounceTime,
   filter,
+  finalize,
   map,
   shareReplay,
   take,
@@ -102,6 +103,7 @@ export class CreateRoomModalComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private draftReady = false;
   private draftKey = 'room:anonymous:create';
+  private discardConfirmationOpen = false;
 
   roomForm!: CreateRoomFormGroup;
   isEditing = false;
@@ -158,6 +160,9 @@ export class CreateRoomModalComponent implements OnInit {
     this.draftKey = this.isEditing && this.roomId
       ? `room:${ownerUid}:edit:${this.roomId}`
       : `room:${ownerUid}:create`;
+
+    this.dialogRef.disableClose = true;
+    this.bindExternalCloseRequests();
     this.restoreDraft();
     this.observeDraftChanges();
   }
@@ -230,6 +235,8 @@ export class CreateRoomModalComponent implements OnInit {
   }
 
   cancel(): void {
+    if (this.discardConfirmationOpen) return;
+
     if (!this.hasUnsavedChanges()) {
       this.dialogRef.close(null);
       return;
@@ -244,16 +251,24 @@ export class CreateRoomModalComponent implements OnInit {
       tone: 'danger',
     };
 
+    this.discardConfirmationOpen = true;
+
     this.dialog
       .open(ConfirmacaoDialogComponent, {
         data,
         width: 'min(92vw, 440px)',
+        maxWidth: '92vw',
         disableClose: true,
         autoFocus: 'dialog',
         restoreFocus: true,
       })
       .afterClosed()
-      .pipe(take(1))
+      .pipe(
+        take(1),
+        finalize(() => {
+          this.discardConfirmationOpen = false;
+        })
+      )
       .subscribe((confirmed) => {
         if (confirmed !== true) return;
         this.localDraft.remove(this.draftKey);
@@ -264,6 +279,17 @@ export class CreateRoomModalComponent implements OnInit {
 
   hasUnsavedChanges(): boolean {
     return this.draftReady && this.roomForm.dirty;
+  }
+
+  private bindExternalCloseRequests(): void {
+    merge(
+      this.dialogRef.backdropClick(),
+      this.dialogRef.keydownEvents().pipe(
+        filter((event) => event.key === 'Escape')
+      )
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.cancel());
   }
 
   private restoreDraft(): void {
