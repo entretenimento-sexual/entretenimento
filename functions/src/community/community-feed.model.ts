@@ -194,9 +194,9 @@ export function sanitizeCommunityFeedProjection(
       text: text || null,
       image: imageUrl
         ? {
-            url: imageUrl,
-            alt: imageAlt || 'Foto publicada na comunidade',
-          }
+          url: imageUrl,
+          alt: imageAlt || 'Foto publicada na comunidade',
+        }
         : null,
       metrics: {
         commentCount: normalizeCount(metrics['commentCount']),
