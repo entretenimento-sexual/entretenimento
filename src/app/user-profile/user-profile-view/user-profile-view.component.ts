@@ -46,16 +46,30 @@ import {
   selectCurrentUserUid,
   type CurrentUserStatus,
 } from 'src/app/store/selectors/selectors.user/user.selectors';
+import * as UserActions from 'src/app/store/actions/actions.user/user.actions';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { NetworkStatusService } from '@core/services/network/network-status.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
+import {
+  ContentStateComponent,
+  ContentStateKind,
+} from 'src/app/shared/content-state/content-state.component';
 import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
+
+interface ProfileContentStateVm {
+  state: ContentStateKind;
+  title: string;
+  message: string;
+  actionLabel: string;
+  compact: boolean;
+}
 
 @Component({
   selector: 'app-user-profile-view',
@@ -65,6 +79,7 @@ import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
   imports: [
     CommonModule,
     RouterModule,
+    ContentStateComponent,
     UserPhotoManagerComponent,
     DateFormatPipe,
     CapitalizePipe,
@@ -78,6 +93,7 @@ export class UserProfileViewComponent implements OnInit {
 
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly errorNotification = inject(ErrorNotificationService);
+  private readonly network = inject(NetworkStatusService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   public uid: string | null = null;
@@ -87,6 +103,13 @@ export class UserProfileViewComponent implements OnInit {
     this.store.select(selectCurrentUserStatus);
 
   public usuario$: Observable<IUserDados | null> = of(null);
+  public profileContentState$: Observable<ProfileContentStateVm | null> = of({
+    state: 'loading',
+    title: '',
+    message: 'Carregando seu perfil.',
+    actionLabel: '',
+    compact: false,
+  });
   public redirectingToOtherProfile = false;
 
   ngOnInit(): void {
@@ -123,15 +146,21 @@ export class UserProfileViewComponent implements OnInit {
 
     context$
       .pipe(
-        filter(([routeUid, authUid]) => !!routeUid && !!authUid && routeUid !== authUid),
+        filter(
+          ([routeUid, authUid]) =>
+            !!routeUid && !!authUid && routeUid !== authUid
+        ),
         tap(([routeUid]) => {
           const targetUid = routeUid ?? '';
 
-          this.dbg('external profile detected; redirecting to OtherUserProfileView', {
-            hasTargetUid: !!targetUid,
-          });
-
-          this.router.navigate(['/outro-perfil', targetUid], { replaceUrl: true })
+          this.dbg(
+            'external profile detected; redirecting to OtherUserProfileView',
+            {
+              hasTargetUid: !!targetUid,
+            }
+          );
+          this.router
+            .navigate(['/outro-perfil', targetUid], { replaceUrl: true })
             .catch((error) => {
               this.reportError(
                 'Não foi possível redirecionar para o perfil público.',
@@ -171,6 +200,69 @@ export class UserProfileViewComponent implements OnInit {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+    this.profileContentState$ = combineLatest([
+      this.status$,
+      this.usuario$,
+      this.network.isOffline$,
+    ]).pipe(
+      map(([status, user, offline]) => {
+        if (user && (offline || status === 'loading_profile')) {
+          return {
+            state: 'stale',
+            title: 'Exibindo seu perfil salvo',
+            message: offline
+              ? 'A conexão está indisponível. Alterações recentes podem aparecer quando você voltar a ficar online.'
+              : 'Seu perfil está sendo atualizado em segundo plano.',
+            actionLabel: offline ? '' : 'Atualizar',
+            compact: true,
+          } satisfies ProfileContentStateVm;
+        }
+
+        if (user) return null;
+
+        if (status === 'boot' || status === 'loading_profile') {
+          return {
+            state: 'loading',
+            title: '',
+            message: 'Carregando seu perfil.',
+            actionLabel: '',
+            compact: false,
+          } satisfies ProfileContentStateVm;
+        }
+
+        if (offline) {
+          return {
+            state: 'offline',
+            title: 'Perfil indisponível sem conexão',
+            message:
+              'Este perfil ainda não está no cache deste dispositivo. Conecte-se para carregá-lo.',
+            actionLabel: 'Tentar novamente',
+            compact: false,
+          } satisfies ProfileContentStateVm;
+        }
+
+        if (status === 'signed_out') {
+          return {
+            state: 'error',
+            title: 'Sessão não encontrada',
+            message: 'Entre novamente para acessar seu perfil.',
+            actionLabel: 'Entrar',
+            compact: false,
+          } satisfies ProfileContentStateVm;
+        }
+
+        return {
+          state: 'error',
+          title: 'Seu perfil não está disponível',
+          message:
+            'A sessão continua ativa, mas o perfil não pôde ser hidratado. Tente novamente.',
+          actionLabel: 'Tentar novamente',
+          compact: false,
+        } satisfies ProfileContentStateVm;
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
     context$
       .pipe(
         auditTime(500),
@@ -179,7 +271,8 @@ export class UserProfileViewComponent implements OnInit {
             hasRouteUid: !!routeUid,
             hasAuthUid: !!authUid,
             isOwnProfile: !!authUid && (!routeUid || routeUid === authUid),
-            redirectingToOtherProfile: !!routeUid && !!authUid && routeUid !== authUid,
+            redirectingToOtherProfile:
+              !!routeUid && !!authUid && routeUid !== authUid,
           });
         }),
         takeUntilDestroyed(this.destroyRef)
@@ -205,6 +298,24 @@ export class UserProfileViewComponent implements OnInit {
       .subscribe();
   }
 
+  retryProfile(): void {
+    if (!this.authUid) {
+      this.router.navigate(['/login']).catch(() => {});
+      return;
+    }
+
+    if (!this.network.isOnlineSnapshot()) {
+      this.errorNotification.showWarning(
+        'Aguarde a conexão voltar para atualizar seu perfil.'
+      );
+      return;
+    }
+
+    this.store.dispatch(
+      UserActions.observeUserChanges({ uid: this.authUid })
+    );
+  }
+
   onAvatarImageError(event: Event): void {
     const image = event.target as HTMLImageElement | null;
     if (!image) return;
@@ -217,7 +328,8 @@ export class UserProfileViewComponent implements OnInit {
   }
 
   isCouple(gender: string | undefined): boolean {
-    return !!gender && ['casal-ele-ele', 'casal-ele-ela', 'casal-ela-ela'].includes(gender);
+    return !!gender &&
+      ['casal-ele-ele', 'casal-ele-ela', 'casal-ela-ela'].includes(gender);
   }
 
   getCoupleDescription(
@@ -251,7 +363,10 @@ export class UserProfileViewComponent implements OnInit {
   }
 
   isOnOwnProfile(): boolean {
-    return !!this.authUid && !!this.uid && this.authUid === this.uid && !this.redirectingToOtherProfile;
+    return !!this.authUid &&
+      !!this.uid &&
+      this.authUid === this.uid &&
+      !this.redirectingToOtherProfile;
   }
 
   private dbg(message: string, extra?: unknown): void {
