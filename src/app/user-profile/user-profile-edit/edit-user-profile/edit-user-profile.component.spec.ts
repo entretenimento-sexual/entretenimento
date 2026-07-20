@@ -4,7 +4,14 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 import { EditUserProfileComponent } from './edit-user-profile.component';
 import { FirestoreUserQueryService } from '../../../core/services/data-handling/firestore-user-query.service';
@@ -18,8 +25,14 @@ describe('EditUserProfileComponent', () => {
   let component: EditUserProfileComponent;
   let fixture: ComponentFixture<EditUserProfileComponent>;
 
-  beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ json: () => Promise.resolve([]) })));
+  beforeEach(async () => {
+    localStorage.clear();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({
+        json: () => Promise.resolve([]),
+      }))
+    );
 
     TestBed.configureTestingModule({
       declarations: [EditUserProfileComponent],
@@ -91,9 +104,35 @@ describe('EditUserProfileComponent', () => {
     fixture = TestBed.createComponent(EditUserProfileComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+    await fixture.whenStable();
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    localStorage.clear();
+    vi.unstubAllGlobals();
   });
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('identifica alteração não salva e permite descartá-la', () => {
+    component.editForm.controls['descricao'].setValue('Nova descrição');
+    component.editForm.markAsDirty();
+
+    expect(component.hasUnsavedChanges()).toBe(true);
+
+    component.discardUnsavedChanges();
+    expect(component.hasUnsavedChanges()).toBe(false);
+  });
+
+  it('limpa o estado de rascunho após salvar', () => {
+    component.editForm.controls['descricao'].setValue('Descrição salva');
+    component.editForm.markAsDirty();
+
+    component.onSubmit();
+
+    expect(component.hasUnsavedChanges()).toBe(false);
   });
 });
