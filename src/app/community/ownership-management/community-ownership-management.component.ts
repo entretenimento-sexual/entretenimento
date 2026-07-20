@@ -9,6 +9,7 @@ import {
   signal,
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import {
   catchError,
   combineLatest,
@@ -64,6 +65,7 @@ interface OwnershipCommand {
 })
 export class CommunityOwnershipManagementComponent {
   private readonly repository = inject(CommunityOwnershipRepository);
+  private readonly router = inject(Router);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly refreshCandidates$ = new Subject<void>();
@@ -133,6 +135,7 @@ export class CommunityOwnershipManagementComponent {
 
           this.errorNotifier.showSuccess('Comunidade arquivada com segurança.');
           this.communityArchived.emit();
+          void this.router.navigateByUrl('/dashboard/comunidades');
         }),
         map(
           (): OwnershipActionState => ({
