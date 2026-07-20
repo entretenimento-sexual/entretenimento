@@ -14,12 +14,26 @@
 <div class="profile-page">
   <main class="profile-main" aria-label="Perfil do usuário">
     <div class="profile-shell container-wide">
-
       @if (redirectingToOtherProfile) {
-        <section class="profile-card" aria-label="Redirecionando para perfil público">
-          <p class="muted">Abrindo perfil...</p>
-        </section>
+        <app-content-state
+          state="loading"
+          message="Abrindo o perfil público."
+          [skeletonRows]="2"
+        />
       } @else {
+        @if (profileContentState$ | async; as contentState) {
+          <app-content-state
+            class="profile-content-state"
+            [state]="contentState.state"
+            [title]="contentState.title"
+            [message]="contentState.message"
+            [actionLabel]="contentState.actionLabel"
+            [compact]="contentState.compact"
+            [skeletonRows]="3"
+            (action)="retryProfile()"
+          />
+        }
+
         @if ((usuario$ | async); as usuario) {
           @if (usuario && isOnOwnProfile()) {
             <section class="profile-card profile-card--hero" aria-label="Dados do perfil">
@@ -49,7 +63,9 @@
                         }
                       </p>
                     } @else {
-                      <p class="profile-lead">Adicione um apelido para deixar sua presença mais reconhecível.</p>
+                      <p class="profile-lead">
+                        Adicione um apelido para deixar sua presença mais reconhecível.
+                      </p>
                     }
                   </div>
                 </div>
@@ -262,16 +278,7 @@
                 </a>
               </section>
             }
-
-          } @else {
-            <section class="profile-card" aria-label="Carregando perfil">
-              <p class="muted">Carregando seu perfil...</p>
-            </section>
           }
-        } @else {
-          <section class="profile-card" aria-label="Carregando perfil">
-            <p class="muted">Carregando seu perfil...</p>
-          </section>
         }
       }
     </div>
