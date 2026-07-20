@@ -72,7 +72,7 @@
 }
 
 .content-state__action {
-  min-height: 42px;
+  min-height: var(--tap-target, 2.75rem);
   padding: 0 16px;
   border: 1px solid color-mix(in oklab, var(--primary-color, #d64d4d) 58%, transparent);
   border-radius: 999px;
