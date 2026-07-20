@@ -105,5 +105,12 @@
         </ul>
       }
     </section>
+
+    @if (sourceType() === 'community' && viewerRole() === 'owner') {
+      <app-community-ownership-management
+        [communityId]="communityId()"
+        (ownershipChanged)="membershipChanged.emit()"
+      />
+    }
   }
 }
