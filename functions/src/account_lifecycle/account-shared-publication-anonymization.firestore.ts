@@ -12,9 +12,12 @@ import { db, FieldValue } from '../firebaseApp';
 import {
   buildMediaEngagementScore,
   normalizeMediaCount,
+  normalizeMediaRatingAverage,
   type MediaScoreBreakdown,
 } from '../media/application/media-engagement-score';
-import type { AccountSharedPublicationAnonymizationAdapter } from './account-shared-publication-anonymization.executor';
+import type {
+  AccountSharedPublicationAnonymizationAdapter,
+} from './account-shared-publication-anonymization.executor';
 
 interface PhotoCommentDocument {
   authorUid?: unknown;
@@ -197,7 +200,7 @@ async function deletePhotoReactionReference(
       reactionsCount: nextReactions,
       commentsCount: normalizeMediaCount(photo.commentsCount),
       ratingsCount: normalizeMediaCount(photo.ratingsCount),
-      ratingAverage: photo.ratingAverage,
+      ratingAverage: normalizeMediaRatingAverage(photo.ratingAverage),
       currentBreakdown: photo.scoreBreakdown,
     });
 
