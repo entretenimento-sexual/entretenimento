@@ -32,7 +32,7 @@ test('policy covers shared content, moderation and financial domains safely', ()
   );
 });
 
-test('policy marks lifecycle, relationship and shared content executors implemented', () => {
+test('policy marks lifecycle, relationship, moderation and shared content implemented', () => {
   const byDomain = new Map(
     ACCOUNT_DATA_RETENTION_POLICY.map((entry) => [entry.domain, entry])
   );
@@ -73,10 +73,18 @@ test('policy marks lifecycle, relationship and shared content executors implemen
     'implemented'
   );
   assert.equal(byDomain.get('relationship_edges')?.disposition, 'unlink');
-  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 9);
+  assert.equal(
+    byDomain.get('moderation_reports_and_evidence')?.automation,
+    'implemented'
+  );
+  assert.equal(
+    byDomain.get('moderation_reports_and_evidence')?.retentionDays,
+    null
+  );
+  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 10);
 });
 
-test('current plan remains blocked until every pre-finalize contract is completed', () => {
+test('current plan remains blocked until every pre-finalize domain is completed', () => {
   const plan = buildAccountDataDeletionPlan({
     uid: 'user-1',
     generatedAt: 1_800_000_000_000,
@@ -99,6 +107,9 @@ test('current plan remains blocked until every pre-finalize contract is complete
   assert.ok(plan.blockingDomains.includes('shared_messages'));
   assert.ok(plan.blockingDomains.includes('shared_publications'));
   assert.ok(
+    plan.blockingDomains.includes('moderation_reports_and_evidence')
+  );
+  assert.ok(
     plan.blockingDomains.includes('financial_records_and_entitlements')
   );
   assert.ok(!plan.blockingDomains.includes('private_user_document'));
@@ -118,6 +129,7 @@ test('completed domains are recorded and removed from blockers', () => {
       'owned_media_and_storage',
       'shared_messages',
       'shared_publications',
+      'moderation_reports_and_evidence',
     ],
   });
 
@@ -131,6 +143,7 @@ test('completed domains are recorded and removed from blockers', () => {
     'owned_media_and_storage',
     'shared_messages',
     'shared_publications',
+    'moderation_reports_and_evidence',
   ]);
   assert.ok(!plan.blockingDomains.includes('public_profile'));
   assert.ok(!plan.blockingDomains.includes('nickname_index'));
@@ -141,6 +154,9 @@ test('completed domains are recorded and removed from blockers', () => {
   assert.ok(!plan.blockingDomains.includes('owned_media_and_storage'));
   assert.ok(!plan.blockingDomains.includes('shared_messages'));
   assert.ok(!plan.blockingDomains.includes('shared_publications'));
+  assert.ok(
+    !plan.blockingDomains.includes('moderation_reports_and_evidence')
+  );
   assert.ok(plan.blockingDomains.includes('auth_identity'));
 });
 
