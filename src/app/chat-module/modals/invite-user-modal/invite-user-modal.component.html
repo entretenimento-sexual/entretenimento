@@ -128,7 +128,7 @@
         role="list"
         aria-label="Usuários disponíveis para convite"
       >
-        @for (user of availableUsers; track user.uid || user.nickname) {
+        @for (user of availableUsers; track user.id) {
           <article class="user-card" role="listitem">
             <img
               [src]="user.photoURL || defaultAvatar"
