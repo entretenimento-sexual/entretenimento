@@ -5,7 +5,7 @@
 // Formulário reativo para criação/edição de sala.
 // A associação premium usa exclusivamente estabelecimentos moderados do catálogo.
 
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, Inject, OnInit, ViewChild } from '@angular/core';
 import {
   FormBuilder,
   FormControl,
@@ -26,6 +26,7 @@ import {
 } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 import { IVenueCardVm } from 'src/app/core/interfaces/venues/venue.interface';
 import { VenueService } from 'src/app/core/services/venues/venue.service';
+import { FormValidationFocusDirective } from 'src/app/shared/form-validation-focus/form-validation-focus.directive';
 
 export interface CreateRoomModalData {
   isEditing?: boolean;
@@ -69,6 +70,9 @@ type CreateRoomFormGroup = FormGroup<{
   standalone: false,
 })
 export class CreateRoomModalComponent implements OnInit {
+  @ViewChild(FormValidationFocusDirective)
+  private validationFocus?: FormValidationFocusDirective;
+
   roomForm!: CreateRoomFormGroup;
   isEditing = false;
   roomId = '';
@@ -137,6 +141,9 @@ export class CreateRoomModalComponent implements OnInit {
   onSubmit(): void {
     if (this.roomForm.invalid) {
       this.roomForm.markAllAsTouched();
+      this.validationFocus?.focusFirstInvalid(
+        'Revise os dados da Sala antes de continuar.'
+      );
       return;
     }
 
@@ -146,6 +153,10 @@ export class CreateRoomModalComponent implements OnInit {
     if (roomName.length < 3 || roomName.length > 60) {
       this.roomForm.controls.roomName.setErrors({ size: true });
       this.roomForm.controls.roomName.markAsTouched();
+      this.validationFocus?.focusControl(
+        'roomName',
+        'Informe um nome de Sala entre 3 e 60 caracteres.'
+      );
       return;
     }
 
@@ -213,12 +224,20 @@ export class CreateRoomModalComponent implements OnInit {
     if (!venueId) {
       this.roomForm.controls.placeVenueId.setErrors({ required: true });
       this.roomForm.controls.placeVenueId.markAsTouched();
+      this.validationFocus?.focusControl(
+        'placeVenueId',
+        'Selecione o local moderado vinculado à Sala.'
+      );
       return undefined;
     }
 
     if (!startsAt || startsAt < Date.now() - 1000 * 60 * 5) {
       this.roomForm.controls.placeStartsAt.setErrors({ future: true });
       this.roomForm.controls.placeStartsAt.markAsTouched();
+      this.validationFocus?.focusControl(
+        'placeStartsAt',
+        'Informe uma data e um horário futuros para a Sala.'
+      );
       return undefined;
     }
 
