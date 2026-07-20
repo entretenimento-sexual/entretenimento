@@ -32,7 +32,7 @@ test('policy covers shared content, moderation and financial domains safely', ()
   );
 });
 
-test('policy marks implemented private, temporary, membership and media executors', () => {
+test('policy marks implemented lifecycle, membership, media and message executors', () => {
   const byDomain = new Map(
     ACCOUNT_DATA_RETENTION_POLICY.map((entry) => [entry.domain, entry])
   );
@@ -61,11 +61,13 @@ test('policy marks implemented private, temporary, membership and media executor
     byDomain.get('owned_media_and_storage')?.disposition,
     'delete'
   );
+  assert.equal(byDomain.get('shared_messages')?.automation, 'implemented');
+  assert.equal(byDomain.get('shared_messages')?.disposition, 'anonymize');
   assert.equal(
     byDomain.get('relationship_edges')?.automation,
     'contract_required'
   );
-  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 6);
+  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 7);
 });
 
 test('current plan remains blocked until every pre-finalize contract is completed', () => {
@@ -105,6 +107,7 @@ test('completed domains are recorded and removed from blockers', () => {
       'community_memberships',
       'room_participation',
       'owned_media_and_storage',
+      'shared_messages',
     ],
   });
 
@@ -115,6 +118,7 @@ test('completed domains are recorded and removed from blockers', () => {
     'community_memberships',
     'room_participation',
     'owned_media_and_storage',
+    'shared_messages',
   ]);
   assert.ok(!plan.blockingDomains.includes('public_profile'));
   assert.ok(!plan.blockingDomains.includes('nickname_index'));
@@ -122,6 +126,7 @@ test('completed domains are recorded and removed from blockers', () => {
   assert.ok(!plan.blockingDomains.includes('community_memberships'));
   assert.ok(!plan.blockingDomains.includes('room_participation'));
   assert.ok(!plan.blockingDomains.includes('owned_media_and_storage'));
+  assert.ok(!plan.blockingDomains.includes('shared_messages'));
   assert.ok(plan.blockingDomains.includes('auth_identity'));
 });
 
