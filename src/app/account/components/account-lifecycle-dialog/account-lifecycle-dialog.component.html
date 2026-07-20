@@ -24,7 +24,8 @@
         type="button"
         class="btn btn-ghost account-lifecycle-dialog__close"
         (click)="onClose()"
-        [disabled]="busy()"
+        [appActionState]="false"
+        [actionDisabled]="busy()"
         aria-label="Fechar"
       >
         Fechar
@@ -175,7 +176,8 @@
         class="btn btn-secondary"
         cdkFocusInitial
         (click)="onClose()"
-        [disabled]="busy()"
+        [appActionState]="false"
+        [actionDisabled]="busy()"
       >
         Cancelar
       </button>
@@ -185,11 +187,11 @@
         class="btn"
         [class.btn-danger]="isDanger()"
         [class.btn-primary]="!isDanger()"
-        [disabled]="!canConfirm()"
-        [attr.aria-busy]="busy()"
+        [appActionState]="busy()"
+        [actionDisabled]="!canConfirm()"
         (click)="onConfirm()"
       >
-        {{ busy() ? 'Confirmando identidade...' : ctaLabel() }}
+        {{ busy() ? busyCtaLabel() : ctaLabel() }}
       </button>
     </footer>
   </section>
