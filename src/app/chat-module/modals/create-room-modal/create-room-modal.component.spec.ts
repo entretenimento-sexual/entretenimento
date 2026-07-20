@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { Auth } from '@angular/fire/auth';
 import {
   MAT_DIALOG_DATA,
   MatDialog,
@@ -50,6 +51,7 @@ describe('CreateRoomModalComponent', () => {
         FormValidationFocusDirective,
       ],
       providers: [
+        { provide: Auth, useValue: { currentUser: { uid: 'room-owner' } } },
         { provide: MatDialogRef, useValue: { close: closeMock } },
         { provide: MAT_DIALOG_DATA, useValue: {} },
         { provide: MatDialog, useValue: { open: dialogOpenMock } },
