@@ -8,7 +8,7 @@ import {
 } from './account-shared-message-anonymization.executor';
 
 class FakeSharedMessageAdapter
-  implements AccountSharedMessageAnonymizationAdapter
+implements AccountSharedMessageAnonymizationAdapter
 {
   identities: Record<SharedMessageIdentityField, number[]> = {
     senderId: [0],
