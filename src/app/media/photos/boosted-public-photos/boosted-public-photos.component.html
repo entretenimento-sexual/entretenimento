@@ -1,51 +1,90 @@
 <section class="boosted-photos-page" aria-label="Fotos públicas turbinadas">
-  @let items = (boostedPhotos$ | async);
-  @let selectedIndex = (selectedIndex$ | async);
+  @if (vm$ | async; as vm) {
+    @let selectedIndex = (selectedIndex$ | async);
 
-  <header class="boosted-photos-header">
-    <div class="title-block">
-      <span class="eyebrow">Turbo</span>
-      <h2>Fotos turbinadas</h2>
-      <p class="subtitle">
-        Fotos públicas promovidas com destaque temporário.
-      </p>
-    </div>
-  </header>
-
-  @if (((items?.length) || 0) === 0) {
-    <div class="empty-state" role="status" aria-live="polite">
-      <h3>Nenhuma foto turbinada</h3>
-      <p>Ainda não há fotos públicas com boost ativo.</p>
-    </div>
-  } @else {
-    <div class="photos-grid" role="list" aria-label="Fotos públicas turbinadas">
-      @for (item of (items || []); track trackByPhotoId($index, item); let i = $index) {
-        <app-public-photo-card
-          [photo]="item"
-          variant="boosted"
-          (preview)="openPhoto(i)" />
-      }
-    </div>
-
-    @if (canLoadMore$ | async) {
-      <div class="feed-actions">
-        <button
-          type="button"
-          class="btn btn-secondary"
-          (click)="loadMore()">
-          Carregar mais
-        </button>
+    <header class="boosted-photos-header">
+      <div class="title-block">
+        <span class="eyebrow">Turbo</span>
+        <h2>Fotos turbinadas</h2>
+        <p class="subtitle">
+          Fotos públicas promovidas com destaque temporário.
+        </p>
       </div>
-    }
-  }
+    </header>
 
-  @if (selectedIndex !== null) {
-    <app-public-photo-lightbox
-      [items]="items || []"
-      [activeIndex]="selectedIndex"
-      title="Fotos turbinadas"
-      (closed)="closeViewer()"
-      (prevRequested)="prev()"
-      (nextRequested)="next()" />
+    @if (vm.showStaleNotice) {
+      <app-content-state
+        state="stale"
+        title="Exibindo fotos já carregadas"
+        [message]="vm.offline
+          ? 'A conexão está indisponível. O conteúdo será atualizado quando você voltar a ficar online.'
+          : 'A atualização falhou, mas o último resultado válido foi preservado.'"
+        actionLabel="Atualizar"
+        [compact]="true"
+        (action)="retry()"
+      />
+    }
+
+    @if (vm.showInitialLoading) {
+      <app-content-state
+        state="loading"
+        message="Carregando fotos turbinadas."
+        [skeletonRows]="6"
+      />
+    } @else if (vm.showOfflineEmpty) {
+      <app-content-state
+        state="offline"
+        title="Fotos turbinadas indisponíveis sem conexão"
+        message="Conecte-se à internet para carregar esta seleção pela primeira vez."
+        actionLabel="Tentar novamente"
+        (action)="retry()"
+      />
+    } @else if (vm.showBlockingError) {
+      <app-content-state
+        state="error"
+        title="Não foi possível carregar as fotos turbinadas"
+        message="O serviço está temporariamente indisponível. Tente novamente."
+        actionLabel="Tentar novamente"
+        (action)="retry()"
+      />
+    } @else if (vm.showEmpty) {
+      <app-content-state
+        state="empty"
+        title="Nenhuma foto turbinada"
+        message="Ainda não há fotos públicas com boost ativo."
+        actionLabel="Atualizar"
+        (action)="retry()"
+      />
+    } @else {
+      <div class="photos-grid" role="list" aria-label="Fotos públicas turbinadas">
+        @for (item of vm.items; track trackByPhotoId($index, item); let i = $index) {
+          <app-public-photo-card
+            [photo]="item"
+            variant="boosted"
+            (preview)="openPhoto(i)" />
+        }
+      </div>
+
+      @if (vm.canLoadMore) {
+        <div class="feed-actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="loadMore()">
+            Carregar mais
+          </button>
+        </div>
+      }
+    }
+
+    @if (selectedIndex !== null) {
+      <app-public-photo-lightbox
+        [items]="vm.items"
+        [activeIndex]="selectedIndex"
+        title="Fotos turbinadas"
+        (closed)="closeViewer()"
+        (prevRequested)="prev()"
+        (nextRequested)="next()" />
+    }
   }
 </section>
