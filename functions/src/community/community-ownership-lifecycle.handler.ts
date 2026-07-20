@@ -105,8 +105,11 @@ function normalizeSafeId(value: unknown): string | null {
 }
 
 function normalizeText(value: unknown, maxLength: number): string {
-  return String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+  return Array.from(String(value ?? ''), (character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 0x1f || codePoint === 0x7f ? ' ' : character;
+  })
+    .join('')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
