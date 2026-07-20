@@ -15,11 +15,9 @@ import {
   buildAccountDataDeletionPlan,
   canFinalizePrivateUserDeletion,
 } from './account-data-retention.policy';
-import {
-  AccountDataDeletionExecutionSummary,
-  executeAccountDataDeletionDomains,
-} from './account-data-deletion.executor';
-import { FirestoreAccountDataDeletionAdapter } from './account-data-deletion.firestore';
+import type { AccountDataDeletionExecutionSummary } from './account-data-deletion.executor';
+import { executeAccountDataDeletionDomains } from './account-data-deletion.orchestrator';
+import { FirestoreAccountDataDeletionOrchestratorAdapter } from './account-owned-media-deletion.firestore';
 
 const SCHEDULE = 'every day 03:17';
 const TIME_ZONE = 'America/Sao_Paulo';
@@ -35,7 +33,7 @@ const AUTH_COMPLETED_DOMAINS: readonly AccountDataDomain[] = [
   'auth_identity',
 ];
 
-const deletionAdapter = new FirestoreAccountDataDeletionAdapter();
+const deletionAdapter = new FirestoreAccountDataDeletionOrchestratorAdapter();
 
 type PurgeCandidate = {
   uid: string;
