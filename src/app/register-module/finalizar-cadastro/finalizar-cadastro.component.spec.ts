@@ -7,7 +7,14 @@ import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 
 import { Observable, of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 import { FinalizarCadastroComponent } from './finalizar-cadastro.component';
 
@@ -67,44 +74,38 @@ describe('FinalizarCadastroComponent', () => {
   };
 
   beforeEach(async () => {
+    localStorage.clear();
+
     registerFlowFacadeMock = {
       vm$: of(vm),
     };
 
     profileCompletionFacadeMock = {
-      getEstados$: vi.fn(() =>
-        of([
-          {
-            id: 33,
-            sigla: 'RJ',
-            nome: 'Rio de Janeiro',
-          },
-        ])
-      ),
-      getMunicipios$: vi.fn(() =>
-        of([
-          {
-            id: 3304557,
-            nome: 'Rio de Janeiro',
-          },
-        ])
-      ),
-      loadUserForFormByUid$: vi.fn(() =>
-        of({
-          email: 'teste@email.com',
-          nickname: 'tester',
-          gender: 'homem',
-          orientation: 'homossexual',
-          estado: 'RJ',
-          municipio: 'Rio de Janeiro',
-        })
-      ),
+      getEstados$: vi.fn(() => of([
+        {
+          id: 33,
+          sigla: 'RJ',
+          nome: 'Rio de Janeiro',
+        },
+      ])),
+      getMunicipios$: vi.fn(() => of([
+        {
+          id: 3304557,
+          nome: 'Rio de Janeiro',
+        },
+      ])),
+      loadUserForFormByUid$: vi.fn(() => of({
+        email: 'teste@email.com',
+        nickname: 'tester',
+        gender: 'homem',
+        orientation: 'homossexual',
+        estado: 'RJ',
+        municipio: 'Rio de Janeiro',
+      })),
       saveProfileCompletion$: vi.fn(() => of(void 0)),
-      uploadProfileAvatarAfterSave$: vi.fn(() =>
-        of({
-          status: 'skipped',
-        })
-      ),
+      uploadProfileAvatarAfterSave$: vi.fn(() => of({
+        status: 'skipped',
+      })),
     };
 
     currentUserStoreMock = {
@@ -163,12 +164,17 @@ describe('FinalizarCadastroComponent', () => {
     fixture.detectChanges();
   });
 
+  afterEach(() => {
+    fixture.destroy();
+    localStorage.clear();
+  });
+
   it('should create and load initial profile completion data', () => {
     expect(component).toBeTruthy();
-
     expect(profileCompletionFacadeMock.getEstados$).toHaveBeenCalled();
-    expect(profileCompletionFacadeMock.loadUserForFormByUid$).toHaveBeenCalledWith('u1', vm);
-
+    expect(
+      profileCompletionFacadeMock.loadUserForFormByUid$
+    ).toHaveBeenCalledWith('u1', vm);
     expect(component.email).toBe('teste@email.com');
     expect(component.nickname).toBe('tester');
     expect(component.needsNickname).toBe(false);
@@ -181,7 +187,9 @@ describe('FinalizarCadastroComponent', () => {
   it('should save profile completion and redirect to adult consent when submitted', () => {
     component.onSubmit();
 
-    expect(profileCompletionFacadeMock.saveProfileCompletion$).toHaveBeenCalledWith({
+    expect(
+      profileCompletionFacadeMock.saveProfileCompletion$
+    ).toHaveBeenCalledWith({
       uid: 'u1',
       vm,
       nickname: 'tester',
@@ -200,8 +208,20 @@ describe('FinalizarCadastroComponent', () => {
       municipio: 'Rio de Janeiro',
     });
 
-    expect(router.navigateByUrl).toHaveBeenCalledWith('/adulto/confirmar', {
-      replaceUrl: true,
-    });
+    expect(router.navigateByUrl).toHaveBeenCalledWith(
+      '/adulto/confirmar',
+      { replaceUrl: true }
+    );
+    expect(component.hasUnsavedChanges()).toBe(false);
+  });
+
+  it('identifica e descarta alterações do onboarding', () => {
+    component.gender = 'mulher';
+    component.onDraftChange();
+
+    expect(component.hasUnsavedChanges()).toBe(true);
+
+    component.discardUnsavedChanges();
+    expect(component.hasUnsavedChanges()).toBe(false);
   });
 });
