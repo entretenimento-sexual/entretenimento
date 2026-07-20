@@ -75,7 +75,6 @@ export class TopPublicPhotosComponent {
 
   private readonly loadState$: Observable<TopPhotosLoadState> =
     this.loadCount$.pipe(
-      distinctUntilChanged(),
       switchMap((count) =>
         this.activity.track$(
           this.mediaPublicQuery.getTopPublicPhotos$(count).pipe(
