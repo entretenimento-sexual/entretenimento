@@ -19,16 +19,24 @@ import { ChatNotificationService } from '../../core/services/batepapo/chat-notif
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
+import { ActionStateDirective } from '../../shared/action-state/action-state.directive';
 import { ContentStateComponent } from '../../shared/content-state/content-state.component';
 
 describe('ChatListComponent', () => {
   let component: ChatListComponent;
   let fixture: ComponentFixture<ChatListComponent>;
+  let dialogOpenMock: ReturnType<typeof vi.fn>;
+  let deleteRoomMock: ReturnType<typeof vi.fn>;
+  let showSuccessMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    dialogOpenMock = vi.fn(() => ({ afterClosed: () => of(null) }));
+    deleteRoomMock = vi.fn(() => Promise.resolve());
+    showSuccessMock = vi.fn();
+
     TestBed.configureTestingModule({
       declarations: [ChatListComponent],
-      imports: [FormsModule, ContentStateComponent],
+      imports: [FormsModule, ActionStateDirective, ContentStateComponent],
       providers: [
         {
           provide: AuthSessionService,
@@ -79,7 +87,7 @@ describe('ChatListComponent', () => {
         {
           provide: RoomManagementService,
           useValue: {
-            deleteRoom: vi.fn(() => Promise.resolve()),
+            deleteRoom: deleteRoomMock,
           },
         },
         {
@@ -91,7 +99,7 @@ describe('ChatListComponent', () => {
         {
           provide: MatDialog,
           useValue: {
-            open: vi.fn(() => ({ afterClosed: () => of(null) })),
+            open: dialogOpenMock,
           },
         },
         {
@@ -110,6 +118,7 @@ describe('ChatListComponent', () => {
           provide: ErrorNotificationService,
           useValue: {
             showError: vi.fn(),
+            showSuccess: showSuccessMock,
           },
         },
         {
@@ -127,5 +136,34 @@ describe('ChatListComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('confirma o encerramento lógico da Sala e informa sucesso', async () => {
+    dialogOpenMock.mockReturnValue({ afterClosed: () => of(true) });
+
+    component.deleteRoom('room-1', new MouseEvent('click'));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(dialogOpenMock).toHaveBeenCalledTimes(1);
+    const dialogConfig = dialogOpenMock.mock.calls[0]?.[1];
+    expect(dialogConfig?.data?.title).toBe('Encerrar Sala');
+    expect(dialogConfig?.data?.message).toContain(
+      'histórico será preservado'
+    );
+    expect(deleteRoomMock).toHaveBeenCalledTimes(1);
+    expect(deleteRoomMock).toHaveBeenCalledWith('room-1');
+    expect(showSuccessMock).toHaveBeenCalledWith(
+      'Sala encerrada com sucesso.'
+    );
+  });
+
+  it('não encerra a Sala quando a confirmação é cancelada', async () => {
+    dialogOpenMock.mockReturnValue({ afterClosed: () => of(false) });
+
+    component.deleteRoom('room-1', new MouseEvent('click'));
+    await Promise.resolve();
+
+    expect(deleteRoomMock).not.toHaveBeenCalled();
   });
 });
