@@ -1,0 +1,545 @@
+/* src/app/admin-dashboard/account-deletion-operations/account-deletion-operations.component.css */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.deletion-operations {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.deletion-operations__header,
+.operations-toolbar,
+.feedback-card,
+.operation-card {
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
+  background: var(--surface-color, #fff);
+}
+
+.deletion-operations__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 18px;
+}
+
+.deletion-operations__eyebrow {
+  margin: 0 0 5px;
+  color: var(--primary-color, #d64d4d);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.deletion-operations h2,
+.deletion-operations h3,
+.deletion-operations p,
+.operation-summary,
+.operation-summary dd {
+  margin: 0;
+}
+
+.deletion-operations h2 {
+  font-size: clamp(1.35rem, 2.6vw, 2rem);
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.deletion-operations__header p:last-child {
+  max-width: 760px;
+  margin-top: 8px;
+  color: var(--text-secondary, #5f6672);
+  line-height: 1.55;
+}
+
+.refresh-button,
+.filter-button,
+.pagination__button {
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
+  color: var(--text-color, #111827);
+  font: inherit;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.refresh-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 15px;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #d64d4d) 10%,
+    var(--surface-color, #fff)
+  );
+  color: var(--primary-color, #d64d4d);
+  white-space: nowrap;
+}
+
+.refresh-button mat-icon,
+.pagination__button mat-icon {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 16px;
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
+  border-radius: 16px;
+  background: var(--surface-color, #fff);
+}
+
+.metric-card[data-tone='danger'] {
+  border-color: color-mix(in oklab, #b42318 40%, transparent);
+  background: color-mix(in oklab, #b42318 7%, var(--surface-color, #fff));
+}
+
+.metric-card[data-tone='warning'] {
+  border-color: color-mix(in oklab, #b54708 38%, transparent);
+  background: color-mix(in oklab, #b54708 7%, var(--surface-color, #fff));
+}
+
+.metric-card[data-tone='info'] {
+  border-color: color-mix(in oklab, #175cd3 34%, transparent);
+  background: color-mix(in oklab, #175cd3 6%, var(--surface-color, #fff));
+}
+
+.metric-card[data-tone='success'] {
+  border-color: color-mix(in oklab, #067647 32%, transparent);
+  background: color-mix(in oklab, #067647 6%, var(--surface-color, #fff));
+}
+
+.metric-card__label,
+.metric-card__hint,
+.operation-card__label,
+.operation-summary dt,
+.technical-status span,
+.operation-timing span,
+.generated-at {
+  color: var(--text-secondary, #667085);
+}
+
+.metric-card__label {
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.metric-card strong {
+  font-size: clamp(1.55rem, 3vw, 2.2rem);
+  line-height: 1;
+}
+
+.metric-card__hint {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.operations-toolbar {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+}
+
+.filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 94%,
+    var(--text-color, #111827) 4%
+  );
+}
+
+.filter-button strong {
+  min-width: 24px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--text-color, #111827) 8%,
+    transparent
+  );
+  text-align: center;
+}
+
+.filter-button.is-active {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #d64d4d) 55%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #d64d4d) 11%,
+    var(--surface-color, #fff)
+  );
+  color: var(--primary-color, #d64d4d);
+}
+
+.generated-at {
+  font-size: 0.78rem;
+}
+
+.load-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.feedback-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 16px;
+}
+
+.feedback-card mat-icon {
+  color: var(--primary-color, #d64d4d);
+}
+
+.feedback-card p {
+  margin-top: 5px;
+  color: var(--text-secondary, #667085);
+  line-height: 1.5;
+}
+
+.feedback-card--error {
+  border-color: color-mix(in oklab, #b42318 38%, transparent);
+  background: color-mix(in oklab, #b42318 6%, var(--surface-color, #fff));
+}
+
+.operations-list {
+  display: grid;
+  gap: 12px;
+}
+
+.operation-card {
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 18px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.operation-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.operation-card__header > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.operation-card__label {
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.operation-card code,
+.error-diagnostic code {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.operation-card__header code {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.status-badge {
+  flex: 0 0 auto;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, #475467 10%, transparent);
+  color: #344054;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.status-badge[data-status='blocked'] {
+  background: color-mix(in oklab, #b42318 12%, transparent);
+  color: #b42318;
+}
+
+.status-badge[data-status='retry_scheduled'] {
+  background: color-mix(in oklab, #b54708 13%, transparent);
+  color: #93370d;
+}
+
+.status-badge[data-status='in_progress'] {
+  background: color-mix(in oklab, #175cd3 11%, transparent);
+  color: #175cd3;
+}
+
+.status-badge[data-status='completed'] {
+  background: color-mix(in oklab, #067647 11%, transparent);
+  color: #067647;
+}
+
+.operation-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.operation-summary > div,
+.technical-status article,
+.operation-timing p {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.operation-summary dt,
+.technical-status span,
+.operation-timing span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.operation-summary dd,
+.technical-status strong,
+.operation-timing strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.technical-status,
+.operation-timing {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 91%,
+    var(--text-color, #111827) 4%
+  );
+}
+
+.blockers {
+  display: grid;
+  gap: 9px;
+}
+
+.blockers h3 {
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.blockers__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.blockers__list span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: color-mix(in oklab, #b54708 9%, transparent);
+  color: #93370d;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.error-diagnostic {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in oklab, #b42318 28%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, #b42318 5%, transparent);
+}
+
+.error-diagnostic mat-icon {
+  flex: 0 0 auto;
+  color: #b42318;
+}
+
+.error-diagnostic p {
+  margin-top: 5px;
+  color: var(--text-secondary, #667085);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.pagination {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.pagination > span {
+  font-size: 0.86rem;
+  font-weight: 850;
+  text-align: center;
+}
+
+.pagination__button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--surface-color, #fff);
+}
+
+.pagination__button:first-child {
+  justify-self: start;
+}
+
+.pagination__button:last-child {
+  justify-self: end;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid color-mix(
+    in oklab,
+    var(--primary-color, #d64d4d) 45%,
+    transparent
+  );
+  outline-offset: 2px;
+}
+
+@media (max-width: 980px) {
+  .metrics-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .operation-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .deletion-operations__header {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .refresh-button {
+    width: 100%;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .filter-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filter-button {
+    justify-content: space-between;
+    border-radius: 12px;
+  }
+
+  .operation-card {
+    padding: 15px;
+    border-radius: 14px;
+    box-shadow: none;
+  }
+
+  .operation-card__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .operation-summary,
+  .technical-status,
+  .operation-timing {
+    grid-template-columns: 1fr;
+  }
+
+  .pagination {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pagination > span {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .pagination__button:first-child,
+  .pagination__button:last-child {
+    width: 100%;
+    justify-self: stretch;
+  }
+}
+
+@media (max-width: 380px) {
+  .metrics-grid,
+  .filter-group {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card:last-child {
+    grid-column: auto;
+  }
+}
