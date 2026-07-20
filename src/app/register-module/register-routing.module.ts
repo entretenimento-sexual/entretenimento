@@ -1,19 +1,5 @@
 // src/app/register-module/register-routing.module.ts
 // Rotas do módulo de registro.
-//
-// Regras:
-// - /register -> tela pública de cadastro
-// - /register/welcome -> etapa autenticada de verificação/onboarding
-// - /register/verify -> handler interno autenticado
-// - /register/recuperar-conta -> recuperação canônica de users/{uid} ausente
-// - /register/aceitar-termos -> aceite explícito quando pendente
-// - /register/finalizar-cadastro -> conclusão do perfil após e-mail verificado
-//
-// Observação importante:
-// - o guard do pai (/register) continua sendo guestOnly
-// - as etapas internas que dependem de sessão usam authGuard aqui,
-//   para impedir acesso direto por visitante
-
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
@@ -24,6 +10,7 @@ import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadas
 
 import { authGuard } from '../core/guards/auth-guard/auth.guard';
 import { emailVerifiedGuard } from '../core/guards/profile-guard/email-verified.guard';
+import { unsavedChangesGuard } from '../core/guards/unsaved-changes/unsaved-changes.guard';
 import { registrationStepGuard } from './data-access/registration-step.guard';
 
 const routes: Routes = [
@@ -56,7 +43,7 @@ const routes: Routes = [
     path: 'recuperar-conta',
     loadComponent: () =>
       import('./account-recovery/account-recovery-page.component')
-        .then((m) => m.AccountRecoveryPageComponent),
+        .then((module) => module.AccountRecoveryPageComponent),
     canActivate: [authGuard, emailVerifiedGuard, registrationStepGuard],
     data: {
       allowAuthenticated: true,
@@ -67,7 +54,7 @@ const routes: Routes = [
     path: 'aceitar-termos',
     loadComponent: () =>
       import('./terms-acceptance/terms-acceptance-page.component')
-        .then((m) => m.TermsAcceptancePageComponent),
+        .then((module) => module.TermsAcceptancePageComponent),
     canActivate: [authGuard, emailVerifiedGuard, registrationStepGuard],
     data: {
       allowAuthenticated: true,
@@ -78,6 +65,7 @@ const routes: Routes = [
     path: 'finalizar-cadastro',
     component: FinalizarCadastroComponent,
     canActivate: [authGuard, emailVerifiedGuard, registrationStepGuard],
+    canDeactivate: [unsavedChangesGuard],
     data: {
       allowAuthenticated: true,
       allowedRegisterSteps: ['profileCompletion'],
@@ -93,4 +81,4 @@ const routes: Routes = [
   imports: [RouterModule.forChild(routes)],
   exports: [RouterModule],
 })
-export class RegisterRoutingModule { }
+export class RegisterRoutingModule {}
