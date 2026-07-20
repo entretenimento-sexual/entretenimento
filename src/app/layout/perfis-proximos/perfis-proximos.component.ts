@@ -109,10 +109,6 @@ export class PerfisProximosComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly cache = inject(CacheService);
 
-  // ===========================================================================
-  // Signals locais: estado de localização, política, UX e prompt contextual
-  // ===========================================================================
-
   private readonly _userLocation = signal<GeoCoordinates | null>(null);
   readonly userLocation = computed(() => this._userLocation());
 
@@ -134,10 +130,6 @@ export class PerfisProximosComponent {
     () => this._showProfileCompletionPrompt()
   );
 
-  // ===========================================================================
-  // Dependências
-  // ===========================================================================
-
   private readonly geolocationService = inject(GeolocationService);
   private readonly userProfileService = inject(UserProfileService);
   private readonly errorNotificationService = inject(ErrorNotificationService);
@@ -151,19 +143,11 @@ export class PerfisProximosComponent {
   private readonly accessControl = inject(AccessControlService);
   private readonly store = inject(Store);
 
-  // ===========================================================================
-  // Streams de usuário / auth
-  // ===========================================================================
-
   readonly user$ = this.currentUserStore.user$.pipe(
     distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b))
   );
 
   private readonly uid$ = this.currentUserStore.getLoggedUserUID$();
-
-  // ===========================================================================
-  // Sincronização do slider com o slice de location
-  // ===========================================================================
 
   private readonly syncUiWithStore$ = this.store
     .select(selectMaxDistanceKm)
@@ -180,10 +164,6 @@ export class PerfisProximosComponent {
     .subscribe();
 
   private readonly reload$ = new BehaviorSubject<void>(undefined);
-
-  // ===========================================================================
-  // VM combinando Location + NearbyProfiles por UID
-  // ===========================================================================
 
   readonly vm$ = combineLatest([this.uid$, this.reload$]).pipe(
     map(([uid]) => uid),
@@ -222,7 +202,7 @@ export class PerfisProximosComponent {
 
   readonly contentState$: Observable<NearbyContentStateVm | null> =
     combineLatest([this.vm$, this.network.isOffline$]).pipe(
-      map(([vm, offline]) => {
+      map(([vm, offline]): NearbyContentStateVm | null => {
         const hasProfiles = vm.list.length > 0;
 
         if (hasProfiles && (offline || !!vm.error)) {
@@ -291,10 +271,6 @@ export class PerfisProximosComponent {
     }
   });
 
-  // ===========================================================================
-  // UX: navegação segura para finalizar cadastro
-  // ===========================================================================
-
   private normalizeRedirectTarget(url: string | null | undefined): string {
     const clean = (url ?? '').trim();
 
@@ -337,10 +313,6 @@ export class PerfisProximosComponent {
       })
       .catch(() => {});
   }
-
-  // ===========================================================================
-  // Ações de UI
-  // ===========================================================================
 
   async onEnableLocationClick(): Promise<void> {
     try {
@@ -471,10 +443,6 @@ export class PerfisProximosComponent {
   }
 
   trackByUid = (_: number, item: IUserDados) => item.uid;
-
-  // ===========================================================================
-  // Tratamento centralizado de erro de geolocalização
-  // ===========================================================================
 
   private handleGeoError(err: unknown): void {
     let msg = 'Falha ao obter a sua localização.';
