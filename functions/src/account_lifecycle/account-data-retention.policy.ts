@@ -164,7 +164,9 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     phase: 'pre_finalize',
     automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Convites e participações são removidos; Salas encerradas são pseudonimizadas e owners ativos precisam encerrar ou transferir.',
+    reason:
+      'Convites e participações são removidos; Salas encerradas são ' +
+      'pseudonimizadas e owners ativos precisam encerrar ou transferir.',
   },
   {
     domain: 'owned_media_and_storage',
