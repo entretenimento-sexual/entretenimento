@@ -1,114 +1,244 @@
-/* src\app\chat-module\invite-user-modal\invite-user-modal.component.css */
-/* Barra de busca */
+/* src/app/chat-module/modals/invite-user-modal/invite-user-modal.component.css */
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+.invite-filters {
+  display: grid;
+  gap: 1rem;
+}
+
+.filter-field {
+  min-inline-size: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.filter-field > label,
+.filters-container legend {
+  color: var(--text-color, #1f2937);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
 .search-container {
-  margin-bottom: 15px;
   position: relative;
-}
-
-.region-container {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.filters-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  min-inline-size: 0;
 }
 
 .input-field {
-  width: 100%;
-  padding: 10px 15px;
-  font-size: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background-color: #f9f9f9;
+  inline-size: 100%;
+  min-block-size: var(--tap-target, 2.75rem);
+  box-sizing: border-box;
+  padding: 0.68rem 0.75rem;
+  border: 1px solid var(--surface-border, rgba(17, 24, 39, 0.18));
+  border-radius: var(--radius-md, 0.625rem);
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #1f2937);
+  font: inherit;
+  font-size: 0.92rem;
 }
 
-.input-field:focus {
-  outline: none;
-  border-color: #007bff;
+.input-field--search {
+  padding-inline-end: 3.3rem;
 }
 
-.search-icon {
+.input-field:focus-visible,
+.search-button:focus-visible,
+.invite-btn:focus-visible,
+.footer-actions .btn:focus-visible {
+  outline: 3px solid var(--focus-ring, var(--primary-color, #d83768));
+  outline-offset: 2px;
+}
+
+.input-field:focus-visible {
+  border-color: var(--primary-color, #d83768);
+}
+
+.input-field:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.search-button {
   position: absolute;
-  right: 15px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 1.2rem;
-  color: #007bff;
+  inset-inline-end: 0.25rem;
+  inset-block-start: 50%;
+  inline-size: var(--tap-target, 2.75rem);
+  block-size: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--primary-color, #d83768);
+  font: inherit;
+  font-size: 1.05rem;
   cursor: pointer;
+  transform: translateY(-50%);
 }
 
-/* Resultados */
-.user-results {
-  max-height: 300px;
-  overflow-y: auto;
+.search-button:hover {
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 10%,
+    transparent
+  );
+}
+
+.field-hint {
+  margin: 0;
+  color: var(--text-muted, #64748b);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.filters-container {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--surface-border, rgba(17, 24, 39, 0.14));
+  border-radius: var(--radius-lg, 0.875rem);
+}
+
+.filters-container legend {
+  padding-inline: 0.35rem;
+}
+
+.filters-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.result-state {
+  margin-block-start: 1rem;
+  padding: 0.9rem;
+  border: 1px dashed var(--surface-border, rgba(17, 24, 39, 0.2));
+  border-radius: var(--radius-md, 0.625rem);
+  color: var(--text-muted, #64748b);
+  text-align: center;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.user-results {
+  min-inline-size: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.75rem;
+  margin-block-start: 1rem;
 }
 
 .user-card {
+  min-inline-size: 0;
   display: flex;
   align-items: center;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background-color: #fff;
-  transition: box-shadow 0.2s ease;
-}
-
-.user-card:hover {
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--surface-border, rgba(17, 24, 39, 0.14));
+  border-radius: var(--radius-lg, 0.875rem);
+  background: var(--surface-color, #fff);
 }
 
 .avatar {
-  width: 50px;
-  height: 50px;
+  inline-size: 3.125rem;
+  block-size: 3.125rem;
+  flex: 0 0 auto;
   border-radius: 50%;
-  margin-right: 15px;
+  object-fit: cover;
+  background: color-mix(in oklab, var(--surface-color, #fff) 84%, #64748b 16%);
 }
 
 .user-details {
-  flex-grow: 1;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.nickname {
+  overflow: hidden;
+  color: var(--text-color, #1f2937);
+  font-size: 0.9rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .invite-btn {
-  background-color: #007bff;
-  color: #fff;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 5px;
+  min-block-size: var(--tap-target, 2.75rem);
+  padding-inline: 0.9rem;
+  border: 1px solid var(--primary-color, #d83768);
+  border-radius: 999px;
+  background: var(--primary-color, #d83768);
+  color: var(--text-on-primary, #fff);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.2s ease;
 }
 
 .invite-btn.selected {
-  background-color: #28a745;
+  border-color: var(--success-color, #15803d);
+  background: var(--success-color, #15803d);
 }
 
-.invite-btn:hover {
-  background-color: #0056b3;
-}
-
-/* Mensagens */
-.loading-container,
-.no-results {
-  text-align: center;
-  margin-top: 15px;
-}
-
-.loading-container p,
-.no-results p {
-  color: #666;
-  font-size: 1rem;
-}
-
-/* Ações */
 .footer-actions {
   display: flex;
-  justify-content: space-between;
-  margin-top: 15px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.footer-actions .btn {
+  min-block-size: var(--tap-target, 2.75rem);
+  min-inline-size: 7.5rem;
+}
+
+.footer-actions .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+@media (max-width: 44rem) {
+  .filters-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 28rem) {
+  .filters-container {
+    padding: 0.7rem;
+  }
+
+  .user-card {
+    align-items: flex-start;
+  }
+
+  .footer-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .footer-actions .btn {
+    inline-size: 100%;
+  }
+}
+
+:host-context(.high-contrast) .input-field,
+:host-context(.high-contrast) .filters-container,
+:host-context(.high-contrast) .user-card,
+:host-context(.high-contrast) .invite-btn {
+  border: 2px solid var(--text-color, #111);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-button,
+  .invite-btn {
+    transition: none;
+  }
 }
