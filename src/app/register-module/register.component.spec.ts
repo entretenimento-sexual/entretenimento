@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { ReactiveFormsModule } from '@angular/forms';
+import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { of } from 'rxjs';
@@ -13,6 +14,8 @@ import { FirestoreValidationService } from '../core/services/data-handling/fires
 import { RegisterService } from '../core/services/autentication/register/register.service';
 import { EmailVerificationService } from '../core/services/autentication/register/email-verification.service';
 import { ErrorNotificationService } from '../core/services/error-handler/error-notification.service';
+import { ActionStateDirective } from '../shared/action-state/action-state.directive';
+import { FormValidationFocusDirective } from '../shared/form-validation-focus/form-validation-focus.directive';
 
 class MockFirestoreValidationService {
   checkIfNicknameExists = vi.fn().mockReturnValue(of(false));
@@ -41,7 +44,12 @@ describe('RegisterComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       declarations: [RegisterComponent],
-      imports: [ReactiveFormsModule, RouterTestingModule],
+      imports: [
+        ReactiveFormsModule,
+        RouterTestingModule,
+        ActionStateDirective,
+        FormValidationFocusDirective,
+      ],
       providers: [
         { provide: FirestoreValidationService, useClass: MockFirestoreValidationService },
         { provide: RegisterService, useClass: MockRegisterService },
@@ -66,6 +74,18 @@ describe('RegisterComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('mantém o botão de cadastro acionável para revelar erros', () => {
+    const submit = fixture.debugElement.query(
+      By.css('button[type="submit"]')
+    ).nativeElement as HTMLButtonElement;
+
+    expect(component.form.invalid).toBe(true);
+    expect(submit.disabled).toBe(false);
+    expect(
+      fixture.debugElement.query(By.directive(FormValidationFocusDirective))
+    ).toBeTruthy();
   });
 
   it('deve exibir erro e não chamar register quando o form estiver inválido', () => {
