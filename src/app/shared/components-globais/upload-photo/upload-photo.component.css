@@ -153,11 +153,11 @@
   }
 }
 
-html.high-contrast .upload-modal-content,
-html.high-contrast .file-input,
-html.high-contrast .btn-close,
-html.high-contrast .loading-spinner,
-html.high-contrast .alert {
+:host-context(html.high-contrast) .upload-modal-content,
+:host-context(html.high-contrast) .file-input,
+:host-context(html.high-contrast) .btn-close,
+:host-context(html.high-contrast) .loading-spinner,
+:host-context(html.high-contrast) .alert {
   border: 2px solid currentColor !important;
   background: var(--background-color) !important;
   color: var(--text-color) !important;
