@@ -32,7 +32,7 @@ test('policy covers shared content, moderation and financial domains safely', ()
   );
 });
 
-test('policy marks implemented private, temporary and membership executors', () => {
+test('policy marks implemented private, temporary, membership and media executors', () => {
   const byDomain = new Map(
     ACCOUNT_DATA_RETENTION_POLICY.map((entry) => [entry.domain, entry])
   );
@@ -54,10 +54,18 @@ test('policy marks implemented private, temporary and membership executors', () 
   );
   assert.equal(byDomain.get('room_participation')?.disposition, 'unlink');
   assert.equal(
+    byDomain.get('owned_media_and_storage')?.automation,
+    'implemented'
+  );
+  assert.equal(
+    byDomain.get('owned_media_and_storage')?.disposition,
+    'delete'
+  );
+  assert.equal(
     byDomain.get('relationship_edges')?.automation,
     'contract_required'
   );
-  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 5);
+  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 6);
 });
 
 test('current plan remains blocked until every pre-finalize contract is completed', () => {
@@ -96,6 +104,7 @@ test('completed domains are recorded and removed from blockers', () => {
       'presence_and_location',
       'community_memberships',
       'room_participation',
+      'owned_media_and_storage',
     ],
   });
 
@@ -105,12 +114,14 @@ test('completed domains are recorded and removed from blockers', () => {
     'presence_and_location',
     'community_memberships',
     'room_participation',
+    'owned_media_and_storage',
   ]);
   assert.ok(!plan.blockingDomains.includes('public_profile'));
   assert.ok(!plan.blockingDomains.includes('nickname_index'));
   assert.ok(!plan.blockingDomains.includes('presence_and_location'));
   assert.ok(!plan.blockingDomains.includes('community_memberships'));
   assert.ok(!plan.blockingDomains.includes('room_participation'));
+  assert.ok(!plan.blockingDomains.includes('owned_media_and_storage'));
   assert.ok(plan.blockingDomains.includes('auth_identity'));
 });
 
