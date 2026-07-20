@@ -26,8 +26,16 @@ import {
   MatDialog,
   MatDialogRef,
 } from '@angular/material/dialog';
+import { Auth } from '@angular/fire/auth';
 import { Observable, of } from 'rxjs';
-import { debounceTime, filter, map, shareReplay, take, tap } from 'rxjs/operators';
+import {
+  debounceTime,
+  filter,
+  map,
+  shareReplay,
+  take,
+  tap,
+} from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import {
@@ -93,7 +101,7 @@ export class CreateRoomModalComponent implements OnInit {
 
   private readonly destroyRef = inject(DestroyRef);
   private draftReady = false;
-  private draftKey = 'room:create';
+  private draftKey = 'room:anonymous:create';
 
   roomForm!: CreateRoomFormGroup;
   isEditing = false;
@@ -105,6 +113,7 @@ export class CreateRoomModalComponent implements OnInit {
     private readonly venueService: VenueService,
     private readonly localDraft: LocalDraftService,
     private readonly dialog: MatDialog,
+    private readonly auth: Auth,
     public readonly dialogRef: MatDialogRef<CreateRoomModalComponent>,
     @Inject(MAT_DIALOG_DATA)
     public readonly data: CreateRoomModalData | null
@@ -143,9 +152,12 @@ export class CreateRoomModalComponent implements OnInit {
       });
     }
 
+    const ownerUid = String(
+      this.auth.currentUser?.uid ?? 'anonymous'
+    ).trim() || 'anonymous';
     this.draftKey = this.isEditing && this.roomId
-      ? `room:edit:${this.roomId}`
-      : 'room:create';
+      ? `room:${ownerUid}:edit:${this.roomId}`
+      : `room:${ownerUid}:create`;
     this.restoreDraft();
     this.observeDraftChanges();
   }
@@ -296,7 +308,9 @@ export class CreateRoomModalComponent implements OnInit {
       return;
     }
 
-    const uf = String(this.data?.defaultRegion?.uf ?? '').trim().toUpperCase();
+    const uf = String(this.data?.defaultRegion?.uf ?? '')
+      .trim()
+      .toUpperCase();
     const city = String(this.data?.defaultRegion?.city ?? '').trim();
 
     if (!uf || !city) {
