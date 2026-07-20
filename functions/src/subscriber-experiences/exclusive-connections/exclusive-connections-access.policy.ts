@@ -134,27 +134,27 @@ export function assertExclusiveConnectionsEligibility(
   }
 
   switch (decision.reason) {
-    case 'profile_missing':
-      throw new HttpsError('not-found', 'Perfil não localizado.');
+  case 'profile_missing':
+    throw new HttpsError('not-found', 'Perfil não localizado.');
 
-    case 'account_restricted':
-      throw new HttpsError(
-        'permission-denied',
-        'Sua conta não está disponível para esta experiência.'
-      );
+  case 'account_restricted':
+    throw new HttpsError(
+      'permission-denied',
+      'Sua conta não está disponível para esta experiência.'
+    );
 
-    case 'adult_access_required':
-      throw new HttpsError(
-        'failed-precondition',
-        'Confirmação de acesso adulto necessária.'
-      );
+  case 'adult_access_required':
+    throw new HttpsError(
+      'failed-precondition',
+      'Confirmação de acesso adulto necessária.'
+    );
 
-    case 'profile_incomplete':
-    case 'profile_field_missing':
-    default:
-      throw new HttpsError(
-        'failed-precondition',
-        'Complete seu perfil para continuar.'
-      );
+  case 'profile_incomplete':
+  case 'profile_field_missing':
+  default:
+    throw new HttpsError(
+      'failed-precondition',
+      'Complete seu perfil para continuar.'
+    );
   }
 }
