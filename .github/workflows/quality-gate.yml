@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
   group: quality-gate-${{ github.workflow }}-${{ github.ref }}
@@ -263,3 +264,75 @@ jobs:
           path: logs/
           if-no-files-found: error
           retention-days: 14
+
+  quality-gate-status:
+    name: Quality Gate status
+    if: always()
+    needs:
+      - firestore-indexes
+      - functions
+      - angular-tests
+      - angular-build
+      - firestore-rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Resolve aggregate result
+        id: aggregate
+        shell: bash
+        env:
+          FIRESTORE_INDEXES_RESULT: ${{ needs.firestore-indexes.result }}
+          FUNCTIONS_RESULT: ${{ needs.functions.result }}
+          ANGULAR_TESTS_RESULT: ${{ needs.angular-tests.result }}
+          ANGULAR_BUILD_RESULT: ${{ needs.angular-build.result }}
+          FIRESTORE_RULES_RESULT: ${{ needs.firestore-rules.result }}
+        run: |
+          state='success'
+          description='Todos os checks de qualidade passaram.'
+
+          for result in \
+            "$FIRESTORE_INDEXES_RESULT" \
+            "$FUNCTIONS_RESULT" \
+            "$ANGULAR_TESTS_RESULT" \
+            "$ANGULAR_BUILD_RESULT" \
+            "$FIRESTORE_RULES_RESULT"; do
+            if [[ "$result" != 'success' ]]; then
+              state='failure'
+              description='Um ou mais checks de qualidade falharam.'
+              break
+            fi
+          done
+
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+          echo "description=$description" >> "$GITHUB_OUTPUT"
+
+      - name: Publish aggregate commit status
+        if: >-
+          github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE: ${{ steps.aggregate.outputs.state }}
+          DESCRIPTION: ${{ steps.aggregate.outputs.description }}
+          TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          payload=$(jq -nc \
+            --arg state "$STATE" \
+            --arg context 'Quality Gate / aggregate' \
+            --arg description "$DESCRIPTION" \
+            --arg target_url "$TARGET_URL" \
+            '{state:$state,context:$context,description:$description,target_url:$target_url}')
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header 'Accept: application/vnd.github+json' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            "${{ github.api_url }}/repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            --data "$payload"
+
+      - name: Enforce aggregate result
+        if: steps.aggregate.outputs.state != 'success'
+        run: exit 1
