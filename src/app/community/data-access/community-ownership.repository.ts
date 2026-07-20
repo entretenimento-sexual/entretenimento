@@ -62,12 +62,14 @@ export class CommunityOwnershipRepository {
     communityId: string,
     targetUid: string
   ): Observable<CommunityOwnershipTransferResponse> {
+    const requestId = this.createRequestId('transfer');
+
     return defer(() =>
       from(
         this.transferOwnershipCallable({
           communityId: communityId.trim(),
           targetUid: targetUid.trim(),
-          requestId: this.createRequestId('transfer'),
+          requestId,
         })
       )
     ).pipe(
@@ -89,12 +91,15 @@ export class CommunityOwnershipRepository {
     communityId: string,
     reason?: string | null
   ): Observable<CommunityArchiveResponse> {
+    const requestId = this.createRequestId('archive');
+    const safeReason = this.normalizeOptionalReason(reason);
+
     return defer(() =>
       from(
         this.archiveCommunityCallable({
           communityId: communityId.trim(),
-          requestId: this.createRequestId('archive'),
-          reason: this.normalizeOptionalReason(reason),
+          requestId,
+          reason: safeReason,
         })
       )
     ).pipe(
@@ -127,7 +132,8 @@ export class CommunityOwnershipRepository {
     const bytes = new Uint32Array(4);
     globalThis.crypto?.getRandomValues?.(bytes);
     const entropy = Array.from(bytes, (value) => value.toString(36)).join('');
-    const fallbackEntropy = entropy || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+    const fallbackEntropy = entropy
+      || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
 
     return `${prefix}:${fallbackEntropy}`.slice(0, 128);
   }
