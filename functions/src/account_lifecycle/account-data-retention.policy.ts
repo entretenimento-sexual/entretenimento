@@ -13,7 +13,7 @@
 // - a política é serializável e registrada no tombstone para auditoria/retry.
 // -----------------------------------------------------------------------------
 
-export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 6;
+export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 7;
 
 export type AccountDataDomain =
   | 'public_profile'
@@ -182,9 +182,11 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     domain: 'shared_messages',
     disposition: 'anonymize',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Mensagens compartilhadas não devem ser apagadas sem preservar contexto dos demais participantes.',
+    reason:
+      'Mensagens e previews preservam conteúdo compartilhado, substituem UIDs ' +
+      'por pseudônimos e removem reações e registries do usuário excluído.',
   },
   {
     domain: 'shared_publications',
