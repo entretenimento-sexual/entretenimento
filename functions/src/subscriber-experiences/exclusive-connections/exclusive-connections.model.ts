@@ -108,9 +108,9 @@ export function normalizeExclusiveConnectionsPageRequest(
   const parsedLimit = Number(rawRequest?.limit);
   const limit = Number.isFinite(parsedLimit)
     ? Math.min(
-        Math.max(Math.trunc(parsedLimit), 1),
-        EXCLUSIVE_CONNECTIONS_MAX_PAGE_SIZE
-      )
+      Math.max(Math.trunc(parsedLimit), 1),
+      EXCLUSIVE_CONNECTIONS_MAX_PAGE_SIZE
+    )
     : EXCLUSIVE_CONNECTIONS_DEFAULT_PAGE_SIZE;
 
   const rawCursor = String(rawRequest?.cursor ?? '').trim();
