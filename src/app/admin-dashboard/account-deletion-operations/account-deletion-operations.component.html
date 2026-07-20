@@ -1,0 +1,238 @@
+<!-- src/app/admin-dashboard/account-deletion-operations/account-deletion-operations.component.html -->
+<section class="deletion-operations" aria-labelledby="deletion-operations-title">
+  @if (vm$ | async; as vm) {
+    <header class="deletion-operations__header">
+      <div>
+        <p class="deletion-operations__eyebrow">Lifecycle da conta</p>
+        <h2 id="deletion-operations-title">Operações de exclusão</h2>
+        <p>
+          Acompanhamento técnico sanitizado das etapas, bloqueios e novas
+          tentativas do expurgo definitivo.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        class="refresh-button"
+        [disabled]="vm.loading"
+        [attr.aria-busy]="vm.loading"
+        (click)="refresh()"
+      >
+        <mat-icon aria-hidden="true">refresh</mat-icon>
+        {{ vm.loading ? 'Atualizando...' : 'Atualizar' }}
+      </button>
+    </header>
+
+    <section class="metrics-grid" aria-label="Resumo das operações de exclusão">
+      @for (metric of vm.metrics; track metric.label) {
+        <article class="metric-card" [attr.data-tone]="metric.tone">
+          <span class="metric-card__label">{{ metric.label }}</span>
+          <strong>{{ metric.value }}</strong>
+          <span class="metric-card__hint">{{ metric.hint }}</span>
+        </article>
+      }
+    </section>
+
+    <section class="operations-toolbar" aria-label="Filtros da lista">
+      <div class="filter-group" role="group" aria-label="Filtrar operações">
+        @for (filter of vm.filters; track filter.value) {
+          <button
+            type="button"
+            class="filter-button"
+            [class.is-active]="vm.filter === filter.value"
+            [attr.aria-pressed]="vm.filter === filter.value"
+            [disabled]="vm.loading"
+            (click)="setFilter(filter.value)"
+          >
+            <span>{{ filter.label }}</span>
+            <strong>{{ filter.count }}</strong>
+          </button>
+        }
+      </div>
+
+      @if (vm.generatedAt) {
+        <p class="generated-at">
+          Atualizado em {{ vm.generatedAt | date:'dd/MM/yyyy HH:mm:ss' }}
+        </p>
+      }
+    </section>
+
+    <div class="load-announcement" role="status" aria-live="polite">
+      @if (vm.loading) {
+        Carregando operações de exclusão...
+      } @else if (vm.failed) {
+        A consulta falhou. A última resposta válida foi preservada quando disponível.
+      } @else {
+        Página {{ vm.page }} carregada com {{ vm.items.length }} operação(ões).
+      }
+    </div>
+
+    @if (vm.failed) {
+      <section class="feedback-card feedback-card--error" role="alert">
+        <mat-icon aria-hidden="true">sync_problem</mat-icon>
+        <div>
+          <strong>Não foi possível atualizar a lista.</strong>
+          <p>
+            O diagnóstico foi enviado ao handler global. Atualize para tentar
+            novamente a partir da primeira página.
+          </p>
+        </div>
+      </section>
+    }
+
+    @if (!vm.loading && vm.items.length === 0) {
+      <section class="feedback-card" role="status">
+        <mat-icon aria-hidden="true">task_alt</mat-icon>
+        <div>
+          <strong>Nenhuma operação neste filtro.</strong>
+          <p>Não há registros recentes que correspondam ao estado selecionado.</p>
+        </div>
+      </section>
+    }
+
+    @if (vm.items.length > 0) {
+      <section class="operations-list" aria-label="Lista de operações de exclusão">
+        @for (item of vm.items; track item.reference) {
+          <article class="operation-card">
+            <header class="operation-card__header">
+              <div>
+                <span class="operation-card__label">Referência técnica</span>
+                <code>{{ item.reference }}</code>
+              </div>
+
+              <span
+                class="status-badge"
+                [attr.data-status]="item.status"
+                role="status"
+              >
+                {{ statusLabel(item.status) }}
+              </span>
+            </header>
+
+            <dl class="operation-summary">
+              <div>
+                <dt>Fase</dt>
+                <dd>{{ phaseLabel(item.phase) }}</dd>
+              </div>
+              <div>
+                <dt>Origem</dt>
+                <dd>{{ sourceLabel(item.source) }}</dd>
+              </div>
+              <div>
+                <dt>Tentativas</dt>
+                <dd>{{ item.attemptCount }}</dd>
+              </div>
+              <div>
+                <dt>Política</dt>
+                <dd>{{ item.policyVersion ?? 'Não informada' }}</dd>
+              </div>
+              <div>
+                <dt>Domínios concluídos</dt>
+                <dd>{{ item.completedDomainCount }}</dd>
+              </div>
+              <div>
+                <dt>Última atualização</dt>
+                <dd>
+                  {{ item.updatedAt ? (item.updatedAt | date:'dd/MM/yyyy HH:mm:ss') : 'Não informada' }}
+                </dd>
+              </div>
+            </dl>
+
+            <section class="technical-status" aria-label="Estado técnico">
+              <article>
+                <span>Firebase Auth</span>
+                <strong>{{ technicalStatusLabel(item.authDeletionStatus) }}</strong>
+              </article>
+              <article>
+                <span>Firestore</span>
+                <strong>{{ technicalStatusLabel(item.firestoreDeletionStatus) }}</strong>
+              </article>
+              <article>
+                <span>Matriz de dados</span>
+                <strong>{{ technicalStatusLabel(item.dataDeletionStatus) }}</strong>
+              </article>
+            </section>
+
+            @if (item.nextAttemptAt || item.leaseUntil || item.retryDelayMs) {
+              <section class="operation-timing" aria-label="Agendamento e lease">
+                @if (item.nextAttemptAt) {
+                  <p>
+                    <span>Próxima tentativa</span>
+                    <strong>{{ item.nextAttemptAt | date:'dd/MM/yyyy HH:mm:ss' }}</strong>
+                  </p>
+                }
+                @if (item.retryDelayMs) {
+                  <p>
+                    <span>Backoff</span>
+                    <strong>{{ durationLabel(item.retryDelayMs) }}</strong>
+                  </p>
+                }
+                @if (item.leaseUntil) {
+                  <p>
+                    <span>Lease até</span>
+                    <strong>{{ item.leaseUntil | date:'dd/MM/yyyy HH:mm:ss' }}</strong>
+                  </p>
+                }
+              </section>
+            }
+
+            @if (item.blockingDomains.length > 0) {
+              <section class="blockers" aria-label="Domínios bloqueadores">
+                <h3>Dependências pendentes</h3>
+                <div class="blockers__list">
+                  @for (domain of item.blockingDomains; track domain) {
+                    <span>{{ domainLabel(domain) }}</span>
+                  }
+                </div>
+              </section>
+            }
+
+            @if (item.lastErrorCode || item.lastErrorCategory || item.lastErrorPhase) {
+              <section class="error-diagnostic" aria-label="Diagnóstico da última falha">
+                <mat-icon aria-hidden="true">bug_report</mat-icon>
+                <div>
+                  <strong>Último diagnóstico sanitizado</strong>
+                  <p>
+                    @if (item.lastErrorCategory) {
+                      Categoria: <code>{{ item.lastErrorCategory }}</code>
+                    }
+                    @if (item.lastErrorPhase) {
+                      · Fase: <code>{{ item.lastErrorPhase }}</code>
+                    }
+                    @if (item.lastErrorCode) {
+                      · Código: <code>{{ item.lastErrorCode }}</code>
+                    }
+                  </p>
+                </div>
+              </section>
+            }
+          </article>
+        }
+      </section>
+    }
+
+    <nav class="pagination" aria-label="Paginação das operações">
+      <button
+        type="button"
+        class="pagination__button"
+        [disabled]="vm.loading || !vm.hasPrevious"
+        (click)="previousPage()"
+      >
+        <mat-icon aria-hidden="true">chevron_left</mat-icon>
+        Anterior
+      </button>
+
+      <span aria-current="page">Página {{ vm.page }}</span>
+
+      <button
+        type="button"
+        class="pagination__button"
+        [disabled]="vm.loading || !vm.hasNext"
+        (click)="nextPage()"
+      >
+        Próxima
+        <mat-icon aria-hidden="true">chevron_right</mat-icon>
+      </button>
+    </nav>
+  }
+</section>
