@@ -66,6 +66,14 @@ match /entitlements/{entitlementId} {
   allow read, write: if false;
 }
 
+match /financial_entitlement_audit/{auditId} {
+  /**
+   * Arquivo pseudonimizado de benefícios revogados por exclusão de conta.
+   * Não é fonte autorizativa de acesso e permanece estritamente interno.
+   */
+  allow read, write: if false;
+}
+
 match /billing_audit/{auditId} {
   /**
    * Auditoria técnica/financeira interna.
