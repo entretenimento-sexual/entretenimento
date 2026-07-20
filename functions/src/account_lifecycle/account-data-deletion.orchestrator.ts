@@ -23,16 +23,21 @@ import {
   executeSharedPublicationAnonymizationDomain,
   type AccountSharedPublicationAnonymizationAdapter,
 } from './account-shared-publication-anonymization.executor';
+import { FirestoreAccountSharedPublicationAnonymizationAdapter } from './account-shared-publication-anonymization.firestore';
 
 export type AccountDataDeletionOrchestratorAdapter =
   AccountDataDeletionAdapter &
   AccountOwnedMediaDeletionAdapter &
-  AccountSharedMessageAnonymizationAdapter &
-  AccountSharedPublicationAnonymizationAdapter;
+  AccountSharedMessageAnonymizationAdapter;
+
+const defaultSharedPublicationAdapter =
+  new FirestoreAccountSharedPublicationAnonymizationAdapter();
 
 export async function executeAccountDataDeletionDomains(
   adapter: AccountDataDeletionOrchestratorAdapter,
-  input: ExecuteAccountDataDeletionInput
+  input: ExecuteAccountDataDeletionInput,
+  sharedPublicationAdapter: AccountSharedPublicationAnonymizationAdapter =
+    defaultSharedPublicationAdapter
 ): Promise<AccountDataDeletionExecutionSummary> {
   const sharedMessages = await executeSharedMessageAnonymizationDomain(
     adapter,
@@ -43,11 +48,14 @@ export async function executeAccountDataDeletionDomains(
     }
   );
   const sharedPublications =
-    await executeSharedPublicationAnonymizationDomain(adapter, {
-      uid: input.uid,
-      pageSize: input.pageSize,
-      maxPagesPerStep: input.maxPagesPerDomain,
-    });
+    await executeSharedPublicationAnonymizationDomain(
+      sharedPublicationAdapter,
+      {
+        uid: input.uid,
+        pageSize: input.pageSize,
+        maxPagesPerStep: input.maxPagesPerDomain,
+      }
+    );
   const coreSummary = await executeCoreAccountDataDeletionDomains(adapter, input);
   const ownedMedia = await executeOwnedMediaAndStorageDomain(adapter, {
     uid: input.uid,
