@@ -139,6 +139,7 @@ describe('CreateRoomModalComponent', () => {
       roomName: 'Sala em rascunho',
       description: 'Descrição preservada',
     });
+    component.roomForm.markAsDirty();
     vi.advanceTimersByTime(500);
     fixture.destroy();
 
@@ -154,6 +155,7 @@ describe('CreateRoomModalComponent', () => {
 
   it('só descarta o rascunho após confirmação', () => {
     component.roomForm.controls.roomName.setValue('Sala alterada');
+    component.roomForm.markAsDirty();
     vi.advanceTimersByTime(500);
 
     component.cancel();
