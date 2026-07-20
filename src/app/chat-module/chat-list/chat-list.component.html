@@ -239,6 +239,9 @@
                     <button
                       type="button"
                       class="btn btn-ghost room-card__action room-card__action--danger"
+                      [appActionState]="false"
+                      [actionKey]="'room-close:' + room.id"
+                      actionPendingText="Excluindo..."
                       (click)="deleteRoom(room.id, $event)"
                     >
                       Excluir
