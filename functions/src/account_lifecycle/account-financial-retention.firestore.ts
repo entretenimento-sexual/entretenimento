@@ -2,8 +2,8 @@
 // -----------------------------------------------------------------------------
 // FIRESTORE ADAPTER FOR FINANCIAL RETENTION
 // -----------------------------------------------------------------------------
-// Mantém registros necessários à conciliação, remove URLs/metadados operacionais
-// e arquiva entitlements fora da coleção autorizativa antes de apagá-los.
+// Mantém registros necessários à conciliação em coleções de auditoria, remove
+// checkouts operacionais e arquiva entitlements antes de apagá-los.
 // -----------------------------------------------------------------------------
 import { createHash } from 'node:crypto';
 
@@ -19,8 +19,17 @@ interface CheckoutSessionDocument {
   buyerUid?: unknown;
   sellerUid?: unknown;
   scope?: unknown;
+  planId?: unknown;
+  planKey?: unknown;
+  planSnapshot?: unknown;
+  amountCents?: unknown;
+  currency?: unknown;
+  provider?: unknown;
+  providerSessionId?: unknown;
   status?: unknown;
   statusHistory?: unknown;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }
 
 interface FinancialPartyDocument {
@@ -49,6 +58,7 @@ interface BillingAuditDocument extends FinancialPartyDocument {
 
 const FINANCIAL_RETENTION_POLICY_VERSION = 1;
 const MAX_BATCH_WRITES = 400;
+const MAX_ARCHIVE_DOCUMENTS_PER_BATCH = Math.floor(MAX_BATCH_WRITES / 2);
 const CANCELLABLE_CHECKOUT_STATUSES = new Set([
   'pending',
   'provider_created',
@@ -71,16 +81,35 @@ implements AccountFinancialRetentionAdapter
       .get();
     let pendingCheckoutsCanceled = 0;
 
-    for (let offset = 0; offset < snapshot.docs.length; offset += MAX_BATCH_WRITES) {
+    for (
+      let offset = 0;
+      offset < snapshot.docs.length;
+      offset += MAX_ARCHIVE_DOCUMENTS_PER_BATCH
+    ) {
       const batch = db.batch();
-      const chunk = snapshot.docs.slice(offset, offset + MAX_BATCH_WRITES);
+      const chunk = snapshot.docs.slice(
+        offset,
+        offset + MAX_ARCHIVE_DOCUMENTS_PER_BATCH
+      );
 
       chunk.forEach((document) => {
         assertTopLevelDocumentPath(document.ref.path, 'checkout_sessions');
         const data = document.data() as CheckoutSessionDocument;
-        const result = buildCheckoutPatch(data, field, safeUid);
-        pendingCheckoutsCanceled += result.canceled ? 1 : 0;
-        batch.update(document.ref, result.patch);
+        assertPartyMatches(data, field, safeUid);
+        const status = normalizeText(data.status, 40).toLowerCase();
+        const canceled = CANCELLABLE_CHECKOUT_STATUSES.has(status);
+        const archiveId = buildCheckoutArchiveDocumentId(document.ref.path);
+        const archiveRef = db
+          .collection('financial_checkout_audit')
+          .doc(archiveId);
+
+        pendingCheckoutsCanceled += canceled ? 1 : 0;
+        batch.set(
+          archiveRef,
+          buildArchivedCheckout(data, safeUid, archiveId, document.ref.path),
+          { merge: true }
+        );
+        batch.delete(document.ref);
       });
 
       await batch.commit();
@@ -126,17 +155,23 @@ implements AccountFinancialRetentionAdapter
       .where(field, '==', safeUid)
       .limit(normalizeLimit(limit))
       .get();
-    const chunkSize = Math.floor(MAX_BATCH_WRITES / 2);
 
-    for (let offset = 0; offset < snapshot.docs.length; offset += chunkSize) {
+    for (
+      let offset = 0;
+      offset < snapshot.docs.length;
+      offset += MAX_ARCHIVE_DOCUMENTS_PER_BATCH
+    ) {
       const batch = db.batch();
-      const chunk = snapshot.docs.slice(offset, offset + chunkSize);
+      const chunk = snapshot.docs.slice(
+        offset,
+        offset + MAX_ARCHIVE_DOCUMENTS_PER_BATCH
+      );
 
       chunk.forEach((document) => {
         assertTopLevelDocumentPath(document.ref.path, 'entitlements');
         const data = document.data() as EntitlementDocument;
         assertPartyMatches(data, field, safeUid);
-        const archiveId = buildArchiveDocumentId(document.ref.path);
+        const archiveId = buildEntitlementArchiveDocumentId(document.ref.path);
         const archiveRef = db
           .collection('financial_entitlement_audit')
           .doc(archiveId);
@@ -192,49 +227,52 @@ implements AccountFinancialRetentionAdapter
   }
 }
 
-function buildCheckoutPatch(
+function buildArchivedCheckout(
   data: CheckoutSessionDocument,
-  field: FinancialPartyField,
-  uid: string
-): {
-  patch: FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData>;
-  canceled: boolean;
-} {
-  assertPartyMatches(data, field, uid);
-  const status = String(data.status ?? '').trim().toLowerCase();
-  const canceled = CANCELLABLE_CHECKOUT_STATUSES.has(status);
+  deletedUid: string,
+  archiveId: string,
+  sourcePath: string
+): FirebaseFirestore.DocumentData {
   const now = Date.now();
-  const history = Array.isArray(data.statusHistory)
-    ? data.statusHistory.slice(0, 200)
-    : [];
-  const patch: FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData> = {
-    [field]: deletedUserReference(uid),
-    [partyIdentityStateField(field)]:
-      'pseudonymized_after_account_deletion',
-    checkoutUrl: FieldValue.delete(),
-    metadata: FieldValue.delete(),
-    financialRetentionCategory: 'billing-reconciliation',
+  const previousStatus = normalizeText(data.status, 40).toLowerCase();
+  const canceled = CANCELLABLE_CHECKOUT_STATUSES.has(previousStatus);
+  const history = normalizeStatusHistory(data.statusHistory);
+
+  return {
+    id: archiveId,
+    sourceCheckoutSessionIdHash: hashValue(String(data.id ?? sourcePath)),
+    buyerUid: pseudonymizeParty(data.buyerUid, deletedUid),
+    sellerUid: pseudonymizeNullableParty(data.sellerUid, deletedUid),
+    scope: normalizeText(data.scope, 80),
+    planId: normalizeNullableText(data.planId, 180),
+    planKey: normalizeNullableText(data.planKey, 80),
+    planSnapshot: sanitizePlanSnapshot(data.planSnapshot),
+    amountCents: normalizeNullableNumber(data.amountCents),
+    currency: normalizeNullableText(data.currency, 20),
+    provider: normalizeNullableText(data.provider, 40),
+    providerSessionId: normalizeNullableText(data.providerSessionId, 240),
+    status: canceled ? 'canceled' : previousStatus || 'unknown',
+    previousStatus: previousStatus || null,
+    statusHistory: canceled
+      ? [
+        ...history,
+        {
+          status: 'canceled',
+          at: now,
+          source: 'system',
+          eventId: null,
+          reason: 'account-deletion',
+        },
+      ]
+      : history,
+    sourceCreatedAt: normalizeNullableNumber(data.createdAt),
+    sourceUpdatedAt: normalizeNullableNumber(data.updatedAt),
+    canceledForAccountDeletionAt: canceled ? now : null,
+    financialRetentionCategory: 'checkout-audit',
     financialRetentionPolicyVersion: FINANCIAL_RETENTION_POLICY_VERSION,
-    identityUpdatedAt: FieldValue.serverTimestamp(),
-    updatedAt: now,
+    identityState: 'deleted-user-pseudonymized',
+    archivedAt: FieldValue.serverTimestamp(),
   };
-
-  if (canceled) {
-    patch['status'] = 'canceled';
-    patch['statusHistory'] = [
-      ...history,
-      {
-        status: 'canceled',
-        at: now,
-        source: 'system',
-        eventId: null,
-        reason: 'account-deletion',
-      },
-    ];
-    patch['canceledForAccountDeletionAt'] = now;
-  }
-
-  return { patch, canceled };
 }
 
 async function updatePartyDocuments(
@@ -330,6 +368,39 @@ function buildBillingAuditPatch(
   return patch;
 }
 
+function sanitizePlanSnapshot(value: unknown): Record<string, unknown> | null {
+  const record = normalizeRecord(value);
+  if (!Object.keys(record).length) return null;
+
+  return {
+    id: normalizeNullableText(record['id'], 180),
+    key: normalizeNullableText(record['key'], 80),
+    scope: normalizeNullableText(record['scope'], 80),
+    title: normalizeNullableText(record['title'], 160),
+    description: normalizeNullableText(record['description'], 500),
+    amountCents: normalizeNullableNumber(record['amountCents']),
+    currency: normalizeNullableText(record['currency'], 20),
+    interval: normalizeNullableText(record['interval'], 40),
+    active: record['active'] === true,
+    grantedRole: normalizeNullableText(record['grantedRole'], 80),
+    catalogVersion: normalizeNullableNumber(record['catalogVersion']),
+    snapshotAt: normalizeNullableNumber(record['snapshotAt']),
+  };
+}
+
+function normalizeStatusHistory(value: unknown): unknown[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(-200).map((entry) => {
+    const record = normalizeRecord(entry);
+    return {
+      status: normalizeNullableText(record['status'], 40),
+      at: normalizeNullableNumber(record['at']),
+      source: normalizeNullableText(record['source'], 40),
+      eventId: normalizeNullableText(record['eventId'], 240),
+    };
+  });
+}
+
 function assertPartyMatches(
   data: FinancialPartyDocument,
   field: FinancialPartyField,
@@ -393,8 +464,15 @@ function normalizeNullableText(
 }
 
 function normalizeNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 function normalizeId(value: unknown): string | null {
@@ -423,7 +501,11 @@ function deletedUserReference(uid: string): string {
   return `deleted:${hashValue(uid).slice(0, 24)}`;
 }
 
-function buildArchiveDocumentId(sourcePath: string): string {
+function buildCheckoutArchiveDocumentId(sourcePath: string): string {
+  return `financial_checkout_${hashValue(sourcePath).slice(0, 40)}`;
+}
+
+function buildEntitlementArchiveDocumentId(sourcePath: string): string {
   return `financial_entitlement_${hashValue(sourcePath).slice(0, 40)}`;
 }
 
