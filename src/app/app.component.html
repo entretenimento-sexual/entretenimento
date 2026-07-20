@@ -1,4 +1,12 @@
 <!-- src/app/app.component.html -->
+<a class="skip-link" href="#route-content">
+  Ir para o conteúdo principal
+</a>
+
 <app-global-network-status />
-<router-outlet></router-outlet>
+
+<div id="route-content" class="route-content" tabindex="-1">
+  <router-outlet></router-outlet>
+</div>
+
 <app-footer *ngIf="showFooter$ | async"></app-footer>
