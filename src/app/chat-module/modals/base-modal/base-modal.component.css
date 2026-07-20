@@ -10,8 +10,8 @@
   inline-size: 100%;
   min-inline-size: 0;
   max-block-size: min(88dvh, 52rem);
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--surface-border, rgba(17, 24, 39, 0.14));
   border-radius: var(--radius-xl, 1rem);
@@ -26,6 +26,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  flex: 0 0 auto;
   padding: clamp(0.9rem, 3vw, 1.2rem);
   border-bottom: 1px solid var(--surface-border, rgba(17, 24, 39, 0.14));
   background: var(--surface-color, #fff);
@@ -81,25 +82,43 @@
   outline-offset: 2px;
 }
 
-.modal-body {
+.modal-body,
+.modal-default-content {
   min-inline-size: 0;
   min-block-size: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
   padding: clamp(0.9rem, 3vw, 1.2rem);
   color: inherit;
   line-height: 1.5;
+}
+
+.modal-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
 
-.modal-footer {
-  min-inline-size: 0;
-  padding: 0 clamp(0.9rem, 3vw, 1.2rem)
-    calc(clamp(0.9rem, 3vw, 1.2rem) + env(safe-area-inset-bottom, 0px));
-  background: var(--surface-color, #fff);
+.modal-body:empty {
+  display: none;
 }
 
-.modal-footer:empty {
+.modal-default-content {
+  flex: 1 1 auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.modal-body:not(:empty) + .modal-default-content {
+  flex: 0 0 auto;
+  overflow: visible;
+  padding-top: 0;
+  padding-bottom: calc(
+    clamp(0.9rem, 3vw, 1.2rem) + env(safe-area-inset-bottom, 0px)
+  );
+}
+
+.modal-default-content:empty {
   display: none;
 }
 
@@ -110,11 +129,8 @@
   }
 
   .modal-header,
-  .modal-body {
-    padding-inline: 0.85rem;
-  }
-
-  .modal-footer {
+  .modal-body,
+  .modal-default-content {
     padding-inline: 0.85rem;
   }
 }
