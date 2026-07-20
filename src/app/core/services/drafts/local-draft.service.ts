@@ -24,6 +24,14 @@ export interface LocalDraftChange {
   at: number;
 }
 
+type SafeJsonValue =
+  | Record<string, unknown>
+  | unknown[]
+  | string
+  | number
+  | boolean
+  | null;
+
 const STORAGE_PREFIX = 'entretenimento:draft:v1:';
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -31,7 +39,8 @@ const MAX_SERIALIZED_BYTES = 32 * 1024;
 
 @Injectable({ providedIn: 'root' })
 export class LocalDraftService {
-  private readonly changesSubject = new BehaviorSubject<LocalDraftChange | null>(null);
+  private readonly changesSubject =
+    new BehaviorSubject<LocalDraftChange | null>(null);
   private readonly memoryFallback = new Map<string, string>();
 
   readonly changes$: Observable<LocalDraftChange | null> =
@@ -45,7 +54,7 @@ export class LocalDraftService {
     const normalizedKey = this.normalizeKey(key);
     const safeValue = this.toSafeJsonValue(value);
 
-    if (!normalizedKey || !safeValue || Array.isArray(safeValue)) {
+    if (!normalizedKey || !this.isSafeRecord(safeValue)) {
       this.emit(normalizedKey || 'invalid', 'rejected');
       return false;
     }
@@ -83,23 +92,26 @@ export class LocalDraftService {
     if (!serialized) return null;
 
     try {
-      const parsed = JSON.parse(serialized) as Partial<LocalDraftEnvelope<T>>;
+      const parsed = JSON.parse(serialized) as Partial<
+        LocalDraftEnvelope<Record<string, unknown>>
+      >;
       const expiresAt = Number(parsed.expiresAt);
 
       if (
         parsed.version !== 1 ||
         !Number.isFinite(expiresAt) ||
         expiresAt <= Date.now() ||
-        !parsed.value ||
-        typeof parsed.value !== 'object' ||
-        Array.isArray(parsed.value)
+        !this.isSafeRecord(parsed.value)
       ) {
-        this.remove(normalizedKey, expiresAt <= Date.now() ? 'expired' : 'removed');
+        this.remove(
+          normalizedKey,
+          expiresAt <= Date.now() ? 'expired' : 'removed'
+        );
         return null;
       }
 
       const safeValue = this.toSafeJsonValue(parsed.value);
-      return safeValue && !Array.isArray(safeValue)
+      return this.isSafeRecord(safeValue)
         ? safeValue as T
         : null;
     } catch {
@@ -143,13 +155,15 @@ export class LocalDraftService {
   private toSafeJsonValue(
     value: unknown,
     depth = 0
-  ): Record<string, unknown> | unknown[] | string | number | boolean | null {
+  ): SafeJsonValue {
     if (depth > 6) return null;
     if (value === null) return null;
 
     if (typeof value === 'string') return value.slice(0, 4000);
     if (typeof value === 'boolean') return value;
-    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
 
     if (Array.isArray(value)) {
       return value
@@ -173,10 +187,23 @@ export class LocalDraftService {
     Object.keys(source).slice(0, 100).forEach((key) => {
       const normalizedKey = String(key).trim().slice(0, 100);
       if (!normalizedKey) return;
-      result[normalizedKey] = this.toSafeJsonValue(source[key], depth + 1);
+      result[normalizedKey] = this.toSafeJsonValue(
+        source[key],
+        depth + 1
+      );
     });
 
     return result;
+  }
+
+  private isSafeRecord(
+    value: unknown
+  ): value is Record<string, unknown> {
+    return (
+      value !== null &&
+      typeof value === 'object' &&
+      !Array.isArray(value)
+    );
   }
 
   private measureBytes(value: string): number {
@@ -220,7 +247,10 @@ export class LocalDraftService {
     this.memoryFallback.delete(key);
   }
 
-  private emit(key: string, action: LocalDraftChange['action']): void {
+  private emit(
+    key: string,
+    action: LocalDraftChange['action']
+  ): void {
     this.changesSubject.next({ key, action, at: Date.now() });
   }
 }
