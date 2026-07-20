@@ -14,6 +14,12 @@
     <h1>{{ pageTitle }}</h1>
     <p>{{ introText }}</p>
 
+    @if (hasUnsavedChanges()) {
+      <p class="alert alert-info" role="status" aria-live="polite">
+        Rascunho salvo neste dispositivo. Ele expira automaticamente em 24 horas.
+      </p>
+    }
+
     @if (isSubmitting) {
       <div class="alert alert-secondary" role="status" aria-live="polite">
         Salvando seus dados...
@@ -118,6 +124,7 @@
           [(ngModel)]="orientation"
           name="orientation"
           class="input-field"
+          (change)="onDraftChange()"
           [disabled]="isSubmitting"
         >
           <option value="" disabled>Selecione...</option>
@@ -204,7 +211,7 @@
         />
 
         <p class="field-hint" id="avatar-hint">
-          JPG, PNG ou WEBP, com até 8 MB. Você também pode enviar a foto depois.
+          JPG, PNG ou WEBP, com até 10 MB. O arquivo não é incluído no rascunho local.
         </p>
       </div>
 
