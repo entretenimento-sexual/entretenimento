@@ -13,6 +13,13 @@ import {
   type ExecuteAccountDataDeletionInput,
 } from './account-data-deletion.executor';
 import {
+  executeFinancialRetentionDomain,
+  type AccountFinancialRetentionAdapter,
+} from './account-financial-retention.executor';
+import {
+  FirestoreAccountFinancialRetentionAdapter,
+} from './account-financial-retention.firestore';
+import {
   executeModerationEvidenceRetentionDomain,
   type AccountModerationEvidenceRetentionAdapter,
 } from './account-moderation-evidence-retention.executor';
@@ -53,13 +60,16 @@ const defaultRelationshipEdgeAdapter =
   new FirestoreAccountRelationshipEdgeRetentionAdapter();
 const defaultModerationEvidenceAdapter =
   new FirestoreAccountModerationEvidenceRetentionAdapter();
+const defaultFinancialRetentionAdapter =
+  new FirestoreAccountFinancialRetentionAdapter();
 
 export async function executeAccountDataDeletionDomains(
   adapter: AccountDataDeletionOrchestratorAdapter,
   input: ExecuteAccountDataDeletionInput,
   sharedPublicationAdapter?: AccountSharedPublicationAnonymizationAdapter,
   relationshipEdgeAdapter?: AccountRelationshipEdgeRetentionAdapter,
-  moderationEvidenceAdapter?: AccountModerationEvidenceRetentionAdapter
+  moderationEvidenceAdapter?: AccountModerationEvidenceRetentionAdapter,
+  financialRetentionAdapter?: AccountFinancialRetentionAdapter
 ): Promise<AccountDataDeletionExecutionSummary> {
   const sharedMessages = await executeSharedMessageAnonymizationDomain(
     adapter,
@@ -98,6 +108,14 @@ export async function executeAccountDataDeletionDomains(
       maxPagesPerStep: input.maxPagesPerDomain,
     }
   );
+  const financialRetention = await executeFinancialRetentionDomain(
+    financialRetentionAdapter ?? defaultFinancialRetentionAdapter,
+    {
+      uid: input.uid,
+      pageSize: input.pageSize,
+      maxPagesPerStep: input.maxPagesPerDomain,
+    }
+  );
   const legacyRelationship = coreSummary.results.find(
     (result) => result.domain === 'relationship_edges'
   );
@@ -117,6 +135,7 @@ export async function executeAccountDataDeletionDomains(
     sharedMessages,
     sharedPublications,
     moderationEvidence,
+    financialRetention,
     ...coreResultsWithoutRelationship,
     relationshipEdges,
     ownedMedia,
