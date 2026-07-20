@@ -12,7 +12,6 @@ import { FormValidationFocusDirective } from './form-validation-focus.directive'
   template: `
     <form
       [formGroup]="form"
-      appFormValidationFocus
       formInvalidMessage="Corrija os campos para continuar."
       (ngSubmit)="submitted = true"
     >
@@ -24,8 +23,14 @@ import { FormValidationFocusDirective } from './form-validation-focus.directive'
 })
 class TestHostComponent {
   readonly form = new FormGroup({
-    nickname: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email] }),
+    nickname: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required],
+    }),
+    email: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.email],
+    }),
   });
   submitted = false;
 }
@@ -44,7 +49,11 @@ describe('FormValidationFocusDirective', () => {
     const nickname = fixture.debugElement.query(By.css('#nickname'))
       .nativeElement as HTMLInputElement;
     const focusSpy = vi.spyOn(nickname, 'focus');
-    const scrollSpy = vi.spyOn(nickname, 'scrollIntoView');
+    const scrollSpy = vi.fn();
+    Object.defineProperty(nickname, 'scrollIntoView', {
+      configurable: true,
+      value: scrollSpy,
+    });
     const form = fixture.debugElement.query(By.css('form'));
 
     form.triggerEventHandler('submit', new Event('submit'));
