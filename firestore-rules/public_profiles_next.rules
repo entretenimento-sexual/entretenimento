@@ -2,8 +2,9 @@
 // =========================================================================
 // PUBLIC PROFILES (consultable / discovery)
 // =========================================================================
-// O cliente cria somente a projeção pública inicial e altera apenas campos
-// editoriais. Métricas, compatibilidade, moderação e capas pertencem ao backend.
+// Fragmento canônico otimizado para permanecer abaixo do limite de 1.000
+// expressões. O cliente cria somente a projeção inicial e altera campos
+// editoriais; métricas, compatibilidade, moderação e capas são backend-only.
 // =========================================================================
 match /public_profiles/{userId} {
   allow get, list: if signedIn();
@@ -131,6 +132,15 @@ match /public_profiles/{userId} {
       && locationValid();
   }
 
+  function avatarOnlyUpdate() {
+    let changed = request.resource.data.diff(resource.data).changedKeys();
+    return changed.hasOnly(["photoURL", "avatarUrl", "updatedAt"])
+      && changed.hasAny(["photoURL", "avatarUrl"])
+      && request.resource.data.updatedAt == request.time
+      && optionalHttpsUrlValid("photoURL")
+      && optionalHttpsUrlValid("avatarUrl");
+  }
+
   allow create: if isSelf(userId)
     && privateUserEligibleAfter()
     && createKeysValid()
@@ -141,9 +151,14 @@ match /public_profiles/{userId} {
 
   allow update: if isSelf(userId)
     && privateUserEligibleAfter()
-    && updateKeysValid()
-    && editablePayloadValid()
-    && request.resource.data.updatedAt == request.time;
+    && (
+      avatarOnlyUpdate()
+      || (
+        updateKeysValid()
+        && editablePayloadValid()
+        && request.resource.data.updatedAt == request.time
+      )
+    );
 
   allow delete: if false;
 
