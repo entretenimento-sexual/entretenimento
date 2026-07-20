@@ -32,7 +32,7 @@ interface PrivatePhotoDocument {
 }
 
 interface PhotoPublicationDocument {
-  publishedStoragePath?: unknown;
+  publishedStoragePath?: string | null;
 }
 
 interface PrivateVideoDocument {
@@ -44,8 +44,8 @@ interface PrivateVideoDocument {
 }
 
 interface VideoPublicationDocument {
-  publishedStoragePath?: unknown;
-  publishedPosterStoragePath?: unknown;
+  publishedStoragePath?: string | null;
+  publishedPosterStoragePath?: string | null;
 }
 
 interface VideoProcessingDocument {
