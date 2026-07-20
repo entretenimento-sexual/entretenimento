@@ -27,9 +27,7 @@ interface RoomReferenceMutationResult {
   blockingOwners: number;
 }
 
-export class FirestoreAccountDataDeletionAdapter
-  implements AccountDataDeletionAdapter
-{
+export class FirestoreAccountDataDeletionAdapter implements AccountDataDeletionAdapter {
   async deleteNotificationsPage(
     uid: string,
     direction: NotificationReferenceDirection,
@@ -456,8 +454,9 @@ export class FirestoreAccountDataDeletionAdapter
 
       const participants = Array.isArray(room['participants'])
         ? room['participants'].filter(
-            (participant): participant is string => typeof participant === 'string'
-          )
+          (participant): participant is string =>
+            typeof participant === 'string'
+        )
         : [];
       const nextParticipants = participants.filter(
         (participantUid) => participantUid !== uid
