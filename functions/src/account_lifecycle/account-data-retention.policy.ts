@@ -13,7 +13,7 @@
 // - a política é serializável e registrada no tombstone para auditoria/retry.
 // -----------------------------------------------------------------------------
 
-export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 7;
+export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 8;
 
 export type AccountDataDomain =
   | 'public_profile'
@@ -192,9 +192,11 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     domain: 'shared_publications',
     disposition: 'anonymize',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Publicações, comentários e reações exigem política por audiência, moderação e autoria.',
+    reason:
+      'Comentários e respostas em fotos de terceiros preservam conteúdo com ' +
+      'autoria pseudonimizada; likes próprios são removidos com recálculo de score.',
   },
   {
     domain: 'moderation_reports_and_evidence',
