@@ -41,7 +41,7 @@ interface AccountDeletionOperationsResponse {
 const COLLECTION = 'deleted_accounts_audit';
 const SCAN_MULTIPLIER = 5;
 const MAX_SCAN_LIMIT = 250;
-const CURSOR_COLLISION_BUFFER = 50;
+const CURSOR_COLLISION_BUFFER = 250;
 
 export const getAccountDeletionOperations = onCall<unknown>(
   { region: ACCOUNT_LIFECYCLE_REGION },
