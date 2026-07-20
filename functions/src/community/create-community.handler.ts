@@ -177,13 +177,13 @@ export const createCommunity = onCall<CreateCommunityRequest>(
       };
       const contentAccess = command.accessTier === 'all'
         ? {
-            requiresActiveSubscription: false,
-            minimumRole: null,
-          }
+          requiresActiveSubscription: false,
+          minimumRole: null,
+        }
         : {
-            requiresActiveSubscription: true,
-            minimumRole: command.accessTier,
-          };
+          requiresActiveSubscription: true,
+          minimumRole: command.accessTier,
+        };
       const access = {
         preview: 'authenticated',
         interaction: 'members_only',
