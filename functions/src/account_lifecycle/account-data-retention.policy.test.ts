@@ -32,7 +32,7 @@ test('policy covers shared content, moderation and financial domains safely', ()
   );
 });
 
-test('policy marks lifecycle, relationship, moderation and shared content implemented', () => {
+test('policy marks every current pre-finalize executor implemented', () => {
   const byDomain = new Map(
     ACCOUNT_DATA_RETENTION_POLICY.map((entry) => [entry.domain, entry])
   );
@@ -81,7 +81,15 @@ test('policy marks lifecycle, relationship, moderation and shared content implem
     byDomain.get('moderation_reports_and_evidence')?.retentionDays,
     null
   );
-  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 10);
+  assert.equal(
+    byDomain.get('financial_records_and_entitlements')?.automation,
+    'implemented'
+  );
+  assert.equal(
+    byDomain.get('financial_records_and_entitlements')?.retentionDays,
+    null
+  );
+  assert.ok(ACCOUNT_DATA_RETENTION_POLICY_VERSION >= 11);
 });
 
 test('current plan remains blocked until every pre-finalize domain is completed', () => {
@@ -130,6 +138,7 @@ test('completed domains are recorded and removed from blockers', () => {
       'shared_messages',
       'shared_publications',
       'moderation_reports_and_evidence',
+      'financial_records_and_entitlements',
     ],
   });
 
@@ -144,6 +153,7 @@ test('completed domains are recorded and removed from blockers', () => {
     'shared_messages',
     'shared_publications',
     'moderation_reports_and_evidence',
+    'financial_records_and_entitlements',
   ]);
   assert.ok(!plan.blockingDomains.includes('public_profile'));
   assert.ok(!plan.blockingDomains.includes('nickname_index'));
@@ -156,6 +166,9 @@ test('completed domains are recorded and removed from blockers', () => {
   assert.ok(!plan.blockingDomains.includes('shared_publications'));
   assert.ok(
     !plan.blockingDomains.includes('moderation_reports_and_evidence')
+  );
+  assert.ok(
+    !plan.blockingDomains.includes('financial_records_and_entitlements')
   );
   assert.ok(plan.blockingDomains.includes('auth_identity'));
 });
