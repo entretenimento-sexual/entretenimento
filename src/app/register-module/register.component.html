@@ -49,6 +49,7 @@
     </div>
 
     <form [formGroup]="form" (ngSubmit)="onSubmit()" aria-labelledby="form-title" autocomplete="on" novalidate
+      formInvalidMessage="Revise os dados do cadastro antes de continuar."
       [attr.aria-busy]="(isLoading() || creating()) ? 'true' : null">
 
       <h2 id="form-title" class="form-header">Crie seu cadastro</h2>
@@ -314,8 +315,9 @@
       </p>
 
       <button class="btn btn-primary" type="submit"
-        [disabled]="isLoading() || creating() || nicknameChecking() || !form.valid">
-        {{ isLoading() ? 'Aguarde…' : 'Cadastrar' }}
+        [appActionState]="isLoading() || creating()"
+        [actionDisabled]="nicknameChecking()">
+        {{ isLoading() || creating() ? 'Criando conta…' : nicknameChecking() ? 'Validando apelido…' : 'Cadastrar' }}
       </button>
 
       <p class="login-redirect">
