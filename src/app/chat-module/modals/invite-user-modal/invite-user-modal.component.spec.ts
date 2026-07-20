@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
+import { By } from '@angular/platform-browser';
 import { BehaviorSubject, of } from 'rxjs';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
@@ -14,7 +15,15 @@ import { InviteSearchService } from '../../../core/services/batepapo/invite-serv
 import { InviteService } from '../../../core/services/batepapo/invite-service/invite.service';
 import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
-import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  Mock,
+  vi,
+} from 'vitest';
 
 describe('InviteUserModalComponent', () => {
   let fixture: ComponentFixture<InviteUserModalComponent>;
@@ -23,16 +32,26 @@ describe('InviteUserModalComponent', () => {
   let authUidSubject: BehaviorSubject<string | null>;
   let currentUserSubject: BehaviorSubject<any>;
 
-  let dialogRefMock: { close: Mock };
-  let authSessionMock: { uid$: ReturnType<BehaviorSubject<string | null>['asObservable']>; currentAuthUser: { uid: string } | null };
-  let currentUserStoreMock: { user$: ReturnType<BehaviorSubject<any>['asObservable']>; getSnapshot: Mock };
+  let dialogRefMock: { close: Mock; updateSize: Mock };
+  let authSessionMock: {
+    uid$: ReturnType<BehaviorSubject<string | null>['asObservable']>;
+    currentAuthUser: { uid: string } | null;
+  };
+  let currentUserStoreMock: {
+    user$: ReturnType<BehaviorSubject<any>['asObservable']>;
+    getSnapshot: Mock;
+  };
 
   let ibgeStub: { getEstados: Mock; getMunicipios: Mock };
   let regionFilterStub: { getUserRegion: Mock };
   let inviteSearchStub: { searchEligibleUsers: Mock };
   let inviteServiceStub: { createInvite: Mock };
   let globalErrorHandlerMock: { handleError: Mock };
-  let errorNotifierMock: { showError: Mock; showWarning: Mock; showInfo: Mock };
+  let errorNotifierMock: {
+    showError: Mock;
+    showWarning: Mock;
+    showInfo: Mock;
+  };
 
   beforeEach(async () => {
     authUidSubject = new BehaviorSubject<string | null>('uid-123');
@@ -46,6 +65,7 @@ describe('InviteUserModalComponent', () => {
 
     dialogRefMock = {
       close: vi.fn(),
+      updateSize: vi.fn(),
     };
 
     authSessionMock = {
@@ -60,7 +80,9 @@ describe('InviteUserModalComponent', () => {
 
     ibgeStub = {
       getEstados: vi.fn(() => of([{ sigla: 'SP' }, { sigla: 'RJ' }])),
-      getMunicipios: vi.fn(() => of([{ nome: 'São Paulo' }, { nome: 'Rio de Janeiro' }])),
+      getMunicipios: vi.fn(() =>
+        of([{ nome: 'São Paulo' }, { nome: 'Rio de Janeiro' }])
+      ),
     };
 
     regionFilterStub = {
@@ -89,7 +111,10 @@ describe('InviteUserModalComponent', () => {
       imports: [InviteUserModalComponent, NoopAnimationsModule],
       providers: [
         { provide: MatDialogRef, useValue: dialogRefMock },
-        { provide: MAT_DIALOG_DATA, useValue: { roomId: 'r1', roomName: 'Sala' } },
+        {
+          provide: MAT_DIALOG_DATA,
+          useValue: { roomId: 'r1', roomName: 'Sala' },
+        },
         { provide: AuthSessionService, useValue: authSessionMock },
         { provide: CurrentUserStoreService, useValue: currentUserStoreMock },
         { provide: IBGELocationService, useValue: ibgeStub },
@@ -107,7 +132,44 @@ describe('InviteUserModalComponent', () => {
     fixture.detectChanges();
   });
 
+  afterEach(() => {
+    authUidSubject.complete();
+    currentUserSubject.complete();
+    fixture.destroy();
+  });
+
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('normaliza o tamanho do modal pelo shell compartilhado', () => {
+    expect(dialogRefMock.updateSize).toHaveBeenCalledWith(
+      'min(92vw, 40rem)'
+    );
+  });
+
+  it('expõe busca e filtros com rótulos acessíveis', () => {
+    const search = fixture.debugElement.query(By.css('#invite-search'))
+      .nativeElement as HTMLInputElement;
+    const state = fixture.debugElement.query(By.css('#invite-region-uf'))
+      .nativeElement as HTMLSelectElement;
+    const city = fixture.debugElement.query(By.css('#invite-region-city'))
+      .nativeElement as HTMLSelectElement;
+    const gender = fixture.debugElement.query(By.css('#invite-gender'))
+      .nativeElement as HTMLSelectElement;
+
+    expect(search.type).toBe('search');
+    expect(search.labels?.[0]?.textContent?.trim()).toBe('Buscar pessoas');
+    expect(state.labels?.[0]?.textContent?.trim()).toBe('Estado');
+    expect(city.labels?.[0]?.textContent?.trim()).toBe('Cidade');
+    expect(gender.labels?.[0]?.textContent?.trim()).toBe('Gênero');
+  });
+
+  it('usa botão real para acionar a busca pelo teclado', () => {
+    const searchButton = fixture.debugElement.query(By.css('.search-button'))
+      .nativeElement as HTMLButtonElement;
+
+    expect(searchButton.type).toBe('submit');
+    expect(searchButton.getAttribute('aria-label')).toBe('Buscar usuários');
   });
 });
