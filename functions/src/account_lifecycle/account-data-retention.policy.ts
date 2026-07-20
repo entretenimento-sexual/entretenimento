@@ -13,7 +13,7 @@
 // - a política é serializável e registrada no tombstone para auditoria/retry.
 // -----------------------------------------------------------------------------
 
-export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 5;
+export const ACCOUNT_DATA_RETENTION_POLICY_VERSION = 6;
 
 export type AccountDataDomain =
   | 'public_profile'
@@ -172,9 +172,11 @@ export const ACCOUNT_DATA_RETENTION_POLICY: readonly AccountDataRetentionPolicyE
     domain: 'owned_media_and_storage',
     disposition: 'delete',
     phase: 'pre_finalize',
-    automation: 'contract_required',
+    automation: 'implemented',
     blocksFinalization: true,
-    reason: 'Metadados e objetos privados de mídia devem ser apagados; evidências seguem política própria.',
+    reason:
+      'Metadados privados, projeções públicas, jobs operacionais e objetos do ' +
+      'namespace próprio são removidos; processamento ativo permanece bloqueador.',
   },
   {
     domain: 'shared_messages',
