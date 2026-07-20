@@ -11,13 +11,14 @@ import {
   map,
   throwError,
 } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, finalize, shareReplay } from 'rxjs/operators';
 
 import {
   IRoom,
   IRoomPlaceIntent,
   IRoomPlaceIntentInput,
 } from 'src/app/core/interfaces/interfaces-chat/room.interface';
+import { ActionRegistryService } from 'src/app/core/services/action-state/action-registry.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 
@@ -58,6 +59,11 @@ export class RoomManagementService {
   private readonly functions = inject(Functions);
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly notify = inject(ErrorNotificationService);
+  private readonly actionRegistry = inject(ActionRegistryService);
+  private readonly closeOperations = new Map<
+    string,
+    Observable<ClosePrivateRoomResponse>
+  >();
 
   private readonly createPrivateRoomCallable = httpsCallable<
     CreatePrivateRoomPayload,
@@ -119,16 +125,29 @@ export class RoomManagementService {
       return throwError(() => new Error('roomId inválido.'));
     }
 
-    return defer(() =>
-      from(this.closePrivateRoomCallable({ roomId: safeRoomId }))
-    ).pipe(
-      map((result) => result.data),
-      catchError((error) => {
-        this.reportError(error, 'closeRoom');
-        this.notify.showError(this.getCloseRoomUserMessage(error));
-        return throwError(() => error);
-      })
-    );
+    const activeOperation = this.closeOperations.get(safeRoomId);
+    if (activeOperation) return activeOperation;
+
+    const operation$ = this.actionRegistry
+      .track$(`room-close:${safeRoomId}`, () =>
+        defer(() =>
+          from(this.closePrivateRoomCallable({ roomId: safeRoomId }))
+        ).pipe(
+          map((result) => result.data),
+          catchError((error) => {
+            this.reportError(error, 'closeRoom');
+            this.notify.showError(this.getCloseRoomUserMessage(error));
+            return throwError(() => error);
+          })
+        )
+      )
+      .pipe(
+        finalize(() => this.closeOperations.delete(safeRoomId)),
+        shareReplay({ bufferSize: 1, refCount: false })
+      );
+
+    this.closeOperations.set(safeRoomId, operation$);
+    return operation$;
   }
 
   /**
