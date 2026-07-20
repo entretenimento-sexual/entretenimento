@@ -16,6 +16,11 @@ import { catchError, map } from 'rxjs/operators';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { GlobalActivityService } from '@core/services/network/global-activity.service';
+import {
+  retryIdempotentRead,
+} from '@core/services/network/network-retry.policy';
+import { NetworkStatusService } from '@core/services/network/network-status.service';
 import { environment } from 'src/environments/environment';
 
 import {
@@ -33,14 +38,15 @@ export class AccountDeletionOperationsRepository {
   private readonly environmentInjector = inject(EnvironmentInjector);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
   private readonly notifications = inject(ErrorNotificationService);
+  private readonly activity = inject(GlobalActivityService);
+  private readonly networkStatus = inject(NetworkStatusService);
   private readonly debug = !!environment.enableDebugTools;
 
   listOperations$(
     request: AccountDeletionOperationsRequest
   ): Observable<AccountDeletionOperationsResponse> {
     const payload = this.normalizeRequest(request);
-
-    return defer(() =>
+    const remoteRead$ = defer(() =>
       runInInjectionContext(this.environmentInjector, () => {
         const callable = httpsCallable<
           AccountDeletionOperationsRequest,
@@ -49,7 +55,14 @@ export class AccountDeletionOperationsRepository {
         return callable(payload);
       })
     ).pipe(
-      map((result) => this.normalizeResponse(result.data)),
+      retryIdempotentRead({
+        maximumRetries: 2,
+        isOnline: () => this.networkStatus.isOnlineSnapshot(),
+      }),
+      map((result) => this.normalizeResponse(result.data))
+    );
+
+    return this.activity.track$(remoteRead$).pipe(
       catchError((error: unknown) => {
         this.report(error, {
           context: 'AccountDeletionOperationsRepository.listOperations$',
@@ -57,9 +70,11 @@ export class AccountDeletionOperationsRepository {
           pageSize: payload.limit,
           hasCursor: payload.cursor !== null,
         });
-        this.notifications.showError(
-          this.resolveUserMessage(error)
-        );
+
+        if (this.networkStatus.isOnlineSnapshot()) {
+          this.notifications.showError(this.resolveUserMessage(error));
+        }
+
         return throwError(() => error);
       })
     );
