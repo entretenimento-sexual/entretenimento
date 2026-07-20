@@ -68,7 +68,12 @@
   color: var(--primary-color, #d64d4d);
 }
 
-@media (max-width: 640px) {
+.admin-shell__nav a:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--primary-color, #d64d4d) 45%, transparent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
   .admin-shell__header {
     align-items: stretch;
     flex-direction: column;
@@ -78,11 +83,19 @@
 
   .admin-shell__nav {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     justify-content: stretch;
   }
 
   .admin-shell__nav a {
     width: 100%;
+    padding-inline: 10px;
+    border-radius: 12px;
+  }
+}
+
+@media (max-width: 360px) {
+  .admin-shell__nav {
+    grid-template-columns: 1fr;
   }
 }
