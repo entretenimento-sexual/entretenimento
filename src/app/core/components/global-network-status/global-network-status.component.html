@@ -1,0 +1,43 @@
+@if (vm$ | async; as vm) {
+  @if (vm.slowOperation) {
+    <div
+      class="global-operation-progress"
+      role="progressbar"
+      aria-label="Operação em andamento"
+      aria-valuetext="Aguarde, a operação ainda está em andamento"
+    >
+      <span aria-hidden="true"></span>
+    </div>
+  }
+
+  @if (vm.offline) {
+    <section
+      class="network-notice network-notice--offline"
+      role="status"
+      aria-live="assertive"
+      aria-atomic="true"
+    >
+      <span class="network-notice__icon" aria-hidden="true">!</span>
+      <div>
+        <strong>Sem conexão detectada</strong>
+        <p>
+          Você pode continuar consultando o que já foi carregado. Ações que
+          dependem da internet serão retomadas depois da reconexão.
+        </p>
+      </div>
+    </section>
+  } @else if (vm.reconnected) {
+    <section
+      class="network-notice network-notice--online"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <span class="network-notice__icon" aria-hidden="true">✓</span>
+      <div>
+        <strong>Conexão restabelecida</strong>
+        <p>Os dados em andamento podem ser atualizados novamente.</p>
+      </div>
+    </section>
+  }
+}
