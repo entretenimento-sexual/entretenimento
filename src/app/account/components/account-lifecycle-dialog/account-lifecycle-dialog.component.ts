@@ -12,6 +12,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
 
+import { ActionStateDirective } from 'src/app/shared/action-state/action-state.directive';
 import {
   AccountLifecycleDialogConfirmEvent,
   AccountLifecycleDialogIntent,
@@ -21,7 +22,7 @@ import {
 @Component({
   selector: 'app-account-lifecycle-dialog',
   standalone: true,
-  imports: [CommonModule, A11yModule],
+  imports: [CommonModule, A11yModule, ActionStateDirective],
   templateUrl: './account-lifecycle-dialog.component.html',
   styleUrl: './account-lifecycle-dialog.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -138,6 +139,25 @@ export class AccountLifecycleDialogComponent implements AfterViewInit {
         return 'Agendar exclusão';
       default:
         return 'Confirmar';
+    }
+  });
+
+  readonly busyCtaLabel = computed(() => {
+    switch (this.intent()) {
+      case 'self_suspend':
+        return 'Suspendendo conta...';
+      case 'self_delete':
+        return 'Solicitando exclusão...';
+      case 'reactivate_self_suspend':
+        return 'Reativando conta...';
+      case 'cancel_pending_deletion':
+        return 'Cancelando exclusão...';
+      case 'moderator_suspend':
+        return 'Aplicando suspensão...';
+      case 'moderator_delete':
+        return 'Agendando exclusão...';
+      default:
+        return 'Processando...';
     }
   });
 
