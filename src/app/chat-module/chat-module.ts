@@ -27,6 +27,7 @@ import { CommunitiesModule } from './communities/communities.module';
 import { CreateRoomModalComponent } from './modals/create-room-modal/create-room-modal.component';
 import { BaseModalComponent } from './modals/base-modal/base-modal.component';
 import { DeleteMessageConfirmDialogComponent } from './modals/delete-message-confirm-dialog/delete-message-confirm-dialog.component';
+import { ActionStateDirective } from '../shared/action-state/action-state.directive';
 import { ContentStateComponent } from '../shared/content-state/content-state.component';
 import { TimeAgoPipe } from 'src/app/shared/pipes/time-ago.pipe';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
@@ -81,6 +82,7 @@ import { ChatReplyQuotePipe } from './pipes/chat-reply-quote.pipe';
     CommunitiesModule,
     NgOptimizedImage,
     BaseModalComponent,
+    ActionStateDirective,
     ContentStateComponent,
     TimeAgoPipe,
     DateFormatPipe,
