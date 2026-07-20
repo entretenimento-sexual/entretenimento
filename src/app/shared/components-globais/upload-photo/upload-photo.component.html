@@ -1,21 +1,58 @@
 <!-- src/app/shared/components-globais/upload-photo/upload-photo.component.html -->
-<div class="upload-modal-content">
-  <button class="btn-close" (click)="closeModal('cancel')">&times;</button>
-  <p id="selectFotoComponent">SELECIONE UMA FOTO</p>
-  <input type="file" (change)="onFileSelected($event)" class="file-input">
-</div>
+<section
+  class="upload-modal-content"
+  aria-labelledby="upload-photo-title"
+  [attr.aria-busy]="isLoading ? 'true' : null"
+>
+  <button
+    type="button"
+    class="btn-close"
+    [appActionState]="isLoading"
+    (click)="closeModal('cancel')"
+    aria-label="Fechar seleção de foto"
+  >
+    &times;
+  </button>
 
-<!-- Spinner de carregamento -->
-@if (isLoading) {
-  <div class="loading-spinner">
-    <div class="spinner"></div>
-    <p>Carregando...</p>
-  </div>
-}
+  <h2 id="upload-photo-title">Selecione uma foto</h2>
 
-<!-- Mensagem de erro -->
-@if (errorMessage) {
-  <div class="alert alert-danger mt-2" role="alert">
-    {{ errorMessage }}
-  </div>
-}
+  <label class="file-input-label" for="upload-photo-input">
+    Escolher imagem
+  </label>
+
+  <input
+    id="upload-photo-input"
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    class="file-input"
+    [appActionState]="isLoading"
+    [attr.aria-describedby]="errorMessage
+      ? 'upload-photo-help upload-photo-error'
+      : 'upload-photo-help'"
+    [attr.aria-invalid]="errorMessage ? 'true' : null"
+    (change)="onFileSelected($event)"
+  />
+
+  <p id="upload-photo-help" class="upload-photo-help">
+    Formatos aceitos: JPG, PNG ou WebP. Tamanho máximo:
+    {{ maxUploadMegabytes }} MB.
+  </p>
+
+  @if (isLoading) {
+    <div class="loading-spinner" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Preparando sua foto...</p>
+    </div>
+  }
+
+  @if (errorMessage) {
+    <div
+      id="upload-photo-error"
+      class="alert alert-danger mt-2"
+      role="alert"
+      aria-live="assertive"
+    >
+      {{ errorMessage }}
+    </div>
+  }
+</section>
