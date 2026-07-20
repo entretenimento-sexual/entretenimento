@@ -4,8 +4,14 @@
 // Em produção, não despeja erro bruto no console para evitar exposição de dados sensíveis.
 import { ErrorHandler, Injectable, Injector } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ErrorNotificationService } from './error-notification.service';
+
 import { environment } from 'src/environments/environment';
+
+import { ErrorNotificationService } from './error-notification.service';
+import {
+  isTransientNetworkError,
+} from '../network/network-retry.policy';
+import { NetworkStatusService } from '../network/network-status.service';
 
 interface SanitizedErrorLog {
   name: string;
@@ -41,13 +47,12 @@ export class GlobalErrorHandlerService implements ErrorHandler {
     // 3) Detalhes (para encaixar na assinatura showError(msg, details, ...))
     const details = this.extractDetails(error);
 
-    // ✅ Evita duplicar toasts quando algum handler já notificou
+    // Evita duplicar toasts quando algum handler já notificou.
     const skipUserNotification =
       (error as any)?.skipUserNotification === true ||
       (error as any)?.silent === true;
 
     if (!skipUserNotification) {
-      // ✅ Corrige TS2554: showError exige 2-3 args no seu projeto
       notifier.showError(userFacingMessage, details);
     }
 
@@ -68,16 +73,27 @@ export class GlobalErrorHandlerService implements ErrorHandler {
    * Mantém o nome original 'formatErrorMessage'.
    */
   public formatErrorMessage(error: Error | HttpErrorResponse): string {
-    // Prioriza mensagens já amigáveis
-    if ((error as any)?.message && !(error as any)?.message.startsWith?.('[FirebaseError]')) {
+    const networkStatus = this.injector.get(NetworkStatusService);
+
+    if (!networkStatus.isOnlineSnapshot()) {
+      return 'Você está offline. Verifique sua conexão com a internet.';
+    }
+
+    if (isTransientNetworkError(error)) {
+      return 'O serviço está temporariamente indisponível. Tente novamente em instantes.';
+    }
+
+    // Prioriza mensagens já amigáveis.
+    if (
+      (error as any)?.message &&
+      !(error as any)?.message.startsWith?.('[FirebaseError]')
+    ) {
       return (error as any).message;
     }
 
     if (error instanceof HttpErrorResponse) {
-      if (!navigator.onLine) {
-        return 'Você está offline. Verifique sua conexão com a internet.';
-      }
-      return error.error?.message || `Erro de rede (${error.status}). Por favor, tente novamente.`;
+      return error.error?.message ||
+        `Erro de rede (${error.status}). Por favor, tente novamente.`;
     }
 
     if (error instanceof TypeError) {
@@ -99,20 +115,40 @@ export class GlobalErrorHandlerService implements ErrorHandler {
     // padrão do seu ecossistema: handlers podem anexar detalhes/original/code
     const anyErr: any = error as any;
 
-    if (typeof anyErr?.details === 'string' && anyErr.details.trim()) return anyErr.details;
-    if (typeof anyErr?.code === 'string' && anyErr.code.trim()) return anyErr.code;
+    if (typeof anyErr?.details === 'string' && anyErr.details.trim()) {
+      return anyErr.details;
+    }
+    if (typeof anyErr?.code === 'string' && anyErr.code.trim()) {
+      return anyErr.code;
+    }
 
     if (error instanceof HttpErrorResponse) {
-      // tentar achar um detalhe útil
-      if (typeof error.error?.message === 'string' && error.error.message.trim()) return error.error.message;
-      if (typeof error.message === 'string' && error.message.trim()) return error.message;
+      if (
+        typeof error.error?.message === 'string' &&
+        error.error.message.trim()
+      ) {
+        return error.error.message;
+      }
+      if (typeof error.message === 'string' && error.message.trim()) {
+        return error.message;
+      }
       return `HTTP ${error.status}`;
     }
 
-    if (typeof anyErr?.original?.message === 'string' && anyErr.original.message.trim()) return anyErr.original.message;
-    if (typeof (error as any)?.message === 'string' && (error as any).message.trim()) return (error as any).message;
+    if (
+      typeof anyErr?.original?.message === 'string' &&
+      anyErr.original.message.trim()
+    ) {
+      return anyErr.original.message;
+    }
+    if (
+      typeof (error as any)?.message === 'string' &&
+      (error as any).message.trim()
+    ) {
+      return (error as any).message;
+    }
 
-    return ''; // mantém compatível com showError(msg, details)
+    return '';
   }
 
   /**
@@ -130,7 +166,10 @@ export class GlobalErrorHandlerService implements ErrorHandler {
       return;
     }
 
-    console.warn('Erro capturado pelo GlobalErrorHandler:', this.sanitizeError(error));
+    console.warn(
+      'Erro capturado pelo GlobalErrorHandler:',
+      this.sanitizeError(error)
+    );
   }
 
   /**
@@ -181,7 +220,10 @@ export class GlobalErrorHandlerService implements ErrorHandler {
         Sentry.init({
           dsn,
           environment: environment.env,
-          tracesSampleRate: Math.max(0, Math.min(Number(sentry.tracesSampleRate ?? 0), 1)),
+          tracesSampleRate: Math.max(
+            0,
+            Math.min(Number(sentry.tracesSampleRate ?? 0), 1)
+          ),
         });
         this.sentryInitialized = true;
       }
@@ -190,9 +232,13 @@ export class GlobalErrorHandlerService implements ErrorHandler {
         scope.setTag('app_env', environment.env);
         if (sanitized.feature) scope.setTag('feature', sanitized.feature);
         if (sanitized.operation) scope.setTag('operation', sanitized.operation);
-        if (sanitized.status) scope.setTag('http_status', String(sanitized.status));
+        if (sanitized.status) {
+          scope.setTag('http_status', String(sanitized.status));
+        }
         scope.setExtra('sanitized', sanitized);
-        Sentry.captureException(new Error(`[${sanitized.name}] ${sanitized.message}`));
+        Sentry.captureException(
+          new Error(`[${sanitized.name}] ${sanitized.message}`)
+        );
       });
     } catch {
       // Não deixe falha do monitoramento quebrar UX nem loop de erro global.
@@ -220,7 +266,9 @@ export class GlobalErrorHandlerService implements ErrorHandler {
     }
 
     return {
-      name: String(anyErr?.name || error?.constructor?.name || 'Error').slice(0, 120),
+      name: String(
+        anyErr?.name || error?.constructor?.name || 'Error'
+      ).slice(0, 120),
       message: String(anyErr?.message || 'Erro sem mensagem').slice(0, 240),
       code: this.safeString(anyErr?.code),
       feature: this.safeString(anyErr?.feature),
