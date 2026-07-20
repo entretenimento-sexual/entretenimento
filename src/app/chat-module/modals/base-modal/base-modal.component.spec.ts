@@ -55,7 +55,8 @@ describe('BaseModalComponent', () => {
     fixture.componentInstance.closeModal.subscribe(closeSpy);
 
     fixture.debugElement.query(By.css('.close-btn')).triggerEventHandler(
-      'click'
+      'click',
+      null
     );
 
     expect(closeSpy).toHaveBeenCalledTimes(1);
