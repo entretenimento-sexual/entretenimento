@@ -1,0 +1,337 @@
+/* src/app/community/ownership-management/community-ownership-management.component.css */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.community-ownership-management {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  color: var(--text-color, #222);
+}
+
+.community-ownership-management__header,
+.community-ownership-management__section-heading,
+.community-ownership-management__danger-zone {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.community-ownership-management__header > div,
+.community-ownership-management__section-heading > div,
+.community-ownership-management__danger-zone > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.community-ownership-management__eyebrow {
+  width: fit-content;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 82%,
+    var(--primary-color, #d83768) 18%
+  );
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.community-ownership-management h2,
+.community-ownership-management h3,
+.community-ownership-management p {
+  margin: 0;
+}
+
+.community-ownership-management h2 {
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.community-ownership-management h3 {
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.community-ownership-management p {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  opacity: 0.76;
+}
+
+.community-ownership-management__intro {
+  max-width: 48rem;
+}
+
+.community-ownership-management__refresh {
+  flex: 0 0 auto;
+  width: 2.65rem;
+  height: 2.65rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-color, #222);
+  cursor: pointer;
+}
+
+.community-ownership-management__transfer {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: 1rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 97%,
+    var(--primary-color, #d83768) 3%
+  );
+}
+
+.community-ownership-management__state {
+  min-height: 6.5rem;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem;
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.78;
+}
+
+.community-ownership-management__state i {
+  color: var(--primary-color, #d83768);
+  font-size: 1rem;
+}
+
+.community-ownership-management__list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.community-ownership-management__list li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: 0.85rem;
+  background: var(--surface-color, #fff);
+}
+
+.community-ownership-management__avatar {
+  width: 2.65rem;
+  height: 2.65rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 84%,
+    var(--primary-color, #d83768) 16%
+  );
+  color: var(--primary-color, #d83768);
+}
+
+.community-ownership-management__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.community-ownership-management__copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.community-ownership-management__copy strong,
+.community-ownership-management__copy span {
+  overflow-wrap: anywhere;
+}
+
+.community-ownership-management__copy strong {
+  font-size: 0.84rem;
+}
+
+.community-ownership-management__copy span {
+  font-size: 0.7rem;
+  opacity: 0.68;
+}
+
+.community-ownership-management__transfer-action,
+.community-ownership-management__danger-zone button,
+.community-ownership-management__confirmation-actions button {
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.community-ownership-management__transfer-action,
+.community-ownership-management__confirmation-actions .is-primary {
+  background: var(--primary-color, #d83768);
+  color: var(--on-primary-color, #fff);
+}
+
+.community-ownership-management__danger-zone {
+  padding: 0.9rem;
+  border: 1px solid color-mix(in oklab, #b42318 45%, transparent);
+  border-radius: 1rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 94%,
+    #b42318 6%
+  );
+}
+
+.community-ownership-management__danger-zone button,
+.community-ownership-management__confirmation-actions .is-danger {
+  flex: 0 0 auto;
+  border-color: #b42318;
+  background: #b42318;
+  color: #fff;
+}
+
+.community-ownership-management__confirmation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 2px solid color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 48%,
+    var(--surface-border, #d5d5d5)
+  );
+  border-radius: 1rem;
+  background: var(--surface-color, #fff);
+}
+
+.community-ownership-management__confirmation > i {
+  width: 2.6rem;
+  height: 2.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 82%,
+    var(--primary-color, #d83768) 18%
+  );
+  color: var(--primary-color, #d83768);
+}
+
+.community-ownership-management__confirmation > div:not(.community-ownership-management__confirmation-actions) {
+  min-width: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.community-ownership-management__confirmation-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.community-ownership-management__confirmation-actions .is-secondary {
+  border-color: var(--surface-border, #d5d5d5);
+  background: transparent;
+  color: var(--text-color, #222);
+}
+
+.community-ownership-management button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.community-ownership-management button:focus-visible {
+  outline: 3px solid color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 34%,
+    transparent
+  );
+  outline-offset: 2px;
+}
+
+@media (max-width: 38rem) {
+  .community-ownership-management__danger-zone {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .community-ownership-management__danger-zone button {
+    width: 100%;
+  }
+
+  .community-ownership-management__list li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .community-ownership-management__transfer-action {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
+@media (max-width: 24rem) {
+  .community-ownership-management {
+    padding-inline: 0.75rem;
+  }
+
+  .community-ownership-management__confirmation {
+    grid-template-columns: 1fr;
+  }
+
+  .community-ownership-management__confirmation > i {
+    justify-self: start;
+  }
+
+  .community-ownership-management__confirmation-actions {
+    grid-column: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .community-ownership-management__confirmation-actions button {
+    width: 100%;
+  }
+}
+
+:host-context(.high-contrast) .community-ownership-management__refresh,
+:host-context(.high-contrast) .community-ownership-management__transfer,
+:host-context(.high-contrast) .community-ownership-management__list li,
+:host-context(.high-contrast) .community-ownership-management__danger-zone,
+:host-context(.high-contrast) .community-ownership-management__confirmation,
+:host-context(.high-contrast) .community-ownership-management button {
+  border-color: currentColor;
+  border-width: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .community-ownership-management button {
+    scroll-behavior: auto;
+  }
+}
