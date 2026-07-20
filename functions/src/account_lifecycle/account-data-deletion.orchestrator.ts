@@ -19,11 +19,16 @@ import {
   executeSharedMessageAnonymizationDomain,
   type AccountSharedMessageAnonymizationAdapter,
 } from './account-shared-message-anonymization.executor';
+import {
+  executeSharedPublicationAnonymizationDomain,
+  type AccountSharedPublicationAnonymizationAdapter,
+} from './account-shared-publication-anonymization.executor';
 
 export type AccountDataDeletionOrchestratorAdapter =
   AccountDataDeletionAdapter &
   AccountOwnedMediaDeletionAdapter &
-  AccountSharedMessageAnonymizationAdapter;
+  AccountSharedMessageAnonymizationAdapter &
+  AccountSharedPublicationAnonymizationAdapter;
 
 export async function executeAccountDataDeletionDomains(
   adapter: AccountDataDeletionOrchestratorAdapter,
@@ -37,13 +42,24 @@ export async function executeAccountDataDeletionDomains(
       maxPagesPerStep: input.maxPagesPerDomain,
     }
   );
+  const sharedPublications =
+    await executeSharedPublicationAnonymizationDomain(adapter, {
+      uid: input.uid,
+      pageSize: input.pageSize,
+      maxPagesPerStep: input.maxPagesPerDomain,
+    });
   const coreSummary = await executeCoreAccountDataDeletionDomains(adapter, input);
   const ownedMedia = await executeOwnedMediaAndStorageDomain(adapter, {
     uid: input.uid,
     pageSize: input.pageSize,
     maxPagesPerStep: input.maxPagesPerDomain,
   });
-  const results = [sharedMessages, ...coreSummary.results, ownedMedia];
+  const results = [
+    sharedMessages,
+    sharedPublications,
+    ...coreSummary.results,
+    ownedMedia,
+  ];
   const completedDomains = results
     .filter((result) => result.status === 'completed')
     .map((result) => result.domain);
