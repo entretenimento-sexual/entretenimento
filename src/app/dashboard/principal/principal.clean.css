@@ -1,0 +1,142 @@
+/* Camada enxuta do dashboard principal. */
+.principal-page {
+  gap: 0.9rem;
+  width: min(100%, 74rem);
+}
+
+.principal-topbar {
+  display: flex;
+  align-items: center;
+  min-height: 3.2rem;
+  padding: 0.15rem 0.1rem 0.45rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.principal-topbar > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.principal-topbar h1,
+.principal-topbar p {
+  margin: 0;
+}
+
+.principal-topbar h1 {
+  color: var(--text-color);
+  font-size: clamp(1.35rem, 1.18rem + 0.7vw, 1.8rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.principal-topbar p {
+  overflow: hidden;
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  font-size: 0.88rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-checklist,
+.profile-checklist.app-card {
+  padding: 0.85rem 0.95rem;
+  border-radius: 0.9rem;
+  box-shadow: none;
+}
+
+.profile-checklist__summary {
+  align-items: center;
+}
+
+.profile-checklist__copy h2 {
+  font-size: 1rem;
+}
+
+.profile-checklist__bar {
+  height: 4px;
+  margin-top: 0.6rem;
+}
+
+.profile-checklist__items {
+  margin-top: 0.65rem;
+}
+
+.profile-checklist__item {
+  min-height: 42px;
+  padding-block: 0.5rem;
+}
+
+.principal-social-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.principal-social-summary a {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-height: 48px;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 0.85rem;
+  background: var(--surface-color);
+  color: var(--text-color);
+  text-decoration: none;
+}
+
+.principal-social-summary a:hover,
+.principal-social-summary a:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color) 34%, var(--surface-border));
+  background: color-mix(in oklab, var(--primary-color) 6%, var(--surface-color));
+  outline: none;
+}
+
+.principal-social-summary strong {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.principal-social-summary span {
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.82rem;
+  font-weight: 720;
+}
+
+@media (max-width: 560px) {
+  .principal-topbar > div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.18rem;
+  }
+
+  .principal-social-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-checklist__summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .principal-metric__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .principal-social-summary a {
+    transition: none;
+  }
+}
+
+:host-context(html.high-contrast) .principal-topbar,
+:host-context(html.high-contrast) .principal-social-summary a,
+:host-context(html.high-contrast) .profile-checklist {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: none !important;
+}
