@@ -1,140 +1,93 @@
 # Next Session Handoff
 
-## Current project
+## Projeto atual
 
-- Repository: `entretenimento-sexual/entretenimento`
-- Local path usually used: `C:\entretenimento`
-- Firebase project: `entretenimento-sexual`
-- Current stable branch: `main`
-- Recent integration branch merged into `main`: `fix/onboarding-registration-architecture`
+- Repositório: `entretenimento-sexual/entretenimento`
+- Pasta local usual: `C:\entretenimento`
+- Branch de trabalho atual: `feat/auth-password-recovery-polish`
+- Firebase local: emuladores de Auth, Firestore, Storage, Functions e serviços auxiliares
+- Node.js: 22.x, declarado em `.nvmrc` e `.node-version`
 
-## Current status
-
-The onboarding/registration package was consolidated into `main` through PR #14.
-
-Merged package summary:
-
-1. registration route cleanup;
-2. email verification before profile completion;
-3. registration flow state centralized through dedicated data-access services/guards;
-4. Google/social login aligned with the same verification-first rule;
-5. CTAs in account, online users, nearby profiles and layout shell aligned to the onboarding order;
-6. `/register/welcome` mobile polish;
-7. `/perfil` initial visual polish after signup;
-8. router diagnostics adjusted to avoid false redirect-loop reports during legitimate guard redirects.
-
-## Last known validation
-
-Validated locally after merging into `main`:
+## Retomar uma máquina já preparada
 
 ```powershell
-cd C:\entretenimento
-git checkout main
-git pull origin main
-npm.cmd run build
-npm.cmd run functions:build
-git status
+Set-Location C:\entretenimento
+
+npm.cmd run work:resume:start -- -Branch feat/auth-password-recovery-polish
 ```
 
-Observed result:
+O comando:
 
-- `ng build` completed successfully;
-- `functions:build` completed successfully;
-- `main` was up to date with `origin/main`;
-- working tree was clean.
+1. interrompe a atualização quando existem alterações locais;
+2. busca a branch remota;
+3. atualiza somente por fast-forward;
+4. instala dependências somente quando o lock mudou;
+5. inicia Angular e Firebase Emulators.
 
-Manual smoke test completed before the final merge:
+## Preparar uma nova máquina Windows
 
-- user registration completed;
-- e-mail verification succeeded;
-- user reached `/perfil` with the authenticated shell loaded;
-- `/register/welcome` and `/perfil` were visually checked.
+Consulte `docs/WORK_MACHINE_SETUP.md`.
 
-## Current cleanup branch
-
-Active cleanup branch:
-
-```text
-chore/post-merge-cleanup
-```
-
-Purpose:
-
-- update project handoff after the onboarding merge;
-- remove stale guidance that could mislead the next session;
-- avoid new product logic until `main` is confirmed stable after the merge.
-
-## Recommended next steps
-
-1. Validate the cleanup branch after this documentation update:
+Fluxo resumido:
 
 ```powershell
-git pull origin chore/post-merge-cleanup
-npm.cmd run build
-npm.cmd run functions:build
-git status
+Set-Location C:\
+
+git clone https://github.com/entretenimento-sexual/entretenimento.git C:\entretenimento
+
+Set-Location C:\entretenimento
+
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File scripts/dev/setup-work-machine.ps1 `
+  -Branch feat/auth-password-recovery-polish `
+  -Start
 ```
 
-2. If validation is clean, open a small PR:
+Nunca coloque PAT, token ou senha na URL do `origin`.
 
-```text
-base: main
-head: chore/post-merge-cleanup
-title: docs: update handoff after onboarding merge
-```
+## Validação
 
-3. Next product branch should be small and isolated. Recommended options:
-
-```text
-polish/profile-mobile-details
-chore/test-infra-providers
-feat(compliance-adult-consent-v2)
-```
-
-## Known non-blocking debt
-
-The existing `.spec` suite still has older structural debt around providers/mocks for Firebase, Store and Angular Material. It was not used as a release blocker for the onboarding merge.
-
-Recommended future branch:
-
-```text
-chore/test-infra-providers
-```
-
-Target:
-
-- normalize Firebase test providers;
-- normalize NgRx Store mocks;
-- remove stale expectations from pre-refactor specs;
-- make `npm.cmd run test` meaningful again.
-
-## Firestore rules note
-
-Only deploy rules when a file under `firestore-rules/` or generated `firestore.rules` changed:
+Antes de considerar um bloco concluído:
 
 ```powershell
-npm.cmd run rules:build
-npm.cmd run rules:check
-firebase deploy --only firestore:rules --project entretenimento-sexual
+npm.cmd run audit:visual:strict
+npm.cmd run test:ci
+npm.cmd run build:safe
+npm.cmd --prefix functions run test
+npm.cmd --prefix functions run lint:deploy:all
 ```
 
-## Work-machine safety checklist
+O Quality Gate remoto continua sendo a evidência final.
 
-Before editing from another machine:
+## Contrato visual
 
-```powershell
-cd C:\entretenimento
-git status
-git pull origin main
-npm.cmd run build
-```
+A auditoria de densidade visual está documentada em `docs/VISUAL_DENSITY_AUDIT.md`.
 
-Before pushing any branch:
+Nas telas críticas:
 
-```powershell
-git status
-npm.cmd run build
-npm.cmd run functions:build
-```
+- um único `h1`;
+- título curto;
+- ações próximas ao título;
+- sem combinação decorativa de eyebrow, título e subtítulo;
+- estados vazios e erros continuam orientando o usuário;
+- textos legais, financeiros e de segurança são preservados quando necessários.
 
-Do not run emulators unless the goal is explicitly local Firebase isolation. Current validation is against the real Firebase project and deployed rules.
+## Segurança operacional
+
+- não trabalhar diretamente na `main`;
+- não executar deploy durante revisão local;
+- não alterar Rules, índices, Functions ou ambientes sem escopo explícito;
+- não usar Firebase real para testes de desenvolvimento quando existe emulador correspondente;
+- não usar `git reset --hard` ou `git clean` para resolver divergência;
+- não sobrescrever alterações locais detectadas pelo script de retomada.
+
+## Endereços locais
+
+- aplicação: `http://127.0.0.1:4200`;
+- Emulator UI: `http://127.0.0.1:4000`;
+- Auth: `127.0.0.1:9099`;
+- Firestore: `127.0.0.1:8080`.
+
+## Estado de trabalho
+
+O projeto está na fase de limpeza transversal de interface, acessibilidade, feedback de rede, retenção de conta e operação administrativa. O trabalho deve continuar em blocos pequenos, validados e sem merge/deploy automático.
