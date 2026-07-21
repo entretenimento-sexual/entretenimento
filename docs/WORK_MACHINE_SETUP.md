@@ -6,12 +6,22 @@ A máquina precisa ter:
 
 - Windows 10 ou 11;
 - Git for Windows;
-- Node.js 22.x;
-- npm disponível no PowerShell;
+- Node.js 22.x instalado globalmente ou disponível como cópia portátil;
+- npm junto da instalação do Node 22;
 - acesso ao GitHub pelo navegador ou pelo Git Credential Manager;
 - permissão para executar processos locais nas portas usadas pelos emuladores.
 
 O projeto declara Node 22 em `.nvmrc` e `.node-version`.
+
+Quando o Windows estiver usando outra versão global, o script procura automaticamente o Node 22 em:
+
+```text
+%NODE22_HOME%
+%USERPROFILE%\.nodes\node-22
+%USERPROFILE%\AppData\Roaming\nvm
+```
+
+A seleção vale somente para a sessão iniciada pelo script. O Node global da máquina não é desinstalado nem substituído.
 
 ## Primeiro acesso
 
@@ -36,16 +46,18 @@ O primeiro `git fetch` pode abrir o navegador para autenticação. Isso é esper
 
 O `setup-work-machine.ps1`:
 
-1. confirma Git, Node 22 e npm;
-2. verifica se a pasta é o repositório correto;
-3. remove credenciais embutidas da URL do `origin`;
-4. configura o Git Credential Manager quando disponível;
-5. alterna para a branch solicitada;
-6. atualiza apenas por fast-forward;
-7. instala dependências com `npm ci` quando necessário;
-8. inicia Angular e Firebase Emulators quando `-Start` é informado.
+1. confirma Git;
+2. usa o Node 22 já ativo ou seleciona automaticamente uma instalação portátil compatível;
+3. confirma npm na mesma instalação selecionada;
+4. verifica se a pasta é o repositório correto;
+5. remove credenciais embutidas da URL do `origin`;
+6. configura o Git Credential Manager quando disponível;
+7. alterna para a branch solicitada;
+8. atualiza apenas por fast-forward;
+9. instala dependências com `npm ci` quando necessário;
+10. inicia Angular e Firebase Emulators quando `-Start` é informado.
 
-O script não grava tokens no projeto nem modifica a `main`.
+O script não grava tokens no projeto, não altera o Node global e não modifica a `main`.
 
 ## Retomadas seguintes
 
@@ -67,6 +79,12 @@ Para uma validação completa antes de enviar alterações:
 
 ```powershell
 npm.cmd run work:resume:check -- -Branch feat/auth-password-recovery-polish
+```
+
+Quando o `node` global não for 22, prefira iniciar pela preparação automática:
+
+```powershell
+npm.cmd run work:prepare:win -- -Branch feat/auth-password-recovery-polish -Start
 ```
 
 ## Endereços locais
@@ -100,4 +118,4 @@ node --version
 npm.cmd --version
 ```
 
-A branch deve ser `feat/auth-password-recovery-polish`, o Node deve iniciar com `v22.` e `git status --short` deve permanecer vazio antes de começar a editar.
+A branch deve ser `feat/auth-password-recovery-polish`, o Node selecionado pelo processo deve iniciar com `v22.` e `git status --short` deve permanecer vazio antes de começar a editar.
