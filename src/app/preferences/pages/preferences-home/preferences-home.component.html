@@ -1,14 +1,7 @@
-<!-- src\app\preferences\pages\preferences-home\preferences-home.component.html -->
-<main class="preferences-home-page app-page" aria-label="Página de preferências">
+<!-- src/app/preferences/pages/preferences-home/preferences-home.component.html -->
+<main class="preferences-home-page app-page" aria-label="Preferências">
   <section class="preferences-home-shell stack">
-    <app-preferences-page-header
-      title="Preferências"
-      subtitle="Área nova do domínio de preferências, intenção e descoberta."
-    >
-      <a page-actions class="btn btn-secondary" routerLink="/perfil">
-        Voltar ao perfil
-      </a>
-    </app-preferences-page-header>
+    <app-preferences-page-header title="Preferências" />
 
     <app-preferences-domain-nav></app-preferences-domain-nav>
 
@@ -16,8 +9,8 @@
       @if (vm) {
         <app-preference-summary-card [vm]="vm"></app-preference-summary-card>
 
-        <section class="preferences-home-section" aria-label="Capacidades do usuário">
-          <h2 class="section-title">Capacidades atuais</h2>
+        <section class="preferences-home-section" aria-label="Capacidades da conta">
+          <h2 class="section-title">Recursos da conta</h2>
 
           <div class="capabilities-grid" role="list">
             <article class="capability-item" role="listitem">
@@ -36,19 +29,19 @@
             </article>
 
             <article class="capability-item" role="listitem">
-              <span class="capability-label">Insights de compatibilidade</span>
+              <span class="capability-label">Compatibilidade</span>
               <strong>{{ vm.capabilities.canSeeCompatibilityInsights ? 'Liberado' : 'Bloqueado' }}</strong>
             </article>
           </div>
         </section>
       } @else {
         <section class="preferences-home-section" aria-label="Sem sessão ativa">
-          <p>Você precisa estar autenticado para acessar esta área.</p>
+          <p>Entre novamente para acessar suas preferências.</p>
         </section>
       }
     } @else {
       <section class="preferences-home-section" aria-label="Carregando preferências">
-        <p>Carregando domínio de preferências...</p>
+        <p>Carregando preferências...</p>
       </section>
     }
   </section>
