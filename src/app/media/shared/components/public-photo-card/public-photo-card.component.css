@@ -1,21 +1,8 @@
-/* src/app/media/shared/components/public-photo-card/public-photo-card.component.css
-   ----------------------------------------------------------------------------
-   Card público de foto.
-
-   Estratégia:
-   - alinhado ao card system global;
-   - fallback local completo para não depender exclusivamente do global;
-   - mantém overlay rico com dono, métricas, data e capa;
-   - pensado para listas públicas, descoberta, top fotos e fotos recentes.
-   ----------------------------------------------------------------------------
-*/
-
+/* src/app/media/shared/components/public-photo-card/public-photo-card.component.css */
 :host {
   display: block;
   min-width: 0;
 }
-
-/* Card --------------------------------------------------------------------- */
 
 .photo-tile,
 .photo-tile.app-card {
@@ -44,6 +31,12 @@
   box-shadow: 0 16px 36px rgb(0 0 0 / 24%);
 }
 
+.photo-tile--feed:hover,
+.photo-tile--feed:focus-within {
+  transform: none;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 18%);
+}
+
 .photo-tile--cover {
   border-color: color-mix(
     in oklab,
@@ -63,8 +56,87 @@
   );
 }
 
-/* Imagem ------------------------------------------------------------------- */
+/* Cabeçalho específico do feed --------------------------------------------- */
+.feed-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+}
 
+.feed-card-owner {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  color: var(--text-color, #f5f7fb);
+  text-decoration: none;
+}
+
+.feed-card-owner:focus-visible {
+  border-radius: 0.75rem;
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+.feed-card-avatar {
+  flex: 0 0 auto;
+  width: 2.625rem;
+  height: 2.625rem;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.14));
+  border-radius: 50%;
+  object-fit: cover;
+  background: color-mix(in oklab, var(--surface-color, #0f1620) 82%, white 10%);
+}
+
+.feed-card-avatar--fallback {
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 900;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 72%,
+    var(--surface-color, #0f1620)
+  );
+}
+
+.feed-card-owner-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.feed-card-owner-copy strong,
+.feed-card-owner-copy small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-card-owner-copy strong {
+  font-size: 0.92rem;
+  line-height: 1.1;
+}
+
+.feed-card-owner-copy small,
+.feed-card-time {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.feed-card-time {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Imagem ------------------------------------------------------------------- */
 .photo-card-link,
 .photo-card-link.app-media-frame {
   position: relative;
@@ -87,9 +159,16 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.photo-card-link--feed,
+.photo-card-link--feed.app-media-frame {
+  height: clamp(18rem, 48vh, 28rem);
+  aspect-ratio: auto;
+  background: #070a0f;
+}
+
 .photo-card-link:focus-visible {
   outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
-  outline-offset: var(--focus-offset, 2px);
+  outline-offset: calc(var(--focus-offset, 2px) * -1);
 }
 
 .photo {
@@ -103,14 +182,23 @@
     filter 180ms ease;
 }
 
+.photo-card-link--feed .photo {
+  object-fit: contain;
+}
+
 .photo-card-link:hover .photo,
 .photo-card-link:focus-visible .photo {
   transform: scale(1.025);
   filter: brightness(1.05);
 }
 
-/* Overlay ------------------------------------------------------------------ */
+.photo-card-link--feed:hover .photo,
+.photo-card-link--feed:focus-visible .photo {
+  transform: none;
+  filter: none;
+}
 
+/* Overlay das variantes de galeria ---------------------------------------- */
 .photo-overlay,
 .photo-overlay.app-media-overlay {
   position: absolute;
@@ -179,8 +267,6 @@
   line-height: 1.08;
 }
 
-/* Métricas ----------------------------------------------------------------- */
-
 .photo-stats {
   grid-area: stats;
   display: flex;
@@ -230,8 +316,31 @@
   pointer-events: none;
 }
 
-/* Meta inferior ------------------------------------------------------------ */
+/* Rodapé compacto do feed -------------------------------------------------- */
+.feed-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.85rem;
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
 
+.feed-card-footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.feed-card-boosted {
+  margin-left: auto;
+  color: var(--primary-color, #ff7070);
+}
+
+/* Meta inferior das galerias ---------------------------------------------- */
 .photo-meta,
 .photo-meta.app-card__footer {
   display: flex;
@@ -267,8 +376,6 @@
   color: var(--primary-color, #ff7070);
 }
 
-/* Mobile ------------------------------------------------------------------- */
-
 @media (max-width: 700px) {
   .photo-tile {
     border-radius: 13px;
@@ -279,6 +386,20 @@
   .photo-tile:focus-within {
     transform: none;
     box-shadow: none;
+  }
+
+  .feed-card-header {
+    padding: 0.65rem 0.7rem;
+  }
+
+  .feed-card-avatar {
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+
+  .photo-card-link--feed,
+  .photo-card-link--feed.app-media-frame {
+    height: min(68vh, 27rem);
   }
 
   .photo-overlay {
@@ -309,6 +430,10 @@
 }
 
 @media (max-width: 340px) {
+  .feed-card-time {
+    display: none;
+  }
+
   .photo-overlay {
     grid-template-columns: 1fr;
     grid-template-areas:
@@ -321,8 +446,6 @@
     justify-self: start;
   }
 }
-
-/* Acessibilidade ----------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
   .photo-tile,
@@ -337,14 +460,16 @@
   }
 }
 
-html.high-contrast .photo-tile,
-html.high-contrast .stat-chip,
-html.high-contrast .cover-chip,
-html.high-contrast .meta-chip {
+:host-context(html.high-contrast) .photo-tile,
+:host-context(html.high-contrast) .stat-chip,
+:host-context(html.high-contrast) .cover-chip,
+:host-context(html.high-contrast) .meta-chip,
+:host-context(html.high-contrast) .feed-card-header,
+:host-context(html.high-contrast) .feed-card-footer {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
 
-html.high-contrast .photo-tile--cover {
+:host-context(html.high-contrast) .photo-tile--cover {
   box-shadow: none !important;
 }
