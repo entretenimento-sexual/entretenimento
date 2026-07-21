@@ -1,0 +1,170 @@
+/* Camada enxuta da área de conta. */
+.account-home-shell {
+  width: min(100%, 72rem);
+}
+
+.account-hero--compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.15rem 0 0.65rem;
+  border: 0;
+  border-bottom: 1px solid var(--surface-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.account-hero--compact h1 {
+  margin: 0;
+  font-size: clamp(1.35rem, 1.2rem + 0.65vw, 1.8rem);
+}
+
+.account-hero--compact .account-hero__actions {
+  gap: 0.4rem;
+}
+
+.account-hero--compact .btn,
+.account-section-head .btn,
+.account-context-panel--compact .btn {
+  min-height: 38px;
+  padding-inline: 0.8rem;
+  font-size: 0.8rem;
+}
+
+.account-context-panel--compact {
+  align-items: center;
+  padding: 0.85rem 0.95rem;
+  border-radius: 0.9rem;
+}
+
+.account-context-panel--compact h2,
+.account-context-panel--compact p {
+  margin: 0;
+}
+
+.account-context-panel--compact h2 {
+  font-size: 1rem;
+}
+
+.account-context-panel--compact p {
+  margin-top: 0.18rem;
+  font-size: 0.8rem;
+}
+
+.account-nav {
+  position: static;
+  gap: 0.25rem;
+  padding: 0.3rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--surface-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.account-nav__link {
+  min-height: 36px;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.76rem;
+}
+
+.account-card--clean {
+  padding: 1rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--surface-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.account-card--clean .account-section-head {
+  align-items: center;
+  margin-bottom: 0.7rem;
+}
+
+.account-card--clean .account-section-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.account-grid--clean {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0;
+  border-top: 1px solid var(--surface-border);
+}
+
+.account-grid--clean .account-item {
+  gap: 0.25rem;
+  min-height: 88px;
+  padding: 0.75rem 0.8rem;
+  border: 0;
+  border-right: 1px solid var(--surface-border);
+  border-bottom: 1px solid var(--surface-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.account-grid--clean .account-item:hover,
+.account-grid--clean .account-item:focus-within {
+  transform: none;
+  box-shadow: none;
+}
+
+.account-grid--clean .label {
+  font-size: 0.72rem;
+}
+
+.account-grid--clean .value {
+  font-size: 0.92rem;
+}
+
+.account-grid--clean .support {
+  font-size: 0.72rem;
+}
+
+.account-danger-fold {
+  margin-top: 0.35rem;
+  border-radius: 0.85rem;
+}
+
+.account-danger-fold__summary {
+  min-height: 46px;
+  padding: 0.7rem 0.85rem;
+}
+
+@media (max-width: 620px) {
+  .account-hero--compact,
+  .account-context-panel--compact {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .account-hero--compact .account-hero__actions,
+  .account-context-panel--compact .account-context-panel__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .account-grid--clean {
+    grid-template-columns: 1fr;
+  }
+
+  .account-grid--clean .account-item {
+    min-height: 0;
+    border-right: 0;
+  }
+}
+
+:host-context(html.high-contrast) .account-hero--compact,
+:host-context(html.high-contrast) .account-nav,
+:host-context(html.high-contrast) .account-card--clean,
+:host-context(html.high-contrast) .account-grid--clean .account-item,
+:host-context(html.high-contrast) .account-context-panel--compact {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: none !important;
+}
