@@ -22,16 +22,20 @@ match /users/{userId} {
     return request.resource.data.diff(resource.data).affectedKeys();
   }
 
+  function authEmailVerified() {
+    return signedIn()
+      && request.auth.token.keys().hasAny(["email_verified"])
+      && request.auth.token.email_verified == true;
+  }
+
   function emailVerifiedMatchesToken() {
     return !hasField("emailVerified")
-      || request.resource.data.emailVerified
-        == (request.auth.token.email_verified == true);
+      || request.resource.data.emailVerified == authEmailVerified();
   }
 
   function emailVerifiedSafeOnUpdate() {
     return !affectedUserKeys().hasAny(["emailVerified"])
-      || request.resource.data.emailVerified
-        == (request.auth.token.email_verified == true);
+      || request.resource.data.emailVerified == authEmailVerified();
   }
 
   function selfChangingSensitiveKeys() {
@@ -232,7 +236,7 @@ match /users/{userId} {
         || resource.data.accountStatus == "active"
       )
       && request.resource.data.accountStatus == "active"
-      && request.auth.token.email_verified == true
+      && authEmailVerified()
       && request.resource.data.emailVerified == true
       && acceptedTermsReady()
       && adultConsentReady()
