@@ -5,27 +5,24 @@
 }
 
 .social-feed-page {
-  width: min(100%, 52rem);
+  width: min(100%, 46rem);
   margin: 0 auto;
   padding:
-    clamp(1rem, 2vw, 1.6rem)
-    clamp(0.75rem, 2vw, 1.25rem)
-    clamp(3rem, 6vw, 5rem);
+    clamp(0.9rem, 2vw, 1.35rem)
+    clamp(0.65rem, 2vw, 1rem)
+    clamp(2.5rem, 5vw, 4rem);
 }
 
 .feed-header {
-  display: grid;
-  gap: 0.9rem;
-  padding-bottom: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.8rem;
   border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
 }
 
-.feed-header__copy {
-  max-width: 40rem;
-}
-
 .feed-header h1,
-.feed-section-heading h2,
 .feed-empty h3 {
   margin: 0;
   color: var(--text-color, #f5f7fb);
@@ -33,86 +30,41 @@
 }
 
 .feed-header h1 {
-  font-size: clamp(1.65rem, 1.4rem + 1vw, 2.25rem);
-  line-height: 1.08;
-}
-
-.feed-header p,
-.feed-empty p,
-.feed-status p,
-.feed-info p {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
-  line-height: 1.5;
-}
-
-.feed-header__copy > p {
-  max-width: 37rem;
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-}
-
-.feed-eyebrow,
-.feed-status__eyebrow {
-  display: inline-block;
-  margin-bottom: 0.3rem;
-  color: var(--primary-color, #ff7070);
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  font-size: clamp(1.45rem, 1.3rem + 0.55vw, 1.8rem);
+  line-height: 1.1;
 }
 
 .feed-shortcuts {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  justify-content: flex-end;
+  gap: 0.35rem;
 }
 
 .feed-shortcuts a,
-.feed-section-heading a,
 .feed-empty a,
 .feed-status__actions a,
 .feed-status__actions button {
-  min-height: var(--tap-target, 2.75rem);
+  min-height: 2.35rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  padding: 0.58rem 0.85rem;
+  padding: 0.5rem 0.72rem;
   border: 1px solid var(--surface-border, rgb(255 255 255 / 14%));
   border-radius: 999px;
   background: transparent;
-  color: var(--text-color, #f5f7fb);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 82%, transparent);
   font: inherit;
-  font-size: 0.8rem;
-  font-weight: 800;
+  font-size: 0.76rem;
+  font-weight: 780;
   line-height: 1;
   text-decoration: none;
   cursor: pointer;
 }
 
-.feed-shortcuts a:first-child {
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 42%,
-    var(--surface-border, rgb(255 255 255 / 14%))
-  );
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 11%,
-    transparent
-  );
-}
-
-.feed-shortcuts__secondary {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent) !important;
-}
-
 .feed-shortcuts a:hover,
 .feed-shortcuts a:focus-visible,
-.feed-section-heading a:hover,
-.feed-section-heading a:focus-visible,
 .feed-empty a:hover,
 .feed-empty a:focus-visible,
 .feed-status__actions a:hover,
@@ -120,26 +72,28 @@
 .feed-status__actions button:hover:not(:disabled),
 .feed-status__actions button:focus-visible {
   border-color: var(--primary-color, #ff7070);
-  outline: 3px solid color-mix(in oklab, var(--primary-color, #ff7070) 24%, transparent);
+  color: var(--text-color, #f5f7fb);
+  outline: 3px solid color-mix(in oklab, var(--primary-color, #ff7070) 22%, transparent);
   outline-offset: 2px;
 }
 
 .feed-status {
+  width: min(100%, 27rem);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin: 0.9rem auto 0;
-  padding: 0.8rem 0.9rem;
+  gap: 0.75rem;
+  margin: 0.75rem auto 0;
+  padding: 0.65rem 0.75rem;
   border: 1px solid color-mix(
     in oklab,
-    var(--primary-color, #ff7070) 25%,
+    var(--primary-color, #ff7070) 22%,
     var(--surface-border, rgb(255 255 255 / 12%))
   );
-  border-radius: 0.9rem;
+  border-radius: 0.75rem;
   background: color-mix(
     in oklab,
-    var(--primary-color, #ff7070) 6%,
+    var(--primary-color, #ff7070) 4%,
     var(--surface-color, #101925)
   );
 }
@@ -147,28 +101,36 @@
 .feed-status > div:first-child {
   min-width: 0;
   display: grid;
-  gap: 0.15rem;
+  gap: 0.1rem;
 }
 
 .feed-status strong {
   color: var(--text-color, #f5f7fb);
-  font-size: 0.95rem;
+  font-size: 0.86rem;
+}
+
+.feed-status p,
+.feed-empty p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
+  line-height: 1.4;
 }
 
 .feed-status p {
-  font-size: 0.8rem;
+  font-size: 0.74rem;
 }
 
 .feed-status__actions {
   flex: 0 0 auto;
   display: flex;
-  gap: 0.45rem;
+  gap: 0.35rem;
 }
 
 .feed-status__actions a,
 .feed-status__actions button {
-  min-height: 2.4rem;
-  padding-inline: 0.75rem;
+  min-height: 2.1rem;
+  padding-inline: 0.62rem;
+  font-size: 0.72rem;
 }
 
 .feed-status__actions button:disabled {
@@ -177,61 +139,13 @@
 }
 
 .feed-timeline {
-  width: min(100%, 36rem);
-  margin: clamp(1.4rem, 3vw, 2rem) auto 0;
-}
-
-.feed-section-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.7rem;
-}
-
-.feed-section-heading h2 {
-  font-size: clamp(1.08rem, 1rem + 0.35vw, 1.32rem);
-  line-height: 1.15;
-}
-
-.feed-section-heading a {
-  flex: 0 0 auto;
-  min-height: 2.3rem;
-  padding-inline: 0.75rem;
-  color: var(--primary-color, #ff7070);
-}
-
-.feed-info {
-  margin-bottom: 0.85rem;
-  border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 10%));
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
-  font-size: 0.78rem;
-}
-
-.feed-info summary {
-  min-height: 2.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  cursor: pointer;
-  font-weight: 760;
-  list-style-position: inside;
-}
-
-.feed-info summary:focus-visible {
-  border-radius: 0.5rem;
-  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
-  outline-offset: var(--focus-offset, 2px);
-}
-
-.feed-info p {
-  padding: 0 0 0.8rem;
-  font-size: 0.78rem;
+  width: min(100%, 27rem);
+  margin: 1rem auto 0;
 }
 
 .feed-list {
   display: grid;
-  gap: clamp(0.9rem, 2vw, 1.15rem);
+  gap: 0.8rem;
 }
 
 .feed-list app-public-photo-card {
@@ -240,15 +154,19 @@
 
 .feed-empty {
   display: grid;
-  gap: 0.6rem;
-  padding: 1rem;
+  gap: 0.55rem;
+  padding: 0.9rem;
   border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
-  border-radius: 0.9rem;
+  border-radius: 0.75rem;
   background: var(--surface-color, #101925);
 }
 
 .feed-empty h3 {
-  font-size: 1.08rem;
+  font-size: 1rem;
+}
+
+.feed-empty p {
+  font-size: 0.82rem;
 }
 
 .feed-empty a {
@@ -258,16 +176,35 @@
   color: #fff;
 }
 
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (max-width: 42rem) {
   .social-feed-page {
     width: 100%;
-    padding-inline: 0.65rem;
+    padding-inline: 0.55rem;
+  }
+
+  .feed-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .feed-shortcuts {
+    width: 100%;
     overflow-x: auto;
     flex-wrap: nowrap;
-    padding-bottom: 0.2rem;
+    justify-content: flex-start;
+    padding-bottom: 0.15rem;
     scrollbar-width: thin;
   }
 
@@ -276,7 +213,13 @@
   }
 
   .feed-status,
-  .feed-section-heading {
+  .feed-timeline {
+    width: min(100%, 27rem);
+  }
+}
+
+@media (max-width: 24rem) {
+  .feed-status {
     align-items: stretch;
     flex-direction: column;
   }
@@ -285,28 +228,11 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  .feed-status__actions a,
-  .feed-status__actions button,
-  .feed-section-heading a {
-    width: 100%;
-  }
-
-  .feed-timeline {
-    width: 100%;
-  }
-}
-
-@media (max-width: 22rem) {
-  .feed-status__actions {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .feed-shortcuts,
   .feed-shortcuts a,
-  .feed-section-heading a,
   .feed-empty a,
   .feed-status__actions a,
   .feed-status__actions button {
@@ -317,10 +243,8 @@
 
 :host-context(html.high-contrast) .feed-header,
 :host-context(html.high-contrast) .feed-status,
-:host-context(html.high-contrast) .feed-info,
 :host-context(html.high-contrast) .feed-empty,
 :host-context(html.high-contrast) .feed-shortcuts a,
-:host-context(html.high-contrast) .feed-section-heading a,
 :host-context(html.high-contrast) .feed-status__actions a,
 :host-context(html.high-contrast) .feed-status__actions button {
   border-color: currentColor !important;
