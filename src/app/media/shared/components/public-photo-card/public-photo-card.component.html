@@ -16,41 +16,11 @@
         [routerLink]="profileLink()"
         [attr.aria-label]="'Abrir perfil de ' + getOwnerName(item)"
       >
-        @if (item.ownerPhotoURL) {
-          <img
-            class="feed-card-avatar"
-            [src]="item.ownerPhotoURL"
-            [alt]="'Foto de ' + getOwnerName(item)"
-            width="42"
-            height="42"
-            loading="lazy"
-            decoding="async"
-            referrerpolicy="no-referrer"
-          />
-        } @else {
-          <span class="feed-card-avatar feed-card-avatar--fallback" aria-hidden="true">
-            {{ getOwnerInitial(item) }}
-          </span>
-        }
-
-        <span class="feed-card-owner-copy">
-          <strong>{{ getOwnerName(item) }}</strong>
-
-          @if (getOwnerMeta(item) || getOwnerLocation(item)) {
-            <small>
-              {{ getOwnerMeta(item) }}
-              @if (getOwnerMeta(item) && getOwnerLocation(item)) {
-                <span aria-hidden="true"> · </span>
-              }
-              {{ getOwnerLocation(item) }}
-            </small>
-          }
-        </span>
+        <strong>{{ getOwnerName(item) }}</strong>
       </a>
 
       <time
         class="feed-card-time"
-        [attr.datetime]="item.publishedAt"
         [attr.aria-label]="'Publicado ' + getPublishedLabel(item)"
       >
         {{ getPublishedLabel(item) }}
@@ -136,17 +106,26 @@
     </div>
   }
 
-  @if (mode === 'feed') {
+  @if (
+    mode === 'feed' &&
+    ((item.reactionsCount ?? item.likesCount ?? 0) > 0 ||
+      (item.commentsCount ?? 0) > 0 ||
+      item.boostActive)
+  ) {
     <footer class="feed-card-footer" aria-label="Informações da publicação">
-      <span aria-label="Curtidas">
-        <span aria-hidden="true">♥</span>
-        {{ item.reactionsCount ?? item.likesCount ?? 0 }}
-      </span>
+      @if ((item.reactionsCount ?? item.likesCount ?? 0) > 0) {
+        <span aria-label="Curtidas">
+          <span aria-hidden="true">♥</span>
+          {{ item.reactionsCount ?? item.likesCount ?? 0 }}
+        </span>
+      }
 
-      <span aria-label="Comentários">
-        <span aria-hidden="true">💬</span>
-        {{ item.commentsCount ?? 0 }}
-      </span>
+      @if ((item.commentsCount ?? 0) > 0) {
+        <span aria-label="Comentários">
+          <span aria-hidden="true">💬</span>
+          {{ item.commentsCount ?? 0 }}
+        </span>
+      }
 
       @if (item.boostActive) {
         <span class="feed-card-boosted">
