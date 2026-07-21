@@ -1,0 +1,135 @@
+/* Variante social compacta usada exclusivamente no feed. */
+.photo-tile--feed,
+.photo-tile--feed.app-card {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.photo-tile--feed:hover,
+.photo-tile--feed:focus-within {
+  transform: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.feed-card-header {
+  padding: 0.42rem 0;
+  border: 0;
+}
+
+.feed-card-owner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.82rem;
+  font-weight: 820;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-card-avatar {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 14%));
+  border-radius: 50%;
+  background: var(--surface-color, #101925);
+  object-fit: cover;
+}
+
+.feed-card-avatar--fallback {
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.feed-card-time {
+  font-size: 0.66rem;
+}
+
+.photo-card-link--feed,
+.photo-card-link--feed.app-media-frame {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: auto;
+  min-height: 12rem;
+  max-height: none;
+  aspect-ratio: auto;
+  border-radius: 0.65rem;
+  background: #070a0f;
+}
+
+.photo-card-link--feed .photo {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(62vh, 30rem);
+  margin: auto;
+  object-fit: contain;
+}
+
+.feed-card-footer {
+  min-height: 0;
+  justify-content: space-between;
+  padding: 0.42rem 0 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.72rem;
+}
+
+.feed-card-footer__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.feed-card-footer__actions > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.feed-card-boosted {
+  margin-left: auto;
+}
+
+@media (max-width: 27rem) {
+  .feed-card-header,
+  .feed-card-footer {
+    padding-inline: 0.55rem;
+  }
+
+  .photo-card-link--feed,
+  .photo-card-link--feed.app-media-frame {
+    min-height: 11rem;
+    border-radius: 0;
+  }
+
+  .photo-card-link--feed .photo {
+    max-height: min(68vh, 32rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-tile--feed,
+  .photo-card-link--feed .photo {
+    transition: none;
+  }
+}
+
+:host-context(html.high-contrast) .photo-tile--feed,
+:host-context(html.high-contrast) .photo-card-link--feed,
+:host-context(html.high-contrast) .feed-card-header,
+:host-context(html.high-contrast) .feed-card-footer {
+  border-color: currentColor !important;
+  box-shadow: none !important;
+}
