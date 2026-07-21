@@ -113,10 +113,12 @@ function Select-Node22 {
   }
 
   if ($currentVersion -match '^v22\.') {
+    $currentNpm = Get-Command npm.cmd -CommandType Application -ErrorAction SilentlyContinue
+
     return [PSCustomObject]@{
       Directory = Split-Path $currentNode.Source -Parent
       Node = $currentNode.Source
-      Npm = (Get-Command npm.cmd -CommandType Application -ErrorAction SilentlyContinue).Source
+      Npm = if ($currentNpm) { $currentNpm.Source } else { $null }
       VersionText = $currentVersion
       Portable = $false
     }
@@ -154,6 +156,7 @@ Require-Command -Name 'git' -InstallHint 'Instale o Git for Windows pela central
 $selectedNode = Select-Node22
 if ($selectedNode.Portable) {
   Write-Step "Node 22 portatil selecionado: $($selectedNode.Node)"
+  Write-Step 'A selecao vale somente para este processo; o Node global permanece inalterado.'
 }
 
 $nodeVersion = Get-NodeVersion -Executable $selectedNode.Node
@@ -162,9 +165,17 @@ if (-not $nodeVersion -or $nodeVersion -notmatch '^v22\.') {
 }
 Write-Step "Node confirmado: $nodeVersion"
 
-Require-Command -Name 'npm.cmd' -InstallHint 'O npm acompanha a instalacao do Node.js 22.x.'
-$npmCommand = Get-Command npm.cmd -CommandType Application -ErrorAction Stop
-$npmVersion = (& $npmCommand.Source --version).Trim()
+$npmExecutable = $selectedNode.Npm
+if (-not $npmExecutable -or -not (Test-Path $npmExecutable)) {
+  $npmCommand = Get-Command npm.cmd -CommandType Application -ErrorAction SilentlyContinue
+  $npmExecutable = if ($npmCommand) { $npmCommand.Source } else { $null }
+}
+
+if (-not $npmExecutable -or -not (Test-Path $npmExecutable)) {
+  throw 'npm.cmd nao foi encontrado na instalacao selecionada do Node.js 22.x.'
+}
+
+$npmVersion = (& $npmExecutable --version).Trim()
 if ($LASTEXITCODE -ne 0) {
   throw 'Nao foi possivel consultar a versao do npm.'
 }
