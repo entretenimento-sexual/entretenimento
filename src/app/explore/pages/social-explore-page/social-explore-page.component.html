@@ -1,47 +1,45 @@
 <!-- src/app/explore/pages/social-explore-page/social-explore-page.component.html -->
 @if (vm$ | async; as vm) {
+  @let feedPhotos = ((feedPhotos$ | async) || []);
   @let lightboxState = (lightboxState$ | async);
   @let activeLightboxItems = ((activeLightboxItems$ | async) || []);
   @let currentUser = (currentUser$ | async);
   @let myActiveStatus = (myActiveStatus$ | async);
 
-  <section class="social-explore-page" aria-labelledby="discover-title">
-    <header class="explore-hero">
-      <div class="hero-copy">
-        <span class="hero-copy__eyebrow">Descoberta</span>
-        <h1 id="discover-title">Encontre perfis, mídias e sinais compatíveis.</h1>
+  <section class="social-feed-page" aria-labelledby="feed-title">
+    <header class="feed-header">
+      <div class="feed-header__copy">
+        <span class="feed-eyebrow">Feed</span>
+        <h1 id="feed-title">Publicações para você</h1>
         <p>
-          Use seu status, suas preferências e os filtros de descoberta para encontrar conexões com mais contexto.
+          Fotos públicas de pessoas compatíveis e de outros perfis da comunidade,
+          organizadas por relevância, diversidade e atividade recente.
         </p>
       </div>
 
-      <nav class="explore-hero__actions" aria-label="Ações rápidas">
-        <a class="explore-hero__action explore-hero__action--primary" routerLink="/dashboard/principal">
-          Atualizar meu status
-        </a>
-
-        <a class="explore-hero__action" routerLink="/preferencias/discovery-settings">
-          Ajustar filtros
-        </a>
+      <nav class="feed-shortcuts" aria-label="Explorar outras áreas">
+        <a routerLink="/dashboard/explorar">Pessoas</a>
+        <a routerLink="/dashboard/locais">Locais</a>
+        <a routerLink="/dashboard/comunidades">Comunidades</a>
+        <a routerLink="/media/ultimas-fotos">Todas as fotos</a>
       </nav>
     </header>
 
     @if (myActiveStatus) {
-      <aside class="explore-my-status" aria-label="Meu Status de Hoje ativo">
-        <div class="explore-my-status__content">
-          <span class="explore-my-status__eyebrow">Meu Status de Hoje</span>
+      <aside class="feed-status" aria-label="Meu Status de Hoje ativo">
+        <div>
+          <span class="feed-status__eyebrow">Meu Status de Hoje</span>
           <strong>{{ myActiveStatus.availabilityLabel }}</strong>
-          <p>{{ myActiveStatus.destinationLabel }} · {{ myActiveStatus.expiresInLabel }}</p>
+          <p>
+            {{ myActiveStatus.destinationLabel }} ·
+            {{ myActiveStatus.expiresInLabel }}
+          </p>
         </div>
 
-        <div class="explore-my-status__actions">
-          <a class="explore-my-status__button" routerLink="/dashboard/principal">
-            Editar
-          </a>
-
+        <div class="feed-status__actions">
+          <a routerLink="/dashboard/principal">Editar</a>
           <button
             type="button"
-            class="explore-my-status__button explore-my-status__button--ghost"
             [disabled]="hidingMyStatus"
             (click)="hideMyStatus(currentUser)"
           >
@@ -51,111 +49,92 @@
       </aside>
     }
 
-    @if (currentUser) {
-      <div class="explore-intent-radar">
-        <app-user-intent-status-radar [user]="currentUser" />
-      </div>
-    }
+    <div class="feed-layout">
+      <section class="feed-timeline" aria-labelledby="timeline-title">
+        <header class="feed-section-heading">
+          <div>
+            <span class="feed-eyebrow">Para você</span>
+            <h2 id="timeline-title">Atualizações da comunidade</h2>
+          </div>
+
+          <a routerLink="/preferencias/discovery-settings">
+            Ajustar preferências
+          </a>
+        </header>
+
+        @if (feedPhotos.length > 0) {
+          <div
+            class="feed-list"
+            role="list"
+            aria-label="Publicações recomendadas"
+          >
+            @for (
+              item of feedPhotos;
+              track trackByPhotoId($index, item);
+              let i = $index
+            ) {
+              <app-public-photo-card
+                role="listitem"
+                [photo]="item"
+                variant="latest"
+                (preview)="openPhoto('feed', i)"
+              />
+            }
+          </div>
+        } @else {
+          <div class="feed-empty" role="status" aria-live="polite">
+            <span class="feed-eyebrow">Sem publicações</span>
+            <h3>O feed ainda está vazio</h3>
+            <p>
+              Novas fotos públicas aparecerão aqui conforme pessoas compatíveis
+              e outros perfis da comunidade publicarem conteúdo.
+            </p>
+
+            <a routerLink="/dashboard/explorar">Descobrir pessoas</a>
+          </div>
+        }
+      </section>
+
+      <aside class="feed-guide" aria-labelledby="feed-guide-title">
+        <span class="feed-eyebrow">Como funciona</span>
+        <h2 id="feed-guide-title">Um feed menos repetitivo</h2>
+        <p>
+          A timeline prioriza compatibilidade e atividade recente, mas limita a
+          repetição do mesmo autor para apresentar pessoas diferentes.
+        </p>
+
+        <ul>
+          <li>Perfis compatíveis aparecem primeiro.</li>
+          <li>Publicações impulsionadas são identificadas no card.</li>
+          <li>No máximo duas publicações do mesmo autor por carregamento.</li>
+        </ul>
+      </aside>
+    </div>
 
     @if (vm.compatibleProfiles.length > 0) {
-      <app-explore-section
-        title="Perfis compatíveis"
-        [routeCommands]="['/dashboard', 'explorar']"
-      >
+      <section class="feed-people" aria-labelledby="feed-people-title">
+        <header class="feed-section-heading">
+          <div>
+            <span class="feed-eyebrow">Pessoas</span>
+            <h2 id="feed-people-title">Perfis compatíveis</h2>
+          </div>
+
+          <a routerLink="/dashboard/explorar">Ver todos</a>
+        </header>
+
         <app-public-profiles-list
           [profiles]="vm.compatibleProfiles"
           [loading]="false"
           [errorMessage]="null"
         />
-      </app-explore-section>
-    }
-
-    @if (vm.boostedPhotos.length > 0) {
-      <app-explore-section
-        title="Fotos turbinadas"
-        tone="boosted"
-        [routeCommands]="['/media', 'fotos-turbinadas']"
-      >
-        <div class="featured-grid" role="list" aria-label="Fotos públicas turbinadas">
-          @for (item of vm.boostedPhotos; track trackByPhotoId($index, item); let i = $index) {
-            <app-public-photo-card
-              role="listitem"
-              [photo]="item"
-              variant="boosted"
-              (preview)="openPhoto('boosted', i)"
-            />
-          }
-        </div>
-      </app-explore-section>
-    }
-
-    @if (vm.mostViewedPhotos.length > 0) {
-      <app-explore-section title="Mídias mais vistas">
-        <div class="photos-grid" role="list" aria-label="Mídias públicas mais vistas">
-          @for (item of vm.mostViewedPhotos; track trackByPhotoId($index, item); let i = $index) {
-            <app-public-photo-card
-              role="listitem"
-              [photo]="item"
-              variant="top"
-              (preview)="openPhoto('mostViewed', i)"
-            />
-          }
-        </div>
-      </app-explore-section>
-    }
-
-    @if (vm.topPhotos.length > 0) {
-      <app-explore-section
-        title="Fotos em destaque"
-        [routeCommands]="['/media', 'fotos-top']"
-      >
-        <div class="photos-grid photos-grid--top" role="list" aria-label="Fotos públicas em destaque">
-          @for (item of vm.topPhotos; track trackByPhotoId($index, item); let i = $index) {
-            <app-public-photo-card
-              role="listitem"
-              [photo]="item"
-              variant="top"
-              (preview)="openPhoto('top', i)"
-            />
-          }
-        </div>
-      </app-explore-section>
-    }
-
-    @if (vm.latestPhotos.length > 0) {
-      <app-explore-section
-        title="Fotos recentes"
-        [routeCommands]="['/media', 'ultimas-fotos']"
-      >
-        <div class="photos-grid" role="list" aria-label="Fotos públicas recentes">
-          @for (item of vm.latestPhotos; track trackByPhotoId($index, item); let i = $index) {
-            <app-public-photo-card
-              role="listitem"
-              [photo]="item"
-              variant="latest"
-              (preview)="openPhoto('latest', i)"
-            />
-          }
-        </div>
-      </app-explore-section>
-    }
-
-    @if (!vm.hasAnyContent) {
-      <div class="empty-state" role="status" aria-live="polite">
-        <span class="empty-state__eyebrow">Em construção</span>
-        <h2>Nada por aqui ainda</h2>
-
-        <p>
-          Publicações aprovadas, perfis compatíveis e mídias recentes aparecerão aqui conforme a comunidade crescer.
-        </p>
-      </div>
+      </section>
     }
 
     @if (lightboxState) {
       <app-public-photo-lightbox
         [items]="activeLightboxItems"
         [activeIndex]="lightboxState.index"
-        title="Descobrir"
+        title="Feed"
         (closed)="closeViewer()"
         (prevRequested)="prev()"
         (nextRequested)="next()"
