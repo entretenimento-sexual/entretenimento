@@ -13,6 +13,7 @@ describe('PublicPhotoCardComponent', () => {
     id: 'photo-1',
     ownerUid: 'user-1',
     ownerNickname: 'Pessoa teste',
+    ownerPhotoURL: 'https://example.test/avatar.jpg',
     ownerGender: 'Mulher',
     ownerOrientation: 'Bissexual',
     ownerMunicipio: 'Rio de Janeiro',
@@ -38,15 +39,31 @@ describe('PublicPhotoCardComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renderiza a variante de feed somente com autor e horário no cabeçalho', () => {
+  it('renderiza identificação compacta com avatar, autor e horário', () => {
     const header = fixture.debugElement.query(By.css('.feed-card-header'));
     const owner = fixture.debugElement.query(By.css('.feed-card-owner'))
       .nativeElement as HTMLAnchorElement;
+    const avatar = fixture.debugElement.query(By.css('.feed-card-avatar'))
+      .nativeElement as HTMLImageElement;
 
     expect(header).toBeTruthy();
-    expect(owner.textContent?.trim()).toBe('Pessoa teste');
+    expect(owner.textContent).toContain('Pessoa teste');
     expect(owner.textContent).not.toContain('Rio de Janeiro');
-    expect(fixture.debugElement.query(By.css('.feed-card-avatar'))).toBeNull();
+    expect(avatar.src).toContain('avatar.jpg');
+  });
+
+  it('usa a inicial do autor quando não existe avatar público', () => {
+    fixture.componentRef.setInput('photo', {
+      ...photo,
+      ownerPhotoURL: null,
+    });
+    fixture.detectChanges();
+
+    const fallback = fixture.debugElement.query(
+      By.css('.feed-card-avatar--fallback')
+    ).nativeElement as HTMLElement;
+
+    expect(fallback.textContent?.trim()).toBe('P');
   });
 
   it('não usa overlay nem rodapé duplicado da variante latest', () => {
@@ -67,7 +84,7 @@ describe('PublicPhotoCardComponent', () => {
     expect(fixture.debugElement.query(By.css('.feed-card-footer'))).toBeNull();
   });
 
-  it('aplica o frame de mídia limitado do feed', () => {
+  it('mantém a mídia como botão acessível para abrir o lightbox', () => {
     const mediaButton = fixture.debugElement.query(
       By.css('.photo-card-link--feed')
     ).nativeElement as HTMLButtonElement;
