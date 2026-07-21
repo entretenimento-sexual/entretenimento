@@ -16,6 +16,8 @@ const criticalTemplates = new Set([
   'src/app/chat-module/chat-rooms/chat-rooms.component.html',
   'src/app/preferences/pages/preferences-home/preferences-home.component.html',
   'src/app/admin-dashboard/admin-dashboard.component.html',
+  'src/app/layout/perfis-proximos/perfis-proximos.component.html',
+  'src/app/dashboard/online/online-users/online-users.component.html',
   'src/app/media/photos/latest-public-photos/latest-public-photos.component.html',
   'src/app/media/photos/top-public-photos/top-public-photos.component.html',
   'src/app/media/photos/boosted-public-photos/boosted-public-photos.component.html',
