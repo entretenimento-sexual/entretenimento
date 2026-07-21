@@ -46,7 +46,8 @@
               "src/styles/profile-completion-polish.css",
               "src/styles/global-animations.css",
               "src/styles.css",
-              "src/app/header/navbar/navbar.clean.css"
+              "src/app/header/navbar/navbar.clean.css",
+              "src/app/dashboard/principal/principal.clean.css"
             ],
             "scripts": [],
             "browser": "src/main.ts"
