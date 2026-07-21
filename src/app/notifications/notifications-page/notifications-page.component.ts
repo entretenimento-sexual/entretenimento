@@ -13,7 +13,10 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
   standalone: true,
   imports: [CommonModule, RouterModule],
   templateUrl: './notifications-page.component.html',
-  styleUrls: ['./notifications-page.component.css'],
+  styleUrls: [
+    './notifications-page.component.css',
+    './notifications-page.clean.css',
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class NotificationsPageComponent {
