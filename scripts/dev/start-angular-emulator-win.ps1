@@ -27,61 +27,137 @@ function Write-SessionMessage {
   Add-Content -LiteralPath $logPath -Value $line -Encoding UTF8
 }
 
-function Select-Node22 {
-  $currentNode = Get-Command node -CommandType Application -ErrorAction SilentlyContinue
-  $currentVersion = if ($currentNode) {
-    (& $currentNode.Source --version 2>$null).Trim()
-  } else {
-    ''
+function Get-NodeVersion {
+  param([Parameter(Mandatory = $true)][string]$Executable)
+
+  try {
+    $versionOutput = @(& $Executable --version 2>$null)
+    $version = if ($versionOutput.Count -gt 0) {
+      ([string]$versionOutput[0]).Trim()
+    } else {
+      ''
+    }
+
+    if ($LASTEXITCODE -eq 0 -and $version -match '^v\d+\.\d+\.\d+$') {
+      return $version
+    }
+  } catch {
+    return ''
   }
 
-  if ($currentVersion -match '^v22\.') {
-    return
+  return ''
+}
+
+function Get-Node22Runtime {
+  $candidateDirectories = [System.Collections.Generic.List[string]]::new()
+
+  if ($env:NODE_HOME) {
+    $candidateDirectories.Add($env:NODE_HOME)
   }
 
-  $portableRoot = if ($env:USERPROFILE) {
-    Join-Path $env:USERPROFILE '.nodes\node-22'
-  } else {
-    ''
+  $pathNodeCommands = @(
+    Get-Command node `
+      -CommandType Application `
+      -All `
+      -ErrorAction SilentlyContinue
+  )
+
+  foreach ($command in $pathNodeCommands) {
+    if ($command.Source) {
+      $candidateDirectories.Add((Split-Path $command.Source -Parent))
+    }
   }
 
-  $portableNode = if ($portableRoot -and (Test-Path $portableRoot)) {
-    Get-ChildItem -LiteralPath $portableRoot -Directory -ErrorAction SilentlyContinue |
-      Where-Object {
-        $_.Name -like 'node-v22*-win-x64' -and
-        (Test-Path (Join-Path $_.FullName 'node.exe')) -and
-        (Test-Path (Join-Path $_.FullName 'npm.cmd'))
-      } |
-      Sort-Object -Property Name -Descending |
-      Select-Object -First 1
-  } else {
-    $null
+  if ($env:USERPROFILE) {
+    $portableRoot = Join-Path $env:USERPROFILE '.nodes\node-22'
+
+    if (Test-Path $portableRoot) {
+      $portableDirectories = @(
+        Get-ChildItem `
+          -LiteralPath $portableRoot `
+          -Directory `
+          -ErrorAction SilentlyContinue
+      )
+
+      foreach ($directory in $portableDirectories) {
+        $candidateDirectories.Add($directory.FullName)
+      }
+    }
   }
 
-  if (-not $portableNode) {
-    throw "Node.js 22.x nao foi encontrado. Versao atual: $currentVersion"
+  $runtimes = foreach ($directory in ($candidateDirectories | Select-Object -Unique)) {
+    if (-not $directory) {
+      continue
+    }
+
+    $nodeExecutable = Join-Path $directory 'node.exe'
+    $npmExecutable = Join-Path $directory 'npm.cmd'
+
+    if (-not (Test-Path $nodeExecutable) -or -not (Test-Path $npmExecutable)) {
+      continue
+    }
+
+    $versionText = Get-NodeVersion -Executable $nodeExecutable
+
+    if ($versionText -notmatch '^v22\.') {
+      continue
+    }
+
+    [PSCustomObject]@{
+      Directory = $directory
+      Node = $nodeExecutable
+      Npm = $npmExecutable
+      Version = [version]$versionText.TrimStart('v')
+      VersionText = $versionText
+    }
   }
 
-  $env:NODE_HOME = $portableNode.FullName
-  $env:Path = "$($portableNode.FullName);$env:Path"
+  $selectedRuntime = $runtimes |
+    Sort-Object -Property Version -Descending |
+    Select-Object -First 1
+
+  if (-not $selectedRuntime) {
+    $detectedCommands = if ($pathNodeCommands.Count -gt 0) {
+      ($pathNodeCommands | ForEach-Object { $_.Source }) -join ', '
+    } else {
+      'nenhum node.exe encontrado no PATH'
+    }
+
+    throw "Node.js 22.x nao foi encontrado. Executaveis detectados: $detectedCommands"
+  }
+
+  return $selectedRuntime
 }
 
 try {
-  Select-Node22
+  $runtime = Get-Node22Runtime
 
-  $nodeVersion = (& node --version).Trim()
-  $npmCommand = Get-Command npm.cmd -CommandType Application -ErrorAction Stop
-  $npmVersion = (& $npmCommand.Source --version).Trim()
+  $env:NODE_HOME = $runtime.Directory
+  $env:Path = "$($runtime.Directory);$env:Path"
+
+  $nodeVersion = Get-NodeVersion -Executable $runtime.Node
+  $npmOutput = @(& $runtime.Npm --version 2>$null)
+  $npmVersion = if ($npmOutput.Count -gt 0) {
+    ([string]$npmOutput[0]).Trim()
+  } else {
+    ''
+  }
+
+  if ($LASTEXITCODE -ne 0 -or -not $npmVersion) {
+    throw "Nao foi possivel consultar o npm selecionado: $($runtime.Npm)"
+  }
 
   Write-SessionMessage "Projeto: $ProjectRoot"
   Write-SessionMessage "Node: $nodeVersion"
+  Write-SessionMessage "Node executavel: $($runtime.Node)"
   Write-SessionMessage "npm: $npmVersion"
+  Write-SessionMessage "npm executavel: $($runtime.Npm)"
   Write-SessionMessage "Log: $logPath"
   Write-SessionMessage "Iniciando Angular em http://${HostAddress}:$Port/"
 
   Set-Location $ProjectRoot
 
-  & $npmCommand.Source run start:emu -- --host $HostAddress --port $Port 2>&1 |
+  & $runtime.Npm run start:emu -- --host $HostAddress --port $Port 2>&1 |
     Tee-Object -FilePath $logPath -Append
 
   $exitCode = $LASTEXITCODE
