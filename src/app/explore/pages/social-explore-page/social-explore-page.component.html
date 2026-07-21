@@ -12,8 +12,8 @@
         <span class="feed-eyebrow">Feed</span>
         <h1 id="feed-title">Publicações para você</h1>
         <p>
-          Fotos públicas de pessoas compatíveis e de outros perfis da comunidade,
-          organizadas por relevância, diversidade e atividade recente.
+          Atualizações públicas organizadas por compatibilidade, diversidade e
+          atividade recente.
         </p>
       </div>
 
@@ -21,7 +21,9 @@
         <a routerLink="/dashboard/explorar">Pessoas</a>
         <a routerLink="/dashboard/locais">Locais</a>
         <a routerLink="/dashboard/comunidades">Comunidades</a>
-        <a routerLink="/media/ultimas-fotos">Todas as fotos</a>
+        <a class="feed-shortcuts__secondary" routerLink="/media/ultimas-fotos">
+          Todas as fotos
+        </a>
       </nav>
     </header>
 
@@ -49,86 +51,59 @@
       </aside>
     }
 
-    <div class="feed-layout">
-      <section class="feed-timeline" aria-labelledby="timeline-title">
-        <header class="feed-section-heading">
-          <div>
-            <span class="feed-eyebrow">Para você</span>
-            <h2 id="timeline-title">Atualizações da comunidade</h2>
-          </div>
+    <section class="feed-timeline" aria-labelledby="timeline-title">
+      <header class="feed-section-heading">
+        <div>
+          <span class="feed-eyebrow">Para você</span>
+          <h2 id="timeline-title">Atualizações da comunidade</h2>
+        </div>
 
-          <a routerLink="/preferencias/discovery-settings">
-            Ajustar preferências
-          </a>
-        </header>
+        <a routerLink="/preferencias/discovery-settings">
+          Ajustar preferências
+        </a>
+      </header>
 
-        @if (feedPhotos.length > 0) {
-          <div
-            class="feed-list"
-            role="list"
-            aria-label="Publicações recomendadas"
-          >
-            @for (
-              item of feedPhotos;
-              track trackByPhotoId($index, item);
-              let i = $index
-            ) {
-              <app-public-photo-card
-                role="listitem"
-                [photo]="item"
-                variant="latest"
-                (preview)="openPhoto('feed', i)"
-              />
-            }
-          </div>
-        } @else {
-          <div class="feed-empty" role="status" aria-live="polite">
-            <span class="feed-eyebrow">Sem publicações</span>
-            <h3>O feed ainda está vazio</h3>
-            <p>
-              Novas fotos públicas aparecerão aqui conforme pessoas compatíveis
-              e outros perfis da comunidade publicarem conteúdo.
-            </p>
-
-            <a routerLink="/dashboard/explorar">Descobrir pessoas</a>
-          </div>
-        }
-      </section>
-
-      <aside class="feed-guide" aria-labelledby="feed-guide-title">
-        <span class="feed-eyebrow">Como funciona</span>
-        <h2 id="feed-guide-title">Um feed menos repetitivo</h2>
+      <details class="feed-info">
+        <summary>Como este feed é organizado</summary>
         <p>
-          A timeline prioriza compatibilidade e atividade recente, mas limita a
-          repetição do mesmo autor para apresentar pessoas diferentes.
+          Perfis compatíveis aparecem primeiro, publicações impulsionadas são
+          identificadas e cada autor ocupa no máximo duas posições por
+          carregamento.
         </p>
+      </details>
 
-        <ul>
-          <li>Perfis compatíveis aparecem primeiro.</li>
-          <li>Publicações impulsionadas são identificadas no card.</li>
-          <li>No máximo duas publicações do mesmo autor por carregamento.</li>
-        </ul>
-      </aside>
-    </div>
+      @if (feedPhotos.length > 0) {
+        <div
+          class="feed-list"
+          role="list"
+          aria-label="Publicações recomendadas"
+        >
+          @for (
+            item of feedPhotos;
+            track trackByPhotoId($index, item);
+            let i = $index
+          ) {
+            <app-public-photo-card
+              role="listitem"
+              [photo]="item"
+              variant="feed"
+              (preview)="openPhoto('feed', i)"
+            />
+          }
+        </div>
+      } @else {
+        <div class="feed-empty" role="status" aria-live="polite">
+          <span class="feed-eyebrow">Sem publicações</span>
+          <h3>O feed ainda está vazio</h3>
+          <p>
+            Novas fotos públicas aparecerão aqui conforme pessoas compatíveis e
+            outros perfis da comunidade publicarem conteúdo.
+          </p>
 
-    @if (vm.compatibleProfiles.length > 0) {
-      <section class="feed-people" aria-labelledby="feed-people-title">
-        <header class="feed-section-heading">
-          <div>
-            <span class="feed-eyebrow">Pessoas</span>
-            <h2 id="feed-people-title">Perfis compatíveis</h2>
-          </div>
-
-          <a routerLink="/dashboard/explorar">Ver todos</a>
-        </header>
-
-        <app-public-profiles-list
-          [profiles]="vm.compatibleProfiles"
-          [loading]="false"
-          [errorMessage]="null"
-        />
-      </section>
-    }
+          <a routerLink="/dashboard/explorar">Descobrir pessoas</a>
+        </div>
+      }
+    </section>
 
     @if (lightboxState) {
       <app-public-photo-lightbox
