@@ -2,7 +2,7 @@
 //
 // Responsabilidade:
 // - preservar os contratos e filtros puros de sidebar-config.ts;
-// - apresentar Pessoas, Locais e Comunidades dentro de Descobrir;
+// - apresentar Feed, Pessoas, Locais e Comunidades dentro de Descobrir;
 // - apresentar Mensagens e Salas dentro de Conversas;
 // - mover a gestão da assinatura para o grupo Conta;
 // - manter Área VIP e Recursos premium como destinos condicionais;
@@ -133,6 +133,14 @@ function composeDomainNavigation(
     .filter((section) => section.key !== 'communities')
     .map((section): SidebarSection => {
       if (section.key === 'explore') {
+        const feedItem: SidebarLinkItem = {
+          id: 'social-feed',
+          label: 'Feed',
+          route: '/descobrir',
+          icon: '📰',
+          exact: true,
+          ariaLabel: 'Abrir o feed de publicações recomendadas',
+        };
         const peopleItem: SidebarLinkItem = {
           id: 'discover-people',
           label: 'Pessoas',
@@ -166,7 +174,7 @@ function composeDomainNavigation(
         return {
           ...section,
           title: 'Descobrir',
-          items: [peopleItem, ...socialItems],
+          items: [feedItem, peopleItem, ...socialItems],
         };
       }
 
