@@ -6,6 +6,7 @@ import { Auth } from '@angular/fire/auth';
 import { Firestore } from '@angular/fire/firestore';
 import { Functions } from '@angular/fire/functions';
 import { of } from 'rxjs';
+import { By } from '@angular/platform-browser';
 
 import { PrincipalComponent } from './principal.component';
 import {
@@ -117,5 +118,17 @@ describe('PrincipalComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('mantém uma hierarquia única e sem hero redundante', () => {
+    const headings = fixture.debugElement.queryAll(By.css('h1'));
+    const title = headings[0]?.nativeElement as HTMLHeadingElement;
+
+    expect(headings).toHaveLength(1);
+    expect(title.textContent?.trim()).toBe('Hoje');
+    expect(fixture.debugElement.query(By.css('.principal-hero'))).toBeNull();
+    expect(
+      fixture.debugElement.queryAll(By.css('.principal-social-summary a'))
+    ).toHaveLength(2);
   });
 });
