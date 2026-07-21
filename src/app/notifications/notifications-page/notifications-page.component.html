@@ -1,23 +1,21 @@
 <!-- src/app/notifications/notifications-page/notifications-page.component.html -->
-
 @if (vm$ | async; as vm) {
   @let markAllBusy = ((markAllBusy$ | async) || false);
 
   <section class="notifications-page" aria-labelledby="notifications-title">
-    <header class="notifications-hero">
-      <div>
-        <span class="notifications-hero__eyebrow">Central</span>
-        <h1 id="notifications-title">Notificações</h1>
-        <p>
-          Atualizações da plataforma, status e interações importantes sem ruído desnecessário.
-        </p>
-      </div>
+    <header class="notifications-hero notifications-hero--compact">
+      <h1 id="notifications-title">Notificações</h1>
 
       @if (!vm.loading) {
         <div class="notifications-hero__actions">
-          <span class="notifications-hero__count">
-            {{ vm.unreadCount }} {{ vm.unreadCount === 1 ? 'não lida' : 'não lidas' }}
-          </span>
+          @if (vm.unreadCount > 0) {
+            <span
+              class="notifications-hero__count"
+              [attr.aria-label]="vm.unreadCount + (vm.unreadCount === 1 ? ' notificação não lida' : ' notificações não lidas')"
+            >
+              {{ vm.unreadCount }} nova{{ vm.unreadCount === 1 ? '' : 's' }}
+            </span>
+          }
 
           <a class="notifications-hero__button" routerLink="/preferencias/notificacoes">
             Preferências
@@ -30,7 +28,7 @@
               (click)="markAllAsRead()"
               [disabled]="markAllBusy"
             >
-              {{ markAllBusy ? 'Marcando...' : 'Marcar todas como lidas' }}
+              {{ markAllBusy ? 'Marcando...' : 'Marcar todas' }}
             </button>
           }
         </div>
@@ -43,8 +41,8 @@
       </div>
     } @else if (vm.items.length === 0) {
       <div class="notifications-state notifications-state--empty" role="status">
-        <strong>Nenhuma notificação por enquanto.</strong>
-        <span>Quando houver algo relevante, vai aparecer aqui.</span>
+        <strong>Nenhuma notificação.</strong>
+        <span>Atualizações importantes aparecerão aqui.</span>
       </div>
     } @else {
       <div class="notifications-list" role="list" aria-label="Lista de notificações">
@@ -66,31 +64,31 @@
 
               <p>{{ item.body }}</p>
 
-              <div class="notification-card__actions">
-                @if (notificationRoute(item)) {
-                  <button
-                    type="button"
-                    class="notification-card__link notification-card__link--button"
-                    (click)="openNotification(item)"
-                    [disabled]="isBusy(item.id)"
-                  >
-                    {{ isBusy(item.id) ? 'Abrindo...' : 'Abrir' }}
-                  </button>
-                }
+              @if (notificationRoute(item) || item.readAt === null) {
+                <div class="notification-card__actions">
+                  @if (notificationRoute(item)) {
+                    <button
+                      type="button"
+                      class="notification-card__link notification-card__link--button"
+                      (click)="openNotification(item)"
+                      [disabled]="isBusy(item.id)"
+                    >
+                      {{ isBusy(item.id) ? 'Abrindo...' : 'Abrir' }}
+                    </button>
+                  }
 
-                @if (item.readAt === null) {
-                  <button
-                    type="button"
-                    class="notification-card__link notification-card__link--button"
-                    (click)="markAsRead(item)"
-                    [disabled]="isBusy(item.id)"
-                  >
-                    {{ isBusy(item.id) ? 'Marcando...' : 'Marcar como lida' }}
-                  </button>
-                } @else {
-                  <span class="notification-card__read-state">Lida</span>
-                }
-              </div>
+                  @if (item.readAt === null) {
+                    <button
+                      type="button"
+                      class="notification-card__link notification-card__link--button"
+                      (click)="markAsRead(item)"
+                      [disabled]="isBusy(item.id)"
+                    >
+                      {{ isBusy(item.id) ? 'Marcando...' : 'Marcar como lida' }}
+                    </button>
+                  }
+                </div>
+              }
             </div>
           </article>
         }
