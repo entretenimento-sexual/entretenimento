@@ -35,6 +35,110 @@ function Get-RepositoryStatus {
   return $status
 }
 
+function Get-StatusPath {
+  param([Parameter(Mandatory = $true)][string]$Entry)
+
+  if ($Entry.Length -lt 4) {
+    return ''
+  }
+
+  $path = $Entry.Substring(3).Trim()
+
+  if ($path -match ' -> ') {
+    $path = ($path -split ' -> ')[-1]
+  }
+
+  return $path.Trim('"')
+}
+
+function Test-GeneratedStatusEntry {
+  param([Parameter(Mandatory = $true)][string]$Entry)
+
+  $path = Get-StatusPath -Entry $Entry
+
+  return $path -eq 'firestore.rules' -or
+    $path -match '^firebase-export-[^/\\]+(?:[/\\].*)?$'
+}
+
+function Move-GeneratedEmulatorExports {
+  $exports = @(
+    Get-ChildItem -LiteralPath $ProjectRoot -Directory -Filter 'firebase-export-*' -ErrorAction SilentlyContinue
+  )
+
+  if ($exports.Count -eq 0) {
+    return
+  }
+
+  $archiveRoot = Join-Path $ProjectRoot '.emulator-data-backups\manual-exports'
+
+  if (-not (Test-Path $archiveRoot)) {
+    New-Item -ItemType Directory -Path $archiveRoot -Force | Out-Null
+  }
+
+  foreach ($export in $exports) {
+    $target = Join-Path $archiveRoot $export.Name
+
+    if (Test-Path $target) {
+      $suffix = Get-Date -Format 'yyyyMMdd-HHmmssfff'
+      $target = Join-Path $archiveRoot "$($export.Name)-$suffix"
+    }
+
+    Write-Host "[work:resume] Arquivando exportacao do Emulator: $($export.Name)" -ForegroundColor Yellow
+    Move-Item -LiteralPath $export.FullName -Destination $target
+    Write-Host "[work:resume] Exportacao preservada em: $target" -ForegroundColor Green
+  }
+}
+
+function Restore-GeneratedRulesArtifact {
+  $rulesPath = Join-Path $ProjectRoot 'firestore.rules'
+  $rulesTracked = $false
+
+  & git ls-files --error-unmatch -- firestore.rules *> $null
+  if ($LASTEXITCODE -eq 0) {
+    $rulesTracked = $true
+  }
+
+  if ($rulesTracked) {
+    Invoke-NativeStep 'Restaurando firestore.rules gerado localmente' {
+      git restore -- firestore.rules
+    }
+    return
+  }
+
+  if (Test-Path $rulesPath) {
+    Write-Host '[work:resume] firestore.rules local preservado como artefato ignorado.' -ForegroundColor DarkGray
+  }
+}
+
+function Resolve-GeneratedRepositoryArtifacts {
+  $status = @(Get-RepositoryStatus)
+
+  if ($status.Count -eq 0) {
+    return
+  }
+
+  $nonGeneratedChanges = @(
+    $status | Where-Object { -not (Test-GeneratedStatusEntry -Entry $_) }
+  )
+
+  if ($nonGeneratedChanges.Count -gt 0) {
+    Write-Host '[work:resume] Alteracoes locais detectadas:' -ForegroundColor Yellow
+    $status | ForEach-Object { Write-Host "  $_" }
+    throw 'A retomada foi interrompida para nao sobrescrever trabalho local.'
+  }
+
+  Move-GeneratedEmulatorExports
+  Restore-GeneratedRulesArtifact
+
+  $remainingStatus = @(Get-RepositoryStatus)
+
+  if ($remainingStatus.Count -gt 0) {
+    Write-Host '[work:resume] Artefatos locais ainda impedem a sincronizacao:' -ForegroundColor Yellow
+    $remainingStatus | ForEach-Object { Write-Host "  $_" }
+    throw 'Nao foi possivel normalizar automaticamente os artefatos gerados.'
+  }
+}
+
 function Get-GitScalar {
   param(
     [Parameter(Mandatory = $true)]
@@ -118,23 +222,7 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   throw 'Node.js nao foi encontrado no PATH.'
 }
 
-$status = @(Get-RepositoryStatus)
-
-if ($status.Count -gt 0) {
-  $nonGeneratedChanges = @(
-    $status | Where-Object { $_ -notmatch 'firestore\.rules$' }
-  )
-
-  if ($nonGeneratedChanges.Count -gt 0) {
-    Write-Host '[work:resume] Alteracoes locais detectadas:' -ForegroundColor Yellow
-    $status | ForEach-Object { Write-Host "  $_" }
-    throw 'A retomada foi interrompida para nao sobrescrever trabalho local.'
-  }
-
-  Invoke-NativeStep 'Restaurando firestore.rules gerado localmente' {
-    git restore -- firestore.rules
-  }
-}
+Resolve-GeneratedRepositoryArtifacts
 
 $currentBranch = Get-GitScalar `
   -Arguments @('branch', '--show-current') `
@@ -224,34 +312,28 @@ if ($Install -or -not $functionsInstallCurrent) {
 }
 
 if ($Validate) {
-  try {
-    Invoke-NativeStep 'Executando build e testes das Functions' {
-      npm.cmd --prefix functions run test
-    }
+  Invoke-NativeStep 'Executando build e testes das Functions' {
+    npm.cmd --prefix functions run test
+  }
 
-    Invoke-NativeStep 'Validando lint completo das Functions' {
-      npm.cmd --prefix functions run lint:deploy:all
-    }
+  Invoke-NativeStep 'Validando lint completo das Functions' {
+    npm.cmd --prefix functions run lint:deploy:all
+  }
 
-    Invoke-NativeStep 'Executando testes Angular' {
-      npm.cmd run test:ci
-    }
+  Invoke-NativeStep 'Executando testes Angular' {
+    npm.cmd run test:ci
+  }
 
-    Invoke-NativeStep 'Executando build Angular de producao' {
-      npm.cmd run build
-    }
+  Invoke-NativeStep 'Executando build Angular de producao' {
+    npm.cmd run build
+  }
 
-    Invoke-NativeStep 'Executando E2E completo de videos' {
-      npm.cmd run test:media:video:e2e
-    }
+  Invoke-NativeStep 'Executando E2E completo de videos' {
+    npm.cmd run test:media:video:e2e
+  }
 
-    Invoke-NativeStep 'Executando E2E de revalidacao de idade' {
-      npm.cmd run test:compliance:age:e2e
-    }
-  } finally {
-    if (Test-Path (Join-Path $ProjectRoot 'firestore.rules')) {
-      & git restore -- firestore.rules
-    }
+  Invoke-NativeStep 'Executando E2E de revalidacao de idade' {
+    npm.cmd run test:compliance:age:e2e
   }
 }
 
