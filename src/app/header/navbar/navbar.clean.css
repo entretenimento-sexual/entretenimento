@@ -164,11 +164,11 @@
   }
 }
 
-:host-context(html.high-contrast) .account-menu__summary,
-:host-context(html.high-contrast) .account-menu__panel,
-:host-context(html.high-contrast) .account-menu__panel a,
-:host-context(html.high-contrast) .account-menu__panel button,
-:host-context(html.high-contrast) .appearance-toggle {
+html.high-contrast .account-menu__summary,
+html.high-contrast .account-menu__panel,
+html.high-contrast .account-menu__panel a,
+html.high-contrast .account-menu__panel button,
+html.high-contrast .appearance-toggle {
   border-color: currentColor !important;
   background: var(--background-color) !important;
   color: var(--text-color) !important;
