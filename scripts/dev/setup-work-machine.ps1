@@ -40,6 +40,22 @@ function Invoke-Native {
   }
 }
 
+function Test-NativeCommand {
+  param([Parameter(Mandatory = $true)][scriptblock]$Command)
+
+  $previousErrorActionPreference = $ErrorActionPreference
+
+  try {
+    $ErrorActionPreference = 'Continue'
+    & $Command *> $null
+    return $LASTEXITCODE -eq 0
+  } catch {
+    return $false
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+}
+
 function Get-NodeVersion {
   param([Parameter(Mandatory = $true)][string]$Executable)
 
@@ -209,17 +225,37 @@ if ($hasEmbeddedCredential -or $origin -ne $ExpectedOrigin) {
 }
 
 $credentialManagerAvailable = $false
-& git credential-manager version *> $null
-if ($LASTEXITCODE -eq 0) {
+$credentialManagerConfigured = $false
+$credentialManagerCommand = Get-Command 'git-credential-manager.exe' -CommandType Application -ErrorAction SilentlyContinue
+
+if (-not $credentialManagerCommand) {
+  $credentialManagerCommand = Get-Command 'git-credential-manager-core.exe' -CommandType Application -ErrorAction SilentlyContinue
+}
+
+if ($credentialManagerCommand) {
+  $credentialManagerAvailable = Test-NativeCommand {
+    & $credentialManagerCommand.Source --version
+  }
+
+  if ($credentialManagerAvailable) {
+    $credentialManagerConfigured = Test-NativeCommand {
+      & $credentialManagerCommand.Source configure
+    }
+  }
+} elseif (Test-NativeCommand { git credential-manager --version }) {
   $credentialManagerAvailable = $true
-  Invoke-Native 'Configurando Git Credential Manager' {
+  $credentialManagerConfigured = Test-NativeCommand {
     git credential-manager configure
   }
 }
 
-if (-not $credentialManagerAvailable) {
-  Write-Host '[work:prepare] Git Credential Manager nao foi detectado.' -ForegroundColor Yellow
-  Write-Host '[work:prepare] O Git podera abrir o navegador ou solicitar autenticacao no primeiro fetch.' -ForegroundColor Yellow
+if ($credentialManagerConfigured) {
+  Write-Step 'Git Credential Manager confirmado.'
+} elseif ($credentialManagerAvailable) {
+  Write-Host '[work:prepare] Git Credential Manager detectado, mas a configuracao automatica nao foi necessaria ou nao foi aceita.' -ForegroundColor Yellow
+} else {
+  Write-Host '[work:prepare] Git Credential Manager nao foi detectado. O fluxo continuara porque o acesso ao origin ja foi validado.' -ForegroundColor Yellow
+  Write-Host '[work:prepare] O Git podera abrir o navegador ou solicitar autenticacao em um fetch futuro.' -ForegroundColor Yellow
 }
 
 if (-not (Test-Path $ResumeScript)) {
