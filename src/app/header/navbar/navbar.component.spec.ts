@@ -6,6 +6,7 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { BehaviorSubject, of } from 'rxjs';
+import { By } from '@angular/platform-browser';
 
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 
@@ -67,6 +68,7 @@ describe('NavbarComponent', () => {
   let router: Router;
 
   let session: MockAuthSessionService;
+  let currentUserStore: MockCurrentUserStoreService;
   let sidebar: MockSidebarService;
   let notify: MockErrorNotificationService;
   let logout: MockLogoutService;
@@ -114,6 +116,9 @@ describe('NavbarComponent', () => {
 
     router = TestBed.inject(Router);
     session = TestBed.inject(AuthSessionService) as unknown as MockAuthSessionService;
+    currentUserStore = TestBed.inject(
+      CurrentUserStoreService
+    ) as unknown as MockCurrentUserStoreService;
     sidebar = TestBed.inject(SidebarService) as unknown as MockSidebarService;
     notify = TestBed.inject(ErrorNotificationService) as unknown as MockErrorNotificationService;
     logout = TestBed.inject(LogoutService) as unknown as MockLogoutService;
@@ -168,5 +173,27 @@ describe('NavbarComponent', () => {
     fixture.detectChanges();
 
     expect(session.currentAuthUser?.uid).toBe('uid-123');
+  });
+
+  it('consolida ações autenticadas no menu compacto da conta', () => {
+    currentUserStore.user$.next({
+      uid: 'uid-123',
+      nickname: 'Alex',
+      photoURL: null,
+      role: 'free',
+    });
+    session.setUid('uid-123');
+    fixture.detectChanges();
+
+    const desktopMenu = fixture.debugElement.query(By.css('.navbar-menu'))
+      .nativeElement as HTMLElement;
+    const accountMenu = fixture.debugElement.query(By.css('.account-menu'))
+      .nativeElement as HTMLElement;
+
+    expect(accountMenu.textContent).toContain('Meu perfil');
+    expect(accountMenu.textContent).toContain('Planos');
+    expect(accountMenu.textContent).toContain('Sair');
+    expect(desktopMenu.textContent).not.toContain('Principal');
+    expect(fixture.debugElement.queryAll(By.css('.appearance-toggle'))).toHaveLength(2);
   });
 });
