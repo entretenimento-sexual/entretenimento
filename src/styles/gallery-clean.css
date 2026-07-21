@@ -1,0 +1,82 @@
+/* Densidade visual das galerias públicas utilitárias. */
+.latest-photos-page,
+.top-photos-page,
+.boosted-photos-page {
+  width: min(100%, 72rem);
+  margin-inline: auto;
+  padding-top: 0.8rem;
+}
+
+.gallery-header-clean {
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.gallery-header-clean h1 {
+  margin: 0;
+  color: var(--text-color);
+  font-size: clamp(1.3rem, 1.18rem + 0.55vw, 1.7rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.latest-photos-page .photos-grid,
+.top-photos-page .photos-grid,
+.boosted-photos-page .photos-grid {
+  gap: clamp(0.65rem, 1.4vw, 1rem);
+}
+
+.latest-photos-page .feed-actions,
+.top-photos-page .feed-actions,
+.boosted-photos-page .feed-actions {
+  margin-top: 0.9rem;
+}
+
+.latest-photos-page .empty-state,
+.top-photos-page app-content-state,
+.boosted-photos-page app-content-state {
+  margin-top: 0.6rem;
+}
+
+.latest-photos-page .empty-state {
+  min-height: 110px;
+  padding: 1rem;
+  border: 1px dashed var(--surface-border);
+  border-radius: 0.85rem;
+  background: var(--surface-color);
+  text-align: center;
+}
+
+.latest-photos-page .empty-state h2,
+.latest-photos-page .empty-state p {
+  margin: 0;
+}
+
+.latest-photos-page .empty-state h2 {
+  font-size: 1rem;
+}
+
+.latest-photos-page .empty-state p {
+  margin-top: 0.25rem;
+  color: color-mix(in oklab, var(--text-color) 64%, transparent);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .latest-photos-page,
+  .top-photos-page,
+  .boosted-photos-page {
+    padding-inline: 0.6rem;
+  }
+}
+
+html.high-contrast .gallery-header-clean,
+html.high-contrast .latest-photos-page .empty-state {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+}
