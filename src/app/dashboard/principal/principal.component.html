@@ -1,34 +1,11 @@
 <!-- src/app/dashboard/principal/principal.component.html -->
-<section class="principal-page" *ngIf="currentUser$ | async as currentUser" aria-label="Hoje">
-  <section class="principal-hero app-card" aria-labelledby="principal-title">
-    <div class="principal-hero__copy app-card__body">
-      <p class="principal-hero__eyebrow">Hoje na plataforma</p>
-      <h1 id="principal-title">
-        Olá, {{ currentUser.nickname || 'bem-vindo' }}.
-      </h1>
-      <p class="principal-hero__description">
-        Revise pendências, ajuste seu perfil e acompanhe sinais sociais importantes para começar com mais controle.
-      </p>
-
-      <div class="principal-hero__chips" aria-label="Atalhos principais">
-        @if (preferencesLink$ | async; as preferencesLink) {
-          <a class="principal-action principal-action--accent" [routerLink]="preferencesLink">
-            Preferências
-          </a>
-        }
-
-        @if (profileLink$ | async; as profileLink) {
-          <a class="principal-action principal-action--ghost" [routerLink]="profileLink">
-            Editar perfil
-          </a>
-        }
-
-        <a class="principal-action principal-action--ghost" routerLink="/friends/list">
-          Minha rede
-        </a>
-      </div>
+<section class="principal-page" *ngIf="currentUser$ | async as currentUser" aria-labelledby="principal-title">
+  <header class="principal-topbar">
+    <div>
+      <h1 id="principal-title">Hoje</h1>
+      <p>Olá, {{ currentUser.nickname || 'bem-vindo' }}.</p>
     </div>
-  </section>
+  </header>
 
   @if (profileChecklist$ | async; as checklist) {
     @if (!checklist.isComplete) {
@@ -39,7 +16,6 @@
         <div class="profile-checklist__summary">
           <div class="profile-checklist__copy">
             <h2>Perfil {{ checklist.progress }}%</h2>
-            <p>Complete o que falta para melhorar sua presença e liberar uma experiência mais consistente.</p>
           </div>
 
           <div class="principal-metric__actions">
@@ -81,14 +57,8 @@
                 [routerLink]="item.routerLink"
               >
                 <span class="profile-checklist__status" aria-hidden="true">!</span>
-
-                <span class="profile-checklist__text">
-                  <strong>{{ item.title }}</strong>
-                </span>
-
-                <span class="profile-checklist__action">
-                  {{ item.actionLabel }}
-                </span>
+                <strong>{{ item.title }}</strong>
+                <span class="profile-checklist__action">{{ item.actionLabel }}</span>
               </a>
             }
           </div>
@@ -97,44 +67,17 @@
     }
   }
 
-  <section class="principal-overview app-card-grid" *ngIf="currentUserStatus$ | async as currentStatus" aria-label="Resumo da conta">
-    <article class="principal-metric principal-metric--account app-card app-card--compact">
-      <span class="principal-metric__label">Conta</span>
-      <strong class="principal-metric__value">
-        {{ currentStatus === 'ready' ? 'Pronta' : 'Sincronizando' }}
-      </strong>
+  <nav class="principal-social-summary" aria-label="Resumo social">
+    <a routerLink="/friends/list">
+      <strong>{{ (friendsCount$ | async) ?? 0 }}</strong>
+      <span>Amigos</span>
+    </a>
 
-      <div class="principal-metric__actions" aria-label="Ajustes da conta">
-        @if (preferencesLink$ | async; as preferencesLink) {
-          <a class="principal-action principal-action--ghost principal-action--small" [routerLink]="preferencesLink">
-            Preferências
-          </a>
-        }
-
-        @if (profileLink$ | async; as profileLink) {
-          <a class="principal-action principal-action--ghost principal-action--small" [routerLink]="profileLink">
-            Editar perfil
-          </a>
-        }
-      </div>
-    </article>
-
-    <article class="principal-metric app-card app-card--compact">
-      <span class="principal-metric__label">Rede</span>
-      <strong class="principal-metric__value">
-        {{ (friendsCount$ | async) ?? 0 }} amigos
-      </strong>
-      <a routerLink="/friends/list" class="principal-inline-link">Ver rede</a>
-    </article>
-
-    <article class="principal-metric app-card app-card--compact">
-      <span class="principal-metric__label">Solicitações</span>
-      <strong class="principal-metric__value">
-        {{ (pendingRequestsCount$ | async) ?? 0 }} pendentes
-      </strong>
-      <a routerLink="/friends/list" class="principal-inline-link">Abrir solicitações</a>
-    </article>
-  </section>
+    <a routerLink="/friends/list">
+      <strong>{{ (pendingRequestsCount$ | async) ?? 0 }}</strong>
+      <span>Solicitações</span>
+    </a>
+  </nav>
 
   <app-user-intent-status-composer [user]="currentUser" />
 
