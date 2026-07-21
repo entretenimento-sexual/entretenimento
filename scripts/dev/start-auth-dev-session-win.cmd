@@ -10,8 +10,9 @@ rem - inicia uma nova sessao quando todas as portas estao livres;
 rem - reutiliza Angular + Firebase quando a sessao existente esta saudavel;
 rem - recupera processos orfaos reconhecidos do proprio ambiente;
 rem - bloqueia processos desconhecidos para nao encerrar servicos alheios;
-rem - limpa o cache de build do Angular antes de uma nova inicializacao;
+rem - preserva o cache Angular por padrao para acelerar retomadas;
 rem - inicia Firebase Emulators e Angular em janelas separadas;
+rem - registra a saida Angular e exibe diagnostico quando a porta nao abrir;
 rem - aguarda os servicos antes de abrir o navegador.
 rem
 rem Nao exige administrador e nao usa kill-port de forma indiscriminada.
@@ -21,6 +22,8 @@ set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..\..") do set "PROJECT_ROOT=%%~fI"
 set "SESSION_REUSED=0"
 set "CLEANUP_SCRIPT=%PROJECT_ROOT%\scripts\dev\cleanup-stale-local-session.ps1"
+set "ANGULAR_SCRIPT=%PROJECT_ROOT%\scripts\dev\start-angular-emulator-win.ps1"
+set "ANGULAR_LOG=%PROJECT_ROOT%\.dev-logs\angular-dev.log"
 
 cd /d "%PROJECT_ROOT%"
 
@@ -65,14 +68,17 @@ if not "%SESSION_STATE%"=="0" (
   )
 )
 
-if exist "%PROJECT_ROOT%\.angular\cache" (
-  echo [dev:auth] Limpando cache Angular para evitar bundles antigos...
-  rmdir /s /q "%PROJECT_ROOT%\.angular\cache"
+if "%ENTRETENIMENTO_FORCE_ANGULAR_CACHE_CLEAN%"=="1" (
   if exist "%PROJECT_ROOT%\.angular\cache" (
-    echo [dev:auth] ERRO: nao foi possivel limpar .angular\cache.
-    echo [dev:auth] Feche processos Node/Angular ainda ativos e tente novamente.
-    exit /b 1
+    echo [dev:auth] Limpando cache Angular por solicitacao explicita...
+    rmdir /s /q "%PROJECT_ROOT%\.angular\cache"
+    if exist "%PROJECT_ROOT%\.angular\cache" (
+      echo [dev:auth] ERRO: nao foi possivel limpar .angular\cache.
+      exit /b 1
+    )
   )
+) else (
+  echo [dev:auth] Preservando cache Angular para acelerar a inicializacao.
 )
 
 echo [dev:auth] Abrindo emuladores em uma nova janela...
@@ -86,15 +92,29 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [dev:auth] Firebase pronto. Abrindo Angular em outra janela...
-start "Entretenimento - Angular" /D "%PROJECT_ROOT%" cmd /k "call npm.cmd run start:emu -- --host 127.0.0.1 --port 4200"
+if not exist "%ANGULAR_SCRIPT%" (
+  echo [dev:auth] ERRO: launcher Angular nao foi encontrado: %ANGULAR_SCRIPT%
+  exit /b 1
+)
+
+if exist "%ANGULAR_LOG%" del /q "%ANGULAR_LOG%" >nul 2>&1
+
+echo [dev:auth] Firebase pronto. Abrindo Angular com log persistente...
+start "Entretenimento - Angular" /D "%PROJECT_ROOT%" powershell -NoExit -NoProfile -ExecutionPolicy Bypass -File "%ANGULAR_SCRIPT%" -ProjectRoot "%PROJECT_ROOT%" -HostAddress "127.0.0.1" -Port 4200
 
 echo [dev:auth] Aguardando Angular em 127.0.0.1:4200...
-node "%PROJECT_ROOT%\scripts\dev\wait-for-ports.mjs" --ports=4200 --timeout=240000 --label=Angular
+node "%PROJECT_ROOT%\scripts\dev\wait-for-ports.mjs" --ports=4200 --timeout=360000 --label=Angular
 if errorlevel 1 (
   echo [dev:auth] ERRO: Angular nao ficou pronto no tempo esperado.
-  echo [dev:auth] Verifique a janela Entretenimento - Angular.
-  echo [dev:auth] Teste manual: npm.cmd run start:emu -- --host 127.0.0.1 --port 4200
+  echo [dev:auth] Log Angular: %ANGULAR_LOG%
+
+  if exist "%ANGULAR_LOG%" (
+    echo [dev:auth] Ultimas linhas do Angular:
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Content -LiteralPath '%ANGULAR_LOG%' -Tail 80"
+  ) else (
+    echo [dev:auth] O log Angular nao foi criado. Verifique a janela Entretenimento - Angular.
+  )
+
   exit /b 1
 )
 
