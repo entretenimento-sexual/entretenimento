@@ -37,35 +37,38 @@ if "%SESSION_STATE%"=="10" (
   goto open_browser
 )
 
-if not "%SESSION_STATE%"=="0" (
-  if not exist "%CLEANUP_SCRIPT%" (
-    echo [dev:auth] ERRO: script seguro de limpeza nao foi encontrado.
-    exit /b 1
-  )
+if not exist "%CLEANUP_SCRIPT%" (
+  echo [dev:auth] ERRO: script seguro de limpeza nao foi encontrado.
+  exit /b 1
+)
 
+if "%SESSION_STATE%"=="0" (
+  echo [dev:auth] Portas livres. Verificando launchers residuais reconhecidos...
+) else (
   echo [dev:auth] Ambiente parcial detectado. Verificando processos residuais reconhecidos...
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%CLEANUP_SCRIPT%" -ProjectRoot "%PROJECT_ROOT%"
-  set "CLEANUP_STATE=!ERRORLEVEL!"
+)
 
-  if not "!CLEANUP_STATE!"=="0" (
-    echo [dev:auth] ERRO: nao foi seguro liberar automaticamente todas as portas.
-    echo [dev:auth] Nenhum processo desconhecido foi encerrado.
-    exit /b 1
-  )
+powershell -NoProfile -ExecutionPolicy Bypass -File "%CLEANUP_SCRIPT%" -ProjectRoot "%PROJECT_ROOT%"
+set "CLEANUP_STATE=!ERRORLEVEL!"
 
-  echo [dev:auth] Revalidando portas apos a recuperacao...
-  node "%PROJECT_ROOT%\scripts\dev\check-local-dev-session.mjs"
-  set "SESSION_STATE=!ERRORLEVEL!"
+if not "!CLEANUP_STATE!"=="0" (
+  echo [dev:auth] ERRO: nao foi seguro normalizar o ambiente automaticamente.
+  echo [dev:auth] Nenhum processo desconhecido foi encerrado.
+  exit /b 1
+)
 
-  if "!SESSION_STATE!"=="10" (
-    set "SESSION_REUSED=1"
-    goto open_browser
-  )
+echo [dev:auth] Revalidando portas apos a recuperacao...
+node "%PROJECT_ROOT%\scripts\dev\check-local-dev-session.mjs"
+set "SESSION_STATE=!ERRORLEVEL!"
 
-  if not "!SESSION_STATE!"=="0" (
-    echo [dev:auth] ERRO: o ambiente permaneceu inconsistente apos a recuperacao segura.
-    exit /b 1
-  )
+if "!SESSION_STATE!"=="10" (
+  set "SESSION_REUSED=1"
+  goto open_browser
+)
+
+if not "!SESSION_STATE!"=="0" (
+  echo [dev:auth] ERRO: o ambiente permaneceu inconsistente apos a recuperacao segura.
+  exit /b 1
 )
 
 if "%ENTRETENIMENTO_FORCE_ANGULAR_CACHE_CLEAN%"=="1" (
