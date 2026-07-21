@@ -1,6 +1,6 @@
 <!-- src/app/header/navbar/navbar.component.html -->
 <div class="navbar-with-links">
-  <nav class="navbar" role="navigation" aria-label="Navegação principal">
+  <nav class="navbar" aria-label="Navegação principal">
     <div class="navbar-container">
       <div class="navbar-header">
         <a
@@ -29,85 +29,103 @@
         }
       </div>
 
-      <ul class="navbar-menu" role="menubar">
+      <ul class="navbar-menu">
         @if (isAuthenticated && !isPublicAuthRoute) {
-          <li class="navbar-item" role="none">
-            <a
-              routerLink="/dashboard/principal"
-              class="navbar-link"
-              routerLinkActive="active"
-              #rlaPrincipal="routerLinkActive"
-              [attr.aria-current]="rlaPrincipal.isActive ? 'page' : null"
-              role="menuitem"
-            >
-              Principal
-            </a>
-          </li>
-
-          <li class="navbar-item" role="none">
-            <a
-              class="navbar-link"
-              role="menuitem"
-              [routerLink]="myProfileLink"
-              routerLinkActive="active"
-              [routerLinkActiveOptions]="{ exact: false }"
-              #rlaMyProfile="routerLinkActive"
-              [attr.aria-current]="rlaMyProfile.isActive ? 'page' : null"
-              (click)="onMyProfileLinkClick($event)"
-              aria-label="Ir para meu perfil"
-            >
-              Meu Perfil
-            </a>
-          </li>
-
-          <li class="navbar-item" role="none">
+          <li class="navbar-item navbar-item--appearance">
             <button
               type="button"
-              class="navbar-link as-button"
-              (click)="logout()"
-              role="menuitem"
+              class="dark-toggle appearance-toggle"
+              (click)="toggleDarkMode()"
+              [attr.aria-label]="isDarkMode() ? 'Usar modo claro' : 'Usar modo escuro'"
+              [attr.aria-pressed]="isDarkMode() ? 'true' : 'false'"
+              [title]="isDarkMode() ? 'Modo claro' : 'Modo escuro'"
             >
-              Sair
+              <span aria-hidden="true">{{ isDarkMode() ? '☀' : '☾' }}</span>
             </button>
           </li>
 
-          <li class="navbar-item" role="none">
-            <a
-              routerLink="/subscription-plan"
-              class="navbar-link"
-              routerLinkActive="active"
-              #rlaPlanos="routerLinkActive"
-              [attr.aria-current]="rlaPlanos.isActive ? 'page' : null"
-              role="menuitem"
-            >
-              Planos de Assinatura
-            </a>
-          </li>
-        }
-
-        @if (isAuthenticated && isPublicAuthRoute) {
-          <li class="navbar-item" role="none">
+          <li class="navbar-item navbar-item--appearance">
             <button
               type="button"
-              class="navbar-link as-button"
-              (click)="logout()"
-              role="menuitem"
+              class="contrast-toggle appearance-toggle"
+              (click)="toggleHighContrast()"
+              [attr.aria-pressed]="isHighContrast() ? 'true' : 'false'"
+              [attr.aria-label]="isHighContrast() ? 'Desativar alto contraste' : 'Ativar alto contraste'"
+              title="Alto contraste"
             >
+              <span aria-hidden="true">◐</span>
+            </button>
+          </li>
+
+          <li class="navbar-item account-menu-item">
+            <details class="account-menu" #accountMenu>
+              <summary
+                class="account-menu__summary"
+                [attr.aria-label]="'Abrir menu de ' + (nickname || 'usuário')"
+              >
+                @if (photoURL) {
+                  <img
+                    [src]="photoURL"
+                    alt=""
+                    class="user-photo"
+                    width="32"
+                    height="32"
+                    loading="lazy"
+                    decoding="async"
+                    referrerpolicy="no-referrer"
+                  />
+                } @else {
+                  <span class="account-menu__fallback" aria-hidden="true">
+                    {{ nickname ? nickname.charAt(0).toUpperCase() : 'U' }}
+                  </span>
+                }
+
+                <span class="user-name">{{ nickname || 'Conta' }}</span>
+                <span class="account-menu__chevron" aria-hidden="true">⌄</span>
+              </summary>
+
+              <div class="account-menu__panel">
+                <a
+                  [routerLink]="myProfileLink"
+                  routerLinkActive="active"
+                  [routerLinkActiveOptions]="{ exact: false }"
+                  (click)="accountMenu.open = false"
+                >
+                  Meu perfil
+                </a>
+
+                <a
+                  routerLink="/subscription-plan"
+                  routerLinkActive="active"
+                  (click)="accountMenu.open = false"
+                >
+                  Planos
+                </a>
+
+                <button
+                  type="button"
+                  (click)="accountMenu.open = false; logout()"
+                >
+                  Sair
+                </button>
+              </div>
+            </details>
+          </li>
+        } @else if (isAuthenticated && isPublicAuthRoute) {
+          <li class="navbar-item">
+            <button type="button" class="navbar-link as-button" (click)="logout()">
               Sair
             </button>
           </li>
-        }
-
-        @if (!isAuthenticated) {
+        } @else {
           @if (!isLoginPage) {
-            <li class="navbar-item" role="none">
+            <li class="navbar-item">
               <a
                 routerLink="/login"
                 class="navbar-link"
                 routerLinkActive="active"
                 #rlaLogin="routerLinkActive"
                 [attr.aria-current]="rlaLogin.isActive ? 'page' : null"
-                role="menuitem"
               >
                 Entrar
               </a>
@@ -115,75 +133,51 @@
           }
 
           @if (isLoginPage) {
-            <li class="navbar-item" role="none">
+            <li class="navbar-item">
               <a
                 routerLink="/register"
                 class="navbar-link"
                 routerLinkActive="active"
                 #rlaRegister="routerLinkActive"
                 [attr.aria-current]="rlaRegister.isActive ? 'page' : null"
-                role="menuitem"
               >
                 Cadastre-se
               </a>
             </li>
           }
-        }
 
-        @if (isAuthenticated && !isPublicAuthRoute) {
-          <li class="navbar-item user-info" role="none">
-            @if (photoURL) {
-              <img
-                [src]="photoURL"
-                [alt]="'Foto de ' + nickname"
-                class="user-photo"
-                width="32"
-                height="32"
-                loading="lazy"
-                decoding="async"
-                referrerpolicy="no-referrer"
-              />
-            }
-            <span
-              class="user-name"
-              [attr.aria-label]="'Usuário autenticado: ' + nickname"
+          <li class="navbar-item navbar-item--appearance">
+            <button
+              type="button"
+              class="dark-toggle appearance-toggle"
+              (click)="toggleDarkMode()"
+              [attr.aria-label]="isDarkMode() ? 'Usar modo claro' : 'Usar modo escuro'"
+              [attr.aria-pressed]="isDarkMode() ? 'true' : 'false'"
+              [title]="isDarkMode() ? 'Modo claro' : 'Modo escuro'"
             >
-              {{ nickname }}
-            </span>
+              <span aria-hidden="true">{{ isDarkMode() ? '☀' : '☾' }}</span>
+            </button>
+          </li>
+
+          <li class="navbar-item navbar-item--appearance">
+            <button
+              type="button"
+              class="contrast-toggle appearance-toggle"
+              (click)="toggleHighContrast()"
+              [attr.aria-pressed]="isHighContrast() ? 'true' : 'false'"
+              [attr.aria-label]="isHighContrast() ? 'Desativar alto contraste' : 'Ativar alto contraste'"
+              title="Alto contraste"
+            >
+              <span aria-hidden="true">◐</span>
+            </button>
           </li>
         }
-
-        <li class="navbar-item" role="none">
-          <button
-            type="button"
-            class="dark-toggle"
-            (click)="toggleDarkMode()"
-            aria-label="Alternar entre claro e escuro"
-            [attr.aria-pressed]="isDarkMode() ? 'true' : 'false'"
-            role="menuitem"
-          >
-            {{ isDarkMode() ? '🌙' : '☀️' }}
-          </button>
-        </li>
-
-        <li class="navbar-item" role="none">
-          <button
-            type="button"
-            class="contrast-toggle"
-            (click)="toggleHighContrast()"
-            [attr.aria-pressed]="isHighContrast() ? 'true' : 'false'"
-            aria-label="Alternar alto contraste"
-            role="menuitem"
-          >
-            {{ isHighContrast() ? 'HC ON' : 'HC OFF' }}
-          </button>
-        </li>
       </ul>
     </div>
   </nav>
 
   @if (isMobileMenuViewport && isMobileMenuOpen) {
-    <div id="navbar-mobile-panel" class="navbar-mobile-panel" role="menu" aria-label="Menu principal móvel">
+    <div id="navbar-mobile-panel" class="navbar-mobile-panel" aria-label="Menu principal móvel">
       @if (isAuthenticated && !isPublicAuthRoute) {
         <a
           routerLink="/dashboard/principal"
@@ -193,7 +187,7 @@
           [attr.aria-current]="rlaPrincipalMobile.isActive ? 'page' : null"
           (click)="closeMobileMenu()"
         >
-          Principal
+          Hoje
         </a>
 
         <a
@@ -205,7 +199,7 @@
           [attr.aria-current]="rlaProfileMobile.isActive ? 'page' : null"
           (click)="closeMobileMenu()"
         >
-          Meu Perfil
+          Meu perfil
         </a>
 
         <a
@@ -216,7 +210,7 @@
           [attr.aria-current]="rlaPlanosMobile.isActive ? 'page' : null"
           (click)="closeMobileMenu()"
         >
-          Planos de Assinatura
+          Planos
         </a>
 
         <button
@@ -268,7 +262,7 @@
           class="navbar-mobile-link navbar-mobile-link--button"
           (click)="toggleDarkMode()"
         >
-          {{ isDarkMode() ? 'Modo escuro' : 'Modo claro' }}
+          {{ isDarkMode() ? 'Usar modo claro' : 'Usar modo escuro' }}
         </button>
 
         <button
