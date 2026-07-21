@@ -99,9 +99,9 @@
   }
 }
 
-:host-context(html.high-contrast) .chat-rooms__toolbar--compact,
-:host-context(html.high-contrast) .chat-rooms__card,
-:host-context(html.high-contrast) .chat-rooms__place {
+html.high-contrast .chat-rooms__toolbar--compact,
+html.high-contrast .chat-rooms__card,
+html.high-contrast .chat-rooms__place {
   border-color: currentColor !important;
   background: var(--background-color) !important;
   color: var(--text-color) !important;
