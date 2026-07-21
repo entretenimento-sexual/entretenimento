@@ -8,8 +8,23 @@ match /public_index/{docId} {
   function isNicknameDoc() { return docId.matches('^nickname:.+'); }
   function isEmailDoc() { return docId.matches('^email:.+'); }
 
+  function hasRequiredRequestFields() {
+    return request.resource.data.keys().hasAll([
+      "uid",
+      "type",
+      "value",
+      "createdAt",
+      "lastChangedAt"
+    ]);
+  }
+
   allow get: if isNicknameDoc()
-    || (signedIn() && isEmailDoc() && resource.data.uid == uid());
+    || (
+      signedIn()
+      && isEmailDoc()
+      && resource.data.keys().hasAny(["uid"])
+      && resource.data.uid == uid()
+    );
 
   allow list: if false;
 
@@ -18,6 +33,7 @@ match /public_index/{docId} {
   function common() {
     return signedIn()
       && validDocId()
+      && hasRequiredRequestFields()
       && request.resource.data.uid == uid()
       && request.resource.data.type in ["nickname","email"]
       && request.resource.data.value is string
@@ -31,12 +47,16 @@ match /public_index/{docId} {
 
   allow update: if signedIn()
     && isEmailDoc()
+    && hasRequiredRequestFields()
     && request.resource.data.uid == uid()
     && request.resource.data.type == "email"
     && request.resource.data.value is string
+    && resource.data.keys().hasAny(["createdAt"])
     && request.resource.data.createdAt == resource.data.createdAt
     // ✅ serverTimestamp obrigatório no update
     && request.resource.data.lastChangedAt == request.time;
 
-  allow delete: if signedIn() && resource.data.uid == uid();
+  allow delete: if signedIn()
+    && resource.data.keys().hasAny(["uid"])
+    && resource.data.uid == uid();
 }
