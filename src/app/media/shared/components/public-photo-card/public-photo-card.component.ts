@@ -1,11 +1,22 @@
 // src/app/media/photos/shared/public-photo-card/public-photo-card.component.ts
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  input,
+  output,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 
-export type TPublicPhotoCardVariant = 'profile' | 'latest' | 'top' | 'boosted';
+export type TPublicPhotoCardVariant =
+  | 'profile'
+  | 'feed'
+  | 'latest'
+  | 'top'
+  | 'boosted';
 
 @Component({
   selector: 'app-public-photo-card',
@@ -32,6 +43,10 @@ export class PublicPhotoCardComponent {
 
   getOwnerName(item: IPublicPhotoItem): string {
     return item.ownerNickname?.trim() || 'Perfil';
+  }
+
+  getOwnerInitial(item: IPublicPhotoItem): string {
+    return this.getOwnerName(item).charAt(0).toLocaleUpperCase('pt-BR') || 'P';
   }
 
   getOwnerMeta(item: IPublicPhotoItem): string | null {
@@ -84,7 +99,10 @@ export class PublicPhotoCardComponent {
     if (typeof value === 'number' && Number.isFinite(value)) return value;
     if (value instanceof Date) return value.getTime();
 
-    const maybeTimestamp = value as { toMillis?: () => number } | null | undefined;
+    const maybeTimestamp = value as
+      | { toMillis?: () => number }
+      | null
+      | undefined;
 
     if (typeof maybeTimestamp?.toMillis === 'function') {
       return maybeTimestamp.toMillis();
