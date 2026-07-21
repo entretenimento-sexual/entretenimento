@@ -158,11 +158,11 @@
   }
 }
 
-:host-context(html.high-contrast) .account-hero--compact,
-:host-context(html.high-contrast) .account-nav,
-:host-context(html.high-contrast) .account-card--clean,
-:host-context(html.high-contrast) .account-grid--clean .account-item,
-:host-context(html.high-contrast) .account-context-panel--compact {
+html.high-contrast .account-hero--compact,
+html.high-contrast .account-nav,
+html.high-contrast .account-card--clean,
+html.high-contrast .account-grid--clean .account-item,
+html.high-contrast .account-context-panel--compact {
   border-color: currentColor !important;
   background: var(--background-color) !important;
   color: var(--text-color) !important;
