@@ -5,17 +5,68 @@
   class="photo-tile app-card app-card--media app-card--interactive"
   role="listitem"
   [class.photo-tile--cover]="item.isCover"
+  [class.photo-tile--feed]="mode === 'feed'"
   [class.photo-tile--boosted]="mode === 'boosted'"
   [class.photo-tile--profile]="mode === 'profile'"
 >
+  @if (mode === 'feed') {
+    <header class="feed-card-header">
+      <a
+        class="feed-card-owner"
+        [routerLink]="profileLink()"
+        [attr.aria-label]="'Abrir perfil de ' + getOwnerName(item)"
+      >
+        @if (item.ownerPhotoURL) {
+          <img
+            class="feed-card-avatar"
+            [src]="item.ownerPhotoURL"
+            [alt]="'Foto de ' + getOwnerName(item)"
+            width="42"
+            height="42"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
+          />
+        } @else {
+          <span class="feed-card-avatar feed-card-avatar--fallback" aria-hidden="true">
+            {{ getOwnerInitial(item) }}
+          </span>
+        }
+
+        <span class="feed-card-owner-copy">
+          <strong>{{ getOwnerName(item) }}</strong>
+
+          @if (getOwnerMeta(item) || getOwnerLocation(item)) {
+            <small>
+              {{ getOwnerMeta(item) }}
+              @if (getOwnerMeta(item) && getOwnerLocation(item)) {
+                <span aria-hidden="true"> · </span>
+              }
+              {{ getOwnerLocation(item) }}
+            </small>
+          }
+        </span>
+      </a>
+
+      <time
+        class="feed-card-time"
+        [attr.datetime]="item.publishedAt"
+        [attr.aria-label]="'Publicado ' + getPublishedLabel(item)"
+      >
+        {{ getPublishedLabel(item) }}
+      </time>
+    </header>
+  }
+
   <button
     type="button"
     class="photo-card-link app-media-frame app-media-frame--portrait"
+    [class.photo-card-link--feed]="mode === 'feed'"
     (click)="onPreview()"
     [attr.aria-label]="mode === 'profile'
       ? 'Abrir foto pública em visualização imersiva'
-      : 'Abrir foto pública de ' + getOwnerName(item)"
-    title="Abrir foto"
+      : 'Abrir publicação de ' + getOwnerName(item)"
+    title="Abrir publicação"
   >
     <img
       class="photo"
@@ -27,61 +78,84 @@
     />
   </button>
 
-  <div
-    class="photo-overlay app-media-overlay"
-    [class.photo-overlay--profile]="mode === 'profile'"
-  >
-    @if (mode !== 'profile') {
-      <a
-        class="photo-owner-link"
-        [routerLink]="profileLink()"
-        [attr.aria-label]="'Abrir perfil de ' + getOwnerName(item)"
-      >
-        <strong>{{ getOwnerName(item) }}</strong>
+  @if (mode !== 'feed') {
+    <div
+      class="photo-overlay app-media-overlay"
+      [class.photo-overlay--profile]="mode === 'profile'"
+    >
+      @if (mode !== 'profile') {
+        <a
+          class="photo-owner-link"
+          [routerLink]="profileLink()"
+          [attr.aria-label]="'Abrir perfil de ' + getOwnerName(item)"
+        >
+          <strong>{{ getOwnerName(item) }}</strong>
 
-        @if (getOwnerMeta(item)) {
-          <small>{{ getOwnerMeta(item) }}</small>
+          @if (getOwnerMeta(item)) {
+            <small>{{ getOwnerMeta(item) }}</small>
+          }
+
+          @if (getOwnerLocation(item)) {
+            <small>{{ getOwnerLocation(item) }}</small>
+          }
+        </a>
+      }
+
+      <span class="photo-stats" aria-label="Métricas públicas da foto">
+        <span class="stat-chip app-chip app-chip--overlay" aria-label="Curtidas">
+          <span aria-hidden="true">♥</span>
+          {{ item.reactionsCount ?? item.likesCount ?? 0 }}
+        </span>
+
+        <span class="stat-chip app-chip app-chip--overlay" aria-label="Comentários">
+          <span aria-hidden="true">💬</span>
+          {{ item.commentsCount ?? 0 }}
+        </span>
+
+        @if (item.viewsCount !== undefined) {
+          <span class="stat-chip app-chip app-chip--overlay" aria-label="Visualizações">
+            <span aria-hidden="true">👁</span>
+            {{ item.viewsCount }}
+          </span>
         }
 
-        @if (getOwnerLocation(item)) {
-          <small>{{ getOwnerLocation(item) }}</small>
-        }
-      </a>
-    }
+        <span
+          class="stat-chip stat-chip--time app-chip app-chip--overlay app-chip--muted"
+          [attr.aria-label]="'Publicado ' + getPublishedLabel(item)"
+        >
+          <span aria-hidden="true">⏱</span>
+          {{ getPublishedLabel(item) }}
+        </span>
+      </span>
 
-    <span class="photo-stats" aria-label="Métricas públicas da foto">
-      <span class="stat-chip app-chip app-chip--overlay" aria-label="Curtidas">
+      @if (item.isCover) {
+        <span class="cover-chip app-chip app-chip--overlay app-chip--success">
+          Capa
+        </span>
+      }
+    </div>
+  }
+
+  @if (mode === 'feed') {
+    <footer class="feed-card-footer" aria-label="Informações da publicação">
+      <span aria-label="Curtidas">
         <span aria-hidden="true">♥</span>
         {{ item.reactionsCount ?? item.likesCount ?? 0 }}
       </span>
 
-      <span class="stat-chip app-chip app-chip--overlay" aria-label="Comentários">
+      <span aria-label="Comentários">
         <span aria-hidden="true">💬</span>
         {{ item.commentsCount ?? 0 }}
       </span>
 
-      @if (item.viewsCount !== undefined) {
-        <span class="stat-chip app-chip app-chip--overlay" aria-label="Visualizações">
-          <span aria-hidden="true">👁</span>
-          {{ item.viewsCount }}
+      @if (item.boostActive) {
+        <span class="feed-card-boosted">
+          <span aria-hidden="true">⚡</span>
+          Impulsionada
         </span>
       }
-
-      <span
-        class="stat-chip stat-chip--time app-chip app-chip--overlay app-chip--muted"
-        [attr.aria-label]="'Publicado ' + getPublishedLabel(item)"
-      >
-        <span aria-hidden="true">⏱</span>
-        {{ getPublishedLabel(item) }}
-      </span>
-    </span>
-
-    @if (item.isCover) {
-      <span class="cover-chip app-chip app-chip--overlay app-chip--success">
-        Capa
-      </span>
-    }
-  </div>
+    </footer>
+  }
 
   @if (mode === 'latest' || mode === 'boosted') {
     <div class="photo-meta app-card__footer">
