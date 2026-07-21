@@ -49,7 +49,7 @@ Require-Command -Name 'npm.cmd' -InstallHint 'O npm acompanha a instalacao do No
 
 $nodeVersion = (& node --version).Trim()
 if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v22\.') {
-  throw "Versao do Node incompatível: $nodeVersion. Este projeto exige Node.js 22.x."
+  throw "Versao do Node incompativel: $nodeVersion. Este projeto exige Node.js 22.x."
 }
 Write-Step "Node confirmado: $nodeVersion"
 
@@ -104,15 +104,24 @@ if (-not (Test-Path $ResumeScript)) {
   throw "Script de retomada ausente: $ResumeScript"
 }
 
-Write-Step "Preparando branch: $Branch"
-& $ResumeScript `
-  -Install `
-  -Branch $Branch `
-  -Start:$Start.IsPresent `
-  -Validate:$Validate.IsPresent
+$resumeParameters = @{
+  Install = $true
+  Branch = $Branch
+}
 
-if ($LASTEXITCODE -ne 0) {
-  throw "A preparacao foi interrompida pelo script de retomada (codigo $LASTEXITCODE)."
+if ($Start.IsPresent) {
+  $resumeParameters['Start'] = $true
+}
+
+if ($Validate.IsPresent) {
+  $resumeParameters['Validate'] = $true
+}
+
+Write-Step "Preparando branch: $Branch"
+& $ResumeScript @resumeParameters
+
+if (-not $?) {
+  throw 'A preparacao foi interrompida pelo script de retomada.'
 }
 
 Write-Step 'Maquina pronta. Nenhum token foi salvo na URL do repositorio.'
