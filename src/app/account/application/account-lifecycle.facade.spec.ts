@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { take } from 'rxjs/operators';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { IUserDados } from '@core/interfaces/iuser-dados';
@@ -11,6 +11,9 @@ describe('AccountLifecycleFacade', () => {
   let user$: BehaviorSubject<IUserDados | null | undefined>;
 
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-15T12:00:00.000Z'));
+
     user$ = new BehaviorSubject<IUserDados | null | undefined>(undefined);
 
     TestBed.configureTestingModule({
@@ -24,9 +27,18 @@ describe('AccountLifecycleFacade', () => {
     });
   });
 
+  afterEach(() => {
+    user$.complete();
+    vi.useRealTimers();
+  });
+
   async function readStatusVm() {
     const facade = TestBed.inject(AccountLifecycleFacade);
-    return firstValueFrom(facade.statusVm$.pipe(take(1)));
+    const resultPromise = firstValueFrom(facade.statusVm$.pipe(take(1)));
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    return resultPromise;
   }
 
   it('permite cancelar exclusão própria somente dentro do prazo', async () => {
