@@ -66,6 +66,46 @@ function Get-ListeningProcessIds {
   return @($result)
 }
 
+function Get-StaleAngularProcessIds {
+  param([Parameter(Mandatory = $true)][string]$Root)
+
+  $result = [System.Collections.Generic.HashSet[int]]::new()
+  $normalizedRoot = $Root.Replace('/', '\')
+  $rootPattern = [regex]::Escape($normalizedRoot)
+  $processes = @(
+    Get-CimInstance -ClassName Win32_Process -ErrorAction SilentlyContinue
+  )
+
+  foreach ($process in $processes) {
+    $processId = [int]$process.ProcessId
+
+    if ($processId -le 0 -or $processId -eq $PID) {
+      continue
+    }
+
+    $name = ([string]$process.Name).ToLowerInvariant()
+    $commandLine = [string]$process.CommandLine
+
+    if (-not $commandLine -or $commandLine -notmatch $rootPattern) {
+      continue
+    }
+
+    $isLauncher =
+      $name -in @('powershell.exe', 'pwsh.exe') -and
+      $commandLine -match '(?i)start-angular-emulator-win\.ps1'
+
+    $isAngularChild =
+      $name -in @('node.exe', 'cmd.exe') -and
+      $commandLine -match '(?i)(node_modules[\\/]@angular[\\/]cli[\\/]bin[\\/]ng\.js|ng(?:\.cmd)?\s+serve|npm(?:\.cmd)?\s+run\s+start:emu)'
+
+    if ($isLauncher -or $isAngularChild) {
+      [void]$result.Add($processId)
+    }
+  }
+
+  return @($result)
+}
+
 function Get-ProcessDescriptor {
   param([Parameter(Mandatory = $true)][int]$ProcessId)
 
@@ -133,7 +173,17 @@ function Test-PortOpen {
   }
 }
 
-$processIds = @(Get-ListeningProcessIds -TargetPorts $Ports)
+$processIdSet = [System.Collections.Generic.HashSet[int]]::new()
+
+foreach ($processId in @(Get-ListeningProcessIds -TargetPorts $Ports)) {
+  [void]$processIdSet.Add($processId)
+}
+
+foreach ($processId in @(Get-StaleAngularProcessIds -Root $ProjectRoot)) {
+  [void]$processIdSet.Add($processId)
+}
+
+$processIds = @($processIdSet)
 
 if ($processIds.Count -eq 0) {
   Write-Step 'Nenhum processo local residual foi encontrado.'
@@ -147,11 +197,6 @@ foreach ($processId in $processIds) {
   $descriptor = Get-ProcessDescriptor -ProcessId $processId
 
   if (-not $descriptor) {
-    $unknownProcesses.Add([PSCustomObject]@{
-      ProcessId = $processId
-      Name = 'desconhecido'
-      CommandLine = ''
-    })
     continue
   }
 
@@ -178,7 +223,18 @@ if ($unknownProcesses.Count -gt 0) {
   exit 2
 }
 
-foreach ($process in $recognizedProcesses) {
+$orderedProcesses = @(
+  $recognizedProcesses |
+    Sort-Object `
+      @{ Expression = { if ($_.Name -in @('node.exe', 'cmd.exe', 'java.exe')) { 0 } else { 1 } } },
+      ProcessId
+)
+
+foreach ($process in $orderedProcesses) {
+  if (-not (Get-Process -Id $process.ProcessId -ErrorAction SilentlyContinue)) {
+    continue
+  }
+
   Write-Step "Encerrando processo residual reconhecido: PID $($process.ProcessId) $($process.Name)"
 
   try {
