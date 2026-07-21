@@ -46,8 +46,11 @@
               "src/styles/profile-completion-polish.css",
               "src/styles/global-animations.css",
               "src/styles.css",
+              "src/styles/gallery-clean.css",
               "src/app/header/navbar/navbar.clean.css",
-              "src/app/dashboard/principal/principal.clean.css"
+              "src/app/dashboard/principal/principal.clean.css",
+              "src/app/account/pages/account-home/account-home.clean.css",
+              "src/app/chat-module/chat-rooms/chat-rooms.clean.css"
             ],
             "scripts": [],
             "browser": "src/main.ts"
