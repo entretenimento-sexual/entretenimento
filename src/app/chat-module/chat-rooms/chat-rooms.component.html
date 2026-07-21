@@ -1,23 +1,8 @@
 <!-- src/app/chat-module/chat-rooms/chat-rooms.component.html -->
-
 @if (roomsVm$ | async; as vm) {
   <main class="chat-rooms" aria-labelledby="chat-rooms-title">
-    <header class="chat-rooms__toolbar">
-      <div class="chat-rooms__identity">
-        <span class="chat-rooms__identity-icon" aria-hidden="true">
-          <i class="fas fa-user-group"></i>
-        </span>
-
-        <div class="chat-rooms__identity-copy">
-          <h1 id="chat-rooms-title">Minhas salas</h1>
-
-          @if (!vm.loading && !vm.loadFailed) {
-            <span aria-live="polite">
-              {{ vm.activeRooms.length }} {{ vm.activeRooms.length === 1 ? 'ativa' : 'ativas' }}
-            </span>
-          }
-        </div>
-      </div>
+    <header class="chat-rooms__toolbar chat-rooms__toolbar--compact">
+      <h1 id="chat-rooms-title">Salas</h1>
 
       <button
         type="button"
@@ -31,7 +16,7 @@
           <span>Criando</span>
         } @else if (vm.hasOwnedActiveRoom) {
           <i class="fas fa-check" aria-hidden="true"></i>
-          <span>Ativa</span>
+          <span>Sala ativa</span>
         } @else {
           <i class="fas fa-plus" aria-hidden="true"></i>
           <span>Criar</span>
@@ -41,12 +26,11 @@
 
     @if (vm.hasOwnedActiveRoom) {
       <p id="rooms-create-limit" class="chat-rooms__limit-note" role="status">
-        <i class="fas fa-lock" aria-hidden="true"></i>
-        <span>Uma sala própria ativa por vez.</span>
+        Uma sala própria ativa por vez.
       </p>
     }
 
-    <section class="chat-rooms__collection" aria-label="Salas privadas do usuário">
+    <section class="chat-rooms__collection" aria-label="Salas do usuário">
       @if (vm.loading) {
         <div class="chat-rooms__state" role="status" aria-live="polite">
           <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
@@ -60,7 +44,7 @@
       } @else if (vm.rooms.length === 0) {
         <div class="chat-rooms__state" role="status">
           <i class="far fa-comments" aria-hidden="true"></i>
-          <span>Nenhuma sala disponível.</span>
+          <span>Nenhuma sala.</span>
         </div>
       } @else {
         <section class="chat-rooms__group" aria-labelledby="active-rooms-title">
@@ -71,7 +55,6 @@
 
           @if (vm.activeRooms.length === 0) {
             <div class="chat-rooms__state chat-rooms__state--compact" role="status">
-              <i class="far fa-comments" aria-hidden="true"></i>
               <span>Nenhuma sala ativa.</span>
             </div>
           } @else {
@@ -81,23 +64,11 @@
                   <article aria-labelledby="room-title-{{ room.id }}">
                     <header class="chat-rooms__card-header">
                       <div class="chat-rooms__room-heading">
-                        <h3 id="room-title-{{ room.id }}">
-                          {{ room.roomName }}
-                        </h3>
-
+                        <h3 id="room-title-{{ room.id }}">{{ room.roomName }}</h3>
                         <span class="chat-rooms__access">
-                          <i
-                            class="fas {{ room.isOwner ? 'fa-shield-halved' : 'fa-user-check' }}"
-                            aria-hidden="true"
-                          ></i>
                           {{ room.isOwner ? 'Administrada por você' : 'Participante' }}
                         </span>
                       </div>
-
-                      <span class="chat-rooms__status" aria-label="Sala ativa">
-                        <i class="fas fa-circle-check" aria-hidden="true"></i>
-                        <span>Ativa</span>
-                      </span>
                     </header>
 
                     @if (room.description) {
@@ -109,17 +80,12 @@
                         <i class="fas fa-users" aria-hidden="true"></i>
                         {{ room.memberCount }}
                       </span>
-
-                      <span>
-                        <i class="fas fa-lock" aria-hidden="true"></i>
-                        Privada
-                      </span>
                     </div>
 
                     @if (room.placeIntent; as place) {
                       <section
                         class="chat-rooms__place"
-                        aria-label="Local moderado associado à sala"
+                        aria-label="Local associado à sala"
                       >
                         <i class="fas fa-location-dot" aria-hidden="true"></i>
 
@@ -145,7 +111,6 @@
                             <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
                             <span>Encerrando</span>
                           } @else {
-                            <i class="fas fa-circle-xmark" aria-hidden="true"></i>
                             <span>Encerrar</span>
                           }
                         </button>
@@ -161,35 +126,19 @@
         @if (vm.closedRooms.length > 0) {
           <details class="chat-rooms__history">
             <summary>
-              <span>
-                <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
-                Encerradas
-              </span>
+              <span>Encerradas</span>
               <span>{{ vm.closedRooms.length }}</span>
             </summary>
 
-            <ul class="chat-rooms__list chat-rooms__list--history" aria-label="Histórico de salas encerradas">
+            <ul class="chat-rooms__list chat-rooms__list--history" aria-label="Salas encerradas">
               @for (room of vm.closedRooms; track room.id) {
                 <li class="chat-rooms__card chat-rooms__card--closed">
                   <article aria-labelledby="closed-room-title-{{ room.id }}">
                     <header class="chat-rooms__card-header">
                       <div class="chat-rooms__room-heading">
-                        <h3 id="closed-room-title-{{ room.id }}">
-                          {{ room.roomName }}
-                        </h3>
-                        <span class="chat-rooms__access">
-                          <i class="fas fa-box-archive" aria-hidden="true"></i>
-                          Histórico preservado
-                        </span>
+                        <h3 id="closed-room-title-{{ room.id }}">{{ room.roomName }}</h3>
+                        <span class="chat-rooms__access">Encerrada</span>
                       </div>
-
-                      <span
-                        class="chat-rooms__status chat-rooms__status--closed"
-                        aria-label="Sala encerrada"
-                      >
-                        <i class="fas fa-circle-xmark" aria-hidden="true"></i>
-                        <span>Encerrada</span>
-                      </span>
                     </header>
 
                     @if (room.description) {
@@ -200,10 +149,6 @@
                       <span>
                         <i class="fas fa-users" aria-hidden="true"></i>
                         {{ room.memberCount }}
-                      </span>
-                      <span>
-                        <i class="fas fa-lock" aria-hidden="true"></i>
-                        Somente histórico
                       </span>
                     </div>
                   </article>
