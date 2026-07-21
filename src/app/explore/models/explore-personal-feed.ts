@@ -104,7 +104,7 @@ function calculateRelevanceScore(
     toFiniteNumber(item.reactionsCount ?? item.likesCount) * 300 +
     toFiniteNumber(item.commentsCount) * 500 +
     toFiniteNumber(item.viewsCount) * 10;
-  const recency = toFiniteNumber(item.publishedAt) / 1_000;
+  const recency = toFiniteNumber(item.publishedAt) / 1_000_000;
 
   return compatibilityBoost + paidBoost + engagement + recency;
 }
