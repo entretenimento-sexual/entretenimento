@@ -36,7 +36,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 @Component({
   selector: 'app-invite-list',
   templateUrl: './invite-list.component.html',
-  styleUrls: ['./invite-list.component.css'],
+  styleUrls: ['./invite-list.component.css', './invite-list.clean.css'],
   standalone: false,
 })
 export class InviteListComponent implements OnInit, OnDestroy {
