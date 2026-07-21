@@ -8,17 +8,19 @@ rem ----------------------------------------------------------------------------
 rem Abre ou reutiliza uma sessao local de desenvolvimento Auth no Windows:
 rem - inicia uma nova sessao quando todas as portas estao livres;
 rem - reutiliza Angular + Firebase quando a sessao existente esta saudavel;
-rem - bloqueia ocupacao parcial ou processos nao reconhecidos;
+rem - recupera processos orfaos reconhecidos do proprio ambiente;
+rem - bloqueia processos desconhecidos para nao encerrar servicos alheios;
 rem - limpa o cache de build do Angular antes de uma nova inicializacao;
 rem - inicia Firebase Emulators e Angular em janelas separadas;
 rem - aguarda os servicos antes de abrir o navegador.
 rem
-rem Nao exige administrador e nao encerra processos automaticamente.
+rem Nao exige administrador e nao usa kill-port de forma indiscriminada.
 rem -----------------------------------------------------------------------------
 
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..\..") do set "PROJECT_ROOT=%%~fI"
 set "SESSION_REUSED=0"
+set "CLEANUP_SCRIPT=%PROJECT_ROOT%\scripts\dev\cleanup-stale-local-session.ps1"
 
 cd /d "%PROJECT_ROOT%"
 
@@ -33,10 +35,34 @@ if "%SESSION_STATE%"=="10" (
 )
 
 if not "%SESSION_STATE%"=="0" (
-  echo [dev:auth] ERRO: as portas locais estao ocupadas de forma parcial ou inconsistente.
-  echo [dev:auth] Feche apenas as janelas antigas de Angular/Firebase e execute novamente.
-  echo [dev:auth] Para encerrar manualmente: npx kill-port 4000 4200 4400 4500 5001 8080 9099 9199
-  exit /b 1
+  if not exist "%CLEANUP_SCRIPT%" (
+    echo [dev:auth] ERRO: script seguro de limpeza nao foi encontrado.
+    exit /b 1
+  )
+
+  echo [dev:auth] Ambiente parcial detectado. Verificando processos residuais reconhecidos...
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%CLEANUP_SCRIPT%" -ProjectRoot "%PROJECT_ROOT%"
+  set "CLEANUP_STATE=%ERRORLEVEL%"
+
+  if not "%CLEANUP_STATE%"=="0" (
+    echo [dev:auth] ERRO: nao foi seguro liberar automaticamente todas as portas.
+    echo [dev:auth] Nenhum processo desconhecido foi encerrado.
+    exit /b 1
+  )
+
+  echo [dev:auth] Revalidando portas apos a recuperacao...
+  node "%PROJECT_ROOT%\scripts\dev\check-local-dev-session.mjs"
+  set "SESSION_STATE=%ERRORLEVEL%"
+
+  if "%SESSION_STATE%"=="10" (
+    set "SESSION_REUSED=1"
+    goto open_browser
+  )
+
+  if not "%SESSION_STATE%"=="0" (
+    echo [dev:auth] ERRO: o ambiente permaneceu inconsistente apos a recuperacao segura.
+    exit /b 1
+  )
 )
 
 if exist "%PROJECT_ROOT%\.angular\cache" (
@@ -64,7 +90,7 @@ echo [dev:auth] Firebase pronto. Abrindo Angular em outra janela...
 start "Entretenimento - Angular" /D "%PROJECT_ROOT%" cmd /k "call npm.cmd run start:emu -- --host 127.0.0.1 --port 4200"
 
 echo [dev:auth] Aguardando Angular em 127.0.0.1:4200...
-node "%PROJECT_ROOT%\scripts\dev\wait-for-ports.mjs" --ports=4200 --timeout=180000 --label=Angular
+node "%PROJECT_ROOT%\scripts\dev\wait-for-ports.mjs" --ports=4200 --timeout=240000 --label=Angular
 if errorlevel 1 (
   echo [dev:auth] ERRO: Angular nao ficou pronto no tempo esperado.
   echo [dev:auth] Verifique a janela Entretenimento - Angular.
