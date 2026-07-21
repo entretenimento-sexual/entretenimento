@@ -31,10 +31,16 @@
   box-shadow: 0 16px 36px rgb(0 0 0 / 24%);
 }
 
+.photo-tile--feed,
+.photo-tile--feed.app-card {
+  border-radius: 12px;
+  box-shadow: none;
+}
+
 .photo-tile--feed:hover,
 .photo-tile--feed:focus-within {
   transform: none;
-  box-shadow: 0 12px 30px rgb(0 0 0 / 18%);
+  box-shadow: none;
 }
 
 .photo-tile--cover {
@@ -61,78 +67,34 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.65rem;
   min-width: 0;
-  padding: 0.75rem 0.85rem;
-  border-bottom: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
+  padding: 0.52rem 0.65rem;
+  border-bottom: 1px solid var(--surface-border, rgba(255, 255, 255, 0.08));
 }
 
 .feed-card-owner {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  min-width: 0;
-  color: var(--text-color, #f5f7fb);
-  text-decoration: none;
-}
-
-.feed-card-owner:focus-visible {
-  border-radius: 0.75rem;
-  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
-  outline-offset: var(--focus-offset, 2px);
-}
-
-.feed-card-avatar {
-  flex: 0 0 auto;
-  width: 2.625rem;
-  height: 2.625rem;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.14));
-  border-radius: 50%;
-  object-fit: cover;
-  background: color-mix(in oklab, var(--surface-color, #0f1620) 82%, white 10%);
-}
-
-.feed-card-avatar--fallback {
-  display: inline-grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 900;
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 72%,
-    var(--surface-color, #0f1620)
-  );
-}
-
-.feed-card-owner-copy {
-  display: grid;
-  gap: 0.15rem;
-  min-width: 0;
-}
-
-.feed-card-owner-copy strong,
-.feed-card-owner-copy small {
-  display: block;
   min-width: 0;
   overflow: hidden;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.84rem;
+  line-height: 1.1;
+  text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.feed-card-owner-copy strong {
-  font-size: 0.92rem;
-  line-height: 1.1;
-}
-
-.feed-card-owner-copy small,
-.feed-card-time {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
-  font-size: 0.72rem;
-  line-height: 1.2;
+.feed-card-owner:focus-visible {
+  border-radius: 0.4rem;
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: var(--focus-offset, 2px);
 }
 
 .feed-card-time {
   flex: 0 0 auto;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.68rem;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -161,7 +123,7 @@
 
 .photo-card-link--feed,
 .photo-card-link--feed.app-media-frame {
-  height: clamp(18rem, 48vh, 28rem);
+  height: clamp(14rem, 32vh, 19rem);
   aspect-ratio: auto;
   background: #070a0f;
 }
@@ -316,23 +278,23 @@
   pointer-events: none;
 }
 
-/* Rodapé compacto do feed -------------------------------------------------- */
+/* Rodapé opcional do feed -------------------------------------------------- */
 .feed-card-footer {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
-  min-height: 2.75rem;
-  padding: 0.55rem 0.85rem;
-  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.1));
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
-  font-size: 0.78rem;
-  font-weight: 760;
+  gap: 0.7rem;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.65rem;
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.08));
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
+  font-size: 0.7rem;
+  font-weight: 740;
 }
 
 .feed-card-footer > span {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.28rem;
 }
 
 .feed-card-boosted {
@@ -389,17 +351,12 @@
   }
 
   .feed-card-header {
-    padding: 0.65rem 0.7rem;
-  }
-
-  .feed-card-avatar {
-    width: 2.35rem;
-    height: 2.35rem;
+    padding: 0.5rem 0.6rem;
   }
 
   .photo-card-link--feed,
   .photo-card-link--feed.app-media-frame {
-    height: min(68vh, 27rem);
+    height: clamp(14rem, 42vh, 20rem);
   }
 
   .photo-overlay {
