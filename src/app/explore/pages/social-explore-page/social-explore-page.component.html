@@ -17,6 +17,46 @@
       </nav>
     </header>
 
+    @if (currentUser?.uid) {
+      <section class="feed-composer" aria-label="Criar publicação">
+        <a
+          class="feed-composer__avatar"
+          routerLink="/perfil"
+          aria-label="Abrir meu perfil"
+        >
+          @if (currentUser?.photoURL) {
+            <img
+              [src]="currentUser?.photoURL"
+              alt=""
+              width="34"
+              height="34"
+              loading="lazy"
+              decoding="async"
+              referrerpolicy="no-referrer"
+            />
+          } @else {
+            <span aria-hidden="true">👤</span>
+          }
+        </a>
+
+        <a
+          class="feed-composer__prompt"
+          [routerLink]="['/media/perfil', currentUser?.uid, 'fotos/upload']"
+        >
+          Compartilhe uma foto
+        </a>
+
+        <a
+          class="feed-composer__action"
+          [routerLink]="['/media/perfil', currentUser?.uid, 'fotos/upload']"
+          aria-label="Publicar uma foto"
+          title="Publicar foto"
+        >
+          <span aria-hidden="true">▣</span>
+        </a>
+      </section>
+    }
+
     @if (myActiveStatus) {
       <aside class="feed-status" aria-label="Meu Status de Hoje ativo">
         <div>
