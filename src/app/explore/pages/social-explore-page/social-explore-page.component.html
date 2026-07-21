@@ -8,29 +8,18 @@
 
   <section class="social-feed-page" aria-labelledby="feed-title">
     <header class="feed-header">
-      <div class="feed-header__copy">
-        <span class="feed-eyebrow">Feed</span>
-        <h1 id="feed-title">Publicações para você</h1>
-        <p>
-          Atualizações públicas organizadas por compatibilidade, diversidade e
-          atividade recente.
-        </p>
-      </div>
+      <h1 id="feed-title">Feed</h1>
 
       <nav class="feed-shortcuts" aria-label="Explorar outras áreas">
         <a routerLink="/dashboard/explorar">Pessoas</a>
         <a routerLink="/dashboard/locais">Locais</a>
         <a routerLink="/dashboard/comunidades">Comunidades</a>
-        <a class="feed-shortcuts__secondary" routerLink="/media/ultimas-fotos">
-          Todas as fotos
-        </a>
       </nav>
     </header>
 
     @if (myActiveStatus) {
       <aside class="feed-status" aria-label="Meu Status de Hoje ativo">
         <div>
-          <span class="feed-status__eyebrow">Meu Status de Hoje</span>
           <strong>{{ myActiveStatus.availabilityLabel }}</strong>
           <p>
             {{ myActiveStatus.destinationLabel }} ·
@@ -52,25 +41,7 @@
     }
 
     <section class="feed-timeline" aria-labelledby="timeline-title">
-      <header class="feed-section-heading">
-        <div>
-          <span class="feed-eyebrow">Para você</span>
-          <h2 id="timeline-title">Atualizações da comunidade</h2>
-        </div>
-
-        <a routerLink="/preferencias/discovery-settings">
-          Ajustar preferências
-        </a>
-      </header>
-
-      <details class="feed-info">
-        <summary>Como este feed é organizado</summary>
-        <p>
-          Perfis compatíveis aparecem primeiro, publicações impulsionadas são
-          identificadas e cada autor ocupa no máximo duas posições por
-          carregamento.
-        </p>
-      </details>
+      <h2 id="timeline-title" class="visually-hidden">Publicações para você</h2>
 
       @if (feedPhotos.length > 0) {
         <div
@@ -93,11 +64,10 @@
         </div>
       } @else {
         <div class="feed-empty" role="status" aria-live="polite">
-          <span class="feed-eyebrow">Sem publicações</span>
           <h3>O feed ainda está vazio</h3>
           <p>
-            Novas fotos públicas aparecerão aqui conforme pessoas compatíveis e
-            outros perfis da comunidade publicarem conteúdo.
+            Novas publicações públicas aparecerão aqui conforme a comunidade
+            publicar conteúdo.
           </p>
 
           <a routerLink="/dashboard/explorar">Descobrir pessoas</a>
