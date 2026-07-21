@@ -1,0 +1,27 @@
+/* Regras transversais de sobriedade visual. */
+.btn,
+.dark-toggle,
+[role="button"] {
+  transition-duration: 160ms;
+}
+
+.btn:hover,
+.btn:focus-visible,
+.btn-primary:hover,
+.dark-toggle:hover,
+.dark-toggle:focus-visible {
+  transform: none !important;
+}
+
+.btn:hover,
+.btn:focus-visible {
+  text-decoration: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .dark-toggle,
+  [role="button"] {
+    transition: none !important;
+  }
+}
