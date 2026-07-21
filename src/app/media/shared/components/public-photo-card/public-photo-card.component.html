@@ -16,6 +16,23 @@
         [routerLink]="profileLink()"
         [attr.aria-label]="'Abrir perfil de ' + getOwnerName(item)"
       >
+        @if (item.ownerPhotoURL) {
+          <img
+            class="feed-card-avatar"
+            [src]="item.ownerPhotoURL"
+            alt=""
+            width="32"
+            height="32"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
+          />
+        } @else {
+          <span class="feed-card-avatar feed-card-avatar--fallback" aria-hidden="true">
+            {{ getOwnerInitial(item) }}
+          </span>
+        }
+
         <strong>{{ getOwnerName(item) }}</strong>
       </a>
 
@@ -113,19 +130,21 @@
       item.boostActive)
   ) {
     <footer class="feed-card-footer" aria-label="Informações da publicação">
-      @if ((item.reactionsCount ?? item.likesCount ?? 0) > 0) {
-        <span aria-label="Curtidas">
-          <span aria-hidden="true">♥</span>
-          {{ item.reactionsCount ?? item.likesCount ?? 0 }}
-        </span>
-      }
+      <span class="feed-card-footer__actions">
+        @if ((item.reactionsCount ?? item.likesCount ?? 0) > 0) {
+          <span aria-label="Curtidas">
+            <span aria-hidden="true">♡</span>
+            {{ item.reactionsCount ?? item.likesCount ?? 0 }}
+          </span>
+        }
 
-      @if ((item.commentsCount ?? 0) > 0) {
-        <span aria-label="Comentários">
-          <span aria-hidden="true">💬</span>
-          {{ item.commentsCount ?? 0 }}
-        </span>
-      }
+        @if ((item.commentsCount ?? 0) > 0) {
+          <span aria-label="Comentários">
+            <span aria-hidden="true">○</span>
+            {{ item.commentsCount ?? 0 }}
+          </span>
+        }
+      </span>
 
       @if (item.boostActive) {
         <span class="feed-card-boosted">
