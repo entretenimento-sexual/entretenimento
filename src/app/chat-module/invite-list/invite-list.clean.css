@@ -1,0 +1,112 @@
+/* Camada enxuta da lista de convites. */
+.invite-list-page {
+  width: min(100%, 720px);
+  margin-inline: auto;
+}
+
+.invite-list-page__header--compact {
+  align-items: center;
+  min-height: 3rem;
+  margin-bottom: 0.7rem;
+  padding: 0.15rem 0 0.55rem;
+  border: 0;
+  border-bottom: 1px solid var(--surface-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.invite-list-page__header--compact h1 {
+  margin: 0;
+  font-size: clamp(1.3rem, 1.18rem + 0.5vw, 1.65rem);
+}
+
+.invite-list-page__count {
+  min-height: 30px;
+  padding-inline: 0.65rem;
+  font-size: 0.72rem;
+}
+
+.invite-list-page__cards {
+  gap: 0;
+}
+
+.invite-list-page__cards > li {
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.invite-card,
+.invite-card.mat-mdc-card {
+  padding: 0.75rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.invite-card__header {
+  padding: 0;
+}
+
+.invite-card__header .mat-mdc-card-title {
+  font-size: 0.95rem;
+}
+
+.invite-card__header .mat-mdc-card-subtitle {
+  font-size: 0.76rem;
+}
+
+.invite-card__body {
+  padding: 0.4rem 0 0;
+}
+
+.invite-card__details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  font-size: 0.72rem;
+}
+
+.invite-card__details span {
+  display: inline-flex;
+}
+
+.invite-card__actions {
+  gap: 0.35rem;
+  min-height: 0;
+  padding: 0.35rem 0 0;
+}
+
+.invite-card__actions button {
+  min-height: 36px;
+}
+
+.invite-list-page__state {
+  min-height: 108px;
+  border-radius: 0.85rem;
+  box-shadow: none;
+}
+
+@media (max-width: 520px) {
+  .invite-list-page {
+    padding-inline: 0.6rem;
+  }
+
+  .invite-list-page__header--compact {
+    margin-inline: 0;
+  }
+
+  .invite-card__actions {
+    justify-content: flex-start;
+  }
+}
+
+:host-context(html.high-contrast) .invite-list-page__header--compact,
+:host-context(html.high-contrast) .invite-card,
+:host-context(html.high-contrast) .invite-list-page__state {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: none !important;
+}
