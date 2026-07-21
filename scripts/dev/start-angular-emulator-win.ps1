@@ -19,12 +19,17 @@ $logPath = Join-Path $logDirectory 'angular-dev.log'
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
 
+function Write-LogLine {
+  param([Parameter(Mandatory = $true)][string]$Line)
+
+  Write-Host $Line
+  Add-Content -LiteralPath $logPath -Value $Line -Encoding UTF8
+}
+
 function Write-SessionMessage {
   param([Parameter(Mandatory = $true)][string]$Message)
 
-  $line = "[angular:win] $Message"
-  Write-Host $line
-  Add-Content -LiteralPath $logPath -Value $line -Encoding UTF8
+  Write-LogLine -Line "[angular:win] $Message"
 }
 
 function Get-NodeVersion {
@@ -134,6 +139,7 @@ try {
 
   $env:NODE_HOME = $runtime.Directory
   $env:Path = "$($runtime.Directory);$env:Path"
+  $env:NG_CLI_ANALYTICS = 'false'
 
   $nodeVersion = Get-NodeVersion -Executable $runtime.Node
   $npmOutput = @(& $runtime.Npm --version 2>$null)
@@ -147,18 +153,38 @@ try {
     throw "Nao foi possivel consultar o npm selecionado: $($runtime.Npm)"
   }
 
+  $angularCli = Join-Path $ProjectRoot 'node_modules\@angular\cli\bin\ng.js'
+
+  if (-not (Test-Path $angularCli)) {
+    throw "Angular CLI local nao encontrado: $angularCli"
+  }
+
   Write-SessionMessage "Projeto: $ProjectRoot"
   Write-SessionMessage "Node: $nodeVersion"
   Write-SessionMessage "Node executavel: $($runtime.Node)"
   Write-SessionMessage "npm: $npmVersion"
   Write-SessionMessage "npm executavel: $($runtime.Npm)"
+  Write-SessionMessage "Angular CLI: $angularCli"
   Write-SessionMessage "Log: $logPath"
   Write-SessionMessage "Iniciando Angular em http://${HostAddress}:$Port/"
 
   Set-Location $ProjectRoot
 
-  & $runtime.Npm run start:emu -- --host $HostAddress --port $Port 2>&1 |
-    Tee-Object -FilePath $logPath -Append
+  $angularArguments = @(
+    $angularCli,
+    'serve',
+    '--configuration',
+    'dev-emu',
+    '--host',
+    $HostAddress,
+    '--port',
+    [string]$Port
+  )
+
+  & $runtime.Node @angularArguments 2>&1 |
+    ForEach-Object {
+      Write-LogLine -Line ([string]$_)
+    }
 
   $exitCode = $LASTEXITCODE
 
