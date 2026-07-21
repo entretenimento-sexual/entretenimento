@@ -9,7 +9,7 @@
 // - recebe a URL atual do LayoutShell;
 // - não substitui a sidebar universal no desktop;
 // - fica oculto em chat para não competir com teclado/thread;
-// - reduz a navegação fixa para quatro áreas mentais: Hoje, Descobrir, Chat e Perfil;
+// - reduz a navegação fixa para quatro áreas mentais: Hoje, Feed, Chat e Perfil;
 // - mantém rotas existentes para não quebrar deep links ou guards.
 // -----------------------------------------------------------------------------
 
@@ -62,20 +62,22 @@ export class MobileBottomNavComponent {
       ariaLabel: 'Ir para Hoje',
     },
     {
-      id: 'discover',
-      label: 'Descobrir',
-      icon: '✨',
-      route: ['/dashboard', 'explorar'],
+      id: 'feed',
+      label: 'Feed',
+      icon: '📰',
+      route: ['/descobrir'],
       activePrefixes: [
-        '/dashboard/explorar',
         '/descobrir',
+        '/dashboard/explorar',
+        '/dashboard/locais',
+        '/dashboard/comunidades',
         '/outro-perfil',
         '/profile-list',
         '/perfis-proximos',
         '/dashboard/online',
         '/dashboard/online-users',
       ],
-      ariaLabel: 'Descobrir perfis, status e recomendações',
+      ariaLabel: 'Abrir feed e áreas de descoberta',
     },
     {
       id: 'chat',
@@ -102,7 +104,9 @@ export class MobileBottomNavComponent {
       return item.activePrefixes.some((prefix) => clean === prefix);
     }
 
-    return item.activePrefixes.some((prefix) => clean === prefix || clean.startsWith(`${prefix}/`));
+    return item.activePrefixes.some(
+      (prefix) => clean === prefix || clean.startsWith(`${prefix}/`)
+    );
   }
 
   trackById(_index: number, item: MobileBottomNavItem): string {
@@ -111,7 +115,11 @@ export class MobileBottomNavComponent {
 
   formatBadge(count: number | null | undefined): string | null {
     const safeCount = this.normalizeBadgeCount(count);
-    return safeCount > 0 ? (safeCount > 99 ? '99+' : String(safeCount)) : null;
+    return safeCount > 0
+      ? safeCount > 99
+        ? '99+'
+        : String(safeCount)
+      : null;
   }
 
   private normalizeBadgeCount(count: unknown): number {
