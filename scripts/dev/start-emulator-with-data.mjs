@@ -5,6 +5,7 @@
 // Inicia o Firebase Emulator Suite preservando dados locais.
 //
 // Decisões de segurança operacional:
+// - gera firestore.rules a partir dos fragments antes de iniciar Firebase;
 // - NÃO mata portas automaticamente;
 // - detecta portas ocupadas antes de criar backup ou iniciar Firebase;
 // - cria backup automático de .emulator-data antes de iniciar;
@@ -26,7 +27,7 @@
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 const projectId = process.env.FIREBASE_PROJECT_ID || 'entretenimento-sexual';
 const storageBucket =
@@ -40,6 +41,12 @@ const root = process.cwd();
 const dataPath = path.resolve(root, dataDir);
 const metadataPath = path.join(dataPath, 'firebase-export-metadata.json');
 const backupRootPath = path.resolve(root, backupRootDir);
+const rulesBuildScript = path.resolve(
+  root,
+  'firestore-rules',
+  'tools-rules',
+  'build-firestore-rules.mjs'
+);
 
 const COMMON_PORTS = [
   { label: 'Emulator Hub', port: 4400 },
@@ -103,6 +110,31 @@ function uniquePorts(items) {
     seen.add(key);
     return true;
   });
+}
+
+function buildFirestoreRules() {
+  if (!fs.existsSync(rulesBuildScript)) {
+    console.error(`[emu:safe] Gerador de Rules não encontrado: ${rulesBuildScript}`);
+    process.exit(1);
+  }
+
+  console.log('[emu:safe] Gerando firestore.rules a partir de firestore-rules/*...');
+  const result = spawnSync(process.execPath, [rulesBuildScript], {
+    cwd: root,
+    env: process.env,
+    stdio: 'inherit',
+    shell: false,
+  });
+
+  if (result.error) {
+    console.error('[emu:safe] Falha ao executar o gerador de Rules:', result.error);
+    process.exit(1);
+  }
+
+  if (result.status !== 0) {
+    console.error(`[emu:safe] Gerador de Rules terminou com código ${result.status}.`);
+    process.exit(result.status ?? 1);
+  }
 }
 
 function canListenOnPort(port) {
@@ -198,6 +230,7 @@ function spawnFirebaseEmulator(args, env) {
   });
 }
 
+buildFirestoreRules();
 await assertPortsAvailable();
 backupExistingData();
 
