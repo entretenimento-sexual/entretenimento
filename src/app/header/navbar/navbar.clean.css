@@ -1,0 +1,176 @@
+/* Camada de simplificação visual do cabeçalho autenticado. */
+.navbar,
+.navbar-container {
+  min-height: 58px;
+}
+
+.navbar-container {
+  padding-inline: clamp(14px, 2.4vw, 24px);
+}
+
+.navbar-logo {
+  max-height: 32px;
+}
+
+.navbar-menu {
+  gap: 0.35rem;
+}
+
+.appearance-toggle,
+.navbar-item .appearance-toggle {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 1rem;
+}
+
+.account-menu-item {
+  position: relative;
+}
+
+.account-menu {
+  position: relative;
+}
+
+.account-menu > summary {
+  list-style: none;
+}
+
+.account-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-menu__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  max-width: 13rem;
+  padding: 0.18rem 0.4rem 0.18rem 0.22rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--header-fg);
+  cursor: pointer;
+  user-select: none;
+}
+
+.account-menu__summary:hover,
+.account-menu__summary:focus-visible,
+.account-menu[open] .account-menu__summary {
+  border-color: color-mix(in oklab, var(--primary-color) 24%, transparent);
+  background: var(--header-hover-bg);
+  outline: none;
+}
+
+.account-menu__fallback {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 1px solid var(--surface-border);
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--primary-color) 14%, var(--header-bg));
+  color: var(--header-fg);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.account-menu__chevron {
+  flex: 0 0 auto;
+  color: color-mix(in oklab, var(--header-fg) 58%, transparent);
+  font-size: 0.8rem;
+  transition: transform 160ms ease;
+}
+
+.account-menu[open] .account-menu__chevron {
+  transform: rotate(180deg);
+}
+
+.account-menu__panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 1200;
+  display: grid;
+  width: min(15rem, calc(100vw - 1.5rem));
+  padding: 0.4rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 0.85rem;
+  background: var(--surface-color);
+  box-shadow: 0 16px 38px rgb(0 0 0 / 28%);
+}
+
+.account-menu__panel a,
+.account-menu__panel button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 42px;
+  padding: 0.65rem 0.75rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 720;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.account-menu__panel a:hover,
+.account-menu__panel a:focus-visible,
+.account-menu__panel button:hover,
+.account-menu__panel button:focus-visible,
+.account-menu__panel a.active {
+  background: color-mix(in oklab, var(--primary-color) 10%, var(--surface-color));
+  color: var(--text-color);
+  outline: none;
+}
+
+.account-menu__panel button {
+  color: color-mix(in oklab, var(--danger-color, #dc2626) 74%, var(--text-color));
+}
+
+@media (max-width: 1120px) {
+  .account-menu__summary .user-name {
+    display: none;
+  }
+
+  .account-menu__summary {
+    padding-right: 0.25rem;
+  }
+}
+
+@media (max-width: 860px) {
+  .navbar,
+  .navbar-container {
+    min-height: 54px;
+  }
+
+  .navbar-logo {
+    max-height: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-menu__chevron {
+    transition: none;
+  }
+}
+
+:host-context(html.high-contrast) .account-menu__summary,
+:host-context(html.high-contrast) .account-menu__panel,
+:host-context(html.high-contrast) .account-menu__panel a,
+:host-context(html.high-contrast) .account-menu__panel button,
+:host-context(html.high-contrast) .appearance-toggle {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: none !important;
+}
