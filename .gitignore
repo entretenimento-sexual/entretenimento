@@ -40,6 +40,9 @@ testem.log
 # Artefato gerado a partir de firestore-rules/*
 /firestore.rules
 
+# Exportações avulsas criadas pela Firebase Emulator UI
+/firebase-export-*/
+
 # System files
 .DS_Store
 Thumbs.db
