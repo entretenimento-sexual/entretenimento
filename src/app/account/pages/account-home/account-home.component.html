@@ -3,101 +3,47 @@
   <section class="account-home-shell ui-container">
     @if (vm$ | async; as vm) {
       @if (vm) {
-        <header class="account-hero">
-          <div class="account-hero__main">
-            <div class="account-hero__copy">
-              <p class="account-hero__eyebrow">Área da conta</p>
-              <h1>Minha conta</h1>
-              <p class="account-hero__subtitle">
-                Segurança, assinatura e dados principais da conta em um só lugar.
-              </p>
-            </div>
+        <header class="account-hero account-hero--compact">
+          <h1>Conta</h1>
 
-            <nav class="account-hero__actions" aria-label="Ações principais da conta">
-              <a class="btn btn-primary" routerLink="/subscription-plan">
-                Gerenciar assinatura
-              </a>
-              <a class="btn btn-secondary" routerLink="/perfil">
-                Voltar ao perfil
-              </a>
-            </nav>
-          </div>
-
-          <div class="account-overview" aria-label="Resumo da conta">
-            <article class="account-overview__card account-overview__card--highlight">
-              <span class="overline">Plano</span>
-              <strong>{{ vm.activePlanLabel || vm.subscriptionLabel }}</strong>
-              <small>Confirmado pelo estado autorizado de billing.</small>
-            </article>
-
-            <article class="account-overview__card">
-              <span class="overline">Verificação</span>
-              <strong>{{ vm.emailStatusLabel }}</strong>
-              <small>{{ vm.email || 'Não informado' }}</small>
-            </article>
-
-            <article class="account-overview__card">
-              <span class="overline">Último acesso</span>
-              <strong>
-                {{ vm.lastLoginAt ? (vm.lastLoginAt | date:'dd/MM/yyyy HH:mm') : 'Não disponível' }}
-              </strong>
-              <small>Último acesso registrado no perfil.</small>
-            </article>
-
-            @if (vm.tokensBalance !== null) {
-              <article class="account-overview__card">
-                <span class="overline">Tokens</span>
-                <strong>{{ vm.tokensBalance }}</strong>
-                <small>Saldo disponível na plataforma.</small>
-              </article>
-            }
-          </div>
+          <nav class="account-hero__actions" aria-label="Ações da conta">
+            <a class="btn btn-secondary" routerLink="/perfil">Perfil</a>
+            <a class="btn btn-primary" routerLink="/subscription-plan">Planos</a>
+          </nav>
         </header>
 
         @if (currentUser$ | async; as currentUser) {
           @if (shouldShowPostPaymentNotice$ | async) {
             <section
-              class="account-context-panel account-context-panel--success"
+              class="account-context-panel account-context-panel--success account-context-panel--compact"
               aria-labelledby="account-post-payment-title"
-              aria-describedby="account-post-payment-description"
             >
               <div class="account-context-panel__content">
-                <p class="account-context-panel__eyebrow">Atualização da assinatura</p>
                 <h2 id="account-post-payment-title">Plano confirmado</h2>
-                <p id="account-post-payment-description">
-                  O acesso pago foi confirmado. Algumas funções sociais ainda podem
-                  depender da conclusão do perfil e das demais verificações de conta.
-                </p>
+                <p>Conclua o perfil para liberar todos os recursos sociais do plano.</p>
               </div>
 
               <div class="account-context-panel__actions">
                 <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
-                  Completar perfil agora
+                  Completar perfil
                 </button>
                 <button
                   type="button"
                   class="btn btn-secondary"
                   (click)="onDismissPostPaymentNotice(currentUser)"
                 >
-                  Continuar agora
+                  Agora não
                 </button>
               </div>
             </section>
           } @else if (shouldShowIncompleteProfileBanner$ | async) {
             <section
-              class="account-context-panel account-context-panel--info"
+              class="account-context-panel account-context-panel--info account-context-panel--compact"
               aria-labelledby="account-incomplete-profile-banner-title"
-              aria-describedby="account-incomplete-profile-banner-description"
             >
               <div class="account-context-panel__content">
-                <p class="account-context-panel__eyebrow">Perfil em conclusão</p>
-                <h2 id="account-incomplete-profile-banner-title">
-                  Conclua o perfil para ampliar sua participação
-                </h2>
-                <p id="account-incomplete-profile-banner-description">
-                  A navegação básica continua disponível, mas visibilidade e
-                  interações podem permanecer limitadas até a conclusão do perfil.
-                </p>
+                <h2 id="account-incomplete-profile-banner-title">Perfil incompleto</h2>
+                <p>Algumas interações permanecem limitadas até a conclusão do perfil.</p>
               </div>
 
               <div class="account-context-panel__actions">
@@ -120,34 +66,21 @@
           <a class="account-nav__link" href="#conta">Conta</a>
           <a class="account-nav__link" href="#seguranca">Segurança</a>
           <a class="account-nav__link" href="#assinatura">Assinatura</a>
-          @if (vm.tokensBalance !== null) {
-            <a class="account-nav__link" href="#tokens">Tokens</a>
-          }
           <a class="account-nav__link account-nav__link--danger" href="#gerenciar">
             Gerenciar
           </a>
         </nav>
 
-        <section id="conta" class="account-card">
+        <section id="conta" class="account-card account-card--clean">
           <div class="account-section-head">
-            <div>
-              <p class="account-section-head__eyebrow">Visão geral</p>
-              <h2>Informações da conta</h2>
-            </div>
-            <a class="btn btn-secondary" routerLink="/perfil">Abrir perfil</a>
+            <h2>Dados principais</h2>
+            <a class="btn btn-secondary" routerLink="/perfil">Editar perfil</a>
           </div>
 
-          <div class="account-grid">
-            <article class="account-item">
-              <span class="label">Perfil público</span>
-              <strong class="value">{{ vm.profilePath || 'Não definido' }}</strong>
-              <small class="support">Endereço principal do perfil na plataforma.</small>
-            </article>
-
+          <div class="account-grid account-grid--clean">
             <article class="account-item">
               <span class="label">Apelido</span>
               <strong class="value">{{ vm.nickname || 'Não definido' }}</strong>
-              <small class="support">Nome exibido para outras pessoas.</small>
             </article>
 
             <article class="account-item">
@@ -155,37 +88,37 @@
               <strong class="value">
                 {{ vm.memberSince ? (vm.memberSince | date:'longDate') : 'Não disponível' }}
               </strong>
-              <small class="support">Data de entrada na plataforma.</small>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Último acesso</span>
+              <strong class="value">
+                {{ vm.lastLoginAt ? (vm.lastLoginAt | date:'dd/MM/yyyy HH:mm') : 'Não disponível' }}
+              </strong>
             </article>
 
             <article class="account-item">
               <span class="label">Localização</span>
               <strong class="value">{{ vm.locationLabel }}</strong>
-              <small class="support">{{ vm.locationDetails }}</small>
             </article>
 
             <article class="account-item">
               <span class="label">Idioma</span>
               <strong class="value">{{ vm.localeLabel }}</strong>
-              <small class="support">{{ vm.localeCode }}</small>
             </article>
           </div>
         </section>
 
-        <section id="seguranca" class="account-card">
+        <section id="seguranca" class="account-card account-card--clean">
           <div class="account-section-head">
-            <div>
-              <p class="account-section-head__eyebrow">Proteção</p>
-              <h2>Segurança e privacidade</h2>
-            </div>
+            <h2>Segurança</h2>
           </div>
 
-          <div class="account-grid">
+          <div class="account-grid account-grid--clean">
             <article class="account-item account-item--highlight">
               <span class="label">E-mail</span>
               <strong class="value">{{ vm.email || 'Não informado' }}</strong>
-              <small class="support">Status: {{ vm.emailStatusLabel }}</small>
-              <p class="hint">{{ vm.verificationHint }}</p>
+              <small class="support">{{ vm.emailStatusLabel }}</small>
 
               @if (!vm.emailVerified) {
                 <div class="actions">
@@ -197,99 +130,52 @@
             </article>
 
             <article class="account-item">
-              <span class="label">Login com Google</span>
+              <span class="label">Google</span>
               <strong class="value">
                 {{ vm.googleLinked ? 'Vinculado' : 'Não vinculado' }}
               </strong>
-              <small class="support">
-                {{ vm.googleLinked
-                  ? 'Este provedor pode ser usado para entrar.'
-                  : 'Nenhum provedor Google vinculado foi confirmado.' }}
-              </small>
             </article>
 
             <article class="account-item">
               <span class="label">Senha</span>
               <strong class="value">
-                {{ vm.passwordConfigured ? 'Configurada' : 'Não confirmada para esta conta' }}
+                {{ vm.passwordConfigured ? 'Configurada' : 'Não confirmada' }}
               </strong>
-              <small class="support">
-                O estado é derivado dos provedores vinculados ao Firebase Auth.
-              </small>
-            </article>
-
-            <article class="account-item">
-              <span class="label">Autenticação em duas etapas</span>
-              <strong class="value">Não disponível nesta versão</strong>
-              <p class="hint">{{ vm.twoFactorHint }}</p>
-            </article>
-
-            <article class="account-item">
-              <span class="label">Sessões e dispositivos</span>
-              <strong class="value">Não disponível nesta versão</strong>
-              <small class="support">
-                A plataforma ainda não possui uma lista confiável de dispositivos
-                nem encerramento remoto de sessões.
-              </small>
             </article>
           </div>
         </section>
 
-        <section id="assinatura" class="account-card">
+        <section id="assinatura" class="account-card account-card--clean">
           <div class="account-section-head">
-            <div>
-              <p class="account-section-head__eyebrow">Cobrança</p>
-              <h2>Assinatura</h2>
-            </div>
-            <a class="btn btn-secondary" routerLink="/subscription-plan">Ver planos</a>
+            <h2>Assinatura</h2>
+            <a class="btn btn-secondary" routerLink="/subscription-plan">Gerenciar</a>
           </div>
 
-          <div class="account-grid">
+          <div class="account-grid account-grid--clean">
             <article class="account-item account-item--highlight">
-              <span class="label">Status da assinatura</span>
-              <strong class="value">{{ vm.subscriptionLabel }}</strong>
-              <small class="support">
-                Resultado baseado no entitlement consultado no backend.
-              </small>
-            </article>
-
-            <article class="account-item">
               <span class="label">Plano atual</span>
               <strong class="value">
-                {{ vm.activePlanLabel || 'Nenhum plano ativo confirmado' }}
+                {{ vm.activePlanLabel || 'Nenhum plano ativo' }}
               </strong>
-              <small class="support">
-                Ajustes e upgrades ficam concentrados na central de assinatura.
-              </small>
             </article>
+
+            <article class="account-item">
+              <span class="label">Status</span>
+              <strong class="value">{{ vm.subscriptionLabel }}</strong>
+            </article>
+
+            @if (vm.tokensBalance !== null) {
+              <article class="account-item">
+                <span class="label">Tokens</span>
+                <strong class="value">{{ vm.tokensBalance }}</strong>
+              </article>
+            }
           </div>
         </section>
-
-        @if (vm.tokensBalance !== null) {
-          <section id="tokens" class="account-card">
-            <div class="account-section-head">
-              <div>
-                <p class="account-section-head__eyebrow">Saldo</p>
-                <h2>Tokens</h2>
-              </div>
-            </div>
-
-            <div class="account-grid">
-              <article class="account-item">
-                <span class="label">Saldo atual</span>
-                <strong class="value">{{ vm.tokensBalance }}</strong>
-                <small class="support">Saldo disponível para uso na plataforma.</small>
-              </article>
-            </div>
-          </section>
-        }
 
         <details id="gerenciar" class="account-danger-fold">
           <summary class="account-danger-fold__summary">
-            <span>
-              <small class="account-danger-fold__eyebrow">Zona sensível</small>
-              <strong>Gerenciar conta</strong>
-            </span>
+            <strong>Gerenciar conta</strong>
           </summary>
 
           <div class="account-danger-fold__content">
@@ -297,9 +183,7 @@
               <article class="account-item account-item--danger">
                 <span class="label">Suspender conta</span>
                 <p class="hint">
-                  O perfil ficará invisível e as interações serão bloqueadas até
-                  a reativação. Suspensões aplicadas pela moderação não podem ser
-                  removidas por este fluxo.
+                  O perfil ficará invisível e as interações serão bloqueadas até a reativação.
                 </p>
                 <div class="actions">
                   <button
@@ -316,8 +200,7 @@
               <article class="account-item account-item--danger">
                 <span class="label">Solicitar exclusão</span>
                 <p class="hint">
-                  O perfil ficará invisível imediatamente. A solicitação poderá
-                  ser cancelada por 24 horas antes do início da exclusão definitiva.
+                  O perfil será ocultado imediatamente. A solicitação pode ser cancelada por 24 horas.
                 </p>
                 <div class="actions">
                   <button
@@ -350,7 +233,7 @@
       }
     } @else {
       <section class="account-card" role="status" aria-live="polite">
-        <p>Carregando dados da conta...</p>
+        <p>Carregando conta...</p>
       </section>
     }
   </section>
