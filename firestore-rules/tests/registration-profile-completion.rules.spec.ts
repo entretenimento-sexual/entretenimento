@@ -10,6 +10,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   doc,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -34,6 +35,10 @@ function authenticatedDb(emailVerified: boolean) {
   return testEnv
     .authenticatedContext(UID, { email_verified: emailVerified })
     .firestore();
+}
+
+function authenticatedDbWithoutEmailClaim() {
+  return testEnv.authenticatedContext(UID, {}).firestore();
 }
 
 function privateRegistrationSeed(): Record<string, unknown> {
@@ -139,6 +144,31 @@ describe('Firestore Rules / registration and profile completion', () => {
 
     await assertSucceeds(
       setDoc(doc(db, 'users', UID), privateRegistrationSeed())
+    );
+  });
+
+  it('permite o bootstrap transacional sem a claim email_verified inicial', async () => {
+    const db = authenticatedDbWithoutEmailClaim();
+
+    await assertSucceeds(
+      runTransaction(db, async (transaction) => {
+        const userRef = doc(db, 'users', UID);
+        const indexRef = doc(db, 'public_index', 'nickname:pessoa_segura');
+        const indexSnapshot = await transaction.get(indexRef);
+
+        if (indexSnapshot.exists()) {
+          throw new Error('Reserva de nickname inesperadamente existente.');
+        }
+
+        transaction.set(userRef, privateRegistrationSeed(), { merge: true });
+        transaction.set(indexRef, {
+          uid: UID,
+          type: 'nickname',
+          value: 'pessoa_segura',
+          createdAt: serverTimestamp(),
+          lastChangedAt: serverTimestamp(),
+        });
+      })
     );
   });
 
