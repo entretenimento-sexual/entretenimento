@@ -23,7 +23,10 @@ export type TPublicPhotoCardVariant =
   standalone: true,
   imports: [CommonModule, RouterModule],
   templateUrl: './public-photo-card.component.html',
-  styleUrls: ['./public-photo-card.component.css'],
+  styleUrls: [
+    './public-photo-card.component.css',
+    './public-photo-card.feed.css',
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PublicPhotoCardComponent {
