@@ -49,7 +49,7 @@ describe('sidebar runtime composition', () => {
     );
   });
 
-  it('separa Pessoas, Locais e Comunidades dentro de Descobrir', () => {
+  it('apresenta Feed antes de Pessoas, Locais e Comunidades', () => {
     const sections = buildSidebarSections({
       isSubscriber: false,
       isVip: false,
@@ -58,11 +58,18 @@ describe('sidebar runtime composition', () => {
     const explore = sections.find(({ key }) => key === 'explore');
 
     expect(explore?.items.map(({ id }) => id)).toEqual([
+      'social-feed',
       'discover-people',
       'discover-venues',
       'discover-communities',
     ]);
+    expect(explore?.items[0]).toMatchObject({
+      label: 'Feed',
+      route: '/descobrir',
+      exact: true,
+    });
     expect(sections.some(({ key }) => key === 'communities')).toBe(false);
+    expect(resolveSidebarSectionFromUrl('/descobrir')).toBe('explore');
     expect(resolveSidebarSectionFromUrl('/dashboard/locais/novo')).toBe('explore');
     expect(resolveSidebarSectionFromUrl('/dashboard/comunidades/grupo-1')).toBe(
       'explore'
@@ -91,7 +98,7 @@ describe('sidebar runtime composition', () => {
     ]);
   });
 
-  it('oculta somente Locais e Comunidades quando a feature está desligada', () => {
+  it('mantém Feed e Pessoas quando Locais e Comunidades estão desativados', () => {
     const sections = buildSidebarSections(
       {
         isSubscriber: false,
@@ -102,6 +109,9 @@ describe('sidebar runtime composition', () => {
     );
     const explore = sections.find(({ key }) => key === 'explore');
 
-    expect(explore?.items.map(({ id }) => id)).toEqual(['discover-people']);
+    expect(explore?.items.map(({ id }) => id)).toEqual([
+      'social-feed',
+      'discover-people',
+    ]);
   });
 });
