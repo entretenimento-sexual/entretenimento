@@ -1,32 +1,29 @@
 <!-- src/app/chat-module/invite-list/invite-list.component.html -->
 <section class="invite-list-page" aria-labelledby="invite-list-title">
-  <header class="invite-list-page__header app-card">
-    <div class="invite-list-page__intro">
-      <span class="invite-list-page__eyebrow">Salas privadas</span>
-      <h1 id="invite-list-title">Convites de sala</h1>
-      <p>
-        Revise convites para participar de salas privadas e responda apenas quando reconhecer o contexto.
-      </p>
-    </div>
+  <header class="invite-list-page__header invite-list-page__header--compact">
+    <h1 id="invite-list-title">Convites</h1>
 
     @if (pendingCount$ | async; as count) {
       @if (count > 0) {
-        <span class="invite-list-page__count" [attr.aria-label]="count + ' convites pendentes'">
-          {{ count }} pendente{{ count === 1 ? '' : 's' }}
+        <span
+          class="invite-list-page__count"
+          [attr.aria-label]="count + ' convites pendentes'"
+        >
+          {{ count }} novo{{ count === 1 ? '' : 's' }}
         </span>
       }
     }
   </header>
 
   @if (loading$ | async) {
-    <section class="invite-list-page__state app-card" role="status" aria-live="polite">
-      <mat-spinner diameter="32"></mat-spinner>
-      <p>Carregando convites de sala...</p>
+    <section class="invite-list-page__state" role="status" aria-live="polite">
+      <mat-spinner diameter="28"></mat-spinner>
+      <p>Carregando convites...</p>
     </section>
   } @else {
     @if (error$ | async; as error) {
       @if (error) {
-        <section class="invite-list-page__state invite-list-page__state--error app-card" role="alert">
+        <section class="invite-list-page__state invite-list-page__state--error" role="alert">
           <p>{{ error }}</p>
         </section>
       }
@@ -34,34 +31,28 @@
 
     @if (invites$ | async; as invites) {
       @if (invites.length === 0) {
-        <section class="invite-list-page__state app-card" role="status">
-          <h2>Nenhum convite pendente</h2>
-          <p>Quando alguém convidar você para uma sala privada, o convite aparecerá aqui para aceitar ou recusar.</p>
+        <section class="invite-list-page__state" role="status">
+          <h2>Nenhum convite.</h2>
+          <p>Novos convites de sala aparecerão aqui.</p>
         </section>
       } @else {
         <ul class="invite-list-page__cards" aria-label="Convites pendentes">
           @for (invite of invites; track trackByInviteId($index, invite)) {
             <li>
-              <mat-card class="invite-card app-card">
+              <mat-card class="invite-card">
                 <mat-card-header class="invite-card__header">
                   <mat-card-title>{{ getInviteTitle(invite) }}</mat-card-title>
-                  <mat-card-subtitle>Enviado por {{ getInviteSubtitle(invite) }}</mat-card-subtitle>
+                  <mat-card-subtitle>Por {{ getInviteSubtitle(invite) }}</mat-card-subtitle>
                 </mat-card-header>
 
                 <mat-card-content class="invite-card__body">
-                  <div class="invite-card__details" aria-label="Detalhes do convite">
+                  <div class="invite-card__details" aria-label="Datas do convite">
                     @if (formatInviteDate(invite.sentAt); as sentAtLabel) {
-                      <p>
-                        <span>Enviado</span>
-                        <strong>{{ sentAtLabel }}</strong>
-                      </p>
+                      <span>Enviado {{ sentAtLabel }}</span>
                     }
 
                     @if (formatInviteDate(invite.expiresAt); as expiresAtLabel) {
-                      <p>
-                        <span>Expira</span>
-                        <strong>{{ expiresAtLabel }}</strong>
-                      </p>
+                      <span>Expira {{ expiresAtLabel }}</span>
                     }
                   </div>
                 </mat-card-content>
