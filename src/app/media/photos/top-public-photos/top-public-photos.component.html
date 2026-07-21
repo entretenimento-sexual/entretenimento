@@ -1,15 +1,9 @@
-<section class="top-photos-page" aria-label="Fotos públicas em destaque">
+<section class="top-photos-page" aria-labelledby="top-photos-title">
   @let vm = (vm$ | async);
   @let selectedIndex = (selectedIndex$ | async);
 
-  <header class="top-photos-header">
-    <div class="title-block">
-      <span class="eyebrow">Destaques</span>
-      <h2>Fotos top</h2>
-      <p class="subtitle">
-        Fotos públicas com maior engajamento na plataforma.
-      </p>
-    </div>
+  <header class="top-photos-header gallery-header-clean">
+    <h1 id="top-photos-title">Fotos em destaque</h1>
   </header>
 
   @if (vm) {
@@ -31,7 +25,7 @@
       <app-content-state
         class="top-photos-state"
         state="loading"
-        message="Carregando fotos públicas em destaque."
+        message="Carregando fotos em destaque."
         [skeletonRows]="4"
       />
     } @else if (vm.showOfflineEmpty) {
@@ -39,7 +33,7 @@
         class="top-photos-state"
         state="offline"
         title="Fotos indisponíveis sem conexão"
-        message="Conecte-se à internet para carregar esta vitrine pela primeira vez."
+        message="Conecte-se à internet para carregar esta vitrine."
         actionLabel="Tentar novamente"
         (action)="retry()"
       />
@@ -48,7 +42,7 @@
         class="top-photos-state"
         state="error"
         title="Não foi possível carregar as fotos"
-        message="O conteúdo não foi alterado. Tente atualizar a vitrine."
+        message="Tente atualizar a vitrine."
         actionLabel="Tentar novamente"
         (action)="retry()"
       />
@@ -57,7 +51,7 @@
         class="top-photos-state"
         state="empty"
         title="Nenhuma foto em destaque"
-        message="Ainda não há fotos públicas suficientes para compor esta vitrine."
+        message="Ainda não há publicações suficientes para esta seleção."
       />
     }
 
@@ -87,7 +81,7 @@
       <app-public-photo-lightbox
         [items]="vm.items"
         [activeIndex]="selectedIndex"
-        title="Fotos top"
+        title="Fotos em destaque"
         (closed)="closeViewer()"
         (prevRequested)="prev()"
         (nextRequested)="next()" />
