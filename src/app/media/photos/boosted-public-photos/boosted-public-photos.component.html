@@ -1,15 +1,9 @@
-<section class="boosted-photos-page" aria-label="Fotos públicas turbinadas">
+<section class="boosted-photos-page" aria-labelledby="boosted-photos-title">
   @if (vm$ | async; as vm) {
     @let selectedIndex = (selectedIndex$ | async);
 
-    <header class="boosted-photos-header">
-      <div class="title-block">
-        <span class="eyebrow">Turbo</span>
-        <h2>Fotos turbinadas</h2>
-        <p class="subtitle">
-          Fotos públicas promovidas com destaque temporário.
-        </p>
-      </div>
+    <header class="boosted-photos-header gallery-header-clean">
+      <h1 id="boosted-photos-title">Fotos turbinadas</h1>
     </header>
 
     @if (vm.showStaleNotice) {
@@ -17,7 +11,7 @@
         state="stale"
         title="Exibindo fotos já carregadas"
         [message]="vm.offline
-          ? 'A conexão está indisponível. O conteúdo será atualizado quando você voltar a ficar online.'
+          ? 'A conexão está indisponível. O conteúdo será atualizado quando você estiver online.'
           : 'A atualização falhou, mas o último resultado válido foi preservado.'"
         actionLabel="Atualizar"
         [compact]="true"
@@ -34,16 +28,16 @@
     } @else if (vm.showOfflineEmpty) {
       <app-content-state
         state="offline"
-        title="Fotos turbinadas indisponíveis sem conexão"
-        message="Conecte-se à internet para carregar esta seleção pela primeira vez."
+        title="Fotos indisponíveis sem conexão"
+        message="Conecte-se à internet para carregar esta seleção."
         actionLabel="Tentar novamente"
         (action)="retry()"
       />
     } @else if (vm.showBlockingError) {
       <app-content-state
         state="error"
-        title="Não foi possível carregar as fotos turbinadas"
-        message="O serviço está temporariamente indisponível. Tente novamente."
+        title="Não foi possível carregar as fotos"
+        message="Tente novamente em instantes."
         actionLabel="Tentar novamente"
         (action)="retry()"
       />
@@ -51,7 +45,7 @@
       <app-content-state
         state="empty"
         title="Nenhuma foto turbinada"
-        message="Ainda não há fotos públicas com boost ativo."
+        message="Ainda não há publicações com impulso ativo."
         actionLabel="Atualizar"
         (action)="retry()"
       />
