@@ -1,6 +1,6 @@
-import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
-import { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-profile-card.model';
-import { IExploreFeedVm } from '../services/explore-feed.service';
+import type { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import type { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-profile-card.model';
+import type { IExploreFeedVm } from '../services/explore-feed.service';
 
 export interface ExplorePersonalFeedOptions {
   readonly limit?: number;
@@ -62,7 +62,8 @@ export function buildExplorePersonalFeed(
 
     if (relevanceDiff !== 0) return relevanceDiff;
 
-    const publishedDiff = toFiniteNumber(b.publishedAt) - toFiniteNumber(a.publishedAt);
+    const publishedDiff =
+      toFiniteNumber(b.publishedAt) - toFiniteNumber(a.publishedAt);
     if (publishedDiff !== 0) return publishedDiff;
 
     return buildPublicationKey(a).localeCompare(buildPublicationKey(b));
@@ -91,10 +92,13 @@ function calculateRelevanceScore(
   compatibleOwners: ReadonlySet<string>
 ): number {
   const ownerUid = String(item.ownerUid ?? '').trim();
-  const compatibilityBoost = compatibleOwners.has(ownerUid) ? 1_000_000_000 : 0;
-  const paidBoost = item.boostActive === true
-    ? 100_000_000 + toFiniteNumber(item.boostPriority) * 1_000
+  const compatibilityBoost = compatibleOwners.has(ownerUid)
+    ? 1_000_000_000
     : 0;
+  const paidBoost =
+    item.boostActive === true
+      ? 100_000_000 + toFiniteNumber(item.boostPriority) * 1_000
+      : 0;
   const engagement =
     toFiniteNumber(item.engagementScore ?? item.score) * 10_000 +
     toFiniteNumber(item.reactionsCount ?? item.likesCount) * 300 +
