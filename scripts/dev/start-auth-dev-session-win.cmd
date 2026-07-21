@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 rem -----------------------------------------------------------------------------
 rem start-auth-dev-session-win.cmd
@@ -42,9 +42,9 @@ if not "%SESSION_STATE%"=="0" (
 
   echo [dev:auth] Ambiente parcial detectado. Verificando processos residuais reconhecidos...
   powershell -NoProfile -ExecutionPolicy Bypass -File "%CLEANUP_SCRIPT%" -ProjectRoot "%PROJECT_ROOT%"
-  set "CLEANUP_STATE=%ERRORLEVEL%"
+  set "CLEANUP_STATE=!ERRORLEVEL!"
 
-  if not "%CLEANUP_STATE%"=="0" (
+  if not "!CLEANUP_STATE!"=="0" (
     echo [dev:auth] ERRO: nao foi seguro liberar automaticamente todas as portas.
     echo [dev:auth] Nenhum processo desconhecido foi encerrado.
     exit /b 1
@@ -52,14 +52,14 @@ if not "%SESSION_STATE%"=="0" (
 
   echo [dev:auth] Revalidando portas apos a recuperacao...
   node "%PROJECT_ROOT%\scripts\dev\check-local-dev-session.mjs"
-  set "SESSION_STATE=%ERRORLEVEL%"
+  set "SESSION_STATE=!ERRORLEVEL!"
 
-  if "%SESSION_STATE%"=="10" (
+  if "!SESSION_STATE!"=="10" (
     set "SESSION_REUSED=1"
     goto open_browser
   )
 
-  if not "%SESSION_STATE%"=="0" (
+  if not "!SESSION_STATE!"=="0" (
     echo [dev:auth] ERRO: o ambiente permaneceu inconsistente apos a recuperacao segura.
     exit /b 1
   )
