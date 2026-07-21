@@ -38,20 +38,33 @@ describe('PublicPhotoCardComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renderiza a variante de feed com autor fora da mídia', () => {
+  it('renderiza a variante de feed somente com autor e horário no cabeçalho', () => {
     const header = fixture.debugElement.query(By.css('.feed-card-header'));
     const owner = fixture.debugElement.query(By.css('.feed-card-owner'))
       .nativeElement as HTMLAnchorElement;
 
     expect(header).toBeTruthy();
-    expect(owner.textContent).toContain('Pessoa teste');
-    expect(owner.textContent).toContain('Rio de Janeiro, RJ');
+    expect(owner.textContent?.trim()).toBe('Pessoa teste');
+    expect(owner.textContent).not.toContain('Rio de Janeiro');
+    expect(fixture.debugElement.query(By.css('.feed-card-avatar'))).toBeNull();
   });
 
   it('não usa overlay nem rodapé duplicado da variante latest', () => {
     expect(fixture.debugElement.query(By.css('.photo-overlay'))).toBeNull();
     expect(fixture.debugElement.query(By.css('.photo-meta'))).toBeNull();
     expect(fixture.debugElement.query(By.css('.feed-card-footer'))).toBeTruthy();
+  });
+
+  it('oculta o rodapé quando não há engajamento nem impulso', () => {
+    fixture.componentRef.setInput('photo', {
+      ...photo,
+      reactionsCount: 0,
+      commentsCount: 0,
+      boostActive: false,
+    });
+    fixture.detectChanges();
+
+    expect(fixture.debugElement.query(By.css('.feed-card-footer'))).toBeNull();
   });
 
   it('aplica o frame de mídia limitado do feed', () => {
