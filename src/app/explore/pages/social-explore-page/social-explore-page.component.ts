@@ -23,7 +23,15 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { buildExplorePersonalFeed } from '../../models/explore-personal-feed';
+import {
+  buildExplorePersonalFeed,
+  buildExplorePersonalFeedWindow,
+  ExplorePersonalFeedWindow,
+} from '../../models/explore-personal-feed';
+
+const FEED_INITIAL_VISIBLE_COUNT = 6;
+const FEED_PAGE_SIZE = 6;
+const FEED_POOL_LIMIT = 36;
 
 type TExplorePhotoSection =
   | 'feed'
@@ -57,14 +65,50 @@ export class SocialExplorePageComponent {
 
   private readonly lightboxStateSubject =
     new BehaviorSubject<IExploreLightboxState | null>(null);
+  private readonly visibleFeedCountSubject =
+    new BehaviorSubject<number>(FEED_INITIAL_VISIBLE_COUNT);
 
   hidingMyStatus = false;
 
   readonly vm$: Observable<IExploreFeedVm> = this.exploreFeedFacade.vm$;
-  readonly feedPhotos$: Observable<readonly IPublicPhotoItem[]> = this.vm$.pipe(
-    map((vm) => buildExplorePersonalFeed(vm)),
+
+  /**
+   * Pool único da timeline.
+   *
+   * O backend e o cache permanecem sob responsabilidade do ExploreFeedService.
+   * Aqui apenas ampliamos o limite da projeção já autorizada para permitir que a
+   * UI monte poucos cards inicialmente e expanda sob demanda.
+   */
+  private readonly feedPool$: Observable<readonly IPublicPhotoItem[]> =
+    this.vm$.pipe(
+      map((vm) =>
+        buildExplorePersonalFeed(vm, {
+          limit: FEED_POOL_LIMIT,
+        })
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly feedWindow$: Observable<ExplorePersonalFeedWindow> = combineLatest([
+    this.feedPool$,
+    this.visibleFeedCountSubject.pipe(distinctUntilChanged()),
+  ]).pipe(
+    map(([items, visibleLimit]) =>
+      buildExplorePersonalFeedWindow(items, visibleLimit)
+    ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  /**
+   * Nome preservado porque já é usado pelo template e pelo lightbox.
+   * Agora representa somente os cards efetivamente montados na timeline.
+   */
+  readonly feedPhotos$: Observable<readonly IPublicPhotoItem[]> =
+    this.feedWindow$.pipe(
+      map((window) => window.items),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
   readonly currentUser$: Observable<IUserDados | null> =
     this.currentUserStore.user$.pipe(
       map((user) => user ?? null),
@@ -132,6 +176,18 @@ export class SocialExplorePageComponent {
         )
         .pipe(take(1))
         .subscribe();
+    });
+  }
+
+  loadMoreFeed(): void {
+    this.feedWindow$.pipe(take(1)).subscribe((window) => {
+      if (!window.hasMore) {
+        return;
+      }
+
+      this.visibleFeedCountSubject.next(
+        Math.min(window.totalItems, window.visibleCount + FEED_PAGE_SIZE)
+      );
     });
   }
 
