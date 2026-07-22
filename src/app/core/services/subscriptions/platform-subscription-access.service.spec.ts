@@ -29,6 +29,7 @@ function createUser(endsAt: number): IUserDados {
 
 describe('PlatformSubscriptionAccessService', () => {
   let userSubject: BehaviorSubject<IUserDados | null | undefined>;
+  let patchMock: ReturnType<typeof vi.fn>;
   let service: PlatformSubscriptionAccessService;
 
   beforeEach(() => {
@@ -37,13 +38,22 @@ describe('PlatformSubscriptionAccessService', () => {
     userSubject = new BehaviorSubject<IUserDados | null | undefined>(
       createUser(NOW + 100)
     );
+    patchMock = vi.fn((partial: Partial<IUserDados>) => {
+      const current = userSubject.value;
+      if (!current) return;
+      userSubject.next({ ...current, ...partial });
+    });
 
     TestBed.configureTestingModule({
       providers: [
         PlatformSubscriptionAccessService,
         {
           provide: CurrentUserStoreService,
-          useValue: { user$: userSubject.asObservable() },
+          useValue: {
+            user$: userSubject.asObservable(),
+            getSnapshot: () => userSubject.value,
+            patch: patchMock,
+          },
         },
       ],
     });
@@ -67,6 +77,16 @@ describe('PlatformSubscriptionAccessService', () => {
     await vi.advanceTimersByTimeAsync(151);
 
     expect(states).toEqual([true, false]);
+    expect(patchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'free',
+        tier: 'free',
+        isSubscriber: false,
+        monthlyPayer: false,
+        subscriptionStatus: 'inactive',
+        subscriptionScope: null,
+      })
+    );
     subscription.unsubscribe();
   });
 
