@@ -1,8 +1,11 @@
 // src/app/core/services/interactions/friendship/repo/requests.repo.spec.ts
 import { EnvironmentInjector } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { vi } from 'vitest';
 
-const firestoreTest = (() => {
+const { firestoreStore, firestoreMocks } = vi.hoisted(() => {
+  vi.resetModules();
+
   type DocRef = { path: string };
   type ColRef = { path: string };
 
@@ -20,69 +23,69 @@ const firestoreTest = (() => {
     return out;
   };
 
-  return {
-    store,
-    materializeTs,
-    doc: (_db: unknown, path: string): DocRef => ({ path }),
-    collection: (_db: unknown, path: string): ColRef => ({ path }),
-  };
-})();
+  const doc = vi.fn((_db: unknown, path: string): DocRef => ({ path }));
+  const collection = vi.fn(
+    (_db: unknown, path: string): ColRef => ({ path })
+  );
+  const serverTimestamp = vi.fn(() => ({ __isServerTs: true }));
 
-vi.doMock('@angular/fire/firestore', () => {
-  return {
-    Timestamp: class {},
-    Firestore: class {},
-    doc: firestoreTest.doc,
-    collection: firestoreTest.collection,
-    serverTimestamp: () => ({ __isServerTs: true }),
-    query: vi.fn((collectionRef: unknown, ...constraints: unknown[]) => ({ collectionRef, constraints })),
-    where: vi.fn((field: string, op: string, value: unknown) => ({ field, op, value })),
-    getDocs: vi.fn(),
-    writeBatch: vi.fn(),
-    deleteDoc: vi.fn(),
-    addDoc: async (col: { path: string }, data: unknown) => {
-      const id = Math.random().toString(36).slice(2);
-      firestoreTest.store.set(`${col.path}/${id}`, firestoreTest.materializeTs(data));
-      return { id, path: `${col.path}/${id}` };
-    },
-    async getDoc(ref: { path: string }) {
-      const data = firestoreTest.store.get(ref.path);
-      return {
-        exists: () => firestoreTest.store.has(ref.path),
-        data: () => JSON.parse(JSON.stringify(data)),
-      };
-    },
-    async updateDoc(ref: { path: string }, patch: unknown) {
-      if (!firestoreTest.store.has(ref.path)) {
-        throw new Error(`update on missing doc ${ref.path}`);
-      }
+  const addDoc = vi.fn(async (col: ColRef, data: unknown) => {
+    const id = Math.random().toString(36).slice(2);
+    store.set(`${col.path}/${id}`, materializeTs(data));
+    return { id, path: `${col.path}/${id}` };
+  });
 
-      const current = firestoreTest.store.get(ref.path);
-      firestoreTest.store.set(ref.path, {
-        ...current,
-        ...firestoreTest.materializeTs(patch),
-      });
-    },
-    async runTransaction(_db: unknown, updateFn: (tx: unknown) => Promise<void> | void) {
+  const getDoc = vi.fn(async (ref: DocRef) => {
+    const data = store.get(ref.path);
+    return {
+      exists: () => store.has(ref.path),
+      data: () => JSON.parse(JSON.stringify(data)),
+    };
+  });
+
+  const updateDoc = vi.fn(async (ref: DocRef, patch: unknown) => {
+    if (!store.has(ref.path)) {
+      throw new Error(`update on missing doc ${ref.path}`);
+    }
+
+    const current = store.get(ref.path);
+    store.set(ref.path, {
+      ...current,
+      ...materializeTs(patch),
+    });
+  });
+
+  const runTransaction = vi.fn(
+    async (
+      _db: unknown,
+      updateFn: (tx: {
+        get(ref: DocRef): Promise<{
+          exists(): boolean;
+          data(): any;
+        }>;
+        set(ref: DocRef, data: unknown, opts?: { merge?: boolean }): void;
+        update(ref: DocRef, data: unknown): void;
+      }) => Promise<void> | void
+    ) => {
       const pendingWrites: Array<{
         op: 'set' | 'update';
-        ref: { path: string };
+        ref: DocRef;
         data: unknown;
         merge?: boolean;
       }> = [];
 
       const tx = {
-        async get(ref: { path: string }) {
-          const data = firestoreTest.store.get(ref.path);
+        async get(ref: DocRef) {
+          const data = store.get(ref.path);
           return {
-            exists: () => firestoreTest.store.has(ref.path),
+            exists: () => store.has(ref.path),
             data: () => JSON.parse(JSON.stringify(data)),
           };
         },
-        set(ref: { path: string }, data: unknown, opts?: { merge?: boolean }) {
+        set(ref: DocRef, data: unknown, opts?: { merge?: boolean }) {
           pendingWrites.push({ op: 'set', ref, data, merge: !!opts?.merge });
         },
-        update(ref: { path: string }, data: unknown) {
+        update(ref: DocRef, data: unknown) {
           pendingWrites.push({ op: 'update', ref, data });
         },
       };
@@ -91,25 +94,73 @@ vi.doMock('@angular/fire/firestore', () => {
 
       for (const write of pendingWrites) {
         if (write.op === 'set') {
-          const current = firestoreTest.store.get(write.ref.path) ?? {};
-          const data = firestoreTest.materializeTs(write.data);
-          firestoreTest.store.set(write.ref.path, write.merge ? { ...current, ...data } : data);
+          const current = store.get(write.ref.path) ?? {};
+          const data = materializeTs(write.data);
+          store.set(
+            write.ref.path,
+            write.merge ? { ...current, ...data } : data
+          );
           continue;
         }
 
-        if (!firestoreTest.store.has(write.ref.path)) {
+        if (!store.has(write.ref.path)) {
           throw new Error(`tx.update on missing doc ${write.ref.path}`);
         }
 
-        const current = firestoreTest.store.get(write.ref.path);
-        firestoreTest.store.set(write.ref.path, {
+        const current = store.get(write.ref.path);
+        store.set(write.ref.path, {
           ...current,
-          ...firestoreTest.materializeTs(write.data),
+          ...materializeTs(write.data),
         });
       }
+    }
+  );
+
+  return {
+    firestoreStore: store,
+    firestoreMocks: {
+      doc,
+      collection,
+      serverTimestamp,
+      addDoc,
+      getDoc,
+      updateDoc,
+      runTransaction,
+      query: vi.fn(
+        (collectionRef: unknown, ...constraints: unknown[]) => ({
+          collectionRef,
+          constraints,
+        })
+      ),
+      where: vi.fn((field: string, op: string, value: unknown) => ({
+        field,
+        op,
+        value,
+      })),
+      getDocs: vi.fn(),
+      writeBatch: vi.fn(),
+      deleteDoc: vi.fn(),
     },
   };
 });
+
+vi.mock('@angular/fire/firestore', () => ({
+  Firestore: class Firestore {},
+  doc: firestoreMocks.doc,
+  collection: firestoreMocks.collection,
+  serverTimestamp: firestoreMocks.serverTimestamp,
+  query: firestoreMocks.query,
+  where: firestoreMocks.where,
+  getDocs: firestoreMocks.getDocs,
+  writeBatch: firestoreMocks.writeBatch,
+  deleteDoc: firestoreMocks.deleteDoc,
+  addDoc: firestoreMocks.addDoc,
+  getDoc: firestoreMocks.getDoc,
+  updateDoc: firestoreMocks.updateDoc,
+  runTransaction: firestoreMocks.runTransaction,
+}));
+
+import { RequestsRepo } from './requests.repo';
 
 class FakeCooldownRepo {
   getCooldownRef() {
@@ -118,8 +169,7 @@ class FakeCooldownRepo {
 }
 
 describe('RequestsRepo.acceptRequestBatch', () => {
-  let RequestsRepoToken: any;
-  let repo: any;
+  let repo: RequestsRepo;
 
   const db = {} as any;
   const env = {
@@ -130,18 +180,14 @@ describe('RequestsRepo.acceptRequestBatch', () => {
   const requesterUid = 'alice';
   const targetUid = 'bob';
 
-  beforeAll(async () => {
-    const repoModule = await import('./requests.repo');
-    RequestsRepoToken = repoModule.RequestsRepo;
-  });
-
   beforeEach(() => {
-    firestoreTest.store.clear();
-    repo = new RequestsRepoToken(db, env, new FakeCooldownRepo() as any);
+    firestoreStore.clear();
+    vi.clearAllMocks();
+    repo = new RequestsRepo(db, env, new FakeCooldownRepo() as any);
   });
 
   it('deve aceitar uma solicitação pendente e criar as duas arestas', async () => {
-    firestoreTest.store.set(`friendRequests/${requestId}`, {
+    firestoreStore.set(`friendRequests/${requestId}`, {
       requesterUid,
       targetUid,
       status: 'pending',
@@ -150,9 +196,13 @@ describe('RequestsRepo.acceptRequestBatch', () => {
 
     await firstValueFrom(repo.acceptRequestBatch(requestId, requesterUid, targetUid));
 
-    const requesterSide = firestoreTest.store.get(`users/${requesterUid}/friends/${targetUid}`);
-    const targetSide = firestoreTest.store.get(`users/${targetUid}/friends/${requesterUid}`);
-    const request = firestoreTest.store.get(`friendRequests/${requestId}`);
+    const requesterSide = firestoreStore.get(
+      `users/${requesterUid}/friends/${targetUid}`
+    );
+    const targetSide = firestoreStore.get(
+      `users/${targetUid}/friends/${requesterUid}`
+    );
+    const request = firestoreStore.get(`friendRequests/${requestId}`);
 
     expect(requesterSide.friendUid).toBe(targetUid);
     expect(targetSide.friendUid).toBe(requesterUid);
@@ -163,7 +213,7 @@ describe('RequestsRepo.acceptRequestBatch', () => {
   });
 
   it('deve falhar se a solicitação não estiver pendente', async () => {
-    firestoreTest.store.set(`friendRequests/${requestId}`, {
+    firestoreStore.set(`friendRequests/${requestId}`, {
       requesterUid,
       targetUid,
       status: 'accepted',
@@ -176,14 +226,14 @@ describe('RequestsRepo.acceptRequestBatch', () => {
   });
 
   it('deve falhar se os usuários já forem amigos', async () => {
-    firestoreTest.store.set(`friendRequests/${requestId}`, {
+    firestoreStore.set(`friendRequests/${requestId}`, {
       requesterUid,
       targetUid,
       status: 'pending',
       createdAt: Date.now(),
     });
 
-    firestoreTest.store.set(`users/${requesterUid}/friends/${targetUid}`, {
+    firestoreStore.set(`users/${requesterUid}/friends/${targetUid}`, {
       friendUid: targetUid,
       since: Date.now(),
       lastInteractionAt: Date.now(),
