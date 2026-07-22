@@ -7,7 +7,8 @@
 // - manter o espelho público em /public_social_links/{uid};
 // - adicionar/alterar/publicar somente com assinatura ativa;
 // - preservar remoção pelo dono mesmo após o término da assinatura;
-// - separar cache privado e público para impedir reaproveitamento entre contextos.
+// - separar contexto privado e público;
+// - nunca reutilizar cache público sem revalidar as Firestore Rules.
 // =============================================================================
 
 import { Injectable } from '@angular/core';
@@ -191,12 +192,6 @@ export class UserSocialLinksService {
         this.invalidateCaches(safeUid);
         this.invalidateInFlight(safeUid);
         this.setCache(safeUid, 'private', safeLinks, options);
-
-        if (publishToPublic && this.hasLinks(safeLinks)) {
-          this.setCache(safeUid, 'public', safeLinks, options);
-        } else {
-          this.setCache(safeUid, 'public', null, options);
-        }
       }),
       catchError((error) =>
         this.handleError(
@@ -480,6 +475,10 @@ export class UserSocialLinksService {
     scope: SocialLinksReadScope,
     options: SocialLinksOptions
   ): Observable<CacheState<IUserSocialLinks | null>> {
+    if (scope === 'public') {
+      return of({ kind: 'miss' } as const);
+    }
+
     const key = this.cacheKey(uid, scope);
     const metaKey = this.cacheMetaKey(uid, scope);
 
@@ -503,6 +502,12 @@ export class UserSocialLinksService {
     links: IUserSocialLinks | null,
     options: SocialLinksOptions
   ): void {
+    if (scope === 'public') {
+      this.cache.delete(this.cacheKey(uid, scope));
+      this.cache.delete(this.cacheMetaKey(uid, scope));
+      return;
+    }
+
     const persist = options.persistCache === true;
 
     this.cache.set(
@@ -525,7 +530,6 @@ export class UserSocialLinksService {
       this.cache.delete(this.cacheMetaKey(uid, scope));
     });
 
-    // Remove a chave legada não escopada sem reutilizar seu conteúdo.
     this.cache.delete(`socialLinks:${uid}`);
     this.cache.delete(`socialLinks:${uid}:meta`);
   }
