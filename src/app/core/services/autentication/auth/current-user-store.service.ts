@@ -1,30 +1,20 @@
 // src/app/core/services/autentication/auth/current-user-store.service.ts
-// Serviço para gerenciar o estado do usuário atual (IUserDados)
+// Serviço tri-state do usuário atual.
 //
 // Source of truth:
-// - Sessão/Auth/UID: AuthSessionService
-// - Perfil do app (runtime): CurrentUserStoreService
+// - sessão/UID: AuthSessionService;
+// - perfil runtime: CurrentUserStoreService;
+// - Firestore é observado pelos effects, não por este serviço.
 //
-// Tri-state:
-// - undefined: hidratação em andamento / ainda não resolvido
-// - null: perfil indisponível no runtime atual
-// - IUserDados: perfil carregado
-//
-// Observação:
-// - Este serviço NÃO consulta Firestore.
-// - Ele só mantém o runtime do perfil e faz bootstrap compatível por HOT_KEYS.
-// - Perfil runtime do app: fluxo oficial AuthSessionSyncEffects + UserEffects + CurrentUserStoreService
-// - este service NÃO escreve no perfil runtime do app.
+// A equivalência considera o objeto serializável completo. Isso impede que
+// campos novos — especialmente versão e período de assinatura — sejam
+// descartados por um comparador manual desatualizado.
 import { Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { distinctUntilChanged, filter, map, take } from 'rxjs/operators';
 
-import {
-  IUserAdultConsent,
-  IUserDados,
-  IUserTermsAcceptance,
-} from '@core/interfaces/iuser-dados';
+import { IUserDados } from '@core/interfaces/iuser-dados';
 import { CacheService } from '@core/services/general/cache/cache.service';
 import { AuthSessionService } from './auth-session.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
@@ -40,14 +30,7 @@ const RESTRICTED_ACCOUNT_STATUSES = new Set([
   'locked',
 ]);
 
-/**
- * Defesa de runtime para todas as origens de autenticação.
- *
- * O backend e as Rules continuam sendo a autoridade. Esta normalização impede
- * que seeds locais, respostas temporárias de login social ou cache legado
- * representem uma conta incompleta/restrita como pública antes da hidratação
- * canônica terminar.
- */
+/** Defesa de runtime para todas as origens de autenticação. */
 export function normalizeCurrentUserRuntimeVisibility(
   user: IUserDados
 ): IUserDados {
@@ -60,9 +43,7 @@ export function normalizeCurrentUserRuntimeVisibility(
     user.suspended === true ||
     user.accountLocked === true;
 
-  if (!profileIncomplete && !lifecycleRestricted) {
-    return user;
-  }
+  if (!profileIncomplete && !lifecycleRestricted) return user;
 
   if (
     user.publicVisibility === 'hidden' &&
@@ -93,52 +74,18 @@ export class CurrentUserStoreService {
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
-  /**
-   * Debug seguro do runtime do usuário atual.
-   *
-   * Canal:
-   * localStorage.setItem('DEBUG_PROFILE', '1');
-   *
-   * Este service lida com:
-   * - UID autenticado;
-   * - perfil runtime;
-   * - cache de currentUser/currentUserUid;
-   * - estado tri-state do usuário atual.
-   *
-   * Por isso, não deve usar console.log direto.
-   */
   private dbg(message: string, extra?: unknown): void {
     this.privacyDebug.log('profile', `CurrentUserStore: ${message}`, extra);
   }
 
-  // ---------------------------------------------------------------------------
-  // Perfil runtime
-  // ---------------------------------------------------------------------------
-
-  /**
-   * set()
-   * - runtime resolvido com perfil válido
-   */
   set(user: IUserDados): void {
     if (!user?.uid) return;
 
     const safeUser = normalizeCurrentUserRuntimeVisibility(user);
     const current = this.userSubject.value;
-    if (
-      current &&
-      current !== null &&
-      this.areUsersEquivalent(current, safeUser)
-    ) {
-      return;
-    }
+    if (this.areUsersEquivalent(current, safeUser)) return;
 
     this.userSubject.next(safeUser);
-
-    /**
-     * Compat hot keys:
-     * - leitura síncrona no bootstrap
-     * - não são fonte primária do perfil
-     */
     this.cache.set(this.keyUser, safeUser, undefined, { persist: false });
     this.cache.set(this.keyUid, safeUser.uid, undefined, { persist: false });
 
@@ -154,8 +101,7 @@ export class CurrentUserStoreService {
 
     const merged = { ...current, ...partial } as IUserDados;
     const next = normalizeCurrentUserRuntimeVisibility(merged);
-    if (!next?.uid) return;
-    if (this.areUsersEquivalent(current, next)) return;
+    if (!next.uid || this.areUsersEquivalent(current, next)) return;
 
     this.userSubject.next(next);
     this.cache.set(this.keyUser, next, undefined, { persist: false });
@@ -168,19 +114,8 @@ export class CurrentUserStoreService {
     });
   }
 
-  /**
-   * setUnavailable()
-   * - sessão pode continuar existindo
-   * - mas o perfil do app ficou indisponível neste ciclo
-   *
-   * Importante:
-   * - não é logout
-   * - não deve manter currentUser stale no HOT_KEY
-   * - uid compatível pode continuar existindo se a sessão auth ainda existir
-   */
   setUnavailable(): void {
-    const current = this.userSubject.value;
-    if (current !== null) {
+    if (this.userSubject.value !== null) {
       this.userSubject.next(null);
     }
 
@@ -200,30 +135,16 @@ export class CurrentUserStoreService {
     this.dbg('setUnavailable()', { authUid });
   }
 
-  /**
-   * clear()
-   * - estado resolvido sem usuário
-   * - usado em logout / sessão nula confirmada
-   */
   clear(): void {
-    if (this.userSubject.value === null) {
-      this.cache.delete(this.keyUser);
-      this.cache.delete(this.keyUid);
-      return;
+    if (this.userSubject.value !== null) {
+      this.userSubject.next(null);
     }
 
-    this.userSubject.next(null);
     this.cache.delete(this.keyUser);
     this.cache.delete(this.keyUid);
-
     this.dbg('clear()');
   }
 
-  /**
-   * markUnhydrated()
-   * - estado transitório
-   * - usado quando há UID, mas o perfil ainda está sendo resolvido
-   */
   markUnhydrated(): void {
     if (this.userSubject.value === undefined) return;
     this.userSubject.next(undefined);
@@ -257,10 +178,6 @@ export class CurrentUserStoreService {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Sessão/Auth
-  // ---------------------------------------------------------------------------
-
   getAuthReady$(): Observable<boolean> {
     return this.authSession.ready$.pipe(distinctUntilChanged());
   }
@@ -284,10 +201,6 @@ export class CurrentUserStoreService {
     return this.getLoggedUserUID$().pipe(take(1));
   }
 
-  // ---------------------------------------------------------------------------
-  // Restore compatível
-  // ---------------------------------------------------------------------------
-
   restoreFromCache(): IUserDados | null {
     const uid =
       this.authSession.currentAuthUser?.uid ??
@@ -297,8 +210,10 @@ export class CurrentUserStoreService {
     return this.restoreFromCacheForUid(uid);
   }
 
-  restoreFromCacheForUid(uid: string | null | undefined): IUserDados | null {
-    const authUid = (uid ?? '').trim();
+  restoreFromCacheForUid(
+    uid: string | null | undefined
+  ): IUserDados | null {
+    const authUid = String(uid ?? '').trim();
     if (!authUid) {
       this.dbg('restoreFromCacheForUid() -> skip (no uid)');
       return null;
@@ -306,20 +221,14 @@ export class CurrentUserStoreService {
 
     const cached = this.cache.getSync<IUserDados>(this.keyUser);
 
-    if (cached?.uid && cached.uid === authUid) {
+    if (cached?.uid === authUid) {
       const safeCached = normalizeCurrentUserRuntimeVisibility(cached);
-      const current = this.userSubject.value;
-      if (
-        !(
-          current &&
-          current !== null &&
-          this.areUsersEquivalent(current, safeCached)
-        )
-      ) {
+
+      if (!this.areUsersEquivalent(this.userSubject.value, safeCached)) {
         this.userSubject.next(safeCached);
       }
 
-      if (safeCached !== cached) {
+      if (!this.areUsersEquivalent(cached, safeCached)) {
         this.cache.set(this.keyUser, safeCached, undefined, {
           persist: false,
         });
@@ -357,45 +266,6 @@ export class CurrentUserStoreService {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Internals
-  // ---------------------------------------------------------------------------
-
-  private areTermsAcceptancesEquivalent(
-    current: IUserTermsAcceptance | null | undefined,
-    incoming: IUserTermsAcceptance | null | undefined
-  ): boolean {
-    if (current === incoming) return true;
-    if (!current && !incoming) return true;
-    if (!current || !incoming) return false;
-
-    return (
-      current.accepted === incoming.accepted &&
-      current.date === incoming.date &&
-      current.version === incoming.version &&
-      current.acceptedAt === incoming.acceptedAt &&
-      current.updatedAt === incoming.updatedAt &&
-      current.source === incoming.source
-    );
-  }
-
-  private areAdultConsentsEquivalent(
-    current: IUserAdultConsent | null | undefined,
-    incoming: IUserAdultConsent | null | undefined
-  ): boolean {
-    if (current === incoming) return true;
-    if (!current && !incoming) return true;
-    if (!current || !incoming) return false;
-
-    return (
-      current.accepted === incoming.accepted &&
-      current.version === incoming.version &&
-      current.acceptedAt === incoming.acceptedAt &&
-      current.updatedAt === incoming.updatedAt &&
-      current.source === incoming.source
-    );
-  }
-
   private areUsersEquivalent(
     current: IUserDados | null | undefined,
     incoming: IUserDados | null | undefined
@@ -404,42 +274,31 @@ export class CurrentUserStoreService {
     if (!current && !incoming) return true;
     if (!current || !incoming) return false;
 
-    return (
-      current.uid === incoming.uid &&
-      current.nickname === incoming.nickname &&
-      current.email === incoming.email &&
-      current.emailVerified === incoming.emailVerified &&
-      current.photoURL === incoming.photoURL &&
-      current.role === incoming.role &&
-      current.tier === incoming.tier &&
-      current.profileCompleted === incoming.profileCompleted &&
-      current.isSubscriber === incoming.isSubscriber &&
-      current.subscriptionStatus === incoming.subscriptionStatus &&
-      this.areTermsAcceptancesEquivalent(
-        current.acceptedTerms,
-        incoming.acceptedTerms
-      ) &&
-      this.areAdultConsentsEquivalent(
-        current.adultConsent,
-        incoming.adultConsent
-      ) &&
-
-      // lifecycle / moderação
-      current.accountStatus === incoming.accountStatus &&
-      current.suspended === incoming.suspended &&
-      current.publicVisibility === incoming.publicVisibility &&
-      current.interactionBlocked === incoming.interactionBlocked &&
-      current.loginAllowed === incoming.loginAllowed &&
-      current.statusUpdatedAt === incoming.statusUpdatedAt &&
-      current.statusUpdatedBy === incoming.statusUpdatedBy &&
-      current.suspensionReason === incoming.suspensionReason &&
-      current.suspensionSource === incoming.suspensionSource &&
-      current.suspensionEndsAt === incoming.suspensionEndsAt &&
-      current.deletionRequestedAt === incoming.deletionRequestedAt &&
-      current.deletionRequestedBy === incoming.deletionRequestedBy &&
-      current.deletionUndoUntil === incoming.deletionUndoUntil &&
-      current.purgeAfter === incoming.purgeAfter &&
-      current.deletedAt === incoming.deletedAt
-    );
+    try {
+      return this.stableSerialize(current) === this.stableSerialize(incoming);
+    } catch {
+      return false;
+    }
   }
-} // fim do current-user-store.service.ts
+
+  private stableSerialize(value: unknown): string {
+    return JSON.stringify(this.sortSerializableValue(value));
+  }
+
+  private sortSerializableValue(value: unknown): unknown {
+    if (value === null || typeof value !== 'object') return value;
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.sortSerializableValue(item));
+    }
+
+    const record = value as Record<string, unknown>;
+    const sorted: Record<string, unknown> = {};
+
+    for (const key of Object.keys(record).sort()) {
+      sorted[key] = this.sortSerializableValue(record[key]);
+    }
+
+    return sorted;
+  }
+}
