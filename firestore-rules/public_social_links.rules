@@ -2,7 +2,8 @@
 // PUBLIC SOCIAL LINKS (espelho público)
 // - Somente subset publicado
 // - Publicação: somente dono com assinatura ativa
-// - Leitura: usuário autenticado, enquanto o dono mantiver assinatura ativa
+// - Leitura por visitantes: exige login e assinatura ativa do dono
+// - Leitura pelo dono: permitida para gerenciamento e limpeza
 // - Remoção: o dono mantém controle mesmo após o término da assinatura
 // - Evita LIST (padrão anti-scraping)
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
@@ -11,7 +12,8 @@
 // ===============================================================
 match /public_social_links/{userId} {
 
-  allow get: if signedIn() && isActiveSubscriber(userId);
+  allow get: if isSelf(userId)
+    || (signedIn() && isActiveSubscriber(userId));
   allow list: if false;
 
   function allowedKeys() {
