@@ -84,7 +84,10 @@
           }
         </p>
 
-        @if (hasLocation || profile.distanciaKm !== null && profile.distanciaKm !== undefined) {
+        @if (
+          hasLocation ||
+          (profile.distanciaKm !== null && profile.distanciaKm !== undefined)
+        ) {
           <p class="other-profile-page__location">
             <i class="fas fa-location-dot" aria-hidden="true"></i>
 
@@ -92,7 +95,10 @@
               <span>{{ profile.municipio }}, {{ profile.estado }}</span>
             }
 
-            @if (profile.distanciaKm !== null && profile.distanciaKm !== undefined) {
+            @if (
+              profile.distanciaKm !== null &&
+              profile.distanciaKm !== undefined
+            ) {
               @if (hasLocation) {
                 <span aria-hidden="true">•</span>
               }
@@ -145,7 +151,7 @@
               [title]="displayName"
               subtitle="Informe o motivo e o contexto essencial para análise da moderação."
               label="Denunciar"
-              appearance="button"
+              appearance="link"
               [disabled]="!uid"
             ></app-report-content-button>
           </div>
@@ -192,18 +198,13 @@
       </section>
     }
 
-    <section
-      class="other-profile-page__social"
-      aria-labelledby="social-heading"
-    >
-      <h2 id="social-heading">Redes</h2>
-
+    <div class="other-profile-page__social" aria-label="Redes sociais do perfil">
       <app-social-links-accordion
         [uid]="uid"
         [isOwner]="false"
         aria-label="Links sociais do perfil"
       />
-    </section>
+    </div>
   } @else {
     <div
       class="other-profile-page__empty"
