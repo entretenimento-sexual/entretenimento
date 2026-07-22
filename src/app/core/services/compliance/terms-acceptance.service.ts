@@ -10,7 +10,7 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
-export const TERMS_ACCEPTANCE_VERSION = 'v1';
+export const TERMS_ACCEPTANCE_VERSION = 'v2';
 
 interface AcceptPlatformTermsResponse {
   ok: true;
@@ -27,8 +27,8 @@ export interface AcceptedPlatformTermsResult {
  * Termos são fail-closed:
  * - ausência de registro exige aceite;
  * - accepted=false exige aceite;
- * - registros versionados devem coincidir com a versão atual;
- * - accepted=true sem versão é compatível apenas com v1 nesta migração inicial.
+ * - a versão registrada deve coincidir com a versão atual;
+ * - registros legados sem versão não satisfazem versões posteriores à v1.
  */
 export function hasAcceptedCurrentTerms(
   record: IUserTermsAcceptance | null | undefined
