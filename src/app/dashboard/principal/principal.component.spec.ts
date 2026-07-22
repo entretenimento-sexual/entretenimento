@@ -12,6 +12,7 @@ import { IUserDados } from '../../core/interfaces/iuser-dados';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { UserIntentStatusService } from '../../core/services/discovery/user-intent-status.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
+import { HotPlacesService } from '../../core/services/places/hot-places.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { VenueService } from '../../core/services/venues/venue.service';
 import { selectCurrentUser, selectCurrentUserUid } from '../../store/selectors/selectors.user/user.selectors';
@@ -75,6 +76,12 @@ describe('PrincipalComponent', () => {
           provide: VenueService,
           useValue: {
             watchVenuesForRegion$: vi.fn(() => of([])),
+          },
+        },
+        {
+          provide: HotPlacesService,
+          useValue: {
+            watchHotPlacesForUserRegion$: vi.fn(() => of([])),
           },
         },
         {
@@ -155,9 +162,12 @@ describe('PrincipalComponent', () => {
     ).toBeTruthy();
   });
 
-  it('mantém radar e fluxo misto na coluna principal', () => {
+  it('mantém radar, locais atuais e fluxo misto na coluna principal', () => {
     expect(
       fixture.debugElement.query(By.css('app-user-intent-status-radar'))
+    ).toBeTruthy();
+    expect(
+      fixture.debugElement.query(By.css('app-hot-places-widget'))
     ).toBeTruthy();
     expect(fixture.debugElement.query(By.css('.feed-stream'))).toBeTruthy();
   });
