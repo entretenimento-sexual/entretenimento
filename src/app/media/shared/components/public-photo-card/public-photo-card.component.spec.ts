@@ -39,15 +39,19 @@ describe('PublicPhotoCardComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renderiza identificação compacta com avatar, autor e horário', () => {
+  it('agrupa avatar, autor e horário em uma identidade compacta', () => {
     const header = fixture.debugElement.query(By.css('.feed-card-header'));
     const owner = fixture.debugElement.query(By.css('.feed-card-owner'))
       .nativeElement as HTMLAnchorElement;
+    const identity = fixture.debugElement.query(
+      By.css('.feed-card-owner__identity')
+    ).nativeElement as HTMLElement;
     const avatar = fixture.debugElement.query(By.css('.feed-card-avatar'))
       .nativeElement as HTMLImageElement;
 
     expect(header).toBeTruthy();
     expect(owner.textContent).toContain('Pessoa teste');
+    expect(identity.textContent).toContain('há 1 min');
     expect(owner.textContent).not.toContain('Rio de Janeiro');
     expect(avatar.src).toContain('avatar.jpg');
   });
@@ -66,22 +70,41 @@ describe('PublicPhotoCardComponent', () => {
     expect(fallback.textContent?.trim()).toBe('P');
   });
 
+  it('mantém o impulso junto dos metadados da publicação', () => {
+    fixture.componentRef.setInput('photo', {
+      ...photo,
+      boostActive: true,
+    });
+    fixture.detectChanges();
+
+    const metadata = fixture.debugElement.query(
+      By.css('.feed-card-owner__meta')
+    ).nativeElement as HTMLElement;
+    const boost = fixture.debugElement.query(
+      By.css('.feed-card-boosted')
+    ).nativeElement as HTMLElement;
+
+    expect(metadata.contains(boost)).toBe(true);
+    expect(boost.textContent).toContain('Impulsionada');
+  });
+
   it('não usa overlay nem rodapé duplicado da variante latest', () => {
     expect(fixture.debugElement.query(By.css('.photo-overlay'))).toBeNull();
     expect(fixture.debugElement.query(By.css('.photo-meta'))).toBeNull();
     expect(fixture.debugElement.query(By.css('.feed-card-footer'))).toBeTruthy();
   });
 
-  it('oculta o rodapé quando não há engajamento nem impulso', () => {
+  it('oculta o rodapé quando não há engajamento, mesmo com impulso', () => {
     fixture.componentRef.setInput('photo', {
       ...photo,
       reactionsCount: 0,
       commentsCount: 0,
-      boostActive: false,
+      boostActive: true,
     });
     fixture.detectChanges();
 
     expect(fixture.debugElement.query(By.css('.feed-card-footer'))).toBeNull();
+    expect(fixture.debugElement.query(By.css('.feed-card-boosted'))).toBeTruthy();
   });
 
   it('mantém a mídia como botão acessível para abrir o lightbox', () => {
