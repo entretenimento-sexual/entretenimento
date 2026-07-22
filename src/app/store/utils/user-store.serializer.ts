@@ -4,6 +4,9 @@ import {
   IUserDados,
   IUserTermsAcceptance,
 } from 'src/app/core/interfaces/iuser-dados';
+import {
+  evaluatePlatformSubscriptionProjection,
+} from '../../core/services/subscriptions/platform-subscription-access.model';
 import { toEpoch } from '../../core/utils/epoch-utils';
 
 export { toEpoch };
@@ -100,7 +103,7 @@ export function sanitizeUserForStore(u: IUserDados): IUserDados {
   if (!u) return u;
   const anyU = u as any;
 
-  return {
+  const serialized = {
     ...u,
 
     lastLogin: toSerializableEpoch(anyU.lastLogin) ?? 0,
@@ -133,6 +136,24 @@ export function sanitizeUserForStore(u: IUserDados): IUserDados {
     adultConsent: sanitizeConsent(anyU.adultConsent),
     ageReverification: sanitizeAgeReverification(anyU.ageReverification),
     acceptedTerms: sanitizeTermsAcceptance(anyU.acceptedTerms),
+  } as IUserDados;
+
+  const subscription = evaluatePlatformSubscriptionProjection(serialized);
+  const preserveAdmin = serialized.role === 'admin';
+
+  return {
+    ...serialized,
+    role: preserveAdmin
+      ? 'admin'
+      : subscription.active
+        ? subscription.role!
+        : 'free',
+    tier: subscription.active ? subscription.role : 'free',
+    isSubscriber: subscription.active,
+    monthlyPayer: subscription.active,
+    subscriptionStatus: subscription.active ? 'active' : 'inactive',
+    subscriptionScope:
+      subscription.active ? 'platform_subscription' : null,
   } as IUserDados;
 }
 
