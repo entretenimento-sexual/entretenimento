@@ -108,27 +108,25 @@ export class PrincipalComponent implements OnInit {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly profileLink$: Observable<readonly string[] | null> = this.uid$.pipe(
+  readonly profileLink$: Observable<any[] | null> = this.uid$.pipe(
     map((uid) => uid ? ['/perfil', uid] : null),
     distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly photoUploadLink$: Observable<readonly string[] | null> =
-    this.uid$.pipe(
-      map((uid) => uid
-        ? ['/media', 'perfil', uid, 'fotos', 'upload']
-        : null),
-      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
+  readonly photoUploadLink$: Observable<any[] | null> = this.uid$.pipe(
+    map((uid) => uid
+      ? ['/media', 'perfil', uid, 'fotos', 'upload']
+      : null),
+    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
-  readonly videoLibraryLink$: Observable<readonly string[] | null> =
-    this.uid$.pipe(
-      map((uid) => uid ? ['/media', 'perfil', uid, 'videos'] : null),
-      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
+  readonly videoLibraryLink$: Observable<any[] | null> = this.uid$.pipe(
+    map((uid) => uid ? ['/media', 'perfil', uid, 'videos'] : null),
+    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   readonly items$: Observable<any[]> = this.uid$.pipe(
     filter((uid): uid is string => !!uid),
@@ -145,6 +143,7 @@ export class PrincipalComponent implements OnInit {
 
   readonly expanded = signal(false);
   readonly checklistDetailsOpen = signal(false);
+  readonly statusComposerVisible = signal(false);
   readonly selectedPhotoIndex = signal<number | null>(null);
   readonly selectedPhotos = signal<readonly IPublicPhotoItem[]>([]);
 
@@ -168,7 +167,8 @@ export class PrincipalComponent implements OnInit {
   }
 
   openStatusComposer(): void {
-    this.statusComposer?.openComposer();
+    this.statusComposerVisible.set(true);
+    queueMicrotask(() => this.statusComposer?.openComposer());
   }
 
   toggleExpand(): void {
@@ -212,7 +212,7 @@ export class PrincipalComponent implements OnInit {
     );
   }
 
-  feedItemRoute(item: PrincipalFeedItem): readonly string[] {
+  feedItemRoute(item: PrincipalFeedItem): any[] {
     if (item.kind === 'profile-photo') {
       return ['/outro-perfil', item.photo.ownerUid];
     }
