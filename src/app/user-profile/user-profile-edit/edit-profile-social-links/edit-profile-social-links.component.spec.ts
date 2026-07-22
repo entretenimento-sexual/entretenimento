@@ -8,6 +8,7 @@ import { EditProfileSocialLinksComponent } from './edit-profile-social-links.com
 import { AccessControlService } from '../../../core/services/autentication/auth/access-control.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
+import { PlatformSubscriptionAccessService } from '../../../core/services/subscriptions/platform-subscription-access.service';
 import { UserSocialLinksService } from '../../../core/services/user-profile/user-social-links.service';
 
 describe('EditProfileSocialLinksComponent', () => {
@@ -62,6 +63,11 @@ describe('EditProfileSocialLinksComponent', () => {
           useValue: {
             appUserResolved$: of(true),
             authUid$: of('u1'),
+          },
+        },
+        {
+          provide: PlatformSubscriptionAccessService,
+          useValue: {
             isSubscriber$: subscriber$.asObservable(),
           },
         },
@@ -109,7 +115,7 @@ describe('EditProfileSocialLinksComponent', () => {
     );
   });
 
-  it('deve bloquear inclusão e alteração quando a assinatura estiver inativa', () => {
+  it('deve bloquear inclusão e alteração quando o acesso canônico expira', () => {
     subscriber$.next(false);
     fixture.detectChanges();
 
