@@ -4,23 +4,10 @@
 // -----------------------------------------------------------------------------
 //
 // Responsabilidade:
-// - Exibir o perfil de outro usuário como vitrine de descoberta.
-// - Priorizar mídia pública aprovada, afinidades e ações de interação.
-// - Não ler dados privados de users/{uid}; o carregamento vem da projeção pública.
-// - Não permitir edição de dados de outro usuário.
-// - Manter segurança real fora do HTML: Firestore Rules, Cloud Functions,
-//   projeções públicas moderadas e validação backend.
-//
-// Segurança:
-// - A vitrine de mídia é isolada em ProfileMediaShowcaseComponent.
-// - O componente filho consome somente a projeção pública aprovada.
-// - O frontend apenas apresenta dados já considerados públicos/moderados.
-//
-// Monetização:
-// - O plano do visitante melhora contexto e experiência.
-// - O plano do dono do perfil deve aumentar alcance/controle, não reduzir exposição.
-// - A UI pode mostrar teaser/atalho, mas dado sensível ou premium real deve vir
-//   protegido por Rules/Functions.
+// - Exibir outro usuário como vitrine de descoberta.
+// - Priorizar mídia pública, identidade, afinidades e interação.
+// - Consumir somente a projeção pública moderada.
+// - Manter amizade, chat, erro global e debug fora da camada visual.
 
 import { CommonModule } from '@angular/common';
 import {
@@ -34,7 +21,6 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { Store } from '@ngrx/store';
 import {
   BehaviorSubject,
   Observable,
@@ -63,26 +49,11 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { ProfileMediaShowcaseComponent } from 'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component';
-import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { SocialLinksAccordionComponent } from 'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
 import { SharedModule } from '../../shared/shared.module';
 
-interface ProfileSignalItem {
-  icon: string;
-  label: string;
-  value: string;
-  tone: 'strong' | 'neutral' | 'muted';
-}
-
-interface ViewerAccessState {
-  tier: string;
-  isSubscriber: boolean;
-  premiumLabel: string;
-}
-
 interface FriendshipInteractionState {
   isFriend: boolean;
-  hasPendingOutboundRequest: boolean;
   canSendFriendRequest: boolean;
   friendRequestIcon: string;
   friendRequestLabel: string;
@@ -107,13 +78,7 @@ interface FriendshipInteractionState {
 export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
-  private readonly store = inject(Store);
   private readonly viewedProfileUid$ = new BehaviorSubject<string | null>(null);
-
-  readonly viewerAccess$ = this.store.select(selectCurrentUser).pipe(
-    map((viewer) => this.buildViewerAccess(viewer)),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
 
   readonly friendshipInteractionState$: Observable<FriendshipInteractionState>;
 
@@ -190,12 +155,11 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     this.directChatBusy$.complete();
   }
 
-  get hasProfile(): boolean {
-    return !!this.userProfile;
-  }
-
   get hasLocation(): boolean {
-    return !!this.userProfile?.municipio?.trim() && !!this.userProfile?.estado?.trim();
+    return (
+      !!this.userProfile?.municipio?.trim() &&
+      !!this.userProfile?.estado?.trim()
+    );
   }
 
   get hasDescription(): boolean {
@@ -210,10 +174,6 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     return ['/dashboard/explorar'];
   }
 
-  get subscriptionLink(): any[] {
-    return ['/subscription-plan'];
-  }
-
   get hasPreferenceChips(): boolean {
     return this.preferenceChips.length > 0;
   }
@@ -223,75 +183,6 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       .map((item) => String(item ?? '').trim())
       .filter(Boolean)
       .slice(0, 8);
-  }
-
-  get ownerIsSubscriber(): boolean {
-    return this.hasElevatedAccess(this.userProfile);
-  }
-
-  get activitySignal(): ProfileSignalItem {
-    const profile = this.userProfile;
-
-    if (profile?.isOnline) {
-      return {
-        icon: 'fas fa-circle',
-        label: 'Atividade',
-        value: 'Online agora',
-        tone: 'strong',
-      };
-    }
-
-    if (this.wasRecentlyActive(profile?.lastSeen)) {
-      return {
-        icon: 'fas fa-clock',
-        label: 'Atividade',
-        value: 'Ativo recentemente',
-        tone: 'neutral',
-      };
-    }
-
-    return {
-      icon: 'fas fa-moon',
-      label: 'Atividade',
-      value: 'Atividade não informada',
-      tone: 'muted',
-    };
-  }
-
-  get locationSignal(): ProfileSignalItem {
-    const distance = this.userProfile?.distanciaKm;
-
-    if (typeof distance === 'number' && Number.isFinite(distance)) {
-      return {
-        icon: 'fas fa-location-dot',
-        label: 'Proximidade',
-        value: `${Math.max(0, Math.round(distance))} km de distância`,
-        tone: 'strong',
-      };
-    }
-
-    if (this.hasLocation) {
-      return {
-        icon: 'fas fa-map-marker-alt',
-        label: 'Proximidade',
-        value: 'Região informada',
-        tone: 'neutral',
-      };
-    }
-
-    return {
-      icon: 'fas fa-map',
-      label: 'Proximidade',
-      value: 'Região não informada',
-      tone: 'muted',
-    };
-  }
-
-  get profileSignals(): ProfileSignalItem[] {
-    return [
-      this.activitySignal,
-      this.locationSignal,
-    ];
   }
 
   loadUserProfile(uid: string): void {
@@ -314,7 +205,8 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       hasUid: true,
     });
 
-    this.firestoreUserQuery.getPublicUserById$(safeUid)
+    this.firestoreUserQuery
+      .getPublicUserById$(safeUid)
       .pipe(
         catchError((error: unknown) => {
           this.reportError(
@@ -349,7 +241,9 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
         this.userProfile = {
           ...profile,
-          preferences: Array.isArray(profile.preferences) ? profile.preferences : [],
+          preferences: Array.isArray(profile.preferences)
+            ? profile.preferences
+            : [],
         };
 
         this.debug('loadUserProfile success', {
@@ -380,11 +274,15 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
           const safeRequesterUid = (requesterUid ?? '').trim();
 
           if (!safeRequesterUid) {
-            return throwError(() => new Error('Sessão não identificada para solicitar amizade.'));
+            return throwError(
+              () => new Error('Sessão não identificada para demonstrar interesse.')
+            );
           }
 
           if (safeRequesterUid === targetUid) {
-            return throwError(() => new Error('Você não pode enviar solicitação para si mesmo.'));
+            return throwError(
+              () => new Error('Você não pode demonstrar interesse no próprio perfil.')
+            );
           }
 
           if (!interactionState.canSendFriendRequest) {
@@ -394,7 +292,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
           return this.friendshipService.sendRequest(
             safeRequesterUid,
             targetUid,
-            `Olá! Gostaria de adicionar ${this.displayName}.`
+            'Olá! Gostaria de conhecer você.'
           );
         }),
         finalize(() => {
@@ -403,7 +301,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
         }),
         catchError((error) => {
           this.reportError(
-            'Não foi possível enviar a solicitação de amizade.',
+            'Não foi possível enviar o interesse.',
             {
               op: 'sendFriendRequest',
               hasTargetUid: !!targetUid,
@@ -420,7 +318,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
           return;
         }
 
-        this.errorNotification.showSuccess('Solicitação de amizade enviada.');
+        this.errorNotification.showSuccess('Interesse enviado.');
       });
   }
 
@@ -460,24 +358,28 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
           return;
         }
 
-        this.errorNotification.showSuccess('Conversa disponível. Abrindo área de chats.');
+        this.errorNotification.showSuccess(
+          'Conversa disponível. Abrindo área de chats.'
+        );
 
-        this.router.navigate(['/chat'], {
-          queryParams: {
-            openChatId: chatId,
-            withUser: targetUid,
-          },
-        }).catch((error) => {
-          this.reportError(
-            'A conversa foi aberta, mas a navegação para chats falhou.',
-            {
-              op: 'navigateToChat',
-              hasChatId: !!chatId,
-              hasTargetUid: !!targetUid,
+        this.router
+          .navigate(['/chat'], {
+            queryParams: {
+              openChatId: chatId,
+              withUser: targetUid,
             },
-            error
-          );
-        });
+          })
+          .catch((error) => {
+            this.reportError(
+              'A conversa foi aberta, mas a navegação para chats falhou.',
+              {
+                op: 'navigateToChat',
+                hasChatId: !!chatId,
+                hasTargetUid: !!targetUid,
+              },
+              error
+            );
+          });
       });
   }
 
@@ -501,7 +403,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
           this.friendshipService.watchOutboundRequests(viewerUid).pipe(
             catchError((error) => {
               this.reportError(
-                'Não foi possível verificar solicitações de amizade.',
+                'Não foi possível verificar interesses enviados.',
                 {
                   op: 'friendshipInteractionState.outbound',
                   hasTargetUid: !!targetUid,
@@ -515,7 +417,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
           this.friendshipService.watchFriends(viewerUid).pipe(
             catchError((error) => {
               this.reportError(
-                'Não foi possível verificar sua lista de amigos.',
+                'Não foi possível verificar suas conexões.',
                 {
                   op: 'friendshipInteractionState.friends',
                   hasTargetUid: !!targetUid,
@@ -527,11 +429,13 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
             })
           ),
         ]).pipe(
-          map(([outboundRequests, friends]) => this.buildFriendshipInteractionState(
-            targetUid,
-            outboundRequests,
-            friends
-          ))
+          map(([outboundRequests, friends]) =>
+            this.buildFriendshipInteractionState(
+              targetUid,
+              outboundRequests,
+              friends
+            )
+          )
         );
       }),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -544,91 +448,44 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     friends: Friend[]
   ): FriendshipInteractionState {
     const safeTargetUid = (targetUid ?? '').trim();
-    const isFriend = friends.some((friend) => friend.friendUid === safeTargetUid);
-    const hasPendingOutboundRequest = outboundRequests.some((request) =>
-      request.targetUid === safeTargetUid && request.status === 'pending'
+    const isFriend = friends.some(
+      (friend) => friend.friendUid === safeTargetUid
+    );
+    const hasPendingOutboundRequest = outboundRequests.some(
+      (request) =>
+        request.targetUid === safeTargetUid && request.status === 'pending'
     );
 
     if (isFriend) {
       return {
-        isFriend,
-        hasPendingOutboundRequest,
+        isFriend: true,
         canSendFriendRequest: false,
         friendRequestIcon: 'fas fa-user-check',
-        friendRequestLabel: 'Amigos',
-        friendRequestAriaLabel: `${this.displayName} já está na sua lista de amigos.`,
-        liveStatus: 'Vocês já são amigos. Use o chat para continuar a conversa.',
+        friendRequestLabel: 'Conectados',
+        friendRequestAriaLabel: `${this.displayName} já está conectado com você.`,
+        liveStatus: 'Vocês estão conectados. O chat está disponível.',
       };
     }
 
     if (hasPendingOutboundRequest) {
       return {
-        isFriend,
-        hasPendingOutboundRequest,
+        isFriend: false,
         canSendFriendRequest: false,
-        friendRequestIcon: 'fas fa-hourglass-half',
-        friendRequestLabel: 'Solicitação enviada',
-        friendRequestAriaLabel: `Solicitação de amizade para ${this.displayName} já foi enviada.`,
-        liveStatus: 'Solicitação de amizade já enviada. Aguarde a resposta do perfil.',
+        friendRequestIcon: 'fas fa-clock',
+        friendRequestLabel: 'Interesse enviado',
+        friendRequestAriaLabel: `Interesse em ${this.displayName} já enviado.`,
+        liveStatus: 'Interesse enviado. Aguarde a resposta do perfil.',
       };
     }
 
     return {
-      isFriend,
-      hasPendingOutboundRequest,
+      isFriend: false,
       canSendFriendRequest: !!safeTargetUid,
-      friendRequestIcon: 'fas fa-user-plus',
-      friendRequestLabel: 'Solicitar amizade',
-      friendRequestAriaLabel: `Solicitar amizade para ${this.displayName}`,
-      liveStatus: 'Ações prontas para iniciar contato seguro com este perfil.',
+      friendRequestIcon: 'fas fa-heart',
+      friendRequestLabel: 'Mostrar interesse',
+      friendRequestAriaLabel: `Mostrar interesse em ${this.displayName}`,
+      liveStatus: 'Você pode demonstrar interesse neste perfil.',
     };
-  }
-
-  private buildViewerAccess(viewer: IUserDados | null): ViewerAccessState {
-    const tier = String(viewer?.tier ?? viewer?.role ?? 'free').trim().toLowerCase();
-    const isSubscriber = this.hasElevatedAccess(viewer);
-
-    return {
-      tier,
-      isSubscriber,
-      premiumLabel: this.resolvePremiumLabel(tier, isSubscriber),
-    };
-  }
-
-  private hasElevatedAccess(user: IUserDados | null): boolean {
-    const tier = String(user?.tier ?? user?.role ?? 'free').trim().toLowerCase();
-
-    return (
-      user?.isSubscriber === true ||
-      user?.monthlyPayer === true ||
-      user?.subscriptionStatus === 'active' ||
-      ['basic', 'premium', 'vip', 'admin'].includes(tier)
-    );
-  }
-
-  private resolvePremiumLabel(tier: string, isSubscriber: boolean): string {
-    if (['vip', 'admin'].includes(tier)) {
-      return 'Acesso VIP';
-    }
-
-    if (tier === 'premium') {
-      return 'Acesso premium';
-    }
-
-    if (isSubscriber) {
-      return 'Assinante';
-    }
-
-    return 'Conta free';
-  }
-
-  private wasRecentlyActive(lastSeen: number | null | undefined): boolean {
-    if (typeof lastSeen !== 'number' || !Number.isFinite(lastSeen)) {
-      return false;
-    }
-
-    const twentyFourHoursMs = 24 * 60 * 60 * 1000;
-    return Date.now() - lastSeen <= twentyFourHoursMs;
   }
 
   private getUidFromRoute(): string | null {
@@ -644,7 +501,11 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   }
 
   private debug(message: string, extra?: unknown): void {
-    this.privacyDebug.log('profile', `OtherUserProfileView: ${message}`, extra);
+    this.privacyDebug.log(
+      'profile',
+      `OtherUserProfileView: ${message}`,
+      extra
+    );
   }
 
   private reportError(
