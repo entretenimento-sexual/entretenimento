@@ -1,30 +1,30 @@
 // src/app/dashboard/principal/principal.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { RouterTestingModule } from '@angular/router/testing';
-import { provideMockStore, MockStore } from '@ngrx/store/testing';
+import { By } from '@angular/platform-browser';
 import { Auth } from '@angular/fire/auth';
 import { Firestore } from '@angular/fire/firestore';
 import { Functions } from '@angular/fire/functions';
+import { RouterTestingModule } from '@angular/router/testing';
+import { MockStore, provideMockStore } from '@ngrx/store/testing';
 import { of } from 'rxjs';
-import { By } from '@angular/platform-browser';
 
-import { PrincipalComponent } from './principal.component';
+import { IUserDados } from '../../core/interfaces/iuser-dados';
+import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
+import { UserIntentStatusService } from '../../core/services/discovery/user-intent-status.service';
+import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
+import { HotPlacesService } from '../../core/services/places/hot-places.service';
+import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
+import { VenueService } from '../../core/services/venues/venue.service';
+import {
+  selectFriendsCount,
+  selectInboundRequestsCount,
+} from '../../store/selectors/selectors.interactions/friend.selector';
 import {
   selectCurrentUser,
   selectCurrentUserStatus,
   selectCurrentUserUid,
 } from '../../store/selectors/selectors.user/user.selectors';
-import {
-  selectFriendsCount,
-  selectInboundRequestsCount,
-} from '../../store/selectors/selectors.interactions/friend.selector';
-import { IUserDados } from '../../core/interfaces/iuser-dados';
-import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
-import { UserIntentStatusService } from '../../core/services/discovery/user-intent-status.service';
-import { VenueService } from '../../core/services/venues/venue.service';
-import { HotPlacesService } from '../../core/services/places/hot-places.service';
-import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
-import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
+import { PrincipalComponent } from './principal.component';
 
 describe('PrincipalComponent', () => {
   let component: PrincipalComponent;
@@ -97,7 +97,14 @@ describe('PrincipalComponent', () => {
         provideMockStore({
           initialState: {
             user: { currentUser },
-            friendship: { requests: [], friends: [], incoming: [], sent: [], loading: false, error: null },
+            friendship: {
+              requests: [],
+              friends: [],
+              incoming: [],
+              sent: [],
+              loading: false,
+              error: null,
+            },
           },
         }),
       ],
@@ -120,15 +127,31 @@ describe('PrincipalComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('mantém uma hierarquia única e sem hero redundante', () => {
+  it('mantém uma única coluna de feed sem hero redundante', () => {
     const headings = fixture.debugElement.queryAll(By.css('h1'));
     const title = headings[0]?.nativeElement as HTMLHeadingElement;
 
     expect(headings).toHaveLength(1);
-    expect(title.textContent?.trim()).toBe('Hoje');
+    expect(title.textContent?.trim()).toBe('Para você');
     expect(fixture.debugElement.query(By.css('.principal-hero'))).toBeNull();
+    expect(fixture.debugElement.query(By.css('.principal-feed'))).toBeTruthy();
     expect(
       fixture.debugElement.queryAll(By.css('.principal-social-summary a'))
     ).toHaveLength(2);
+    expect(
+      fixture.debugElement.queryAll(By.css('.feed-shortcuts a'))
+    ).toHaveLength(4);
+  });
+
+  it('mantém publicação e descoberta no fluxo principal', () => {
+    expect(
+      fixture.debugElement.query(By.css('app-user-intent-status-composer'))
+    ).toBeTruthy();
+    expect(
+      fixture.debugElement.query(By.css('app-user-intent-status-radar'))
+    ).toBeTruthy();
+    expect(
+      fixture.debugElement.query(By.css('app-hot-places-widget'))
+    ).toBeTruthy();
   });
 });
