@@ -1,110 +1,115 @@
 <!-- src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.html -->
-<!--
-  Accordion de redes sociais.
-
-  - Em perfil próprio, também mostra editor.
-  - Em perfil visitado, mostra somente links públicos disponíveis.
-  - Visual controlado pelo CSS do próprio componente para não quebrar tema escuro.
--->
-
-<mat-accordion class="social-links-accordion">
-  <mat-expansion-panel [expanded]="anyLinks() || canEdit()">
-    <mat-expansion-panel-header>
-      <mat-panel-title>
-        @if (canEdit()) {
-          <i class="fas fa-user-edit" aria-hidden="true"></i>
-        } @else {
+@if (canManage() || anyLinks()) {
+  <mat-accordion
+    class="social-links-accordion"
+    [class.social-links-accordion--compact]="compact()"
+  >
+    <mat-expansion-panel [expanded]="compact() || anyLinks() || canEdit()">
+      <mat-expansion-panel-header>
+        <mat-panel-title>
           <i class="fas fa-share-nodes" aria-hidden="true"></i>
+          <span>{{ canManage() ? 'Minhas redes' : 'Redes' }}</span>
+        </mat-panel-title>
+      </mat-expansion-panel-header>
+
+      @if (anyLinks()) {
+        @if (!compact()) {
+          <p class="social-links-note">
+            Links externos abrem em nova aba. Confira o destino antes de
+            compartilhar dados pessoais ou financeiros.
+          </p>
         }
 
-        <span>{{ canEdit() ? 'Minhas redes sociais' : 'Redes sociais públicas' }}</span>
-      </mat-panel-title>
-    </mat-expansion-panel-header>
+        <div class="social-link-list" aria-label="Links sociais disponíveis">
+          @for (platform of socialMediaPlatforms; track trackByKey($index, platform)) {
+            @if (socialLinks?.[platform.key]) {
+              <div class="social-link-item">
+                <i
+                  class="social-link-icon"
+                  [class]="platform.icon"
+                  aria-hidden="true"
+                ></i>
 
-    @if (anyLinks()) {
-      <p class="social-links-note">
-        Links externos abrem em nova aba. Confira o destino antes de compartilhar dados pessoais ou financeiros.
-      </p>
+                <span class="social-link-label">{{ platform.label }}</span>
 
-      <div class="social-link-list" aria-label="Links sociais disponíveis">
-        <div
-          class="social-link-item"
-          *ngFor="let p of socialMediaPlatforms; trackBy: trackByKey"
-          [class.hidden]="!socialLinks?.[p.key]"
+                @if (normalizedLinks[platform.key]; as href) {
+                  <a
+                    class="social-link-value"
+                    [href]="href"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    [attr.aria-label]="'Abrir ' + platform.label + ' em nova aba externa'"
+                  >
+                    <span>{{ socialLinks?.[platform.key] }}</span>
+                    <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                  </a>
+                }
+              </div>
+            }
+          }
+        </div>
+      } @else if (canManage()) {
+        <p class="no-links-info">Nenhuma rede publicada.</p>
+      }
+
+      @if (canManage() && !canEdit()) {
+        <div class="social-links-subscription" role="note">
+          <p>
+            A publicação de redes é exclusiva para assinantes. Links privados
+            existentes ainda podem ser removidos.
+          </p>
+          <button type="button" (click)="goToEditSocialLinks()">
+            Gerenciar redes
+          </button>
+        </div>
+      }
+
+      @if (canEdit()) {
+        <div class="inline-editor">
+          @for (platform of socialMediaPlatforms; track trackByKey($index, platform)) {
+            <div class="edit-row">
+              <label class="edit-label" [for]="'social-' + platform.key">
+                {{ platform.label }}
+              </label>
+
+              <input
+                class="input-field edit-input"
+                [id]="'social-' + platform.key"
+                [value]="socialLinks?.[platform.key] || ''"
+                #value
+                placeholder="URL segura ou @usuario"
+              />
+
+              <div class="edit-actions">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  (click)="updateSocialLink(platform.key, value.value)"
+                >
+                  Publicar
+                </button>
+
+                <button
+                  type="button"
+                  class="btn btn-danger"
+                  [disabled]="!socialLinks?.[platform.key]"
+                  (click)="removeLink(platform.key)"
+                >
+                  Remover
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-secondary open-editor-page"
+          (click)="goToEditSocialLinks()"
         >
-          <i class="social-link-icon" [class]="p.icon" aria-hidden="true"></i>
-
-          <span class="sr-only">{{ p.label }}:</span>
-          <span class="social-link-label">{{ p.label }}</span>
-
-          <a
-            *ngIf="normalizedLinks[p.key] as href"
-            class="social-link-value"
-            [href]="href"
-            target="_blank"
-            rel="noopener noreferrer"
-            [attr.aria-label]="'Abrir ' + p.label + ' em nova aba externa'"
-          >
-            <span>{{ socialLinks?.[p.key] }}</span>
-            <i class="fas fa-external-link-alt" aria-hidden="true"></i>
-          </a>
-        </div>
-      </div>
-    } @else {
-      <p class="no-links-info">
-        @if (canEdit()) {
-          Nenhuma rede social adicionada. Adicione apenas links que você quer exibir no perfil.
-        } @else {
-          Este perfil ainda não adicionou redes sociais públicas.
-        }
-      </p>
-    }
-
-    @if (canEdit()) {
-      <div class="inline-editor">
-        <h4 class="inline-editor-title">Editar links exibidos no perfil</h4>
-
-        <div class="edit-row" *ngFor="let p of socialMediaPlatforms; trackBy: trackByKey">
-          <label class="edit-label" [for]="'social-'+p.key">
-            {{ p.label }}
-          </label>
-
-          <input
-            class="input-field edit-input"
-            [id]="'social-'+p.key"
-            [value]="socialLinks?.[p.key] || ''"
-            #val
-            placeholder="URL segura ou @handle"
-          />
-
-          <div class="edit-actions">
-            <button
-              type="button"
-              class="btn btn-primary"
-              (click)="updateSocialLink(p.key, val.value)"
-            >
-              Salvar
-            </button>
-
-            <button
-              type="button"
-              class="btn btn-danger"
-              [disabled]="!socialLinks?.[p.key]"
-              (click)="removeLink(p.key)"
-            >
-              Remover
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        class="btn btn-secondary open-editor-page"
-        (click)="goToEditSocialLinks()"
-      >
-        Abrir página completa de edição
-      </button>
-    }
-  </mat-expansion-panel>
-</mat-accordion>
+          Abrir edição completa
+        </button>
+      }
+    </mat-expansion-panel>
+  </mat-accordion>
+}
