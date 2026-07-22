@@ -21,6 +21,7 @@ export interface IPublicPhotoBase {
   ownerUid: string;
 
   alt?: string;
+  caption?: string | null;
   mediaType?: 'PHOTO';
   assetAccess?: TPublicAssetAccess;
 
