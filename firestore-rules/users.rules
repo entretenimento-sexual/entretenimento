@@ -51,6 +51,7 @@ match /users/{userId} {
 
       "role",
       "tier",
+      "billingProjectionVersion",
       "isSubscriber",
       "monthlyPayer",
       "subscriptionStatus",
@@ -145,12 +146,18 @@ match /users/{userId} {
 
       && (!hasField("role") || request.resource.data.role == "free")
       && (!hasField("tier") || request.resource.data.tier == "free")
+      && (!hasField("billingProjectionVersion")
+        || request.resource.data.billingProjectionVersion == 0)
       && (!hasField("isSubscriber") || request.resource.data.isSubscriber == false)
       && (!hasField("monthlyPayer") || request.resource.data.monthlyPayer == false)
       && (!hasField("subscriptionStatus")
         || request.resource.data.subscriptionStatus == "inactive")
       && (!hasField("subscriptionScope")
         || request.resource.data.subscriptionScope == null)
+      && (!hasField("subscriptionStartedAt")
+        || request.resource.data.subscriptionStartedAt == null)
+      && (!hasField("subscriptionEndsAt")
+        || request.resource.data.subscriptionEndsAt == null)
       && (!hasField("subscriptionExpires")
         || request.resource.data.subscriptionExpires == null)
       && (!hasField("lastBillingCheckoutSessionId")
