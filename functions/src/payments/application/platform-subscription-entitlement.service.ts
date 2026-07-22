@@ -10,8 +10,9 @@
 // - escopo deve ser platform_subscription;
 // - role deve ser reconhecida;
 // - startsAt deve existir e já ter iniciado;
-// - endsAt ausente/null significa sem expiração definida; quando presente, deve
-//   ser um número finito no futuro;
+// - endsAt deve ser finito e permanecer no futuro;
+// - entitlements mensais legados sem endsAt recebem uma migração determinística
+//   de um mês civil a partir de startsAt;
 // - projeções em users/{uid} nunca substituem este entitlement.
 // -----------------------------------------------------------------------------
 
@@ -24,6 +25,7 @@ export interface PlatformSubscriptionEntitlementStatus {
   startsAt: number | null;
   endsAt: number | null;
   updatedAt: number | null;
+  legacyEndsAtDerived: boolean;
 }
 
 const PLATFORM_ROLE_WEIGHT: Readonly<Record<PlatformRole, number>> =
@@ -39,6 +41,10 @@ function toFiniteNumberOrNull(value: unknown): number | null {
     : null;
 }
 
+function isPlatformPlanKey(value: unknown): boolean {
+  return value === 'basic' || value === 'premium' || value === 'vip';
+}
+
 export function isPlatformRole(value: unknown): value is PlatformRole {
   return value === 'basic' || value === 'premium' || value === 'vip';
 }
@@ -51,6 +57,38 @@ export function hasMinimumPlatformRole(
     && PLATFORM_ROLE_WEIGHT[currentRole] >= PLATFORM_ROLE_WEIGHT[minimumRole];
 }
 
+/**
+ * Soma um mês civil em UTC, limitando o dia ao último dia do mês de destino.
+ * Exemplo: 31 de janeiro -> 28/29 de fevereiro.
+ */
+export function calculatePlatformSubscriptionPeriodEnd(
+  periodStartAt: number
+): number {
+  if (!Number.isFinite(periodStartAt)) {
+    throw new Error('Início de período de assinatura inválido.');
+  }
+
+  const source = new Date(periodStartAt);
+  const sourceDay = source.getUTCDate();
+  const targetMonthStart = new Date(Date.UTC(
+    source.getUTCFullYear(),
+    source.getUTCMonth() + 1,
+    1,
+    source.getUTCHours(),
+    source.getUTCMinutes(),
+    source.getUTCSeconds(),
+    source.getUTCMilliseconds()
+  ));
+  const lastTargetDay = new Date(Date.UTC(
+    targetMonthStart.getUTCFullYear(),
+    targetMonthStart.getUTCMonth() + 1,
+    0
+  )).getUTCDate();
+
+  targetMonthStart.setUTCDate(Math.min(sourceDay, lastTargetDay));
+  return targetMonthStart.getTime();
+}
+
 export function evaluatePlatformSubscriptionEntitlement(
   rawEntitlement: unknown,
   expectedBuyerUid: string,
@@ -61,12 +99,18 @@ export function evaluatePlatformSubscriptionEntitlement(
     ? entitlement['grantedRole']
     : null;
   const startsAt = toFiniteNumberOrNull(entitlement['startsAt']);
-  const rawEndsAt = entitlement['endsAt'];
-  const hasDefinedEndsAt = rawEndsAt !== null && rawEndsAt !== undefined;
-  const endsAt = hasDefinedEndsAt
-    ? toFiniteNumberOrNull(rawEndsAt)
-    : null;
-  const hasValidEndsAt = !hasDefinedEndsAt || endsAt !== null;
+  const explicitEndsAt = toFiniteNumberOrNull(entitlement['endsAt']);
+  const missingEndsAt =
+    entitlement['endsAt'] === null || entitlement['endsAt'] === undefined;
+  const legacyEndsAtDerived =
+    missingEndsAt &&
+    startsAt !== null &&
+    isPlatformPlanKey(entitlement['planKey']);
+  const endsAt = explicitEndsAt ?? (
+    legacyEndsAtDerived && startsAt !== null
+      ? calculatePlatformSubscriptionPeriodEnd(startsAt)
+      : null
+  );
   const updatedAt = toFiniteNumberOrNull(entitlement['updatedAt']);
 
   const active =
@@ -76,8 +120,8 @@ export function evaluatePlatformSubscriptionEntitlement(
     && role !== null
     && startsAt !== null
     && startsAt <= now
-    && hasValidEndsAt
-    && (!hasDefinedEndsAt || (endsAt !== null && endsAt > now));
+    && endsAt !== null
+    && endsAt > now;
 
   return {
     active,
@@ -85,27 +129,52 @@ export function evaluatePlatformSubscriptionEntitlement(
     startsAt,
     endsAt,
     updatedAt,
+    legacyEndsAtDerived,
   };
 }
 
 /**
  * Resolve o entitlement determinístico da assinatura principal.
  *
- * A leitura é feita pelo Admin SDK e nunca depende das permissões do cliente.
+ * A leitura é feita pelo Admin SDK. Entitlements antigos sem endsAt são
+ * migrados para um período mensal finito, e o campo active é reconciliado com
+ * a janela temporal efetiva.
  */
 export async function getActivePlatformSubscriptionEntitlement(
   uid: string,
   now = Date.now()
 ): Promise<PlatformSubscriptionEntitlementStatus> {
   const entitlementId = `platform_subscription_${uid}`;
-  const snapshot = await db
-    .collection('entitlements')
-    .doc(entitlementId)
-    .get();
+  const reference = db.collection('entitlements').doc(entitlementId);
+  const snapshot = await reference.get();
+  const raw = snapshot.exists ? snapshot.data() ?? {} : null;
+  const status = evaluatePlatformSubscriptionEntitlement(raw, uid, now);
 
-  return evaluatePlatformSubscriptionEntitlement(
-    snapshot.exists ? snapshot.data() : null,
-    uid,
-    now
-  );
+  if (!snapshot.exists) {
+    return status;
+  }
+
+  const storedActive = (raw as Record<string, unknown>)['active'] === true;
+  const shouldRepair =
+    status.legacyEndsAtDerived || storedActive !== status.active;
+
+  if (!shouldRepair) {
+    return status;
+  }
+
+  const patch: Record<string, unknown> = {
+    active: status.active,
+    updatedAt: now,
+  };
+
+  if (status.endsAt !== null) {
+    patch['endsAt'] = status.endsAt;
+  }
+
+  await reference.set(patch, { merge: true });
+
+  return {
+    ...status,
+    updatedAt: now,
+  };
 }
