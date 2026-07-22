@@ -1,10 +1,6 @@
 <!-- src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.html -->
-
-<section
-  class="profiles-discovery-page"
-  aria-label="Perfis"
->
-  <div class="profiles-discovery-page__topbar" aria-label="Filtros de descoberta">
+<section class="profiles-discovery-page" aria-label="Descoberta de perfis">
+  <div class="profiles-discovery-page__topbar" aria-label="Modos de descoberta">
     <app-discovery-mode-tabs
       [tabs]="tabs"
       [activeMode]="activeMode()"
@@ -15,13 +11,6 @@
   <main class="profiles-discovery-page__content">
     @switch (activeMode()) {
       @case ('all') {
-        <!--
-          Todos:
-          - public_profiles paginado por cursor;
-          - cache por usuário/modo/página;
-          - presença opcional;
-          - compatibilidade, distância, visibilidade e score no enrichment canônico.
-        -->
         <app-public-profiles-list
           [profiles]="(publicProfilesFacade.profiles$ | async) ?? []"
           [loading]="(publicProfilesFacade.loading$ | async) ?? false"
@@ -35,11 +24,6 @@
       }
 
       @case ('online') {
-        <!--
-          Online:
-          recorte baseado em presence, hidratado com public_profiles.
-          O card passa pela mesma camada de enrichment usada pelo modo Todos.
-        -->
         <app-online-users-full
           [embedded]="true"
           [mode]="activeMode()"
@@ -47,35 +31,29 @@
       }
 
       @case ('today') {
-        <!--
-          Hoje:
-          - status temporário publicado pelo próprio usuário;
-          - região declarada, sem GPS preciso;
-          - leitura e publicação protegidas por Rules e Cloud Functions.
-        -->
         @if (currentUser$ | async; as currentUser) {
           <section
             class="profiles-discovery-page__today"
-            aria-label="Status de hoje e pessoas disponíveis"
+            aria-label="Pessoas disponíveis hoje"
           >
             <app-user-intent-status-composer [user]="currentUser" />
             <app-user-intent-status-radar [user]="currentUser" />
           </section>
         } @else {
-          <section
+          <p
             class="profiles-discovery-page__empty"
             role="status"
             aria-live="polite"
           >
-            <p>Preparando sua experiência de hoje...</p>
-          </section>
+            Preparando perfis disponíveis hoje...
+          </p>
         }
       }
 
       @default {
-        <section class="profiles-discovery-page__empty" role="status">
-          <p>Este modo de descoberta será liberado em breve.</p>
-        </section>
+        <p class="profiles-discovery-page__empty" role="status">
+          Esta seleção ainda não está disponível.
+        </p>
       }
     }
   </main>
