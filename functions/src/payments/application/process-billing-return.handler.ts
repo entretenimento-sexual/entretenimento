@@ -2,43 +2,24 @@
 // -----------------------------------------------------------------------------
 // PROCESS BILLING RETURN HANDLER
 // -----------------------------------------------------------------------------
-//
-// Responsabilidade:
-// - interpretar o retorno visual do checkout para o usuário autenticado;
-// - localizar a sessão de checkout pertencente ao próprio usuário;
-// - consultar concessão já realizada;
-// - em Emulator, permitir confirmação local controlada;
-// - em Cloud, jamais confirmar pagamento com base em query string/retorno do
-//   navegador.
-//
-// Regra central de segurança:
-// - retorno do navegador NÃO é confirmação financeira;
-// - somente VerifiedPaymentEvent processado pelo PaymentSettlementService pode
-//   criar transação e entitlement;
-// - o modo Emulator existe apenas para desenvolvimento controlado.
-//
-// Compatibilidade temporária:
-// - `mockProvider` permanece no contrato de entrada porque o frontend atual
-//   ainda o envia;
-// - o campo é deliberadamente ignorado como fonte de verdade;
-// - após ajuste do frontend, ele poderá ser removido do contrato.
+// A URL de retorno é apenas sinal visual. Em Cloud, somente settlement de evento
+// verificado concede acesso. Em Emulator, o fluxo controlado continua disponível.
+// -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-
 import {
   BillingScope,
   CheckoutSessionDoc,
   PlatformRole,
   VerifiedPaymentEvent,
 } from '../domain/billing.model';
-
+import { settleVerifiedPaidEvent } from './payment-settlement.service';
 import {
-  settleVerifiedPaidEvent,
-} from './payment-settlement.service';
-
+  reconcilePlatformSubscriptionAccess,
+} from './platform-subscription-projection.service';
 import {
   isFunctionsEmulatorRuntime,
 } from '../security/payment-runtime.guard';
@@ -52,19 +33,8 @@ type BillingReturnStatus =
 interface ProcessBillingReturnRequest {
   billing?: string;
   scope?: string;
-
-  /**
-   * Campo legado temporariamente aceito para não quebrar o frontend atual.
-   * Não é utilizado para reconhecer pagamento, provider ou permissão.
-   */
   mockProvider?: string | null;
-
-  /**
-   * Campo legado aceito somente para resposta/compatibilidade.
-   * A localização segura da sessão ocorre por checkoutSessionId.
-   */
   providerSessionId?: string | null;
-
   checkoutSessionId?: string | null;
 }
 
@@ -79,11 +49,6 @@ interface ProcessBillingReturnResponse {
   message?: string | null;
 }
 
-interface ActiveEntitlementLike {
-  active?: boolean;
-  grantedRole?: PlatformRole | null;
-}
-
 function normalizeBillingSignal(rawValue: unknown):
   | 'success'
   | 'cancel'
@@ -94,18 +59,11 @@ function normalizeBillingSignal(rawValue: unknown):
     .toLowerCase()
     .split('?')[0];
 
-  if (value === 'success' || value === 'paid') {
-    return 'success';
-  }
-
+  if (value === 'success' || value === 'paid') return 'success';
   if (value === 'cancel' || value === 'canceled' || value === 'cancelled') {
     return 'cancel';
   }
-
-  if (value === 'failed' || value === 'error') {
-    return 'failed';
-  }
-
+  if (value === 'failed' || value === 'error') return 'failed';
   return 'unknown';
 }
 
@@ -121,11 +79,6 @@ function isBillingScope(value: unknown): value is BillingScope {
 
 function normalizeCheckoutSessionId(rawValue: unknown): string | null {
   const id = String(rawValue ?? '').trim();
-
-  /**
-   * Limite simples para evitar entradas absurdamente extensas em lookup/log.
-   * O identificador real do Firestore permanece livre dentro desse limite.
-   */
   return id && id.length <= 160 ? id : null;
 }
 
@@ -175,50 +128,26 @@ async function findOwnedCheckoutSession(params: {
     .doc(params.checkoutSessionId)
     .get();
 
-  if (!snapshot.exists) {
-    return null;
-  }
+  if (!snapshot.exists) return null;
 
   const data = snapshot.data() as CheckoutSessionDoc | undefined;
-
-  /**
-   * Não revelamos se um checkout pertence a outro usuário.
-   * Para o chamador, documento inexistente e documento sem propriedade válida
-   * produzem o mesmo resultado.
-   */
-  if (!data || data.buyerUid !== params.buyerUid) {
-    return null;
-  }
-
-  return data;
+  return data?.buyerUid === params.buyerUid ? data : null;
 }
 
 async function getGrantedEntitlement(
   checkout: CheckoutSessionDoc
-): Promise<{
-  active: boolean;
-  role: PlatformRole | null;
-}> {
+): Promise<{ active: boolean; role: PlatformRole | null }> {
   if (checkout.scope !== 'platform_subscription') {
-    return {
-      active: false,
-      role: null,
-    };
+    return { active: false, role: null };
   }
 
-  const entitlementId = `platform_subscription_${checkout.buyerUid}`;
-
-  const entitlementSnapshot = await db
-    .collection('entitlements')
-    .doc(entitlementId)
-    .get();
-
-  const entitlement =
-    entitlementSnapshot.data() as ActiveEntitlementLike | undefined;
+  const status = await reconcilePlatformSubscriptionAccess(
+    checkout.buyerUid
+  );
 
   return {
-    active: entitlement?.active === true,
-    role: entitlement?.grantedRole ?? null,
+    active: status.active,
+    role: status.role,
   };
 }
 
@@ -267,26 +196,12 @@ function buildVerifiedEmulatorPaidEvent(
 
   return {
     provider: 'emulator',
-
-    /**
-     * Evento determinístico:
-     * - múltiplos reloads do retorno geram o mesmo evento;
-     * - PaymentSettlementService trata como idempotente.
-     */
     providerEventId: `checkout_return_paid_${checkout.id}`,
-
     providerSessionId: checkout.providerSessionId,
     checkoutSessionId: checkout.id,
-
     financialStatus: 'paid',
-
-    /**
-     * Valor e moeda vêm exclusivamente do checkout persistido pelo backend.
-     * Nada financeiro é aceito da URL do navegador.
-     */
     amountCents: checkout.amountCents,
     currency: checkout.currency,
-
     verified: true,
     verificationMode: 'emulator',
     receivedAt: Date.now(),
@@ -300,10 +215,7 @@ export const processBillingReturn = onCall<ProcessBillingReturnRequest>(
     const buyerUid = request.auth?.uid ?? null;
 
     if (!buyerUid) {
-      throw new HttpsError(
-        'unauthenticated',
-        'Usuário não autenticado.'
-      );
+      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
     const requestedScope = String(request.data?.scope ?? '')
@@ -350,10 +262,6 @@ export const processBillingReturn = onCall<ProcessBillingReturnRequest>(
 
     const grantedEntitlement = await getGrantedEntitlement(checkout);
 
-    /**
-     * Se o settlement já ocorreu, apenas refletimos o estado persistido.
-     * Não reprocessamos qualquer sinal do navegador.
-     */
     if (checkout.status === 'paid' && grantedEntitlement.active) {
       return buildGrantedResult({
         scope: checkout.scope,
@@ -408,11 +316,6 @@ export const processBillingReturn = onCall<ProcessBillingReturnRequest>(
       });
     }
 
-    /**
-     * Em cloud, retorno do navegador jamais confirma pagamento.
-     *
-     * Futuramente, o webhook validado do gateway chamará o settlement.
-     */
     if (!isFunctionsEmulatorRuntime()) {
       return buildProcessingResult({
         scope: checkout.scope,
@@ -422,13 +325,6 @@ export const processBillingReturn = onCall<ProcessBillingReturnRequest>(
       });
     }
 
-    /**
-     * Única exceção controlada:
-     * - Functions Emulator;
-     * - checkout criado pelo EmulatorPaymentProvider;
-     * - evento financeiro montado a partir de dados persistidos pelo backend;
-     * - settlement idempotente.
-     */
     const settlement = await settleVerifiedPaidEvent(
       buildVerifiedEmulatorPaidEvent(checkout)
     );
