@@ -17,7 +17,8 @@ describe('hasAcceptedCurrentTerms', () => {
     ).toBe(false);
   });
 
-  it('aceita a versão atual registrada', () => {
+  it('aceita somente a versão atual registrada', () => {
+    expect(TERMS_ACCEPTANCE_VERSION).toBe('v2');
     expect(
       hasAcceptedCurrentTerms({
         accepted: true,
@@ -27,12 +28,29 @@ describe('hasAcceptedCurrentTerms', () => {
     ).toBe(true);
   });
 
-  it('nega versão diferente da atual', () => {
+  it('exige novo aceite de registros v1 e legados sem versão', () => {
     expect(
       hasAcceptedCurrentTerms({
         accepted: true,
         date: Date.now(),
-        version: 'versao-antiga',
+        version: 'v1',
+      })
+    ).toBe(false);
+
+    expect(
+      hasAcceptedCurrentTerms({
+        accepted: true,
+        date: Date.now(),
+      })
+    ).toBe(false);
+  });
+
+  it('nega qualquer outra versão diferente da atual', () => {
+    expect(
+      hasAcceptedCurrentTerms({
+        accepted: true,
+        date: Date.now(),
+        version: 'versao-desconhecida',
       })
     ).toBe(false);
   });
