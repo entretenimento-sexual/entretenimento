@@ -8,7 +8,8 @@
 // - adicionar/alterar/publicar somente com assinatura ativa;
 // - preservar remoção pelo dono mesmo após o término da assinatura;
 // - separar contexto privado e público;
-// - nunca reutilizar cache público sem revalidar as Firestore Rules.
+// - nunca reutilizar cache público sem revalidar as Firestore Rules;
+// - tratar redes públicas indisponíveis por política como ausência normal.
 // =============================================================================
 
 import { Injectable } from '@angular/core';
@@ -307,14 +308,21 @@ export class UserSocialLinksService {
             options
           )
         ),
-        catchError((error) =>
-          this.handleError(
+        catchError((error) => {
+          if (
+            context.scope === 'public' &&
+            this.isPermissionDenied(error)
+          ) {
+            return of(null);
+          }
+
+          return this.handleError(
             error,
             `getDoc(socialLinks:${context.scope})`,
             options,
             null
-          )
-        ),
+          );
+        }),
         finalize(() => this.inFlightReads.delete(key)),
         shareReplay({ bufferSize: 1, refCount: true })
       );
@@ -351,14 +359,21 @@ export class UserSocialLinksService {
             options
           )
         ),
-        catchError((error) =>
-          this.handleError(
+        catchError((error) => {
+          if (
+            context.scope === 'public' &&
+            this.isPermissionDenied(error)
+          ) {
+            return of(null);
+          }
+
+          return this.handleError(
             error,
             `docSnapshots(socialLinks:${context.scope})`,
             options,
             null
-          )
-        ),
+          );
+        }),
         finalize(() => this.inFlightWatches.delete(key)),
         shareReplay({ bufferSize: 1, refCount: true })
       );
@@ -634,6 +649,18 @@ export class UserSocialLinksService {
     for (const key of this.inFlightWatches.keys()) {
       if (key.endsWith(`::${uid}`)) this.inFlightWatches.delete(key);
     }
+  }
+
+  private isPermissionDenied(error: unknown): boolean {
+    const code = String((error as { code?: unknown } | null)?.code ?? '')
+      .trim()
+      .toLowerCase();
+
+    return (
+      code === 'permission-denied' ||
+      code === 'firestore/permission-denied' ||
+      code.endsWith('/permission-denied')
+    );
   }
 
   private deepEqual(a: unknown, b: unknown): boolean {
