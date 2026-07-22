@@ -1,21 +1,4 @@
 <!-- src/app/shared/user-card/user-card.component.html -->
-<!--
-  UserCardComponent
-
-  Card premium para descoberta/listagem de perfis.
-
-  Objetivos:
-  - visual marcante, adulto e discreto;
-  - status online claro;
-  - imagem forte sem quebrar o layout;
-  - ações compactas e acessíveis;
-  - preservação dos métodos existentes:
-    - abrirDM($event)
-    - adicionarAmigo()
-    - nicknameClass()
-    - distanciaKm()
-    - user()
--->
 @if (user(); as profile) {
   <article
     class="user-card"
@@ -23,9 +6,9 @@
     [class.user-card--offline]="!profile.isOnline"
     [class.user-card--vip]="profile.role === 'vip'"
     [class.user-card--premium]="profile.role === 'premium'"
+    [class.user-card--pending]="relationshipVm().state === 'outgoing_pending' || relationshipVm().state === 'incoming_pending'"
     [attr.aria-labelledby]="'uc-title-' + (profile.uid || 'x')"
     [attr.aria-describedby]="profile.descricao ? 'uc-desc-' + (profile.uid || 'x') : null"
-    [class.user-card--pending]="relationshipVm().state === 'outgoing_pending' || relationshipVm().state === 'incoming_pending'"
   >
     <a
       class="user-card__media"
@@ -43,24 +26,12 @@
 
       <span class="user-card__media-shade" aria-hidden="true"></span>
 
-      <div class="user-card__topbar">
-        <span
-          class="user-card__presence"
-          [class.user-card__presence--online]="profile.isOnline"
-          [class.user-card__presence--offline]="!profile.isOnline"
-        >
+      @if (profile.isOnline) {
+        <span class="user-card__presence">
           <span class="user-card__presence-dot" aria-hidden="true"></span>
-          <span>{{ profile.isOnline ? 'Online' : 'Offline' }}</span>
+          Online
         </span>
-
-        <span class="user-card__tier">
-          @if (profile.role) {
-            {{ profile.role | titlecase }}
-          } @else {
-            Perfil
-          }
-        </span>
-      </div>
+      }
 
       <div class="user-card__identity">
         <strong
@@ -80,51 +51,60 @@
     <div class="user-card__body">
       <div class="user-card__summary">
         <p class="user-card__meta">
-          @if (profile.gender) {
-            <span>{{ profile.gender | titlecase }}</span>
-          } @else {
-            <span>Perfil adulto</span>
-          }
+          <span>{{ profile.gender ? (profile.gender | titlecase) : 'Perfil adulto' }}</span>
 
           @if (profile.idade) {
             <span class="user-card__muted">• {{ profile.idade }} anos</span>
           }
-        </p>
 
-        @if (profile.orientation || profile.partner1Orientation || profile.partner2Orientation) {
-          <p class="user-card__orientation">
-            @if (profile.orientation) {
-              {{ profile.orientation | titlecase }}
-            } @else {
-              <span>{{ profile.partner1Orientation || 'Orientação 1 não informada' }}</span>
-              <span>/</span>
-              <span>{{ profile.partner2Orientation || 'Orientação 2 não informada' }}</span>
-            }
-          </p>
-        }
-
-        <p class="user-card__location">
-          <i class="fas fa-location-dot" aria-hidden="true"></i>
-
-          @if (profile.municipio || profile.estado) {
-            <span>
-              {{ profile.municipio }}@if (profile.municipio && profile.estado) {, }{{ profile.estado }}
+          @if (profile.orientation) {
+            <span class="user-card__muted">• {{ profile.orientation | titlecase }}</span>
+          } @else if (profile.partner1Orientation || profile.partner2Orientation) {
+            <span class="user-card__muted">
+              •
+              @if (profile.partner1Orientation) {
+                {{ profile.partner1Orientation | titlecase }}
+              }
+              @if (profile.partner1Orientation && profile.partner2Orientation) {
+                /
+              }
+              @if (profile.partner2Orientation) {
+                {{ profile.partner2Orientation | titlecase }}
+              }
             </span>
-          } @else {
-            <span>Localização discreta</span>
           }
         </p>
 
-        @if (showDistance() && distanciaKm() !== null) {
-          <p class="user-card__distance">
-            <i class="fas fa-location-arrow" aria-hidden="true"></i>
-            <span class="sr-only">Distância aproximada:</span>
+        @if (
+          profile.municipio ||
+          profile.estado ||
+          (showDistance() && distanciaKm() !== null)
+        ) {
+          <p class="user-card__location">
+            <i class="fas fa-location-dot" aria-hidden="true"></i>
 
-            @if (distanciaKm()! < 1) {
-              <strong>&lt; 1 km</strong>
-            } @else {
-              <strong>{{ distanciaKm() | number:'1.0-1' }} km</strong>
-            }
+            <span class="user-card__location-copy">
+              @if (profile.municipio || profile.estado) {
+                <span>
+                  {{ profile.municipio }}@if (profile.municipio && profile.estado) {, }{{ profile.estado }}
+                </span>
+              }
+
+              @if (showDistance() && distanciaKm() !== null) {
+                @if (profile.municipio || profile.estado) {
+                  <span aria-hidden="true">•</span>
+                }
+
+                <strong class="user-card__distance">
+                  <span class="sr-only">Distância aproximada:</span>
+                  @if (distanciaKm()! < 1) {
+                    &lt; 1 km
+                  } @else {
+                    {{ distanciaKm() | number:'1.0-1' }} km
+                  }
+                </strong>
+              }
+            </span>
           </p>
         }
       </div>
@@ -139,173 +119,125 @@
       }
 
       @if (relationshipVm(); as relationship) {
-        @if (relationship.state !== 'none' || profile.isOnline) {
-          <div class="user-card__signal-row" aria-hidden="true">
-            @switch (relationship.state) {
-              @case ('friends') {
-                <span class="user-card__signal-pill">
-                  <i class="fas fa-user-check"></i>
-                  Conectado
-                </span>
-              }
+        @if (
+          relationship.canMessage ||
+          relationship.canRespond ||
+          relationship.state === 'outgoing_pending' ||
+          relationship.state === 'blocked_by_me' ||
+          relationship.canConnect
+        ) {
+          <div class="user-card__actions" aria-label="Ações do perfil">
+            @if (relationship.canMessage) {
+              <button
+                type="button"
+                class="user-card__action user-card__action--primary"
+                (click)="abrirDM($event)"
+                [attr.aria-label]="'Conversar com ' + (profile.nickname || 'usuário')"
+                title="Conversar"
+              >
+                <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                <span class="sr-only">Conversar</span>
+              </button>
 
-              @case ('outgoing_pending') {
-                <span class="user-card__signal-pill">
-                  <i class="fas fa-clock"></i>
-                  Enviado
+              <button
+                type="button"
+                class="user-card__action user-card__action--danger"
+                (click)="desfazerAmizade($event)"
+                [disabled]="isEndingFriendship()"
+                [attr.aria-busy]="isEndingFriendship()"
+                [attr.aria-label]="
+                  isEndingFriendship()
+                    ? 'Desfazendo conexão com ' + (profile.nickname || 'usuário')
+                    : 'Desfazer conexão com ' + (profile.nickname || 'usuário')
+                "
+                [title]="isEndingFriendship() ? 'Desfazendo conexão...' : 'Desfazer conexão'"
+              >
+                <i
+                  aria-hidden="true"
+                  class="fas"
+                  [class.fa-user-minus]="!isEndingFriendship()"
+                  [class.fa-spinner]="isEndingFriendship()"
+                  [class.user-card__spin]="isEndingFriendship()"
+                ></i>
+                <span class="sr-only">
+                  {{ isEndingFriendship() ? 'Desfazendo conexão' : 'Desfazer conexão' }}
                 </span>
-              }
+              </button>
+            } @else if (relationship.canRespond) {
+              <a
+                class="user-card__action user-card__action--primary"
+                routerLink="/friends/requests"
+                [attr.aria-label]="'Responder interesse de ' + (profile.nickname || 'usuário')"
+                title="Responder interesse"
+              >
+                <i class="fas fa-user-check" aria-hidden="true"></i>
+                <span class="sr-only">Responder interesse</span>
+              </a>
+            } @else if (relationship.state === 'outgoing_pending') {
+              <a
+                class="user-card__action user-card__action--neutral"
+                routerLink="/friends/requests"
+                [attr.aria-label]="'Interesse enviado para ' + (profile.nickname || 'usuário') + '. Aguardando resposta.'"
+                title="Aguardando resposta"
+              >
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                <span class="sr-only">Aguardando resposta</span>
+              </a>
 
-              @case ('incoming_pending') {
-                <span class="user-card__signal-pill">
-                  <i class="fas fa-user-clock"></i>
-                  Interesse
+              <button
+                type="button"
+                class="user-card__action user-card__action--danger"
+                (click)="cancelarSolicitacaoEnviada($event)"
+                [disabled]="isCancelingOutgoingRequest()"
+                [attr.aria-busy]="isCancelingOutgoingRequest() ? 'true' : null"
+                [attr.aria-label]="
+                  isCancelingOutgoingRequest()
+                    ? 'Cancelando interesse enviado para ' + (profile.nickname || 'usuário')
+                    : 'Cancelar interesse enviado para ' + (profile.nickname || 'usuário')
+                "
+                [title]="isCancelingOutgoingRequest() ? 'Cancelando interesse' : 'Cancelar interesse'"
+              >
+                <i
+                  aria-hidden="true"
+                  class="fas"
+                  [class.fa-undo]="!isCancelingOutgoingRequest()"
+                  [class.fa-spinner]="isCancelingOutgoingRequest()"
+                  [class.user-card__spin]="isCancelingOutgoingRequest()"
+                ></i>
+                <span class="sr-only">
+                  {{ isCancelingOutgoingRequest() ? 'Cancelando interesse' : 'Cancelar interesse' }}
                 </span>
-              }
-
-              @case ('blocked_by_me') {
-                <span class="user-card__signal-pill">
-                  <i class="fas fa-ban"></i>
-                  Bloqueado
-                </span>
-              }
-
-              @case ('self') {
-                <span class="user-card__signal-pill">
-                  <i class="fas fa-user"></i>
-                  Meu perfil
-                </span>
-              }
+              </button>
+            } @else if (relationship.state === 'blocked_by_me') {
+              <a
+                class="user-card__action user-card__action--neutral"
+                routerLink="/friends/blocked"
+                aria-label="Perfil bloqueado"
+                title="Perfil bloqueado"
+              >
+                <i class="fas fa-ban" aria-hidden="true"></i>
+                <span class="sr-only">Perfil bloqueado</span>
+              </a>
+            } @else if (relationship.canConnect) {
+              <button
+                type="button"
+                class="user-card__action user-card__action--primary"
+                (click)="adicionarAmigo()"
+                [attr.aria-label]="'Mostrar interesse em ' + (profile.nickname || 'usuário')"
+                title="Mostrar interesse"
+              >
+                <i class="fas fa-user-plus" aria-hidden="true"></i>
+                <span class="sr-only">Mostrar interesse</span>
+              </button>
             }
           </div>
         }
       }
-
-@if (relationshipVm(); as relationship) {
-  <div class="user-card__actions" aria-label="Ações do perfil">
-    <a
-      class="user-card__action user-card__action--neutral"
-      [routerLink]="['/perfil', profile.uid]"
-      [attr.aria-label]="'Ver perfil adulto de ' + (profile.nickname || 'usuário')"
-      title="Ver perfil"
-    >
-      <i class="fas fa-user" aria-hidden="true"></i>
-      <span class="sr-only">Ver perfil</span>
-    </a>
-
-    @if (relationship.canMessage) {
-      <button
-        type="button"
-        class="user-card__action user-card__action--primary"
-        (click)="abrirDM($event)"
-        [attr.aria-label]="'Conversar com ' + (profile.nickname || 'usuário')"
-        title="Conversar"
-      >
-        <i class="fas fa-paper-plane" aria-hidden="true"></i>
-        <span class="sr-only">Conversar</span>
-      </button>
-<button
-  type="button"
-  class="user-card__action user-card__action--danger"
-  (click)="desfazerAmizade($event)"
-  [disabled]="isEndingFriendship()"
-  [attr.aria-busy]="isEndingFriendship()"
-  [attr.aria-label]="
-    isEndingFriendship()
-      ? 'Desfazendo conexão com ' + (profile.nickname || 'usuário')
-      : 'Desfazer conexão com ' + (profile.nickname || 'usuário')
-  "
-  [title]="isEndingFriendship() ? 'Desfazendo conexão...' : 'Desfazer conexão'"
->
-  <i
-    aria-hidden="true"
-    class="fas"
-    [class.fa-user-minus]="!isEndingFriendship()"
-    [class.fa-spinner]="isEndingFriendship()"
-    [class.user-card__spin]="isEndingFriendship()"
-  ></i>
-
-  <span class="sr-only">
-    {{ isEndingFriendship() ? 'Desfazendo conexão' : 'Desfazer conexão' }}
-  </span>
-</button>
-
-    } @else if (relationship.canRespond) {
-      <a
-        class="user-card__action user-card__action--primary"
-        routerLink="/friends/requests"
-        [attr.aria-label]="'Responder interesse de ' + (profile.nickname || 'usuário')"
-        title="Responder interesse"
-      >
-        <i class="fas fa-user-check" aria-hidden="true"></i>
-        <span class="sr-only">Responder interesse</span>
-      </a>
-} @else if (relationship.state === 'outgoing_pending') {
-  <a
-    class="user-card__action user-card__action--neutral"
-    routerLink="/friends/requests"
-    [attr.aria-label]="'Interesse enviado para ' + (profile.nickname || 'usuário') + '. Aguardando resposta.'"
-    title="Aguardando resposta"
-  >
-    <i class="fas fa-clock" aria-hidden="true"></i>
-    <span class="sr-only">Aguardando resposta</span>
-  </a>
-
-  <button
-    type="button"
-    class="user-card__action user-card__action--danger"
-    (click)="cancelarSolicitacaoEnviada($event)"
-    [disabled]="isCancelingOutgoingRequest()"
-    [attr.aria-busy]="isCancelingOutgoingRequest() ? 'true' : null"
-    [attr.aria-label]="
-      isCancelingOutgoingRequest()
-        ? 'Cancelando interesse enviado para ' + (profile.nickname || 'usuário')
-        : 'Cancelar interesse enviado para ' + (profile.nickname || 'usuário')
-    "
-    [title]="isCancelingOutgoingRequest() ? 'Cancelando interesse' : 'Cancelar interesse'"
-  >
-    <i
-      aria-hidden="true"
-      class="fas"
-      [class.fa-undo]="!isCancelingOutgoingRequest()"
-      [class.fa-spinner]="isCancelingOutgoingRequest()"
-      [class.user-card__spin]="isCancelingOutgoingRequest()"
-    ></i>
-
-    <span class="sr-only">
-      {{ isCancelingOutgoingRequest() ? 'Cancelando interesse' : 'Cancelar interesse' }}
-    </span>
-  </button>
-
-    } @else if (relationship.state === 'blocked_by_me') {
-      <a
-        class="user-card__action user-card__action--neutral"
-        routerLink="/friends/blocked"
-        [attr.aria-label]="'Perfil bloqueado'"
-        title="Perfil bloqueado"
-      >
-        <i class="fas fa-ban" aria-hidden="true"></i>
-        <span class="sr-only">Perfil bloqueado</span>
-      </a>
-    } @else if (relationship.canConnect) {
-      <button
-        type="button"
-        class="user-card__action user-card__action--primary"
-        (click)="adicionarAmigo()"
-        [attr.aria-label]="'Mostrar interesse em ' + (profile.nickname || 'usuário')"
-        title="Mostrar interesse"
-      >
-        <i class="fas fa-user-plus" aria-hidden="true"></i>
-        <span class="sr-only">Mostrar interesse</span>
-      </button>
-    }
-  </div>
-}
     </div>
   </article>
 } @else {
   <div class="user-card user-card--placeholder" role="status" aria-live="polite">
     <span class="spinner" aria-hidden="true"></span>
-    <p>Carregando perfil...</p>
+    <span class="sr-only">Carregando perfil</span>
   </div>
 }
