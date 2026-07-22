@@ -110,7 +110,7 @@ describe('SocialLinksAccordionComponent', () => {
       allowAnonymousRead: false,
     });
     expect(component.socialLinks?.instagram).toBe('alex');
-    expect(component.normalizedLinks.instagram).toBe(
+    expect(component.normalizedLinks['instagram']).toBe(
       'https://instagram.com/alex'
     );
   });
