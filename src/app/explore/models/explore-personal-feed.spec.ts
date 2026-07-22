@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
-import { buildExplorePersonalFeed } from './explore-personal-feed';
+import {
+  buildExplorePersonalFeed,
+  buildExplorePersonalFeedWindow,
+} from './explore-personal-feed';
 
 function photo(
   id: string,
@@ -86,5 +89,43 @@ describe('buildExplorePersonalFeed', () => {
     );
 
     expect(result.map((item) => item.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('buildExplorePersonalFeedWindow', () => {
+  const items = [
+    photo('a', 'u1'),
+    photo('b', 'u2'),
+    photo('c', 'u3'),
+    photo('d', 'u4'),
+  ];
+
+  it('expõe somente a janela solicitada e informa o restante', () => {
+    const result = buildExplorePersonalFeedWindow(items, 2);
+
+    expect(result.items.map((item) => item.id)).toEqual(['a', 'b']);
+    expect(result.visibleCount).toBe(2);
+    expect(result.totalItems).toBe(4);
+    expect(result.remainingItems).toBe(2);
+    expect(result.hasMore).toBe(true);
+  });
+
+  it('limita a janela ao total disponível', () => {
+    const result = buildExplorePersonalFeedWindow(items, 10);
+
+    expect(result.items).toHaveLength(4);
+    expect(result.visibleCount).toBe(4);
+    expect(result.remainingItems).toBe(0);
+    expect(result.hasMore).toBe(false);
+  });
+
+  it('mantém estado vazio estável', () => {
+    expect(buildExplorePersonalFeedWindow([], 6)).toEqual({
+      items: [],
+      visibleCount: 0,
+      totalItems: 0,
+      remainingItems: 0,
+      hasMore: false,
+    });
   });
 });
