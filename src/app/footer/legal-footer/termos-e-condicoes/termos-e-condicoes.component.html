@@ -1,6 +1,10 @@
-<!-- src\app\footer\legal-footer\termos-e-condicoes\termos-e-condicoes.component.html -->
-<div class="conteudo-termosecondicoes" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+<!-- src/app/footer/legal-footer/termos-e-condicoes/termos-e-condicoes.component.html -->
+<div class="conteudo-termosecondicoes" role="document" aria-labelledby="modal-title">
   <h1 id="modal-title">Termos e Condições de Uso</h1>
+
+  <p class="terms-version">
+    <strong>Versão v2</strong> — atualizada em 22 de julho de 2026.
+  </p>
 
   <p>Bem-vindo à [Nome do Site]! Ao acessar ou usar nossa plataforma, você concorda em cumprir e estar vinculado aos
     seguintes termos e condições. Por favor, leia-os atentamente. Se você não concorda com estes termos, não utilize
@@ -15,6 +19,21 @@
   <p>O conteúdo deste site é fornecido apenas para sua informação geral e uso pessoal. Ele está sujeito a alterações sem
     aviso prévio. Você concorda em utilizar o conteúdo de forma responsável e em conformidade com todas as leis
     aplicáveis.</p>
+
+  <h4>Assinaturas, renovação e cancelamento</h4>
+  <p>
+    As assinaturas pagas têm vigência pelo período informado no momento da contratação e podem ser renovadas
+    automaticamente quando essa modalidade estiver claramente indicada e autorizada. O usuário pode cancelar a
+    renovação da assinatura a qualquer momento pelos meios disponibilizados na plataforma. O cancelamento impede novas
+    cobranças e renovações, mas os benefícios do plano permanecem disponíveis até o término do período corrente já pago,
+    conforme a data de vigência exibida na área da conta.
+  </p>
+  <p>
+    Salvo nas hipóteses de direito de arrependimento, cobrança indevida, falha atribuível à plataforma ou outra obrigação
+    prevista em lei, o cancelamento não gera reembolso proporcional do período já iniciado. O direito de arrependimento
+    aplicável às contratações realizadas fora do estabelecimento comercial e os demais direitos obrigatórios do
+    consumidor permanecem preservados.
+  </p>
 
   <h4>Propriedade Intelectual</h4>
   <p>Todo o conteúdo presente neste site, incluindo, mas não se limitando a, textos, gráficos, logotipos, ícones,
@@ -32,11 +51,11 @@
     privacidade de qualquer site de terceiros que visitar.</p>
 
   <h4>Alterações nos Termos</h4>
-  <p>Reservamo-nos o direito de modificar estes termos a qualquer momento. Quaisquer alterações serão efetivas
-    imediatamente após a publicação no site. É sua responsabilidade revisar os termos periodicamente.</p>
+  <p>Reservamo-nos o direito de modificar estes termos. Alterações materiais serão identificadas por nova versão e
+    poderão exigir novo aceite antes da continuidade do uso de recursos da plataforma.</p>
 
   <h4>Contato</h4>
   <p>Se você tiver alguma dúvida sobre estes termos, entre em contato conosco em [email de contato].</p>
 
-  <button mat-button (click)="closeDialog()">Fechar</button>
+  <button type="button" mat-button (click)="closeDialog()">Fechar</button>
 </div>
