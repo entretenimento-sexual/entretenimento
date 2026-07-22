@@ -2,22 +2,10 @@
 // -----------------------------------------------------------------------------
 // BILLING RETURN MODELS
 // -----------------------------------------------------------------------------
-//
-// Contratos do retorno visual de billing no frontend.
-//
-// Regra central:
-// - a URL de retorno não confirma pagamento;
-// - o frontend informa apenas o sinal visual recebido e o identificador da
-//   sessão criada anteriormente pelo backend;
-// - confirmação de acesso vem do backend, baseada em entitlement válido.
-//
-// Campos removidos:
-// - mockProvider;
-// - providerSessionId.
-//
-// Motivo:
-// - provider e sessão externa são detalhes internos do backend;
-// - parâmetros vindos do navegador não devem participar da decisão financeira.
+// A URL de retorno não confirma pagamento. Acesso vem do snapshot sanitizado do
+// entitlement válido, retornado pelo backend.
+// -----------------------------------------------------------------------------
+
 export type BillingReturnStatus =
   | 'idle'
   | 'processing'
@@ -54,8 +42,12 @@ export interface BillingSnapshotResult {
   role?: BillingGrantedRole | null;
   tier?: BillingGrantedRole | null;
   isSubscriber?: boolean;
+  status?: 'active' | 'inactive';
   entitlements?: string[];
+  startsAt?: number | null;
+  endsAt?: number | null;
   updatedAt?: number | null;
+  projectionVersion?: number | null;
 }
 
 export interface BillingReturnVm {
