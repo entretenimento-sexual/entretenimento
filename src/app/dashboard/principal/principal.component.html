@@ -2,22 +2,23 @@
 <section
   class="principal-page"
   *ngIf="currentUser$ | async as currentUser"
-  aria-labelledby="principal-title"
+  aria-label="Início"
 >
   <div class="principal-feed">
-    <header class="feed-header app-card">
+    <section class="feed-create-bar app-card" aria-label="Criar publicação">
       @if (profileLink$ | async; as profileLink) {
         <a
-          class="feed-header__avatar"
+          class="feed-create-bar__avatar"
           [routerLink]="profileLink"
-          [attr.aria-label]="'Abrir meu perfil: ' + (currentUser.nickname || 'usuário')"
+          [attr.aria-label]="'Abrir perfil de ' + (currentUser.nickname || 'usuário')"
         >
           @if (currentUser.photoURL) {
             <img
               [src]="currentUser.photoURL"
               [alt]="'Foto de perfil de ' + (currentUser.nickname || 'usuário')"
-              width="52"
-              height="52"
+              width="48"
+              height="48"
+              decoding="async"
             />
           } @else {
             <span aria-hidden="true">
@@ -27,54 +28,115 @@
         </a>
       }
 
-      <div class="feed-header__copy">
-        <span>Início</span>
-        <h1 id="principal-title">Para você</h1>
-        <p>Olá, {{ currentUser.nickname || 'bem-vindo' }}.</p>
+      <button
+        type="button"
+        class="feed-create-bar__prompt"
+        aria-label="Publicar status"
+        (click)="openStatusComposer()"
+      >
+        Compartilhar agora
+      </button>
+
+      <div class="feed-create-bar__actions" aria-label="Adicionar mídia">
+        @if (photoUploadLink$ | async; as photoUploadLink) {
+          <a
+            [routerLink]="photoUploadLink"
+            aria-label="Adicionar foto"
+            title="Adicionar foto"
+          >
+            <i class="fas fa-image" aria-hidden="true"></i>
+          </a>
+        }
+
+        @if (videoLibraryLink$ | async; as videoLibraryLink) {
+          <a
+            [routerLink]="videoLibraryLink"
+            aria-label="Gerenciar vídeos"
+            title="Gerenciar vídeos"
+          >
+            <i class="fas fa-video" aria-hidden="true"></i>
+          </a>
+        }
       </div>
+    </section>
 
-      <nav class="principal-social-summary" aria-label="Resumo social">
-        <a routerLink="/dashboard/friends/list">
-          <strong>{{ (friendsCount$ | async) ?? 0 }}</strong>
-          <span>Amigos</span>
-        </a>
+    <app-user-intent-status-composer
+      class="feed-block feed-block--composer"
+      [user]="currentUser"
+    />
 
-        <a routerLink="/dashboard/friends/list">
-          <strong>{{ (pendingRequestsCount$ | async) ?? 0 }}</strong>
-          <span>Pedidos</span>
-        </a>
-      </nav>
-    </header>
+    @if (items$ | async; as friends) {
+      @if (friends.length) {
+        <section class="connections-feed app-card" aria-label="Conexões">
+          <div class="connections-strip" role="list">
+            @for (
+              friend of (expanded() ? friends : friends.slice(0, 7));
+              track trackFriend($index, friend)
+            ) {
+              @if (friendUid(friend); as friendId) {
+                <a
+                  class="connection-item"
+                  role="listitem"
+                  [routerLink]="['/outro-perfil', friendId]"
+                  [attr.aria-label]="'Abrir perfil de ' + friendName(friend)"
+                >
+                  <span
+                    class="connection-item__avatar"
+                    [class.connection-item__avatar--online]="friendOnline(friend)"
+                  >
+                    @if (friendPhoto(friend); as photo) {
+                      <img
+                        [src]="photo"
+                        [alt]="'Foto de perfil de ' + friendName(friend)"
+                        width="66"
+                        height="66"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    } @else {
+                      <span aria-hidden="true">{{ friendInitial(friend) }}</span>
+                    }
+                  </span>
 
-    <nav class="feed-shortcuts" aria-label="Atalhos de descoberta">
-      <a routerLink="/dashboard/explorar">
-        <span class="feed-shortcuts__icon" aria-hidden="true">
-          <i class="fas fa-compass"></i>
-        </span>
-        <span>Explorar</span>
-      </a>
+                  <span class="connection-item__name">{{ friendName(friend) }}</span>
+                </a>
+              }
+            }
 
-      <a routerLink="/dashboard/perfis-sugeridos">
-        <span class="feed-shortcuts__icon" aria-hidden="true">
-          <i class="fas fa-wand-magic-sparkles"></i>
-        </span>
-        <span>Compatíveis</span>
-      </a>
+            <a
+              class="connection-item connection-item--all"
+              role="listitem"
+              routerLink="/dashboard/friends/list"
+              aria-label="Ver todas as conexões"
+            >
+              <span class="connection-item__avatar" aria-hidden="true">
+                <i class="fas fa-arrow-right"></i>
+              </span>
+              <span class="connection-item__name">Ver todas</span>
+            </a>
+          </div>
 
-      <a routerLink="/dashboard/online">
-        <span class="feed-shortcuts__icon" aria-hidden="true">
-          <i class="fas fa-circle-dot"></i>
-        </span>
-        <span>Online</span>
-      </a>
-
-      <a routerLink="/dashboard/chat-rooms">
-        <span class="feed-shortcuts__icon" aria-hidden="true">
-          <i class="fas fa-comments"></i>
-        </span>
-        <span>Salas</span>
-      </a>
-    </nav>
+          @if (friends.length > 7) {
+            <button
+              type="button"
+              class="connections-feed__toggle"
+              [attr.aria-expanded]="expanded() ? 'true' : 'false'"
+              (click)="toggleExpand()"
+            >
+              {{ expanded() ? 'Menos' : 'Mais' }}
+            </button>
+          }
+        </section>
+      } @else if (loading$ | async) {
+        <section
+          class="connections-feed connections-feed--loading app-card"
+          role="status"
+          aria-live="polite"
+        >
+          Carregando conexões…
+        </section>
+      }
+    }
 
     @if (profileChecklist$ | async; as checklist) {
       @if (!checklist.isComplete) {
@@ -84,8 +146,7 @@
         >
           <div class="profile-checklist__summary">
             <div class="profile-checklist__copy">
-              <span>Seu perfil</span>
-              <h2>{{ checklist.progress }}% concluído</h2>
+              <strong>{{ checklist.progress }}% concluído</strong>
             </div>
 
             <div class="profile-checklist__actions">
@@ -137,102 +198,167 @@
       }
     }
 
-    <app-user-intent-status-composer
-      class="feed-block feed-block--composer"
-      [user]="currentUser"
-    />
-
-    @if (items$ | async; as friends) {
-      @if (friends.length) {
-        <section class="connections-feed app-card" aria-labelledby="connections-feed-title">
-          <header class="connections-feed__header">
-            <div>
-              <span>Conexões</span>
-              <h2 id="connections-feed-title">Pessoas próximas de você</h2>
-            </div>
-
-            <a routerLink="/dashboard/friends/list">Ver todas</a>
-          </header>
-
-          <div class="connections-strip" role="list" aria-label="Amigos em destaque">
-            @for (
-              friend of (expanded() ? friends : friends.slice(0, 6));
-              track trackFriend($index, friend)
-            ) {
-              @if (friendUid(friend); as friendId) {
-                <a
-                  class="connection-item"
-                  role="listitem"
-                  [routerLink]="['/outro-perfil', friendId]"
-                  [attr.aria-label]="'Abrir perfil de ' + friendName(friend)"
-                >
-                  <span
-                    class="connection-item__avatar"
-                    [class.connection-item__avatar--online]="friendOnline(friend)"
-                  >
-                    @if (friendPhoto(friend); as photo) {
-                      <img
-                        [src]="photo"
-                        [alt]="'Foto de perfil de ' + friendName(friend)"
-                        width="72"
-                        height="72"
-                        loading="lazy"
-                      />
-                    } @else {
-                      <span aria-hidden="true">{{ friendInitial(friend) }}</span>
-                    }
-                  </span>
-
-                  <span class="connection-item__name">{{ friendName(friend) }}</span>
-                </a>
-              }
-            }
-          </div>
-
-          @if (friends.length > 6) {
-            <button
-              type="button"
-              class="connections-feed__toggle"
-              [attr.aria-expanded]="expanded() ? 'true' : 'false'"
-              (click)="toggleExpand()"
-            >
-              {{ expanded() ? 'Mostrar menos' : 'Mostrar mais conexões' }}
-            </button>
-          }
-        </section>
-      } @else if (loading$ | async) {
-        <section class="connections-feed connections-feed--loading app-card" role="status" aria-live="polite">
-          Carregando conexões…
-        </section>
-      }
-    }
-
     <app-user-intent-status-radar
       class="feed-block"
       [user]="currentUser"
     />
 
-    <app-hot-places-widget class="feed-block" />
+    @if (feedState$ | async; as feed) {
+      <section
+        class="feed-stream"
+        role="feed"
+        aria-label="Atualizações"
+        [attr.aria-busy]="feed.status === 'loading' ? 'true' : null"
+      >
+        @if (feed.status === 'loading') {
+          <div class="feed-state feed-state--loading app-card" role="status">
+            <span class="feed-state__pulse" aria-hidden="true"></span>
+            <span>Atualizando…</span>
+          </div>
+        } @else if (feed.status === 'error') {
+          <div class="feed-state app-card" role="status">
+            <span>Não foi possível atualizar agora.</span>
+            <button type="button" (click)="retryFeed()">Tentar novamente</button>
+          </div>
+        } @else if (feed.status === 'empty') {
+          <div class="feed-state app-card" role="status">
+            Nada novo agora.
+          </div>
+        } @else {
+          @for (item of feed.items; track trackFeedItem($index, item)) {
+            @switch (item.kind) {
+              @case ('profile-photo') {
+                <div class="feed-entry" role="article">
+                  <app-public-photo-card
+                    [photo]="item.photo"
+                    variant="feed"
+                    (preview)="openPhoto(item.photo.id, feed.photos)"
+                  />
+                </div>
+              }
 
-    <nav class="feed-footer-actions app-card" aria-label="Mais opções de descoberta">
-      @if (profileLink$ | async; as profileLink) {
-        <a [routerLink]="profileLink">
-          <i class="fas fa-user" aria-hidden="true"></i>
-          Meu perfil
-        </a>
+              @case ('community') {
+                <article class="social-space-card app-card" role="article">
+                  <a
+                    class="social-space-card__link"
+                    [routerLink]="feedItemRoute(item)"
+                    [attr.aria-label]="'Abrir comunidade ' + item.space.name"
+                  >
+                    <header class="social-space-card__header">
+                      <span class="social-space-card__avatar">
+                        @if (item.space.avatarUrl; as avatarUrl) {
+                          <img
+                            [src]="avatarUrl"
+                            alt=""
+                            width="44"
+                            height="44"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        } @else {
+                          <span aria-hidden="true">
+                            {{ item.space.name.slice(0, 1).toUpperCase() }}
+                          </span>
+                        }
+                      </span>
+
+                      <span class="social-space-card__identity">
+                        <strong>{{ item.space.name }}</strong>
+                        <small>{{ feedItemLabel(item) }}</small>
+                      </span>
+                    </header>
+
+                    @if (item.space.coverUrl; as coverUrl) {
+                      <img
+                        class="social-space-card__cover"
+                        [src]="coverUrl"
+                        [alt]="'Capa de ' + item.space.name"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    }
+
+                    @if (item.space.description) {
+                      <p>{{ item.space.description }}</p>
+                    }
+
+                    <footer class="social-space-card__metrics">
+                      <span>{{ item.space.metrics.memberCount }} membros</span>
+                      @if (item.space.metrics.postCount > 0) {
+                        <span>{{ item.space.metrics.postCount }} publicações</span>
+                      }
+                    </footer>
+                  </a>
+                </article>
+              }
+
+              @case ('venue') {
+                <article class="social-space-card app-card" role="article">
+                  <a
+                    class="social-space-card__link"
+                    [routerLink]="feedItemRoute(item)"
+                    [attr.aria-label]="'Abrir local ' + item.space.name"
+                  >
+                    <header class="social-space-card__header">
+                      <span class="social-space-card__avatar social-space-card__avatar--venue">
+                        @if (item.space.avatarUrl; as avatarUrl) {
+                          <img
+                            [src]="avatarUrl"
+                            alt=""
+                            width="44"
+                            height="44"
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        } @else {
+                          <i class="fas fa-location-dot" aria-hidden="true"></i>
+                        }
+                      </span>
+
+                      <span class="social-space-card__identity">
+                        <strong>{{ item.space.name }}</strong>
+                        <small>{{ feedItemLabel(item) }}</small>
+                      </span>
+                    </header>
+
+                    @if (item.space.coverUrl; as coverUrl) {
+                      <img
+                        class="social-space-card__cover"
+                        [src]="coverUrl"
+                        [alt]="'Imagem de ' + item.space.name"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    }
+
+                    @if (item.space.description) {
+                      <p>{{ item.space.description }}</p>
+                    }
+
+                    <footer class="social-space-card__metrics">
+                      <span>{{ item.space.metrics.memberCount }} acompanhando</span>
+                      @if (item.space.metrics.mediaCount > 0) {
+                        <span>{{ item.space.metrics.mediaCount }} mídias</span>
+                      }
+                    </footer>
+                  </a>
+                </article>
+              }
+            }
+          }
+        }
+      </section>
+
+      @if (selectedPhotoIndex() !== null) {
+        <app-public-photo-lightbox
+          [items]="selectedPhotos()"
+          [activeIndex]="selectedPhotoIndex() ?? 0"
+          title="Publicação"
+          (closed)="closePhoto()"
+          (prevRequested)="previousPhoto()"
+          (nextRequested)="nextPhoto()"
+        />
       }
-
-      @if (preferencesLink$ | async; as preferencesLink) {
-        <a [routerLink]="preferencesLink">
-          <i class="fas fa-sliders" aria-hidden="true"></i>
-          Preferências
-        </a>
-      }
-
-      <a routerLink="/dashboard/seguranca">
-        <i class="fas fa-shield-halved" aria-hidden="true"></i>
-        Segurança
-      </a>
-    </nav>
+    }
   </div>
 </section>
