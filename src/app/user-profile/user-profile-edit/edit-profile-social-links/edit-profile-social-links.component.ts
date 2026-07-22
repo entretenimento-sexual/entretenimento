@@ -1,79 +1,189 @@
-// src\app\user-profile\user-profile-edit\edit-profile-social-links\edit-profile-social-links.component.ts
-import { Component, OnInit, OnDestroy } from '@angular/core';
+// src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.ts
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { combineLatest, finalize, Subject, takeUntil } from 'rxjs';
+
 import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/iuser-social-links';
+import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-social-links.service';
-import { Subject, takeUntil } from 'rxjs';
+
+type SocialLinkKey = keyof IUserSocialLinks;
+
+interface SocialLinkField {
+  readonly key: SocialLinkKey;
+  readonly label: string;
+  readonly icon: string;
+  readonly placeholder: string;
+}
 
 @Component({
   selector: 'app-edit-profile-social-links',
   templateUrl: './edit-profile-social-links.component.html',
-  styleUrls: ['./edit-profile-social-links.component.css',],
-  standalone: false
+  styleUrls: ['./edit-profile-social-links.component.css'],
+  standalone: false,
 })
 export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
+  readonly fields: readonly SocialLinkField[] = [
+    { key: 'instagram', label: 'Instagram', icon: 'fab fa-instagram', placeholder: '@usuario ou URL' },
+    { key: 'facebook', label: 'Facebook', icon: 'fab fa-facebook', placeholder: 'perfil ou URL' },
+    { key: 'twitter', label: 'X', icon: 'fab fa-x-twitter', placeholder: '@usuario ou URL' },
+    { key: 'tiktok', label: 'TikTok', icon: 'fab fa-tiktok', placeholder: '@usuario ou URL' },
+    { key: 'youtube', label: 'YouTube', icon: 'fab fa-youtube', placeholder: 'canal ou URL' },
+    { key: 'snapchat', label: 'Snapchat', icon: 'fab fa-snapchat', placeholder: 'usuario ou URL' },
+    { key: 'sexlog', label: 'Sexlog', icon: 'fas fa-link', placeholder: 'perfil ou URL' },
+    { key: 'd4swing', label: 'D4', icon: 'fas fa-link', placeholder: 'perfil ou URL' },
+    { key: 'hotvips', label: 'Hotvips', icon: 'fas fa-link', placeholder: 'URL do perfil' },
+    { key: 'privacy', label: 'Privacy', icon: 'fas fa-link', placeholder: 'perfil ou URL' },
+    { key: 'onlyfans', label: 'OnlyFans', icon: 'fas fa-link', placeholder: 'perfil ou URL' },
+    { key: 'fansly', label: 'Fansly', icon: 'fas fa-link', placeholder: 'perfil ou URL' },
+    { key: 'linktree', label: 'Linktree', icon: 'fas fa-link', placeholder: 'URL pública' },
+  ];
 
-  uid: string | null = null;                  // UID do usuário que estamos editando
-  socialLinks: IUserSocialLinks | null = null; // Estado local com as redes
-  private destroy$ = new Subject<void>();
+  uid: string | null = null;
+  socialLinks: IUserSocialLinks = {};
+
+  accessResolved = false;
+  isOwner = false;
+  canPublish = false;
+  saving = false;
+  removingKey: SocialLinkKey | null = null;
+
+  private readonly destroy$ = new Subject<void>();
 
   constructor(
-    private route: ActivatedRoute,
-    private router: Router,
-    private userSocialLinksService: UserSocialLinksService,
-  ) { }
+    private readonly route: ActivatedRoute,
+    private readonly router: Router,
+    private readonly accessControl: AccessControlService,
+    private readonly userSocialLinksService: UserSocialLinksService,
+    private readonly globalError: GlobalErrorHandlerService,
+    private readonly notification: ErrorNotificationService
+  ) {}
 
   ngOnInit(): void {
-    // Obtém UID da rota
-    this.uid = (this.route.snapshot.paramMap.get('uid') ?? this.route.snapshot.paramMap.get('id') ?? '').trim();
+    this.uid = String(
+      this.route.snapshot.paramMap.get('uid') ??
+        this.route.snapshot.paramMap.get('id') ??
+        ''
+    ).trim() || null;
+
     if (!this.uid) {
-      // Se não tiver UID, podemos redirecionar ou exibir erro
-      console.log('Nenhum UID encontrado na rota.');
+      this.reportError('UID não encontrado para editar redes sociais.', {
+        op: 'ngOnInit',
+      });
+      this.accessResolved = true;
       return;
     }
 
-    // Carrega as redes do user
-    this.userSocialLinksService.getSocialLinks(this.uid)
+    combineLatest([
+      this.accessControl.appUserResolved$,
+      this.accessControl.authUid$,
+      this.accessControl.isSubscriber$,
+    ])
       .pipe(takeUntil(this.destroy$))
-      .subscribe(links => {
-        this.socialLinks = links || {};
+      .subscribe(([resolved, authUid, isSubscriber]) => {
+        if (!resolved) return;
+
+        this.accessResolved = true;
+        this.isOwner = !!authUid && authUid === this.uid;
+        this.canPublish = this.isOwner && isSubscriber;
+      });
+
+    this.userSocialLinksService
+      .getSocialLinks(this.uid)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((links) => {
+        this.socialLinks = links ? { ...links } : {};
       });
   }
 
-  // Atualizar link no estado local
-  updateLocalLink(key: keyof IUserSocialLinks, value: string): void {
-    if (!this.socialLinks) {
-      this.socialLinks = {};
-    }
-    this.socialLinks[key] = value;
+  updateLocalLink(key: SocialLinkKey, value: string): void {
+    if (!this.canPublish) return;
+    this.socialLinks = {
+      ...this.socialLinks,
+      [key]: value,
+    };
   }
 
-  // Salvar no backend
   salvarRedes(): void {
-    if (!this.uid || !this.socialLinks) return;
-    this.userSocialLinksService.saveSocialLinks(this.uid, this.socialLinks)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        // Depois de salvar, podemos voltar ao perfil
-        this.router.navigate(['/perfil', this.uid]);
+    if (!this.uid || this.saving) return;
+
+    if (!this.canPublish) {
+      this.notification.showWarning(
+        'Uma assinatura ativa é necessária para publicar redes sociais.'
+      );
+      return;
+    }
+
+    this.saving = true;
+
+    this.userSocialLinksService
+      .saveSocialLinks(this.uid, this.socialLinks, {
+        publishToPublic: true,
+        notifyOnError: false,
+      })
+      .pipe(
+        finalize(() => {
+          this.saving = false;
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+        next: () => {
+          this.notification.showSuccess('Redes sociais publicadas.');
+          this.router.navigate(['/perfil', this.uid]).catch(() => undefined);
+        },
+        error: () => {
+          this.notification.showError(
+            'Não foi possível publicar suas redes sociais.'
+          );
+        },
       });
   }
 
-  // Remover link específico
-  removerRede(key: keyof IUserSocialLinks): void {
-    if (!this.uid || !this.socialLinks) return;
-    this.userSocialLinksService.removeLink(this.uid, key)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        delete this.socialLinks?.[key];
+  removerRede(key: SocialLinkKey): void {
+    if (!this.uid || !this.isOwner || this.removingKey) return;
+    if (!this.socialLinks[key]) return;
+
+    this.removingKey = key;
+
+    this.userSocialLinksService
+      .removeLink(this.uid, key, {
+        publishToPublic: true,
+        notifyOnError: false,
+      })
+      .pipe(
+        finalize(() => {
+          this.removingKey = null;
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+        next: () => {
+          const next = { ...this.socialLinks };
+          delete next[key];
+          this.socialLinks = next;
+          this.notification.showSuccess('Link removido.');
+        },
+        error: () => {
+          this.notification.showError('Não foi possível remover este link.');
+        },
       });
   }
 
-  // Exemplo de cancelar edição e voltar sem salvar
+  abrirPlanos(): void {
+    this.router.navigate(['/subscription-plan']).catch(() => undefined);
+  }
+
   cancelar(): void {
     if (this.uid) {
-      this.router.navigate(['/perfil', this.uid]);
+      this.router.navigate(['/perfil', this.uid]).catch(() => undefined);
     }
+  }
+
+  trackField(_: number, field: SocialLinkField): SocialLinkKey {
+    return field.key;
   }
 
   ngOnDestroy(): void {
@@ -81,4 +191,23 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
+  private reportError(
+    message: string,
+    context: Record<string, unknown>
+  ): void {
+    const error = new Error(message);
+    (error as any).context = {
+      scope: 'EditProfileSocialLinksComponent',
+      ...context,
+    };
+    (error as any).skipUserNotification = true;
+
+    try {
+      this.globalError.handleError(error);
+    } catch {
+      // noop
+    }
+
+    this.notification.showError(message);
+  }
 }
