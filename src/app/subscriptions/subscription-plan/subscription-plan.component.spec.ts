@@ -1,6 +1,6 @@
 // src/app/subscriptions/subscription-plan/subscription-plan.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 import {
   describe,
   beforeEach,
@@ -15,27 +15,18 @@ import { SubscriptionPlanComponent } from './subscription-plan.component';
 import { Router } from '@angular/router';
 
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
+import { PlatformSubscriptionAccessService } from '../../core/services/subscriptions/platform-subscription-access.service';
 import { IncompleteProfileSubscriptionNoticeService } from '../application/incomplete-profile-subscription-notice.service';
 
 describe('SubscriptionPlanComponent', () => {
   let component: SubscriptionPlanComponent;
   let fixture: ComponentFixture<SubscriptionPlanComponent>;
 
-  let routerMock: {
-    navigate: Mock;
-  };
-
+  let routerMock: { navigate: Mock };
   let currentUserSubject: BehaviorSubject<any>;
   let warningSubject: BehaviorSubject<boolean>;
-
-  let currentUserStoreMock: {
-    user$: any;
-  };
-
-  let noticeServiceMock: {
-    shouldShow$: Mock;
-    hydrate: Mock;
-  };
+  let currentUserStoreMock: { user$: any };
+  let noticeServiceMock: { shouldShow$: Mock; hydrate: Mock };
 
   beforeEach(async () => {
     currentUserSubject = new BehaviorSubject<any>({
@@ -43,17 +34,9 @@ describe('SubscriptionPlanComponent', () => {
       emailVerified: true,
       profileCompleted: false,
     });
-
     warningSubject = new BehaviorSubject<boolean>(true);
-
-    routerMock = {
-      navigate: vi.fn().mockResolvedValue(true),
-    };
-
-    currentUserStoreMock = {
-      user$: currentUserSubject.asObservable(),
-    };
-
+    routerMock = { navigate: vi.fn().mockResolvedValue(true) };
+    currentUserStoreMock = { user$: currentUserSubject.asObservable() };
     noticeServiceMock = {
       shouldShow$: vi.fn().mockReturnValue(warningSubject.asObservable()),
       hydrate: vi.fn(),
@@ -64,6 +47,19 @@ describe('SubscriptionPlanComponent', () => {
       providers: [
         { provide: Router, useValue: routerMock },
         { provide: CurrentUserStoreService, useValue: currentUserStoreMock },
+        {
+          provide: PlatformSubscriptionAccessService,
+          useValue: {
+            state$: of({
+              active: false,
+              role: null,
+              startsAt: null,
+              endsAt: null,
+              projectionVersion: null,
+              reason: 'missing-user',
+            }),
+          },
+        },
         {
           provide: IncompleteProfileSubscriptionNoticeService,
           useValue: noticeServiceMock,
@@ -95,7 +91,8 @@ describe('SubscriptionPlanComponent', () => {
       currentPlanKey: null,
       currentPlanLabel: null,
       statusTitle: 'Sem assinatura ativa',
-      statusDescription: 'Você ainda não possui um plano ativo reconhecido na plataforma.',
+      statusDescription:
+        'Você ainda não possui um plano ativo reconhecido na plataforma.',
       canGoToAccount: true,
       canGoToProfile: true,
     });
@@ -105,7 +102,7 @@ describe('SubscriptionPlanComponent', () => {
     });
   });
 
-  it('deve exibir o aviso de perfil incompleto quando shouldShowSubscriptionWarning$ for true', () => {
+  it('deve exibir o aviso de perfil incompleto', () => {
     const text = fixture.nativeElement.textContent;
 
     expect(text).toContain('Assinatura com perfil em conclusão');
@@ -114,21 +111,20 @@ describe('SubscriptionPlanComponent', () => {
     );
   });
 
-  it('deve ocultar o aviso quando shouldShowSubscriptionWarning$ for false', () => {
+  it('deve ocultar o aviso quando configurado', () => {
     warningSubject.next(false);
     fixture.detectChanges();
 
-    const text = fixture.nativeElement.textContent;
-
-    expect(text).not.toContain('Assinatura com perfil em conclusão');
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'Assinatura com perfil em conclusão'
+    );
   });
 
-  it('deve continuar renderizando os cards dos planos mesmo com o aviso oculto', () => {
+  it('deve continuar renderizando os cards dos planos', () => {
     warningSubject.next(false);
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent;
-
     expect(text).toContain('Plano Básico');
     expect(text).toContain('Plano Premium');
     expect(text).toContain('Plano VIP');
