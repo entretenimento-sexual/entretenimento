@@ -2,15 +2,9 @@
 // -----------------------------------------------------------------------------
 // PLATFORM SUBSCRIPTION PROJECTION SERVICE
 // -----------------------------------------------------------------------------
-// O entitlement determinístico é a verdade financeira. Este serviço mantém
-// users/{uid} e public_profiles/{uid} como projeções operacionais rápidas.
-//
-// Regras:
-// - nunca concede acesso sem entitlement ativo e vigente;
-// - grava início/fim como Timestamp para comparação direta nas Firestore Rules;
-// - mantém aliases legados sincronizados durante a migração;
-// - não cria perfil público incompleto;
-// - preserva role administrativo no documento privado.
+// O entitlement determinístico é a verdade financeira. users/{uid} e
+// public_profiles/{uid} são projeções operacionais rápidas, escritas somente
+// quando o estado efetivo muda.
 // -----------------------------------------------------------------------------
 
 import { Timestamp } from 'firebase-admin/firestore';
@@ -44,6 +38,21 @@ function toTimestampOrNull(value: number | null): Timestamp | null {
     : null;
 }
 
+function toMillisOrNull(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+
+  if (
+    value &&
+    typeof value === 'object' &&
+    typeof (value as { toMillis?: unknown }).toMillis === 'function'
+  ) {
+    const millis = (value as { toMillis(): number }).toMillis();
+    return Number.isFinite(millis) ? millis : null;
+  }
+
+  return null;
+}
+
 export function buildPlatformSubscriptionUserProjection(
   status: PlatformSubscriptionEntitlementStatus,
   currentRole: unknown,
@@ -61,11 +70,32 @@ export function buildPlatformSubscriptionUserProjection(
     subscriptionScope: activeRole ? 'platform_subscription' : null,
     subscriptionStartedAt: toTimestampOrNull(status.startsAt),
     subscriptionEndsAt: toTimestampOrNull(status.endsAt),
-    // Alias legado mantido sincronizado. Novas decisões usam subscriptionEndsAt.
     subscriptionExpires: toTimestampOrNull(status.endsAt),
     billingProjectionVersion: PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
     billingUpdatedAt: now,
   };
+}
+
+export function platformSubscriptionUserProjectionMatches(
+  current: Record<string, unknown>,
+  expected: PlatformSubscriptionUserProjection
+): boolean {
+  return (
+    current['role'] === expected.role &&
+    current['tier'] === expected.tier &&
+    current['isSubscriber'] === expected.isSubscriber &&
+    current['monthlyPayer'] === expected.monthlyPayer &&
+    current['subscriptionStatus'] === expected.subscriptionStatus &&
+    current['subscriptionScope'] === expected.subscriptionScope &&
+    current['billingProjectionVersion'] ===
+      expected.billingProjectionVersion &&
+    toMillisOrNull(current['subscriptionStartedAt']) ===
+      toMillisOrNull(expected.subscriptionStartedAt) &&
+    toMillisOrNull(current['subscriptionEndsAt']) ===
+      toMillisOrNull(expected.subscriptionEndsAt) &&
+    toMillisOrNull(current['subscriptionExpires']) ===
+      toMillisOrNull(expected.subscriptionExpires)
+  );
 }
 
 export function resolvePublicPlatformRole(
@@ -74,6 +104,17 @@ export function resolvePublicPlatformRole(
 ): PlatformRole | 'free' | 'admin' {
   if (currentRole === 'admin') return 'admin';
   return status.active && status.role ? status.role : 'free';
+}
+
+export function platformSubscriptionPublicProjectionMatches(
+  current: Record<string, unknown>,
+  expectedRole: PlatformRole | 'free' | 'admin'
+): boolean {
+  return (
+    current['role'] === expectedRole &&
+    current['billingProjectionVersion'] ===
+      PLATFORM_SUBSCRIPTION_PROJECTION_VERSION
+  );
 }
 
 export async function syncPlatformSubscriptionProjection(
@@ -90,9 +131,7 @@ export async function syncPlatformSubscriptionProjection(
       tx.get(publicProfileRef),
     ]);
 
-    if (!userSnapshot.exists) {
-      return;
-    }
+    if (!userSnapshot.exists) return;
 
     const currentUser = userSnapshot.data() ?? {};
     const userProjection = buildPlatformSubscriptionUserProjection(
@@ -101,7 +140,12 @@ export async function syncPlatformSubscriptionProjection(
       now
     );
 
-    tx.set(userRef, userProjection, { merge: true });
+    if (!platformSubscriptionUserProjectionMatches(
+      currentUser,
+      userProjection
+    )) {
+      tx.set(userRef, userProjection, { merge: true });
+    }
 
     if (publicProfileSnapshot.exists) {
       const currentPublic = publicProfileSnapshot.data() ?? {};
@@ -110,15 +154,21 @@ export async function syncPlatformSubscriptionProjection(
         currentPublic['role']
       );
 
-      tx.set(
-        publicProfileRef,
-        {
-          role: publicRole,
-          billingProjectionVersion: PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
-          billingProjectionUpdatedAt: now,
-        },
-        { merge: true }
-      );
+      if (!platformSubscriptionPublicProjectionMatches(
+        currentPublic,
+        publicRole
+      )) {
+        tx.set(
+          publicProfileRef,
+          {
+            role: publicRole,
+            billingProjectionVersion:
+              PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
+            billingProjectionUpdatedAt: now,
+          },
+          { merge: true }
+        );
+      }
     }
   });
 }
