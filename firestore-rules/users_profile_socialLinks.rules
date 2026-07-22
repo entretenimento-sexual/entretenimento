@@ -1,9 +1,9 @@
-
 // ===============================================================
 // USERS / profileData / socialLinks (privado)
-// - Fonte de verdade
-// - Escrita: somente dono
-// - Leitura: somente dono (padrão). Moderador/admin opcional.
+// - Fonte de verdade privada do dono
+// - Criação/alteração: somente dono com assinatura ativa
+// - Remoção: o dono mantém controle mesmo após o término da assinatura
+// - Leitura: somente dono
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // uso de helpers globais
 // C:\entretenimento\firestore-rules\users_profile_socialLinks.rules
@@ -14,13 +14,7 @@ match /users/{userId}/profileData/socialLinks {
     return request.resource.data.keys().hasOnly([
       "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
       "sexlog","d4swing",
-
-      // ✅ novo + sugestões
-      "hotvips",
-      "privacy",
-      "onlyfans",
-      "fansly",
-      "linktree"
+      "hotvips","privacy","onlyfans","fansly","linktree"
     ]);
   }
 
@@ -35,8 +29,6 @@ match /users/{userId}/profileData/socialLinks {
       && optString("snapchat")
       && optString("sexlog")
       && optString("d4swing")
-
-      // ✅ novo + sugestões
       && optString("hotvips")
       && optString("privacy")
       && optString("onlyfans")
@@ -44,11 +36,29 @@ match /users/{userId}/profileData/socialLinks {
       && optString("linktree");
   }
 
+  function removesOnly() {
+    let diff = request.resource.data.diff(resource.data);
+    return diff.addedKeys().size() == 0
+      && diff.changedKeys().size() == 0
+      && diff.removedKeys().size() > 0;
+  }
+
   allow get: if isSelf(userId);
-  allow create: if isSelf(userId) && validPayload();
-  allow update: if isSelf(userId) && validPayload();
   allow list: if false;
-  allow delete: if false;
+
+  allow create: if isSelf(userId)
+    && isActiveSubscriber(userId)
+    && validPayload();
+
+  allow update: if isSelf(userId)
+    && validPayload()
+    && (
+      isActiveSubscriber(userId)
+      || removesOnly()
+    );
+
+  // Exclusão integral continua disponível por privacidade, sem republicação.
+  allow delete: if isSelf(userId);
 }
 // ===============================================================
 //                    FIM DO SOCIAL.LINKS
