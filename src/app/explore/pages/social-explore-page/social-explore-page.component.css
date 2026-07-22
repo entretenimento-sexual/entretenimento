@@ -96,7 +96,8 @@
 .feed-composer a:focus-visible,
 .feed-empty a:focus-visible,
 .feed-status__actions a:focus-visible,
-.feed-status__actions button:focus-visible {
+.feed-status__actions button:focus-visible,
+.feed-pagination button:focus-visible {
   border-radius: 0.45rem;
   outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
   outline-offset: var(--focus-offset, 2px);
@@ -184,6 +185,30 @@
   width: 100%;
 }
 
+.feed-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 0.45rem 0 0.1rem;
+}
+
+.feed-pagination button {
+  min-height: var(--tap-target, 2.75rem);
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  background: transparent;
+  color: var(--primary-color, #ff7070);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 780;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.feed-pagination button:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
 .feed-empty {
   display: grid;
   gap: 0.5rem;
@@ -260,7 +285,8 @@
   .feed-composer a,
   .feed-empty a,
   .feed-status__actions a,
-  .feed-status__actions button {
+  .feed-status__actions button,
+  .feed-pagination button {
     transition: none;
   }
 }
@@ -276,6 +302,7 @@
 
 :host-context(html.high-contrast) .feed-status__actions a,
 :host-context(html.high-contrast) .feed-status__actions button,
+:host-context(html.high-contrast) .feed-pagination button,
 :host-context(html.high-contrast) .feed-empty a {
   color: var(--text-color) !important;
   outline-color: currentColor !important;
