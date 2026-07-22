@@ -15,13 +15,23 @@ import { FirestoreUserQueryService } from '../../core/services/data-handling/fir
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { RoomManagementService } from '../../core/services/batepapo/room-services/room-management.service';
 import { UserSocialLinksService } from '../../core/services/user-profile/user-social-links.service';
+import {
+  selectCurrentUser,
+  selectCurrentUserStatus,
+  selectCurrentUserUid,
+} from '../../store/selectors/selectors.user/user.selectors';
+
+const CURRENT_USER = {
+  uid: 'test-uid',
+  nickname: 'Alex',
+  role: 'premium',
+  isSubscriber: true,
+  profileCompleted: true,
+  photoURL: '',
+};
 
 class MockCurrentUserStoreService {
-  user$ = new BehaviorSubject<any | null | undefined>({
-    uid: 'test-uid',
-    role: 'premium',
-    isSubscriber: true,
-  });
+  user$ = new BehaviorSubject<any | null | undefined>(CURRENT_USER);
 }
 
 class MockAuthSessionService {
@@ -65,21 +75,8 @@ class MockUserSocialLinksService {
 }
 
 class MockFirestoreUserQueryService {
-  getUser = vi.fn(() =>
-    of({
-      uid: 'test-uid',
-      nickname: 'Alex',
-      photoURL: '',
-    })
-  );
-
-  getUserWithObservable = vi.fn(() =>
-    of({
-      uid: 'test-uid',
-      nickname: 'Alex',
-      photoURL: '',
-    })
-  );
+  getUser = vi.fn(() => of(CURRENT_USER));
+  getUserWithObservable = vi.fn(() => of(CURRENT_USER));
 }
 
 class MockErrorNotificationService {
@@ -96,27 +93,6 @@ describe('UserProfileViewComponent', () => {
   let fixture: ComponentFixture<UserProfileViewComponent>;
   let component: UserProfileViewComponent;
 
-  const initialState = {
-    users: {
-      users: {
-        'test-uid': {
-          uid: 'test-uid',
-          nickname: 'Alex',
-          role: 'premium',
-          isSubscriber: true,
-          profileCompleted: true,
-          isSidebarOpen: false,
-        },
-      },
-      currentUserUid: 'test-uid',
-      currentUserStatus: 'ready',
-    },
-    friends: {
-      friends: [],
-      requests: [],
-    },
-  } as any;
-
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [
@@ -125,7 +101,13 @@ describe('UserProfileViewComponent', () => {
         NoopAnimationsModule,
       ],
       providers: [
-        provideMockStore({ initialState }),
+        provideMockStore({
+          selectors: [
+            { selector: selectCurrentUserUid, value: 'test-uid' },
+            { selector: selectCurrentUser, value: CURRENT_USER as any },
+            { selector: selectCurrentUserStatus, value: 'ready' },
+          ],
+        }),
         {
           provide: ActivatedRoute,
           useValue: {
