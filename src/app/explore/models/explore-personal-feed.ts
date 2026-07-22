@@ -15,6 +15,18 @@ export interface ExplorePersonalFeedWindow {
   readonly hasMore: boolean;
 }
 
+export type ExplorePersonalFeedInput = Pick<
+  IExploreFeedVm,
+  | 'boostedPhotos'
+  | 'mostViewedPhotos'
+  | 'topPhotos'
+  | 'latestPhotos'
+  | 'compatibleProfiles'
+> & {
+  readonly personalPhotos?: readonly IPublicPhotoItem[];
+  readonly friendUids?: readonly string[];
+};
+
 const DEFAULT_LIMIT = 18;
 const DEFAULT_MAX_ITEMS_PER_OWNER = 2;
 const DEFAULT_VISIBLE_LIMIT = 6;
@@ -30,16 +42,7 @@ const DEFAULT_VISIBLE_LIMIT = 6;
  * Conteúdo impulsionado e engajamento nunca ultrapassam o vínculo pessoal.
  */
 export function buildExplorePersonalFeed(
-  vm: Pick<
-    IExploreFeedVm,
-    | 'boostedPhotos'
-    | 'mostViewedPhotos'
-    | 'topPhotos'
-    | 'latestPhotos'
-    | 'personalPhotos'
-    | 'compatibleProfiles'
-    | 'friendUids'
-  >,
+  vm: ExplorePersonalFeedInput,
   options: ExplorePersonalFeedOptions = {}
 ): IPublicPhotoItem[] {
   const limit = normalizePositiveInteger(options.limit, DEFAULT_LIMIT);
