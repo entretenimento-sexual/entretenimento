@@ -13,6 +13,7 @@ import { AuthDebugService } from './core/services/util-service/auth-debug.servic
 import { PresenceOrchestratorService } from './core/services/presence/presence-orchestrator.service';
 import { PlatformSubscriptionAccessService } from './core/services/subscriptions/platform-subscription-access.service';
 import { RouterDiagnosticsService } from './core/services/util-service/router-diagnostics.service';
+import { PlatformSubscriptionReconciliationService } from './payments-core/application/platform-subscription-reconciliation.service';
 
 @Component({
   standalone: true,
@@ -25,6 +26,7 @@ describe('AppComponent', () => {
 
   const orchestratorStub = { start: vi.fn() };
   const presenceOrchestratorStub = { start: vi.fn() };
+  const subscriptionReconciliationStub = { start: vi.fn() };
   const subscriptionAccessStub = { start: vi.fn() };
   const authDebugStub = { start: vi.fn() };
   const routerDiagnosticsStub = { start: vi.fn() };
@@ -50,6 +52,10 @@ describe('AppComponent', () => {
         {
           provide: PresenceOrchestratorService,
           useValue: presenceOrchestratorStub,
+        },
+        {
+          provide: PlatformSubscriptionReconciliationService,
+          useValue: subscriptionReconciliationStub,
         },
         {
           provide: PlatformSubscriptionAccessService,
@@ -92,7 +98,7 @@ describe('AppComponent', () => {
     expect(target.getAttribute('tabindex')).toBe('-1');
   });
 
-  it('inicia orquestradores, relógio de assinatura e footer por rota', async () => {
+  it('inicia orquestradores e assinatura canônica', async () => {
     const fixture = TestBed.createComponent(AppComponent);
     const component = fixture.componentInstance;
 
@@ -101,16 +107,15 @@ describe('AppComponent', () => {
     expect(routerDiagnosticsStub.start).toHaveBeenCalledTimes(1);
     expect(orchestratorStub.start).toHaveBeenCalledTimes(1);
     expect(presenceOrchestratorStub.start).toHaveBeenCalledTimes(1);
+    expect(subscriptionReconciliationStub.start).toHaveBeenCalledTimes(1);
     expect(subscriptionAccessStub.start).toHaveBeenCalledTimes(1);
 
     await fixture.ngZone!.run(() => router.navigateByUrl('/home'));
     fixture.detectChanges();
-
     await expect(firstValueFrom(component.showFooter$)).resolves.toBe(true);
 
     await fixture.ngZone!.run(() => router.navigateByUrl('/chat/abc'));
     fixture.detectChanges();
-
     await expect(firstValueFrom(component.showFooter$)).resolves.toBe(false);
   });
 });
