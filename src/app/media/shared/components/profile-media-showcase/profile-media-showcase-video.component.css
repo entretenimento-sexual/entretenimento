@@ -1,53 +1,9 @@
-.profile-media-showcase__summary small {
-  color: color-mix(
-    in oklab,
-    var(--text-color, #f5f7fb) 54%,
-    transparent
-  );
-  font-size: 0.66rem;
-  font-weight: 700;
-  line-height: 1.2;
-  text-align: center;
-}
-
 .profile-media-showcase__item--video {
-  background:
-    radial-gradient(
-      circle at 50% 38%,
-      color-mix(in oklab, var(--primary-color, #ff6b6b) 22%, transparent),
-      transparent 36%
-    ),
-    color-mix(in oklab, var(--surface-color, #101923) 72%, black 28%);
+  background: #0b1119;
 }
 
 .profile-media-showcase__video-placeholder {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-  min-height: 132px;
-  color: rgb(255 255 255 / 78%);
-  font-size: clamp(2rem, 1.3rem + 2.3vw, 4rem);
-}
-
-.profile-media-showcase__video-badge {
-  position: absolute;
-  z-index: 2;
-  inset: 10px auto auto 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 30px;
-  padding: 5px 9px;
-  border: 1px solid rgb(255 255 255 / 24%);
-  border-radius: 999px;
-  background: rgb(0 0 0 / 58%);
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 820;
-  backdrop-filter: blur(8px);
-  pointer-events: none;
+  min-height: 8rem;
 }
 
 .profile-media-showcase__item:disabled {
@@ -59,27 +15,7 @@
   filter: brightness(0.72);
 }
 
-@media (max-width: 700px) {
-  .profile-media-showcase__summary small {
-    text-align: left;
-  }
-
-  .profile-media-showcase__video-badge {
-    inset: 7px auto auto 7px;
-    min-height: 26px;
-    padding: 4px 8px;
-    font-size: 0.7rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .profile-media-showcase__item--video,
-  .profile-media-showcase__video-placeholder {
-    transition: none;
-  }
-}
-
-html.high-contrast .profile-media-showcase__video-badge {
+:host-context(.high-contrast) .profile-media-showcase__video-badge {
   border-color: currentColor !important;
-  background: #000 !important;
+  background: #000000 !important;
 }
