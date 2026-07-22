@@ -1,0 +1,91 @@
+<section class="publication-composer" aria-label="Criar publicação">
+  <header class="publication-composer__header">
+    <strong>Criar publicação</strong>
+    <button
+      type="button"
+      class="publication-composer__close"
+      [disabled]="publishing()"
+      (click)="cancel()"
+      aria-label="Fechar publicação"
+    >
+      <span aria-hidden="true">×</span>
+    </button>
+  </header>
+
+  <textarea
+    class="publication-composer__caption"
+    [formControl]="captionControl"
+    [attr.maxlength]="maxCaptionLength"
+    rows="3"
+    placeholder="Escreva uma legenda"
+    aria-label="Legenda da publicação"
+  ></textarea>
+
+  <div class="publication-composer__counter" aria-live="polite">
+    {{ captionControl.value.length }}/{{ maxCaptionLength }}
+  </div>
+
+  <input
+    #fileInput
+    class="publication-composer__file-input"
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    (change)="onFileSelected($event)"
+  />
+
+  @if (previewUrl(); as preview) {
+    <div class="publication-composer__preview">
+      <img [src]="preview" alt="Prévia da foto escolhida" />
+      <button
+        type="button"
+        [disabled]="publishing()"
+        (click)="removeSelectedPhoto()"
+        aria-label="Remover foto escolhida"
+      >
+        Remover
+      </button>
+    </div>
+  } @else {
+    <button
+      type="button"
+      class="publication-composer__choose"
+      [disabled]="publishing()"
+      (click)="openFilePicker()"
+    >
+      <i class="fas fa-image" aria-hidden="true"></i>
+      Escolher foto
+    </button>
+  }
+
+  @if (publishing()) {
+    <div
+      class="publication-composer__progress"
+      role="progressbar"
+      aria-label="Progresso da publicação"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      [attr.aria-valuenow]="progress()"
+    >
+      <span [style.width.%]="progress()"></span>
+    </div>
+  }
+
+  <footer class="publication-composer__actions">
+    <button
+      type="button"
+      class="publication-composer__cancel"
+      [disabled]="publishing()"
+      (click)="cancel()"
+    >
+      Cancelar
+    </button>
+    <button
+      type="button"
+      class="publication-composer__publish"
+      [disabled]="publishing() || !selectedFile() || captionControl.invalid"
+      (click)="publish()"
+    >
+      {{ publishing() ? 'Publicando...' : 'Publicar' }}
+    </button>
+  </footer>
+</section>
