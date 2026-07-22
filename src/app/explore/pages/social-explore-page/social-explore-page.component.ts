@@ -17,7 +17,6 @@ import { ExploreFeedFacade } from '../../facades/explore-feed.facade';
 import { IExploreFeedVm } from '../../services/explore-feed.service';
 import { TExploreSectionId } from '../../models/i-explore-section';
 import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view-tracking.service';
-import { PublicProfilesListComponent } from 'src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -43,7 +42,6 @@ interface IExploreLightboxState {
     RouterModule,
     PublicPhotoCardComponent,
     PublicPhotoLightboxComponent,
-    PublicProfilesListComponent,
   ],
   templateUrl: './social-explore-page.component.html',
   styleUrls: ['./social-explore-page.component.css'],
