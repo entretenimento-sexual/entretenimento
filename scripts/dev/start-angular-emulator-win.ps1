@@ -181,12 +181,24 @@ try {
     [string]$Port
   )
 
-  & $runtime.Node @angularArguments 2>&1 |
-    ForEach-Object {
-      Write-LogLine -Line ([string]$_)
-    }
+  $previousErrorActionPreference = $ErrorActionPreference
 
-  $exitCode = $LASTEXITCODE
+  try {
+    # O Angular CLI escreve avisos validos em stderr. No Windows PowerShell 5.1,
+    # stderr combinado com ErrorActionPreference=Stop vira excecao antes que o
+    # codigo de saida real do processo seja avaliado. Durante o processo nativo,
+    # os dois fluxos continuam registrados e somente LASTEXITCODE decide falha.
+    $ErrorActionPreference = 'Continue'
+
+    & $runtime.Node @angularArguments 2>&1 |
+      ForEach-Object {
+        Write-LogLine -Line ([string]$_)
+      }
+
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
 
   if ($exitCode -ne 0) {
     Write-SessionMessage "Angular encerrou com codigo $exitCode."
