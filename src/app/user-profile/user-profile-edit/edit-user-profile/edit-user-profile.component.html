@@ -1,74 +1,93 @@
 <!-- src/app/user-profile/user-profile-edit/edit-user-profile/edit-user-profile.component.html -->
-<form class="form-myprofile" [formGroup]="editForm" (ngSubmit)="onSubmit()" aria-label="Formulário de edição do perfil">
-
-  <!-- =========================================================
-       CABEÇALHO / FOTO
-       ========================================================= -->
-  <header class="profile-header" aria-label="Foto e ações de perfil">
-    <div class="profile-picture-container" aria-label="Foto de perfil atual">
-      <img class="profile-picture" [src]="userData.photoURL || 'assets/imagem-padrao.webp'"
-        alt="Foto de perfil" loading="lazy" decoding="async">
+<form
+  class="form-myprofile"
+  [formGroup]="editForm"
+  (ngSubmit)="onSubmit()"
+  aria-label="Formulário de edição do perfil"
+>
+  <header class="profile-header" aria-label="Foto do perfil">
+    <div class="profile-picture-container">
+      <img
+        class="profile-picture"
+        [src]="userData.photoURL || 'assets/imagem-padrao.webp'"
+        alt="Foto de perfil"
+        loading="lazy"
+        decoding="async"
+      />
     </div>
 
-    <div class="profile-photo-actions" aria-label="Atualização da foto de perfil">
-      <label class="form-label" for="photo">
-        Trocar foto de perfil
-      </label>
+    <div class="profile-photo-actions">
+      <label class="form-label" for="photo">Trocar foto</label>
 
-      <input id="photo" type="file" accept="image/*" (change)="onFileSelected($event)" aria-describedby="photo-help"
-        class="input-file" />
+      <input
+        id="photo"
+        type="file"
+        accept="image/*"
+        (change)="onFileSelected($event)"
+        aria-describedby="photo-help"
+        class="input-file"
+      />
 
       <p id="photo-help" class="help-text">
-        Formatos recomendados: JPG/PNG. Use uma imagem nítida e bem iluminada.
+        Use JPG ou PNG com boa nitidez.
       </p>
 
-      @if (progressValue > 0 && progressValue < 100) { <div class="upload-progress" role="status" aria-live="polite">
-        <progress [value]="progressValue" max="100" aria-label="Progresso do upload da foto">
-        </progress>
-        <span class="upload-progress-label">{{ progressValue.toFixed(0) }}%</span>
-    </div>
-    }
+      @if (progressValue > 0 && progressValue < 100) {
+        <div class="upload-progress" role="status" aria-live="polite">
+          <progress
+            [value]="progressValue"
+            max="100"
+            aria-label="Progresso do upload da foto"
+          ></progress>
+          <span class="upload-progress-label">
+            {{ progressValue.toFixed(0) }}%
+          </span>
+        </div>
+      }
     </div>
   </header>
 
-  <!-- =========================================================
-       DADOS BÁSICOS
-       ========================================================= -->
   <section class="form-section" aria-labelledby="basic-info-title">
-    <h3 class="section-title" id="basic-info-title">Meus dados de perfil</h3>
+    <h2 class="section-title" id="basic-info-title">Perfil</h2>
 
     <div class="form-grid">
-      <!-- Nickname -->
       <div class="form-field">
-        <label class="form-label" for="nickname">Meu nickname</label>
-        <input id="nickname" type="text" class="input-field" formControlName="nickname" name="nickname"
-          autocomplete="nickname" inputmode="text" maxlength="40"
+        <label class="form-label" for="nickname">Nickname</label>
+        <input
+          id="nickname"
+          type="text"
+          class="input-field"
+          formControlName="nickname"
+          name="nickname"
+          autocomplete="nickname"
+          inputmode="text"
+          maxlength="40"
           [attr.aria-invalid]="editForm.get('nickname')?.invalid && editForm.get('nickname')?.touched ? 'true' : 'false'"
-          [attr.aria-describedby]="editForm.get('nickname')?.invalid && editForm.get('nickname')?.touched ? 'nickname-error' : null" />
+          [attr.aria-describedby]="editForm.get('nickname')?.invalid && editForm.get('nickname')?.touched ? 'nickname-error' : null"
+        />
 
         @if (editForm.get('nickname')?.invalid && editForm.get('nickname')?.touched) {
-        <div id="nickname-error" class="field-error" role="alert">
-          Informe um nickname válido.
-        </div>
+          <div id="nickname-error" class="field-error" role="alert">
+            Informe um nickname válido.
+          </div>
         }
       </div>
 
-      <!-- Estado -->
       <div class="form-field">
         <label class="form-label" for="estado">Estado</label>
-        <select id="estado" class="input-field" formControlName="estado" name="estado" aria-describedby="estado-help">
+        <select
+          id="estado"
+          class="input-field"
+          formControlName="estado"
+          name="estado"
+        >
           <option value="">Selecione</option>
-         @for (estado of estados; track estado.id) {
+          @for (estado of estados; track estado.id) {
             <option [value]="estado.sigla">{{ estado.nome }}</option>
           }
         </select>
-
-        <p id="estado-help" class="help-text">
-          Ao escolher o estado, carregaremos os municípios.
-        </p>
       </div>
 
-      <!-- Município -->
       <div class="form-field">
         <label class="form-label" for="municipio">Município</label>
         <select
@@ -85,245 +104,130 @@
         </select>
       </div>
 
-      <!-- Gênero -->
       <div class="form-field">
         <label class="form-label" for="gender">Gênero</label>
-        <select id="gender" class="input-field" formControlName="gender" name="gender" aria-describedby="gender-help">
+        <select
+          id="gender"
+          class="input-field"
+          formControlName="gender"
+          name="gender"
+        >
           <option value="">Selecione</option>
-            @for (genderOption of genderOptions; track genderOption.value) {
-              <option [value]="genderOption.value">{{ genderOption.label }}</option>
-            }
+          @for (genderOption of genderOptions; track genderOption.value) {
+            <option [value]="genderOption.value">
+              {{ genderOption.label }}
+            </option>
+          }
         </select>
-
-        <p id="gender-help" class="help-text">
-          Se você selecionar um tipo de casal, aparecerão opções para orientação dos parceiros.
-        </p>
       </div>
 
-      <!-- Orientação (quando NÃO casal) -->
       @if (!isCouple()) {
-      <div class="form-field">
-        <label class="form-label" for="orientation">Orientação</label>
-        <select id="orientation" class="input-field" formControlName="orientation" name="orientation">
-          <option value="">Selecione</option>
-          <option value="bissexual">Bissexual</option>
-          <option value="homossexual">Homossexual</option>
-          <option value="heterossexual">Heterossexual</option>
-          <option value="pansexual">Pansexual</option>
-        </select>
-      </div>
+        <div class="form-field">
+          <label class="form-label" for="orientation">Orientação</label>
+          <select
+            id="orientation"
+            class="input-field"
+            formControlName="orientation"
+            name="orientation"
+          >
+            <option value="">Selecione</option>
+            <option value="bissexual">Bissexual</option>
+            <option value="homossexual">Homossexual</option>
+            <option value="heterossexual">Heterossexual</option>
+            <option value="pansexual">Pansexual</option>
+          </select>
+        </div>
       }
     </div>
 
-    <!-- Orientação do casal -->
     @if (isCouple()) {
-    <div class="form-grid couple-grid" aria-label="Orientações do casal">
-      <div class="form-field">
-        <label class="form-label" for="partner1Orientation">Orientação do Parceiro 1</label>
-        <select id="partner1Orientation" class="input-field" formControlName="partner1Orientation"
-          name="partner1Orientation">
-          <option value="">Selecione</option>
-          <option value="bissexual">Bissexual</option>
-          <option value="homossexual">Homossexual</option>
-          <option value="heterossexual">Heterossexual</option>
-          <option value="pansexual">Pansexual</option>
-        </select>
-      </div>
+      <div class="form-grid couple-grid" aria-label="Orientações do casal">
+        <div class="form-field">
+          <label class="form-label" for="partner1Orientation">
+            Orientação da pessoa 1
+          </label>
+          <select
+            id="partner1Orientation"
+            class="input-field"
+            formControlName="partner1Orientation"
+            name="partner1Orientation"
+          >
+            <option value="">Selecione</option>
+            <option value="bissexual">Bissexual</option>
+            <option value="homossexual">Homossexual</option>
+            <option value="heterossexual">Heterossexual</option>
+            <option value="pansexual">Pansexual</option>
+          </select>
+        </div>
 
-      <div class="form-field">
-        <label class="form-label" for="partner2Orientation">Orientação do Parceiro 2</label>
-        <select id="partner2Orientation" class="input-field" formControlName="partner2Orientation"
-          name="partner2Orientation">
-          <option value="">Selecione</option>
-          <option value="bissexual">Bissexual</option>
-          <option value="homossexual">Homossexual</option>
-          <option value="heterossexual">Heterossexual</option>
-          <option value="pansexual">Pansexual</option>
-        </select>
+        <div class="form-field">
+          <label class="form-label" for="partner2Orientation">
+            Orientação da pessoa 2
+          </label>
+          <select
+            id="partner2Orientation"
+            class="input-field"
+            formControlName="partner2Orientation"
+            name="partner2Orientation"
+          >
+            <option value="">Selecione</option>
+            <option value="bissexual">Bissexual</option>
+            <option value="homossexual">Homossexual</option>
+            <option value="heterossexual">Heterossexual</option>
+            <option value="pansexual">Pansexual</option>
+          </select>
+        </div>
       </div>
-    </div>
     }
   </section>
 
-  <!-- =========================================================
-       SOBRE MIM
-       ========================================================= -->
   <section class="form-section" aria-labelledby="about-title">
-    <h3 class="section-title" id="about-title">Sobre mim</h3>
+    <h2 class="section-title" id="about-title">Sobre mim</h2>
 
     <div class="form-field">
       <label class="form-label" for="descricao">Descrição</label>
-      <textarea id="descricao" class="input-field textarea-field" formControlName="descricao" rows="5"
-        placeholder="Escreva uma descrição curta (opcional)."
+      <textarea
+        id="descricao"
+        class="input-field textarea-field"
+        formControlName="descricao"
+        rows="5"
+        placeholder="Conte quem você é e o que procura."
         [attr.aria-invalid]="editForm.get('descricao')?.invalid && editForm.get('descricao')?.touched ? 'true' : 'false'"
-        [attr.aria-describedby]="editForm.get('descricao')?.invalid && editForm.get('descricao')?.touched ? 'descricao-error' : 'descricao-help'">
-      </textarea>
+        [attr.aria-describedby]="editForm.get('descricao')?.invalid && editForm.get('descricao')?.touched ? 'descricao-error' : 'descricao-help'"
+      ></textarea>
 
       <p id="descricao-help" class="help-text">
-        Evite dados sensíveis. Ex.: telefone, endereço, etc.
+        Não inclua telefone, endereço ou outros dados sensíveis.
       </p>
 
       @if (editForm.get('descricao')?.invalid && editForm.get('descricao')?.touched) {
-      <div id="descricao-error" class="field-error" role="alert">
-        A descrição está muito longa.
-      </div>
+        <div id="descricao-error" class="field-error" role="alert">
+          A descrição está muito longa.
+        </div>
       }
     </div>
   </section>
 
-  <!-- =========================================================
-       REDES SOCIAIS
-       ========================================================= -->
-  <section class="form-section" aria-labelledby="social-title">
-    <h3 class="section-title" id="social-title">Minhas redes sociais</h3>
-    <p class="help-text">
-      Cole um link completo (https://...) ou seu @handle quando aplicável.
-    </p>
-
-    <div class="form-grid social-grid">
-      <!-- Hotvips -->
-      <div class="form-field">
-        <label class="form-label" for="hotvips">Hotvips</label>
-        <input id="hotvips" type="text" class="input-field" formControlName="hotvips"
-          placeholder="https://www.hotvips.com/..." inputmode="url" autocomplete="url"
-          [attr.aria-invalid]="editForm.get('hotvips')?.invalid && editForm.get('hotvips')?.touched ? 'true' : 'false'"
-          [attr.aria-describedby]="editForm.get('hotvips')?.invalid && editForm.get('hotvips')?.touched ? 'hotvips-error' : null" />
-
-        @if (editForm.get('hotvips')?.invalid && editForm.get('hotvips')?.touched) {
-        <div id="hotvips-error" class="field-error" role="alert">
-          URL do Hotvips inválida.
-        </div>
-        }
-      </div>
-
-      <!-- Linktree -->
-      <div class="form-field">
-        <label class="form-label" for="linktree">Linktree</label>
-        <input id="linktree" type="text" class="input-field" formControlName="linktree"
-          placeholder="https://linktr.ee/seuperfil" inputmode="url" autocomplete="url" />
-      </div>
-
-      <!-- Sexlog -->
-      <div class="form-field">
-        <label class="form-label" for="sexlog">Sexlog</label>
-        <input id="sexlog" type="text" class="input-field" formControlName="sexlog" placeholder="https://sexlog.com/..."
-          inputmode="url" autocomplete="url" />
-      </div>
-
-      <!-- D4Swing -->
-      <div class="form-field">
-        <label class="form-label" for="d4swing">D4Swing</label>
-        <input id="d4swing" type="text" class="input-field" formControlName="d4swing" placeholder="https://..."
-          inputmode="url" autocomplete="url" />
-      </div>
-
-      <!-- Privacy -->
-      <div class="form-field">
-        <label class="form-label" for="privacy">Privacy</label>
-        <input id="privacy" type="text" class="input-field" formControlName="privacy"
-          placeholder="https://privacy.com.br/..." inputmode="url" autocomplete="url" />
-      </div>
-
-      <!-- OnlyFans -->
-      <div class="form-field">
-        <label class="form-label" for="onlyfans">OnlyFans</label>
-        <input id="onlyfans" type="text" class="input-field" formControlName="onlyfans"
-          placeholder="https://onlyfans.com/..." inputmode="url" autocomplete="url" />
-      </div>
-
-      <!-- Fansly -->
-      <div class="form-field">
-        <label class="form-label" for="fansly">Fansly</label>
-        <input id="fansly" type="text" class="input-field" formControlName="fansly" placeholder="https://fansly.com/..."
-          inputmode="url" autocomplete="url" />
-      </div>
-
-      <!-- Instagram -->
-      <div class="form-field">
-        <label class="form-label" for="instagram">Instagram</label>
-        <input id="instagram" type="text" class="input-field" formControlName="instagram"
-          placeholder="@seuperfil ou https://instagram.com/seuperfil" autocomplete="off"
-          [class.input-invalid]="editForm.get('instagram')?.invalid && editForm.get('instagram')?.touched"
-          [attr.aria-invalid]="editForm.get('instagram')?.invalid && editForm.get('instagram')?.touched ? 'true' : 'false'"
-          [attr.aria-describedby]="editForm.get('instagram')?.invalid && editForm.get('instagram')?.touched ? 'instagram-error' : null" />
-
-        @if (editForm.get('instagram')?.invalid && editForm.get('instagram')?.touched) {
-        <div id="instagram-error" class="field-error" role="alert">
-          URL/handle do Instagram inválido.
-        </div>
-        }
-      </div>
-
-      <!-- Facebook -->
-      <div class="form-field">
-        <label class="form-label" for="facebook">Facebook</label>
-        <input id="facebook" type="text" class="input-field" formControlName="facebook"
-          placeholder="https://facebook.com/..." inputmode="url" autocomplete="url"
-          [class.input-invalid]="editForm.get('facebook')?.invalid && editForm.get('facebook')?.touched"
-          [attr.aria-invalid]="editForm.get('facebook')?.invalid && editForm.get('facebook')?.touched ? 'true' : 'false'"
-          [attr.aria-describedby]="editForm.get('facebook')?.invalid && editForm.get('facebook')?.touched ? 'facebook-error' : null" />
-
-        @if (editForm.get('facebook')?.invalid && editForm.get('facebook')?.touched) {
-        <div id="facebook-error" class="field-error" role="alert">
-          URL do Facebook inválida.
-        </div>
-        }
-      </div>
-
-      <!-- X/Twitter -->
-      <div class="form-field">
-        <label class="form-label" for="twitter">X (Twitter)</label>
-        <input id="twitter" type="text" class="input-field" formControlName="twitter"
-          placeholder="@seuperfil ou https://x.com/seuperfil" autocomplete="off" />
-      </div>
-
-      <!-- TikTok -->
-      <div class="form-field">
-        <label class="form-label" for="tiktok">TikTok</label>
-        <input id="tiktok" type="text" class="input-field" formControlName="tiktok"
-          placeholder="@seuperfil ou https://tiktok.com/@seuperfil" autocomplete="off" />
-      </div>
-
-      <!-- YouTube -->
-      <div class="form-field">
-        <label class="form-label" for="youtube">YouTube</label>
-        <input id="youtube" type="text" class="input-field" formControlName="youtube"
-          placeholder="https://youtube.com/@..." inputmode="url" autocomplete="url" />
-      </div>
-
-      <!-- LinkedIn -->
-      <div class="form-field">
-        <label class="form-label" for="linkedin">LinkedIn</label>
-        <input id="linkedin" type="text" class="input-field" formControlName="linkedin"
-          placeholder="https://linkedin.com/in/..." inputmode="url" autocomplete="url" />
-      </div>
-
-      <!-- Snapchat -->
-      <div class="form-field">
-        <label class="form-label" for="snapchat">Snapchat</label>
-        <input id="snapchat" type="text" class="input-field" formControlName="snapchat" placeholder="@seuperfil"
-          autocomplete="off" />
-      </div>
-    </div>
-  </section>
-
-  <!-- =========================================================
-       AÇÕES
-       ========================================================= -->
   <footer class="form-actions" aria-label="Ações do formulário">
-    <button type="submit" class="btn btn-primary" [disabled]="isSaving || isUploading"
-      [attr.aria-disabled]="isSaving || isUploading ? 'true' : 'false'">
-      Salvar alterações
+    <button
+      type="submit"
+      class="btn btn-primary"
+      [disabled]="isSaving || isUploading"
+      [attr.aria-disabled]="isSaving || isUploading ? 'true' : 'false'"
+    >
+      {{ isSaving ? 'Salvando...' : 'Salvar' }}
     </button>
 
-    <a class="btn btn-secondary btn-voltar" [routerLink]="['/perfil', uid]"
-      aria-label="Voltar para o perfil sem salvar">
-      Voltar sem salvar
+    <a
+      class="btn btn-secondary btn-voltar"
+      [routerLink]="['/perfil', uid]"
+      aria-label="Voltar para o perfil sem salvar"
+    >
+      Voltar
     </a>
 
     @if (isSaving) {
-    <span class="sr-only" aria-live="polite">Salvando alterações…</span>
+      <span class="sr-only" aria-live="polite">Salvando alterações.</span>
     }
   </footer>
-
 </form>
