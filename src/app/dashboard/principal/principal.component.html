@@ -1,87 +1,238 @@
 <!-- src/app/dashboard/principal/principal.component.html -->
-<section class="principal-page" *ngIf="currentUser$ | async as currentUser" aria-labelledby="principal-title">
-  <header class="principal-topbar">
-    <div>
-      <h1 id="principal-title">Hoje</h1>
-      <p>Olá, {{ currentUser.nickname || 'bem-vindo' }}.</p>
-    </div>
-  </header>
+<section
+  class="principal-page"
+  *ngIf="currentUser$ | async as currentUser"
+  aria-labelledby="principal-title"
+>
+  <div class="principal-feed">
+    <header class="feed-header app-card">
+      @if (profileLink$ | async; as profileLink) {
+        <a
+          class="feed-header__avatar"
+          [routerLink]="profileLink"
+          [attr.aria-label]="'Abrir meu perfil: ' + (currentUser.nickname || 'usuário')"
+        >
+          @if (currentUser.photoURL) {
+            <img
+              [src]="currentUser.photoURL"
+              [alt]="'Foto de perfil de ' + (currentUser.nickname || 'usuário')"
+              width="52"
+              height="52"
+            />
+          } @else {
+            <span aria-hidden="true">
+              {{ (currentUser.nickname || '?').slice(0, 1).toUpperCase() }}
+            </span>
+          }
+        </a>
+      }
 
-  @if (profileChecklist$ | async; as checklist) {
-    @if (!checklist.isComplete) {
-      <section
-        class="profile-checklist profile-checklist--compact app-card app-card--compact"
-        aria-label="Pendências do perfil"
-      >
-        <div class="profile-checklist__summary">
-          <div class="profile-checklist__copy">
-            <h2>Perfil {{ checklist.progress }}%</h2>
+      <div class="feed-header__copy">
+        <span>Início</span>
+        <h1 id="principal-title">Para você</h1>
+        <p>Olá, {{ currentUser.nickname || 'bem-vindo' }}.</p>
+      </div>
+
+      <nav class="principal-social-summary" aria-label="Resumo social">
+        <a routerLink="/dashboard/friends/list">
+          <strong>{{ (friendsCount$ | async) ?? 0 }}</strong>
+          <span>Amigos</span>
+        </a>
+
+        <a routerLink="/dashboard/friends/list">
+          <strong>{{ (pendingRequestsCount$ | async) ?? 0 }}</strong>
+          <span>Pedidos</span>
+        </a>
+      </nav>
+    </header>
+
+    <nav class="feed-shortcuts" aria-label="Atalhos de descoberta">
+      <a routerLink="/dashboard/explorar">
+        <span class="feed-shortcuts__icon" aria-hidden="true">
+          <i class="fas fa-compass"></i>
+        </span>
+        <span>Explorar</span>
+      </a>
+
+      <a routerLink="/dashboard/perfis-sugeridos">
+        <span class="feed-shortcuts__icon" aria-hidden="true">
+          <i class="fas fa-wand-magic-sparkles"></i>
+        </span>
+        <span>Compatíveis</span>
+      </a>
+
+      <a routerLink="/dashboard/online">
+        <span class="feed-shortcuts__icon" aria-hidden="true">
+          <i class="fas fa-circle-dot"></i>
+        </span>
+        <span>Online</span>
+      </a>
+
+      <a routerLink="/dashboard/chat-rooms">
+        <span class="feed-shortcuts__icon" aria-hidden="true">
+          <i class="fas fa-comments"></i>
+        </span>
+        <span>Salas</span>
+      </a>
+    </nav>
+
+    @if (profileChecklist$ | async; as checklist) {
+      @if (!checklist.isComplete) {
+        <section
+          class="profile-checklist app-card"
+          aria-label="Pendências do perfil"
+        >
+          <div class="profile-checklist__summary">
+            <div class="profile-checklist__copy">
+              <span>Seu perfil</span>
+              <h2>{{ checklist.progress }}% concluído</h2>
+            </div>
+
+            <div class="profile-checklist__actions">
+              @if (checklist.firstPending) {
+                <a
+                  class="feed-action feed-action--primary"
+                  [routerLink]="checklist.firstPending.routerLink"
+                >
+                  {{ checklist.firstPending.actionLabel }}
+                </a>
+              }
+
+              <button
+                type="button"
+                class="feed-action"
+                [attr.aria-expanded]="checklistDetailsOpen() ? 'true' : 'false'"
+                (click)="toggleChecklistDetails()"
+              >
+                {{ checklistDetailsOpen() ? 'Ocultar' : checklist.pending + ' pendências' }}
+              </button>
+            </div>
           </div>
 
-          <div class="principal-metric__actions">
-            @if (checklist.firstPending) {
-              <a
-                class="principal-action principal-action--small principal-action--primary"
-                [routerLink]="checklist.firstPending.routerLink"
-              >
-                {{ checklist.firstPending.actionLabel }}
-              </a>
-            }
+          <div
+            class="profile-checklist__bar"
+            role="progressbar"
+            [attr.aria-valuenow]="checklist.progress"
+            aria-valuemin="0"
+            aria-valuemax="100"
+          >
+            <span [style.width.%]="checklist.progress"></span>
+          </div>
 
+          @if (checklistDetailsOpen()) {
+            <div class="profile-checklist__items" aria-label="Etapas pendentes do perfil">
+              @for (item of checklist.pendingItems; track item.id) {
+                <a
+                  class="profile-checklist__item"
+                  [routerLink]="item.routerLink"
+                >
+                  <span class="profile-checklist__status" aria-hidden="true">!</span>
+                  <strong>{{ item.title }}</strong>
+                  <span>{{ item.actionLabel }}</span>
+                </a>
+              }
+            </div>
+          }
+        </section>
+      }
+    }
+
+    <app-user-intent-status-composer
+      class="feed-block feed-block--composer"
+      [user]="currentUser"
+    />
+
+    @if (items$ | async; as friends) {
+      @if (friends.length) {
+        <section class="connections-feed app-card" aria-labelledby="connections-feed-title">
+          <header class="connections-feed__header">
+            <div>
+              <span>Conexões</span>
+              <h2 id="connections-feed-title">Pessoas próximas de você</h2>
+            </div>
+
+            <a routerLink="/dashboard/friends/list">Ver todas</a>
+          </header>
+
+          <div class="connections-strip" role="list" aria-label="Amigos em destaque">
+            @for (
+              friend of (expanded() ? friends : friends.slice(0, 6));
+              track trackFriend($index, friend)
+            ) {
+              @if (friendUid(friend); as friendId) {
+                <a
+                  class="connection-item"
+                  role="listitem"
+                  [routerLink]="['/outro-perfil', friendId]"
+                  [attr.aria-label]="'Abrir perfil de ' + friendName(friend)"
+                >
+                  <span
+                    class="connection-item__avatar"
+                    [class.connection-item__avatar--online]="friendOnline(friend)"
+                  >
+                    @if (friendPhoto(friend); as photo) {
+                      <img
+                        [src]="photo"
+                        [alt]="'Foto de perfil de ' + friendName(friend)"
+                        width="72"
+                        height="72"
+                        loading="lazy"
+                      />
+                    } @else {
+                      <span aria-hidden="true">{{ friendInitial(friend) }}</span>
+                    }
+                  </span>
+
+                  <span class="connection-item__name">{{ friendName(friend) }}</span>
+                </a>
+              }
+            }
+          </div>
+
+          @if (friends.length > 6) {
             <button
               type="button"
-              class="principal-action principal-action--small principal-action--ghost"
-              [attr.aria-expanded]="checklistDetailsOpen() ? 'true' : 'false'"
-              (click)="toggleChecklistDetails()"
+              class="connections-feed__toggle"
+              [attr.aria-expanded]="expanded() ? 'true' : 'false'"
+              (click)="toggleExpand()"
             >
-              {{ checklistDetailsOpen() ? 'Ocultar' : checklist.pending + ' pendências' }}
+              {{ expanded() ? 'Mostrar menos' : 'Mostrar mais conexões' }}
             </button>
-          </div>
-        </div>
-
-        <div
-          class="profile-checklist__bar"
-          role="progressbar"
-          [attr.aria-valuenow]="checklist.progress"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        >
-          <span [style.width.%]="checklist.progress"></span>
-        </div>
-
-        @if (checklistDetailsOpen()) {
-          <div class="profile-checklist__items" aria-label="Etapas pendentes do perfil">
-            @for (item of checklist.pendingItems; track item.id) {
-              <a
-                class="profile-checklist__item"
-                [routerLink]="item.routerLink"
-              >
-                <span class="profile-checklist__status" aria-hidden="true">!</span>
-                <strong>{{ item.title }}</strong>
-                <span class="profile-checklist__action">{{ item.actionLabel }}</span>
-              </a>
-            }
-          </div>
-        }
-      </section>
+          }
+        </section>
+      } @else if (loading$ | async) {
+        <section class="connections-feed connections-feed--loading app-card" role="status" aria-live="polite">
+          Carregando conexões…
+        </section>
+      }
     }
-  }
 
-  <nav class="principal-social-summary" aria-label="Resumo social">
-    <a routerLink="/friends/list">
-      <strong>{{ (friendsCount$ | async) ?? 0 }}</strong>
-      <span>Amigos</span>
-    </a>
+    <app-user-intent-status-radar
+      class="feed-block"
+      [user]="currentUser"
+    />
 
-    <a routerLink="/friends/list">
-      <strong>{{ (pendingRequestsCount$ | async) ?? 0 }}</strong>
-      <span>Solicitações</span>
-    </a>
-  </nav>
+    <app-hot-places-widget class="feed-block" />
 
-  <app-user-intent-status-composer [user]="currentUser" />
+    <nav class="feed-footer-actions app-card" aria-label="Mais opções de descoberta">
+      @if (profileLink$ | async; as profileLink) {
+        <a [routerLink]="profileLink">
+          <i class="fas fa-user" aria-hidden="true"></i>
+          Meu perfil
+        </a>
+      }
 
-  <app-user-intent-status-radar [user]="currentUser" />
+      @if (preferencesLink$ | async; as preferencesLink) {
+        <a [routerLink]="preferencesLink">
+          <i class="fas fa-sliders" aria-hidden="true"></i>
+          Preferências
+        </a>
+      }
 
-  <app-hot-places-widget />
+      <a routerLink="/dashboard/seguranca">
+        <i class="fas fa-shield-halved" aria-hidden="true"></i>
+        Segurança
+      </a>
+    </nav>
+  </div>
 </section>
