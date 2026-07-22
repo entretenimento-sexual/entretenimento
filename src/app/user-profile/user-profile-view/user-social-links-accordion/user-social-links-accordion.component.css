@@ -219,7 +219,8 @@
   min-height: 2.6rem;
 }
 
-.social-links-accordion--compact .social-links-management {
+.social-links-accordion--compact:not(.social-links-accordion--managed)
+  .social-links-management {
   display: none;
 }
 
