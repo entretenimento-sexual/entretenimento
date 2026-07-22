@@ -40,6 +40,44 @@ describe('evaluatePlatformSubscriptionProjection', () => {
     });
   });
 
+  it('aceita timestamps serializados pelo Firestore/cache', () => {
+    const startedAt = NOW - 60_000;
+    const endsAt = NOW + 60_000;
+    const state = evaluatePlatformSubscriptionProjection(
+      createUser({
+        subscriptionStartedAt: {
+          seconds: Math.floor(startedAt / 1000),
+          nanoseconds: (startedAt % 1000) * 1_000_000,
+        } as any,
+        subscriptionEndsAt: {
+          _seconds: Math.floor(endsAt / 1000),
+          _nanoseconds: (endsAt % 1000) * 1_000_000,
+        } as any,
+      }),
+      NOW
+    );
+
+    expect(state.active).toBe(true);
+    expect(state.startsAt).toBe(startedAt);
+    expect(state.endsAt).toBe(endsAt);
+  });
+
+  it('ativa exatamente no início e expira exatamente no término', () => {
+    const atStart = evaluatePlatformSubscriptionProjection(
+      createUser({ subscriptionStartedAt: NOW }),
+      NOW
+    );
+    const atEnd = evaluatePlatformSubscriptionProjection(
+      createUser({ subscriptionEndsAt: NOW }),
+      NOW
+    );
+
+    expect(atStart.active).toBe(true);
+    expect(atStart.reason).toBeNull();
+    expect(atEnd.active).toBe(false);
+    expect(atEnd.reason).toBe('expired');
+  });
+
   it('nega flags ativas com término expirado', () => {
     const state = evaluatePlatformSubscriptionProjection(
       createUser({ subscriptionEndsAt: NOW }),
@@ -57,6 +95,27 @@ describe('evaluatePlatformSubscriptionProjection', () => {
     );
 
     expect(state.active).toBe(false);
+    expect(state.reason).toBe('projection-version');
+  });
+
+  it('nega booleanos e role isolados sem contrato canônico completo', () => {
+    const state = evaluatePlatformSubscriptionProjection(
+      createUser({
+        billingProjectionVersion: null,
+        subscriptionStatus: null,
+        subscriptionScope: null,
+        subscriptionStartedAt: null,
+        subscriptionEndsAt: null,
+        isSubscriber: true,
+        monthlyPayer: true,
+        role: 'vip',
+        tier: 'vip',
+      }),
+      NOW
+    );
+
+    expect(state.active).toBe(false);
+    expect(state.role).toBeNull();
     expect(state.reason).toBe('projection-version');
   });
 
@@ -88,6 +147,25 @@ describe('evaluatePlatformSubscriptionProjection', () => {
         NOW
       ).reason
     ).toBe('not-started');
+  });
+
+  it('nega período invertido ou incompleto', () => {
+    expect(
+      evaluatePlatformSubscriptionProjection(
+        createUser({
+          subscriptionStartedAt: NOW + 10,
+          subscriptionEndsAt: NOW + 5,
+        }),
+        NOW
+      ).reason
+    ).toBe('invalid-period');
+
+    expect(
+      evaluatePlatformSubscriptionProjection(
+        createUser({ subscriptionEndsAt: null }),
+        NOW
+      ).reason
+    ).toBe('invalid-period');
   });
 
   it('usa tier pago sem confundir role administrativo com plano', () => {
