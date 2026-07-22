@@ -34,10 +34,13 @@ import {
   TPhotoVisibility,
 } from 'src/app/core/interfaces/media/i-photo-publication-config';
 
+const MAX_PUBLICATION_CAPTION_LENGTH = 800;
+
 export interface IPublishPhotoCommand {
   ownerUid: string;
   photo: IPhotoItem;
   visibility: Exclude<TPhotoVisibility, 'PRIVATE'>;
+  caption?: string | null;
   isCover?: boolean;
   orderIndex?: number;
   commentsEnabled?: boolean;
@@ -45,12 +48,19 @@ export interface IPublishPhotoCommand {
   reactionsEnabled?: boolean;
 }
 
-type TRecordPhotoViewSource = 'discover' | 'profile' | 'latest' | 'top' | 'boosted' | 'unknown';
+type TRecordPhotoViewSource =
+  | 'discover'
+  | 'profile'
+  | 'latest'
+  | 'top'
+  | 'boosted'
+  | 'unknown';
 
 interface PublishPhotoCallableRequest {
   ownerUid: string;
   photoId: string;
   visibility: Exclude<TPhotoVisibility, 'PRIVATE'>;
+  caption: string | null;
   isCover: boolean;
   orderIndex: number;
   commentsEnabled: boolean;
@@ -114,6 +124,7 @@ export class MediaPublicationService {
             ownerUid: item.ownerUid,
             isPublished: !!item.isPublished,
             visibility: item.visibility ?? 'PRIVATE',
+            caption: this.normalizeCaption(item.caption),
 
             isCover: !!item.isCover,
             orderIndex: item.orderIndex ?? 0,
@@ -158,13 +169,17 @@ export class MediaPublicationService {
     );
   }
 
-  buildDefaultConfig(ownerUid: string, photoId: string): IPhotoPublicationConfig {
+  buildDefaultConfig(
+    ownerUid: string,
+    photoId: string
+  ): IPhotoPublicationConfig {
     return {
       photoId,
       ownerUid,
 
       isPublished: false,
       visibility: 'PRIVATE',
+      caption: null,
 
       isCover: false,
       orderIndex: 0,
@@ -212,6 +227,7 @@ export class MediaPublicationService {
         ownerUid: safeOwnerUid,
         photoId: safePhotoId,
         visibility: command.visibility,
+        caption: this.normalizeCaption(command.caption),
         isCover: !!command.isCover,
         orderIndex: command.orderIndex ?? 0,
         commentsEnabled: command.commentsEnabled ?? true,
@@ -324,10 +340,10 @@ export class MediaPublicationService {
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
-      const callable = httpsCallable<RecordPhotoViewCallableRequest, { ok: true }>(
-        this.functions,
-        'recordPhotoView'
-      );
+      const callable = httpsCallable<
+        RecordPhotoViewCallableRequest,
+        { ok: true }
+      >(this.functions, 'recordPhotoView');
 
       await callable({
         ownerUid: safeOwnerUid,
@@ -363,6 +379,16 @@ export class MediaPublicationService {
     );
 
     return of(void 0);
+  }
+
+  private normalizeCaption(value: unknown): string | null {
+    const caption = String(value ?? '')
+      .replace(/[\u0000-\u001F\u007F]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, MAX_PUBLICATION_CAPTION_LENGTH);
+
+    return caption || null;
   }
 
   private reportError(
