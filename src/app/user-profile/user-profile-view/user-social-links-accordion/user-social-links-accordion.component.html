@@ -3,6 +3,7 @@
   <mat-accordion
     class="social-links-accordion"
     [class.social-links-accordion--compact]="compact()"
+    [class.social-links-accordion--managed]="canManage()"
   >
     <mat-expansion-panel [expanded]="compact() || anyLinks()">
       <mat-expansion-panel-header>
