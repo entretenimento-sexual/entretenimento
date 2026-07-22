@@ -3,7 +3,7 @@
 //
 // Responsabilidades:
 // - iniciar diagnósticos e orquestradores globais;
-// - iniciar o relógio canônico da assinatura;
+// - reconciliar e acompanhar a assinatura canônica;
 // - manter a casca raiz mínima;
 // - controlar a exibição global do footer por rota.
 import { Component, OnInit } from '@angular/core';
@@ -23,6 +23,7 @@ import { environment } from 'src/environments/environment';
 import { PresenceOrchestratorService } from './core/services/presence/presence-orchestrator.service';
 import { PlatformSubscriptionAccessService } from './core/services/subscriptions/platform-subscription-access.service';
 import { RouterDiagnosticsService } from './core/services/util-service/router-diagnostics.service';
+import { PlatformSubscriptionReconciliationService } from './payments-core/application/platform-subscription-reconciliation.service';
 
 @Component({
   selector: 'app-root',
@@ -46,6 +47,7 @@ export class AppComponent implements OnInit {
     private readonly router: Router,
     private readonly orchestrator: AuthOrchestratorService,
     private readonly presenceOrchestrator: PresenceOrchestratorService,
+    private readonly subscriptionReconciliation: PlatformSubscriptionReconciliationService,
     private readonly subscriptionAccess: PlatformSubscriptionAccessService,
     private readonly authDebug: AuthDebugService,
     private readonly routerDiag: RouterDiagnosticsService
@@ -60,6 +62,7 @@ export class AppComponent implements OnInit {
 
     this.orchestrator.start();
     this.presenceOrchestrator.start();
+    this.subscriptionReconciliation.start();
     this.subscriptionAccess.start();
   }
 
