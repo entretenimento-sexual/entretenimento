@@ -15,10 +15,7 @@ function toSerializableEpoch(value: unknown): number | null {
 
 function sanitizeConsent(value: unknown): IUserAdultConsent | null {
   const source = value as any;
-
-  if (!source || typeof source !== 'object') {
-    return null;
-  }
+  if (!source || typeof source !== 'object') return null;
 
   return {
     accepted: source.accepted === true,
@@ -33,13 +30,9 @@ function sanitizeAgeReverification(
   value: unknown
 ): IUserAgeReverification | null {
   const source = value as any;
-
-  if (!source || typeof source !== 'object') {
-    return null;
-  }
+  if (!source || typeof source !== 'object') return null;
 
   const status = String(source.status ?? '').trim().toUpperCase();
-
   if (![
     'NONE',
     'REQUIRED',
@@ -79,9 +72,10 @@ function sanitizeAgeReverification(
     ].includes(String(source.method ?? '').trim().toUpperCase())
       ? String(source.method).trim().toUpperCase() as IUserAgeReverification['method']
       : null,
-    declaredAgeBand: declaredAgeBand === '18_PLUS' || declaredAgeBand === 'UNDER_18'
-      ? declaredAgeBand as IUserAgeReverification['declaredAgeBand']
-      : null,
+    declaredAgeBand:
+      declaredAgeBand === '18_PLUS' || declaredAgeBand === 'UNDER_18'
+        ? declaredAgeBand as IUserAgeReverification['declaredAgeBand']
+        : null,
     resolution: String(source.resolution ?? '').trim() || null,
   };
 }
@@ -90,10 +84,7 @@ function sanitizeTermsAcceptance(
   value: unknown
 ): IUserTermsAcceptance | null {
   const source = value as any;
-
-  if (!source || typeof source !== 'object') {
-    return null;
-  }
+  if (!source || typeof source !== 'object') return null;
 
   return {
     accepted: source.accepted === true,
@@ -127,9 +118,16 @@ export function sanitizeUserForStore(u: IUserDados): IUserDados {
       anyU.ageReverificationRestrictedAt
     ),
 
+    subscriptionStartedAt: toSerializableEpoch(anyU.subscriptionStartedAt),
+    subscriptionEndsAt: toSerializableEpoch(anyU.subscriptionEndsAt),
     subscriptionExpires: toSerializableEpoch(anyU.subscriptionExpires),
-    roomCreationSubscriptionExpires: toSerializableEpoch(anyU.roomCreationSubscriptionExpires),
-    singleRoomCreationRightExpires: toSerializableEpoch(anyU.singleRoomCreationRightExpires),
+    billingUpdatedAt: toSerializableEpoch(anyU.billingUpdatedAt),
+    roomCreationSubscriptionExpires: toSerializableEpoch(
+      anyU.roomCreationSubscriptionExpires
+    ),
+    singleRoomCreationRightExpires: toSerializableEpoch(
+      anyU.singleRoomCreationRightExpires
+    ),
 
     lastStateChangeAt: toSerializableEpoch(anyU.lastStateChangeAt),
     adultConsent: sanitizeConsent(anyU.adultConsent),
@@ -138,6 +136,8 @@ export function sanitizeUserForStore(u: IUserDados): IUserDados {
   } as IUserDados;
 }
 
-export function sanitizeUsersForStore(list: IUserDados[] | null | undefined): IUserDados[] {
+export function sanitizeUsersForStore(
+  list: IUserDados[] | null | undefined
+): IUserDados[] {
   return (list ?? []).map(sanitizeUserForStore);
 }
