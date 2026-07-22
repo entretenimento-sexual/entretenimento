@@ -115,7 +115,7 @@ describe('SocialLinksAccordionComponent', () => {
     );
   });
 
-  it('deve permitir publicar quando o dono for assinante', () => {
+  it('deve manter métodos de publicação e remoção protegidos pelo gate', () => {
     component.updateSocialLink('instagram', '@novo');
 
     expect(linksSvc.saveSocialLinks).toHaveBeenCalledWith(
@@ -129,17 +129,15 @@ describe('SocialLinksAccordionComponent', () => {
     expect(notify.showSuccess).toHaveBeenCalledWith(
       'Rede social publicada.'
     );
-  });
 
-  it('deve bloquear publicação sem assinatura e preservar remoção', () => {
     accessControl.subscriberSubject.next(false);
     fixture.detectChanges();
 
-    component.updateSocialLink('instagram', '@novo');
+    component.updateSocialLink('instagram', '@bloqueado');
     component.removeLink('instagram');
 
     expect(component.canEdit()).toBe(false);
-    expect(linksSvc.saveSocialLinks).not.toHaveBeenCalled();
+    expect(linksSvc.saveSocialLinks).toHaveBeenCalledTimes(1);
     expect(notify.showWarning).toHaveBeenCalledWith(
       'Uma assinatura ativa é necessária para publicar redes sociais.'
     );
@@ -147,6 +145,19 @@ describe('SocialLinksAccordionComponent', () => {
       publishToPublic: true,
       notifyOnError: false,
     });
+  });
+
+  it('deve exibir somente um atalho de gestão, sem editor inline duplicado', () => {
+    fixture.componentRef.setInput('compact', true);
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+
+    expect(text).toContain('Gerenciar redes');
+    expect(fixture.nativeElement.querySelector('.inline-editor')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.edit-row')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input')).toBeNull();
+    expect(text).not.toContain('Abrir edição completa');
   });
 
   it('deve mostrar variante compacta sem aviso repetitivo para visitante', () => {
@@ -163,6 +174,7 @@ describe('SocialLinksAccordionComponent', () => {
     expect(text).toContain('Redes');
     expect(text).toContain('Instagram');
     expect(text).not.toContain('Links externos abrem');
+    expect(text).not.toContain('Gerenciar redes');
     expect(visitedFixture.nativeElement.hasAttribute('hidden')).toBe(false);
   });
 
