@@ -198,13 +198,14 @@
       </section>
     }
 
-    <div class="other-profile-page__social" aria-label="Redes sociais do perfil">
-      <app-social-links-accordion
-        [uid]="uid"
-        [isOwner]="false"
-        aria-label="Links sociais do perfil"
-      />
-    </div>
+    <app-social-links-accordion
+      class="other-profile-page__social"
+      [uid]="uid"
+      [isOwner]="false"
+      [compact]="true"
+      [hideWhenEmpty]="true"
+      aria-label="Links sociais do perfil"
+    />
   } @else {
     <div
       class="other-profile-page__empty"
