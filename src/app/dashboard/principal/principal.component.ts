@@ -29,6 +29,7 @@ import {
   tap,
 } from 'rxjs/operators';
 
+import { isFeatureEnabled } from 'src/app/core/guards/access-guard/feature-flag.guard';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
@@ -50,6 +51,7 @@ import {
   selectCurrentUserUid,
 } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { AppState } from 'src/app/store/states/app.state';
+import { HotPlacesWidgetComponent } from '../hot-places/hot-places-widget/hot-places-widget.component';
 import { UserIntentStatusComposerComponent } from '../user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
 import { UserIntentStatusRadarComponent } from '../user-intent-status/user-intent-status-radar/user-intent-status-radar.component';
 import {
@@ -73,6 +75,7 @@ interface IPrincipalChecklistVm extends IProfileChecklistVm {
     RouterModule,
     UserIntentStatusComposerComponent,
     UserIntentStatusRadarComponent,
+    HotPlacesWidgetComponent,
     PublicPhotoCardComponent,
     PublicPhotoLightboxComponent,
   ],
@@ -89,6 +92,8 @@ export class PrincipalComponent implements OnInit {
   private dbg(message: string, extra?: unknown): void {
     this.privacyDebug.log('friends', `Principal: ${message}`, extra);
   }
+
+  readonly socialSpacesEnabled = isFeatureEnabled('communityPreview');
 
   readonly currentUser$: Observable<IUserDados | null> = this.store.select(
     selectCurrentUser
