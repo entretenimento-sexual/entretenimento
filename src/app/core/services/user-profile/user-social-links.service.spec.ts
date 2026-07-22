@@ -1,4 +1,4 @@
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UserSocialLinksService } from './user-social-links.service';
@@ -23,8 +23,8 @@ describe('UserSocialLinksService subscription policy', () => {
     isSubscriber = false;
 
     firestoreContextMock = {
-      // Os testes deste arquivo validam gates e cache. O callback AngularFire não
-      // é executado porque a integração real pertence ao Quality Gate/emulador.
+      // Estes testes validam gates e cache. A integração real do AngularFire
+      // permanece coberta pelo Quality Gate e pelos testes de Rules no emulador.
       deferPromise$: vi.fn(() => of(undefined)),
       deferObservable$: vi.fn(() => of(undefined)),
     };
@@ -119,5 +119,18 @@ describe('UserSocialLinksService subscription policy', () => {
 
     expect(state).toEqual({ kind: 'miss' });
     expect(cacheMock.get).not.toHaveBeenCalled();
+  });
+
+  it('trata permission-denied público como ausência normal de redes', async () => {
+    firestoreContextMock.deferPromise$.mockReturnValueOnce(
+      throwError(() => ({ code: 'permission-denied' }))
+    );
+
+    const result = await firstValueFrom(
+      service.getSocialLinks('profile-without-subscription')
+    );
+
+    expect(result).toBeNull();
+    expect(globalErrorMock.handleError).not.toHaveBeenCalled();
   });
 });
