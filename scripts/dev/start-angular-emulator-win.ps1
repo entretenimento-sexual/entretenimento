@@ -20,7 +20,11 @@ New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
 
 function Write-LogLine {
-  param([Parameter(Mandatory = $true)][string]$Line)
+  param(
+    [Parameter(Mandatory = $true)]
+    [AllowEmptyString()]
+    [string]$Line
+  )
 
   Write-Host $Line
   Add-Content -LiteralPath $logPath -Value $Line -Encoding UTF8
