@@ -58,7 +58,7 @@ export class ProfileCompletionService {
         completed: this.hasText(user.photoURL),
         required: true,
         actionLabel: 'Adicionar foto',
-        routerLink: ['/perfil', uid, 'fotos', 'upload'],
+        routerLink: ['/media', 'perfil', uid, 'fotos', 'upload'],
       },
       {
         id: 'nickname',
