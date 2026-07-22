@@ -1,8 +1,9 @@
 // ===============================================================
 // PUBLIC SOCIAL LINKS (espelho público)
 // - Somente subset publicado
-// - Escrita: somente dono
-// - Leitura: exige login (alinhado ao seu /public_profiles)
+// - Publicação: somente dono com assinatura ativa
+// - Leitura: usuário autenticado, enquanto o dono mantiver assinatura ativa
+// - Remoção: o dono mantém controle mesmo após o término da assinatura
 // - Evita LIST (padrão anti-scraping)
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
 // uso de helpers globais
@@ -10,7 +11,7 @@
 // ===============================================================
 match /public_social_links/{userId} {
 
-  allow get: if signedIn();
+  allow get: if signedIn() && isActiveSubscriber(userId);
   allow list: if false;
 
   function allowedKeys() {
@@ -18,14 +19,7 @@ match /public_social_links/{userId} {
       "uid",
       "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
       "sexlog","d4swing",
-
-      // ✅ novo + sugestões
-      "hotvips",
-      "privacy",
-      "onlyfans",
-      "fansly",
-      "linktree",
-
+      "hotvips","privacy","onlyfans","fansly","linktree",
       "updatedAt"
     ]);
   }
@@ -42,18 +36,32 @@ match /public_social_links/{userId} {
       && optString("snapchat")
       && optString("sexlog")
       && optString("d4swing")
-
-      // ✅ novo + sugestões
       && optString("hotvips")
       && optString("privacy")
       && optString("onlyfans")
       && optString("fansly")
       && optString("linktree")
-
       && optTimestamp("updatedAt");
   }
 
+  function changedKeysAllowed() {
+    return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
+      "sexlog","d4swing",
+      "hotvips","privacy","onlyfans","fansly","linktree",
+      "updatedAt"
+    ]);
+  }
+
+  function removesOnly() {
+    let diff = request.resource.data.diff(resource.data);
+    return diff.addedKeys().size() == 0
+      && diff.changedKeys().hasOnly(["updatedAt"])
+      && diff.removedKeys().size() > 0;
+  }
+
   allow create: if isSelf(userId)
+    && isActiveSubscriber(userId)
     && validPayload()
     && request.resource.data.updatedAt == request.time;
 
@@ -61,22 +69,14 @@ match /public_social_links/{userId} {
     && validPayload()
     && request.resource.data.uid == resource.data.uid
     && request.resource.data.updatedAt == request.time
-    && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-      "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
-      "sexlog","d4swing",
-
-      // ✅ novo + sugestões
-      "hotvips",
-      "privacy",
-      "onlyfans",
-      "fansly",
-      "linktree",
-
-      "updatedAt"
-    ]);
+    && changedKeysAllowed()
+    && (
+      isActiveSubscriber(userId)
+      || removesOnly()
+    );
 
   allow delete: if isSelf(userId);
 }
 // ===============================================================
-                   // FIM PUBLIC SOCIAL LINKS
+//                 FIM PUBLIC SOCIAL LINKS
 // ===============================================================
