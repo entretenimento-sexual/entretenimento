@@ -29,6 +29,32 @@ service cloud.firestore {
     function isSelf(userId) { return signedIn() && uid() == userId; }
 
     // ===============================================================
+    // Assinatura
+    // ===============================================================
+    // A projeção privada em users/{uid} só pode ser alterada pelo backend
+    // confiável. Aceitamos os dois campos canônicos durante a migração do
+    // legado: isSubscriber=true OU subscriptionStatus="active".
+    function isActiveSubscriber(userId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(userId))
+        && (
+          (
+            get(/databases/$(database)/documents/users/$(userId))
+              .data.keys().hasAny(["isSubscriber"])
+            && get(/databases/$(database)/documents/users/$(userId))
+              .data.isSubscriber == true
+          )
+          ||
+          (
+            get(/databases/$(database)/documents/users/$(userId))
+              .data.keys().hasAny(["subscriptionStatus"])
+            && get(/databases/$(database)/documents/users/$(userId))
+              .data.subscriptionStatus == "active"
+          )
+        );
+    }
+
+    // ===============================================================
     // Timestamp helpers (timestamp real OU serverTimestamp() == request.time)
     // ===============================================================
     // serverTimestamp() (sentinel) chega nas rules como "request.time"
@@ -48,7 +74,7 @@ service cloud.firestore {
     }
 
     function isAdmin() { return hasClaim("admin"); }
-   // ===============================================================
+    // ===============================================================
     // Optional fields helpers (campos opcionais)
     // Regra:
     // - ausente OU null => ok
@@ -56,35 +82,35 @@ service cloud.firestore {
     //
     // OBS:
     // - request.resource.data[k] == null cobre "ausente" e "explicitamente null"
-   // ===============================================================
-// ===============================================================
-// Optional fields helpers (campos opcionais)
-// IMPORTANTE:
-// - Para chave dinâmica (map[k]), Firestore Rules pode lançar evaluation error
-//   quando a key não existe. Então: checar keys().hasAny([k]) antes.
-// ===============================================================
-function hasReqField(k) {
-  return request.resource.data.keys().hasAny([k]);
-}
+    // ===============================================================
+    // ===============================================================
+    // Optional fields helpers (campos opcionais)
+    // IMPORTANTE:
+    // - Para chave dinâmica (map[k]), Firestore Rules pode lançar evaluation error
+    //   quando a key não existe. Então: checar keys().hasAny([k]) antes.
+    // ===============================================================
+    function hasReqField(k) {
+      return request.resource.data.keys().hasAny([k]);
+    }
 
-function optString(k) {
-  return !hasReqField(k)
-    || request.resource.data[k] == null
-    || request.resource.data[k] is string;
-}
+    function optString(k) {
+      return !hasReqField(k)
+        || request.resource.data[k] == null
+        || request.resource.data[k] is string;
+    }
 
-function optNumberOrNull(k) {
-  return !hasReqField(k)
-    || request.resource.data[k] == null
-    || request.resource.data[k] is number;
-}
+    function optNumberOrNull(k) {
+      return !hasReqField(k)
+        || request.resource.data[k] == null
+        || request.resource.data[k] is number;
+    }
 
-// ✅ aceita timestamp real OU serverTimestamp()
-function optTimestamp(k) {
-  return !hasReqField(k)
-    || request.resource.data[k] == null
-    || isTs(request.resource.data[k]);
-}
+    // ✅ aceita timestamp real OU serverTimestamp()
+    function optTimestamp(k) {
+      return !hasReqField(k)
+        || request.resource.data[k] == null
+        || isTs(request.resource.data[k]);
+    }
     // (os demais matches/arquivos entram abaixo via build)
 // ===============================================================
 //             Fim do firestore-rules/_helpers.rules
