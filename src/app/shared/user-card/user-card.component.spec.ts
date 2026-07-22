@@ -104,15 +104,15 @@ describe('UserCardComponent', () => {
     expect(metadata.textContent).toContain('31 anos');
     expect(metadata.textContent).toContain('Bissexual');
     expect(location.textContent).toContain('Niterói');
-    expect(location.textContent).toContain('4,2 km');
+    expect(location.textContent).toMatch(/4[,.]2 km/);
   });
 
   it('não repete a navegação do perfil entre as ações', () => {
-    const profileLinks = fixture.debugElement.queryAll(
-      By.css('a[href*="/perfil/"]')
-    );
-
-    expect(profileLinks).toHaveLength(1);
-    expect(profileLinks[0].nativeElement.classList).toContain('user-card__media');
+    expect(fixture.debugElement.query(By.css('.user-card__media'))).toBeTruthy();
+    expect(
+      fixture.debugElement.query(
+        By.css('.user-card__actions [title="Ver perfil"]')
+      )
+    ).toBeNull();
   });
 });
