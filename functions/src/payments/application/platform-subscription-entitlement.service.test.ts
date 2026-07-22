@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  calculatePlatformSubscriptionPeriodEnd,
   evaluatePlatformSubscriptionEntitlement,
   hasMinimumPlatformRole,
 } from './platform-subscription-entitlement.service';
@@ -38,6 +39,7 @@ test('aceita entitlement ativo, vigente e vinculado ao usuário', () => {
   assert.equal(result.active, true);
   assert.equal(result.role, 'premium');
   assert.equal(result.endsAt, NOW + 60_000);
+  assert.equal(result.legacyEndsAtDerived, false);
 });
 
 test('nega entitlement expirado', () => {
@@ -85,6 +87,43 @@ test('nega role desconhecida ou janela temporal inválida', () => {
 
   assert.equal(unknownRole.active, false);
   assert.equal(invalidEndsAt.active, false);
+});
+
+test('deriva um fim mensal finito para entitlement legado sem endsAt', () => {
+  const startsAt = Date.UTC(2026, 0, 15, 12, 30, 0);
+  const expectedEndsAt = Date.UTC(2026, 1, 15, 12, 30, 0);
+
+  const result = evaluatePlatformSubscriptionEntitlement(
+    createEntitlement({ startsAt, endsAt: null }),
+    'user-1',
+    startsAt + 1
+  );
+
+  assert.equal(result.active, true);
+  assert.equal(result.endsAt, expectedEndsAt);
+  assert.equal(result.legacyEndsAtDerived, true);
+});
+
+test('limita o dia ao último dia do mês na renovação civil', () => {
+  const january31 = Date.UTC(2026, 0, 31, 10, 0, 0);
+  const expectedFebruary28 = Date.UTC(2026, 1, 28, 10, 0, 0);
+
+  assert.equal(
+    calculatePlatformSubscriptionPeriodEnd(january31),
+    expectedFebruary28
+  );
+});
+
+test('não transforma entitlement legado já vencido em acesso ativo', () => {
+  const startsAt = Date.UTC(2025, 0, 1);
+  const result = evaluatePlatformSubscriptionEntitlement(
+    createEntitlement({ startsAt, endsAt: null }),
+    'user-1',
+    Date.UTC(2026, 0, 1)
+  );
+
+  assert.equal(result.active, false);
+  assert.equal(result.legacyEndsAtDerived, true);
 });
 
 test('aplica a hierarquia de planos sem promover níveis inferiores', () => {
