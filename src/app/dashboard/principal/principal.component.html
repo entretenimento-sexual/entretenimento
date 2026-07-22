@@ -60,10 +60,12 @@
       </div>
     </section>
 
-    <app-user-intent-status-composer
-      class="feed-block feed-block--composer"
-      [user]="currentUser"
-    />
+    @if (statusComposerVisible()) {
+      <app-user-intent-status-composer
+        class="feed-block feed-block--composer"
+        [user]="currentUser"
+      />
+    }
 
     @if (items$ | async; as friends) {
       @if (friends.length) {
