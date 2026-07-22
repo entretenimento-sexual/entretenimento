@@ -1,4 +1,10 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ViewChild,
+  inject,
+  signal,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { BehaviorSubject, combineLatest, Observable, of } from 'rxjs';
@@ -23,11 +29,16 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { UserIntentStatusComposerComponent } from 'src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
 import {
   buildExplorePersonalFeed,
   buildExplorePersonalFeedWindow,
   ExplorePersonalFeedWindow,
 } from '../../models/explore-personal-feed';
+import {
+  ExplorePersonalMediaContext,
+  ExplorePersonalMediaService,
+} from '../../services/explore-personal-media.service';
 
 const FEED_INITIAL_VISIBLE_COUNT = 6;
 const FEED_PAGE_SIZE = 6;
@@ -36,6 +47,8 @@ const FEED_POOL_LIMIT = 36;
 type TExplorePhotoSection =
   | 'feed'
   | Extract<TExploreSectionId, 'boosted' | 'mostViewed' | 'top' | 'latest'>;
+
+type SocialExploreVm = IExploreFeedVm & ExplorePersonalMediaContext;
 
 interface IExploreLightboxState {
   readonly section: TExplorePhotoSection;
@@ -50,13 +63,18 @@ interface IExploreLightboxState {
     RouterModule,
     PublicPhotoCardComponent,
     PublicPhotoLightboxComponent,
+    UserIntentStatusComposerComponent,
   ],
   templateUrl: './social-explore-page.component.html',
   styleUrls: ['./social-explore-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SocialExplorePageComponent {
+  @ViewChild(UserIntentStatusComposerComponent)
+  private statusComposer?: UserIntentStatusComposerComponent;
+
   private readonly exploreFeedFacade = inject(ExploreFeedFacade);
+  private readonly personalMedia = inject(ExplorePersonalMediaService);
   private readonly photoViewTracking = inject(PhotoViewTrackingService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly authSession = inject(AuthSessionService);
@@ -68,16 +86,25 @@ export class SocialExplorePageComponent {
   private readonly visibleFeedCountSubject =
     new BehaviorSubject<number>(FEED_INITIAL_VISIBLE_COUNT);
 
+  readonly statusComposerVisible = signal(false);
   hidingMyStatus = false;
 
-  readonly vm$: Observable<IExploreFeedVm> = this.exploreFeedFacade.vm$;
+  readonly vm$: Observable<SocialExploreVm> = combineLatest([
+    this.exploreFeedFacade.vm$,
+    this.personalMedia.context$,
+  ]).pipe(
+    map(([vm, personal]) => ({
+      ...vm,
+      ...personal,
+    })),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   /**
-   * Pool único da timeline.
+   * Pool pessoal da timeline.
    *
-   * O backend e o cache permanecem sob responsabilidade do ExploreFeedService.
-   * Aqui apenas ampliamos o limite da projeção já autorizada para permitir que a
-   * UI monte poucos cards inicialmente e expanda sob demanda.
+   * Amigos e compatíveis são resolvidos antes do ranking. A janela reduz a
+   * quantidade de cards montados inicialmente sem criar paginação paralela.
    */
   private readonly feedPool$: Observable<readonly IPublicPhotoItem[]> =
     this.vm$.pipe(
@@ -99,10 +126,6 @@ export class SocialExplorePageComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  /**
-   * Nome preservado porque já é usado pelo template e pelo lightbox.
-   * Agora representa somente os cards efetivamente montados na timeline.
-   */
   readonly feedPhotos$: Observable<readonly IPublicPhotoItem[]> =
     this.feedWindow$.pipe(
       map((window) => window.items),
@@ -131,26 +154,19 @@ export class SocialExplorePageComponent {
   readonly activeLightboxItems$: Observable<readonly IPublicPhotoItem[]> =
     combineLatest([this.lightboxState$, this.vm$, this.feedPhotos$]).pipe(
       map(([state, vm, feedPhotos]) => {
-        if (!state) {
-          return [];
-        }
+        if (!state) return [];
 
         switch (state.section) {
           case 'feed':
             return feedPhotos;
-
           case 'boosted':
             return vm.boostedPhotos;
-
           case 'mostViewed':
             return vm.mostViewedPhotos;
-
           case 'top':
             return vm.topPhotos;
-
           case 'latest':
             return vm.latestPhotos;
-
           default:
             return [];
         }
@@ -158,15 +174,17 @@ export class SocialExplorePageComponent {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  openStatusComposer(): void {
+    this.statusComposerVisible.set(true);
+    queueMicrotask(() => this.statusComposer?.openComposer());
+  }
+
   openPhoto(section: TExplorePhotoSection, index: number): void {
     this.lightboxStateSubject.next({ section, index });
 
     this.activeLightboxItems$.pipe(take(1)).subscribe((items) => {
       const item = items[index];
-
-      if (!item) {
-        return;
-      }
+      if (!item) return;
 
       this.photoViewTracking
         .recordPhotoView$(
@@ -181,9 +199,7 @@ export class SocialExplorePageComponent {
 
   loadMoreFeed(): void {
     this.feedWindow$.pipe(take(1)).subscribe((window) => {
-      if (!window.hasMore) {
-        return;
-      }
+      if (!window.hasMore) return;
 
       this.visibleFeedCountSubject.next(
         Math.min(window.totalItems, window.visibleCount + FEED_PAGE_SIZE)
@@ -192,9 +208,7 @@ export class SocialExplorePageComponent {
   }
 
   hideMyStatus(_user: IUserDados | null): void {
-    if (this.hidingMyStatus) {
-      return;
-    }
+    if (this.hidingMyStatus) return;
 
     this.authUid$.pipe(take(1)).subscribe((uid) => {
       if (!uid) {
@@ -230,10 +244,7 @@ export class SocialExplorePageComponent {
 
   prev(): void {
     const state = this.lightboxStateSubject.value;
-
-    if (!state || state.index <= 0) {
-      return;
-    }
+    if (!state || state.index <= 0) return;
 
     this.lightboxStateSubject.next({
       ...state,
@@ -243,15 +254,10 @@ export class SocialExplorePageComponent {
 
   next(): void {
     const state = this.lightboxStateSubject.value;
-
-    if (!state) {
-      return;
-    }
+    if (!state) return;
 
     this.activeLightboxItems$.pipe(take(1)).subscribe((items) => {
-      if (state.index >= items.length - 1) {
-        return;
-      }
+      if (state.index >= items.length - 1) return;
 
       this.lightboxStateSubject.next({
         ...state,
@@ -269,16 +275,12 @@ export class SocialExplorePageComponent {
       case 'feed':
       case 'mostViewed':
         return 'discover';
-
       case 'boosted':
         return 'boosted';
-
       case 'top':
         return 'top';
-
       case 'latest':
         return 'latest';
-
       default:
         return 'unknown';
     }
