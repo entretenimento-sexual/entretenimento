@@ -1,6 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
@@ -27,6 +34,7 @@ const CURRENT_USER: IUserDados = {
 describe('PlatformSubscriptionReconciliationService', () => {
   let ready$: BehaviorSubject<boolean>;
   let uid$: BehaviorSubject<string | null>;
+  let user$: BehaviorSubject<IUserDados | null | undefined>;
   let current: IUserDados;
   let getSnapshotMock: ReturnType<typeof vi.fn>;
   let patchMock: ReturnType<typeof vi.fn>;
@@ -37,6 +45,7 @@ describe('PlatformSubscriptionReconciliationService', () => {
     ready$ = new BehaviorSubject<boolean>(true);
     uid$ = new BehaviorSubject<string | null>('u1');
     current = { ...CURRENT_USER };
+    user$ = new BehaviorSubject<IUserDados | null | undefined>(current);
     getSnapshotMock = vi.fn(() =>
       of({
         role: 'premium',
@@ -52,6 +61,7 @@ describe('PlatformSubscriptionReconciliationService', () => {
     );
     patchMock = vi.fn((partial: Partial<IUserDados>) => {
       current = { ...current, ...partial };
+      user$.next(current);
     });
 
     TestBed.configureTestingModule({
@@ -67,6 +77,7 @@ describe('PlatformSubscriptionReconciliationService', () => {
         {
           provide: CurrentUserStoreService,
           useValue: {
+            user$: user$.asObservable(),
             getSnapshot: () => current,
             patch: patchMock,
           },
@@ -85,6 +96,11 @@ describe('PlatformSubscriptionReconciliationService', () => {
     service = TestBed.inject(PlatformSubscriptionReconciliationService);
   });
 
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    vi.restoreAllMocks();
+  });
+
   it('aplica snapshot canônico ativo ao runtime', () => {
     service.start();
 
@@ -101,6 +117,17 @@ describe('PlatformSubscriptionReconciliationService', () => {
         subscriptionEndsAt: NOW + 60_000,
       })
     );
+  });
+
+  it('aguarda a hidratação do perfil atual', () => {
+    user$.next(undefined);
+    service.start();
+
+    expect(getSnapshotMock).not.toHaveBeenCalled();
+
+    user$.next(current);
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1);
   });
 
   it('faz fail-closed quando o período retornado já expirou', () => {
