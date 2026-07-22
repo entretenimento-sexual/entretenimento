@@ -3,8 +3,8 @@
 // PLATFORM SUBSCRIPTION RECONCILIATION SERVICE
 // -----------------------------------------------------------------------------
 // No bootstrap autenticado, consulta o snapshot sanitizado do entitlement.
-// O backend reconcilia Firestore; o frontend aplica a resposta ao runtime para
-// evitar atraso visual enquanto o listener do usuário recebe a projeção.
+// Aguarda a sessão e o perfil atual apontarem para o mesmo UID, evitando perder
+// a resposta antes da hidratação do CurrentUserStoreService.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -42,9 +42,17 @@ export class PlatformSubscriptionReconciliationService {
     this.subscription = combineLatest([
       this.session.ready$,
       this.session.uid$,
+      this.currentUserStore.user$,
     ])
       .pipe(
-        map(([ready, uid]) => (ready === true ? uid : null)),
+        map(([ready, authUid, currentUser]) =>
+          ready === true &&
+          !!authUid &&
+          !!currentUser &&
+          currentUser.uid === authUid
+            ? authUid
+            : null
+        ),
         distinctUntilChanged(),
         filter((uid): uid is string => !!uid),
         switchMap((uid) =>
@@ -121,7 +129,7 @@ export class PlatformSubscriptionReconciliationService {
       (normalized as any).skipUserNotification = true;
       this.globalError.handleError(normalized);
     } catch {
-      // A reconciliação é resiliente; o listener e a rotina agendada permanecem.
+      // A reconciliação é resiliente; listener e rotina agendada permanecem.
     }
   }
 }
