@@ -22,8 +22,8 @@ import {
   VerifiedPaymentEvent,
 } from '../domain/billing.model';
 import {
-  calculatePlatformSubscriptionPeriodEnd,
   evaluatePlatformSubscriptionEntitlement,
+  resolvePlatformSubscriptionSettlementPeriod,
 } from './platform-subscription-entitlement.service';
 import {
   PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
@@ -115,14 +115,8 @@ function resolvePublicProfileProjectionStatus(params: {
   currentRole: unknown;
   grantedRole: PlatformRole;
 }): PublicProfileRoleProjectionStatus {
-  if (!params.exists) {
-    return 'profile_missing';
-  }
-
-  if (params.currentRole === params.grantedRole) {
-    return 'already_current';
-  }
-
+  if (!params.exists) return 'profile_missing';
+  if (params.currentRole === params.grantedRole) return 'already_current';
   return 'updated';
 }
 
@@ -141,25 +135,18 @@ export async function settleVerifiedPaidEvent(
   const checkoutRef = db
     .collection('checkout_sessions')
     .doc(event.checkoutSessionId);
-
   const paymentEventId = buildStableDocumentId(
     'payment_event',
     `${event.provider}:${event.providerEventId}`
   );
-
-  const paymentEventRef = db
-    .collection('payment_events')
-    .doc(paymentEventId);
-
+  const paymentEventRef = db.collection('payment_events').doc(paymentEventId);
   const transactionId = buildStableDocumentId(
     'payment_transaction',
     `${event.provider}:${event.providerEventId}`
   );
-
   const transactionRef = db
     .collection('payment_transactions')
     .doc(transactionId);
-
   const now = Date.now();
 
   return db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
@@ -173,7 +160,6 @@ export async function settleVerifiedPaidEvent(
     }
 
     const checkout = checkoutSnap.data() as CheckoutSessionDoc;
-
     assertCheckoutMatchesEvent(checkout, event);
 
     if (checkout.scope !== 'platform_subscription') {
@@ -184,7 +170,6 @@ export async function settleVerifiedPaidEvent(
     }
 
     const grantedRole = checkout.planSnapshot?.grantedRole;
-
     if (!grantedRole) {
       throw new HttpsError(
         'failed-precondition',
@@ -202,14 +187,13 @@ export async function settleVerifiedPaidEvent(
     const existingEntitlement = existingEntitlementSnap.exists
       ? (existingEntitlementSnap.data() as EntitlementDoc)
       : null;
+    const existingStatus = evaluatePlatformSubscriptionEntitlement(
+      existingEntitlement,
+      checkout.buyerUid,
+      now
+    );
 
     if (existingEventSnap.exists) {
-      const existingStatus = evaluatePlatformSubscriptionEntitlement(
-        existingEntitlement,
-        checkout.buyerUid,
-        now
-      );
-
       return {
         processed: true,
         idempotent: true,
@@ -280,19 +264,13 @@ export async function settleVerifiedPaidEvent(
       updatedAt: now,
     };
 
-    const existingEndsAt = toExistingNumberOrFallback(
-      existingEntitlement?.endsAt,
-      0
-    );
-    const extensionBase =
-      existingEntitlement?.active === true && existingEndsAt > now
-        ? existingEndsAt
-        : now;
-    const startsAt = toExistingNumberOrFallback(
-      existingEntitlement?.startsAt,
+    const settlementPeriod = resolvePlatformSubscriptionSettlementPeriod(
+      existingEntitlement,
+      checkout.buyerUid,
       now
     );
-    const endsAt = calculatePlatformSubscriptionPeriodEnd(extensionBase);
+    const startsAt = settlementPeriod.startsAt;
+    const endsAt = settlementPeriod.endsAt;
 
     const entitlementDoc: EntitlementDoc = {
       id: entitlementId,
@@ -391,6 +369,8 @@ export async function settleVerifiedPaidEvent(
       currency: event.currency,
       subscriptionStartsAt: startsAt,
       subscriptionEndsAt: endsAt,
+      subscriptionExtensionBase: settlementPeriod.extensionBase,
+      extendedExistingAccess: settlementPeriod.extendedExistingAccess,
       billingProjectionVersion: PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
       publicProfileRoleProjectionStatus: publicProfileProjectionStatus,
       createdAt: now,
