@@ -9,12 +9,6 @@
   <section class="social-feed-page" aria-labelledby="feed-title">
     <header class="feed-header">
       <h1 id="feed-title">Feed</h1>
-
-      <nav class="feed-shortcuts" aria-label="Explorar outras áreas">
-        <a routerLink="/dashboard/explorar">Pessoas</a>
-        <a routerLink="/dashboard/locais">Locais</a>
-        <a routerLink="/dashboard/comunidades">Comunidades</a>
-      </nav>
     </header>
 
     @if (currentUser?.uid) {
@@ -40,19 +34,12 @@
         </a>
 
         <a
-          class="feed-composer__prompt"
+          class="feed-composer__publish"
           [routerLink]="['/media/perfil', currentUser?.uid, 'fotos/upload']"
+          aria-label="Compartilhar uma foto no feed"
         >
-          Compartilhe uma foto
-        </a>
-
-        <a
-          class="feed-composer__action"
-          [routerLink]="['/media/perfil', currentUser?.uid, 'fotos/upload']"
-          aria-label="Publicar uma foto"
-          title="Publicar foto"
-        >
-          <span aria-hidden="true">▣</span>
+          <span>Compartilhe uma foto</span>
+          <span class="feed-composer__publish-icon" aria-hidden="true">▣</span>
         </a>
       </section>
     }
