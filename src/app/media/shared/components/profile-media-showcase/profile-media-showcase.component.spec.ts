@@ -11,7 +11,6 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import { ProfileMediaShowcaseComponent } from './profile-media-showcase.component';
 
-
 describe('ProfileMediaShowcaseComponent', () => {
   let fixture: ComponentFixture<ProfileMediaShowcaseComponent>;
 
@@ -73,12 +72,12 @@ describe('ProfileMediaShowcaseComponent', () => {
       By.css('.profile-media-showcase__item')
     );
     const image = item.query(By.css('img')).nativeElement as HTMLImageElement;
+    const ariaLabel = item.nativeElement.getAttribute('aria-label') as string;
 
     expect(item).toBeTruthy();
     expect(image.src).toContain('photo.jpg');
-    expect(item.nativeElement.getAttribute('aria-label')).toContain(
-      'Pessoa alvo'
-    );
+    expect(ariaLabel).toContain('Foto pública de teste');
+    expect(ariaLabel).toContain('1 de 1');
   });
 
   it('não renderiza cabeçalho, contadores ou instruções duplicadas', () => {
