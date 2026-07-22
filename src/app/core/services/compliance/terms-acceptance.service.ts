@@ -28,7 +28,7 @@ export interface AcceptedPlatformTermsResult {
  * - ausência de registro exige aceite;
  * - accepted=false exige aceite;
  * - a versão registrada deve coincidir com a versão atual;
- * - registros legados sem versão não satisfazem versões posteriores à v1.
+ * - registros legados sem versão não satisfazem a versão v2.
  */
 export function hasAcceptedCurrentTerms(
   record: IUserTermsAcceptance | null | undefined
@@ -43,7 +43,7 @@ export function hasAcceptedCurrentTerms(
     return version === TERMS_ACCEPTANCE_VERSION;
   }
 
-  return TERMS_ACCEPTANCE_VERSION === 'v1';
+  return false;
 }
 
 @Injectable({ providedIn: 'root' })
