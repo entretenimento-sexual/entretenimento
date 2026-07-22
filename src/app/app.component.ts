@@ -2,40 +2,37 @@
 // Componente raiz da aplicação.
 //
 // Responsabilidades:
-// - iniciar diagnósticos globais;
-// - iniciar orquestradores globais;
-// - manter a casca raiz mínima da aplicação;
+// - iniciar diagnósticos e orquestradores globais;
+// - iniciar o relógio canônico da assinatura;
+// - manter a casca raiz mínima;
 // - controlar a exibição global do footer por rota.
-//
-// Importante:
-// - este componente NÃO é dono de navbar/sidebar;
-// - o layout autenticado pertence ao LayoutShellComponent;
-// - o footer institucional fica restrito à experiência pública.
 import { Component, OnInit } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Observable } from 'rxjs';
-import { distinctUntilChanged, filter, map, shareReplay, startWith } from 'rxjs/operators';
+import {
+  distinctUntilChanged,
+  filter,
+  map,
+  shareReplay,
+  startWith,
+} from 'rxjs/operators';
 
 import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
 import { AuthDebugService } from './core/services/util-service/auth-debug.service';
 import { environment } from 'src/environments/environment';
 import { PresenceOrchestratorService } from './core/services/presence/presence-orchestrator.service';
+import { PlatformSubscriptionAccessService } from './core/services/subscriptions/platform-subscription-access.service';
 import { RouterDiagnosticsService } from './core/services/util-service/router-diagnostics.service';
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css'],
-  standalone: false
+  standalone: false,
 })
 export class AppComponent implements OnInit {
   title = 'entretenimento';
 
-  /**
-   * Footer global:
-   * - aparece em rotas públicas/institucionais;
-   * - some na experiência logada para não competir com feed, chat e navegação.
-   */
   readonly showFooter$: Observable<boolean> = this.router.events.pipe(
     filter((event): event is NavigationEnd => event instanceof NavigationEnd),
     startWith(null),
@@ -49,8 +46,9 @@ export class AppComponent implements OnInit {
     private readonly router: Router,
     private readonly orchestrator: AuthOrchestratorService,
     private readonly presenceOrchestrator: PresenceOrchestratorService,
+    private readonly subscriptionAccess: PlatformSubscriptionAccessService,
     private readonly authDebug: AuthDebugService,
-    private readonly routerDiag: RouterDiagnosticsService,
+    private readonly routerDiag: RouterDiagnosticsService
   ) {}
 
   ngOnInit(): void {
@@ -62,6 +60,7 @@ export class AppComponent implements OnInit {
 
     this.orchestrator.start();
     this.presenceOrchestrator.start();
+    this.subscriptionAccess.start();
   }
 
   private shouldHideFooter(url: string): boolean {
