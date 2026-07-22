@@ -15,24 +15,32 @@ import {
 
 import { EditUserProfileComponent } from './edit-user-profile.component';
 import { FirestoreUserQueryService } from '../../../core/services/data-handling/firestore-user-query.service';
-import { UsuarioService } from '../../../core/services/user-profile/usuario.service';
-import { UserSocialLinksService } from '../../../core/services/user-profile/user-social-links.service';
-import { StorageService } from '../../../core/services/image-handling/storage.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
+import { StorageService } from '../../../core/services/image-handling/storage.service';
+import { UsuarioService } from '../../../core/services/user-profile/usuario.service';
 
 describe('EditUserProfileComponent', () => {
   let component: EditUserProfileComponent;
   let fixture: ComponentFixture<EditUserProfileComponent>;
+  let usuarioServiceMock: {
+    atualizarUsuario: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     localStorage.clear();
     vi.stubGlobal(
       'fetch',
-      vi.fn(() => Promise.resolve({
-        json: () => Promise.resolve([]),
-      }))
+      vi.fn(() =>
+        Promise.resolve({
+          json: () => Promise.resolve([]),
+        })
+      )
     );
+
+    usuarioServiceMock = {
+      atualizarUsuario: vi.fn(() => of(void 0)),
+    };
 
     TestBed.configureTestingModule({
       declarations: [EditUserProfileComponent],
@@ -55,28 +63,21 @@ describe('EditUserProfileComponent', () => {
         {
           provide: FirestoreUserQueryService,
           useValue: {
-            getUser: vi.fn(() => of({
-              uid: 'u1',
-              nickname: 'Usuário',
-              estado: 'RJ',
-              municipio: 'Rio de Janeiro',
-              gender: 'homem',
-              descricao: '',
-            })),
+            getUser: vi.fn(() =>
+              of({
+                uid: 'u1',
+                nickname: 'Usuário',
+                estado: 'RJ',
+                municipio: 'Rio de Janeiro',
+                gender: 'homem',
+                descricao: '',
+              })
+            ),
           },
         },
         {
           provide: UsuarioService,
-          useValue: {
-            atualizarUsuario: vi.fn(() => of(void 0)),
-          },
-        },
-        {
-          provide: UserSocialLinksService,
-          useValue: {
-            getSocialLinks: vi.fn(() => of(null)),
-            saveSocialLinks: vi.fn(() => of(void 0)),
-          },
+          useValue: usuarioServiceMock,
         },
         {
           provide: StorageService,
@@ -127,12 +128,33 @@ describe('EditUserProfileComponent', () => {
     expect(component.hasUnsavedChanges()).toBe(false);
   });
 
-  it('limpa o estado de rascunho após salvar', () => {
+  it('salva dados pessoais sem depender de redes sociais', () => {
     component.editForm.controls['descricao'].setValue('Descrição salva');
     component.editForm.markAsDirty();
 
     component.onSubmit();
 
+    expect(usuarioServiceMock.atualizarUsuario).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({ descricao: 'Descrição salva' })
+    );
     expect(component.hasUnsavedChanges()).toBe(false);
+  });
+
+  it('não mantém controles ou seção duplicada de redes sociais', () => {
+    const socialControlNames = [
+      'instagram',
+      'facebook',
+      'twitter',
+      'onlyfans',
+      'privacy',
+      'linktree',
+    ];
+    const text = fixture.nativeElement.textContent as string;
+
+    socialControlNames.forEach((controlName) => {
+      expect(component.editForm.contains(controlName)).toBe(false);
+    });
+    expect(text).not.toContain('Minhas redes sociais');
   });
 });
