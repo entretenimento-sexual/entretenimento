@@ -1,19 +1,13 @@
 /* src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.css */
-/*
-  Accordion de redes sociais.
-
-  Corrige o visual antigo do Angular Material:
-  - remove fundo branco;
-  - remove header coral pesado;
-  - adapta ao tema escuro;
-  - funciona em perfil próprio e perfil visitado;
-  - mantém editor inline discreto quando isOwner=true.
-*/
-
 :host {
   display: block;
   width: 100%;
+  min-width: 0;
   margin: 0;
+}
+
+:host[hidden] {
+  display: none !important;
 }
 
 .social-links-accordion {
@@ -23,223 +17,254 @@
 :host ::ng-deep .mat-expansion-panel {
   overflow: hidden;
   margin: 0;
-  border: 1px solid color-mix(in oklab, var(--surface-border) 88%, transparent);
-  border-radius: 16px;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--surface-color) 96%, var(--text-color) 4%),
-      var(--surface-color)
-    );
-  color: var(--text-color);
-  box-shadow: none;
-}
-
-:host ::ng-deep .mat-expansion-panel:not([class*='mat-elevation-z']) {
-  box-shadow: none;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #e5e7eb) 82%,
+    transparent
+  );
+  border-radius: 0.9rem;
+  background: var(--surface-color, #ffffff);
+  color: var(--text-color, #111827);
+  box-shadow: none !important;
 }
 
 :host ::ng-deep .mat-expansion-panel-header {
-  min-height: 54px;
-  padding: 0 16px;
-  border-bottom: 1px solid color-mix(in oklab, var(--surface-border) 80%, transparent);
-  background: color-mix(in oklab, var(--surface-color) 88%, var(--text-color) 10%);
-  color: var(--text-color) !important;
+  min-height: 3.2rem;
+  padding: 0 0.9rem;
+  background: transparent;
+  color: var(--text-color, #111827) !important;
 }
 
 :host ::ng-deep .mat-expansion-panel-header:hover {
-  background: color-mix(in oklab, var(--surface-color) 82%, var(--text-color) 16%);
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff4d57) 5%,
+    transparent
+  );
 }
 
 :host ::ng-deep .mat-panel-title,
 :host ::ng-deep .mat-panel-title * {
-  color: var(--text-color) !important;
+  color: var(--text-color, #111827) !important;
 }
 
 :host ::ng-deep .mat-panel-title {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.5rem;
   min-width: 0;
-  font-size: 0.96rem;
-  font-weight: 850;
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 :host ::ng-deep .mat-panel-title i {
-  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 72%, var(--text-color) 28%) !important;
+  color: var(--primary-color, #ff4d57) !important;
 }
 
 :host ::ng-deep .mat-expansion-indicator::after {
-  color: var(--text-color) !important;
+  color: var(--text-color, #111827) !important;
 }
 
 :host ::ng-deep .mat-expansion-panel-body {
-  padding: 14px 16px 16px;
-  background: transparent;
+  padding: 0.75rem 0.9rem 0.9rem;
+}
+
+.social-links-note,
+.no-links-info,
+.social-links-subscription p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #111827) 70%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.45;
 }
 
 .social-links-note {
-  margin: 0 0 10px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 22%, transparent);
-  border-radius: 14px;
-  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 8%, transparent);
-  color: color-mix(in oklab, var(--text-color) 76%, transparent);
-  font-size: 0.86rem;
-  font-weight: 650;
-  line-height: 1.45;
+  margin-bottom: 0.65rem;
 }
 
 .social-link-list {
   display: grid;
-  gap: 10px;
-  margin: 0;
+  gap: 0;
+  min-width: 0;
 }
 
 .social-link-item {
   display: grid;
-  grid-template-columns: 24px minmax(84px, 116px) minmax(0, 1fr);
+  grid-template-columns: 1.2rem minmax(5.5rem, 7.5rem) minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
+  gap: 0.55rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #e5e7eb) 66%,
+    transparent
+  );
+  color: var(--text-color, #111827);
+}
 
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
-  border-radius: 14px;
-  background: color-mix(in oklab, var(--surface-color) 92%, var(--text-color) 8%);
-  color: var(--text-color);
+.social-link-item:last-child {
+  border-bottom: 0;
 }
 
 .social-link-icon {
-  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 70%, var(--text-color) 30%);
+  color: color-mix(
+    in oklab,
+    var(--primary-color, #ff4d57) 74%,
+    var(--text-color, #111827)
+  );
   text-align: center;
 }
 
 .social-link-label {
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
-  font-size: 0.88rem;
-  font-weight: 800;
+  color: color-mix(in oklab, var(--text-color, #111827) 66%, transparent);
+  font-size: 0.82rem;
+  font-weight: 760;
 }
 
 .social-link-value {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  justify-content: space-between;
+  gap: 0.45rem;
   min-width: 0;
   overflow-wrap: anywhere;
-  color: var(--text-color);
-  font-weight: 750;
+  color: var(--text-color, #111827);
+  font-size: 0.84rem;
+  font-weight: 700;
   text-decoration: none;
 }
 
-.social-link-value:hover {
+.social-link-value:hover,
+.social-link-value:focus-visible {
   text-decoration: underline;
 }
 
-.hidden {
-  display: none;
+.social-link-value:focus-visible,
+.social-links-subscription button:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color, #ff4d57));
+  outline-offset: var(--focus-offset, 2px);
 }
 
-.no-links-info {
-  margin: 0;
-  padding: 13px 14px;
-  border: 1px dashed color-mix(in oklab, var(--surface-border) 82%, transparent);
-  border-radius: 14px;
-  background: color-mix(in oklab, var(--surface-color) 92%, var(--text-color) 8%);
-  color: color-mix(in oklab, var(--text-color) 76%, transparent);
-  font-style: normal;
-  line-height: 1.45;
+.social-links-subscription {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #e5e7eb) 68%,
+    transparent
+  );
+}
+
+.social-links-subscription p {
+  flex: 1 1 18rem;
+}
+
+.social-links-subscription button {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--primary-color, #ff4d57);
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--primary-color, #ff4d57);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 780;
+  cursor: pointer;
 }
 
 .inline-editor {
   display: grid;
-  gap: 10px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
-}
-
-.inline-editor-title {
-  margin: 0;
-  color: var(--text-color);
-  font-size: 0.95rem;
-  font-weight: 800;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #e5e7eb) 70%,
+    transparent
+  );
 }
 
 .edit-row {
   display: grid;
-  grid-template-columns: minmax(90px, 132px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(6rem, 8rem) minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  margin: 0;
+  gap: 0.55rem;
 }
 
 .edit-label {
-  color: color-mix(in oklab, var(--text-color) 78%, transparent);
-  font-size: 0.9rem;
+  color: color-mix(in oklab, var(--text-color, #111827) 76%, transparent);
+  font-size: 0.82rem;
   font-weight: 760;
 }
 
 .edit-input {
-  min-height: 42px;
-  border-radius: 12px;
+  min-width: 0;
+  min-height: 2.6rem;
+  border-radius: 0.65rem;
 }
 
 .edit-actions {
   display: inline-flex;
-  gap: 8px;
+  gap: 0.4rem;
 }
 
 .edit-actions .btn,
 .open-editor-page {
-  min-height: 40px;
-  padding-inline: 12px;
+  min-height: 2.5rem;
+  padding-inline: 0.7rem;
 }
 
 .open-editor-page {
-  margin-top: 12px;
+  margin-top: 0.75rem;
 }
 
-.sr-only {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  white-space: nowrap !important;
-  border: 0 !important;
+/* Perfil visitado: o conteúdo domina, sem outro cartão dentro da página. */
+:host ::ng-deep .social-links-accordion--compact .mat-expansion-panel {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
-@media (prefers-contrast: more) {
-  :host ::ng-deep .mat-expansion-panel,
-  .social-link-item,
-  .no-links-info,
-  .social-links-note {
-    border-width: 2px;
-  }
+:host ::ng-deep .social-links-accordion--compact .mat-expansion-panel-header {
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+}
 
-  .social-link-label,
-  .no-links-info,
-  .social-links-note {
-    color: var(--text-color);
-  }
+:host ::ng-deep .social-links-accordion--compact .mat-expansion-panel-header:hover {
+  background: transparent;
+}
+
+:host ::ng-deep .social-links-accordion--compact .mat-expansion-panel-body {
+  padding: 0.2rem 0 0;
+}
+
+.social-links-accordion--compact .social-link-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 1rem;
+}
+
+.social-links-accordion--compact .social-link-item {
+  grid-template-columns: 1.1rem minmax(4.5rem, 6.5rem) minmax(0, 1fr);
+  min-height: 2.6rem;
 }
 
 @media (max-width: 700px) {
-  :host ::ng-deep .mat-expansion-panel-header {
-    min-height: 50px;
-    padding-inline: 14px;
-  }
-
-  :host ::ng-deep .mat-expansion-panel-body {
-    padding: 12px;
+  .social-links-accordion--compact .social-link-list {
+    grid-template-columns: 1fr;
   }
 
   .social-link-item {
-    grid-template-columns: 24px minmax(0, 1fr);
-    gap: 8px 10px;
+    grid-template-columns: 1.2rem minmax(0, 1fr);
+    gap: 0.35rem 0.55rem;
   }
 
   .social-link-label,
@@ -249,7 +274,6 @@
 
   .edit-row {
     grid-template-columns: 1fr;
-    gap: 7px;
   }
 
   .edit-actions {
@@ -263,14 +287,21 @@
 }
 
 @media (max-width: 380px) {
-  :host ::ng-deep .mat-expansion-panel,
-  .social-link-item,
-  .no-links-info,
-  .social-links-note {
-    border-radius: 12px;
-  }
-
   .edit-actions {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :host ::ng-deep .mat-expansion-panel,
+  .social-links-subscription button {
+    border-width: 2px;
+  }
+
+  .social-link-label,
+  .social-links-note,
+  .no-links-info,
+  .social-links-subscription p {
+    color: var(--text-color, #111827);
   }
 }
