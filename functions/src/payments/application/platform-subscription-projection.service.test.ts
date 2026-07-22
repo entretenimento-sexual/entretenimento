@@ -3,12 +3,14 @@ import test from 'node:test';
 
 import {
   buildPlatformSubscriptionUserProjection,
+  platformSubscriptionPublicProjectionMatches,
+  platformSubscriptionUserProjectionMatches,
 } from './platform-subscription-projection.service';
 
 const NOW = 1_800_000_000_000;
 
-test('projeta acesso ativo e aliases coerentes', () => {
-  const projection = buildPlatformSubscriptionUserProjection(
+function activeProjection() {
+  return buildPlatformSubscriptionUserProjection(
     {
       active: true,
       role: 'premium',
@@ -20,6 +22,10 @@ test('projeta acesso ativo e aliases coerentes', () => {
     'free',
     NOW
   );
+}
+
+test('projeta acesso ativo e aliases coerentes', () => {
+  const projection = activeProjection();
 
   assert.equal(projection.role, 'premium');
   assert.equal(projection.tier, 'premium');
@@ -68,4 +74,59 @@ test('preserva role administrativo sem confundi-lo com plano', () => {
 
   assert.equal(projection.role, 'admin');
   assert.equal(projection.tier, 'vip');
+});
+
+test('considera projeção equivalente mesmo com billingUpdatedAt antigo', () => {
+  const projection = activeProjection();
+  const current = {
+    ...projection,
+    billingUpdatedAt: NOW - 60_000,
+  };
+
+  assert.equal(
+    platformSubscriptionUserProjectionMatches(current, projection),
+    true
+  );
+});
+
+test('detecta mudança de término ou flag operacional', () => {
+  const projection = activeProjection();
+
+  assert.equal(
+    platformSubscriptionUserProjectionMatches(
+      {
+        ...projection,
+        subscriptionEndsAt: null,
+      },
+      projection
+    ),
+    false
+  );
+  assert.equal(
+    platformSubscriptionUserProjectionMatches(
+      {
+        ...projection,
+        isSubscriber: false,
+      },
+      projection
+    ),
+    false
+  );
+});
+
+test('projeção pública exige role e versão canônica', () => {
+  assert.equal(
+    platformSubscriptionPublicProjectionMatches(
+      { role: 'premium', billingProjectionVersion: 1 },
+      'premium'
+    ),
+    true
+  );
+  assert.equal(
+    platformSubscriptionPublicProjectionMatches(
+      { role: 'premium', billingProjectionVersion: 0 },
+      'premium'
+    ),
+    false
+  );
 });
