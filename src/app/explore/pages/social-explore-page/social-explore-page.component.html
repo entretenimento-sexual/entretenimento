@@ -1,6 +1,7 @@
 <!-- src/app/explore/pages/social-explore-page/social-explore-page.component.html -->
 @if (vm$ | async; as vm) {
-  @let feedPhotos = ((feedPhotos$ | async) || []);
+  @let feedWindow = (feedWindow$ | async);
+  @let feedPhotos = (feedWindow?.items || []);
   @let lightboxState = (lightboxState$ | async);
   @let activeLightboxItems = ((activeLightboxItems$ | async) || []);
   @let currentUser = (currentUser$ | async);
@@ -89,6 +90,27 @@
             />
           }
         </div>
+
+        <p class="visually-hidden" aria-live="polite">
+          Exibindo {{ feedWindow?.visibleCount || 0 }} de
+          {{ feedWindow?.totalItems || 0 }} publicações.
+        </p>
+
+        @if (feedWindow?.hasMore) {
+          <div class="feed-pagination">
+            <button
+              type="button"
+              (click)="loadMoreFeed()"
+              [attr.aria-label]="
+                'Carregar mais publicações. ' +
+                (feedWindow?.remainingItems || 0) +
+                ' restantes.'
+              "
+            >
+              Carregar mais
+            </button>
+          </div>
+        }
       } @else {
         <div class="feed-empty" role="status" aria-live="polite">
           <h3>O feed ainda está vazio</h3>
