@@ -5,16 +5,16 @@
 // Copia para public_profiles apenas campos canônicos de discovery calculados no
 // backend a partir de users/{uid}.
 //
-// Segurança:
-// - roda com Admin SDK;
-// - não confia em campo normalizado enviado pelo cliente;
-// - não cria public_profile incompleto quando o documento público ainda não existe;
-// - mantém a UI usando public_profiles, mas prepara filtro server-side/indexado.
+// Escritas de billing/lifecycle que não alteram compatibilidade não renovam
+// updatedAt e, portanto, não interferem artificialmente na ordenação da vitrine.
 // -----------------------------------------------------------------------------
 
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { db, FieldValue } from '../firebaseApp';
 import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
+import {
+  publicProfileDiscoveryProjectionMatches,
+} from './public-profile-discovery-projection';
 
 export const syncPublicProfileDiscovery = onDocumentWritten(
   'users/{userId}',
@@ -22,9 +22,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
     const uid = String(event.params.userId ?? '').trim();
     const after = event.data?.after;
 
-    if (!uid || !after?.exists) {
-      return;
-    }
+    if (!uid || !after?.exists) return;
 
     const publicProfileRef = db.collection('public_profiles').doc(uid);
     const publicProfileSnapshot = await publicProfileRef.get();
@@ -38,16 +36,24 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
 
     const user = after.data() ?? {};
     const canonical = normalizeProfileDiscoveryFields(user);
+    const currentPublic = publicProfileSnapshot.data() ?? {};
 
-    await publicProfileRef.set({
-      normalizedGender: canonical.normalizedGender,
-      normalizedOrientation: canonical.normalizedOrientation,
-      interestedInGenders: canonical.interestedInGenders,
-      interestedInOrientations: canonical.interestedInOrientations,
-      compatibilityReady: canonical.compatibilityReady,
-      discoveryNormalizedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+    if (publicProfileDiscoveryProjectionMatches(currentPublic, canonical)) {
+      return;
+    }
+
+    await publicProfileRef.set(
+      {
+        normalizedGender: canonical.normalizedGender,
+        normalizedOrientation: canonical.normalizedOrientation,
+        interestedInGenders: canonical.interestedInGenders,
+        interestedInOrientations: canonical.interestedInOrientations,
+        compatibilityReady: canonical.compatibilityReady,
+        discoveryNormalizedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
 
     console.log('[discovery] Campos canônicos sincronizados.', {
       uid,
