@@ -2,41 +2,12 @@
 // -----------------------------------------------------------------------------
 // PAYMENT SETTLEMENT SERVICE
 // -----------------------------------------------------------------------------
-//
 // Única camada autorizada a converter evento financeiro confirmado em acesso.
-//
-// Responsabilidade:
-// - validar evento confirmado;
-// - localizar checkout original;
-// - comparar provider, valor, moeda e escopo;
-// - garantir idempotência;
-// - registrar payment_events;
-// - registrar payment_transactions;
-// - conceder ou atualizar entitlement;
-// - atualizar users/{uid} como projeção privada rápida;
-// - atualizar public_profiles/{uid}.role somente quando o plano público mudar;
-// - registrar auditoria.
-//
-// Segurança:
-// - nenhuma URL de retorno concede acesso diretamente;
-// - nenhum parâmetro do frontend define role, valor ou provider confiável;
-// - nenhum evento não verificado gera entitlement;
-// - eventos de Emulator somente funcionam no Functions Emulator Runtime;
-// - public_profiles nunca é criado parcialmente pelo pagamento.
-//
-// Observação sobre public_profiles:
-// - se o perfil público ainda não existir, o pagamento continua válido;
-// - nesse caso, não criamos um documento público incompleto apenas com role;
-// - a auditoria registra que a projeção pública estava ausente.
-//
-// Escopos futuros:
-// - creator_subscription, paid_media, paid_live e tip/mimo deverão possuir
-//   processadores próprios;
-// - nesta fase, apenas platform_subscription concede entitlement.
+// O entitlement é a verdade financeira; users/public_profiles são projeções.
+// -----------------------------------------------------------------------------
 
 import { createHash } from 'node:crypto';
 
-import { FieldValue } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import { db } from '../../firebaseApp';
@@ -50,7 +21,15 @@ import {
   SettlementResult,
   VerifiedPaymentEvent,
 } from '../domain/billing.model';
-
+import {
+  calculatePlatformSubscriptionPeriodEnd,
+  evaluatePlatformSubscriptionEntitlement,
+} from './platform-subscription-entitlement.service';
+import {
+  PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
+  buildPlatformSubscriptionUserProjection,
+  resolvePublicPlatformRole,
+} from './platform-subscription-projection.service';
 import {
   assertEmulatorPaymentRuntime,
 } from '../security/payment-runtime.guard';
@@ -214,34 +193,23 @@ export async function settleVerifiedPaidEvent(
     }
 
     const entitlementId = `platform_subscription_${checkout.buyerUid}`;
+    const entitlementRef = db.collection('entitlements').doc(entitlementId);
+    const userRef = db.collection('users').doc(checkout.buyerUid);
+    const publicProfileRef = db.collection('public_profiles').doc(checkout.buyerUid);
 
-    const entitlementRef = db
-      .collection('entitlements')
-      .doc(entitlementId);
-
-    const userRef = db
-      .collection('users')
-      .doc(checkout.buyerUid);
-
-    const publicProfileRef = db
-      .collection('public_profiles')
-      .doc(checkout.buyerUid);
-
-    /**
-     * Leitura inicial da idempotência.
-     *
-     * Caso este mesmo evento já tenha sido processado, nenhuma nova escrita
-     * será executada, preservando payment_event, transaction, entitlement,
-     * auditoria e projeções.
-     */
     const existingEventSnap = await tx.get(paymentEventRef);
     const existingEntitlementSnap = await tx.get(entitlementRef);
-
     const existingEntitlement = existingEntitlementSnap.exists
       ? (existingEntitlementSnap.data() as EntitlementDoc)
       : null;
 
     if (existingEventSnap.exists) {
+      const existingStatus = evaluatePlatformSubscriptionEntitlement(
+        existingEntitlement,
+        checkout.buyerUid,
+        now
+      );
+
       return {
         processed: true,
         idempotent: true,
@@ -251,20 +219,11 @@ export async function settleVerifiedPaidEvent(
         entitlementId,
         scope: checkout.scope,
         status: 'paid',
-        role: grantedRole,
-        accessGranted: existingEntitlement?.active === true,
+        role: existingStatus.role ?? grantedRole,
+        accessGranted: existingStatus.active,
       };
     }
 
-    /**
-     * Um checkout representa uma cobrança específica.
-     *
-     * Se já foi liquidado por outro evento, não pode ser reutilizado para
-     * produzir uma segunda transação ou substituir auditoria.
-     *
-     * Renovações futuras deverão possuir modelo próprio de subscription/cycle,
-     * e não reutilizar o checkout inicial.
-     */
     if (checkout.status === 'paid') {
       throw new HttpsError(
         'already-exists',
@@ -272,19 +231,13 @@ export async function settleVerifiedPaidEvent(
       );
     }
 
-    /**
-     * O perfil público é apenas uma projeção visual do benefício.
-     *
-     * Ele não é fonte financeira e não pode impedir a liquidação de um
-     * pagamento válido. Porém, se existir e o papel público mudar, deve ser
-     * atualizado atomicamente junto com a concessão do acesso.
-     */
-    const publicProfileSnap = await tx.get(publicProfileRef);
-
+    const [userSnapshot, publicProfileSnap] = await Promise.all([
+      tx.get(userRef),
+      tx.get(publicProfileRef),
+    ]);
     const publicProfileData = publicProfileSnap.exists
       ? (publicProfileSnap.data() as PublicProfileProjectionData)
       : null;
-
     const publicProfileProjectionStatus =
       resolvePublicProfileProjectionStatus({
         exists: publicProfileSnap.exists,
@@ -327,15 +280,20 @@ export async function settleVerifiedPaidEvent(
       updatedAt: now,
     };
 
-    /**
-     * Entitlement determinístico da assinatura principal.
-     *
-     * Nesta etapa, pagamentos posteriores substituem a projeção ativa do plano
-     * atual, mas preservam createdAt/startsAt quando o benefício já existia.
-     *
-     * O modelo completo de recorrência, renovação, cancelamento e upgrade será
-     * tratado futuramente por subscriptions e ciclos de cobrança.
-     */
+    const existingEndsAt = toExistingNumberOrFallback(
+      existingEntitlement?.endsAt,
+      0
+    );
+    const extensionBase =
+      existingEntitlement?.active === true && existingEndsAt > now
+        ? existingEndsAt
+        : now;
+    const startsAt = toExistingNumberOrFallback(
+      existingEntitlement?.startsAt,
+      now
+    );
+    const endsAt = calculatePlatformSubscriptionPeriodEnd(extensionBase);
+
     const entitlementDoc: EntitlementDoc = {
       id: entitlementId,
       buyerUid: checkout.buyerUid,
@@ -345,11 +303,8 @@ export async function settleVerifiedPaidEvent(
       planKey: checkout.planSnapshot!.key,
       grantedRole,
       active: true,
-      startsAt: toExistingNumberOrFallback(
-        existingEntitlement?.startsAt,
-        now
-      ),
-      endsAt: null,
+      startsAt,
+      endsAt,
       sourceCheckoutSessionId: checkout.id,
       sourcePaymentTransactionId: transactionId,
       createdAt: toExistingNumberOrFallback(
@@ -359,14 +314,21 @@ export async function settleVerifiedPaidEvent(
       updatedAt: now,
     };
 
+    const entitlementStatus = evaluatePlatformSubscriptionEntitlement(
+      entitlementDoc,
+      checkout.buyerUid,
+      now
+    );
+    const userProjection = buildPlatformSubscriptionUserProjection(
+      entitlementStatus,
+      userSnapshot.data()?.['role'],
+      now
+    );
     const auditRef = db.collection('billing_audit').doc();
 
     tx.create(paymentEventRef, paymentEventDoc);
-
     tx.set(transactionRef, transactionDoc, { merge: false });
-
     tx.set(entitlementRef, entitlementDoc, { merge: true });
-
     tx.set(
       checkoutRef,
       {
@@ -388,41 +350,28 @@ export async function settleVerifiedPaidEvent(
       { merge: true }
     );
 
-    /**
-     * Projeção privada de acesso para consumo rápido da interface e guards.
-     *
-     * A verdade financeira permanece em payment_transactions e entitlements.
-     */
-    tx.set(
-      userRef,
-      {
-        role: grantedRole,
-        tier: grantedRole,
-        isSubscriber: true,
-        subscriptionStatus: 'active',
-        subscriptionScope: checkout.scope,
-        lastBillingCheckoutSessionId: checkout.id,
-        lastBillingTransactionId: transactionId,
-        billingUpdatedAt: now,
-      },
-      { merge: true }
-    );
+    if (userSnapshot.exists) {
+      tx.set(
+        userRef,
+        {
+          ...userProjection,
+          lastBillingCheckoutSessionId: checkout.id,
+          lastBillingTransactionId: transactionId,
+        },
+        { merge: true }
+      );
+    }
 
-    /**
-     * Projeção pública mínima do plano.
-     *
-     * Não criamos public_profiles aqui caso ele esteja ausente, pois isso
-     * geraria documento incompleto e potencialmente exibível na descoberta.
-     *
-     * Não atualizamos updatedAt em renovação do mesmo role, pois esse timestamp
-     * participa do comportamento de descoberta/ordenação pública.
-     */
-    if (publicProfileProjectionStatus === 'updated') {
+    if (publicProfileSnap.exists) {
       tx.set(
         publicProfileRef,
         {
-          role: grantedRole,
-          updatedAt: FieldValue.serverTimestamp(),
+          role: resolvePublicPlatformRole(
+            entitlementStatus,
+            publicProfileData?.role
+          ),
+          billingProjectionVersion: PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
+          billingProjectionUpdatedAt: now,
         },
         { merge: true }
       );
@@ -440,14 +389,10 @@ export async function settleVerifiedPaidEvent(
       verificationMode: event.verificationMode,
       amountCents: event.amountCents,
       currency: event.currency,
-
-      /**
-       * Mantemos o nome explícito no documento de auditoria para deixar claro
-       * que esta informação representa a projeção pública do role no card,
-       * enquanto reutilizamos a variável interna já calculada acima.
-       */
+      subscriptionStartsAt: startsAt,
+      subscriptionEndsAt: endsAt,
+      billingProjectionVersion: PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
       publicProfileRoleProjectionStatus: publicProfileProjectionStatus,
-
       createdAt: now,
     });
 
@@ -464,4 +409,4 @@ export async function settleVerifiedPaidEvent(
       accessGranted: true,
     };
   });
-}// linha460
+}
