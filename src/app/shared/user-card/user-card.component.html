@@ -3,9 +3,6 @@
   <article
     class="user-card"
     [class.user-card--online]="profile.isOnline"
-    [class.user-card--offline]="!profile.isOnline"
-    [class.user-card--vip]="profile.role === 'vip'"
-    [class.user-card--premium]="profile.role === 'premium'"
     [class.user-card--pending]="relationshipVm().state === 'outgoing_pending' || relationshipVm().state === 'incoming_pending'"
     [attr.aria-labelledby]="'uc-title-' + (profile.uid || 'x')"
     [attr.aria-describedby]="profile.descricao ? 'uc-desc-' + (profile.uid || 'x') : null"
@@ -51,7 +48,11 @@
     <div class="user-card__body">
       <div class="user-card__summary">
         <p class="user-card__meta">
-          <span>{{ profile.gender ? (profile.gender | titlecase) : 'Perfil adulto' }}</span>
+          @if (profile.gender) {
+            <span>{{ profile.gender | titlecase }}</span>
+          } @else {
+            <span>Perfil adulto</span>
+          }
 
           @if (profile.idade) {
             <span class="user-card__muted">• {{ profile.idade }} anos</span>
