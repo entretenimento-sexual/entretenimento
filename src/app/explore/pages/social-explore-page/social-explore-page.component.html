@@ -7,12 +7,8 @@
   @let currentUser = (currentUser$ | async);
   @let myActiveStatus = (myActiveStatus$ | async);
 
-  <section class="social-feed-page" aria-labelledby="feed-title">
-    <header class="feed-header">
-      <h1 id="feed-title">Feed</h1>
-    </header>
-
-    @if (currentUser?.uid) {
+  <section class="social-feed-page" aria-label="Atualizações">
+    @if (currentUser?.uid; as currentUid) {
       <section class="feed-composer" aria-label="Criar publicação">
         <a
           class="feed-composer__avatar"
@@ -23,30 +19,47 @@
             <img
               [src]="currentUser?.photoURL"
               alt=""
-              width="34"
-              height="34"
-              loading="lazy"
+              width="40"
+              height="40"
               decoding="async"
               referrerpolicy="no-referrer"
             />
           } @else {
-            <span aria-hidden="true">👤</span>
+            <span aria-hidden="true">
+              {{ (currentUser?.nickname || '?').slice(0, 1).toUpperCase() }}
+            </span>
           }
         </a>
 
-        <a
-          class="feed-composer__publish"
-          [routerLink]="['/media/perfil', currentUser?.uid, 'fotos/upload']"
-          aria-label="Compartilhar uma foto no feed"
+        <button
+          type="button"
+          class="feed-composer__moment"
+          aria-label="Compartilhar momento"
+          (click)="openStatusComposer()"
         >
-          <span>Compartilhe uma foto</span>
-          <span class="feed-composer__publish-icon" aria-hidden="true">▣</span>
+          Compartilhar momento
+        </button>
+
+        <a
+          class="feed-composer__photo"
+          [routerLink]="['/media', 'perfil', currentUid, 'fotos', 'upload']"
+          aria-label="Adicionar foto"
+          title="Adicionar foto"
+        >
+          <i class="fas fa-image" aria-hidden="true"></i>
         </a>
       </section>
+
+      @if (statusComposerVisible()) {
+        <app-user-intent-status-composer
+          class="feed-status-composer"
+          [user]="currentUser"
+        />
+      }
     }
 
     @if (myActiveStatus) {
-      <aside class="feed-status" aria-label="Meu Status de Hoje ativo">
+      <aside class="feed-status" aria-label="Meu momento ativo">
         <div>
           <strong>{{ myActiveStatus.availabilityLabel }}</strong>
           <p>
@@ -56,7 +69,7 @@
         </div>
 
         <div class="feed-status__actions">
-          <a routerLink="/dashboard/principal">Editar</a>
+          <button type="button" (click)="openStatusComposer()">Editar</button>
           <button
             type="button"
             [disabled]="hidingMyStatus"
@@ -69,13 +82,15 @@
     }
 
     <section class="feed-timeline" aria-labelledby="timeline-title">
-      <h2 id="timeline-title" class="visually-hidden">Publicações para você</h2>
+      <h2 id="timeline-title" class="visually-hidden">
+        Publicações recentes de amigos e perfis compatíveis
+      </h2>
 
       @if (feedPhotos.length > 0) {
         <div
           class="feed-list"
           role="list"
-          aria-label="Publicações recomendadas"
+          aria-label="Publicações recentes"
         >
           @for (
             item of feedPhotos;
@@ -113,13 +128,8 @@
         }
       } @else {
         <div class="feed-empty" role="status" aria-live="polite">
-          <h3>O feed ainda está vazio</h3>
-          <p>
-            Novas publicações públicas aparecerão aqui conforme a comunidade
-            publicar conteúdo.
-          </p>
-
-          <a routerLink="/dashboard/explorar">Descobrir pessoas</a>
+          <span>Nenhuma publicação recente.</span>
+          <a routerLink="/dashboard/explorar">Encontrar pessoas</a>
         </div>
       }
     </section>
@@ -128,7 +138,7 @@
       <app-public-photo-lightbox
         [items]="activeLightboxItems"
         [activeIndex]="lightboxState.index"
-        title="Feed"
+        title="Publicação"
         (closed)="closeViewer()"
         (prevRequested)="prev()"
         (nextRequested)="next()"
