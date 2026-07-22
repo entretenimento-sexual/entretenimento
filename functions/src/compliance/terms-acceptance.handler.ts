@@ -3,7 +3,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 
-const TERMS_ACCEPTANCE_VERSION = 'v1';
+const TERMS_ACCEPTANCE_VERSION = 'v2';
 
 export const acceptPlatformTerms = onCall(
   { region: FUNCTIONS_REGION },
