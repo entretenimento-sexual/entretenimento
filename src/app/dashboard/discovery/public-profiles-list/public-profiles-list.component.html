@@ -1,58 +1,42 @@
 <!-- src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component.html -->
-<section class="public-profiles" aria-label="Perfis públicos disponíveis">
+<section class="public-profiles" aria-label="Perfis selecionados para você">
   @if (loading() && profiles().length === 0) {
     <div class="public-profiles__state" role="status" aria-live="polite">
       <span class="spinner" aria-hidden="true"></span>
-      <p>Carregando perfis...</p>
+      <p>Buscando perfis compatíveis...</p>
     </div>
   } @else if (errorMessage() && profiles().length === 0) {
     <div
       class="public-profiles__state public-profiles__state--error"
       role="alert"
     >
-      <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
-
-      <div class="public-profiles__state-copy">
-        <p>{{ errorMessage() }}</p>
-        <button
-          type="button"
-          class="public-profiles__retry"
-          (click)="requestRetry()"
-        >
-          Tentar novamente
-        </button>
-      </div>
+      <p>{{ errorMessage() }}</p>
+      <button
+        type="button"
+        class="public-profiles__retry"
+        (click)="requestRetry()"
+      >
+        Tentar novamente
+      </button>
     </div>
   } @else if (profiles().length === 0) {
-    <div class="public-profiles__state" role="status" aria-live="polite">
-      <i class="fas fa-users" aria-hidden="true"></i>
-
-      <div class="public-profiles__state-copy">
-        <p>Nenhum perfil disponível agora.</p>
-        <span>
-          Confira o modo Online ou volte em instantes. Novos perfis aparecem
-          conforme a descoberta pública é atualizada.
-        </span>
-      </div>
-    </div>
+    <p class="public-profiles__empty" role="status" aria-live="polite">
+      Nenhum perfil compatível agora.
+    </p>
   } @else {
-    <div class="public-profiles__summary">
-      <p class="public-profiles__result-count" role="status" aria-live="polite">
-        {{ profiles().length === 1 ? '1 perfil carregado' : (profiles().length + ' perfis carregados') }}
-      </p>
+    <p class="sr-only" role="status" aria-live="polite">
+      {{ profiles().length === 1 ? '1 perfil disponível' : (profiles().length + ' perfis disponíveis') }}
+    </p>
 
-      @if (refreshing()) {
-        <span class="public-profiles__refreshing" role="status" aria-live="polite">
-          Atualizando
-        </span>
-      }
-    </div>
+    @if (refreshing()) {
+      <div class="public-profiles__refreshing" role="status" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="sr-only">Atualizando perfis</span>
+      </div>
+    }
 
     @if (errorMessage()) {
-      <div
-        class="public-profiles__inline-error"
-        role="alert"
-      >
+      <div class="public-profiles__inline-error" role="alert">
         <span>{{ errorMessage() }}</span>
         <button type="button" (click)="requestRetry()">Tentar novamente</button>
       </div>
@@ -68,23 +52,23 @@
       }
     </div>
 
-    <div class="public-profiles__pagination" aria-live="polite">
-      @if (loadingMore()) {
-        <div class="public-profiles__loading-more" role="status">
-          <span class="spinner" aria-hidden="true"></span>
-          <span>Carregando mais perfis...</span>
-        </div>
-      } @else if (hasMore()) {
-        <button
-          type="button"
-          class="public-profiles__load-more"
-          (click)="requestLoadMore()"
-        >
-          Ver mais perfis
-        </button>
-      } @else {
-        <span class="public-profiles__end">Você chegou ao fim desta seleção.</span>
-      }
-    </div>
+    @if (loadingMore() || hasMore()) {
+      <div class="public-profiles__pagination" aria-live="polite">
+        @if (loadingMore()) {
+          <div class="public-profiles__loading-more" role="status">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Buscando mais...</span>
+          </div>
+        } @else {
+          <button
+            type="button"
+            class="public-profiles__load-more"
+            (click)="requestLoadMore()"
+          >
+            Ver mais
+          </button>
+        }
+      </div>
+    }
   }
 </section>
