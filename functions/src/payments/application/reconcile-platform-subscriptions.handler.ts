@@ -2,9 +2,10 @@
 // -----------------------------------------------------------------------------
 // RECONCILE PLATFORM SUBSCRIPTIONS
 // -----------------------------------------------------------------------------
-// Mantém entitlements e projeções operacionais sincronizados mesmo quando o
-// usuário não abre o aplicativo após renovação, expiração ou migração legada.
-// Entitlements já inativos ficam fora da varredura recorrente.
+// A rotina agendada trata somente mudanças causadas pelo relógio:
+// - entitlements ativos cujo endsAt já venceu;
+// - entitlements mensais legados com endsAt explicitamente null.
+// Alterações documentais são tratadas pelo trigger do entitlement.
 // -----------------------------------------------------------------------------
 
 import {
@@ -21,6 +22,10 @@ import {
 
 const PAGE_SIZE = 100;
 const CONCURRENCY = 10;
+
+type ReconciliationQueryFactory = (
+  cursor: QueryDocumentSnapshot | null
+) => FirebaseFirestore.Query;
 
 async function reconcileChunk(
   documents: QueryDocumentSnapshot[]
@@ -53,6 +58,26 @@ async function reconcileChunk(
   }
 }
 
+async function reconcileQuery(
+  createQuery: ReconciliationQueryFactory
+): Promise<number> {
+  let cursor: QueryDocumentSnapshot | null = null;
+  let processed = 0;
+
+  while (true) {
+    const page = await createQuery(cursor).get();
+    if (page.empty) break;
+
+    await reconcileChunk(page.docs);
+    processed += page.size;
+    cursor = page.docs[page.docs.length - 1] ?? null;
+
+    if (page.size < PAGE_SIZE) break;
+  }
+
+  return processed;
+}
+
 export const reconcilePlatformSubscriptions = onSchedule(
   {
     schedule: 'every 15 minutes',
@@ -60,38 +85,39 @@ export const reconcilePlatformSubscriptions = onSchedule(
     region: FUNCTIONS_REGION,
   },
   async () => {
-    let cursor: QueryDocumentSnapshot | null = null;
-    let processed = 0;
+    const now = Date.now();
 
-    while (true) {
+    const expired = await reconcileQuery((cursor) => {
       let query = db
         .collection('entitlements')
         .where('scope', '==', 'platform_subscription')
         .where('active', '==', true)
-        .orderBy(FieldPath.documentId())
+        .where('endsAt', '<=', now)
+        .orderBy('endsAt', 'asc')
+        .orderBy(FieldPath.documentId(), 'asc')
         .limit(PAGE_SIZE);
 
-      if (cursor) {
-        query = query.startAfter(cursor);
-      }
+      if (cursor) query = query.startAfter(cursor);
+      return query;
+    });
 
-      const page = await query.get();
+    const legacy = await reconcileQuery((cursor) => {
+      let query = db
+        .collection('entitlements')
+        .where('scope', '==', 'platform_subscription')
+        .where('active', '==', true)
+        .where('endsAt', '==', null)
+        .orderBy(FieldPath.documentId(), 'asc')
+        .limit(PAGE_SIZE);
 
-      if (page.empty) {
-        break;
-      }
-
-      await reconcileChunk(page.docs);
-      processed += page.size;
-      cursor = page.docs[page.docs.length - 1] ?? null;
-
-      if (page.size < PAGE_SIZE) {
-        break;
-      }
-    }
+      if (cursor) query = query.startAfter(cursor);
+      return query;
+    });
 
     console.log('[billing] Reconciliação de assinaturas concluída.', {
-      processed,
+      expired,
+      legacy,
+      processed: expired + legacy,
     });
   }
 );
