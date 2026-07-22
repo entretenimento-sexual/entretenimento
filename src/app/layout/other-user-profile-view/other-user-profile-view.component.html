@@ -1,162 +1,139 @@
 <!-- src/app/layout/other-user-profile-view/other-user-profile-view.component.html -->
-<!--
-  PERFIL VISITADO
-
-  Objetivo:
-  - ser a vitrine principal de outro usuário;
-  - priorizar prévia real de fotos/vídeos, desejos e sinais básicos de interação;
-  - manter monetização discreta;
-  - não punir o dono do perfil assinante escondendo sua exposição;
-  - manter botões claros, acessíveis e responsivos;
-  - evitar subtítulos e CTAs duplicados na mesma tela.
--->
-
 <section
   class="other-profile-page"
-  aria-labelledby="profile-heading"
+  aria-label="Perfil visitado"
   [attr.aria-busy]="isLoading ? 'true' : 'false'"
 >
-  <header class="other-profile-page__topbar app-toolbar">
+  <header class="other-profile-page__topbar">
     <a
-      class="other-profile-page__back app-action app-action--ghost"
+      class="other-profile-page__back"
       [routerLink]="discoveryLink"
-      aria-label="Voltar para descoberta"
+      aria-label="Voltar para os perfis"
+      title="Voltar para os perfis"
     >
-      <span aria-hidden="true">←</span>
-      <span>Voltar</span>
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+      <span class="visually-hidden">Voltar para os perfis</span>
     </a>
   </header>
 
   @if (isLoading) {
-    <section
-      class="other-profile-page__panel other-profile-page__loading app-card app-empty-card"
+    <div
+      class="other-profile-page__loading"
       role="status"
       aria-live="polite"
     >
-      <div class="other-profile-page__loading-dot" aria-hidden="true"></div>
-      <p>Carregando perfil...</p>
-    </section>
-  } @else {
-    @if (userProfile; as profile) {
-      <section class="other-profile-page__hero">
-        <article class="other-profile-page__hero-main app-card" aria-labelledby="profile-heading">
-          <figure class="other-profile-page__photo-wrap app-media-frame app-media-frame--square">
-            <img
-              [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
-              [attr.alt]="profile.nickname ? ('Foto de perfil de ' + profile.nickname) : 'Foto de perfil'"
-              class="other-profile-page__photo"
-              width="180"
-              height="180"
-              loading="lazy"
-              decoding="async"
-            />
+      <span class="other-profile-page__loading-dot" aria-hidden="true"></span>
+      <span class="visually-hidden">Carregando perfil</span>
+    </div>
+  } @else if (userProfile; as profile) {
+    <article
+      class="other-profile-page__hero"
+      aria-labelledby="profile-heading"
+    >
+      <figure class="other-profile-page__photo-wrap">
+        <img
+          [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
+          [attr.alt]="profile.nickname ? ('Foto de ' + profile.nickname) : 'Foto do perfil'"
+          class="other-profile-page__photo"
+          width="640"
+          height="800"
+          loading="eager"
+          fetchpriority="high"
+          decoding="async"
+          referrerpolicy="no-referrer"
+        />
+      </figure>
 
-            <figcaption class="visually-hidden">
-              {{ displayName }}
-            </figcaption>
-          </figure>
+      <div class="other-profile-page__identity">
+        <div class="other-profile-page__headline">
+          <h1 id="profile-heading" class="other-profile-page__title">
+            {{ displayName }}
+          </h1>
 
-          <div class="other-profile-page__identity app-card__body">
-            @if (ownerIsSubscriber) {
-              <span class="other-profile-page__subscriber-badge app-chip app-chip--primary">
-                <i class="fas fa-star" aria-hidden="true"></i>
-                Em destaque
-              </span>
-            }
+          @if (profile.isOnline) {
+            <span class="other-profile-page__online">
+              <span aria-hidden="true"></span>
+              Online
+            </span>
+          }
+        </div>
 
-            <h1 id="profile-heading" class="other-profile-page__title">
-              {{ displayName }}
-            </h1>
+        <p class="other-profile-page__meta" aria-label="Informações do perfil">
+          @if (profile.gender) {
+            <span>{{ profile.gender | titlecase }}</span>
+          }
+
+          @if (profile.idade) {
+            <span>{{ profile.idade }} anos</span>
+          }
+
+          @if (profile.orientation) {
+            <span>{{ profile.orientation | titlecase }}</span>
+          } @else if (profile.partner1Orientation || profile.partner2Orientation) {
+            <span>
+              @if (profile.partner1Orientation) {
+                {{ profile.partner1Orientation | titlecase }}
+              }
+              @if (profile.partner1Orientation && profile.partner2Orientation) {
+                /
+              }
+              @if (profile.partner2Orientation) {
+                {{ profile.partner2Orientation | titlecase }}
+              }
+            </span>
+          }
+        </p>
+
+        @if (hasLocation || profile.distanciaKm !== null && profile.distanciaKm !== undefined) {
+          <p class="other-profile-page__location">
+            <i class="fas fa-location-dot" aria-hidden="true"></i>
 
             @if (hasLocation) {
-              <p class="other-profile-page__location">
-                <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
-                <span>{{ profile.municipio }}, {{ profile.estado }}</span>
-              </p>
+              <span>{{ profile.municipio }}, {{ profile.estado }}</span>
             }
 
-            <div class="other-profile-page__meta" aria-label="Informações rápidas do perfil">
-              <span class="other-profile-page__chip app-chip app-chip--muted">
-                {{ profile.gender ? (profile.gender | titlecase) : 'Gênero não informado' }}
-              </span>
+            @if (profile.distanciaKm !== null && profile.distanciaKm !== undefined) {
+              @if (hasLocation) {
+                <span aria-hidden="true">•</span>
+              }
+              <strong>{{ profile.distanciaKm | number:'1.0-0' }} km</strong>
+            }
+          </p>
+        }
 
-              <span class="other-profile-page__chip app-chip app-chip--muted">
-                {{ profile.orientation || 'Orientação não informada' }}
-              </span>
-            </div>
+        @if (hasDescription) {
+          <p class="other-profile-page__description">
+            {{ profile.descricao }}
+          </p>
+        }
 
-            <p class="other-profile-page__description">
-              {{ hasDescription ? profile.descricao : 'Este usuário ainda não adicionou uma descrição.' }}
-            </p>
-          </div>
-        </article>
-
-        <aside
-          class="other-profile-page__actions-card app-card app-card--compact"
-          aria-labelledby="profile-actions-heading"
-          aria-describedby="profile-actions-helper profile-safety-note profile-actions-status"
-        >
-          <header class="other-profile-page__actions-heading app-card__header">
-            <h2 id="profile-actions-heading" class="other-profile-page__actions-title">Interagir com segurança</h2>
-            <p id="profile-actions-helper" class="other-profile-page__actions-helper">
-              Envie uma solicitação de amizade. Depois que a conexão for aceita, o chat direto fica disponível.
-            </p>
-          </header>
-
-          <div class="other-profile-page__actions">
-            @if (friendshipInteractionState$ | async; as interactionState) {
+        @if (friendshipInteractionState$ | async; as interactionState) {
+          <div class="other-profile-page__actions" aria-label="Ações do perfil">
+            @if (interactionState.isFriend) {
               <button
                 type="button"
-                class="other-profile-page__action app-action app-action--primary"
+                class="other-profile-page__action other-profile-page__action--primary"
+                (click)="startDirectChat()"
+                [disabled]="(directChatBusy$ | async) === true || !uid"
+                [attr.aria-busy]="(directChatBusy$ | async) === true ? 'true' : 'false'"
+                [attr.aria-label]="'Conversar com ' + displayName"
+              >
+                <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                <span>{{ (directChatBusy$ | async) ? 'Abrindo...' : 'Conversar' }}</span>
+              </button>
+            } @else {
+              <button
+                type="button"
+                class="other-profile-page__action other-profile-page__action--primary"
                 (click)="sendFriendRequest()"
                 [disabled]="(friendRequestBusy$ | async) === true || !uid || !interactionState.canSendFriendRequest"
                 [attr.aria-busy]="(friendRequestBusy$ | async) === true ? 'true' : 'false'"
-                [attr.aria-describedby]="'profile-actions-helper profile-actions-status'"
                 [attr.aria-label]="interactionState.friendRequestAriaLabel"
               >
                 <i [class]="interactionState.friendRequestIcon" aria-hidden="true"></i>
                 <span>
                   {{ (friendRequestBusy$ | async) ? 'Enviando...' : interactionState.friendRequestLabel }}
                 </span>
-              </button>
-
-              <button
-                type="button"
-                class="other-profile-page__action app-action app-action--ghost"
-                (click)="startDirectChat()"
-                [disabled]="(directChatBusy$ | async) === true || !uid || !interactionState.isFriend"
-                [attr.aria-busy]="(directChatBusy$ | async) === true ? 'true' : 'false'"
-                [attr.aria-describedby]="'profile-actions-helper profile-actions-status'"
-                [attr.aria-label]="interactionState.isFriend ? ('Iniciar chat com ' + displayName) : ('Conecte-se com ' + displayName + ' para iniciar chat')"
-              >
-                <i [class]="interactionState.isFriend ? 'fas fa-comment-dots' : 'fas fa-lock'" aria-hidden="true"></i>
-                <span>
-                  {{ (directChatBusy$ | async) ? 'Preparando...' : (interactionState.isFriend ? 'Iniciar chat' : 'Conecte-se para conversar') }}
-                </span>
-              </button>
-            } @else {
-              <button
-                type="button"
-                class="other-profile-page__action app-action app-action--primary"
-                disabled
-                aria-busy="true"
-                aria-describedby="profile-actions-helper profile-actions-status"
-                [attr.aria-label]="'Verificando estado de amizade com ' + displayName"
-              >
-                <i class="fas fa-circle-notch" aria-hidden="true"></i>
-                <span>Verificando...</span>
-              </button>
-
-              <button
-                type="button"
-                class="other-profile-page__action app-action app-action--ghost"
-                disabled
-                aria-busy="true"
-                aria-describedby="profile-actions-helper profile-actions-status"
-                [attr.aria-label]="'Verificando disponibilidade de chat com ' + displayName"
-              >
-                <i class="fas fa-circle-notch" aria-hidden="true"></i>
-                <span>Verificando...</span>
               </button>
             }
 
@@ -166,156 +143,75 @@
               [targetId]="uid || ''"
               [targetOwnerUid]="uid"
               [title]="displayName"
-              subtitle="A denúncia será enviada para análise da moderação. Informe o motivo e o contexto essencial."
-              label="Denunciar perfil"
+              subtitle="Informe o motivo e o contexto essencial para análise da moderação."
+              label="Denunciar"
               appearance="button"
               [disabled]="!uid"
             ></app-report-content-button>
           </div>
 
-          <p id="profile-safety-note" class="other-profile-page__actions-helper">
-            Use denúncia para perfil, foto, mensagem ou comportamento que precise de revisão. Para interromper contato imediato, use bloqueio quando disponível.
-          </p>
-
           <p
-            id="profile-actions-status"
             class="visually-hidden"
             aria-live="polite"
             aria-atomic="true"
           >
             @if ((friendRequestBusy$ | async) === true) {
-              Solicitação de amizade em envio.
+              Enviando interesse.
             } @else if ((directChatBusy$ | async) === true) {
-              Preparando conversa direta.
-            } @else if (friendshipInteractionState$ | async; as interactionState) {
-              {{ interactionState.liveStatus }}
+              Preparando conversa.
             } @else {
-              Verificando estado de amizade com este perfil.
+              {{ interactionState.liveStatus }}
             }
           </p>
-        </aside>
-      </section>
+        }
+      </div>
+    </article>
 
-      <section class="other-profile-page__experience" aria-label="Mídia e interesses do perfil">
-        <app-profile-media-showcase
-          [ownerUid]="uid || ''"
-          [profileName]="displayName"
-        >
-          @if (viewerAccess$ | async; as access) {
-            @if (!access.isSubscriber) {
-              <p profile-media-footer class="other-profile-page__plan-note">
-                Assinantes recebem mais contexto de descoberta e interação.
-                <a [routerLink]="subscriptionLink">Ver planos</a>
-              </p>
-            } @else {
-              <p
-                profile-media-footer
-                class="other-profile-page__plan-note other-profile-page__plan-note--active"
-              >
-                {{ access.premiumLabel }} ativo para recursos avançados.
-              </p>
-            }
-          }
-        </app-profile-media-showcase>
+    <app-profile-media-showcase
+      [ownerUid]="uid || ''"
+      [profileName]="displayName"
+    />
 
-        <article class="other-profile-page__intentions-panel app-card app-card--compact">
-          <header class="other-profile-page__panel-header app-card__header">
-            <h2>Afinidades</h2>
-          </header>
-
-          @if (hasPreferenceChips) {
-            <div class="other-profile-page__preference-cloud" aria-label="Interesses declarados">
-              @for (preference of preferenceChips; track preference) {
-                <span class="other-profile-page__preference-chip app-chip">
-                  {{ preference }}
-                </span>
-              }
-            </div>
-          } @else {
-            <p class="other-profile-page__soft-empty app-empty-card__text">
-              Este perfil ainda mantém os interesses mais discretos.
-            </p>
-          }
-
-          <div class="other-profile-page__interaction-signals" aria-label="Sinais de interação">
-            @for (signal of profileSignals; track signal.label) {
-              <div
-                class="other-profile-page__signal app-card app-card--flat"
-                [class.other-profile-page__signal--strong]="signal.tone === 'strong'"
-                [class.other-profile-page__signal--muted]="signal.tone === 'muted'"
-              >
-                <i [class]="signal.icon" aria-hidden="true"></i>
-
-                <div>
-                  <span>{{ signal.label }}</span>
-                  <strong>{{ signal.value }}</strong>
-                </div>
-              </div>
-            }
-          </div>
-        </article>
-      </section>
-
-      <section class="other-profile-page__content" aria-label="Detalhes do perfil">
-        <article class="other-profile-page__panel other-profile-page__panel--summary app-card">
-          <header class="other-profile-page__panel-header app-card__header">
-            <h2>Dados básicos</h2>
-          </header>
-
-          <dl class="other-profile-page__facts">
-            <div class="other-profile-page__fact">
-              <dt>Apelido</dt>
-              <dd>{{ profile.nickname || 'Não informado' }}</dd>
-            </div>
-
-            <div class="other-profile-page__fact">
-              <dt>Gênero</dt>
-              <dd>{{ profile.gender ? (profile.gender | titlecase) : 'Não informado' }}</dd>
-            </div>
-
-            <div class="other-profile-page__fact">
-              <dt>Orientação</dt>
-              <dd>{{ profile.orientation || 'Não informada' }}</dd>
-            </div>
-
-            @if (hasLocation) {
-              <div class="other-profile-page__fact">
-                <dt>Localização</dt>
-                <dd>{{ profile.municipio }}, {{ profile.estado }}</dd>
-              </div>
-            }
-          </dl>
-        </article>
-
-        <article
-          class="other-profile-page__panel other-profile-page__panel--social app-card"
-          role="region"
-          aria-labelledby="social-heading"
-        >
-          <header class="other-profile-page__panel-header app-card__header">
-            <h2 id="social-heading">Redes sociais</h2>
-          </header>
-
-          <app-social-links-accordion
-            [uid]="uid"
-            [isOwner]="false"
-            aria-label="Links sociais do usuário"
-          ></app-social-links-accordion>
-        </article>
-      </section>
-    } @else {
+    @if (hasPreferenceChips) {
       <section
-        class="other-profile-page__panel other-profile-page__empty app-card app-empty-card"
-        role="status"
-        aria-live="polite"
+        class="other-profile-page__affinities"
+        aria-labelledby="profile-affinities-heading"
       >
-        <h1 id="profile-heading">Perfil indisponível</h1>
-        <p>Não foi possível carregar este perfil no momento.</p>
+        <h2 id="profile-affinities-heading">Afinidades</h2>
 
-        <a class="app-action app-action--ghost" [routerLink]="discoveryLink">
-          Voltar
-        </a>
+        <div
+          class="other-profile-page__preference-cloud"
+          aria-label="Interesses declarados"
+        >
+          @for (preference of preferenceChips; track preference) {
+            <span class="other-profile-page__preference-chip">
+              {{ preference }}
+            </span>
+          }
+        </div>
       </section>
     }
+
+    <section
+      class="other-profile-page__social"
+      aria-labelledby="social-heading"
+    >
+      <h2 id="social-heading">Redes</h2>
+
+      <app-social-links-accordion
+        [uid]="uid"
+        [isOwner]="false"
+        aria-label="Links sociais do perfil"
+      />
+    </section>
+  } @else {
+    <div
+      class="other-profile-page__empty"
+      role="status"
+      aria-live="polite"
+    >
+      <p>Perfil indisponível.</p>
+      <a [routerLink]="discoveryLink">Voltar aos perfis</a>
+    </div>
   }
 </section>
