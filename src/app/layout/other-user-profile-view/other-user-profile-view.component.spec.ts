@@ -1,26 +1,27 @@
 // src/app/layout/other-user-profile-view/other-user-profile-view.component.spec.ts
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { Firestore } from '@angular/fire/firestore';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { Store } from '@ngrx/store';
-import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { Firestore } from '@angular/fire/firestore';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OtherUserProfileViewComponent } from './other-user-profile-view.component';
-import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
-import { MediaPublicQueryService } from '../../core/services/media/media-public-query.service';
+import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
-import { FriendshipService } from '../../core/services/interactions/friendship/friendship.service';
-import { DirectChatService } from '../../messaging/direct-chat/services/direct-chat.service';
-import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
+import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
+import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
+import { FriendshipService } from '../../core/services/interactions/friendship/friendship.service';
+import { MediaPublicQueryService } from '../../core/services/media/media-public-query.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { UserSocialLinksService } from '../../core/services/user-profile/user-social-links.service';
-import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
-
+import { DirectChatService } from '../../messaging/direct-chat/services/direct-chat.service';
+import { SocialLinksAccordionComponent } from '../../user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
 
 describe('OtherUserProfileViewComponent', () => {
   let fixture: ComponentFixture<OtherUserProfileViewComponent>;
@@ -94,6 +95,12 @@ describe('OtherUserProfileViewComponent', () => {
           },
         },
         {
+          provide: AccessControlService,
+          useValue: {
+            isSubscriber$: of(false),
+          },
+        },
+        {
           provide: FriendshipService,
           useValue: {
             sendRequest: vi.fn(() => of(void 0)),
@@ -118,6 +125,7 @@ describe('OtherUserProfileViewComponent', () => {
           useValue: {
             showSuccess: vi.fn(),
             showError: vi.fn(),
+            showWarning: vi.fn(),
           },
         },
         {
@@ -201,6 +209,20 @@ describe('OtherUserProfileViewComponent', () => {
     expect(
       fixture.debugElement.query(By.css('.other-profile-page__signal'))
     ).toBeNull();
+  });
+
+  it('configura redes como superfície compacta e ocultável', () => {
+    const socialLinks = fixture.debugElement.query(
+      By.directive(SocialLinksAccordionComponent)
+    );
+    const socialComponent =
+      socialLinks.componentInstance as SocialLinksAccordionComponent;
+
+    expect(socialComponent.uid()).toBe(targetUid);
+    expect(socialComponent.isOwner()).toBe(false);
+    expect(socialComponent.compact()).toBe(true);
+    expect(socialComponent.hideWhenEmpty()).toBe(true);
+    expect(socialLinks.nativeElement.hasAttribute('hidden')).toBe(true);
   });
 
   it('não repete dados básicos, segurança ou promoção de planos', () => {
