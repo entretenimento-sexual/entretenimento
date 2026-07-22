@@ -10,6 +10,7 @@
 // Cada fonte falha de forma isolada. O conteúdo saudável continua visível e o
 // diagnóstico técnico segue para o GlobalErrorHandlerService sem expor detalhes.
 // shareReplay funciona como cache reativo da sessão e refresh() invalida o lote.
+// Comunidades e Locais respeitam integralmente a feature flag communityPreview.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -24,6 +25,7 @@ import {
 
 import { CommunityPreviewCard } from 'src/app/community/data-access/community-preview.model';
 import { CommunityPreviewRepository } from 'src/app/community/data-access/community-preview.repository';
+import { isFeatureEnabled } from 'src/app/core/guards/access-guard/feature-flag.guard';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
@@ -41,6 +43,7 @@ interface FeedSourceResult<T> {
 
 const PHOTO_LIMIT = 12;
 const SPACE_LIMIT = 4;
+const SOCIAL_SPACES_ENABLED = isFeatureEnabled('communityPreview');
 
 @Injectable({ providedIn: 'root' })
 export class PrincipalFeedService {
@@ -69,10 +72,12 @@ export class PrincipalFeedService {
             communitiesResult.value,
             venuesResult.value
           );
-          const allSourcesFailed = failedSources.length === 3;
+          const enabledSourceCount = SOCIAL_SPACES_ENABLED ? 3 : 1;
+          const allEnabledSourcesFailed =
+            failedSources.length === enabledSourceCount;
 
           return {
-            status: allSourcesFailed
+            status: allEnabledSourcesFailed
               ? 'error'
               : items.length > 0
                 ? 'ready'
@@ -105,6 +110,10 @@ export class PrincipalFeedService {
   private loadSpaces$(
     sourceType: 'community' | 'venue'
   ): Observable<FeedSourceResult<readonly CommunityPreviewCard[]>> {
+    if (!SOCIAL_SPACES_ENABLED) {
+      return of({ value: [], failed: false });
+    }
+
     return this.communityRepository.getDiscoveryPage$({
       limit: SPACE_LIMIT,
       cursor: null,
