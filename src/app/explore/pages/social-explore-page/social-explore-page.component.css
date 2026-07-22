@@ -5,21 +5,19 @@
 }
 
 .social-feed-page {
-  width: min(100%, 27rem);
+  width: min(100%, 30rem);
   margin: 0 auto;
   padding:
-    clamp(0.75rem, 2vw, 1rem)
+    clamp(0.6rem, 1.8vw, 0.85rem)
     clamp(0.55rem, 2vw, 0.75rem)
     clamp(2.5rem, 5vw, 4rem);
 }
 
 .feed-header {
+  min-height: 2.75rem;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-width: 0;
-  margin-bottom: 0.45rem;
+  padding: 0 0.1rem 0.35rem;
 }
 
 .feed-header h1,
@@ -30,51 +28,16 @@
 }
 
 .feed-header h1 {
-  flex: 0 0 auto;
-  font-size: 1.05rem;
+  font-size: clamp(1.15rem, 1.05rem + 0.45vw, 1.4rem);
   line-height: 1.1;
-}
-
-.feed-shortcuts {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.65rem;
-}
-
-.feed-shortcuts a {
-  min-height: var(--tap-target, 2.75rem);
-  display: inline-flex;
-  align-items: center;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
-  font-size: 0.72rem;
-  font-weight: 760;
-  line-height: 1;
-  text-decoration: none;
-}
-
-.feed-shortcuts a:hover,
-.feed-shortcuts a:focus-visible {
-  color: var(--text-color, #f5f7fb);
-}
-
-.feed-shortcuts a:focus-visible,
-.feed-composer a:focus-visible,
-.feed-empty a:focus-visible,
-.feed-status__actions a:focus-visible,
-.feed-status__actions button:focus-visible {
-  border-radius: 0.45rem;
-  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
-  outline-offset: var(--focus-offset, 2px);
 }
 
 .feed-composer {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.6rem;
-  padding: 0.58rem 0;
+  padding: 0.48rem 0;
   border-top: 1px solid var(--surface-border, rgb(255 255 255 / 9%));
   border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 9%));
 }
@@ -99,60 +62,64 @@
   object-fit: cover;
 }
 
-.feed-composer__prompt {
+.feed-composer__publish {
+  min-width: 0;
+  min-height: var(--tap-target, 2.75rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.45rem 0.15rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  font-size: 0.82rem;
+  font-weight: 680;
+  text-decoration: none;
+}
+
+.feed-composer__publish > span:first-child {
   min-width: 0;
   overflow: hidden;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
-  font-size: 0.8rem;
-  text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.feed-composer__prompt:hover {
+.feed-composer__publish-icon {
+  flex: 0 0 auto;
+  color: var(--primary-color, #ff7070);
+  font-size: 1.05rem;
+}
+
+.feed-composer__publish:hover {
   color: var(--text-color, #f5f7fb);
 }
 
-.feed-composer__action {
-  display: inline-grid;
-  place-items: center;
-  width: var(--tap-target, 2.75rem);
-  height: var(--tap-target, 2.75rem);
-  border-radius: 50%;
-  color: var(--primary-color, #ff7070);
-  font-size: 1.1rem;
-  text-decoration: none;
+.feed-composer a:focus-visible,
+.feed-empty a:focus-visible,
+.feed-status__actions a:focus-visible,
+.feed-status__actions button:focus-visible {
+  border-radius: 0.45rem;
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: var(--focus-offset, 2px);
 }
 
 .feed-status {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-top: 0.65rem;
-  padding: 0.58rem 0.65rem;
-  border: 1px solid color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 18%,
-    var(--surface-border, rgb(255 255 255 / 10%))
-  );
-  border-radius: 0.7rem;
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 3%,
-    var(--surface-color, #101925)
-  );
+  gap: 0.7rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 9%));
 }
 
 .feed-status > div:first-child {
   min-width: 0;
   display: grid;
-  gap: 0.08rem;
+  gap: 0.05rem;
 }
 
 .feed-status strong {
   color: var(--text-color, #f5f7fb);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }
 
 .feed-status p,
@@ -163,28 +130,29 @@
 }
 
 .feed-status p {
+  overflow: hidden;
   font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .feed-status__actions {
   flex: 0 0 auto;
   display: flex;
-  gap: 0.3rem;
+  align-items: center;
+  gap: 0.1rem;
 }
 
 .feed-status__actions a,
-.feed-status__actions button,
-.feed-empty a {
-  min-height: 2.1rem;
+.feed-status__actions button {
+  min-height: var(--tap-target, 2.75rem);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-sizing: border-box;
-  padding: 0.45rem 0.62rem;
-  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
-  border-radius: 999px;
+  padding: 0.4rem 0.5rem;
+  border: 0;
   background: transparent;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 78%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
   font: inherit;
   font-size: 0.7rem;
   font-weight: 760;
@@ -193,38 +161,34 @@
   cursor: pointer;
 }
 
+.feed-status__actions a:hover,
+.feed-status__actions button:hover {
+  color: var(--text-color, #f5f7fb);
+}
+
 .feed-status__actions button:disabled {
   cursor: progress;
   opacity: 0.6;
 }
 
 .feed-timeline {
-  margin-top: 0.7rem;
+  margin-top: 0.55rem;
 }
 
 .feed-list {
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .feed-list app-public-photo-card {
   width: 100%;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 8%));
-}
-
-.feed-list app-public-photo-card:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
 }
 
 .feed-empty {
   display: grid;
-  gap: 0.55rem;
-  padding: 0.9rem;
-  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
-  border-radius: 0.75rem;
-  background: var(--surface-color, #101925);
+  gap: 0.5rem;
+  padding: 1rem 0.1rem;
+  border-top: 1px solid var(--surface-border, rgb(255 255 255 / 10%));
 }
 
 .feed-empty h3 {
@@ -237,9 +201,17 @@
 
 .feed-empty a {
   width: fit-content;
-  border-color: var(--primary-color, #ff7070);
-  background: var(--primary-color, #ff7070);
-  color: #fff;
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  color: var(--primary-color, #ff7070);
+  font-size: 0.78rem;
+  font-weight: 760;
+  text-decoration: none;
+}
+
+.feed-empty a:hover {
+  text-decoration: underline;
 }
 
 .visually-hidden {
@@ -254,7 +226,7 @@
   border: 0;
 }
 
-@media (max-width: 27rem) {
+@media (max-width: 30rem) {
   .social-feed-page {
     width: 100%;
     padding-inline: 0;
@@ -266,58 +238,45 @@
   .feed-empty {
     margin-inline: 0.55rem;
   }
-
-  .feed-shortcuts {
-    overflow-x: auto;
-    justify-content: flex-start;
-    scrollbar-width: none;
-  }
-
-  .feed-shortcuts::-webkit-scrollbar {
-    display: none;
-  }
-
-  .feed-list app-public-photo-card {
-    padding-inline: 0;
-  }
 }
 
 @media (max-width: 22rem) {
-  .feed-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
   .feed-status {
     align-items: stretch;
     flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .feed-status p {
+    white-space: normal;
   }
 
   .feed-status__actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: flex-start;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .feed-shortcuts,
-  .feed-shortcuts a,
   .feed-composer a,
   .feed-empty a,
   .feed-status__actions a,
   .feed-status__actions button {
-    scroll-behavior: auto;
     transition: none;
   }
 }
 
 :host-context(html.high-contrast) .feed-composer,
 :host-context(html.high-contrast) .feed-status,
-:host-context(html.high-contrast) .feed-empty,
-:host-context(html.high-contrast) .feed-status__actions a,
-:host-context(html.high-contrast) .feed-status__actions button {
+:host-context(html.high-contrast) .feed-empty {
   border-color: currentColor !important;
   background: var(--background-color) !important;
   color: var(--text-color) !important;
   box-shadow: none !important;
+}
+
+:host-context(html.high-contrast) .feed-status__actions a,
+:host-context(html.high-contrast) .feed-status__actions button,
+:host-context(html.high-contrast) .feed-empty a {
+  color: var(--text-color) !important;
+  outline-color: currentColor !important;
 }
