@@ -114,7 +114,23 @@ describe('PlatformSubscriptionReconciliationService', () => {
         monthlyPayer: true,
         subscriptionStatus: 'active',
         subscriptionScope: 'platform_subscription',
+        subscriptionStartedAt: NOW - 60_000,
         subscriptionEndsAt: NOW + 60_000,
+      })
+    );
+  });
+
+  it('preserva papel administrativo e usa tier pago separadamente', () => {
+    current = { ...CURRENT_USER, role: 'admin', tier: 'free' };
+    user$.next(current);
+
+    service.start();
+
+    expect(patchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'admin',
+        tier: 'premium',
+        isSubscriber: true,
       })
     );
   });
@@ -155,6 +171,64 @@ describe('PlatformSubscriptionReconciliationService', () => {
         monthlyPayer: false,
         subscriptionStatus: 'inactive',
         subscriptionScope: null,
+      })
+    );
+  });
+
+  it('faz fail-closed quando faltam versão, entitlement ou role válida', () => {
+    getSnapshotMock.mockReturnValueOnce(
+      of({
+        role: null,
+        tier: null,
+        isSubscriber: true,
+        status: 'active',
+        entitlements: [],
+        startsAt: NOW - 60_000,
+        endsAt: NOW + 60_000,
+        updatedAt: NOW,
+        projectionVersion: null,
+      })
+    );
+
+    service.start();
+
+    expect(patchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'free',
+        tier: 'free',
+        billingProjectionVersion: 1,
+        isSubscriber: false,
+        monthlyPayer: false,
+        subscriptionStatus: 'inactive',
+        subscriptionScope: null,
+      })
+    );
+  });
+
+  it('faz fail-closed quando o snapshot não contém período finito', () => {
+    getSnapshotMock.mockReturnValueOnce(
+      of({
+        role: 'vip',
+        tier: 'vip',
+        isSubscriber: true,
+        status: 'active',
+        entitlements: ['platform_subscription'],
+        startsAt: Number.NaN,
+        endsAt: Number.POSITIVE_INFINITY,
+        updatedAt: NOW,
+        projectionVersion: 1,
+      })
+    );
+
+    service.start();
+
+    expect(patchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'free',
+        tier: 'free',
+        isSubscriber: false,
+        monthlyPayer: false,
+        subscriptionStatus: 'inactive',
       })
     );
   });
