@@ -76,16 +76,14 @@ export interface IUserDados {
   idade?: number;
 
   /**
-   * IMPORTANTE:
-   * - No projeto atual, role ainda representa o tier/plano do usuário.
-   * - Não mudar isso agora, para não quebrar guards, selectors e telas já existentes.
+   * Role continua sendo compatibilidade de autorização/tier já usada em telas.
+   * A situação financeira nunca deve ser inferida apenas deste campo.
    */
   role: UserTierRole;
 
   /**
-   * Opcional por compat futura.
-   * - role continua sendo a fonte legada principal do tier.
-   * - tier entra para harmonizar com billing/access control/lifecycle.
+   * Tier operacional projetado pelo backend.
+   * Para assinatura, deve ser combinado com a projeção canônica versionada.
    */
   tier?: Exclude<UserTierRole, 'visitante'> | null;
 
@@ -114,8 +112,8 @@ export interface IUserDados {
   initialAdultConsentRequired?: boolean;
 
   /**
-   * Estado excepcional, independente do aceite inicial, criado somente após
-   * decisão administrativa em denúncia de perfil por possível menoridade.
+   * Estado excepcional criado após decisão administrativa em denúncia de
+   * perfil por possível menoridade.
    */
   ageReverification?: IUserAgeReverification | null;
   ageReverificationRestrictedAt?: number | null;
@@ -126,10 +124,7 @@ export interface IUserDados {
   gender?: string;
   orientation?: string;
 
-  /**
-   * Campos canônicos de discovery calculados no backend.
-   * Devem ter prioridade sobre gender/orientation brutos em filtros e compatibilidade.
-   */
+  /** Campos canônicos de discovery calculados no backend. */
   normalizedGender?: string | null;
   normalizedOrientation?: string | null;
   compatibilityReady?: boolean | null;
@@ -149,6 +144,8 @@ export interface IUserDados {
   // ---------------------------------------------------------------------------
   isOnline?: boolean;
   isSubscriber: boolean;
+
+  /** Alias legado, sincronizado pela projeção canônica. */
   monthlyPayer?: boolean;
 
   lastSeen?: number | null;
@@ -157,12 +154,19 @@ export interface IUserDados {
   lastLocationAt?: number | null;
 
   // ---------------------------------------------------------------------------
-  // Assinatura / billing
+  // Assinatura / billing — projeção operacional do entitlement
   // ---------------------------------------------------------------------------
+  billingProjectionVersion?: number | null;
   subscriptionStatus?: 'active' | 'inactive' | 'canceled' | 'past_due' | null;
   subscriptionScope?: string | null;
+  subscriptionStartedAt?: number | null;
+  subscriptionEndsAt?: number | null;
+
+  /** Alias legado de subscriptionEndsAt. */
   subscriptionExpires?: number | null;
+
   lastBillingCheckoutSessionId?: string | null;
+  lastBillingTransactionId?: string | null;
   billingUpdatedAt?: number | null;
 
   singleRoomCreationRightExpires?: number | null;
@@ -176,84 +180,54 @@ export interface IUserDados {
   // Moderação / lifecycle da conta
   // ---------------------------------------------------------------------------
 
-  /**
-   * Campo legado mantido por compatibilidade com fluxos antigos.
-   * Futuramente, a verdade canônica deve migrar para accountStatus.
-   */
+  /** Campo legado mantido por compatibilidade com fluxos antigos. */
   suspended?: boolean;
 
-  /**
-   * Fonte canônica nova para lifecycle da conta.
-   */
+  /** Fonte canônica para lifecycle da conta. */
   accountStatus?: AccountStatus;
 
-  /**
-   * Controle de visibilidade pública.
-   * - visible: conta pode aparecer nas superfícies públicas
-   * - hidden: conta invisível para discovery/busca/perfil público
-   */
+  /** Controle de visibilidade pública. */
   publicVisibility?: PublicVisibility;
 
-  /**
-   * Bloqueio de interações.
-   * Quando true, o usuário não deve conseguir interagir normalmente.
-   */
+  /** Bloqueio de interações. */
   interactionBlocked?: boolean;
 
   /**
-   * Permite login/sessão mesmo quando a conta está suspensa ou em exclusão pendente.
-   * Serve para viabilizar:
-   * - visualização da punição
-   * - prazo restante
-   * - reativação voluntária
-   * - cancelamento da exclusão na janela de arrependimento
+   * Permite login/sessão em estados restritos para mostrar punição, prazo,
+   * reativação ou cancelamento da exclusão.
    */
   loginAllowed?: boolean;
 
-  /**
-   * Auditoria mínima do estado atual.
-   */
+  /** Auditoria mínima do estado atual. */
   statusUpdatedAt?: number | null;
   statusUpdatedBy?: string | LifecycleActorSource | null;
 
-  /**
-   * Suspensão.
-   */
+  /** Suspensão. */
   suspensionReason?: string | null;
   suspensionSource?: 'self' | 'moderator' | null;
   suspensionEndsAt?: number | null;
 
-  /**
-   * Campos legados/compatíveis com serviços de moderação atuais.
-   */
+  /** Campos legados/compatíveis com serviços de moderação atuais. */
   suspendedAtMs?: number | null;
   suspendedBy?: string | null;
   unsuspendedAtMs?: number | null;
   unsuspendedBy?: string | null;
 
-  /**
-   * Lock técnico/administrativo já usado por serviços existentes.
-   */
+  /** Lock técnico/administrativo. */
   accountLocked?: boolean;
   lockedAtMs?: number | null;
   lockedBy?: string | null;
   unlockedAtMs?: number | null;
   unlockedBy?: string | null;
 
-  /**
-   * Exclusão com janela de arrependimento e expurgo posterior.
-   */
+  /** Exclusão com janela de arrependimento e expurgo posterior. */
   deletionRequestedAt?: number | null;
   deletionRequestedBy?: 'self' | 'moderator' | null;
   deletionUndoUntil?: number | null;
   purgeAfter?: number | null;
   deletedAt?: number | null;
 
-  /**
-   * Holds de retenção mínima.
-   * - legalHold: impede expurgo por obrigação legal/regulatória
-   * - billingHold: impede expurgo enquanto houver necessidade operacional/financeira
-   */
+  /** Holds de retenção mínima. */
   legalHold?: boolean;
   billingHold?: boolean;
 }
