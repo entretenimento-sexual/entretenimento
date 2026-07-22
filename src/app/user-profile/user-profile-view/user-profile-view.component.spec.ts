@@ -153,11 +153,19 @@ describe('UserProfileViewComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('deve usar o componente canônico de redes no perfil próprio', () => {
+  it('deve usar uma única superfície canônica para gerenciar redes', () => {
     const social = fixture.nativeElement.querySelector(
       'app-social-links-accordion'
     ) as HTMLElement | null;
+    const text = fixture.nativeElement.textContent as string;
+    const duplicateHeaderShortcut = fixture.nativeElement.querySelector(
+      'a[aria-label="Gerenciar redes sociais"]'
+    );
 
     expect(social).toBeTruthy();
+    expect(text).toContain('Gerenciar redes');
+    expect(duplicateHeaderShortcut).toBeNull();
+    expect(fixture.nativeElement.querySelector('.inline-editor')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.edit-row')).toBeNull();
   });
 });
