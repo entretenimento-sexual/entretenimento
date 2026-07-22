@@ -20,14 +20,14 @@ const DEFAULT_MAX_ITEMS_PER_OWNER = 2;
 const DEFAULT_VISIBLE_LIMIT = 6;
 
 /**
- * Monta uma timeline pública única sem criar uma segunda fonte de dados.
+ * Monta a timeline pessoal da área Descobrir.
  *
- * Regras:
- * - combina as seções já autorizadas do Explore;
- * - remove publicações duplicadas;
- * - prioriza autores compatíveis e publicações impulsionadas;
- * - limita repetição por autor para preservar diversidade;
- * - mantém recência e engajamento como critérios secundários.
+ * Ordem canônica:
+ * 1. publicações recentes de amigos;
+ * 2. publicações recentes de perfis compatíveis;
+ * 3. fallback público somente quando nenhuma relação pessoal foi resolvida.
+ *
+ * Conteúdo impulsionado e engajamento nunca ultrapassam o vínculo pessoal.
  */
 export function buildExplorePersonalFeed(
   vm: Pick<
@@ -36,7 +36,9 @@ export function buildExplorePersonalFeed(
     | 'mostViewedPhotos'
     | 'topPhotos'
     | 'latestPhotos'
+    | 'personalPhotos'
     | 'compatibleProfiles'
+    | 'friendUids'
   >,
   options: ExplorePersonalFeedOptions = {}
 ): IPublicPhotoItem[] {
@@ -45,35 +47,51 @@ export function buildExplorePersonalFeed(
     options.maxItemsPerOwner,
     DEFAULT_MAX_ITEMS_PER_OWNER
   );
-  const compatibleOwners = new Set(
-    (vm.compatibleProfiles ?? [])
-      .map((profile: PublicProfileCard) => String(profile.uid ?? '').trim())
-      .filter(Boolean)
+  const friendOwners = normalizeUidSet(vm.friendUids ?? []);
+  const compatibleOwners = normalizeUidSet(
+    (vm.compatibleProfiles ?? []).map(
+      (profile: PublicProfileCard) => profile.uid
+    )
   );
+  const personalizedOwners = new Set([
+    ...friendOwners,
+    ...compatibleOwners,
+  ]);
 
   const uniqueItems = new Map<string, IPublicPhotoItem>();
 
   for (const item of [
-    ...(vm.boostedPhotos ?? []),
+    ...(vm.personalPhotos ?? []),
     ...(vm.latestPhotos ?? []),
+    ...(vm.boostedPhotos ?? []),
     ...(vm.topPhotos ?? []),
     ...(vm.mostViewedPhotos ?? []),
   ]) {
     const key = buildPublicationKey(item);
+    const ownerUid = String(item?.ownerUid ?? '').trim();
+
     if (!key || uniqueItems.has(key)) continue;
+    if (personalizedOwners.size > 0 && !personalizedOwners.has(ownerUid)) {
+      continue;
+    }
+
     uniqueItems.set(key, item);
   }
 
   const ranked = [...uniqueItems.values()].sort((a, b) => {
-    const relevanceDiff =
-      calculateRelevanceScore(b, compatibleOwners) -
-      calculateRelevanceScore(a, compatibleOwners);
+    const relationshipDiff =
+      relationshipPriority(b.ownerUid, friendOwners, compatibleOwners) -
+      relationshipPriority(a.ownerUid, friendOwners, compatibleOwners);
 
-    if (relevanceDiff !== 0) return relevanceDiff;
+    if (relationshipDiff !== 0) return relationshipDiff;
 
     const publishedDiff =
       toFiniteNumber(b.publishedAt) - toFiniteNumber(a.publishedAt);
+
     if (publishedDiff !== 0) return publishedDiff;
+
+    const relevanceDiff = calculateSecondaryScore(b) - calculateSecondaryScore(a);
+    if (relevanceDiff !== 0) return relevanceDiff;
 
     return buildPublicationKey(a).localeCompare(buildPublicationKey(b));
   });
@@ -125,26 +143,36 @@ export function buildExplorePersonalFeedWindow(
   };
 }
 
-function calculateRelevanceScore(
-  item: IPublicPhotoItem,
+function relationshipPriority(
+  ownerUid: unknown,
+  friendOwners: ReadonlySet<string>,
   compatibleOwners: ReadonlySet<string>
 ): number {
-  const ownerUid = String(item.ownerUid ?? '').trim();
-  const compatibilityBoost = compatibleOwners.has(ownerUid)
-    ? 1_000_000_000
+  const normalized = String(ownerUid ?? '').trim();
+  if (friendOwners.has(normalized)) return 2;
+  if (compatibleOwners.has(normalized)) return 1;
+  return 0;
+}
+
+function calculateSecondaryScore(item: IPublicPhotoItem): number {
+  const paidBoost = item.boostActive === true
+    ? 1_000_000 + toFiniteNumber(item.boostPriority) * 1_000
     : 0;
-  const paidBoost =
-    item.boostActive === true
-      ? 100_000_000 + toFiniteNumber(item.boostPriority) * 1_000
-      : 0;
   const engagement =
     toFiniteNumber(item.engagementScore ?? item.score) * 10_000 +
     toFiniteNumber(item.reactionsCount ?? item.likesCount) * 300 +
     toFiniteNumber(item.commentsCount) * 500 +
     toFiniteNumber(item.viewsCount) * 10;
-  const recency = toFiniteNumber(item.publishedAt) / 1_000_000;
 
-  return compatibilityBoost + paidBoost + engagement + recency;
+  return paidBoost + engagement;
+}
+
+function normalizeUidSet(values: readonly unknown[]): Set<string> {
+  return new Set(
+    values
+      .map((value) => String(value ?? '').trim())
+      .filter(Boolean)
+  );
 }
 
 function buildPublicationKey(item: IPublicPhotoItem): string {
