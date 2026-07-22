@@ -10,11 +10,7 @@
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
-import {
-  Observable,
-  combineLatest,
-  of,
-} from 'rxjs';
+import { Observable, combineLatest, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -159,7 +155,7 @@ export class ExplorePersonalMediaService {
 
     return combineLatest([
       combineLatest(photoSources),
-      this.discoveryQuery.getProfilesByUids$(ownerUids, {
+      this.discoveryQuery.getProfilesByUids$([...ownerUids], {
         cacheTTL: 300_000,
       }),
     ]).pipe(
