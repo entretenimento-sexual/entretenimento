@@ -44,9 +44,9 @@ export class PlatformSubscriptionReconciliationService {
       this.session.uid$,
     ])
       .pipe(
-        filter(([ready, uid]) => ready === true && !!uid),
-        map(([, uid]) => uid!),
+        map(([ready, uid]) => (ready === true ? uid : null)),
         distinctUntilChanged(),
+        filter((uid): uid is string => !!uid),
         switchMap((uid) =>
           this.billingRepository.getMyBillingSnapshot$().pipe(
             tap((snapshot) => this.applySnapshot(uid, snapshot)),
