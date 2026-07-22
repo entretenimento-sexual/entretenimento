@@ -71,7 +71,7 @@
 
 .social-links-note,
 .no-links-info,
-.social-links-subscription p {
+.social-links-management p {
   margin: 0;
   color: color-mix(in oklab, var(--text-color, #111827) 70%, transparent);
   font-size: 0.82rem;
@@ -141,16 +141,16 @@
 }
 
 .social-link-value:focus-visible,
-.social-links-subscription button:focus-visible {
+.social-links-management button:focus-visible {
   outline: var(--focus-ring, 2px solid var(--primary-color, #ff4d57));
   outline-offset: var(--focus-offset, 2px);
 }
 
-.social-links-subscription {
+.social-links-management {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 0.65rem;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
@@ -161,11 +161,11 @@
   );
 }
 
-.social-links-subscription p {
+.social-links-management p {
   flex: 1 1 18rem;
 }
 
-.social-links-subscription button {
+.social-links-management button {
   appearance: none;
   -webkit-appearance: none;
   min-height: 2.5rem;
@@ -180,53 +180,15 @@
   cursor: pointer;
 }
 
-.inline-editor {
-  display: grid;
-  gap: 0.7rem;
-  margin-top: 0.9rem;
-  padding-top: 0.9rem;
-  border-top: 1px solid color-mix(
+.social-links-management button:hover {
+  background: color-mix(
     in oklab,
-    var(--surface-border, #e5e7eb) 70%,
+    var(--primary-color, #ff4d57) 7%,
     transparent
   );
 }
 
-.edit-row {
-  display: grid;
-  grid-template-columns: minmax(6rem, 8rem) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.55rem;
-}
-
-.edit-label {
-  color: color-mix(in oklab, var(--text-color, #111827) 76%, transparent);
-  font-size: 0.82rem;
-  font-weight: 760;
-}
-
-.edit-input {
-  min-width: 0;
-  min-height: 2.6rem;
-  border-radius: 0.65rem;
-}
-
-.edit-actions {
-  display: inline-flex;
-  gap: 0.4rem;
-}
-
-.edit-actions .btn,
-.open-editor-page {
-  min-height: 2.5rem;
-  padding-inline: 0.7rem;
-}
-
-.open-editor-page {
-  margin-top: 0.75rem;
-}
-
-/* Perfil visitado: o conteúdo domina, sem outro cartão dentro da página. */
+/* Perfil visitado: conteúdo aberto, sem outro cartão dentro da vitrine. */
 :host ::ng-deep .social-links-accordion--compact .mat-expansion-panel {
   border: 0;
   border-radius: 0;
@@ -257,6 +219,10 @@
   min-height: 2.6rem;
 }
 
+.social-links-accordion--compact .social-links-management {
+  display: none;
+}
+
 @media (max-width: 700px) {
   .social-links-accordion--compact .social-link-list {
     grid-template-columns: 1fr;
@@ -272,36 +238,25 @@
     grid-column: 2;
   }
 
-  .edit-row {
-    grid-template-columns: 1fr;
+  .social-links-management {
+    align-items: stretch;
   }
 
-  .edit-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .edit-actions .btn {
+  .social-links-management button {
     width: 100%;
-  }
-}
-
-@media (max-width: 380px) {
-  .edit-actions {
-    grid-template-columns: 1fr;
   }
 }
 
 @media (prefers-contrast: more) {
   :host ::ng-deep .mat-expansion-panel,
-  .social-links-subscription button {
+  .social-links-management button {
     border-width: 2px;
   }
 
   .social-link-label,
   .social-links-note,
   .no-links-info,
-  .social-links-subscription p {
+  .social-links-management p {
     color: var(--text-color, #111827);
   }
 }
