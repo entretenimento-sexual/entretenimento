@@ -3,6 +3,10 @@ import { Component, inject } from '@angular/core';
 import { MatDialogRef } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 
+import {
+  TERMS_ACCEPTANCE_VERSION,
+} from '../../../core/services/compliance/terms-acceptance.service';
+
 @Component({
   selector: 'app-termos-e-condicoes',
   imports: [],
@@ -10,6 +14,8 @@ import { Router } from '@angular/router';
   styleUrls: ['./termos-e-condicoes.component.css'],
 })
 export class TermosECondicoesComponent {
+  readonly termsVersion = TERMS_ACCEPTANCE_VERSION;
+
   private readonly dialogRef = inject<MatDialogRef<TermosECondicoesComponent> | null>(
     MatDialogRef,
     { optional: true }
