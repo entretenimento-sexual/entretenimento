@@ -1,32 +1,9 @@
 @if (state$ | async; as state) {
-  <article
-    class="profile-media-showcase app-card app-card--media"
-    aria-labelledby="profile-media-showcase-title"
+  <section
+    class="profile-media-showcase"
+    [attr.aria-label]="'Mídias públicas de ' + profileName()"
     [attr.aria-busy]="state.status === 'loading' ? 'true' : 'false'"
   >
-    <header class="profile-media-showcase__header app-card__header">
-      <div class="profile-media-showcase__heading">
-        <span class="profile-media-showcase__eyebrow">Mídias públicas</span>
-        <h2 id="profile-media-showcase-title">Galeria de {{ profileName() }}</h2>
-        <p>
-          Fotos e vídeos aprovados que este perfil escolheu compartilhar. Abra
-          uma mídia para visualizar sem sair do perfil.
-        </p>
-      </div>
-
-      @if (state.status === 'ready') {
-        <div class="profile-media-showcase__summary" aria-live="polite">
-          <strong>{{ state.items.length }}</strong>
-          <span>{{ state.items.length === 1 ? 'mídia' : 'mídias' }}</span>
-          <small>
-            {{ state.photosCount }} {{ state.photosCount === 1 ? 'foto' : 'fotos' }}
-            ·
-            {{ state.videosCount }} {{ state.videosCount === 1 ? 'vídeo' : 'vídeos' }}
-          </small>
-        </div>
-      }
-    </header>
-
     @switch (state.status) {
       @case ('loading') {
         <div
@@ -45,14 +22,10 @@
 
       @case ('error') {
         <div class="profile-media-showcase__state" role="alert">
-          <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
-          <div>
-            <h3>Mídias temporariamente indisponíveis</h3>
-            <p>A galeria não pôde ser carregada. O restante do perfil continua disponível.</p>
-          </div>
+          <span>Não foi possível carregar as mídias.</span>
           <button
             type="button"
-            class="app-action app-action--ghost"
+            class="profile-media-showcase__retry"
             (click)="retry()"
           >
             Tentar novamente
@@ -61,13 +34,13 @@
       }
 
       @case ('empty') {
-        <div class="profile-media-showcase__state" role="status" aria-live="polite">
-          <i class="fas fa-photo-film" aria-hidden="true"></i>
-          <div>
-            <h3>Nenhuma mídia pública aprovada</h3>
-            <p>Este perfil ainda não disponibilizou fotos ou vídeos para visitantes.</p>
-          </div>
-        </div>
+        <p
+          class="profile-media-showcase__empty"
+          role="status"
+          aria-live="polite"
+        >
+          Sem mídias públicas.
+        </p>
       }
 
       @case ('ready') {
@@ -88,7 +61,6 @@
               type="button"
               class="profile-media-showcase__item"
               [class.profile-media-showcase__item--featured]="index === 0"
-              [class.profile-media-showcase__item--cover]="isCover(item)"
               [class.profile-media-showcase__item--video]="isVideo(item)"
               (click)="openMedia(item, index)"
               [disabled]="viewerOpening()"
@@ -99,19 +71,25 @@
                 @if (item.posterUrl) {
                   <img
                     [src]="item.posterUrl"
-                    [alt]="item.alt || item.title || 'Poster do vídeo público'"
+                    [alt]="item.alt || item.title || 'Vídeo público do perfil'"
                     [attr.loading]="index === 0 ? 'eager' : 'lazy'"
                     [attr.fetchpriority]="index === 0 ? 'high' : null"
                     decoding="async"
                     referrerpolicy="no-referrer"
                   />
                 } @else {
-                  <span class="profile-media-showcase__video-placeholder" aria-hidden="true">
+                  <span
+                    class="profile-media-showcase__video-placeholder"
+                    aria-hidden="true"
+                  >
                     <i class="fas fa-film"></i>
                   </span>
                 }
 
-                <span class="profile-media-showcase__video-badge" aria-hidden="true">
+                <span
+                  class="profile-media-showcase__video-badge"
+                  aria-hidden="true"
+                >
                   <i class="fas fa-play"></i>
                   {{ formatDuration(item.durationMs) }}
                 </span>
@@ -126,24 +104,11 @@
                 />
               }
 
-              <span class="profile-media-showcase__item-gradient" aria-hidden="true"></span>
-
-              @if (index === 0) {
-                <span class="profile-media-showcase__featured-label">
-                  <i class="fas fa-expand" aria-hidden="true"></i>
-                  Abrir destaque
-                </span>
-              }
-
-              @if (isCover(item)) {
-                <span class="profile-media-showcase__cover-label">
-                  <i class="fas fa-star" aria-hidden="true"></i>
-                  Capa
-                </span>
-              }
-
               @if (index === 4 && remainingCount(state.items.length) > 0) {
-                <span class="profile-media-showcase__remaining" aria-hidden="true">
+                <span
+                  class="profile-media-showcase__remaining"
+                  aria-hidden="true"
+                >
                   +{{ remainingCount(state.items.length) }}
                 </span>
               }
@@ -151,35 +116,27 @@
           }
         </div>
 
-        <footer class="profile-media-showcase__footer app-card__footer">
-          <p>
-            <i class="fas fa-hand-pointer" aria-hidden="true"></i>
-            Toque em uma mídia ou use Enter para abrir o visualizador imersivo.
-          </p>
+        @if (state.photosCount > 0 || state.videosCount > 0) {
+          <nav
+            class="profile-media-showcase__links"
+            aria-label="Abrir galerias completas"
+          >
+            @if (state.photosCount > 0) {
+              <a [routerLink]="photoGalleryLink()">
+                <i class="fas fa-images" aria-hidden="true"></i>
+                Fotos
+              </a>
+            }
 
-          @if (state.photosCount > 0) {
-            <a
-              class="profile-media-showcase__gallery-link app-action app-action--primary"
-              [routerLink]="photoGalleryLink()"
-            >
-              <i class="fas fa-images" aria-hidden="true"></i>
-              <span>Ver todas as fotos</span>
-            </a>
-          }
-
-          @if (state.videosCount > 0) {
-            <a
-              class="profile-media-showcase__gallery-link app-action app-action--primary"
-              [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']"
-            >
-              <i class="fas fa-film" aria-hidden="true"></i>
-              <span>Ver todos os vídeos</span>
-            </a>
-          }
-
-          <ng-content select="[profile-media-footer]"></ng-content>
-        </footer>
+            @if (state.videosCount > 0) {
+              <a [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']">
+                <i class="fas fa-film" aria-hidden="true"></i>
+                Vídeos
+              </a>
+            }
+          </nav>
+        }
       }
     }
-  </article>
+  </section>
 }
