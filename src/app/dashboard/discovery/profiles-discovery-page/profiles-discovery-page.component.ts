@@ -6,7 +6,8 @@
 // Página pai da descoberta de perfis.
 //
 // Responsabilidade:
-// - manter "Todos" como modo padrão;
+// - manter o modo técnico "all" como entrada padrão do ranking;
+// - apresentar essa seleção ao usuário como "Para você";
 // - controlar o modo ativo da barra de descoberta;
 // - renderizar apenas modos realmente disponíveis;
 // - bloquear defensivamente ativação de modos desabilitados/planned;
@@ -70,17 +71,25 @@ export class ProfilesDiscoveryPageComponent {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  readonly tabs: readonly DiscoveryModeTab[] = DISCOVERY_MODE_TABS.filter(
-    (tab) => !tab.disabled
-  );
+  readonly tabs: readonly DiscoveryModeTab[] = DISCOVERY_MODE_TABS
+    .filter((tab) => !tab.disabled)
+    .map((tab) =>
+      tab.id === 'all'
+        ? {
+            ...tab,
+            shortLabel: 'Para você',
+            ariaLabel: 'Ver perfis selecionados para você',
+          }
+        : tab
+    );
 
   /**
-   * "Todos" é o modo padrão.
+   * "all" continua sendo o identificador técnico do modo padrão.
    *
    * Regras:
    * - não exige localização;
    * - usa public_profiles como base;
-   * - score, presença, distância e região entram como enriquecimento/ranking;
+   * - score, presença, distância e compatibilidade entram como enriquecimento;
    * - não deve virar lista bruta da plataforma.
    */
   readonly activeMode = signal<DiscoveryMode>(DEFAULT_DISCOVERY_MODE);
