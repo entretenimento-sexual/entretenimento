@@ -4,11 +4,7 @@
 // -----------------------------------------------------------------------------
 // Mantém entitlements e projeções operacionais sincronizados mesmo quando o
 // usuário não abre o aplicativo após renovação, expiração ou migração legada.
-//
-// Segurança:
-// - a avaliação continua fail-closed;
-// - o cliente não participa da reconciliação;
-// - Firestore Rules também verificam subscriptionEndsAt contra request.time.
+// Entitlements já inativos ficam fora da varredura recorrente.
 // -----------------------------------------------------------------------------
 
 import {
@@ -71,6 +67,7 @@ export const reconcilePlatformSubscriptions = onSchedule(
       let query = db
         .collection('entitlements')
         .where('scope', '==', 'platform_subscription')
+        .where('active', '==', true)
         .orderBy(FieldPath.documentId())
         .limit(PAGE_SIZE);
 
