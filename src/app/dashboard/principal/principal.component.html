@@ -205,6 +205,10 @@
       [user]="currentUser"
     />
 
+    @if (!socialSpacesEnabled) {
+      <app-hot-places-widget class="feed-block" />
+    }
+
     @if (feedState$ | async; as feed) {
       <section
         class="feed-stream"
