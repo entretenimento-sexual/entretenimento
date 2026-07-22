@@ -21,9 +21,11 @@
 // - Este componente NÃO busca public_profiles.
 // - Este componente NÃO renderiza edição/social/fotos se detectar perfil alheio.
 // - Perfil alheio pertence ao OtherUserProfileViewComponent.
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { Store } from '@ngrx/store';
 import { Observable, combineLatest, of } from 'rxjs';
 import {
   auditTime,
@@ -36,32 +38,28 @@ import {
   switchMap,
   tap,
 } from 'rxjs/operators';
-import { Store } from '@ngrx/store';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { AppState } from 'src/app/store/states/app.state';
+import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { NetworkStatusService } from '@core/services/network/network-status.service';
+import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import {
+  ContentStateComponent,
+  ContentStateKind,
+} from 'src/app/shared/content-state/content-state.component';
+import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
+import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
+import * as UserActions from 'src/app/store/actions/actions.user/user.actions';
 import {
   selectCurrentUser,
   selectCurrentUserStatus,
   selectCurrentUserUid,
   type CurrentUserStatus,
 } from 'src/app/store/selectors/selectors.user/user.selectors';
-import * as UserActions from 'src/app/store/actions/actions.user/user.actions';
-
-import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { NetworkStatusService } from '@core/services/network/network-status.service';
-import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
-
-import {
-  ContentStateComponent,
-  ContentStateKind,
-} from 'src/app/shared/content-state/content-state.component';
+import { AppState } from 'src/app/store/states/app.state';
+import { SocialLinksAccordionComponent } from './user-social-links-accordion/user-social-links-accordion.component';
 import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
-import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
-import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
 
 interface ProfileContentStateVm {
   state: ContentStateKind;
@@ -81,6 +79,7 @@ interface ProfileContentStateVm {
     RouterModule,
     ContentStateComponent,
     UserPhotoManagerComponent,
+    SocialLinksAccordionComponent,
     DateFormatPipe,
     CapitalizePipe,
   ],
