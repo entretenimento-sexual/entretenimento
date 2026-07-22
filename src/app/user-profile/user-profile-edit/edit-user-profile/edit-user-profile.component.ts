@@ -5,8 +5,8 @@ import {
   OnDestroy,
   OnInit,
 } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { EMPTY, Observable, Subject, from, of } from 'rxjs';
 import {
@@ -23,17 +23,15 @@ import {
   tap,
 } from 'rxjs/operators';
 
+import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ValidatorService } from 'src/app/core/services/general/validator.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
-import { ValidatorService } from 'src/app/core/services/general/validator.service';
-import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-social-links.service';
-import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/iuser-social-links';
-import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
 
 type IbgeEstado = {
   id: number;
@@ -62,20 +60,6 @@ const PROFILE_DRAFT_FIELDS = [
   'partner1Orientation',
   'partner2Orientation',
   'descricao',
-  'facebook',
-  'instagram',
-  'hotvips',
-  'sexlog',
-  'd4swing',
-  'privacy',
-  'onlyfans',
-  'fansly',
-  'linktree',
-  'twitter',
-  'tiktok',
-  'youtube',
-  'linkedin',
-  'snapchat',
 ] as const;
 
 @Component({
@@ -85,7 +69,7 @@ const PROFILE_DRAFT_FIELDS = [
   standalone: false,
 })
 export class EditUserProfileComponent
-implements OnInit, OnDestroy, UnsavedChangesAware
+  implements OnInit, OnDestroy, UnsavedChangesAware
 {
   public progressValue = 0;
   userData: IUserDados = {} as IUserDados;
@@ -116,14 +100,13 @@ implements OnInit, OnDestroy, UnsavedChangesAware
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly usuarioService: UsuarioService,
-    private readonly userSocialLinks: UserSocialLinksService,
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly formBuilder: FormBuilder,
     private readonly storageService: StorageService,
     private readonly localDraft: LocalDraftService,
     private readonly notify: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService,
+    private readonly globalError: GlobalErrorHandlerService
   ) {
     this.editForm = this.formBuilder.group({
       nickname: ['', [Validators.minLength(3)]],
@@ -134,29 +117,14 @@ implements OnInit, OnDestroy, UnsavedChangesAware
       partner1Orientation: [''],
       partner2Orientation: [''],
       descricao: ['', [Validators.maxLength(2000)]],
-      facebook: ['', [ValidatorService.facebookValidator()]],
-      instagram: ['', [ValidatorService.instagramValidator()]],
-      hotvips: [''],
-      sexlog: [''],
-      d4swing: [''],
-      privacy: [''],
-      onlyfans: [''],
-      fansly: [''],
-      linktree: [''],
-      twitter: [''],
-      tiktok: [''],
-      youtube: [''],
-      linkedin: [''],
-      snapchat: [''],
     });
   }
 
   isCouple(): boolean {
-    const gender = (
-      this.editForm.get('gender')?.value ??
-      this.userData.gender ??
-      ''
-    ).toString();
+    const gender = String(
+      this.editForm.get('gender')?.value ?? this.userData.gender ?? ''
+    );
+
     return [
       'casal-ele-ele',
       'casal-ele-ela',
@@ -165,94 +133,105 @@ implements OnInit, OnDestroy, UnsavedChangesAware
   }
 
   ngOnInit(): void {
-    this.uid = (
+    this.uid = String(
       this.route.snapshot.paramMap.get('id') ??
-      this.route.snapshot.paramMap.get('uid') ??
-      ''
+        this.route.snapshot.paramMap.get('uid') ??
+        ''
     ).trim();
 
     if (!this.uid) {
       this.notify.showError(
         'Não foi possível identificar o usuário para edição.'
       );
-      this.router.navigate(['/perfil']);
+      this.router.navigate(['/perfil']).catch(() => undefined);
       return;
     }
 
     this.draftKey = `profile-edit:${this.uid}`;
     this.observeDraftChanges();
 
-    this.firestoreUserQuery.getUser(this.uid).pipe(
-      take(1),
-      tap((user) => {
-        if (!user) throw new Error('Usuário não encontrado.');
-        this.userData = user;
-      }),
-      switchMap((user) => this.loadEstados$().pipe(
-        tap((estados) => (this.estados = estados)),
-        switchMap(() => user?.estado
-          ? this.loadMunicipios$(user.estado)
-          : of([])),
+    this.firestoreUserQuery
+      .getUser(this.uid)
+      .pipe(
+        take(1),
+        tap((user) => {
+          if (!user) throw new Error('Usuário não encontrado.');
+          this.userData = user;
+        }),
+        switchMap((user) =>
+          this.loadEstados$().pipe(
+            tap((estados) => (this.estados = estados)),
+            switchMap(() =>
+              user?.estado ? this.loadMunicipios$(user.estado) : of([])
+            ),
+            tap((municipios) => {
+              this.municipios = municipios;
+              this.syncMunicipioControlState(municipios);
+            }),
+            tap(() => this.patchFormFromUser(this.userData))
+          )
+        ),
+        catchError((error) =>
+          this.handleError$(
+            error,
+            'init',
+            'Falha ao carregar seus dados para edição.'
+          )
+        ),
+        finalize(() => this.initializeDraftState()),
+        takeUntil(this.destroy$)
+      )
+      .subscribe();
+
+    this.editForm
+      .get('gender')!
+      .valueChanges.pipe(
+        startWith(this.editForm.get('gender')!.value),
+        map((value) => String(value ?? '')),
+        distinctUntilChanged(),
+        tap((gender) => this.syncOrientationControls(gender)),
+        takeUntil(this.destroy$)
+      )
+      .subscribe();
+
+    this.editForm
+      .get('estado')!
+      .valueChanges.pipe(
+        map((value) => String(value ?? '').trim()),
+        distinctUntilChanged(),
+        switchMap((sigla) =>
+          sigla ? this.loadMunicipios$(sigla) : of([])
+        ),
         tap((municipios) => {
           this.municipios = municipios;
           this.syncMunicipioControlState(municipios);
+
+          const selected = String(
+            this.editForm.get('municipio')?.value ?? ''
+          );
+
+          if (
+            selected &&
+            municipios.some((municipio) => municipio.nome === selected)
+          ) {
+            return;
+          }
+
+          this.editForm.patchValue(
+            { municipio: municipios[0]?.nome ?? '' },
+            { emitEvent: false }
+          );
         }),
-        tap(() => this.patchFormFromUser(this.userData)),
-        switchMap(() => this.userSocialLinks
-          .getSocialLinks(this.uid, { allowAnonymousRead: false })
-          .pipe(take(1))),
-        tap((links) => this.patchFormFromSocialLinks(links)),
-      )),
-      catchError((error) => this.handleError$(
-        error,
-        'init',
-        'Falha ao carregar seus dados para edição.'
-      )),
-      finalize(() => this.initializeDraftState()),
-      takeUntil(this.destroy$),
-    ).subscribe();
-
-    this.editForm.get('gender')!.valueChanges.pipe(
-      startWith(this.editForm.get('gender')!.value),
-      map((value) => (value ?? '').toString()),
-      distinctUntilChanged(),
-      tap((gender) => this.syncOrientationControls(gender)),
-      takeUntil(this.destroy$),
-    ).subscribe();
-
-    this.editForm.get('estado')!.valueChanges.pipe(
-      map((value) => (value ?? '').toString().trim()),
-      distinctUntilChanged(),
-      switchMap((sigla) => sigla
-        ? this.loadMunicipios$(sigla)
-        : of([])),
-      tap((municipios) => {
-        this.municipios = municipios;
-        this.syncMunicipioControlState(municipios);
-
-        const selected = (
-          this.editForm.get('municipio')?.value ?? ''
-        ).toString();
-
-        if (
-          selected &&
-          municipios.some((municipio) => municipio.nome === selected)
-        ) {
-          return;
-        }
-
-        this.editForm.patchValue(
-          { municipio: municipios[0]?.nome ?? '' },
-          { emitEvent: false }
-        );
-      }),
-      catchError((error) => this.handleError$(
-        error,
-        'estadoChange',
-        'Falha ao carregar municípios.'
-      )),
-      takeUntil(this.destroy$),
-    ).subscribe();
+        catchError((error) =>
+          this.handleError$(
+            error,
+            'estadoChange',
+            'Falha ao carregar municípios.'
+          )
+        ),
+        takeUntil(this.destroy$)
+      )
+      .subscribe();
   }
 
   ngOnDestroy(): void {
@@ -288,24 +267,25 @@ implements OnInit, OnDestroy, UnsavedChangesAware
     this.progressValue = 0;
     this.isUploading = true;
 
-    this.storageService.uploadProfileAvatar(
-      file,
-      this.uid,
-      (progress: number) => {
+    this.storageService
+      .uploadProfileAvatar(file, this.uid, (progress: number) => {
         this.progressValue = progress;
-      }
-    ).pipe(
-      tap((imageUrl: string) => {
-        this.userData = { ...this.userData, photoURL: imageUrl };
-      }),
-      catchError((error) => this.handleError$(
-        error,
-        'uploadProfileAvatar',
-        'Erro durante o upload da foto.'
-      )),
-      finalize(() => (this.isUploading = false)),
-      takeUntil(this.destroy$),
-    ).subscribe();
+      })
+      .pipe(
+        tap((imageUrl: string) => {
+          this.userData = { ...this.userData, photoURL: imageUrl };
+        }),
+        catchError((error) =>
+          this.handleError$(
+            error,
+            'uploadProfileAvatar',
+            'Erro durante o upload da foto.'
+          )
+        ),
+        finalize(() => (this.isUploading = false)),
+        takeUntil(this.destroy$)
+      )
+      .subscribe();
   }
 
   onEstadoChange(_estadoSigla: string): void {
@@ -334,61 +314,46 @@ implements OnInit, OnDestroy, UnsavedChangesAware
     const value = this.editForm.getRawValue();
 
     const profilePatch: Partial<IUserDados> = {
-      nickname: (value.nickname ?? '').toString().trim(),
-      estado: (value.estado ?? '').toString().trim(),
-      municipio: (value.municipio ?? '').toString().trim(),
-      gender: (value.gender ?? '').toString().trim(),
-      descricao: (value.descricao ?? '').toString(),
+      nickname: String(value.nickname ?? '').trim(),
+      estado: String(value.estado ?? '').trim(),
+      municipio: String(value.municipio ?? '').trim(),
+      gender: String(value.gender ?? '').trim(),
+      descricao: String(value.descricao ?? ''),
       orientation: this.isCouple()
         ? ''
-        : (value.orientation ?? '').toString().trim(),
+        : String(value.orientation ?? '').trim(),
       partner1Orientation: this.isCouple()
-        ? (value.partner1Orientation ?? '').toString().trim()
+        ? String(value.partner1Orientation ?? '').trim()
         : undefined,
       partner2Orientation: this.isCouple()
-        ? (value.partner2Orientation ?? '').toString().trim()
+        ? String(value.partner2Orientation ?? '').trim()
         : undefined,
       photoURL: this.userData.photoURL ?? null,
     };
 
-    const socialLinks: IUserSocialLinks = this.compactSocialLinks({
-      facebook: value.facebook,
-      instagram: value.instagram,
-      hotvips: value.hotvips,
-      sexlog: value.sexlog,
-      d4swing: value.d4swing,
-      privacy: value.privacy,
-      onlyfans: value.onlyfans,
-      fansly: value.fansly,
-      linktree: value.linktree,
-      twitter: value.twitter,
-      tiktok: value.tiktok,
-      youtube: value.youtube,
-      linkedin: value.linkedin,
-      snapchat: value.snapchat,
-    });
-
-    this.usuarioService.atualizarUsuario(this.uid, profilePatch).pipe(
-      switchMap(() => this.userSocialLinks.saveSocialLinks(
-        this.uid,
-        socialLinks,
-        { notifyOnError: true }
-      )),
-      finalize(() => (this.isSaving = false)),
-      catchError((error) => this.handleError$(
-        error,
-        'onSubmit',
-        'Não foi possível salvar agora.'
-      )),
-      takeUntil(this.destroy$),
-    ).subscribe({
-      next: () => {
-        this.localDraft.remove(this.draftKey);
-        this.editForm.markAsPristine();
-        this.notify.showSuccess('Perfil atualizado com sucesso.');
-        this.router.navigate(['/perfil', this.uid]);
-      },
-    });
+    this.usuarioService
+      .atualizarUsuario(this.uid, profilePatch)
+      .pipe(
+        finalize(() => (this.isSaving = false)),
+        catchError((error) =>
+          this.handleError$(
+            error,
+            'onSubmit',
+            'Não foi possível salvar agora.'
+          )
+        ),
+        takeUntil(this.destroy$)
+      )
+      .subscribe({
+        next: () => {
+          this.localDraft.remove(this.draftKey);
+          this.editForm.markAsPristine();
+          this.notify.showSuccess('Perfil atualizado com sucesso.');
+          this.router
+            .navigate(['/perfil', this.uid])
+            .catch(() => undefined);
+        },
+      });
   }
 
   private initializeDraftState(): void {
@@ -412,60 +377,44 @@ implements OnInit, OnDestroy, UnsavedChangesAware
   }
 
   private observeDraftChanges(): void {
-    this.editForm.valueChanges.pipe(
-      debounceTime(500),
-      filter(() => (
-        this.draftReady &&
-        this.editForm.dirty &&
-        !this.isSaving
-      )),
-      tap(() => {
-        const rawValue = this.editForm.getRawValue();
-        const draft: ProfileDraft = {};
+    this.editForm.valueChanges
+      .pipe(
+        debounceTime(500),
+        filter(
+          () =>
+            this.draftReady &&
+            this.editForm.dirty &&
+            !this.isSaving
+        ),
+        tap(() => {
+          const rawValue = this.editForm.getRawValue();
+          const draft: ProfileDraft = {};
 
-        PROFILE_DRAFT_FIELDS.forEach((field) => {
-          draft[field] = String(rawValue[field] ?? '');
-        });
+          PROFILE_DRAFT_FIELDS.forEach((field) => {
+            draft[field] = String(rawValue[field] ?? '');
+          });
 
-        this.localDraft.save(this.draftKey, draft);
-      }),
-      takeUntil(this.destroy$),
-    ).subscribe();
+          this.localDraft.save(this.draftKey, draft);
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe();
   }
 
   private patchFormFromUser(user: IUserDados): void {
-    this.editForm.patchValue({
-      nickname: user.nickname ?? '',
-      estado: user.estado ?? '',
-      municipio: user.municipio ?? '',
-      gender: user.gender ?? '',
-      orientation: user.orientation ?? '',
-      partner1Orientation: user.partner1Orientation ?? '',
-      partner2Orientation: user.partner2Orientation ?? '',
-      descricao: user.descricao ?? '',
-    }, { emitEvent: true });
-  }
-
-  private patchFormFromSocialLinks(
-    links: IUserSocialLinks | null
-  ): void {
-    const value = links ?? {};
-    this.editForm.patchValue({
-      facebook: value.facebook ?? '',
-      instagram: value.instagram ?? '',
-      hotvips: value.hotvips ?? '',
-      sexlog: value.sexlog ?? '',
-      d4swing: value.d4swing ?? '',
-      privacy: value.privacy ?? '',
-      onlyfans: value.onlyfans ?? '',
-      fansly: value.fansly ?? '',
-      linktree: value.linktree ?? '',
-      twitter: value.twitter ?? '',
-      tiktok: value.tiktok ?? '',
-      youtube: value.youtube ?? '',
-      linkedin: value.linkedin ?? '',
-      snapchat: value.snapchat ?? '',
-    }, { emitEvent: false });
+    this.editForm.patchValue(
+      {
+        nickname: user.nickname ?? '',
+        estado: user.estado ?? '',
+        municipio: user.municipio ?? '',
+        gender: user.gender ?? '',
+        orientation: user.orientation ?? '',
+        partner1Orientation: user.partner1Orientation ?? '',
+        partner2Orientation: user.partner2Orientation ?? '',
+        descricao: user.descricao ?? '',
+      },
+      { emitEvent: true }
+    );
   }
 
   private syncOrientationControls(gender: string): void {
@@ -499,22 +448,29 @@ implements OnInit, OnDestroy, UnsavedChangesAware
 
   private loadEstados$(): Observable<IbgeEstado[]> {
     return from(
-      fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados')
-        .then((response) => response.json())
+      fetch(
+        'https://servicodados.ibge.gov.br/api/v1/localidades/estados'
+      ).then((response) => response.json())
     ).pipe(
-      map((estados: IbgeEstado[]) => (estados ?? []).sort(
-        (first, second) => first.nome.localeCompare(second.nome)
-      )),
-      catchError((error) => this.handleError$(
-        error,
-        'loadEstados',
-        'Erro ao carregar estados.'
-      ).pipe(map(() => []))),
+      map((estados: IbgeEstado[]) =>
+        (estados ?? []).sort((first, second) =>
+          first.nome.localeCompare(second.nome)
+        )
+      ),
+      catchError((error) =>
+        this.handleError$(
+          error,
+          'loadEstados',
+          'Erro ao carregar estados.'
+        ).pipe(map(() => []))
+      )
     );
   }
 
-  private loadMunicipios$(estadoSigla: string): Observable<IbgeMunicipio[]> {
-    const sigla = (estadoSigla ?? '').trim();
+  private loadMunicipios$(
+    estadoSigla: string
+  ): Observable<IbgeMunicipio[]> {
+    const sigla = String(estadoSigla ?? '').trim();
     if (!sigla) return of([]);
 
     return from(
@@ -522,30 +478,19 @@ implements OnInit, OnDestroy, UnsavedChangesAware
         `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${sigla}/municipios`
       ).then((response) => response.json())
     ).pipe(
-      map((municipios: IbgeMunicipio[]) => (municipios ?? []).sort(
-        (first, second) => first.nome.localeCompare(second.nome)
-      )),
-      catchError((error) => this.handleError$(
-        error,
-        'loadMunicipios',
-        'Erro ao carregar municípios.'
-      ).pipe(map(() => []))),
+      map((municipios: IbgeMunicipio[]) =>
+        (municipios ?? []).sort((first, second) =>
+          first.nome.localeCompare(second.nome)
+        )
+      ),
+      catchError((error) =>
+        this.handleError$(
+          error,
+          'loadMunicipios',
+          'Erro ao carregar municípios.'
+        ).pipe(map(() => []))
+      )
     );
-  }
-
-  private compactSocialLinks(
-    input: Record<string, unknown>
-  ): IUserSocialLinks {
-    const output: IUserSocialLinks = {};
-
-    Object.entries(input).forEach(([key, value]) => {
-      const normalized = (value ?? '').toString().trim();
-      if (normalized) {
-        (output as Record<string, unknown>)[key] = normalized;
-      }
-    });
-
-    return output;
   }
 
   private handleError$(
@@ -553,13 +498,15 @@ implements OnInit, OnDestroy, UnsavedChangesAware
     context: string,
     userMessage: string
   ): Observable<never> {
-    const normalized = error instanceof Error
-      ? error
-      : new Error(String(error ?? 'unknown'));
+    const normalized =
+      error instanceof Error
+        ? error
+        : new Error(String(error ?? 'unknown'));
     const contextual = normalized as Error & {
       context?: unknown;
       silent?: boolean;
     };
+
     contextual.context = `EditUserProfileComponent.${context}`;
     contextual.silent = true;
 
