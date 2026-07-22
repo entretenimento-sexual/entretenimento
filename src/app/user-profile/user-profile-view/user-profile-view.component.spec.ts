@@ -1,4 +1,5 @@
 // src/app/user-profile/user-profile-view/user-profile-view.component.spec.ts
+import { Component, Input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
@@ -8,12 +9,16 @@ import { BehaviorSubject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UserProfileViewComponent } from './user-profile-view.component';
+import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
 import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { RoomManagementService } from '../../core/services/batepapo/room-services/room-management.service';
+import { NetworkStatusService } from '../../core/services/network/network-status.service';
+import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { UserSocialLinksService } from '../../core/services/user-profile/user-social-links.service';
 import {
   selectCurrentUser,
@@ -29,6 +34,24 @@ const CURRENT_USER = {
   profileCompleted: true,
   photoURL: '',
 };
+
+@Component({
+  selector: 'app-user-photo-manager',
+  standalone: true,
+  template: '',
+})
+class MockUserPhotoManagerComponent {
+  @Input() title = '';
+  @Input() mode = 'summary';
+  @Input() limit = 0;
+  @Input() showSort = true;
+  @Input() showActions = true;
+  @Input() showDate = true;
+  @Input() collapsible = false;
+  @Input() startCollapsed = false;
+  @Input() galleryLink: readonly unknown[] | null = null;
+  @Input() uploadLink: readonly unknown[] | null = null;
+}
 
 class MockCurrentUserStoreService {
   user$ = new BehaviorSubject<any | null | undefined>(CURRENT_USER);
@@ -94,7 +117,7 @@ describe('UserProfileViewComponent', () => {
   let component: UserProfileViewComponent;
 
   beforeEach(async () => {
-    await TestBed.configureTestingModule({
+    TestBed.configureTestingModule({
       imports: [
         UserProfileViewComponent,
         RouterTestingModule.withRoutes([]),
@@ -138,11 +161,33 @@ describe('UserProfileViewComponent', () => {
           useClass: MockErrorNotificationService,
         },
         {
+          provide: GlobalErrorHandlerService,
+          useValue: { handleError: vi.fn() },
+        },
+        {
+          provide: NetworkStatusService,
+          useValue: {
+            isOffline$: of(false),
+            isOnlineSnapshot: () => true,
+          },
+        },
+        {
+          provide: PrivacyDebugLoggerService,
+          useValue: { log: vi.fn() },
+        },
+        {
           provide: RoomManagementService,
           useClass: MockRoomManagementService,
         },
       ],
-    }).compileComponents();
+    });
+
+    TestBed.overrideComponent(UserProfileViewComponent, {
+      remove: { imports: [UserPhotoManagerComponent] },
+      add: { imports: [MockUserPhotoManagerComponent] },
+    });
+
+    await TestBed.compileComponents();
 
     fixture = TestBed.createComponent(UserProfileViewComponent);
     component = fixture.componentInstance;
