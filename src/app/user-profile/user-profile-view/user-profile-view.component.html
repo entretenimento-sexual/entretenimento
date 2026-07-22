@@ -1,16 +1,4 @@
 <!-- src/app/user-profile/user-profile-view/user-profile-view.component.html -->
-<!--
-  PERFIL PRÓPRIO
-
-  Este template não renderiza perfil alheio.
-  Se detectar UID externo, o TS redireciona para /outro-perfil/:uid.
-
-  Importante:
-  - app-social-links-accordion só aparece dentro do bloco de perfil próprio.
-  - app-user-photo-manager só aparece para o dono.
-  - não há edição/renderização parcial durante redirecionamento.
--->
-
 <div class="profile-page">
   <main class="profile-main" aria-label="Perfil do usuário">
     <div class="profile-shell container-wide">
@@ -34,7 +22,7 @@
           />
         }
 
-        @if ((usuario$ | async); as usuario) {
+        @if (usuario$ | async; as usuario) {
           @if (usuario && isOnOwnProfile()) {
             <section class="profile-card profile-card--hero" aria-label="Dados do perfil">
               <header class="profile-header">
@@ -52,21 +40,9 @@
 
                   <div class="profile-title">
                     <p class="profile-kicker">Minha presença</p>
-                    <h2 class="category-title">{{ usuario.nickname || 'Meu perfil' }}</h2>
-
-                    @if (usuario.nickname) {
-                      <p class="profile-lead">
-                        @if (isCouple(usuario.gender)) {
-                          <span>Perfil do casal <strong>{{ usuario.nickname }}</strong></span>
-                        } @else {
-                          <span>Perfil de <strong>{{ usuario.nickname }}</strong></span>
-                        }
-                      </p>
-                    } @else {
-                      <p class="profile-lead">
-                        Adicione um apelido para deixar sua presença mais reconhecível.
-                      </p>
-                    }
+                    <h1 class="category-title">
+                      {{ usuario.nickname || 'Meu perfil' }}
+                    </h1>
                   </div>
                 </div>
 
@@ -90,16 +66,16 @@
                   <a
                     class="btn btn-secondary"
                     [routerLink]="['/perfil', uid, 'edit-profile-social-links']"
-                    aria-label="Editar redes sociais"
+                    aria-label="Gerenciar redes sociais"
                   >
-                    Redes sociais
+                    Redes
                   </a>
                 </div>
               </header>
 
               <div class="profile-grid">
                 <div class="profile-block">
-                  <h3 class="block-title">Identidade</h3>
+                  <h2 class="block-title">Identidade</h2>
 
                   @if (isCouple(usuario.gender)) {
                     <p class="muted">
@@ -123,97 +99,18 @@
                 </div>
 
                 <div class="profile-block">
-                  <h3 class="block-title">Sobre mim</h3>
+                  <h2 class="block-title">Sobre mim</h2>
                   <p class="profile-text">
                     {{ usuario.descricao || 'Adicione uma descrição para explicar melhor quem você é e o que procura.' }}
                   </p>
                 </div>
 
-                <div class="profile-block">
-                  <h3 class="block-title">Redes sociais</h3>
-
-                  @if (usuario.socialLinks) {
-                    <ul class="links-list" role="list">
-                      @if (usuario.socialLinks.instagram) {
-                        <li class="links-item">
-                          <span class="links-label">Instagram</span>
-                          <span class="links-value">{{ usuario.socialLinks.instagram }}</span>
-                        </li>
-                      }
-
-                      @if (usuario.socialLinks.facebook) {
-                        <li class="links-item">
-                          <span class="links-label">Facebook</span>
-                          <span class="links-value">{{ usuario.socialLinks.facebook }}</span>
-                        </li>
-                      }
-
-                      @if (usuario.socialLinks.hotvips) {
-                        <li class="links-item">
-                          <span class="links-label">Hotvips</span>
-                          <span class="links-value">{{ usuario.socialLinks.hotvips }}</span>
-                        </li>
-                      }
-
-                      @if (usuario.socialLinks.sexlog) {
-                        <li class="links-item">
-                          <span class="links-label">Sexlog</span>
-                          <span class="links-value">{{ usuario.socialLinks.sexlog }}</span>
-                        </li>
-                      }
-
-                      @if (usuario.socialLinks.d4swing) {
-                        <li class="links-item">
-                          <span class="links-label">D4Swing</span>
-                          <span class="links-value">{{ usuario.socialLinks.d4swing }}</span>
-                        </li>
-                      }
-
-                      @if (usuario.socialLinks.privacy) {
-                        <li class="links-item">
-                          <span class="links-label">Privacy</span>
-                          <span class="links-value">{{ usuario.socialLinks.privacy }}</span>
-                        </li>
-                      }
-
-                      @if (usuario.socialLinks.onlyfans) {
-                        <li class="links-item">
-                          <span class="links-label">OnlyFans</span>
-                          <span class="links-value">{{ usuario.socialLinks.onlyfans }}</span>
-                        </li>
-                      }
-
-                      @if (usuario.socialLinks.fansly) {
-                        <li class="links-item">
-                          <span class="links-label">Fansly</span>
-                          <span class="links-value">{{ usuario.socialLinks.fansly }}</span>
-                        </li>
-                      }
-
-                      @if (usuario.socialLinks.linktree) {
-                        <li class="links-item">
-                          <span class="links-label">Linktree</span>
-                          <span class="links-value">{{ usuario.socialLinks.linktree }}</span>
-                        </li>
-                      }
-                    </ul>
-
-                    @if (
-                      !usuario.socialLinks.instagram &&
-                      !usuario.socialLinks.facebook &&
-                      !usuario.socialLinks.hotvips &&
-                      !usuario.socialLinks.sexlog &&
-                      !usuario.socialLinks.d4swing &&
-                      !usuario.socialLinks.privacy &&
-                      !usuario.socialLinks.onlyfans &&
-                      !usuario.socialLinks.fansly &&
-                      !usuario.socialLinks.linktree
-                    ) {
-                      <p class="muted">Nenhuma rede social adicionada.</p>
-                    }
-                  } @else {
-                    <p class="muted">Nenhuma rede social adicionada.</p>
-                  }
+                <div class="profile-block profile-block--social">
+                  <app-social-links-accordion
+                    [uid]="uid"
+                    [isOwner]="true"
+                    aria-label="Minhas redes sociais"
+                  />
                 </div>
               </div>
             </section>
