@@ -24,12 +24,37 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-color, #f5f7fb);
+  text-decoration: none;
+}
+
+.feed-card-owner__identity {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.feed-card-owner__identity > strong {
   min-width: 0;
   overflow: hidden;
   font-size: 0.82rem;
   font-weight: 820;
+  line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.feed-card-owner__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.66rem;
+  line-height: 1;
 }
 
 .feed-card-avatar {
@@ -51,8 +76,19 @@
   font-weight: 900;
 }
 
-.feed-card-time {
-  font-size: 0.66rem;
+.feed-card-time,
+.feed-card-boosted {
+  flex: 0 0 auto;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.feed-card-boosted {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  color: var(--primary-color, #ff7070);
+  font-weight: 760;
 }
 
 .photo-card-link--feed,
@@ -79,27 +115,22 @@
 
 .feed-card-footer {
   min-height: 0;
-  justify-content: space-between;
   padding: 0.42rem 0 0;
   border: 0;
   background: transparent;
   font-size: 0.72rem;
 }
 
-.feed-card-footer__actions {
+.feed-card-footer__metrics {
   display: inline-flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.feed-card-footer__actions > span {
+.feed-card-footer__metrics > span {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-}
-
-.feed-card-boosted {
-  margin-left: auto;
 }
 
 @media (max-width: 27rem) {
@@ -132,4 +163,8 @@
 :host-context(html.high-contrast) .feed-card-footer {
   border-color: currentColor !important;
   box-shadow: none !important;
+}
+
+:host-context(html.high-contrast) .feed-card-boosted {
+  color: currentColor !important;
 }
