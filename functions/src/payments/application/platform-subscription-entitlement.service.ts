@@ -2,18 +2,8 @@
 // -----------------------------------------------------------------------------
 // PLATFORM SUBSCRIPTION ENTITLEMENT SERVICE
 // -----------------------------------------------------------------------------
-// Avalia a fonte autorizativa da assinatura principal.
-//
-// Regras fail-closed:
-// - documento determinístico por UID;
-// - buyerUid deve corresponder ao usuário autenticado;
-// - escopo deve ser platform_subscription;
-// - role deve ser reconhecida;
-// - startsAt deve existir e já ter iniciado;
-// - endsAt deve ser finito e permanecer no futuro;
-// - entitlements mensais legados sem endsAt recebem uma migração determinística
-//   de um mês civil a partir de startsAt;
-// - projeções em users/{uid} nunca substituem este entitlement.
+// Avalia a fonte autorizativa da assinatura principal e calcula períodos
+// mensais sem perder tempo já pago.
 // -----------------------------------------------------------------------------
 
 import { db } from '../../firebaseApp';
@@ -26,6 +16,13 @@ export interface PlatformSubscriptionEntitlementStatus {
   endsAt: number | null;
   updatedAt: number | null;
   legacyEndsAtDerived: boolean;
+}
+
+export interface PlatformSubscriptionSettlementPeriod {
+  startsAt: number;
+  endsAt: number;
+  extensionBase: number;
+  extendedExistingAccess: boolean;
 }
 
 const PLATFORM_ROLE_WEIGHT: Readonly<Record<PlatformRole, number>> =
@@ -57,10 +54,7 @@ export function hasMinimumPlatformRole(
     && PLATFORM_ROLE_WEIGHT[currentRole] >= PLATFORM_ROLE_WEIGHT[minimumRole];
 }
 
-/**
- * Soma um mês civil em UTC, limitando o dia ao último dia do mês de destino.
- * Exemplo: 31 de janeiro -> 28/29 de fevereiro.
- */
+/** Soma um mês civil em UTC, limitando o dia ao último dia do mês destino. */
 export function calculatePlatformSubscriptionPeriodEnd(
   periodStartAt: number
 ): number {
@@ -134,11 +128,43 @@ export function evaluatePlatformSubscriptionEntitlement(
 }
 
 /**
- * Resolve o entitlement determinístico da assinatura principal.
- *
- * A leitura é feita pelo Admin SDK. Entitlements antigos sem endsAt são
- * migrados para um período mensal finito, e o campo active é reconciliado com
- * a janela temporal efetiva.
+ * Resolve o próximo período pago.
+ * - vigente: preserva startsAt e estende um mês a partir do fim atual;
+ * - legado vigente sem endsAt: usa o fim derivado, sem perder dias pagos;
+ * - vencido/inválido: inicia um novo período em now.
+ */
+export function resolvePlatformSubscriptionSettlementPeriod(
+  rawEntitlement: unknown,
+  buyerUid: string,
+  now = Date.now()
+): PlatformSubscriptionSettlementPeriod {
+  if (!Number.isFinite(now)) {
+    throw new Error('Instante de settlement inválido.');
+  }
+
+  const status = evaluatePlatformSubscriptionEntitlement(
+    rawEntitlement,
+    buyerUid,
+    now
+  );
+  const extendedExistingAccess =
+    status.active &&
+    status.startsAt !== null &&
+    status.endsAt !== null;
+  const startsAt = extendedExistingAccess ? status.startsAt! : now;
+  const extensionBase = extendedExistingAccess ? status.endsAt! : now;
+
+  return {
+    startsAt,
+    extensionBase,
+    endsAt: calculatePlatformSubscriptionPeriodEnd(extensionBase),
+    extendedExistingAccess,
+  };
+}
+
+/**
+ * Lê e repara o entitlement determinístico. Entitlements antigos sem endsAt
+ * recebem período mensal finito; active é reconciliado com a janela temporal.
  */
 export async function getActivePlatformSubscriptionEntitlement(
   uid: string,
@@ -150,17 +176,13 @@ export async function getActivePlatformSubscriptionEntitlement(
   const raw = snapshot.exists ? snapshot.data() ?? {} : null;
   const status = evaluatePlatformSubscriptionEntitlement(raw, uid, now);
 
-  if (!snapshot.exists) {
-    return status;
-  }
+  if (!snapshot.exists) return status;
 
   const storedActive = (raw as Record<string, unknown>)['active'] === true;
   const shouldRepair =
     status.legacyEndsAtDerived || storedActive !== status.active;
 
-  if (!shouldRepair) {
-    return status;
-  }
+  if (!shouldRepair) return status;
 
   const patch: Record<string, unknown> = {
     active: status.active,
