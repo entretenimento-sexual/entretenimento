@@ -31,27 +31,37 @@ service cloud.firestore {
     // ===============================================================
     // Assinatura
     // ===============================================================
-    // A projeção privada em users/{uid} só pode ser alterada pelo backend
-    // confiável. Aceitamos os dois campos canônicos durante a migração do
-    // legado: isSubscriber=true OU subscriptionStatus="active".
+    // Entitlements são a verdade financeira e permanecem fechados ao cliente.
+    // users/{uid} contém somente uma projeção operacional, escrita pelo backend.
+    // Para autorizar, todos os campos canônicos devem concordar e a janela
+    // temporal precisa estar vigente no instante da própria requisição.
     function isActiveSubscriber(userId) {
       return signedIn()
         && exists(/databases/$(database)/documents/users/$(userId))
-        && (
-          (
-            get(/databases/$(database)/documents/users/$(userId))
-              .data.keys().hasAny(["isSubscriber"])
-            && get(/databases/$(database)/documents/users/$(userId))
-              .data.isSubscriber == true
-          )
-          ||
-          (
-            get(/databases/$(database)/documents/users/$(userId))
-              .data.keys().hasAny(["subscriptionStatus"])
-            && get(/databases/$(database)/documents/users/$(userId))
-              .data.subscriptionStatus == "active"
-          )
-        );
+        && get(/databases/$(database)/documents/users/$(userId)).data.keys().hasAll([
+          "billingProjectionVersion",
+          "isSubscriber",
+          "subscriptionStatus",
+          "subscriptionScope",
+          "subscriptionStartedAt",
+          "subscriptionEndsAt"
+        ])
+        && get(/databases/$(database)/documents/users/$(userId))
+          .data.billingProjectionVersion == 1
+        && get(/databases/$(database)/documents/users/$(userId))
+          .data.isSubscriber == true
+        && get(/databases/$(database)/documents/users/$(userId))
+          .data.subscriptionStatus == "active"
+        && get(/databases/$(database)/documents/users/$(userId))
+          .data.subscriptionScope == "platform_subscription"
+        && get(/databases/$(database)/documents/users/$(userId))
+          .data.subscriptionStartedAt is timestamp
+        && get(/databases/$(database)/documents/users/$(userId))
+          .data.subscriptionEndsAt is timestamp
+        && get(/databases/$(database)/documents/users/$(userId))
+          .data.subscriptionStartedAt <= request.time
+        && request.time < get(/databases/$(database)/documents/users/$(userId))
+          .data.subscriptionEndsAt;
     }
 
     // ===============================================================
@@ -74,21 +84,11 @@ service cloud.firestore {
     }
 
     function isAdmin() { return hasClaim("admin"); }
+
     // ===============================================================
     // Optional fields helpers (campos opcionais)
-    // Regra:
-    // - ausente OU null => ok
-    // - se existe => precisa ser do tipo esperado
-    //
-    // OBS:
-    // - request.resource.data[k] == null cobre "ausente" e "explicitamente null"
     // ===============================================================
-    // ===============================================================
-    // Optional fields helpers (campos opcionais)
-    // IMPORTANTE:
-    // - Para chave dinâmica (map[k]), Firestore Rules pode lançar evaluation error
-    //   quando a key não existe. Então: checar keys().hasAny([k]) antes.
-    // ===============================================================
+    // Para chave dinâmica (map[k]), checar keys().hasAny([k]) antes.
     function hasReqField(k) {
       return request.resource.data.keys().hasAny([k]);
     }
@@ -105,7 +105,6 @@ service cloud.firestore {
         || request.resource.data[k] is number;
     }
 
-    // ✅ aceita timestamp real OU serverTimestamp()
     function optTimestamp(k) {
       return !hasReqField(k)
         || request.resource.data[k] == null
