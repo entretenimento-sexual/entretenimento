@@ -2,42 +2,30 @@
 // -----------------------------------------------------------------------------
 // GET MY BILLING SNAPSHOT HANDLER
 // -----------------------------------------------------------------------------
-//
-// Consulta consolidada do estado de acesso financeiro do usuário autenticado.
-//
-// Responsabilidade:
-// - devolver ao frontend o estado atual de assinatura da plataforma;
-// - usar entitlement ativo como fonte autorizativa de acesso pago;
-// - manter compatibilidade com o contrato atual do frontend;
-// - não expor documentos financeiros completos, IDs internos de transação,
-//   auditoria, payloads ou informações de provedor.
-//
-// Segurança:
-// - users/{uid}.role, tier e isSubscriber são apenas projeções rápidas;
-// - entitlement ativo, vigente e pertencente ao UID é a confirmação de acesso;
-// - eventual divergência entre projeção e entitlement não concede acesso;
-// - nenhum parâmetro financeiro é recebido do frontend.
-//
-// Escalabilidade:
-// - a assinatura da plataforma possui entitlement determinístico por usuário;
-// - isso evita query ampla no retorno de billing;
-// - novos escopos, como creator_subscription ou paid_media, poderão ganhar
-//   snapshots próprios sem misturar regras de autorização.
+// Consulta consolidada do estado financeiro do usuário autenticado.
+// O entitlement é a verdade; a projeção privada é reconciliada como efeito
+// operacional seguro para UI e Firestore Rules.
+// -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { PlatformRole } from '../domain/billing.model';
 import {
-  getActivePlatformSubscriptionEntitlement,
-} from './platform-subscription-entitlement.service';
+  PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
+  reconcilePlatformSubscriptionAccess,
+} from './platform-subscription-projection.service';
 
 interface BillingSnapshotResponse {
   role?: PlatformRole | null;
   tier?: PlatformRole | null;
   isSubscriber: boolean;
+  status: 'active' | 'inactive';
   entitlements: string[];
+  startsAt?: number | null;
+  endsAt?: number | null;
   updatedAt?: number | null;
+  projectionVersion: number;
 }
 
 export const getMyBillingSnapshot = onCall<Record<string, never>>(
@@ -53,15 +41,19 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
     }
 
     const platformEntitlement =
-      await getActivePlatformSubscriptionEntitlement(uid);
+      await reconcilePlatformSubscriptionAccess(uid);
 
     if (!platformEntitlement.active || !platformEntitlement.role) {
       return {
         role: null,
         tier: null,
         isSubscriber: false,
+        status: 'inactive',
         entitlements: [],
+        startsAt: platformEntitlement.startsAt,
+        endsAt: platformEntitlement.endsAt,
         updatedAt: platformEntitlement.updatedAt,
+        projectionVersion: PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
       };
     }
 
@@ -69,8 +61,12 @@ export const getMyBillingSnapshot = onCall<Record<string, never>>(
       role: platformEntitlement.role,
       tier: platformEntitlement.role,
       isSubscriber: true,
+      status: 'active',
       entitlements: ['platform_subscription'],
+      startsAt: platformEntitlement.startsAt,
+      endsAt: platformEntitlement.endsAt,
       updatedAt: platformEntitlement.updatedAt,
+      projectionVersion: PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
     };
   }
 );
