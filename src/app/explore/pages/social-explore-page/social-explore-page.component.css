@@ -5,54 +5,46 @@
 }
 
 .social-feed-page {
-  width: min(100%, 30rem);
+  width: min(100%, 44rem);
   margin: 0 auto;
   padding:
-    clamp(0.6rem, 1.8vw, 0.85rem)
-    clamp(0.55rem, 2vw, 0.75rem)
+    clamp(0.65rem, 1.8vw, 1rem)
+    clamp(0.55rem, 2vw, 0.85rem)
     clamp(2.5rem, 5vw, 4rem);
-}
-
-.feed-header {
-  min-height: 2.75rem;
-  display: flex;
-  align-items: center;
-  padding: 0 0.1rem 0.35rem;
-}
-
-.feed-header h1,
-.feed-empty h3 {
-  margin: 0;
-  color: var(--text-color, #f5f7fb);
-  letter-spacing: -0.025em;
-}
-
-.feed-header h1 {
-  font-size: clamp(1.15rem, 1.05rem + 0.45vw, 1.4rem);
-  line-height: 1.1;
 }
 
 .feed-composer {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.48rem 0;
-  border-top: 1px solid var(--surface-border, rgb(255 255 255 / 9%));
-  border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 9%));
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 10%));
+  border-radius: 1rem;
+  background: var(--surface-color, #101925);
+}
+
+.feed-composer__avatar,
+.feed-composer__photo {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 50%;
+  color: var(--text-color, #f5f7fb);
+  text-decoration: none;
 }
 
 .feed-composer__avatar {
-  display: inline-grid;
-  place-items: center;
-  width: 2.125rem;
-  height: 2.125rem;
   overflow: hidden;
-  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
-  border-radius: 50%;
-  background: var(--surface-color, #101925);
-  color: var(--text-color, #f5f7fb);
-  text-decoration: none;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 10%,
+    var(--surface-color, #101925)
+  );
+  font-weight: 850;
 }
 
 .feed-composer__avatar img {
@@ -62,43 +54,67 @@
   object-fit: cover;
 }
 
-.feed-composer__publish {
+.feed-composer__moment {
   min-width: 0;
   min-height: var(--tap-target, 2.75rem);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-  padding: 0.45rem 0.15rem;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
-  font-size: 0.82rem;
-  font-weight: 680;
-  text-decoration: none;
-}
-
-.feed-composer__publish > span:first-child {
-  min-width: 0;
+  padding: 0.55rem 0.85rem;
   overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 7%,
+    transparent
+  );
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 680;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
 }
 
-.feed-composer__publish-icon {
-  flex: 0 0 auto;
-  color: var(--primary-color, #ff7070);
-  font-size: 1.05rem;
-}
-
-.feed-composer__publish:hover {
+.feed-composer__moment:hover,
+.feed-composer__moment:focus-visible {
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 10%,
+    transparent
+  );
   color: var(--text-color, #f5f7fb);
 }
 
+.feed-composer__photo {
+  color: var(--primary-color, #ff7070);
+  font-size: 1rem;
+}
+
+.feed-composer__photo:hover,
+.feed-composer__photo:focus-visible {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 55%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 9%,
+    transparent
+  );
+}
+
+.feed-status-composer {
+  display: block;
+  margin-top: 0.65rem;
+}
+
 .feed-composer a:focus-visible,
+.feed-composer button:focus-visible,
 .feed-empty a:focus-visible,
-.feed-status__actions a:focus-visible,
 .feed-status__actions button:focus-visible,
 .feed-pagination button:focus-visible {
-  border-radius: 0.45rem;
   outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
   outline-offset: var(--focus-offset, 2px);
 }
@@ -108,8 +124,15 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.7rem;
-  padding: 0.45rem 0;
-  border-bottom: 1px solid var(--surface-border, rgb(255 255 255 / 9%));
+  margin-top: 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 9%));
+  border-radius: 0.8rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101925) 92%,
+    transparent
+  );
 }
 
 .feed-status > div:first-child {
@@ -120,19 +143,15 @@
 
 .feed-status strong {
   color: var(--text-color, #f5f7fb);
-  font-size: 0.8rem;
-}
-
-.feed-status p,
-.feed-empty p {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
-  line-height: 1.4;
+  font-size: 0.82rem;
 }
 
 .feed-status p {
+  margin: 0;
   overflow: hidden;
-  font-size: 0.7rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -144,25 +163,21 @@
   gap: 0.1rem;
 }
 
-.feed-status__actions a,
 .feed-status__actions button {
   min-height: var(--tap-target, 2.75rem);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.4rem 0.5rem;
+  padding: 0.4rem 0.55rem;
   border: 0;
   background: transparent;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
   font: inherit;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 760;
-  line-height: 1;
-  text-decoration: none;
   cursor: pointer;
 }
 
-.feed-status__actions a:hover,
 .feed-status__actions button:hover {
   color: var(--text-color, #f5f7fb);
 }
@@ -173,12 +188,12 @@
 }
 
 .feed-timeline {
-  margin-top: 0.55rem;
+  margin-top: 0.75rem;
 }
 
 .feed-list {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
 .feed-list app-public-photo-card {
@@ -188,19 +203,18 @@
 .feed-pagination {
   display: flex;
   justify-content: center;
-  padding: 0.45rem 0 0.1rem;
+  padding: 0.55rem 0 0.1rem;
 }
 
 .feed-pagination button {
   min-height: var(--tap-target, 2.75rem);
-  padding: 0.45rem 0.65rem;
+  padding: 0.45rem 0.75rem;
   border: 0;
   background: transparent;
   color: var(--primary-color, #ff7070);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 780;
-  line-height: 1;
   cursor: pointer;
 }
 
@@ -210,22 +224,18 @@
 }
 
 .feed-empty {
-  display: grid;
-  gap: 0.5rem;
-  padding: 1rem 0.1rem;
-  border-top: 1px solid var(--surface-border, rgb(255 255 255 / 10%));
-}
-
-.feed-empty h3 {
-  font-size: 1rem;
-}
-
-.feed-empty p {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  min-height: 4rem;
+  padding: 0.8rem 0.2rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
   font-size: 0.8rem;
 }
 
 .feed-empty a {
-  width: fit-content;
+  flex: 0 0 auto;
   min-height: var(--tap-target, 2.75rem);
   display: inline-flex;
   align-items: center;
@@ -251,25 +261,34 @@
   border: 0;
 }
 
-@media (max-width: 30rem) {
+@media (max-width: 44rem) {
   .social-feed-page {
     width: 100%;
     padding-inline: 0;
   }
 
-  .feed-header,
   .feed-composer,
   .feed-status,
-  .feed-empty {
+  .feed-empty,
+  .feed-status-composer {
     margin-inline: 0.55rem;
   }
 }
 
 @media (max-width: 22rem) {
-  .feed-status {
+  .feed-composer {
+    gap: 0.45rem;
+    padding-inline: 0.5rem;
+  }
+
+  .feed-composer__moment {
+    padding-inline: 0.65rem;
+  }
+
+  .feed-status,
+  .feed-empty {
     align-items: stretch;
     flex-direction: column;
-    gap: 0.2rem;
   }
 
   .feed-status p {
@@ -282,9 +301,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .feed-composer a,
+  .feed-composer *,
   .feed-empty a,
-  .feed-status__actions a,
   .feed-status__actions button,
   .feed-pagination button {
     transition: none;
@@ -300,7 +318,7 @@
   box-shadow: none !important;
 }
 
-:host-context(html.high-contrast) .feed-status__actions a,
+:host-context(html.high-contrast) .feed-composer__moment,
 :host-context(html.high-contrast) .feed-status__actions button,
 :host-context(html.high-contrast) .feed-pagination button,
 :host-context(html.high-contrast) .feed-empty a {
