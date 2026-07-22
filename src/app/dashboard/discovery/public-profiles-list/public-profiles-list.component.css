@@ -1,9 +1,4 @@
 /* src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component.css */
-/* -----------------------------------------------------------------------------
-   Feed paginado de perfis públicos.
-   Mantém o card compartilhado e concentra apenas layout/estados da lista.
------------------------------------------------------------------------------ */
-
 :host {
   display: block;
   width: 100%;
@@ -11,237 +6,173 @@
 }
 
 .public-profiles {
+  position: relative;
   width: 100%;
   min-width: 0;
-}
-
-.public-profiles__summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-
-  margin-bottom: 0.65rem;
-}
-
-.public-profiles__result-count {
-  margin: 0;
-
-  color: color-mix(in oklab, var(--text-color) 62%, transparent);
-
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-}
-
-.public-profiles__refreshing {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-
-  color: color-mix(in oklab, var(--text-color) 58%, transparent);
-
-  font-size: 0.76rem;
-  font-weight: 700;
-}
-
-.public-profiles__refreshing::before {
-  content: '';
-  width: 0.42rem;
-  height: 0.42rem;
-  border-radius: 50%;
-  background: var(--primary-color);
-  animation: public-profiles-pulse 1.1s ease-in-out infinite;
 }
 
 .public-profiles__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(236px, 1fr));
+  align-items: start;
+  gap: clamp(0.7rem, 1.2vw, 1rem);
   width: 100%;
   min-width: 0;
-
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(236px, 248px));
-  justify-content: start;
-  align-items: start;
-
-  gap: clamp(0.95rem, 1.7vw, 1.25rem);
-
-  padding-top: 0.25rem;
-  padding-inline: 0;
 }
 
 .public-profiles__item {
   display: block;
+  justify-self: center;
   width: 100%;
+  max-width: 300px;
   min-width: 0;
 }
 
-/* --------------------------------------------------------------------------
-   Estados
-   -------------------------------------------------------------------------- */
-
-.public-profiles__state {
-  width: min(100%, 560px);
-  margin-inline: 0 auto;
-
+.public-profiles__state,
+.public-profiles__inline-error {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.65rem;
-
-  padding: 0.9rem 1rem;
-
-  border-radius: 1rem;
-  border: 1px solid var(--surface-border);
-
-  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
-  color: color-mix(in oklab, var(--text-color) 76%, transparent);
-
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  width: min(100%, 560px);
+  margin-inline: auto;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
 }
 
-.public-profiles__state-copy {
-  display: grid;
-  gap: 0.32rem;
-  min-width: 0;
+.public-profiles__state {
+  min-height: 5rem;
+  padding: 0.8rem;
 }
 
 .public-profiles__state p,
-.public-profiles__state span {
+.public-profiles__empty {
   margin: 0;
-  line-height: 1.32;
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.35;
 }
 
-.public-profiles__state p {
-  font-size: 0.92rem;
-  font-weight: 700;
-}
-
-.public-profiles__state span {
-  color: color-mix(in oklab, var(--text-color) 62%, transparent);
-  font-size: 0.84rem;
-  font-weight: 540;
-}
-
-.public-profiles__state i {
-  flex: 0 0 auto;
-  color: var(--primary-color);
-  font-size: 0.95rem;
+.public-profiles__state--error,
+.public-profiles__inline-error {
+  color: var(--danger-color);
 }
 
 .public-profiles__state--error {
-  color: var(--danger-color);
-  border-color: color-mix(in oklab, var(--danger-color) 35%, var(--surface-border));
-  background: color-mix(in oklab, var(--danger-color) 9%, var(--surface-color));
+  flex-wrap: wrap;
 }
 
-.public-profiles__state--error i {
-  color: var(--danger-color);
+.public-profiles__empty {
+  margin: clamp(1.5rem, 6vw, 3rem) auto;
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  text-align: center;
+}
+
+.public-profiles__refreshing {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--background-color) 88%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.public-profiles__inline-error {
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--danger-color) 28%, transparent);
+  font-size: 0.8rem;
+  font-weight: 650;
 }
 
 .public-profiles__retry,
 .public-profiles__inline-error button,
 .public-profiles__load-more {
-  min-height: 2.5rem;
-  width: fit-content;
-
-  border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--primary-color) 38%, var(--surface-border));
-
-  background: color-mix(in oklab, var(--primary-color) 9%, var(--surface-color));
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2.6rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 32%, var(--surface-border));
+  border-radius: 0.75rem;
+  background: transparent;
   color: var(--text-color);
-
   font: inherit;
-  font-size: 0.84rem;
-  font-weight: 750;
-
+  font-size: 0.82rem;
+  font-weight: 760;
   cursor: pointer;
   transition:
-    transform 140ms ease,
     background-color 140ms ease,
-    border-color 140ms ease;
+    border-color 140ms ease,
+    color 140ms ease;
 }
 
 .public-profiles__retry,
 .public-profiles__inline-error button {
-  padding: 0.55rem 0.9rem;
+  padding: 0.52rem 0.8rem;
 }
 
 .public-profiles__load-more {
-  min-width: min(100%, 13rem);
-  padding: 0.68rem 1.15rem;
+  min-width: min(100%, 11rem);
+  padding: 0.62rem 1rem;
 }
 
 .public-profiles__retry:hover,
 .public-profiles__inline-error button:hover,
 .public-profiles__load-more:hover {
-  transform: translateY(-1px);
-  background: color-mix(in oklab, var(--primary-color) 15%, var(--surface-color));
+  border-color: color-mix(in oklab, var(--primary-color) 52%, var(--surface-border));
+  background: color-mix(in oklab, var(--primary-color) 7%, transparent);
 }
 
 .public-profiles__retry:focus-visible,
 .public-profiles__inline-error button:focus-visible,
 .public-profiles__load-more:focus-visible {
-  outline: 3px solid color-mix(in oklab, var(--primary-color) 42%, transparent);
-  outline-offset: 2px;
-}
-
-.public-profiles__inline-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-
-  margin-bottom: 0.75rem;
-  padding: 0.7rem 0.8rem;
-
-  border-radius: 0.85rem;
-  border: 1px solid color-mix(in oklab, var(--danger-color) 32%, var(--surface-border));
-
-  background: color-mix(in oklab, var(--danger-color) 7%, var(--surface-color));
-  color: var(--danger-color);
-
-  font-size: 0.82rem;
-  font-weight: 650;
+  outline: var(--focus-ring, 2px solid var(--primary-color));
+  outline-offset: var(--focus-offset, 2px);
 }
 
 .public-profiles__pagination {
-  width: 100%;
-
   display: flex;
   align-items: center;
   justify-content: center;
-
-  padding: clamp(1.25rem, 3vw, 2rem) 0 0.35rem;
+  width: 100%;
+  padding: clamp(1rem, 2.5vw, 1.6rem) 0 0.25rem;
 }
 
 .public-profiles__loading-more {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-
-  color: color-mix(in oklab, var(--text-color) 66%, transparent);
-  font-size: 0.84rem;
-  font-weight: 680;
-}
-
-.public-profiles__end {
-  color: color-mix(in oklab, var(--text-color) 54%, transparent);
+  gap: 0.5rem;
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
   font-size: 0.8rem;
-  font-weight: 620;
-  text-align: center;
+  font-weight: 650;
 }
 
 .spinner {
+  flex: 0 0 auto;
   width: 1rem;
   height: 1rem;
-  flex: 0 0 auto;
-
-  border-radius: 50%;
-  border: 2px solid color-mix(in oklab, var(--primary-color) 22%, transparent);
+  border: 2px solid color-mix(in oklab, var(--primary-color) 20%, transparent);
   border-top-color: var(--primary-color);
-
+  border-radius: 50%;
   animation: public-profiles-spin 700ms linear infinite;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 
 @keyframes public-profiles-spin {
@@ -250,103 +181,47 @@
   }
 }
 
-@keyframes public-profiles-pulse {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-
-  50% {
-    opacity: 1;
-  }
+:host-context(.high-contrast) .public-profiles__state,
+:host-context(.high-contrast) .public-profiles__empty,
+:host-context(.high-contrast) .public-profiles__inline-error,
+:host-context(.high-contrast) .public-profiles__loading-more {
+  color: var(--text-color);
 }
 
-/* --------------------------------------------------------------------------
-   Dark mode
-   -------------------------------------------------------------------------- */
-
-html.dark-mode .public-profiles__result-count,
-html.dark-mode .public-profiles__state span,
-html.dark-mode .public-profiles__loading-more,
-html.dark-mode .public-profiles__end {
-  color: color-mix(in oklab, var(--text-color) 66%, transparent);
+:host-context(.high-contrast) .public-profiles__retry,
+:host-context(.high-contrast) .public-profiles__inline-error button,
+:host-context(.high-contrast) .public-profiles__load-more {
+  border: 2px solid var(--text-color);
+  background: var(--background-color);
+  color: var(--text-color);
 }
 
-html.dark-mode .public-profiles__state {
-  background: color-mix(in oklab, var(--surface-color) 88%, #000 12%);
-  color: color-mix(in oklab, var(--text-color) 78%, transparent);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
+:host-context(.high-contrast) .public-profiles__refreshing {
+  border: 2px solid var(--text-color);
+  background: var(--background-color);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
-html.dark-mode .public-profiles__state--error,
-html.dark-mode .public-profiles__inline-error {
-  background: color-mix(in oklab, var(--danger-color) 12%, var(--surface-color));
-}
-
-/* --------------------------------------------------------------------------
-   Alto contraste
-   -------------------------------------------------------------------------- */
-
-html.high-contrast .public-profiles__result-count,
-html.high-contrast .public-profiles__state,
-html.high-contrast .public-profiles__inline-error,
-html.high-contrast .public-profiles__load-more,
-html.high-contrast .public-profiles__retry,
-html.high-contrast .public-profiles__inline-error button {
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-}
-
-html.high-contrast .public-profiles__state,
-html.high-contrast .public-profiles__inline-error,
-html.high-contrast .public-profiles__load-more,
-html.high-contrast .public-profiles__retry,
-html.high-contrast .public-profiles__inline-error button {
-  border: 2px solid var(--text-color) !important;
-  box-shadow: none !important;
-}
-
-html.high-contrast .public-profiles__state span,
-html.high-contrast .public-profiles__state i {
-  color: var(--text-color) !important;
-}
-
-/* --------------------------------------------------------------------------
-   Responsividade
-   -------------------------------------------------------------------------- */
-
-@media (min-width: 1320px) {
+@media (max-width: 760px) {
   .public-profiles__grid {
-    grid-template-columns: repeat(auto-fill, minmax(244px, 252px));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   }
 }
 
-@media (max-width: 900px) {
-  .public-profiles__grid {
-    grid-template-columns: repeat(auto-fill, minmax(224px, 1fr));
-    justify-content: stretch;
-    gap: 0.95rem;
-  }
-}
-
-@media (max-width: 560px) {
-  .public-profiles__summary,
-  .public-profiles__inline-error {
-    align-items: flex-start;
-  }
-
-  .public-profiles__inline-error {
-    flex-direction: column;
-  }
-
+@media (max-width: 470px) {
   .public-profiles__grid {
     grid-template-columns: minmax(0, 1fr);
+    gap: 0.8rem;
   }
 
-  .public-profiles__state {
-    width: 100%;
-    justify-content: flex-start;
-    padding: 0.85rem 0.9rem;
+  .public-profiles__item {
+    max-width: 100%;
+  }
+
+  .public-profiles__inline-error {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .public-profiles__load-more {
@@ -355,7 +230,6 @@ html.high-contrast .public-profiles__state i {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .public-profiles__refreshing::before,
   .spinner {
     animation: none;
   }
