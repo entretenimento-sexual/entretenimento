@@ -1,15 +1,19 @@
 // src/app/store/effects/effects.user/user.effects.ts
-// Considera a arquitetura completa do projeto:
-// - AuthSessionService = fonte da sessão
-// - CurrentUserStoreService = runtime tri-state do current user
-// - NgRx = espelho global / serializável
-//
-// Ajuste principal deste patch:
-// - não transformar o primeiro snapshot vazio em "indisponível" imediatamente
-// - manter undefined (hidratação em andamento) durante uma pequena janela de confirmação
-// - se o usuário chegar antes, o switchMap cancela o timer automaticamente
+// Fluxo oficial Firestore -> runtime current user -> NgRx.
+// A equivalência usa o usuário serializado completo para não descartar campos
+// novos de billing, lifecycle ou compliance.
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
+import { from, merge, of, timer } from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  filter,
+  finalize,
+  map,
+  switchMap,
+  tap,
+} from 'rxjs/operators';
 
 import {
   observeUserChanges,
@@ -23,127 +27,95 @@ import {
   setCurrentUserUnavailable,
   setCurrentUserHydrationError,
 } from '../../actions/actions.user/user.actions';
-
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import {
   sanitizeUserForStore,
   sanitizeUsersForStore,
 } from 'src/app/store/utils/user-store.serializer';
 import { toStoreError } from 'src/app/store/utils/store-error.serializer';
-
-import { from, merge, of, timer } from 'rxjs';
-import {
-  catchError,
-  distinctUntilChanged,
-  filter,
-  finalize,
-  map,
-  switchMap,
-  tap,
-} from 'rxjs/operators';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 @Injectable()
 export class UserEffects {
-  /**
-   * Janela curta para confirmar ausência real do doc.
-   *
-   * Motivo:
-   * - evita "hasUser:false -> setUnavailable() -> hasUser:true" durante bootstrap
-   * - mantém o runtime em undefined enquanto o primeiro snapshot estabiliza
-   *
-   * Observação:
-   * - se o usuário chegar antes desse prazo, o switchMap cancela este timer
-   * - isso mantém o fluxo 100% reativo, sem setTimeout imperativo espalhado
-   */
   private readonly UNAVAILABLE_CONFIRM_DELAY_MS = 450;
 
-private canDebug(): boolean {
-  return this.privacyDebug.canLog('profile');
-}
+  constructor(
+    private readonly actions$: Actions,
+    private readonly firestoreQuery: FirestoreQueryService,
+    private readonly firestoreUserQuery: FirestoreUserQueryService,
+    private readonly currentUserStore: CurrentUserStoreService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService
+  ) {}
 
-private dbg(msg: string, extra?: unknown): void {
-  this.privacyDebug.log('profile', `UserEffects: ${msg}`, extra);
-}
+  private canDebug(): boolean {
+    return this.privacyDebug.canLog('profile');
+  }
 
-constructor(
-  private readonly actions$: Actions,
-  private readonly firestoreQuery: FirestoreQueryService,
-  private readonly firestoreUserQuery: FirestoreUserQueryService,
-  private readonly currentUserStore: CurrentUserStoreService,
-  private readonly globalErrorHandler: GlobalErrorHandlerService,
-  private readonly privacyDebug: PrivacyDebugLoggerService
-) {}
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('profile', `UserEffects: ${message}`, extra);
+  }
 
   private buildUnavailableAction(uid: string) {
     return setCurrentUserUnavailable({
       error: toStoreError(
         null,
-        `Usuário não encontrado.`,
+        'Usuário não encontrado.',
         'UserEffects.observeUserChanges$',
         { uid }
       ),
     });
   }
 
-    private areUsersEquivalent(
-      current: IUserDados | null | undefined,
-      incoming: IUserDados | null | undefined
-    ): boolean {
-      if (current === incoming) return true;
-      if (!current && !incoming) return true;
-      if (!current || !incoming) return false;
+  private areUsersEquivalent(
+    current: IUserDados | null | undefined,
+    incoming: IUserDados | null | undefined
+  ): boolean {
+    if (current === incoming) return true;
+    if (!current && !incoming) return true;
+    if (!current || !incoming) return false;
 
+    try {
+      const safeCurrent = sanitizeUserForStore(current);
+      const safeIncoming = sanitizeUserForStore(incoming);
       return (
-        current.uid === incoming.uid &&
-        current.nickname === incoming.nickname &&
-        current.email === incoming.email &&
-        current.emailVerified === incoming.emailVerified &&
-        current.role === incoming.role &&
-        current.tier === incoming.tier &&
-        current.profileCompleted === incoming.profileCompleted &&
-        current.isSubscriber === incoming.isSubscriber &&
-        current.subscriptionStatus === incoming.subscriptionStatus &&
-
-        // lifecycle / moderação
-        current.accountStatus === incoming.accountStatus &&
-        current.suspended === incoming.suspended &&
-        current.publicVisibility === incoming.publicVisibility &&
-        current.interactionBlocked === incoming.interactionBlocked &&
-        current.loginAllowed === incoming.loginAllowed &&
-        current.statusUpdatedAt === incoming.statusUpdatedAt &&
-        current.statusUpdatedBy === incoming.statusUpdatedBy &&
-        current.suspensionReason === incoming.suspensionReason &&
-        current.suspensionSource === incoming.suspensionSource &&
-        current.suspensionEndsAt === incoming.suspensionEndsAt &&
-        current.deletionRequestedAt === incoming.deletionRequestedAt &&
-        current.deletionRequestedBy === incoming.deletionRequestedBy &&
-        current.deletionUndoUntil === incoming.deletionUndoUntil &&
-        current.purgeAfter === incoming.purgeAfter &&
-        current.deletedAt === incoming.deletedAt
+        this.stableSerialize(safeCurrent) ===
+        this.stableSerialize(safeIncoming)
       );
+    } catch {
+      return false;
+    }
+  }
+
+  private stableSerialize(value: unknown): string {
+    return JSON.stringify(this.sortSerializableValue(value));
+  }
+
+  private sortSerializableValue(value: unknown): unknown {
+    if (value === null || typeof value !== 'object') return value;
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.sortSerializableValue(item));
     }
 
-  /**
-   * Observa o documento users/{uid}.
-   *
-   * Regras:
-   * - UID vem do bridge AuthSession -> NgRx
-   * - STOP limpa runtime e store global
-   * - START tenta restore rápido do cache compatível
-   * - doc ausente não vira unavailable imediatamente; primeiro passa por uma janela curta de confirmação
-   * - erro de stream => hydration error (não derruba sessão)
-   */
+    const record = value as Record<string, unknown>;
+    const sorted: Record<string, unknown> = {};
+
+    for (const key of Object.keys(record).sort()) {
+      sorted[key] = this.sortSerializableValue(record[key]);
+    }
+
+    return sorted;
+  }
+
   observeUserChanges$ = createEffect(() => {
     const start$ = this.actions$.pipe(
       ofType(observeUserChanges),
-      map(({ uid }) => (uid ?? '').trim() || null),
+      map(({ uid }) => String(uid ?? '').trim() || null),
       filter((uid): uid is string => !!uid)
     );
 
@@ -155,45 +127,34 @@ constructor(
     return merge(start$, stop$).pipe(
       distinctUntilChanged(),
       tap((uid) => this.dbg('observeUserChanges driver', { uid })),
-
       switchMap((uid) => {
         if (!uid) {
           this.currentUserStore.clear();
           return of(clearCurrentUser());
         }
 
-        /**
-         * Ao iniciar um novo UID:
-         * - marca runtime como "hidratação em andamento"
-         * - tenta restore rápido do cache compatível
-         *
-         * Importante:
-         * - mesmo que restore não ache nada, ainda não concluímos "indisponível"
-         * - essa conclusão fica para a janela curta de confirmação abaixo
-         */
         this.currentUserStore.markUnhydrated();
 
         try {
           this.currentUserStore.restoreFromCacheForUid(uid);
         } catch {
-          // noop
+          // Cache compatível é best-effort.
         }
 
-if (this.canDebug()) {
-  this.dbg('observeUserChanges -> subscribe', {
-    uid,
-    runtimeSnapshot: this.currentUserStore.getSnapshot(),
-  });
-}
+        if (this.canDebug()) {
+          this.dbg('observeUserChanges -> subscribe', {
+            uid,
+            runtimeSnapshot: this.currentUserStore.getSnapshot(),
+          });
+        }
 
         return this.firestoreUserQuery.getUser(uid).pipe(
-          distinctUntilChanged((a, b) =>
+          distinctUntilChanged((previous, current) =>
             this.areUsersEquivalent(
-              (a as IUserDados | null | undefined) ?? null,
-              (b as IUserDados | null | undefined) ?? null
+              (previous as IUserDados | null | undefined) ?? null,
+              (current as IUserDados | null | undefined) ?? null
             )
           ),
-
           tap((user) =>
             this.dbg('user snapshot', {
               uid,
@@ -201,17 +162,9 @@ if (this.canDebug()) {
               kind: user ? 'user' : 'empty',
             })
           ),
-
           switchMap((user) => {
-            /**
-             * Snapshot válido:
-             * - normaliza
-             * - atualiza runtime store
-             * - atualiza NgRx
-             */
             if (user) {
               const safeUser = sanitizeUserForStore(user as IUserDados);
-
               this.currentUserStore.set(safeUser);
 
               return from([
@@ -220,54 +173,39 @@ if (this.canDebug()) {
               ]);
             }
 
-            /**
-             * Snapshot vazio:
-             * - NÃO concluímos indisponibilidade imediatamente
-             * - aguardamos uma pequena janela
-             * - se um user real chegar antes, este timer é cancelado pelo switchMap
-             */
             return timer(this.UNAVAILABLE_CONFIRM_DELAY_MS).pipe(
               tap(() => {
                 this.dbg('user snapshot -> confirmed unavailable', {
                   uid,
                   delayMs: this.UNAVAILABLE_CONFIRM_DELAY_MS,
                 });
-
                 this.currentUserStore.setUnavailable();
               }),
               map(() => this.buildUnavailableAction(uid))
             );
           }),
-
-          catchError((err) => {
+          catchError((errorValue) => {
             const error =
-              err instanceof Error
-                ? err
+              errorValue instanceof Error
+                ? errorValue
                 : new Error('UserEffects.observeUserChanges$ error');
 
             (error as any).silent = true;
             (error as any).skipUserNotification = true;
             (error as any).context = 'UserEffects.observeUserChanges$';
             (error as any).uid = uid;
-            (error as any).original = err;
+            (error as any).original = errorValue;
 
             this.globalErrorHandler.handleError(error);
-            this.dbg('observeUserChanges -> error', { uid, err });
+            this.dbg('observeUserChanges -> error', {
+              uid,
+              error: errorValue,
+            });
 
-            /**
-             * Em erro de hidratação:
-             * - não derrubamos a sessão
-             * - não forçamos unavailable imediatamente
-             * - apenas marcamos erro serializável no store
-             *
-             * Motivo:
-             * - indisponibilidade e erro de stream são estados diferentes
-             * - erro transitório não deve apagar runtime válido sem necessidade
-             */
             return of(
               setCurrentUserHydrationError({
                 error: toStoreError(
-                  err,
+                  errorValue,
                   'Erro desconhecido ao observar usuário.',
                   'UserEffects.observeUserChanges$',
                   { uid }
@@ -275,7 +213,6 @@ if (this.canDebug()) {
               })
             );
           }),
-
           finalize(() =>
             this.dbg('observeUserChanges -> finalize', { uid })
           )
@@ -284,10 +221,6 @@ if (this.canDebug()) {
     );
   });
 
-  /**
-   * Lista geral de usuários.
-   * Separada do fluxo do currentUser.
-   */
   loadUsers$ = createEffect(() =>
     this.actions$.pipe(
       ofType(loadUsers),
@@ -296,11 +229,11 @@ if (this.canDebug()) {
           map((users) =>
             loadUsersSuccess({ users: sanitizeUsersForStore(users) })
           ),
-          catchError((err) =>
+          catchError((error) =>
             of(
               loadUsersFailure({
                 error: toStoreError(
-                  err,
+                  error,
                   'Falha ao carregar usuários.',
                   'UserEffects.loadUsers$'
                 ),
@@ -311,4 +244,4 @@ if (this.canDebug()) {
       )
     )
   );
-} // Linha 313, fim do user.effects.ts
+}
