@@ -74,6 +74,9 @@ export interface IPhotoPublicationConfig {
    */
   visibility: TPhotoVisibility;
 
+  /** Legenda editorial da publicação, separada do texto alternativo da imagem. */
+  caption?: string | null;
+
   isCover?: boolean;
   orderIndex?: number;
 
