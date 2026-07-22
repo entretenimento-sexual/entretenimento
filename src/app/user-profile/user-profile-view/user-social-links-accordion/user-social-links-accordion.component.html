@@ -4,7 +4,7 @@
     class="social-links-accordion"
     [class.social-links-accordion--compact]="compact()"
   >
-    <mat-expansion-panel [expanded]="compact() || anyLinks() || canEdit()">
+    <mat-expansion-panel [expanded]="compact() || anyLinks()">
       <mat-expansion-panel-header>
         <mat-panel-title>
           <i class="fas fa-share-nodes" aria-hidden="true"></i>
@@ -52,63 +52,19 @@
         <p class="no-links-info">Nenhuma rede publicada.</p>
       }
 
-      @if (canManage() && !canEdit()) {
-        <div class="social-links-subscription" role="note">
-          <p>
-            A publicação de redes é exclusiva para assinantes. Links privados
-            existentes ainda podem ser removidos.
-          </p>
+      @if (canManage()) {
+        <div class="social-links-management">
+          @if (!canEdit()) {
+            <p role="note">
+              A publicação de redes é exclusiva para assinantes. Links
+              existentes continuam disponíveis para remoção.
+            </p>
+          }
+
           <button type="button" (click)="goToEditSocialLinks()">
             Gerenciar redes
           </button>
         </div>
-      }
-
-      @if (canEdit()) {
-        <div class="inline-editor">
-          @for (platform of socialMediaPlatforms; track trackByKey($index, platform)) {
-            <div class="edit-row">
-              <label class="edit-label" [for]="'social-' + platform.key">
-                {{ platform.label }}
-              </label>
-
-              <input
-                class="input-field edit-input"
-                [id]="'social-' + platform.key"
-                [value]="socialLinks?.[platform.key] || ''"
-                #value
-                placeholder="URL segura ou @usuario"
-              />
-
-              <div class="edit-actions">
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  (click)="updateSocialLink(platform.key, value.value)"
-                >
-                  Publicar
-                </button>
-
-                <button
-                  type="button"
-                  class="btn btn-danger"
-                  [disabled]="!socialLinks?.[platform.key]"
-                  (click)="removeLink(platform.key)"
-                >
-                  Remover
-                </button>
-              </div>
-            </div>
-          }
-        </div>
-
-        <button
-          type="button"
-          class="btn btn-secondary open-editor-page"
-          (click)="goToEditSocialLinks()"
-        >
-          Abrir edição completa
-        </button>
       }
     </mat-expansion-panel>
   </mat-accordion>
