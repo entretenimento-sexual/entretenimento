@@ -33,15 +33,26 @@
           </span>
         }
 
-        <strong>{{ getOwnerName(item) }}</strong>
-      </a>
+        <span class="feed-card-owner__identity">
+          <strong>{{ getOwnerName(item) }}</strong>
 
-      <time
-        class="feed-card-time"
-        [attr.aria-label]="'Publicado ' + getPublishedLabel(item)"
-      >
-        {{ getPublishedLabel(item) }}
-      </time>
+          <span class="feed-card-owner__meta">
+            <time
+              class="feed-card-time"
+              [attr.aria-label]="'Publicado ' + getPublishedLabel(item)"
+            >
+              {{ getPublishedLabel(item) }}
+            </time>
+
+            @if (item.boostActive) {
+              <span class="feed-card-boosted">
+                <span aria-hidden="true">⚡</span>
+                Impulsionada
+              </span>
+            }
+          </span>
+        </span>
+      </a>
     </header>
   }
 
@@ -126,11 +137,10 @@
   @if (
     mode === 'feed' &&
     ((item.reactionsCount ?? item.likesCount ?? 0) > 0 ||
-      (item.commentsCount ?? 0) > 0 ||
-      item.boostActive)
+      (item.commentsCount ?? 0) > 0)
   ) {
-    <footer class="feed-card-footer" aria-label="Informações da publicação">
-      <span class="feed-card-footer__actions">
+    <footer class="feed-card-footer" aria-label="Engajamento da publicação">
+      <span class="feed-card-footer__metrics">
         @if ((item.reactionsCount ?? item.likesCount ?? 0) > 0) {
           <span aria-label="Curtidas">
             <span aria-hidden="true">♡</span>
@@ -145,13 +155,6 @@
           </span>
         }
       </span>
-
-      @if (item.boostActive) {
-        <span class="feed-card-boosted">
-          <span aria-hidden="true">⚡</span>
-          Impulsionada
-        </span>
-      }
     </footer>
   }
 
