@@ -7,6 +7,7 @@ import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PlatformSubscriptionAccessService } from 'src/app/core/services/subscriptions/platform-subscription-access.service';
 import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-social-links.service';
 
 type SocialLinkKey = keyof IUserSocialLinks;
@@ -56,6 +57,7 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly accessControl: AccessControlService,
+    private readonly subscriptionAccess: PlatformSubscriptionAccessService,
     private readonly userSocialLinksService: UserSocialLinksService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly notification: ErrorNotificationService
@@ -79,7 +81,7 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
     combineLatest([
       this.accessControl.appUserResolved$,
       this.accessControl.authUid$,
-      this.accessControl.isSubscriber$,
+      this.subscriptionAccess.isSubscriber$,
     ])
       .pipe(takeUntil(this.destroy$))
       .subscribe(([resolved, authUid, isSubscriber]) => {
