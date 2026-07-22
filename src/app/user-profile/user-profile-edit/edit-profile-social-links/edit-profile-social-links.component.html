@@ -1,37 +1,101 @@
-<!-- src\app\user-profile\user-profile-edit\edit-profile-social-links\edit-profile-social-links.component.html -->
-<div class="edit-social-links-container">
-  <h2>Editar Redes Sociais</h2>
-  <p>Aqui você pode adicionar, alterar ou remover seus links de redes sociais.</p>
+<!-- src/app/user-profile/user-profile-edit/edit-profile-social-links/edit-profile-social-links.component.html -->
+<main class="social-links-editor" aria-labelledby="social-links-editor-title">
+  <header class="social-links-editor__header">
+    <h1 id="social-links-editor-title">Redes sociais</h1>
+  </header>
 
-  <div class="form-group">
-    <label for="facebookInput"><i class="fab fa-facebook-square"></i> Facebook</label>
-    <input id="facebookInput" type="text" [ngModel]="socialLinks?.facebook || ''"
-      (ngModelChange)="updateLocalLink('facebook', $event)" />
-    <button class="btn btn-danger btn-sm" (click)="removerRede('facebook')" [disabled]="!socialLinks?.facebook">
-      Remover
-    </button>
-  </div>
+  @if (!accessResolved) {
+    <div class="social-links-editor__status" role="status" aria-live="polite">
+      <span class="social-links-editor__spinner" aria-hidden="true"></span>
+      <span>Verificando acesso...</span>
+    </div>
+  } @else if (!isOwner) {
+    <div class="social-links-editor__status" role="alert">
+      <p>Edição indisponível.</p>
+      <button type="button" class="social-links-editor__link" (click)="cancelar()">
+        Voltar ao perfil
+      </button>
+    </div>
+  } @else {
+    @if (!canPublish) {
+      <section class="social-links-editor__access" aria-label="Recurso para assinantes">
+        <p>
+          A publicação de redes sociais é exclusiva para assinantes. Seus links
+          ficam ocultos para visitantes enquanto a assinatura estiver inativa;
+          a remoção continua disponível.
+        </p>
+        <button type="button" class="social-links-editor__plan" (click)="abrirPlanos()">
+          Ver planos
+        </button>
+      </section>
+    }
 
-  <div class="form-group">
-    <label for="instagramInput"><i class="fab fa-instagram"></i> Instagram</label>
-    <input id="instagramInput" type="text" [ngModel]="socialLinks?.instagram || ''"
-      (ngModelChange)="updateLocalLink('instagram', $event)" />
-    <button class="btn btn-danger btn-sm" (click)="removerRede('instagram')" [disabled]="!socialLinks?.instagram">
-      Remover
-    </button>
-  </div>
+    <form class="social-links-editor__form" (ngSubmit)="salvarRedes()">
+      @for (field of fields; track trackField($index, field)) {
+        @if (canPublish || socialLinks[field.key]) {
+          <div class="social-links-editor__field">
+            <label [for]="'social-link-' + field.key">
+              <i [class]="field.icon" aria-hidden="true"></i>
+              <span>{{ field.label }}</span>
+            </label>
 
-  <div class="form-group">
-    <label for="twitterInput"><i class="fab fa-twitter"></i> Twitter</label>
-    <input id="twitterInput" type="text" [ngModel]="socialLinks?.twitter || ''"
-      (ngModelChange)="updateLocalLink('twitter', $event)" />
-    <button class="btn btn-danger btn-sm" (click)="removerRede('twitter')" [disabled]="!socialLinks?.twitter">
-      Remover
-    </button>
-  </div>
+            <input
+              [id]="'social-link-' + field.key"
+              type="text"
+              inputmode="url"
+              autocomplete="url"
+              [placeholder]="field.placeholder"
+              [ngModel]="socialLinks[field.key] || ''"
+              [ngModelOptions]="{ standalone: true }"
+              (ngModelChange)="updateLocalLink(field.key, $event)"
+              [disabled]="!canPublish || saving"
+            />
 
-  <div class="button-group">
-    <button class="btn btn-success" (click)="salvarRedes()">Salvar</button>
-    <button class="btn btn-secondary" (click)="cancelar()">Cancelar</button>
-  </div>
-</div>
+            @if (socialLinks[field.key]) {
+              <button
+                type="button"
+                class="social-links-editor__remove"
+                (click)="removerRede(field.key)"
+                [disabled]="removingKey !== null"
+                [attr.aria-busy]="removingKey === field.key ? 'true' : null"
+                [attr.aria-label]="
+                  removingKey === field.key
+                    ? 'Removendo ' + field.label
+                    : 'Remover ' + field.label
+                "
+              >
+                @if (removingKey === field.key) {
+                  Removendo...
+                } @else {
+                  Remover
+                }
+              </button>
+            }
+          </div>
+        }
+      }
+
+      <div class="social-links-editor__actions">
+        @if (canPublish) {
+          <button
+            type="submit"
+            class="social-links-editor__save"
+            [disabled]="saving || removingKey !== null"
+            [attr.aria-busy]="saving ? 'true' : null"
+          >
+            {{ saving ? 'Publicando...' : 'Publicar redes' }}
+          </button>
+        }
+
+        <button
+          type="button"
+          class="social-links-editor__cancel"
+          (click)="cancelar()"
+          [disabled]="saving || removingKey !== null"
+        >
+          Voltar
+        </button>
+      </div>
+    </form>
+  }
+</main>
