@@ -92,7 +92,7 @@ export class UserEffects {
   }
 
   private stableSerialize(value: unknown): string {
-    return JSON.stringify(this.sortSerializableValue(value));
+    return JSON.stringify(this.sortSerializableValue(value)) ?? 'null';
   }
 
   private sortSerializableValue(value: unknown): unknown {
