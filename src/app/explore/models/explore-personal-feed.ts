@@ -7,8 +7,17 @@ export interface ExplorePersonalFeedOptions {
   readonly maxItemsPerOwner?: number;
 }
 
+export interface ExplorePersonalFeedWindow {
+  readonly items: readonly IPublicPhotoItem[];
+  readonly visibleCount: number;
+  readonly totalItems: number;
+  readonly remainingItems: number;
+  readonly hasMore: boolean;
+}
+
 const DEFAULT_LIMIT = 18;
 const DEFAULT_MAX_ITEMS_PER_OWNER = 2;
+const DEFAULT_VISIBLE_LIMIT = 6;
 
 /**
  * Monta uma timeline pública única sem criar uma segunda fonte de dados.
@@ -85,6 +94,35 @@ export function buildExplorePersonalFeed(
   }
 
   return feed;
+}
+
+/**
+ * Projeta uma janela incremental sobre a timeline já autorizada.
+ *
+ * O helper não dispara nova consulta nem cria uma segunda paginação de backend.
+ * Ele reduz a quantidade de cards montados inicialmente e mantém a expansão sob
+ * controle explícito do usuário, o que favorece mobile, acessibilidade e debug.
+ */
+export function buildExplorePersonalFeedWindow(
+  items: readonly IPublicPhotoItem[] | null | undefined,
+  visibleLimit: number
+): ExplorePersonalFeedWindow {
+  const safeItems = [...(items ?? [])];
+  const totalItems = safeItems.length;
+  const requestedVisibleCount = normalizePositiveInteger(
+    visibleLimit,
+    DEFAULT_VISIBLE_LIMIT
+  );
+  const visibleCount = Math.min(totalItems, requestedVisibleCount);
+  const remainingItems = Math.max(0, totalItems - visibleCount);
+
+  return {
+    items: safeItems.slice(0, visibleCount),
+    visibleCount,
+    totalItems,
+    remainingItems,
+    hasMore: remainingItems > 0,
+  };
 }
 
 function calculateRelevanceScore(
