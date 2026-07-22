@@ -23,38 +23,108 @@ function photo(
 }
 
 describe('buildExplorePersonalFeed', () => {
-  it('remove duplicidades entre as seções públicas', () => {
+  it('remove duplicidades entre as fontes autorizadas', () => {
     const repeated = photo('p1', 'u1', { publishedAt: 10 });
 
     const result = buildExplorePersonalFeed({
+      personalPhotos: [repeated],
       boostedPhotos: [repeated],
       mostViewedPhotos: [repeated],
       topPhotos: [repeated],
       latestPhotos: [repeated],
       compatibleProfiles: [],
+      friendUids: [],
     });
 
     expect(result).toEqual([repeated]);
   });
 
-  it('prioriza autores compatíveis antes de publicações comuns', () => {
+  it('prioriza amigos antes de perfis compatíveis', () => {
+    const friend = photo('friend', 'friend-1', { publishedAt: 1 });
+    const compatible = photo('compatible', 'compatible-1', {
+      publishedAt: 10_000,
+      boostActive: true,
+      boostPriority: 999,
+    });
+
+    const result = buildExplorePersonalFeed({
+      personalPhotos: [compatible, friend],
+      boostedPhotos: [compatible],
+      mostViewedPhotos: [],
+      topPhotos: [],
+      latestPhotos: [],
+      compatibleProfiles: [
+        { uid: 'compatible-1', nickname: 'Compatível' },
+      ],
+      friendUids: ['friend-1'],
+    });
+
+    expect(result.map((item) => item.id)).toEqual(['friend', 'compatible']);
+  });
+
+  it('prioriza perfis compatíveis antes de publicações comuns', () => {
     const common = photo('common', 'u1', { publishedAt: 1000 });
     const compatible = photo('compatible', 'u2', { publishedAt: 1 });
 
     const result = buildExplorePersonalFeed({
+      personalPhotos: [compatible],
       boostedPhotos: [],
       mostViewedPhotos: [],
       topPhotos: [common],
       latestPhotos: [compatible],
       compatibleProfiles: [{ uid: 'u2', nickname: 'Compatível' }],
+      friendUids: [],
     });
 
-    expect(result[0]?.id).toBe('compatible');
+    expect(result.map((item) => item.id)).toEqual(['compatible']);
+  });
+
+  it('remove autores sem vínculo quando há amigos ou compatíveis resolvidos', () => {
+    const friend = photo('friend', 'friend-1', { publishedAt: 3 });
+    const compatible = photo('compatible', 'compatible-1', { publishedAt: 2 });
+    const unrelated = photo('unrelated', 'other-1', { publishedAt: 9_999 });
+
+    const result = buildExplorePersonalFeed({
+      personalPhotos: [friend, compatible],
+      boostedPhotos: [unrelated],
+      mostViewedPhotos: [],
+      topPhotos: [],
+      latestPhotos: [unrelated],
+      compatibleProfiles: [
+        { uid: 'compatible-1', nickname: 'Compatível' },
+      ],
+      friendUids: ['friend-1'],
+    });
+
+    expect(result.map((item) => item.id)).toEqual(['friend', 'compatible']);
+  });
+
+  it('usa recência dentro do mesmo grupo antes de impulso e engajamento', () => {
+    const recent = photo('recent', 'friend-1', { publishedAt: 100 });
+    const oldBoosted = photo('old-boosted', 'friend-2', {
+      publishedAt: 1,
+      boostActive: true,
+      boostPriority: 500,
+      reactionsCount: 10_000,
+    });
+
+    const result = buildExplorePersonalFeed({
+      personalPhotos: [oldBoosted, recent],
+      boostedPhotos: [oldBoosted],
+      mostViewedPhotos: [],
+      topPhotos: [],
+      latestPhotos: [],
+      compatibleProfiles: [],
+      friendUids: ['friend-1', 'friend-2'],
+    });
+
+    expect(result.map((item) => item.id)).toEqual(['recent', 'old-boosted']);
   });
 
   it('limita repetição por autor para preservar diversidade', () => {
     const result = buildExplorePersonalFeed(
       {
+        personalPhotos: [],
         boostedPhotos: [],
         mostViewedPhotos: [],
         topPhotos: [],
@@ -65,6 +135,7 @@ describe('buildExplorePersonalFeed', () => {
           photo('b1', 'u2', { publishedAt: 3 }),
         ],
         compatibleProfiles: [],
+        friendUids: [],
       },
       { maxItemsPerOwner: 2 }
     );
@@ -75,6 +146,7 @@ describe('buildExplorePersonalFeed', () => {
   it('respeita o limite total da timeline', () => {
     const result = buildExplorePersonalFeed(
       {
+        personalPhotos: [],
         boostedPhotos: [],
         mostViewedPhotos: [],
         topPhotos: [],
@@ -84,6 +156,7 @@ describe('buildExplorePersonalFeed', () => {
           photo('c', 'u3', { publishedAt: 1 }),
         ],
         compatibleProfiles: [],
+        friendUids: [],
       },
       { limit: 2 }
     );
