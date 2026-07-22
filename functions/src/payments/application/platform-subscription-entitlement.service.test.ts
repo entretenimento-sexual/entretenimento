@@ -5,6 +5,7 @@ import {
   calculatePlatformSubscriptionPeriodEnd,
   evaluatePlatformSubscriptionEntitlement,
   hasMinimumPlatformRole,
+  resolvePlatformSubscriptionSettlementPeriod,
 } from './platform-subscription-entitlement.service';
 
 const NOW = 1_800_000_000_000;
@@ -89,7 +90,7 @@ test('nega role desconhecida ou janela temporal inválida', () => {
   assert.equal(invalidEndsAt.active, false);
 });
 
-test('deriva um fim mensal finito para entitlement legado sem endsAt', () => {
+test('deriva fim mensal finito para entitlement legado sem endsAt', () => {
   const startsAt = Date.UTC(2026, 0, 15, 12, 30, 0);
   const expectedEndsAt = Date.UTC(2026, 1, 15, 12, 30, 0);
 
@@ -124,6 +125,59 @@ test('não transforma entitlement legado já vencido em acesso ativo', () => {
 
   assert.equal(result.active, false);
   assert.equal(result.legacyEndsAtDerived, true);
+});
+
+test('renovação vigente estende a partir do término atual', () => {
+  const currentEndsAt = Date.UTC(2026, 7, 20, 15, 0, 0);
+  const expectedEndsAt = Date.UTC(2026, 8, 20, 15, 0, 0);
+  const startsAt = Date.UTC(2026, 6, 20, 15, 0, 0);
+
+  const period = resolvePlatformSubscriptionSettlementPeriod(
+    createEntitlement({ startsAt, endsAt: currentEndsAt }),
+    'user-1',
+    Date.UTC(2026, 7, 1)
+  );
+
+  assert.equal(period.startsAt, startsAt);
+  assert.equal(period.extensionBase, currentEndsAt);
+  assert.equal(period.endsAt, expectedEndsAt);
+  assert.equal(period.extendedExistingAccess, true);
+});
+
+test('renovação legado vigente preserva o fim mensal derivado', () => {
+  const startsAt = Date.UTC(2026, 6, 20, 15, 0, 0);
+  const derivedEndsAt = Date.UTC(2026, 7, 20, 15, 0, 0);
+  const expectedRenewedEndsAt = Date.UTC(2026, 8, 20, 15, 0, 0);
+
+  const period = resolvePlatformSubscriptionSettlementPeriod(
+    createEntitlement({ startsAt, endsAt: null }),
+    'user-1',
+    Date.UTC(2026, 7, 1)
+  );
+
+  assert.equal(period.startsAt, startsAt);
+  assert.equal(period.extensionBase, derivedEndsAt);
+  assert.equal(period.endsAt, expectedRenewedEndsAt);
+  assert.equal(period.extendedExistingAccess, true);
+});
+
+test('reativação vencida inicia novo período em now', () => {
+  const now = Date.UTC(2026, 7, 20, 15, 0, 0);
+  const expectedEndsAt = Date.UTC(2026, 8, 20, 15, 0, 0);
+
+  const period = resolvePlatformSubscriptionSettlementPeriod(
+    createEntitlement({
+      startsAt: Date.UTC(2025, 0, 1),
+      endsAt: Date.UTC(2025, 1, 1),
+    }),
+    'user-1',
+    now
+  );
+
+  assert.equal(period.startsAt, now);
+  assert.equal(period.extensionBase, now);
+  assert.equal(period.endsAt, expectedEndsAt);
+  assert.equal(period.extendedExistingAccess, false);
 });
 
 test('aplica a hierarquia de planos sem promover níveis inferiores', () => {
