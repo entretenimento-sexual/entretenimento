@@ -19,6 +19,7 @@ describe('PublicPhotoCardComponent', () => {
     ownerMunicipio: 'Rio de Janeiro',
     ownerEstado: 'RJ',
     url: 'https://example.test/photo.jpg',
+    caption: 'Legenda persistente da publicação.',
     createdAt: Date.now() - 60_000,
     publishedAt: Date.now() - 60_000,
     visibility: 'PUBLIC',
@@ -54,6 +55,19 @@ describe('PublicPhotoCardComponent', () => {
     expect(identity.textContent).toContain('há 1 min');
     expect(owner.textContent).not.toContain('Rio de Janeiro');
     expect(avatar.src).toContain('avatar.jpg');
+  });
+
+  it('exibe a legenda persistente antes da mídia', () => {
+    const caption = fixture.debugElement.query(
+      By.css('.feed-card-caption')
+    ).nativeElement as HTMLElement;
+    const media = fixture.debugElement.query(By.css('.photo-card-link--feed'));
+
+    expect(caption.textContent?.trim()).toBe('Legenda persistente da publicação.');
+    expect(
+      caption.compareDocumentPosition(media.nativeElement) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   it('usa a inicial do autor quando não existe avatar público', () => {
