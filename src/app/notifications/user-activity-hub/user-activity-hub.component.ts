@@ -79,10 +79,10 @@ export class UserActivityHubComponent {
     },
     {
       id: 'status',
-      label: 'Status',
-      description: 'Status de hoje e radar regional',
+      label: 'Momentos',
+      description: 'Momentos de 12 horas e radar regional',
       count: 0,
-      icon: '⚡',
+      icon: '🕒',
       route: '/descobrir',
       priority: 60,
     },
@@ -199,6 +199,7 @@ export class UserActivityHubComponent {
   private isStatusActivity(item: IAppNotification, searchable: string): boolean {
     return item.type === 'user_intent_status.published' ||
       searchable.includes('status') ||
+      searchable.includes('momento') ||
       searchable.includes('radar') ||
       searchable.includes('disponivel hoje');
   }
