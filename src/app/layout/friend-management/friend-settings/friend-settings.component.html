@@ -1,9 +1,8 @@
-<!-- src\app\layout\friend-management\friend-settings\friend-settings.component.html -->
-<div class="friend-settings">
-  <h3>Configurações de Amizade</h3>
+<!-- src/app/layout/friend-management/friend-settings/friend-settings.component.html -->
+<section class="friend-settings" aria-labelledby="friend-settings-title">
+  <h3 id="friend-settings-title">Configurações de amizade</h3>
 
-  <!-- Formulário de configurações -->
-  <form [formGroup]="settingsForm">
+  <form [formGroup]="settingsForm" (ngSubmit)="saveSettings()">
     <mat-slide-toggle formControlName="receiveRequests">
       Permitir receber solicitações de amizade
     </mat-slide-toggle>
@@ -16,13 +15,8 @@
       Permitir que outros me encontrem pelo nickname
     </mat-slide-toggle>
 
-    <button mat-button color="primary" [disabled]="isLoading$ | async" (click)="saveSettings()">
-      Salvar Configurações
+    <button mat-button color="primary" type="submit">
+      Salvar configurações
     </button>
   </form>
-
-  <!-- Loader enquanto salva -->
-  @if (isLoading$ | async) {
-    <mat-spinner></mat-spinner>
-  }
-</div>
+</section>
