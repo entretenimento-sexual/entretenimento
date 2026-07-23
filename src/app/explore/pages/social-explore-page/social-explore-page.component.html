@@ -1,15 +1,14 @@
 <!-- src/app/explore/pages/social-explore-page/social-explore-page.component.html -->
 @if (vm$ | async; as vm) {
   @let feedWindow = (feedWindow$ | async);
-  @let feedPhotos = (feedWindow?.items || []);
+  @let feedItems = (feedWindow?.items || []);
   @let lightboxState = (lightboxState$ | async);
   @let activeLightboxItems = ((activeLightboxItems$ | async) || []);
   @let currentUser = (currentUser$ | async);
-  @let myActiveStatus = (myActiveStatus$ | async);
 
   <section class="social-feed-page" aria-label="Atualizações">
     @if (currentUser?.uid) {
-      <section class="feed-composer" aria-label="Ações de publicação">
+      <section class="feed-composer" aria-label="Criar publicação">
         <a
           class="feed-composer__avatar"
           routerLink="/perfil"
@@ -39,86 +38,99 @@
         >
           Criar publicação
         </button>
-
-        <button
-          type="button"
-          class="feed-composer__photo"
-          aria-label="Declarar meu momento por 12 horas"
-          title="Meu momento por 12 horas"
-          (click)="openStatusComposer()"
-        >
-          <i class="fas fa-clock" aria-hidden="true"></i>
-        </button>
       </section>
 
       @if (publicationComposerVisible()) {
         <app-feed-publication-composer
-          class="feed-status-composer"
+          class="feed-publication-composer"
           [user]="currentUser"
           (closed)="closePublicationComposer()"
           (published)="onPublicationPublished()"
         />
       }
-
-      @if (statusComposerVisible()) {
-        <app-user-intent-status-composer
-          class="feed-status-composer"
-          [user]="currentUser"
-        />
-      }
-    }
-
-    @if (myActiveStatus) {
-      <aside class="feed-status" aria-label="Meu momento ativo por 12 horas">
-        <div>
-          <strong>{{ myActiveStatus.availabilityLabel }}</strong>
-          <p>
-            {{ myActiveStatus.destinationLabel }} ·
-            {{ myActiveStatus.expiresInLabel }}
-          </p>
-        </div>
-
-        <div class="feed-status__actions">
-          <button type="button" (click)="openStatusComposer()">Editar</button>
-          <button
-            type="button"
-            [disabled]="hidingMyStatus"
-            (click)="hideMyStatus(currentUser)"
-          >
-            {{ hidingMyStatus ? 'Encerrando...' : 'Encerrar' }}
-          </button>
-        </div>
-      </aside>
     }
 
     <section class="feed-timeline" aria-labelledby="timeline-title">
       <h2 id="timeline-title" class="visually-hidden">
-        Publicações recentes de amigos e perfis compatíveis
+        Publicações e momentos recentes de amigos e perfis compatíveis
       </h2>
 
-      @if (feedPhotos.length > 0) {
-        <div
-          class="feed-list"
-          role="list"
-          aria-label="Publicações recentes"
-        >
-          @for (
-            item of feedPhotos;
-            track trackByPhotoId($index, item);
-            let i = $index
-          ) {
+      <div
+        class="feed-list"
+        role="list"
+        aria-label="Publicações e momentos recentes"
+      >
+        @if (currentUser?.uid) {
+          <app-user-intent-status-composer
+            class="feed-status-composer"
+            role="listitem"
+            [user]="currentUser"
+          />
+        }
+
+        @for (
+          item of feedItems;
+          track trackByFeedItem($index, item)
+        ) {
+          @if (item.kind === 'photo') {
             <app-public-photo-card
               role="listitem"
-              [photo]="item"
+              [photo]="item.photo"
               variant="feed"
-              (preview)="openPhoto('feed', i)"
+              (preview)="openFeedPhoto(item.photo)"
             />
-          }
-        </div>
+          } @else {
+            <article
+              class="feed-intent"
+              role="listitem"
+              [attr.aria-label]="
+                'Momento temporário de ' + item.status.profile.nickname
+              "
+            >
+              <header class="feed-intent__header">
+                <div class="feed-intent__identity">
+                  <span class="feed-intent__avatar" aria-hidden="true">
+                    @if (item.status.profile.photoURL) {
+                      <img
+                        [src]="item.status.profile.photoURL"
+                        alt=""
+                        width="44"
+                        height="44"
+                        loading="lazy"
+                        decoding="async"
+                        referrerpolicy="no-referrer"
+                      />
+                    } @else {
+                      {{ item.status.profile.nickname.slice(0, 1).toUpperCase() }}
+                    }
+                  </span>
 
+                  <div>
+                    <strong>{{ item.status.profile.nickname }}</strong>
+                    <span>
+                      Momento · {{ item.status.expiresInLabel }}
+                    </span>
+                  </div>
+                </div>
+
+                <span class="feed-intent__relationship">
+                  {{ item.relationship === 'friend' ? 'Amigo' : 'Compatível' }}
+                </span>
+              </header>
+
+              <div class="feed-intent__body">
+                <strong>{{ item.status.availabilityLabel }}</strong>
+                <p>{{ item.status.destinationLabel }}</p>
+              </div>
+            </article>
+          }
+        }
+      </div>
+
+      @if (feedItems.length > 0) {
         <p class="visually-hidden" aria-live="polite">
           Exibindo {{ feedWindow?.visibleCount || 0 }} de
-          {{ feedWindow?.totalItems || 0 }} publicações.
+          {{ feedWindow?.totalItems || 0 }} atualizações.
         </p>
 
         @if (feedWindow?.hasMore) {
@@ -127,7 +139,7 @@
               type="button"
               (click)="loadMoreFeed()"
               [attr.aria-label]="
-                'Carregar mais publicações. ' +
+                'Carregar mais atualizações. ' +
                 (feedWindow?.remainingItems || 0) +
                 ' restantes.'
               "
@@ -138,7 +150,7 @@
         }
       } @else {
         <div class="feed-empty" role="status" aria-live="polite">
-          <span>Nenhuma publicação recente.</span>
+          <span>Nenhuma publicação ou momento recente.</span>
           <a routerLink="/dashboard/explorar">Encontrar pessoas</a>
         </div>
       }
