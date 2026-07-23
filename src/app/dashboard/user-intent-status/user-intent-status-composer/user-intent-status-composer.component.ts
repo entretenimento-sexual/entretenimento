@@ -19,7 +19,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { Observable, combineLatest, of } from 'rxjs';
+import { BehaviorSubject, Observable, combineLatest, of } from 'rxjs';
 import {
   distinctUntilChanged,
   finalize,
@@ -119,6 +119,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
   private readonly statusService = inject(UserIntentStatusService);
   private readonly venueService = inject(VenueService);
   private readonly notifications = inject(ErrorNotificationService);
+  private readonly activeStatusRefreshSubject = new BehaviorSubject<void>(undefined);
 
   private readonly authUid$ = this.authSession.readyUid$.pipe(
     map((uid) => String(uid ?? '').trim()),
@@ -151,8 +152,11 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       venueId: '',
     }, { emitEvent: false });
 
-    this.activeStatus$ = this.authUid$.pipe(
-      switchMap((uid) => uid ? this.statusService.watchCurrentStatus$(uid) : of(null)),
+    this.activeStatus$ = combineLatest([
+      this.authUid$,
+      this.activeStatusRefreshSubject,
+    ]).pipe(
+      switchMap(([uid]) => uid ? this.statusService.watchCurrentStatus$(uid) : of(null)),
       shareReplay({ bufferSize: 1, refCount: true })
     );
     this.venues$ = this.watchVenuesForFormRegion$();
@@ -255,6 +259,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       ).subscribe({
         next: () => {
           this.notifications.showSuccess('Status encerrado.');
+          this.activeStatusRefreshSubject.next();
         },
         error: () => {
           this.notifications.showError('Não foi possível encerrar seu status agora.');
@@ -303,6 +308,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
     ).subscribe({
       next: () => {
         this.notifications.showSuccess('Status publicado por até 12 horas.');
+        this.activeStatusRefreshSubject.next();
         this.closeComposer();
       },
       error: () => {
