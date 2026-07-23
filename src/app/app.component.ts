@@ -4,6 +4,7 @@
 // Responsabilidades:
 // - iniciar diagnósticos globais;
 // - iniciar orquestradores globais;
+// - iniciar a ponte reativa entre Auth e ciclo de vida do cache;
 // - manter a casca raiz mínima da aplicação;
 // - controlar a exibição global do footer por rota.
 //
@@ -14,19 +15,26 @@
 import { Component, OnInit } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Observable } from 'rxjs';
-import { distinctUntilChanged, filter, map, shareReplay, startWith } from 'rxjs/operators';
+import {
+  distinctUntilChanged,
+  filter,
+  map,
+  shareReplay,
+  startWith,
+} from 'rxjs/operators';
 
 import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
 import { AuthDebugService } from './core/services/util-service/auth-debug.service';
 import { environment } from 'src/environments/environment';
 import { PresenceOrchestratorService } from './core/services/presence/presence-orchestrator.service';
 import { RouterDiagnosticsService } from './core/services/util-service/router-diagnostics.service';
+import { CacheAuthLifecycleBridgeService } from './core/services/general/cache/cache-auth-lifecycle-bridge.service';
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css'],
-  standalone: false
+  standalone: false,
 })
 export class AppComponent implements OnInit {
   title = 'entretenimento';
@@ -37,7 +45,9 @@ export class AppComponent implements OnInit {
    * - some na experiência logada para não competir com feed, chat e navegação.
    */
   readonly showFooter$: Observable<boolean> = this.router.events.pipe(
-    filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+    filter(
+      (event): event is NavigationEnd => event instanceof NavigationEnd
+    ),
     startWith(null),
     map(() => this.router.url || '/'),
     map((url) => !this.shouldHideFooter(url)),
@@ -49,8 +59,9 @@ export class AppComponent implements OnInit {
     private readonly router: Router,
     private readonly orchestrator: AuthOrchestratorService,
     private readonly presenceOrchestrator: PresenceOrchestratorService,
+    private readonly cacheAuthLifecycle: CacheAuthLifecycleBridgeService,
     private readonly authDebug: AuthDebugService,
-    private readonly routerDiag: RouterDiagnosticsService,
+    private readonly routerDiag: RouterDiagnosticsService
   ) {}
 
   ngOnInit(): void {
@@ -60,6 +71,7 @@ export class AppComponent implements OnInit {
       this.authDebug.start();
     }
 
+    this.cacheAuthLifecycle.start();
     this.orchestrator.start();
     this.presenceOrchestrator.start();
   }
@@ -83,7 +95,9 @@ export class AppComponent implements OnInit {
       '/principal',
       '/profile-list',
       '/subscription-plan',
-    ].some((prefix) => clean === prefix || clean.startsWith(`${prefix}/`));
+    ].some(
+      (prefix) => clean === prefix || clean.startsWith(`${prefix}/`)
+    );
   }
 
   private normalizeUrl(url: string): string {
