@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
+import { vi } from 'vitest';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { AppCacheService } from './app-cache.service';
@@ -9,10 +10,17 @@ import {
 } from './cache-contracts';
 import { CachePersistenceService } from './cache-persistence.service';
 
+type PersistenceMock = {
+  getEnvelopePersistent: ReturnType<typeof vi.fn>;
+  setEnvelopePersistent: ReturnType<typeof vi.fn>;
+  deletePersistent: ReturnType<typeof vi.fn>;
+  deletePersistentByPrefix: ReturnType<typeof vi.fn>;
+};
+
 describe('AppCacheService', () => {
   let service: AppCacheService;
-  let persistence: jasmine.SpyObj<CachePersistenceService>;
-  let globalError: jasmine.SpyObj<GlobalErrorHandlerService>;
+  let persistence: PersistenceMock;
+  let globalError: { handleError: ReturnType<typeof vi.fn> };
 
   const memoryDefinition = <T>(
     overrides: Partial<CacheDefinition<T>> = {}
@@ -27,24 +35,15 @@ describe('AppCacheService', () => {
   });
 
   beforeEach(() => {
-    persistence = jasmine.createSpyObj<CachePersistenceService>(
-      'CachePersistenceService',
-      [
-        'getEnvelopePersistent',
-        'setEnvelopePersistent',
-        'deletePersistent',
-        'deletePersistentByPrefix',
-      ]
-    );
-    persistence.getEnvelopePersistent.and.returnValue(of(null));
-    persistence.setEnvelopePersistent.and.returnValue(of(void 0));
-    persistence.deletePersistent.and.returnValue(of(void 0));
-    persistence.deletePersistentByPrefix.and.returnValue(of(0));
-
-    globalError = jasmine.createSpyObj<GlobalErrorHandlerService>(
-      'GlobalErrorHandlerService',
-      ['handleError']
-    );
+    persistence = {
+      getEnvelopePersistent: vi.fn().mockReturnValue(of(null)),
+      setEnvelopePersistent: vi.fn().mockReturnValue(of(void 0)),
+      deletePersistent: vi.fn().mockReturnValue(of(void 0)),
+      deletePersistentByPrefix: vi.fn().mockReturnValue(of(0)),
+    };
+    globalError = {
+      handleError: vi.fn(),
+    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -57,22 +56,24 @@ describe('AppCacheService', () => {
     service = TestBed.inject(AppCacheService);
   });
 
-  it('mantém null como valor legítimo sem confundir com miss', (done) => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('mantém null como valor legítimo sem confundir com miss', async () => {
     const definition = memoryDefinition<null>({
       validate: (value: unknown): value is null => value === null,
     });
 
-    service.set$(definition, null).subscribe(() => {
-      service.get$(definition).subscribe((result) => {
-        expect(result).toEqual({ status: 'fresh', value: null });
-        expect(persistence.setEnvelopePersistent).not.toHaveBeenCalled();
-        done();
-      });
-    });
+    await firstValueFrom(service.set$(definition, null));
+    const result = await firstValueFrom(service.get$(definition));
+
+    expect(result).toEqual({ status: 'fresh', value: null });
+    expect(persistence.setEnvelopePersistent).not.toHaveBeenCalled();
   });
 
-  it('persiste o envelope completo quando storage é persistent', (done) => {
-    spyOn(Date, 'now').and.returnValue(1_000);
+  it('persiste o envelope completo quando storage é persistent', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_000);
 
     const definition = memoryDefinition<string>({
       key: 'catalog:public',
@@ -83,29 +84,29 @@ describe('AppCacheService', () => {
       staleWhileRevalidateMs: 10_000,
     });
 
-    service.set$(definition, 'ok').subscribe(() => {
-      expect(persistence.setEnvelopePersistent).toHaveBeenCalledTimes(1);
+    await firstValueFrom(service.set$(definition, 'ok'));
 
-      const [, envelope] =
-        persistence.setEnvelopePersistent.calls.mostRecent().args;
+    expect(persistence.setEnvelopePersistent).toHaveBeenCalledTimes(1);
 
-      expect(envelope).toEqual(
-        jasmine.objectContaining({
-          value: 'ok',
-          createdAt: 1_000,
-          expiresAt: 31_000,
-          staleUntil: 41_000,
-          version: 1,
-          scope: 'global',
-          sensitivity: 'public',
-        })
-      );
-      done();
-    });
+    const envelope = persistence.setEnvelopePersistent.mock.calls[0]?.[1] as
+      | CacheEnvelope<string>
+      | undefined;
+
+    expect(envelope).toEqual(
+      expect.objectContaining({
+        value: 'ok',
+        createdAt: 1_000,
+        expiresAt: 31_000,
+        staleUntil: 41_000,
+        version: 1,
+        scope: 'global',
+        sensitivity: 'public',
+      })
+    );
   });
 
-  it('rehidrata um envelope fresh do IndexedDB', (done) => {
-    spyOn(Date, 'now').and.returnValue(2_000);
+  it('rehidrata um envelope fresh do IndexedDB', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(2_000);
 
     const definition = memoryDefinition<string>({
       key: 'catalog:rehydrate',
@@ -123,19 +124,18 @@ describe('AppCacheService', () => {
       sensitivity: 'public',
     };
 
-    persistence.getEnvelopePersistent.and.returnValue(of(envelope));
+    persistence.getEnvelopePersistent.mockReturnValue(of(envelope));
 
-    service.get$(definition).subscribe((result) => {
-      expect(result).toEqual({
-        status: 'fresh',
-        value: 'persisted',
-      });
-      done();
+    const result = await firstValueFrom(service.get$(definition));
+
+    expect(result).toEqual({
+      status: 'fresh',
+      value: 'persisted',
     });
   });
 
-  it('retorna stale dentro da janela SWR', (done) => {
-    spyOn(Date, 'now').and.returnValue(15_000);
+  it('retorna stale dentro da janela SWR', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(15_000);
 
     const definition = memoryDefinition<string>({
       key: 'catalog:stale',
@@ -154,19 +154,18 @@ describe('AppCacheService', () => {
       sensitivity: 'public',
     };
 
-    persistence.getEnvelopePersistent.and.returnValue(of(envelope));
+    persistence.getEnvelopePersistent.mockReturnValue(of(envelope));
 
-    service.get$(definition).subscribe((result) => {
-      expect(result).toEqual({
-        status: 'stale',
-        value: 'stale-value',
-      });
-      done();
+    const result = await firstValueFrom(service.get$(definition));
+
+    expect(result).toEqual({
+      status: 'stale',
+      value: 'stale-value',
     });
   });
 
-  it('remove envelope expirado e retorna miss', (done) => {
-    spyOn(Date, 'now').and.returnValue(30_000);
+  it('remove envelope expirado e retorna miss', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(30_000);
 
     const definition = memoryDefinition<string>({
       key: 'catalog:expired',
@@ -184,16 +183,15 @@ describe('AppCacheService', () => {
       sensitivity: 'public',
     };
 
-    persistence.getEnvelopePersistent.and.returnValue(of(envelope));
+    persistence.getEnvelopePersistent.mockReturnValue(of(envelope));
 
-    service.get$(definition).subscribe((result) => {
-      expect(result).toEqual({ status: 'miss' });
-      expect(persistence.deletePersistent).toHaveBeenCalledTimes(1);
-      done();
-    });
+    const result = await firstValueFrom(service.get$(definition));
+
+    expect(result).toEqual({ status: 'miss' });
+    expect(persistence.deletePersistent).toHaveBeenCalledTimes(1);
   });
 
-  it('impede persistência de dado classificado como restricted', (done) => {
+  it('impede persistência de dado classificado como restricted', async () => {
     const definition = memoryDefinition<string>({
       key: 'preferences:intimate',
       scope: 'user',
@@ -202,22 +200,18 @@ describe('AppCacheService', () => {
       storage: 'persistent',
     });
 
-    service.set$(definition, 'private').subscribe({
-      next: () => fail('A configuração inválida deveria falhar.'),
-      error: (error: Error) => {
-        expect(error.name).toBe('CacheConfigurationError');
-        expect(persistence.setEnvelopePersistent).not.toHaveBeenCalled();
-        done();
-      },
-    });
+    await expect(
+      firstValueFrom(service.set$(definition, 'private'))
+    ).rejects.toMatchObject({ name: 'CacheConfigurationError' });
+
+    expect(persistence.setEnvelopePersistent).not.toHaveBeenCalled();
   });
 
-  it('limpa o escopo persistido de um UID sem expor outros usuários', (done) => {
-    service.clearUserScope$('uid 1').subscribe(() => {
-      expect(persistence.deletePersistentByPrefix).toHaveBeenCalledWith(
-        'app-cache:user:uid%201:'
-      );
-      done();
-    });
+  it('limpa o escopo persistido de um UID sem expor outros usuários', async () => {
+    await firstValueFrom(service.clearUserScope$('uid 1'));
+
+    expect(persistence.deletePersistentByPrefix).toHaveBeenCalledWith(
+      'app-cache:user:uid%201:'
+    );
   });
 });
