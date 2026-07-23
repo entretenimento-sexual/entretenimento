@@ -53,6 +53,7 @@ interface PublishPhotoRequest {
   ownerUid?: string;
   photoId?: string;
   visibility?: PhotoVisibility;
+  caption?: string | null;
   isCover?: boolean;
   orderIndex?: number;
   commentsEnabled?: boolean;
@@ -79,12 +80,23 @@ interface SetCoverPhotoResponse {
   photoId: string;
 }
 
+const MAX_CAPTION_LENGTH = 800;
 const AUTO_APPROVE_PHOTOS =
   process.env.FUNCTIONS_EMULATOR === 'true' ||
   process.env.MEDIA_AUTO_APPROVE_PHOTOS === 'true';
 
 function cleanId(value: unknown): string {
   return String(value ?? '').trim();
+}
+
+function cleanCaption(value: unknown): string | null {
+  const caption = String(value ?? '')
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, MAX_CAPTION_LENGTH);
+
+  return caption || null;
 }
 
 function cleanVisibility(value: unknown): PhotoVisibility {
@@ -193,6 +205,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
     assertOwner(requesterUid, ownerUid);
 
     const visibility = cleanVisibility(request.data?.visibility);
+    const caption = cleanCaption(request.data?.caption);
     const commentsEnabled = request.data?.commentsEnabled === true;
     const commentsPolicy = cleanCommentsPolicy(
       request.data?.commentsPolicy,
@@ -292,6 +305,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         photoId,
         isPublished: true,
         visibility,
+        caption,
         isCover,
         orderIndex,
         commentsEnabled,
@@ -323,6 +337,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         assetAccess: 'SIGNED_URL',
         url: FieldValue.delete(),
         alt: privatePhoto.alt ?? privatePhoto.fileName ?? 'Foto do perfil',
+        caption,
         createdAt: normalizeCreatedAt(privatePhoto.createdAt),
         publishedAt: now,
         updatedAt: now,
@@ -352,7 +367,6 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         storagePath: publishedStoragePath,
         reason: 'publish-firestore-rollback',
       });
-
       throw error;
     }
 
@@ -416,6 +430,7 @@ export const unpublishPhoto = onCall<UnpublishPhotoRequest>(
         photoId,
         isPublished: false,
         visibility: 'PRIVATE',
+        caption: FieldValue.delete(),
         isCover: false,
         commentsEnabled: false,
         commentsPolicy: 'OFF',
