@@ -13,6 +13,7 @@ import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/pho
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view-tracking.service';
 import { VenueService } from 'src/app/core/services/venues/venue.service';
+import { FeedPublicationComposerComponent } from '../../components/feed-publication-composer/feed-publication-composer.component';
 import { ExploreFeedFacade } from '../../facades/explore-feed.facade';
 import { ExplorePersonalMediaService } from '../../services/explore-personal-media.service';
 import { SocialExplorePageComponent } from './social-explore-page.component';
@@ -158,5 +159,70 @@ describe('SocialExplorePageComponent', () => {
     expect(
       fixture.debugElement.query(By.css('app-user-intent-status-composer'))
     ).toBeTruthy();
+  });
+
+  it('envia a foto e promove a mesma mídia para a publicação persistente', () => {
+    const uploadFlow = TestBed.inject(PhotoUploadFlowService) as unknown as {
+      uploadProcessedPhotoWithProgress$: ReturnType<typeof vi.fn>;
+    };
+    const publication = TestBed.inject(MediaPublicationService) as unknown as {
+      publishPhoto$: ReturnType<typeof vi.fn>;
+    };
+    const notifications = TestBed.inject(ErrorNotificationService) as unknown as {
+      showSuccess: ReturnType<typeof vi.fn>;
+    };
+
+    uploadFlow.uploadProcessedPhotoWithProgress$.mockReturnValue(
+      of(
+        { type: 'progress' as const, progress: 45 },
+        {
+          type: 'success' as const,
+          result: {
+            photoId: 'photo-1',
+            url: 'https://example.test/private-photo.webp',
+            path: 'users/u1/images/photo.webp',
+            fileName: 'photo.webp',
+            createdAt: new Date('2026-07-22T20:00:00.000Z'),
+          },
+        }
+      )
+    );
+
+    fixture.debugElement
+      .query(By.css('button[aria-label="Criar publicação persistente"]'))
+      .triggerEventHandler('click');
+    fixture.detectChanges();
+
+    const composer = fixture.debugElement.query(
+      By.css('app-feed-publication-composer')
+    ).componentInstance as FeedPublicationComposerComponent;
+    const file = new File(['image'], 'foto.webp', { type: 'image/webp' });
+
+    composer.selectedFile.set(file);
+    composer.captionControl.setValue('  Olá\n   mundo  ');
+    composer.publish();
+
+    expect(uploadFlow.uploadProcessedPhotoWithProgress$).toHaveBeenCalledWith({
+      userId: 'u1',
+      processedFile: file,
+      originalFileName: 'foto.webp',
+      mimeType: 'image/webp',
+    });
+    expect(publication.publishPhoto$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerUid: 'u1',
+        visibility: 'PUBLIC',
+        caption: 'Olá mundo',
+        commentsEnabled: true,
+        commentsPolicy: 'EVERYONE',
+        reactionsEnabled: true,
+        photo: expect.objectContaining({
+          id: 'photo-1',
+          ownerUid: 'u1',
+          path: 'users/u1/images/photo.webp',
+        }),
+      })
+    );
+    expect(notifications.showSuccess).toHaveBeenCalledWith('Publicação enviada.');
   });
 });
