@@ -4,6 +4,7 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
@@ -13,6 +14,7 @@ import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/pho
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view-tracking.service';
 import { VenueService } from 'src/app/core/services/venues/venue.service';
+import { UserIntentStatusComposerComponent } from 'src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
 import { FeedPublicationComposerComponent } from '../../components/feed-publication-composer/feed-publication-composer.component';
 import { ExploreFeedFacade } from '../../facades/explore-feed.facade';
 import { ExplorePersonalMediaService } from '../../services/explore-personal-media.service';
@@ -29,6 +31,33 @@ const EMPTY_VM = {
   hasAnyContent: false,
 };
 
+const FRIEND_STATUS: IUserIntentStatusCardVm = {
+  id: 'status-friend-1',
+  uid: 'friend-1',
+  profile: {
+    uid: 'friend-1',
+    nickname: 'Amiga teste',
+    photoURL: null,
+    age: 30,
+  },
+  availability: 'available_today',
+  visibility: 'public_discovery',
+  destination: {
+    kind: 'region',
+    label: 'Niterói',
+    region: { uf: 'RJ', city: 'niterói' },
+  },
+  moderation: { state: 'active' },
+  startsAt: Date.now(),
+  expiresAt: Date.now() + 60 * 60 * 1000,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  destinationLabel: 'Niterói, RJ',
+  availabilityLabel: 'Disponível hoje',
+  expiresInLabel: 'expira em 1h',
+  isActive: true,
+};
+
 describe('SocialExplorePageComponent', () => {
   let fixture: ComponentFixture<SocialExplorePageComponent>;
 
@@ -43,7 +72,7 @@ describe('SocialExplorePageComponent', () => {
         {
           provide: ExplorePersonalMediaService,
           useValue: {
-            context$: of({ friendUids: [], personalPhotos: [] }),
+            context$: of({ friendUids: ['friend-1'], personalPhotos: [] }),
           },
         },
         {
@@ -65,6 +94,7 @@ describe('SocialExplorePageComponent', () => {
           provide: UserIntentStatusService,
           useValue: {
             watchCurrentStatus$: vi.fn(() => of(null)),
+            watchActiveStatusesForUserRegion$: vi.fn(() => of([FRIEND_STATUS])),
             publishStatus$: vi.fn(() => of(void 0)),
             hideCurrentStatus$: vi.fn(() => of(void 0)),
           },
@@ -117,47 +147,48 @@ describe('SocialExplorePageComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Feed');
   });
 
-  it('abre o compositor persistente no campo principal', () => {
+  it('mantém somente a publicação persistente na barra superior', () => {
     expect(
-      fixture.debugElement.query(By.css('app-feed-publication-composer'))
-    ).toBeNull();
-    expect(
-      fixture.debugElement.query(By.css('app-user-intent-status-composer'))
-    ).toBeNull();
-
-    const publishButton = fixture.debugElement.query(
-      By.css('button[aria-label="Criar publicação persistente"]')
-    );
-
-    expect(publishButton.nativeElement.textContent).toContain('Criar publicação');
-    publishButton.triggerEventHandler('click');
-    fixture.detectChanges();
-
-    expect(
-      fixture.debugElement.query(By.css('app-feed-publication-composer'))
+      fixture.debugElement.query(
+        By.css('button[aria-label="Criar publicação persistente"]')
+      )
     ).toBeTruthy();
     expect(
-      fixture.debugElement.query(By.css('app-user-intent-status-composer'))
+      fixture.debugElement.query(
+        By.css('button[aria-label="Declarar meu momento por 12 horas"]')
+      )
     ).toBeNull();
   });
 
-  it('mantém o status de 12 horas em ação separada', async () => {
+  it('exibe o próprio compositor de 12 horas e momentos relacionados dentro da timeline', () => {
+    const feedList = fixture.debugElement.query(By.css('.feed-list'));
+    const ownStatusComposer = feedList.query(
+      By.css('app-user-intent-status-composer')
+    );
+    const relatedStatus = feedList.query(By.css('.feed-intent'));
+
+    expect(ownStatusComposer).toBeTruthy();
+    expect(relatedStatus.nativeElement.textContent).toContain('Amiga teste');
+    expect(relatedStatus.nativeElement.textContent).toContain('Momento');
+    expect(relatedStatus.nativeElement.textContent).toContain('Disponível hoje');
+  });
+
+  it('abre a publicação persistente e recolhe o formulário temporário', () => {
+    const statusComposer = fixture.debugElement.query(
+      By.css('app-user-intent-status-composer')
+    ).componentInstance as UserIntentStatusComposerComponent;
+
+    statusComposer.openComposer();
+    expect(statusComposer.isComposerExpanded).toBe(true);
+
     fixture.debugElement
       .query(By.css('button[aria-label="Criar publicação persistente"]'))
       .triggerEventHandler('click');
     fixture.detectChanges();
 
-    fixture.debugElement
-      .query(By.css('button[aria-label="Declarar meu momento por 12 horas"]'))
-      .triggerEventHandler('click');
-    fixture.detectChanges();
-    await fixture.whenStable();
-
+    expect(statusComposer.isComposerExpanded).toBe(false);
     expect(
       fixture.debugElement.query(By.css('app-feed-publication-composer'))
-    ).toBeNull();
-    expect(
-      fixture.debugElement.query(By.css('app-user-intent-status-composer'))
     ).toBeTruthy();
   });
 
