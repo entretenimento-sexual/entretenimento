@@ -5,6 +5,7 @@ import { vi } from 'vitest';
 
 import { UserPreferencesService } from './user-preferences.service';
 import { AppCacheService } from '../general/cache/app-cache.service';
+import { CacheLegacyMigrationService } from '../general/cache/cache-legacy-migration.service';
 import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
@@ -19,12 +20,18 @@ describe('UserPreferencesService', () => {
     get$: ReturnType<typeof vi.fn>;
     set$: ReturnType<typeof vi.fn>;
   };
+  let legacyMigration: {
+    purgePrefixesOnce$: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     const storeMock = createStoreTestingMock();
     cache = {
       get$: vi.fn().mockReturnValue(of({ status: 'miss' })),
       set$: vi.fn().mockReturnValue(of(void 0)),
+    };
+    legacyMigration = {
+      purgePrefixesOnce$: vi.fn().mockReturnValue(of(void 0)),
     };
 
     TestBed.configureTestingModule({
@@ -37,6 +44,10 @@ describe('UserPreferencesService', () => {
         {
           provide: AppCacheService,
           useValue: cache,
+        },
+        {
+          provide: CacheLegacyMigrationService,
+          useValue: legacyMigration,
         },
         {
           provide: FirestoreContextService,
@@ -73,9 +84,14 @@ describe('UserPreferencesService', () => {
     expect(service).toBeTruthy();
   });
 
-  it('consulta preferências com política restrita somente em memória', async () => {
+  it('limpa legado e consulta com política restrita somente em memória', async () => {
     const value = await firstValueFrom(
       service.getUserPreferences$('uid-1')
+    );
+
+    expect(legacyMigration.purgePrefixesOnce$).toHaveBeenCalledWith(
+      'legacy-user-preferences-indexeddb-v1',
+      ['preferences:']
     );
 
     expect(value).toEqual({
