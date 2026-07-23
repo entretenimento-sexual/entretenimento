@@ -64,11 +64,16 @@ describe('UserActivityHubComponent', () => {
     const connectionLink = Array.from(
       fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
     ).find((link) => link.textContent?.includes('Conexões'));
+    const momentsLink = Array.from(
+      fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
+    ).find((link) => link.textContent?.includes('Momentos'));
 
-    expect(labels).toEqual(['Mensagens', 'Conexões', 'Status', 'Central']);
+    expect(labels).toEqual(['Mensagens', 'Conexões', 'Momentos', 'Central']);
+    expect(labels).not.toContain('Status');
     expect(labels).not.toContain('Locais');
     expect(labels).not.toContain('Salas');
     expect(connectionLink?.getAttribute('href')).toBe('/friends/requests');
+    expect(momentsLink?.getAttribute('href')).toBe('/descobrir');
     expect(fixture.nativeElement.textContent).toContain('3');
   });
 });
