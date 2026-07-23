@@ -54,6 +54,10 @@
         </span>
       </a>
     </header>
+
+    @if (item.caption) {
+      <p class="feed-card-caption">{{ item.caption }}</p>
+    }
   }
 
   <button
