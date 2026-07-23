@@ -10,14 +10,27 @@
   <div class="form-container">
 
     <div *ngIf="banner() as b" class="alert" [ngClass]="{
-        'alert-info': b.variant === 'info',
+        'alert-secondary': b.variant === 'info',
         'alert-error': b.variant === 'error',
         'alert-success': b.variant === 'success',
         'alert-warning': b.variant === 'warn'
-      }" role="alert" aria-live="assertive">
+      }"
+      [attr.role]="b.variant === 'error' ? 'alert' : 'status'"
+      [attr.aria-live]="b.variant === 'error' ? 'assertive' : 'polite'"
+      aria-atomic="true">
 
-      <strong>{{ b.title }}</strong>
-      <span>{{ b.message }}</span>
+      <strong>{{ b.variant === 'info' ? 'Não foi possível concluir' : b.title }}</strong>
+      <span>
+        {{
+          b.variant === 'info'
+            ? 'Revise os dados informados. Caso já tenha iniciado um acesso, verifique sua caixa de entrada ou use a recuperação de senha.'
+            : b.message
+        }}
+      </span>
+
+      <div *ngIf="b.variant === 'info'" class="actions">
+        <a class="btn btn-ghost" routerLink="/login">Entrar ou recuperar acesso</a>
+      </div>
 
       <div *ngIf="debugEnabled()" class="actions">
         <button class="btn btn-secondary" type="button" (click)="onSubmit()" [disabled]="isLoading() || creating()">
@@ -309,10 +322,6 @@
           {{ getError('aceitarTermos') }}
         </div>
       </div>
-
-      <p *ngIf="infoMessage()" class="alert alert-info" aria-live="polite">
-        {{ infoMessage() }}
-      </p>
 
       <button class="btn btn-primary" type="submit"
         [appActionState]="isLoading() || creating()"
