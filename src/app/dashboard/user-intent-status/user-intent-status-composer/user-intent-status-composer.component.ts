@@ -309,7 +309,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       next: () => {
         this.notifications.showSuccess('Status publicado por até 12 horas.');
         this.activeStatusRefreshSubject.next();
-        this.closeComposer();
+        this.isComposerExpanded = false;
       },
       error: () => {
         this.notifications.showError('Não foi possível publicar seu status agora.');
