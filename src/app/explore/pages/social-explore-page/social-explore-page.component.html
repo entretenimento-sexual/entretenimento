@@ -5,6 +5,7 @@
   @let lightboxState = (lightboxState$ | async);
   @let activeLightboxItems = ((activeLightboxItems$ | async) || []);
   @let currentUser = (currentUser$ | async);
+  @let emptySuggestions = vm.compatibleProfiles.slice(0, 4);
 
   <section class="social-feed-page" aria-label="Atualizações">
     @if (currentUser?.uid) {
@@ -149,10 +150,51 @@
           </div>
         }
       } @else {
-        <div class="feed-empty" role="status" aria-live="polite">
-          <span>Nenhuma publicação ou momento recente.</span>
-          <a routerLink="/dashboard/explorar">Encontrar pessoas</a>
-        </div>
+        <section class="feed-empty" aria-labelledby="feed-empty-title">
+          <div class="feed-empty__copy">
+            <strong id="feed-empty-title">Seu feed começa com conexões</strong>
+            <span>
+              Siga pessoas compatíveis para receber publicações e momentos aqui.
+            </span>
+          </div>
+
+          @if (emptySuggestions.length > 0) {
+            <div
+              class="feed-empty__profiles"
+              role="list"
+              aria-label="Perfis compatíveis sugeridos"
+            >
+              @for (profile of emptySuggestions; track profile.uid) {
+                <a
+                  role="listitem"
+                  [routerLink]="['/outro-perfil', profile.uid]"
+                  [attr.aria-label]="'Abrir perfil de ' + profile.nickname"
+                >
+                  <span class="feed-empty__avatar" aria-hidden="true">
+                    @if (profile.photoURL) {
+                      <img
+                        [src]="profile.photoURL"
+                        alt=""
+                        width="42"
+                        height="42"
+                        loading="lazy"
+                        decoding="async"
+                        referrerpolicy="no-referrer"
+                      />
+                    } @else {
+                      {{ profile.nickname.slice(0, 1).toUpperCase() }}
+                    }
+                  </span>
+                  <span>{{ profile.nickname }}</span>
+                </a>
+              }
+            </div>
+          }
+
+          <a class="feed-empty__action" routerLink="/dashboard/explorar">
+            Encontrar pessoas
+          </a>
+        </section>
       }
     </section>
 
