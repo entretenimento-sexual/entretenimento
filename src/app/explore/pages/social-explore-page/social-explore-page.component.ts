@@ -30,6 +30,7 @@ import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { UserIntentStatusComposerComponent } from 'src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
+import { FeedPublicationComposerComponent } from '../../components/feed-publication-composer/feed-publication-composer.component';
 import {
   buildExplorePersonalFeed,
   buildExplorePersonalFeedWindow,
@@ -63,6 +64,7 @@ interface IExploreLightboxState {
     RouterModule,
     PublicPhotoCardComponent,
     PublicPhotoLightboxComponent,
+    FeedPublicationComposerComponent,
     UserIntentStatusComposerComponent,
   ],
   templateUrl: './social-explore-page.component.html',
@@ -70,6 +72,9 @@ interface IExploreLightboxState {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SocialExplorePageComponent {
+  @ViewChild(FeedPublicationComposerComponent)
+  private publicationComposer?: FeedPublicationComposerComponent;
+
   @ViewChild(UserIntentStatusComposerComponent)
   private statusComposer?: UserIntentStatusComposerComponent;
 
@@ -86,6 +91,7 @@ export class SocialExplorePageComponent {
   private readonly visibleFeedCountSubject =
     new BehaviorSubject<number>(FEED_INITIAL_VISIBLE_COUNT);
 
+  readonly publicationComposerVisible = signal(false);
   readonly statusComposerVisible = signal(false);
   hidingMyStatus = false;
 
@@ -137,11 +143,13 @@ export class SocialExplorePageComponent {
       map((user) => user ?? null),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
   readonly authUid$: Observable<string> = this.authSession.readyUid$.pipe(
     map((uid) => String(uid ?? '').trim()),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
   readonly myActiveStatus$: Observable<IUserIntentStatusCardVm | null> =
     this.authUid$.pipe(
       switchMap((uid) =>
@@ -149,6 +157,7 @@ export class SocialExplorePageComponent {
       ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
   readonly lightboxState$ = this.lightboxStateSubject.asObservable();
 
   readonly activeLightboxItems$: Observable<readonly IPublicPhotoItem[]> =
@@ -174,7 +183,25 @@ export class SocialExplorePageComponent {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  openPublicationComposer(openFilePicker = false): void {
+    this.statusComposerVisible.set(false);
+    this.publicationComposerVisible.set(true);
+
+    if (openFilePicker) {
+      queueMicrotask(() => this.publicationComposer?.openFilePicker());
+    }
+  }
+
+  closePublicationComposer(): void {
+    this.publicationComposerVisible.set(false);
+  }
+
+  onPublicationPublished(): void {
+    this.publicationComposerVisible.set(false);
+  }
+
   openStatusComposer(): void {
+    this.publicationComposerVisible.set(false);
     this.statusComposerVisible.set(true);
     queueMicrotask(() => this.statusComposer?.openComposer());
   }
