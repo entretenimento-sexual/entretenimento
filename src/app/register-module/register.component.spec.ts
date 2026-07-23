@@ -6,7 +6,7 @@ import { ReactiveFormsModule } from '@angular/forms';
 import { By } from '@angular/platform-browser';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { Auth } from '@angular/fire/auth';
 
 import { RegisterComponent } from './register.component';
@@ -163,6 +163,48 @@ describe('RegisterComponent', () => {
 
     const [payload] = registerService.registerUser.mock.calls[0];
     expect(payload).not.toHaveProperty('confirmPassword');
+  });
+
+  it('exibe um único feedback genérico sem confirmar a existência de conta', () => {
+    registerService.registerUser.mockReturnValueOnce(
+      throwError(() => ({
+        code: 'email-exists-soft',
+        message: 'Não foi possível criar uma nova conta com este e-mail.',
+      }))
+    );
+
+    component.form.patchValue({
+      apelidoPrincipal: 'privado',
+      complementoApelido: '',
+      email: 'alguem@example.com',
+      password: 'Segura123',
+      confirmPassword: 'Segura123',
+      aceitarTermos: true,
+    });
+
+    component.onSubmit();
+    fixture.detectChanges();
+
+    const feedbacks = fixture.debugElement.queryAll(
+      By.css('.form-container > .alert')
+    );
+    const duplicatedFormFeedbacks = fixture.debugElement.queryAll(
+      By.css('form .alert')
+    );
+
+    expect(feedbacks).toHaveLength(1);
+    expect(duplicatedFormFeedbacks).toHaveLength(0);
+
+    const feedback = feedbacks[0].nativeElement as HTMLElement;
+    const copy = feedback.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+
+    expect(copy).toContain('Não foi possível concluir');
+    expect(copy).toContain('Revise os dados informados');
+    expect(copy).not.toContain('nova conta com este e-mail');
+    expect(copy).not.toContain('e-mail já está');
+    expect(feedback.getAttribute('role')).toBe('status');
+    expect(feedback.getAttribute('aria-live')).toBe('polite');
+    expect(feedback.querySelectorAll('a')).toHaveLength(1);
   });
 
   it('alterna separadamente a visibilidade da senha e da confirmação', () => {
