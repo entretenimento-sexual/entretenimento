@@ -49,6 +49,7 @@ import {
 import { IUserPreferences } from '../../interfaces/interfaces-user-dados/iuser-preferences';
 import { AppCacheService } from '../general/cache/app-cache.service';
 import { CacheDefinition } from '../general/cache/cache-contracts';
+import { CacheLegacyMigrationService } from '../general/cache/cache-legacy-migration.service';
 import { AppState } from 'src/app/store/states/app.state';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
@@ -79,6 +80,7 @@ export class UserPreferencesService {
   constructor(
     private readonly db: Firestore,
     private readonly cache: AppCacheService,
+    private readonly legacyCacheMigration: CacheLegacyMigrationService,
     private readonly store: Store<AppState>,
     private readonly errorHandler: GlobalErrorHandlerService,
     private readonly notifier: ErrorNotificationService,
@@ -107,28 +109,32 @@ export class UserPreferencesService {
       return of(void 0);
     }
 
-    return this.store.select(selectUserPreferences(safeUid)).pipe(
-      take(1),
-      switchMap((stored) =>
-        this.saveUserPreferencesInternal$(safeUid, patch).pipe(
-          switchMap(() => {
-            const merged = this.mergePreferences(
-              stored ?? this.defaultPreferences(),
-              patch
-            );
+    return this.purgeLegacyPreferencesCacheOnce$().pipe(
+      switchMap(() =>
+        this.store.select(selectUserPreferences(safeUid)).pipe(
+          take(1),
+          switchMap((stored) =>
+            this.saveUserPreferencesInternal$(safeUid, patch).pipe(
+              switchMap(() => {
+                const merged = this.mergePreferences(
+                  stored ?? this.defaultPreferences(),
+                  patch
+                );
 
-            this.store.dispatch(
-              updateUserPreferences({
-                uid: safeUid,
-                preferences: patch,
+                this.store.dispatch(
+                  updateUserPreferences({
+                    uid: safeUid,
+                    preferences: patch,
+                  })
+                );
+
+                return this.cache.set$(
+                  this.cacheDefinition(safeUid),
+                  merged
+                );
               })
-            );
-
-            return this.cache.set$(
-              this.cacheDefinition(safeUid),
-              merged
-            );
-          })
+            )
+          )
         )
       ),
       catchError((error) => {
@@ -158,63 +164,67 @@ export class UserPreferencesService {
       );
     }
 
-    return this.store.select(selectUserPreferences(safeUid)).pipe(
-      distinctUntilChanged(),
-      switchMap((storedPreferences) => {
-        if (storedPreferences) {
-          return of(storedPreferences);
-        }
+    return this.purgeLegacyPreferencesCacheOnce$().pipe(
+      switchMap(() =>
+        this.store.select(selectUserPreferences(safeUid)).pipe(
+          distinctUntilChanged(),
+          switchMap((storedPreferences) => {
+            if (storedPreferences) {
+              return of(storedPreferences);
+            }
 
-        return this.cache
-          .get$(this.cacheDefinition(safeUid))
-          .pipe(
-            switchMap((result) => {
-              if (result.status === 'fresh') {
-                this.store.dispatch(
-                  loadUserPreferencesSuccess({
-                    uid: safeUid,
-                    preferences: result.value,
-                  })
-                );
-                return of(result.value);
-              }
-
-              if (result.status === 'stale') {
-                const cached$ = of(result.value).pipe(
-                  tap((preferencesValue) =>
+            return this.cache
+              .get$(this.cacheDefinition(safeUid))
+              .pipe(
+                switchMap((result) => {
+                  if (result.status === 'fresh') {
                     this.store.dispatch(
                       loadUserPreferencesSuccess({
                         uid: safeUid,
-                        preferences: preferencesValue,
+                        preferences: result.value,
                       })
-                    )
-                  )
-                );
+                    );
+                    return of(result.value);
+                  }
 
-                const refresh$ = this.getOrCreateFirestoreRead$(
-                  safeUid,
-                  { notifyOnError: false }
-                ).pipe(
-                  // Há dado stale utilizável. Falha de refresh não deve gerar
-                  // outro feedback nem invalidar o valor já exibido.
-                  catchError(() => EMPTY)
-                );
+                  if (result.status === 'stale') {
+                    const cached$ = of(result.value).pipe(
+                      tap((preferencesValue) =>
+                        this.store.dispatch(
+                          loadUserPreferencesSuccess({
+                            uid: safeUid,
+                            preferences: preferencesValue,
+                          })
+                        )
+                      )
+                    );
 
-                return concat(cached$, refresh$).pipe(
-                  distinctUntilChanged((a, b) =>
-                    this.deepEqual(a, b)
-                  )
-                );
-              }
+                    const refresh$ = this.getOrCreateFirestoreRead$(
+                      safeUid,
+                      { notifyOnError: false }
+                    ).pipe(
+                      // Há dado stale utilizável. Falha de refresh não deve gerar
+                      // outro feedback nem invalidar o valor já exibido.
+                      catchError(() => EMPTY)
+                    );
 
-              return this.getOrCreateFirestoreRead$(safeUid, {
-                notifyOnError: true,
-                userMessage:
-                  'Erro ao carregar preferências do usuário.',
-              });
-            })
-          );
-      }),
+                    return concat(cached$, refresh$).pipe(
+                      distinctUntilChanged((a, b) =>
+                        this.deepEqual(a, b)
+                      )
+                    );
+                  }
+
+                  return this.getOrCreateFirestoreRead$(safeUid, {
+                    notifyOnError: true,
+                    userMessage:
+                      'Erro ao carregar preferências do usuário.',
+                  });
+                })
+              );
+          })
+        )
+      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
@@ -314,6 +324,13 @@ export class UserPreferencesService {
 
     this.inFlightReads.set(uid, read$);
     return read$;
+  }
+
+  private purgeLegacyPreferencesCacheOnce$(): Observable<void> {
+    return this.legacyCacheMigration.purgePrefixesOnce$(
+      'legacy-user-preferences-indexeddb-v1',
+      ['preferences:']
+    );
   }
 
   private cacheDefinition(
