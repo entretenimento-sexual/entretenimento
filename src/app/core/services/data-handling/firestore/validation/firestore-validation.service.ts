@@ -3,7 +3,7 @@
 //
 // O cache de validação:
 // - é efêmero e somente em memória;
-// - não deve sobreviver a reload/logout;
+// - é global porque o índice de apelidos é público e anterior ao login;
 // - usa contrato tipado e resultado discriminado;
 // - nunca substitui a transação autoritativa do backend.
 import {
@@ -114,8 +114,8 @@ export class FirestoreValidationService {
   ): CacheDefinition<boolean> {
     return {
       key: `validation:nickname:${normalizedNickname}:${mode}`,
-      scope: 'session',
-      sensitivity: 'private',
+      scope: 'global',
+      sensitivity: 'public',
       storage: 'memory',
       ttlMs: 60_000,
       version: 1,
