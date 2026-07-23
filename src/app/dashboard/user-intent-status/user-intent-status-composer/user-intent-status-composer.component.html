@@ -1,57 +1,65 @@
 <!-- src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.html -->
 
+@let activeStatus = (activeStatus$ | async);
+
 <section
   class="intent-composer app-card"
-  [attr.aria-label]="isComposerExpanded ? 'Editar status de hoje' : 'Status de hoje'"
+  [class.intent-composer--expanded]="isComposerExpanded"
+  [attr.aria-label]="isComposerExpanded ? 'Editar momento de 12 horas' : 'Seu momento de 12 horas'"
 >
   <header class="intent-composer__header">
     <div class="intent-composer__summary">
       <span class="intent-composer__summary-icon" aria-hidden="true">
-        <i class="fas fa-bolt"></i>
+        <i class="fas fa-clock"></i>
       </span>
 
-      <p>Mostre onde estará e quem pode encontrar você.</p>
+      <div class="intent-composer__summary-copy">
+        <span class="intent-composer__eyebrow">
+          Seu momento · {{ activeStatus ? activeStatus.expiresInLabel : '12h' }}
+        </span>
+
+        @if (activeStatus) {
+          <strong>{{ activeStatus.availabilityLabel }}</strong>
+          <p>{{ activeStatus.destinationLabel }}</p>
+        } @else {
+          <p>Mostre onde estará e quem pode encontrar você.</p>
+        }
+      </div>
     </div>
 
-    <button
-      type="button"
-      class="btn btn-primary intent-composer__toggle"
-      [attr.aria-expanded]="isComposerExpanded ? 'true' : 'false'"
-      [attr.aria-controls]="'intent-composer-form'"
-      (click)="toggleComposer()"
-    >
-      <i
-        class="fas"
-        [class.fa-xmark]="isComposerExpanded"
-        [class.fa-plus]="!isComposerExpanded"
-        aria-hidden="true"
-      ></i>
-      <span>{{ isComposerExpanded ? 'Fechar' : 'Criar' }}</span>
-    </button>
-  </header>
-
-  @if (activeStatus$ | async; as activeStatus) {
-    <aside class="intent-composer__active" aria-label="Seu status atual">
-      <div class="intent-composer__active-main">
-        <i class="fas fa-circle-check" aria-hidden="true"></i>
-
-        <div>
-          <strong>{{ activeStatus.availabilityLabel }}</strong>
-          <p>{{ activeStatus.destinationLabel }} · {{ activeStatus.expiresInLabel }}</p>
-        </div>
-      </div>
-
+    <div class="intent-composer__actions">
       <button
         type="button"
-        class="btn btn-ghost intent-composer__hide"
-        [disabled]="hiding"
-        (click)="hideCurrentStatus()"
+        class="btn btn-primary intent-composer__toggle"
+        [attr.aria-expanded]="isComposerExpanded ? 'true' : 'false'"
+        [attr.aria-controls]="'intent-composer-form'"
+        (click)="toggleComposer()"
       >
-        <i class="fas fa-circle-stop" aria-hidden="true"></i>
-        <span>{{ hiding ? 'Encerrando...' : 'Encerrar' }}</span>
+        <i
+          class="fas"
+          [class.fa-xmark]="isComposerExpanded"
+          [class.fa-pen]="!isComposerExpanded && !!activeStatus"
+          [class.fa-plus]="!isComposerExpanded && !activeStatus"
+          aria-hidden="true"
+        ></i>
+        <span>
+          {{ isComposerExpanded ? 'Fechar' : (activeStatus ? 'Editar' : 'Definir momento') }}
+        </span>
       </button>
-    </aside>
-  }
+
+      @if (activeStatus) {
+        <button
+          type="button"
+          class="btn btn-ghost intent-composer__hide"
+          [disabled]="hiding"
+          (click)="hideCurrentStatus()"
+        >
+          <i class="fas fa-circle-stop" aria-hidden="true"></i>
+          <span>{{ hiding ? 'Encerrando...' : 'Encerrar' }}</span>
+        </button>
+      }
+    </div>
+  </header>
 
   @if (isComposerExpanded) {
     <form
@@ -157,7 +165,7 @@
         />
       </label>
 
-      <div class="intent-composer__row" aria-label="Região do status">
+      <div class="intent-composer__row" aria-label="Região do momento">
         <label class="intent-composer__field">
           <span>UF</span>
           <input
@@ -215,7 +223,7 @@
             [disabled]="publishing"
           >
             <i class="fas fa-paper-plane" aria-hidden="true"></i>
-            <span>{{ publishing ? 'Publicando...' : 'Publicar' }}</span>
+            <span>{{ publishing ? 'Publicando...' : 'Publicar momento' }}</span>
           </button>
         </div>
       </footer>
