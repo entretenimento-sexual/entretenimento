@@ -17,6 +17,8 @@
 //   Motivo: TTL e stale window agora pertencem ao mesmo envelope tipado.
 // - SUPRIMIDO o cálculo manual de freshness.
 //   Motivo: AppCacheService centraliza TTL, versão, escopo e resultado fresh/stale.
+// - SUPRIMIDO o tratamento duplicado no catch externo de leitura.
+//   Motivo: a leitura Firestore já registra/notifica uma vez no ponto de origem.
 import { Injectable } from '@angular/core';
 import {
   Firestore,
@@ -26,7 +28,13 @@ import {
   writeBatch,
 } from '@angular/fire/firestore';
 import { Store } from '@ngrx/store';
-import { Observable, concat, of, throwError } from 'rxjs';
+import {
+  EMPTY,
+  Observable,
+  concat,
+  of,
+  throwError,
+} from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -186,6 +194,10 @@ export class UserPreferencesService {
                 const refresh$ = this.getOrCreateFirestoreRead$(
                   safeUid,
                   { notifyOnError: false }
+                ).pipe(
+                  // Há dado stale utilizável. Falha de refresh não deve gerar
+                  // outro feedback nem invalidar o valor já exibido.
+                  catchError(() => EMPTY)
                 );
 
                 return concat(cached$, refresh$).pipe(
@@ -202,14 +214,6 @@ export class UserPreferencesService {
               });
             })
           );
-      }),
-      catchError((error) => {
-        this.routeError(
-          error,
-          'getUserPreferences$',
-          'Erro ao carregar preferências do usuário.'
-        );
-        return throwError(() => error);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
