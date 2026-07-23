@@ -1,14 +1,36 @@
 // src/app/core/services/data-handling/firestore/validation/firestore-validation.service.ts
-// Não esqueça os comentários explicativos.'
-import { inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
-import { Observable, of, from } from 'rxjs';
-import { catchError, map, switchMap, tap, take } from 'rxjs/operators';
+// Validações pontuais de índice público.
+//
+// O cache de validação:
+// - é efêmero e somente em memória;
+// - não deve sobreviver a reload/logout;
+// - usa contrato tipado e resultado discriminado;
+// - nunca substitui a transação autoritativa do backend.
+import {
+  inject,
+  Injectable,
+  Injector,
+  runInInjectionContext,
+} from '@angular/core';
+import { from, Observable, of } from 'rxjs';
+import {
+  catchError,
+  map,
+  switchMap,
+  take,
+} from 'rxjs/operators';
 
-import { CacheService } from '../../../general/cache/cache.service';
+import {
+  Firestore,
+  doc,
+  getDoc,
+  getDocFromCache,
+  getDocFromServer,
+} from '@angular/fire/firestore';
+
+import { AppCacheService } from '../../../general/cache/app-cache.service';
+import { CacheDefinition } from '../../../general/cache/cache-contracts';
 import { FirestoreErrorHandlerService } from '../../../error-handler/firestore-error-handler.service';
-
-// AngularFire Firestore (GET 1x)
-import { Firestore, doc, getDocFromServer, getDoc, getDocFromCache } from '@angular/fire/firestore';
 import { NicknameUtils } from '@core/utils/nickname-utils';
 
 type Mode = 'soft' | 'strict';
@@ -19,84 +41,94 @@ export class FirestoreValidationService {
   private readonly db = inject(Firestore);
 
   constructor(
-    private readonly cache: CacheService,
+    private readonly cache: AppCacheService,
     private readonly firestoreError: FirestoreErrorHandlerService,
     private readonly injector: Injector
-  ) { }
+  ) {}
 
   /**
-   * =============================================================================
-   * checkIfNicknameExists (consulta direta ao public_index)
+   * Consulta direta ao public_index.
    *
-   * Objetivo:
-   * - Não validar duplicidade de nickname ANTES de criar usuário
-   * - permitir uso no /register sem usuário autenticado (rules: nickname get público)
+   * soft:
+   * - usa cache de memória por 60 segundos;
+   * - falha de rede não bloqueia a UX;
+   * - a transação de cadastro continua sendo a proteção autoritativa.
    *
-   * Modos:
-   * - soft: tolerante (se falhar rede, NÃO trava UX -> assume "não existe" e transação garante depois)
-   * - strict: conservador (se falhar, NÃO assume livre -> propaga erro)
-   * =============================================================================
+   * strict:
+   * - força servidor;
+   * - não usa cache;
+   * - propaga falha pelo handler centralizado.
    */
   checkIfNicknameExists(
     fullNick: string,
     opts?: { mode?: Mode }
   ): Observable<boolean> {
     const mode: Mode = opts?.mode ?? 'soft';
-
-    // ✅ normalização consistente com seu índice
     const normalized = this.normalizeNickname(fullNick);
+
     if (!normalized) return of(false);
 
-    const cacheKey = `validation:v2:nickname:${normalized}:${mode}`;
-    const docId = `nickname:${normalized}`;
-
-    // soft: pode usar cache + source default
-    // strict: força server e não usa cache
+    const definition = this.nicknameCacheDefinition(normalized, mode);
     const source: Source = mode === 'strict' ? 'server' : 'default';
 
-    const cached$ = mode === 'soft' ? this.cache.get<boolean>(cacheKey) : of(null);
+    const cached$ =
+      mode === 'soft'
+        ? this.cache.get$(definition)
+        : of({ status: 'miss' } as const);
 
     return cached$.pipe(
       switchMap((cached) => {
-        if (mode === 'soft' && cached !== null && cached !== undefined) return of(cached);
+        if (mode === 'soft' && cached.status !== 'miss') {
+          return of(cached.value);
+        }
 
-        return this.getPublicIndexDocOnce$('public_index', docId, source).pipe(
-          map((exists) => !!exists),
-          tap((exists) => {
-            if (mode === 'soft') this.cache.set(cacheKey, exists, 60_000);
+        return this.getPublicIndexDocOnce$(
+          'public_index',
+          `nickname:${normalized}`,
+          source
+        ).pipe(
+          map((value) => !!value),
+          switchMap((exists) => {
+            if (mode !== 'soft') {
+              return of(exists);
+            }
+
+            return this.cache
+              .set$(definition, exists)
+              .pipe(map(() => exists));
           }),
-          catchError((err) => {
-            // soft: falhou? não trava UX (a transaction do cadastro ainda protege duplicidade)
+          catchError((error) => {
             if (mode === 'soft') return of(false);
-
-            // strict: falhou? não assumir “livre”
-            // mantém tratamento centralizado
-            return this.firestoreError.handleFirestoreError(err);
+            return this.firestoreError.handleFirestoreError(error);
           }),
           take(1)
         );
-      })
+      }),
+      take(1)
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
+  private nicknameCacheDefinition(
+    normalizedNickname: string,
+    mode: Mode
+  ): CacheDefinition<boolean> {
+    return {
+      key: `validation:nickname:${normalizedNickname}:${mode}`,
+      scope: 'session',
+      sensitivity: 'private',
+      storage: 'memory',
+      ttlMs: 60_000,
+      version: 1,
+      validate: (value: unknown): value is boolean =>
+        typeof value === 'boolean',
+    };
+  }
 
   private normalizeNickname(input: string): string {
-    /**
-     * Este normalizeNickname é "normalização para ÍNDICE", porque:
-     * - ele alimenta docId = `nickname:${normalized}`
-     * - portanto precisa ser compatível com rules (sem espaços).
-     * centralizado no utils/nickname-utils para garantir consistência com regras de validação e geração de índices.
-     */
     return NicknameUtils.normalizarApelidoParaIndice(input);
   }
 
-  /**
-   * GET 1x no doc do public_index.
-   * Usa InjectionContext (padrão do seu projeto) e não abre listener.
-   */
+  /** GET único dentro do Injection Context do AngularFire. */
   private getPublicIndexDocOnce$(
     collectionName: string,
     docId: string,
@@ -104,15 +136,18 @@ export class FirestoreValidationService {
   ): Observable<unknown | null> {
     return runInInjectionContext(this.injector, () => {
       const ref = doc(this.db, collectionName, docId);
+      const request =
+        source === 'server'
+          ? from(getDocFromServer(ref))
+          : source === 'cache'
+            ? from(getDocFromCache(ref))
+            : from(getDoc(ref));
 
-      const req =
-        source === 'server' ? from(getDocFromServer(ref)) :
-          source === 'cache' ? from(getDocFromCache(ref)) :
-            from(getDoc(ref));
-
-      return req.pipe(
-        map((snap) => (snap.exists() ? (snap.data() as any) : null))
+      return request.pipe(
+        map((snapshot) =>
+          snapshot.exists() ? snapshot.data() : null
+        )
       );
     });
   }
-} // 113 linhas
+}
