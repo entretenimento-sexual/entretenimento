@@ -15,7 +15,7 @@
 
 .feed-composer {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.65rem;
   padding: 0.55rem 0.65rem;
@@ -24,27 +24,22 @@
   background: var(--surface-color, #101925);
 }
 
-.feed-composer__avatar,
-.feed-composer__photo {
+.feed-composer__avatar {
   display: inline-grid;
   place-items: center;
-  flex: 0 0 auto;
   width: 2.5rem;
   height: 2.5rem;
+  overflow: hidden;
   border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
   border-radius: 50%;
-  color: var(--text-color, #f5f7fb);
-  text-decoration: none;
-}
-
-.feed-composer__avatar {
-  overflow: hidden;
   background: color-mix(
     in oklab,
     var(--primary-color, #ff7070) 10%,
     var(--surface-color, #101925)
   );
+  color: var(--text-color, #f5f7fb);
   font-weight: 850;
+  text-decoration: none;
 }
 
 .feed-composer__avatar img {
@@ -86,105 +81,9 @@
   color: var(--text-color, #f5f7fb);
 }
 
-.feed-composer__photo {
-  color: var(--primary-color, #ff7070);
-  font-size: 1rem;
-}
-
-.feed-composer__photo:hover,
-.feed-composer__photo:focus-visible {
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 55%,
-    transparent
-  );
-  background: color-mix(
-    in oklab,
-    var(--primary-color, #ff7070) 9%,
-    transparent
-  );
-}
-
-.feed-status-composer {
+.feed-publication-composer {
   display: block;
   margin-top: 0.65rem;
-}
-
-.feed-composer a:focus-visible,
-.feed-composer button:focus-visible,
-.feed-empty a:focus-visible,
-.feed-status__actions button:focus-visible,
-.feed-pagination button:focus-visible {
-  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
-  outline-offset: var(--focus-offset, 2px);
-}
-
-.feed-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-  margin-top: 0.65rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--surface-border, rgb(255 255 255 / 9%));
-  border-radius: 0.8rem;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101925) 92%,
-    transparent
-  );
-}
-
-.feed-status > div:first-child {
-  min-width: 0;
-  display: grid;
-  gap: 0.05rem;
-}
-
-.feed-status strong {
-  color: var(--text-color, #f5f7fb);
-  font-size: 0.82rem;
-}
-
-.feed-status p {
-  margin: 0;
-  overflow: hidden;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
-  font-size: 0.72rem;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.feed-status__actions {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 0.1rem;
-}
-
-.feed-status__actions button {
-  min-height: var(--tap-target, 2.75rem);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.4rem 0.55rem;
-  border: 0;
-  background: transparent;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 760;
-  cursor: pointer;
-}
-
-.feed-status__actions button:hover {
-  color: var(--text-color, #f5f7fb);
-}
-
-.feed-status__actions button:disabled {
-  cursor: progress;
-  opacity: 0.6;
 }
 
 .feed-timeline {
@@ -196,8 +95,112 @@
   gap: 0.85rem;
 }
 
+.feed-status-composer,
 .feed-list app-public-photo-card {
+  display: block;
   width: 100%;
+}
+
+.feed-intent {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.85rem;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 10%));
+  border-radius: 1rem;
+  background: var(--surface-color, #101925);
+}
+
+.feed-intent__header,
+.feed-intent__identity {
+  display: flex;
+  align-items: center;
+}
+
+.feed-intent__header {
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.feed-intent__identity {
+  min-width: 0;
+  gap: 0.65rem;
+}
+
+.feed-intent__avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 2.75rem;
+  overflow: hidden;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 35%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+  border-radius: 50%;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 11%,
+    var(--surface-color, #101925)
+  );
+  color: var(--text-color, #f5f7fb);
+  font-weight: 850;
+}
+
+.feed-intent__avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.feed-intent__identity > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.feed-intent__identity strong,
+.feed-intent__identity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-intent__identity strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.84rem;
+}
+
+.feed-intent__identity span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.72rem;
+}
+
+.feed-intent__relationship {
+  flex: 0 0 auto;
+  color: var(--primary-color, #ff7070);
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+.feed-intent__body {
+  display: grid;
+  gap: 0.2rem;
+  padding-left: 3.4rem;
+}
+
+.feed-intent__body strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.88rem;
+}
+
+.feed-intent__body p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 .feed-pagination {
@@ -249,6 +252,14 @@
   text-decoration: underline;
 }
 
+.feed-composer a:focus-visible,
+.feed-composer button:focus-visible,
+.feed-empty a:focus-visible,
+.feed-pagination button:focus-visible {
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: var(--focus-offset, 2px);
+}
+
 .visually-hidden {
   position: absolute;
   inline-size: 1px;
@@ -268,9 +279,10 @@
   }
 
   .feed-composer,
-  .feed-status,
-  .feed-empty,
-  .feed-status-composer {
+  .feed-publication-composer,
+  .feed-status-composer,
+  .feed-intent,
+  .feed-empty {
     margin-inline: 0.55rem;
   }
 }
@@ -285,32 +297,31 @@
     padding-inline: 0.65rem;
   }
 
-  .feed-status,
+  .feed-intent__header,
   .feed-empty {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .feed-status p {
-    white-space: normal;
+  .feed-intent__relationship {
+    padding-left: 3.4rem;
   }
 
-  .feed-status__actions {
-    justify-content: flex-start;
+  .feed-intent__body {
+    padding-left: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .feed-composer *,
   .feed-empty a,
-  .feed-status__actions button,
   .feed-pagination button {
     transition: none;
   }
 }
 
 :host-context(html.high-contrast) .feed-composer,
-:host-context(html.high-contrast) .feed-status,
+:host-context(html.high-contrast) .feed-intent,
 :host-context(html.high-contrast) .feed-empty {
   border-color: currentColor !important;
   background: var(--background-color) !important;
@@ -319,7 +330,7 @@
 }
 
 :host-context(html.high-contrast) .feed-composer__moment,
-:host-context(html.high-contrast) .feed-status__actions button,
+:host-context(html.high-contrast) .feed-intent__relationship,
 :host-context(html.high-contrast) .feed-pagination button,
 :host-context(html.high-contrast) .feed-empty a {
   color: var(--text-color) !important;
