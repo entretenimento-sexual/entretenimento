@@ -1,16 +1,26 @@
 // src/app/core/services/general/cache/app-cache.service.ts
-// Nova fachada tipada de cache.
+// Fachada tipada para o novo cache da aplicação.
 //
-// Características:
-// - memória como primeira camada;
-// - persistência somente quando a definição solicita;
-// - envelope com TTL, stale window, versão, escopo e proprietário;
-// - null continua sendo valor legítimo;
-// - falha de IndexedDB é best-effort e segue para o handler global;
-// - nenhuma notificação visual é emitida por esta infraestrutura.
+// Princípios:
+// - memória é a primeira camada;
+// - persistência é sempre opt-in pela definição;
+// - TTL, versão, escopo e owner acompanham o valor persistido;
+// - null pode ser um valor legítimo, pois miss é discriminado;
+// - falhas do IndexedDB são best-effort e nunca geram toast.
 import { Injectable } from '@angular/core';
-import { Observable, defer, of, throwError } from 'rxjs';
-import { catchError, map, switchMap } from 'rxjs/operators';
+import {
+  Observable,
+  defer,
+  of,
+  throwError,
+} from 'rxjs';
+import {
+  catchError,
+  finalize,
+  map,
+  shareReplay,
+  switchMap,
+} from 'rxjs/operators';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import {
@@ -47,10 +57,13 @@ export class AppCacheService {
       const memoryEnvelope = this.memory.get(storageKey);
 
       if (memoryEnvelope) {
-        const result = this.evaluateEnvelope(normalized, memoryEnvelope);
+        const memoryResult = this.evaluateEnvelope(
+          normalized,
+          memoryEnvelope
+        );
 
-        if (result) {
-          return of(result);
+        if (memoryResult) {
+          return of(memoryResult);
         }
 
         this.memory.delete(storageKey);
@@ -60,9 +73,9 @@ export class AppCacheService {
         return of(CACHE_MISS as CacheResult<T>);
       }
 
-      const inFlight = this.inFlightReads.get(storageKey);
-      if (inFlight) {
-        return inFlight as Observable<CacheResult<T>>;
+      const existingRead = this.inFlightReads.get(storageKey);
+      if (existingRead) {
+        return existingRead as Observable<CacheResult<T>>;
       }
 
       const read$ = this.persistence
@@ -73,19 +86,24 @@ export class AppCacheService {
               return of(CACHE_MISS as CacheResult<T>);
             }
 
-            const result = this.evaluateEnvelope(normalized, envelope);
+            const persistedResult = this.evaluateEnvelope(
+              normalized,
+              envelope
+            );
 
-            if (result) {
+            if (persistedResult) {
               this.memory.set(storageKey, envelope);
-              return of(result);
+              return of(persistedResult);
             }
 
             return this.persistence.deletePersistent(storageKey).pipe(
               map(() => CACHE_MISS as CacheResult<T>),
               catchError((error) => {
-                this.report(error, 'AppCacheService.get$:deleteInvalid', {
-                  storageKey,
-                });
+                this.report(
+                  error,
+                  'AppCacheService.get$:deleteInvalid',
+                  { storageKey }
+                );
                 return of(CACHE_MISS as CacheResult<T>);
               })
             );
@@ -95,30 +113,17 @@ export class AppCacheService {
               storageKey,
             });
             return of(CACHE_MISS as CacheResult<T>);
-          })
+          }),
+          finalize(() => this.inFlightReads.delete(storageKey)),
+          shareReplay({ bufferSize: 1, refCount: false })
         );
 
-      const shared$ = read$.pipe(
-        // O Observable de persistência completa após uma emissão; o Map apenas
-        // coalesce chamadas concorrentes e não vira um cache adicional.
-        map((result) => result as CacheResult<unknown>)
+      this.inFlightReads.set(
+        storageKey,
+        read$ as Observable<CacheResult<unknown>>
       );
 
-      this.inFlightReads.set(storageKey, shared$);
-
-      return shared$.pipe(
-        map((result) => result as CacheResult<T>),
-        catchError((error) => {
-          this.report(error, 'AppCacheService.get$:inFlight', { storageKey });
-          return of(CACHE_MISS as CacheResult<T>);
-        }),
-        // finalize foi evitado aqui para não criar outra inscrição. A leitura
-        // completa uma vez; removemos a referência na própria emissão.
-        map((result) => {
-          this.inFlightReads.delete(storageKey);
-          return result;
-        })
-      );
+      return read$;
     }).pipe(
       catchError((error) => {
         if (error instanceof CacheConfigurationError) {
@@ -156,7 +161,6 @@ export class AppCacheService {
         .setEnvelopePersistent(storageKey, envelope)
         .pipe(
           catchError((error) => {
-            // A memória continua válida. IndexedDB é uma otimização best-effort.
             this.report(error, 'AppCacheService.set$:persistence', {
               storageKey,
             });
@@ -166,7 +170,7 @@ export class AppCacheService {
     });
   }
 
-  invalidate$(definition: CacheDefinition<unknown>): Observable<void> {
+  invalidate$<T>(definition: CacheDefinition<T>): Observable<void> {
     return defer(() => {
       const normalized = this.normalizeDefinition(definition);
       const storageKey = this.storageKey(normalized);
@@ -180,7 +184,9 @@ export class AppCacheService {
 
       return this.persistence.deletePersistent(storageKey).pipe(
         catchError((error) => {
-          this.report(error, 'AppCacheService.invalidate$', { storageKey });
+          this.report(error, 'AppCacheService.invalidate$', {
+            storageKey,
+          });
           return of(void 0);
         })
       );
@@ -265,13 +271,13 @@ export class AppCacheService {
 
   private evaluateEnvelope<T>(
     definition: CacheDefinition<T>,
-    rawEnvelope: CacheEnvelope<unknown>
+    envelope: CacheEnvelope<unknown>
   ): CacheResult<T> | null {
-    if (!this.isCompatibleEnvelope(definition, rawEnvelope)) {
+    if (!this.isCompatibleEnvelope(definition, envelope)) {
       return null;
     }
 
-    const value = rawEnvelope.value;
+    const value = envelope.value;
 
     if (definition.validate && !definition.validate(value)) {
       return null;
@@ -280,15 +286,15 @@ export class AppCacheService {
     const now = Date.now();
 
     if (
-      rawEnvelope.expiresAt === null ||
-      now <= rawEnvelope.expiresAt
+      envelope.expiresAt === null ||
+      now <= envelope.expiresAt
     ) {
       return { status: 'fresh', value: value as T };
     }
 
     if (
-      rawEnvelope.staleUntil !== null &&
-      now <= rawEnvelope.staleUntil
+      envelope.staleUntil !== null &&
+      now <= envelope.staleUntil
     ) {
       return { status: 'stale', value: value as T };
     }
@@ -332,6 +338,30 @@ export class AppCacheService {
     if (!key) {
       throw new CacheConfigurationError(
         '[AppCacheService] CacheDefinition.key é obrigatório.'
+      );
+    }
+
+    if (
+      !['global', 'session', 'user'].includes(definition.scope)
+    ) {
+      throw new CacheConfigurationError(
+        `[AppCacheService] Escopo inválido para "${key}".`
+      );
+    }
+
+    if (
+      !['public', 'private', 'restricted'].includes(
+        definition.sensitivity
+      )
+    ) {
+      throw new CacheConfigurationError(
+        `[AppCacheService] Sensibilidade inválida para "${key}".`
+      );
+    }
+
+    if (!['memory', 'persistent'].includes(definition.storage)) {
+      throw new CacheConfigurationError(
+        `[AppCacheService] Storage inválido para "${key}".`
       );
     }
 
@@ -412,7 +442,7 @@ export class AppCacheService {
 
       this.globalError.handleError(wrapped);
     } catch {
-      // Cache não deve quebrar o fluxo principal por falha de telemetria.
+      // Falha de telemetria nunca deve interromper o fluxo principal.
     }
   }
 }
