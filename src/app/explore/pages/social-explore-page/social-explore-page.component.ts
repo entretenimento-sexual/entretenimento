@@ -10,7 +10,6 @@ import { RouterModule } from '@angular/router';
 import { BehaviorSubject, combineLatest, Observable, of } from 'rxjs';
 import {
   distinctUntilChanged,
-  finalize,
   map,
   shareReplay,
   switchMap,
@@ -26,16 +25,16 @@ import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { UserIntentStatusComposerComponent } from 'src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
 import { FeedPublicationComposerComponent } from '../../components/feed-publication-composer/feed-publication-composer.component';
+import { buildExplorePersonalFeed } from '../../models/explore-personal-feed';
 import {
-  buildExplorePersonalFeed,
-  buildExplorePersonalFeedWindow,
-  ExplorePersonalFeedWindow,
-} from '../../models/explore-personal-feed';
+  buildExploreSocialFeed,
+  buildExploreSocialFeedWindow,
+  ExploreSocialFeedItem,
+  ExploreSocialFeedWindow,
+} from '../../models/explore-social-feed';
 import {
   ExplorePersonalMediaContext,
   ExplorePersonalMediaService,
@@ -44,6 +43,7 @@ import {
 const FEED_INITIAL_VISIBLE_COUNT = 6;
 const FEED_PAGE_SIZE = 6;
 const FEED_POOL_LIMIT = 36;
+const RELATED_STATUS_LIMIT = 24;
 
 type TExplorePhotoSection =
   | 'feed'
@@ -84,7 +84,6 @@ export class SocialExplorePageComponent {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly authSession = inject(AuthSessionService);
   private readonly statusService = inject(UserIntentStatusService);
-  private readonly notifications = inject(ErrorNotificationService);
 
   private readonly lightboxStateSubject =
     new BehaviorSubject<IExploreLightboxState | null>(null);
@@ -92,8 +91,6 @@ export class SocialExplorePageComponent {
     new BehaviorSubject<number>(FEED_INITIAL_VISIBLE_COUNT);
 
   readonly publicationComposerVisible = signal(false);
-  readonly statusComposerVisible = signal(false);
-  hidingMyStatus = false;
 
   readonly vm$: Observable<SocialExploreVm> = combineLatest([
     this.exploreFeedFacade.vm$,
@@ -105,38 +102,6 @@ export class SocialExplorePageComponent {
     })),
     shareReplay({ bufferSize: 1, refCount: true })
   );
-
-  /**
-   * Pool pessoal da timeline.
-   *
-   * Amigos e compatíveis são resolvidos antes do ranking. A janela reduz a
-   * quantidade de cards montados inicialmente sem criar paginação paralela.
-   */
-  private readonly feedPool$: Observable<readonly IPublicPhotoItem[]> =
-    this.vm$.pipe(
-      map((vm) =>
-        buildExplorePersonalFeed(vm, {
-          limit: FEED_POOL_LIMIT,
-        })
-      ),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-  readonly feedWindow$: Observable<ExplorePersonalFeedWindow> = combineLatest([
-    this.feedPool$,
-    this.visibleFeedCountSubject.pipe(distinctUntilChanged()),
-  ]).pipe(
-    map(([items, visibleLimit]) =>
-      buildExplorePersonalFeedWindow(items, visibleLimit)
-    ),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  readonly feedPhotos$: Observable<readonly IPublicPhotoItem[]> =
-    this.feedWindow$.pipe(
-      map((window) => window.items),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
 
   readonly currentUser$: Observable<IUserDados | null> =
     this.currentUserStore.user$.pipe(
@@ -150,10 +115,82 @@ export class SocialExplorePageComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly myActiveStatus$: Observable<IUserIntentStatusCardVm | null> =
-    this.authUid$.pipe(
-      switchMap((uid) =>
-        uid ? this.statusService.watchCurrentStatus$(uid) : of(null)
+  /**
+   * Pool de fotos já priorizado por amizade, compatibilidade e recência.
+   * Momentos temporários são inseridos somente depois desse ranking pessoal.
+   */
+  private readonly photoFeedPool$: Observable<readonly IPublicPhotoItem[]> =
+    this.vm$.pipe(
+      map((vm) =>
+        buildExplorePersonalFeed(vm, {
+          limit: FEED_POOL_LIMIT,
+        })
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  /**
+   * Momentos públicos da região são consultados apenas quando existe algum
+   * vínculo pessoal resolvido. O modelo puro faz o filtro final por autor e
+   * exclui o próprio usuário, cujo momento ocupa o primeiro cartão da timeline.
+   */
+  private readonly relatedStatuses$ = combineLatest([
+    this.authUid$,
+    this.vm$,
+  ]).pipe(
+    switchMap(([uid, vm]) => {
+      const hasPersonalRelations =
+        vm.friendUids.length > 0 || vm.compatibleProfiles.length > 0;
+
+      if (!uid || !hasPersonalRelations) {
+        return of([]);
+      }
+
+      return this.statusService.watchActiveStatusesForUserRegion$(uid, {
+        limit: RELATED_STATUS_LIMIT,
+      });
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  private readonly socialFeedPool$: Observable<readonly ExploreSocialFeedItem[]> =
+    combineLatest([
+      this.photoFeedPool$,
+      this.relatedStatuses$,
+      this.vm$,
+      this.authUid$,
+    ]).pipe(
+      map(([photos, statuses, vm, viewerUid]) =>
+        buildExploreSocialFeed(
+          photos,
+          statuses,
+          vm.friendUids,
+          vm.compatibleProfiles,
+          {
+            limit: FEED_POOL_LIMIT,
+            viewerUid,
+          }
+        )
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly feedWindow$: Observable<ExploreSocialFeedWindow> = combineLatest([
+    this.socialFeedPool$,
+    this.visibleFeedCountSubject.pipe(distinctUntilChanged()),
+  ]).pipe(
+    map(([items, visibleLimit]) =>
+      buildExploreSocialFeedWindow(items, visibleLimit)
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly feedPhotos$: Observable<readonly IPublicPhotoItem[]> =
+    this.feedWindow$.pipe(
+      map((window) =>
+        window.items
+          .filter((item) => item.kind === 'photo')
+          .map((item) => item.photo)
       ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -184,7 +221,7 @@ export class SocialExplorePageComponent {
     );
 
   openPublicationComposer(openFilePicker = false): void {
-    this.statusComposerVisible.set(false);
+    this.statusComposer?.closeComposer();
     this.publicationComposerVisible.set(true);
 
     if (openFilePicker) {
@@ -200,10 +237,16 @@ export class SocialExplorePageComponent {
     this.publicationComposerVisible.set(false);
   }
 
-  openStatusComposer(): void {
-    this.publicationComposerVisible.set(false);
-    this.statusComposerVisible.set(true);
-    queueMicrotask(() => this.statusComposer?.openComposer());
+  openFeedPhoto(photo: IPublicPhotoItem): void {
+    this.feedPhotos$.pipe(take(1)).subscribe((items) => {
+      const index = items.findIndex(
+        (item) => item.id === photo.id && item.ownerUid === photo.ownerUid
+      );
+
+      if (index >= 0) {
+        this.openPhoto('feed', index);
+      }
+    });
   }
 
   openPhoto(section: TExplorePhotoSection, index: number): void {
@@ -231,37 +274,6 @@ export class SocialExplorePageComponent {
       this.visibleFeedCountSubject.next(
         Math.min(window.totalItems, window.visibleCount + FEED_PAGE_SIZE)
       );
-    });
-  }
-
-  hideMyStatus(_user: IUserDados | null): void {
-    if (this.hidingMyStatus) return;
-
-    this.authUid$.pipe(take(1)).subscribe((uid) => {
-      if (!uid) {
-        this.notifications.showWarning(
-          'Entre novamente para encerrar seu status.'
-        );
-        return;
-      }
-
-      this.hidingMyStatus = true;
-
-      this.statusService
-        .hideCurrentStatus$(uid)
-        .pipe(
-          take(1),
-          finalize(() => {
-            this.hidingMyStatus = false;
-          })
-        )
-        .subscribe({
-          next: () => this.notifications.showSuccess('Status encerrado.'),
-          error: () =>
-            this.notifications.showError(
-              'Não foi possível encerrar seu status agora.'
-            ),
-        });
     });
   }
 
@@ -293,8 +305,8 @@ export class SocialExplorePageComponent {
     });
   }
 
-  trackByPhotoId(_index: number, item: IPublicPhotoItem): string {
-    return `${item.ownerUid}:${item.id}`;
+  trackByFeedItem(_index: number, item: ExploreSocialFeedItem): string {
+    return item.key;
   }
 
   private resolveViewSource(section: TExplorePhotoSection) {
