@@ -26,7 +26,13 @@ const EMPTY_VM = {
   topPhotos: [],
   latestPhotos: [],
   sections: [],
-  compatibleProfiles: [],
+  compatibleProfiles: [
+    {
+      uid: 'compatible-1',
+      nickname: 'Compatível teste',
+      photoURL: null,
+    },
+  ],
   totalItems: 0,
   hasAnyContent: false,
 };
@@ -160,7 +166,7 @@ describe('SocialExplorePageComponent', () => {
     ).toBeNull();
   });
 
-  it('exibe o próprio compositor de 12 horas e momentos relacionados dentro da timeline', () => {
+  it('diferencia o próprio momento de 12 horas dentro da timeline', () => {
     const feedList = fixture.debugElement.query(By.css('.feed-list'));
     const ownStatusComposer = feedList.query(
       By.css('app-user-intent-status-composer')
@@ -168,6 +174,9 @@ describe('SocialExplorePageComponent', () => {
     const relatedStatus = feedList.query(By.css('.feed-intent'));
 
     expect(ownStatusComposer).toBeTruthy();
+    expect(ownStatusComposer.nativeElement.textContent).toContain('Seu momento · 12h');
+    expect(ownStatusComposer.nativeElement.textContent).toContain('Definir momento');
+    expect(ownStatusComposer.nativeElement.querySelector('.fa-clock')).toBeTruthy();
     expect(relatedStatus.nativeElement.textContent).toContain('Amiga teste');
     expect(relatedStatus.nativeElement.textContent).toContain('Momento');
     expect(relatedStatus.nativeElement.textContent).toContain('Disponível hoje');
@@ -190,6 +199,27 @@ describe('SocialExplorePageComponent', () => {
     expect(
       fixture.debugElement.query(By.css('app-feed-publication-composer'))
     ).toBeTruthy();
+  });
+
+  it('exibe descoberta útil quando não existem atualizações pessoais', () => {
+    const statusService = TestBed.inject(UserIntentStatusService) as unknown as {
+      watchActiveStatusesForUserRegion$: ReturnType<typeof vi.fn>;
+    };
+    statusService.watchActiveStatusesForUserRegion$.mockReturnValue(of([]));
+
+    const emptyFixture = TestBed.createComponent(SocialExplorePageComponent);
+    emptyFixture.detectChanges();
+
+    const emptyState = emptyFixture.debugElement.query(By.css('.feed-empty'));
+    const suggestion = emptyFixture.debugElement.query(
+      By.css('a[href="/outro-perfil/compatible-1"]')
+    );
+
+    expect(emptyState.nativeElement.textContent).toContain(
+      'Seu feed começa com conexões'
+    );
+    expect(emptyState.nativeElement.textContent).toContain('Compatível teste');
+    expect(suggestion).toBeTruthy();
   });
 
   it('envia a foto e promove a mesma mídia para a publicação persistente', () => {
