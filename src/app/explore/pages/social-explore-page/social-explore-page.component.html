@@ -8,8 +8,8 @@
   @let myActiveStatus = (myActiveStatus$ | async);
 
   <section class="social-feed-page" aria-label="Atualizações">
-    @if (currentUser?.uid; as currentUid) {
-      <section class="feed-composer" aria-label="Criar publicação">
+    @if (currentUser?.uid) {
+      <section class="feed-composer" aria-label="Ações de publicação">
         <a
           class="feed-composer__avatar"
           routerLink="/perfil"
@@ -34,21 +34,31 @@
         <button
           type="button"
           class="feed-composer__moment"
-          aria-label="Compartilhar momento"
-          (click)="openStatusComposer()"
+          aria-label="Criar publicação persistente"
+          (click)="openPublicationComposer()"
         >
-          Compartilhar momento
+          Criar publicação
         </button>
 
-        <a
+        <button
+          type="button"
           class="feed-composer__photo"
-          [routerLink]="['/media', 'perfil', currentUid, 'fotos', 'upload']"
-          aria-label="Adicionar foto"
-          title="Adicionar foto"
+          aria-label="Declarar meu momento por 12 horas"
+          title="Meu momento por 12 horas"
+          (click)="openStatusComposer()"
         >
-          <i class="fas fa-image" aria-hidden="true"></i>
-        </a>
+          <i class="fas fa-clock" aria-hidden="true"></i>
+        </button>
       </section>
+
+      @if (publicationComposerVisible()) {
+        <app-feed-publication-composer
+          class="feed-status-composer"
+          [user]="currentUser"
+          (closed)="closePublicationComposer()"
+          (published)="onPublicationPublished()"
+        />
+      }
 
       @if (statusComposerVisible()) {
         <app-user-intent-status-composer
@@ -59,7 +69,7 @@
     }
 
     @if (myActiveStatus) {
-      <aside class="feed-status" aria-label="Meu momento ativo">
+      <aside class="feed-status" aria-label="Meu momento ativo por 12 horas">
         <div>
           <strong>{{ myActiveStatus.availabilityLabel }}</strong>
           <p>
