@@ -6,9 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view-tracking.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/photo-upload-flow.service';
+import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
+import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view-tracking.service';
 import { VenueService } from 'src/app/core/services/venues/venue.service';
 import { ExploreFeedFacade } from '../../facades/explore-feed.facade';
 import { ExplorePersonalMediaService } from '../../services/explore-personal-media.service';
@@ -78,12 +81,28 @@ describe('SocialExplorePageComponent', () => {
           },
         },
         {
+          provide: PhotoUploadFlowService,
+          useValue: {
+            uploadProcessedPhotoWithProgress$: vi.fn(() => of()),
+          },
+        },
+        {
+          provide: MediaPublicationService,
+          useValue: {
+            publishPhoto$: vi.fn(() => of(void 0)),
+          },
+        },
+        {
           provide: ErrorNotificationService,
           useValue: {
             showWarning: vi.fn(),
             showError: vi.fn(),
             showSuccess: vi.fn(),
           },
+        },
+        {
+          provide: GlobalErrorHandlerService,
+          useValue: { handleError: vi.fn() },
         },
       ],
     }).compileComponents();
@@ -97,26 +116,45 @@ describe('SocialExplorePageComponent', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Feed');
   });
 
-  it('usa a rota canônica para adicionar foto', () => {
-    const link = fixture.debugElement.query(
-      By.css('a[aria-label="Adicionar foto"]')
-    )?.nativeElement as HTMLAnchorElement | undefined;
-
-    expect(link).toBeTruthy();
-    expect(link?.getAttribute('href')).toBe('/media/perfil/u1/fotos/upload');
-  });
-
-  it('abre o editor de momento sob demanda', async () => {
+  it('abre o compositor persistente no campo principal', () => {
+    expect(
+      fixture.debugElement.query(By.css('app-feed-publication-composer'))
+    ).toBeNull();
     expect(
       fixture.debugElement.query(By.css('app-user-intent-status-composer'))
     ).toBeNull();
 
+    const publishButton = fixture.debugElement.query(
+      By.css('button[aria-label="Criar publicação persistente"]')
+    );
+
+    expect(publishButton.nativeElement.textContent).toContain('Criar publicação');
+    publishButton.triggerEventHandler('click');
+    fixture.detectChanges();
+
+    expect(
+      fixture.debugElement.query(By.css('app-feed-publication-composer'))
+    ).toBeTruthy();
+    expect(
+      fixture.debugElement.query(By.css('app-user-intent-status-composer'))
+    ).toBeNull();
+  });
+
+  it('mantém o status de 12 horas em ação separada', async () => {
     fixture.debugElement
-      .query(By.css('.feed-composer__moment'))
+      .query(By.css('button[aria-label="Criar publicação persistente"]'))
+      .triggerEventHandler('click');
+    fixture.detectChanges();
+
+    fixture.debugElement
+      .query(By.css('button[aria-label="Declarar meu momento por 12 horas"]'))
       .triggerEventHandler('click');
     fixture.detectChanges();
     await fixture.whenStable();
 
+    expect(
+      fixture.debugElement.query(By.css('app-feed-publication-composer'))
+    ).toBeNull();
     expect(
       fixture.debugElement.query(By.css('app-user-intent-status-composer'))
     ).toBeTruthy();
