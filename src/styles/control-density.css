@@ -70,11 +70,11 @@ textarea.form-control {
 /* Botões textuais                                                            */
 /* -------------------------------------------------------------------------- */
 :where(
-  button:not(.btn-link):not(.toggle-input):not(.dark-toggle):not(.close-btn):not(.close-button):not(.navbar-toggler):not(.icon-button):not(.icon-btn):not(.btn-icon):not(.button-icon):not(.mat-mdc-icon-button):not(.mat-mdc-fab-base):not(.carousel-control-prev):not(.carousel-control-next),
+  button:not(.btn-link):not(.toggle-input):not(.dark-toggle):not(.close-btn):not(.close-button):not(.navbar-toggler):not(.icon):not(.icon-button):not(.icon-btn):not(.btn-icon):not(.button-icon):not(.viewer-close-btn):not(.viewer-nav-btn):not(.direct-message-close):not(.universal-sidebar__backdrop):not(.universal-sidebar__action):not(.thread-message__reaction-button):not(.mat-mdc-icon-button):not(.mat-mdc-fab-base):not(.carousel-control-prev):not(.carousel-control-next),
   input[type='button'],
   input[type='submit'],
   input[type='reset'],
-  .btn:not(.btn-link),
+  .btn:not(.btn-link):not(.icon),
   .btn-submit,
   .btn-google,
   .mat-mdc-button-base:not(.mat-mdc-icon-button):not(.mat-mdc-fab-base)
