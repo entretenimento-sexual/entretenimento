@@ -109,6 +109,22 @@ describe('AppCacheService', () => {
     expect(service.peek(definition)).toEqual({ status: 'miss' });
   });
 
+  it('rejeita definição runtime incompleta sem TTL', async () => {
+    const invalid = {
+      key: 'invalid:missing-ttl',
+      scope: 'session',
+      sensitivity: 'private',
+      storage: 'memory',
+      version: 1,
+    } as unknown as CacheDefinition<string>;
+
+    await expect(
+      firstValueFrom(service.set$(invalid, 'value'))
+    ).rejects.toMatchObject({ name: 'CacheConfigurationError' });
+
+    expect(persistence.setEnvelopePersistent).not.toHaveBeenCalled();
+  });
+
   it('persiste o envelope completo quando storage é persistent', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_000);
 
