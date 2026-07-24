@@ -109,6 +109,19 @@
               "extractLicenses": false,
               "namedChunks": true
             },
+            "preview": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.preview.ts"
+                }
+              ],
+              "optimization": false,
+              "outputHashing": "all",
+              "sourceMap": true,
+              "extractLicenses": false,
+              "namedChunks": true
+            },
             "dev-emu": {
               "fileReplacements": [
                 {
@@ -145,6 +158,9 @@
             "staging": {
               "buildTarget": "entretenimento:build:staging"
             },
+            "preview": {
+              "buildTarget": "entretenimento:build:preview"
+            },
             "dev-emu": {
               "buildTarget": "entretenimento:build:dev-emu"
             }
@@ -180,10 +196,10 @@
       "type": "component"
     },
     "@schematics/angular:directive": {
-      "type": "directive"
+      "typeSeparator": "."
     },
     "@schematics/angular:service": {
-      "type": "service"
+      "typeSeparator": "."
     },
     "@schematics/angular:guard": {
       "typeSeparator": "."
