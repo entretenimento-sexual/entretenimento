@@ -417,13 +417,13 @@ export class UserPreferencesService {
     patch: Partial<IUserPreferences>
   ): IUserPreferences {
     return {
-      genero: patch.genero ?? base.genero ?? [],
+      genero: patch['genero'] ?? base['genero'] ?? [],
       praticaSexual:
-        patch.praticaSexual ?? base.praticaSexual ?? [],
+        patch['praticaSexual'] ?? base['praticaSexual'] ?? [],
       preferenciaFisica:
-        patch.preferenciaFisica ?? base.preferenciaFisica ?? [],
+        patch['preferenciaFisica'] ?? base['preferenciaFisica'] ?? [],
       relacionamento:
-        patch.relacionamento ?? base.relacionamento ?? [],
+        patch['relacionamento'] ?? base['relacionamento'] ?? [],
     };
   }
 
