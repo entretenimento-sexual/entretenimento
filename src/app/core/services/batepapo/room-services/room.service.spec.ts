@@ -1,4 +1,5 @@
 const firestoreMocks = vi.hoisted(() => ({
+  Firestore: class FirestoreMock {},
   collection: vi.fn(() => ({ kind: 'collection' })),
   collectionData: vi.fn(),
   doc: vi.fn(() => ({ kind: 'doc' })),
@@ -9,31 +10,9 @@ const firestoreMocks = vi.hoisted(() => ({
   where: vi.fn(() => ({ kind: 'where' })),
 }));
 
-vi.mock('@angular/fire/firestore', async () => {
-  const actual = await vi.importActual('@angular/fire/firestore') as Record<
-    string,
-    unknown
-  >;
+vi.mock('@angular/fire/firestore', () => firestoreMocks);
 
-  return {
-    ...actual,
-    collection: firestoreMocks.collection,
-    collectionData: firestoreMocks.collectionData,
-    doc: firestoreMocks.doc,
-    docData: firestoreMocks.docData,
-    getDocs: firestoreMocks.getDocs,
-    limit: firestoreMocks.limit,
-    query: firestoreMocks.query,
-    where: firestoreMocks.where,
-  };
-});
-
-import { TestBed } from '@angular/core/testing';
-import { Firestore } from '@angular/fire/firestore';
 import { firstValueFrom, from, of } from 'rxjs';
-
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
-import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
 import { RoomService } from './room.service';
 
 type RoomSpecItem = { id: string; roomName: string; participants: string[] };
@@ -42,28 +21,20 @@ describe('RoomService', () => {
   let service: RoomService;
 
   beforeEach(() => {
-    TestBed.resetTestingModule();
     vi.clearAllMocks();
 
-    TestBed.configureTestingModule({
-      providers: [
-        RoomService,
-        { provide: Firestore, useValue: {} },
-        {
-          provide: FirestoreContextService,
-          useValue: {
-            deferPromise$: (task: () => Promise<unknown>) => from(task()),
-            deferObservable$: (task: () => unknown) => task(),
-          },
-        },
-        {
-          provide: GlobalErrorHandlerService,
-          useValue: { handleError: vi.fn() },
-        },
-      ],
-    });
+    service = Object.create(RoomService.prototype) as RoomService;
 
-    service = TestBed.inject(RoomService);
+    Object.assign(service as any, {
+      db: {},
+      ctx: {
+        deferPromise$: (task: () => Promise<unknown>) => from(task()),
+        deferObservable$: (task: () => unknown) => task(),
+      },
+      globalError: {
+        handleError: vi.fn(),
+      },
+    });
   });
 
   it('deve ser criado', () => {
