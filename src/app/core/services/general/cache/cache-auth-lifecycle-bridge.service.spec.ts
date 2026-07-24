@@ -5,7 +5,9 @@ import { vi } from 'vitest';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { CacheAuthLifecycleBridgeService } from './cache-auth-lifecycle-bridge.service';
+import { CacheLegacyMigrationService } from './cache-legacy-migration.service';
 import { CacheSessionLifecycleService } from './cache-session-lifecycle.service';
+import { LEGACY_MEMORY_ONLY_PREFIXES } from './legacy-cache-persistence-policy';
 
 describe('CacheAuthLifecycleBridgeService', () => {
   let service: CacheAuthLifecycleBridgeService;
@@ -13,11 +15,17 @@ describe('CacheAuthLifecycleBridgeService', () => {
   let cacheLifecycle: {
     clearForUidTransition$: ReturnType<typeof vi.fn>;
   };
+  let legacyMigration: {
+    purgePrefixesOnce$: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     uidSubject = new BehaviorSubject<string | null>('uid-a');
     cacheLifecycle = {
       clearForUidTransition$: vi.fn().mockReturnValue(of(void 0)),
+    };
+    legacyMigration = {
+      purgePrefixesOnce$: vi.fn().mockReturnValue(of(void 0)),
     };
 
     TestBed.configureTestingModule({
@@ -32,6 +40,10 @@ describe('CacheAuthLifecycleBridgeService', () => {
           useValue: cacheLifecycle,
         },
         {
+          provide: CacheLegacyMigrationService,
+          useValue: legacyMigration,
+        },
+        {
           provide: GlobalErrorHandlerService,
           useValue: { handleError: vi.fn() },
         },
@@ -41,10 +53,13 @@ describe('CacheAuthLifecycleBridgeService', () => {
     service = TestBed.inject(CacheAuthLifecycleBridgeService);
   });
 
-  it('na inicialização limpa somente resíduos session-scoped', () => {
+  it('remove resíduos legados antes de observar o primeiro UID', () => {
     service.start();
 
-    expect(cacheLifecycle.clearForUidTransition$).toHaveBeenCalledTimes(1);
+    expect(legacyMigration.purgePrefixesOnce$).toHaveBeenCalledWith(
+      'legacy-sensitive-browser-cache-v2',
+      LEGACY_MEMORY_ONLY_PREFIXES
+    );
     expect(cacheLifecycle.clearForUidTransition$).toHaveBeenCalledWith(null);
   });
 
@@ -73,6 +88,7 @@ describe('CacheAuthLifecycleBridgeService', () => {
     service.start();
     uidSubject.next('uid-b');
 
+    expect(legacyMigration.purgePrefixesOnce$).toHaveBeenCalledTimes(1);
     expect(cacheLifecycle.clearForUidTransition$).toHaveBeenCalledTimes(2);
   });
 });
