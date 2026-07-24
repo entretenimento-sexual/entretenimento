@@ -3,54 +3,52 @@
 // USER SOCIAL LINKS SERVICE
 //
 // Responsabilidade:
-// - Ler, observar em tempo real, salvar e remover links sociais do perfil.
-// - Opcionalmente manter um “espelho público” em /public_social_links/{uid}.
+// - ler, observar, salvar e remover links sociais do perfil;
+// - manter opcionalmente o espelho público em /public_social_links/{uid};
+// - separar rigorosamente cache privado do dono e cache do espelho público.
 //
-// Padrões aplicados (estilo “grandes plataformas”):
-// - Observable-first (API pública por Observables)
-// - Injection Context garantido (FirestoreContextService)
-// - Gate de auth para evitar listeners/leituras sem autenticação (por padrão)
-// - Coalescência (dedupe) de leituras e listeners em voo
-// - Cache leve (SWR para leitura única; cache para watchers)
+// Arquitetura:
+// - APIs públicas Observable-first;
+// - Firestore/Functions continuam como fonte de verdade;
+// - leituras e listeners concorrentes são coalescidos;
+// - cache tipado por contexto de leitura, viewer e sensibilidade;
+// - nenhum link social é persistido no navegador.
 //
-// Erros:
-// - Sempre roteados para GlobalErrorHandlerService
-// - Notificação visual opcional (ErrorNotificationService) com throttle
+// SUPRESSÕES EXPLÍCITAS DESTA MIGRAÇÃO:
+// - SUPRIMIDAS as chaves `socialLinks:{uid}` e `socialLinks:{uid}:meta`.
+//   Motivo: não distinguiam documento privado do dono e espelho público.
+// - SUPRIMIDO o cálculo manual de TTL por metadado separado.
+//   Motivo: TTL e stale window pertencem ao envelope do AppCacheService.
+// - SUPRIMIDO o efeito de `persistCache: true`.
+//   Motivo: links pessoais não devem permanecer no IndexedDB de dispositivo
+//   compartilhado. A propriedade foi mantida somente por compatibilidade de API.
+// - SUPRIMIDO o CacheService legado neste serviço.
 // =============================================================================
 
 import { Injectable } from '@angular/core';
 import {
-  doc,
-  getDoc,
-  writeBatch,
-  deleteField,
-  serverTimestamp,
-  docSnapshots,
   Firestore,
+  deleteField,
+  doc,
+  docSnapshots,
+  getDoc,
+  serverTimestamp,
+  writeBatch,
 } from '@angular/fire/firestore';
-
 import type { User } from 'firebase/auth';
-
-import { Observable, combineLatest, concat, of, throwError } from 'rxjs';
-import {
-  catchError,
-  distinctUntilChanged,
-  filter,
-  finalize,
-  map,
-  shareReplay,
-  switchMap,
-  take,
-  tap,
-} from 'rxjs/operators';
+import { Observable, concat, filter, finalize, forkJoin, map, of, shareReplay, switchMap, take, throwError } from 'rxjs';
+import { catchError, distinctUntilChanged } from 'rxjs/operators';
 
 import { IUserSocialLinks } from '../../interfaces/interfaces-user-dados/iuser-social-links';
-import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
-import { CacheService } from '../general/cache/cache.service';
-
 import { AuthSessionService } from '../autentication/auth/auth-session.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { AppCacheService } from '../general/cache/app-cache.service';
+import {
+  CacheDefinition,
+  CacheResult,
+} from '../general/cache/cache-contracts';
 
 export type SocialLinksOptions = {
   notifyOnError?: boolean;
@@ -63,258 +61,470 @@ export type SocialLinksOptions = {
   publishToPublic?: boolean;
 
   /**
-   * Leitura/watch sem auth só se suas rules permitirem.
-   * Se false/undefined, o service NÃO inicia getDoc/docSnapshots sem auth.
+   * Leitura/watch sem auth somente quando as rules permitirem.
    */
   allowAnonymousRead?: boolean;
 
   /**
-   * Cache persistente (IndexedDB) pode ser indesejável para dados pessoais em device compartilhado.
-   * Por padrão, este service usa cache EM MEMÓRIA (persist: false).
-   * Se quiser permitir persistência, set true.
+   * @deprecated Mantido por compatibilidade. Links sociais são sempre memory-only.
    */
   persistCache?: boolean;
 };
 
-type CacheMeta = { cachedAt: number };
+type SocialLinksReadKind =
+  | 'owner-private'
+  | 'public-authenticated'
+  | 'public-anonymous';
 
-type CacheState<T> =
-  | { kind: 'miss' }
-  | { kind: 'fresh'; value: T }
-  | { kind: 'stale'; value: T };
+type SocialLinksReadContext = {
+  targetUid: string;
+  authUid: string | null;
+  kind: SocialLinksReadKind;
+  path: string;
+  cacheDefinition: CacheDefinition<IUserSocialLinks | null>;
+};
 
 @Injectable({ providedIn: 'root' })
 export class UserSocialLinksService {
-  // TTL lógico do cache (não depende do TTL do CacheService).
-  private readonly cacheTtlMs = 10 * 60 * 1000; // 10 min
+  private static readonly CACHE_TTL_MS = 10 * 60_000;
+  private static readonly CACHE_STALE_MS = 5 * 60_000;
+  private static readonly CACHE_VERSION = 2;
 
-  // Throttle de toast
+  private static readonly PUBLIC_KEYS = [
+    'facebook',
+    'instagram',
+    'twitter',
+    'linkedin',
+    'youtube',
+    'tiktok',
+    'snapchat',
+    'sexlog',
+    'd4swing',
+    'hotvips',
+    'privacy',
+    'onlyfans',
+    'fansly',
+    'linktree',
+  ] as const;
+
   private lastNotifyAt = 0;
 
-  // Coalescência:
-  // - 1 getDoc por UID enquanto estiver em voo
-  private readonly inFlightReads = new Map<string, Observable<IUserSocialLinks | null>>();
+  private readonly inFlightReads = new Map<
+    string,
+    Observable<IUserSocialLinks | null>
+  >();
 
-  // - 1 docSnapshots por UID enquanto houver subscribers
-  private readonly inFlightWatches = new Map<string, Observable<IUserSocialLinks | null>>();
+  private readonly inFlightWatches = new Map<
+    string,
+    Observable<IUserSocialLinks | null>
+  >();
 
   constructor(
     private readonly db: Firestore,
     private readonly firestoreCtx: FirestoreContextService,
-    private readonly cache: CacheService,
+    private readonly cache: AppCacheService,
     private readonly session: AuthSessionService,
     private readonly globalError: GlobalErrorHandlerService,
-    private readonly notifier: ErrorNotificationService,
+    private readonly notifier: ErrorNotificationService
   ) {}
-
-  private isOwnerTarget(targetUid: string, authUid: string | null | undefined): boolean {
-  return !!authUid && authUid === targetUid;
-}
-
-private privateSocialLinksPath(uid: string): string {
-  return `users/${uid}/profileData/socialLinks`;
-}
-
-private publicSocialLinksPath(uid: string): string {
-  return `public_social_links/${uid}`;
-}
-
-private resolveReadPath(targetUid: string, authUid: string | null | undefined): string {
-  return this.isOwnerTarget(targetUid, authUid)
-    ? this.privateSocialLinksPath(targetUid)
-    : this.publicSocialLinksPath(targetUid);
-}
 
   // =============================================================================
   // API PÚBLICA
   // =============================================================================
 
   /**
-   * Leitura “one-shot” com SWR:
-   * - Se cache STALE: emite cache e revalida em background.
-   * - Por padrão exige auth (inclusive para retornar cache).
+   * Leitura one-shot com stale-while-revalidate.
    */
-  getSocialLinks(uid: string, options: SocialLinksOptions = {}): Observable<IUserSocialLinks | null> {
-    const safeUid = (uid ?? '').trim();
+  getSocialLinks(
+    uid: string,
+    options: SocialLinksOptions = {}
+  ): Observable<IUserSocialLinks | null> {
+    const safeUid = this.normalizeUid(uid);
     if (!safeUid) return of(null);
 
-    const gate$ = options.allowAnonymousRead ? of(true) : this.requireAuth$();
+    return this.resolveOneShotContext$(safeUid, options).pipe(
+      switchMap((context) =>
+        this.cache.get$(context.cacheDefinition).pipe(
+          switchMap((result) => {
+            if (result.status === 'fresh') {
+              return of(result.value);
+            }
 
-    return gate$.pipe(
-      switchMap(() => this.getCacheState$(safeUid, options)),
-      switchMap((state) => {
-        if (state.kind === 'fresh') return of(state.value);
+            if (result.status === 'stale') {
+              const cached$ = of(result.value);
+              const refresh$ = this.getOrCreateFirestoreRead$(context).pipe(
+                catchError((error) =>
+                  this.handleError(
+                    error,
+                    `getSocialLinks.refresh:${context.kind}`,
+                    options,
+                    result.value
+                  )
+                )
+              );
 
-        if (state.kind === 'stale') {
-          const cached$ = of(state.value);
+              return concat(cached$, refresh$).pipe(
+                distinctUntilChanged((a, b) => this.deepEqual(a, b))
+              );
+            }
 
-          const refresh$ = this.getOrCreateFirestoreRead$(safeUid, options).pipe(
-            // se refresh falhar, não derruba a UI quando já temos cache
-            catchError(() => of(state.value)),
-          );
+            return this.getOrCreateFirestoreRead$(context);
+          })
+        )
+      ),
+      catchError((error) =>
+        this.handleError(error, 'getSocialLinks', options, null)
+      )
+    );
+  }
 
-          return concat(cached$, refresh$).pipe(
-            distinctUntilChanged((a, b) => this.deepEqual(a, b))
-          );
+  /**
+   * Listener realtime. Mudanças de autenticação cancelam o listener anterior e
+   * recalculam caminho e definição de cache.
+   */
+  watchSocialLinks(
+    uid: string,
+    options: SocialLinksOptions = {}
+  ): Observable<IUserSocialLinks | null> {
+    const safeUid = this.normalizeUid(uid);
+    if (!safeUid) return of(null);
+
+    return this.session.ready$.pipe(
+      filter(Boolean),
+      switchMap(() => this.session.authUser$),
+      map((authUser) => {
+        if (!authUser?.uid && !options.allowAnonymousRead) {
+          return null;
         }
 
-        return this.getOrCreateFirestoreRead$(safeUid, options);
+        return this.buildReadContext(safeUid, authUser?.uid ?? null);
       }),
-      catchError((err) => this.handleError(err, 'getSocialLinks', options, null))
+      distinctUntilChanged((previous, current) =>
+        this.sameReadContext(previous, current)
+      ),
+      switchMap((context) =>
+        context
+          ? this.getOrCreateFirestoreWatch$(context)
+          : of(null)
+      ),
+      catchError((error) =>
+        this.handleError(error, 'watchSocialLinks', options, null)
+      )
     );
   }
 
   /**
-   * Watch realtime (docSnapshots):
-   * - Por padrão: NÃO inicia listener sem auth.
-   * - Se allowAnonymousRead=true: inicia listener direto (se rules permitirem).
-   * - Se usuário deslogar: emite null e encerra listener automaticamente (switchMap).
-   *
-   * Observação:
-   * - Ideal para telas que precisam refletir mudanças em tempo real.
-   * - Coalescência: múltiplos subscribers compartilham 1 listener.
+   * Salva links sociais privados e opcionalmente atualiza o espelho público.
    */
-  watchSocialLinks(uid: string, options: SocialLinksOptions = {}): Observable<IUserSocialLinks | null> {
-    const safeUid = (uid ?? '').trim();
-    if (!safeUid) return of(null);
-
-    // Se rules permitem leitura anônima, não precisamos do gate de auth.
-    if (options.allowAnonymousRead) {
-      return this.getOrCreateFirestoreWatch$(safeUid, options).pipe(
-        catchError((err) => this.handleError(err, 'watchSocialLinks', options, null))
+  saveSocialLinks(
+    uid: string,
+    links: IUserSocialLinks,
+    options: SocialLinksOptions = {}
+  ): Observable<void> {
+    const safeUid = this.normalizeUid(uid);
+    if (!safeUid) {
+      return throwError(
+        () => new Error('[UserSocialLinks] uid inválido em saveSocialLinks')
       );
     }
-
-    // Gate “vivo”: quando auth muda, cancela/reinicia listener automaticamente.
-    // - ready$ garante que não decidimos antes da restauração do Auth.
-    return this.session.ready$.pipe(
-      switchMap((ready) => (ready ? this.session.authUser$ : of(null))),
-      map((u) => u?.uid ?? null),
-      distinctUntilChanged(),
-      switchMap((authUid) => {
-        // Sem auth: não inicia listener; não retorna cache (evita “vazar” dado privado).
-        if (!authUid) return of(null);
-
-        // Com auth: inicia listener compartilhado por UID.
-        return this.getOrCreateFirestoreWatch$(safeUid, options);
-      }),
-      catchError((err) => this.handleError(err, 'watchSocialLinks', options, null))
-    );
-  }
-
-  /**
-   * Salva links sociais (privado) e opcionalmente espelha no público.
-   * - Exige owner (authUid === targetUid)
-   */
-  saveSocialLinks(uid: string, links: IUserSocialLinks, options: SocialLinksOptions = {}): Observable<void> {
-    const safeUid = (uid ?? '').trim();
-    if (!safeUid) return throwError(() => new Error('[UserSocialLinks] uid inválido em saveSocialLinks'));
 
     const safeLinks = (links ?? {}) as IUserSocialLinks;
 
     return this.requireOwner$(safeUid).pipe(
-      switchMap(() => this.commitBatchSave$(safeUid, safeLinks, options.publishToPublic)),
-      tap(() => {
-        // Atualiza cache local pós-commit (melhor UX)
-        this.setCache(safeUid, safeLinks, options);
-        // Invalida leituras “one-shot” em voo
+      switchMap((authUid) =>
+        this.commitBatchSave$(
+          safeUid,
+          safeLinks,
+          options.publishToPublic
+        ).pipe(map(() => authUid))
+      ),
+      switchMap((authUid) =>
+        this.updateCachesAfterSave$(
+          safeUid,
+          authUid,
+          safeLinks,
+          options.publishToPublic
+        )
+      ),
+      map(() => {
         this.invalidateInFlightReads(safeUid);
+        return void 0;
       }),
-      catchError((err) => this.handleError(err, 'saveSocialLinks', options, undefined as any, true))
+      catchError((error) =>
+        this.handleError(
+          error,
+          'saveSocialLinks',
+          options,
+          undefined as void,
+          true
+        )
+      )
     );
   }
 
   /**
-   * Remove uma key.
-   * - Exige owner
+   * Remove uma chave dos links sociais privados e, quando solicitado, do espelho.
    */
-  removeLink(uid: string, linkKey: keyof IUserSocialLinks, options: SocialLinksOptions = {}): Observable<void> {
-    const safeUid = (uid ?? '').trim();
-    if (!safeUid) return throwError(() => new Error('[UserSocialLinks] uid inválido em removeLink'));
-    if (!linkKey) return throwError(() => new Error('[UserSocialLinks] linkKey inválido em removeLink'));
+  removeLink(
+    uid: string,
+    linkKey: keyof IUserSocialLinks,
+    options: SocialLinksOptions = {}
+  ): Observable<void> {
+    const safeUid = this.normalizeUid(uid);
+    if (!safeUid) {
+      return throwError(
+        () => new Error('[UserSocialLinks] uid inválido em removeLink')
+      );
+    }
+    if (!linkKey) {
+      return throwError(
+        () => new Error('[UserSocialLinks] linkKey inválido em removeLink')
+      );
+    }
 
     return this.requireOwner$(safeUid).pipe(
-      switchMap(() => this.commitBatchRemove$(safeUid, linkKey, options.publishToPublic)),
-      switchMap(() => this.patchCacheAfterRemove$(safeUid, linkKey, options)),
-      tap(() => this.invalidateInFlightReads(safeUid)),
-      catchError((err) => this.handleError(err, 'removeLink', options, undefined as any, true))
+      switchMap((authUid) =>
+        this.commitBatchRemove$(
+          safeUid,
+          linkKey,
+          options.publishToPublic
+        ).pipe(map(() => authUid))
+      ),
+      switchMap((authUid) =>
+        this.updateCachesAfterRemove$(
+          safeUid,
+          authUid,
+          linkKey,
+          options.publishToPublic
+        )
+      ),
+      map(() => {
+        this.invalidateInFlightReads(safeUid);
+        return void 0;
+      }),
+      catchError((error) =>
+        this.handleError(
+          error,
+          'removeLink',
+          options,
+          undefined as void,
+          true
+        )
+      )
     );
   }
 
   // =============================================================================
-  // READ (getDoc) com coalescência + cache
+  // CONTEXTO DE LEITURA E DEFINIÇÕES DE CACHE
   // =============================================================================
 
-private getOrCreateFirestoreRead$(
-  uid: string,
-  options: SocialLinksOptions
-): Observable<IUserSocialLinks | null> {
-  return this.session.authUser$.pipe(
-    take(1),
-    switchMap((authUser) => {
-      const authUid = authUser?.uid ?? null;
-      const scope = this.isOwnerTarget(uid, authUid) ? 'private' : 'public';
-      const path = this.resolveReadPath(uid, authUid);
+  private resolveOneShotContext$(
+    targetUid: string,
+    options: SocialLinksOptions
+  ): Observable<SocialLinksReadContext> {
+    return this.session.ready$.pipe(
+      filter(Boolean),
+      take(1),
+      switchMap(() => this.session.authUser$.pipe(take(1))),
+      switchMap((authUser: User | null) => {
+        const authUid = authUser?.uid ?? null;
 
-      const key = this.inFlightKey(`${uid}:${scope}`, !!options.allowAnonymousRead, 'read');
-      const existing = this.inFlightReads.get(key);
-      if (existing) return existing;
+        if (!authUid && !options.allowAnonymousRead) {
+          return throwError(() =>
+            this.makeError('auth/required', 'Usuário não autenticado.')
+          );
+        }
 
-      const read$ = this.firestoreCtx.deferPromise$(async () => {
-        const ref = doc(this.db, path);
-        return getDoc(ref);
-      }).pipe(
-        map((snap) => (snap.exists() ? (snap.data() as IUserSocialLinks) : null)),
-        tap((links) => this.setCache(uid, links, options)),
-        catchError((err) => this.handleError(err, `getDoc(socialLinks:${scope})`, options, null)),
+        return of(this.buildReadContext(targetUid, authUid));
+      })
+    );
+  }
+
+  private buildReadContext(
+    targetUid: string,
+    authUid: string | null
+  ): SocialLinksReadContext {
+    if (authUid && authUid === targetUid) {
+      return {
+        targetUid,
+        authUid,
+        kind: 'owner-private',
+        path: this.privateSocialLinksPath(targetUid),
+        cacheDefinition: this.ownerPrivateDefinition(targetUid, authUid),
+      };
+    }
+
+    if (authUid) {
+      return {
+        targetUid,
+        authUid,
+        kind: 'public-authenticated',
+        path: this.publicSocialLinksPath(targetUid),
+        cacheDefinition: this.publicAuthenticatedDefinition(
+          targetUid,
+          authUid
+        ),
+      };
+    }
+
+    return {
+      targetUid,
+      authUid: null,
+      kind: 'public-anonymous',
+      path: this.publicSocialLinksPath(targetUid),
+      cacheDefinition: this.publicAnonymousDefinition(targetUid),
+    };
+  }
+
+  private ownerPrivateDefinition(
+    targetUid: string,
+    ownerUid: string
+  ): CacheDefinition<IUserSocialLinks | null> {
+    return {
+      key: `social-links:private:${targetUid}`,
+      scope: 'user',
+      ownerUid,
+      sensitivity: 'restricted',
+      storage: 'memory',
+      ttlMs: UserSocialLinksService.CACHE_TTL_MS,
+      staleWhileRevalidateMs: UserSocialLinksService.CACHE_STALE_MS,
+      version: UserSocialLinksService.CACHE_VERSION,
+      validate: (value): value is IUserSocialLinks | null =>
+        this.isSocialLinksValue(value),
+    };
+  }
+
+  private publicAuthenticatedDefinition(
+    targetUid: string,
+    viewerUid: string
+  ): CacheDefinition<IUserSocialLinks | null> {
+    return {
+      key: `social-links:public:${targetUid}`,
+      scope: 'user',
+      ownerUid: viewerUid,
+      sensitivity: 'private',
+      storage: 'memory',
+      ttlMs: UserSocialLinksService.CACHE_TTL_MS,
+      staleWhileRevalidateMs: UserSocialLinksService.CACHE_STALE_MS,
+      version: UserSocialLinksService.CACHE_VERSION,
+      validate: (value): value is IUserSocialLinks | null =>
+        this.isSocialLinksValue(value),
+    };
+  }
+
+  private publicAnonymousDefinition(
+    targetUid: string
+  ): CacheDefinition<IUserSocialLinks | null> {
+    return {
+      key: `social-links:public:${targetUid}`,
+      scope: 'session',
+      sensitivity: 'public',
+      storage: 'memory',
+      ttlMs: UserSocialLinksService.CACHE_TTL_MS,
+      staleWhileRevalidateMs: UserSocialLinksService.CACHE_STALE_MS,
+      version: UserSocialLinksService.CACHE_VERSION,
+      validate: (value): value is IUserSocialLinks | null =>
+        this.isSocialLinksValue(value),
+    };
+  }
+
+  private isSocialLinksValue(
+    value: unknown
+  ): value is IUserSocialLinks | null {
+    return value === null || (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value)
+    );
+  }
+
+  private sameReadContext(
+    previous: SocialLinksReadContext | null,
+    current: SocialLinksReadContext | null
+  ): boolean {
+    if (previous === current) return true;
+    if (!previous || !current) return false;
+
+    return (
+      previous.path === current.path &&
+      previous.kind === current.kind &&
+      previous.authUid === current.authUid
+    );
+  }
+
+  // =============================================================================
+  // READ E WATCH COM COALESCÊNCIA
+  // =============================================================================
+
+  private getOrCreateFirestoreRead$(
+    context: SocialLinksReadContext
+  ): Observable<IUserSocialLinks | null> {
+    const key = this.inFlightKey(context, 'read');
+    const existing = this.inFlightReads.get(key);
+    if (existing) return existing;
+
+    const read$ = this.firestoreCtx
+      .deferPromise$(() => getDoc(doc(this.db, context.path)))
+      .pipe(
+        map((snapshot) =>
+          snapshot.exists()
+            ? this.mapSnapshotData(snapshot.data(), context.kind)
+            : null
+        ),
+        switchMap((links) =>
+          this.cache
+            .set$(context.cacheDefinition, links)
+            .pipe(map(() => links))
+        ),
         finalize(() => this.inFlightReads.delete(key)),
         shareReplay({ bufferSize: 1, refCount: true })
       );
 
-      this.inFlightReads.set(key, read$);
-      return read$;
-    })
-  );
-}
+    this.inFlightReads.set(key, read$);
+    return read$;
+  }
 
-  // =============================================================================
-  // WATCH (docSnapshots) com coalescência + cache
-  // =============================================================================
+  private getOrCreateFirestoreWatch$(
+    context: SocialLinksReadContext
+  ): Observable<IUserSocialLinks | null> {
+    const key = this.inFlightKey(context, 'watch');
+    const existing = this.inFlightWatches.get(key);
+    if (existing) return existing;
 
-private getOrCreateFirestoreWatch$(
-  uid: string,
-  options: SocialLinksOptions
-): Observable<IUserSocialLinks | null> {
-  return this.session.authUser$.pipe(
-    take(1),
-    switchMap((authUser) => {
-      const authUid = authUser?.uid ?? null;
-      const scope = this.isOwnerTarget(uid, authUid) ? 'private' : 'public';
-      const path = this.resolveReadPath(uid, authUid);
-
-      const key = this.inFlightKey(`${uid}:${scope}`, !!options.allowAnonymousRead, 'watch');
-      const existing = this.inFlightWatches.get(key);
-      if (existing) return existing;
-
-      const watch$ = this.firestoreCtx.deferObservable$(() => {
-        const ref = doc(this.db, path);
-        return docSnapshots(ref);
-      }).pipe(
-        map((snap) => (snap.exists() ? (snap.data() as IUserSocialLinks) : null)),
-        tap((links) => this.setCache(uid, links, options)),
-        catchError((err) => this.handleError(err, `docSnapshots(socialLinks:${scope})`, options, null)),
+    const watch$ = this.firestoreCtx
+      .deferObservable$(() => docSnapshots(doc(this.db, context.path)))
+      .pipe(
+        map((snapshot) =>
+          snapshot.exists()
+            ? this.mapSnapshotData(snapshot.data(), context.kind)
+            : null
+        ),
+        switchMap((links) =>
+          this.cache
+            .set$(context.cacheDefinition, links)
+            .pipe(map(() => links))
+        ),
         finalize(() => this.inFlightWatches.delete(key)),
         shareReplay({ bufferSize: 1, refCount: true })
       );
 
-      this.inFlightWatches.set(key, watch$);
-      return watch$;
-    })
-  );
-}
+    this.inFlightWatches.set(key, watch$);
+    return watch$;
+  }
+
+  private mapSnapshotData(
+    raw: unknown,
+    kind: SocialLinksReadKind
+  ): IUserSocialLinks {
+    if (kind === 'owner-private') {
+      return { ...((raw ?? {}) as IUserSocialLinks) };
+    }
+
+    return this.sanitizePublicLinks(raw);
+  }
 
   // =============================================================================
-  // FIRESTORE COMMITS (batch) - Observable-first + Injection Context
+  // COMMITS FIRESTORE
   // =============================================================================
 
   private commitBatchSave$(
@@ -324,24 +534,23 @@ private getOrCreateFirestoreWatch$(
   ): Observable<void> {
     return this.firestoreCtx.deferPromise$(async () => {
       const batch = writeBatch(this.db);
+      const privateRef = doc(this.db, this.privateSocialLinksPath(uid));
 
-      // privado (fonte de verdade)
-      const privateRef = doc(this.db, `users/${uid}/profileData/socialLinks`);
       batch.set(privateRef, links, { merge: true });
 
-      // espelho público (somente subset permitido)
       if (publishToPublic === true) {
-        const publicRef = doc(this.db, `public_social_links/${uid}`);
+        const publicRef = doc(this.db, this.publicSocialLinksPath(uid));
         batch.set(
           publicRef,
-          { uid, ...this.toPublicPayload(links), updatedAt: serverTimestamp() },
+          {
+            uid,
+            ...this.toPublicPayload(links),
+            updatedAt: serverTimestamp(),
+          },
           { merge: true }
         );
-      }
-
-      if (publishToPublic === false) {
-        const publicRef = doc(this.db, `public_social_links/${uid}`);
-        batch.delete(publicRef);
+      } else if (publishToPublic === false) {
+        batch.delete(doc(this.db, this.publicSocialLinksPath(uid)));
       }
 
       await batch.commit();
@@ -355,27 +564,30 @@ private getOrCreateFirestoreWatch$(
   ): Observable<void> {
     return this.firestoreCtx.deferPromise$(async () => {
       const batch = writeBatch(this.db);
+      const privateRef = doc(this.db, this.privateSocialLinksPath(uid));
 
-      // privado
-      const privateRef = doc(this.db, `users/${uid}/profileData/socialLinks`);
-      batch.set(privateRef, { [linkKey]: deleteField() } as any, { merge: true });
+      batch.set(
+        privateRef,
+        { [linkKey]: deleteField() } as Partial<IUserSocialLinks>,
+        { merge: true }
+      );
 
-      // público: não crie doc público vazio só porque removeu uma key
       if (publishToPublic === true) {
-        const publicRef = doc(this.db, `public_social_links/${uid}`);
-        const pubSnap = await getDoc(publicRef);
-        if (pubSnap.exists()) {
+        const publicRef = doc(this.db, this.publicSocialLinksPath(uid));
+        const publicSnapshot = await getDoc(publicRef);
+
+        if (publicSnapshot.exists()) {
           batch.set(
             publicRef,
-            { [linkKey]: deleteField(), updatedAt: serverTimestamp() } as any,
+            {
+              [linkKey]: deleteField(),
+              updatedAt: serverTimestamp(),
+            },
             { merge: true }
           );
         }
-      }
-
-      if (publishToPublic === false) {
-        const publicRef = doc(this.db, `public_social_links/${uid}`);
-        batch.delete(publicRef);
+      } else if (publishToPublic === false) {
+        batch.delete(doc(this.db, this.publicSocialLinksPath(uid)));
       }
 
       await batch.commit();
@@ -383,144 +595,192 @@ private getOrCreateFirestoreWatch$(
   }
 
   // =============================================================================
-  // CACHE (SWR / suporte para watch)
+  // ATUALIZAÇÃO E INVALIDAÇÃO DE CACHE APÓS MUTATIONS
   // =============================================================================
 
-  private cacheKey(uid: string): string {
-    return `socialLinks:${uid}`;
-  }
+  private updateCachesAfterSave$(
+    targetUid: string,
+    authUid: string,
+    links: IUserSocialLinks,
+    publishToPublic?: boolean
+  ): Observable<void> {
+    const operations: Observable<void>[] = [
+      this.cache.set$(
+        this.ownerPrivateDefinition(targetUid, authUid),
+        links
+      ),
+    ];
 
-  private cacheMetaKey(uid: string): string {
-    return `socialLinks:${uid}:meta`;
-  }
-
-  private getCacheState$(
-    uid: string,
-    options: SocialLinksOptions
-  ): Observable<CacheState<IUserSocialLinks | null>> {
-    const key = this.cacheKey(uid);
-    const metaKey = this.cacheMetaKey(uid);
-
-    return combineLatest([
-      this.cache.get<IUserSocialLinks | null>(key).pipe(take(1)),
-      this.cache.get<CacheMeta>(metaKey).pipe(take(1)),
-    ]).pipe(
-      map(([payload, meta]) => {
-        if (payload === undefined) return { kind: 'miss' } as const;
-
-        const fresh = this.isCacheFresh(meta?.cachedAt);
-
-        // payload pode ser null (doc não existe) — ainda é um valor cacheável.
-        if (fresh) return { kind: 'fresh', value: payload ?? null } as const;
-        return { kind: 'stale', value: payload ?? null } as const;
-      })
+    const publicDefinition = this.publicAuthenticatedDefinition(
+      targetUid,
+      authUid
     );
+
+    if (publishToPublic === true) {
+      operations.push(
+        this.cache.set$(publicDefinition, this.toPublicPayload(links))
+      );
+    } else if (publishToPublic === false) {
+      operations.push(this.cache.invalidate$(publicDefinition));
+    }
+
+    return forkJoin(operations).pipe(map(() => void 0));
   }
 
-  private setCache(uid: string, links: IUserSocialLinks | null, options: SocialLinksOptions): void {
-    const persist = options.persistCache === true;
+  private updateCachesAfterRemove$(
+    targetUid: string,
+    authUid: string,
+    linkKey: keyof IUserSocialLinks,
+    publishToPublic?: boolean
+  ): Observable<void> {
+    const operations: Observable<void>[] = [
+      this.patchCacheAfterRemove$(
+        this.ownerPrivateDefinition(targetUid, authUid),
+        linkKey
+      ),
+    ];
 
-    // Por padrão: NÃO persistir dados pessoais em IndexedDB
-    this.cache.set(this.cacheKey(uid), links, undefined, { persist });
-    this.cache.set(this.cacheMetaKey(uid), { cachedAt: Date.now() } as CacheMeta, undefined, { persist });
+    const publicDefinition = this.publicAuthenticatedDefinition(
+      targetUid,
+      authUid
+    );
+
+    if (publishToPublic === true) {
+      operations.push(
+        this.patchCacheAfterRemove$(publicDefinition, linkKey)
+      );
+    } else if (publishToPublic === false) {
+      operations.push(this.cache.invalidate$(publicDefinition));
+    }
+
+    return forkJoin(operations).pipe(map(() => void 0));
   }
 
   private patchCacheAfterRemove$(
-    uid: string,
-    linkKey: keyof IUserSocialLinks,
-    options: SocialLinksOptions
+    definition: CacheDefinition<IUserSocialLinks | null>,
+    linkKey: keyof IUserSocialLinks
   ): Observable<void> {
-    const key = this.cacheKey(uid);
-
-    return this.cache.get<IUserSocialLinks | null>(key).pipe(
+    return this.cache.get$(definition).pipe(
       take(1),
-      tap((cached) => {
-        if (!cached) {
-          this.cache.delete(this.cacheKey(uid));
-          this.cache.delete(this.cacheMetaKey(uid));
-          return;
+      switchMap((result: CacheResult<IUserSocialLinks | null>) => {
+        if (result.status === 'miss') {
+          return this.cache.invalidate$(definition);
         }
 
-        const clone: any = { ...cached };
-        delete clone[linkKey];
-        this.setCache(uid, clone as IUserSocialLinks, options);
-      }),
-      map(() => void 0)
-    );
-  }
+        if (!result.value) {
+          return this.cache.set$(definition, null);
+        }
 
-  private isCacheFresh(cachedAt: unknown): boolean {
-    if (typeof cachedAt !== 'number' || !Number.isFinite(cachedAt)) return false;
-    return Date.now() - cachedAt <= this.cacheTtlMs;
-  }
+        const next = { ...result.value } as Record<string, unknown>;
+        delete next[String(linkKey)];
 
-  // =============================================================================
-  // PUBLIC MIRROR PAYLOAD
-  // =============================================================================
-
-  /** Garante que o payload público não vaze chaves não permitidas nas rules */
-  private toPublicPayload(links: IUserSocialLinks): Partial<IUserSocialLinks> {
-    const allowed = [
-      'facebook', 'instagram', 'twitter', 'linkedin', 'youtube', 'tiktok', 'snapchat',
-      'sexlog', 'd4swing',
-
-      // ✅ novo + sugestões
-      'hotvips', 'privacy', 'onlyfans', 'fansly', 'linktree',
-    ] as const;
-
-    const out: any = {};
-    for (const k of allowed) {
-      const v = (links as any)?.[k];
-      if (typeof v === 'string' || v == null) out[k] = v;
-    }
-    return out;
-  }
-
-  // =============================================================================
-  // GATES (AUTH / OWNER)
-  // =============================================================================
-
-  private requireAuth$(): Observable<boolean> {
-    return this.session.ready$.pipe(
-      filter(Boolean),
-      take(1),
-      switchMap(() => this.session.authUser$.pipe(take(1))),
-      switchMap((u: User | null) => {
-        if (!u?.uid) return throwError(() => this.makeError('auth/required', 'Usuário não autenticado.'));
-        return of(true);
+        return this.cache.set$(
+          definition,
+          next as IUserSocialLinks
+        );
       })
     );
   }
+
+  // =============================================================================
+  // PAYLOAD PÚBLICO
+  // =============================================================================
+
+  private toPublicPayload(
+    links: IUserSocialLinks
+  ): Partial<IUserSocialLinks> {
+    const output: Partial<IUserSocialLinks> = {};
+
+    for (const key of UserSocialLinksService.PUBLIC_KEYS) {
+      const value = (links as Record<string, unknown>)?.[key];
+
+      if (typeof value === 'string' || value === null) {
+        (output as Record<string, unknown>)[key] = value;
+      }
+    }
+
+    return output;
+  }
+
+  private sanitizePublicLinks(raw: unknown): IUserSocialLinks {
+    const source = (
+      typeof raw === 'object' && raw !== null
+        ? raw
+        : {}
+    ) as Record<string, unknown>;
+
+    return this.toPublicPayload(source as IUserSocialLinks) as IUserSocialLinks;
+  }
+
+  // =============================================================================
+  // AUTH
+  // =============================================================================
 
   private requireOwner$(targetUid: string): Observable<string> {
     return this.session.ready$.pipe(
       filter(Boolean),
       take(1),
       switchMap(() => this.session.authUser$.pipe(take(1))),
-      switchMap((u: User | null) => {
-        const authUid = u?.uid ?? null;
-        if (!authUid) return throwError(() => this.makeError('auth/required', 'Usuário não autenticado.'));
-        if (authUid !== targetUid) return throwError(() => this.makeError('auth/forbidden', 'Sem permissão.'));
+      switchMap((user: User | null) => {
+        const authUid = user?.uid ?? null;
+
+        if (!authUid) {
+          return throwError(() =>
+            this.makeError('auth/required', 'Usuário não autenticado.')
+          );
+        }
+
+        if (authUid !== targetUid) {
+          return throwError(() =>
+            this.makeError('auth/forbidden', 'Sem permissão.')
+          );
+        }
+
         return of(authUid);
       })
     );
   }
 
   // =============================================================================
-  // HELPERS (in-flight / deepEqual)
+  // HELPERS
   // =============================================================================
 
-  private inFlightKey(uid: string, allowAnon: boolean, kind: 'read' | 'watch'): string {
-    return `${kind}::${uid}::${allowAnon ? 'anon' : 'auth'}`;
+  private normalizeUid(uid: string): string | null {
+    const normalized = String(uid ?? '').trim();
+    return normalized || null;
+  }
+
+  private privateSocialLinksPath(uid: string): string {
+    return `users/${uid}/profileData/socialLinks`;
+  }
+
+  private publicSocialLinksPath(uid: string): string {
+    return `public_social_links/${uid}`;
+  }
+
+  private inFlightKey(
+    context: SocialLinksReadContext,
+    kind: 'read' | 'watch'
+  ): string {
+    return [
+      kind,
+      context.kind,
+      context.authUid ?? 'anonymous',
+      context.targetUid,
+    ].join('::');
   }
 
   private invalidateInFlightReads(uid: string): void {
-    this.inFlightReads.delete(this.inFlightKey(uid, true, 'read'));
-    this.inFlightReads.delete(this.inFlightKey(uid, false, 'read'));
+    for (const key of Array.from(this.inFlightReads.keys())) {
+      if (key.endsWith(`::${uid}`)) {
+        this.inFlightReads.delete(key);
+      }
+    }
   }
 
-  private deepEqual(a: any, b: any): boolean {
+  private deepEqual(a: unknown, b: unknown): boolean {
     if (a === b) return true;
+
     try {
       return JSON.stringify(a) === JSON.stringify(b);
     } catch {
@@ -529,22 +789,27 @@ private getOrCreateFirestoreWatch$(
   }
 
   // =============================================================================
-  // ERROS (centralizados)
+  // ERROS CENTRALIZADOS
   // =============================================================================
 
   private handleError<T>(
-    err: unknown,
+    error: unknown,
     context: string,
     options: SocialLinksOptions,
     fallback: T,
-    rethrow = false,
+    rethrow = false
   ): Observable<T> {
-    const wrapped = this.wrapError(err, context);
+    const wrapped = this.wrapError(error, context);
 
-    try { this.globalError.handleError(wrapped); } catch { }
+    try {
+      this.globalError.handleError(wrapped);
+    } catch {
+      // Telemetria não pode derrubar o fluxo principal.
+    }
 
     if (options.notifyOnError) {
       const now = Date.now();
+
       if (now - this.lastNotifyAt > 12_000) {
         this.lastNotifyAt = now;
         this.notifier.showError('Falha ao processar redes sociais.');
@@ -555,20 +820,27 @@ private getOrCreateFirestoreWatch$(
     return of(fallback);
   }
 
-  private wrapError(err: unknown, context: string): Error {
-    const e = err instanceof Error ? err : new Error(String(err ?? 'unknown error'));
-    (e as any).silent = true;
-    (e as any).feature = 'user-social-links';
-    (e as any).context = context;
-    (e as any).original = err;
-    return e;
+  private wrapError(error: unknown, context: string): Error {
+    const wrapped =
+      error instanceof Error
+        ? error
+        : new Error(String(error ?? 'unknown error'));
+
+    (wrapped as any).silent = true;
+    (wrapped as any).skipUserNotification = true;
+    (wrapped as any).feature = 'user-social-links';
+    (wrapped as any).context = context;
+    (wrapped as any).original = error;
+
+    return wrapped;
   }
 
   private makeError(code: string, message: string): Error {
-    const e = new Error(message);
-    (e as any).code = code;
-    (e as any).silent = true;
-    (e as any).feature = 'user-social-links';
-    return e;
+    const error = new Error(message);
+    (error as any).code = code;
+    (error as any).silent = true;
+    (error as any).skipUserNotification = true;
+    (error as any).feature = 'user-social-links';
+    return error;
   }
 }
