@@ -32,24 +32,74 @@ describe('CachePersistenceService', () => {
     };
 
     await firstValueFrom(
-      service.setEnvelopePersistent('app-cache:global:catalog', envelope)
-    );
-
-    const restored = await firstValueFrom(
-      service.getEnvelopePersistent<string>(
-        'app-cache:global:catalog'
+      service.setEnvelopePersistent(
+        'app-cache:global:catalog',
+        envelope
       )
     );
 
-    expect(restored).toEqual(envelope);
+    expect(
+      await firstValueFrom(
+        service.getEnvelopePersistent<string>(
+          'app-cache:global:catalog'
+        )
+      )
+    ).toEqual(envelope);
   });
 
   it('retorna null quando a chave não existe', async () => {
-    const restored = await firstValueFrom(
-      service.getEnvelopePersistent<string>('missing')
+    expect(
+      await firstValueFrom(
+        service.getEnvelopePersistent<string>('missing')
+      )
+    ).toBeNull();
+  });
+
+  it('bloqueia persistência de chaves sensíveis do CacheService legado', async () => {
+    await firstValueFrom(
+      service.setPersistent('preferences:uid-1', {
+        praticaSexual: ['private'],
+      })
+    );
+    await firstValueFrom(
+      service.setPersistent('discovery:public_profiles:all', [
+        { uid: 'uid-2' },
+      ])
+    );
+    await firstValueFrom(
+      service.setPersistent('user:uid-1', {
+        uid: 'uid-1',
+        email: 'private@example.com',
+      })
     );
 
-    expect(restored).toBeNull();
+    expect(
+      await firstValueFrom(
+        service.getPersistent('preferences:uid-1')
+      )
+    ).toBeNull();
+    expect(
+      await firstValueFrom(
+        service.getPersistent('discovery:public_profiles:all')
+      )
+    ).toBeNull();
+    expect(
+      await firstValueFrom(service.getPersistent('user:uid-1'))
+    ).toBeNull();
+  });
+
+  it('mantém persistência legada permitida para dados não bloqueados', async () => {
+    await firstValueFrom(
+      service.setPersistent('catalog:ibge:states', [
+        { id: 33, sigla: 'RJ' },
+      ])
+    );
+
+    expect(
+      await firstValueFrom(
+        service.getPersistent('catalog:ibge:states')
+      )
+    ).toEqual([{ id: 33, sigla: 'RJ' }]);
   });
 
   it('remove vários prefixos com uma única API', async () => {
@@ -57,7 +107,9 @@ describe('CachePersistenceService', () => {
       service.setPersistent('app-cache:user:uid-1:profile', { id: 1 })
     );
     await firstValueFrom(
-      service.setPersistent('app-cache:user:uid-1:preferences', { id: 2 })
+      service.setPersistent('app-cache:user:uid-1:preferences', {
+        id: 2,
+      })
     );
     await firstValueFrom(
       service.setPersistent('app-cache:session:validation', { id: 3 })
