@@ -196,10 +196,10 @@
       "type": "component"
     },
     "@schematics/angular:directive": {
-      "typeSeparator": "."
+      "type": "directive"
     },
     "@schematics/angular:service": {
-      "typeSeparator": "."
+      "type": "service"
     },
     "@schematics/angular:guard": {
       "typeSeparator": "."
