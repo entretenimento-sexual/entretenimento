@@ -1,19 +1,15 @@
 // src/app/core/services/general/cache/app-cache.service.ts
-// Fachada tipada para o novo cache da aplicação.
+// Fachada tipada para o cache da aplicação.
 //
 // Princípios:
 // - memória é a primeira camada;
 // - persistência é sempre opt-in pela definição;
-// - TTL, versão, escopo e owner acompanham o valor persistido;
-// - null pode ser um valor legítimo, pois miss é discriminado;
-// - falhas do IndexedDB são best-effort e nunca geram toast.
+// - TTL, versão, escopo e proprietário acompanham o valor;
+// - null pode ser valor legítimo, pois miss é discriminado;
+// - dados restricted nunca são persistidos;
+// - falhas do IndexedDB são best-effort e não geram toast.
 import { Injectable } from '@angular/core';
-import {
-  Observable,
-  defer,
-  of,
-  throwError,
-} from 'rxjs';
+import { Observable, defer, of, throwError } from 'rxjs';
 import {
   catchError,
   finalize,
@@ -50,23 +46,18 @@ export class AppCacheService {
     private readonly globalError: GlobalErrorHandlerService
   ) {}
 
+  /**
+   * Leitura principal em camadas.
+   * Consulta memória e, somente quando a definição permite, IndexedDB.
+   */
   get$<T>(definition: CacheDefinition<T>): Observable<CacheResult<T>> {
     return defer(() => {
       const normalized = this.normalizeDefinition(definition);
       const storageKey = this.storageKey(normalized);
-      const memoryEnvelope = this.memory.get(storageKey);
+      const memoryResult = this.readMemory(normalized, storageKey);
 
-      if (memoryEnvelope) {
-        const memoryResult = this.evaluateEnvelope(
-          normalized,
-          memoryEnvelope
-        );
-
-        if (memoryResult) {
-          return of(memoryResult);
-        }
-
-        this.memory.delete(storageKey);
+      if (memoryResult.status !== 'miss') {
+        return of(memoryResult);
       }
 
       if (normalized.storage === 'memory') {
@@ -134,6 +125,22 @@ export class AppCacheService {
         return of(CACHE_MISS as CacheResult<T>);
       })
     );
+  }
+
+  /**
+   * Snapshot síncrono exclusivamente da memória.
+   *
+   * Regras:
+   * - nunca consulta IndexedDB;
+   * - nunca cria inscrição ou side-effect externo;
+   * - aplica versão, owner, validator, TTL e stale window;
+   * - para fluxos novos, `get$()` continua sendo a API preferencial.
+   */
+  peek<T>(definition: CacheDefinition<T>): CacheResult<T> {
+    const normalized = this.normalizeDefinition(definition);
+    const storageKey = this.storageKey(normalized);
+
+    return this.readMemory(normalized, storageKey);
   }
 
   set$<T>(
@@ -219,6 +226,26 @@ export class AppCacheService {
   clearMemory(): void {
     this.memory.clear();
     this.inFlightReads.clear();
+  }
+
+  private readMemory<T>(
+    definition: CacheDefinition<T>,
+    storageKey: string
+  ): CacheResult<T> {
+    const envelope = this.memory.get(storageKey);
+
+    if (!envelope) {
+      return CACHE_MISS as CacheResult<T>;
+    }
+
+    const result = this.evaluateEnvelope(definition, envelope);
+
+    if (result) {
+      return result;
+    }
+
+    this.memory.delete(storageKey);
+    return CACHE_MISS as CacheResult<T>;
   }
 
   private clearByPrefix$(prefix: string): Observable<void> {
@@ -341,9 +368,7 @@ export class AppCacheService {
       );
     }
 
-    if (
-      !['global', 'session', 'user'].includes(definition.scope)
-    ) {
+    if (!['global', 'session', 'user'].includes(definition.scope)) {
       throw new CacheConfigurationError(
         `[AppCacheService] Escopo inválido para "${key}".`
       );
