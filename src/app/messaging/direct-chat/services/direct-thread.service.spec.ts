@@ -1,17 +1,21 @@
 // src/app/messaging/direct-chat/services/direct-thread.service.spec.ts
 import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
 
-const functionsMocks = {
+const functionsMocks = vi.hoisted(() => ({
   httpsCallable: vi.fn(),
-};
+}));
 
-vi.doMock('@angular/fire/functions', () => functionsMocks);
+vi.mock('@angular/fire/functions', () => ({
+  Functions: class {},
+  httpsCallable: functionsMocks.httpsCallable,
+}));
+
+import { DirectThreadService } from './direct-thread.service';
 
 type MockFn = ReturnType<typeof vi.fn>;
 
 describe('DirectThreadService', () => {
-  let service: any;
-  let DirectThreadServiceToken: any;
+  let service: DirectThreadService;
 
   let canListenRealtime$: BehaviorSubject<boolean>;
   let sendCallableMock: MockFn;
@@ -33,11 +37,6 @@ describe('DirectThreadService', () => {
   let privacyDebugMock: {
     log: MockFn;
   };
-
-  beforeAll(async () => {
-    const serviceModule = await import('./direct-thread.service');
-    DirectThreadServiceToken = serviceModule.DirectThreadService;
-  });
 
   beforeEach(() => {
     canListenRealtime$ = new BehaviorSubject<boolean>(true);
@@ -64,15 +63,15 @@ describe('DirectThreadService', () => {
     functionsMocks.httpsCallable.mockReset();
     functionsMocks.httpsCallable.mockReturnValue(sendCallableMock as any);
 
-    service = new DirectThreadServiceToken(
-      {},
-      chatServiceMock,
+    service = new DirectThreadService(
+      {} as any,
+      chatServiceMock as any,
       {
         canListenRealtime$: canListenRealtime$.asObservable(),
-      },
-      globalErrorHandlerMock,
-      errorNotifierMock,
-      privacyDebugMock
+      } as any,
+      globalErrorHandlerMock as any,
+      errorNotifierMock as any,
+      privacyDebugMock as any
     );
   });
 
