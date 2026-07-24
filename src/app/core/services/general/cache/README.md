@@ -43,6 +43,8 @@ O cache não possui mais slice genérico no NgRx. Estado compartilhado continua 
 13. O `CacheService` legado é memory-first; persistência exige `{ persist: true }`.
 14. Snapshot síncrono tipado usa `AppCacheService.peek()` e nunca consulta IndexedDB.
 15. Chaves de consultas filtradas devem incluir valores normalizados dos filtros, não apenas o tipo das constraints.
+16. `QueryConstraint` arbitrária não deve ser serializada para criar chave de cache; somente consultas conhecidas recebem identidade semântica explícita.
+17. Resultados vazios (`[]`) são valores válidos e não devem ser tratados como cache miss.
 
 ## Escolha de camada
 
@@ -73,6 +75,10 @@ O cache não possui mais slice genérico no NgRx. Estado compartilhado continua 
 - catálogos IBGE: `global/public/persistent`, com TTL e versão;
 - localização do usuário: `user/restricted/memory`;
 - `UserStateCacheService`: perfil por UID em `user/restricted/memory`, com snapshot por `peek()`;
+- descoberta pública: `user/private/memory`, separada pelo viewer e por valores normalizados dos filtros;
+- `searchUsers(QueryConstraint[])`: mantido sem cache da aplicação para evitar fingerprint instável do SDK;
+- listas vazias de descoberta: tratadas como hit válido;
+- busca por UIDs: identidade determinística e retorno na ordem solicitada;
 - `CacheService` reescrito sem Store e sem persistência automática;
 - slice genérico de cache do NgRx removido;
 - `CacheSyncService` removido por ausência de consumidores e duplicidade de responsabilidades.
@@ -92,10 +98,9 @@ Motivo: não havia produtor externo de actions nem consumidor do sincronizador. 
 
 ## Próximas migrações
 
-1. `UserDiscoveryQueryService` para definições viewer-scoped do `AppCacheService`, corrigindo colisões: hoje consultas diferentes podem formar a mesma chave porque o código considera apenas o tipo das constraints.
-2. Serviços sociais restantes ainda ligados ao `CacheService`.
-3. Revisão do UID mínimo em `localStorage` após estabilização do bootstrap Auth.
-4. Remoção do Firestore legado após busca final de consumidores.
+1. Serviços sociais restantes ainda ligados ao `CacheService`.
+2. Revisão do UID mínimo em `localStorage` após estabilização do bootstrap Auth.
+3. Remoção do Firestore legado após busca final de consumidores.
 
 ## Validação obrigatória antes de ampliar a migração
 
@@ -113,6 +118,9 @@ Depois, validar no Emulator Suite:
 - preferências;
 - busca e configurações de amizade;
 - catálogos e localização;
+- descoberta com filtros diferentes;
+- descoberta com resultado vazio;
+- busca de perfis por UIDs em ordens diferentes;
 - limpeza do IndexedDB;
 - ausência do objeto completo `currentUser` no localStorage.
 
