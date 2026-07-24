@@ -1,0 +1,179 @@
+/* src/styles/control-density.css
+ *
+ * Fonte única de altura para campos de uma linha e botões textuais.
+ *
+ * Padrão aprovado para teste:
+ * - desktop/ponteiro preciso: 36px;
+ * - dispositivo de toque: 40px.
+ *
+ * Este arquivo não define largura, grid, posição ou composição de telas.
+ * Controles especiais devem optar explicitamente por uma exceção com:
+ * - class="control-density-auto"; ou
+ * - data-control-density="auto".
+ */
+
+:root {
+  --control-height: 36px;
+  --control-height-touch: 40px;
+  --control-height-active: var(--control-height);
+  --control-radius: 8px;
+  --control-padding-inline: 12px;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --control-height-active: var(--control-height-touch);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Campos de uma linha                                                        */
+/* -------------------------------------------------------------------------- */
+:where(
+  input:not([type]),
+  input[type='text'],
+  input[type='email'],
+  input[type='password'],
+  input[type='search'],
+  input[type='tel'],
+  input[type='url'],
+  input[type='number'],
+  input[type='date'],
+  input[type='time'],
+  input[type='datetime-local'],
+  input[type='month'],
+  input[type='week'],
+  select,
+  input.input-field,
+  select.input-field,
+  .form-control:not(textarea),
+  .form-select
+):not(.control-density-auto):not([data-control-density='auto']) {
+  box-sizing: border-box;
+  height: var(--control-height-active) !important;
+  min-height: var(--control-height-active) !important;
+  padding-block: 0 !important;
+  padding-inline: var(--control-padding-inline) !important;
+  border-radius: var(--control-radius);
+  line-height: 1.2;
+}
+
+/* Textareas são deliberadamente multilinha e não recebem altura fixa. */
+textarea.input-field,
+textarea.form-control {
+  min-height: 88px;
+  padding: 10px var(--control-padding-inline);
+  resize: vertical;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Botões textuais                                                            */
+/* -------------------------------------------------------------------------- */
+:where(
+  button:not(.btn-link):not(.toggle-input):not(.dark-toggle):not(.close-btn):not(.close-button):not(.navbar-toggler):not(.icon):not(.icon-button):not(.icon-btn):not(.btn-icon):not(.button-icon):not(.viewer-close-btn):not(.viewer-nav-btn):not(.direct-message-close):not(.universal-sidebar__backdrop):not(.universal-sidebar__action):not(.thread-message__reaction-button):not(.mat-mdc-icon-button):not(.mat-mdc-fab-base):not(.carousel-control-prev):not(.carousel-control-next),
+  input[type='button'],
+  input[type='submit'],
+  input[type='reset'],
+  .btn:not(.btn-link):not(.icon),
+  .btn-submit,
+  .btn-google,
+  .mat-mdc-button-base:not(.mat-mdc-icon-button):not(.mat-mdc-fab-base)
+):not(.control-density-auto):not([data-control-density='auto']) {
+  box-sizing: border-box;
+  height: var(--control-height-active) !important;
+  min-height: var(--control-height-active) !important;
+  padding-block: 0 !important;
+  border-radius: var(--control-radius);
+  line-height: 1.2;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Angular Material                                                           */
+/* -------------------------------------------------------------------------- */
+.mat-mdc-form-field:not(:has(textarea)):not(.control-density-auto):not([data-control-density='auto']) {
+  --mat-form-field-container-height: var(--control-height-active);
+  --mat-form-field-container-vertical-padding: calc((var(--control-height-active) - 24px) / 2);
+}
+
+.mat-mdc-form-field:not(:has(textarea)):not(.control-density-auto):not([data-control-density='auto'])
+  .mat-mdc-text-field-wrapper {
+  height: var(--control-height-active) !important;
+  min-height: var(--control-height-active) !important;
+}
+
+.mat-mdc-form-field:not(:has(textarea)):not(.control-density-auto):not([data-control-density='auto'])
+  .mat-mdc-form-field-infix {
+  min-height: var(--control-height-active) !important;
+  padding-block: calc((var(--control-height-active) - 24px) / 2) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Validação flutuante do login                                               */
+/* -------------------------------------------------------------------------- */
+/*
+ * O wrapper preserva a mesma sequência label/campo, enquanto o aviso fica
+ * fora do fluxo e não altera a altura do formulário ao aparecer.
+ */
+app-login-component .login-field {
+  position: relative;
+  display: grid;
+  gap: 0.78rem;
+}
+
+app-login-component .login-field .field-error {
+  position: absolute;
+  top: -2px;
+  right: 0;
+  z-index: 4;
+  max-width: min(72%, 220px);
+  margin: 0;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--danger-color, #c62828);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+app-login-component .login-field .field-error::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  bottom: -4px;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+@media (max-width: 420px) {
+  app-login-component .login-field .field-error {
+    max-width: 76%;
+    font-size: 0.68rem;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Alto contraste                                                             */
+/* -------------------------------------------------------------------------- */
+html.high-contrast :is(
+  input.input-field,
+  select.input-field,
+  textarea.input-field,
+  .form-control,
+  .form-select,
+  .btn,
+  .btn-google,
+  .btn-submit
+) {
+  border-width: 2px;
+}
+
+html.high-contrast app-login-component .login-field .field-error {
+  border: 2px solid currentColor;
+  box-shadow: none;
+}
