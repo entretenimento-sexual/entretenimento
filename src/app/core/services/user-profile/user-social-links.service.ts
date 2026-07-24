@@ -36,6 +36,7 @@ import {
   writeBatch,
 } from '@angular/fire/firestore';
 import type { User } from 'firebase/auth';
+import type { WithFieldValue } from 'firebase/firestore';
 import { Observable, concat, filter, finalize, forkJoin, map, of, shareReplay, switchMap, take, throwError } from 'rxjs';
 import { catchError, distinctUntilChanged } from 'rxjs/operators';
 
@@ -566,11 +567,11 @@ export class UserSocialLinksService {
       const batch = writeBatch(this.db);
       const privateRef = doc(this.db, this.privateSocialLinksPath(uid));
 
-      batch.set(
-        privateRef,
-        { [linkKey]: deleteField() } as Partial<IUserSocialLinks>,
-        { merge: true }
-      );
+      const privateRemoval: WithFieldValue<IUserSocialLinks> = {
+        [linkKey]: deleteField(),
+      };
+
+      batch.set(privateRef, privateRemoval, { merge: true });
 
       if (publishToPublic === true) {
         const publicRef = doc(this.db, this.publicSocialLinksPath(uid));
