@@ -1,5 +1,24 @@
 // src/app/core/services/data-handling/queries/user-discovery.query.service.ts
-import { Injectable, DestroyRef, inject } from '@angular/core';
+//
+// Consulta perfis públicos usados na descoberta.
+//
+// Arquitetura de cache:
+// - AppCacheService é usado somente nas consultas com identidade semântica conhecida;
+// - o cache é user-scoped, private e exclusivamente em memória;
+// - o UID do viewer separa sessões e contas no mesmo navegador;
+// - valores dos filtros participam da identidade, evitando colisões;
+// - searchUsers(QueryConstraint[]) não é cacheado, porque QueryConstraint não possui
+//   contrato público estável para serialização/fingerprint.
+//
+// SUPRESSÕES EXPLÍCITAS DESTA MIGRAÇÃO:
+// - SUPRIMIDA a chave baseada apenas em `constraint.type`.
+//   Motivo: filtros diferentes podiam compartilhar resultados incorretos.
+// - SUPRIMIDO o CacheService legado neste serviço.
+//   Motivo: descoberta precisa de escopo por viewer, resultado discriminado e
+//   persistência explicitamente desativada.
+// - SUPRIMIDA a inscrição vazia em uid$ no construtor.
+//   Motivo: a limpeza por troca de UID já pertence ao ciclo de vida central do cache.
+import { Injectable } from '@angular/core';
 import { forkJoin, Observable, of } from 'rxjs';
 import {
   catchError,
@@ -10,8 +29,6 @@ import {
   take,
 } from 'rxjs/operators';
 
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-
 import {
   QueryConstraint,
   documentId,
@@ -19,18 +36,29 @@ import {
 } from 'firebase/firestore';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
-import { CacheService } from '@core/services/general/cache/cache.service';
+import { AppCacheService } from '@core/services/general/cache/app-cache.service';
+import {
+  CacheDefinition,
+  CacheResult,
+} from '@core/services/general/cache/cache-contracts';
 import { FirestoreReadService } from '../firestore/core/firestore-read.service';
 import { FirestoreErrorHandlerService } from '@core/services/error-handler/firestore-error-handler.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 
+type DiscoveryQueryOptions = {
+  cacheTTL?: number;
+  firestoreCacheTTL?: number;
+  cacheIdentity?: string | null;
+  errorContext?: string;
+};
+
 @Injectable({ providedIn: 'root' })
 export class UserDiscoveryQueryService {
-  private readonly destroyRef = inject(DestroyRef);
-
   private readonly DISCOVERY_COL = 'public_profiles';
 
   private static readonly UID_BATCH_SIZE = 10;
+  private static readonly DEFAULT_CACHE_TTL_MS = 30_000;
+  private static readonly ALL_PROFILES_CACHE_TTL_MS = 10 * 60_000;
 
   private readonly uid$ = this.authSession.uid$.pipe(
     distinctUntilChanged(),
@@ -39,18 +67,10 @@ export class UserDiscoveryQueryService {
 
   constructor(
     private readonly read: FirestoreReadService,
-    private readonly cache: CacheService,
+    private readonly cache: AppCacheService,
     private readonly firestoreError: FirestoreErrorHandlerService,
     private readonly authSession: AuthSessionService
-  ) {
-    this.uid$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((uid) => {
-        if (!uid) {
-          // Future hook: clear discovery cache when CacheService supports prefixes.
-        }
-      });
-  }
+  ) {}
 
   private toCleanText(value: unknown): string | null {
     if (typeof value !== 'string') {
@@ -416,14 +436,90 @@ export class UserDiscoveryQueryService {
     return requestedUids.every((uid) => present.has(uid));
   }
 
+  private normalizeIdentityValue(value: string): string {
+    return value
+      .normalize('NFKC')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLocaleLowerCase('pt-BR');
+  }
+
+  private semanticIdentity(kind: string, values: readonly string[]): string {
+    return `${kind}:${JSON.stringify(
+      values.map((value) => this.normalizeIdentityValue(value))
+    )}`;
+  }
+
+  private uidIdentity(kind: string, uids: readonly string[]): string {
+    return `${kind}:${JSON.stringify(uids)}`;
+  }
+
+  private isPublicProfileList(value: unknown): value is IUserDados[] {
+    return (
+      Array.isArray(value) &&
+      value.every(
+        (item) =>
+          !!item &&
+          typeof item === 'object' &&
+          typeof (item as { uid?: unknown }).uid === 'string'
+      )
+    );
+  }
+
+  private cacheDefinition(
+    viewerUid: string,
+    identity: string,
+    ttlMs: number
+  ): CacheDefinition<IUserDados[]> {
+    return {
+      key: `discovery:${identity}`,
+      scope: 'user',
+      ownerUid: viewerUid,
+      sensitivity: 'private',
+      storage: 'memory',
+      ttlMs,
+      version: 1,
+      validate: (value: unknown): value is IUserDados[] =>
+        this.isPublicProfileList(value),
+    };
+  }
+
+  private cacheValue(
+    result: CacheResult<IUserDados[]>
+  ): IUserDados[] | null {
+    return result.status === 'miss' ? null : result.value;
+  }
+
+  private readProfilesOnce$(
+    constraints: QueryConstraint[],
+    firestoreCacheTTL: number
+  ): Observable<IUserDados[]> {
+    return this.read
+      .getDocumentsOnce<any>(this.DISCOVERY_COL, constraints, {
+        useCache: true,
+        cacheTTL: firestoreCacheTTL,
+        mapIdField: 'uid',
+        requireAuth: true,
+      })
+      .pipe(
+        map((docs) =>
+          (docs ?? []).map((doc) =>
+            this.toUserDadosFromPublicProfile(doc)
+          )
+        )
+      );
+  }
+
   private onceGuardedQuery(
     constraints: QueryConstraint[] = [],
-    options?: { cacheTTL?: number }
+    options: DiscoveryQueryOptions = {}
   ): Observable<IUserDados[]> {
-    const cacheTTL = options?.cacheTTL ?? 30_000;
-    const cacheKey = `discovery:query:${JSON.stringify(
-      constraints.map((item) => item.type ?? 'constraint')
-    )}`;
+    const cacheTTL =
+      options.cacheTTL ?? UserDiscoveryQueryService.DEFAULT_CACHE_TTL_MS;
+    const firestoreCacheTTL = options.firestoreCacheTTL ?? cacheTTL;
+    const cacheIdentity = this.toCleanText(options.cacheIdentity);
+    const errorContext =
+      options.errorContext ?? 'user-discovery.onceGuardedQuery';
 
     return this.uid$.pipe(
       take(1),
@@ -432,50 +528,64 @@ export class UserDiscoveryQueryService {
           return of([] as IUserDados[]);
         }
 
-        return this.cache.get<IUserDados[]>(cacheKey).pipe(
-          switchMap((cached) => {
-            if (cached?.length) {
-              return of(cached);
+        const fetch$ = this.readProfilesOnce$(
+          constraints,
+          firestoreCacheTTL
+        );
+
+        // QueryConstraint arbitrária não recebe fingerprint implícito.
+        if (!cacheIdentity) {
+          return fetch$;
+        }
+
+        const definition = this.cacheDefinition(
+          uid,
+          cacheIdentity,
+          cacheTTL
+        );
+
+        return this.cache.get$(definition).pipe(
+          switchMap((result) => {
+            if (result.status !== 'miss') {
+              // Inclusive [] é hit válido e evita repetição desnecessária de leitura.
+              return of(result.value);
             }
 
-            return this.read
-              .getDocumentsOnce<any>(this.DISCOVERY_COL, constraints, {
-                useCache: true,
-                cacheTTL,
-                mapIdField: 'uid',
-                requireAuth: true,
-              })
-              .pipe(
-                map((docs) =>
-                  (docs ?? []).map((doc) =>
-                    this.toUserDadosFromPublicProfile(doc)
-                  )
-                ),
-                map((users) => {
-                  this.cache.set(cacheKey, users, cacheTTL);
-                  return users;
-                })
-              );
-          }),
-          catchError((err) =>
-            this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
-              err,
-              [],
-              {
-                silent: true,
-                context: 'user-discovery.onceGuardedQuery',
-              }
-            )
-          )
+            return fetch$.pipe(
+              switchMap((users) =>
+                this.cache
+                  .set$(definition, users)
+                  .pipe(map(() => users))
+              )
+            );
+          })
         );
       }),
+      catchError((err) =>
+        this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
+          err,
+          [],
+          {
+            silent: true,
+            context: errorContext,
+          }
+        )
+      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
+  /**
+   * Compatibilidade para callers que fornecem QueryConstraint diretamente.
+   *
+   * Sem cache de aplicação por decisão arquitetural: o SDK não oferece uma
+   * serialização pública estável que inclua campos, operadores e valores.
+   */
   searchUsers(constraints: QueryConstraint[]): Observable<IUserDados[]> {
     return this.onceGuardedQuery(constraints ?? [], {
-      cacheTTL: 60_000,
+      firestoreCacheTTL: 60_000,
+      cacheIdentity: null,
+      errorContext: 'user-discovery.searchUsers',
     });
   }
 
@@ -492,11 +602,22 @@ export class UserDiscoveryQueryService {
       return of([] as IUserDados[]);
     }
 
-    return this.searchUsers([
-      where('gender', '==', g),
-      where('orientation', '==', o),
-      where('municipio', '==', m),
-    ]);
+    return this.onceGuardedQuery(
+      [
+        where('gender', '==', g),
+        where('orientation', '==', o),
+        where('municipio', '==', m),
+      ],
+      {
+        cacheTTL: 60_000,
+        cacheIdentity: this.semanticIdentity(
+          'orientation-location',
+          [g, o, m]
+        ),
+        errorContext:
+          'user-discovery.getProfilesByOrientationAndLocation',
+      }
+    );
   }
 
   getUsersByGender$(gender: string): Observable<IUserDados[]> {
@@ -506,9 +627,13 @@ export class UserDiscoveryQueryService {
       return of([] as IUserDados[]);
     }
 
-    return this.onceGuardedQuery([
-      where('gender', '==', clean),
-    ]);
+    return this.onceGuardedQuery(
+      [where('gender', '==', clean)],
+      {
+        cacheIdentity: this.semanticIdentity('gender', [clean]),
+        errorContext: 'user-discovery.getUsersByGender$',
+      }
+    );
   }
 
   getUsersByOrientation$(orientation: string): Observable<IUserDados[]> {
@@ -518,9 +643,13 @@ export class UserDiscoveryQueryService {
       return of([] as IUserDados[]);
     }
 
-    return this.onceGuardedQuery([
-      where('orientation', '==', clean),
-    ]);
+    return this.onceGuardedQuery(
+      [where('orientation', '==', clean)],
+      {
+        cacheIdentity: this.semanticIdentity('orientation', [clean]),
+        errorContext: 'user-discovery.getUsersByOrientation$',
+      }
+    );
   }
 
   getUsersByLocation$(state: string, city?: string): Observable<IUserDados[]> {
@@ -539,60 +668,82 @@ export class UserDiscoveryQueryService {
       constraints.push(where('municipio', '==', cleanCity));
     }
 
-    return this.onceGuardedQuery(constraints);
+    return this.onceGuardedQuery(constraints, {
+      cacheIdentity: this.semanticIdentity('location', [
+        cleanState,
+        cleanCity ?? '*',
+      ]),
+      errorContext: 'user-discovery.getUsersByLocation$',
+    });
   }
 
   getProfilesByUids$(
     uids: string[] | null | undefined,
     opts?: { cacheTTL?: number }
   ): Observable<IUserDados[]> {
-    const normalized = this.normalizeUidList(uids);
+    const requestedOrder = this.normalizeUidList(uids);
 
-    if (!normalized.length) {
+    if (!requestedOrder.length) {
       return of([] as IUserDados[]);
     }
 
-    const sorted = [...normalized].sort();
-    const cacheTTL = opts?.cacheTTL ?? 30_000;
-
-    const cacheKey = `discovery:public_profiles:uids:${sorted.join(',')}`;
-    const allProfilesCacheKey = 'discovery:public_profiles:all';
+    const sorted = [...requestedOrder].sort();
+    const cacheTTL =
+      opts?.cacheTTL ?? UserDiscoveryQueryService.DEFAULT_CACHE_TTL_MS;
 
     return this.uid$.pipe(
       take(1),
-      switchMap((uid) => {
-        if (!uid) {
+      switchMap((viewerUid) => {
+        if (!viewerUid) {
           return of([] as IUserDados[]);
         }
 
+        const allDefinition = this.cacheDefinition(
+          viewerUid,
+          'all',
+          UserDiscoveryQueryService.ALL_PROFILES_CACHE_TTL_MS
+        );
+        const byUidsDefinition = this.cacheDefinition(
+          viewerUid,
+          this.uidIdentity('uids', sorted),
+          cacheTTL
+        );
+
         return forkJoin({
-          cachedAll: this.cache.get<IUserDados[]>(allProfilesCacheKey).pipe(
-            take(1),
-            catchError(() => of(null))
-          ),
-          cachedByUids: this.cache.get<IUserDados[]>(cacheKey).pipe(
-            take(1),
-            catchError(() => of(null))
-          ),
+          cachedAll: this.cache.get$(allDefinition).pipe(take(1)),
+          cachedByUids: this.cache.get$(byUidsDefinition).pipe(take(1)),
         }).pipe(
           switchMap(({ cachedAll, cachedByUids }) => {
             const fromAllCache = this.pickProfilesByRequestedUids(
-              cachedAll,
+              this.cacheValue(cachedAll),
               sorted
             );
 
             if (this.cachedProfilesCoverRequestedUids(fromAllCache, sorted)) {
-              this.cache.set(cacheKey, fromAllCache, cacheTTL);
-              return of(fromAllCache);
+              return this.cache
+                .set$(byUidsDefinition, fromAllCache)
+                .pipe(
+                  map(() =>
+                    this.pickProfilesByRequestedUids(
+                      fromAllCache,
+                      requestedOrder
+                    )
+                  )
+                );
             }
 
             const fromUidCache = this.pickProfilesByRequestedUids(
-              cachedByUids,
+              this.cacheValue(cachedByUids),
               sorted
             );
 
             if (this.cachedProfilesCoverRequestedUids(fromUidCache, sorted)) {
-              return of(fromUidCache);
+              return of(
+                this.pickProfilesByRequestedUids(
+                  fromUidCache,
+                  requestedOrder
+                )
+              );
             }
 
             const batches = this.chunk(
@@ -603,7 +754,12 @@ export class UserDiscoveryQueryService {
             const reads$ = batches.map((batch) =>
               this.onceGuardedQuery(
                 [where(documentId(), 'in', batch)],
-                { cacheTTL }
+                {
+                  cacheTTL,
+                  cacheIdentity: this.uidIdentity('uids-batch', batch),
+                  errorContext:
+                    'user-discovery.getProfilesByUids$.batch',
+                }
               )
             );
 
@@ -615,98 +771,51 @@ export class UserDiscoveryQueryService {
                 for (const profile of profiles ?? []) {
                   const profileUid = (profile?.uid ?? '').trim();
 
-                  if (!profileUid) {
-                    continue;
+                  if (profileUid) {
+                    byUid.set(profileUid, profile);
                   }
-
-                  byUid.set(profileUid, profile);
                 }
 
                 return sorted
                   .map((requestedUid) => byUid.get(requestedUid) ?? null)
                   .filter((profile): profile is IUserDados => !!profile);
               }),
-              map((profiles) => {
-                this.cache.set(cacheKey, profiles, cacheTTL);
-                return profiles;
-              }),
-              catchError((err) =>
-                this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
-                  err,
-                  [],
-                  {
-                    silent: true,
-                    context: 'user-discovery.getProfilesByUids$',
-                  }
-                )
+              switchMap((profilesInSortedOrder) =>
+                this.cache
+                  .set$(byUidsDefinition, profilesInSortedOrder)
+                  .pipe(
+                    map(() =>
+                      this.pickProfilesByRequestedUids(
+                        profilesInSortedOrder,
+                        requestedOrder
+                      )
+                    )
+                  )
               )
             );
-          }),
-          catchError((err) =>
-            this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
-              err,
-              [],
-              {
-                silent: true,
-                context: 'user-discovery.getProfilesByUids$.cache',
-              }
-            )
-          )
+          })
         );
       }),
+      catchError((err) =>
+        this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
+          err,
+          [],
+          {
+            silent: true,
+            context: 'user-discovery.getProfilesByUids$',
+          }
+        )
+      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
   getAllUsers$(): Observable<IUserDados[]> {
-    const cacheKey = 'discovery:public_profiles:all';
-
-    return this.uid$.pipe(
-      take(1),
-      switchMap((uid) => {
-        if (!uid) {
-          return of([] as IUserDados[]);
-        }
-
-        return this.cache.get<IUserDados[]>(cacheKey).pipe(
-          switchMap((cached) => {
-            if (cached?.length) {
-              return of(cached);
-            }
-
-            return this.read
-              .getDocumentsOnce<any>(this.DISCOVERY_COL, [], {
-                useCache: true,
-                cacheTTL: 300_000,
-                mapIdField: 'uid',
-                requireAuth: true,
-              })
-              .pipe(
-                map((docs) =>
-                  (docs ?? []).map((doc) =>
-                    this.toUserDadosFromPublicProfile(doc)
-                  )
-                ),
-                map((users) => {
-                  this.cache.set(cacheKey, users, 600_000);
-                  return users;
-                })
-              );
-          }),
-          catchError((err) =>
-            this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
-              err,
-              [],
-              {
-                silent: true,
-                context: 'user-discovery.getAllUsers$',
-              }
-            )
-          ),
-        );
-      }),
-
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
+    return this.onceGuardedQuery([], {
+      cacheTTL: UserDiscoveryQueryService.ALL_PROFILES_CACHE_TTL_MS,
+      firestoreCacheTTL: 300_000,
+      cacheIdentity: 'all',
+      errorContext: 'user-discovery.getAllUsers$',
+    });
   }
-} // Linha 705
+}
