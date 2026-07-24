@@ -7,10 +7,10 @@
 // - manter API pública Observable-first.
 //
 // Exceção temporária de compatibilidade:
-// - setPersistent() atende somente o CacheService legado e aplica uma barreira
-//   de privacidade para chaves antigas conhecidas;
-// - setEnvelopePersistent() pertence à arquitetura nova e recebe a política já
-//   validada pela CacheDefinition/AppCacheService.
+// - setPersistent()/getPersistent() atendem somente o CacheService legado e
+//   aplicam uma barreira de privacidade para chaves antigas conhecidas;
+// - setEnvelopePersistent()/getEnvelopePersistent() pertencem à arquitetura
+//   nova e recebem a política validada pela CacheDefinition/AppCacheService.
 import { Injectable } from '@angular/core';
 import { del, get, keys as idbKeys, set } from 'idb-keyval';
 import { from, Observable, of } from 'rxjs';
@@ -20,10 +20,7 @@ import { shouldBlockLegacyPersistence } from './legacy-cache-persistence-policy'
 
 @Injectable({ providedIn: 'root' })
 export class CachePersistenceService {
-  /**
-   * Compatibilidade com o CacheService legado.
-   * Novos fluxos devem preferir envelopes tipados.
-   */
+  /** Compatibilidade com o CacheService legado. */
   setPersistent<T>(key: string, value: T): Observable<void> {
     if (shouldBlockLegacyPersistence(key)) {
       return of(void 0);
@@ -32,8 +29,19 @@ export class CachePersistenceService {
     return from(set(key, value));
   }
 
-  /** Compatibilidade com o CacheService legado. */
+  /**
+   * Compatibilidade com o CacheService legado.
+   * Chaves privadas bloqueadas nunca são reidratadas e o resíduo é removido.
+   */
   getPersistent<T>(key: string): Observable<T | null> {
+    if (shouldBlockLegacyPersistence(key)) {
+      return from(
+        del(key)
+          .then(() => null as T | null)
+          .catch(() => null as T | null)
+      );
+    }
+
     return from(
       get<T>(key).then((result) =>
         result !== undefined ? result : null
@@ -79,9 +87,7 @@ export class CachePersistenceService {
     );
   }
 
-  /**
-   * Remove chaves de vários prefixos com apenas uma varredura do IndexedDB.
-   */
+  /** Remove chaves de vários prefixos com uma única varredura. */
   deletePersistentByPrefixes(prefixes: string[]): Observable<number> {
     const safePrefixes = this.normalizeValues(prefixes);
 
