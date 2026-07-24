@@ -16,11 +16,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import {
-  BehaviorSubject,
-  Observable,
-  of,
-} from 'rxjs';
+import { BehaviorSubject, Observable, of } from 'rxjs';
 import {
   catchError,
   debounceTime,
@@ -153,9 +149,10 @@ export class FriendSearchComponent implements OnInit {
   ): CacheDefinition<IUserDados[]> {
     const ownerUid =
       this.currentUserStore.getLoggedUserUIDSnapshot();
+    const normalizedCacheTerm = searchTerm.toLocaleLowerCase('pt-BR');
 
     const base = {
-      key: `friend-search:${searchTerm}`,
+      key: `friend-search:${normalizedCacheTerm}`,
       sensitivity: 'private' as const,
       storage: 'memory' as const,
       ttlMs: 5 * 60 * 1000,
@@ -183,9 +180,7 @@ export class FriendSearchComponent implements OnInit {
   }
 
   private normalizeSearchTerm(value: string): string {
-    return String(value ?? '')
-      .trim()
-      .toLocaleLowerCase('pt-BR');
+    return String(value ?? '').trim();
   }
 
   private reportSearchError(error: unknown): void {
