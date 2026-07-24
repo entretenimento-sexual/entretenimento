@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { where } from 'firebase/firestore';
 
@@ -24,7 +24,7 @@ describe('UserDiscoveryQueryService', () => {
   let service: UserDiscoveryQueryService;
   let cache: AppCacheMock;
   let read: ReadMock;
-  let authUid: string | null;
+  let uidSubject: BehaviorSubject<string | null>;
 
   const profile = (uid: string): IUserDados =>
     ({
@@ -34,7 +34,7 @@ describe('UserDiscoveryQueryService', () => {
     }) as unknown as IUserDados;
 
   beforeEach(() => {
-    authUid = 'viewer-1';
+    uidSubject = new BehaviorSubject<string | null>('viewer-1');
     cache = {
       get$: vi.fn().mockReturnValue(of({ status: 'miss' })),
       set$: vi.fn().mockReturnValue(of(void 0)),
@@ -58,17 +58,7 @@ describe('UserDiscoveryQueryService', () => {
         },
         {
           provide: AuthSessionService,
-          useValue: {
-            uid$: new Proxy(of('viewer-1'), {
-              get(target, property, receiver) {
-                if (property === 'subscribe') {
-                  return (...args: unknown[]) =>
-                    of(authUid).subscribe(...(args as []));
-                }
-                return Reflect.get(target, property, receiver);
-              },
-            }),
-          },
+          useValue: { uid$: uidSubject.asObservable() },
         },
       ],
     });
@@ -168,7 +158,7 @@ describe('UserDiscoveryQueryService', () => {
   });
 
   it('não lê nem escreve cache sem sessão autenticada', async () => {
-    authUid = null;
+    uidSubject.next(null);
 
     const result = await firstValueFrom(service.getAllUsers$());
 
