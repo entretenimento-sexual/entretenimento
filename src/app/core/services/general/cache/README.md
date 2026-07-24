@@ -112,8 +112,9 @@ Depois, validar no Emulator Suite:
 - login, logout e troca de conta;
 - preferências;
 - busca e configurações de amizade;
-- catálogos/localização;
-- limpeza de IndexedDB e ausência de `currentUser` completo no localStorage.
+- catálogos e localização;
+- limpeza do IndexedDB;
+- ausência do objeto completo `currentUser` no localStorage.
 
 ## Arquivo legado ainda preservado
 
