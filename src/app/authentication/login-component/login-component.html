@@ -1,7 +1,13 @@
 <!-- src/app/authentication/login-component/login-component.html -->
 <div class="auth-container">
-  <main class="form-container" aria-labelledby="login-title">
-    <h1 id="login-title" class="form-header">Entrar</h1>
+  <section class="auth-intro" aria-labelledby="auth-intro-title">
+    <h1 id="auth-intro-title">
+      Entretenimento com controle, privacidade e segurança.
+    </h1>
+  </section>
+
+  <div class="form-container">
+    <h2 class="form-header">Entre na sua conta</h2>
 
     <form
       [formGroup]="loginForm"
@@ -16,45 +22,41 @@
         {{ currentAssistiveStatus }}
       </p>
 
-      <div class="form-field">
-        <label class="field-label" for="email">E-mail</label>
-        <input
-          formControlName="email"
-          id="email"
-          class="input-field"
-          type="email"
-          name="email"
-          placeholder="seu@email.com"
-          required
-          autocomplete="email"
-          [attr.aria-invalid]="loginForm.controls['email'].touched && loginForm.controls['email'].invalid ? 'true' : 'false'"
-          [attr.aria-describedby]="loginForm.controls['email'].invalid ? 'email-error form-status' : 'form-status'"
-          (focus)="clearError()"
-        />
-        @if (loginForm.controls['email'].touched && loginForm.controls['email'].invalid) {
-          <small id="email-error" class="field-error">Informe um e-mail válido.</small>
-        }
-      </div>
+      <label class="field-label" for="email">E-mail</label>
+      <input
+        formControlName="email"
+        id="email"
+        class="input-field"
+        type="email"
+        name="email"
+        placeholder="seu@email.com"
+        required
+        autocomplete="email"
+        [attr.aria-invalid]="loginForm.controls['email'].touched && loginForm.controls['email'].invalid ? 'true' : 'false'"
+        [attr.aria-describedby]="loginForm.controls['email'].invalid ? 'email-error form-status' : 'form-status'"
+        (focus)="clearError()"
+      />
+      @if (loginForm.controls['email'].touched && loginForm.controls['email'].invalid) {
+        <small id="email-error" class="field-error">Informe um e-mail válido.</small>
+      }
 
-      <div class="form-field">
-        <label class="field-label" for="password">Senha</label>
-        <input
-          formControlName="password"
-          id="password"
-          class="input-field"
-          type="password"
-          name="password"
-          placeholder="Sua senha"
-          required
-          autocomplete="current-password"
-          [attr.aria-invalid]="loginForm.controls['password'].touched && loginForm.controls['password'].invalid ? 'true' : 'false'"
-          [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error form-status' : 'form-status'"
-          (focus)="clearError()"
-        />
-        @if (loginForm.controls['password'].touched && loginForm.controls['password'].invalid) {
-          <small id="password-error" class="field-error">Informe sua senha.</small>
-        }
-      </div>
+      <label class="field-label" for="password">Senha</label>
+      <input
+        formControlName="password"
+        id="password"
+        class="input-field"
+        type="password"
+        name="password"
+        placeholder="Sua senha"
+        required
+        autocomplete="current-password"
+        [attr.aria-invalid]="loginForm.controls['password'].touched && loginForm.controls['password'].invalid ? 'true' : 'false'"
+        [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error form-status' : 'form-status'"
+        (focus)="clearError()"
+      />
+      @if (loginForm.controls['password'].touched && loginForm.controls['password'].invalid) {
+        <small id="password-error" class="field-error">Informe sua senha.</small>
+      }
 
       <input
         formControlName="honeypot"
@@ -69,7 +71,7 @@
       <div class="login-row">
         <div class="remember-me">
           <input type="checkbox" id="rememberMe" formControlName="rememberMe" />
-          <label for="rememberMe">Lembrar</label>
+          <label for="rememberMe">Lembrar de mim</label>
         </div>
 
         <button
@@ -77,21 +79,26 @@
           type="button"
           (click)="openPasswordRecoveryModal()"
           [disabled]="isLoading"
+          aria-label="Abrir recuperação de senha"
         >
-          Recuperar senha
+          Esqueci minha senha
         </button>
       </div>
 
-      <button
-        class="btn btn-primary submit-button"
-        type="submit"
-        [disabled]="isLoading || !(hasRequiredFields$ | async)"
-        [attr.aria-disabled]="(isLoading || !(hasRequiredFields$ | async)) ? 'true' : 'false'"
-      >
-        {{ primaryButtonLabel }}
-      </button>
+      <div class="button-container">
+        <button
+          class="btn btn-primary"
+          type="submit"
+          [disabled]="isLoading || !(hasRequiredFields$ | async)"
+          [attr.aria-disabled]="(isLoading || !(hasRequiredFields$ | async)) ? 'true' : 'false'"
+        >
+          {{ primaryButtonLabel }}
+        </button>
+      </div>
 
-      <div class="auth-divider" aria-hidden="true"><span>ou</span></div>
+      <div class="auth-divider" aria-hidden="true">
+        <span>ou</span>
+      </div>
 
       <button
         class="btn-google"
@@ -124,10 +131,11 @@
       }
 
       <p class="register-link">
-        <a [routerLink]="['/register']">Criar conta</a>
+        Não tem uma conta?
+        <a [routerLink]="['/register']">Cadastre-se</a>
       </p>
     </form>
-  </main>
+  </div>
 
   @if (showEmailVerificationModal) {
     <div
@@ -162,7 +170,7 @@
             [queryParams]="{ autocheck: '1' }"
             [disabled]="isLoading"
           >
-            Verificar
+            Ir para verificação
           </button>
 
           <button
