@@ -42,6 +42,7 @@ O cache não possui mais slice genérico no NgRx. Estado compartilhado continua 
 12. O adaptador legado não pode reidratar chaves bloqueadas pela política de privacidade.
 13. O `CacheService` legado é memory-first; persistência exige `{ persist: true }`.
 14. Snapshot síncrono tipado usa `AppCacheService.peek()` e nunca consulta IndexedDB.
+15. Chaves de consultas filtradas devem incluir valores normalizados dos filtros, não apenas o tipo das constraints.
 
 ## Escolha de camada
 
@@ -91,7 +92,7 @@ Motivo: não havia produtor externo de actions nem consumidor do sincronizador. 
 
 ## Próximas migrações
 
-1. `UserDiscoveryQueryService` para definições viewer-scoped do `AppCacheService`, corrigindo colisões das chaves de filtros.
+1. `UserDiscoveryQueryService` para definições viewer-scoped do `AppCacheService`, corrigindo colisões: hoje consultas diferentes podem formar a mesma chave porque o código considera apenas o tipo das constraints.
 2. Serviços sociais restantes ainda ligados ao `CacheService`.
 3. Revisão do UID mínimo em `localStorage` após estabilização do bootstrap Auth.
 4. Remoção do Firestore legado após busca final de consumidores.
