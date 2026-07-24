@@ -1,15 +1,14 @@
 // src/app/store/reducers/index.ts
 // Root reducer map do app.
-// Mantém a arquitetura compreensível:
-// - keys vêm de STORE_FEATURE
-// - reducers vêm dos índices por domínio
+//
+// SUPRESSÃO EXPLÍCITA:
+// - removido o reducer genérico de cache.
+//   Motivo: cache não é estado de domínio, não recebia actions de consumidores e
+//   duplicava memória/IndexedDB. Cache tipado fica fora do Store.
 import { ActionReducerMap } from '@ngrx/store';
 import { AppState } from '../states/app.state';
 
 import { STORE_FEATURE } from './feature-keys';
-
-import { cacheReducer } from './cache.reducer';
-
 import { chatReducers } from './reducers.chat';
 import { userReducers } from './reducers.user';
 import { locationReducers } from './reducers.location';
@@ -34,8 +33,6 @@ export const reducers: ActionReducerMap<AppState> = {
 
   // INTERACTIONS DOMAIN
   [STORE_FEATURE.friendsPages]: interactionsReducers.friendsPages,
-  [STORE_FEATURE.interactionsFriends]: interactionsReducers.interactions_friends,
-
-  // CACHE
-  [STORE_FEATURE.cache]: cacheReducer,
+  [STORE_FEATURE.interactionsFriends]:
+    interactionsReducers.interactions_friends,
 };

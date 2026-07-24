@@ -4,13 +4,21 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { firstValueFrom } from 'rxjs';
-import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
+import {
+  describe,
+  beforeEach,
+  afterEach,
+  it,
+  expect,
+  vi,
+} from 'vitest';
 
 import { AppComponent } from './app.component';
 import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
 import { AuthDebugService } from './core/services/util-service/auth-debug.service';
 import { PresenceOrchestratorService } from './core/services/presence/presence-orchestrator.service';
 import { RouterDiagnosticsService } from './core/services/util-service/router-diagnostics.service';
+import { CacheAuthLifecycleBridgeService } from './core/services/general/cache/cache-auth-lifecycle-bridge.service';
 
 @Component({
   standalone: true,
@@ -26,6 +34,10 @@ describe('AppComponent', () => {
   };
 
   const presenceOrchestratorStub = {
+    start: vi.fn(),
+  };
+
+  const cacheAuthLifecycleStub = {
     start: vi.fn(),
   };
 
@@ -54,10 +66,23 @@ describe('AppComponent', () => {
       ],
       declarations: [AppComponent],
       providers: [
-        { provide: AuthOrchestratorService, useValue: orchestratorStub },
-        { provide: PresenceOrchestratorService, useValue: presenceOrchestratorStub },
+        {
+          provide: AuthOrchestratorService,
+          useValue: orchestratorStub,
+        },
+        {
+          provide: PresenceOrchestratorService,
+          useValue: presenceOrchestratorStub,
+        },
+        {
+          provide: CacheAuthLifecycleBridgeService,
+          useValue: cacheAuthLifecycleStub,
+        },
         { provide: AuthDebugService, useValue: authDebugStub },
-        { provide: RouterDiagnosticsService, useValue: routerDiagnosticsStub },
+        {
+          provide: RouterDiagnosticsService,
+          useValue: routerDiagnosticsStub,
+        },
       ],
       schemas: [NO_ERRORS_SCHEMA],
     }).compileComponents();
@@ -79,13 +104,14 @@ describe('AppComponent', () => {
     expect(fixture.componentInstance.title).toBe('entretenimento');
   });
 
-  it('ngOnInit should start orchestrators and keep footer visibility route-aware', async () => {
+  it('ngOnInit should start global services and keep footer visibility route-aware', async () => {
     const fixture = TestBed.createComponent(AppComponent);
     const component = fixture.componentInstance;
 
     fixture.detectChanges();
 
     expect(routerDiagnosticsStub.start).toHaveBeenCalledTimes(1);
+    expect(cacheAuthLifecycleStub.start).toHaveBeenCalledTimes(1);
     expect(orchestratorStub.start).toHaveBeenCalledTimes(1);
     expect(presenceOrchestratorStub.start).toHaveBeenCalledTimes(1);
 

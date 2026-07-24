@@ -1,78 +1,58 @@
 // src/app/core/services/data-handling/firestore-query.service.ts
-// Fonte única do Firestore (AngularFire).
+// Fonte única de consultas Firestore compatíveis com AngularFire.
 //
-// Objetivo:
-// - evitar mistura de imports (firebase/firestore vs @angular/fire/firestore)
-// - parar de usar APIs function-based do AngularFire fora do Injection Context
-// - manter API pública simples
-// - explicitar o que é Firebase/AngularFire e o que ainda é compat com NgRx
-//
-// Ajustes desta revisão:
-// - adiciona FirestoreContextService
-// - cria helpers internos seguros para queries once/live
-// - corrige getSuggestedProfiles() e demais métodos que constroem where/limit
-// - mantém getUserFromState() por compatibilidade, mas explicitamente marcado como STATE-only
-//
-// Observação arquitetural:
-// - Padrão ideal de plataforma grande:
-//   * FirestoreQueryService / PresenceQueryService => somente Firebase/AngularFire
-//   * UserStateQueryService (ou facade) => somente NgRx
-// - Por enquanto, getUserFromState() continua aqui apenas para não quebrar callers.
+// SUPRESSÃO EXPLÍCITA DESTA MIGRAÇÃO:
+// - SUPRIMIDA a chave legada `allUsers` do CacheService.
+//   Motivo: a coleção completa de usuários não pode ser persistida
+//   automaticamente no IndexedDB nem compartilhada entre contas.
+// - `getAllUsers()` mantém o mesmo nome e retorno, mas agora usa cache privado,
+//   user-scoped quando há UID e somente em memória.
 import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
-import { Firestore, limit, QueryConstraint, where } from '@angular/fire/firestore';
+import {
+  Firestore,
+  limit,
+  QueryConstraint,
+  where,
+} from '@angular/fire/firestore';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { CacheService } from '../general/cache/cache.service';
+import { AppCacheService } from '../general/cache/app-cache.service';
+import { CacheDefinition } from '../general/cache/cache-contracts';
 import { FirestoreReadService } from './firestore/core/firestore-read.service';
 import { FirestoreContextService } from './firestore/core/firestore-context.service';
 import { UserPresenceQueryService } from './queries/user-presence.query.service';
+import { CurrentUserStoreService } from '../autentication/auth/current-user-store.service';
 import { AppState } from 'src/app/store/states/app.state';
 import { Store } from '@ngrx/store';
 import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.user/user-profile.selectors';
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreQueryService {
-  // Firebase / AngularFire
   private readonly db = inject(Firestore);
   private readonly ctx = inject(FirestoreContextService);
 
-  // App-layer
-  private readonly cacheService = inject(CacheService);
+  private readonly cache = inject(AppCacheService);
+  private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly read = inject(FirestoreReadService);
   private readonly presenceQuery = inject(UserPresenceQueryService);
 
-  // STATE compat (NgRx) — manter por enquanto, migrar depois
+  // Compatibilidade temporária: leitura de estado ainda presente neste service.
   private readonly store = inject(Store<AppState>);
 
-  /**
-   * Retorna a instância do Firestore utilizada pelo AngularFire.
-   * Use esta em todo o projeto para construir refs/queries.
-   */
   getFirestoreInstance(): Firestore {
     return this.db;
   }
 
-  getDocumentById<T>(collectionName: string, id: string): Observable<T | null> {
+  getDocumentById<T>(
+    collectionName: string,
+    id: string
+  ): Observable<T | null> {
     return this.read.getDocument<T>(collectionName, id);
   }
 
-  // ===========================================================================
-  // Helpers seguros para construir constraints dentro do Injection Context
-  // ===========================================================================
-
-  /**
-   * Query once com constraints criadas dentro do FirestoreContextService.
-   *
-   * Use este helper sempre que este service for responsável por criar:
-   * - where(...)
-   * - limit(...)
-   * - orderBy(...)
-   *
-   * Isso evita o warning:
-   * "Calling Firebase APIs outside of an Injection context..."
-   */
+  /** Constrói constraints dentro do contexto de injeção do AngularFire. */
   private getDocumentsByQuerySafe<T>(
     collectionName: string,
     buildConstraints: () => QueryConstraint[],
@@ -84,13 +64,15 @@ export class FirestoreQueryService {
     }
   ): Observable<T[]> {
     return this.ctx.deferObservable$(() =>
-      this.read.getDocumentsOnce<T>(collectionName, buildConstraints(), options)
+      this.read.getDocumentsOnce<T>(
+        collectionName,
+        buildConstraints(),
+        options
+      )
     );
   }
 
-  /**
-   * Realtime query com constraints criadas dentro do FirestoreContextService.
-   */
+  /** Query realtime com constraints criadas no contexto correto. */
   private getDocumentsLiveByQuerySafe<T>(
     collectionName: string,
     buildConstraints: () => QueryConstraint[],
@@ -100,17 +82,17 @@ export class FirestoreQueryService {
     }
   ): Observable<T[]> {
     return this.ctx.deferObservable$(() =>
-      this.read.getDocumentsLiveSafe<T>(collectionName, buildConstraints(), options)
+      this.read.getDocumentsLiveSafe<T>(
+        collectionName,
+        buildConstraints(),
+        options
+      )
     );
   }
 
   /**
-   * Query genérica com cache.
-   *
-   * IMPORTANTE:
-   * - este método permanece por compatibilidade
-   * - se o caller já construir QueryConstraint[] fora do contexto, o warning pode continuar
-   * - para novos usos, prefira getDocumentsByQuerySafe(...)
+   * Compatibilidade para callers que ainda entregam QueryConstraint[] pronto.
+   * Novos fluxos devem preferir factories de constraints no contexto seguro.
    */
   getDocumentsByQuery<T>(
     collectionName: string,
@@ -125,95 +107,75 @@ export class FirestoreQueryService {
   }
 
   /**
-   * Todos os usuários (cache agressivo)
+   * Retorna todos os usuários autorizados pela consulta.
+   * O payload permanece apenas em memória e isolado pelo UID do viewer.
    */
   getAllUsers(): Observable<IUserDados[]> {
-    const cacheKey = 'allUsers';
+    const definition = this.allUsersCacheDefinition();
 
-    return this.cacheService.get<IUserDados[]>(cacheKey).pipe(
+    return this.cache.get$(definition).pipe(
       switchMap((cached) => {
-        if (cached) return of(cached);
+        if (cached.status !== 'miss') {
+          return of(cached.value);
+        }
 
-        return this.getDocumentsByQuerySafe<IUserDados>('users', () => [], {
-          useCache: true,
-          cacheTTL: 300_000,
-        }).pipe(
-          map((users) => {
-            this.cacheService.set(cacheKey, users, 600_000);
-            return users;
-          }),
+        return this.getDocumentsByQuerySafe<IUserDados>(
+          'users',
+          () => [],
+          {
+            idField: 'uid',
+            requireAuth: true,
+          }
+        ).pipe(
+          switchMap((users) =>
+            this.cache
+              .set$(definition, users)
+              .pipe(map(() => users))
+          ),
           catchError(() => of<IUserDados[]>([]))
         );
-      })
+      }),
+      take(1)
     );
   }
 
-  // =========================================================
-  // PRESENÇA (fonte única: UserPresenceQueryService)
-  // =========================================================
-
-  /**
-   * Stream realtime de usuários online (delegação).
-   */
   getOnlineUsers$(): Observable<IUserDados[]> {
     return this.presenceQuery.getOnlineUsers$();
   }
 
-  /**
-   * Snapshot "once" (use quando você não quer ficar ouvindo).
-   */
   getOnlineUsers(): Observable<IUserDados[]> {
     return this.presenceQuery.getOnlineUsersOnce$().pipe(take(1));
   }
 
-  /**
-   * Mantém nomenclatura esperada pelo projeto (região = município, hoje).
-   * Realtime (onSnapshot por baixo).
-   */
-  getOnlineUsersByRegion(municipio: string): Observable<IUserDados[]> {
+  getOnlineUsersByRegion(
+    municipio: string
+  ): Observable<IUserDados[]> {
     return this.presenceQuery.getOnlineUsersByRegion$(municipio);
   }
 
-  /**
-   * “Recentemente online” (ex.: lastSeen >= now - windowMs)
-   */
   getRecentlyOnline$(windowMs = 45_000): Observable<IUserDados[]> {
     return this.presenceQuery.getRecentlyOnline$(windowMs);
   }
 
-  // =========================================================
-  // WRAPPERS (COMPAT)
-  // =========================================================
-
-  /**
-   * Compat: usado por partes antigas e por specs.
-   */
-  getUsersByMunicipio(municipio: string): Observable<IUserDados[]> {
+  getUsersByMunicipio(
+    municipio: string
+  ): Observable<IUserDados[]> {
     return this.getDocumentsByQuerySafe<IUserDados>('users', () => [
       where('municipio', '==', municipio),
-    ]).pipe(
-      catchError(() => of([] as IUserDados[]))
-    );
+    ]).pipe(catchError(() => of([] as IUserDados[])));
   }
 
-  /**
-   * Compat: versão “municipio”.
-   * Hoje, município == region no seu sistema.
-   */
-  getOnlineUsersByMunicipio(municipio: string): Observable<IUserDados[]> {
+  getOnlineUsersByMunicipio(
+    municipio: string
+  ): Observable<IUserDados[]> {
     return this.getOnlineUsersByRegion(municipio).pipe(
       catchError(() => of([] as IUserDados[]))
     );
   }
 
-  /**
-   * Compat: sugestões (pode evoluir para ranking no futuro).
-   * Por ora: delega para listagem simples em public_profiles.
-   *
-   * Ajuste principal:
-   * - limit(...) agora nasce dentro do FirestoreContextService
-   */
-  getSuggestedProfiles(limitCount = 24): Observable<IUserDados[]> {
+  getSuggestedProfiles(
+    limitCount = 24
+  ): Observable<IUserDados[]> {
     return this.getDocumentsLiveByQuerySafe<IUserDados>(
       'public_profiles',
       () => [limit(limitCount)],
@@ -227,10 +189,6 @@ export class FirestoreQueryService {
     );
   }
 
-  // =========================================================
-  // Consultas específicas
-  // =========================================================
-
   getProfilesByOrientationAndLocation(
     gender: string,
     orientation: string,
@@ -240,22 +198,15 @@ export class FirestoreQueryService {
       where('gender', '==', gender),
       where('orientation', '==', orientation),
       where('municipio', '==', municipio),
-    ]).pipe(
-      catchError(() => of([] as IUserDados[]))
-    );
+    ]).pipe(catchError(() => of([] as IUserDados[])));
   }
 
   /**
-   * STATE-only (compat):
-   * - este método NÃO consulta Firestore
-   * - ele lê do NgRx Store
-   * - manter por enquanto para não quebrar callers antigos
-   *
-   * Futuro ideal:
-   * - mover para UserStateQueryService / facade de selectors
+   * STATE-only por compatibilidade.
+   * Não consulta Firestore e deve migrar futuramente para uma facade de estado.
    */
   getUserFromState(uid: string): Observable<IUserDados | null> {
-    const id = (uid ?? '').toString().trim();
+    const id = String(uid ?? '').trim();
     if (!id) return of(null);
 
     return this.store.select(selectUserProfileDataByUid(id)).pipe(
@@ -264,15 +215,44 @@ export class FirestoreQueryService {
     );
   }
 
-  searchUsers(constraints: QueryConstraint[]): Observable<IUserDados[]> {
-    /**
-     * Compat:
-     * - aqui ainda aceitamos QueryConstraint[] pronto vindo de fora
-     * - se o caller montar where/limit fora do contexto, o warning pode persistir
-     * - para novos fluxos, prefira um método seguro com factory
-     */
-    return this.getDocumentsByQuery<IUserDados>('users', constraints).pipe(
-      catchError(() => of([] as IUserDados[]))
-    );
+  searchUsers(
+    constraints: QueryConstraint[]
+  ): Observable<IUserDados[]> {
+    return this.getDocumentsByQuery<IUserDados>(
+      'users',
+      constraints
+    ).pipe(catchError(() => of([] as IUserDados[])));
   }
-} // Linha 278
+
+  private allUsersCacheDefinition(): CacheDefinition<IUserDados[]> {
+    const ownerUid =
+      this.currentUserStore.getLoggedUserUIDSnapshot();
+
+    const base = {
+      key: 'all-users',
+      sensitivity: 'private' as const,
+      storage: 'memory' as const,
+      ttlMs: 10 * 60 * 1000,
+      version: 1,
+      validate: (value: unknown): value is IUserDados[] =>
+        Array.isArray(value) &&
+        value.every(
+          (item) =>
+            !!item &&
+            typeof item === 'object' &&
+            typeof (item as { uid?: unknown }).uid === 'string'
+        ),
+    };
+
+    return ownerUid
+      ? {
+          ...base,
+          scope: 'user',
+          ownerUid,
+        }
+      : {
+          ...base,
+          scope: 'session',
+        };
+  }
+}

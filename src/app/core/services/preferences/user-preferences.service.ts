@@ -1,42 +1,40 @@
 // src/app/core/services/preferences/user-preferences.service.ts
-// =============================================================
-// USER PREFERENCES SERVICE (SWR)
-// -------------------------------------------------------------
-// Padrão “grandes plataformas” aplicado:
+// Serviço de preferências com Store + cache restrito em memória + Firestore.
 //
-// 1) API Observable-first.
-// 2) Leitura em camadas:
-//    - Store (NgRx)
-//    - Cache (com TTL)
-//    - Firestore
-// 3) Stale-While-Revalidate (SWR):
-//    - Se houver cache STALE, retorna imediatamente (UX rápida)
-//    - Em paralelo, revalida no Firestore e atualiza Store/Cache quando chegar
-// 4) Coalescência de leituras em voo por UID:
-//    - Evita múltiplos getDocs concorrentes para o mesmo uid
-// 5) Sanitização forte do patch (allowlist + normalização).
-// 6) AngularFire function-based APIs sempre dentro do Injection Context
-//    via FirestoreContextService.
-// 7) Erros centralizados:
-//    - GlobalErrorHandlerService: log/telemetria
-//    - ErrorNotificationService: feedback (somente quando apropriado)
+// Estratégia:
+// 1) NgRx é o estado compartilhado da aplicação.
+// 2) AppCacheService acelera leituras durante a sessão.
+// 3) Firestore permanece como fonte persistente e autoritativa.
+// 4) Cache stale é emitido imediatamente e revalidado em seguida (SWR).
+// 5) Leituras Firestore concorrentes do mesmo UID são coalescidas.
+// 6) Erros continuam centralizados no GlobalErrorHandlerService e no
+//    ErrorNotificationService quando há impacto real para o usuário.
 //
-// Cache TTL:
-// - preferences:{uid}      -> payload IUserPreferences
-// - preferences:{uid}:meta -> { cachedAt: number }
-// ==================================================================
+// SUPRESSÕES EXPLÍCITAS DESTA MIGRAÇÃO:
+// - SUPRIMIDA a persistência automática em IndexedDB das preferências.
+//   Motivo: gênero, práticas e preferências são dados restritos.
+// - SUPRIMIDA a chave separada `preferences:{uid}:meta`.
+//   Motivo: TTL e stale window agora pertencem ao mesmo envelope tipado.
+// - SUPRIMIDO o cálculo manual de freshness.
+//   Motivo: AppCacheService centraliza TTL, versão, escopo e resultado fresh/stale.
+// - SUPRIMIDO o tratamento duplicado no catch externo de leitura.
+//   Motivo: a leitura Firestore já registra/notifica uma vez no ponto de origem.
 import { Injectable } from '@angular/core';
 import {
   Firestore,
   collection,
   doc,
   getDocs,
-  query,
-  where,
   writeBatch,
 } from '@angular/fire/firestore';
-
-import { Observable, combineLatest, concat, of, throwError } from 'rxjs';
+import { Store } from '@ngrx/store';
+import {
+  EMPTY,
+  Observable,
+  concat,
+  of,
+  throwError,
+} from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -49,42 +47,24 @@ import {
 } from 'rxjs/operators';
 
 import { IUserPreferences } from '../../interfaces/interfaces-user-dados/iuser-preferences';
-import { CacheService } from '../general/cache/cache.service';
-
-import { Store } from '@ngrx/store';
+import { AppCacheService } from '../general/cache/app-cache.service';
+import { CacheDefinition } from '../general/cache/cache-contracts';
+import { CacheLegacyMigrationService } from '../general/cache/cache-legacy-migration.service';
 import { AppState } from 'src/app/store/states/app.state';
-
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
-
 import {
   loadUserPreferencesSuccess,
   updateUserPreferences,
 } from '../../../store/actions/actions.user/user-preferences.actions';
-
 import { selectUserPreferences } from '../../../store/selectors/selectors.user/user-preferences.selectors';
 import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
 
-type CacheMeta = { cachedAt: number };
-
-type CacheState<T> =
-  | { kind: 'miss' }
-  | { kind: 'fresh'; value: T }
-  | { kind: 'stale'; value: T };
-
 @Injectable({ providedIn: 'root' })
 export class UserPreferencesService {
-    /**
-   * TTL do cache local de preferências.
-   * Ajuste conforme seu produto:
-   * - Preferências mudam pouco -> TTL maior
-   * - Se quiser refletir mudanças quase imediatas -> TTL menor
-   */
-  private readonly cacheTtlMs = 10 * 60 * 1000; // 10 minutos
+  private readonly cacheTtlMs = 10 * 60 * 1000;
+  private readonly cacheStaleWindowMs = 50 * 60 * 1000;
 
-  /**
-   * Allowlist: impede “docs extras” contaminarem o objeto tipado.
-   */
   private readonly allowedKeys: Array<keyof IUserPreferences> = [
     'genero',
     'praticaSexual',
@@ -92,169 +72,216 @@ export class UserPreferencesService {
     'relacionamento',
   ];
 
-  /**
-   * Coalescência: 1 leitura Firestore por uid (compartilhada).
-   */
-  private readonly inFlightReads = new Map<string, Observable<IUserPreferences>>();
+  private readonly inFlightReads = new Map<
+    string,
+    Observable<IUserPreferences>
+  >();
 
   constructor(
     private readonly db: Firestore,
-    private readonly cacheService: CacheService,
+    private readonly cache: AppCacheService,
+    private readonly legacyCacheMigration: CacheLegacyMigrationService,
     private readonly store: Store<AppState>,
     private readonly errorHandler: GlobalErrorHandlerService,
     private readonly notifier: ErrorNotificationService,
-    private readonly firestoreCtx: FirestoreContextService,
-  ) {  }
-
-  // =============================================================================
-  // API PÚBLICA
-  // =============================================================================
+    private readonly firestoreCtx: FirestoreContextService
+  ) {}
 
   /**
-   * Salva as preferências do usuário, atualizando Store + Cache.
-   * - Batch: grava apenas as categorias presentes no patch.
-   * - Cache recebe MERGE determinístico para não perder outras categorias.
+   * Salva somente as categorias presentes no patch.
+   * Após o commit, Store e cache de memória recebem o merge determinístico.
    */
-  saveUserPreferences$(uid: string, preferences: Partial<IUserPreferences>): Observable<void> {
-    const safeUid = (uid ?? '').trim();
+  saveUserPreferences$(
+    uid: string,
+    preferences: Partial<IUserPreferences>
+  ): Observable<void> {
+    const safeUid = String(uid ?? '').trim();
+
     if (!safeUid) {
-      return throwError(() => new Error('[UserPreferencesService] UID inválido.'));
+      return throwError(
+        () => new Error('[UserPreferencesService] UID inválido.')
+      );
     }
 
     const patch = this.sanitizePatch(preferences);
 
-    // No-op: evita batch vazio.
     if (this.isEmptyPatch(patch)) {
       return of(void 0);
     }
 
-    return this.store.select(selectUserPreferences(safeUid)).pipe(
-      take(1),
+    return this.purgeLegacyPreferencesCacheOnce$().pipe(
+      switchMap(() =>
+        this.store.select(selectUserPreferences(safeUid)).pipe(
+          take(1),
+          switchMap((stored) =>
+            this.saveUserPreferencesInternal$(safeUid, patch).pipe(
+              switchMap(() => {
+                const merged = this.mergePreferences(
+                  stored ?? this.defaultPreferences(),
+                  patch
+                );
 
-      switchMap((stored) =>
-        this.saveUserPreferencesInternal$(safeUid, patch).pipe(
-          tap(() => {
-            // 1) Store (patch)
-            this.store.dispatch(updateUserPreferences({ uid: safeUid, preferences: patch }));
+                this.store.dispatch(
+                  updateUserPreferences({
+                    uid: safeUid,
+                    preferences: patch,
+                  })
+                );
 
-            // 2) Cache (merge seguro)
-            const merged = this.mergePreferences(stored ?? this.defaultPreferences(), patch);
-            this.setCache(safeUid, merged);
-          })
+                return this.cache.set$(
+                  this.cacheDefinition(safeUid),
+                  merged
+                );
+              })
+            )
+          )
         )
       ),
-
-      catchError((err) => {
-        this.routeError(err, 'saveUserPreferences$', 'Erro ao salvar preferências. Tente novamente mais tarde.');
-        return throwError(() => err);
+      catchError((error) => {
+        this.routeError(
+          error,
+          'saveUserPreferences$',
+          'Erro ao salvar preferências. Tente novamente mais tarde.'
+        );
+        return throwError(() => error);
       })
     );
   }
 
   /**
-   * Obtém preferências com SWR:
-   * 1) Store
-   * 2) Cache (fresh -> retorna)
-   * 3) Cache (stale -> retorna e revalida no Firestore)
-   * 4) Firestore (se miss -> busca e retorna)
+   * Obtém preferências em camadas:
+   * - Store;
+   * - cache fresh;
+   * - cache stale + revalidação;
+   * - Firestore em caso de miss.
    */
   getUserPreferences$(uid: string): Observable<IUserPreferences> {
-    const safeUid = (uid ?? '').trim();
+    const safeUid = String(uid ?? '').trim();
+
     if (!safeUid) {
-      return throwError(() => new Error('[UserPreferencesService] UID inválido.'));
+      return throwError(
+        () => new Error('[UserPreferencesService] UID inválido.')
+      );
     }
 
-    return this.store.select(selectUserPreferences(safeUid)).pipe(
-      distinctUntilChanged(),
-
-      switchMap((storedPreferences) => {
-        // 1) Store
-        if (storedPreferences) return of(storedPreferences);
-
-        // 2) Cache (com estado: miss/fresh/stale)
-        return this.getCacheState$(safeUid).pipe(
-          switchMap((state) => {
-            if (state.kind === 'fresh') {
-              // Mantém Store coerente com cache fresh
-              this.store.dispatch(loadUserPreferencesSuccess({ uid: safeUid, preferences: state.value }));
-              return of(state.value);
+    return this.purgeLegacyPreferencesCacheOnce$().pipe(
+      switchMap(() =>
+        this.store.select(selectUserPreferences(safeUid)).pipe(
+          distinctUntilChanged(),
+          switchMap((storedPreferences) => {
+            if (storedPreferences) {
+              return of(storedPreferences);
             }
 
-            if (state.kind === 'stale') {
-              // SWR:
-              // - Emite imediatamente o cache (para UX rápida)
-              // - Revalida em background e emite novamente se vier algo (store/cache atualizados)
-              const cached$ = of(state.value).pipe(
-                tap((pref) => this.store.dispatch(loadUserPreferencesSuccess({ uid: safeUid, preferences: pref })))
+            return this.cache
+              .get$(this.cacheDefinition(safeUid))
+              .pipe(
+                switchMap((result) => {
+                  if (result.status === 'fresh') {
+                    this.store.dispatch(
+                      loadUserPreferencesSuccess({
+                        uid: safeUid,
+                        preferences: result.value,
+                      })
+                    );
+                    return of(result.value);
+                  }
+
+                  if (result.status === 'stale') {
+                    const cached$ = of(result.value).pipe(
+                      tap((preferencesValue) =>
+                        this.store.dispatch(
+                          loadUserPreferencesSuccess({
+                            uid: safeUid,
+                            preferences: preferencesValue,
+                          })
+                        )
+                      )
+                    );
+
+                    const refresh$ = this.getOrCreateFirestoreRead$(
+                      safeUid,
+                      { notifyOnError: false }
+                    ).pipe(
+                      // Há dado stale utilizável. Falha de refresh não deve gerar
+                      // outro feedback nem invalidar o valor já exibido.
+                      catchError(() => EMPTY)
+                    );
+
+                    return concat(cached$, refresh$).pipe(
+                      distinctUntilChanged((a, b) =>
+                        this.deepEqual(a, b)
+                      )
+                    );
+                  }
+
+                  return this.getOrCreateFirestoreRead$(safeUid, {
+                    notifyOnError: true,
+                    userMessage:
+                      'Erro ao carregar preferências do usuário.',
+                  });
+                })
               );
-
-              const refresh$ = this.getOrCreateFirestoreRead$(safeUid, {
-                // refresh em background: loga, mas evita toast agressivo se falhar
-                notifyOnError: false,
-              });
-
-              return concat(cached$, refresh$).pipe(
-                // Evita “piscar” se o refresh retornar igual ao cache
-                distinctUntilChanged((a, b) => this.deepEqual(a, b))
-              );
-            }
-
-            // MISS: só Firestore
-            return this.getOrCreateFirestoreRead$(safeUid, {
-              // aqui faz sentido notificar, porque a UI não tem fallback
-              notifyOnError: true,
-              userMessage: 'Erro ao carregar preferências do usuário.',
-            });
           })
-        );
-      }),
-
-      catchError((err) => {
-        // fallback final
-        this.routeError(err, 'getUserPreferences$', 'Erro ao carregar preferências do usuário.');
-        return throwError(() => err);
-      }),
-
+        )
+      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
-  // =============================================================================
-  // FIRESTORE (internos)
-  // =============================================================================
-
-  private saveUserPreferencesInternal$(uid: string, preferences: Partial<IUserPreferences>): Observable<void> {
+  private saveUserPreferencesInternal$(
+    uid: string,
+    preferences: Partial<IUserPreferences>
+  ): Observable<void> {
     return this.firestoreCtx.deferPromise$(() => {
       const userRef = doc(this.db, `users/${uid}`);
-      const preferencesCollection = collection(userRef, 'preferences');
-
+      const preferencesCollection = collection(
+        userRef,
+        'preferences'
+      );
       const batch = writeBatch(this.db);
 
       for (const key of this.allowedKeys) {
         if (!(key in preferences)) continue;
+
         const values = preferences[key] ?? [];
-        const prefDocRef = doc(preferencesCollection, String(key));
-        batch.set(prefDocRef, { value: values }, { merge: true });
+        const preferenceDocRef = doc(
+          preferencesCollection,
+          String(key)
+        );
+
+        batch.set(
+          preferenceDocRef,
+          { value: values },
+          { merge: true }
+        );
       }
 
       return batch.commit();
     }).pipe(map(() => void 0));
   }
 
-  private getUserPreferencesInternal$(uid: string): Observable<IUserPreferences> {
+  private getUserPreferencesInternal$(
+    uid: string
+  ): Observable<IUserPreferences> {
     return this.firestoreCtx.deferPromise$(() => {
-      const preferencesCollectionRef = collection(this.db, `users/${uid}/preferences`);
-      return getDocs(preferencesCollectionRef);
+      const collectionRef = collection(
+        this.db,
+        `users/${uid}/preferences`
+      );
+      return getDocs(collectionRef);
     }).pipe(
       map((querySnapshot) => {
         const preferences = this.defaultPreferences();
 
-        querySnapshot.forEach((prefDoc) => {
-          const key = prefDoc.id as keyof IUserPreferences;
+        querySnapshot.forEach((preferenceDoc) => {
+          const key = preferenceDoc.id as keyof IUserPreferences;
           if (!this.allowedKeys.includes(key)) return;
 
-          const data = prefDoc.data() as any;
-          preferences[key] = this.normalizeStringArray(data?.value);
+          const data = preferenceDoc.data() as {
+            value?: unknown;
+          };
+          preferences[key] = this.normalizeStringArray(data.value);
         });
 
         return preferences;
@@ -262,30 +289,34 @@ export class UserPreferencesService {
     );
   }
 
-  /**
-   * Coalescência + atualização de Store/Cache.
-   * - Se já existe read em voo, reaproveita.
-   * - Sempre que obtém sucesso, grava Store+Cache.
-   */
+  /** Uma leitura Firestore compartilhada por UID. */
   private getOrCreateFirestoreRead$(
     uid: string,
-    opts: { notifyOnError: boolean; userMessage?: string }
+    options: { notifyOnError: boolean; userMessage?: string }
   ): Observable<IUserPreferences> {
-    const inFlight = this.inFlightReads.get(uid);
-    if (inFlight) return inFlight;
+    const existingRead = this.inFlightReads.get(uid);
+    if (existingRead) return existingRead;
 
     const read$ = this.getUserPreferencesInternal$(uid).pipe(
-      tap((pref) => {
-        this.setCache(uid, pref);
-        this.store.dispatch(loadUserPreferencesSuccess({ uid, preferences: pref }));
-      }),
-      catchError((err) => {
-        this.routeError(
-          err,
-          'getUserPreferencesInternal$',
-          opts.notifyOnError ? (opts.userMessage ?? 'Erro ao carregar preferências do usuário.') : undefined
+      switchMap((preferences) => {
+        this.store.dispatch(
+          loadUserPreferencesSuccess({ uid, preferences })
         );
-        return throwError(() => err);
+
+        return this.cache
+          .set$(this.cacheDefinition(uid), preferences)
+          .pipe(map(() => preferences));
+      }),
+      catchError((error) => {
+        this.routeError(
+          error,
+          'getUserPreferencesInternal$',
+          options.notifyOnError
+            ? options.userMessage ??
+                'Erro ao carregar preferências do usuário.'
+            : undefined
+        );
+        return throwError(() => error);
       }),
       finalize(() => this.inFlightReads.delete(uid)),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -295,60 +326,47 @@ export class UserPreferencesService {
     return read$;
   }
 
-  // =============================================================================
-  // CACHE (com TTL + estado)
-  // =============================================================================
-
-  private cacheKey(uid: string): string {
-    return `preferences:${uid}`;
-  }
-
-  private cacheMetaKey(uid: string): string {
-    return `preferences:${uid}:meta`;
-  }
-
-  /**
-   * Retorna o estado do cache:
-   * - miss: não tem payload
-   * - fresh: payload existe e TTL ok
-   * - stale: payload existe mas TTL expirou (bom p/ SWR)
-   */
-  private getCacheState$(uid: string): Observable<CacheState<IUserPreferences>> {
-    const key = this.cacheKey(uid);
-    const metaKey = this.cacheMetaKey(uid);
-
-    return combineLatest([
-      this.cacheService.get<IUserPreferences>(key).pipe(take(1)),
-      this.cacheService.get<CacheMeta>(metaKey).pipe(take(1)),
-    ]).pipe(
-      map(([pref, meta]) => {
-        if (!pref) return { kind: 'miss' } as const;
-
-        const cachedAt = meta?.cachedAt;
-        const fresh = this.isCacheFresh(cachedAt);
-
-        return fresh
-          ? ({ kind: 'fresh', value: pref } as const)
-          : ({ kind: 'stale', value: pref } as const);
-      })
+  private purgeLegacyPreferencesCacheOnce$(): Observable<void> {
+    return this.legacyCacheMigration.purgePrefixesOnce$(
+      'legacy-user-preferences-indexeddb-v1',
+      ['preferences:']
     );
   }
 
-  private setCache(uid: string, pref: IUserPreferences): void {
-    // payload (persistente por padrão no seu CacheService)
-    this.cacheService.set(this.cacheKey(uid), pref);
-    // meta TTL
-    this.cacheService.set(this.cacheMetaKey(uid), { cachedAt: Date.now() } as CacheMeta);
+  private cacheDefinition(
+    uid: string
+  ): CacheDefinition<IUserPreferences> {
+    return {
+      key: 'preferences',
+      scope: 'user',
+      ownerUid: uid,
+      sensitivity: 'restricted',
+      storage: 'memory',
+      ttlMs: this.cacheTtlMs,
+      staleWhileRevalidateMs: this.cacheStaleWindowMs,
+      version: 1,
+      validate: (
+        value: unknown
+      ): value is IUserPreferences =>
+        this.isValidPreferences(value),
+    };
   }
 
-  private isCacheFresh(cachedAt: unknown): boolean {
-    if (typeof cachedAt !== 'number' || !Number.isFinite(cachedAt)) return false;
-    return Date.now() - cachedAt <= this.cacheTtlMs;
-  }
+  private isValidPreferences(
+    value: unknown
+  ): value is IUserPreferences {
+    if (!value || typeof value !== 'object') return false;
 
-  // =============================================================================
-  // HELPERS (default/sanitize/merge/error)
-  // =============================================================================
+    const record = value as Record<string, unknown>;
+
+    return this.allowedKeys.every((key) => {
+      const item = record[String(key)];
+      return (
+        Array.isArray(item) &&
+        item.every((entry) => typeof entry === 'string')
+      );
+    });
+  }
 
   private defaultPreferences(): IUserPreferences {
     return {
@@ -359,49 +377,59 @@ export class UserPreferencesService {
     };
   }
 
-  private sanitizePatch(patch: Partial<IUserPreferences>): Partial<IUserPreferences> {
-    const out: Partial<IUserPreferences> = {};
+  private sanitizePatch(
+    patch: Partial<IUserPreferences>
+  ): Partial<IUserPreferences> {
+    const output: Partial<IUserPreferences> = {};
 
     for (const key of this.allowedKeys) {
       if (!(key in (patch ?? {}))) continue;
-      const v = (patch as any)?.[key];
-      out[key] = this.normalizeStringArray(v);
+      output[key] = this.normalizeStringArray(patch[key]);
     }
 
-    return out;
+    return output;
   }
 
-  private isEmptyPatch(patch: Partial<IUserPreferences>): boolean {
-    return !patch || Object.keys(patch).length === 0;
+  private isEmptyPatch(
+    patch: Partial<IUserPreferences>
+  ): boolean {
+    return Object.keys(patch ?? {}).length === 0;
   }
 
   private normalizeStringArray(value: unknown): string[] {
     if (!Array.isArray(value)) return [];
 
-    const cleaned = value
-      .filter((x) => typeof x === 'string')
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    // Dedup determinístico
-    return Array.from(new Set(cleaned));
+    return Array.from(
+      new Set(
+        value
+          .filter(
+            (entry): entry is string =>
+              typeof entry === 'string'
+          )
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+      )
+    );
   }
 
-  private mergePreferences(base: IUserPreferences, patch: Partial<IUserPreferences>): IUserPreferences {
+  private mergePreferences(
+    base: IUserPreferences,
+    patch: Partial<IUserPreferences>
+  ): IUserPreferences {
     return {
       genero: patch['genero'] ?? base['genero'] ?? [],
-      praticaSexual: patch['praticaSexual'] ?? base['praticaSexual'] ?? [],
-      preferenciaFisica: patch['preferenciaFisica'] ?? base['preferenciaFisica'] ?? [],
-      relacionamento: patch['relacionamento'] ?? base['relacionamento'] ?? [],
+      praticaSexual:
+        patch['praticaSexual'] ?? base['praticaSexual'] ?? [],
+      preferenciaFisica:
+        patch['preferenciaFisica'] ?? base['preferenciaFisica'] ?? [],
+      relacionamento:
+        patch['relacionamento'] ?? base['relacionamento'] ?? [],
     };
   }
 
-  /**
-   * Igualdade simples (suficiente para payloads plain/pequenos).
-   * Evita dupla emissão no SWR quando refresh não muda nada.
-   */
-  private deepEqual(a: any, b: any): boolean {
+  private deepEqual(a: unknown, b: unknown): boolean {
     if (a === b) return true;
+
     try {
       return JSON.stringify(a) === JSON.stringify(b);
     } catch {
@@ -409,17 +437,26 @@ export class UserPreferencesService {
     }
   }
 
-  private routeError(err: unknown, context: string, userMessage?: string): void {
-    const e = err instanceof Error ? err : new Error(`[UserPreferencesService] ${context}`);
-    (e as any).silent = true;
-    (e as any).original = err;
-    (e as any).context = context;
-    (e as any).feature = 'user-preferences';
+  private routeError(
+    error: unknown,
+    context: string,
+    userMessage?: string
+  ): void {
+    const wrapped =
+      error instanceof Error
+        ? error
+        : new Error(`[UserPreferencesService] ${context}`);
 
-    this.errorHandler.handleError(e);
+    (wrapped as any).silent = true;
+    (wrapped as any).skipUserNotification = true;
+    (wrapped as any).original = error;
+    (wrapped as any).context = context;
+    (wrapped as any).feature = 'user-preferences';
+
+    this.errorHandler.handleError(wrapped);
 
     if (userMessage) {
       this.notifier.showError(userMessage);
     }
   }
-}  // Linha 452
+}
