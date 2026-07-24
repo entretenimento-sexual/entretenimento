@@ -78,11 +78,11 @@ describe('FriendSearchComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('mantém consulta e resultados em cache user-scoped somente em memória', async () => {
+  it('preserva grafia da consulta e normaliza somente a chave de cache', async () => {
     component.searchControl.setValue('  Alice  ');
     await vi.advanceTimersByTimeAsync(500);
 
-    expect(friendship.searchUsers).toHaveBeenCalledWith('alice');
+    expect(friendship.searchUsers).toHaveBeenCalledWith('Alice');
     expect(cache.get$).toHaveBeenCalledWith(
       expect.objectContaining({
         key: 'friend-search:alice',
