@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, of } from 'rxjs';
+import { Subject, firstValueFrom, of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -32,6 +32,16 @@ describe('AppCacheService', () => {
     ttlMs: 60_000,
     version: 1,
     ...overrides,
+  });
+
+  const persistedEnvelope = <T>(value: T): CacheEnvelope<T> => ({
+    value,
+    createdAt: 1_000,
+    expiresAt: 120_000,
+    staleUntil: 120_000,
+    version: 1,
+    scope: 'session',
+    sensitivity: 'private',
   });
 
   beforeEach(() => {
@@ -266,5 +276,50 @@ describe('AppCacheService', () => {
     expect(persistence.deletePersistentByPrefix).toHaveBeenCalledWith(
       'app-cache:user:uid%201:'
     );
+  });
+
+  it('uma escrita nova vence reidratação antiga ainda em voo', async () => {
+    const definition = memoryDefinition<string>({
+      key: 'race:set-wins',
+      storage: 'persistent',
+    });
+    const persistentRead = new Subject<CacheEnvelope<string> | null>();
+    persistence.getEnvelopePersistent.mockReturnValue(
+      persistentRead.asObservable()
+    );
+
+    const oldReadResult = firstValueFrom(service.get$(definition));
+
+    await firstValueFrom(service.set$(definition, 'new-value'));
+
+    persistentRead.next(persistedEnvelope('old-value'));
+    persistentRead.complete();
+
+    expect(await oldReadResult).toEqual({ status: 'miss' });
+    expect(service.peek(definition)).toEqual({
+      status: 'fresh',
+      value: 'new-value',
+    });
+  });
+
+  it('limpeza de sessão impede reidratação posterior de leitura antiga', async () => {
+    const definition = memoryDefinition<string>({
+      key: 'race:logout',
+      storage: 'persistent',
+    });
+    const persistentRead = new Subject<CacheEnvelope<string> | null>();
+    persistence.getEnvelopePersistent.mockReturnValue(
+      persistentRead.asObservable()
+    );
+
+    const oldReadResult = firstValueFrom(service.get$(definition));
+
+    await firstValueFrom(service.clearSessionScope$());
+
+    persistentRead.next(persistedEnvelope('stale-session-value'));
+    persistentRead.complete();
+
+    expect(await oldReadResult).toEqual({ status: 'miss' });
+    expect(service.peek(definition)).toEqual({ status: 'miss' });
   });
 });
