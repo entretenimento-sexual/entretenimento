@@ -1,43 +1,49 @@
 // src/app/core/services/geolocation/near-profile.service.spec.ts
-import { TestBed } from '@angular/core/testing';
-
-const firestoreMocks = {
+const firestoreMocks = vi.hoisted(() => ({
   collection: vi.fn(() => ({})),
   where: vi.fn(() => ({})),
   query: vi.fn(() => ({})),
   getDocs: vi.fn(),
   startAt: vi.fn(() => ({})),
   limit: vi.fn((_n: number) => ({})),
-};
+}));
 
-const geofireMocks = {
-  geohashQueryBounds: vi.fn((_center: [number, number], _radiusM: number) => [
-    ['aaaa', 'zzzz'],
-  ]),
-  distanceBetween: vi.fn((from: [number, number], to: [number, number]) => {
-    const [lat1, lon1] = from;
-    const [lat2, lon2] = to;
-    const toRadians = (value: number) => value * Math.PI / 180;
-    const earthRadiusKm = 6371;
-    const deltaLat = toRadians(lat2 - lat1);
-    const deltaLon = toRadians(lon2 - lon1);
-    const a = Math.sin(deltaLat / 2) ** 2
-      + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2))
-      * Math.sin(deltaLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+const geofireMocks = vi.hoisted(() => ({
+  geohashQueryBounds: vi.fn(
+    (_center: [number, number], _radiusM: number) => [['aaaa', 'zzzz']]
+  ),
+  distanceBetween: vi.fn(
+    (from: [number, number], to: [number, number]) => {
+      const [lat1, lon1] = from;
+      const [lat2, lon2] = to;
+      const toRadians = (value: number) => value * Math.PI / 180;
+      const earthRadiusKm = 6371;
+      const deltaLat = toRadians(lat2 - lat1);
+      const deltaLon = toRadians(lon2 - lon1);
+      const a = Math.sin(deltaLat / 2) ** 2
+        + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2))
+        * Math.sin(deltaLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-    return earthRadiusKm * c;
-  }),
-};
+      return earthRadiusKm * c;
+    }
+  ),
+}));
 
-vi.doMock('@firebase/firestore', () => firestoreMocks);
-vi.doMock('geofire-common', () => geofireMocks);
+vi.mock('@firebase/firestore', () => firestoreMocks);
+vi.mock('@angular/fire/firestore', () => ({
+  Firestore: class FirestoreMock {},
+}));
+vi.mock('geofire-common', () => geofireMocks);
+
+import { TestBed } from '@angular/core/testing';
+import { Firestore } from '@angular/fire/firestore';
+
+import { NearbyProfilesService } from './near-profile.service';
+import { DistanceCalculationService } from './distance-calculation.service';
 
 describe('NearbyProfilesService', () => {
-  let service: any;
-  let NearbyProfilesServiceToken: any;
-  let DistanceCalculationServiceToken: any;
-  let FirestoreToken: any;
+  let service: NearbyProfilesService;
 
   class DistanceCalculationServiceStub {
     calculateDistanceInKm = vi.fn(
@@ -49,16 +55,8 @@ describe('NearbyProfilesService', () => {
     );
   }
 
-  beforeAll(async () => {
+  beforeAll(() => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
-
-    const firestoreModule = await import('@angular/fire/firestore');
-    const serviceModule = await import('./near-profile.service');
-    const distanceModule = await import('./distance-calculation.service');
-
-    FirestoreToken = firestoreModule.Firestore;
-    NearbyProfilesServiceToken = serviceModule.NearbyProfilesService;
-    DistanceCalculationServiceToken = distanceModule.DistanceCalculationService;
   });
 
   beforeEach(() => {
@@ -80,13 +78,16 @@ describe('NearbyProfilesService', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        NearbyProfilesServiceToken,
-        { provide: FirestoreToken, useValue: {} },
-        { provide: DistanceCalculationServiceToken, useClass: DistanceCalculationServiceStub },
+        NearbyProfilesService,
+        { provide: Firestore, useValue: {} },
+        {
+          provide: DistanceCalculationService,
+          useClass: DistanceCalculationServiceStub,
+        },
       ],
     });
 
-    service = TestBed.inject(NearbyProfilesServiceToken);
+    service = TestBed.inject(NearbyProfilesService);
   });
 
   function makeDoc(data: any) {
@@ -104,7 +105,10 @@ describe('NearbyProfilesService', () => {
 
     const result = await service.getProfilesNearLocation(1, 1, 50, 'meu-uid');
 
-    expect(geofireMocks.geohashQueryBounds).toHaveBeenCalledWith([1, 1], 50 * 1000);
+    expect(geofireMocks.geohashQueryBounds).toHaveBeenCalledWith(
+      [1, 1],
+      50 * 1000
+    );
     expect(firestoreMocks.collection).toHaveBeenCalled();
     expect(result.length).toBe(1);
     expect(result[0].uid).toBe('A');
