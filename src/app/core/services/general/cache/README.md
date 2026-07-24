@@ -41,6 +41,7 @@ O cache não possui mais slice genérico no NgRx. Estado compartilhado continua 
 11. Perfil completo nunca deve ser espelhado em `localStorage`.
 12. O adaptador legado não pode reidratar chaves bloqueadas pela política de privacidade.
 13. O `CacheService` legado é memory-first; persistência exige `{ persist: true }`.
+14. Snapshot síncrono tipado usa `AppCacheService.peek()` e nunca consulta IndexedDB.
 
 ## Escolha de camada
 
@@ -52,6 +53,7 @@ O cache não possui mais slice genérico no NgRx. Estado compartilhado continua 
 | Dado público reutilizável | `AppCacheService`, preferencialmente memória |
 | Persistência local aprovada | `AppCacheService` com `storage: 'persistent'` |
 | Dado íntimo/restrito | memória ou NgRx; nunca IndexedDB por conveniência |
+| Snapshot síncrono compatível | `AppCacheService.peek()`, somente memória |
 
 ## Migração concluída nesta fase
 
@@ -69,6 +71,7 @@ O cache não possui mais slice genérico no NgRx. Estado compartilhado continua 
 - resíduos sensíveis conhecidos saneados no bootstrap;
 - catálogos IBGE: `global/public/persistent`, com TTL e versão;
 - localização do usuário: `user/restricted/memory`;
+- `UserStateCacheService`: perfil por UID em `user/restricted/memory`, com snapshot por `peek()`;
 - `CacheService` reescrito sem Store e sem persistência automática;
 - slice genérico de cache do NgRx removido;
 - `CacheSyncService` removido por ausência de consumidores e duplicidade de responsabilidades.
@@ -88,11 +91,10 @@ Motivo: não havia produtor externo de actions nem consumidor do sincronizador. 
 
 ## Próximas migrações
 
-1. `UserDiscoveryQueryService` para definições viewer-scoped do `AppCacheService`.
+1. `UserDiscoveryQueryService` para definições viewer-scoped do `AppCacheService`, corrigindo colisões das chaves de filtros.
 2. Serviços sociais restantes ainda ligados ao `CacheService`.
-3. `UserStateCacheService` para memória tipada ou Store-only.
-4. Revisão do UID mínimo em `localStorage` após estabilização do bootstrap Auth.
-5. Remoção do Firestore legado após busca final de consumidores.
+3. Revisão do UID mínimo em `localStorage` após estabilização do bootstrap Auth.
+4. Remoção do Firestore legado após busca final de consumidores.
 
 ## Arquivo legado ainda preservado
 
