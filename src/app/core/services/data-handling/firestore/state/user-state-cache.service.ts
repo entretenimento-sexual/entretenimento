@@ -51,12 +51,6 @@ export class UserStateCacheService {
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
-  /**
-   * Cache tri-state compatível:
-   * - undefined: miss;
-   * - null: valor deliberadamente nulo, caso exista;
-   * - IUserDados: perfil disponível em memória.
-   */
   getCachedUser$(
     uid: string
   ): Observable<IUserDados | null | undefined> {
@@ -90,10 +84,6 @@ export class UserStateCacheService {
     }
   }
 
-  /**
-   * Upsert semântico no Store e no cache restrito em memória.
-   * A assinatura e o TTL configurável foram preservados.
-   */
   upsertUser(user: IUserDados, ttlMs = this.defaultTtlMs): void {
     if (!user?.uid) return;
 
@@ -148,7 +138,8 @@ export class UserStateCacheService {
 
   /**
    * Atualiza Store e cache de memória com patch parcial.
-   * Não cria inscrição de longa duração nem persiste o perfil no navegador.
+   * O payload mesclado é sanitizado antes do dispatch para manter o Store
+   * serializável e coerente com as demais entradas de usuário.
    */
   updateUserInStateAndCache<
     T extends IUserRegistrationData | IUserDados
@@ -167,22 +158,22 @@ export class UserStateCacheService {
         return;
       }
 
-      const mergedValue = {
+      const mergedValue = sanitizeUserForStore({
         ...(existing ?? {}),
         ...updatedData,
         uid: id,
-      } as T;
+      } as unknown as IUserDados);
 
       this.store.dispatch(
         updateUserInState({
           uid: id,
-          updatedData: mergedValue as unknown as IUserDados,
+          updatedData: mergedValue,
         })
       );
 
       this.writeMemoryBestEffort(
         id,
-        mergedValue as unknown as IUserDados,
+        mergedValue,
         this.defaultTtlMs,
         'updateUserInStateAndCache'
       );
