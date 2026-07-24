@@ -49,8 +49,6 @@ pubsub-debug.log*
 storage-debug.log*
 ui-debug.log*
 tree*.txt
-tree*.txt
-
 
 scripts/service-account.json
 scripts/check-auth-user.mjs
@@ -67,3 +65,7 @@ database-debug.log
 pubsub-debug.log
 storage-debug.log
 ui-debug.log
+
+# Artefatos locais de desenvolvimento e exportações temporárias dos emuladores
+/.dev-logs/
+/firebase-export-*/

@@ -1,26 +1,38 @@
 // src/app/core/services/autentication/auth/current-user-store.service.ts
-// Serviço para gerenciar o estado do usuário atual (IUserDados)
+// Estado runtime do usuário atual.
 //
-// Source of truth:
-// - Sessão/Auth/UID: AuthSessionService
-// - Perfil do app (runtime): CurrentUserStoreService
+// Fonte de verdade:
+// - sessão/UID: AuthSessionService;
+// - perfil runtime: CurrentUserStoreService;
+// - perfil persistente: Firestore pelo fluxo AuthSessionSyncEffects + UserEffects.
 //
 // Tri-state:
-// - undefined: hidratação em andamento / ainda não resolvido
-// - null: perfil indisponível no runtime atual
-// - IUserDados: perfil carregado
+// - undefined: hidratação em andamento;
+// - null: perfil indisponível no runtime atual;
+// - IUserDados: perfil carregado.
 //
-// Observação:
-// - Este serviço NÃO consulta Firestore.
-// - Ele só mantém o runtime do perfil e faz bootstrap compatível por HOT_KEYS.
-// - Perfil runtime do app: fluxo oficial AuthSessionSyncEffects + UserEffects + CurrentUserStoreService
-//* - este service NÃO escreve no perfil runtime do app.
-//* - o perfil continua sob a fonte única:
-//*   AuthSessionSyncEffects + UserEffects + CurrentUserStoreService
+// SUPRESSÕES EXPLÍCITAS DESTA MIGRAÇÃO:
+// - SUPRIMIDA a escrita do objeto completo em `currentUser`/localStorage.
+//   Motivo: perfil, e-mail, assinatura, moderação e demais atributos privados não
+//   devem permanecer serializados no navegador por conveniência de bootstrap.
+// - SUPRIMIDA a restauração do perfil completo por `restoreFromCache*()`.
+//   Motivo: esses métodos criavam uma segunda fonte de verdade potencialmente
+//   stale. As nomenclaturas foram preservadas por compatibilidade, mas agora
+//   apenas saneiam o legado e retornam null.
+//
+// Mantido:
+// - `currentUserUid` como compatibilidade mínima de leitura síncrona;
+// - API Observable-first e métodos públicos existentes;
+// - hidratação oficial via Store/Effects/Firestore.
 import { Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { distinctUntilChanged, filter, map, take } from 'rxjs/operators';
+import {
+  distinctUntilChanged,
+  filter,
+  map,
+  take,
+} from 'rxjs/operators';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
 import { CacheService } from '@core/services/general/cache/cache.service';
@@ -31,62 +43,50 @@ type UserTriState = IUserDados | null | undefined;
 
 @Injectable({ providedIn: 'root' })
 export class CurrentUserStoreService {
-  private readonly keyUser = 'currentUser';
+  private readonly legacyKeyUser = 'currentUser';
   private readonly keyUid = 'currentUserUid';
 
-  private readonly userSubject = new BehaviorSubject<UserTriState>(undefined);
-  readonly user$: Observable<UserTriState> = this.userSubject.asObservable();
+  private readonly userSubject =
+    new BehaviorSubject<UserTriState>(undefined);
+
+  readonly user$: Observable<UserTriState> =
+    this.userSubject.asObservable();
 
   constructor(
     private readonly cache: CacheService,
     private readonly authSession: AuthSessionService,
     private readonly auth: Auth,
     private readonly privacyDebug: PrivacyDebugLoggerService
-  ) {}
-
-  /**
-   * Debug seguro do runtime do usuário atual.
-   *
-   * Canal:
-   * localStorage.setItem('DEBUG_PROFILE', '1');
-   *
-   * Este service lida com:
-   * - UID autenticado;
-   * - perfil runtime;
-   * - cache de currentUser/currentUserUid;
-   * - estado tri-state do usuário atual.
-   *
-   * Por isso, não deve usar console.log direto.
-   */
-  private dbg(message: string, extra?: unknown): void {
-    this.privacyDebug.log('profile', `CurrentUserStore: ${message}`, extra);
+  ) {
+    // Saneamento idempotente de instalações que ainda possuem perfil completo.
+    this.cache.delete(this.legacyKeyUser);
   }
 
-  // ---------------------------------------------------------------------------
-  // Perfil runtime
-  // ---------------------------------------------------------------------------
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log(
+      'profile',
+      `CurrentUserStore: ${message}`,
+      extra
+    );
+  }
 
-  /**
-   * set()
-   * - runtime resolvido com perfil válido
-   */
+  /** Runtime resolvido com perfil válido. */
   set(user: IUserDados): void {
     if (!user?.uid) return;
 
     const current = this.userSubject.value;
-    if (current && current !== null && this.areUsersEquivalent(current, user)) {
+    if (
+      current &&
+      current !== null &&
+      this.areUsersEquivalent(current, user)
+    ) {
       return;
     }
 
     this.userSubject.next(user);
-
-    /**
-     * Compat hot keys:
-     * - leitura síncrona no bootstrap
-     * - não são fonte primária do perfil
-     */
-    this.cache.set(this.keyUser, user, undefined, { persist: false });
-    this.cache.set(this.keyUid, user.uid, undefined, { persist: false });
+    this.cache.set(this.keyUid, user.uid, undefined, {
+      persist: false,
+    });
 
     this.dbg('set(user)', { uid: user.uid });
   }
@@ -100,8 +100,9 @@ export class CurrentUserStoreService {
     if (this.areUsersEquivalent(current, next)) return;
 
     this.userSubject.next(next);
-    this.cache.set(this.keyUser, next, undefined, { persist: false });
-    this.cache.set(this.keyUid, next.uid, undefined, { persist: false });
+    this.cache.set(this.keyUid, next.uid, undefined, {
+      persist: false,
+    });
 
     this.dbg('patch(user)', {
       uid: next.uid,
@@ -110,22 +111,15 @@ export class CurrentUserStoreService {
   }
 
   /**
-   * setUnavailable()
-   * - sessão pode continuar existindo
-   * - mas o perfil do app ficou indisponível neste ciclo
-   *
-   * Importante:
-   * - não é logout
-   * - não deve manter currentUser stale no HOT_KEY
-   * - uid compatível pode continuar existindo se a sessão auth ainda existir
+   * Sessão pode continuar existindo, mas o perfil ficou indisponível.
+   * Não é logout e o UID do Auth pode continuar sendo mantido.
    */
   setUnavailable(): void {
-    const current = this.userSubject.value;
-    if (current !== null) {
+    if (this.userSubject.value !== null) {
       this.userSubject.next(null);
     }
 
-    this.cache.delete(this.keyUser);
+    this.cache.delete(this.legacyKeyUser);
 
     const authUid =
       this.authSession.currentAuthUser?.uid ??
@@ -133,7 +127,9 @@ export class CurrentUserStoreService {
       null;
 
     if (authUid) {
-      this.cache.set(this.keyUid, authUid, undefined, { persist: false });
+      this.cache.set(this.keyUid, authUid, undefined, {
+        persist: false,
+      });
     } else {
       this.cache.delete(this.keyUid);
     }
@@ -141,30 +137,19 @@ export class CurrentUserStoreService {
     this.dbg('setUnavailable()', { authUid });
   }
 
-  /**
-   * clear()
-   * - estado resolvido sem usuário
-   * - usado em logout / sessão nula confirmada
-   */
+  /** Estado resolvido sem usuário; usado em logout/sessão nula. */
   clear(): void {
-    if (this.userSubject.value === null) {
-      this.cache.delete(this.keyUser);
-      this.cache.delete(this.keyUid);
-      return;
+    if (this.userSubject.value !== null) {
+      this.userSubject.next(null);
     }
 
-    this.userSubject.next(null);
-    this.cache.delete(this.keyUser);
+    this.cache.delete(this.legacyKeyUser);
     this.cache.delete(this.keyUid);
 
     this.dbg('clear()');
   }
 
-  /**
-   * markUnhydrated()
-   * - estado transitório
-   * - usado quando há UID, mas o perfil ainda está sendo resolvido
-   */
+  /** Estado transitório enquanto o perfil do UID está sendo resolvido. */
   markUnhydrated(): void {
     if (this.userSubject.value === undefined) return;
     this.userSubject.next(undefined);
@@ -198,10 +183,6 @@ export class CurrentUserStoreService {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Sessão/Auth
-  // ---------------------------------------------------------------------------
-
   getAuthReady$(): Observable<boolean> {
     return this.authSession.ready$.pipe(distinctUntilChanged());
   }
@@ -225,10 +206,10 @@ export class CurrentUserStoreService {
     return this.getLoggedUserUID$().pipe(take(1));
   }
 
-  // ---------------------------------------------------------------------------
-  // Restore compatível
-  // ---------------------------------------------------------------------------
-
+  /**
+   * Compatibilidade mantida: não restaura perfil do navegador.
+   * O perfil será hidratado pelo fluxo oficial do Store/Firestore.
+   */
   restoreFromCache(): IUserDados | null {
     const uid =
       this.authSession.currentAuthUser?.uid ??
@@ -238,36 +219,28 @@ export class CurrentUserStoreService {
     return this.restoreFromCacheForUid(uid);
   }
 
-  restoreFromCacheForUid(uid: string | null | undefined): IUserDados | null {
-    const authUid = (uid ?? '').trim();
+  /**
+   * Compatibilidade mantida: saneia `currentUser` legado e preserva somente UID.
+   */
+  restoreFromCacheForUid(
+    uid: string | null | undefined
+  ): IUserDados | null {
+    const authUid = String(uid ?? '').trim();
+
+    this.cache.delete(this.legacyKeyUser);
+
     if (!authUid) {
       this.dbg('restoreFromCacheForUid() -> skip (no uid)');
       return null;
     }
 
-    const cached = this.cache.getSync<IUserDados>(this.keyUser);
+    this.cache.set(this.keyUid, authUid, undefined, {
+      persist: false,
+    });
 
-    if (cached?.uid && cached.uid === authUid) {
-      const current = this.userSubject.value;
-      if (!(current && current !== null && this.areUsersEquivalent(current, cached))) {
-        this.userSubject.next(cached);
-      }
-
-      this.cache.set(this.keyUid, authUid, undefined, { persist: false });
-      this.dbg('restoreFromCacheForUid() -> restored', { uid: authUid });
-      return cached;
-    }
-
-    if (cached?.uid && cached.uid !== authUid) {
-      this.cache.delete(this.keyUser);
-      this.cache.delete(this.keyUid);
-      this.dbg('restoreFromCacheForUid() -> purged stale cache', {
-        cachedUid: cached.uid,
-        authUid,
-      });
-    } else {
-      this.dbg('restoreFromCacheForUid() -> nothing to restore', { authUid });
-    }
+    this.dbg('restoreFromCacheForUid() -> legacy profile suppressed', {
+      uid: authUid,
+    });
 
     return null;
   }
@@ -280,9 +253,6 @@ export class CurrentUserStoreService {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Internals
-  // ---------------------------------------------------------------------------
   private areUsersEquivalent(
     current: IUserDados | null | undefined,
     incoming: IUserDados | null | undefined
@@ -302,8 +272,6 @@ export class CurrentUserStoreService {
       current.profileCompleted === incoming.profileCompleted &&
       current.isSubscriber === incoming.isSubscriber &&
       current.subscriptionStatus === incoming.subscriptionStatus &&
-
-      // lifecycle / moderação
       current.accountStatus === incoming.accountStatus &&
       current.suspended === incoming.suspended &&
       current.publicVisibility === incoming.publicVisibility &&
@@ -321,4 +289,4 @@ export class CurrentUserStoreService {
       current.deletedAt === incoming.deletedAt
     );
   }
-} // Linha 304, fim do current-user-store.service.ts
+}

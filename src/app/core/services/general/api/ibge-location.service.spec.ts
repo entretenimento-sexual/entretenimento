@@ -4,71 +4,72 @@ import {
   HttpClientTestingModule,
   HttpTestingController,
 } from '@angular/common/http/testing';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   IBGELocationService,
-  IbgeUF,
   IbgeMunicipio,
+  IbgeUF,
   UserLocation,
 } from './ibge-location.service';
-import { CacheService } from '../cache/cache.service';
+import { AppCacheService } from '../cache/app-cache.service';
 import { CurrentUserStoreService } from '../../autentication/auth/current-user-store.service';
 import { AccessControlService } from '../../autentication/auth/access-control.service';
-import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
-
-type CacheServiceMock = {
-  get: Mock;
-  set: Mock;
-  delete: Mock;
-};
-
-type CurrentUserStoreServiceMock = {
-  user$: BehaviorSubject<any | null | undefined>;
-};
-
-type AccessControlServiceMock = {
-  hasAtLeast$: Mock;
-};
+import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 
 describe('IBGELocationService', () => {
   let service: IBGELocationService;
   let httpMock: HttpTestingController;
+  let cache: {
+    get$: ReturnType<typeof vi.fn>;
+    set$: ReturnType<typeof vi.fn>;
+    invalidate$: ReturnType<typeof vi.fn>;
+  };
+  let user$: BehaviorSubject<any | null | undefined>;
+  let access: {
+    hasAtLeast$: ReturnType<typeof vi.fn>;
+  };
+  let globalError: {
+    handleError: ReturnType<typeof vi.fn>;
+  };
 
-  let cacheMock: CacheServiceMock;
-  let userStoreMock: CurrentUserStoreServiceMock;
-  let accessMock: AccessControlServiceMock;
-
-  const ESTADOS_URL =
+  const estadosUrl =
     'https://servicodados.ibge.gov.br/api/v1/localidades/estados';
-
-  const MUNICIPIOS_URL = (uf: string) =>
-    `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${encodeURIComponent(
-      uf
-    )}/municipios`;
+  const municipiosUrl = (uf: string) =>
+    `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${encodeURIComponent(uf)}/municipios`;
 
   beforeEach(() => {
-    cacheMock = {
-      get: vi.fn().mockReturnValue(of(null)),
-      set: vi.fn(),
-      delete: vi.fn(),
+    cache = {
+      get$: vi.fn().mockReturnValue(of({ status: 'miss' })),
+      set$: vi.fn().mockReturnValue(of(void 0)),
+      invalidate$: vi.fn().mockReturnValue(of(void 0)),
     };
-
-    userStoreMock = {
-      user$: new BehaviorSubject<any | null | undefined>(undefined),
-    };
-
-    accessMock = {
+    user$ = new BehaviorSubject<any | null | undefined>(undefined);
+    access = {
       hasAtLeast$: vi.fn().mockReturnValue(of(false)),
+    };
+    globalError = {
+      handleError: vi.fn(),
     };
 
     TestBed.configureTestingModule({
       imports: [HttpClientTestingModule],
       providers: [
         IBGELocationService,
-        { provide: CacheService, useValue: cacheMock },
-        { provide: CurrentUserStoreService, useValue: userStoreMock },
-        { provide: AccessControlService, useValue: accessMock },
+        { provide: AppCacheService, useValue: cache },
+        {
+          provide: CurrentUserStoreService,
+          useValue: {
+            user$,
+            getLoggedUserUIDSnapshot: vi.fn(() => 'uid-viewer'),
+          },
+        },
+        { provide: AccessControlService, useValue: access },
+        {
+          provide: GlobalErrorHandlerService,
+          useValue: globalError,
+        },
       ],
     });
 
@@ -78,7 +79,7 @@ describe('IBGELocationService', () => {
 
   afterEach(() => {
     httpMock.verify();
-    userStoreMock.user$.complete();
+    user$.complete();
     vi.clearAllMocks();
   });
 
@@ -86,213 +87,201 @@ describe('IBGELocationService', () => {
     expect(service).toBeTruthy();
   });
 
-  it('deve carregar estados do IBGE quando cache estiver vazio e ordená-los', () => {
+  it('carrega estados, ordena e persiste envelope público global', async () => {
+    const promise = firstValueFrom(service.getEstados());
     const unsorted: IbgeUF[] = [
       { id: 33, sigla: 'RJ', nome: 'Rio de Janeiro' },
       { id: 35, sigla: 'SP', nome: 'São Paulo' },
       { id: 31, sigla: 'MG', nome: 'Minas Gerais' },
     ];
 
-    cacheMock.get.mockReturnValue(of(null));
+    const request = httpMock.expectOne(estadosUrl);
+    expect(request.request.method).toBe('GET');
+    request.flush(unsorted);
 
-    service.getEstados().subscribe((list) => {
-      expect(list.map((e) => e.sigla)).toEqual(['MG', 'RJ', 'SP']);
-
-      const setArgs = cacheMock.set.mock.calls[0];
-      expect(setArgs[0]).toBe('ibge:estados');
-      expect(setArgs[1]).toEqual(list);
-      expect(typeof setArgs[2]).toBe('number');
-      expect(setArgs[2]).toBeGreaterThan(0);
-    });
-
-    const req = httpMock.expectOne(ESTADOS_URL);
-    expect(req.request.method).toBe('GET');
-    req.flush(unsorted);
+    const result = await promise;
+    expect(result.map((item) => item.sigla)).toEqual([
+      'MG',
+      'RJ',
+      'SP',
+    ]);
+    expect(cache.set$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'catalog:ibge:states',
+        scope: 'global',
+        sensitivity: 'public',
+        storage: 'persistent',
+        version: 1,
+      }),
+      result
+    );
   });
 
-  it('deve retornar estados do cache quando disponível sem chamar HTTP', () => {
+  it('retorna estados fresh sem chamada HTTP', async () => {
     const cached: IbgeUF[] = [
       { id: 31, sigla: 'MG', nome: 'Minas Gerais' },
-      { id: 33, sigla: 'RJ', nome: 'Rio de Janeiro' },
     ];
+    cache.get$.mockReturnValueOnce(
+      of({ status: 'fresh', value: cached })
+    );
 
-    cacheMock.get.mockReturnValue(of(cached));
-
-    service.getEstados().subscribe((list) => {
-      expect(list).toBe(cached);
-      expect(cacheMock.set).not.toHaveBeenCalled();
-    });
-
-    httpMock.expectNone(ESTADOS_URL);
+    expect(await firstValueFrom(service.getEstados())).toEqual(cached);
+    httpMock.expectNone(estadosUrl);
+    expect(cache.set$).not.toHaveBeenCalled();
   });
 
-  it('deve carregar municípios de uma UF, ordenar e salvar no cache', () => {
-    const uf = 'RJ';
+  it('coalesce chamadas concorrentes de estados em uma requisição', async () => {
+    const first = firstValueFrom(service.getEstados());
+    const second = firstValueFrom(service.getEstados());
+
+    const request = httpMock.expectOne(estadosUrl);
+    request.flush([
+      { id: 33, sigla: 'RJ', nome: 'Rio de Janeiro' },
+    ] as IbgeUF[]);
+
+    await expect(first).resolves.toHaveLength(1);
+    await expect(second).resolves.toHaveLength(1);
+  });
+
+  it('carrega municípios com chave pública versionada por UF', async () => {
+    const promise = firstValueFrom(service.getMunicipios(' rj '));
     const unsorted: IbgeMunicipio[] = [
       { id: 2, nome: 'Duque de Caxias' },
       { id: 1, nome: 'Angra dos Reis' },
-      { id: 3, nome: 'Rio de Janeiro' },
     ];
 
-    cacheMock.get.mockReturnValue(of(null));
+    const request = httpMock.expectOne(municipiosUrl('RJ'));
+    request.flush(unsorted);
 
-    service.getMunicipios(uf).subscribe((list) => {
-      expect(list.map((m) => m.nome)).toEqual([
-        'Angra dos Reis',
-        'Duque de Caxias',
-        'Rio de Janeiro',
-      ]);
-
-      const setArgs = cacheMock.set.mock.calls[0];
-      expect(setArgs[0]).toBe(`ibge:municipios:${uf}`);
-      expect(setArgs[1]).toEqual(list);
-      expect(typeof setArgs[2]).toBe('number');
-      expect(setArgs[2]).toBeGreaterThan(0);
-    });
-
-    const req = httpMock.expectOne(MUNICIPIOS_URL(uf));
-    expect(req.request.method).toBe('GET');
-    req.flush(unsorted);
+    const result = await promise;
+    expect(result.map((item) => item.nome)).toEqual([
+      'Angra dos Reis',
+      'Duque de Caxias',
+    ]);
+    expect(cache.set$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'catalog:ibge:municipalities:RJ',
+        scope: 'global',
+        storage: 'persistent',
+      }),
+      result
+    );
   });
 
-  it('deve retornar municípios do cache quando disponível', () => {
-    const uf = 'SP';
-    const cached: IbgeMunicipio[] = [
-      { id: 1, nome: 'Campinas' },
-      { id: 2, nome: 'São Paulo' },
-    ];
-
-    cacheMock.get.mockImplementation((key: string) => {
-      if (key === `ibge:municipios:${uf}`) {
-        return of(cached);
-      }
-      return of(null);
-    });
-
-    service.getMunicipios(uf).subscribe((list) => {
-      expect(list).toBe(cached);
-      expect(cacheMock.set).not.toHaveBeenCalled();
-    });
-
-    httpMock.expectNone(MUNICIPIOS_URL(uf));
-  });
-
-  it('deve retornar [] se a requisição de estados falhar', () => {
-    cacheMock.get.mockReturnValue(of(null));
-
-    service.getEstados().subscribe((list) => {
-      expect(list).toEqual([]);
-    });
-
-    const req = httpMock.expectOne(ESTADOS_URL);
-    req.flush('erro', { status: 500, statusText: 'Server Error' });
-  });
-
-  it('deve retornar [] imediatamente se getMunicipios for chamado com UF vazia', () => {
-    service.getMunicipios('   ').subscribe((list) => {
-      expect(list).toEqual([]);
-    });
-
+  it('retorna [] para UF vazia sem consultar HTTP ou cache', async () => {
+    expect(await firstValueFrom(service.getMunicipios('   '))).toEqual([]);
+    expect(cache.get$).not.toHaveBeenCalled();
     httpMock.expectNone(() => true);
   });
 
-  it('getUserLocation deve vir do cache quando existir', () => {
-    const cached: UserLocation = {
-      uf: 'RJ',
-      municipio: 'Duque de Caxias',
-    };
-
-    cacheMock.get.mockReturnValue(of(cached));
-
-    service.getUserLocation().subscribe((loc) => {
-      expect(loc).toEqual(cached);
+  it('reporta falha de catálogo silenciosamente e retorna fallback', async () => {
+    const promise = firstValueFrom(service.getEstados());
+    const request = httpMock.expectOne(estadosUrl);
+    request.flush('erro', {
+      status: 500,
+      statusText: 'Server Error',
     });
+
+    expect(await promise).toEqual([]);
+    expect(globalError.handleError).toHaveBeenCalledTimes(1);
   });
 
-  it('getUserLocation deve derivar do usuário do store e persistir quando cache estiver vazio', () => {
-    cacheMock.get.mockReturnValue(of(null));
-    userStoreMock.user$.next({
+  it('retorna localização cached com política restrita em memória', async () => {
+    const location: UserLocation = {
+      uf: 'RJ',
+      municipio: 'Niterói',
+    };
+    cache.get$.mockReturnValueOnce(
+      of({ status: 'fresh', value: location })
+    );
+
+    expect(await firstValueFrom(service.getUserLocation())).toEqual(
+      location
+    );
+    expect(cache.get$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'location-summary',
+        scope: 'user',
+        ownerUid: 'uid-viewer',
+        sensitivity: 'restricted',
+        storage: 'memory',
+        ttlMs: null,
+      })
+    );
+  });
+
+  it('espera hidratação e deriva localização do perfil runtime', async () => {
+    const promise = firstValueFrom(service.getUserLocation());
+
+    user$.next({
       estado: 'rj',
       municipio: 'Rio de Janeiro',
     });
 
-    service.getUserLocation().subscribe((loc) => {
-      expect(loc).toEqual({
-        uf: 'RJ',
-        municipio: 'Rio de Janeiro',
-      });
-
-      expect(cacheMock.set).toHaveBeenCalledWith('user:location', {
-        uf: 'RJ',
-        municipio: 'Rio de Janeiro',
-      });
+    const result = await promise;
+    expect(result).toEqual({
+      uf: 'RJ',
+      municipio: 'Rio de Janeiro',
     });
+    expect(cache.set$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sensitivity: 'restricted',
+        storage: 'memory',
+      }),
+      result
+    );
   });
 
-  it('updateUserLocation deve setar no cache quando role for premium ou superior', () => {
-    accessMock.hasAtLeast$.mockReturnValue(of(true));
+  it('updateUserLocation mantém API void e grava somente em memória quando permitido', () => {
+    access.hasAtLeast$.mockReturnValue(of(true));
 
     service.updateUserLocation({
       uf: 'rj',
       municipio: 'Niterói',
     });
 
-    expect(accessMock.hasAtLeast$).toHaveBeenCalledWith('premium');
-    expect(cacheMock.set).toHaveBeenCalledWith('user:location', {
-      uf: 'RJ',
-      municipio: 'Niterói',
-    });
+    expect(access.hasAtLeast$).toHaveBeenCalledWith('premium');
+    expect(cache.set$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'user',
+        sensitivity: 'restricted',
+        storage: 'memory',
+      }),
+      { uf: 'RJ', municipio: 'Niterói' }
+    );
   });
 
-  it('updateUserLocation não deve setar no cache quando role for insuficiente', () => {
-    accessMock.hasAtLeast$.mockReturnValue(of(false));
+  it('não atualiza localização sem ACL ou com payload inválido', () => {
+    service.updateUserLocation({ uf: 'SP', municipio: 'Campinas' });
+    service.updateUserLocation({ uf: ' ', municipio: '' });
 
-    service.updateUserLocation({
-      uf: 'SP',
-      municipio: 'Campinas',
-    });
-
-    expect(accessMock.hasAtLeast$).toHaveBeenCalledWith('premium');
-    expect(cacheMock.set).not.toHaveBeenCalledWith('user:location', {
-      uf: 'SP',
-      municipio: 'Campinas',
-    });
+    expect(cache.set$).not.toHaveBeenCalled();
+    expect(access.hasAtLeast$).toHaveBeenCalledTimes(1);
   });
 
-  it('updateUserLocation deve ignorar payload inválido', () => {
-    accessMock.hasAtLeast$.mockReturnValue(of(true));
-
-    service.updateUserLocation({
-      uf: '   ',
-      municipio: '',
-    });
-
-    expect(accessMock.hasAtLeast$).not.toHaveBeenCalled();
-    expect(cacheMock.set).not.toHaveBeenCalled();
-  });
-
-  it('clearUserLocationCache deve deletar a chave no cache', () => {
+  it('clearUserLocationCache invalida a definição privada', () => {
     service.clearUserLocationCache();
-    expect(cacheMock.delete).toHaveBeenCalledWith('user:location');
+
+    expect(cache.invalidate$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'location-summary',
+        ownerUid: 'uid-viewer',
+        storage: 'memory',
+      })
+    );
   });
 
-  it('warmCaches deve disparar getEstados e getMunicipios quando UF for fornecida', () => {
-    const spyEstados = vi.spyOn(service, 'getEstados').mockReturnValue(of([]));
-    const spyMunicipios = vi.spyOn(service, 'getMunicipios').mockReturnValue(of([]));
+  it('warmCaches pré-aquece estados e municípios quando houver UF', () => {
+    const estadosSpy = vi
+      .spyOn(service, 'getEstados')
+      .mockReturnValue(of([]));
+    const municipiosSpy = vi
+      .spyOn(service, 'getMunicipios')
+      .mockReturnValue(of([]));
 
     service.warmCaches('RJ');
 
-    expect(spyEstados).toHaveBeenCalled();
-    expect(spyMunicipios).toHaveBeenCalledWith('RJ');
-  });
-
-  it('warmCaches deve disparar apenas getEstados quando UF não for fornecida', () => {
-    const spyEstados = vi.spyOn(service, 'getEstados').mockReturnValue(of([]));
-    const spyMunicipios = vi.spyOn(service, 'getMunicipios').mockReturnValue(of([]));
-
-    service.warmCaches();
-
-    expect(spyEstados).toHaveBeenCalled();
-    expect(spyMunicipios).not.toHaveBeenCalled();
+    expect(estadosSpy).toHaveBeenCalledTimes(1);
+    expect(municipiosSpy).toHaveBeenCalledWith('RJ');
   });
 });

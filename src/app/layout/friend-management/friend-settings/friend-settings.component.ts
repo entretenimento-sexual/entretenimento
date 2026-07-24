@@ -1,88 +1,117 @@
-//src\app\layout\friend-management\friend-settings\friend-settings.component.ts
-import { Component, OnInit } from '@angular/core';
+// src/app/layout/friend-management/friend-settings/friend-settings.component.ts
+// Configurações de amizade mantidas no Store da feature.
+//
+// SUPRESSÕES EXPLÍCITAS DESTA MIGRAÇÃO:
+// - SUPRIMIDA a chave `loadingSettings` do CacheService.
+//   Motivo: loading é estado transitório de interface e não deve ser persistido.
+// - SUPRIMIDA a chave `friendSettings` do CacheService.
+//   Motivo: o Store já é a fonte reativa desta feature e o cache criava uma
+//   segunda fonte de verdade sem isolamento por UID.
+// - SUPRIMIDO o setTimeout artificial de 1 segundo.
+//   Motivo: ele simulava uma operação assíncrona que não existia.
+//
+// Observação importante:
+// - `updateFriendSettings` atualmente atualiza somente o Store local;
+// - não existe effect/repository de Firestore associado a essa action;
+// - o feedback informa aplicação nesta sessão, sem prometer persistência remota.
+import {
+  Component,
+  DestroyRef,
+  OnInit,
+  inject,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Store, select } from '@ngrx/store';
-import { AppState } from 'src/app/store/states/app.state';
-import { map, Observable, of } from 'rxjs';
+import {
+  NonNullableFormBuilder,
+  ReactiveFormsModule,
+} from '@angular/forms';
+import { Store } from '@ngrx/store';
+import { distinctUntilChanged } from 'rxjs/operators';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatButtonModule } from '@angular/material/button';
+
+import { AppState } from 'src/app/store/states/app.state';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { CacheService } from 'src/app/core/services/general/cache/cache.service';
 import { updateFriendSettings } from 'src/app/store/actions/actions.interactions/actions.friends';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { selectFriendSettings } from 'src/app/store/selectors/selectors.interactions/friends/settings.selectors';
+
+interface FriendSettingsValue {
+  receiveRequests: boolean;
+  showOnlineStatus: boolean;
+  allowSearchByNickname: boolean;
+}
 
 @Component({
   selector: 'app-friend-settings',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, MatSlideToggleModule, MatButtonModule,
-            MatProgressSpinnerModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatSlideToggleModule,
+    MatButtonModule,
+  ],
   templateUrl: './friend-settings.component.html',
-  styleUrl: './friend-settings.component.css'
+  styleUrl: './friend-settings.component.css',
 })
-
 export class FriendSettingsComponent implements OnInit {
-  settingsForm!: FormGroup;
-  isLoading$: Observable<boolean>;
+  private readonly fb = inject(NonNullableFormBuilder);
+  private readonly store = inject<Store<AppState>>(Store as any);
+  private readonly errorNotifier = inject(ErrorNotificationService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  constructor(
-    private fb: FormBuilder,
-    private store: Store<AppState>,
-    private errorNotifier: ErrorNotificationService,
-    private cacheService: CacheService
-  ) {
-    this.isLoading$ = this.cacheService.get<boolean>('loadingSettings').pipe(
-      map(value => value ?? false)
-    );
-  }
+  readonly settingsForm = this.fb.group({
+    receiveRequests: true,
+    showOnlineStatus: true,
+    allowSearchByNickname: true,
+  });
 
   ngOnInit(): void {
-    this.settingsForm = this.fb.group({
-      receiveRequests: [true], // Permitir receber solicitações de amizade
-      showOnlineStatus: [true], // Mostrar status online
-      allowSearchByNickname: [true] // Permitir ser encontrado por nickname
-    });
-
-    // 🔹 Carregar configurações do cache/store ao iniciar
     this.loadSettings();
   }
 
-  /**
-   * Carrega as configurações do usuário a partir do cache/store.
-   */
+  /** Mantém o formulário sincronizado com a fonte reativa da feature. */
   private loadSettings(): void {
-    this.cacheService.get<{ receiveRequests: boolean, showOnlineStatus: boolean, allowSearchByNickname: boolean }>('friendSettings')
-      .subscribe(settings => {
-        if (settings) {
-          this.settingsForm.patchValue(settings);
-        }
+    this.store
+      .select(selectFriendSettings)
+      .pipe(
+        distinctUntilChanged((previous, current) =>
+          this.areSettingsEqual(previous, current)
+        ),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((settings) => {
+        this.settingsForm.patchValue(settings, { emitEvent: false });
       });
   }
 
-  /**
-   * Salva as configurações no Store, CacheService e Firestore.
-   */
+  /** Aplica as configurações no Store local da sessão atual. */
   saveSettings(): void {
-    const settings = this.settingsForm.value;
-    this.updateLoadingState(true);
+    if (this.settingsForm.invalid) {
+      this.settingsForm.markAllAsTouched();
+      return;
+    }
+
+    const settings: FriendSettingsValue =
+      this.settingsForm.getRawValue();
 
     this.store.dispatch(updateFriendSettings({ settings }));
+    this.settingsForm.markAsPristine();
 
-    // 🔹 Cache para evitar recarregamentos desnecessários
-    this.cacheService.set('friendSettings', settings, 600000); // 10 min de cache
-
-    // 🔹 Feedback para o usuário
-    setTimeout(() => {
-      this.updateLoadingState(false);
-      this.errorNotifier.showSuccess('Configurações de amizade atualizadas com sucesso!');
-    }, 1000);
+    this.errorNotifier.showSuccess(
+      'Configurações de amizade aplicadas nesta sessão.'
+    );
   }
 
-  /**
-   * Atualiza o estado de carregamento.
-   * @param state Estado (true/false)
-   */
-  private updateLoadingState(state: boolean): void {
-    this.cacheService.set('loadingSettings', state, 5000);
+  private areSettingsEqual(
+    previous: FriendSettingsValue,
+    current: FriendSettingsValue
+  ): boolean {
+    return (
+      previous.receiveRequests === current.receiveRequests &&
+      previous.showOnlineStatus === current.showOnlineStatus &&
+      previous.allowSearchByNickname ===
+        current.allowSearchByNickname
+    );
   }
 }

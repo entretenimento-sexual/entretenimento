@@ -1,14 +1,14 @@
 // src/app/core/services/autentication/auth/current-user-store.service.spec.ts
-// utilizando ferramentas nativas
 import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
-import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Auth } from '@angular/fire/auth';
 
 import { CurrentUserStoreService } from './current-user-store.service';
 import { CacheService } from '../../general/cache/cache.service';
 import { AuthSessionService } from './auth-session.service';
+import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 
 class MockCacheService {
@@ -28,8 +28,6 @@ describe('CurrentUserStoreService', () => {
   let service: CurrentUserStoreService;
   let cache: MockCacheService;
   let authSession: MockAuthSessionService;
-
-  // backing field mutável para contornar o readonly de Auth.currentUser
   let authCurrentUserMock: { uid: string } | null;
 
   const authMock: Partial<Auth> = {
@@ -48,45 +46,61 @@ describe('CurrentUserStoreService', () => {
   } as IUserDados;
 
   beforeEach(() => {
+    authCurrentUserMock = null;
+
     TestBed.configureTestingModule({
       providers: [
         CurrentUserStoreService,
         { provide: CacheService, useClass: MockCacheService },
-        { provide: AuthSessionService, useClass: MockAuthSessionService },
+        {
+          provide: AuthSessionService,
+          useClass: MockAuthSessionService,
+        },
         { provide: Auth, useValue: authMock },
+        {
+          provide: PrivacyDebugLoggerService,
+          useValue: { log: vi.fn() },
+        },
       ],
     });
 
     service = TestBed.inject(CurrentUserStoreService);
-    cache = TestBed.inject(CacheService) as any;
-    authSession = TestBed.inject(AuthSessionService) as any;
+    cache = TestBed.inject(CacheService) as unknown as MockCacheService;
+    authSession = TestBed.inject(
+      AuthSessionService
+    ) as unknown as MockAuthSessionService;
 
     vi.clearAllMocks();
-    authCurrentUserMock = null;
     authSession.currentAuthUser = null;
     authSession.ready$.next(false);
     authSession.uid$.next(null);
     authSession.authUser$.next(null);
   });
 
-  it('deve ser criado', () => {
+  it('deve ser criado e iniciar com tri-state undefined', () => {
     expect(service).toBeTruthy();
+    expect(service.getSnapshot()).toBeUndefined();
   });
 
-  it('deve iniciar com tri-state undefined', () => {
-    const value = service.getSnapshot();
-    expect(value).toBeUndefined();
-  });
-
-  it('set() deve atualizar o userSubject e HOT_KEYS no cache', () => {
+  it('set() mantém perfil apenas no runtime e grava somente currentUserUid', () => {
     service.set(userMock);
 
     expect(service.getSnapshot()).toEqual(userMock);
-    expect(cache.set).toHaveBeenCalledWith('currentUser', userMock, undefined, { persist: false });
-    expect(cache.set).toHaveBeenCalledWith('currentUserUid', 'u1', undefined, { persist: false });
+    expect(cache.set).toHaveBeenCalledWith(
+      'currentUserUid',
+      'u1',
+      undefined,
+      { persist: false }
+    );
+    expect(cache.set).not.toHaveBeenCalledWith(
+      'currentUser',
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    );
   });
 
-  it('set() não deve escrever novamente se o usuário for idêntico', () => {
+  it('set() não escreve novamente se o usuário for equivalente', () => {
     service.set(userMock);
     vi.clearAllMocks();
 
@@ -95,40 +109,28 @@ describe('CurrentUserStoreService', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
-it('patch() deve mesclar os dados do usuário atual', () => {
-  service.set(userMock);
-  vi.clearAllMocks();
+  it('patch() atualiza o runtime e continua gravando somente o UID', () => {
+    service.set(userMock);
+    vi.clearAllMocks();
 
-  service.patch({ nickname: 'alex-updated' });
+    service.patch({ nickname: 'alex-updated' });
 
-  expect(service.getSnapshot()).toEqual({
-    ...userMock,
-    nickname: 'alex-updated',
+    expect(service.getSnapshot()).toEqual({
+      ...userMock,
+      nickname: 'alex-updated',
+    });
+    expect(cache.set).toHaveBeenCalledWith(
+      'currentUserUid',
+      'u1',
+      undefined,
+      { persist: false }
+    );
+    expect(
+      cache.set.mock.calls.some((call) => call[0] === 'currentUser')
+    ).toBe(false);
   });
 
- const currentUserCall = cache.set.mock.calls.find(
-  (call: any[]) => call[0] === 'currentUser'
-);
-
-if (!currentUserCall) {
-  throw new Error('currentUser call não encontrado');
-}
-
-  expect(currentUserCall[1]).toBeDefined();
-  expect(currentUserCall[1].nickname).toBe('alex-updated');
-  expect(currentUserCall[1].uid).toBe('u1');
-  expect(currentUserCall[2]).toBeUndefined();
-  expect(currentUserCall[3]).toEqual({ persist: false });
-
-  expect(cache.set).toHaveBeenCalledWith(
-    'currentUserUid',
-    'u1',
-    undefined,
-    { persist: false }
-  );
-});
-
-  it('clear() deve marcar estado como null e limpar HOT_KEYS', () => {
+  it('clear() marca null e remove UID e perfil legado', () => {
     service.set(userMock);
     vi.clearAllMocks();
 
@@ -139,147 +141,129 @@ if (!currentUserCall) {
     expect(cache.delete).toHaveBeenCalledWith('currentUserUid');
   });
 
-  it('markUnhydrated() deve voltar o estado para undefined', () => {
-    service.set(userMock);
+  it('setUnavailable() remove perfil legado e preserva UID do Auth', () => {
+    authCurrentUserMock = { uid: 'auth-uid' };
 
+    service.setUnavailable();
+
+    expect(service.getSnapshot()).toBeNull();
+    expect(cache.delete).toHaveBeenCalledWith('currentUser');
+    expect(cache.set).toHaveBeenCalledWith(
+      'currentUserUid',
+      'auth-uid',
+      undefined,
+      { persist: false }
+    );
+  });
+
+  it('markUnhydrated() volta o estado para undefined', () => {
+    service.set(userMock);
     service.markUnhydrated();
 
     expect(service.getSnapshot()).toBeUndefined();
   });
 
-  it('getLoggedUserUIDSnapshot() deve priorizar auth.currentUser.uid', () => {
+  it('getLoggedUserUIDSnapshot() prioriza auth.currentUser.uid', () => {
     authCurrentUserMock = { uid: 'auth-uid' };
     cache.getSync.mockReturnValue('cache-uid');
 
-    const uid = service.getLoggedUserUIDSnapshot();
-
-    expect(uid).toBe('auth-uid');
+    expect(service.getLoggedUserUIDSnapshot()).toBe('auth-uid');
   });
 
-  it('getLoggedUserUIDSnapshot() deve usar cache quando auth.currentUser não existir', () => {
-    authCurrentUserMock = null;
+  it('getLoggedUserUIDSnapshot() usa currentUserUid quando Auth não existe', () => {
     cache.getSync.mockReturnValue('cache-uid');
 
-    const uid = service.getLoggedUserUIDSnapshot();
-
-    expect(uid).toBe('cache-uid');
+    expect(service.getLoggedUserUIDSnapshot()).toBe('cache-uid');
   });
 
-  it('getLoggedUserUIDSnapshot() deve usar userSubject quando auth/cache não existirem', () => {
-    authCurrentUserMock = null;
+  it('getLoggedUserUIDSnapshot() usa runtime como último fallback', () => {
     cache.getSync.mockReturnValue(null);
     service.set(userMock);
 
-    const uid = service.getLoggedUserUIDSnapshot();
-
-    expect(uid).toBe('u1');
+    expect(service.getLoggedUserUIDSnapshot()).toBe('u1');
   });
 
-  it('restoreFromCacheForUid() deve restaurar do cache quando uid bater', () => {
+  it('restoreFromCacheForUid() não restaura perfil completo e saneia legado', () => {
     cache.getSync.mockReturnValue(userMock);
 
     const restored = service.restoreFromCacheForUid('u1');
 
-    expect(restored).toEqual(userMock);
-    expect(service.getSnapshot()).toEqual(userMock);
-    expect(cache.set).toHaveBeenCalledWith('currentUserUid', 'u1', undefined, { persist: false });
-  });
-
-  it('restoreFromCacheForUid() deve limpar cache stale quando uid não bater', () => {
-    cache.getSync.mockReturnValue({ ...userMock, uid: 'other-uid' });
-
-    const restored = service.restoreFromCacheForUid('u1');
-
     expect(restored).toBeNull();
+    expect(service.getSnapshot()).toBeUndefined();
     expect(cache.delete).toHaveBeenCalledWith('currentUser');
-    expect(cache.delete).toHaveBeenCalledWith('currentUserUid');
+    expect(cache.set).toHaveBeenCalledWith(
+      'currentUserUid',
+      'u1',
+      undefined,
+      { persist: false }
+    );
   });
 
-  it('restoreFromCacheForUid() deve retornar null quando uid vier vazio', () => {
-    cache.getSync.mockReturnValue(userMock);
-
-    const restored = service.restoreFromCacheForUid('   ');
-
-    expect(restored).toBeNull();
-    expect(cache.delete).not.toHaveBeenCalled();
+  it('restoreFromCacheForUid() com UID vazio apenas remove o legado', () => {
+    expect(service.restoreFromCacheForUid('   ')).toBeNull();
+    expect(cache.delete).toHaveBeenCalledWith('currentUser');
+    expect(cache.set).not.toHaveBeenCalled();
   });
 
-  it('restoreFromCache() deve usar authSession.currentAuthUser.uid primeiro', () => {
+  it('restoreFromCache() mantém API e nunca hidrata perfil do browser', () => {
     authSession.currentAuthUser = { uid: 'u1' };
     cache.getSync.mockReturnValue(userMock);
 
-    const restored = service.restoreFromCache();
-
-    expect(restored).toEqual(userMock);
+    expect(service.restoreFromCache()).toBeNull();
+    expect(service.getSnapshot()).toBeUndefined();
   });
 
-  it('restoreFromCache() deve cair para auth.currentUser.uid quando currentAuthUser não existir', () => {
-    authSession.currentAuthUser = null;
-    authCurrentUserMock = { uid: 'u1' };
-    cache.getSync.mockReturnValue(userMock);
-
-    const restored = service.restoreFromCache();
-
-    expect(restored).toEqual(userMock);
-  });
-
-  it('getLoggedUserUID$() deve refletir o uid$ do AuthSessionService', async () => {
+  it('getLoggedUserUID$() reflete uid$ do AuthSessionService', async () => {
     authSession.uid$.next('u-123');
 
-    const uid = await firstValueFrom(service.getLoggedUserUID$());
-
-    expect(uid).toBe('u-123');
+    expect(
+      await firstValueFrom(service.getLoggedUserUID$())
+    ).toBe('u-123');
   });
 
-  it('getLoggedUserUIDOnce$() deve emitir uma vez', async () => {
+  it('getLoggedUserUIDOnce$() emite uma vez', async () => {
     authSession.uid$.next('u-once');
 
-    const uid = await firstValueFrom(service.getLoggedUserUIDOnce$());
-
-    expect(uid).toBe('u-once');
+    expect(
+      await firstValueFrom(service.getLoggedUserUIDOnce$())
+    ).toBe('u-once');
   });
 
-  it('getAuthReady$() deve refletir ready$ do AuthSessionService', async () => {
+  it('getAuthReady$() reflete ready$ do AuthSessionService', async () => {
     authSession.ready$.next(true);
 
-    const ready = await firstValueFrom(service.getAuthReady$());
-
-    expect(ready).toBe(true);
+    expect(await firstValueFrom(service.getAuthReady$())).toBe(true);
   });
 
-  it('restoreFromCacheWhenReady$() deve esperar ready=true antes de restaurar', async () => {
-    cache.getSync.mockReturnValue(userMock);
-
-    const promise = firstValueFrom(service.restoreFromCacheWhenReady$());
+  it('restoreFromCacheWhenReady$() espera ready e retorna null', async () => {
+    const promise = firstValueFrom(
+      service.restoreFromCacheWhenReady$()
+    );
 
     authSession.currentAuthUser = { uid: 'u1' };
     authSession.ready$.next(true);
 
-    const restored = await promise;
-
-    expect(restored).toEqual(userMock);
+    expect(await promise).toBeNull();
   });
 
-  it('isHydratedOnce$() deve emitir true quando sair de undefined', async () => {
+  it('isHydratedOnce$() emite true ao sair de undefined', async () => {
     const promise = firstValueFrom(service.isHydratedOnce$());
 
     service.set(userMock);
 
-    const result = await promise;
-    expect(result).toBe(true);
+    expect(await promise).toBe(true);
   });
 
-  it('user$ deve refletir transições de undefined -> user -> null', () => {
+  it('user$ reflete undefined -> user -> null', () => {
     const emissions: Array<IUserDados | null | undefined> = [];
-    const sub = service.user$.subscribe((value) => emissions.push(value));
+    const subscription = service.user$.subscribe((value) =>
+      emissions.push(value)
+    );
 
     service.set(userMock);
     service.clear();
 
-    expect(emissions[0]).toBeUndefined();
-    expect(emissions[1]).toEqual(userMock);
-    expect(emissions[2]).toBeNull();
-
-    sub.unsubscribe();
+    expect(emissions).toEqual([undefined, userMock, null]);
+    subscription.unsubscribe();
   });
 });

@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { Firestore } from '@angular/fire/firestore';
-import { of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
+import { vi } from 'vitest';
 
 import { UserPreferencesService } from './user-preferences.service';
-import { CacheService } from '../general/cache/cache.service';
+import { AppCacheService } from '../general/cache/app-cache.service';
+import { CacheLegacyMigrationService } from '../general/cache/cache-legacy-migration.service';
 import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
@@ -14,9 +16,23 @@ import {
 
 describe('UserPreferencesService', () => {
   let service: UserPreferencesService;
+  let cache: {
+    get$: ReturnType<typeof vi.fn>;
+    set$: ReturnType<typeof vi.fn>;
+  };
+  let legacyMigration: {
+    purgePrefixesOnce$: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     const storeMock = createStoreTestingMock();
+    cache = {
+      get$: vi.fn().mockReturnValue(of({ status: 'miss' })),
+      set$: vi.fn().mockReturnValue(of(void 0)),
+    };
+    legacyMigration = {
+      purgePrefixesOnce$: vi.fn().mockReturnValue(of(void 0)),
+    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -26,40 +42,88 @@ describe('UserPreferencesService', () => {
           useValue: {},
         },
         {
-          provide: CacheService,
-          useValue: {
-            get: () => of(null),
-            set: () => undefined,
-          },
+          provide: AppCacheService,
+          useValue: cache,
+        },
+        {
+          provide: CacheLegacyMigrationService,
+          useValue: legacyMigration,
         },
         {
           provide: FirestoreContextService,
           useValue: {
-            deferPromise$: () => of({ docs: [] }),
+            deferPromise$: () =>
+              of({
+                forEach: () => undefined,
+              }),
             run: async (task: () => Promise<void>) => task(),
           },
         },
         {
           provide: GlobalErrorHandlerService,
           useValue: {
-            handleError: () => undefined,
+            handleError: vi.fn(),
           },
         },
         {
           provide: ErrorNotificationService,
           useValue: {
-            showError: () => undefined,
-            showSuccess: () => undefined,
-            showWarning: () => undefined,
-            showInfo: () => undefined,
+            showError: vi.fn(),
+            showSuccess: vi.fn(),
+            showWarning: vi.fn(),
+            showInfo: vi.fn(),
           },
         },
       ],
     });
+
     service = TestBed.inject(UserPreferencesService);
   });
 
-  it('should be created', () => {
+  it('é criado com a nova fachada tipada', () => {
     expect(service).toBeTruthy();
+  });
+
+  it('limpa legado e consulta com política restrita somente em memória', async () => {
+    const value = await firstValueFrom(
+      service.getUserPreferences$('uid-1')
+    );
+
+    expect(legacyMigration.purgePrefixesOnce$).toHaveBeenCalledWith(
+      'legacy-user-preferences-indexeddb-v1',
+      ['preferences:']
+    );
+
+    expect(value).toEqual({
+      genero: [],
+      praticaSexual: [],
+      preferenciaFisica: [],
+      relacionamento: [],
+    });
+
+    expect(cache.get$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'preferences',
+        scope: 'user',
+        ownerUid: 'uid-1',
+        sensitivity: 'restricted',
+        storage: 'memory',
+        version: 1,
+      })
+    );
+
+    expect(cache.set$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'user',
+        sensitivity: 'restricted',
+        storage: 'memory',
+      }),
+      {
+        genero: [],
+        praticaSexual: [],
+        preferenciaFisica: [],
+        relacionamento: [],
+      }
+    );
   });
 });

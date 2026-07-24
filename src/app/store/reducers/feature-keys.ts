@@ -1,6 +1,5 @@
 // src/app/store/reducers/feature-keys.ts
-// Centraliza as chaves de cada slice do Store.
-// Mantém consistência entre reducers, selectors e AppState.
+// Centraliza as chaves de slices de domínio do Store.
 export const STORE_FEATURE = {
   // USER DOMAIN
   auth: 'auth',
@@ -20,10 +19,8 @@ export const STORE_FEATURE = {
 
   // INTERACTIONS DOMAIN
   friendsPages: 'friendsPages',
-  interactionsFriends: 'interactions_friends', // <- valor precisa bater com o AppState/selector
-
-  // CACHE
-  cache: 'cache',
+  interactionsFriends: 'interactions_friends',
 } as const;
 
-export type StoreFeatureKey = typeof STORE_FEATURE[keyof typeof STORE_FEATURE];
+export type StoreFeatureKey =
+  typeof STORE_FEATURE[keyof typeof STORE_FEATURE];
