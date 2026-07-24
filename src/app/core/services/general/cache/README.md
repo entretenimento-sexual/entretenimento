@@ -22,8 +22,9 @@ Firestore/Functions permanecem autoritativos. NgRx representa estado compartilha
 - `cache-auth-lifecycle-bridge.service.ts`: integração reativa com `AuthSessionService.uid$`.
 - `cache-legacy-migration.service.ts`: saneamentos idempotentes temporários.
 - `legacy-cache-persistence-policy.ts`: barreira de privacidade para consumidores legados.
+- `cache.service.ts`: compatibilidade memory-first para consumidores ainda não migrados.
 
-O `cache.service.ts` permanece somente como compatibilidade para consumidores ainda não migrados.
+O cache não possui mais slice genérico no NgRx. Estado compartilhado continua em reducers de domínio, e cache permanece fora do Store.
 
 ## Regras obrigatórias
 
@@ -39,6 +40,7 @@ O `cache.service.ts` permanece somente como compatibilidade para consumidores ai
 10. Toda política user-scoped precisa de teste de logout e troca de UID.
 11. Perfil completo nunca deve ser espelhado em `localStorage`.
 12. O adaptador legado não pode reidratar chaves bloqueadas pela política de privacidade.
+13. O `CacheService` legado é memory-first; persistência exige `{ persist: true }`.
 
 ## Escolha de camada
 
@@ -64,26 +66,36 @@ O `cache.service.ts` permanece somente como compatibilidade para consumidores ai
 - `allUsers`: cache privado e somente em memória;
 - perfil atual: objeto completo removido de `localStorage`;
 - leituras/gravações legadas sensíveis bloqueadas no adaptador IndexedDB;
-- resíduos sensíveis conhecidos saneados no bootstrap.
+- resíduos sensíveis conhecidos saneados no bootstrap;
+- catálogos IBGE: `global/public/persistent`, com TTL e versão;
+- localização do usuário: `user/restricted/memory`;
+- `CacheService` reescrito sem Store e sem persistência automática;
+- slice genérico de cache do NgRx removido;
+- `CacheSyncService` removido por ausência de consumidores e duplicidade de responsabilidades.
+
+## Supressões estruturais concluídas
+
+Foram removidos:
+
+- `store/actions/cache.actions.ts`;
+- `store/reducers/cache.reducer.ts`;
+- `store/selectors/cache.selectors.ts`;
+- `store/effects/cache.effects.ts`;
+- `store/states/cache.state.ts`;
+- `cache-sync.service.ts` e seu spec.
+
+Motivo: não havia produtor externo de actions nem consumidor do sincronizador. Esses arquivos duplicavam memória, IndexedDB e estado de domínio sem fornecer uma fonte confiável.
 
 ## Próximas migrações
 
 1. `UserDiscoveryQueryService` para definições viewer-scoped do `AppCacheService`.
-2. Catálogos públicos/IBGE com persistência tipada e versionada.
-3. Serviços sociais restantes ainda ligados ao `CacheService`.
-4. Remoção do slice genérico de cache no NgRx.
-5. Remoção do `CacheSyncService` e do Firestore legado após busca final de consumidores.
+2. Serviços sociais restantes ainda ligados ao `CacheService`.
+3. `UserStateCacheService` para memória tipada ou Store-only.
+4. Revisão do UID mínimo em `localStorage` após estabilização do bootstrap Auth.
+5. Remoção do Firestore legado após busca final de consumidores.
 
-## Arquivos ainda preservados
+## Arquivo legado ainda preservado
 
-Os arquivos abaixo não devem ser apagados antes de migração, busca de imports, build e testes:
-
-- `cache.actions.ts`;
-- `cache.reducer.ts`;
-- `cache.selectors.ts`;
-- `cache.effects.ts`;
-- `cache.state.ts`;
-- `cache-sync.service.ts`;
 - `data-handling/legacy/firestore.service.ts`.
 
-Motivo previsto da supressão futura: responsabilidades duplicadas ou fluxo de uso inconsistente. Até essa etapa, não adicionar novos consumidores a esses arquivos.
+Ele só deve ser removido depois de busca de imports, substituição dos consumidores, build e testes de integração.
