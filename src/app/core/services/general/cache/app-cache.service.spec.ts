@@ -66,10 +66,47 @@ describe('AppCacheService', () => {
     });
 
     await firstValueFrom(service.set$(definition, null));
-    const result = await firstValueFrom(service.get$(definition));
 
-    expect(result).toEqual({ status: 'fresh', value: null });
+    expect(await firstValueFrom(service.get$(definition))).toEqual({
+      status: 'fresh',
+      value: null,
+    });
     expect(persistence.setEnvelopePersistent).not.toHaveBeenCalled();
+  });
+
+  it('peek retorna snapshot fresh exclusivamente da memória', async () => {
+    const definition = memoryDefinition<string>();
+
+    await firstValueFrom(service.set$(definition, 'runtime'));
+
+    expect(service.peek(definition)).toEqual({
+      status: 'fresh',
+      value: 'runtime',
+    });
+    expect(persistence.getEnvelopePersistent).not.toHaveBeenCalled();
+  });
+
+  it('peek retorna miss sem consultar IndexedDB', () => {
+    const definition = memoryDefinition<string>({
+      key: 'catalog:persistent-but-not-loaded',
+      scope: 'global',
+      sensitivity: 'public',
+      storage: 'persistent',
+    });
+
+    expect(service.peek(definition)).toEqual({ status: 'miss' });
+    expect(persistence.getEnvelopePersistent).not.toHaveBeenCalled();
+  });
+
+  it('peek remove valor expirado da memória', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    const definition = memoryDefinition<string>({ ttlMs: 10 });
+
+    await firstValueFrom(service.set$(definition, 'short-lived'));
+    now.mockReturnValue(2_000);
+
+    expect(service.peek(definition)).toEqual({ status: 'miss' });
+    expect(service.peek(definition)).toEqual({ status: 'miss' });
   });
 
   it('persiste o envelope completo quando storage é persistent', async () => {
@@ -126,9 +163,11 @@ describe('AppCacheService', () => {
 
     persistence.getEnvelopePersistent.mockReturnValue(of(envelope));
 
-    const result = await firstValueFrom(service.get$(definition));
-
-    expect(result).toEqual({
+    expect(await firstValueFrom(service.get$(definition))).toEqual({
+      status: 'fresh',
+      value: 'persisted',
+    });
+    expect(service.peek(definition)).toEqual({
       status: 'fresh',
       value: 'persisted',
     });
@@ -156,9 +195,7 @@ describe('AppCacheService', () => {
 
     persistence.getEnvelopePersistent.mockReturnValue(of(envelope));
 
-    const result = await firstValueFrom(service.get$(definition));
-
-    expect(result).toEqual({
+    expect(await firstValueFrom(service.get$(definition))).toEqual({
       status: 'stale',
       value: 'stale-value',
     });
@@ -185,9 +222,9 @@ describe('AppCacheService', () => {
 
     persistence.getEnvelopePersistent.mockReturnValue(of(envelope));
 
-    const result = await firstValueFrom(service.get$(definition));
-
-    expect(result).toEqual({ status: 'miss' });
+    expect(await firstValueFrom(service.get$(definition))).toEqual({
+      status: 'miss',
+    });
     expect(persistence.deletePersistent).toHaveBeenCalledTimes(1);
   });
 
