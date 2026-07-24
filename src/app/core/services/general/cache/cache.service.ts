@@ -27,6 +27,7 @@ import {
   map,
   of,
   shareReplay,
+  take,
 } from 'rxjs';
 
 import { IUserDados } from '../../../interfaces/iuser-dados';
@@ -63,7 +64,6 @@ export class CacheService {
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {
-    // Remove o perfil completo deixado por versões anteriores.
     this.removeLocalStorageKeyBestEffort('currentUser');
   }
 
@@ -96,7 +96,7 @@ export class CacheService {
     if (persist) {
       this.cachePersistence
         .setPersistent(normalizedKey, data)
-        .pipe(takeCompatOne())
+        .pipe(take(1))
         .subscribe({
           error: (error) =>
             this.safeHandle(error, 'setPersistent', normalizedKey),
@@ -108,9 +108,6 @@ export class CacheService {
     }
   }
 
-  /**
-   * Compatibilidade: perfil fica somente em memória; UID mantém bootstrap mínimo.
-   */
   setUser(
     uid: string,
     user: IUserDados,
@@ -162,7 +159,7 @@ export class CacheService {
     if (persist) {
       this.cachePersistence
         .setPersistent(normalizedKey, data)
-        .pipe(takeCompatOne())
+        .pipe(take(1))
         .subscribe({
           error: (error) =>
             this.safeHandle(error, 'updatePersistent', normalizedKey),
@@ -223,11 +220,6 @@ export class CacheService {
     return request$;
   }
 
-  /**
-   * Leitura síncrona:
-   * - qualquer chave pode ser lida da memória;
-   * - somente currentUserUid pode ser lido do localStorage.
-   */
   getSync<T>(key: string): T | null {
     const normalizedKey = this.normalizeKey(key);
     if (!normalizedKey) return null;
@@ -276,7 +268,7 @@ export class CacheService {
 
     this.cachePersistence
       .deletePersistent(normalizedKey)
-      .pipe(takeCompatOne())
+      .pipe(take(1))
       .subscribe({
         error: (error) =>
           this.safeHandle(error, 'deletePersistent', normalizedKey),
@@ -285,14 +277,12 @@ export class CacheService {
     this.logOperation('delete', normalizedKey);
   }
 
-  /** Limpa apenas a camada de memória. */
   clear(): void {
     this.cache.clear();
     this.inFlightGets.clear();
     this.log('clear memory', { size: 0 });
   }
 
-  /** Limpa rastros locais sensíveis ligados à sessão anterior. */
   clearSensitiveSessionCache$(): Observable<void> {
     const prefixes = Array.from(
       new Set([
@@ -302,17 +292,13 @@ export class CacheService {
     );
 
     for (const key of Array.from(this.cache.keys())) {
-      if (
-        prefixes.some((prefix) => key.startsWith(prefix))
-      ) {
+      if (prefixes.some((prefix) => key.startsWith(prefix))) {
         this.cache.delete(key);
       }
     }
 
     for (const key of Array.from(this.inFlightGets.keys())) {
-      if (
-        prefixes.some((prefix) => key.startsWith(prefix))
-      ) {
+      if (prefixes.some((prefix) => key.startsWith(prefix))) {
         this.inFlightGets.delete(key);
       }
     }
@@ -405,9 +391,6 @@ export class CacheService {
     });
   }
 
-  /**
-   * Compatibilidade: perfil por UID fica em memória; somente UID é espelhado.
-   */
   syncCurrentUserWithUid(userData: IUserDados): void {
     if (!userData?.uid) return;
 
@@ -538,12 +521,4 @@ export class CacheService {
       // Cache legado nunca deve quebrar o fluxo principal.
     }
   }
-}
-
-/**
- * Operador mínimo para documentar que observables do adaptador emitem uma vez.
- * Mantém a dependência de RxJS centralizada sem Promises na API pública.
- */
-function takeCompatOne<T>() {
-  return (source: Observable<T>): Observable<T> => source.pipe();
 }
