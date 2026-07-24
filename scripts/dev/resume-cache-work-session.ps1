@@ -66,10 +66,10 @@ function Enable-PortableNode22 {
 Push-Location $RepoRoot
 
 try {
-  Write-Step "Verificando repositório em $RepoRoot"
+  Write-Step "Verificando repositorio em $RepoRoot"
 
   if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    throw 'Git não foi encontrado no PATH.'
+    throw 'Git nao foi encontrado no PATH.'
   }
 
   Invoke-Native git rev-parse --is-inside-work-tree | Out-Null
@@ -77,11 +77,11 @@ try {
   $dirty = @(git status --porcelain)
   if ($dirty.Count -gt 0) {
     Write-Host ($dirty -join [Environment]::NewLine) -ForegroundColor Yellow
-    throw 'A árvore de trabalho possui alterações locais. Salve, faça commit ou stash antes de continuar.'
+    throw 'A arvore de trabalho possui alteracoes locais. Salve, faca commit ou stash antes de continuar.'
   }
 
   if (-not $SkipFetch) {
-    Write-Step 'Atualizando referências remotas'
+    Write-Step 'Atualizando referencias remotas'
     Invoke-Native git fetch origin --prune
   }
 
@@ -96,12 +96,12 @@ try {
     Invoke-Native git switch --track -c $Branch "origin/$Branch"
   }
 
-  Write-Step 'Aplicando somente atualização fast-forward'
+  Write-Step 'Aplicando somente atualizacao fast-forward'
   Invoke-Native git merge --ff-only "origin/$Branch"
 
   $currentBranch = (& git branch --show-current).Trim()
   if ($currentBranch -ne $Branch) {
-    throw "Branch inesperada após atualização: $currentBranch"
+    throw "Branch inesperada apos atualizacao: $currentBranch"
   }
 
   $head = (& git rev-parse HEAD).Trim()
@@ -112,12 +112,12 @@ try {
   $nodeMajor = Get-NodeMajorVersion
 
   if ($nodeMajor -ne 22) {
-    Write-Host "Node atual: $nodeMajor. Tentando instalação portátil do usuário..." -ForegroundColor Yellow
+    Write-Host "Node atual: $nodeMajor. Tentando instalacao portatil do usuario..." -ForegroundColor Yellow
 
     if (-not (Enable-PortableNode22)) {
       throw @'
-Node.js 22 não foi encontrado.
-Instale ou extraia a versão 22 em:
+Node.js 22 nao foi encontrado.
+Instale ou extraia a versao 22 em:
   %USERPROFILE%\.nodes\node-22\node-v22.x.x-win-x64
 Depois execute este script novamente.
 '@
@@ -127,18 +127,18 @@ Depois execute este script novamente.
   Write-Host "Node: $(& node --version)" -ForegroundColor Green
 
   if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
-    throw 'npm.cmd não foi encontrado no PATH após selecionar Node.js 22.'
+    throw 'npm.cmd nao foi encontrado no PATH apos selecionar Node.js 22.'
   }
 
   Write-Host "npm:  $(& npm.cmd --version)" -ForegroundColor Green
 
   if ($Install -or -not (Test-Path (Join-Path $RepoRoot 'node_modules'))) {
-    Write-Step 'Instalando dependências pelo package-lock'
+    Write-Step 'Instalando dependencias pelo package-lock'
     Invoke-Native npm.cmd ci
   }
 
   if ($Validate) {
-    Write-Step 'Executando suíte de testes'
+    Write-Step 'Executando suite de testes'
     Invoke-Native npm.cmd run test:ci
 
     Write-Step 'Executando build dev-emu'
@@ -146,11 +146,11 @@ Depois execute este script novamente.
   }
 
   if ($StartApp) {
-    Write-Step 'Iniciando Angular em configuração dev-emu'
+    Write-Step 'Iniciando Angular em configuracao dev-emu'
     Write-Host 'Mantenha este terminal aberto. Use Ctrl+C para encerrar.' -ForegroundColor Yellow
     Invoke-Native npm.cmd run start:emu
   } else {
-    Write-Step 'Sessão preparada'
+    Write-Step 'Sessao preparada'
     Write-Host 'Para validar:' -ForegroundColor Green
     Write-Host '  npm.cmd run test:ci'
     Write-Host '  npm.cmd run build:emu'
