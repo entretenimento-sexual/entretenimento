@@ -97,6 +97,24 @@ Motivo: não havia produtor externo de actions nem consumidor do sincronizador. 
 3. Revisão do UID mínimo em `localStorage` após estabilização do bootstrap Auth.
 4. Remoção do Firestore legado após busca final de consumidores.
 
+## Validação obrigatória antes de ampliar a migração
+
+Como o repositório não possui workflow associado ao PR, executar localmente:
+
+```powershell
+npm.cmd run test:ci
+npm.cmd run build:emu
+```
+
+Depois, validar no Emulator Suite:
+
+- cadastro e verificação de apelido;
+- login, logout e troca de conta;
+- preferências;
+- busca e configurações de amizade;
+- catálogos/localização;
+- limpeza de IndexedDB e ausência de `currentUser` completo no localStorage.
+
 ## Arquivo legado ainda preservado
 
 - `data-handling/legacy/firestore.service.ts`.
