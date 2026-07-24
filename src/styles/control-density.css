@@ -1,0 +1,79 @@
+/* src/styles/control-density.css
+ * Padrão canônico de densidade para controles da plataforma.
+ * Desktop: 40px. Dispositivos de toque: 44px.
+ */
+
+:root {
+  --control-height: 40px;
+  --control-height-touch: 44px;
+  --control-radius: 8px;
+  --control-padding-inline: 12px;
+  --control-gap: 12px;
+  --form-max-width: 380px;
+}
+
+:is(
+  input.input-field:not([type='checkbox']):not([type='radio']),
+  select.input-field,
+  .form-control:not(textarea),
+  .form-select
+) {
+  box-sizing: border-box;
+  height: var(--control-height);
+  min-height: var(--control-height);
+  padding-block: 0;
+  padding-inline: var(--control-padding-inline);
+  border-radius: var(--control-radius);
+  line-height: 1.2;
+}
+
+textarea.input-field,
+textarea.form-control {
+  min-height: 88px;
+  padding: 10px var(--control-padding-inline);
+  resize: vertical;
+}
+
+:is(.btn, button.btn, .btn-google):not(.btn-link) {
+  box-sizing: border-box;
+  min-height: var(--control-height);
+  padding-block: 0;
+  padding-inline: 14px;
+  border-radius: var(--control-radius);
+  line-height: 1.2;
+}
+
+@media (pointer: coarse) {
+  :is(
+    input.input-field:not([type='checkbox']):not([type='radio']),
+    select.input-field,
+    .form-control:not(textarea),
+    .form-select,
+    .btn,
+    button.btn,
+    .btn-google
+  ):not(.btn-link) {
+    min-height: var(--control-height-touch);
+  }
+
+  :is(
+    input.input-field:not([type='checkbox']):not([type='radio']),
+    select.input-field,
+    .form-control:not(textarea),
+    .form-select
+  ) {
+    height: var(--control-height-touch);
+  }
+}
+
+html.high-contrast :is(
+  input.input-field,
+  select.input-field,
+  textarea.input-field,
+  .form-control,
+  .form-select,
+  .btn,
+  .btn-google
+) {
+  border-width: 2px;
+}
