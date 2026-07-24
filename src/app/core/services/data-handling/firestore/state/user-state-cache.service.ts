@@ -1,197 +1,292 @@
 // src/app/core/services/data-handling/firestore/state/user-state-cache.service.ts
-// Não esqueça os comentários e as ferramentas de debug.
+// Ponte temporária entre perfis por UID em memória e o Store de domínio.
 //
-// Objetivo deste service:
-// - manter um cache leve de usuário por uid
-// - sincronizar cache + NgRx sem duplicar responsabilidade do CurrentUserStore
-// - evitar writes redundantes no state
-// - reduzir risco de dado stale por comparação frágil
+// Regras arquiteturais:
+// - AuthSessionService continua sendo a fonte canônica do UID de sessão;
+// - CurrentUserStoreService continua sendo a fonte runtime do usuário atual;
+// - NgRx continua sendo o estado compartilhado de domínio;
+// - este serviço apenas reduz leituras/dispatches redundantes de perfis por UID.
 //
-// Regras arquiteturais importantes:
-// - AuthSession manda no UID canônico de sessão
-// - CurrentUserStore manda no IUserDados runtime/hidratado
-// - este service NÃO substitui nenhuma dessas fontes canônicas
-// - ele atua como camada auxiliar de cache/state update
+// SUPRESSÕES EXPLÍCITAS DESTA MIGRAÇÃO:
+// - SUPRIMIDA a dependência de CacheService e das chaves cruas `user:{uid}`.
+//   Motivo: perfis completos são dados restricted e não devem alcançar
+//   IndexedDB ou localStorage por meio de compatibilidade legada.
+// - SUPRIMIDA qualquer reidratação persistente do perfil por UID.
+//   Motivo: Firestore/Store permanecem autoritativos após reload.
+// - SUPRIMIDOS console.debug e logs contendo UID em claro.
+//   Motivo: debug segue PrivacyDebugLoggerService com metadados mínimos.
 //
-// Ajustes desta revisão:
-// - upsertUser() agora diferencia add vs update
-// - removido subscribe() interno em updateUserInStateAndCache()
-// - removido JSON.stringify() como estratégia principal de comparação
-// - tratamento de erro roteado para GlobalErrorHandlerService
-// - comparação mais robusta para evitar cache stale e dispatch redundante
-//
-// SUPRESSÕES EXPLÍCITAS:
-// 1) Foi SUPRIMIDO o subscribe() interno em updateUserInStateAndCache().
-//    Motivo: evitar side effect reativo escondido e facilitar previsibilidade.
-//
-// 2) Foi SUPRIMIDO o uso de JSON.stringify(existing) === JSON.stringify(updatedData)
-//    como estratégia principal de decisão.
-//    Motivo: comparação frágil, dependente de ordem de propriedades e pouco semântica.
-//
-// 3) Foi SUPRIMIDO o comportamento "sempre addUserToState" em upsertUser().
-//    Motivo: semanticamente incorreto quando o usuário já existe no state/cache.
+// APIs públicas preservadas:
+// - getCachedUser$()
+// - getCachedUserSnapshot()
+// - upsertUser()
+// - invalidate()
+// - updateUserInStateAndCache()
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, map, take } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 
-import { CacheService } from '@core/services/general/cache/cache.service';
+import { IUserDados } from '@core/interfaces/iuser-dados';
+import { IUserRegistrationData } from '@core/interfaces/iuser-registration-data';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { AppCacheService } from '@core/services/general/cache/app-cache.service';
+import { CacheDefinition } from '@core/services/general/cache/cache-contracts';
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { AppState } from 'src/app/store/states/app.state';
 import {
   addUserToState,
   updateUserInState,
 } from 'src/app/store/actions/actions.user/user.actions';
-import { IUserDados } from '@core/interfaces/iuser-dados';
-import { IUserRegistrationData } from '@core/interfaces/iuser-registration-data';
 import { sanitizeUserForStore } from 'src/app/store/utils/user-store.serializer';
-import { environment } from 'src/environments/environment';
-
-/**
- * Shape interna e estável para comparação.
- *
- * Motivo:
- * - evita depender diretamente de Partial<IUserDados>, que herda
- *   a distinção estrita entre propriedades opcionais e null/undefined
- * - permite comparação sem conflitar com a modelagem real do domínio
- */
-type ComparableUserShape = {
-  uid: string;
-  nickname?: string | null;
-  email: string | null;
-  photoURL?: string | null;
-  nome?: string;
-  role: IUserDados['role'];
-  emailVerified?: boolean;
-  estado?: string;
-  municipio?: string;
-  isSubscriber: boolean;
-  profileCompleted?: boolean;
-  subscriptionExpires?: number | null;
-  roomCreationSubscriptionExpires?: number | null;
-  singleRoomCreationRightExpires?: number | null;
-  monthlyPayer?: boolean;
-  suspended?: boolean;
-  lastLogin: number;
-  firstLogin?: number | null;
-  createdAt?: number | null;
-  registrationDate?: number | null;
-  lastSeen?: number | null;
-  lastOfflineAt?: number | null;
-  lastOnlineAt?: number | null;
-  lastLocationAt?: number | null;
-  acceptedTerms?: { accepted: boolean; date: number | null };
-  nicknameHistory?: Array<{ nickname: string; date: number | null }>;
-  socialLinks?: IUserDados['socialLinks'];
-  preferences?: string[];
-  roomIds?: string[];
-  gender?: string;
-  orientation?: string;
-  partner1Orientation?: string;
-  partner2Orientation?: string;
-  descricao: string;
-  isOnline?: boolean;
-};
 
 @Injectable({ providedIn: 'root' })
 export class UserStateCacheService {
-  private readonly debug = !!environment.enableDebugTools && !environment.production;
+  private readonly defaultTtlMs = 300_000;
 
   constructor(
-    private readonly cache: CacheService,
+    private readonly cache: AppCacheService,
     private readonly store: Store<AppState>,
-    private readonly globalError: GlobalErrorHandlerService
+    private readonly globalError: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
-  // ---------------------------------------------------------------------------
-  // Helpers básicos
-  // ---------------------------------------------------------------------------
-
-  private dbg(message: string, payload?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.debug('[UserStateCacheService]', message, payload ?? '');
-  }
-
-  private reportError(
-    message: string,
-    error: unknown,
-    context?: Record<string, unknown>
-  ): void {
-    try {
-      const err = error instanceof Error ? error : new Error(message);
-      (err as any).original = error;
-      (err as any).context = {
-        scope: 'UserStateCacheService',
-        ...(context ?? {}),
-      };
-      (err as any).skipUserNotification = true;
-      this.globalError.handleError(err);
-    } catch {
-      // noop
-    }
-  }
-
-  private norm(uid: string): string {
-    return (uid ?? '').toString().trim();
-  }
-
-  private key(uid: string): string {
-    return `user:${this.norm(uid)}`;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Cache tri-state
-  // ---------------------------------------------------------------------------
-
   /**
-   * Cache tri-state:
-   * - undefined: cache miss (não existe chave)
-   * - null: inválido/expirado deliberadamente
-   * - IUserDados: valor
+   * Cache tri-state compatível:
+   * - undefined: miss;
+   * - null: valor deliberadamente nulo, caso exista;
+   * - IUserDados: perfil disponível em memória.
    */
-  getCachedUser$(uid: string): Observable<IUserDados | null | undefined> {
-    const id = this.norm(uid);
+  getCachedUser$(
+    uid: string
+  ): Observable<IUserDados | null | undefined> {
+    const id = this.normalizeUid(uid);
     if (!id) return of(undefined);
 
-    return this.cache.get<IUserDados | null>(this.key(id)).pipe(
+    return this.cache.get$(this.definition(id)).pipe(
+      map((result) =>
+        result.status === 'miss' ? undefined : result.value
+      ),
       catchError((error) => {
-        this.reportError(
-          'Erro ao obter usuário do cache (Observable).',
-          error,
-          { op: 'getCachedUser$', uid: id }
-        );
+        this.report(error, 'getCachedUser$');
         return of(undefined);
       })
     );
   }
 
-  getCachedUserSnapshot(uid: string): IUserDados | null | undefined {
-    const id = this.norm(uid);
+  /** Snapshot síncrono exclusivamente da memória tipada. */
+  getCachedUserSnapshot(
+    uid: string
+  ): IUserDados | null | undefined {
+    const id = this.normalizeUid(uid);
     if (!id) return undefined;
 
     try {
-      return this.cache.getSync<IUserDados | null>(this.key(id));
+      const result = this.cache.peek(this.definition(id));
+      return result.status === 'miss' ? undefined : result.value;
     } catch (error) {
-      this.reportError(
-        'Erro ao obter usuário do cache (snapshot).',
-        error,
-        { op: 'getCachedUserSnapshot', uid: id }
-      );
+      this.report(error, 'getCachedUserSnapshot');
       return undefined;
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Comparação robusta
-  // ---------------------------------------------------------------------------
+  /**
+   * Upsert semântico no Store e no cache restrito em memória.
+   * A assinatura e o TTL configurável foram preservados.
+   */
+  upsertUser(user: IUserDados, ttlMs = this.defaultTtlMs): void {
+    if (!user?.uid) return;
+
+    try {
+      const safeUser = sanitizeUserForStore(user);
+      const current = this.getCachedUserSnapshot(safeUser.uid);
+
+      if (!this.hasMeaningfulChanges(current, safeUser)) {
+        this.debug('upsert ignorado', { reason: 'unchanged' });
+        return;
+      }
+
+      if (current === undefined || current === null) {
+        this.store.dispatch(addUserToState({ user: safeUser }));
+        this.debug('perfil adicionado ao Store');
+      } else {
+        this.store.dispatch(
+          updateUserInState({
+            uid: safeUser.uid,
+            updatedData: safeUser,
+          })
+        );
+        this.debug('perfil atualizado no Store');
+      }
+
+      this.writeMemoryBestEffort(
+        safeUser.uid,
+        safeUser,
+        ttlMs,
+        'upsertUser'
+      );
+    } catch (error) {
+      this.report(error, 'upsertUser', {
+        hasUser: !!user,
+      });
+    }
+  }
+
+  /** Invalida somente o perfil do UID informado. */
+  invalidate(uid: string): void {
+    const id = this.normalizeUid(uid);
+    if (!id) return;
+
+    this.cache
+      .invalidate$(this.definition(id))
+      .pipe(take(1))
+      .subscribe({
+        next: () => this.debug('perfil invalidado'),
+        error: (error) => this.report(error, 'invalidate'),
+      });
+  }
 
   /**
-   * Normaliza valor para comparação estável.
-   * - ordena chaves de objetos
-   * - preserva arrays
-   * - trata null/undefined de forma consistente
+   * Atualiza Store e cache de memória com patch parcial.
+   * Não cria inscrição de longa duração nem persiste o perfil no navegador.
    */
+  updateUserInStateAndCache<
+    T extends IUserRegistrationData | IUserDados
+  >(uid: string, updatedData: T): void {
+    const id = this.normalizeUid(uid);
+    if (!id || !updatedData || typeof updatedData !== 'object') return;
+
+    try {
+      const existing = this.getCachedUserSnapshot(id) as
+        | T
+        | null
+        | undefined;
+
+      if (!this.hasPatchChanges(existing, updatedData)) {
+        this.debug('patch ignorado', { reason: 'unchanged' });
+        return;
+      }
+
+      const mergedValue = {
+        ...(existing ?? {}),
+        ...updatedData,
+        uid: id,
+      } as T;
+
+      this.store.dispatch(
+        updateUserInState({
+          uid: id,
+          updatedData: mergedValue as unknown as IUserDados,
+        })
+      );
+
+      this.writeMemoryBestEffort(
+        id,
+        mergedValue as unknown as IUserDados,
+        this.defaultTtlMs,
+        'updateUserInStateAndCache'
+      );
+
+      this.debug('patch aplicado', {
+        updatedKeyCount: Object.keys(updatedData).length,
+      });
+    } catch (error) {
+      this.report(error, 'updateUserInStateAndCache', {
+        updatedKeyCount: Object.keys(updatedData ?? {}).length,
+      });
+    }
+  }
+
+  private definition(
+    uid: string,
+    ttlMs = this.defaultTtlMs
+  ): CacheDefinition<IUserDados | null> {
+    return {
+      key: 'profile-state',
+      scope: 'user',
+      ownerUid: uid,
+      sensitivity: 'restricted',
+      storage: 'memory',
+      ttlMs: this.normalizeTtl(ttlMs),
+      version: 1,
+      validate: (
+        value: unknown
+      ): value is IUserDados | null =>
+        value === null || this.isValidUser(value),
+    };
+  }
+
+  private writeMemoryBestEffort(
+    uid: string,
+    user: IUserDados,
+    ttlMs: number,
+    operation: string
+  ): void {
+    this.cache
+      .set$(this.definition(uid, ttlMs), user)
+      .pipe(take(1))
+      .subscribe({
+        error: (error) => this.report(error, operation),
+      });
+  }
+
+  private normalizeUid(uid: string): string {
+    return String(uid ?? '').trim();
+  }
+
+  private normalizeTtl(ttlMs: number): number {
+    const value = Number(ttlMs);
+    return Number.isFinite(value)
+      ? Math.max(0, value)
+      : this.defaultTtlMs;
+  }
+
+  private isValidUser(value: unknown): value is IUserDados {
+    if (!value || typeof value !== 'object') return false;
+
+    const record = value as Record<string, unknown>;
+    return (
+      typeof record['uid'] === 'string' &&
+      record['uid'].trim().length > 0
+    );
+  }
+
+  private hasMeaningfulChanges(
+    current: IUserDados | null | undefined,
+    incoming: IUserDados
+  ): boolean {
+    if (!current) return true;
+
+    return !this.areDeepEqual(current, incoming);
+  }
+
+  private hasPatchChanges<T extends object>(
+    existing: T | null | undefined,
+    patch: Partial<T>
+  ): boolean {
+    if (!existing) return true;
+
+    const keys = Object.keys(patch ?? {}) as Array<keyof T>;
+    if (!keys.length) return false;
+
+    return keys.some((key) =>
+      !this.areDeepEqual(existing[key], patch[key])
+    );
+  }
+
+  private areDeepEqual(left: unknown, right: unknown): boolean {
+    if (left === right) return true;
+
+    try {
+      return (
+        JSON.stringify(this.normalizeForComparison(left)) ===
+        JSON.stringify(this.normalizeForComparison(right))
+      );
+    } catch {
+      return false;
+    }
+  }
+
   private normalizeForComparison(value: unknown): unknown {
     if (value === null || value === undefined) return value;
 
@@ -204,256 +299,53 @@ export class UserStateCacheService {
     }
 
     if (typeof value === 'object') {
-      const obj = value as Record<string, unknown>;
-      const sortedKeys = Object.keys(obj).sort();
+      const record = value as Record<string, unknown>;
 
-      return sortedKeys.reduce<Record<string, unknown>>((acc, key) => {
-        acc[key] = this.normalizeForComparison(obj[key]);
-        return acc;
-      }, {});
+      return Object.keys(record)
+        .sort()
+        .reduce<Record<string, unknown>>((output, key) => {
+          output[key] = this.normalizeForComparison(record[key]);
+          return output;
+        }, {});
     }
 
     return value;
   }
 
-  private areDeepEqual(a: unknown, b: unknown): boolean {
-    return JSON.stringify(this.normalizeForComparison(a)) ===
-      JSON.stringify(this.normalizeForComparison(b));
-  }
-
-  private extractComparableUserShape(
-    user: IUserDados | null | undefined
-  ): ComparableUserShape | null {
-    if (!user) return null;
-
-    return {
-      uid: user.uid,
-      nickname: user.nickname ?? undefined,
-      email: user.email ?? null,
-      photoURL: user.photoURL ?? undefined,
-      nome: user.nome ?? undefined,
-      role: user.role,
-      emailVerified: user.emailVerified ?? false,
-      estado: user.estado ?? undefined,
-      municipio: user.municipio ?? undefined,
-      isSubscriber: user.isSubscriber,
-      profileCompleted: user.profileCompleted ?? false,
-      subscriptionExpires: user.subscriptionExpires ?? null,
-      roomCreationSubscriptionExpires: user.roomCreationSubscriptionExpires ?? null,
-      singleRoomCreationRightExpires: user.singleRoomCreationRightExpires ?? null,
-      monthlyPayer: user.monthlyPayer ?? false,
-      suspended: user.suspended ?? false,
-      lastLogin: user.lastLogin,
-      firstLogin: user.firstLogin ?? null,
-      createdAt: user.createdAt ?? null,
-      registrationDate: user.registrationDate ?? null,
-      lastSeen: user.lastSeen ?? null,
-      lastOfflineAt: user.lastOfflineAt ?? null,
-      lastOnlineAt: user.lastOnlineAt ?? null,
-      lastLocationAt: user.lastLocationAt ?? null,
-      acceptedTerms: user.acceptedTerms ?? undefined,
-      nicknameHistory: user.nicknameHistory ?? [],
-      socialLinks: user.socialLinks ?? undefined,
-      preferences: user.preferences ?? [],
-      roomIds: user.roomIds ?? [],
-      gender: user.gender ?? undefined,
-      orientation: user.orientation ?? undefined,
-      partner1Orientation: user.partner1Orientation ?? undefined,
-      partner2Orientation: user.partner2Orientation ?? undefined,
-      descricao: user.descricao,
-      isOnline: user.isOnline ?? false,
-    };
-  }
-
-  private hasMeaningfulUserChanges(
-    current: IUserDados | null | undefined,
-    incoming: IUserDados
-  ): boolean {
-    const currentComparable = this.extractComparableUserShape(current);
-    const incomingComparable = this.extractComparableUserShape(incoming);
-
-    return !this.areDeepEqual(currentComparable, incomingComparable);
-  }
-
-  /**
-   * Compara apenas as chaves presentes no patch.
-   * Útil para update parcial sem depender de igualdade do objeto inteiro.
-   */
-  private hasPatchChanges<T extends object>(
-    existing: T | null | undefined,
-    patch: Partial<T>
-  ): boolean {
-    if (!existing) return true;
-
-    const patchKeys = Object.keys((patch ?? {}) as object) as Array<keyof T>;
-    if (patchKeys.length === 0) return false;
-
-    return patchKeys.some((key) => {
-      const currentValue = existing[key];
-      const nextValue = patch[key];
-      return !this.areDeepEqual(currentValue, nextValue);
-    });
-  }
-
-  // ---------------------------------------------------------------------------
-  // Upsert do usuário completo
-  // ---------------------------------------------------------------------------
-
-/**
- * Upsert semântico:
- * - se não existe snapshot, adiciona no state;
- * - se já existe e mudou, atualiza no state;
- * - sempre mantém cache alinhado com versão serializável;
- * - nunca envia Timestamp/Date/FieldValue para actions NgRx.
- */
-upsertUser(user: IUserDados, ttlMs = 300_000): void {
-  if (!user?.uid) return;
-
-  try {
-    const safeUser = sanitizeUserForStore(user);
-    const current = this.getCachedUserSnapshot(safeUser.uid);
-
-    if (!this.hasMeaningfulUserChanges(current, safeUser)) {
-      this.dbg('upsertUser ignorado (sem mudanças relevantes)', {
-        uid: safeUser.uid,
-      });
-      return;
-    }
-
-    const isNew = current === undefined || current === null;
-
-    if (isNew) {
-      this.store.dispatch(addUserToState({ user: safeUser }));
-      this.dbg('addUserToState disparado', { uid: safeUser.uid });
-    } else {
-      this.store.dispatch(
-        updateUserInState({
-          uid: safeUser.uid,
-          updatedData: safeUser,
-        })
-      );
-
-      this.dbg('updateUserInState disparado via upsertUser', {
-        uid: safeUser.uid,
-      });
-    }
-
-    /**
-     * Cache também recebe versão serializável.
-     *
-     * Motivo:
-     * - evita reidratar Timestamp antigo depois;
-     * - mantém IndexedDB/local cache compatível com NgRx;
-     * - reduz risco de erro voltar após reload.
-     */
-    this.cache.set(this.key(safeUser.uid), safeUser, ttlMs);
-
-    this.dbg('cache atualizado via upsertUser', {
-      uid: safeUser.uid,
-      ttlMs,
-    });
-  } catch (error) {
-    this.reportError(
-      'Erro ao fazer upsert do usuário em state/cache.',
-      error,
-      { op: 'upsertUser', uid: user?.uid ?? null }
+  private debug(
+    message: string,
+    data?: Record<string, unknown>
+  ): void {
+    this.privacyDebug.log(
+      'cache',
+      `UserStateCacheService: ${message}`,
+      data
     );
   }
-}
-  // ---------------------------------------------------------------------------
-  // Invalidação
-  // ---------------------------------------------------------------------------
 
-  invalidate(uid: string): void {
-    const id = this.norm(uid);
-    if (!id) return;
-
-    try {
-      this.cache.delete(this.key(id));
-      this.dbg('cache invalidado por delete', { uid: id });
-    } catch (error) {
-      this.reportError(
-        'Falha ao invalidar cache via delete. Aplicando fallback null curto.',
-        error,
-        { op: 'invalidate', uid: id }
-      );
-
-      try {
-        this.cache.set(this.key(id), null as any, 1);
-        this.dbg('cache invalidado via fallback null curto', { uid: id });
-      } catch (fallbackError) {
-        this.reportError(
-          'Falha também no fallback de invalidação do cache.',
-          fallbackError,
-          { op: 'invalidate:fallback', uid: id }
-        );
-      }
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Update parcial
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Atualiza cache + state com patch parcial.
-   *
-   * Ajuste importante:
-   * - não usa subscribe() interno
-   * - usa snapshot síncrono do cache para reduzir side-effect oculto
-   * - só faz dispatch/cache write se houver mudança real nas chaves do patch
-   */
-  updateUserInStateAndCache<T extends IUserRegistrationData | IUserDados>(
-    uid: string,
-    updatedData: T
+  private report(
+    error: unknown,
+    operation: string,
+    context?: Record<string, unknown>
   ): void {
-    const id = this.norm(uid);
-    if (!id) return;
-
     try {
-      const key = this.key(id);
-      const existing = this.getCachedUserSnapshot(id) as T | null | undefined;
+      const wrapped =
+        error instanceof Error
+          ? error
+          : new Error('[UserStateCacheService] internal error');
 
-      if (!updatedData || typeof updatedData !== 'object') {
-        this.dbg('updateUserInStateAndCache ignorado (patch inválido)', { uid: id });
-        return;
-      }
+      (wrapped as any).original = error;
+      (wrapped as any).feature = 'user-state-cache';
+      (wrapped as any).context = {
+        operation,
+        ...(context ?? {}),
+      };
+      (wrapped as any).silent = true;
+      (wrapped as any).skipUserNotification = true;
 
-      if (!this.hasPatchChanges(existing ?? undefined, updatedData)) {
-        this.dbg('updateUserInStateAndCache ignorado (sem mudanças)', { uid: id });
-        return;
-      }
-
-      const mergedValue = {
-        ...(existing ?? {}),
-        ...(updatedData ?? {}),
-      } as T;
-
-      this.cache.set(key, mergedValue, 300_000);
-      this.store.dispatch(
-        updateUserInState({
-          uid: id,
-          updatedData: mergedValue as unknown as IUserDados,
-        })
-      );
-
-      this.dbg('updateUserInStateAndCache aplicado', {
-        uid: id,
-        updatedKeys: Object.keys(updatedData as object),
-      });
-    } catch (error) {
-      this.reportError(
-        'Erro ao atualizar usuário em state/cache.',
-        error,
-        {
-          op: 'updateUserInStateAndCache',
-          uid: id,
-          updatedKeys:
-            updatedData && typeof updatedData === 'object'
-              ? Object.keys(updatedData as object)
-              : [],
-        }
-      );
+      this.globalError.handleError(wrapped);
+    } catch {
+      // Cache auxiliar não deve quebrar o fluxo de domínio.
     }
   }
 }
