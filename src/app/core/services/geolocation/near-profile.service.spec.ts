@@ -31,9 +31,6 @@ const geofireMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@firebase/firestore', () => firestoreMocks);
-vi.mock('@angular/fire/firestore', () => ({
-  Firestore: class FirestoreMock {},
-}));
 vi.mock('geofire-common', () => geofireMocks);
 
 import { NearbyProfilesService } from './near-profile.service';
