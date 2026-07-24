@@ -1,5 +1,4 @@
 const firestoreMocks = vi.hoisted(() => ({
-  Firestore: class FirestoreMock {},
   collection: vi.fn(() => ({ kind: 'collection' })),
   collectionData: vi.fn(),
   doc: vi.fn(() => ({ kind: 'doc' })),
@@ -10,7 +9,21 @@ const firestoreMocks = vi.hoisted(() => ({
   where: vi.fn(() => ({ kind: 'where' })),
 }));
 
-vi.mock('@angular/fire/firestore', () => firestoreMocks);
+vi.mock('@angular/fire/firestore', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@angular/fire/firestore')>();
+
+  return {
+    ...actual,
+    collection: firestoreMocks.collection,
+    collectionData: firestoreMocks.collectionData,
+    doc: firestoreMocks.doc,
+    docData: firestoreMocks.docData,
+    getDocs: firestoreMocks.getDocs,
+    limit: firestoreMocks.limit,
+    query: firestoreMocks.query,
+    where: firestoreMocks.where,
+  };
+});
 
 import { TestBed } from '@angular/core/testing';
 import { Firestore } from '@angular/fire/firestore';
