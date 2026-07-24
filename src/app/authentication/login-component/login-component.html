@@ -1,30 +1,13 @@
 <!-- src/app/authentication/login-component/login-component.html -->
 <div class="auth-container">
   <section class="auth-intro" aria-labelledby="auth-intro-title">
-    <p class="auth-badge">Pré-lançamento</p>
-
     <h1 id="auth-intro-title">
       Entretenimento com controle, privacidade e segurança.
     </h1>
-
-    <p>
-      Uma experiência social mais clara para cadastro, perfil, preferências,
-      comunicação e moderação.
-    </p>
-
-    <ul class="auth-trust-list" aria-label="Pontos de confiança da plataforma">
-      <li>Perfil e preferências sob seu controle</li>
-      <li>Fluxo de cadastro guiado e seguro</li>
-      <li>Conta preparada para descoberta e moderação</li>
-    </ul>
   </section>
 
   <div class="form-container">
-    <p class="form-kicker">Acesso seguro</p>
     <h2 class="form-header">Entre na sua conta</h2>
-    <p class="form-subtitle">
-      Use e-mail/senha ou continue com Google.
-    </p>
 
     <form
       [formGroup]="loginForm"
@@ -39,41 +22,49 @@
         {{ currentAssistiveStatus }}
       </p>
 
-      <label class="field-label" for="email">E-mail</label>
-      <input
-        formControlName="email"
-        id="email"
-        class="input-field"
-        type="email"
-        name="email"
-        placeholder="seu@email.com"
-        required
-        autocomplete="email"
-        [attr.aria-invalid]="loginForm.controls['email'].touched && loginForm.controls['email'].invalid ? 'true' : 'false'"
-        [attr.aria-describedby]="loginForm.controls['email'].invalid ? 'email-error form-status' : 'form-status'"
-        (focus)="clearError()"
-      />
-      @if (loginForm.controls['email'].touched && loginForm.controls['email'].invalid) {
-        <small id="email-error" class="field-error">Informe um e-mail válido.</small>
-      }
+      <div class="login-field">
+        <label class="field-label" for="email">E-mail</label>
+        <input
+          formControlName="email"
+          id="email"
+          class="input-field"
+          type="email"
+          name="email"
+          placeholder="seu@email.com"
+          required
+          autocomplete="email"
+          [attr.aria-invalid]="loginForm.controls['email'].touched && loginForm.controls['email'].invalid ? 'true' : 'false'"
+          [attr.aria-describedby]="loginForm.controls['email'].invalid ? 'email-error form-status' : 'form-status'"
+          (focus)="clearError()"
+        />
+        @if (loginForm.controls['email'].touched && loginForm.controls['email'].invalid) {
+          <small id="email-error" class="field-error" role="tooltip">
+            Informe um e-mail válido.
+          </small>
+        }
+      </div>
 
-      <label class="field-label" for="password">Senha</label>
-      <input
-        formControlName="password"
-        id="password"
-        class="input-field"
-        type="password"
-        name="password"
-        placeholder="Sua senha"
-        required
-        autocomplete="current-password"
-        [attr.aria-invalid]="loginForm.controls['password'].touched && loginForm.controls['password'].invalid ? 'true' : 'false'"
-        [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error form-status' : 'form-status'"
-        (focus)="clearError()"
-      />
-      @if (loginForm.controls['password'].touched && loginForm.controls['password'].invalid) {
-        <small id="password-error" class="field-error">Informe sua senha.</small>
-      }
+      <div class="login-field">
+        <label class="field-label" for="password">Senha</label>
+        <input
+          formControlName="password"
+          id="password"
+          class="input-field"
+          type="password"
+          name="password"
+          placeholder="Sua senha"
+          required
+          autocomplete="current-password"
+          [attr.aria-invalid]="loginForm.controls['password'].touched && loginForm.controls['password'].invalid ? 'true' : 'false'"
+          [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error form-status' : 'form-status'"
+          (focus)="clearError()"
+        />
+        @if (loginForm.controls['password'].touched && loginForm.controls['password'].invalid) {
+          <small id="password-error" class="field-error" role="tooltip">
+            Informe sua senha.
+          </small>
+        }
+      </div>
 
       <input
         formControlName="honeypot"
@@ -127,11 +118,6 @@
         <span class="google-mark" aria-hidden="true">G</span>
         <span>{{ googleButtonLabel }}</span>
       </button>
-
-      <p class="auth-note">
-        Ao continuar, você mantém o fluxo seguro da plataforma. O Google autentica
-        sua identidade; a plataforma continua controlando perfil, preferências e descoberta.
-      </p>
 
       @if (isLoading) {
         <div class="loading-overlay" role="status" aria-live="polite">
