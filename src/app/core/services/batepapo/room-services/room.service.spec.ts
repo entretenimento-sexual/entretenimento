@@ -9,8 +9,11 @@ const firestoreMocks = vi.hoisted(() => ({
   where: vi.fn(() => ({ kind: 'where' })),
 }));
 
-vi.mock('@angular/fire/firestore', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@angular/fire/firestore')>();
+vi.mock('@angular/fire/firestore', async () => {
+  const actual = await vi.importActual('@angular/fire/firestore') as Record<
+    string,
+    unknown
+  >;
 
   return {
     ...actual,
