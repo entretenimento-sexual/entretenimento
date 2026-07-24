@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, Observable, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { where } from 'firebase/firestore';
 
@@ -104,7 +104,16 @@ describe('UserDiscoveryQueryService', () => {
     expect(read.getDocumentsOnce).toHaveBeenCalledTimes(1);
   });
 
-  it('trata lista vazia fresh como hit válido', async () => {
+  it('trata lista vazia fresh como hit válido sem assinar a leitura Firestore', async () => {
+    let firestoreReadSubscriptions = 0;
+
+    read.getDocumentsOnce.mockReturnValueOnce(
+      new Observable<unknown[]>((subscriber) => {
+        firestoreReadSubscriptions += 1;
+        subscriber.next([]);
+        subscriber.complete();
+      })
+    );
     cache.get$.mockReturnValueOnce(
       of({ status: 'fresh', value: [] as IUserDados[] })
     );
@@ -112,7 +121,9 @@ describe('UserDiscoveryQueryService', () => {
     const result = await firstValueFrom(service.getAllUsers$());
 
     expect(result).toEqual([]);
-    expect(read.getDocumentsOnce).not.toHaveBeenCalled();
+    // O Observable frio pode ser construído, mas não pode ser assinado em cache hit.
+    expect(read.getDocumentsOnce).toHaveBeenCalledTimes(1);
+    expect(firestoreReadSubscriptions).toBe(0);
     expect(cache.set$).not.toHaveBeenCalled();
   });
 
