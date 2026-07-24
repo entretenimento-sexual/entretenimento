@@ -24,12 +24,30 @@ import {
   CacheDefinition,
   CacheEnvelope,
   CacheResult,
+  CacheScope,
+  CacheSensitivity,
+  CacheStorage,
 } from './cache-contracts';
 import { CachePersistenceService } from './cache-persistence.service';
 
 class CacheConfigurationError extends Error {
   override readonly name = 'CacheConfigurationError';
 }
+
+const VALID_SCOPES: readonly CacheScope[] = [
+  'global',
+  'session',
+  'user',
+];
+const VALID_SENSITIVITIES: readonly CacheSensitivity[] = [
+  'public',
+  'private',
+  'restricted',
+];
+const VALID_STORAGES: readonly CacheStorage[] = [
+  'memory',
+  'persistent',
+];
 
 @Injectable({ providedIn: 'root' })
 export class AppCacheService {
@@ -129,12 +147,7 @@ export class AppCacheService {
 
   /**
    * Snapshot síncrono exclusivamente da memória.
-   *
-   * Regras:
-   * - nunca consulta IndexedDB;
-   * - nunca cria inscrição ou side-effect externo;
-   * - aplica versão, owner, validator, TTL e stale window;
-   * - para fluxos novos, `get$()` continua sendo a API preferencial.
+   * Nunca consulta IndexedDB nem cria side-effect externo.
    */
   peek<T>(definition: CacheDefinition<T>): CacheResult<T> {
     const normalized = this.normalizeDefinition(definition);
@@ -368,23 +381,19 @@ export class AppCacheService {
       );
     }
 
-    if (!['global', 'session', 'user'].includes(definition.scope)) {
+    if (!VALID_SCOPES.includes(definition.scope)) {
       throw new CacheConfigurationError(
         `[AppCacheService] Escopo inválido para "${key}".`
       );
     }
 
-    if (
-      !['public', 'private', 'restricted'].includes(
-        definition.sensitivity
-      )
-    ) {
+    if (!VALID_SENSITIVITIES.includes(definition.sensitivity)) {
       throw new CacheConfigurationError(
         `[AppCacheService] Sensibilidade inválida para "${key}".`
       );
     }
 
-    if (!['memory', 'persistent'].includes(definition.storage)) {
+    if (!VALID_STORAGES.includes(definition.storage)) {
       throw new CacheConfigurationError(
         `[AppCacheService] Storage inválido para "${key}".`
       );
