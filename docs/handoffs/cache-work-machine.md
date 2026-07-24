@@ -15,6 +15,8 @@ Não criar outra branch, não fazer rebase, não usar `reset --hard`, não alter
 A arquitetura tipada e privacy-first já cobre:
 
 - `AppCacheService` com memória, persistência opt-in, TTL, stale window, versão e escopo por UID;
+- proteção contra reidratação tardia de leitura IndexedDB invalidada;
+- escrita nova vencendo leitura persistente antiga ainda em voo;
 - limpeza em logout, sessão nula e troca de conta;
 - preferências íntimas, localização e perfis privados somente em memória;
 - remoção do slice genérico de cache do NgRx;
@@ -41,6 +43,8 @@ Também foram adicionados depois da última validação:
 - separação entre documento privado do dono e espelho público;
 - bloqueio definitivo da opção legada `persistCache` para links sociais;
 - testes de isolamento privado, público autenticado e público anônimo;
+- proteção de corrida entre leitura persistente, `set$()`, invalidação e limpeza;
+- testes garantindo que logout/limpeza não permitam reidratação posterior;
 - script seguro de retomada desta branch.
 
 Por isso, a suíte completa e o build precisam ser executados novamente antes de ampliar a migração.
@@ -91,6 +95,11 @@ Na validação dos testes, observar especialmente:
 - `cache-session-lifecycle.service.spec.ts`;
 - `cache-auth-lifecycle-bridge.service.spec.ts`;
 - `user-preferences.service.spec.ts`.
+
+O `app-cache.service.spec.ts` agora deve cobrir também:
+
+- escrita nova vencendo reidratação antiga;
+- limpeza de sessão impedindo repopulação tardia da memória.
 
 ## Validação manual no Emulator Suite
 
