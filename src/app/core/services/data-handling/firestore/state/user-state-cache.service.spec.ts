@@ -158,7 +158,7 @@ describe('UserStateCacheService', () => {
     );
   });
 
-  it('updateUserInStateAndCache mescla patch e preserva API void', () => {
+  it('updateUserInStateAndCache mescla, sanitiza e preserva API void', () => {
     cache.peek.mockReturnValueOnce({
       status: 'fresh',
       value: user,
@@ -168,14 +168,16 @@ describe('UserStateCacheService', () => {
       nickname: 'novo-nick',
     } as IUserDados);
 
+    const expected = sanitizeUserForStore({
+      ...user,
+      nickname: 'novo-nick',
+      uid: 'uid-1',
+    });
+
     expect(store.dispatch).toHaveBeenCalledWith(
       updateUserInState({
         uid: 'uid-1',
-        updatedData: expect.objectContaining({
-          uid: 'uid-1',
-          email: 'private@example.com',
-          nickname: 'novo-nick',
-        }) as IUserDados,
+        updatedData: expected,
       })
     );
     expect(cache.set$).toHaveBeenCalledWith(
@@ -184,7 +186,7 @@ describe('UserStateCacheService', () => {
         sensitivity: 'restricted',
         storage: 'memory',
       }),
-      expect.objectContaining({ nickname: 'novo-nick' })
+      expected
     );
   });
 
