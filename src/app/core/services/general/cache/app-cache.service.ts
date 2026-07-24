@@ -7,7 +7,8 @@
 // - TTL, versão, escopo e proprietário acompanham o valor;
 // - null pode ser valor legítimo, pois miss é discriminado;
 // - dados restricted nunca são persistidos;
-// - falhas do IndexedDB são best-effort e não geram toast.
+// - falhas do IndexedDB são best-effort e não geram toast;
+// - leituras persistentes invalidadas nunca podem repovoar a memória.
 import { Injectable } from '@angular/core';
 import { Observable, defer, of, throwError } from 'rxjs';
 import {
@@ -34,6 +35,11 @@ class CacheConfigurationError extends Error {
   override readonly name = 'CacheConfigurationError';
 }
 
+type InFlightRead = {
+  readonly stream: Observable<CacheResult<unknown>>;
+  readonly token: object;
+};
+
 const VALID_SCOPES: readonly CacheScope[] = [
   'global',
   'session',
@@ -54,10 +60,8 @@ export class AppCacheService {
   private static readonly STORAGE_PREFIX = 'app-cache:';
 
   private readonly memory = new Map<string, CacheEnvelope<unknown>>();
-  private readonly inFlightReads = new Map<
-    string,
-    Observable<CacheResult<unknown>>
-  >();
+  private readonly inFlightReads = new Map<string, InFlightRead>();
+  private readonly invalidatedReadTokens = new WeakSet<object>();
 
   constructor(
     private readonly persistence: CachePersistenceService,
@@ -84,13 +88,20 @@ export class AppCacheService {
 
       const existingRead = this.inFlightReads.get(storageKey);
       if (existingRead) {
-        return existingRead as Observable<CacheResult<T>>;
+        return existingRead.stream as Observable<CacheResult<T>>;
       }
 
+      const token = {};
       const read$ = this.persistence
         .getEnvelopePersistent<T>(storageKey)
         .pipe(
           switchMap((envelope) => {
+            // Uma limpeza, invalidação ou escrita mais recente pode ocorrer enquanto
+            // o IndexedDB ainda responde. Nesse caso, a leitura antiga é descartada.
+            if (this.invalidatedReadTokens.has(token)) {
+              return of(CACHE_MISS as CacheResult<T>);
+            }
+
             if (!envelope) {
               return of(CACHE_MISS as CacheResult<T>);
             }
@@ -123,14 +134,19 @@ export class AppCacheService {
             });
             return of(CACHE_MISS as CacheResult<T>);
           }),
-          finalize(() => this.inFlightReads.delete(storageKey)),
+          finalize(() => {
+            const current = this.inFlightReads.get(storageKey);
+            if (current?.token === token) {
+              this.inFlightReads.delete(storageKey);
+            }
+          }),
           shareReplay({ bufferSize: 1, refCount: false })
         );
 
-      this.inFlightReads.set(
-        storageKey,
-        read$ as Observable<CacheResult<unknown>>
-      );
+      this.inFlightReads.set(storageKey, {
+        stream: read$ as Observable<CacheResult<unknown>>,
+        token,
+      });
 
       return read$;
     }).pipe(
@@ -171,6 +187,9 @@ export class AppCacheService {
 
       const storageKey = this.storageKey(normalized);
       const envelope = this.createEnvelope(normalized, value);
+
+      // Uma escrita explícita sempre vence qualquer reidratação anterior em voo.
+      this.invalidateInFlightRead(storageKey);
       this.memory.set(storageKey, envelope);
 
       if (normalized.storage === 'memory') {
@@ -195,8 +214,8 @@ export class AppCacheService {
       const normalized = this.normalizeDefinition(definition);
       const storageKey = this.storageKey(normalized);
 
+      this.invalidateInFlightRead(storageKey);
       this.memory.delete(storageKey);
-      this.inFlightReads.delete(storageKey);
 
       if (normalized.storage === 'memory') {
         return of(void 0);
@@ -237,8 +256,11 @@ export class AppCacheService {
   }
 
   clearMemory(): void {
+    for (const key of Array.from(this.inFlightReads.keys())) {
+      this.invalidateInFlightRead(key);
+    }
+
     this.memory.clear();
-    this.inFlightReads.clear();
   }
 
   private readMemory<T>(
@@ -270,7 +292,7 @@ export class AppCacheService {
 
     for (const key of Array.from(this.inFlightReads.keys())) {
       if (key.startsWith(prefix)) {
-        this.inFlightReads.delete(key);
+        this.invalidateInFlightRead(key);
       }
     }
 
@@ -281,6 +303,14 @@ export class AppCacheService {
         return of(void 0);
       })
     );
+  }
+
+  private invalidateInFlightRead(storageKey: string): void {
+    const current = this.inFlightReads.get(storageKey);
+    if (!current) return;
+
+    this.invalidatedReadTokens.add(current.token);
+    this.inFlightReads.delete(storageKey);
   }
 
   private createEnvelope<T>(
