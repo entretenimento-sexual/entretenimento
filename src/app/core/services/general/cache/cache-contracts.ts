@@ -1,12 +1,12 @@
 // src/app/core/services/general/cache/cache-contracts.ts
-// Contratos únicos da nova arquitetura de cache.
+// Contratos únicos da arquitetura de cache.
 //
 // Regras:
 // - cache é otimização descartável, nunca fonte de autorização;
 // - persistência é opt-in;
-// - dados restritos permanecem somente em memória;
+// - dados restricted permanecem somente em memória;
 // - TTL e versão acompanham o valor persistido;
-// - null pode ser um valor legítimo, por isso miss é discriminado.
+// - null pode ser valor legítimo, por isso miss é discriminado.
 
 export type CacheScope = 'global' | 'session' | 'user';
 export type CacheSensitivity = 'public' | 'private' | 'restricted';
@@ -25,7 +25,10 @@ export interface CacheDefinition<T> {
   /** Persistência deve ser escolhida conscientemente. */
   readonly storage: CacheStorage;
 
-  /** Tempo de validade. null significa sem expiração automática. */
+  /**
+   * Tempo de validade obrigatório.
+   * `null` significa sem expiração automática; omissão é configuração inválida.
+   */
   readonly ttlMs: number | null;
 
   /** Janela opcional em que o valor expirado ainda pode alimentar SWR. */
