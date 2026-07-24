@@ -11,15 +11,19 @@ O cache é uma otimização descartável. Ele nunca é fonte de verdade para:
 - suspensão ou bloqueio;
 - acesso a conteúdo privado.
 
-Firestore/Functions permanecem autoritativos. NgRx representa estado compartilhado de domínio. Signals ou estado da feature representam loading e demais estados de interface.
+Firestore/Functions permanecem autoritativos. NgRx representa estado compartilhado de domínio. Signals ou estado reativo local representam loading e demais estados de interface.
 
-## Arquitetura nova
+## Arquitetura
 
-- `cache-contracts.ts`: contratos tipados, envelope e resultado discriminado.
-- `app-cache.service.ts`: fachada usada por novos fluxos.
-- `cache-persistence.service.ts`: adaptador IndexedDB sem regras de domínio.
+- `cache-contracts.ts`: definição tipada, envelope e resultado discriminado.
+- `app-cache.service.ts`: fachada para fluxos novos e migrados.
+- `cache-persistence.service.ts`: adaptador IndexedDB Observable-first.
+- `cache-session-lifecycle.service.ts`: limpeza coordenada em logout e troca de UID.
+- `cache-auth-lifecycle-bridge.service.ts`: integração reativa com `AuthSessionService.uid$`.
+- `cache-legacy-migration.service.ts`: saneamentos idempotentes temporários.
+- `legacy-cache-persistence-policy.ts`: barreira de privacidade para consumidores legados.
 
-O `cache.service.ts` permanece temporariamente como compatibilidade para consumidores ainda não migrados.
+O `cache.service.ts` permanece somente como compatibilidade para consumidores ainda não migrados.
 
 ## Regras obrigatórias
 
@@ -32,7 +36,9 @@ O `cache.service.ts` permanece temporariamente como compatibilidade para consumi
 7. Falha do IndexedDB não deve gerar toast nem impedir o fluxo principal.
 8. Chaves não devem conter e-mail, senha, token ou texto íntimo em claro.
 9. Mutations de domínio devem invalidar ou atualizar explicitamente suas definições.
-10. Toda nova política de persistência precisa de teste de logout/troca de UID.
+10. Toda política user-scoped precisa de teste de logout e troca de UID.
+11. Perfil completo nunca deve ser espelhado em `localStorage`.
+12. O adaptador legado não pode reidratar chaves bloqueadas pela política de privacidade.
 
 ## Escolha de camada
 
@@ -45,18 +51,30 @@ O `cache.service.ts` permanece temporariamente como compatibilidade para consumi
 | Persistência local aprovada | `AppCacheService` com `storage: 'persistent'` |
 | Dado íntimo/restrito | memória ou NgRx; nunca IndexedDB por conveniência |
 
-## Migração planejada
+## Migração concluída nesta fase
 
-1. Validações efêmeras.
-2. Catálogos públicos e IBGE.
-3. Descoberta pública com chave viewer-scoped.
-4. Preferências como cache restrito somente em memória.
-5. Perfil do usuário atual sem objeto completo no `localStorage`.
-6. Amizades e pesquisas sem persistência automática.
-7. Remoção do slice genérico de cache no NgRx.
-8. Remoção do `CacheSyncService` e do Firestore legado após busca final de consumidores.
+- validação de apelido: cache público somente em memória;
+- preferências íntimas: `user/restricted/memory`, com SWR tipado;
+- limpeza de `preferences:*` legado;
+- logout e hard sign-out integrados ao ciclo de vida do cache;
+- troca de UID e sessão nula limpando escopos anteriores;
+- loading de busca/configurações removido do cache;
+- pesquisa de amigos: cache privado, viewer-scoped e somente em memória;
+- configurações de amizade: Store da feature, sem cache e sem atraso artificial;
+- `allUsers`: cache privado e somente em memória;
+- perfil atual: objeto completo removido de `localStorage`;
+- leituras/gravações legadas sensíveis bloqueadas no adaptador IndexedDB;
+- resíduos sensíveis conhecidos saneados no bootstrap.
 
-## Supressões futuras
+## Próximas migrações
+
+1. `UserDiscoveryQueryService` para definições viewer-scoped do `AppCacheService`.
+2. Catálogos públicos/IBGE com persistência tipada e versionada.
+3. Serviços sociais restantes ainda ligados ao `CacheService`.
+4. Remoção do slice genérico de cache no NgRx.
+5. Remoção do `CacheSyncService` e do Firestore legado após busca final de consumidores.
+
+## Arquivos ainda preservados
 
 Os arquivos abaixo não devem ser apagados antes de migração, busca de imports, build e testes:
 
@@ -68,4 +86,4 @@ Os arquivos abaixo não devem ser apagados antes de migração, busca de imports
 - `cache-sync.service.ts`;
 - `data-handling/legacy/firestore.service.ts`.
 
-Motivo previsto da supressão: responsabilidades duplicadas ou fluxo de uso inconsistente. Até essa etapa, não adicionar novos consumidores a esses arquivos.
+Motivo previsto da supressão futura: responsabilidades duplicadas ou fluxo de uso inconsistente. Até essa etapa, não adicionar novos consumidores a esses arquivos.
