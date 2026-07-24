@@ -1,6 +1,4 @@
 // src/app/messaging/direct-chat/services/direct-thread.service.spec.ts
-import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
-
 const functionsMocks = vi.hoisted(() => ({
   httpsCallable: vi.fn(),
 }));
@@ -10,6 +8,7 @@ vi.mock('@angular/fire/functions', () => ({
   httpsCallable: functionsMocks.httpsCallable,
 }));
 
+import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
 import { DirectThreadService } from './direct-thread.service';
 
 type MockFn = ReturnType<typeof vi.fn>;
