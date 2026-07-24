@@ -1,0 +1,132 @@
+name: PR validation and Firebase preview
+
+'on':
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Tests and builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configure Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions
+
+      - name: Build Firestore rules
+        run: npm run rules:build
+
+      - name: Check Firestore rules
+        run: npm run rules:check
+
+      - name: Build Cloud Functions
+        run: npm run functions:build
+
+      - name: Run unit tests
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:ci 2>&1 | tee unit-test.log
+
+      - name: Store unit test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-log-${{ github.run_id }}
+          path: unit-test.log
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Build Firebase Hosting preview
+        run: npm run build:preview
+
+      - name: Store Firebase Hosting files
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebase-hosting-preview-${{ github.event.pull_request.number || github.run_id }}
+          path: dist/entretenimento/browser
+          if-no-files-found: error
+          retention-days: 3
+
+  preview:
+    name: Firebase Hosting preview
+    needs: validate
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Restore Firebase Hosting files
+        uses: actions/download-artifact@v4
+        with:
+          name: firebase-hosting-preview-${{ github.event.pull_request.number }}
+          path: dist/entretenimento/browser
+
+      - name: Check Firebase credential
+        id: firebase-credential
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ENTRETENIMENTO_STAGING }}
+        shell: bash
+        run: |
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Firebase preview not published::Configure the FIREBASE_SERVICE_ACCOUNT_ENTRETENIMENTO_STAGING repository secret."
+          fi
+
+      - name: Deploy temporary Firebase Hosting preview
+        if: steps.firebase-credential.outputs.configured == 'true'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ENTRETENIMENTO_STAGING }}
+          projectId: entretenimento-staging
+          expires: 7d
+
+      - name: Record skipped preview
+        if: steps.firebase-credential.outputs.configured != 'true'
+        shell: bash
+        run: |
+          {
+            echo "## Firebase Hosting preview"
+            echo
+            echo "O build foi validado, mas o preview não foi publicado porque a credencial do projeto de staging ainda não foi configurada."
+          } >> "$GITHUB_STEP_SUMMARY"

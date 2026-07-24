@@ -1,10 +1,4 @@
-import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, from, of } from 'rxjs';
-
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
-import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
-
-const firestoreMocks = {
+const firestoreMocks = vi.hoisted(() => ({
   Firestore: class FirestoreMock {},
   collection: vi.fn(() => ({ kind: 'collection' })),
   collectionData: vi.fn(),
@@ -14,42 +8,33 @@ const firestoreMocks = {
   limit: vi.fn((value: number) => ({ kind: 'limit', value })),
   query: vi.fn(() => ({ kind: 'query' })),
   where: vi.fn(() => ({ kind: 'where' })),
-};
+}));
 
-vi.doMock('@angular/fire/firestore', () => firestoreMocks);
+vi.mock('@angular/fire/firestore', () => firestoreMocks);
+
+import { firstValueFrom, from, of } from 'rxjs';
+import { RoomService } from './room.service';
 
 type RoomSpecItem = { id: string; roomName: string; participants: string[] };
 
 describe('RoomService', () => {
-  let service: any;
-  let RoomServiceToken: any;
-  let FirestoreToken: any;
-
-  beforeAll(async () => {
-    FirestoreToken = (await import('@angular/fire/firestore')).Firestore;
-    RoomServiceToken = (await import('./room.service')).RoomService;
-  });
+  let service: RoomService;
 
   beforeEach(() => {
-    TestBed.resetTestingModule();
     vi.clearAllMocks();
 
-    TestBed.configureTestingModule({
-      providers: [
-        RoomServiceToken,
-        { provide: FirestoreToken, useValue: {} },
-        {
-          provide: FirestoreContextService,
-          useValue: {
-            deferPromise$: (task: () => Promise<unknown>) => from(task()),
-            deferObservable$: (task: () => unknown) => task(),
-          },
-        },
-        { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
-      ],
-    });
+    service = Object.create(RoomService.prototype) as RoomService;
 
-    service = TestBed.inject(RoomServiceToken);
+    Object.assign(service as any, {
+      db: {},
+      ctx: {
+        deferPromise$: (task: () => Promise<unknown>) => from(task()),
+        deferObservable$: (task: () => unknown) => task(),
+      },
+      globalError: {
+        handleError: vi.fn(),
+      },
+    });
   });
 
   it('deve ser criado', () => {
@@ -72,12 +57,24 @@ describe('RoomService', () => {
   it('getUserRooms emite lista owner-only normalizada', async () => {
     firestoreMocks.collectionData.mockReturnValueOnce(
       of([
-        { id: 'r1', roomName: 'Sala 1', createdBy: 'u1', participants: ['u1'] },
-        { id: 'r2', roomName: 'Sala 2', createdBy: 'u1', participants: ['u1', 'u2'] },
+        {
+          id: 'r1',
+          roomName: 'Sala 1',
+          createdBy: 'u1',
+          participants: ['u1'],
+        },
+        {
+          id: 'r2',
+          roomName: 'Sala 2',
+          createdBy: 'u1',
+          participants: ['u1', 'u2'],
+        },
       ])
     );
 
-    const rooms = await firstValueFrom(service.getUserRooms('u1')) as RoomSpecItem[];
+    const rooms = await firstValueFrom(
+      service.getUserRooms('u1')
+    ) as RoomSpecItem[];
 
     expect(rooms.length).toBe(2);
     expect(rooms[0].id).toBe('r1');
@@ -87,10 +84,19 @@ describe('RoomService', () => {
 
   it('getRooms emite lista por membership', async () => {
     firestoreMocks.collectionData.mockReturnValueOnce(
-      of([{ id: 'r10', roomName: 'Sala A', createdBy: 'u9', participants: ['u1', 'u9'] }])
+      of([
+        {
+          id: 'r10',
+          roomName: 'Sala A',
+          createdBy: 'u9',
+          participants: ['u1', 'u9'],
+        },
+      ])
     );
 
-    const rooms = await firstValueFrom(service.getRooms('u1')) as RoomSpecItem[];
+    const rooms = await firstValueFrom(
+      service.getRooms('u1')
+    ) as RoomSpecItem[];
 
     expect(rooms.length).toBe(1);
     expect(rooms[0].id).toBe('r10');
@@ -99,10 +105,17 @@ describe('RoomService', () => {
 
   it('getRoomById emite documento único', async () => {
     firestoreMocks.docData.mockReturnValueOnce(
-      of({ id: 'room-xyz', roomName: 'X', createdBy: 'u9', participants: ['a', 'b'] })
+      of({
+        id: 'room-xyz',
+        roomName: 'X',
+        createdBy: 'u9',
+        participants: ['a', 'b'],
+      })
     );
 
-    const room = await firstValueFrom(service.getRoomById('room-xyz')) as RoomSpecItem;
+    const room = await firstValueFrom(
+      service.getRoomById('room-xyz')
+    ) as RoomSpecItem;
 
     expect(room.id).toBe('room-xyz');
     expect(room.roomName).toBe('X');
@@ -110,10 +123,14 @@ describe('RoomService', () => {
   });
 
   it('deve falhar ao contar salas sem uid', async () => {
-    await expect(service.countUserRooms('')).rejects.toThrow('UID ausente para consulta de salas.');
+    await expect(service.countUserRooms('')).rejects.toThrow(
+      'UID ausente para consulta de salas.'
+    );
   });
 
   it('deve falhar ao buscar roomId vazio', async () => {
-    await expect(firstValueFrom(service.getRoomById(''))).rejects.toThrow('roomId ausente para consulta da sala.');
+    await expect(firstValueFrom(service.getRoomById(''))).rejects.toThrow(
+      'roomId ausente para consulta da sala.'
+    );
   });
 });
