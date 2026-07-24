@@ -1,0 +1,124 @@
+/* src/styles/control-density.css
+ * Padrão canônico de altura para campos e botões da plataforma.
+ * Teste visual atual: 36px no desktop e 40px em dispositivos de toque.
+ * Não define largura, grid, posicionamento ou composição de telas.
+ */
+
+:root {
+  --control-height: 36px;
+  --control-height-touch: 40px;
+  --control-radius: 8px;
+  --control-padding-inline: 12px;
+}
+
+:is(
+  input.input-field:not([type='checkbox']):not([type='radio']),
+  select.input-field,
+  .form-control:not(textarea),
+  .form-select
+) {
+  box-sizing: border-box;
+  height: var(--control-height);
+  min-height: var(--control-height);
+  padding-block: 0;
+  padding-inline: var(--control-padding-inline);
+  border-radius: var(--control-radius);
+  line-height: 1.2;
+}
+
+textarea.input-field,
+textarea.form-control {
+  min-height: 88px;
+  padding: 10px var(--control-padding-inline);
+  resize: vertical;
+}
+
+:is(.btn, button.btn, .btn-google):not(.btn-link) {
+  box-sizing: border-box;
+  height: var(--control-height);
+  min-height: var(--control-height);
+  padding-block: 0;
+  padding-inline: 14px;
+  border-radius: var(--control-radius);
+  line-height: 1.2;
+}
+
+/*
+ * Validação flutuante do login.
+ * O wrapper preserva a mesma sequência label/campo, enquanto o aviso fica
+ * fora do fluxo e não altera a altura do formulário ao aparecer.
+ */
+app-login-component .login-field {
+  position: relative;
+  display: grid;
+  gap: 0.78rem;
+}
+
+app-login-component .login-field .field-error {
+  position: absolute;
+  top: -2px;
+  right: 0;
+  z-index: 4;
+  max-width: min(72%, 220px);
+  margin: 0;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--danger-color, #c62828);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+app-login-component .login-field .field-error::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  bottom: -4px;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+@media (pointer: coarse) {
+  :is(
+    input.input-field:not([type='checkbox']):not([type='radio']),
+    select.input-field,
+    .form-control:not(textarea),
+    .form-select,
+    .btn,
+    button.btn,
+    .btn-google
+  ):not(.btn-link) {
+    height: var(--control-height-touch);
+    min-height: var(--control-height-touch);
+  }
+}
+
+@media (max-width: 420px) {
+  app-login-component .login-field .field-error {
+    max-width: 76%;
+    font-size: 0.68rem;
+  }
+}
+
+html.high-contrast :is(
+  input.input-field,
+  select.input-field,
+  textarea.input-field,
+  .form-control,
+  .form-select,
+  .btn,
+  .btn-google
+) {
+  border-width: 2px;
+}
+
+html.high-contrast app-login-component .login-field .field-error {
+  border: 2px solid currentColor;
+  box-shadow: none;
+}
