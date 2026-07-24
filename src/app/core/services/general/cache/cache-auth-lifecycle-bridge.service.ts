@@ -2,10 +2,10 @@
 // Ponte reativa entre a sessão Firebase e o ciclo de vida do cache.
 //
 // Este serviço não autentica, não navega e não mantém perfil de usuário.
-// Ele apenas observa mudanças canônicas de UID e solicita a limpeza adequada.
+// Ele saneia resíduos legados e observa mudanças canônicas de UID.
 import { DestroyRef, Injectable } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { EMPTY, of } from 'rxjs';
+import { EMPTY, concat, of } from 'rxjs';
 import {
   catchError,
   concatMap,
@@ -14,7 +14,9 @@ import {
 
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { CacheLegacyMigrationService } from './cache-legacy-migration.service';
 import { CacheSessionLifecycleService } from './cache-session-lifecycle.service';
+import { LEGACY_MEMORY_ONLY_PREFIXES } from './legacy-cache-persistence-policy';
 
 @Injectable({ providedIn: 'root' })
 export class CacheAuthLifecycleBridgeService {
@@ -24,25 +26,26 @@ export class CacheAuthLifecycleBridgeService {
   constructor(
     private readonly authSession: AuthSessionService,
     private readonly cacheLifecycle: CacheSessionLifecycleService,
+    private readonly legacyMigration: CacheLegacyMigrationService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly destroyRef: DestroyRef
   ) {}
 
   /**
-   * Inicia uma única observação do UID canônico.
-   *
-   * Regras:
-   * - na primeira emissão, limpa somente o escopo session;
-   * - em A -> B, limpa session + user(A) + legado sensível;
-   * - em A -> null, aplica a mesma limpeza de encerramento do UID A;
-   * - em null -> B, inicia a nova sessão sem resíduos session-scoped.
+   * Inicia uma única sequência:
+   * 1) remove resíduos sensíveis conhecidos do cache legado;
+   * 2) observa o UID canônico e limpa escopos nas transições.
    */
   start(): void {
     if (this.started) return;
     this.started = true;
 
-    this.authSession.uid$
-      .pipe(
+    concat(
+      this.legacyMigration.purgePrefixesOnce$(
+        'legacy-sensitive-browser-cache-v2',
+        LEGACY_MEMORY_ONLY_PREFIXES
+      ),
+      this.authSession.uid$.pipe(
         distinctUntilChanged(),
         concatMap((currentUid) => {
           const previousUid = this.previousUid;
@@ -57,7 +60,10 @@ export class CacheAuthLifecycleBridgeService {
           }
 
           return this.cacheLifecycle.clearForUidTransition$(previousUid);
-        }),
+        })
+      )
+    )
+      .pipe(
         catchError((error) => {
           this.report(error);
           return EMPTY;
@@ -81,7 +87,7 @@ export class CacheAuthLifecycleBridgeService {
 
       (wrapped as any).original = error;
       (wrapped as any).feature = 'cache-auth-lifecycle-bridge';
-      (wrapped as any).context = { operation: 'start.uid$' };
+      (wrapped as any).context = { operation: 'start' };
       (wrapped as any).silent = true;
       (wrapped as any).skipUserNotification = true;
 
