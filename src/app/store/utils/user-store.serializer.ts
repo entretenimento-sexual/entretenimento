@@ -47,6 +47,19 @@ export function sanitizeUserForStore(u: IUserDados): IUserDados {
     singleRoomCreationRightExpires: toSerializableEpoch(anyU.singleRoomCreationRightExpires),
 
     lastStateChangeAt: toSerializableEpoch(anyU.lastStateChangeAt),
+
+    /**
+     * Métrica agregada gravada em public_profiles/{uid} pelo backend.
+     *
+     * SUPRESSÃO EXPLÍCITA:
+     * - o Timestamp original do Firestore não entra no NgRx.
+     *
+     * Motivo:
+     * - actions e state precisam permanecer serializáveis;
+     * - o valor em epoch preserva ordenação e comparação sem acoplar o Store ao SDK.
+     */
+    mediaMetricsUpdatedAt: toSerializableEpoch(anyU.mediaMetricsUpdatedAt),
+
     adultConsent: sanitizeConsent(anyU.adultConsent),
   } as IUserDados;
 }
