@@ -1,7 +1,11 @@
 import 'fake-indexeddb/auto';
 
 import { TestBed } from '@angular/core/testing';
-import { clear as clearIndexedDb } from 'idb-keyval';
+import {
+  clear as clearIndexedDb,
+  get as getRaw,
+  set as setRaw,
+} from 'idb-keyval';
 import { firstValueFrom } from 'rxjs';
 
 import { CacheEnvelope } from './cache-contracts';
@@ -86,6 +90,22 @@ describe('CachePersistenceService', () => {
     expect(
       await firstValueFrom(service.getPersistent('user:uid-1'))
     ).toBeNull();
+  });
+
+  it('recusa e apaga dado sensível gravado por versão anterior', async () => {
+    const legacyKey = 'discovery:public_profiles:all';
+    await setRaw(legacyKey, [{ uid: 'legacy-user' }]);
+
+    expect(await getRaw(legacyKey)).toEqual([
+      { uid: 'legacy-user' },
+    ]);
+
+    expect(
+      await firstValueFrom(
+        service.getPersistent(legacyKey)
+      )
+    ).toBeNull();
+    expect(await getRaw(legacyKey)).toBeUndefined();
   });
 
   it('mantém persistência legada permitida para dados não bloqueados', async () => {
