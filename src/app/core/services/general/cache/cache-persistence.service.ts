@@ -3,13 +3,20 @@
 //
 // Responsabilidade única:
 // - ler, gravar e remover dados persistidos;
-// - não decidir TTL, privacidade, escopo ou feedback ao usuário;
+// - não decidir TTL, escopo ou feedback ao usuário;
 // - manter API pública Observable-first.
+//
+// Exceção temporária de compatibilidade:
+// - setPersistent() atende somente o CacheService legado e aplica uma barreira
+//   de privacidade para chaves antigas conhecidas;
+// - setEnvelopePersistent() pertence à arquitetura nova e recebe a política já
+//   validada pela CacheDefinition/AppCacheService.
 import { Injectable } from '@angular/core';
 import { del, get, keys as idbKeys, set } from 'idb-keyval';
 import { from, Observable, of } from 'rxjs';
 
 import { CacheEnvelope } from './cache-contracts';
+import { shouldBlockLegacyPersistence } from './legacy-cache-persistence-policy';
 
 @Injectable({ providedIn: 'root' })
 export class CachePersistenceService {
@@ -18,6 +25,10 @@ export class CachePersistenceService {
    * Novos fluxos devem preferir envelopes tipados.
    */
   setPersistent<T>(key: string, value: T): Observable<void> {
+    if (shouldBlockLegacyPersistence(key)) {
+      return of(void 0);
+    }
+
     return from(set(key, value));
   }
 
@@ -30,9 +41,7 @@ export class CachePersistenceService {
     );
   }
 
-  /**
-   * Nova API: persiste valor, TTL, versão e escopo no mesmo registro.
-   */
+  /** Nova API: persiste valor, TTL, versão e escopo no mesmo registro. */
   setEnvelopePersistent<T>(
     key: string,
     envelope: CacheEnvelope<T>
@@ -40,9 +49,7 @@ export class CachePersistenceService {
     return from(set(key, envelope));
   }
 
-  /**
-   * Nova API: recupera o envelope completo para validar expiração e schema.
-   */
+  /** Nova API: recupera o envelope completo. */
   getEnvelopePersistent<T>(
     key: string
   ): Observable<CacheEnvelope<T> | null> {
@@ -74,7 +81,6 @@ export class CachePersistenceService {
 
   /**
    * Remove chaves de vários prefixos com apenas uma varredura do IndexedDB.
-   * Isso evita repetir idbKeys() para cada categoria durante logout/troca de UID.
    */
   deletePersistentByPrefixes(prefixes: string[]): Observable<number> {
     const safePrefixes = this.normalizeValues(prefixes);
