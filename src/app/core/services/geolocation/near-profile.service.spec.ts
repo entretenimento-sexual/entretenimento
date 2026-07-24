@@ -36,11 +36,7 @@ vi.mock('@angular/fire/firestore', () => ({
 }));
 vi.mock('geofire-common', () => geofireMocks);
 
-import { TestBed } from '@angular/core/testing';
-import { Firestore } from '@angular/fire/firestore';
-
 import { NearbyProfilesService } from './near-profile.service';
-import { DistanceCalculationService } from './distance-calculation.service';
 
 describe('NearbyProfilesService', () => {
   let service: NearbyProfilesService;
@@ -60,7 +56,6 @@ describe('NearbyProfilesService', () => {
   });
 
   beforeEach(() => {
-    TestBed.resetTestingModule();
     firestoreMocks.getDocs.mockReset();
     firestoreMocks.query.mockReset();
     firestoreMocks.where.mockReset();
@@ -76,18 +71,10 @@ describe('NearbyProfilesService', () => {
     firestoreMocks.startAt.mockReturnValue({});
     firestoreMocks.limit.mockReturnValue({});
 
-    TestBed.configureTestingModule({
-      providers: [
-        NearbyProfilesService,
-        { provide: Firestore, useValue: {} },
-        {
-          provide: DistanceCalculationService,
-          useClass: DistanceCalculationServiceStub,
-        },
-      ],
-    });
-
-    service = TestBed.inject(NearbyProfilesService);
+    service = new NearbyProfilesService(
+      {} as any,
+      new DistanceCalculationServiceStub() as any
+    );
   });
 
   function makeDoc(data: any) {
