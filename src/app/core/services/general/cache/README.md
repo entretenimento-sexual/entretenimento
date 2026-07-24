@@ -45,6 +45,9 @@ O cache não possui mais slice genérico no NgRx. Estado compartilhado continua 
 15. Chaves de consultas filtradas devem incluir valores normalizados dos filtros, não apenas o tipo das constraints.
 16. `QueryConstraint` arbitrária não deve ser serializada para criar chave de cache; somente consultas conhecidas recebem identidade semântica explícita.
 17. Resultados vazios (`[]`) são valores válidos e não devem ser tratados como cache miss.
+18. O documento privado do dono e o espelho público do mesmo UID devem usar chaves, sensibilidade e contexto de leitura distintos.
+19. Opções legadas que solicitam persistência de dados pessoais devem ser mantidas apenas por compatibilidade e não podem vencer a política de privacidade.
+20. Testes de cache hit devem observar assinatura da fonte fria, e não apenas a criação do Observable.
 
 ## Escolha de camada
 
@@ -79,6 +82,11 @@ O cache não possui mais slice genérico no NgRx. Estado compartilhado continua 
 - `searchUsers(QueryConstraint[])`: mantido sem cache da aplicação para evitar fingerprint instável do SDK;
 - listas vazias de descoberta: tratadas como hit válido;
 - busca por UIDs: identidade determinística e retorno na ordem solicitada;
+- links sociais privados: `user/restricted/memory`;
+- links sociais públicos vistos por usuário autenticado: `user/private/memory`;
+- links sociais públicos anônimos: `session/public/memory`;
+- chaves privadas e públicas de links sociais separadas;
+- `persistCache` de links sociais mantido apenas como parâmetro legado sem efeito;
 - `CacheService` reescrito sem Store e sem persistência automática;
 - slice genérico de cache do NgRx removido;
 - `CacheSyncService` removido por ausência de consumidores e duplicidade de responsabilidades.
@@ -98,7 +106,7 @@ Motivo: não havia produtor externo de actions nem consumidor do sincronizador. 
 
 ## Próximas migrações
 
-1. Serviços sociais restantes ainda ligados ao `CacheService`.
+1. Demais serviços sociais ainda ligados ao `CacheService`.
 2. Revisão do UID mínimo em `localStorage` após estabilização do bootstrap Auth.
 3. Remoção do Firestore legado após busca final de consumidores.
 
@@ -121,6 +129,10 @@ Depois, validar no Emulator Suite:
 - descoberta com filtros diferentes;
 - descoberta com resultado vazio;
 - busca de perfis por UIDs em ordens diferentes;
+- links sociais do próprio usuário lendo o documento privado;
+- links sociais de outro perfil lendo somente o espelho público;
+- leitura anônima de links sociais quando permitida pelas rules;
+- ausência de `socialLinks:*` no IndexedDB;
 - limpeza do IndexedDB;
 - ausência do objeto completo `currentUser` no localStorage.
 
