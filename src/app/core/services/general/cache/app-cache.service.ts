@@ -358,7 +358,7 @@ export class AppCacheService {
     const key = String(definition?.key ?? '').trim();
     const ownerUid = String(definition?.ownerUid ?? '').trim();
     const version = Number(definition?.version);
-    const ttlMs = definition?.ttlMs;
+    const rawTtlMs = definition?.ttlMs;
     const staleWhileRevalidateMs =
       definition?.staleWhileRevalidateMs ?? 0;
 
@@ -397,8 +397,10 @@ export class AppCacheService {
     }
 
     if (
-      ttlMs !== null &&
-      (!Number.isFinite(ttlMs) || ttlMs < 0)
+      rawTtlMs !== null &&
+      (typeof rawTtlMs !== 'number' ||
+        !Number.isFinite(rawTtlMs) ||
+        rawTtlMs < 0)
     ) {
       throw new CacheConfigurationError(
         `[AppCacheService] TTL inválido para "${key}".`
@@ -428,6 +430,8 @@ export class AppCacheService {
         `[AppCacheService] Dado restrito não pode ser persistido: "${key}".`
       );
     }
+
+    const ttlMs: number | null = rawTtlMs;
 
     return {
       ...definition,
