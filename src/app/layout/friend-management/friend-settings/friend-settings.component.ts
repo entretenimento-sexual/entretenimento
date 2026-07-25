@@ -52,6 +52,7 @@ export class FriendSettingsComponent implements OnInit {
 
   private readonly isLoadingSubject = new BehaviorSubject<boolean>(false);
   private readonly cacheTtlMs = 10 * 60 * 1000;
+  private readonly legacyCacheKey = 'friendSettings';
 
   constructor(
     private readonly fb: FormBuilder,
@@ -82,6 +83,9 @@ export class FriendSettingsComponent implements OnInit {
    * configurações locais deixadas por outra conta no mesmo navegador.
    */
   private loadSettings(): void {
+    // Migração defensiva: remove a chave global usada pela implementação antiga.
+    this.cacheService.delete(this.legacyCacheKey);
+
     this.authSession.readyUid$
       .pipe(
         take(1),
@@ -109,8 +113,8 @@ export class FriendSettingsComponent implements OnInit {
   /**
    * Atualiza Store e cache local do usuário autenticado.
    *
-   * O loading é estado reativo de UI em memória. Ele não é mais persistido no
-   * cache, pois estados transitórios não devem sobreviver a navegação ou reload.
+   * Loading e configurações permanecem em memória nesta fase. A persistência
+   * voltará somente quando o cache por usuário tiver purge garantido no logout.
    */
   saveSettings(): void {
     if (this.isLoadingSubject.value) return;
@@ -134,7 +138,7 @@ export class FriendSettingsComponent implements OnInit {
             this.cacheKey(safeUid),
             settings,
             this.cacheTtlMs,
-            { persist: true }
+            { persist: false }
           );
 
           return of(void 0);
@@ -176,12 +180,18 @@ export class FriendSettingsComponent implements OnInit {
         ? error
         : new Error('Erro inesperado nas configurações de amizade.');
 
-    (normalizedError as Error & { context?: Record<string, unknown> }).context = {
+    const reportableError = normalizedError as Error & {
+      context?: Record<string, unknown>;
+      skipUserNotification?: boolean;
+    };
+
+    reportableError.context = {
       scope: 'FriendSettingsComponent',
       operation,
     };
+    reportableError.skipUserNotification = true;
 
-    this.globalErrorHandler.handleError(normalizedError);
+    this.globalErrorHandler.handleError(reportableError);
 
     if (notifyUser) {
       this.errorNotifier.showError(
