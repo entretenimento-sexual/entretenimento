@@ -10,162 +10,118 @@
 //
 // Importante:
 // - o cliente NÃO pode fazer sent -> read diretamente;
-// - por isso o avanço precisa ser progressivo;
+// - o avanço usa transação e o estado atual persistido;
+// - mensagens legadas sem status explícito são ignoradas;
 // - falha de receipts é best-effort e não deve quebrar a thread.
 // ============================================================================
 
 import { Injectable } from '@angular/core';
 
-import { forkJoin, Observable, of } from 'rxjs';
-import { catchError, map, tap } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { catchError, tap } from 'rxjs/operators';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
-import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
+import { ChatMessagesRepository } from '@core/services/data-handling/firestore/repositories/chat-messages.repository';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
-
-type ReceiptTransitionTarget = 'delivered' | 'read';
-
-type ReceiptTransition = {
-  messageId: string;
-  nextStatus: ReceiptTransitionTarget;
-};
 
 @Injectable({ providedIn: 'root' })
 export class DirectReceiptsService {
   private readonly maxUpdatesPerTick = 50;
 
   constructor(
-    private readonly chatService: ChatService,
+    private readonly messagesRepository: ChatMessagesRepository,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
   /**
-   * Avança recibos das mensagens recebidas.
+   * Avança receipts das mensagens recebidas.
    *
-   * Regras:
+   * Regras defensivas:
    * - mensagem minha: nunca altera;
    * - mensagem sem id: ignora;
+   * - mensagem sem status explícito: ignora;
    * - read: ignora;
-   * - sent: avança para delivered;
-   * - delivered: avança para read.
+   * - sent/delivered: encaminha para transação no repository.
    *
-   * Observação:
-   * - uma mensagem sent não vira read diretamente por causa das Rules;
-   * - depois que o snapshot atualizar para delivered, esta função pode avançar
-   *   novamente para read.
+   * A decisão final usa o snapshot lido dentro da transação. Assim, emissões
+   * concorrentes do listener não repetem uma escrita com estado já vencido.
    */
   markDeliveredAsRead$(
     chatId: string,
     currentUserUid: string,
     messages: Message[]
   ): Observable<number> {
-    const safeChatId = (chatId ?? '').trim();
-    const safeUid = (currentUserUid ?? '').trim();
+    const safeChatId = String(chatId ?? '').trim();
+    const safeUid = String(currentUserUid ?? '').trim();
     const safeMessages = Array.isArray(messages) ? messages : [];
 
     if (!safeChatId || !safeUid || !safeMessages.length) {
       return of(0);
     }
 
-    const transitions = this.pickReceiptTransitions(safeUid, safeMessages);
+    const messageIds = this.pickReceiptMessageIds(safeUid, safeMessages);
 
-    if (!transitions.length) {
+    if (!messageIds.length) {
       return of(0);
     }
 
-    return forkJoin(
-      transitions.map((transition) =>
-        this.chatService
-          .updateMessageStatus(
-            safeChatId,
-            transition.messageId,
-            transition.nextStatus
-          )
-          .pipe(
-            catchError((error) => {
-              this.reportSilent(
-                error,
-                'DirectReceiptsService.markDeliveredAsRead$.updateMessageStatus',
-                {
-                  chatId: safeChatId,
-                  messageId: transition.messageId,
-                  nextStatus: transition.nextStatus,
-                }
-              );
+    return this.messagesRepository
+      .advanceMessageReceipts$(safeChatId, safeUid, messageIds)
+      .pipe(
+        tap((updatedCount) => {
+          this.dbg('markDeliveredAsRead$', {
+            chatId: safeChatId,
+            candidateCount: messageIds.length,
+            updatedCount,
+          });
+        }),
+        catchError((error) => {
+          this.reportSilent(
+            error,
+            'DirectReceiptsService.markDeliveredAsRead$',
+            {
+              chatId: safeChatId,
+              candidateCount: messageIds.length,
+            }
+          );
 
-              return of(void 0);
-            })
-          )
-      )
-    ).pipe(
-      tap(() => {
-        this.dbg('markDeliveredAsRead$', {
-          chatId: safeChatId,
-          count: transitions.length,
-          deliveredCount: transitions.filter(
-            (transition) => transition.nextStatus === 'delivered'
-          ).length,
-          readCount: transitions.filter(
-            (transition) => transition.nextStatus === 'read'
-          ).length,
-        });
-      }),
-      map(() => transitions.length),
-      catchError((error) => {
-        this.reportSilent(
-          error,
-          'DirectReceiptsService.markDeliveredAsRead$',
-          { chatId: safeChatId }
-        );
-
-        return of(0);
-      })
-    );
+          return of(0);
+        })
+      );
   }
 
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
-  private pickReceiptTransitions(
+  private pickReceiptMessageIds(
     currentUserUid: string,
     messages: Message[]
-  ): ReceiptTransition[] {
-    return messages
-      .map((message): ReceiptTransition | null => {
+  ): string[] {
+    const messageIds = messages
+      .map((message): string | null => {
         const messageId = String(message?.id ?? '').trim();
+        const senderUid =
+          String(message?.senderUid ?? '').trim() ||
+          String(message?.senderId ?? '').trim();
+        const status = message?.status;
 
-        if (!messageId) {
+        if (!messageId || !senderUid || senderUid === currentUserUid) {
           return null;
         }
 
-        if (message?.senderId === currentUserUid) {
+        if (status !== 'sent' && status !== 'delivered') {
           return null;
         }
 
-        const status = message?.status ?? 'sent';
-
-        if (status === 'sent') {
-          return {
-            messageId,
-            nextStatus: 'delivered',
-          };
-        }
-
-        if (status === 'delivered') {
-          return {
-            messageId,
-            nextStatus: 'read',
-          };
-        }
-
-        return null;
+        return messageId;
       })
-      .filter((transition): transition is ReceiptTransition => !!transition)
-      .slice(0, this.maxUpdatesPerTick);
+      .filter((messageId): messageId is string => !!messageId);
+
+    return Array.from(new Set(messageIds)).slice(0, this.maxUpdatesPerTick);
   }
 
   private dbg(message: string, extra?: unknown): void {
