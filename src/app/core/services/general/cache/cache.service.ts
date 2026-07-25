@@ -1,182 +1,167 @@
 // src/app/core/services/general/cache/cache.service.ts
-// Serviço de cache:
-// - memória (rápido)
-// - IndexedDB (persistência assíncrona)
-// - store NgRx como fallback/compat
+// -----------------------------------------------------------------------------
+// Cache auxiliar da aplicação.
 //
-// Importante:
-// - CacheService NÃO é orquestrador de domínio.
-// - Ele não deve ser a fonte de verdade de current user.
-// - Métodos como syncCurrentUserWithUid e setUser existem por compatibilidade.
+// Camadas:
+// - memória: leitura rápida durante a sessão;
+// - IndexedDB: persistência temporária com expiração absoluta;
+// - NgRx: fallback legado de leitura, nunca fonte canônica do cache.
+//
+// Regras:
+// - CacheService não é store de domínio;
+// - estados transitórios de UI não devem ser persistidos;
+// - Firebase/NgRx de domínio continuam sendo fontes de verdade;
+// - dados expirados ou legados nunca são renovados silenciosamente;
+// - uma leitura antiga não pode sobrescrever uma escrita mais recente.
+// -----------------------------------------------------------------------------
 import { Injectable } from '@angular/core';
 import { Store } from '@ngrx/store';
 import {
   Observable,
+  catchError,
+  defer,
+  finalize,
+  forkJoin,
+  map,
   of,
+  shareReplay,
   switchMap,
   take,
-  defer,
-  catchError,
-  finalize,
-  map,
-  shareReplay,
-  forkJoin,
 } from 'rxjs';
 
-import { AppState } from 'src/app/store/states/app.state';
-import { selectCacheItem } from 'src/app/store/selectors/cache.selectors';
-
-import { CachePersistenceService } from './cache-persistence.service';
-import { IUserDados } from '../../../interfaces/iuser-dados';
-
-import { environment } from 'src/environments/environment';
-import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
+import { IUserDados } from '../../../interfaces/iuser-dados';
+import { selectCacheItem } from 'src/app/store/selectors/cache.selectors';
+import { AppState } from 'src/app/store/states/app.state';
+import { CachePersistenceService } from './cache-persistence.service';
 
 interface CacheItem<T> {
   data: T;
   expiration: number | null;
 }
 
-const HOT_KEYS: ReadonlySet<string> = new Set(['currentUser', 'currentUserUid']);
+interface CacheReadToken {
+  generation: number;
+  revision: number;
+}
+
+const HOT_KEYS: ReadonlySet<string> = new Set([
+  'currentUser',
+  'currentUserUid',
+]);
 
 @Injectable({ providedIn: 'root' })
 export class CacheService {
-  private cache: Map<string, CacheItem<any>> = new Map();
-  private readonly defaultTTL = 300_000;
-  private readonly traceUserKeys = this.isCacheTraceEnabled();
-  private readonly logNoopDeletes = false;
-  private readonly inFlightGets = new Map<string, Observable<any>>();
-  private readonly noisyPrefixes: ReadonlyArray<string> = ['validation:'];
- 
-  private readonly tracedUserKeyPrefixes: ReadonlyArray<string> = [
-    'user:',
-  ];
+  private readonly cache = new Map<string, CacheItem<unknown>>();
+  private readonly inFlightGets = new Map<
+    string,
+    Observable<unknown | null>
+  >();
+  private readonly keyRevisions = new Map<string, number>();
 
-  private readonly tracedExactKeys: ReadonlySet<string> = new Set([
-    'currentUser',
-    'currentUserUid',
-  ]);
+  private readonly defaultTTL = 300_000;
+  private readonly logNoopDeletes = false;
+  private mutationGeneration = 0;
 
   /**
- * Chaves exatas que não devem sobreviver ao encerramento de sessão.
- */
-private readonly sensitiveSessionExactKeys: ReadonlyArray<string> = [
-  'currentUser',
-  'currentUserUid',
-  'discovery:public_profiles:all',
-];
+   * Chaves exatas que não devem sobreviver ao encerramento de sessão.
+   */
+  private readonly sensitiveSessionExactKeys: ReadonlyArray<string> = [
+    'currentUser',
+    'currentUserUid',
+    'discovery:public_profiles:all',
+    'friendSettings',
+    'loadingSearch',
+    'loadingSettings',
+  ];
 
-/**
- * Prefixos que podem guardar dados ligados a usuário, perfil, chat,
- * vínculos sociais ou descoberta.
- *
- * Decisão de segurança:
- * - em logout, preferimos recarregar dados depois;
- * - não vale manter rastros locais de perfis vistos, chats ou social links.
- */
-private readonly sensitiveSessionPrefixes: ReadonlyArray<string> = [
-  'user:',
-  'socialLinks:',
-  'chats:',
-  'chat:',
-  'rooms:',
-  'room:',
-  'direct_',
-  'discovery:public_profiles:uids:',
-];
+  /**
+   * Prefixos ligados a usuário, preferências, pesquisa, chat ou descoberta.
+   * Inclui formatos legados para que a próxima saída da conta faça a migração.
+   */
+  private readonly sensitiveSessionPrefixes: ReadonlyArray<string> = [
+    'user:',
+    'preferences:',
+    'friendSettings:',
+    'search:',
+    'socialLinks:',
+    'chats:',
+    'chat:',
+    'rooms:',
+    'room:',
+    'direct_',
+    'discovery:public_profiles:uids:',
+  ];
+
+  private readonly noisyPrefixes: ReadonlyArray<string> = ['validation:'];
 
   constructor(
-    private store: Store<AppState>,
-    private cachePersistence: CachePersistenceService,
-    private globalErrorHandler: GlobalErrorHandlerService,
-    private privacyDebug: PrivacyDebugLoggerService,
+    private readonly store: Store<AppState>,
+    private readonly cachePersistence: CachePersistenceService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService
   ) {
     this.log('Serviço inicializado.');
   }
 
-  // ===========================================================================
-  // SETTERS
-  // ===========================================================================
+  // ---------------------------------------------------------------------------
+  // Escrita
+  // ---------------------------------------------------------------------------
 
-set<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
-  const normalizedKey = this.normalizeKey(key);
-  const expiration = ttl ? Date.now() + ttl : null;
+  set<T>(
+    key: string,
+    data: T,
+    ttl?: number,
+    opts?: { persist?: boolean }
+  ): void {
+    const normalizedKey = this.normalizeKey(key);
+    if (!normalizedKey) return;
+
+    const expiration = this.resolveExpiration(ttl);
+    const persist = opts?.persist ?? !HOT_KEYS.has(normalizedKey);
+    const previous = this.cache.get(normalizedKey);
+
+    if (
+      previous &&
+      this.deepEqual(previous.data, data) &&
+      previous.expiration === expiration
+    ) {
+      this.traceWrite(normalizedKey, expiration, persist, 'skip:same');
+      return;
+    }
+
+    this.bumpRevision(normalizedKey);
+    this.cache.set(normalizedKey, { data, expiration });
+    this.traceWrite(normalizedKey, expiration, persist, 'set');
+
+    if (persist) {
+      this.cachePersistence
+        .setPersistentEntry(normalizedKey, data, expiration)
+        .subscribe({
+          error: (error) =>
+            this.safeHandle(
+              error,
+              `CacheService.setPersistentEntry("${normalizedKey}")`
+            ),
+        });
+    }
+
+    if (HOT_KEYS.has(normalizedKey)) {
+      this.mirrorHotKeyToLocalStorage(normalizedKey, data);
+    }
+  }
 
   /**
-   * HOT_KEYS:
-   * - ficam em memória
-   * - espelham no localStorage
-   * - por default não vão para IndexedDB
+   * Compatibilidade semântica para consumidores antigos.
+   * Não substitui AuthSessionService ou CurrentUserStoreService.
    */
-  const persist = opts?.persist ?? !HOT_KEYS.has(normalizedKey);
-
-  const prev = this.cache.get(normalizedKey);
-  const sameData = prev ? this.deepEqual(prev.data, data) : false;
-  const sameExp = prev ? prev.expiration === expiration : false;
-
-  if (sameData && sameExp) {
-    this.traceUserWrite(normalizedKey, data, {
-      stage: 'skip:sameData+sameExp',
-      expiration,
-      persist,
-    });
-    return;
-  }
-
-  this.traceUserWrite(normalizedKey, data, {
-    stage: 'before:set',
-    expiration,
-    persist,
-    hadPrev: !!prev,
-    sameData,
-    sameExp,
-  });
-
-  this.cache.set(normalizedKey, { data, expiration });
-  this.logKey(normalizedKey, `set → "${normalizedKey}"`, { expiration, persist });
-
-  if (persist) {
-    this.cachePersistence.setPersistent(normalizedKey, data).subscribe({
-      next: () => {
-        this.traceUserWrite(normalizedKey, data, {
-          stage: 'after:setPersistent:ok',
-          expiration,
-          persist,
-        });
-      },
-      error: (err) => {
-        this.traceUserWrite(normalizedKey, data, {
-          stage: 'after:setPersistent:error',
-          expiration,
-          persist,
-          error: err,
-        });
-        this.safeHandle(err, `CacheService.setPersistent("${normalizedKey}")`);
-      },
-    });
-  }
-
-  if (HOT_KEYS.has(normalizedKey)) {
-    this.mirrorHotKeyToLocalStorage(normalizedKey, data);
-    this.traceUserWrite(normalizedKey, data, {
-      stage: 'after:mirrorHotKeyToLocalStorage',
-      expiration,
-      persist,
-    });
-  }
-}
-
-  /**
-   * Compat semântico:
-   * - persiste user:{uid}
-   * - espelha currentUserUid
-   *
-   * Não despacha para store.
-   * Não deve ser tratado como source of truth do perfil.
-   */
-  setUser(uid: string, user: IUserDados, ttl: number = this.defaultTTL): void {
-    const normalizedUid = (uid ?? '').toString().trim();
+  setUser(
+    uid: string,
+    user: IUserDados,
+    ttl: number = this.defaultTTL
+  ): void {
+    const normalizedUid = this.normalizeKey(uid);
     if (!normalizedUid) return;
 
     const userKey = this.userKey(normalizedUid);
@@ -186,33 +171,51 @@ set<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
     this.logKey(userKey, `setUser → ${userKey} + currentUserUid`);
   }
 
-  update<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
+  update<T>(
+    key: string,
+    data: T,
+    ttl?: number,
+    opts?: { persist?: boolean }
+  ): void {
     const normalizedKey = this.normalizeKey(key);
-    const persist = opts?.persist ?? !HOT_KEYS.has(normalizedKey);
+    if (!normalizedKey) return;
 
     const current = this.cache.get(normalizedKey);
-    if (!current) {
-      this.logKey(normalizedKey, `update → chave inexistente: "${normalizedKey}"`);
+    if (!current || this.isExpired(current.expiration)) {
+      if (current) this.cache.delete(normalizedKey);
+      this.logKey(
+        normalizedKey,
+        `update → chave inexistente ou expirada: "${normalizedKey}"`
+      );
       return;
     }
 
-    const newExpiration = ttl ? Date.now() + ttl : current.expiration;
-    const sameData = this.deepEqual(current.data, data);
-    const sameExp = current.expiration === newExpiration;
+    const persist = opts?.persist ?? !HOT_KEYS.has(normalizedKey);
+    const expiration = this.hasPositiveTTL(ttl)
+      ? Date.now() + (ttl as number)
+      : current.expiration;
 
-    if (sameData && sameExp) return;
+    if (
+      this.deepEqual(current.data, data) &&
+      current.expiration === expiration
+    ) {
+      return;
+    }
 
-    this.cache.set(normalizedKey, { data, expiration: newExpiration });
-    this.logKey(normalizedKey, `update → "${normalizedKey}"`, {
-      expiration: newExpiration,
-      persist,
-    });
+    this.bumpRevision(normalizedKey);
+    this.cache.set(normalizedKey, { data, expiration });
+    this.traceWrite(normalizedKey, expiration, persist, 'update');
 
     if (persist) {
-      this.cachePersistence.setPersistent(normalizedKey, data).subscribe({
-        next: () => {},
-        error: (err) => this.safeHandle(err, `CacheService.update.setPersistent("${normalizedKey}")`),
-      });
+      this.cachePersistence
+        .setPersistentEntry(normalizedKey, data, expiration)
+        .subscribe({
+          error: (error) =>
+            this.safeHandle(
+              error,
+              `CacheService.update.setPersistentEntry("${normalizedKey}")`
+            ),
+        });
     }
 
     if (HOT_KEYS.has(normalizedKey)) {
@@ -220,113 +223,118 @@ set<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
     }
   }
 
-  // ===========================================================================
-  // GETTERS
-  // ===========================================================================
+  // ---------------------------------------------------------------------------
+  // Leitura
+  // ---------------------------------------------------------------------------
 
   get<T>(key: string): Observable<T | null> {
     const normalizedKey = this.normalizeKey(key);
+    if (!normalizedKey) return of(null);
+
     this.logKey(normalizedKey, `get → "${normalizedKey}"`);
 
-    const mem = this.cache.get(normalizedKey);
-    if (mem) {
-      if (this.isExpired(mem.expiration)) {
-        this.cache.delete(normalizedKey);
-      } else {
-        return of(mem.data as T);
-      }
+    const memoryValue = this.readValidMemory<T>(normalizedKey);
+    if (memoryValue.hit) {
+      return of(memoryValue.value);
     }
 
-    const inflight = this.inFlightGets.get(normalizedKey);
-    if (inflight) return inflight as Observable<T | null>;
+    const inFlight = this.inFlightGets.get(normalizedKey);
+    if (inFlight) {
+      return inFlight as Observable<T | null>;
+    }
 
-    const rehydrateMemory = (k: string, value: any): void => {
-      const expiration = HOT_KEYS.has(k) ? null : Date.now() + this.defaultTTL;
-      this.cache.set(k, { data: value, expiration });
-      if (HOT_KEYS.has(k)) {
-        this.mirrorHotKeyToLocalStorage(k, value);
-      }
-    };
+    const token = this.createReadToken(normalizedKey);
 
-    const req$ = defer(() => this.cachePersistence.getPersistent<T>(normalizedKey)).pipe(
+    const request$ = defer(() =>
+      this.cachePersistence.getPersistentEntry<T>(normalizedKey)
+    ).pipe(
       switchMap((persisted) => {
-        if (persisted !== null && persisted !== undefined) {
-          rehydrateMemory(normalizedKey, persisted);
-          return of(persisted);
+        if (!this.isReadTokenCurrent(normalizedKey, token)) {
+          return of(this.readCurrentMemoryValue<T>(normalizedKey));
         }
 
-        return this.store.select(selectCacheItem(normalizedKey)).pipe(
-          take(1),
-          map((storeData) => {
-            if (storeData !== undefined && storeData !== null) {
-              rehydrateMemory(normalizedKey, storeData);
-              return storeData as T;
-            }
-            return null;
-          })
-        );
+        if (persisted) {
+          this.cache.set(normalizedKey, {
+            data: persisted.value,
+            expiration: persisted.expiresAt,
+          });
+
+          return of(persisted.value);
+        }
+
+        return this.readLegacyStoreFallback<T>(normalizedKey, token);
       }),
-      catchError((err) => {
-        this.safeHandle(err, `CacheService.get("${normalizedKey}")`);
+      catchError((error) => {
+        this.safeHandle(error, `CacheService.get("${normalizedKey}")`);
         return of(null);
       }),
       finalize(() => {
-        this.inFlightGets.delete(normalizedKey);
+        const current = this.inFlightGets.get(normalizedKey);
+        if (current === request$) {
+          this.inFlightGets.delete(normalizedKey);
+        }
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    this.inFlightGets.set(normalizedKey, req$);
-    return req$;
+    this.inFlightGets.set(normalizedKey, request$);
+    return request$;
   }
 
+  /**
+   * Snapshot síncrono limitado a memória e HOT_KEYS do localStorage.
+   * Não lê IndexedDB; consumidores persistentes devem usar `get()`.
+   */
   getSync<T>(key: string): T | null {
     const normalizedKey = this.normalizeKey(key);
+    if (!normalizedKey) return null;
 
-    const mem = this.cache.get(normalizedKey);
-    if (mem && !this.isExpired(mem.expiration)) return mem.data as T;
+    const memoryValue = this.readValidMemory<T>(normalizedKey);
+    if (memoryValue.hit) {
+      return memoryValue.value;
+    }
+
+    if (!HOT_KEYS.has(normalizedKey)) {
+      return null;
+    }
 
     try {
       const raw = localStorage.getItem(normalizedKey);
-      if (!raw) return null;
-      return JSON.parse(raw) as T;
+      return raw ? (JSON.parse(raw) as T) : null;
     } catch {
       return null;
     }
   }
 
-  // ===========================================================================
-  // EXISTENCE / LIFECYCLE
-  // ===========================================================================
+  // ---------------------------------------------------------------------------
+  // Existência e ciclo de vida
+  // ---------------------------------------------------------------------------
 
   has(key: string): boolean {
     const normalizedKey = this.normalizeKey(key);
-    const cached = this.cache.get(normalizedKey);
+    if (!normalizedKey) return false;
 
-    if (!cached) return false;
-    if (cached.expiration && cached.expiration < Date.now()) {
-      this.cache.delete(normalizedKey);
-      return false;
-    }
-
-    return true;
+    return this.readValidMemory(normalizedKey).hit;
   }
 
   delete(key: string): void {
     const normalizedKey = this.normalizeKey(key);
+    if (!normalizedKey) return;
+
+    this.bumpRevision(normalizedKey);
     const existedInMemory = this.cache.delete(normalizedKey);
+    this.inFlightGets.delete(normalizedKey);
 
     this.cachePersistence.deletePersistent(normalizedKey).subscribe({
-      next: () => {},
-      error: (err) => this.safeHandle(err, `CacheService.deletePersistent("${normalizedKey}")`),
+      error: (error) =>
+        this.safeHandle(
+          error,
+          `CacheService.deletePersistent("${normalizedKey}")`
+        ),
     });
 
     if (HOT_KEYS.has(normalizedKey)) {
-      try {
-        localStorage.removeItem(normalizedKey);
-      } catch {
-        // noop
-      }
+      this.removeLocalStorageKeyBestEffort(normalizedKey);
     }
 
     if (existedInMemory) {
@@ -336,82 +344,86 @@ set<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
     }
   }
 
+  /**
+   * Limpa somente a camada em memória.
+   * O nome é mantido por compatibilidade; persistência exige métodos explícitos.
+   */
   clear(): void {
+    this.mutationGeneration += 1;
     this.cache.clear();
+    this.inFlightGets.clear();
     this.log('clear → memória limpa.');
   }
 
   /**
- * Limpa caches locais sensíveis ao encerrar sessão.
- *
- * Remove:
- * - HOT_KEYS do usuário atual;
- * - perfis cacheados em user:{uid};
- * - social links;
- * - caches de chat/salas;
- * - caches de descoberta por UID;
- * - parte persistente no IndexedDB;
- * - espelhos em localStorage.
- *
- * Observação:
- * - este método não substitui signOut;
- * - ele só limpa rastros locais da sessão anterior.
- */
-clearSensitiveSessionCache$(): Observable<void> {
-  const exactKeys = this.sensitiveSessionExactKeys.map((key) =>
-    this.normalizeKey(key)
-  );
+   * Limpa caches locais ligados à sessão anterior.
+   */
+  clearSensitiveSessionCache$(): Observable<void> {
+    this.mutationGeneration += 1;
 
-  const prefixes = this.sensitiveSessionPrefixes.map((prefix) =>
-    this.normalizeKey(prefix)
-  );
+    const exactKeys = this.sensitiveSessionExactKeys
+      .map((key) => this.normalizeKey(key))
+      .filter(Boolean);
+    const prefixes = this.sensitiveSessionPrefixes
+      .map((prefix) => this.normalizeKey(prefix))
+      .filter(Boolean);
 
-  for (const key of exactKeys) {
-    this.cache.delete(key);
-    this.removeLocalStorageKeyBestEffort(key);
+    for (const key of exactKeys) {
+      this.bumpRevision(key);
+      this.cache.delete(key);
+      this.inFlightGets.delete(key);
+      this.removeLocalStorageKeyBestEffort(key);
+    }
+
+    const memoryDeletedByPrefix = prefixes.map((prefix) => ({
+      prefix: this.maskCacheKey(prefix),
+      deleted: this.deleteMemoryByPrefix(prefix),
+    }));
+
+    const persistentPrefixDeletes$ = prefixes.map((prefix) =>
+      this.cachePersistence.deletePersistentByPrefix(prefix).pipe(
+        map((deleted) => ({
+          prefix: this.maskCacheKey(prefix),
+          deleted,
+        }))
+      )
+    );
+
+    return forkJoin([
+      this.cachePersistence.deletePersistentMany(exactKeys),
+      ...persistentPrefixDeletes$,
+    ]).pipe(
+      map(([exactDeleted, ...prefixDeleted]) => {
+        this.log('clearSensitiveSessionCache$ → concluído', {
+          exactDeleted,
+          memoryDeletedByPrefix,
+          persistentDeletedByPrefix: prefixDeleted,
+        });
+
+        return void 0;
+      }),
+      catchError((error) => {
+        this.safeHandle(
+          error,
+          'CacheService.clearSensitiveSessionCache$'
+        );
+        return of(void 0);
+      })
+    );
   }
-
-  const memoryDeletedByPrefix = prefixes.map((prefix) => ({
-    prefix: this.maskCacheKey(prefix),
-    deleted: this.deleteMemoryByPrefix(prefix),
-  }));
-
-  const persistentPrefixDeletes$ = prefixes.map((prefix) =>
-    this.cachePersistence.deletePersistentByPrefix(prefix).pipe(
-      map((deleted) => ({
-        prefix: this.maskCacheKey(prefix),
-        deleted,
-      }))
-    )
-  );
-
-  return forkJoin([
-    this.cachePersistence.deletePersistentMany(exactKeys),
-    ...persistentPrefixDeletes$,
-  ]).pipe(
-    map(([exactDeleted, ...prefixDeleted]) => {
-      this.log('clearSensitiveSessionCache$ → concluído', {
-        exactDeleted,
-        memoryDeletedByPrefix,
-        persistentDeletedByPrefix: prefixDeleted,
-      });
-
-      return void 0;
-    }),
-    catchError((err) => {
-      this.safeHandle(err, 'CacheService.clearSensitiveSessionCache$');
-      return of(void 0);
-    })
-  );
-}
 
   removeExpired(): void {
     const now = Date.now();
     const expiredKeys = Array.from(this.cache.entries())
-      .filter(([_, item]) => item.expiration && item.expiration < now)
+      .filter(([, item]) =>
+        item.expiration !== null && item.expiration < now
+      )
       .map(([key]) => key);
 
-    expiredKeys.forEach((key) => this.cache.delete(key));
+    for (const key of expiredKeys) {
+      this.bumpRevision(key);
+      this.cache.delete(key);
+    }
 
     if (expiredKeys.length) {
       this.log(`removeExpired → ${expiredKeys.length} itens removidos.`);
@@ -428,236 +440,103 @@ clearSensitiveSessionCache$(): Observable<void> {
     };
   }
 
-  // ===========================================================================
-  // UTILITÁRIOS
-  // ===========================================================================
+  // ---------------------------------------------------------------------------
+  // Utilitários internos
+  // ---------------------------------------------------------------------------
+
+  private readLegacyStoreFallback<T>(
+    key: string,
+    token: CacheReadToken
+  ): Observable<T | null> {
+    return this.store.select(selectCacheItem(key)).pipe(
+      take(1),
+      map((storeData) => {
+        if (!this.isReadTokenCurrent(key, token)) {
+          return this.readCurrentMemoryValue<T>(key);
+        }
+
+        if (storeData === undefined || storeData === null) {
+          return null;
+        }
+
+        const expiration = Date.now() + this.defaultTTL;
+        this.cache.set(key, { data: storeData, expiration });
+        return storeData as T;
+      })
+    );
+  }
+
+  private readValidMemory<T>(key: string):
+    | { hit: true; value: T }
+    | { hit: false; value: null } {
+    const item = this.cache.get(key);
+
+    if (!item) {
+      return { hit: false, value: null };
+    }
+
+    if (this.isExpired(item.expiration)) {
+      this.bumpRevision(key);
+      this.cache.delete(key);
+      return { hit: false, value: null };
+    }
+
+    return { hit: true, value: item.data as T };
+  }
+
+  private readCurrentMemoryValue<T>(key: string): T | null {
+    const current = this.readValidMemory<T>(key);
+    return current.hit ? current.value : null;
+  }
+
+  private createReadToken(key: string): CacheReadToken {
+    return {
+      generation: this.mutationGeneration,
+      revision: this.keyRevisions.get(key) ?? 0,
+    };
+  }
+
+  private isReadTokenCurrent(
+    key: string,
+    token: CacheReadToken
+  ): boolean {
+    return (
+      token.generation === this.mutationGeneration &&
+      token.revision === (this.keyRevisions.get(key) ?? 0)
+    );
+  }
+
+  private bumpRevision(key: string): number {
+    const revision = (this.keyRevisions.get(key) ?? 0) + 1;
+    this.keyRevisions.set(key, revision);
+    return revision;
+  }
+
+  private resolveExpiration(ttl?: number): number | null {
+    return this.hasPositiveTTL(ttl)
+      ? Date.now() + (ttl as number)
+      : null;
+  }
+
+  private hasPositiveTTL(ttl?: number): ttl is number {
+    return typeof ttl === 'number' && Number.isFinite(ttl) && ttl > 0;
+  }
 
   private normalizeKey(key: string): string {
-    return (key ?? '').toString().trim();
+    return String(key ?? '').trim();
   }
 
   private userKey(uid: string): string {
-    return `user:${(uid ?? '').toString().trim()}`;
+    return `user:${this.normalizeKey(uid)}`;
   }
 
   private isExpired(expiration: number | null): boolean {
     return expiration !== null && Date.now() > expiration;
   }
 
-private isCacheTraceEnabled(): boolean {
-  if (environment.production) {
-    return false;
-  }
-
-  /**
-   * Trace de cache exige o canal geral de cache ativo.
-   * Assim evitamos um segundo sistema de log paralelo.
-   */
-  if (!this.privacyDebug.canLog('cache')) {
-    return false;
-  }
-
-  if (environment.privacyLogging?.allowCacheTrace !== true) {
-    return false;
-  }
-
-  /**
-   * Segunda trava manual.
-   *
-   * Motivo:
-   * - mesmo em dev/staging, trace de user/cache é sensível;
-   * - só deve aparecer quando o dev ativar conscientemente no navegador.
-   */
-  try {
-    return localStorage.getItem('CACHE_TRACE_USER_KEYS') === '1';
-  } catch {
-    return false;
-  }
-}
-
-private canLogSensitiveConsoleData(): boolean {
-  if (environment.production) {
-    return false;
-  }
-
-  if (environment.privacyLogging?.allowSensitiveConsoleData !== true) {
-    return false;
-  }
-
-  /**
-   * Segunda trava manual para dados pessoais em claro.
-   */
-  try {
-    return localStorage.getItem('ALLOW_SENSITIVE_CONSOLE_DATA') === '1';
-  } catch {
-    return false;
-  }
-}
-
-private canIncludeCacheTraceStack(): boolean {
-  if (!this.traceUserKeys) {
-    return false;
-  }
-
-  if (environment.privacyLogging?.includeStackTrace !== true) {
-    return false;
-  }
-
-  try {
-    return localStorage.getItem('CACHE_TRACE_STACK') === '1';
-  } catch {
-    return false;
-  }
-}
-
-private maskCacheText(value: unknown): string {
-  const text = String(value ?? '');
-
-  if (!text) {
-    return text;
-  }
-
-  return text
-    .split(/([:/?&=|,()"'\s]+)/)
-    .map((token) => this.maskCacheToken(token))
-    .join('');
-}
-
-private maskUid(value: unknown): string | null {
-  const uid = String(value ?? '').trim();
-
-  if (!uid) {
-    return null;
-  }
-
-  if (this.canLogSensitiveConsoleData()) {
-    return uid;
-  }
-
-  if (uid.length <= 8) {
-    return 'masked';
-  }
-
-  return `${uid.slice(0, 4)}...${uid.slice(-4)}`;
-}
-
-private maskEmail(value: unknown): string | null {
-  const email = String(value ?? '').trim();
-
-  if (!email) {
-    return null;
-  }
-
-  if (this.canLogSensitiveConsoleData()) {
-    return email;
-  }
-
-  const [name, domain] = email.split('@');
-
-  if (!name || !domain) {
-    return 'masked-email';
-  }
-
-  return `${name.slice(0, 1)}***@${domain}`;
-}
-
-private maskTextPresence(value: unknown): string | null {
-  const text = String(value ?? '').trim();
-
-  if (!text) {
-    return null;
-  }
-
-  return this.canLogSensitiveConsoleData() ? text : 'present';
-}
-
-private looksLikeFirebaseUid(value: string): boolean {
-  /**
-   * Firebase UID costuma ser uma string longa, sem espaços,
-   * com letras, números, "_" ou "-".
-   *
-   * Esse filtro evita mascarar textos comuns de log.
-   */
-  return /^[A-Za-z0-9_-]{18,80}$/.test(value);
-}
-
-private looksLikeEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-private looksLikeDirectChatId(value: string): boolean {
-  /**
-   * Chats diretos também são identificadores sensíveis:
-   * revelam vínculo entre usuários ou canal de conversa.
-   */
-  return /^direct_[a-f0-9]{32,128}$/i.test(value);
-}
-
-private maskDirectChatId(value: string): string {
-  if (this.canLogSensitiveConsoleData()) {
-    return value;
-  }
-
-  return `${value.slice(0, 13)}...${value.slice(-6)}`;
-}
-
-private maskCacheToken(token: string): string {
-  const safeToken = String(token ?? '').trim();
-
-  if (!safeToken) {
-    return token;
-  }
-
-  if (this.looksLikeEmail(safeToken)) {
-    return this.maskEmail(safeToken) ?? 'masked-email';
-  }
-
-  if (this.looksLikeDirectChatId(safeToken)) {
-    return this.maskDirectChatId(safeToken);
-  }
-
-  if (this.looksLikeFirebaseUid(safeToken)) {
-    return this.maskUid(safeToken) ?? 'masked';
-  }
-
-  return token;
-}
-
-private maskCacheKey(key: string): string {
-  const safeKey = this.normalizeKey(key);
-
-  if (!safeKey) {
-    return safeKey;
-  }
-
-  /**
-   * Divide preservando separadores comuns de chave:
-   * - socialLinks:{uid}
-   * - chats:{uid}
-   * - discovery:public_profiles:uids:{uid}
-   * - presence_leader:{uid}
-   *
-   * Os separadores continuam iguais; apenas tokens sensíveis são mascarados.
-   */
-  return safeKey
-    .split(/([:/?&=|,]+)/)
-    .map((token) => this.maskCacheToken(token))
-    .join('');
-}
-
-private maskMessageForKey(key: string, message: string): string {
-  const rawKey = this.normalizeKey(key);
-  const safeKey = this.maskCacheKey(rawKey);
-
-  if (!rawKey || rawKey === safeKey) {
-    return message;
-  }
-
-  return message.split(rawKey).join(safeKey);
-}
-
-  private deepEqual(a: any, b: any): boolean {
+  private deepEqual(a: unknown, b: unknown): boolean {
     if (a === b) return true;
+
     try {
       return JSON.stringify(a) === JSON.stringify(b);
     } catch {
@@ -665,111 +544,68 @@ private maskMessageForKey(key: string, message: string): string {
     }
   }
 
-  private shouldTraceUserKey(key: string): boolean {
-  if (!this.traceUserKeys) return false;
+  private deleteMemoryByPrefix(prefix: string): number {
+    const matchingKeys = Array.from(this.cache.keys()).filter((key) =>
+      key.startsWith(prefix)
+    );
 
-  if (this.tracedExactKeys.has(key)) return true;
-  return this.tracedUserKeyPrefixes.some((prefix) => key.startsWith(prefix));
-}
-
-private summarizeUserLikeData(data: unknown): unknown {
-  if (!data || typeof data !== 'object') {
-    return data;
-  }
-
-  const value = data as Record<string, unknown>;
-
-  return {
-    uid: this.maskUid(value['uid']),
-    email: this.maskEmail(value['email']),
-    emailVerified: value['emailVerified'] ?? null,
-    nickname: this.maskTextPresence(value['nickname']),
-    profileCompleted: value['profileCompleted'] ?? null,
-    role: this.maskTextPresence(value['role']),
-  };
-}
-
-  private traceUserWrite(
-    key: string,
-    data: unknown,
-    meta?: Record<string, unknown>
-  ): void {
-    if (!this.shouldTraceUserKey(key)) {
-      return;
+    for (const key of matchingKeys) {
+      this.bumpRevision(key);
+      this.cache.delete(key);
+      this.inFlightGets.delete(key);
     }
 
-    const safeKey = this.maskCacheKey(key);
+    return matchingKeys.length;
+  }
 
-    const stack = this.canIncludeCacheTraceStack()
-      ? new Error(`[CacheService][TRACE] ${safeKey}`).stack
-          ?.split('\n')
-          .slice(1, 7)
-      : undefined;
-
-this.privacyDebug.log(
-  'cache',
-  `CacheService TRACE ${safeKey}`,
-  {
-    meta,
-    summary: this.summarizeUserLikeData(data),
-    ...(stack ? { stack } : {}),
-  },
-  'debug'
-);
+  private mirrorHotKeyToLocalStorage(key: string, data: unknown): void {
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch {
+      // O cache em memória permanece funcional.
+    }
   }
 
   private removeLocalStorageKeyBestEffort(key: string): void {
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    // noop
-  }
-}
-
-private deleteMemoryByPrefix(prefix: string): number {
-  const safePrefix = this.normalizeKey(prefix);
-
-  if (!safePrefix) {
-    return 0;
-  }
-
-  const matchingKeys = Array.from(this.cache.keys()).filter((key) =>
-    key.startsWith(safePrefix)
-  );
-
-  for (const key of matchingKeys) {
-    this.cache.delete(key);
-  }
-
-  return matchingKeys.length;
-}
-
-  private mirrorHotKeyToLocalStorage(key: string, data: any): void {
     try {
-      localStorage.setItem(key, JSON.stringify(data));
+      localStorage.removeItem(key);
     } catch {
       // noop
     }
   }
 
-private log(message: string, extra?: unknown): void {
-  this.privacyDebug.log('cache', `CacheService: ${message}`, extra);
-}
+  // ---------------------------------------------------------------------------
+  // Debug e tratamento centralizado
+  // ---------------------------------------------------------------------------
 
-private logKey(key: string, message: string, extra?: unknown): void {
-  if (!this.privacyDebug.canLog('cache')) {
-    return;
+  private traceWrite(
+    key: string,
+    expiration: number | null,
+    persist: boolean,
+    operation: 'set' | 'update' | 'skip:same'
+  ): void {
+    this.logKey(key, `${operation} → "${key}"`, {
+      expiration,
+      persist,
+    });
   }
 
-  const allowNoisy = this.isNoisyLoggingEnabled();
-  const isNoisy = this.noisyPrefixes.some((prefix) => key.startsWith(prefix));
-
-  if (isNoisy && !allowNoisy) {
-    return;
+  private log(message: string, extra?: unknown): void {
+    this.privacyDebug.log('cache', `CacheService: ${message}`, extra);
   }
 
-  this.log(this.maskMessageForKey(key, message), extra);
-}
+  private logKey(key: string, message: string, extra?: unknown): void {
+    if (!this.privacyDebug.canLog('cache')) return;
+
+    const isNoisy = this.noisyPrefixes.some((prefix) =>
+      key.startsWith(prefix)
+    );
+
+    if (isNoisy && !this.isNoisyLoggingEnabled()) return;
+
+    const safeKey = this.maskCacheKey(key);
+    this.log(message.split(key).join(safeKey), extra);
+  }
 
   private isNoisyLoggingEnabled(): boolean {
     try {
@@ -779,23 +615,63 @@ private logKey(key: string, message: string, extra?: unknown): void {
     }
   }
 
-private safeHandle(err: unknown, context: string): void {
-  try {
-    const e = err instanceof Error ? err : new Error(String(err ?? 'unknown error'));
-    const safeContext = this.maskCacheText(context);
-    const safeMessage = this.maskCacheText(e.message);
-
-    this.globalErrorHandler.handleError(new Error(`[${safeContext}] ${safeMessage}`));
-  } catch {
-    // noop
+  private maskCacheKey(key: string): string {
+    return this.normalizeKey(key)
+      .split(/([:/?&=|,]+)/)
+      .map((token) => this.maskCacheToken(token))
+      .join('');
   }
-}
-  // ===========================================================================
-  // Conveniências
-  // ===========================================================================
+
+  private maskCacheToken(token: string): string {
+    const value = token.trim();
+    if (!value) return token;
+
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      const [name, domain] = value.split('@');
+      return name && domain ? `${name.slice(0, 1)}***@${domain}` : 'masked-email';
+    }
+
+    if (/^direct_[a-f0-9]{32,128}$/i.test(value)) {
+      return `${value.slice(0, 13)}...${value.slice(-6)}`;
+    }
+
+    if (/^[A-Za-z0-9_-]{18,80}$/.test(value)) {
+      return value.length > 8
+        ? `${value.slice(0, 4)}...${value.slice(-4)}`
+        : 'masked';
+    }
+
+    return token;
+  }
+
+  private safeHandle(error: unknown, context: string): void {
+    try {
+      const normalized = error instanceof Error
+        ? error
+        : new Error(String(error ?? 'unknown error'));
+      const wrapped = new Error(
+        `[${this.maskCacheKey(context)}] ${normalized.message}`
+      ) as Error & {
+        original?: unknown;
+        skipUserNotification?: boolean;
+      };
+
+      wrapped.original = error;
+      wrapped.skipUserNotification = true;
+      this.globalErrorHandler.handleError(wrapped);
+    } catch {
+      // noop
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Conveniências e compatibilidade
+  // ---------------------------------------------------------------------------
 
   markAsNotFound(key: string, ttl = 30_000): void {
-    this.set(`notFound:${this.normalizeKey(key)}`, true, ttl, { persist: false });
+    this.set(`notFound:${this.normalizeKey(key)}`, true, ttl, {
+      persist: false,
+    });
   }
 
   isNotFound(key: string): boolean {
@@ -811,28 +687,27 @@ private safeHandle(err: unknown, context: string): void {
   }
 
   debug(): void {
-    this.log('DEBUG', { size: this.size(), keys: this.keys() });
+    this.log('DEBUG', {
+      size: this.size(),
+      keys: this.keys().map((key) => this.maskCacheKey(key)),
+    });
   }
 
   /**
-   * Compat legado.
-   * Mantém:
-   * - user:{uid} persistente
-   * - currentUser HOT_KEY
-   * - currentUserUid HOT_KEY
-   *
-   * Não despacha para NgRx.
-   * Não deve ser chamado junto com CurrentUserStore.set no mesmo fluxo novo.
+   * Compatibilidade legada. Novos fluxos devem usar AuthSessionService e
+   * CurrentUserStoreService como fontes canônicas.
    */
   syncCurrentUserWithUid(userData: IUserDados): void {
     if (!userData?.uid) return;
 
     const key = this.userKey(userData.uid);
-
     this.set(key, userData, this.defaultTTL, { persist: true });
     this.set('currentUser', userData, undefined, { persist: false });
     this.set('currentUserUid', userData.uid, undefined, { persist: false });
 
-    this.logKey(key, `syncCurrentUserWithUid → ${key} + currentUser + currentUserUid`);
+    this.logKey(
+      key,
+      `syncCurrentUserWithUid → ${key} + currentUser + currentUserUid`
+    );
   }
-} // Linha 838, fim do cache.service.ts
+}
