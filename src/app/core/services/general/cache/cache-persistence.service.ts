@@ -1,101 +1,254 @@
-//src\app\core\services\general\cache\cache-persistence.service.ts
-// Serviço para persistência de cache usando IndexedDB via idb-keyval
-// - API Observable-first (sem Promises na API pública)
-// - Métodos para set, get e delete
-// - Não esquecer os comentários explicativos.
+// src/app/core/services/general/cache/cache-persistence.service.ts
+// -----------------------------------------------------------------------------
+// Persistência local de cache com IndexedDB via idb-keyval.
+//
+// Responsabilidades:
+// - manter API pública Observable-first;
+// - persistir valor e expiração no mesmo envelope;
+// - descartar entradas expiradas ou no formato legado;
+// - serializar mutações por chave para preservar a ordem das escritas;
+// - aguardar mutações pendentes antes de ler a mesma chave.
+// -----------------------------------------------------------------------------
 import { Injectable } from '@angular/core';
-import { set, get, del, keys as idbKeys } from 'idb-keyval';
-import { from, Observable } from 'rxjs';
+import { del, get, keys as idbKeys, set } from 'idb-keyval';
+import { from, map, Observable, switchMap } from 'rxjs';
+
+export const CACHE_PERSISTENCE_SCHEMA_VERSION = 2 as const;
+
+export interface CachePersistentEnvelope<T> {
+  schemaVersion: typeof CACHE_PERSISTENCE_SCHEMA_VERSION;
+  value: T;
+  createdAt: number;
+  updatedAt: number;
+  expiresAt: number | null;
+  writeVersion: number;
+}
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class CachePersistenceService {
+  private readonly mutationQueues = new Map<string, Promise<void>>();
+  private readonly writeVersions = new Map<string, number>();
 
+  /**
+   * Compatibilidade com consumidores legados.
+   *
+   * Novos fluxos com TTL devem usar `setPersistentEntry`, pois este método não
+   * recebe expiração e, portanto, cria uma entrada persistente sem vencimento.
+   */
   setPersistent<T>(key: string, value: T): Observable<void> {
-    return from(set(key, value)); // ✅ Retornando um Observable
-  }
-
-  getPersistent<T>(key: string): Observable<T | null> {
-    return from(get<T>(key).then(result => result !== undefined ? result : null)); // ✅ Evita `undefined`
-  }
-
-  deletePersistent(key: string): Observable<void> {
-    return from(del(key)); // ✅ Mantendo a padronização com `Observable`
+    return this.setPersistentEntry(key, value, null);
   }
 
   /**
- * Remove várias chaves explícitas do IndexedDB.
- *
- * Uso:
- * - limpeza de sessão;
- * - logout;
- * - troca de conta;
- * - remoção de caches sensíveis conhecidos.
- */
-deletePersistentMany(keys: string[]): Observable<number> {
-  const safeKeys = Array.from(
-    new Set(
-      (keys ?? [])
-        .map((key) => String(key ?? '').trim())
-        .filter(Boolean)
-    )
-  );
-
-  if (!safeKeys.length) {
-    return from(Promise.resolve(0));
+   * Compatibilidade com consumidores legados: devolve somente o valor.
+   * Entradas expiradas ou no formato antigo são removidas e retornam `null`.
+   */
+  getPersistent<T>(key: string): Observable<T | null> {
+    return this.getPersistentEntry<T>(key).pipe(
+      map((entry) => entry?.value ?? null)
+    );
   }
 
-  return from(
-    Promise.all(safeKeys.map((key) => del(key))).then(() => safeKeys.length)
-  );
-}
+  /**
+   * Persiste um envelope completo, incluindo a expiração absoluta.
+   */
+  setPersistentEntry<T>(
+    key: string,
+    value: T,
+    expiresAt: number | null
+  ): Observable<void> {
+    const safeKey = this.normalizeKey(key);
+    const now = Date.now();
+    const writeVersion = (this.writeVersions.get(safeKey) ?? 0) + 1;
 
-/**
- * Remove do IndexedDB todas as chaves que começam com determinado prefixo.
- *
- * Importante:
- * - usado para limpar cache user-scoped;
- * - evita manter dados de perfil/chat/social links após logout;
- * - mantém API pública baseada em Observable.
- */
-deletePersistentByPrefix(prefix: string): Observable<number> {
-  const safePrefix = String(prefix ?? '').trim();
+    this.writeVersions.set(safeKey, writeVersion);
 
-  if (!safePrefix) {
-    return from(Promise.resolve(0));
+    const envelope: CachePersistentEnvelope<T> = {
+      schemaVersion: CACHE_PERSISTENCE_SCHEMA_VERSION,
+      value,
+      createdAt: now,
+      updatedAt: now,
+      expiresAt: this.normalizeExpiration(expiresAt),
+      writeVersion,
+    };
+
+    return from(
+      this.enqueueMutation(safeKey, () => set(safeKey, envelope))
+    );
   }
 
-  return from(
-    idbKeys().then((allKeys) => {
-      const matchingKeys = allKeys.filter(
-        (key): key is string =>
-          typeof key === 'string' && key.startsWith(safePrefix)
-      );
+  /**
+   * Lê um envelope persistente válido.
+   *
+   * Política de migração:
+   * - valor antigo sem envelope: remove e retorna `null`;
+   * - versão desconhecida: remove e retorna `null`;
+   * - entrada expirada: remove e retorna `null`.
+   *
+   * A recarga remota fica a cargo da camada de domínio que chamou o cache.
+   */
+  getPersistentEntry<T>(
+    key: string
+  ): Observable<CachePersistentEnvelope<T> | null> {
+    const safeKey = this.normalizeKey(key);
 
-      return Promise.all(matchingKeys.map((key) => del(key))).then(
-        () => matchingKeys.length
-      );
-    })
-  );
+    return from(this.readAfterPendingMutations(safeKey)).pipe(
+      switchMap((stored) => {
+        if (stored === undefined || stored === null) {
+          return from(Promise.resolve(null));
+        }
+
+        if (!this.isCurrentEnvelope<T>(stored)) {
+          return this.deletePersistent(safeKey).pipe(map(() => null));
+        }
+
+        if (this.isExpired(stored.expiresAt)) {
+          return this.deletePersistent(safeKey).pipe(map(() => null));
+        }
+
+        this.writeVersions.set(
+          safeKey,
+          Math.max(
+            this.writeVersions.get(safeKey) ?? 0,
+            stored.writeVersion
+          )
+        );
+
+        return from(Promise.resolve(stored));
+      })
+    );
+  }
+
+  deletePersistent(key: string): Observable<void> {
+    const safeKey = this.normalizeKey(key);
+    this.writeVersions.delete(safeKey);
+
+    return from(
+      this.enqueueMutation(safeKey, () => del(safeKey))
+    );
+  }
+
+  /**
+   * Remove várias chaves explícitas do IndexedDB.
+   */
+  deletePersistentMany(keys: string[]): Observable<number> {
+    const safeKeys = Array.from(
+      new Set(
+        (keys ?? [])
+          .map((key) => this.normalizeKey(key))
+          .filter(Boolean)
+      )
+    );
+
+    if (!safeKeys.length) {
+      return from(Promise.resolve(0));
+    }
+
+    return from(
+      Promise.all(
+        safeKeys.map((key) => {
+          this.writeVersions.delete(key);
+          return this.enqueueMutation(key, () => del(key));
+        })
+      ).then(() => safeKeys.length)
+    );
+  }
+
+  /**
+   * Remove do IndexedDB todas as chaves iniciadas pelo prefixo informado.
+   */
+  deletePersistentByPrefix(prefix: string): Observable<number> {
+    const safePrefix = this.normalizeKey(prefix);
+
+    if (!safePrefix) {
+      return from(Promise.resolve(0));
+    }
+
+    return from(
+      idbKeys().then((allKeys) => {
+        const matchingKeys = allKeys.filter(
+          (key): key is string =>
+            typeof key === 'string' && key.startsWith(safePrefix)
+        );
+
+        return Promise.all(
+          matchingKeys.map((key) => {
+            this.writeVersions.delete(key);
+            return this.enqueueMutation(key, () => del(key));
+          })
+        ).then(() => matchingKeys.length);
+      })
+    );
+  }
+
+  private normalizeKey(key: string): string {
+    return String(key ?? '').trim();
+  }
+
+  private normalizeExpiration(expiresAt: number | null): number | null {
+    return typeof expiresAt === 'number' && Number.isFinite(expiresAt)
+      ? expiresAt
+      : null;
+  }
+
+  private isExpired(expiresAt: number | null): boolean {
+    return expiresAt !== null && Date.now() > expiresAt;
+  }
+
+  private isCurrentEnvelope<T>(
+    value: unknown
+  ): value is CachePersistentEnvelope<T> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return false;
+    }
+
+    const candidate = value as Partial<CachePersistentEnvelope<T>>;
+
+    return (
+      candidate.schemaVersion === CACHE_PERSISTENCE_SCHEMA_VERSION &&
+      Object.prototype.hasOwnProperty.call(candidate, 'value') &&
+      typeof candidate.createdAt === 'number' &&
+      Number.isFinite(candidate.createdAt) &&
+      typeof candidate.updatedAt === 'number' &&
+      Number.isFinite(candidate.updatedAt) &&
+      (candidate.expiresAt === null ||
+        (typeof candidate.expiresAt === 'number' &&
+          Number.isFinite(candidate.expiresAt))) &&
+      typeof candidate.writeVersion === 'number' &&
+      Number.isInteger(candidate.writeVersion) &&
+      candidate.writeVersion > 0
+    );
+  }
+
+  private readAfterPendingMutations(key: string): Promise<unknown> {
+    const pending = this.mutationQueues.get(key);
+    const ready = pending
+      ? pending.catch(() => void 0)
+      : Promise.resolve();
+
+    return ready.then(() => get<unknown>(key));
+  }
+
+  /**
+   * Serializa mutações da mesma chave sem bloquear chaves independentes.
+   */
+  private enqueueMutation(
+    key: string,
+    mutation: () => Promise<void>
+  ): Promise<void> {
+    const previous = this.mutationQueues.get(key) ?? Promise.resolve();
+    const current = previous
+      .catch(() => void 0)
+      .then(() => mutation());
+
+    this.mutationQueues.set(key, current);
+
+    return current.finally(() => {
+      if (this.mutationQueues.get(key) === current) {
+        this.mutationQueues.delete(key);
+      }
+    });
+  }
 }
-}
-// lembrar sempre da padronização em uid para usuários, o identificador canônico.
-// AUTH ORCHESTRATOR SERVICE (Efeitos colaterais e ciclo de vida)
-//
-// Objetivo principal deste service:
-// - Orquestrar “o que roda quando a sessão existe” (presence, watchers, keepAlive).
-// - Garantir que listeners NÃO iniciem no registro e NÃO iniciem para emailVerified=false.
-// - Centralizar encerramento de sessão *quando inevitável* (auth inválido).
-//
-// Regra de plataforma (conforme sua decisão):
-// ✅ O usuário só deve perder a sessão (signOut) por LOGOUT voluntário,
-//    EXCETO quando a própria sessão do Firebase Auth for tecnicamente inválida.
-// - Em problemas de Firestore (doc missing / permission-denied / status) nós NÃO deslogamos.
-//   Em vez disso: "bloqueamos" a sessão do app e redirecionamos para /register/welcome.
-//
-// Observação de arquitetura (fonte única):
-// - AuthSessionService: verdade do Firebase Auth
-// - CurrentUserStoreService: verdade do usuário do app (perfil/role/etc.)
-// - AuthAppBlockService: verdade do "bloqueio do app" (sem logout)
-// - AuthOrchestratorService: só side-effects e coordenação (não deve virar “store”)
