@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, of, Subject } from 'rxjs';
+import { firstValueFrom, Observable, of, Subject } from 'rxjs';
 import { afterEach, vi } from 'vitest';
 
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
@@ -17,7 +17,9 @@ import { CacheService } from './cache.service';
 describe('CacheService', () => {
   let service: CacheService;
 
-  const getPersistentEntry = vi.fn(() => of(null));
+  const getPersistentEntry = vi.fn(
+    (): Observable<CachePersistentEnvelope<unknown> | null> => of(null)
+  );
   const setPersistentEntry = vi.fn(() => of(void 0));
   const deletePersistent = vi.fn(() => of(void 0));
   const deletePersistentMany = vi.fn(() => of(0));
@@ -95,14 +97,14 @@ describe('CacheService', () => {
     };
 
     getPersistentEntry.mockReturnValueOnce(of(entry));
-    vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000);
 
     await expect(
       firstValueFrom(service.get<{ value: string }>('cache:item'))
     ).resolves.toEqual({ value: 'cached' });
     expect(service.has('cache:item')).toBe(true);
 
-    vi.spyOn(Date, 'now').mockReturnValue(2_001);
+    nowSpy.mockReturnValue(2_001);
     expect(service.has('cache:item')).toBe(false);
   });
 
