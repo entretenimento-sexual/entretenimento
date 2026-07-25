@@ -16,7 +16,9 @@ describe('FriendSearchComponent', () => {
   let fixture: ComponentFixture<FriendSearchComponent>;
 
   const storeDispatch = vi.fn();
-  const cacheGet = vi.fn(() => of(null));
+  const cacheGet = vi.fn(
+    (): Observable<IUserDados[] | null> => of(null)
+  );
   const cacheSet = vi.fn();
   const searchUsers = vi.fn((): Observable<IUserDados[]> => of([]));
   const showError = vi.fn();
