@@ -36,6 +36,9 @@ interface UserComplianceSource {
   suspended?: unknown;
   accountLocked?: unknown;
   interactionBlocked?: unknown;
+  loginAllowed?: unknown;
+  deletionRequestedAt?: unknown;
+  deletedAt?: unknown;
 }
 
 interface ComplianceProfileSource {
@@ -86,17 +89,6 @@ function normalizeAmlRiskTier(value: unknown): AmlRiskTier | null {
   return isAllowedValue(value, AML_RISK_TIER_VALUES) ? value : null;
 }
 
-function normalizeAccountStatus(
-  value: unknown,
-  suspended: boolean
-): ComplianceAccountStatus {
-  if (isAllowedValue(value, ACCOUNT_STATUS_VALUES)) {
-    return value;
-  }
-
-  return suspended ? 'moderation_suspended' : 'active';
-}
-
 function toEpochOrNull(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.trunc(value);
@@ -138,6 +130,57 @@ function toEpochOrNull(value: unknown): number | null {
   }
 
   return null;
+}
+
+/**
+ * Consolida o lifecycle atual sem permitir que um campo legado permissivo
+ * neutralize uma restrição mais forte.
+ *
+ * Exemplos fail-closed:
+ * - `accountStatus: active` com `suspended: true` continua suspenso;
+ * - timestamp de exclusão prevalece sobre status ativo legado;
+ * - `loginAllowed: false` impede elegibilidade mesmo sem status migrado.
+ */
+function normalizeAccountStatus(
+  value: unknown,
+  source: {
+    suspended: boolean;
+    loginAllowed: boolean;
+    deletionRequestedAt: unknown;
+    deletedAt: unknown;
+  }
+): ComplianceAccountStatus {
+  const explicitStatus = isAllowedValue(value, ACCOUNT_STATUS_VALUES)
+    ? value
+    : null;
+
+  if (
+    explicitStatus === 'deleted' ||
+    toEpochOrNull(source.deletedAt) !== null
+  ) {
+    return 'deleted';
+  }
+
+  if (
+    explicitStatus === 'pending_deletion' ||
+    toEpochOrNull(source.deletionRequestedAt) !== null
+  ) {
+    return 'pending_deletion';
+  }
+
+  if (explicitStatus === 'self_suspended') {
+    return 'self_suspended';
+  }
+
+  if (
+    explicitStatus === 'moderation_suspended' ||
+    source.suspended ||
+    !source.loginAllowed
+  ) {
+    return 'moderation_suspended';
+  }
+
+  return 'active';
 }
 
 function normalizeProvider(value: unknown): string | null {
@@ -189,10 +232,12 @@ export const getMyComplianceSnapshot = onCall<Record<string, never>>(
     const amlRiskTier = normalizeAmlRiskTier(compliance.amlRiskTier);
     const accountLocked = user.accountLocked === true;
     const interactionBlocked = user.interactionBlocked === true;
-    const accountStatus = normalizeAccountStatus(
-      user.accountStatus,
-      user.suspended === true
-    );
+    const accountStatus = normalizeAccountStatus(user.accountStatus, {
+      suspended: user.suspended === true,
+      loginAllowed: user.loginAllowed !== false,
+      deletionRequestedAt: user.deletionRequestedAt,
+      deletedAt: user.deletedAt,
+    });
 
     const payoutEligibility = derivePayoutEligibility({
       adultConsentAccepted,
