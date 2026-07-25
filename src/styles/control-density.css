@@ -1,0 +1,174 @@
+/* src/styles/control-density.css
+ *
+ * Fundação opt-in para densidade de controles.
+ *
+ * Decisões:
+ * - 40px em dispositivos com ponteiro preciso;
+ * - 44px em dispositivos de toque, reutilizando o token --tap-target;
+ * - nenhum seletor global genérico para todo <button>;
+ * - controles especiais continuam com a geometria própria;
+ * - a migração das demais telas deve usar as classes utilitárias abaixo.
+ */
+
+:root {
+  --control-height: 40px;
+  --control-height-touch: var(--tap-target, 44px);
+  --control-height-active: var(--control-height);
+  --control-radius: var(--radius-md, 8px);
+  --control-padding-inline: 12px;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --control-height-active: var(--control-height-touch);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Utilitários opt-in                                                         */
+/* -------------------------------------------------------------------------- */
+.control-density-field {
+  box-sizing: border-box;
+  block-size: var(--control-height-active);
+  min-block-size: var(--control-height-active);
+  padding-block: 0;
+  padding-inline: var(--control-padding-inline);
+  border-radius: var(--control-radius);
+  line-height: 1.2;
+}
+
+.control-density-button {
+  box-sizing: border-box;
+  min-block-size: var(--control-height-active);
+  padding-block: 0;
+  padding-inline: var(--control-padding-inline);
+  border-radius: var(--control-radius);
+  line-height: 1.2;
+  white-space: normal;
+  text-align: center;
+}
+
+.control-density-button--primary {
+  min-block-size: var(--tap-target, 44px);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Login: aplicação explícita dos tokens                                      */
+/* -------------------------------------------------------------------------- */
+app-login-component .input-field.control-density-field {
+  height: var(--control-height-active) !important;
+  min-height: var(--control-height-active) !important;
+  padding-block: 0 !important;
+  padding-inline: var(--control-padding-inline) !important;
+  border-radius: var(--control-radius) !important;
+}
+
+app-login-component .button-container .btn.control-density-button,
+app-login-component .btn-google.control-density-button,
+app-login-component .modal-actions .btn.control-density-button {
+  min-height: var(--tap-target, 44px) !important;
+  padding-block: 0 !important;
+  padding-inline: var(--control-padding-inline) !important;
+  border-radius: var(--control-radius) !important;
+}
+
+app-login-component .login-field {
+  position: relative;
+  display: grid;
+  gap: 0.5rem;
+}
+
+app-login-component .login-field .field-label {
+  min-width: 0;
+  padding-inline-end: min(58%, 240px);
+}
+
+app-login-component .login-field .field-error {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  z-index: 4;
+  max-inline-size: min(58%, 240px);
+  margin: 0;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--danger-color, #c62828);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 18%);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  white-space: normal;
+}
+
+app-login-component .login-field .field-error::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: 10px;
+  inset-block-end: -4px;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+app-login-component .remember-me,
+app-login-component .forgot-password {
+  min-block-size: var(--tap-target, 44px);
+}
+
+app-login-component .forgot-password {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 0.25rem;
+}
+
+/* No mobile, o formulário aparece antes do texto institucional. */
+@media (max-width: 900px) {
+  app-login-component .form-container {
+    order: 1;
+  }
+
+  app-login-component .auth-intro {
+    order: 2;
+  }
+}
+
+/* Mensagens deixam de flutuar em telas estreitas para não cobrir o label. */
+@media (max-width: 520px) {
+  app-login-component .login-field .field-label {
+    padding-inline-end: 0;
+  }
+
+  app-login-component .login-field .field-error {
+    position: static;
+    max-inline-size: 100%;
+    margin-block-start: -0.2rem;
+    box-shadow: none;
+  }
+
+  app-login-component .login-field .field-error::after {
+    display: none;
+  }
+
+  app-login-component .auth-intro h1 {
+    margin-block: 0.35rem;
+    font-size: clamp(1.75rem, 9vw, 2.35rem);
+    line-height: 1.05;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Alto contraste                                                             */
+/* -------------------------------------------------------------------------- */
+html.high-contrast app-login-component .login-field .field-error {
+  border: 2px solid currentColor;
+  box-shadow: none;
+}
+
+html.high-contrast :is(.control-density-field, .control-density-button) {
+  border-width: 2px;
+}
