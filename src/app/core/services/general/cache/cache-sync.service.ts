@@ -1,44 +1,82 @@
 // src/app/core/services/general/cache/cache-sync.service.ts
 import { Injectable, inject } from '@angular/core';
-import { Firestore, collection, onSnapshot } from '@angular/fire/firestore'; // 👈 use @angular/fire
-import { CacheService } from './cache.service';
+import { Firestore, collection, onSnapshot } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
-import { CachePersistenceService } from './cache-persistence.service';
+
+import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
+import { CacheService } from './cache.service';
 
 @Injectable({ providedIn: 'root' })
 export class CacheSyncService {
-  private db = inject(Firestore); // ✅ injetado
+  private readonly db = inject(Firestore);
 
   constructor(
-    private cacheService: CacheService,
-    private cachePersistence: CachePersistenceService
-  ) { }
+    private readonly cacheService: CacheService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService
+  ) {}
 
   syncFirestoreCollection(collectionName: string): Observable<void> {
-    return new Observable(observer => {
-      const ref = collection(this.db, collectionName); // ✅ usa db injetado
+    const safeCollectionName = String(collectionName ?? '').trim();
 
-      const unsubscribe = onSnapshot(ref, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === 'modified' || change.type === 'added') {
-            const data = change.doc.data();
-            const key = `${collectionName}:${change.doc.id}`;
-            console.log(`[CacheSyncService] Sincronizando "${key}" com Firestore.`);
+    return new Observable<void>((observer) => {
+      if (!safeCollectionName) {
+        observer.error(new Error('Nome de coleção inválido para sincronização.'));
+        return undefined;
+      }
 
-            this.cacheService.set(key, data);
-            this.cachePersistence.setPersistent(key, data).subscribe(() => {
-              console.log(`[CacheSyncService] Dados sincronizados e salvos no IndexedDB.`);
-            });
+      const ref = collection(this.db, safeCollectionName);
+      const unsubscribe = onSnapshot(
+        ref,
+        (snapshot) => {
+          for (const change of snapshot.docChanges()) {
+            const key = `${safeCollectionName}:${change.doc.id}`;
+
+            if (change.type === 'removed') {
+              this.cacheService.delete(key);
+              this.log('entrada removida', { key });
+              continue;
+            }
+
+            this.cacheService.set(key, change.doc.data());
+            this.log('entrada sincronizada', { key, type: change.type });
           }
-        });
 
-        observer.next();
-      });
+          observer.next();
+        },
+        (error: unknown) => {
+          this.reportError(error, safeCollectionName);
+          observer.error(error);
+        }
+      );
 
-      return () => {
-        unsubscribe();
-        observer.complete();
-      };
+      return () => unsubscribe();
     });
+  }
+
+  private reportError(error: unknown, collectionName: string): void {
+    try {
+      const normalized = error instanceof Error
+        ? error
+        : new Error('Falha ao sincronizar coleção com o cache.');
+
+      (normalized as Error & { context?: Record<string, unknown> }).context = {
+        scope: 'CacheSyncService',
+        collectionName,
+      };
+
+      this.globalErrorHandler.handleError(normalized);
+    } catch {
+      // noop
+    }
+  }
+
+  private log(message: string, extra?: unknown): void {
+    this.privacyDebug.log(
+      'cache',
+      `CacheSyncService: ${message}`,
+      extra
+    );
   }
 }
