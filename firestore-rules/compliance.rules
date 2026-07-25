@@ -1,0 +1,56 @@
+// firestore-rules/compliance.rules
+// =========================================================================
+// COMPLIANCE / KYC / AML INTERNAL DATA
+// =========================================================================
+//
+// O navegador nunca é autoridade para:
+// - aprovar idade ou identidade;
+// - classificar risco AML;
+// - registrar eventos de provedor;
+// - alterar elegibilidade de saque;
+// - ler auditorias ou sinais internos.
+//
+// A UI consome somente a projeção sanitizada devolvida pela callable
+// getMyComplianceSnapshot. Cloud Functions com Admin SDK continuam fora do
+// escopo destas permissões do cliente.
+//
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem
+//    `service cloud.firestore`.
+// =========================================================================
+
+match /compliance_profiles/{userId} {
+  /**
+   * Estado interno consolidado de idade, identidade e risco.
+   * Pode conter referências tokenizadas do provedor, mas nunca documentos
+   * brutos ou biometria.
+   */
+  allow read, write: if false;
+}
+
+match /identity_verification_events/{eventId} {
+  /**
+   * Eventos idempotentes de KYC recebidos de provedor ou fluxo interno.
+   */
+  allow read, write: if false;
+}
+
+match /aml_risk_events/{eventId} {
+  /**
+   * Sinais, revisões e decisões AML. Nenhum detalhe de sanções, PEP ou adverse
+   * media deve ser exposto ao cliente.
+   */
+  allow read, write: if false;
+}
+
+match /compliance_audit/{auditId} {
+  /**
+   * Auditoria de consentimento adulto, KYC, AML e elegibilidade.
+   * O handler de consentimento adulto já grava nesta coleção; este bloqueio
+   * explícito impede leitura ou adulteração pelo SDK web/mobile.
+   */
+  allow read, write: if false;
+}
+
+// =========================================================================
+//                    FIM DO COMPLIANCE.RULES
+// =========================================================================
