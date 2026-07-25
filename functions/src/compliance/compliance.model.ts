@@ -100,6 +100,14 @@ export interface ComplianceEligibilityInput {
   interactionBlocked: boolean;
 }
 
+export interface ComplianceAccountLifecycleInput {
+  explicitStatus: unknown;
+  suspended: boolean;
+  loginAllowed: boolean;
+  deletionRequested: boolean;
+  deleted: boolean;
+}
+
 export interface MyComplianceSnapshot {
   available: true;
   adultConsentStatus: AdultConsentStatus;
@@ -113,6 +121,53 @@ export interface MyComplianceSnapshot {
   lastRiskReviewAt: number | null;
   payoutEligibility: PayoutEligibility;
   generatedAt: number;
+}
+
+function isAllowedValue<T extends string>(
+  value: unknown,
+  allowedValues: readonly T[]
+): value is T {
+  return typeof value === 'string' && allowedValues.includes(value as T);
+}
+
+/**
+ * Consolida o lifecycle sem permitir que um campo legado permissivo neutralize
+ * uma restrição mais forte.
+ *
+ * Esta política é exportada para ser reutilizada por qualquer futura operação
+ * financeira server-side, evitando decisões divergentes entre callables.
+ */
+export function normalizeComplianceAccountStatus(
+  input: ComplianceAccountLifecycleInput
+): ComplianceAccountStatus {
+  const explicitStatus = isAllowedValue(
+    input.explicitStatus,
+    ACCOUNT_STATUS_VALUES
+  )
+    ? input.explicitStatus
+    : null;
+
+  if (explicitStatus === 'deleted' || input.deleted) {
+    return 'deleted';
+  }
+
+  if (explicitStatus === 'pending_deletion' || input.deletionRequested) {
+    return 'pending_deletion';
+  }
+
+  if (explicitStatus === 'self_suspended') {
+    return 'self_suspended';
+  }
+
+  if (
+    explicitStatus === 'moderation_suspended' ||
+    input.suspended ||
+    !input.loginAllowed
+  ) {
+    return 'moderation_suspended';
+  }
+
+  return 'active';
 }
 
 /**
