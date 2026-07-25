@@ -8,8 +8,8 @@
 // Decisões:
 // - firestore.rules é artefato gerado; não deve ser editado manualmente;
 // - fragments sensíveis ficam versionados em firestore-rules/;
-// - billing.rules entra logo após users.rules por tratar dados privados e
-//   financeiros internos;
+// - billing.rules e compliance.rules entram logo após users.rules por tratarem
+//   dados privados, financeiros e regulatórios internos;
 // - os marcadores por arquivo permanecem no resultado para diagnóstico.
 
 import fs from 'node:fs';
@@ -30,6 +30,7 @@ const parts = [
   // Documentos privados e domínios internos sensíveis.
   'users.rules',
   'billing.rules',
+  'compliance.rules',
 
   // Discovery, presença e vitrines regionais moderadas.
   'public_profiles.rules',
