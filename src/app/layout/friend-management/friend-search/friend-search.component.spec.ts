@@ -1,47 +1,74 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Store } from '@ngrx/store';
-import { Firestore } from '@angular/fire/firestore';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { FriendSearchComponent } from './friend-search.component';
+import { AuthSessionService } from '../../../core/services/autentication/auth/auth-session.service';
 import { CacheService } from '../../../core/services/general/cache/cache.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
 import { FriendshipService } from '../../../core/services/interactions/friendship/friendship.service';
 
 describe('FriendSearchComponent', () => {
   let component: FriendSearchComponent;
   let fixture: ComponentFixture<FriendSearchComponent>;
 
+  const storeDispatch = vi.fn();
+  const cacheGet = vi.fn(() => of(null));
+  const cacheSet = vi.fn();
+  const searchUsers = vi.fn(() => of([]));
+  const showError = vi.fn();
+  const handleError = vi.fn();
+
   beforeEach(async () => {
+    vi.clearAllMocks();
+    cacheGet.mockReturnValue(of(null));
+    searchUsers.mockReturnValue(of([]));
+
     await TestBed.configureTestingModule({
       imports: [FriendSearchComponent],
       providers: [
-        { provide: Firestore, useValue: {} },
-        { provide: FriendshipService, useValue: {} },
+        {
+          provide: AuthSessionService,
+          useValue: {
+            readyUid$: of('user-123'),
+          },
+        },
+        {
+          provide: FriendshipService,
+          useValue: {
+            searchUsers,
+          },
+        },
         {
           provide: Store,
           useValue: {
-            dispatch: vi.fn(),
+            dispatch: storeDispatch,
             select: vi.fn(() => of([])),
           },
         },
         {
           provide: CacheService,
           useValue: {
-            get: vi.fn(() => of(null)),
-            set: vi.fn(),
+            get: cacheGet,
+            set: cacheSet,
           },
         },
         {
           provide: ErrorNotificationService,
           useValue: {
-            showError: vi.fn(),
+            showError,
+          },
+        },
+        {
+          provide: GlobalErrorHandlerService,
+          useValue: {
+            handleError,
           },
         },
       ],
-    })
-    .compileComponents();
+    }).compileComponents();
 
     fixture = TestBed.createComponent(FriendSearchComponent);
     component = fixture.componentInstance;
@@ -50,5 +77,38 @@ describe('FriendSearchComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('stores search results in an ephemeral UID-scoped cache key', () => {
+    const results = [{ uid: 'result-1' }] as never[];
+    searchUsers.mockReturnValue(of(results));
+
+    (component as unknown as {
+      searchFriends: (term: string) => ReturnType<typeof of>;
+    }).searchFriends('alex').subscribe();
+
+    expect(cacheGet).toHaveBeenCalledWith('search:user-123:1rpur0l');
+    expect(cacheSet).toHaveBeenCalledWith(
+      'search:user-123:1rpur0l',
+      results,
+      300_000,
+      { persist: false }
+    );
+    expect(cacheSet).not.toHaveBeenCalledWith(
+      'loadingSearch',
+      expect.anything(),
+      expect.anything()
+    );
+  });
+
+  it('treats an empty cached result as a valid cache hit', () => {
+    cacheGet.mockReturnValue(of([]));
+
+    (component as unknown as {
+      searchFriends: (term: string) => ReturnType<typeof of>;
+    }).searchFriends('alex').subscribe();
+
+    expect(searchUsers).not.toHaveBeenCalled();
+    expect(cacheSet).not.toHaveBeenCalled();
   });
 });
