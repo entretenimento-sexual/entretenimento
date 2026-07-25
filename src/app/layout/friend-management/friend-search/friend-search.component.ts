@@ -57,7 +57,7 @@ export class FriendSearchComponent implements OnInit {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
   private readonly cacheService = inject(CacheService);
-  private readonly store = inject(Store<AppState>);
+  private readonly store = inject<Store<AppState>>(Store);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly isLoadingSubject = new BehaviorSubject<boolean>(false);
