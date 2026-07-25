@@ -177,12 +177,18 @@ export class FriendSearchComponent implements OnInit {
     const normalizedError =
       error instanceof Error ? error : new Error('Erro inesperado ao buscar usuários.');
 
-    (normalizedError as Error & { context?: Record<string, unknown> }).context = {
+    const reportableError = normalizedError as Error & {
+      context?: Record<string, unknown>;
+      skipUserNotification?: boolean;
+    };
+
+    reportableError.context = {
       scope: 'FriendSearchComponent',
       operation: 'searchFriends',
     };
+    reportableError.skipUserNotification = true;
 
-    this.globalErrorHandler.handleError(normalizedError);
+    this.globalErrorHandler.handleError(reportableError);
     this.errorNotifier.showError('Erro ao buscar usuários.');
   }
 }
