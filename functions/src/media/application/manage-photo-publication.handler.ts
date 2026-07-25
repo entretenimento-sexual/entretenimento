@@ -89,9 +89,18 @@ function cleanId(value: unknown): string {
   return String(value ?? '').trim();
 }
 
+function replaceAsciiControlCharacters(value: string): string {
+  return Array.from(value, (character) => {
+    const codePoint = character.codePointAt(0);
+    const isAsciiControl =
+      codePoint !== undefined && (codePoint <= 31 || codePoint === 127);
+
+    return isAsciiControl ? ' ' : character;
+  }).join('');
+}
+
 function cleanCaption(value: unknown): string | null {
-  const caption = String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+  const caption = replaceAsciiControlCharacters(String(value ?? ''))
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, MAX_CAPTION_LENGTH);
