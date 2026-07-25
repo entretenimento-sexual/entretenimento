@@ -15,6 +15,7 @@ describe('FriendSettingsComponent', () => {
 
   const cacheGet = vi.fn(() => of(null));
   const cacheSet = vi.fn();
+  const cacheDelete = vi.fn();
   const showSuccess = vi.fn();
   const showError = vi.fn();
   const handleError = vi.fn();
@@ -37,6 +38,7 @@ describe('FriendSettingsComponent', () => {
           useValue: {
             get: cacheGet,
             set: cacheSet,
+            delete: cacheDelete,
           },
         },
         {
@@ -64,12 +66,13 @@ describe('FriendSettingsComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('loads settings from a cache key scoped by the authenticated UID', () => {
+  it('removes the legacy global key before loading user-scoped settings', () => {
+    expect(cacheDelete).toHaveBeenCalledWith('friendSettings');
     expect(cacheGet).toHaveBeenCalledWith('friendSettings:user-123');
     expect(cacheGet).not.toHaveBeenCalledWith('friendSettings');
   });
 
-  it('stores settings under the authenticated UID without persisting loading state', () => {
+  it('stores settings under the authenticated UID without persistence', () => {
     const settings = {
       receiveRequests: false,
       showOnlineStatus: true,
@@ -83,13 +86,11 @@ describe('FriendSettingsComponent', () => {
       'friendSettings:user-123',
       settings,
       600_000,
-      { persist: true }
+      { persist: false }
     );
-    expect(cacheSet).not.toHaveBeenCalledWith(
-      'loadingSettings',
-      expect.anything(),
-      expect.anything()
-    );
+    expect(
+      cacheSet.mock.calls.some(([key]) => key === 'loadingSettings')
+    ).toBe(false);
     expect(showSuccess).toHaveBeenCalledWith(
       'Configurações de amizade atualizadas com sucesso!'
     );
