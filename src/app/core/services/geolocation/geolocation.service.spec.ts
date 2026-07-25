@@ -192,7 +192,7 @@ describe('watchPosition$', () => {
 
   it('mapeia erro do DOM em erro tipado (TIMEOUT)', async () => {
     (navigator.geolocation as any).watchPosition = (_success: any, error: any) => {
-      setTimeout(() => error({ code: 3 }), 0);
+      error({ code: 3 });
       return 7;
     };
 
@@ -285,4 +285,3 @@ describe('watchPosition$', () => {
     });
   });
 })
-
