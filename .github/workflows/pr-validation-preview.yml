@@ -22,11 +22,17 @@ jobs:
   validate:
     name: Tests and builds
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Configure Java for Firebase Emulator Suite
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
 
       - name: Configure Node.js
         uses: actions/setup-node@v6
@@ -48,6 +54,21 @@ jobs:
 
       - name: Check Firestore rules
         run: npm run rules:check
+
+      - name: Run compliance Firestore Rules tests
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:rules:compliance 2>&1 | tee compliance-rules-test.log
+
+      - name: Store compliance Firestore Rules test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compliance-rules-test-log-${{ github.run_id }}
+          path: compliance-rules-test.log
+          if-no-files-found: warn
+          retention-days: 3
 
       - name: Build Cloud Functions
         run: npm run functions:build
