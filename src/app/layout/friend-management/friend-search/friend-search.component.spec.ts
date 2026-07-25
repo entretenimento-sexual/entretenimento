@@ -1,9 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Store } from '@ngrx/store';
-import { of } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { FriendSearchComponent } from './friend-search.component';
+import { IUserDados } from '../../../core/interfaces/iuser-dados';
 import { AuthSessionService } from '../../../core/services/autentication/auth/auth-session.service';
 import { CacheService } from '../../../core/services/general/cache/cache.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
@@ -17,7 +18,7 @@ describe('FriendSearchComponent', () => {
   const storeDispatch = vi.fn();
   const cacheGet = vi.fn(() => of(null));
   const cacheSet = vi.fn();
-  const searchUsers = vi.fn(() => of([]));
+  const searchUsers = vi.fn((): Observable<IUserDados[]> => of([]));
   const showError = vi.fn();
   const handleError = vi.fn();
 
@@ -80,11 +81,11 @@ describe('FriendSearchComponent', () => {
   });
 
   it('stores search results in an ephemeral UID-scoped cache key', () => {
-    const results = [{ uid: 'result-1' }] as never[];
+    const results = [{ uid: 'result-1' }] as IUserDados[];
     searchUsers.mockReturnValue(of(results));
 
     (component as unknown as {
-      searchFriends: (term: string) => ReturnType<typeof of>;
+      searchFriends: (term: string) => Observable<void>;
     }).searchFriends('alex').subscribe();
 
     expect(cacheGet).toHaveBeenCalledWith('search:user-123:1rpur0l');
@@ -105,7 +106,7 @@ describe('FriendSearchComponent', () => {
     cacheGet.mockReturnValue(of([]));
 
     (component as unknown as {
-      searchFriends: (term: string) => ReturnType<typeof of>;
+      searchFriends: (term: string) => Observable<void>;
     }).searchFriends('alex').subscribe();
 
     expect(searchUsers).not.toHaveBeenCalled();
