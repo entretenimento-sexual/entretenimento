@@ -97,11 +97,9 @@ describe('FriendSearchComponent', () => {
       300_000,
       { persist: false }
     );
-    expect(cacheSet).not.toHaveBeenCalledWith(
-      'loadingSearch',
-      expect.anything(),
-      expect.anything()
-    );
+    expect(
+      cacheSet.mock.calls.some(([key]) => key === 'loadingSearch')
+    ).toBe(false);
   });
 
   it('treats an empty cached result as a valid cache hit', () => {
