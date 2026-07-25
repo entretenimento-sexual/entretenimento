@@ -14,14 +14,13 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
-  ACCOUNT_STATUS_VALUES,
   AGE_VERIFICATION_STATUS_VALUES,
   AML_RISK_TIER_VALUES,
-  ComplianceAccountStatus,
   derivePayoutEligibility,
   IDENTITY_VERIFICATION_STATUS_VALUES,
   IdentityVerificationStatus,
   MyComplianceSnapshot,
+  normalizeComplianceAccountStatus,
   PAYOUT_ACCOUNT_STATUS_VALUES,
   PayoutAccountStatus,
   AgeVerificationStatus,
@@ -132,57 +131,6 @@ function toEpochOrNull(value: unknown): number | null {
   return null;
 }
 
-/**
- * Consolida o lifecycle atual sem permitir que um campo legado permissivo
- * neutralize uma restrição mais forte.
- *
- * Exemplos fail-closed:
- * - `accountStatus: active` com `suspended: true` continua suspenso;
- * - timestamp de exclusão prevalece sobre status ativo legado;
- * - `loginAllowed: false` impede elegibilidade mesmo sem status migrado.
- */
-function normalizeAccountStatus(
-  value: unknown,
-  source: {
-    suspended: boolean;
-    loginAllowed: boolean;
-    deletionRequestedAt: unknown;
-    deletedAt: unknown;
-  }
-): ComplianceAccountStatus {
-  const explicitStatus = isAllowedValue(value, ACCOUNT_STATUS_VALUES)
-    ? value
-    : null;
-
-  if (
-    explicitStatus === 'deleted' ||
-    toEpochOrNull(source.deletedAt) !== null
-  ) {
-    return 'deleted';
-  }
-
-  if (
-    explicitStatus === 'pending_deletion' ||
-    toEpochOrNull(source.deletionRequestedAt) !== null
-  ) {
-    return 'pending_deletion';
-  }
-
-  if (explicitStatus === 'self_suspended') {
-    return 'self_suspended';
-  }
-
-  if (
-    explicitStatus === 'moderation_suspended' ||
-    source.suspended ||
-    !source.loginAllowed
-  ) {
-    return 'moderation_suspended';
-  }
-
-  return 'active';
-}
-
 function normalizeProvider(value: unknown): string | null {
   if (typeof value !== 'string') {
     return null;
@@ -232,11 +180,12 @@ export const getMyComplianceSnapshot = onCall<Record<string, never>>(
     const amlRiskTier = normalizeAmlRiskTier(compliance.amlRiskTier);
     const accountLocked = user.accountLocked === true;
     const interactionBlocked = user.interactionBlocked === true;
-    const accountStatus = normalizeAccountStatus(user.accountStatus, {
+    const accountStatus = normalizeComplianceAccountStatus({
+      explicitStatus: user.accountStatus,
       suspended: user.suspended === true,
       loginAllowed: user.loginAllowed !== false,
-      deletionRequestedAt: user.deletionRequestedAt,
-      deletedAt: user.deletedAt,
+      deletionRequested: toEpochOrNull(user.deletionRequestedAt) !== null,
+      deleted: toEpochOrNull(user.deletedAt) !== null,
     });
 
     const payoutEligibility = derivePayoutEligibility({
