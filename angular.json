@@ -50,7 +50,8 @@
               "src/styles/global-forms.css",
               "src/styles/profile-completion-polish.css",
               "src/styles/global-animations.css",
-              "src/styles.css"
+              "src/styles.css",
+              "src/styles/control-density.css"
             ],
             "scripts": [],
             "browser": "src/main.ts"
