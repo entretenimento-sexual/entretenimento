@@ -1,6 +1,5 @@
 // src/app/footer/legal-footer/termos-e-condicoes/termos-e-condicoes.component.ts
 import { Component, inject } from '@angular/core';
-import { MatDialogRef } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 
 import {
@@ -16,18 +15,9 @@ import {
 export class TermosECondicoesComponent {
   readonly termsVersion = TERMS_ACCEPTANCE_VERSION;
 
-  private readonly dialogRef = inject<MatDialogRef<TermosECondicoesComponent> | null>(
-    MatDialogRef,
-    { optional: true }
-  );
-  private readonly router = inject(Router, { optional: true });
+  private readonly router = inject(Router);
 
   closeDialog(): void {
-    if (this.dialogRef) {
-      this.dialogRef.close();
-      return;
-    }
-
-    this.router?.navigateByUrl('/').catch(() => undefined);
+    this.router.navigateByUrl('/').catch(() => undefined);
   }
 }
