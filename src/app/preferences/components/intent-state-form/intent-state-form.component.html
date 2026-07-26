@@ -1,53 +1,118 @@
-<!-- src\app\preferences\components\intent-state-form\intent-state-form.component.html -->
- <form class="intent-state-form" [formGroup]="form" (ngSubmit)="submit()" aria-label="Formulário de intenção atual">
-  <section class="form-section" aria-labelledby="intent-mode-title">
-    <h2 id="intent-mode-title" class="section-title">Estado atual</h2>
+<!-- src/app/preferences/components/intent-state-form/intent-state-form.component.html -->
+<form
+  class="intent-state-form"
+  [formGroup]="form"
+  (ngSubmit)="submit()"
+  aria-label="Formulário de disponibilidade atual"
+>
+  <div class="intent-basic" role="group" aria-label="Disponibilidade básica">
+    <div class="form-field">
+      <label for="intentMode">O que você busca agora</label>
+      <select id="intentMode" formControlName="mode">
+        @for (option of intentOptions; track option.key) {
+          <option [value]="option.key">{{ option.label }}</option>
+        }
+      </select>
+    </div>
 
-    <div class="form-grid">
-      <div class="form-field">
-        <label for="intentMode">Modo atual</label>
-        <select id="intentMode" formControlName="mode">
-          @for (option of intentOptions; track option.key) {
-            <option [value]="option.key">{{ option.label }}</option>
-          }
-        </select>
-      </div>
-
-      <div class="form-field">
-        <label for="cityOverride">Cidade contextual</label>
-        <input id="cityOverride" type="text" formControlName="cityOverride" placeholder="Ex.: Rio de Janeiro" />
-      </div>
-
-      <div class="form-field">
-        <label for="expiresAt">Expira em</label>
-        <input id="expiresAt" type="datetime-local" formControlName="expiresAt" />
-      </div>
-
-      <div class="form-field">
-        <label for="tagsText">Tags contextuais</label>
-        <input
-          id="tagsText"
-          type="text"
-          formControlName="tagsText"
-          placeholder="Ex.: viagem, fim de semana, discreto"
-        />
-      </div>
-
-      <label class="checkbox-item inline-item">
+    <div class="intent-toggles">
+      <label class="checkbox-item">
         <input type="checkbox" formControlName="availableNow" />
-        <span>Disponível agora</span>
+        <span>
+          <strong>Disponível agora</strong>
+          <small>Mostra atividade imediata.</small>
+        </span>
       </label>
 
-      <label class="checkbox-item inline-item">
+      <label class="checkbox-item">
         <input type="checkbox" formControlName="availableToday" />
-        <span>Disponível hoje</span>
+        <span>
+          <strong>Disponível hoje</strong>
+          <small>Mantém o sinal durante o dia.</small>
+        </span>
       </label>
     </div>
-  </section>
+  </div>
+
+  <details
+    class="intent-context"
+    [class.intent-context--locked]="!canUseContextualIntent()"
+  >
+    <summary class="intent-context__summary">
+      <span>
+        <strong>Contexto adicional</strong>
+        <small>Cidade, expiração e tags temporárias.</small>
+      </span>
+
+      @if (canUseContextualIntent()) {
+        <span class="intent-context__status">Disponível</span>
+      } @else {
+        <span class="intent-context__status intent-context__status--locked">
+          <i class="fas fa-lock" aria-hidden="true"></i>
+          Básico
+        </span>
+      }
+    </summary>
+
+    <div class="intent-context__content">
+      @if (canUseContextualIntent()) {
+        <div class="context-grid">
+          <div class="form-field">
+            <label for="cityOverride">Cidade contextual</label>
+            <input
+              id="cityOverride"
+              type="text"
+              formControlName="cityOverride"
+              placeholder="Ex.: Rio de Janeiro"
+              autocomplete="address-level2"
+            />
+          </div>
+
+          <div class="form-field">
+            <label for="expiresAt">Expira em</label>
+            <input
+              id="expiresAt"
+              type="datetime-local"
+              formControlName="expiresAt"
+            />
+          </div>
+
+          <div class="form-field form-field--wide">
+            <label for="tagsText">Tags contextuais</label>
+            <input
+              id="tagsText"
+              type="text"
+              formControlName="tagsText"
+              placeholder="Ex.: viagem, fim de semana, discreto"
+            />
+            <small>Separe as tags por vírgulas.</small>
+          </div>
+        </div>
+      } @else {
+        <div class="intent-upgrade" role="note">
+          <span>
+            Seu plano {{ currentPlanLabel() }} permite informar disponibilidade.
+            O Básico adiciona cidade temporária, expiração e tags de contexto.
+          </span>
+          <a
+            routerLink="/subscription-plan"
+            [queryParams]="{ minimumRole: 'basic' }"
+          >
+            Ver plano Básico
+          </a>
+        </div>
+      }
+    </div>
+  </details>
 
   <footer class="form-actions">
-    <button type="submit" class="btn btn-primary" [disabled]="saving()">
-      Salvar intenção atual
+    <button
+      type="submit"
+      class="btn btn-primary"
+      [disabled]="!canEdit() || saving()"
+      [attr.aria-busy]="saving() ? 'true' : 'false'"
+    >
+      {{ saving() ? 'Salvando…' : 'Salvar disponibilidade' }}
     </button>
   </footer>
 </form>
