@@ -1,7 +1,8 @@
 // src/app/preferences/components/preferences-domain-nav/preferences-domain-nav.component.ts
 // Navegação interna do domínio de preferências.
 // Respeita o shell global e não cria layout paralelo.
-// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
+// Visual clean, simplificado, em português, de fácil navegação e mobile-first.
+
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterModule } from '@angular/router';
@@ -17,7 +18,7 @@ import { RouterModule } from '@angular/router';
 export class PreferencesDomainNavComponent {
   readonly items = [
     {
-      label: 'Hub',
+      label: 'Início',
       route: '/preferencias',
       exact: true,
     },
@@ -32,12 +33,12 @@ export class PreferencesDomainNavComponent {
       exact: true,
     },
     {
-      label: 'Discovery settings',
+      label: 'Descoberta',
       route: '/preferencias/discovery-settings',
       exact: true,
     },
     {
-      label: 'Match profile',
+      label: 'Compatibilidade',
       route: '/preferencias/match-profile',
       exact: true,
     },
