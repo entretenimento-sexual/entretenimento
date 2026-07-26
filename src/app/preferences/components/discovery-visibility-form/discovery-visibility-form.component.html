@@ -1,4 +1,4 @@
-<!-- src\app\preferences\components\discovery-visibility-form\discovery-visibility-form.component.html -->
+<!-- src/app/preferences/components/discovery-visibility-form/discovery-visibility-form.component.html -->
 <form
   class="discovery-visibility-form"
   [formGroup]="form"
@@ -15,28 +15,36 @@
         <label for="discoveryMode">Modo de descoberta</label>
         <select id="discoveryMode" formControlName="discoveryMode">
           @for (option of discoveryModeOptions; track option.key) {
-            @if (isModeAvailable(option.key)) {
-              <option [value]="option.key">{{ option.label }}</option>
-            }
+            <option
+              [value]="option.key"
+              [disabled]="!isModeAvailable(option.key)"
+            >
+              {{ option.label }}{{ modeRequirement(option.key) }}
+            </option>
           }
         </select>
       </div>
 
       <label class="checkbox-item inline-item">
         <input type="checkbox" formControlName="showPreferenceBadges" />
-        <span>Exibir badges de preferências</span>
+        <span>Exibir sinais de preferências</span>
       </label>
 
       <label class="checkbox-item inline-item">
         <input type="checkbox" formControlName="showIntentPublicly" />
-        <span>Exibir intenção publicamente</span>
+        <span>Exibir disponibilidade publicamente</span>
       </label>
     </div>
   </section>
 
   <footer class="form-actions">
-    <button type="submit" class="btn btn-primary" [disabled]="!canEdit() || saving()">
-      Salvar descoberta e visibilidade
+    <button
+      type="submit"
+      class="btn btn-primary"
+      [disabled]="!canEdit() || saving()"
+      [attr.aria-busy]="saving() ? 'true' : 'false'"
+    >
+      {{ saving() ? 'Salvando…' : 'Salvar descoberta e visibilidade' }}
     </button>
   </footer>
 </form>
