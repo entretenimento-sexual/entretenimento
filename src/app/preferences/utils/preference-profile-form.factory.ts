@@ -67,6 +67,9 @@ export function mapFormValueToPreferenceProfile(
   current: PreferenceProfile,
   capabilities: PreferencesCapabilitySnapshot | null | undefined
 ): PreferenceProfile {
+  const canEditAdvanced =
+    capabilities?.canEditAdvancedPreferences === true;
+
   return {
     ...current,
     relationshipIntents: collectSelected(raw, 'ri', RELATIONSHIP_INTENT_OPTIONS),
@@ -83,8 +86,15 @@ export function mapFormValueToPreferenceProfile(
     },
     softRules: {
       ...current.softRules,
-      bodyPreferences: collectSelected(raw, 'bp', BODY_PREFERENCE_OPTIONS),
-      sexualPractices: collectSelected(raw, 'sp', SEXUAL_PRACTICE_OPTIONS),
+      // Campos pagos nunca são alterados por um cliente sem entitlement válido.
+      // Ao salvar preferências essenciais, seleções avançadas já existentes são
+      // preservadas, mas permanecem indisponíveis para edição/uso pela UI.
+      bodyPreferences: canEditAdvanced
+        ? collectSelected(raw, 'bp', BODY_PREFERENCE_OPTIONS)
+        : current.softRules.bodyPreferences ?? [],
+      sexualPractices: canEditAdvanced
+        ? collectSelected(raw, 'sp', SEXUAL_PRACTICE_OPTIONS)
+        : current.softRules.sexualPractices ?? [],
       vibes: current.softRules.vibes ?? [],
       styles: current.softRules.styles ?? [],
       interests: current.softRules.interests ?? [],
