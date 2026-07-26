@@ -1,5 +1,6 @@
 // src/app/core/interfaces/iuser-dados.ts
 import { IUserSocialLinks } from './interfaces-user-dados/iuser-social-links';
+import { IUserDiscoveryPreferences } from './preferences/user-discovery-preferences.interface';
 
 export type UserTierRole = 'visitante' | 'free' | 'basic' | 'premium' | 'vip' | 'admin';
 
@@ -130,6 +131,12 @@ export interface IUserDados {
   compatibilityReady?: boolean | null;
   interestedInGenders?: readonly string[] | string | null;
   interestedInOrientations?: readonly string[] | string | null;
+
+  /**
+   * Projeção privada das escolhas explícitas do editor de preferências.
+   * É usada apenas para filtrar/rankear discovery do próprio usuário.
+   */
+  discoveryPreferences?: IUserDiscoveryPreferences | null;
 
   partner1Orientation?: string;
   partner2Orientation?: string;
