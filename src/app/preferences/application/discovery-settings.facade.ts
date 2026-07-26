@@ -1,14 +1,22 @@
 // src/app/preferences/application/discovery-settings.facade.ts
-// Fachada de leitura/escrita das configurações de descoberta.
-//
-// Objetivo:
-// - centralizar leitura do bloco de visibilidade
-// - aplicar gating por capability antes de salvar
-// - preparar uma trilha clara para produto/monetização
+// -----------------------------------------------------------------------------
+// FACHADA DE DESCOBERTA E VISIBILIDADE
+// -----------------------------------------------------------------------------
+// - privacidade básica permanece disponível para toda conta autenticada;
+// - modos pagos são sanitizados pela projeção canônica da assinatura;
+// - leituras privadas só começam após confirmação do proprietário.
+// -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
-import { catchError, map, shareReplay, switchMap, take } from 'rxjs/operators';
+import {
+  catchError,
+  filter,
+  map,
+  shareReplay,
+  switchMap,
+  take,
+} from 'rxjs/operators';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -19,11 +27,11 @@ import {
   PreferenceProfile,
   PreferenceVisibilitySettings,
 } from '../models/preference-profile.model';
-import { ProfilePreferencesService } from '../services/profile-preferences.service';
 import {
   PreferencesCapabilityService,
   PreferencesCapabilitySnapshot,
 } from '../services/preferences-capability.service';
+import { ProfilePreferencesService } from '../services/profile-preferences.service';
 
 export interface DiscoverySettingsVm {
   uid: string;
@@ -63,24 +71,41 @@ export class DiscoverySettingsFacade {
   getDiscoverySettingsVmByUid$(uid: string): Observable<DiscoverySettingsVm> {
     const safeUid = this.normalizeUid(uid);
     if (!safeUid) {
-      return throwError(() => new Error('[DiscoverySettingsFacade] UID inválido.'));
+      return throwError(
+        () => new Error('[DiscoverySettingsFacade] UID inválido.')
+      );
     }
 
     return this.currentUser$.pipe(
-      switchMap((currentUser) =>
-        this.profilePreferences.getProfile$(safeUid).pipe(
-          map((profile) => {
-            const user = currentUser?.uid === safeUid ? currentUser : null;
-            return {
-              uid: safeUid,
-              user,
-              profile,
-              visibility: profile.visibility,
-              capabilities: this.capabilities.getCapabilities(user),
-            };
-          })
-        )
-      ),
+      filter((user): user is IUserDados => Boolean(user?.uid)),
+      switchMap((user) => {
+        if (user.uid !== safeUid) {
+          return throwError(
+            () =>
+              new Error(
+                '[DiscoverySettingsFacade] Configurações privadas disponíveis apenas ao proprietário.'
+              )
+          );
+        }
+
+        return this.profilePreferences.getProfile$(safeUid).pipe(
+          map((profile) => ({
+            uid: safeUid,
+            user,
+            profile,
+            visibility: profile.visibility,
+            capabilities: this.capabilities.getCapabilities(user),
+          }))
+        );
+      }),
+      catchError((err) => {
+        this.handleError(
+          err,
+          'getDiscoverySettingsVmByUid$',
+          'Não foi possível carregar as configurações de descoberta.'
+        );
+        return throwError(() => err);
+      }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
@@ -91,25 +116,32 @@ export class DiscoverySettingsFacade {
   ): Observable<void> {
     const safeUid = this.normalizeUid(uid);
     if (!safeUid) {
-      return throwError(() => new Error('[DiscoverySettingsFacade] UID inválido.'));
+      return throwError(
+        () => new Error('[DiscoverySettingsFacade] UID inválido.')
+      );
     }
 
     return this.currentUser$.pipe(
+      filter((user): user is IUserDados => Boolean(user?.uid)),
       take(1),
       map((user) => {
-        const effectiveUser = user?.uid === safeUid ? user : null;
-        const caps = this.capabilities.getCapabilities(effectiveUser);
-
-        if (!caps.canEditAdvancedPreferences) {
-          throw new Error('[DiscoverySettingsFacade] Usuário sem permissão para editar configurações de descoberta.');
+        if (user.uid !== safeUid) {
+          throw new Error(
+            '[DiscoverySettingsFacade] Usuário sem permissão para editar este perfil.'
+          );
         }
 
-        return {
-          caps,
-          sanitized: this.sanitizeVisibilitySettings(visibility, caps),
-        };
+        const capabilities = this.capabilities.getCapabilities(user);
+
+        if (!capabilities.canEditCorePreferences) {
+          throw new Error(
+            '[DiscoverySettingsFacade] Conta sem permissão para editar descoberta.'
+          );
+        }
+
+        return this.sanitizeVisibilitySettings(visibility, capabilities);
       }),
-      switchMap(({ sanitized }) =>
+      switchMap((sanitized) =>
         this.profilePreferences.updateProfile$(safeUid, {
           visibility: sanitized,
         })
@@ -130,15 +162,17 @@ export class DiscoverySettingsFacade {
     capabilities: PreferencesCapabilitySnapshot
   ): PreferenceVisibilitySettings {
     const safeMode =
-      visibility.discoveryMode === 'priority' && !capabilities.canUsePriorityVisibility
+      visibility.discoveryMode === 'priority' &&
+      !capabilities.canUsePriorityVisibility
         ? 'standard'
-        : visibility.discoveryMode === 'discreet' && !capabilities.canUseDiscreetMode
+        : visibility.discoveryMode === 'discreet' &&
+            !capabilities.canUseDiscreetMode
           ? 'standard'
           : visibility.discoveryMode;
 
     return {
-      showPreferenceBadges: !!visibility.showPreferenceBadges,
-      showIntentPublicly: !!visibility.showIntentPublicly,
+      showPreferenceBadges: Boolean(visibility.showPreferenceBadges),
+      showIntentPublicly: Boolean(visibility.showIntentPublicly),
       discoveryMode: safeMode,
     };
   }
@@ -147,14 +181,27 @@ export class DiscoverySettingsFacade {
     return (uid ?? '').trim();
   }
 
-  private handleError(err: unknown, context: string, userMessage: string): void {
-    const e = err instanceof Error ? err : new Error(`[DiscoverySettingsFacade] ${context}`);
-    (e as any).silent = true;
-    (e as any).original = err;
-    (e as any).context = context;
-    (e as any).feature = 'discovery_settings';
+  private handleError(
+    err: unknown,
+    context: string,
+    userMessage: string
+  ): void {
+    const error =
+      err instanceof Error
+        ? err
+        : new Error(`[DiscoverySettingsFacade] ${context}`);
 
-    this.globalError.handleError(e);
+    (error as Error & {
+      silent?: boolean;
+      original?: unknown;
+      context?: unknown;
+      feature?: string;
+    }).silent = true;
+    (error as Error & { original?: unknown }).original = err;
+    (error as Error & { context?: unknown }).context = context;
+    (error as Error & { feature?: string }).feature = 'discovery_settings';
+
+    this.globalError.handleError(error);
     this.notifier.showError(userMessage);
   }
 }
