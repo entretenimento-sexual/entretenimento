@@ -4,7 +4,7 @@ import { type ActionReducer, type MetaReducer } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { STORE_FEATURE } from '../feature-keys';
 
-import { authSessionChanged, logout, logoutSuccess } from '../../actions/actions.user/auth.actions';
+import { authSessionChanged, logoutSuccess } from '../../actions/actions.user/auth.actions';
 
 import { initialChatState } from '../../states/states.chat/chat.state';
 import { initialInviteState } from '../../states/states.chat/invite.state';
@@ -20,9 +20,6 @@ import { initialUserState } from '../../states/states.user/user.state';
 import { initialTermsState } from '../../states/states.user/terms.state';
 import { initialFileState } from '../../states/states.user/file.state';
 import { initialUserPreferencesState } from '../../states/states.user/user-preferences.state';
-
-// ✅ agora existe de verdade
-import { initialCacheState } from '../../states/cache.state';
 
 function resetUserScopedSlices(nextState: AppState): AppState {
   return {
@@ -42,8 +39,6 @@ function resetUserScopedSlices(nextState: AppState): AppState {
 
     [STORE_FEATURE.friendsPages]: initialFriendsPaginationState as any,
     [STORE_FEATURE.interactionsFriends]: initialFriendsState as any,
-
-    [STORE_FEATURE.cache]: initialCacheState as any,
   };
 }
 
@@ -55,10 +50,10 @@ export const resetStoreOnAuthChangeMetaReducer: MetaReducer<AppState> =
       if (action.type === logoutSuccess.type) {
         return resetUserScopedSlices(nextState);
       }
-      // Verifica mudança de UID na authSessionChanged
-      // lebrar sempre da padronização em uid para usuários, o identificador canônico.
+      // Verifica mudança de UID na authSessionChanged.
+      // Manter uid como identificador canônico de usuário.
       if (action.type === authSessionChanged.type) {
-        const prevUid = (state as any)?.[STORE_FEATURE.auth]?.userId ?? null; // ✅ era .uid
+        const prevUid = (state as any)?.[STORE_FEATURE.auth]?.userId ?? null;
         const nextUid = (action as any)?.uid ?? null;
 
         if (prevUid !== nextUid) {
