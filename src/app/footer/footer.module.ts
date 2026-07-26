@@ -8,7 +8,6 @@ import { LegalFooterComponent } from './legal-footer/legal-footer.component';
 import { NavigationFooterComponent } from './navigation-footer/navigation-footer.component';
 import { FooterComponent } from './footer/footer.component';
 import { FooterRoutingModule } from './footer-routing.module';
-import { MatDialogModule } from '@angular/material/dialog';
 
 @NgModule({
   declarations: [
@@ -21,14 +20,13 @@ import { MatDialogModule } from '@angular/material/dialog';
   imports: [
     CommonModule,
     FooterRoutingModule,
-    MatDialogModule
   ],
   exports: [
     ContactFooterComponent,
     CopyrightFooterComponent,
     LegalFooterComponent,
     NavigationFooterComponent,
-    FooterComponent
-  ]
+    FooterComponent,
+  ],
 })
-export class FooterModule { }
+export class FooterModule {}
