@@ -1,23 +1,29 @@
 // src/app/preferences/components/intent-state-form/intent-state-form.component.ts
-// Formulário inédito para edição da intenção contextual.
-// Não conhece legado.
-// Não persiste diretamente.
-// Emite IntentState pronto para a página/facade salvar.
-// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
+// -----------------------------------------------------------------------------
+// FORMULÁRIO DE DISPONIBILIDADE ATUAL
+// -----------------------------------------------------------------------------
+// - disponibilidade básica permanece acessível a toda conta autenticada;
+// - cidade contextual, expiração e tags exigem assinatura Básica ou superior;
+// - a projeção canônica da assinatura chega por capabilities;
+// - o componente não persiste diretamente.
+// -----------------------------------------------------------------------------
+
+import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   input,
   output,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 
 import { IntentState } from '../../models/intent-state.model';
 import { IntentMode } from '../../models/preference.types';
-import { createEmptyIntentState } from '../../utils/preference-normalizers';
 import { PreferencesCapabilitySnapshot } from '../../services/preferences-capability.service';
+import { createEmptyIntentState } from '../../utils/preference-normalizers';
 
 type IntentOption = {
   key: IntentMode;
@@ -27,7 +33,7 @@ type IntentOption = {
 @Component({
   selector: 'app-intent-state-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule],
   templateUrl: './intent-state-form.component.html',
   styleUrl: './intent-state-form.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,8 +50,8 @@ export class IntentStateFormComponent {
     { key: 'chat', label: 'Conversar' },
     { key: 'meet_today', label: 'Encontrar hoje' },
     { key: 'casual', label: 'Casual' },
-    { key: 'dating', label: 'Dating' },
-    { key: 'serious', label: 'Sério' },
+    { key: 'dating', label: 'Namoro' },
+    { key: 'serious', label: 'Relacionamento sério' },
     { key: 'fetish', label: 'Fetiche' },
     { key: 'travel', label: 'Viagem' },
   ];
@@ -61,24 +67,57 @@ export class IntentStateFormComponent {
     tagsText: '',
   });
 
+  readonly canEdit = computed(
+    () => this.capabilities()?.canEditIntentState ?? false
+  );
+
+  readonly canUseContextualIntent = computed(
+    () => this.capabilities()?.canUseContextualIntent ?? false
+  );
+
+  readonly currentPlanLabel = computed(
+    () => this.capabilities()?.currentPlanLabel ?? 'Sem sessão'
+  );
+
   constructor() {
     effect(() => {
       const intent = this.intent() ?? createEmptyIntentState('');
       this.patchForm(intent);
     });
+
+    effect(() => {
+      if (!this.canEdit()) {
+        this.form.disable({ emitEvent: false });
+        return;
+      }
+
+      this.form.enable({ emitEvent: false });
+      this.setContextualControlsDisabled(!this.canUseContextualIntent());
+    });
   }
 
   submit(): void {
+    if (!this.canEdit() || this.saving() || this.form.invalid) return;
+
     const current = this.intent() ?? createEmptyIntentState('');
+    const canUseContext = this.canUseContextualIntent();
 
     const result: IntentState = {
       userId: current.userId,
       mode: this.form.controls.mode.value,
       availableNow: this.form.controls.availableNow.value,
       availableToday: this.form.controls.availableToday.value,
-      cityOverride: this.normalizeOptionalString(this.form.controls.cityOverride.value),
-      expiresAt: this.toEpochOrNull(this.form.controls.expiresAt.value),
-      tags: this.parseTags(this.form.controls.tagsText.value),
+      // Benefícios contextuais deixam de ser publicados quando o entitlement
+      // não está ativo. O usuário continua podendo usar a disponibilidade básica.
+      cityOverride: canUseContext
+        ? this.normalizeOptionalString(this.form.controls.cityOverride.value)
+        : null,
+      expiresAt: canUseContext
+        ? this.toEpochOrNull(this.form.controls.expiresAt.value)
+        : null,
+      tags: canUseContext
+        ? this.parseTags(this.form.controls.tagsText.value)
+        : [],
       updatedAt: Date.now(),
     };
 
@@ -97,6 +136,22 @@ export class IntentStateFormComponent {
       },
       { emitEvent: false }
     );
+  }
+
+  private setContextualControlsDisabled(disabled: boolean): void {
+    const controls = [
+      this.form.controls.cityOverride,
+      this.form.controls.expiresAt,
+      this.form.controls.tagsText,
+    ];
+
+    for (const control of controls) {
+      if (disabled) {
+        control.disable({ emitEvent: false });
+      } else {
+        control.enable({ emitEvent: false });
+      }
+    }
   }
 
   private parseTags(raw: string): string[] {
@@ -137,4 +192,4 @@ export class IntentStateFormComponent {
 
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   }
-} // Linha 140. fim do intent-state-form.component.ts
+}
