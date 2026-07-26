@@ -1,9 +1,22 @@
-<!-- src\app\preferences\components\preference-profile-form\preference-profile-form.component.html -->
- <form class="preference-profile-form" [formGroup]="form" (ngSubmit)="submit()" aria-label="Formulário de perfil de preferências">
-  <section class="form-section" aria-labelledby="relationship-intents-title">
-    <h2 id="relationship-intents-title" class="section-title">Intenções relacionais</h2>
+<!-- src/app/preferences/components/preference-profile-form/preference-profile-form.component.html -->
+<form
+  class="preference-profile-form"
+  [formGroup]="form"
+  (ngSubmit)="submit()"
+  aria-label="Formulário de preferências"
+>
+  <details class="preference-group" open>
+    <summary class="preference-group__summary">
+      <span class="preference-group__title">
+        <strong>Intenções relacionais</strong>
+        <small>O tipo de conexão que você procura.</small>
+      </span>
+      <span class="preference-group__count">
+        {{ selectionLabel(selectedCount('ri', relationshipIntentOptions)) }}
+      </span>
+    </summary>
 
-    <div class="checkbox-grid">
+    <div class="preference-group__content checkbox-grid">
       @for (option of relationshipIntentOptions; track option.key) {
         <label class="checkbox-item">
           <input type="checkbox" [formControlName]="'ri_' + option.key" />
@@ -11,12 +24,20 @@
         </label>
       }
     </div>
-  </section>
+  </details>
 
-  <section class="form-section" aria-labelledby="gender-interests-title">
-    <h2 id="gender-interests-title" class="section-title">Interesses de gênero</h2>
+  <details class="preference-group">
+    <summary class="preference-group__summary">
+      <span class="preference-group__title">
+        <strong>Interesses de gênero</strong>
+        <small>Quem pode aparecer nas suas combinações.</small>
+      </span>
+      <span class="preference-group__count">
+        {{ selectionLabel(selectedCount('gi', genderInterestOptions)) }}
+      </span>
+    </summary>
 
-    <div class="checkbox-grid">
+    <div class="preference-group__content checkbox-grid">
       @for (option of genderInterestOptions; track option.key) {
         <label class="checkbox-item">
           <input type="checkbox" [formControlName]="'gi_' + option.key" />
@@ -24,99 +45,186 @@
         </label>
       }
     </div>
-  </section>
+  </details>
 
-  <section class="form-section" aria-labelledby="sexual-practices-title">
-    <h2 id="sexual-practices-title" class="section-title">Práticas desejadas</h2>
+  <details
+    class="preference-group"
+    [class.preference-group--locked]="!canEditAdvanced()"
+  >
+    <summary class="preference-group__summary">
+      <span class="preference-group__title">
+        <strong>Preferências avançadas</strong>
+        <small>Práticas desejadas e preferências físicas.</small>
+      </span>
 
-    <div class="checkbox-grid">
-      @for (option of sexualPracticeOptions; track option.key) {
-        <label class="checkbox-item">
-          <input type="checkbox" [formControlName]="'sp_' + option.key" />
-          <span>{{ option.label }}</span>
-        </label>
+      @if (canEditAdvanced()) {
+        <span class="preference-group__count">
+          {{
+            selectionLabel(
+              selectedCount('sp', sexualPracticeOptions) +
+              selectedCount('bp', bodyPreferenceOptions)
+            )
+          }}
+        </span>
+      } @else {
+        <span class="preference-group__plan">
+          <i class="fas fa-lock" aria-hidden="true"></i>
+          Básico
+        </span>
+      }
+    </summary>
+
+    <div class="preference-group__content">
+      @if (canEditAdvanced()) {
+        <div class="preference-subgroup">
+          <strong class="preference-subgroup__title">Práticas desejadas</strong>
+
+          <div class="checkbox-grid">
+            @for (option of sexualPracticeOptions; track option.key) {
+              <label class="checkbox-item">
+                <input type="checkbox" [formControlName]="'sp_' + option.key" />
+                <span>{{ option.label }}</span>
+              </label>
+            }
+          </div>
+        </div>
+
+        <div class="preference-subgroup">
+          <strong class="preference-subgroup__title">Preferências físicas</strong>
+
+          <div class="checkbox-grid">
+            @for (option of bodyPreferenceOptions; track option.key) {
+              <label class="checkbox-item">
+                <input type="checkbox" [formControlName]="'bp_' + option.key" />
+                <span>{{ option.label }}</span>
+              </label>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="preference-upgrade" role="note">
+          <span>
+            Seu plano {{ currentPlanLabel() }} mantém as preferências essenciais.
+            O plano Básico libera práticas e preferências físicas detalhadas.
+          </span>
+          <a
+            class="preference-upgrade__action"
+            routerLink="/subscription-plan"
+            [queryParams]="{ minimumRole: 'basic' }"
+          >
+            Ver plano Básico
+          </a>
+        </div>
       }
     </div>
-  </section>
+  </details>
 
-  <section class="form-section" aria-labelledby="body-preferences-title">
-    <h2 id="body-preferences-title" class="section-title">Preferências físicas</h2>
+  <details class="preference-group">
+    <summary class="preference-group__summary">
+      <span class="preference-group__title">
+        <strong>Opções de descoberta</strong>
+        <small>Distância e tipos de perfil aceitos.</small>
+      </span>
+      <span class="preference-group__count">Configurar</span>
+    </summary>
 
-    <div class="checkbox-grid">
-      @for (option of bodyPreferenceOptions; track option.key) {
-        <label class="checkbox-item">
-          <input type="checkbox" [formControlName]="'bp_' + option.key" />
-          <span>{{ option.label }}</span>
-        </label>
-      }
-    </div>
-  </section>
-
-  <section class="form-section" aria-labelledby="hard-rules-title">
-    <h2 id="hard-rules-title" class="section-title">Regras de descoberta</h2>
-
-    <div class="form-grid">
+    <div class="preference-group__content form-grid">
       <div class="form-field">
-        <label for="maxDistanceKm">Distância máxima (km)</label>
-        <input id="maxDistanceKm" type="number" formControlName="maxDistanceKm" min="0" step="1" />
+        <label for="maxDistanceKm">Distância máxima</label>
+        <div class="input-with-suffix">
+          <input
+            id="maxDistanceKm"
+            type="number"
+            formControlName="maxDistanceKm"
+            min="0"
+            step="1"
+            inputmode="numeric"
+          />
+          <span>km</span>
+        </div>
       </div>
 
       <div class="form-field">
-        <label for="acceptsTransProfiles">Preferência sobre perfis trans</label>
+        <label for="acceptsTransProfiles">Perfis trans</label>
         <select id="acceptsTransProfiles" formControlName="acceptsTransProfiles">
           <option value="all">Sem restrição</option>
-          <option value="yes">Aceita</option>
-          <option value="no">Não aceita</option>
+          <option value="yes">Incluir</option>
+          <option value="no">Não incluir</option>
         </select>
       </div>
 
-      <label class="checkbox-item inline-item">
-        <input type="checkbox" formControlName="acceptsCouples" />
-        <span>Aceita casais</span>
-      </label>
+      <div class="inline-options">
+        <label class="checkbox-item">
+          <input type="checkbox" formControlName="acceptsCouples" />
+          <span>Incluir casais</span>
+        </label>
 
-      <label class="checkbox-item inline-item">
-        <input type="checkbox" formControlName="acceptsSingles" />
-        <span>Aceita singles</span>
-      </label>
+        <label class="checkbox-item">
+          <input type="checkbox" formControlName="acceptsSingles" />
+          <span>Incluir pessoas solteiras</span>
+        </label>
 
-      <label class="checkbox-item inline-item">
-        <input type="checkbox" formControlName="locationRequired" />
-        <span>Exigir localização</span>
-      </label>
+        <label class="checkbox-item">
+          <input type="checkbox" formControlName="locationRequired" />
+          <span>Mostrar apenas perfis com localização</span>
+        </label>
+      </div>
     </div>
-  </section>
+  </details>
 
-  <section class="form-section" aria-labelledby="visibility-title">
-    <h2 id="visibility-title" class="section-title">Visibilidade</h2>
+  <details class="preference-group">
+    <summary class="preference-group__summary">
+      <span class="preference-group__title">
+        <strong>Como quero aparecer</strong>
+        <small>Privacidade e visibilidade do seu perfil.</small>
+      </span>
+      <span class="preference-group__count">Configurar</span>
+    </summary>
 
-    <div class="form-grid">
-      <div class="form-field">
+    <div class="preference-group__content form-grid">
+      <div class="form-field form-field--wide">
         <label for="discoveryMode">Modo de descoberta</label>
         <select id="discoveryMode" formControlName="discoveryMode">
           @for (option of discoveryModeOptions; track option.key) {
-            @if (isModeAvailable(option.key)) {
-              <option [value]="option.key">{{ option.label }}</option>
-            }
+            <option
+              [value]="option.key"
+              [disabled]="!isModeAvailable(option.key)"
+            >
+              {{ option.label }}{{ modeRequirement(option.key) }}
+            </option>
           }
         </select>
+        <small class="field-help">
+          Modo discreto exige Premium; prioridade exige VIP.
+        </small>
       </div>
 
-      <label class="checkbox-item inline-item">
-        <input type="checkbox" formControlName="showPreferenceBadges" />
-        <span>Exibir badges de preferências</span>
-      </label>
+      <div class="inline-options">
+        <label class="checkbox-item">
+          <input type="checkbox" formControlName="showPreferenceBadges" />
+          <span>Exibir sinais de preferências no perfil</span>
+        </label>
 
-      <label class="checkbox-item inline-item">
-        <input type="checkbox" formControlName="showIntentPublicly" />
-        <span>Exibir intenção publicamente</span>
-      </label>
+        <label class="checkbox-item">
+          <input type="checkbox" formControlName="showIntentPublicly" />
+          <span>Exibir minha disponibilidade publicamente</span>
+        </label>
+      </div>
     </div>
-  </section>
+  </details>
 
   <footer class="form-actions">
-    <button type="submit" class="btn btn-primary" [disabled]="!canEdit() || saving()">
-      Salvar perfil de preferências
+    <span class="form-actions__status" aria-live="polite">
+      {{ saving() ? 'Salvando alterações…' : 'As alterações só valem após salvar.' }}
+    </span>
+
+    <button
+      type="submit"
+      class="btn btn-primary"
+      [disabled]="!canEdit() || saving()"
+      [attr.aria-busy]="saving() ? 'true' : 'false'"
+    >
+      {{ saving() ? 'Salvando…' : 'Salvar preferências' }}
     </button>
   </footer>
-</form> 
+</form>
