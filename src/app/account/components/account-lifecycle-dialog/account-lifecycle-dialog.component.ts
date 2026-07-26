@@ -1,13 +1,15 @@
 // src/app/account/components/account-lifecycle-dialog/account-lifecycle-dialog.component.ts
 import {
-  AfterViewInit,
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   HostListener,
+  afterNextRender,
   computed,
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { A11yModule } from '@angular/cdk/a11y';
@@ -27,7 +29,7 @@ import {
   styleUrl: './account-lifecycle-dialog.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AccountLifecycleDialogComponent implements AfterViewInit {
+export class AccountLifecycleDialogComponent {
   readonly intent = input.required<AccountLifecycleDialogIntent>();
   readonly busy = input<boolean>(false);
   readonly reauthenticationMode = input<AccountReauthenticationMode>(
@@ -45,7 +47,17 @@ export class AccountLifecycleDialogComponent implements AfterViewInit {
   readonly passwordTouched = signal(false);
   readonly showPassword = signal(false);
 
-  private previousActiveElement: HTMLElement | null = null;
+  private readonly dialogContainer =
+    viewChild<ElementRef<HTMLElement>>('dialogContainer');
+  private readonly initialFocusTarget =
+    viewChild<ElementRef<HTMLButtonElement>>('initialFocusTarget');
+
+  /**
+   * Capturado durante a criação do componente, antes do primeiro render.
+   * Isso evita que o próprio focus trap seja registrado como origem do foco.
+   */
+  private previousActiveElement: HTMLElement | null =
+    this.readActiveElement();
 
   readonly isDanger = computed(() => {
     const intent = this.intent();
@@ -217,10 +229,8 @@ export class AccountLifecycleDialogComponent implements AfterViewInit {
     return true;
   });
 
-  ngAfterViewInit(): void {
-    if (typeof document !== 'undefined') {
-      this.previousActiveElement = document.activeElement as HTMLElement | null;
-    }
+  constructor() {
+    afterNextRender(() => this.focusInitialControl());
   }
 
   @HostListener('document:keydown.escape')
@@ -267,9 +277,11 @@ export class AccountLifecycleDialogComponent implements AfterViewInit {
     this.password.set('');
     this.closed.emit();
 
-    if (focusTarget?.isConnected) {
-      setTimeout(() => focusTarget.focus(), 0);
-    }
+    queueMicrotask(() => {
+      if (focusTarget?.isConnected) {
+        focusTarget.focus({ preventScroll: true });
+      }
+    });
   }
 
   onConfirm(): void {
@@ -283,5 +295,20 @@ export class AccountLifecycleDialogComponent implements AfterViewInit {
       reason: this.reason().trim() || null,
       password: this.requiresPassword() ? this.password() : null,
     });
+  }
+
+  private focusInitialControl(): void {
+    const cancelButton = this.initialFocusTarget()?.nativeElement;
+    const dialog = this.dialogContainer()?.nativeElement;
+    const target = cancelButton && !cancelButton.disabled
+      ? cancelButton
+      : dialog;
+
+    target?.focus({ preventScroll: true });
+  }
+
+  private readActiveElement(): HTMLElement | null {
+    if (typeof document === 'undefined') return null;
+    return document.activeElement as HTMLElement | null;
   }
 }
