@@ -9,6 +9,7 @@
 // - serializar mutações por chave para preservar a ordem das escritas;
 // - aguardar mutações pendentes antes de ler a mesma chave;
 // - limpar o IndexedDB em lotes pequenos, sem bloquear a inicialização;
+// - revalidar a chave dentro da fila antes de uma exclusão de manutenção;
 // - permitir isolamento do store IndexedDB em testes.
 // -----------------------------------------------------------------------------
 import { inject, Injectable, InjectionToken } from '@angular/core';
@@ -18,6 +19,8 @@ import { from, map, Observable, switchMap } from 'rxjs';
 export const CACHE_PERSISTENCE_SCHEMA_VERSION = 2 as const;
 
 export type CachePersistenceStore = ReturnType<typeof createStore>;
+
+type MaintenanceRemovalReason = 'invalid' | 'expired' | null;
 
 export const CACHE_PERSISTENCE_STORE =
   new InjectionToken<CachePersistenceStore>('CACHE_PERSISTENCE_STORE', {
@@ -113,14 +116,7 @@ export class CachePersistenceService {
           return this.deletePersistent(safeKey).pipe(map(() => null));
         }
 
-        this.writeVersions.set(
-          safeKey,
-          Math.max(
-            this.writeVersions.get(safeKey) ?? 0,
-            stored.writeVersion
-          )
-        );
-
+        this.rememberWriteVersion(safeKey, stored.writeVersion);
         return from(Promise.resolve(stored));
       })
     );
@@ -195,7 +191,8 @@ export class CachePersistenceService {
    * Varre somente um lote por execução.
    *
    * O cursor é devolvido ao chamador para que a próxima sessão continue de onde
-   * parou. Entradas válidas não são reescritas nem renovadas.
+   * parou. Cada chave é revalidada dentro da sua fila de mutação; uma escrita
+   * concorrente recente nunca é apagada por uma leitura antiga da manutenção.
    */
   cleanupExpiredEntries(
     options: CachePersistenceCleanupOptions = {}
@@ -222,38 +219,27 @@ export class CachePersistenceService {
         }
 
         const start = requestedCursor % totalKeys;
-        const batch = Array.from(
-          { length: Math.min(batchSize, totalKeys) },
-          (_, index) => keys[(start + index) % totalKeys]
-        );
+        const batch: string[] = [];
+        const targetSize = Math.min(batchSize, totalKeys);
 
-        let removed = 0;
+        for (let index = 0; index < targetSize; index += 1) {
+          const key = keys[(start + index) % totalKeys];
+          if (key) batch.push(key);
+        }
+
         let invalid = 0;
         let expired = 0;
 
         for (const key of batch) {
-          const stored = await this.readAfterPendingMutations(key);
-
-          if (stored === undefined || stored === null) continue;
-
-          if (!this.isCurrentEnvelope(stored)) {
-            invalid += 1;
-            removed += 1;
-            await this.deleteKeyForMaintenance(key);
-            continue;
-          }
-
-          if (this.isExpired(stored.expiresAt)) {
-            expired += 1;
-            removed += 1;
-            await this.deleteKeyForMaintenance(key);
-          }
+          const reason = await this.inspectAndRemoveForMaintenance(key);
+          if (reason === 'invalid') invalid += 1;
+          if (reason === 'expired') expired += 1;
         }
 
         return {
           totalKeys,
           scanned: batch.length,
-          removed,
+          removed: invalid + expired,
           invalid,
           expired,
           nextCursor: (start + batch.length) % totalKeys,
@@ -320,9 +306,35 @@ export class CachePersistenceService {
     return ready.then(() => get<unknown>(key, this.persistentStore));
   }
 
-  private deleteKeyForMaintenance(key: string): Promise<void> {
-    this.writeVersions.delete(key);
-    return this.enqueueMutation(key, () => del(key, this.persistentStore));
+  private inspectAndRemoveForMaintenance(
+    key: string
+  ): Promise<MaintenanceRemovalReason> {
+    let reason: MaintenanceRemovalReason = null;
+
+    return this.enqueueMutation(key, async () => {
+      const current = await get<unknown>(key, this.persistentStore);
+
+      if (current === undefined || current === null) return;
+
+      if (!this.isCurrentEnvelope(current)) {
+        reason = 'invalid';
+      } else if (this.isExpired(current.expiresAt)) {
+        reason = 'expired';
+      } else {
+        this.rememberWriteVersion(key, current.writeVersion);
+        return;
+      }
+
+      this.writeVersions.delete(key);
+      await del(key, this.persistentStore);
+    }).then(() => reason);
+  }
+
+  private rememberWriteVersion(key: string, writeVersion: number): void {
+    this.writeVersions.set(
+      key,
+      Math.max(this.writeVersions.get(key) ?? 0, writeVersion)
+    );
   }
 
   /** Serializa mutações da mesma chave sem bloquear chaves independentes. */
