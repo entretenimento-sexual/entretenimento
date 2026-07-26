@@ -1,13 +1,15 @@
 import { TestBed } from '@angular/core/testing';
-import { get, set } from 'idb-keyval';
+import { createStore, get, set } from 'idb-keyval';
 import { firstValueFrom } from 'rxjs';
 
 import {
   CACHE_PERSISTENCE_SCHEMA_VERSION,
+  CACHE_PERSISTENCE_STORE,
   CachePersistenceService,
+  type CachePersistenceStore,
 } from './cache-persistence.service';
 
-const SUITE_KEY_PREFIX = [
+const SUITE_DB_PREFIX = [
   'cache-persistence-spec',
   Date.now(),
   Math.random().toString(36).slice(2),
@@ -17,12 +19,22 @@ let testSequence = 0;
 
 describe('CachePersistenceService', () => {
   let service: CachePersistenceService;
+  let persistenceStore: CachePersistenceStore;
   let testKeyPrefix: string;
 
   beforeEach(() => {
-    testKeyPrefix = `${SUITE_KEY_PREFIX}:${++testSequence}`;
+    const testId = ++testSequence;
+    testKeyPrefix = `case:${testId}`;
+    persistenceStore = createStore(`${SUITE_DB_PREFIX}:${testId}`, 'keyval');
 
-    TestBed.configureTestingModule({});
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: CACHE_PERSISTENCE_STORE,
+          useValue: persistenceStore,
+        },
+      ],
+    });
     service = TestBed.inject(CachePersistenceService);
   });
 
@@ -70,20 +82,20 @@ describe('CachePersistenceService', () => {
     );
 
     expect(entry).toBeNull();
-    expect(await get(cacheKey)).toBeUndefined();
+    expect(await get(cacheKey, persistenceStore)).toBeUndefined();
   });
 
   it('descarta valor legado sem envelope na primeira leitura', async () => {
     const cacheKey = key('legacy');
 
-    await set(cacheKey, { oldShape: true });
+    await set(cacheKey, { oldShape: true }, persistenceStore);
 
     const entry = await firstValueFrom(
       service.getPersistentEntry<{ oldShape: boolean }>(cacheKey)
     );
 
     expect(entry).toBeNull();
-    expect(await get(cacheKey)).toBeUndefined();
+    expect(await get(cacheKey, persistenceStore)).toBeUndefined();
   });
 
   it('preserva a ordem de escritas concorrentes da mesma chave', async () => {
