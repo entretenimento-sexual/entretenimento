@@ -5,10 +5,6 @@ import { afterEach, vi } from 'vitest';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 import {
-  createStoreTestingMock,
-  provideStoreTestingMock,
-} from '../../../../../test/ngrx-store-testing.providers';
-import {
   CachePersistentEnvelope,
   CachePersistenceService,
 } from './cache-persistence.service';
@@ -30,13 +26,8 @@ describe('CacheService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    const storeMock = createStoreTestingMock({
-      defaultSelectorValue: null,
-    });
-
     TestBed.configureTestingModule({
       providers: [
-        ...provideStoreTestingMock(storeMock),
         {
           provide: CachePersistenceService,
           useValue: {
@@ -72,6 +63,14 @@ describe('CacheService', () => {
 
   it('should be created', () => {
     expect(service).toBeTruthy();
+  });
+
+  it('retorna null quando memória e IndexedDB não possuem a chave', async () => {
+    await expect(
+      firstValueFrom(service.get('cache:missing'))
+    ).resolves.toBeNull();
+
+    expect(getPersistentEntry).toHaveBeenCalledWith('cache:missing');
   });
 
   it('persiste a expiração absoluta calculada pelo TTL', () => {
