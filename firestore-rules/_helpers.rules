@@ -64,6 +64,31 @@ service cloud.firestore {
           .data.subscriptionEndsAt;
     }
 
+    function activeSubscriptionRole(userId) {
+      let user = get(/databases/$(database)/documents/users/$(userId)).data;
+      return user.keys().hasAny(["tier"])
+        ? user.tier
+        : user.keys().hasAny(["role"])
+          ? user.role
+          : null;
+    }
+
+    function subscriptionRoleRank(role) {
+      return role == "basic"
+        ? 1
+        : role == "premium"
+          ? 2
+          : role == "vip"
+            ? 3
+            : 0;
+    }
+
+    function hasMinimumActiveSubscriptionRole(userId, minimumRole) {
+      return isActiveSubscriber(userId)
+        && subscriptionRoleRank(activeSubscriptionRole(userId))
+          >= subscriptionRoleRank(minimumRole);
+    }
+
     // ===============================================================
     // Timestamp helpers (timestamp real OU serverTimestamp() == request.time)
     // ===============================================================
