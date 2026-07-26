@@ -83,12 +83,13 @@ export class CacheService {
     inject(CACHE_MEMORY_MAX_ENTRIES)
   );
   private readonly maintenanceAutoStart = inject(CACHE_MAINTENANCE_AUTO_START);
+  private readonly metrics = inject(CacheMetricsService);
   private readonly defaultTTL = 300_000;
   private readonly logNoopDeletes = false;
   private mutationGeneration = 0;
 
-  readonly metrics$ = this.cacheMetrics.metrics$;
-  readonly hitRate$ = this.cacheMetrics.hitRate$;
+  readonly metrics$ = this.metrics.metrics$;
+  readonly hitRate$ = this.metrics.hitRate$;
 
   private readonly sensitiveSessionExactKeys: ReadonlyArray<string> = [
     'currentUser',
@@ -118,7 +119,6 @@ export class CacheService {
   constructor(
     private readonly cachePersistence: CachePersistenceService,
     private readonly cachePolicy: CachePolicyService,
-    private readonly cacheMetrics: CacheMetricsService,
     private readonly cacheMaintenance: CacheMaintenanceService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly privacyDebug: PrivacyDebugLoggerService
@@ -163,7 +163,7 @@ export class CacheService {
 
     this.bumpRevision(normalizedKey);
     this.writeMemoryEntry(normalizedKey, { data, expiration });
-    this.cacheMetrics.increment('writes');
+    this.metrics.increment('writes');
     this.traceWrite(normalizedKey, expiration, policy, 'set');
 
     if (policy.persist) {
@@ -211,7 +211,7 @@ export class CacheService {
     const current = this.cache.get(normalizedKey);
     if (!current || this.isExpired(current.expiration)) {
       if (current) {
-        this.cacheMetrics.increment('expirations');
+        this.metrics.increment('expirations');
         this.bumpRevision(normalizedKey);
         this.cache.delete(normalizedKey);
         this.inFlightGets.delete(normalizedKey);
@@ -239,7 +239,7 @@ export class CacheService {
 
     this.bumpRevision(normalizedKey);
     this.writeMemoryEntry(normalizedKey, { data, expiration });
-    this.cacheMetrics.increment('writes');
+    this.metrics.increment('writes');
     this.traceWrite(normalizedKey, expiration, policy, 'update');
 
     if (policy.persist) {
@@ -276,7 +276,7 @@ export class CacheService {
 
     const inFlight = this.inFlightGets.get(normalizedKey);
     if (inFlight) {
-      this.cacheMetrics.increment('coalescedReads');
+      this.metrics.increment('coalescedReads');
       return inFlight as Observable<T | null>;
     }
 
@@ -294,8 +294,8 @@ export class CacheService {
         }
 
         if (persisted) {
-          this.cacheMetrics.increment('indexedDbHits');
-          this.cacheMetrics.recordRehydration(this.now() - readStartedAt);
+          this.metrics.increment('indexedDbHits');
+          this.metrics.recordRehydration(this.now() - readStartedAt);
           this.writeMemoryEntry(normalizedKey, {
             data: persisted.value,
             expiration: persisted.expiresAt,
@@ -304,12 +304,12 @@ export class CacheService {
           return of(persisted.value);
         }
 
-        this.cacheMetrics.increment('misses');
+        this.metrics.increment('misses');
         return of(null);
       }),
       catchError((error) => {
         this.handlePersistenceError(error, `CacheService.get("${normalizedKey}")`);
-        this.cacheMetrics.increment('misses');
+        this.metrics.increment('misses');
         return of(null);
       }),
       finalize(() => {
@@ -369,7 +369,7 @@ export class CacheService {
     this.inFlightGets.delete(normalizedKey);
     this.recordMemorySize();
     this.cleanupRevisionIfIdle(normalizedKey);
-    this.cacheMetrics.increment('deletes');
+    this.metrics.increment('deletes');
 
     this.cachePersistence.deletePersistent(normalizedKey).subscribe({
       error: (error) =>
@@ -472,7 +472,7 @@ export class CacheService {
     }
 
     if (expiredKeys.length) {
-      this.cacheMetrics.increment('expirations', expiredKeys.length);
+      this.metrics.increment('expirations', expiredKeys.length);
       this.recordMemorySize();
       this.log(`removeExpired → ${expiredKeys.length} itens removidos.`);
     }
@@ -505,7 +505,7 @@ export class CacheService {
     }
 
     if (this.isExpired(item.expiration)) {
-      this.cacheMetrics.increment('expirations');
+      this.metrics.increment('expirations');
       this.bumpRevision(key);
       this.cache.delete(key);
       this.inFlightGets.delete(key);
@@ -515,7 +515,7 @@ export class CacheService {
     }
 
     if (countHit) {
-      this.cacheMetrics.increment('memoryHits');
+      this.metrics.increment('memoryHits');
     }
     this.touchMemoryEntry(key, item);
     return { hit: true, value: item.data as T };
@@ -556,7 +556,7 @@ export class CacheService {
     }
 
     if (evicted > 0) {
-      this.cacheMetrics.increment('lruEvictions', evicted);
+      this.metrics.increment('lruEvictions', evicted);
       this.log(`LRU → ${evicted} entrada(s) removida(s) da memória.`, {
         size: this.cache.size,
         maxMemoryEntries: this.maxMemoryEntries,
@@ -565,7 +565,7 @@ export class CacheService {
   }
 
   private recordMemorySize(): void {
-    this.cacheMetrics.recordMemorySize(
+    this.metrics.recordMemorySize(
       this.cache.size,
       this.maxMemoryEntries
     );
@@ -775,7 +775,7 @@ export class CacheService {
   }
 
   private handlePersistenceError(error: unknown, context: string): void {
-    this.cacheMetrics.increment('persistenceErrors');
+    this.metrics.increment('persistenceErrors');
     this.safeHandle(error, context);
   }
 
@@ -828,7 +828,7 @@ export class CacheService {
   }
 
   metricsSnapshot(): CacheMetricsSnapshot {
-    return this.cacheMetrics.snapshot();
+    return this.metrics.snapshot();
   }
 
   debug(): void {
