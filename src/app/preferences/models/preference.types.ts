@@ -4,7 +4,7 @@
 // - dar nome claro às capacidades do produto
 // - evitar espalhar unions literais pelo projeto
 // - preparar expansão futura sem depender do legado
-import { UserDiscoveryGenderInterest } from '@core/interfaces/preferences/user-discovery-preferences.interface';
+import type { UserDiscoveryGenderInterest } from '@core/interfaces/preferences/user-discovery-preferences.interface';
 
 export type DiscoveryMode =
   | 'standard'
