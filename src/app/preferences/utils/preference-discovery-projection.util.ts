@@ -8,11 +8,11 @@
 //   e pela projeção pública produzida no backend.
 // -----------------------------------------------------------------------------
 
-import {
+import type {
   IUserDiscoveryPreferences,
   UserDiscoveryGenderInterest,
 } from '@core/interfaces/preferences/user-discovery-preferences.interface';
-import { PreferenceProfile } from '../models/preference-profile.model';
+import type { PreferenceProfile } from '../models/preference-profile.model';
 
 export type CanonicalDiscoveryGender =
   | 'man'
