@@ -167,4 +167,36 @@ describe('CachePersistenceService', () => {
     expect(await get(expiredKey, persistenceStore)).toBeUndefined();
     expect(await get(legacyKey, persistenceStore)).toBeUndefined();
   });
+
+  it('não deixa manutenção apagar escrita nova da mesma chave', async () => {
+    const cacheKey = key('cleanup-race');
+
+    await firstValueFrom(
+      service.setPersistentEntry(cacheKey, { version: 'expired' }, Date.now() - 1)
+    );
+
+    const cleanupPromise = firstValueFrom(
+      service.cleanupExpiredEntries({ batchSize: 10, cursor: 0 })
+    );
+    const freshWritePromise = firstValueFrom(
+      service.setPersistentEntry(
+        cacheKey,
+        { version: 'fresh' },
+        Date.now() + 60_000
+      )
+    );
+
+    const [cleanupResult] = await Promise.all([
+      cleanupPromise,
+      freshWritePromise,
+    ]);
+    const stored = await get<{
+      value: { version: string };
+      expiresAt: number | null;
+    }>(cacheKey, persistenceStore);
+
+    expect(cleanupResult.removed).toBe(0);
+    expect(stored?.value).toEqual({ version: 'fresh' });
+    expect(stored?.expiresAt).toBeGreaterThan(Date.now());
+  });
 });
