@@ -8,7 +8,10 @@ import {
   CachePersistentEnvelope,
   CachePersistenceService,
 } from './cache-persistence.service';
-import { CacheService } from './cache.service';
+import {
+  CACHE_MEMORY_MAX_ENTRIES,
+  CacheService,
+} from './cache.service';
 
 describe('CacheService', () => {
   let service: CacheService;
@@ -28,6 +31,10 @@ describe('CacheService', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        {
+          provide: CACHE_MEMORY_MAX_ENTRIES,
+          useValue: 3,
+        },
         {
           provide: CachePersistenceService,
           useValue: {
@@ -128,6 +135,51 @@ describe('CacheService', () => {
 
     await expect(resultPromise).resolves.toBe('new-value');
     expect(service.getSync<string>('cache:race')).toBe('new-value');
+  });
+
+  it('mantém somente as entradas mais recentes na memória sem apagar o IndexedDB', () => {
+    service.set('cache:a', 'a', undefined, { persist: false });
+    service.set('cache:b', 'b', undefined, { persist: false });
+    service.set('cache:c', 'c', undefined, { persist: false });
+
+    expect(service.getSync('cache:a')).toBe('a');
+
+    service.set('cache:d', 'd', undefined, { persist: false });
+
+    expect(service.size()).toBe(3);
+    expect(service.getSync('cache:a')).toBe('a');
+    expect(service.getSync('cache:b')).toBeNull();
+    expect(service.getSync('cache:c')).toBe('c');
+    expect(service.getSync('cache:d')).toBe('d');
+    expect(deletePersistent).not.toHaveBeenCalled();
+  });
+
+  it('impede reidratação após delete e libera a revisão ao finalizar a leitura', async () => {
+    const persisted$ = new Subject<CachePersistentEnvelope<string> | null>();
+    getPersistentEntry.mockReturnValueOnce(persisted$.asObservable());
+
+    const resultPromise = firstValueFrom(
+      service.get<string>('cache:deleted-during-read')
+    );
+
+    service.delete('cache:deleted-during-read');
+
+    persisted$.next({
+      schemaVersion: 2,
+      value: 'stale-value',
+      createdAt: 100,
+      updatedAt: 100,
+      expiresAt: null,
+      writeVersion: 1,
+    });
+    persisted$.complete();
+
+    await expect(resultPromise).resolves.toBeNull();
+    expect(service.getSync('cache:deleted-during-read')).toBeNull();
+    expect(
+      (service as unknown as { keyRevisions: Map<string, number> })
+        .keyRevisions.size
+    ).toBe(0);
   });
 
   it('limpa formatos privados atuais e legados ao encerrar a sessão', async () => {
