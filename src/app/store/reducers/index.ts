@@ -8,8 +8,6 @@ import { AppState } from '../states/app.state';
 
 import { STORE_FEATURE } from './feature-keys';
 
-import { cacheReducer } from './cache.reducer';
-
 import { chatReducers } from './reducers.chat';
 import { userReducers } from './reducers.user';
 import { locationReducers } from './reducers.location';
@@ -39,7 +37,4 @@ export const reducers: ActionReducerMap<AppState> = {
   // INTERACTIONS DOMAIN
   [STORE_FEATURE.friendsPages]: interactionsReducers.friendsPages,
   [STORE_FEATURE.interactionsFriends]: interactionsReducers.interactions_friends,
-
-  // CACHE
-  [STORE_FEATURE.cache]: cacheReducer,
 };
