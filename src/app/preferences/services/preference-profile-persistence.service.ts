@@ -10,13 +10,13 @@
 import { Injectable, inject } from '@angular/core';
 import { Firestore, doc } from '@angular/fire/firestore';
 import { writeBatch } from 'firebase/firestore';
-import { Observable } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 
-import { IntentState } from '../models/intent-state.model';
-import { PreferenceProfile } from '../models/preference-profile.model';
+import type { IntentState } from '../models/intent-state.model';
+import type { PreferenceProfile } from '../models/preference-profile.model';
 import { buildPreferenceDiscoveryProjection } from '../utils/preference-discovery-projection.util';
 
 @Injectable({ providedIn: 'root' })
@@ -47,7 +47,9 @@ export class PreferenceProfilePersistenceService {
     const safeUid = (uid ?? '').trim();
 
     if (!safeUid) {
-      throw new Error('[PreferenceProfilePersistenceService] UID inválido.');
+      return throwError(
+        () => new Error('[PreferenceProfilePersistenceService] UID inválido.')
+      );
     }
 
     const now = Date.now();
