@@ -7,6 +7,11 @@
 // - preferências permanentes em grupos progressivos;
 // - disponibilidade temporária em área separada e recolhível.
 //
+// Segurança de navegação:
+// - o editor é sempre da conta autenticada;
+// - não consome UID vindo da URL;
+// - links legados com UID são redirecionados pela configuração de rotas.
+//
 // Supressões visuais desta revisão:
 // - resumo duplicado das preferências;
 // - painel de recursos bloqueados;
@@ -24,15 +29,8 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, RouterModule } from '@angular/router';
-import {
-  distinctUntilChanged,
-  finalize,
-  map,
-  shareReplay,
-  switchMap,
-  tap,
-} from 'rxjs/operators';
+import { RouterModule } from '@angular/router';
+import { finalize } from 'rxjs/operators';
 
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
@@ -64,7 +62,6 @@ import { PreferencesPageHeaderComponent } from '../../components/preferences-pag
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PreferencesEditorComponent {
-  private readonly route = inject(ActivatedRoute);
   private readonly editorFacade = inject(PreferencesEditorFacade);
   private readonly notifier = inject(ErrorNotificationService);
   private readonly preferencesUi = inject(PreferencesUiService);
@@ -73,21 +70,12 @@ export class PreferencesEditorComponent {
   readonly isSavingProfile = signal(false);
   readonly isSavingIntent = signal(false);
 
-  readonly uid$ = this.route.paramMap.pipe(
-    map((params) => (params.get('uid') ?? params.get('id') ?? '').trim() || null),
-    distinctUntilChanged(),
-    tap((uid) => {
-      this.preferencesUi.setActiveView('editor');
-      this.preferencesUi.setLastEditorUid(uid);
-    }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  // Fonte canônica: sessão autenticada. O componente não interpreta UID de rota.
+  readonly state$ = this.editorFacade.currentEditorState$;
 
-  readonly state$ = this.uid$.pipe(
-    map((uid) => uid ?? ''),
-    switchMap((uid) => this.editorFacade.getEditorState$(uid)),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  constructor() {
+    this.preferencesUi.setActiveView('editor');
+  }
 
   onSaveProfile(uid: string, profile: PreferenceProfile): void {
     if (!uid || this.isSavingProfile()) return;
