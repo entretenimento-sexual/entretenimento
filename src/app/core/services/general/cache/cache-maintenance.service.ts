@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, InjectionToken } from '@angular/core';
 import { Observable, catchError, defer, map, of, tap } from 'rxjs';
 
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
@@ -11,6 +11,14 @@ import {
 
 const SESSION_FLAG = 'cache-maintenance:v1:scheduled';
 const CURSOR_KEY = 'cache-maintenance:v1:cursor';
+
+export const CACHE_MAINTENANCE_AUTO_START = new InjectionToken<boolean>(
+  'CACHE_MAINTENANCE_AUTO_START',
+  {
+    providedIn: 'root',
+    factory: () => true,
+  }
+);
 
 interface IdleCapableGlobal {
   requestIdleCallback?: (
