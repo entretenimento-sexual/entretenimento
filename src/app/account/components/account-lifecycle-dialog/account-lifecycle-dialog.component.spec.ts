@@ -42,6 +42,46 @@ describe('AccountLifecycleDialogComponent', () => {
     expect(dialog.getAttribute('aria-labelledby')).toBe(
       'account-lifecycle-dialog-title'
     );
+    expect(dialog.tabIndex).toBe(-1);
+  });
+
+  it('gerencia foco inicial e restauração sem cdkFocusInitial', async () => {
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.textContent = 'Abrir diálogo';
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    const fixture = TestBed.createComponent(AccountLifecycleDialogComponent);
+    fixture.componentRef.setInput('intent', 'self_delete');
+    fixture.componentRef.setInput('reauthenticationMode', 'google');
+    document.body.appendChild(fixture.nativeElement);
+
+    try {
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      const cancel = fixture.nativeElement.querySelector(
+        '.account-lifecycle-dialog__actions .btn-secondary'
+      ) as HTMLButtonElement;
+
+      expect(fixture.nativeElement.querySelector('[cdkFocusInitial]')).toBeNull();
+      expect(cancel.disabled).toBe(false);
+      expect(document.activeElement).toBe(cancel);
+
+      fixture.componentInstance.onClose();
+      fixture.destroy();
+      fixture.nativeElement.remove();
+      await Promise.resolve();
+
+      expect(document.activeElement).toBe(trigger);
+    } finally {
+      if (!fixture.componentRef.hostView.destroyed) {
+        fixture.destroy();
+      }
+      fixture.nativeElement.remove();
+      trigger.remove();
+    }
   });
 
   it('explica que a exclusão é uma solicitação com prazo de 24 horas', () => {
