@@ -4,7 +4,6 @@ import { afterEach, vi } from 'vitest';
 
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
-import { CACHE_MAINTENANCE_AUTO_START } from './cache-maintenance.service';
 import {
   CachePersistentEnvelope,
   CachePersistenceService,
@@ -24,16 +23,6 @@ describe('CacheService', () => {
   const deletePersistent = vi.fn(() => of(void 0));
   const deletePersistentMany = vi.fn(() => of(0));
   const deletePersistentByPrefix = vi.fn(() => of(0));
-  const cleanupExpiredEntries = vi.fn(() =>
-    of({
-      totalKeys: 0,
-      scanned: 0,
-      removed: 0,
-      invalid: 0,
-      expired: 0,
-      nextCursor: 0,
-    })
-  );
   const handleError = vi.fn();
   const log = vi.fn();
 
@@ -47,10 +36,6 @@ describe('CacheService', () => {
           useValue: 3,
         },
         {
-          provide: CACHE_MAINTENANCE_AUTO_START,
-          useValue: false,
-        },
-        {
           provide: CachePersistenceService,
           useValue: {
             getPersistentEntry,
@@ -58,7 +43,6 @@ describe('CacheService', () => {
             deletePersistent,
             deletePersistentMany,
             deletePersistentByPrefix,
-            cleanupExpiredEntries,
           },
         },
         {
