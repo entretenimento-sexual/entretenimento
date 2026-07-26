@@ -86,4 +86,5 @@ export type PreferenceFeature =
   | 'priority_visibility'
   | 'intent_boost'
   | 'advanced_preferences'
+  | 'contextual_intent'
   | 'compatibility_insights';
