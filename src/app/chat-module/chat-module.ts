@@ -1,7 +1,6 @@
 // src/app/chat-module/chat-module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule, NgOptimizedImage } from '@angular/common';
-import { StoreModule } from '@ngrx/store';
 import { EffectsModule } from '@ngrx/effects';
 import { ChatModuleRoutingModule } from './chat-module-routing.module';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -20,7 +19,6 @@ import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-li
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
 import { InviteListComponent } from './invite-list/invite-list.component';
 import { RoomCreationConfirmationModalComponent } from './modals/room-create-confirm-modal/room-creation-confirmation-modal.component';
-import { chatReducer } from '../store/reducers/reducers.chat/chat.reducer';
 import { CHAT_FEATURE_EFFECTS } from '../store/effects/effects.chat/chat-feature.effects';
 import { RoomInteractionComponent } from './rooms/room-interaction/room-interaction.component';
 
@@ -70,7 +68,6 @@ import { ChatReplyQuotePipe } from './pipes/chat-reply-quote.pipe';
   ],
   imports: [
     CommonModule,
-    StoreModule.forFeature('chat', chatReducer),
     EffectsModule.forFeature(CHAT_FEATURE_EFFECTS),
     MatDialogModule,
     MatButtonModule,
