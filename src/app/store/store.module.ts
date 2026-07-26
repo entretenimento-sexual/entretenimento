@@ -39,8 +39,9 @@ import { FriendsPaginationEffects } from './effects/effects.interactions/friends
 import { FriendsPaginationSelectorsCacheCleanupEffects } from
   './effects/effects.interactions/friends/pagination-selectors-cache-cleanup.effects';
 
-// EFFECTS - LOCATION
-import { NearbyProfilesEffects } from './effects/effects.location/nearby-profiles.effects';
+// EFFECTS - LOCATION GLOBAL
+// LocationEffects permanece global porque mantém o estado de localização da
+// sessão. NearbyProfilesEffects pertence ao fluxo legado lazy de perfis próximos.
 import { LocationEffects } from './effects/effects.location/location.effects';
 
 // EFFECTS - DISCOVERY
@@ -53,12 +54,15 @@ const metaReducers = appMetaReducers;
  *
  * SUPRESSÃO EXPLÍCITA:
  * - ChatEffects e RoomEffects não são mais registrados no root.
+ * - NearbyProfilesEffects não é mais registrado no root.
  *
  * Motivo:
- * - as duas classes pertencem exclusivamente à rota lazy `/chat`;
- * - mantê-las aqui carregava serviços de conversa e salas antes de o usuário
- *   acessar essa área;
- * - o registro foi preservado no ChatModule via EffectsModule.forFeature.
+ * - ChatEffects e RoomEffects pertencem exclusivamente à rota lazy `/chat`;
+ * - NearbyProfilesEffects é acionado somente pelo fluxo legado de perfis
+ *   próximos, preservado dentro do LayoutModule lazy;
+ * - manter esses effects aqui carregava serviços de conversa, salas e consulta
+ *   geográfica antes de o usuário acessar as respectivas áreas;
+ * - os registros foram preservados nos módulos lazy correspondentes.
  */
 export const ROOT_EFFECTS = [
   // USER
@@ -83,8 +87,7 @@ export const ROOT_EFFECTS = [
   FriendsPaginationEffects,
   FriendsPaginationSelectorsCacheCleanupEffects,
 
-  // LOCATION
-  NearbyProfilesEffects,
+  // LOCATION GLOBAL
   LocationEffects,
 
   // DISCOVERY
