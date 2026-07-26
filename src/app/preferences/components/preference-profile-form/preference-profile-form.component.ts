@@ -1,15 +1,15 @@
 // src/app/preferences/components/preference-profile-form/preference-profile-form.component.ts
-// Formulário visual do domínio novo.
-//
-// Ajuste desta versão:
-// - componente deixa de carregar catálogos inline
-// - componente deixa de serializar o model sozinho
-// - componente passa a focar em interação/UX
-//
+// -----------------------------------------------------------------------------
+// FORMULÁRIO DE PREFERÊNCIAS
+// -----------------------------------------------------------------------------
 // Responsabilidade:
-// - renderizar o formulário
-// - aplicar gating de edição
-// - emitir o model pronto para a página/facade salvar
+// - renderizar preferências essenciais com navegação progressiva;
+// - aplicar limitações por assinatura sem esconder recursos de segurança;
+// - preservar seleções pagas existentes quando o entitlement não está ativo;
+// - emitir o model normalizado para a página/facade salvar.
+// -----------------------------------------------------------------------------
+
+import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -18,8 +18,8 @@ import {
   input,
   output,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 
 import { PreferenceProfile } from '../../models/preference-profile.model';
 import { PreferencesCapabilitySnapshot } from '../../services/preferences-capability.service';
@@ -38,7 +38,7 @@ import {
 @Component({
   selector: 'app-preference-profile-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterModule],
   templateUrl: './preference-profile-form.component.html',
   styleUrl: './preference-profile-form.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -61,6 +61,10 @@ export class PreferenceProfileFormComponent {
   readonly form = buildPreferenceProfileForm(this.fb);
 
   readonly canEdit = computed(
+    () => this.capabilities()?.canEditCorePreferences ?? false
+  );
+
+  readonly canEditAdvanced = computed(
     () => this.capabilities()?.canEditAdvancedPreferences ?? false
   );
 
@@ -72,39 +76,55 @@ export class PreferenceProfileFormComponent {
     () => this.capabilities()?.canUsePriorityVisibility ?? false
   );
 
+  readonly currentPlanLabel = computed(
+    () => this.capabilities()?.currentPlanLabel ?? 'Sem sessão'
+  );
+
   constructor() {
     effect(() => {
       const profile = this.profile() ?? createEmptyPreferenceProfile('');
-      this.form.patchValue(mapPreferenceProfileToFormValue(profile), { emitEvent: false });
+      this.form.patchValue(mapPreferenceProfileToFormValue(profile), {
+        emitEvent: false,
+      });
     });
 
     effect(() => {
-      const canEdit = this.canEdit();
-      const canUseDiscreet = this.canUseDiscreetMode();
-      const canUsePriority = this.canUsePriorityVisibility();
-
-      if (!canEdit) {
+      if (!this.canEdit()) {
         this.form.disable({ emitEvent: false });
         return;
       }
 
       this.form.enable({ emitEvent: false });
 
+      this.setFlagGroupDisabled(
+        'sp',
+        this.sexualPracticeOptions,
+        !this.canEditAdvanced()
+      );
+      this.setFlagGroupDisabled(
+        'bp',
+        this.bodyPreferenceOptions,
+        !this.canEditAdvanced()
+      );
+
       const currentMode = this.form.controls['discoveryMode']?.value;
 
-      if (currentMode === 'discreet' && !canUseDiscreet) {
-        this.form.controls['discoveryMode']?.setValue('standard', { emitEvent: false });
+      if (currentMode === 'discreet' && !this.canUseDiscreetMode()) {
+        this.form.controls['discoveryMode']?.setValue('standard', {
+          emitEvent: false,
+        });
       }
 
-      if (currentMode === 'priority' && !canUsePriority) {
-        this.form.controls['discoveryMode']?.setValue('standard', { emitEvent: false });
+      if (currentMode === 'priority' && !this.canUsePriorityVisibility()) {
+        this.form.controls['discoveryMode']?.setValue('standard', {
+          emitEvent: false,
+        });
       }
     });
   }
 
   submit(): void {
-    if (!this.canEdit()) return;
-    if (this.form.invalid) return;
+    if (!this.canEdit() || this.saving() || this.form.invalid) return;
 
     const current = this.profile() ?? createEmptyPreferenceProfile('');
     const result = mapFormValueToPreferenceProfile(
@@ -121,4 +141,48 @@ export class PreferenceProfileFormComponent {
     if (mode === 'priority') return this.canUsePriorityVisibility();
     return true;
   }
-} // Linha 124, fim do preference-profile-form.component.ts
+
+  modeRequirement(mode: string): string {
+    if (mode === 'discreet' && !this.canUseDiscreetMode()) {
+      return ' — Premium';
+    }
+
+    if (mode === 'priority' && !this.canUsePriorityVisibility()) {
+      return ' — VIP';
+    }
+
+    return '';
+  }
+
+  selectedCount(
+    prefix: string,
+    options: ReadonlyArray<{ key: string }>
+  ): number {
+    return options.reduce((total, option) => {
+      return total + (this.form.get(`${prefix}_${option.key}`)?.value === true ? 1 : 0);
+    }, 0);
+  }
+
+  selectionLabel(count: number): string {
+    if (count === 0) return 'Nenhuma seleção';
+    if (count === 1) return '1 selecionada';
+    return `${count} selecionadas`;
+  }
+
+  private setFlagGroupDisabled(
+    prefix: string,
+    options: ReadonlyArray<{ key: string }>,
+    disabled: boolean
+  ): void {
+    for (const option of options) {
+      const control = this.form.get(`${prefix}_${option.key}`);
+      if (!control) continue;
+
+      if (disabled) {
+        control.disable({ emitEvent: false });
+      } else {
+        control.enable({ emitEvent: false });
+      }
+    }
+  }
+}
