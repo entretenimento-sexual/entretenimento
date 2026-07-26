@@ -3,13 +3,14 @@ import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, firstValueFrom, of, take } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { IUserDados } from '@core/interfaces/iuser-dados';
+import type { IUserDados } from '@core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 
 import { PreferencesEditorFacade } from './preferences-editor.facade';
 import { IntentStateService } from '../services/intent-state.service';
+import { PreferenceProfilePersistenceService } from '../services/preference-profile-persistence.service';
 import { ProfilePreferencesService } from '../services/profile-preferences.service';
 import {
   createEmptyIntentState,
@@ -21,7 +22,11 @@ describe('PreferencesEditorFacade', () => {
 
   const profilePreferencesMock = {
     getProfile$: vi.fn((uid: string) => of(createEmptyPreferenceProfile(uid))),
-    saveProfile$: vi.fn(() => of(void 0)),
+  };
+
+  const profilePersistenceMock = {
+    saveProfileWithProjection$: vi.fn(() => of(void 0)),
+    saveAllWithProjection$: vi.fn(() => of(void 0)),
   };
 
   const intentStateMock = {
@@ -56,6 +61,10 @@ describe('PreferencesEditorFacade', () => {
           useValue: profilePreferencesMock,
         },
         {
+          provide: PreferenceProfilePersistenceService,
+          useValue: profilePersistenceMock,
+        },
+        {
           provide: IntentStateService,
           useValue: intentStateMock,
         },
@@ -81,12 +90,7 @@ describe('PreferencesEditorFacade', () => {
     expect(profilePreferencesMock.getProfile$).not.toHaveBeenCalled();
     expect(intentStateMock.getIntentState$).not.toHaveBeenCalled();
 
-    userSubject.next({
-      uid: 'owner',
-      role: 'free',
-      tier: 'free',
-      isSubscriber: false,
-    } as IUserDados);
+    userSubject.next(freeUser('owner'));
 
     const state = await statePromise;
 
@@ -101,12 +105,7 @@ describe('PreferencesEditorFacade', () => {
       facade.getEditorState$('other-user').pipe(take(1))
     );
 
-    userSubject.next({
-      uid: 'owner',
-      role: 'free',
-      tier: 'free',
-      isSubscriber: false,
-    } as IUserDados);
+    userSubject.next(freeUser('owner'));
 
     await expect(statePromise).rejects.toThrow(
       'O editor só pode acessar preferências do próprio usuário'
@@ -116,4 +115,45 @@ describe('PreferencesEditorFacade', () => {
     expect(intentStateMock.getIntentState$).not.toHaveBeenCalled();
     expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
   });
+
+  it('salva o perfil pelo writer atômico que também atualiza discovery', async () => {
+    userSubject.next(freeUser('owner'));
+
+    const profile = createEmptyPreferenceProfile('owner');
+    profile.hardRules.acceptedGenders = ['women'];
+    profile.hardRules.acceptsCouples = false;
+
+    await firstValueFrom(
+      facade.saveProfileOnly$('owner', profile).pipe(take(1))
+    );
+
+    expect(
+      profilePersistenceMock.saveProfileWithProjection$
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      profilePersistenceMock.saveProfileWithProjection$
+    ).toHaveBeenCalledWith(
+      'owner',
+      expect.objectContaining({
+        userId: 'owner',
+        hardRules: expect.objectContaining({
+          acceptedGenders: ['women'],
+          acceptsCouples: false,
+        }),
+      })
+    );
+  });
 });
+
+function freeUser(uid: string): IUserDados {
+  return {
+    uid,
+    email: null,
+    photoURL: null,
+    role: 'free',
+    tier: 'free',
+    lastLogin: 0,
+    descricao: '',
+    isSubscriber: false,
+  };
+}
