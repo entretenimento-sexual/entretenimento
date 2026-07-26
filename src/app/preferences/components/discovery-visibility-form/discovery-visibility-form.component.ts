@@ -2,10 +2,12 @@
 // Formulário focado em visibilidade/descoberta.
 //
 // Objetivo:
-// - editar apenas o bloco visibility de PreferenceProfile
-// - aplicar gating de UI por capabilities
-// - emitir somente o payload já tipado
-// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
+// - editar apenas o bloco visibility de PreferenceProfile;
+// - manter privacidade básica disponível para toda conta autenticada;
+// - limitar modo discreto ao Premium e prioridade ao VIP;
+// - emitir somente o payload já tipado.
+
+import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -14,12 +16,9 @@ import {
   input,
   output,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 
-import {
-  PreferenceVisibilitySettings,
-} from '../../models/preference-profile.model';
+import { PreferenceVisibilitySettings } from '../../models/preference-profile.model';
 import { DiscoveryMode } from '../../models/preference.types';
 import { PreferencesCapabilitySnapshot } from '../../services/preferences-capability.service';
 
@@ -58,7 +57,7 @@ export class DiscoveryVisibilityFormComponent {
   });
 
   readonly canEdit = computed(
-    () => this.capabilities()?.canEditAdvancedPreferences ?? false
+    () => this.capabilities()?.canEditCorePreferences ?? false
   );
 
   readonly canUseDiscreetMode = computed(
@@ -95,33 +94,47 @@ export class DiscoveryVisibilityFormComponent {
       const currentMode = this.form.controls.discoveryMode.value;
 
       if (currentMode === 'discreet' && !this.canUseDiscreetMode()) {
-        this.form.controls.discoveryMode.setValue('standard', { emitEvent: false });
+        this.form.controls.discoveryMode.setValue('standard', {
+          emitEvent: false,
+        });
       }
 
       if (currentMode === 'priority' && !this.canUsePriorityVisibility()) {
-        this.form.controls.discoveryMode.setValue('standard', { emitEvent: false });
+        this.form.controls.discoveryMode.setValue('standard', {
+          emitEvent: false,
+        });
       }
     });
   }
 
   submit(): void {
-    if (!this.canEdit()) return;
+    if (!this.canEdit() || this.saving()) return;
 
     const raw = this.form.getRawValue();
 
-    const result: PreferenceVisibilitySettings = {
+    this.saveVisibility.emit({
       showPreferenceBadges: raw.showPreferenceBadges,
       showIntentPublicly: raw.showIntentPublicly,
       discoveryMode: this.normalizeMode(raw.discoveryMode),
-    };
-
-    this.saveVisibility.emit(result);
+    });
   }
 
   isModeAvailable(mode: DiscoveryMode): boolean {
     if (mode === 'discreet') return this.canUseDiscreetMode();
     if (mode === 'priority') return this.canUsePriorityVisibility();
     return true;
+  }
+
+  modeRequirement(mode: DiscoveryMode): string {
+    if (mode === 'discreet' && !this.canUseDiscreetMode()) {
+      return ' — Premium';
+    }
+
+    if (mode === 'priority' && !this.canUsePriorityVisibility()) {
+      return ' — VIP';
+    }
+
+    return '';
   }
 
   private normalizeMode(mode: DiscoveryMode): DiscoveryMode {
