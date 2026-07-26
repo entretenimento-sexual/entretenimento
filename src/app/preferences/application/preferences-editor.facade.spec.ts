@@ -11,7 +11,10 @@ import { GlobalErrorHandlerService } from '@core/services/error-handler/global-e
 import { PreferencesEditorFacade } from './preferences-editor.facade';
 import { IntentStateService } from '../services/intent-state.service';
 import { ProfilePreferencesService } from '../services/profile-preferences.service';
-import { createEmptyIntentState, createEmptyPreferenceProfile } from '../utils/preference-normalizers';
+import {
+  createEmptyIntentState,
+  createEmptyPreferenceProfile,
+} from '../utils/preference-normalizers';
 
 describe('PreferencesEditorFacade', () => {
   const userSubject = new BehaviorSubject<IUserDados | null>(null);
@@ -70,9 +73,9 @@ describe('PreferencesEditorFacade', () => {
     facade = TestBed.inject(PreferencesEditorFacade);
   });
 
-  it('aguarda o proprietário antes de iniciar leituras privadas', async () => {
+  it('deriva o editor da sessão antes de iniciar leituras privadas', async () => {
     const statePromise = firstValueFrom(
-      facade.getEditorState$('owner').pipe(take(1))
+      facade.currentEditorState$.pipe(take(1))
     );
 
     expect(profilePreferencesMock.getProfile$).not.toHaveBeenCalled();
@@ -90,9 +93,10 @@ describe('PreferencesEditorFacade', () => {
     expect(state.uid).toBe('owner');
     expect(profilePreferencesMock.getProfile$).toHaveBeenCalledWith('owner');
     expect(intentStateMock.getIntentState$).toHaveBeenCalledWith('owner');
+    expect(globalErrorMock.handleError).not.toHaveBeenCalled();
   });
 
-  it('rejeita UID diferente antes de acessar o Firestore', async () => {
+  it('mantém a API explícita estrita para UID diferente', async () => {
     const statePromise = firstValueFrom(
       facade.getEditorState$('other-user').pipe(take(1))
     );
