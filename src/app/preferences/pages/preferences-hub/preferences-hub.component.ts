@@ -2,10 +2,10 @@
 // Hub principal do domínio novo de preferências.
 //
 // Ajuste desta versão:
-// - passa a usar header reutilizável do domínio
-// - passa a usar navegação interna do domínio
-// - continua respeitando o shell global já existente
-// - não cria layout paralelo
+// - o editor da própria conta usa rota canônica sem UID;
+// - o atalho de retomada por UID foi suprimido para evitar estado obsoleto;
+// - continua respeitando o shell global já existente;
+// - não cria layout paralelo.
 // Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
@@ -40,8 +40,8 @@ export class PreferencesHubComponent {
   readonly vm$ = this.preferencesFacade.currentPreferencesVm$;
   readonly uid$ = this.preferencesFacade.currentUid$;
 
-  readonly lastEditorUid = this.preferencesUi.lastEditorUid;
-  readonly lastCompatibilityTargetUid = this.preferencesUi.lastCompatibilityTargetUid;
+  readonly lastCompatibilityTargetUid =
+    this.preferencesUi.lastCompatibilityTargetUid;
 
   constructor() {
     this.preferencesUi.setActiveView('hub');
