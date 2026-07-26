@@ -1,6 +1,6 @@
 // src/app/store/store.module.ts
 // Configuração central do NgRx.
-// Mantém reducers, meta-reducers, runtime checks e effects em um ponto único.
+// Mantém reducers, meta-reducers, runtime checks e effects globais em um ponto único.
 // Logs de estado não ficam embutidos aqui para evitar exposição acidental de dados.
 import { NgModule } from '@angular/core';
 import { StoreModule } from '@ngrx/store';
@@ -25,10 +25,10 @@ import { UserRoleEffects } from './effects/effects.user/user-role.effects';
 import { AuthStatusSyncEffects } from './effects/effects.user/auth-status-sync.effects';
 import { AuthSessionSyncEffects } from './effects/effects.user/auth-session-sync.effects';
 
-// EFFECTS - CHAT
-import { ChatEffects } from './effects/effects.chat/chat.effects';
+// EFFECTS - CHAT GLOBAL
+// InviteEffects permanece no root porque o LayoutShell mantém o badge de convites
+// ativo em todas as rotas autenticadas.
 import { InviteEffects } from './effects/effects.chat/invite.effects';
-import { RoomEffects } from './effects/effects.chat/room.effects';
 
 // EFFECTS - INTERACTIONS - FRIENDS
 import { FriendsRequestsCrudEffects } from './effects/effects.interactions/friends/requests-crud.effects';
@@ -48,6 +48,49 @@ import { DiscoveryFeedEffects } from './effects/effects.discovery/discovery-feed
 
 const metaReducers = appMetaReducers;
 
+/**
+ * Effects que precisam existir durante toda a sessão da aplicação.
+ *
+ * SUPRESSÃO EXPLÍCITA:
+ * - ChatEffects e RoomEffects não são mais registrados no root.
+ *
+ * Motivo:
+ * - as duas classes pertencem exclusivamente à rota lazy `/chat`;
+ * - mantê-las aqui carregava serviços de conversa e salas antes de o usuário
+ *   acessar essa área;
+ * - o registro foi preservado no ChatModule via EffectsModule.forFeature.
+ */
+export const ROOT_EFFECTS = [
+  // USER
+  AuthEffects,
+  UserEffects,
+  FileEffects,
+  OnlineUsersEffects,
+  TermsEffects,
+  UserPreferencesEffects,
+  UserRoleEffects,
+  AuthSessionSyncEffects,
+  AuthStatusSyncEffects,
+
+  // CHAT GLOBAL
+  InviteEffects,
+
+  // INTERACTIONS
+  FriendsNetworkEffects,
+  FriendsRequestsCrudEffects,
+  FriendsRequestsRealtimeEffects,
+  FriendsRequestsProfilesEffects,
+  FriendsPaginationEffects,
+  FriendsPaginationSelectorsCacheCleanupEffects,
+
+  // LOCATION
+  NearbyProfilesEffects,
+  LocationEffects,
+
+  // DISCOVERY
+  DiscoveryFeedEffects,
+];
+
 @NgModule({
   imports: [
     StoreModule.forRoot(reducers, {
@@ -66,38 +109,7 @@ const metaReducers = appMetaReducers;
       },
     }),
 
-    EffectsModule.forRoot([
-      // USER
-      AuthEffects,
-      UserEffects,
-      FileEffects,
-      OnlineUsersEffects,
-      TermsEffects,
-      UserPreferencesEffects,
-      UserRoleEffects,
-      AuthSessionSyncEffects,
-      AuthStatusSyncEffects,
-
-      // CHAT
-      ChatEffects,
-      InviteEffects,
-      RoomEffects,
-
-      // INTERACTIONS
-      FriendsNetworkEffects,
-      FriendsRequestsCrudEffects,
-      FriendsRequestsRealtimeEffects,
-      FriendsRequestsProfilesEffects,
-      FriendsPaginationEffects,
-      FriendsPaginationSelectorsCacheCleanupEffects,
-
-      // LOCATION
-      NearbyProfilesEffects,
-      LocationEffects,
-
-      // DISCOVERY
-      DiscoveryFeedEffects,
-    ]),
+    EffectsModule.forRoot(ROOT_EFFECTS),
 
     // Devtools só em dev.
     ...(environment.production
