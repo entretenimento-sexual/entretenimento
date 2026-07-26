@@ -3,8 +3,6 @@
 // Devem permanecer públicas, sem autenticação.
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { TermosECondicoesComponent } from './legal-footer/termos-e-condicoes/termos-e-condicoes.component';
-import { PoliticaDePrivacidadeComponent } from './legal-footer/politica-de-privacidade/politica-de-privacidade.component';
 
 const routes: Routes = [
   {
@@ -12,12 +10,28 @@ const routes: Routes = [
     redirectTo: 'termos-e-condicoes',
     pathMatch: 'full',
   },
-  { path: 'termos-e-condicoes', component: TermosECondicoesComponent },
-  { path: 'politica-de-privacidade', component: PoliticaDePrivacidadeComponent },
+  {
+    path: 'termos-e-condicoes',
+    loadComponent: () =>
+      import('./legal-footer/termos-e-condicoes/termos-e-condicoes.component')
+        .then((m) => m.TermosECondicoesComponent),
+  },
+  {
+    path: 'politica-de-privacidade',
+    loadComponent: () =>
+      import('./legal-footer/politica-de-privacidade/politica-de-privacidade.component')
+        .then((m) => m.PoliticaDePrivacidadeComponent),
+  },
+  {
+    path: 'politica-de-cookies',
+    loadComponent: () =>
+      import('./legal-footer/politica-de-cookies/politica-de-cookies.component')
+        .then((m) => m.PoliticaDeCookiesComponent),
+  },
 ];
 
 @NgModule({
   imports: [RouterModule.forChild(routes)],
-  exports: [RouterModule]
+  exports: [RouterModule],
 })
-export class FooterRoutingModule { }
+export class FooterRoutingModule {}
