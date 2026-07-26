@@ -33,10 +33,6 @@ import { GlobalErrorHandlerService } from '@core/services/error-handler/global-e
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 import {
-  CACHE_MAINTENANCE_AUTO_START,
-  CacheMaintenanceService,
-} from './cache-maintenance.service';
-import {
   CacheMetricsService,
   type CacheMetricsSnapshot,
 } from './cache-metrics.service';
@@ -82,7 +78,6 @@ export class CacheService {
   private readonly maxMemoryEntries = this.normalizeMemoryLimit(
     inject(CACHE_MEMORY_MAX_ENTRIES)
   );
-  private readonly maintenanceAutoStart = inject(CACHE_MAINTENANCE_AUTO_START);
   private readonly metrics = inject(CacheMetricsService);
   private readonly defaultTTL = 300_000;
   private readonly logNoopDeletes = false;
@@ -119,18 +114,12 @@ export class CacheService {
   constructor(
     private readonly cachePersistence: CachePersistenceService,
     private readonly cachePolicy: CachePolicyService,
-    private readonly cacheMaintenance: CacheMaintenanceService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {
     this.recordMemorySize();
-    if (this.maintenanceAutoStart) {
-      this.cacheMaintenance.scheduleOncePerSession();
-    }
-
     this.log('Serviço inicializado.', {
       maxMemoryEntries: this.maxMemoryEntries,
-      maintenanceAutoStart: this.maintenanceAutoStart,
     });
   }
 
