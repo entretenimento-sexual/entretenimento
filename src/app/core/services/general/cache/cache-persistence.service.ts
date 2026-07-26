@@ -7,13 +7,33 @@
 // - persistir valor e expiração no mesmo envelope;
 // - descartar entradas expiradas ou no formato legado;
 // - serializar mutações por chave para preservar a ordem das escritas;
-// - aguardar mutações pendentes antes de ler a mesma chave.
+// - aguardar mutações pendentes antes de ler a mesma chave;
+// - permitir isolamento do store IndexedDB em testes sem alterar a persistência
+//   utilizada pela aplicação em produção.
 // -----------------------------------------------------------------------------
-import { Injectable } from '@angular/core';
-import { del, get, keys as idbKeys, set } from 'idb-keyval';
+import { inject, Injectable, InjectionToken } from '@angular/core';
+import { createStore, del, get, keys as idbKeys, set } from 'idb-keyval';
 import { from, map, Observable, switchMap } from 'rxjs';
 
 export const CACHE_PERSISTENCE_SCHEMA_VERSION = 2 as const;
+
+export type CachePersistenceStore = ReturnType<typeof createStore>;
+
+/**
+ * Store padrão compatível com o comportamento histórico do idb-keyval.
+ *
+ * Os nomes explícitos preservam o banco já utilizado pela aplicação:
+ * - database: keyval-store
+ * - object store: keyval
+ *
+ * O token permite que testes usem bancos próprios, evitando contenção entre
+ * arquivos executados em paralelo pelo Vitest.
+ */
+export const CACHE_PERSISTENCE_STORE =
+  new InjectionToken<CachePersistenceStore>('CACHE_PERSISTENCE_STORE', {
+    providedIn: 'root',
+    factory: () => createStore('keyval-store', 'keyval'),
+  });
 
 export interface CachePersistentEnvelope<T> {
   schemaVersion: typeof CACHE_PERSISTENCE_SCHEMA_VERSION;
@@ -28,6 +48,7 @@ export interface CachePersistentEnvelope<T> {
   providedIn: 'root',
 })
 export class CachePersistenceService {
+  private readonly persistentStore = inject(CACHE_PERSISTENCE_STORE);
   private readonly mutationQueues = new Map<string, Promise<void>>();
   private readonly writeVersions = new Map<string, number>();
 
@@ -75,7 +96,10 @@ export class CachePersistenceService {
     };
 
     return from(
-      this.enqueueMutation(safeKey, () => set(safeKey, envelope))
+      this.enqueueMutation(
+        safeKey,
+        () => set(safeKey, envelope, this.persistentStore)
+      )
     );
   }
 
@@ -126,7 +150,10 @@ export class CachePersistenceService {
     this.writeVersions.delete(safeKey);
 
     return from(
-      this.enqueueMutation(safeKey, () => del(safeKey))
+      this.enqueueMutation(
+        safeKey,
+        () => del(safeKey, this.persistentStore)
+      )
     );
   }
 
@@ -150,7 +177,10 @@ export class CachePersistenceService {
       Promise.all(
         safeKeys.map((key) => {
           this.writeVersions.delete(key);
-          return this.enqueueMutation(key, () => del(key));
+          return this.enqueueMutation(
+            key,
+            () => del(key, this.persistentStore)
+          );
         })
       ).then(() => safeKeys.length)
     );
@@ -167,7 +197,7 @@ export class CachePersistenceService {
     }
 
     return from(
-      idbKeys().then((allKeys) => {
+      idbKeys(this.persistentStore).then((allKeys) => {
         const matchingKeys = allKeys.filter(
           (key): key is string =>
             typeof key === 'string' && key.startsWith(safePrefix)
@@ -176,7 +206,10 @@ export class CachePersistenceService {
         return Promise.all(
           matchingKeys.map((key) => {
             this.writeVersions.delete(key);
-            return this.enqueueMutation(key, () => del(key));
+            return this.enqueueMutation(
+              key,
+              () => del(key, this.persistentStore)
+            );
           })
         ).then(() => matchingKeys.length);
       })
@@ -228,7 +261,7 @@ export class CachePersistenceService {
       ? pending.catch(() => void 0)
       : Promise.resolve();
 
-    return ready.then(() => get<unknown>(key));
+    return ready.then(() => get<unknown>(key, this.persistentStore));
   }
 
   /**
