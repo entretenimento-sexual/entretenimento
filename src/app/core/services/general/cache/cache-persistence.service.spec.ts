@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { clear, get, set } from 'idb-keyval';
+import { get, set } from 'idb-keyval';
 import { firstValueFrom } from 'rxjs';
 
 import {
@@ -7,29 +7,41 @@ import {
   CachePersistenceService,
 } from './cache-persistence.service';
 
+const SUITE_KEY_PREFIX = [
+  'cache-persistence-spec',
+  Date.now(),
+  Math.random().toString(36).slice(2),
+].join(':');
+
+let testSequence = 0;
+
 describe('CachePersistenceService', () => {
   let service: CachePersistenceService;
+  let testKeyPrefix: string;
 
-  beforeEach(async () => {
-    await clear();
+  beforeEach(() => {
+    testKeyPrefix = `${SUITE_KEY_PREFIX}:${++testSequence}`;
 
     TestBed.configureTestingModule({});
     service = TestBed.inject(CachePersistenceService);
   });
+
+  const key = (suffix: string): string => `${testKeyPrefix}:${suffix}`;
 
   it('should be created', () => {
     expect(service).toBeTruthy();
   });
 
   it('persiste e recupera valor com expiração absoluta no envelope v2', async () => {
+    const cacheKey = key('profile');
     const expiresAt = Date.now() + 60_000;
 
     await firstValueFrom(
-      service.setPersistentEntry('cache:profile', { nickname: 'perfil' }, expiresAt)
+      service.setPersistentEntry(cacheKey, { nickname: 'perfil' }, expiresAt)
     );
 
     const entry = await firstValueFrom(
-      service.getPersistentEntry<{ nickname: string }>('cache:profile')
+      service.getPersistentEntry<{ nickname: string }>(cacheKey)
     );
 
     expect(entry).toMatchObject({
@@ -43,41 +55,46 @@ describe('CachePersistenceService', () => {
   });
 
   it('remove entrada expirada do IndexedDB em vez de renová-la', async () => {
+    const cacheKey = key('expired');
+
     await firstValueFrom(
       service.setPersistentEntry(
-        'cache:expired',
+        cacheKey,
         { stale: true },
         Date.now() - 1
       )
     );
 
     const entry = await firstValueFrom(
-      service.getPersistentEntry<{ stale: boolean }>('cache:expired')
+      service.getPersistentEntry<{ stale: boolean }>(cacheKey)
     );
 
     expect(entry).toBeNull();
-    expect(await get('cache:expired')).toBeUndefined();
+    expect(await get(cacheKey)).toBeUndefined();
   });
 
   it('descarta valor legado sem envelope na primeira leitura', async () => {
-    await set('cache:legacy', { oldShape: true });
+    const cacheKey = key('legacy');
+
+    await set(cacheKey, { oldShape: true });
 
     const entry = await firstValueFrom(
-      service.getPersistentEntry<{ oldShape: boolean }>('cache:legacy')
+      service.getPersistentEntry<{ oldShape: boolean }>(cacheKey)
     );
 
     expect(entry).toBeNull();
-    expect(await get('cache:legacy')).toBeUndefined();
+    expect(await get(cacheKey)).toBeUndefined();
   });
 
   it('preserva a ordem de escritas concorrentes da mesma chave', async () => {
+    const cacheKey = key('ordered');
     const firstWrite$ = service.setPersistentEntry(
-      'cache:ordered',
+      cacheKey,
       { version: 1 },
       Date.now() + 60_000
     );
     const secondWrite$ = service.setPersistentEntry(
-      'cache:ordered',
+      cacheKey,
       { version: 2 },
       Date.now() + 120_000
     );
@@ -88,7 +105,7 @@ describe('CachePersistenceService', () => {
     ]);
 
     const entry = await firstValueFrom(
-      service.getPersistentEntry<{ version: number }>('cache:ordered')
+      service.getPersistentEntry<{ version: number }>(cacheKey)
     );
 
     expect(entry?.value).toEqual({ version: 2 });
@@ -96,13 +113,15 @@ describe('CachePersistenceService', () => {
   });
 
   it('mantém os métodos legados compatíveis com valores não expirantes', async () => {
+    const cacheKey = key('compat');
+
     await firstValueFrom(
-      service.setPersistent('cache:compat', { enabled: true })
+      service.setPersistent(cacheKey, { enabled: true })
     );
 
     await expect(
       firstValueFrom(
-        service.getPersistent<{ enabled: boolean }>('cache:compat')
+        service.getPersistent<{ enabled: boolean }>(cacheKey)
       )
     ).resolves.toEqual({ enabled: true });
   });
