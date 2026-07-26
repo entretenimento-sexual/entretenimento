@@ -15,17 +15,24 @@ export interface ResolvedCachePolicy {
 
 const MINUTE = 60_000;
 
+/**
+ * Políticas padrão conservadoras.
+ *
+ * Somente caches efêmeros recebem TTL automático. Payloads de domínio que usam
+ * SWR próprio permanecem não expirantes no envelope; o estado fresh/stale é
+ * decidido pelo metadado mantido pelo serviço de domínio.
+ */
 export const DEFAULT_CACHE_POLICIES: ReadonlyArray<CachePolicyDefinition> = [
   { match: 'exact', value: 'currentUser', ttlMs: null, persist: false },
   { match: 'exact', value: 'currentUserUid', ttlMs: null, persist: false },
   { match: 'prefix', value: 'notFound:', ttlMs: 30_000, persist: false },
   { match: 'prefix', value: 'validation:', ttlMs: 2 * MINUTE, persist: false },
   { match: 'prefix', value: 'search:', ttlMs: 5 * MINUTE, persist: false },
-  { match: 'prefix', value: 'preferences:', ttlMs: 10 * MINUTE, persist: true },
-  { match: 'prefix', value: 'friendSettings:', ttlMs: 5 * MINUTE, persist: true },
-  { match: 'prefix', value: 'socialLinks:', ttlMs: 15 * MINUTE, persist: true },
-  { match: 'prefix', value: 'discovery:', ttlMs: 5 * MINUTE, persist: true },
-  { match: 'prefix', value: 'user:', ttlMs: 5 * MINUTE, persist: true },
+  { match: 'prefix', value: 'preferences:', ttlMs: null, persist: true },
+  { match: 'prefix', value: 'friendSettings:', ttlMs: null, persist: true },
+  { match: 'prefix', value: 'socialLinks:', ttlMs: null, persist: true },
+  { match: 'prefix', value: 'discovery:', ttlMs: null, persist: true },
+  { match: 'prefix', value: 'user:', ttlMs: null, persist: true },
 ];
 
 export const CACHE_POLICIES = new InjectionToken<ReadonlyArray<CachePolicyDefinition>>(
