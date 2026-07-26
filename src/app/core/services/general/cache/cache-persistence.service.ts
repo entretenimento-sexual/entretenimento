@@ -8,8 +8,8 @@
 // - descartar entradas expiradas ou no formato legado;
 // - serializar mutações por chave para preservar a ordem das escritas;
 // - aguardar mutações pendentes antes de ler a mesma chave;
-// - permitir isolamento do store IndexedDB em testes sem alterar a persistência
-//   utilizada pela aplicação em produção.
+// - limpar o IndexedDB em lotes pequenos, sem bloquear a inicialização;
+// - permitir isolamento do store IndexedDB em testes.
 // -----------------------------------------------------------------------------
 import { inject, Injectable, InjectionToken } from '@angular/core';
 import { createStore, del, get, keys as idbKeys, set } from 'idb-keyval';
@@ -19,16 +19,6 @@ export const CACHE_PERSISTENCE_SCHEMA_VERSION = 2 as const;
 
 export type CachePersistenceStore = ReturnType<typeof createStore>;
 
-/**
- * Store padrão compatível com o comportamento histórico do idb-keyval.
- *
- * Os nomes explícitos preservam o banco já utilizado pela aplicação:
- * - database: keyval-store
- * - object store: keyval
- *
- * O token permite que testes usem bancos próprios, evitando contenção entre
- * arquivos executados em paralelo pelo Vitest.
- */
 export const CACHE_PERSISTENCE_STORE =
   new InjectionToken<CachePersistenceStore>('CACHE_PERSISTENCE_STORE', {
     providedIn: 'root',
@@ -44,37 +34,38 @@ export interface CachePersistentEnvelope<T> {
   writeVersion: number;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
+export interface CachePersistenceCleanupOptions {
+  readonly batchSize?: number;
+  readonly cursor?: number;
+}
+
+export interface CachePersistenceCleanupResult {
+  readonly totalKeys: number;
+  readonly scanned: number;
+  readonly removed: number;
+  readonly invalid: number;
+  readonly expired: number;
+  readonly nextCursor: number;
+}
+
+@Injectable({ providedIn: 'root' })
 export class CachePersistenceService {
   private readonly persistentStore = inject(CACHE_PERSISTENCE_STORE);
   private readonly mutationQueues = new Map<string, Promise<void>>();
   private readonly writeVersions = new Map<string, number>();
 
-  /**
-   * Compatibilidade com consumidores legados.
-   *
-   * Novos fluxos com TTL devem usar `setPersistentEntry`, pois este método não
-   * recebe expiração e, portanto, cria uma entrada persistente sem vencimento.
-   */
+  /** Compatibilidade com consumidores legados sem TTL. */
   setPersistent<T>(key: string, value: T): Observable<void> {
     return this.setPersistentEntry(key, value, null);
   }
 
-  /**
-   * Compatibilidade com consumidores legados: devolve somente o valor.
-   * Entradas expiradas ou no formato antigo são removidas e retornam `null`.
-   */
+  /** Compatibilidade com consumidores legados que esperam somente o valor. */
   getPersistent<T>(key: string): Observable<T | null> {
     return this.getPersistentEntry<T>(key).pipe(
       map((entry) => entry?.value ?? null)
     );
   }
 
-  /**
-   * Persiste um envelope completo, incluindo a expiração absoluta.
-   */
   setPersistentEntry<T>(
     key: string,
     value: T,
@@ -103,16 +94,6 @@ export class CachePersistenceService {
     );
   }
 
-  /**
-   * Lê um envelope persistente válido.
-   *
-   * Política de migração:
-   * - valor antigo sem envelope: remove e retorna `null`;
-   * - versão desconhecida: remove e retorna `null`;
-   * - entrada expirada: remove e retorna `null`.
-   *
-   * A recarga remota fica a cargo da camada de domínio que chamou o cache.
-   */
   getPersistentEntry<T>(
     key: string
   ): Observable<CachePersistentEnvelope<T> | null> {
@@ -157,9 +138,6 @@ export class CachePersistenceService {
     );
   }
 
-  /**
-   * Remove várias chaves explícitas do IndexedDB.
-   */
   deletePersistentMany(keys: string[]): Observable<number> {
     const safeKeys = Array.from(
       new Set(
@@ -186,9 +164,6 @@ export class CachePersistenceService {
     );
   }
 
-  /**
-   * Remove do IndexedDB todas as chaves iniciadas pelo prefixo informado.
-   */
   deletePersistentByPrefix(prefix: string): Observable<number> {
     const safePrefix = this.normalizeKey(prefix);
 
@@ -216,6 +191,77 @@ export class CachePersistenceService {
     );
   }
 
+  /**
+   * Varre somente um lote por execução.
+   *
+   * O cursor é devolvido ao chamador para que a próxima sessão continue de onde
+   * parou. Entradas válidas não são reescritas nem renovadas.
+   */
+  cleanupExpiredEntries(
+    options: CachePersistenceCleanupOptions = {}
+  ): Observable<CachePersistenceCleanupResult> {
+    const batchSize = this.normalizeBatchSize(options.batchSize);
+    const requestedCursor = this.normalizeCursor(options.cursor);
+
+    return from(
+      idbKeys(this.persistentStore).then(async (allKeys) => {
+        const keys = allKeys
+          .filter((key): key is string => typeof key === 'string')
+          .sort();
+        const totalKeys = keys.length;
+
+        if (totalKeys === 0) {
+          return {
+            totalKeys: 0,
+            scanned: 0,
+            removed: 0,
+            invalid: 0,
+            expired: 0,
+            nextCursor: 0,
+          } satisfies CachePersistenceCleanupResult;
+        }
+
+        const start = requestedCursor % totalKeys;
+        const batch = Array.from(
+          { length: Math.min(batchSize, totalKeys) },
+          (_, index) => keys[(start + index) % totalKeys]
+        );
+
+        let removed = 0;
+        let invalid = 0;
+        let expired = 0;
+
+        for (const key of batch) {
+          const stored = await this.readAfterPendingMutations(key);
+
+          if (stored === undefined || stored === null) continue;
+
+          if (!this.isCurrentEnvelope(stored)) {
+            invalid += 1;
+            removed += 1;
+            await this.deleteKeyForMaintenance(key);
+            continue;
+          }
+
+          if (this.isExpired(stored.expiresAt)) {
+            expired += 1;
+            removed += 1;
+            await this.deleteKeyForMaintenance(key);
+          }
+        }
+
+        return {
+          totalKeys,
+          scanned: batch.length,
+          removed,
+          invalid,
+          expired,
+          nextCursor: (start + batch.length) % totalKeys,
+        } satisfies CachePersistenceCleanupResult;
+      })
+    );
+  }
+
   private normalizeKey(key: string): string {
     return String(key ?? '').trim();
   }
@@ -224,6 +270,16 @@ export class CachePersistenceService {
     return typeof expiresAt === 'number' && Number.isFinite(expiresAt)
       ? expiresAt
       : null;
+  }
+
+  private normalizeBatchSize(value: number | undefined): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 40;
+    return Math.min(200, Math.max(1, Math.floor(value)));
+  }
+
+  private normalizeCursor(value: number | undefined): number {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
+    return Math.max(0, Math.floor(value));
   }
 
   private isExpired(expiresAt: number | null): boolean {
@@ -264,9 +320,12 @@ export class CachePersistenceService {
     return ready.then(() => get<unknown>(key, this.persistentStore));
   }
 
-  /**
-   * Serializa mutações da mesma chave sem bloquear chaves independentes.
-   */
+  private deleteKeyForMaintenance(key: string): Promise<void> {
+    this.writeVersions.delete(key);
+    return this.enqueueMutation(key, () => del(key, this.persistentStore));
+  }
+
+  /** Serializa mutações da mesma chave sem bloquear chaves independentes. */
   private enqueueMutation(
     key: string,
     mutation: () => Promise<void>
