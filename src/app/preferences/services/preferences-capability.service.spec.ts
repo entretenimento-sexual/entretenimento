@@ -1,6 +1,6 @@
 // src/app/preferences/services/preferences-capability.service.spec.ts
 import { TestBed } from '@angular/core/testing';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { PreferencesCapabilityService } from './preferences-capability.service';
@@ -19,8 +19,8 @@ function userWithPlan(
     isSubscriber: true,
     subscriptionStatus: 'active',
     subscriptionScope: 'platform_subscription',
-    subscriptionStartedAt: new Date(now - 60_000),
-    subscriptionEndsAt: new Date(now + 60 * 60 * 1000),
+    subscriptionStartedAt: now - 60_000,
+    subscriptionEndsAt: now + 60 * 60 * 1000,
     ...overrides,
   } as IUserDados;
 }
@@ -94,7 +94,7 @@ describe('PreferencesCapabilityService', () => {
   it('trata assinatura expirada como plano gratuito', () => {
     const capabilities = service.getCapabilities(
       userWithPlan('vip', {
-        subscriptionEndsAt: new Date(Date.now() - 1_000),
+        subscriptionEndsAt: Date.now() - 1_000,
       })
     );
 
