@@ -1,112 +1,128 @@
 // src/app/layout/friend-management/friend-requests/friend-requests.component.ts
-// ✅ COMPONENTE DE SOLICITAÇÕES DE AMIZADE (INBOUND + OUTBOUND)
-// - ✅ mostra solicitações recebidas e enviadas
-// - ✅ ações: aceitar/recusar (inbound) e cancelar (outbound)
-// - ✅ bloqueio direto do usuário (sem precisar aceitar/recusar antes)
-// - ✅ consome dados do store
-// - ✅ o owner global do realtime/bootstrap agora fica no LayoutShellComponent
-// - ✅ trackBy para listas
-// - ✅ confirmações para ações destrutivas (ex: bloquear usuário).
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+// =============================================================================
+// SOLICITAÇÕES DE AMIZADE
+//
+// Responsabilidades:
+// - exibir solicitações recebidas e enviadas;
+// - aceitar, recusar, cancelar e bloquear com feedback acessível;
+// - consumir exclusivamente o estado NgRx de amizades;
+// - manter o bootstrap realtime no LayoutShellComponent;
+// - preservar uma apresentação compacta e utilizável no mobile.
+// =============================================================================
 import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
 import { Store } from '@ngrx/store';
-import { map, filter, take, combineLatest, firstValueFrom } from 'rxjs';
-import { AppState } from 'src/app/store/states/app.state';
-import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
+import { filter, firstValueFrom, take } from 'rxjs';
 
+import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
+import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
+import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
+import { AppState } from 'src/app/store/states/app.state';
+import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
 import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { selectRequestsLoading } from 'src/app/store/selectors/selectors.interactions/friends/inbound.selectors';
-import { selectCancelingOutboundRequestIds, selectOutboundRequestsLoading } from 'src/app/store/selectors/selectors.interactions/friends/outbound.selectors';
-import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
-
 import {
-  selectInboundRequestsRichVM,
-  selectOutboundRequestsRichVM,
+  selectCancelingOutboundRequestIds,
+  selectOutboundRequestsLoading,
+} from 'src/app/store/selectors/selectors.interactions/friends/outbound.selectors';
+import {
   selectInboundRequestsCount,
+  selectInboundRequestsRichVM,
   selectOutboundRequestsCount,
+  selectOutboundRequestsRichVM,
 } from 'src/app/store/selectors/selectors.interactions/friends';
 
 @Component({
   selector: 'app-friend-requests',
   standalone: true,
-  imports: [CommonModule, SharedMaterialModule, DateFormatPipe, MatTooltipModule],
+  imports: [CommonModule, SharedMaterialModule, DateFormatPipe],
   templateUrl: './friend-requests.component.html',
   styleUrls: ['./friend-requests.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FriendRequestsComponent {
-  private store = inject(Store) as Store<AppState>;
+  private readonly store = inject(Store) as Store<AppState>;
+  private readonly dialog = inject(MatDialog);
 
-  uid$ = this.store.select(selectCurrentUserUid);
+  readonly uid$ = this.store.select(selectCurrentUserUid);
 
-  inbound$ = this.store.select(selectInboundRequestsRichVM);
-  outbound$ = this.store.select(selectOutboundRequestsRichVM);
+  readonly inbound$ = this.store.select(selectInboundRequestsRichVM);
+  readonly outbound$ = this.store.select(selectOutboundRequestsRichVM);
 
-  inboundCount$ = this.store.select(selectInboundRequestsCount);
-  outboundCount$ = this.store.select(selectOutboundRequestsCount);
+  readonly inboundCount$ = this.store.select(selectInboundRequestsCount);
+  readonly outboundCount$ = this.store.select(selectOutboundRequestsCount);
 
-  loadingInbound$ = this.store.select(selectRequestsLoading);
-  loadingOutbound$ = this.store.select(selectOutboundRequestsLoading);
-
-  bothLoading$ = combineLatest([this.loadingInbound$, this.loadingOutbound$]).pipe(
-    map(([a, b]) => !!a || !!b)
+  readonly loadingInbound$ = this.store.select(selectRequestsLoading);
+  readonly loadingOutbound$ = this.store.select(selectOutboundRequestsLoading);
+  readonly cancelingOutboundRequestIds$ = this.store.select(
+    selectCancelingOutboundRequestIds
   );
 
-  trackById = (_: number, item: any) => item?.id ?? _;
+  trackById = (_: number, item: { id?: string } | null | undefined): string | number =>
+    item?.id ?? _;
 
-  async acceptRequest(req: { id: string; requesterUid: string }) {
+  async acceptRequest(req: { id: string; requesterUid: string }): Promise<void> {
     const uid = await firstValueFrom(this.uid$.pipe(filter(Boolean), take(1)));
+
     this.store.dispatch(
       A.acceptFriendRequest({
         requestId: req.id,
         requesterUid: req.requesterUid,
-        targetUid: uid!,
+        targetUid: uid,
       })
     );
   }
 
-  cancelingOutboundRequestIds$ = this.store.select(
-  selectCancelingOutboundRequestIds
-);
-
-isCancelingRequest(
-  ids: readonly string[] | null | undefined,
-  requestId: string | null | undefined
-): boolean {
-  const safeRequestId = String(requestId ?? '').trim();
-
-  if (!safeRequestId) {
-    return false;
+  isCancelingRequest(
+    ids: readonly string[] | null | undefined,
+    requestId: string | null | undefined
+  ): boolean {
+    const safeRequestId = String(requestId ?? '').trim();
+    return Boolean(safeRequestId && (ids ?? []).includes(safeRequestId));
   }
 
-  return (ids ?? []).includes(safeRequestId);
-}
-
-  declineRequest(req: { id: string }) {
+  declineRequest(req: { id: string }): void {
     this.store.dispatch(A.declineFriendRequest({ requestId: req.id }));
   }
 
-  cancelRequest(req: { id: string }) {
-  const requestId = String(req?.id ?? '').trim();
+  cancelRequest(req: { id: string }): void {
+    const requestId = String(req?.id ?? '').trim();
+    if (!requestId) return;
 
-  if (!requestId) {
-    return;
+    this.store.dispatch(A.cancelFriendRequest({ requestId }));
   }
 
-  this.store.dispatch(A.cancelFriendRequest({ requestId }));
-}
-
-  async blockUser(req: { requesterUid?: string; targetUid?: string }) {
+  async blockUser(req: {
+    requesterUid?: string;
+    targetUid?: string;
+    nickname?: string;
+  }): Promise<void> {
     const uid = await firstValueFrom(this.uid$.pipe(filter(Boolean), take(1)));
-    const otherUid = req.requesterUid ?? req.targetUid;
+    const otherUid = String(req.requesterUid ?? req.targetUid ?? '').trim();
     if (!uid || !otherUid) return;
 
-    const ok = window.confirm(
-      'Bloquear este usuário? Você poderá desbloquear depois nas configurações.'
+    const displayName = String(req.nickname ?? '').trim() || 'este usuário';
+    const confirmed = await firstValueFrom(
+      this.dialog
+        .open(ConfirmacaoDialogComponent, {
+          width: 'min(92vw, 430px)',
+          maxWidth: '92vw',
+          autoFocus: false,
+          restoreFocus: true,
+          data: {
+            title: 'Bloquear usuário?',
+            message: `Você deixará de receber interações de ${displayName}. O desbloqueio continuará disponível nas configurações.`,
+            confirmLabel: 'Bloquear',
+            cancelLabel: 'Voltar',
+            tone: 'danger',
+          },
+        })
+        .afterClosed()
+        .pipe(take(1))
     );
-    if (!ok) return;
+
+    if (confirmed !== true) return;
 
     this.store.dispatch(A.blockUser({ ownerUid: uid, targetUid: otherUid }));
   }
