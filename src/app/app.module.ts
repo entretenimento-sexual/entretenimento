@@ -16,6 +16,8 @@ import {
   ErrorHandler,
   LOCALE_ID,
   NgModule,
+  inject,
+  provideAppInitializer,
 } from '@angular/core';
 import { registerLocaleData } from '@angular/common';
 import localePt from '@angular/common/locales/pt';
@@ -33,6 +35,10 @@ import { GlobalNetworkStatusComponent } from './core/components/global-network-s
 import { FIREBASE_APPLICATION_PROVIDERS } from './core/firebase/firebase.providers';
 import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';
+import {
+  CACHE_MAINTENANCE_AUTO_START,
+  CacheMaintenanceService,
+} from './core/services/general/cache/cache-maintenance.service';
 
 registerLocaleData(localePt, 'pt-BR');
 
@@ -60,6 +66,11 @@ registerLocaleData(localePt, 'pt-BR');
     },
     ErrorNotificationService,
     { provide: LOCALE_ID, useValue: 'pt-BR' },
+    provideAppInitializer(() => {
+      if (inject(CACHE_MAINTENANCE_AUTO_START)) {
+        inject(CacheMaintenanceService).scheduleOncePerSession();
+      }
+    }),
   ],
 
   bootstrap: [AppComponent],
