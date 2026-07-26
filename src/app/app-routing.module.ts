@@ -10,7 +10,6 @@ import { profileCompletedGuard } from './core/guards/profile-guard/profile-compl
 import { adultContentConsentGuard } from './core/guards/compliance/adult-content-consent.guard';
 import { ageReverificationGuard } from './core/guards/compliance/age-reverification.guard';
 
-import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { LayoutShellComponent } from './layout/layout-shell/layout-shell.component';
 import { accountLifecycleGuard } from './account/guards/account-lifecycle.guard';
 import { registrationStepGuard } from './register-module/data-access/registration-step.guard';
@@ -250,7 +249,9 @@ const routes: Routes = [
        */
       {
         path: 'subscription-plan',
-        component: SubscriptionPlanComponent,
+        loadComponent: () =>
+          import('./subscriptions/subscription-plan/subscription-plan.component')
+            .then((m) => m.SubscriptionPlanComponent),
         canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
         data: {
           requireVerified: false,
