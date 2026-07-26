@@ -4,18 +4,16 @@
 //
 // Camadas:
 // - memória: leitura rápida durante a sessão;
-// - IndexedDB: persistência temporária com expiração absoluta;
-// - NgRx: fallback legado de leitura, nunca fonte canônica do cache.
+// - IndexedDB: persistência temporária com expiração absoluta.
 //
 // Regras:
 // - CacheService não é store de domínio;
 // - estados transitórios de UI não devem ser persistidos;
-// - Firebase/NgRx de domínio continuam sendo fontes de verdade;
+// - Firebase e stores NgRx de domínio continuam sendo fontes de verdade;
 // - dados expirados ou legados nunca são renovados silenciosamente;
 // - uma leitura antiga não pode sobrescrever uma escrita mais recente.
 // -----------------------------------------------------------------------------
 import { Injectable } from '@angular/core';
-import { Store } from '@ngrx/store';
 import {
   Observable,
   catchError,
@@ -26,14 +24,11 @@ import {
   of,
   shareReplay,
   switchMap,
-  take,
 } from 'rxjs';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
-import { selectCacheItem } from 'src/app/store/selectors/cache.selectors';
-import { AppState } from 'src/app/store/states/app.state';
 import { CachePersistenceService } from './cache-persistence.service';
 
 interface CacheItem<T> {
@@ -97,7 +92,6 @@ export class CacheService {
   private readonly noisyPrefixes: ReadonlyArray<string> = ['validation:'];
 
   constructor(
-    private readonly store: Store<AppState>,
     private readonly cachePersistence: CachePersistenceService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly privacyDebug: PrivacyDebugLoggerService
@@ -262,7 +256,7 @@ export class CacheService {
           return of(persisted.value);
         }
 
-        return this.readLegacyStoreFallback<T>(normalizedKey, token);
+        return of(null);
       }),
       catchError((error) => {
         this.safeHandle(error, `CacheService.get("${normalizedKey}")`);
@@ -443,28 +437,6 @@ export class CacheService {
   // ---------------------------------------------------------------------------
   // Utilitários internos
   // ---------------------------------------------------------------------------
-
-  private readLegacyStoreFallback<T>(
-    key: string,
-    token: CacheReadToken
-  ): Observable<T | null> {
-    return this.store.select(selectCacheItem(key)).pipe(
-      take(1),
-      map((storeData) => {
-        if (!this.isReadTokenCurrent(key, token)) {
-          return this.readCurrentMemoryValue<T>(key);
-        }
-
-        if (storeData === undefined || storeData === null) {
-          return null;
-        }
-
-        const expiration = Date.now() + this.defaultTTL;
-        this.cache.set(key, { data: storeData, expiration });
-        return storeData as T;
-      })
-    );
-  }
 
   private readValidMemory<T>(key: string):
     | { hit: true; value: T }
