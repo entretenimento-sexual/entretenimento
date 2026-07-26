@@ -7,6 +7,7 @@
 // - mantém validação estrita para chamadas explícitas com UID;
 // - aplica capacidades derivadas da projeção canônica da assinatura;
 // - sanitiza benefícios pagos antes da persistência;
+// - persiste perfil + projeção de discovery de forma atômica;
 // - mantém tratamento de erros centralizado.
 // -----------------------------------------------------------------------------
 
@@ -14,7 +15,6 @@ import { Injectable, inject } from '@angular/core';
 import {
   Observable,
   combineLatest,
-  forkJoin,
   throwError,
 } from 'rxjs';
 import {
@@ -43,6 +43,7 @@ import {
   PreferencesCapabilityService,
   PreferencesCapabilitySnapshot,
 } from '../services/preferences-capability.service';
+import { PreferenceProfilePersistenceService } from '../services/preference-profile-persistence.service';
 import { ProfilePreferencesService } from '../services/profile-preferences.service';
 
 export interface PreferencesEditorState {
@@ -60,6 +61,7 @@ export class PreferencesEditorFacade {
   private readonly notifier = inject(ErrorNotificationService);
 
   private readonly profilePreferences = inject(ProfilePreferencesService);
+  private readonly profilePersistence = inject(PreferenceProfilePersistenceService);
   private readonly intentState = inject(IntentStateService);
   private readonly capabilities = inject(PreferencesCapabilityService);
 
@@ -147,14 +149,9 @@ export class PreferencesEditorFacade {
         )
       ),
       switchMap(({ profile: safeProfile, intent: safeIntent }) =>
-        forkJoin([
-          this.profilePreferences
-            .saveProfile$(safeUid, safeProfile)
-            .pipe(take(1)),
-          this.intentState
-            .saveIntentState$(safeUid, safeIntent)
-            .pipe(take(1)),
-        ]).pipe(map(() => void 0))
+        this.profilePersistence
+          .saveAllWithProjection$(safeUid, safeProfile, safeIntent)
+          .pipe(take(1))
       ),
       catchError((err) => {
         this.handleError(
@@ -193,10 +190,9 @@ export class PreferencesEditorFacade {
         )
       ),
       switchMap((safeProfile) =>
-        this.profilePreferences.saveProfile$(safeUid, safeProfile).pipe(
-          take(1),
-          map(() => void 0)
-        )
+        this.profilePersistence
+          .saveProfileWithProjection$(safeUid, safeProfile)
+          .pipe(take(1))
       ),
       catchError((err) => {
         this.handleError(
