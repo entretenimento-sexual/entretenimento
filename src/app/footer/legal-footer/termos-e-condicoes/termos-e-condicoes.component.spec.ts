@@ -1,5 +1,4 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MatDialogRef } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { vi } from 'vitest';
 
@@ -8,23 +7,19 @@ import { TermosECondicoesComponent } from './termos-e-condicoes.component';
 describe('TermosECondicoesComponent', () => {
   let component: TermosECondicoesComponent;
   let fixture: ComponentFixture<TermosECondicoesComponent>;
-  let dialogRef: { close: ReturnType<typeof vi.fn> };
+  let router: { navigateByUrl: ReturnType<typeof vi.fn> };
 
   beforeEach(async () => {
-    dialogRef = { close: vi.fn() };
+    router = {
+      navigateByUrl: vi.fn().mockResolvedValue(true),
+    };
 
     await TestBed.configureTestingModule({
       imports: [TermosECondicoesComponent],
       providers: [
         {
-          provide: MatDialogRef,
-          useValue: dialogRef,
-        },
-        {
           provide: Router,
-          useValue: {
-            navigateByUrl: vi.fn().mockResolvedValue(true),
-          },
+          useValue: router,
         },
       ],
     }).compileComponents();
@@ -50,8 +45,8 @@ describe('TermosECondicoesComponent', () => {
     expect(text).toContain('direito de arrependimento');
   });
 
-  it('deve fechar quando renderizado em diálogo', () => {
+  it('deve voltar à página inicial ao fechar a rota pública', () => {
     component.closeDialog();
-    expect(dialogRef.close).toHaveBeenCalledTimes(1);
+    expect(router.navigateByUrl).toHaveBeenCalledWith('/');
   });
 });
