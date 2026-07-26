@@ -12,7 +12,6 @@ import { roomReducer } from '../reducers/reducers.chat/room.reducer';
 import { locationReducer } from '../reducers/reducers.location/location.reducer';
 import { nearbyProfilesReducer } from '../reducers/reducers.location/nearby-profiles.reducer';
 
-import { cacheReducer } from '../reducers/cache.reducer';
 import { friendsPaginationReducer } from '../reducers/reducers.interactions/friends-pagination.reducer';
 import { friendsReducer } from '../reducers/reducers.interactions/friends.reducer';
 import { discoveryFeedReducer } from '../reducers/reducers.discovery/discovery-feed.reducer';
@@ -37,9 +36,6 @@ export interface AppState {
 
   // DISCOVERY DOMAIN
   discoveryFeeds: ReturnType<typeof discoveryFeedReducer>;
-
-  // CACHE
-  cache: ReturnType<typeof cacheReducer>;
 
   // INTERACTIONS DOMAIN
   interactions_friends: ReturnType<typeof friendsReducer>;
