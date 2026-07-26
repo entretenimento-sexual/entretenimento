@@ -24,9 +24,6 @@ export const STORE_FEATURE = {
   // INTERACTIONS DOMAIN
   friendsPages: 'friendsPages',
   interactionsFriends: 'interactions_friends',
-
-  // CACHE
-  cache: 'cache',
 } as const;
 
 export type StoreFeatureKey = typeof STORE_FEATURE[keyof typeof STORE_FEATURE];
