@@ -1,6 +1,20 @@
 // src/app/preferences/pages/preferences-editor/preferences-editor.component.ts
-// Não esquecer ferramentas de debug e comentários explicativos
-// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
+// -----------------------------------------------------------------------------
+// EDITOR DE PREFERÊNCIAS
+// -----------------------------------------------------------------------------
+// Fluxo visual:
+// - plano atual em uma única faixa contextual;
+// - preferências permanentes em grupos progressivos;
+// - disponibilidade temporária em área separada e recolhível.
+//
+// Supressões visuais desta revisão:
+// - resumo duplicado das preferências;
+// - painel de recursos bloqueados;
+// - resumo duplicado da intenção;
+// - navegação técnica interna no editor.
+// Os componentes continuam existentes para outras páginas que ainda os utilizam.
+// -----------------------------------------------------------------------------
+
 import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
@@ -23,17 +37,17 @@ import {
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
 import { PreferencesEditorFacade } from '../../application/preferences-editor.facade';
-import { PreferenceProfile } from '../../models/preference-profile.model';
 import { IntentState } from '../../models/intent-state.model';
-
-import { PreferenceSummaryCardComponent } from '../../components/preference-summary-card/preference-summary-card.component';
-import { IntentStateCardComponent } from '../../components/intent-state-card/intent-state-card.component';
-import { PreferenceProfileFormComponent } from '../../components/preference-profile-form/preference-profile-form.component';
-import { IntentStateFormComponent } from '../../components/intent-state-form/intent-state-form.component';
-import { DiscoveryVisibilityPanelComponent } from '../../components/discovery-visibility-panel/discovery-visibility-panel.component';
+import { PreferenceProfile } from '../../models/preference-profile.model';
+import {
+  PreferencesCapabilitySnapshot,
+  PreferencesPlanRole,
+} from '../../services/preferences-capability.service';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
+
+import { IntentStateFormComponent } from '../../components/intent-state-form/intent-state-form.component';
+import { PreferenceProfileFormComponent } from '../../components/preference-profile-form/preference-profile-form.component';
 import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
-import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 
 @Component({
   selector: 'app-preferences-editor',
@@ -41,13 +55,9 @@ import { PreferencesDomainNavComponent } from '../../components/preferences-doma
   imports: [
     CommonModule,
     RouterModule,
-    PreferenceSummaryCardComponent,
-    IntentStateCardComponent,
     PreferenceProfileFormComponent,
     IntentStateFormComponent,
-    DiscoveryVisibilityPanelComponent,
     PreferencesPageHeaderComponent,
-    PreferencesDomainNavComponent,
   ],
   templateUrl: './preferences-editor.component.html',
   styleUrl: './preferences-editor.component.css',
@@ -92,7 +102,7 @@ export class PreferencesEditorComponent {
       )
       .subscribe({
         next: () => {
-          this.notifier.showSuccess('Perfil de preferências salvo com sucesso.');
+          this.notifier.showSuccess('Preferências salvas com sucesso.');
         },
         error: () => {
           // Feedback de erro já tratado pela façade.
@@ -113,11 +123,57 @@ export class PreferencesEditorComponent {
       )
       .subscribe({
         next: () => {
-          this.notifier.showSuccess('Intenção atual salva com sucesso.');
+          this.notifier.showSuccess('Disponibilidade atualizada.');
         },
         error: () => {
           // Feedback de erro já tratado pela façade.
         },
       });
+  }
+
+  planMessage(capabilities: PreferencesCapabilitySnapshot): string {
+    switch (capabilities.currentPlan) {
+      case 'basic':
+        return 'Preferências detalhadas e contexto de disponibilidade liberados.';
+      case 'premium':
+        return 'Descoberta avançada, modo discreto e compatibilidade liberados.';
+      case 'vip':
+      case 'admin':
+        return 'Todos os recursos de preferências e visibilidade estão liberados.';
+      case 'free':
+      default:
+        return 'Preferências essenciais disponíveis sem assinatura.';
+    }
+  }
+
+  nextPlan(capabilities: PreferencesCapabilitySnapshot): PreferencesPlanRole | null {
+    switch (capabilities.currentPlan) {
+      case 'free':
+      case null:
+        return 'basic';
+      case 'basic':
+        return 'premium';
+      case 'premium':
+        return 'vip';
+      case 'vip':
+      case 'admin':
+      default:
+        return null;
+    }
+  }
+
+  intentSummary(intent: IntentState): string {
+    const labels: Readonly<Record<IntentState['mode'], string>> = {
+      inactive: 'Não disponível agora',
+      chat: 'Disponível para conversar',
+      meet_today: 'Disponível para encontro hoje',
+      casual: 'Busca casual',
+      dating: 'Busca namoro',
+      serious: 'Busca relacionamento sério',
+      fetish: 'Busca interesses específicos',
+      travel: 'Em contexto de viagem',
+    };
+
+    return labels[intent.mode] ?? 'Não disponível agora';
   }
 }
