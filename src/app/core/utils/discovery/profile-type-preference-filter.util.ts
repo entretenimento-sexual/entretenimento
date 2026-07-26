@@ -10,8 +10,8 @@
 // - não consultar Firestore e não emitir logs com dados pessoais.
 // -----------------------------------------------------------------------------
 
-import { IUserDados } from '../../interfaces/iuser-dados';
-import {
+import type { IUserDados } from '../../interfaces/iuser-dados';
+import type {
   IUserDiscoveryPreferences,
   UserDiscoveryGenderInterest,
 } from '../../interfaces/preferences/user-discovery-preferences.interface';
@@ -19,8 +19,8 @@ import {
   evaluateProfileCompatibility,
   normalizeDiscoveryCoupleVariant,
   normalizeDiscoveryGender,
-  NormalizedDiscoveryGender,
 } from './profile-compatibility.util';
+import type { NormalizedDiscoveryGender } from './profile-compatibility.util';
 
 export type DiscoveryPreferenceRejectionReason =
   | 'couples_disabled'
