@@ -6,7 +6,6 @@ import { ContactFooterComponent } from './contact-footer/contact-footer.componen
 import { CopyrightFooterComponent } from './copyright-footer/copyright-footer.component';
 import { LegalFooterComponent } from './legal-footer/legal-footer.component';
 import { NavigationFooterComponent } from './navigation-footer/navigation-footer.component';
-import { SocialFooterComponent } from './social-footer/social-footer.component';
 import { FooterComponent } from './footer/footer.component';
 import { FooterRoutingModule } from './footer-routing.module';
 import { MatDialogModule } from '@angular/material/dialog';
@@ -17,7 +16,6 @@ import { MatDialogModule } from '@angular/material/dialog';
     CopyrightFooterComponent,
     LegalFooterComponent,
     NavigationFooterComponent,
-    SocialFooterComponent,
     FooterComponent,
   ],
   imports: [
@@ -30,7 +28,6 @@ import { MatDialogModule } from '@angular/material/dialog';
     CopyrightFooterComponent,
     LegalFooterComponent,
     NavigationFooterComponent,
-    SocialFooterComponent,
     FooterComponent
   ]
 })
