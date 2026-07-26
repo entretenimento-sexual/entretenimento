@@ -12,7 +12,9 @@
 // - Firebase e stores NgRx de domínio continuam sendo fontes de verdade;
 // - dados expirados ou legados nunca são renovados silenciosamente;
 // - uma leitura antiga não pode sobrescrever uma escrita mais recente;
-// - a pressão de memória nunca remove a cópia persistida no IndexedDB.
+// - a pressão de memória nunca remove a cópia persistida no IndexedDB;
+// - políticas por chave só completam configurações omitidas pelo consumidor;
+// - métricas são anônimas e existem somente em memória.
 // -----------------------------------------------------------------------------
 import { Injectable, InjectionToken, inject } from '@angular/core';
 import {
@@ -30,7 +32,19 @@ import {
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
+import {
+  CACHE_MAINTENANCE_AUTO_START,
+  CacheMaintenanceService,
+} from './cache-maintenance.service';
+import {
+  CacheMetricsService,
+  type CacheMetricsSnapshot,
+} from './cache-metrics.service';
 import { CachePersistenceService } from './cache-persistence.service';
+import {
+  CachePolicyService,
+  type ResolvedCachePolicy,
+} from './cache-policy.service';
 
 interface CacheItem<T> {
   data: T;
@@ -47,13 +61,6 @@ const HOT_KEYS: ReadonlySet<string> = new Set([
   'currentUserUid',
 ]);
 
-/**
- * Limite da camada rápida em memória.
- *
- * Pode ser sobrescrito em testes ou em um bootstrap específico. O valor padrão
- * evita crescimento indefinido durante sessões longas, especialmente no mobile,
- * sem remover a cópia persistida das entradas que usam IndexedDB.
- */
 export const CACHE_MEMORY_MAX_ENTRIES = new InjectionToken<number>(
   'CACHE_MEMORY_MAX_ENTRIES',
   {
@@ -75,13 +82,14 @@ export class CacheService {
   private readonly maxMemoryEntries = this.normalizeMemoryLimit(
     inject(CACHE_MEMORY_MAX_ENTRIES)
   );
+  private readonly maintenanceAutoStart = inject(CACHE_MAINTENANCE_AUTO_START);
   private readonly defaultTTL = 300_000;
   private readonly logNoopDeletes = false;
   private mutationGeneration = 0;
 
-  /**
-   * Chaves exatas que não devem sobreviver ao encerramento de sessão.
-   */
+  readonly metrics$ = this.cacheMetrics.metrics$;
+  readonly hitRate$ = this.cacheMetrics.hitRate$;
+
   private readonly sensitiveSessionExactKeys: ReadonlyArray<string> = [
     'currentUser',
     'currentUserUid',
@@ -91,10 +99,6 @@ export class CacheService {
     'loadingSettings',
   ];
 
-  /**
-   * Prefixos ligados a usuário, preferências, pesquisa, chat ou descoberta.
-   * Inclui formatos legados para que a próxima saída da conta faça a migração.
-   */
   private readonly sensitiveSessionPrefixes: ReadonlyArray<string> = [
     'user:',
     'preferences:',
@@ -113,11 +117,20 @@ export class CacheService {
 
   constructor(
     private readonly cachePersistence: CachePersistenceService,
+    private readonly cachePolicy: CachePolicyService,
+    private readonly cacheMetrics: CacheMetricsService,
+    private readonly cacheMaintenance: CacheMaintenanceService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {
+    this.recordMemorySize();
+    if (this.maintenanceAutoStart) {
+      this.cacheMaintenance.scheduleOncePerSession();
+    }
+
     this.log('Serviço inicializado.', {
       maxMemoryEntries: this.maxMemoryEntries,
+      maintenanceAutoStart: this.maintenanceAutoStart,
     });
   }
 
@@ -134,8 +147,8 @@ export class CacheService {
     const normalizedKey = this.normalizeKey(key);
     if (!normalizedKey) return;
 
-    const expiration = this.resolveExpiration(ttl);
-    const persist = opts?.persist ?? !HOT_KEYS.has(normalizedKey);
+    const policy = this.cachePolicy.resolve(normalizedKey, ttl, opts?.persist);
+    const expiration = this.expirationFromTtl(policy.ttlMs);
     const previous = this.cache.get(normalizedKey);
 
     if (
@@ -144,20 +157,21 @@ export class CacheService {
       previous.expiration === expiration
     ) {
       this.touchMemoryEntry(normalizedKey, previous);
-      this.traceWrite(normalizedKey, expiration, persist, 'skip:same');
+      this.traceWrite(normalizedKey, expiration, policy, 'skip:same');
       return;
     }
 
     this.bumpRevision(normalizedKey);
     this.writeMemoryEntry(normalizedKey, { data, expiration });
-    this.traceWrite(normalizedKey, expiration, persist, 'set');
+    this.cacheMetrics.increment('writes');
+    this.traceWrite(normalizedKey, expiration, policy, 'set');
 
-    if (persist) {
+    if (policy.persist) {
       this.cachePersistence
         .setPersistentEntry(normalizedKey, data, expiration)
         .subscribe({
           error: (error) =>
-            this.safeHandle(
+            this.handlePersistenceError(
               error,
               `CacheService.setPersistentEntry("${normalizedKey}")`
             ),
@@ -169,10 +183,7 @@ export class CacheService {
     }
   }
 
-  /**
-   * Compatibilidade semântica para consumidores antigos.
-   * Não substitui AuthSessionService ou CurrentUserStoreService.
-   */
+  /** Compatibilidade semântica para consumidores antigos. */
   setUser(
     uid: string,
     user: IUserDados,
@@ -200,9 +211,11 @@ export class CacheService {
     const current = this.cache.get(normalizedKey);
     if (!current || this.isExpired(current.expiration)) {
       if (current) {
+        this.cacheMetrics.increment('expirations');
         this.bumpRevision(normalizedKey);
         this.cache.delete(normalizedKey);
         this.inFlightGets.delete(normalizedKey);
+        this.recordMemorySize();
         this.cleanupRevisionIfIdle(normalizedKey);
       }
 
@@ -213,10 +226,8 @@ export class CacheService {
       return;
     }
 
-    const persist = opts?.persist ?? !HOT_KEYS.has(normalizedKey);
-    const expiration = this.hasPositiveTTL(ttl)
-      ? Date.now() + (ttl as number)
-      : current.expiration;
+    const policy = this.cachePolicy.resolve(normalizedKey, ttl, opts?.persist);
+    const expiration = this.resolveUpdateExpiration(ttl, policy, current.expiration);
 
     if (
       this.deepEqual(current.data, data) &&
@@ -228,14 +239,15 @@ export class CacheService {
 
     this.bumpRevision(normalizedKey);
     this.writeMemoryEntry(normalizedKey, { data, expiration });
-    this.traceWrite(normalizedKey, expiration, persist, 'update');
+    this.cacheMetrics.increment('writes');
+    this.traceWrite(normalizedKey, expiration, policy, 'update');
 
-    if (persist) {
+    if (policy.persist) {
       this.cachePersistence
         .setPersistentEntry(normalizedKey, data, expiration)
         .subscribe({
           error: (error) =>
-            this.safeHandle(
+            this.handlePersistenceError(
               error,
               `CacheService.update.setPersistentEntry("${normalizedKey}")`
             ),
@@ -257,20 +269,23 @@ export class CacheService {
 
     this.logKey(normalizedKey, `get → "${normalizedKey}"`);
 
-    const memoryValue = this.readValidMemory<T>(normalizedKey);
+    const memoryValue = this.readValidMemory<T>(normalizedKey, true);
     if (memoryValue.hit) {
       return of(memoryValue.value);
     }
 
     const inFlight = this.inFlightGets.get(normalizedKey);
     if (inFlight) {
+      this.cacheMetrics.increment('coalescedReads');
       return inFlight as Observable<T | null>;
     }
 
     const token = this.createReadToken(normalizedKey);
+    let readStartedAt = 0;
 
     const request$ = defer(() => {
       this.startActiveRead(normalizedKey);
+      readStartedAt = this.now();
       return this.cachePersistence.getPersistentEntry<T>(normalizedKey);
     }).pipe(
       switchMap((persisted) => {
@@ -279,6 +294,8 @@ export class CacheService {
         }
 
         if (persisted) {
+          this.cacheMetrics.increment('indexedDbHits');
+          this.cacheMetrics.recordRehydration(this.now() - readStartedAt);
           this.writeMemoryEntry(normalizedKey, {
             data: persisted.value,
             expiration: persisted.expiresAt,
@@ -287,10 +304,12 @@ export class CacheService {
           return of(persisted.value);
         }
 
+        this.cacheMetrics.increment('misses');
         return of(null);
       }),
       catchError((error) => {
-        this.safeHandle(error, `CacheService.get("${normalizedKey}")`);
+        this.handlePersistenceError(error, `CacheService.get("${normalizedKey}")`);
+        this.cacheMetrics.increment('misses');
         return of(null);
       }),
       finalize(() => {
@@ -308,15 +327,12 @@ export class CacheService {
     return request$;
   }
 
-  /**
-   * Snapshot síncrono limitado a memória e HOT_KEYS do localStorage.
-   * Não lê IndexedDB; consumidores persistentes devem usar `get()`.
-   */
+  /** Snapshot síncrono limitado à memória e às HOT_KEYS do localStorage. */
   getSync<T>(key: string): T | null {
     const normalizedKey = this.normalizeKey(key);
     if (!normalizedKey) return null;
 
-    const memoryValue = this.readValidMemory<T>(normalizedKey);
+    const memoryValue = this.readValidMemory<T>(normalizedKey, true);
     if (memoryValue.hit) {
       return memoryValue.value;
     }
@@ -341,7 +357,7 @@ export class CacheService {
     const normalizedKey = this.normalizeKey(key);
     if (!normalizedKey) return false;
 
-    return this.readValidMemory(normalizedKey).hit;
+    return this.readValidMemory(normalizedKey, false).hit;
   }
 
   delete(key: string): void {
@@ -351,11 +367,13 @@ export class CacheService {
     this.bumpRevision(normalizedKey);
     const existedInMemory = this.cache.delete(normalizedKey);
     this.inFlightGets.delete(normalizedKey);
+    this.recordMemorySize();
     this.cleanupRevisionIfIdle(normalizedKey);
+    this.cacheMetrics.increment('deletes');
 
     this.cachePersistence.deletePersistent(normalizedKey).subscribe({
       error: (error) =>
-        this.safeHandle(
+        this.handlePersistenceError(
           error,
           `CacheService.deletePersistent("${normalizedKey}")`
         ),
@@ -372,21 +390,16 @@ export class CacheService {
     }
   }
 
-  /**
-   * Limpa somente a camada em memória.
-   * O nome é mantido por compatibilidade; persistência exige métodos explícitos.
-   */
+  /** Limpa somente a camada em memória. */
   clear(): void {
     this.mutationGeneration += 1;
     this.cache.clear();
     this.inFlightGets.clear();
     this.keyRevisions.clear();
+    this.recordMemorySize();
     this.log('clear → memória limpa.');
   }
 
-  /**
-   * Limpa caches locais ligados à sessão anterior.
-   */
   clearSensitiveSessionCache$(): Observable<void> {
     this.mutationGeneration += 1;
 
@@ -404,6 +417,7 @@ export class CacheService {
       this.removeLocalStorageKeyBestEffort(key);
       this.cleanupRevisionIfIdle(key);
     }
+    this.recordMemorySize();
 
     const memoryDeletedByPrefix = prefixes.map((prefix) => ({
       prefix: this.maskCacheKey(prefix),
@@ -433,7 +447,7 @@ export class CacheService {
         return void 0;
       }),
       catchError((error) => {
-        this.safeHandle(
+        this.handlePersistenceError(
           error,
           'CacheService.clearSensitiveSessionCache$'
         );
@@ -458,6 +472,8 @@ export class CacheService {
     }
 
     if (expiredKeys.length) {
+      this.cacheMetrics.increment('expirations', expiredKeys.length);
+      this.recordMemorySize();
       this.log(`removeExpired → ${expiredKeys.length} itens removidos.`);
     }
   }
@@ -476,7 +492,10 @@ export class CacheService {
   // Utilitários internos
   // ---------------------------------------------------------------------------
 
-  private readValidMemory<T>(key: string):
+  private readValidMemory<T>(
+    key: string,
+    countHit: boolean
+  ):
     | { hit: true; value: T }
     | { hit: false; value: null } {
     const item = this.cache.get(key);
@@ -486,19 +505,24 @@ export class CacheService {
     }
 
     if (this.isExpired(item.expiration)) {
+      this.cacheMetrics.increment('expirations');
       this.bumpRevision(key);
       this.cache.delete(key);
       this.inFlightGets.delete(key);
+      this.recordMemorySize();
       this.cleanupRevisionIfIdle(key);
       return { hit: false, value: null };
     }
 
+    if (countHit) {
+      this.cacheMetrics.increment('memoryHits');
+    }
     this.touchMemoryEntry(key, item);
     return { hit: true, value: item.data as T };
   }
 
   private readCurrentMemoryValue<T>(key: string): T | null {
-    const current = this.readValidMemory<T>(key);
+    const current = this.readValidMemory<T>(key, false);
     return current.hit ? current.value : null;
   }
 
@@ -506,6 +530,7 @@ export class CacheService {
     this.cache.delete(key);
     this.cache.set(key, item as CacheItem<unknown>);
     this.enforceMemoryLimit();
+    this.recordMemorySize();
   }
 
   private touchMemoryEntry(key: string, item: CacheItem<unknown>): void {
@@ -531,11 +556,19 @@ export class CacheService {
     }
 
     if (evicted > 0) {
+      this.cacheMetrics.increment('lruEvictions', evicted);
       this.log(`LRU → ${evicted} entrada(s) removida(s) da memória.`, {
         size: this.cache.size,
         maxMemoryEntries: this.maxMemoryEntries,
       });
     }
+  }
+
+  private recordMemorySize(): void {
+    this.cacheMetrics.recordMemorySize(
+      this.cache.size,
+      this.maxMemoryEntries
+    );
   }
 
   private normalizeMemoryLimit(value: unknown): number {
@@ -594,14 +627,24 @@ export class CacheService {
     return revision;
   }
 
-  private resolveExpiration(ttl?: number): number | null {
-    return this.hasPositiveTTL(ttl)
-      ? Date.now() + (ttl as number)
-      : null;
+  private expirationFromTtl(ttlMs: number | null): number | null {
+    return ttlMs === null ? null : Date.now() + ttlMs;
   }
 
-  private hasPositiveTTL(ttl?: number): ttl is number {
-    return typeof ttl === 'number' && Number.isFinite(ttl) && ttl > 0;
+  private resolveUpdateExpiration(
+    explicitTtl: number | undefined,
+    policy: ResolvedCachePolicy,
+    currentExpiration: number | null
+  ): number | null {
+    if (typeof explicitTtl === 'number' && Number.isFinite(explicitTtl)) {
+      return this.expirationFromTtl(policy.ttlMs);
+    }
+
+    if (currentExpiration !== null) {
+      return currentExpiration;
+    }
+
+    return this.expirationFromTtl(policy.ttlMs);
   }
 
   private normalizeKey(key: string): string {
@@ -638,6 +681,9 @@ export class CacheService {
       this.cleanupRevisionIfIdle(key);
     }
 
+    if (matchingKeys.length) {
+      this.recordMemorySize();
+    }
     return matchingKeys.length;
   }
 
@@ -664,12 +710,13 @@ export class CacheService {
   private traceWrite(
     key: string,
     expiration: number | null,
-    persist: boolean,
+    policy: ResolvedCachePolicy,
     operation: 'set' | 'update' | 'skip:same'
   ): void {
     this.logKey(key, `${operation} → "${key}"`, {
       expiration,
-      persist,
+      persist: policy.persist,
+      policy: policy.matchedBy,
     });
   }
 
@@ -727,6 +774,11 @@ export class CacheService {
     return token;
   }
 
+  private handlePersistenceError(error: unknown, context: string): void {
+    this.cacheMetrics.increment('persistenceErrors');
+    this.safeHandle(error, context);
+  }
+
   private safeHandle(error: unknown, context: string): void {
     try {
       const normalized = error instanceof Error
@@ -745,6 +797,12 @@ export class CacheService {
     } catch {
       // noop
     }
+  }
+
+  private now(): number {
+    return typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now();
   }
 
   // ---------------------------------------------------------------------------
@@ -769,20 +827,22 @@ export class CacheService {
     return this.cache.size;
   }
 
+  metricsSnapshot(): CacheMetricsSnapshot {
+    return this.cacheMetrics.snapshot();
+  }
+
   debug(): void {
     this.log('DEBUG', {
       size: this.size(),
       maxMemoryEntries: this.maxMemoryEntries,
       revisionEntries: this.keyRevisions.size,
       activeReads: this.activeReadCounts.size,
+      metrics: this.metricsSnapshot(),
       keys: this.keys().map((key) => this.maskCacheKey(key)),
     });
   }
 
-  /**
-   * Compatibilidade legada. Novos fluxos devem usar AuthSessionService e
-   * CurrentUserStoreService como fontes canônicas.
-   */
+  /** Compatibilidade legada com fluxos anteriores de usuário atual. */
   syncCurrentUserWithUid(userData: IUserDados): void {
     if (!userData?.uid) return;
 
