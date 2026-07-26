@@ -39,7 +39,6 @@
               "src/styles/angular-material-bridge.css",
               "node_modules/@fortawesome/fontawesome-free/css/fontawesome.css",
               "node_modules/@fortawesome/fontawesome-free/css/solid.css",
-              "node_modules/@fortawesome/fontawesome-free/css/regular.css",
               "node_modules/@fortawesome/fontawesome-free/css/brands.css",
               "src/styles/variables.css",
               "src/styles/global-layout.css",
