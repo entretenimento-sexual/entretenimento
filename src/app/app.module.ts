@@ -20,7 +20,6 @@ import {
 import { registerLocaleData } from '@angular/common';
 import localePt from '@angular/common/locales/pt';
 import { BrowserModule } from '@angular/platform-browser';
-import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { MatDialogModule } from '@angular/material/dialog';
@@ -28,10 +27,8 @@ import { MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { AppComponent } from './app.component';
 import { AppRoutingModule } from './app-routing.module';
-import { HeaderModule } from './header/header.module';
 import { FooterModule } from './footer/footer.module';
 import { AppStoreModule } from './store/store.module';
-import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.component';
 import { GlobalNetworkStatusComponent } from './core/components/global-network-status/global-network-status.component';
 import { FIREBASE_APPLICATION_PROVIDERS } from './core/firebase/firebase.providers';
 import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
@@ -45,16 +42,12 @@ registerLocaleData(localePt, 'pt-BR');
   imports: [
     BrowserModule,
     AppRoutingModule,
-    FormsModule,
-    ReactiveFormsModule,
     HttpClientModule,
     BrowserAnimationsModule,
     MatDialogModule,
     MatSnackBarModule,
-    HeaderModule,
     FooterModule,
     AppStoreModule,
-    AdminLinkComponent,
     GlobalNetworkStatusComponent,
   ],
 
