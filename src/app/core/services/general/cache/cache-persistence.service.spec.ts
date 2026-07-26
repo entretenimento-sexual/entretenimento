@@ -137,4 +137,34 @@ describe('CachePersistenceService', () => {
       )
     ).resolves.toEqual({ enabled: true });
   });
+
+  it('limpa lote expirado ou legado sem remover entrada válida', async () => {
+    const validKey = key('cleanup-valid');
+    const expiredKey = key('cleanup-expired');
+    const legacyKey = key('cleanup-legacy');
+
+    await firstValueFrom(
+      service.setPersistentEntry(validKey, { valid: true }, Date.now() + 60_000)
+    );
+    await firstValueFrom(
+      service.setPersistentEntry(expiredKey, { expired: true }, Date.now() - 1)
+    );
+    await set(legacyKey, { oldShape: true }, persistenceStore);
+
+    const result = await firstValueFrom(
+      service.cleanupExpiredEntries({ batchSize: 100, cursor: 0 })
+    );
+
+    expect(result).toMatchObject({
+      totalKeys: 3,
+      scanned: 3,
+      removed: 2,
+      invalid: 1,
+      expired: 1,
+      nextCursor: 0,
+    });
+    expect(await get(validKey, persistenceStore)).toBeTruthy();
+    expect(await get(expiredKey, persistenceStore)).toBeUndefined();
+    expect(await get(legacyKey, persistenceStore)).toBeUndefined();
+  });
 });
