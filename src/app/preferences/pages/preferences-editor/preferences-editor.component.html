@@ -1,90 +1,85 @@
 <!-- src/app/preferences/pages/preferences-editor/preferences-editor.component.html -->
 <main class="preferences-editor-page app-page" aria-label="Editor de preferências">
-  <section class="preferences-editor-shell stack">
+  <section class="preferences-editor-shell">
     <app-preferences-page-header
-      title="Ajuste suas preferências"
-      subtitle="Defina o que você procura, sua intenção atual e como deseja aparecer para outras pessoas."
+      title="Preferências"
+      subtitle="Defina quem você quer encontrar e como deseja aparecer."
     >
       <a page-actions class="btn btn-secondary" routerLink="/preferencias">
         Voltar
       </a>
-
-      <a page-actions class="btn btn-primary" routerLink="/dashboard/principal">
-        Concluir e ir para o início
-      </a>
     </app-preferences-page-header>
 
-    <app-preferences-domain-nav></app-preferences-domain-nav>
-
     @if (state$ | async; as state) {
-      <app-preference-summary-card
-        [vm]="{
-          uid: state.uid,
-          user: state.user,
-          profile: state.profile,
-          intent: state.intent,
-          matchProfile: null,
-          capabilities: state.capabilities
-        }">
-      </app-preference-summary-card>
+      <section class="plan-strip" aria-label="Plano e recursos disponíveis">
+        <div class="plan-strip__copy">
+          <span class="plan-strip__label">Seu plano</span>
+          <strong>{{ state.capabilities.currentPlanLabel }}</strong>
+          <span>{{ planMessage(state.capabilities) }}</span>
+        </div>
 
-      <app-discovery-visibility-panel
-        [profile]="state.profile"
-        [capabilities]="state.capabilities">
-      </app-discovery-visibility-panel>
+        @if (nextPlan(state.capabilities); as minimumPlan) {
+          <a
+            class="plan-strip__action"
+            routerLink="/subscription-plan"
+            [queryParams]="{ minimumRole: minimumPlan }"
+          >
+            Ver planos
+          </a>
+        }
+      </section>
 
-      <app-intent-state-card [intent]="state.intent"></app-intent-state-card>
-
-      <section class="preferences-editor-section" aria-label="Formulário do perfil de preferências">
-        <h2 class="section-title">O que você procura</h2>
+      <section
+        class="editor-section"
+        aria-labelledby="preferencesProfileTitle"
+      >
+        <header class="editor-section__header">
+          <div>
+            <h2 id="preferencesProfileTitle">O que você procura</h2>
+            <span>
+              Abra apenas a categoria que deseja alterar. Preferências de segurança
+              continuam disponíveis em todos os planos.
+            </span>
+          </div>
+        </header>
 
         <app-preference-profile-form
           [profile]="state.profile"
           [capabilities]="state.capabilities"
           [saving]="isSavingProfile()"
-          (saveProfile)="onSaveProfile(state.uid, $event)">
+          (saveProfile)="onSaveProfile(state.uid, $event)"
+        >
         </app-preference-profile-form>
       </section>
 
-      <section class="preferences-editor-section" aria-label="Formulário da intenção atual">
-        <h2 class="section-title">Sua intenção atual</h2>
+      <details class="availability-section">
+        <summary class="availability-section__summary">
+          <span class="availability-section__copy">
+            <strong>Disponibilidade atual</strong>
+            <span>{{ intentSummary(state.intent) }}</span>
+          </span>
+          <span class="availability-section__action">Alterar</span>
+        </summary>
 
-        <app-intent-state-form
-          [intent]="state.intent"
-          [capabilities]="state.capabilities"
-          [saving]="isSavingIntent()"
-          (saveIntent)="onSaveIntent(state.uid, $event)">
-        </app-intent-state-form>
-      </section>
-
-      <section class="preferences-editor-section" aria-label="Recursos disponíveis para a conta">
-        <h2 class="section-title">Recursos disponíveis</h2>
-
-        <div class="capabilities-grid" role="list">
-          <article class="capability-item" role="listitem">
-            <span class="capability-label">Preferências avançadas</span>
-            <strong>{{ state.capabilities.canEditAdvancedPreferences ? 'Disponível' : 'Indisponível' }}</strong>
-          </article>
-
-          <article class="capability-item" role="listitem">
-            <span class="capability-label">Descoberta avançada</span>
-            <strong>{{ state.capabilities.canUseAdvancedDiscovery ? 'Disponível' : 'Indisponível' }}</strong>
-          </article>
-
-          <article class="capability-item" role="listitem">
-            <span class="capability-label">Modo discreto</span>
-            <strong>{{ state.capabilities.canUseDiscreetMode ? 'Disponível' : 'Indisponível' }}</strong>
-          </article>
-
-          <article class="capability-item" role="listitem">
-            <span class="capability-label">Visibilidade prioritária</span>
-            <strong>{{ state.capabilities.canUsePriorityVisibility ? 'Disponível' : 'Indisponível' }}</strong>
-          </article>
+        <div class="availability-section__content">
+          <app-intent-state-form
+            [intent]="state.intent"
+            [capabilities]="state.capabilities"
+            [saving]="isSavingIntent()"
+            (saveIntent)="onSaveIntent(state.uid, $event)"
+          >
+          </app-intent-state-form>
         </div>
-      </section>
+      </details>
     } @else {
-      <section class="preferences-editor-section" aria-label="Carregando preferências" aria-live="polite">
-        <p>Carregando suas preferências...</p>
+      <section
+        class="editor-loading"
+        role="status"
+        aria-live="polite"
+        aria-label="Carregando preferências"
+      >
+        <span class="editor-loading__spinner" aria-hidden="true"></span>
+        <span>Carregando suas preferências…</span>
       </section>
     }
   </section>
