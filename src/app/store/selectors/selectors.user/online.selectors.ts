@@ -16,18 +16,21 @@
 // - Online deve exibir perfis públicos que estejam efetivamente online;
 // - presence sozinho não basta;
 // - perfil público sem nickname não entra;
-// - estado/município/gênero enriquecem o card, mas não bloqueiam o modo Online.
-//
-// Motivo da mudança:
-// - o effect já entrega actionUsersTotal: 1 e rawOnlineTotal: 1;
-// - o selector anterior ainda zerava globalOnlineTotal;
-// - a rejeição estava rígida demais para o modo Online.
+// - preferências privadas do viewer filtram apenas a saída local;
+// - estado/município/gênero enriquecem o card, mas não bloqueiam o modo Online
+//   quando o viewer não configurou filtros explícitos.
+// -----------------------------------------------------------------------------
 
 import { createSelector } from '@ngrx/store';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import {
+  DiscoveryPreferenceRejectionReason,
+  evaluateDiscoveryCandidatePreference,
+} from 'src/app/core/utils/discovery/profile-type-preference-filter.util';
 
 import {
+  selectCurrentUser,
   selectOnlineUsers,
   selectUsersMap,
 } from './user.selectors';
@@ -41,7 +44,8 @@ type OnlineRejectionReason =
   | 'missing_public_profile'
   | 'missing_nickname'
   | 'hidden_from_online'
-  | 'not_online';
+  | 'not_online'
+  | DiscoveryPreferenceRejectionReason;
 
 export interface OnlineCandidateDebug {
   uid: string | null;
@@ -161,6 +165,10 @@ function buildOnlinePublicProfile(
       readFirstText(online, ['gender']) ??
       readFirstText(stored, ['gender']),
 
+    normalizedGender:
+      readFirstText(online, ['normalizedGender']) ??
+      readFirstText(stored, ['normalizedGender']),
+
     orientation:
       readFirstText(online, [
         'orientation',
@@ -174,6 +182,22 @@ function buildOnlinePublicProfile(
         'orientacao',
         'orientacaoSexual',
       ]),
+
+    normalizedOrientation:
+      readFirstText(online, ['normalizedOrientation']) ??
+      readFirstText(stored, ['normalizedOrientation']),
+
+    interestedInGenders:
+      readFirstValue(online, ['interestedInGenders']) ??
+      readFirstValue(stored, ['interestedInGenders']),
+
+    interestedInOrientations:
+      readFirstValue(online, ['interestedInOrientations']) ??
+      readFirstValue(stored, ['interestedInOrientations']),
+
+    compatibilityReady:
+      readFirstValue<boolean>(online, ['compatibilityReady']) ??
+      readFirstValue<boolean>(stored, ['compatibilityReady']),
 
     estado:
       readFirstText(online, ['estado', 'uf', 'state']) ??
@@ -256,14 +280,13 @@ function buildOnlinePublicProfile(
  * - exige nickname público;
  * - exige isOnline true;
  * - respeita hideFromOnline;
- * - bloqueia o próprio usuário.
- *
- * Não bloqueia por falta de cidade/gênero, porque isso é qualidade de perfil,
- * não requisito de presença online.
+ * - bloqueia o próprio usuário;
+ * - aplica tipos de perfil e reciprocidade configurados pelo viewer.
  */
 function getOnlineRejectionReason(
   profile: IUserDados | null,
   meUid: string | null,
+  currentUser: IUserDados | null,
   seen: Set<string>
 ): OnlineRejectionReason | null {
   const uid = toText(profile?.uid);
@@ -296,7 +319,12 @@ function getOnlineRejectionReason(
     return 'not_online';
   }
 
-  return null;
+  const preferenceResult = evaluateDiscoveryCandidatePreference(
+    currentUser,
+    profile
+  );
+
+  return preferenceResult.accepted ? null : preferenceResult.reason;
 }
 
 function toDebugItem(
@@ -328,7 +356,8 @@ export const selectGlobalOnlineUsersDebug = createSelector(
   selectOnlineUsers,
   selectUsersMap,
   selectAuthUid,
-  (onlineArr, usersMap, meUid): OnlineCandidateDebug[] => {
+  selectCurrentUser,
+  (onlineArr, usersMap, meUid, currentUser): OnlineCandidateDebug[] => {
     const list = Array.isArray(onlineArr) ? onlineArr : [];
     const seen = new Set<string>();
     const debug: OnlineCandidateDebug[] = [];
@@ -345,6 +374,7 @@ export const selectGlobalOnlineUsersDebug = createSelector(
       const rejectionReason = getOnlineRejectionReason(
         profile,
         meUid ?? null,
+        currentUser ?? null,
         seen
       );
 
@@ -366,7 +396,8 @@ export const selectGlobalOnlineUsers = createSelector(
   selectOnlineUsers,
   selectUsersMap,
   selectAuthUid,
-  (onlineArr, usersMap, meUid): IUserDados[] => {
+  selectCurrentUser,
+  (onlineArr, usersMap, meUid, currentUser): IUserDados[] => {
     const list = Array.isArray(onlineArr) ? onlineArr : [];
     const seen = new Set<string>();
     const out: IUserDados[] = [];
@@ -383,6 +414,7 @@ export const selectGlobalOnlineUsers = createSelector(
       const rejectionReason = getOnlineRejectionReason(
         profile,
         meUid ?? null,
+        currentUser ?? null,
         seen
       );
 
