@@ -1,6 +1,6 @@
 // src/app/preferences/preferences.routes.ts
 // Não esquecer comentários explicativos e ferramentas de debug
-// OJETIVO DE REDUZIR A COMPLEXIDADE DA UI
+// OBJETIVO DE REDUZIR A COMPLEXIDADE DA UI
 import { Routes } from '@angular/router';
 
 export const PREFERENCES_ROUTES: Routes = [
@@ -19,11 +19,20 @@ export const PREFERENCES_ROUTES: Routes = [
       ),
   },
   {
-    path: 'editar/:uid',
+    // O editor é exclusivamente da conta autenticada. O UID não faz parte da
+    // URL canônica para evitar links obsoletos, enumeração e divergência de sessão.
+    path: 'editar',
     loadComponent: () =>
       import('./pages/preferences-editor/preferences-editor.component').then(
         (m) => m.PreferencesEditorComponent
       ),
+  },
+  {
+    // Compatibilidade com favoritos e históricos antigos. O parâmetro é
+    // deliberadamente descartado antes da criação do componente.
+    path: 'editar/:uid',
+    redirectTo: 'editar',
+    pathMatch: 'full',
   },
   {
     path: 'notificacoes',
