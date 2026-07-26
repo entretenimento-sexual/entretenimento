@@ -26,7 +26,7 @@
           <app-preferences-hub-card
             title="Editar preferências"
             description="Atualize intenção, perfil, visibilidade e informações usadas para descoberta."
-            [route]="'/preferencias/editar/' + vm.uid"
+            route="/preferencias/editar"
             badge="Principal">
           </app-preferences-hub-card>
 
@@ -54,15 +54,6 @@
             [route]="'/preferencias/compatibility-lab/' + vm.uid"
             badge="Teste">
           </app-preferences-hub-card>
-
-          @if (lastEditorUid()) {
-            <app-preferences-hub-card
-              title="Retomar edição"
-              description="Continue de onde parou na última tela de edição de preferências."
-              [route]="'/preferencias/editar/' + lastEditorUid()"
-              badge="Recente">
-            </app-preferences-hub-card>
-          }
 
           @if (lastCompatibilityTargetUid()) {
             <app-preferences-hub-card
