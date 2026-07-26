@@ -54,9 +54,9 @@ export class CacheMaintenanceService {
       this.runCleanup$(batchSize).subscribe();
     };
 
-    const idle = (globalThis as IdleCapableGlobal).requestIdleCallback;
-    if (typeof idle === 'function') {
-      idle(run, { timeout: 3_000 });
+    const idleHost = globalThis as IdleCapableGlobal;
+    if (typeof idleHost.requestIdleCallback === 'function') {
+      idleHost.requestIdleCallback(run, { timeout: 3_000 });
       return;
     }
 
@@ -94,6 +94,7 @@ export class CacheMaintenanceService {
           }),
           map((result) => result as CachePersistenceCleanupResult | null),
           catchError((error: unknown) => {
+            this.metrics.increment('persistenceErrors');
             this.reportError(error);
             return of(null);
           })
