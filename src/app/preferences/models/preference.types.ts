@@ -4,6 +4,8 @@
 // - dar nome claro às capacidades do produto
 // - evitar espalhar unions literais pelo projeto
 // - preparar expansão futura sem depender do legado
+import { UserDiscoveryGenderInterest } from '@core/interfaces/preferences/user-discovery-preferences.interface';
+
 export type DiscoveryMode =
   | 'standard'
   | 'discreet'
@@ -29,23 +31,7 @@ export type RelationshipIntent =
   | 'swing'
   | 'fetish_exploration';
 
-export type GenderInterest =
-  | 'men'
-  | 'women'
-  | 'couple_mm'
-  | 'couple_mf'
-  | 'couple_ff'
-  | 'travestis'
-  | 'trans_people'
-  | 'crossdressers'
-  | 'non_binary'
-  | 'intersex'
-  | 'drag_queen'
-  | 'drag_king'
-  | 'genderfluid'
-  | 'agender'
-  | 'genderqueer'
-  | 'androgynous';
+export type GenderInterest = UserDiscoveryGenderInterest;
 
 export type SexualPractice =
   | 'vanilla'
