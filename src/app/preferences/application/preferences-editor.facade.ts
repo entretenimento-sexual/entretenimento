@@ -2,8 +2,9 @@
 // -----------------------------------------------------------------------------
 // FACHADA DO EDITOR DE PREFERÊNCIAS
 // -----------------------------------------------------------------------------
+// - deriva o editor principal diretamente da sessão autenticada;
 // - espera a sessão do proprietário antes de ler documentos privados;
-// - impede leitura de UID diferente do usuário autenticado;
+// - mantém validação estrita para chamadas explícitas com UID;
 // - aplica capacidades derivadas da projeção canônica da assinatura;
 // - sanitiza benefícios pagos antes da persistência;
 // - mantém tratamento de erros centralizado.
@@ -62,6 +63,34 @@ export class PreferencesEditorFacade {
   private readonly intentState = inject(IntentStateService);
   private readonly capabilities = inject(PreferencesCapabilityService);
 
+  private readonly authenticatedUser$ = this.currentUserStore.user$.pipe(
+    map((user) => user ?? null),
+    filter((user): user is IUserDados => Boolean(user?.uid?.trim())),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  /**
+   * Estado canônico do editor da própria conta.
+   * Não recebe UID da URL e, portanto, não pode divergir da sessão ativa.
+   */
+  readonly currentEditorState$: Observable<PreferencesEditorState> =
+    this.authenticatedUser$.pipe(
+      switchMap((user) => this.buildEditorState$(user)),
+      catchError((err) => {
+        this.handleError(
+          err,
+          'currentEditorState$',
+          'Não foi possível carregar o editor de preferências.'
+        );
+        return throwError(() => err);
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  /**
+   * API estrita mantida para consumidores que realmente precisem informar UID.
+   * Divergências são rejeitadas antes de qualquer leitura privada.
+   */
   getEditorState$(uid: string): Observable<PreferencesEditorState> {
     const safeUid = this.normalizeUid(uid);
     if (!safeUid) {
@@ -70,28 +99,13 @@ export class PreferencesEditorFacade {
       );
     }
 
-    return this.currentUserStore.user$.pipe(
-      map((user) => user ?? null),
-      filter((user): user is IUserDados => Boolean(user?.uid)),
+    return this.authenticatedUser$.pipe(
       switchMap((user) => {
         if (user.uid !== safeUid) {
           return throwError(() => this.createOwnershipError(safeUid, user.uid));
         }
 
-        // As leituras só começam depois que a sessão confirma o proprietário.
-        // Isso evita listeners antecipados que as Rules recusariam durante o boot.
-        return combineLatest([
-          this.profilePreferences.getProfile$(safeUid),
-          this.intentState.getIntentState$(safeUid),
-        ]).pipe(
-          map(([profile, intent]) => ({
-            uid: safeUid,
-            user,
-            profile: profile ?? createEmptyPreferenceProfile(safeUid),
-            intent: intent ?? createEmptyIntentState(safeUid),
-            capabilities: this.capabilities.getCapabilities(user),
-          }))
-        );
+        return this.buildEditorState$(user);
       }),
       catchError((err) => {
         this.handleError(
@@ -224,13 +238,29 @@ export class PreferencesEditorFacade {
     );
   }
 
+  private buildEditorState$(user: IUserDados): Observable<PreferencesEditorState> {
+    const uid = this.normalizeUid(user.uid);
+
+    // As leituras só começam depois que a sessão confirma o proprietário.
+    return combineLatest([
+      this.profilePreferences.getProfile$(uid),
+      this.intentState.getIntentState$(uid),
+    ]).pipe(
+      map(([profile, intent]) => ({
+        uid,
+        user,
+        profile: profile ?? createEmptyPreferenceProfile(uid),
+        intent: intent ?? createEmptyIntentState(uid),
+        capabilities: this.capabilities.getCapabilities(user),
+      }))
+    );
+  }
+
   private requireOwner$(safeUid: string): Observable<{
     user: IUserDados;
     capabilities: PreferencesCapabilitySnapshot;
   }> {
-    return this.currentUserStore.user$.pipe(
-      map((user) => user ?? null),
-      filter((user): user is IUserDados => Boolean(user?.uid)),
+    return this.authenticatedUser$.pipe(
       take(1),
       map((user) => {
         if (user.uid !== safeUid) {
