@@ -59,11 +59,16 @@ export class FriendRequestsComponent {
     selectCancelingOutboundRequestIds
   );
 
-  trackById = (_: number, item: { id?: string } | null | undefined): string | number =>
-    item?.id ?? _;
+  trackById = (
+    index: number,
+    item: { id?: string } | null | undefined
+  ): string | number => item?.id ?? index;
 
-  async acceptRequest(req: { id: string; requesterUid: string }): Promise<void> {
-    const uid = await firstValueFrom(this.uid$.pipe(filter(Boolean), take(1)));
+  async acceptRequest(req: {
+    id: string;
+    requesterUid: string;
+  }): Promise<void> {
+    const uid = await this.currentUid();
 
     this.store.dispatch(
       A.acceptFriendRequest({
@@ -98,9 +103,9 @@ export class FriendRequestsComponent {
     targetUid?: string;
     nickname?: string;
   }): Promise<void> {
-    const uid = await firstValueFrom(this.uid$.pipe(filter(Boolean), take(1)));
+    const uid = await this.currentUid();
     const otherUid = String(req.requesterUid ?? req.targetUid ?? '').trim();
-    if (!uid || !otherUid) return;
+    if (!otherUid) return;
 
     const displayName = String(req.nickname ?? '').trim() || 'este usuário';
     const confirmed = await firstValueFrom(
@@ -125,5 +130,17 @@ export class FriendRequestsComponent {
     if (confirmed !== true) return;
 
     this.store.dispatch(A.blockUser({ ownerUid: uid, targetUid: otherUid }));
+  }
+
+  private currentUid(): Promise<string> {
+    return firstValueFrom(
+      this.uid$.pipe(
+        filter(
+          (value): value is string =>
+            typeof value === 'string' && value.trim().length > 0
+        ),
+        take(1)
+      )
+    );
   }
 }
