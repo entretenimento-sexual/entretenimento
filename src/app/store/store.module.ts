@@ -44,9 +44,6 @@ import { FriendsPaginationSelectorsCacheCleanupEffects } from
 // sessão. NearbyProfilesEffects pertence ao fluxo legado lazy de perfis próximos.
 import { LocationEffects } from './effects/effects.location/location.effects';
 
-// EFFECTS - DISCOVERY
-import { DiscoveryFeedEffects } from './effects/effects.discovery/discovery-feed.effects';
-
 const metaReducers = appMetaReducers;
 
 /**
@@ -55,13 +52,15 @@ const metaReducers = appMetaReducers;
  * SUPRESSÃO EXPLÍCITA:
  * - ChatEffects e RoomEffects não são mais registrados no root.
  * - NearbyProfilesEffects não é mais registrado no root.
+ * - DiscoveryFeedEffects não é mais registrado no root.
  *
  * Motivo:
  * - ChatEffects e RoomEffects pertencem exclusivamente à rota lazy `/chat`;
  * - NearbyProfilesEffects é acionado somente pelo fluxo legado de perfis
  *   próximos, preservado dentro do LayoutModule lazy;
- * - manter esses effects aqui carregava serviços de conversa, salas e consulta
- *   geográfica antes de o usuário acessar as respectivas áreas;
+ * - DiscoveryFeedEffects atende somente a descoberta paginada do DashboardModule;
+ * - manter esses effects aqui carregava serviços de conversa, salas, consulta
+ *   geográfica e descoberta antes de o usuário acessar as respectivas áreas;
  * - os registros foram preservados nos módulos lazy correspondentes.
  */
 export const ROOT_EFFECTS = [
@@ -89,9 +88,6 @@ export const ROOT_EFFECTS = [
 
   // LOCATION GLOBAL
   LocationEffects,
-
-  // DISCOVERY
-  DiscoveryFeedEffects,
 ];
 
 @NgModule({
