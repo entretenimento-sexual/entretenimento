@@ -7,6 +7,7 @@
 // - orquestrar a consulta paginada do modo "Todos";
 // - expor estado visual reativo;
 // - preservar presença como enriquecimento opcional;
+// - aplicar preferências privadas do viewer antes do ranking;
 // - delegar compatibilidade, distância, visibilidade, score e ordenação para
 //   DiscoveryCardEnrichmentService;
 // - nunca carregar a coleção inteira de public_profiles.
@@ -40,6 +41,7 @@ import { AccessControlService } from 'src/app/core/services/autentication/auth/a
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserPresenceQueryService } from 'src/app/core/services/data-handling/queries/user-presence.query.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { filterDiscoveryCandidatesByViewerPreferences } from 'src/app/core/utils/discovery/profile-type-preference-filter.util';
 
 import {
   DEFAULT_DISCOVERY_PAGE_SIZE,
@@ -142,14 +144,17 @@ export class DiscoveryPublicProfilesFacade {
 
       /**
        * O store contém somente PublicProfileCard serializável e seguro.
-       * DiscoveryCardEnrichmentService ainda tipa sua entrada como IUserDados,
-       * mas consome exclusivamente os campos públicos presentes no card.
-       * Esta adaptação é apenas de contrato TypeScript; nenhum campo privado é criado.
+       * A projeção privada existe apenas no currentUser e filtra localmente os
+       * candidatos públicos antes do enriquecimento/ranking.
        */
-      const enrichmentProfiles = slice.items as unknown as readonly IUserDados[];
+      const sourceProfiles = slice.items as unknown as readonly IUserDados[];
+      const filteredProfiles = filterDiscoveryCandidatesByViewerPreferences(
+        sourceProfiles,
+        currentUser ?? null
+      );
 
       const result = this.cardEnrichment.buildCardsResult({
-        profiles: enrichmentProfiles,
+        profiles: filteredProfiles,
         currentUser: currentUser ?? null,
         currentUid: request.viewerUid,
         mode: request.mode,
