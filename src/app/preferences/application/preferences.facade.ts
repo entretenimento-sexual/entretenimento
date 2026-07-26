@@ -2,32 +2,34 @@
 // Fachada de leitura do domínio de preferências.
 //
 // Objetivo:
-// - expor uma VM única para telas futuras do domínio preferences
-// - combinar usuário canônico + preference profile + intent state + capacidades
-// - manter a UI desacoplada dos services internos
-//
-// Observação:
-// - não toca no legado
-// - não salva nada
-// - role continua vindo de IUserDados / CurrentUserStoreService
+// - expor uma VM única para telas do domínio preferences;
+// - combinar usuário canônico + perfil + intenção + capacidades;
+// - reagir a mudanças da projeção de assinatura sem recarregar a página;
+// - manter a UI desacoplada dos services internos.
+
 import { Injectable, inject } from '@angular/core';
 import { Observable, combineLatest, of } from 'rxjs';
-import { distinctUntilChanged, map, shareReplay, switchMap } from 'rxjs/operators';
+import {
+  distinctUntilChanged,
+  map,
+  shareReplay,
+  switchMap,
+} from 'rxjs/operators';
 
-import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { IUserDados } from '@core/interfaces/iuser-dados';
+import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
+import { toEpoch } from '@core/utils/epoch-utils';
 
-import { PreferenceProfile } from '../models/preference-profile.model';
 import { IntentState } from '../models/intent-state.model';
 import { MatchProfile } from '../models/match-profile.model';
-
-import { ProfilePreferencesService } from '../services/profile-preferences.service';
+import { PreferenceProfile } from '../models/preference-profile.model';
 import { IntentStateService } from '../services/intent-state.service';
 import { MatchProfileBuilderService } from '../services/match-profile-builder.service';
 import {
   PreferencesCapabilityService,
   PreferencesCapabilitySnapshot,
 } from '../services/preferences-capability.service';
+import { ProfilePreferencesService } from '../services/profile-preferences.service';
 
 export interface PreferencesViewModel {
   uid: string;
@@ -36,6 +38,28 @@ export interface PreferencesViewModel {
   intent: IntentState;
   matchProfile: MatchProfile | null;
   capabilities: PreferencesCapabilitySnapshot;
+}
+
+function samePreferenceAccessUser(
+  previous: IUserDados | null,
+  current: IUserDados | null
+): boolean {
+  return (
+    (previous?.uid ?? null) === (current?.uid ?? null) &&
+    (previous?.role ?? null) === (current?.role ?? null) &&
+    (previous?.tier ?? null) === (current?.tier ?? null) &&
+    (previous?.billingProjectionVersion ?? null) ===
+      (current?.billingProjectionVersion ?? null) &&
+    previous?.isSubscriber === current?.isSubscriber &&
+    (previous?.subscriptionStatus ?? null) ===
+      (current?.subscriptionStatus ?? null) &&
+    (previous?.subscriptionScope ?? null) ===
+      (current?.subscriptionScope ?? null) &&
+    toEpoch(previous?.subscriptionStartedAt) ===
+      toEpoch(current?.subscriptionStartedAt) &&
+    toEpoch(previous?.subscriptionEndsAt) ===
+      toEpoch(current?.subscriptionEndsAt)
+  );
 }
 
 @Injectable({ providedIn: 'root' })
@@ -47,15 +71,12 @@ export class PreferencesFacade {
   private readonly matchProfileBuilder = inject(MatchProfileBuilderService);
   private readonly capabilities = inject(PreferencesCapabilityService);
 
-  /**
-   * Fonte canônica do usuário logado.
-   * undefined (hydrating) é normalizado para null para simplificar a VM.
-   */
-  readonly currentUser$: Observable<IUserDados | null> = this.currentUserStore.user$.pipe(
-    map((user) => user ?? null),
-    distinctUntilChanged((a, b) => (a?.uid ?? null) === (b?.uid ?? null)),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly currentUser$: Observable<IUserDados | null> =
+    this.currentUserStore.user$.pipe(
+      map((user) => user ?? null),
+      distinctUntilChanged(samePreferenceAccessUser),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly currentUid$: Observable<string | null> = this.currentUser$.pipe(
     map((user) => user?.uid?.trim() || null),
@@ -63,12 +84,8 @@ export class PreferencesFacade {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  /**
-   * VM do usuário logado, útil para telas "Minhas preferências".
-   */
-    readonly currentPreferencesVm$: Observable<PreferencesViewModel | null> = this.currentUser$.pipe(
-      map((user) => user?.uid?.trim() || null),
-      distinctUntilChanged(),
+  readonly currentPreferencesVm$: Observable<PreferencesViewModel | null> =
+    this.currentUid$.pipe(
       switchMap((uid) => {
         if (!uid) return of(null);
         return this.getPreferencesVmByUid$(uid);
@@ -76,10 +93,6 @@ export class PreferencesFacade {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  /**
-   * VM por uid explícito.
-   * Útil para telas futuras de visualização pública/privada do domínio preferences.
-   */
   getPreferencesVmByUid$(uid: string): Observable<PreferencesViewModel> {
     const safeUid = this.normalizeUid(uid);
 
@@ -93,8 +106,9 @@ export class PreferencesFacade {
         const user = isCurrentUser ? currentUser : null;
 
         const capabilities = this.capabilities.getCapabilities(user);
-        const matchProfile =
-          user ? this.matchProfileBuilder.build(user, profile, intent) : null;
+        const matchProfile = user
+          ? this.matchProfileBuilder.build(user, profile, intent)
+          : null;
 
         return {
           uid: safeUid,
@@ -109,7 +123,9 @@ export class PreferencesFacade {
     );
   }
 
-  getCapabilities$(uid?: string | null): Observable<PreferencesCapabilitySnapshot> {
+  getCapabilities$(
+    uid?: string | null
+  ): Observable<PreferencesCapabilitySnapshot> {
     const safeUid = this.normalizeUid(uid ?? '');
 
     if (!safeUid) {
@@ -120,7 +136,11 @@ export class PreferencesFacade {
     }
 
     return this.currentUser$.pipe(
-      map((user) => (user?.uid === safeUid ? this.capabilities.getCapabilities(user) : this.capabilities.getCapabilities(null))),
+      map((user) =>
+        user?.uid === safeUid
+          ? this.capabilities.getCapabilities(user)
+          : this.capabilities.getCapabilities(null)
+      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
@@ -128,4 +148,4 @@ export class PreferencesFacade {
   private normalizeUid(uid: string): string {
     return (uid ?? '').trim();
   }
-} // Linha 131, fim do preferences.facade.ts
+}
