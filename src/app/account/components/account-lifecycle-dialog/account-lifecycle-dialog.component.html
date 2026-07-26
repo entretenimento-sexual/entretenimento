@@ -4,13 +4,14 @@
   (click)="onBackdropClick()"
 >
   <section
+    #dialogContainer
     class="account-lifecycle-dialog"
     role="dialog"
+    tabindex="-1"
     aria-modal="true"
     aria-labelledby="account-lifecycle-dialog-title"
     aria-describedby="account-lifecycle-dialog-description"
     cdkTrapFocus
-    [cdkTrapFocusAutoCapture]="true"
     (click)="onDialogClick($event)"
   >
     <header class="account-lifecycle-dialog__header">
@@ -172,9 +173,9 @@
 
     <footer class="account-lifecycle-dialog__actions">
       <button
+        #initialFocusTarget
         type="button"
         class="btn btn-secondary"
-        cdkFocusInitial
         (click)="onClose()"
         [appActionState]="false"
         [actionDisabled]="busy()"
