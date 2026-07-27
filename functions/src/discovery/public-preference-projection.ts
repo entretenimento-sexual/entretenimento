@@ -5,13 +5,23 @@
 // Somente campos autorizados por showPreferenceBadges saem do documento privado.
 // Preferências avançadas só são publicadas durante entitlement Básico+ vigente.
 // A projeção não concede assinatura e não contém a política privada do viewer.
+//
+// Importante:
+// - bodyPreferences descreve o que o usuário procura;
+// - bodyTraits descreve características que ele declara sobre si;
+// - discovery compara preferência do viewer com trait público do candidato.
 // -----------------------------------------------------------------------------
 
 export interface PublicPreferenceProjection {
   preferenceBadgesVisible: boolean;
   publicRelationshipIntents: readonly string[];
   publicSexualPractices: readonly string[];
-  publicBodyPreferences: readonly string[];
+  publicBodyTraits: readonly string[];
+}
+
+export interface PublicPreferenceProjectionOptions {
+  canPublishAdvanced: boolean;
+  bodyTraits?: unknown;
 }
 
 const RELATIONSHIP_INTENTS = new Set([
@@ -46,7 +56,7 @@ const SEXUAL_PRACTICES = new Set([
   'dirty_talk',
 ]);
 
-const BODY_PREFERENCES = new Set([
+const BODY_TRAITS = new Set([
   'athletic',
   'plus_size',
   'tattoos',
@@ -62,7 +72,7 @@ const BODY_PREFERENCES = new Set([
 
 export function buildPublicPreferenceProjection(
   profile: Record<string, unknown> | null | undefined,
-  options: { canPublishAdvanced: boolean }
+  options: PublicPreferenceProjectionOptions
 ): PublicPreferenceProjection {
   const visibility = asRecord(profile?.['visibility']);
   const softRules = asRecord(profile?.['softRules']);
@@ -87,8 +97,8 @@ export function buildPublicPreferenceProjection(
     publicSexualPractices: canPublishAdvanced
       ? sanitizeList(softRules?.['sexualPractices'], SEXUAL_PRACTICES, 40)
       : [],
-    publicBodyPreferences: canPublishAdvanced
-      ? sanitizeList(softRules?.['bodyPreferences'], BODY_PREFERENCES, 30)
+    publicBodyTraits: canPublishAdvanced
+      ? sanitizeList(options.bodyTraits, BODY_TRAITS, 30)
       : [],
   };
 }
@@ -108,8 +118,8 @@ export function publicPreferenceProjectionMatches(
       expected.publicSexualPractices
     ) &&
     sameStringArray(
-      current['publicBodyPreferences'],
-      expected.publicBodyPreferences
+      current['publicBodyTraits'],
+      expected.publicBodyTraits
     )
   );
 }
@@ -119,7 +129,7 @@ function emptyProjection(visible: boolean): PublicPreferenceProjection {
     preferenceBadgesVisible: visible,
     publicRelationshipIntents: [],
     publicSexualPractices: [],
-    publicBodyPreferences: [],
+    publicBodyTraits: [],
   };
 }
 
