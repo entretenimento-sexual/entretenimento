@@ -7,6 +7,7 @@ import {
   BodyPreference,
   DiscoveryMode,
   GenderInterest,
+  PreferenceMatchMode,
   RelationshipIntent,
   SexualPractice,
 } from './preference.types';
@@ -36,6 +37,15 @@ export interface PreferenceSoftRules {
   interests: string[];
 }
 
+export interface PreferenceMatchingModes {
+  /** Intenções são essenciais e podem ser exigidas em qualquer plano. */
+  relationshipIntents: PreferenceMatchMode;
+
+  /** Preferir exige Básico; transformar em filtro rígido exige Premium. */
+  sexualPractices: PreferenceMatchMode;
+  bodyPreferences: PreferenceMatchMode;
+}
+
 export interface PreferenceVisibilitySettings {
   showPreferenceBadges: boolean;
   showIntentPublicly: boolean;
@@ -49,6 +59,7 @@ export interface PreferenceProfile {
 
   hardRules: PreferenceHardRules;
   softRules: PreferenceSoftRules;
+  matchingModes: PreferenceMatchingModes;
   visibility: PreferenceVisibilitySettings;
 
   updatedAt: number;
