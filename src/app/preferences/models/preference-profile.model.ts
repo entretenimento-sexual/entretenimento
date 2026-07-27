@@ -30,11 +30,17 @@ export interface PreferenceHardRules {
 }
 
 export interface PreferenceSoftRules {
+  /** Características que o usuário procura em outras pessoas. */
   bodyPreferences: BodyPreference[];
   sexualPractices: SexualPractice[];
   vibes: string[];
   styles: string[];
   interests: string[];
+}
+
+export interface PreferenceSelfTraits {
+  /** Características que o próprio usuário escolheu declarar sobre si. */
+  bodyTraits: BodyPreference[];
 }
 
 export interface PreferenceMatchingModes {
@@ -59,6 +65,7 @@ export interface PreferenceProfile {
 
   hardRules: PreferenceHardRules;
   softRules: PreferenceSoftRules;
+  selfTraits: PreferenceSelfTraits;
   matchingModes: PreferenceMatchingModes;
   visibility: PreferenceVisibilitySettings;
 
