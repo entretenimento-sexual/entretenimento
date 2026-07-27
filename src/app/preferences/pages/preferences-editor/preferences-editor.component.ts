@@ -10,7 +10,8 @@
 // Segurança de navegação:
 // - o editor é sempre da conta autenticada;
 // - não consome UID vindo da URL;
-// - links legados com UID são redirecionados pela configuração de rotas.
+// - links legados com UID são redirecionados pela configuração de rotas;
+// - alterações não salvas bloqueiam navegação acidental e recarga da página.
 //
 // Supressões visuais desta revisão:
 // - resumo duplicado das preferências;
@@ -25,6 +26,8 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  HostListener,
+  ViewChild,
   inject,
   signal,
 } from '@angular/core';
@@ -46,6 +49,7 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
 import { IntentStateFormComponent } from '../../components/intent-state-form/intent-state-form.component';
 import { PreferenceProfileFormComponent } from '../../components/preference-profile-form/preference-profile-form.component';
 import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
+import type { PreferencesUnsavedChangesAware } from '../../guards/preferences-unsaved-changes.guard';
 
 @Component({
   selector: 'app-preferences-editor',
@@ -61,11 +65,19 @@ import { PreferencesPageHeaderComponent } from '../../components/preferences-pag
   styleUrl: './preferences-editor.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PreferencesEditorComponent {
+export class PreferencesEditorComponent
+  implements PreferencesUnsavedChangesAware
+{
   private readonly editorFacade = inject(PreferencesEditorFacade);
   private readonly notifier = inject(ErrorNotificationService);
   private readonly preferencesUi = inject(PreferencesUiService);
   private readonly destroyRef = inject(DestroyRef);
+
+  @ViewChild(PreferenceProfileFormComponent)
+  private profileForm?: PreferenceProfileFormComponent;
+
+  @ViewChild(IntentStateFormComponent)
+  private intentForm?: IntentStateFormComponent;
 
   readonly isSavingProfile = signal(false);
   readonly isSavingIntent = signal(false);
@@ -90,10 +102,12 @@ export class PreferencesEditorComponent {
       )
       .subscribe({
         next: () => {
+          this.profileForm?.markSaved();
           this.notifier.showSuccess('Preferências salvas com sucesso.');
         },
         error: () => {
-          // Feedback de erro já tratado pela façade.
+          // Feedback de erro já tratado pela façade. O formulário permanece dirty
+          // para permitir nova tentativa sem perder as escolhas do usuário.
         },
       });
   }
@@ -111,12 +125,29 @@ export class PreferencesEditorComponent {
       )
       .subscribe({
         next: () => {
+          this.intentForm?.markSaved();
           this.notifier.showSuccess('Disponibilidade atualizada.');
         },
         error: () => {
-          // Feedback de erro já tratado pela façade.
+          // Feedback de erro já tratado pela façade. O formulário permanece dirty
+          // para permitir nova tentativa sem perder as escolhas do usuário.
         },
       });
+  }
+
+  hasUnsavedChanges(): boolean {
+    return Boolean(
+      this.profileForm?.hasUnsavedChanges() ||
+      this.intentForm?.hasUnsavedChanges()
+    );
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  protectBrowserExit(event: BeforeUnloadEvent): void {
+    if (!this.hasUnsavedChanges()) return;
+
+    event.preventDefault();
+    event.returnValue = '';
   }
 
   planMessage(capabilities: PreferencesCapabilitySnapshot): string {
