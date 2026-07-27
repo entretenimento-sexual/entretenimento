@@ -17,9 +17,7 @@ import { metaReducers as appMetaReducers } from './reducers/meta-reducers';
 // EFFECTS - USER
 import { AuthEffects } from './effects/effects.user/auth.effects';
 import { UserEffects } from './effects/effects.user/user.effects';
-import { FileEffects } from './effects/effects.user/file.effects';
 import { OnlineUsersEffects } from './effects/effects.user/online-users.effects';
-import { TermsEffects } from './effects/effects.user/terms.effects';
 import { UserPreferencesEffects } from './effects/effects.user/user-preferences.effects';
 import { UserRoleEffects } from './effects/effects.user/user-role.effects';
 import { AuthStatusSyncEffects } from './effects/effects.user/auth-status-sync.effects';
@@ -39,37 +37,29 @@ import { FriendsPaginationEffects } from './effects/effects.interactions/friends
 import { FriendsPaginationSelectorsCacheCleanupEffects } from
   './effects/effects.interactions/friends/pagination-selectors-cache-cleanup.effects';
 
-// EFFECTS - LOCATION GLOBAL
-// LocationEffects permanece global porque mantém o estado de localização da
-// sessão. NearbyProfilesEffects pertence ao fluxo legado lazy de perfis próximos.
-import { LocationEffects } from './effects/effects.location/location.effects';
-
 const metaReducers = appMetaReducers;
 
 /**
  * Effects que precisam existir durante toda a sessão da aplicação.
  *
- * SUPRESSÃO EXPLÍCITA:
- * - ChatEffects e RoomEffects não são mais registrados no root.
- * - NearbyProfilesEffects não é mais registrado no root.
- * - DiscoveryFeedEffects não é mais registrado no root.
- *
- * Motivo:
+ * SUPRESSÃO EXPLÍCITA DO BOOTSTRAP GLOBAL:
  * - ChatEffects e RoomEffects pertencem exclusivamente à rota lazy `/chat`;
- * - NearbyProfilesEffects é acionado somente pelo fluxo legado de perfis
- *   próximos, preservado dentro do LayoutModule lazy;
- * - DiscoveryFeedEffects atende somente a descoberta paginada do DashboardModule;
- * - manter esses effects aqui carregava serviços de conversa, salas, consulta
- *   geográfica e descoberta antes de o usuário acessar as respectivas áreas;
- * - os registros foram preservados nos módulos lazy correspondentes.
+ * - NearbyProfilesEffects pertence ao LayoutModule lazy;
+ * - DiscoveryFeedEffects pertence ao DashboardModule lazy;
+ * - FileEffects é legado e não possui consumidor de uploadStart no app atual;
+ *   os fluxos modernos mantêm o objeto File dentro de services Observables;
+ * - TermsEffects simulava carga/aceite sem persistência. O owner canônico é
+ *   TermsAcceptanceService + callable acceptPlatformTerms;
+ * - LocationEffects não possui effects e não deve ocupar o root enquanto vazio.
+ *
+ * Os reducers legados de file/terms/location são preservados nesta etapa para
+ * não quebrar selectors ou imports compatíveis durante a migração incremental.
  */
 export const ROOT_EFFECTS = [
   // USER
   AuthEffects,
   UserEffects,
-  FileEffects,
   OnlineUsersEffects,
-  TermsEffects,
   UserPreferencesEffects,
   UserRoleEffects,
   AuthSessionSyncEffects,
@@ -85,9 +75,6 @@ export const ROOT_EFFECTS = [
   FriendsRequestsProfilesEffects,
   FriendsPaginationEffects,
   FriendsPaginationSelectorsCacheCleanupEffects,
-
-  // LOCATION GLOBAL
-  LocationEffects,
 ];
 
 @NgModule({
