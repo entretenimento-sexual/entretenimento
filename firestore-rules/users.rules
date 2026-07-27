@@ -3,6 +3,7 @@
 // ==============================================================
 // - ordinary profile fields remain self-editable;
 // - auth, privilege, billing, lifecycle and compliance fields are protected;
+// - discovery preference projections are private, bounded and schema-validated;
 // - profileCompleted is a one-way, eligibility-checked registration transition;
 // - new accounts are private and interaction-blocked until completion;
 // - accepted terms start false and can only become true through trusted backend.
@@ -20,6 +21,116 @@ match /users/{userId} {
 
   function affectedUserKeys() {
     return request.resource.data.diff(resource.data).affectedKeys();
+  }
+
+  function discoveryProjectionKeys() {
+    return [
+      "interestedInGenders",
+      "discoveryPreferences",
+      "discoveryPreferencesUpdatedAt"
+    ];
+  }
+
+  function validPreferenceMatchMode(value) {
+    return value == "prefer" || value == "require";
+  }
+
+  function validDiscoveryAgeRange(value) {
+    return value == null
+      || (
+        value is map
+        && value.keys().hasOnly(["min", "max"])
+        && value.keys().hasAll(["min", "max"])
+        && value.min is number
+        && value.max is number
+        && value.min >= 18
+        && value.max <= 100
+        && value.min <= value.max
+      );
+  }
+
+  function validDiscoveryPreferencesMap(value) {
+    return value is map
+      && value.keys().hasOnly([
+        "genderInterests",
+        "relationshipIntents",
+        "acceptsCouples",
+        "acceptsSingles",
+        "acceptsTransProfiles",
+        "ageRange",
+        "maxDistanceKm",
+        "locationRequired",
+        "relationshipIntentMode",
+        "sexualPractices",
+        "sexualPracticeMode",
+        "bodyPreferences",
+        "bodyPreferenceMode",
+        "updatedAt"
+      ])
+      && value.keys().hasAll([
+        "genderInterests",
+        "relationshipIntents",
+        "acceptsCouples",
+        "acceptsSingles",
+        "acceptsTransProfiles",
+        "ageRange",
+        "maxDistanceKm",
+        "locationRequired",
+        "relationshipIntentMode",
+        "sexualPractices",
+        "sexualPracticeMode",
+        "bodyPreferences",
+        "bodyPreferenceMode",
+        "updatedAt"
+      ])
+      && value.genderInterests is list
+      && value.genderInterests.size() <= 20
+      && value.relationshipIntents is list
+      && value.relationshipIntents.size() <= 10
+      && value.acceptsCouples is bool
+      && value.acceptsSingles is bool
+      && (
+        value.acceptsTransProfiles == null
+        || value.acceptsTransProfiles is bool
+      )
+      && validDiscoveryAgeRange(value.ageRange)
+      && (
+        value.maxDistanceKm == null
+        || (
+          value.maxDistanceKm is number
+          && value.maxDistanceKm >= 1
+          && value.maxDistanceKm <= 500
+        )
+      )
+      && value.locationRequired is bool
+      && validPreferenceMatchMode(value.relationshipIntentMode)
+      && value.sexualPractices is list
+      && value.sexualPractices.size() <= 40
+      && validPreferenceMatchMode(value.sexualPracticeMode)
+      && value.bodyPreferences is list
+      && value.bodyPreferences.size() <= 30
+      && validPreferenceMatchMode(value.bodyPreferenceMode)
+      && value.updatedAt is number;
+  }
+
+  function validDiscoveryProjectionPayload() {
+    return request.resource.data.keys().hasAll(discoveryProjectionKeys())
+      && request.resource.data.interestedInGenders is list
+      && request.resource.data.interestedInGenders.size() <= 12
+      && validDiscoveryPreferencesMap(
+        request.resource.data.discoveryPreferences
+      )
+      && request.resource.data.discoveryPreferencesUpdatedAt is number;
+  }
+
+  function discoveryProjectionSafeOnCreate() {
+    return !request.resource.data.keys().hasAny(discoveryProjectionKeys())
+      || validDiscoveryProjectionPayload();
+  }
+
+  function discoveryProjectionSafeOnUpdate() {
+    return !affectedUserKeys().hasAny(discoveryProjectionKeys())
+      || validDiscoveryProjectionPayload();
   }
 
   function authEmailVerified() {
@@ -143,6 +254,7 @@ match /users/{userId} {
       && hasField("profileCompleted")
       && request.resource.data.profileCompleted == false
       && initialTermsDefaultsOk()
+      && discoveryProjectionSafeOnCreate()
 
       && (!hasField("role") || request.resource.data.role == "free")
       && (!hasField("tier") || request.resource.data.tier == "free")
@@ -279,6 +391,7 @@ match /users/{userId} {
       isSelf(userId)
       && !selfChangingSensitiveKeys()
       && emailVerifiedSafeOnUpdate()
+      && discoveryProjectionSafeOnUpdate()
     )
     || (
       isAdminActor()
