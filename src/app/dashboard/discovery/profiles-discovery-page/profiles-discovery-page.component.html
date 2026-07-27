@@ -18,6 +18,8 @@
           [refreshing]="(publicProfilesFacade.refreshing$ | async) ?? false"
           [hasMore]="(publicProfilesFacade.hasMore$ | async) ?? false"
           [errorMessage]="(publicProfilesFacade.errorMessage$ | async) ?? null"
+          [emptyMessage]="(publicProfilesFacade.emptyMessage$ | async) ?? 'Nenhum perfil disponível agora.'"
+          [filteredByPreferences]="(publicProfilesFacade.filteredByPreferences$ | async) ?? false"
           (loadMore)="publicProfilesFacade.loadMore()"
           (retry)="publicProfilesFacade.retry()"
         />
