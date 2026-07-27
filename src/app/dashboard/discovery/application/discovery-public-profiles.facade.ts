@@ -14,6 +14,7 @@ import {
 } from 'rxjs/operators';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import type { DiscoveryPreferenceRejectionReason } from 'src/app/core/utils/discovery/profile-type-preference-filter.util';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserPresenceQueryService } from 'src/app/core/services/data-handling/queries/user-presence.query.service';
@@ -32,7 +33,10 @@ import {
   buildDiscoveryFeedQueryKey,
 } from '../models/discovery-feed-page.model';
 import type { PublicProfileCard } from '../models/public-profile-card.model';
-import { DiscoveryCardEnrichmentService } from './discovery-card-enrichment.service';
+import {
+  DiscoveryCardEnrichmentService,
+  type DiscoveryCardEnrichmentResult,
+} from './discovery-card-enrichment.service';
 
 export interface DiscoveryPublicProfilesState {
   readonly profiles: readonly PublicProfileCard[];
@@ -41,6 +45,8 @@ export interface DiscoveryPublicProfilesState {
   readonly refreshing: boolean;
   readonly hasMore: boolean;
   readonly errorMessage: string | null;
+  readonly emptyMessage: string;
+  readonly filteredByPreferences: boolean;
 }
 
 const EMPTY_STATE: DiscoveryPublicProfilesState = {
@@ -50,7 +56,27 @@ const EMPTY_STATE: DiscoveryPublicProfilesState = {
   refreshing: false,
   hasMore: false,
   errorMessage: null,
+  emptyMessage: 'Nenhum perfil disponível agora.',
+  filteredByPreferences: false,
 };
+
+const PREFERENCE_REJECTION_REASONS = new Set<DiscoveryPreferenceRejectionReason>([
+  'couples_disabled',
+  'singles_disabled',
+  'trans_profiles_disabled',
+  'profile_type_not_selected',
+  'age_missing',
+  'age_out_of_range',
+  'location_required',
+  'outside_max_distance',
+  'relationship_intent_missing',
+  'relationship_intent_mismatch',
+  'sexual_practice_missing',
+  'sexual_practice_mismatch',
+  'body_trait_missing',
+  'body_trait_mismatch',
+  'reciprocal_mismatch',
+]);
 
 @Injectable({ providedIn: 'root' })
 export class DiscoveryPublicProfilesFacade {
@@ -104,6 +130,7 @@ export class DiscoveryPublicProfilesFacade {
         onlinePresenceByUid,
         applyVisibility: true,
       });
+      const filteredByPreferences = this.wasFilteredByPreferences(result);
 
       return {
         profiles: result.profiles,
@@ -112,6 +139,10 @@ export class DiscoveryPublicProfilesFacade {
         refreshing: slice.refreshing,
         hasMore: !slice.reachedEnd,
         errorMessage: slice.error ? 'Não foi possível carregar os perfis agora.' : null,
+        emptyMessage: filteredByPreferences
+          ? 'Nenhum perfil corresponde aos filtros desta página.'
+          : 'Nenhum perfil disponível agora.',
+        filteredByPreferences,
       };
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -123,6 +154,10 @@ export class DiscoveryPublicProfilesFacade {
   readonly refreshing$ = this.state$.pipe(map((state) => state.refreshing));
   readonly hasMore$ = this.state$.pipe(map((state) => state.hasMore));
   readonly errorMessage$ = this.state$.pipe(map((state) => state.errorMessage));
+  readonly emptyMessage$ = this.state$.pipe(map((state) => state.emptyMessage));
+  readonly filteredByPreferences$ = this.state$.pipe(
+    map((state) => state.filteredByPreferences)
+  );
 
   constructor() {
     this.request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((request) => {
@@ -148,6 +183,20 @@ export class DiscoveryPublicProfilesFacade {
 
   retry(): void {
     this.refresh();
+  }
+
+  private wasFilteredByPreferences(
+    result: DiscoveryCardEnrichmentResult
+  ): boolean {
+    if (result.profiles.length > 0 || result.rejected.length === 0) {
+      return false;
+    }
+
+    return result.rejected.some((item) =>
+      PREFERENCE_REJECTION_REASONS.has(
+        item.reason as DiscoveryPreferenceRejectionReason
+      )
+    );
   }
 
   private withCurrentRequest(callback: (request: DiscoveryFeedRequest) => void): void {
