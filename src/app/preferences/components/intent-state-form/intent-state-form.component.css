@@ -238,11 +238,21 @@
 
 .form-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding-top: 2px;
 }
 
+.form-actions__status {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
 .form-actions .btn {
+  flex: 0 0 auto;
   min-height: 44px;
 }
 
@@ -263,7 +273,8 @@
     grid-template-columns: 1fr;
   }
 
-  .intent-upgrade {
+  .intent-upgrade,
+  .form-actions {
     align-items: stretch;
     flex-direction: column;
   }
