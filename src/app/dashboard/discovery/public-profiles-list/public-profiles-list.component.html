@@ -20,9 +20,29 @@
       </button>
     </div>
   } @else if (profiles().length === 0) {
-    <p class="public-profiles__empty" role="status" aria-live="polite">
-      Nenhum perfil compatível agora.
-    </p>
+    <div class="public-profiles__empty" role="status" aria-live="polite">
+      <p>{{ emptyMessage() }}</p>
+
+      <div class="public-profiles__empty-actions">
+        @if (hasMore()) {
+          <button
+            type="button"
+            class="public-profiles__load-more"
+            [disabled]="loadingMore()"
+            [attr.aria-busy]="loadingMore() ? 'true' : 'false'"
+            (click)="requestLoadMore()"
+          >
+            {{ loadingMore() ? 'Buscando mais…' : 'Buscar mais perfis' }}
+          </button>
+        }
+
+        @if (filteredByPreferences()) {
+          <a class="public-profiles__review" routerLink="/preferencias/editar">
+            Revisar preferências
+          </a>
+        }
+      </div>
+    </div>
   } @else {
     <p class="sr-only" role="status" aria-live="polite">
       {{ profiles().length === 1 ? '1 perfil disponível' : (profiles().length + ' perfis disponíveis') }}
