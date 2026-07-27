@@ -40,6 +40,7 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
     const user = userSnapshot.exists ? (userSnapshot.data() ?? {}) : {};
     const expected = buildPublicPreferenceProjection(profile, {
       canPublishAdvanced: hasMinimumActivePlan(user, 'basic'),
+      bodyTraits: user['bodyTraits'],
     });
     const current = publicSnapshot.data() ?? {};
 
@@ -61,7 +62,7 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
       visible: expected.preferenceBadgesVisible,
       relationshipIntentCount: expected.publicRelationshipIntents.length,
       sexualPracticeCount: expected.publicSexualPractices.length,
-      bodyPreferenceCount: expected.publicBodyPreferences.length,
+      bodyTraitCount: expected.publicBodyTraits.length,
     });
   }
 );
