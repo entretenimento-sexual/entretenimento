@@ -79,7 +79,9 @@ async function seedUser(
   });
 }
 
-async function seedPublicProfile(): Promise<void> {
+async function seedPublicProfile(
+  overrides: Record<string, unknown> = {}
+): Promise<void> {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await setDoc(
       doc(context.firestore(), 'public_profiles', UID),
@@ -87,6 +89,7 @@ async function seedPublicProfile(): Promise<void> {
         ...publicProfile(),
         createdAt: new Date(),
         updatedAt: new Date(),
+        ...overrides,
       }
     );
   });
@@ -172,6 +175,42 @@ describe('Firestore Rules / public profile eligibility', () => {
 
     await assertFails(
       setDoc(doc(db, 'public_profiles', UID), publicProfile())
+    );
+  });
+
+  it('nega ao cliente criar campos calculados pelo backend', async () => {
+    await seedUser();
+    const db = authenticatedDb();
+
+    await assertFails(
+      setDoc(doc(db, 'public_profiles', UID), {
+        ...publicProfile(),
+        age: 31,
+        publicRelationshipIntents: ['dating'],
+        publicSexualPractices: ['bdsm'],
+        publicBodyTraits: ['tattoos'],
+        preferenceBadgesVisible: true,
+      })
+    );
+  });
+
+  it('nega ao cliente alterar sinais públicos calculados pelo backend', async () => {
+    await seedUser();
+    await seedPublicProfile({
+      age: 31,
+      publicRelationshipIntents: ['dating'],
+      publicSexualPractices: ['bdsm'],
+      publicBodyTraits: ['tattoos'],
+      preferenceBadgesVisible: true,
+    });
+    const db = authenticatedDb();
+
+    await assertFails(
+      updateDoc(doc(db, 'public_profiles', UID), {
+        age: 32,
+        publicBodyTraits: ['athletic'],
+        updatedAt: serverTimestamp(),
+      })
     );
   });
 
