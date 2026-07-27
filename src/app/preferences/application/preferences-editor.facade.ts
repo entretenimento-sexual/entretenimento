@@ -29,19 +29,20 @@ import {
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { IUserDados } from '@core/interfaces/iuser-dados';
+import type { IUserDados } from '@core/interfaces/iuser-dados';
 
-import { IntentState } from '../models/intent-state.model';
-import { PreferenceProfile } from '../models/preference-profile.model';
+import type { IntentState } from '../models/intent-state.model';
+import type { PreferenceProfile } from '../models/preference-profile.model';
 import {
   createEmptyIntentState,
   createEmptyPreferenceProfile,
+  normalizePreferenceProfile,
 } from '../utils/preference-normalizers';
 
 import { IntentStateService } from '../services/intent-state.service';
 import {
   PreferencesCapabilityService,
-  PreferencesCapabilitySnapshot,
+  type PreferencesCapabilitySnapshot,
 } from '../services/preferences-capability.service';
 import { PreferenceProfilePersistenceService } from '../services/preference-profile-persistence.service';
 import { ProfilePreferencesService } from '../services/profile-preferences.service';
@@ -245,7 +246,7 @@ export class PreferencesEditorFacade {
       map(([profile, intent]) => ({
         uid,
         user,
-        profile: profile ?? createEmptyPreferenceProfile(uid),
+        profile: normalizePreferenceProfile(profile, uid),
         intent: intent ?? createEmptyIntentState(uid),
         capabilities: this.capabilities.getCapabilities(user),
       }))
@@ -285,7 +286,9 @@ export class PreferencesEditorFacade {
     capabilities: PreferencesCapabilitySnapshot,
     uid: string
   ): PreferenceProfile {
-    const requestedMode = requested.visibility?.discoveryMode ?? 'standard';
+    const safeCurrent = normalizePreferenceProfile(current, uid);
+    const safeRequested = normalizePreferenceProfile(requested, uid);
+    const requestedMode = safeRequested.visibility.discoveryMode;
     const safeMode =
       requestedMode === 'priority' &&
       !capabilities.canUsePriorityVisibility
@@ -295,24 +298,46 @@ export class PreferencesEditorFacade {
           ? 'standard'
           : requestedMode;
 
-    return {
-      ...requested,
-      userId: uid,
-      softRules: {
-        ...requested.softRules,
-        bodyPreferences: capabilities.canEditAdvancedPreferences
-          ? requested.softRules.bodyPreferences ?? []
-          : current.softRules.bodyPreferences ?? [],
-        sexualPractices: capabilities.canEditAdvancedPreferences
-          ? requested.softRules.sexualPractices ?? []
-          : current.softRules.sexualPractices ?? [],
+    const canEditAdvanced = capabilities.canEditAdvancedPreferences;
+    const canRequireAdvanced = capabilities.canRequireAdvancedPreferences;
+
+    return normalizePreferenceProfile(
+      {
+        ...safeRequested,
+        userId: uid,
+        softRules: {
+          ...safeRequested.softRules,
+          bodyPreferences: canEditAdvanced
+            ? safeRequested.softRules.bodyPreferences ?? []
+            : safeCurrent.softRules.bodyPreferences ?? [],
+          sexualPractices: canEditAdvanced
+            ? safeRequested.softRules.sexualPractices ?? []
+            : safeCurrent.softRules.sexualPractices ?? [],
+        },
+        matchingModes: {
+          relationshipIntents:
+            safeRequested.matchingModes.relationshipIntents,
+          sexualPractices: canEditAdvanced
+            ? safeRequested.matchingModes.sexualPractices === 'require' &&
+              canRequireAdvanced
+              ? 'require'
+              : 'prefer'
+            : safeCurrent.matchingModes.sexualPractices,
+          bodyPreferences: canEditAdvanced
+            ? safeRequested.matchingModes.bodyPreferences === 'require' &&
+              canRequireAdvanced
+              ? 'require'
+              : 'prefer'
+            : safeCurrent.matchingModes.bodyPreferences,
+        },
+        visibility: {
+          ...safeRequested.visibility,
+          discoveryMode: safeMode,
+        },
+        updatedAt: Date.now(),
       },
-      visibility: {
-        ...requested.visibility,
-        discoveryMode: safeMode,
-      },
-      updatedAt: Date.now(),
-    };
+      uid
+    );
   }
 
   private sanitizeIntent(
