@@ -35,10 +35,11 @@ service cloud.firestore {
     // users/{uid} contém somente uma projeção operacional, escrita pelo backend.
     // Para autorizar, todos os campos canônicos devem concordar e a janela
     // temporal precisa estar vigente no instante da própria requisição.
-    function isActiveSubscriber(userId) {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(userId))
-        && get(/databases/$(database)/documents/users/$(userId)).data.keys().hasAll([
+    //
+    // A projeção é carregada uma única vez por avaliação de rank. Isso reduz o
+    // custo de expressão das Rules sem alterar a matriz Básico/Premium/VIP.
+    function activeSubscriptionProjectionIsValid(user) {
+      return user.keys().hasAll([
           "billingProjectionVersion",
           "isSubscriber",
           "subscriptionStatus",
@@ -46,26 +47,17 @@ service cloud.firestore {
           "subscriptionStartedAt",
           "subscriptionEndsAt"
         ])
-        && get(/databases/$(database)/documents/users/$(userId))
-          .data.billingProjectionVersion == 1
-        && get(/databases/$(database)/documents/users/$(userId))
-          .data.isSubscriber == true
-        && get(/databases/$(database)/documents/users/$(userId))
-          .data.subscriptionStatus == "active"
-        && get(/databases/$(database)/documents/users/$(userId))
-          .data.subscriptionScope == "platform_subscription"
-        && get(/databases/$(database)/documents/users/$(userId))
-          .data.subscriptionStartedAt is timestamp
-        && get(/databases/$(database)/documents/users/$(userId))
-          .data.subscriptionEndsAt is timestamp
-        && get(/databases/$(database)/documents/users/$(userId))
-          .data.subscriptionStartedAt <= request.time
-        && request.time < get(/databases/$(database)/documents/users/$(userId))
-          .data.subscriptionEndsAt;
+        && user.billingProjectionVersion == 1
+        && user.isSubscriber == true
+        && user.subscriptionStatus == "active"
+        && user.subscriptionScope == "platform_subscription"
+        && user.subscriptionStartedAt is timestamp
+        && user.subscriptionEndsAt is timestamp
+        && user.subscriptionStartedAt <= request.time
+        && request.time < user.subscriptionEndsAt;
     }
 
-    function activeSubscriptionRole(userId) {
-      let user = get(/databases/$(database)/documents/users/$(userId)).data;
+    function subscriptionRoleFromProjection(user) {
       return user.keys().hasAny(["tier"])
         ? user.tier
         : user.keys().hasAny(["role"])
@@ -83,10 +75,32 @@ service cloud.firestore {
             : 0;
     }
 
+    function activeSubscriptionRankFromProjection(user) {
+      return activeSubscriptionProjectionIsValid(user)
+        ? subscriptionRoleRank(subscriptionRoleFromProjection(user))
+        : 0;
+    }
+
+    function activeSubscriptionRank(userId) {
+      let userPath = /databases/$(database)/documents/users/$(userId);
+      return signedIn() && exists(userPath)
+        ? activeSubscriptionRankFromProjection(get(userPath).data)
+        : 0;
+    }
+
+    function isActiveSubscriber(userId) {
+      return activeSubscriptionRank(userId) > 0;
+    }
+
+    function activeSubscriptionRole(userId) {
+      let userPath = /databases/$(database)/documents/users/$(userId);
+      return signedIn() && exists(userPath)
+        ? subscriptionRoleFromProjection(get(userPath).data)
+        : null;
+    }
+
     function hasMinimumActiveSubscriptionRole(userId, minimumRole) {
-      return isActiveSubscriber(userId)
-        && subscriptionRoleRank(activeSubscriptionRole(userId))
-          >= subscriptionRoleRank(minimumRole);
+      return activeSubscriptionRank(userId) >= subscriptionRoleRank(minimumRole);
     }
 
     // ===============================================================
