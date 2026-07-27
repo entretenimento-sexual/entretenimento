@@ -1,43 +1,22 @@
 <!-- src/app/preferences/components/preference-profile-form/preference-profile-form.component.html -->
-<form
-  class="preference-profile-form"
-  [formGroup]="form"
-  (ngSubmit)="submit()"
-  aria-label="Formulário de preferências"
->
+<form class="preference-profile-form" [formGroup]="form" (ngSubmit)="submit()" aria-label="Formulário de preferências">
   <details class="preference-group" open>
     <summary class="preference-group__summary">
-      <span class="preference-group__title">
-        <strong>Intenções relacionais</strong>
-        <small>O tipo de conexão que você procura.</small>
-      </span>
-      <span class="preference-group__count">
-        {{ selectionLabel(selectedCount('ri', relationshipIntentOptions)) }}
-      </span>
+      <span class="preference-group__title"><strong>Intenções relacionais</strong><small>O tipo de conexão que você procura.</small></span>
+      <span class="preference-group__count">{{ selectionLabel(selectedCount('ri', relationshipIntentOptions)) }}</span>
     </summary>
-
     <div class="preference-group__content">
       <div class="matching-mode">
         <span class="matching-mode__label">Como usar estas escolhas</span>
-        <select
-          id="relationshipIntentMode"
-          formControlName="relationshipIntentMode"
-          aria-describedby="relationshipIntentModeHelp"
-        >
+        <select id="relationshipIntentMode" formControlName="relationshipIntentMode" aria-describedby="relationshipIntentModeHelp">
           <option value="prefer">Preferir — melhora a ordem</option>
           <option value="require">Exigir — remove incompatíveis</option>
         </select>
-        <small id="relationshipIntentModeHelp" class="field-help">
-          A plataforma nunca amplia automaticamente um filtro definido como obrigatório.
-        </small>
+        <small id="relationshipIntentModeHelp" class="field-help">A plataforma nunca amplia automaticamente um filtro definido como obrigatório.</small>
       </div>
-
       <div class="checkbox-grid checkbox-grid--nested">
         @for (option of relationshipIntentOptions; track option.key) {
-          <label class="checkbox-item">
-            <input type="checkbox" [formControlName]="'ri_' + option.key" />
-            <span>{{ option.label }}</span>
-          </label>
+          <label class="checkbox-item"><input type="checkbox" [formControlName]="'ri_' + option.key" /><span>{{ option.label }}</span></label>
         }
       </div>
     </div>
@@ -45,123 +24,77 @@
 
   <details class="preference-group">
     <summary class="preference-group__summary">
-      <span class="preference-group__title">
-        <strong>Interesses de gênero</strong>
-        <small>Quem pode aparecer nas suas combinações.</small>
-      </span>
-      <span class="preference-group__count">
-        {{ selectionLabel(selectedCount('gi', genderInterestOptions)) }}
-      </span>
+      <span class="preference-group__title"><strong>Interesses de gênero</strong><small>Quem pode aparecer nas suas combinações.</small></span>
+      <span class="preference-group__count">{{ selectionLabel(selectedCount('gi', genderInterestOptions)) }}</span>
     </summary>
-
     <div class="preference-group__content checkbox-grid">
       @for (option of genderInterestOptions; track option.key) {
-        <label class="checkbox-item">
-          <input type="checkbox" [formControlName]="'gi_' + option.key" />
-          <span>{{ option.label }}</span>
-        </label>
+        <label class="checkbox-item"><input type="checkbox" [formControlName]="'gi_' + option.key" /><span>{{ option.label }}</span></label>
       }
     </div>
   </details>
 
-  <details
-    class="preference-group"
-    [class.preference-group--locked]="!canEditAdvanced()"
-  >
+  <details class="preference-group">
     <summary class="preference-group__summary">
-      <span class="preference-group__title">
-        <strong>Preferências avançadas</strong>
-        <small>Práticas desejadas e preferências físicas.</small>
-      </span>
+      <span class="preference-group__title"><strong>Minhas características</strong><small>Características que você escolhe declarar sobre si.</small></span>
+      <span class="preference-group__count">{{ selectionLabel(selectedCount('st', bodyPreferenceOptions)) }}</span>
+    </summary>
+    <div class="preference-group__content">
+      <p class="preference-note" role="note">Essas informações só aparecem na descoberta quando “Exibir sinais de preferências” estiver ativo.</p>
+      <div class="checkbox-grid checkbox-grid--nested">
+        @for (option of bodyPreferenceOptions; track option.key) {
+          <label class="checkbox-item"><input type="checkbox" [formControlName]="'st_' + option.key" /><span>{{ option.label }}</span></label>
+        }
+      </div>
+    </div>
+  </details>
 
+  <details class="preference-group" [class.preference-group--locked]="!canEditAdvanced()">
+    <summary class="preference-group__summary">
+      <span class="preference-group__title"><strong>Preferências avançadas</strong><small>Práticas desejadas e características físicas procuradas.</small></span>
       @if (canEditAdvanced()) {
-        <span class="preference-group__count">
-          {{
-            selectionLabel(
-              selectedCount('sp', sexualPracticeOptions) +
-              selectedCount('bp', bodyPreferenceOptions)
-            )
-          }}
-        </span>
+        <span class="preference-group__count">{{ selectionLabel(selectedCount('sp', sexualPracticeOptions) + selectedCount('bp', bodyPreferenceOptions)) }}</span>
       } @else {
-        <span class="preference-group__plan">
-          <i class="fas fa-lock" aria-hidden="true"></i>
-          Básico
-        </span>
+        <span class="preference-group__plan"><i class="fas fa-lock" aria-hidden="true"></i>Básico</span>
       }
     </summary>
-
     <div class="preference-group__content">
       @if (canEditAdvanced()) {
         <div class="preference-subgroup">
           <div class="preference-subgroup__header">
             <strong class="preference-subgroup__title">Práticas desejadas</strong>
-            <select
-              class="matching-mode__compact"
-              formControlName="sexualPracticeMode"
-              aria-label="Como usar práticas desejadas"
-            >
+            <select class="matching-mode__compact" formControlName="sexualPracticeMode" aria-label="Como usar práticas desejadas">
               <option value="prefer">Preferir</option>
-              <option value="require" [disabled]="!canRequireAdvanced()">
-                {{ advancedRequirementLabel() }}
-              </option>
+              <option value="require" [disabled]="!canRequireAdvanced()">{{ advancedRequirementLabel() }}</option>
             </select>
           </div>
-
           <div class="checkbox-grid checkbox-grid--nested">
             @for (option of sexualPracticeOptions; track option.key) {
-              <label class="checkbox-item">
-                <input type="checkbox" [formControlName]="'sp_' + option.key" />
-                <span>{{ option.label }}</span>
-              </label>
+              <label class="checkbox-item"><input type="checkbox" [formControlName]="'sp_' + option.key" /><span>{{ option.label }}</span></label>
             }
           </div>
         </div>
-
         <div class="preference-subgroup">
           <div class="preference-subgroup__header">
-            <strong class="preference-subgroup__title">Preferências físicas</strong>
-            <select
-              class="matching-mode__compact"
-              formControlName="bodyPreferenceMode"
-              aria-label="Como usar preferências físicas"
-            >
+            <strong class="preference-subgroup__title">Características físicas procuradas</strong>
+            <select class="matching-mode__compact" formControlName="bodyPreferenceMode" aria-label="Como usar características físicas procuradas">
               <option value="prefer">Preferir</option>
-              <option value="require" [disabled]="!canRequireAdvanced()">
-                {{ advancedRequirementLabel() }}
-              </option>
+              <option value="require" [disabled]="!canRequireAdvanced()">{{ advancedRequirementLabel() }}</option>
             </select>
           </div>
-
           <div class="checkbox-grid checkbox-grid--nested">
             @for (option of bodyPreferenceOptions; track option.key) {
-              <label class="checkbox-item">
-                <input type="checkbox" [formControlName]="'bp_' + option.key" />
-                <span>{{ option.label }}</span>
-              </label>
+              <label class="checkbox-item"><input type="checkbox" [formControlName]="'bp_' + option.key" /><span>{{ option.label }}</span></label>
             }
           </div>
         </div>
-
         @if (!canRequireAdvanced()) {
-          <p class="preference-note" role="note">
-            Seu plano usa estas escolhas para ordenar resultados. O Premium permite
-            torná-las obrigatórias.
-          </p>
+          <p class="preference-note" role="note">Seu plano usa estas escolhas para ordenar resultados. O Premium permite torná-las obrigatórias.</p>
         }
       } @else {
         <div class="preference-upgrade" role="note">
-          <span>
-            Seu plano {{ currentPlanLabel() }} mantém as preferências essenciais.
-            O plano Básico libera práticas e preferências físicas detalhadas.
-          </span>
-          <a
-            class="preference-upgrade__action"
-            routerLink="/subscription-plan"
-            [queryParams]="{ minimumRole: 'basic' }"
-          >
-            Ver plano Básico
-          </a>
+          <span>Seu plano {{ currentPlanLabel() }} mantém as preferências essenciais. O plano Básico libera práticas e características procuradas.</span>
+          <a class="preference-upgrade__action" routerLink="/subscription-plan" [queryParams]="{ minimumRole: 'basic' }">Ver plano Básico</a>
         </div>
       }
     </div>
@@ -169,145 +102,44 @@
 
   <details class="preference-group">
     <summary class="preference-group__summary">
-      <span class="preference-group__title">
-        <strong>Opções de descoberta</strong>
-        <small>Idade, distância e tipos de perfil aceitos.</small>
-      </span>
+      <span class="preference-group__title"><strong>Opções de descoberta</strong><small>Idade, distância e tipos de perfil aceitos.</small></span>
       <span class="preference-group__count">Configurar</span>
     </summary>
-
     <div class="preference-group__content form-grid">
-      <div class="form-field">
-        <label for="minAge">Idade mínima</label>
-        <input
-          id="minAge"
-          type="number"
-          formControlName="minAge"
-          min="18"
-          max="100"
-          step="1"
-          inputmode="numeric"
-          autocomplete="off"
-        />
-      </div>
-
-      <div class="form-field">
-        <label for="maxAge">Idade máxima</label>
-        <input
-          id="maxAge"
-          type="number"
-          formControlName="maxAge"
-          min="18"
-          max="100"
-          step="1"
-          inputmode="numeric"
-          autocomplete="off"
-        />
-      </div>
-
-      @if (ageRangeInvalid()) {
-        <p class="field-error form-field--wide" role="alert">
-          A idade mínima não pode ser maior que a idade máxima.
-        </p>
-      }
-
-      <div class="form-field">
-        <label for="maxDistanceKm">Distância máxima</label>
-        <div class="input-with-suffix">
-          <input
-            id="maxDistanceKm"
-            type="number"
-            formControlName="maxDistanceKm"
-            min="1"
-            max="500"
-            step="1"
-            inputmode="numeric"
-          />
-          <span>km</span>
-        </div>
-      </div>
-
-      <div class="form-field">
-        <label for="acceptsTransProfiles">Perfis trans</label>
-        <select id="acceptsTransProfiles" formControlName="acceptsTransProfiles">
-          <option value="all">Sem restrição</option>
-          <option value="yes">Incluir</option>
-          <option value="no">Não incluir</option>
-        </select>
-      </div>
-
+      <div class="form-field"><label for="minAge">Idade mínima</label><input id="minAge" type="number" formControlName="minAge" min="18" max="100" step="1" inputmode="numeric" autocomplete="off" /></div>
+      <div class="form-field"><label for="maxAge">Idade máxima</label><input id="maxAge" type="number" formControlName="maxAge" min="18" max="100" step="1" inputmode="numeric" autocomplete="off" /></div>
+      @if (ageRangeInvalid()) { <p class="field-error form-field--wide" role="alert">A idade mínima não pode ser maior que a idade máxima.</p> }
+      <div class="form-field"><label for="maxDistanceKm">Distância máxima</label><div class="input-with-suffix"><input id="maxDistanceKm" type="number" formControlName="maxDistanceKm" min="1" max="500" step="1" inputmode="numeric" /><span>km</span></div></div>
+      <div class="form-field"><label for="acceptsTransProfiles">Perfis trans</label><select id="acceptsTransProfiles" formControlName="acceptsTransProfiles"><option value="all">Sem restrição</option><option value="yes">Incluir</option><option value="no">Não incluir</option></select></div>
       <div class="inline-options">
-        <label class="checkbox-item">
-          <input type="checkbox" formControlName="acceptsCouples" />
-          <span>Incluir casais</span>
-        </label>
-
-        <label class="checkbox-item">
-          <input type="checkbox" formControlName="acceptsSingles" />
-          <span>Incluir pessoas individuais</span>
-        </label>
-
-        <label class="checkbox-item">
-          <input type="checkbox" formControlName="locationRequired" />
-          <span>Exigir localização para aplicar distância</span>
-        </label>
+        <label class="checkbox-item"><input type="checkbox" formControlName="acceptsCouples" /><span>Incluir casais</span></label>
+        <label class="checkbox-item"><input type="checkbox" formControlName="acceptsSingles" /><span>Incluir pessoas individuais</span></label>
+        <label class="checkbox-item"><input type="checkbox" formControlName="locationRequired" /><span>Exigir localização para aplicar distância</span></label>
       </div>
     </div>
   </details>
 
   <details class="preference-group">
     <summary class="preference-group__summary">
-      <span class="preference-group__title">
-        <strong>Como quero aparecer</strong>
-        <small>Privacidade e visibilidade do seu perfil.</small>
-      </span>
-      <span class="preference-group__count">Configurar</span>
+      <span class="preference-group__title"><strong>Como quero aparecer</strong><small>Privacidade e visibilidade do seu perfil.</small></span><span class="preference-group__count">Configurar</span>
     </summary>
-
     <div class="preference-group__content form-grid">
       <div class="form-field form-field--wide">
         <label for="discoveryMode">Modo de descoberta</label>
         <select id="discoveryMode" formControlName="discoveryMode">
-          @for (option of discoveryModeOptions; track option.key) {
-            <option
-              [value]="option.key"
-              [disabled]="!isModeAvailable(option.key)"
-            >
-              {{ option.label }}{{ modeRequirement(option.key) }}
-            </option>
-          }
+          @for (option of discoveryModeOptions; track option.key) { <option [value]="option.key" [disabled]="!isModeAvailable(option.key)">{{ option.label }}{{ modeRequirement(option.key) }}</option> }
         </select>
-        <small class="field-help">
-          Modo discreto exige Premium; prioridade exige VIP.
-        </small>
+        <small class="field-help">Modo discreto exige Premium; prioridade exige VIP.</small>
       </div>
-
       <div class="inline-options">
-        <label class="checkbox-item">
-          <input type="checkbox" formControlName="showPreferenceBadges" />
-          <span>Exibir sinais de preferências no perfil</span>
-        </label>
-
-        <label class="checkbox-item">
-          <input type="checkbox" formControlName="showIntentPublicly" />
-          <span>Exibir minha disponibilidade publicamente</span>
-        </label>
+        <label class="checkbox-item"><input type="checkbox" formControlName="showPreferenceBadges" /><span>Exibir sinais de preferências no perfil</span></label>
+        <label class="checkbox-item"><input type="checkbox" formControlName="showIntentPublicly" /><span>Exibir minha disponibilidade publicamente</span></label>
       </div>
     </div>
   </details>
 
   <footer class="form-actions">
-    <span class="form-actions__status" aria-live="polite">
-      {{ saving() ? 'Salvando alterações…' : 'As alterações só valem após salvar.' }}
-    </span>
-
-    <button
-      type="submit"
-      class="btn btn-primary"
-      [disabled]="!canEdit() || saving() || form.invalid"
-      [attr.aria-busy]="saving() ? 'true' : 'false'"
-    >
-      {{ saving() ? 'Salvando…' : 'Salvar preferências' }}
-    </button>
+    <span class="form-actions__status" aria-live="polite">{{ saving() ? 'Salvando alterações…' : 'As alterações só valem após salvar.' }}</span>
+    <button type="submit" class="btn btn-primary" [disabled]="!canEdit() || saving() || form.invalid" [attr.aria-busy]="saving() ? 'true' : 'false'">{{ saving() ? 'Salvando…' : 'Salvar preferências' }}</button>
   </footer>
 </form>
