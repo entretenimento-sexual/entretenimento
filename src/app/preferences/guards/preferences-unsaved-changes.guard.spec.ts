@@ -1,5 +1,5 @@
 // src/app/preferences/guards/preferences-unsaved-changes.guard.spec.ts
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   preferencesUnsavedChangesGuard,
@@ -7,6 +7,10 @@ import {
 } from './preferences-unsaved-changes.guard';
 
 describe('preferencesUnsavedChangesGuard', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('permite sair quando não existem alterações', () => {
     const component: PreferencesUnsavedChangesAware = {
       hasUnsavedChanges: () => false,
