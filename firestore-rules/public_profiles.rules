@@ -56,6 +56,15 @@ match /public_profiles/{userId} {
           && request.resource.data[field] <= max);
   }
 
+  function optStringList(field, maxSize) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (
+        request.resource.data[field] is list
+        && request.resource.data[field].size() <= maxSize
+      );
+  }
+
   function optGeohash(field) {
     return !hasField(field)
       || request.resource.data[field] == null
@@ -132,12 +141,18 @@ match /public_profiles/{userId} {
 
   function noClientManagedFieldsOnCreate() {
     return !request.resource.data.keys().hasAny([
+      "age",
       "normalizedGender",
       "normalizedOrientation",
       "interestedInGenders",
       "interestedInOrientations",
       "compatibilityReady",
       "discoveryNormalizedAt",
+      "preferenceBadgesVisible",
+      "publicRelationshipIntents",
+      "publicSexualPractices",
+      "publicBodyPreferences",
+      "publicPreferencesUpdatedAt",
       "mediaCount",
       "publicMediaCount",
       "photosCount",
@@ -169,12 +184,18 @@ match /public_profiles/{userId} {
 
   function backendManagedFieldsUnchangedOnUpdate() {
     return !request.resource.data.diff(resource.data).changedKeys().hasAny([
+      "age",
       "normalizedGender",
       "normalizedOrientation",
       "interestedInGenders",
       "interestedInOrientations",
       "compatibilityReady",
       "discoveryNormalizedAt",
+      "preferenceBadgesVisible",
+      "publicRelationshipIntents",
+      "publicSexualPractices",
+      "publicBodyPreferences",
+      "publicPreferencesUpdatedAt",
       "mediaCount",
       "publicMediaCount",
       "photosCount",
@@ -215,12 +236,18 @@ match /public_profiles/{userId} {
       "estado",
       "gender",
       "orientation",
+      "age",
       "normalizedGender",
       "normalizedOrientation",
       "interestedInGenders",
       "interestedInOrientations",
       "compatibilityReady",
       "discoveryNormalizedAt",
+      "preferenceBadgesVisible",
+      "publicRelationshipIntents",
+      "publicSexualPractices",
+      "publicBodyPreferences",
+      "publicPreferencesUpdatedAt",
       "role",
       "latitude",
       "longitude",
@@ -287,16 +314,18 @@ match /public_profiles/{userId} {
     return validClientEditablePublicProfilePayload()
       && optTimestamp("createdAt")
       && optTimestamp("discoveryNormalizedAt")
+      && optTimestamp("publicPreferencesUpdatedAt")
+      && optNumberInRange("age", 18, 100)
       && optStringSized("normalizedGender", 3, 20)
       && optStringSized("normalizedOrientation", 3, 20)
-      && (!hasField("interestedInGenders")
-        || request.resource.data.interestedInGenders == null
-        || (request.resource.data.interestedInGenders is list
-          && request.resource.data.interestedInGenders.size() <= 8))
-      && (!hasField("interestedInOrientations")
-        || request.resource.data.interestedInOrientations == null
-        || (request.resource.data.interestedInOrientations is list
-          && request.resource.data.interestedInOrientations.size() <= 8))
+      && optStringList("interestedInGenders", 12)
+      && optStringList("interestedInOrientations", 8)
+      && optStringList("publicRelationshipIntents", 10)
+      && optStringList("publicSexualPractices", 40)
+      && optStringList("publicBodyPreferences", 30)
+      && (!hasField("preferenceBadgesVisible")
+        || request.resource.data.preferenceBadgesVisible == null
+        || request.resource.data.preferenceBadgesVisible is bool)
       && (!hasField("compatibilityReady")
         || request.resource.data.compatibilityReady == null
         || request.resource.data.compatibilityReady is bool)
