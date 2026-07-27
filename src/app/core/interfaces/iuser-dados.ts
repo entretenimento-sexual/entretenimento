@@ -76,6 +76,9 @@ export interface IUserDados {
   nome?: string;
   idade?: number;
 
+  /** Características que o próprio usuário escolheu declarar sobre si. */
+  bodyTraits?: readonly string[] | null;
+
   /**
    * Role continua sendo compatibilidade de autorização/tier já usada em telas.
    * A situação financeira nunca deve ser inferida apenas deste campo.
@@ -146,7 +149,7 @@ export interface IUserDados {
   age?: number | null;
   publicRelationshipIntents?: readonly string[] | null;
   publicSexualPractices?: readonly string[] | null;
-  publicBodyPreferences?: readonly string[] | null;
+  publicBodyTraits?: readonly string[] | null;
   preferenceBadgesVisible?: boolean | null;
   publicPreferencesUpdatedAt?: number | null;
 
