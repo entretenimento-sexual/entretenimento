@@ -139,7 +139,9 @@
   </details>
 
   <footer class="form-actions">
-    <span class="form-actions__status" aria-live="polite">{{ saving() ? 'Salvando alterações…' : 'As alterações só valem após salvar.' }}</span>
-    <button type="submit" class="btn btn-primary" [disabled]="!canEdit() || saving() || form.invalid" [attr.aria-busy]="saving() ? 'true' : 'false'">{{ saving() ? 'Salvando…' : 'Salvar preferências' }}</button>
+    <span class="form-actions__status" aria-live="polite">
+      {{ saving() ? 'Salvando alterações…' : (form.dirty ? 'Existem alterações não salvas.' : 'Preferências salvas.') }}
+    </span>
+    <button type="submit" class="btn btn-primary" [disabled]="!canEdit() || saving() || form.invalid || form.pristine" [attr.aria-busy]="saving() ? 'true' : 'false'">{{ saving() ? 'Salvando…' : 'Salvar preferências' }}</button>
   </footer>
 </form>
