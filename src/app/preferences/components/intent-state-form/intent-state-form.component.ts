@@ -5,7 +5,8 @@
 // - disponibilidade básica permanece acessível a toda conta autenticada;
 // - cidade contextual, expiração e tags exigem assinatura Básica ou superior;
 // - a projeção canônica da assinatura chega por capabilities;
-// - o componente não persiste diretamente.
+// - o componente não persiste diretamente;
+// - expõe estado dirty/pristine para proteção de navegação.
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
@@ -97,7 +98,14 @@ export class IntentStateFormComponent {
   }
 
   submit(): void {
-    if (!this.canEdit() || this.saving() || this.form.invalid) return;
+    if (
+      !this.canEdit() ||
+      this.saving() ||
+      this.form.invalid ||
+      this.form.pristine
+    ) {
+      return;
+    }
 
     const current = this.intent() ?? createEmptyIntentState('');
     const canUseContext = this.canUseContextualIntent();
@@ -124,6 +132,15 @@ export class IntentStateFormComponent {
     this.saveIntent.emit(result);
   }
 
+  hasUnsavedChanges(): boolean {
+    return this.form.dirty;
+  }
+
+  markSaved(): void {
+    this.form.markAsPristine();
+    this.form.markAsUntouched();
+  }
+
   private patchForm(intent: IntentState): void {
     this.form.patchValue(
       {
@@ -136,6 +153,7 @@ export class IntentStateFormComponent {
       },
       { emitEvent: false }
     );
+    this.markSaved();
   }
 
   private setContextualControlsDisabled(disabled: boolean): void {
