@@ -2,32 +2,36 @@
 // -----------------------------------------------------------------------------
 // PERSISTÊNCIA ATÔMICA DO PERFIL DE PREFERÊNCIAS
 // -----------------------------------------------------------------------------
-// O perfil privado e sua projeção de discovery precisam mudar juntos. Uma escrita
-// parcial faria o editor mostrar uma escolha que a descoberta ainda ignoraria.
-// Por isso as duas gravações usam o mesmo writeBatch do Firestore.
+// Perfil, intenção opcional e projeção privada são gravados no mesmo batch.
+// Somente após confirmação do Firestore o estado reativo local é atualizado.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
 import { Firestore, doc } from '@angular/fire/firestore';
+import { Store } from '@ngrx/store';
 import { writeBatch } from 'firebase/firestore';
 import { Observable, throwError } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { map, tap } from 'rxjs/operators';
 
+import type { IUserDados } from '@core/interfaces/iuser-dados';
+import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
+import { updateUserInState } from '@store/actions/actions.user/user.actions';
+import type { AppState } from '@store/states/app.state';
 
 import type { IntentState } from '../models/intent-state.model';
 import type { PreferenceProfile } from '../models/preference-profile.model';
 import { buildPreferenceDiscoveryProjection } from '../utils/preference-discovery-projection.util';
+import { normalizePreferenceProfile } from '../utils/preference-normalizers';
 
 @Injectable({ providedIn: 'root' })
 export class PreferenceProfilePersistenceService {
   private readonly db = inject(Firestore);
   private readonly context = inject(FirestoreContextService);
+  private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly store = inject(Store<AppState>);
 
-  saveProfileWithProjection$(
-    uid: string,
-    profile: PreferenceProfile
-  ): Observable<void> {
+  saveProfileWithProjection$(uid: string, profile: PreferenceProfile): Observable<void> {
     return this.commit$(uid, profile, null);
   }
 
@@ -45,7 +49,6 @@ export class PreferenceProfilePersistenceService {
     intent: IntentState | null
   ): Observable<void> {
     const safeUid = (uid ?? '').trim();
-
     if (!safeUid) {
       return throwError(
         () => new Error('[PreferenceProfilePersistenceService] UID inválido.')
@@ -53,12 +56,17 @@ export class PreferenceProfilePersistenceService {
     }
 
     const now = Date.now();
-    const safeProfile: PreferenceProfile = {
+    const safeProfile = normalizePreferenceProfile({
       ...profile,
       userId: safeUid,
       updatedAt: now,
-    };
+    }, safeUid);
     const projection = buildPreferenceDiscoveryProjection(safeProfile);
+    const userPatch: Partial<IUserDados> = {
+      interestedInGenders: projection.interestedInGenders,
+      discoveryPreferences: projection.discoveryPreferences,
+      discoveryPreferencesUpdatedAt: now,
+    };
 
     const profileRef = this.context.run(() =>
       doc(this.db, 'users', safeUid, 'preferences', 'profile')
@@ -72,17 +80,8 @@ export class PreferenceProfilePersistenceService {
 
     return this.context.deferPromise$(async () => {
       const batch = writeBatch(this.db as any);
-
       batch.set(profileRef as any, safeProfile as any);
-      batch.set(
-        userRef as any,
-        {
-          interestedInGenders: projection.interestedInGenders,
-          discoveryPreferences: projection.discoveryPreferences,
-          discoveryPreferencesUpdatedAt: now,
-        } as any,
-        { merge: true }
-      );
+      batch.set(userRef as any, userPatch as any, { merge: true });
 
       if (intentRef && intent) {
         batch.set(intentRef as any, {
@@ -93,6 +92,21 @@ export class PreferenceProfilePersistenceService {
       }
 
       await batch.commit();
-    }).pipe(map(() => void 0));
+    }).pipe(
+      tap(() => this.updateReactiveProjection(safeUid, userPatch)),
+      map(() => void 0)
+    );
+  }
+
+  private updateReactiveProjection(
+    uid: string,
+    patch: Partial<IUserDados>
+  ): void {
+    const current = this.currentUserStore.getSnapshot();
+    if (!current || current.uid !== uid) return;
+
+    const updated = { ...current, ...patch } as IUserDados;
+    this.currentUserStore.patch(patch);
+    this.store.dispatch(updateUserInState({ uid, updatedData: updated }));
   }
 }
