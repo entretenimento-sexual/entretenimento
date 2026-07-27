@@ -88,14 +88,25 @@ export class DiscoveryPublicProfilesFacade {
   private readonly cardEnrichment = inject(DiscoveryCardEnrichmentService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
+  /**
+   * A revisão da política integra a chave da consulta. Quando o usuário salva
+   * preferências, o CurrentUserStore recebe o novo epoch e esta stream produz um
+   * request diferente, reiniciando a paginação sem exigir reload da aplicação.
+   */
   private readonly request$: Observable<DiscoveryFeedRequest | null> = combineLatest([
     this.accessControl.authUid$,
     this.accessControl.canRunApp$,
+    this.currentUserStore.user$,
   ]).pipe(
-    map(([uid, canRunApp]) => {
+    map(([uid, canRunApp, currentUser]) => {
       const viewerUid = this.toNullableText(uid);
       return viewerUid && canRunApp
-        ? { viewerUid, mode: 'all' as const, pageSize: DEFAULT_DISCOVERY_PAGE_SIZE }
+        ? {
+            viewerUid,
+            mode: 'all' as const,
+            pageSize: DEFAULT_DISCOVERY_PAGE_SIZE,
+            policyRevision: this.resolvePolicyRevision(currentUser ?? null),
+          }
         : null;
     }),
     distinctUntilChanged((a, b) => this.requestKey(a) === this.requestKey(b)),
@@ -197,6 +208,18 @@ export class DiscoveryPublicProfilesFacade {
         item.reason as DiscoveryPreferenceRejectionReason
       )
     );
+  }
+
+  private resolvePolicyRevision(user: IUserDados | null): number {
+    const primary = Number(user?.discoveryPreferencesUpdatedAt);
+    if (Number.isFinite(primary) && primary > 0) {
+      return Math.trunc(primary);
+    }
+
+    const fallback = Number(user?.discoveryPreferences?.updatedAt);
+    return Number.isFinite(fallback) && fallback > 0
+      ? Math.trunc(fallback)
+      : 0;
   }
 
   private withCurrentRequest(callback: (request: DiscoveryFeedRequest) => void): void {
