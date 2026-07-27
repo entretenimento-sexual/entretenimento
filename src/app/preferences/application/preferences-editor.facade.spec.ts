@@ -1,6 +1,6 @@
 // src/app/preferences/application/preferences-editor.facade.spec.ts
 import { TestBed } from '@angular/core/testing';
-import { BehaviorSubject, firstValueFrom, of, take } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, of, take, toArray } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '@core/interfaces/iuser-dados';
@@ -98,6 +98,26 @@ describe('PreferencesEditorFacade', () => {
     expect(profilePreferencesMock.getProfile$).toHaveBeenCalledWith('owner');
     expect(intentStateMock.getIntentState$).toHaveBeenCalledWith('owner');
     expect(globalErrorMock.handleError).not.toHaveBeenCalled();
+  });
+
+  it('não recria leituras privadas quando apenas a projeção do usuário muda', async () => {
+    const statesPromise = firstValueFrom(
+      facade.currentEditorState$.pipe(take(2), toArray())
+    );
+
+    userSubject.next(freeUser('owner'));
+    userSubject.next({
+      ...freeUser('owner'),
+      nickname: 'Perfil atualizado',
+      discoveryPreferencesUpdatedAt: 123,
+    });
+
+    const states = await statesPromise;
+
+    expect(states).toHaveLength(2);
+    expect(states[1]?.user?.nickname).toBe('Perfil atualizado');
+    expect(profilePreferencesMock.getProfile$).toHaveBeenCalledTimes(1);
+    expect(intentStateMock.getIntentState$).toHaveBeenCalledTimes(1);
   });
 
   it('mantém a API explícita estrita para UID diferente', async () => {
