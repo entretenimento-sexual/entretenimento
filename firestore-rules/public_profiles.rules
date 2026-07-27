@@ -59,10 +59,8 @@ match /public_profiles/{userId} {
   function optStringList(field, maxSize) {
     return !hasField(field)
       || request.resource.data[field] == null
-      || (
-        request.resource.data[field] is list
-        && request.resource.data[field].size() <= maxSize
-      );
+      || (request.resource.data[field] is list
+          && request.resource.data[field].size() <= maxSize);
   }
 
   function optGeohash(field) {
@@ -84,14 +82,10 @@ match /public_profiles/{userId} {
   function geoCoherent() {
     let lat = fieldOrNull("latitude");
     let lng = fieldOrNull("longitude");
-    let gh  = fieldOrNull("geohash");
+    let gh = fieldOrNull("geohash");
     return (lat == null && lng == null && gh == null)
       || (lat != null && lng != null && gh != null);
   }
-
-  // -----------------------------------------------------------------------
-  // Private-to-public eligibility
-  // -----------------------------------------------------------------------
 
   function privateUserPath() {
     return /databases/$(database)/documents/users/$(userId);
@@ -151,6 +145,7 @@ match /public_profiles/{userId} {
       "preferenceBadgesVisible",
       "publicRelationshipIntents",
       "publicSexualPractices",
+      "publicBodyTraits",
       "publicBodyPreferences",
       "publicPreferencesUpdatedAt",
       "mediaCount",
@@ -194,6 +189,7 @@ match /public_profiles/{userId} {
       "preferenceBadgesVisible",
       "publicRelationshipIntents",
       "publicSexualPractices",
+      "publicBodyTraits",
       "publicBodyPreferences",
       "publicPreferencesUpdatedAt",
       "mediaCount",
@@ -246,6 +242,7 @@ match /public_profiles/{userId} {
       "preferenceBadgesVisible",
       "publicRelationshipIntents",
       "publicSexualPractices",
+      "publicBodyTraits",
       "publicBodyPreferences",
       "publicPreferencesUpdatedAt",
       "role",
@@ -285,7 +282,7 @@ match /public_profiles/{userId} {
 
   function validClientEditablePublicProfilePayload() {
     return allowedKeys()
-      && (request.resource.data.uid is string)
+      && request.resource.data.uid is string
       && request.resource.data.uid == uid()
       && optTimestamp("updatedAt")
       && nicknameCoherent()
@@ -293,10 +290,8 @@ match /public_profiles/{userId} {
       && (
         !hasField("nicknameNormalized")
         || request.resource.data.nicknameNormalized == null
-        || (
-          request.resource.data.nicknameNormalized is string
-          && request.resource.data.nicknameNormalized.matches('^[a-z0-9._-]{3,40}$')
-        )
+        || (request.resource.data.nicknameNormalized is string
+          && request.resource.data.nicknameNormalized.matches('^[a-z0-9._-]{3,40}$'))
       )
       && optUrl("avatarUrl", 1024)
       && optUrl("photoURL", 1024)
@@ -322,6 +317,7 @@ match /public_profiles/{userId} {
       && optStringList("interestedInOrientations", 8)
       && optStringList("publicRelationshipIntents", 10)
       && optStringList("publicSexualPractices", 40)
+      && optStringList("publicBodyTraits", 30)
       && optStringList("publicBodyPreferences", 30)
       && (!hasField("preferenceBadgesVisible")
         || request.resource.data.preferenceBadgesVisible == null
@@ -343,18 +339,15 @@ match /public_profiles/{userId} {
       && optUrl("avatarUrl", 2048);
   }
 
-  allow create: if (
-    isSelf(userId)
+  allow create: if isSelf(userId)
     && eligiblePrivateUserAfter()
     && validPublicProfileCreatePayload()
     && noClientManagedFieldsOnCreate()
     && request.resource.data.createdAt == request.time
     && request.resource.data.updatedAt == request.time
-    && request.resource.data.role == "free"
-  );
+    && request.resource.data.role == "free";
 
-  allow update: if (
-    isSelf(userId)
+  allow update: if isSelf(userId)
     && eligiblePrivateUserAfter()
     && backendManagedFieldsUnchangedOnUpdate()
     && (
@@ -366,8 +359,7 @@ match /public_profiles/{userId} {
         && request.resource.data.updatedAt == request.time
         && immutableExistingOrAbsent("role")
       )
-    )
-  );
+    );
 
   allow delete: if false;
 
