@@ -2,14 +2,15 @@
 // Não esqueça os comentários
 import { chatReducer } from './chat.reducer';
 import { inviteReducer } from './invite.reducer';
-import { roomReducer } from './room.reducer';
 
 /**
- * Agrupador de reducers do domínio Chat.
- * Facilita importar no reducers/index.ts.
+ * Agrupador dos reducers globais do domínio Chat.
+ *
+ * Salas não mantêm uma segunda projeção no NgRx: leitura reativa pertence a
+ * RoomService/RoomFirestoreGateway e comandos pertencem a
+ * RoomManagementService/Cloud Functions.
  */
 export const chatReducers = {
   chat: chatReducer,
   invite: inviteReducer,
-  room: roomReducer,
 };

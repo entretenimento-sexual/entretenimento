@@ -7,7 +7,6 @@ import { userPreferencesReducer } from '../reducers/reducers.user/user-preferenc
 
 import { chatReducer } from '../reducers/reducers.chat/chat.reducer';
 import { inviteReducer } from '../reducers/reducers.chat/invite.reducer';
-import { roomReducer } from '../reducers/reducers.chat/room.reducer';
 
 import { locationReducer } from '../reducers/reducers.location/location.reducer';
 import { nearbyProfilesReducer } from '../reducers/reducers.location/nearby-profiles.reducer';
@@ -28,7 +27,6 @@ export interface AppState {
   // CHAT DOMAIN
   chat: ReturnType<typeof chatReducer>;
   invite: ReturnType<typeof inviteReducer>;
-  room: ReturnType<typeof roomReducer>;
 
   // LOCATION DOMAIN
   location: ReturnType<typeof locationReducer>;

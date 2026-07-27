@@ -11,7 +11,6 @@ import {
 
 import { initialChatState } from '../../states/states.chat/chat.state';
 import { initialInviteState } from '../../states/states.chat/invite.state';
-import { initialRoomState } from '../../states/states.chat/room.state';
 
 import { initialLocationState } from '../../states/states.location/location.state';
 import { initialNearbyProfilesState } from '../../states/states.location/nearby-profiles.state';
@@ -32,6 +31,10 @@ import { initialUserPreferencesState } from '../../states/states.user/user-prefe
  * preferências, localização, bloqueios e elegibilidade da conta autenticada.
  * Preservá-lo numa troca de UID poderia mostrar conteúdo stale até o próximo
  * refresh, especialmente durante navegação rápida no celular.
+ *
+ * Salas não aparecem neste reset porque não possuem mais slice global. O stream
+ * de RoomService é encerrado pelo ciclo de vida do consumidor e reaberto com o
+ * UID canônico da sessão.
  */
 function resetUserScopedSlices(nextState: AppState): AppState {
   return {
@@ -44,7 +47,6 @@ function resetUserScopedSlices(nextState: AppState): AppState {
 
     [STORE_FEATURE.chat]: initialChatState as any,
     [STORE_FEATURE.invite]: initialInviteState as any,
-    [STORE_FEATURE.room]: initialRoomState as any,
 
     [STORE_FEATURE.location]: initialLocationState as any,
     [STORE_FEATURE.nearbyProfiles]: initialNearbyProfilesState as any,

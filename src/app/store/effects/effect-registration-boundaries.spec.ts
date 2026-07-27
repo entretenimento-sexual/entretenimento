@@ -6,7 +6,6 @@ import { ROOT_EFFECTS } from '../store.module';
 import { CHAT_FEATURE_EFFECTS } from './effects.chat/chat-feature.effects';
 import { ChatEffects } from './effects.chat/chat.effects';
 import { InviteEffects } from './effects.chat/invite.effects';
-import { RoomEffects } from './effects.chat/room.effects';
 import { DiscoveryFeedEffects } from './effects.discovery/discovery-feed.effects';
 import { NearbyProfilesEffects } from './effects.location/nearby-profiles.effects';
 
@@ -14,7 +13,6 @@ describe('NgRx effect registration boundaries', () => {
   it('mantém apenas owners globais necessários no root', () => {
     expect(ROOT_EFFECTS).toContain(InviteEffects);
     expect(ROOT_EFFECTS).not.toContain(ChatEffects);
-    expect(ROOT_EFFECTS).not.toContain(RoomEffects);
     expect(ROOT_EFFECTS).not.toContain(NearbyProfilesEffects);
     expect(ROOT_EFFECTS).not.toContain(DiscoveryFeedEffects);
   });
@@ -23,13 +21,17 @@ describe('NgRx effect registration boundaries', () => {
     const rootEffectNames = ROOT_EFFECTS.map((effectType) => effectType.name);
 
     expect(rootEffectNames).not.toEqual(
-      expect.arrayContaining(['FileEffects', 'TermsEffects', 'LocationEffects'])
+      expect.arrayContaining([
+        'FileEffects',
+        'TermsEffects',
+        'LocationEffects',
+        'RoomEffects',
+      ])
     );
   });
 
-  it('carrega conversa e salas somente com a feature lazy de chat', () => {
-    expect(CHAT_FEATURE_EFFECTS).toEqual([ChatEffects, RoomEffects]);
-    expect(CHAT_FEATURE_EFFECTS).not.toContain(InviteEffects);
+  it('carrega somente o chat direto na feature lazy de chat', () => {
+    expect(CHAT_FEATURE_EFFECTS).toEqual([ChatEffects]);
   });
 
   it('carrega perfis próximos somente com o LayoutModule lazy', () => {

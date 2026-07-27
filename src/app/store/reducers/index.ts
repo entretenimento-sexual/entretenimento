@@ -25,7 +25,6 @@ export const reducers: ActionReducerMap<AppState> = {
   // CHAT DOMAIN
   [STORE_FEATURE.chat]: chatReducers.chat,
   [STORE_FEATURE.invite]: chatReducers.invite,
-  [STORE_FEATURE.room]: chatReducers.room,
 
   // LOCATION DOMAIN
   [STORE_FEATURE.location]: locationReducers.location,

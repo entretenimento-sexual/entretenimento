@@ -12,7 +12,6 @@ export const STORE_FEATURE = {
   // CHAT DOMAIN
   chat: 'chat',
   invite: 'invite',
-  room: 'room',
 
   // LOCATION DOMAIN
   location: 'location',
