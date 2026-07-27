@@ -28,6 +28,100 @@ match /users/{userId}/preferences/{docId} {
       );
   }
 
+  function validMatchMode(mode) {
+    return mode == "prefer" || mode == "require";
+  }
+
+  function hasMatchingModes(data) {
+    return data.keys().hasAny(["matchingModes"]);
+  }
+
+  function validMatchingModesShape(data) {
+    return !hasMatchingModes(data)
+      || (
+        data.matchingModes is map
+        && data.matchingModes.keys().hasAll([
+          "relationshipIntents",
+          "sexualPractices",
+          "bodyPreferences"
+        ])
+        && validMatchMode(data.matchingModes.relationshipIntents)
+        && validMatchMode(data.matchingModes.sexualPractices)
+        && validMatchMode(data.matchingModes.bodyPreferences)
+      );
+  }
+
+  function advancedRequireRequested(data) {
+    return hasMatchingModes(data)
+      && (
+        data.matchingModes.sexualPractices == "require"
+        || data.matchingModes.bodyPreferences == "require"
+      );
+  }
+
+  function advancedModesAllowedOnCreate(data) {
+    return !advancedRequireRequested(data)
+      || hasMinimumActiveSubscriptionRole(userId, "premium");
+  }
+
+  function advancedModesAllowedOnUpdate(data) {
+    return hasMinimumActiveSubscriptionRole(userId, "premium")
+      || !advancedRequireRequested(data)
+      || (
+        hasMatchingModes(resource.data)
+        && data.matchingModes.sexualPractices
+          == resource.data.matchingModes.sexualPractices
+        && data.matchingModes.bodyPreferences
+          == resource.data.matchingModes.bodyPreferences
+      );
+  }
+
+  function validAgeRange(value) {
+    return value == null
+      || (
+        value is map
+        && value.keys().hasAll(["min", "max"])
+        && value.min is number
+        && value.max is number
+        && value.min >= 18
+        && value.max <= 100
+        && value.min <= value.max
+      );
+  }
+
+  function validHardRules(data) {
+    return data.hardRules.keys().hasAll([
+        "acceptedGenders",
+        "acceptedRelationshipIntents",
+        "ageRange",
+        "maxDistanceKm",
+        "acceptsCouples",
+        "acceptsSingles",
+        "acceptsTransProfiles",
+        "locationRequired"
+      ])
+      && data.hardRules.acceptedGenders is list
+      && data.hardRules.acceptedGenders.size() <= 20
+      && data.hardRules.acceptedRelationshipIntents is list
+      && data.hardRules.acceptedRelationshipIntents.size() <= 10
+      && validAgeRange(data.hardRules.ageRange)
+      && (
+        data.hardRules.maxDistanceKm == null
+        || (
+          data.hardRules.maxDistanceKm is number
+          && data.hardRules.maxDistanceKm >= 1
+          && data.hardRules.maxDistanceKm <= 500
+        )
+      )
+      && data.hardRules.acceptsCouples is bool
+      && data.hardRules.acceptsSingles is bool
+      && (
+        data.hardRules.acceptsTransProfiles == null
+        || data.hardRules.acceptsTransProfiles is bool
+      )
+      && data.hardRules.locationRequired is bool;
+  }
+
   function validProfileIdentity() {
     return request.resource.data.keys().hasAll([
         "userId",
@@ -39,7 +133,9 @@ match /users/{userId}/preferences/{docId} {
       ])
       && request.resource.data.userId == userId
       && request.resource.data.relationshipIntents is list
+      && request.resource.data.relationshipIntents.size() <= 10
       && request.resource.data.hardRules is map
+      && validHardRules(request.resource.data)
       && request.resource.data.softRules is map
       && request.resource.data.visibility is map
       && request.resource.data.updatedAt is number
@@ -48,7 +144,10 @@ match /users/{userId}/preferences/{docId} {
         "sexualPractices"
       ])
       && request.resource.data.softRules.bodyPreferences is list
+      && request.resource.data.softRules.bodyPreferences.size() <= 30
       && request.resource.data.softRules.sexualPractices is list
+      && request.resource.data.softRules.sexualPractices.size() <= 40
+      && validMatchingModesShape(request.resource.data)
       && request.resource.data.visibility.keys().hasAll(["discoveryMode"])
       && request.resource.data.visibility.discoveryMode is string
       && validDiscoveryMode(request.resource.data.visibility.discoveryMode);
@@ -56,6 +155,7 @@ match /users/{userId}/preferences/{docId} {
 
   function validProfileCreate() {
     return validProfileIdentity()
+      && advancedModesAllowedOnCreate(request.resource.data)
       && (
         hasMinimumActiveSubscriptionRole(userId, "basic")
         || (
@@ -67,6 +167,7 @@ match /users/{userId}/preferences/{docId} {
 
   function validProfileUpdate() {
     return validProfileIdentity()
+      && advancedModesAllowedOnUpdate(request.resource.data)
       && (
         hasMinimumActiveSubscriptionRole(userId, "basic")
         || (
