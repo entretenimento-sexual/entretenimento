@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { By } from '@angular/platform-browser';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FormValidationFocusDirective } from './form-validation-focus.directive';
 
@@ -43,6 +43,10 @@ describe('FormValidationFocusDirective', () => {
     TestBed.configureTestingModule({ imports: [TestHostComponent] });
     fixture = TestBed.createComponent(TestHostComponent);
     fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('marca controles, anuncia erros e foca o primeiro inválido', () => {
