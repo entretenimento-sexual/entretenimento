@@ -97,8 +97,11 @@ export class PreferenceProfilePersistenceService {
       await batch.commit();
     }).pipe(
       tap(() => {
-        this.updateReactiveProjection(safeUid, userPatch);
+        // Primeiro remove slices e páginas da política anterior. Em seguida o
+        // novo revision epoch é emitido, fazendo a façade solicitar a primeira
+        // página com uma chave diferente.
         this.store.dispatch(clearDiscoveryFeeds());
+        this.updateReactiveProjection(safeUid, userPatch);
       }),
       map(() => void 0)
     );
