@@ -16,13 +16,30 @@
       </span>
     </summary>
 
-    <div class="preference-group__content checkbox-grid">
-      @for (option of relationshipIntentOptions; track option.key) {
-        <label class="checkbox-item">
-          <input type="checkbox" [formControlName]="'ri_' + option.key" />
-          <span>{{ option.label }}</span>
-        </label>
-      }
+    <div class="preference-group__content">
+      <div class="matching-mode">
+        <span class="matching-mode__label">Como usar estas escolhas</span>
+        <select
+          id="relationshipIntentMode"
+          formControlName="relationshipIntentMode"
+          aria-describedby="relationshipIntentModeHelp"
+        >
+          <option value="prefer">Preferir — melhora a ordem</option>
+          <option value="require">Exigir — remove incompatíveis</option>
+        </select>
+        <small id="relationshipIntentModeHelp" class="field-help">
+          A plataforma nunca amplia automaticamente um filtro definido como obrigatório.
+        </small>
+      </div>
+
+      <div class="checkbox-grid checkbox-grid--nested">
+        @for (option of relationshipIntentOptions; track option.key) {
+          <label class="checkbox-item">
+            <input type="checkbox" [formControlName]="'ri_' + option.key" />
+            <span>{{ option.label }}</span>
+          </label>
+        }
+      </div>
     </div>
   </details>
 
@@ -77,9 +94,21 @@
     <div class="preference-group__content">
       @if (canEditAdvanced()) {
         <div class="preference-subgroup">
-          <strong class="preference-subgroup__title">Práticas desejadas</strong>
+          <div class="preference-subgroup__header">
+            <strong class="preference-subgroup__title">Práticas desejadas</strong>
+            <select
+              class="matching-mode__compact"
+              formControlName="sexualPracticeMode"
+              aria-label="Como usar práticas desejadas"
+            >
+              <option value="prefer">Preferir</option>
+              <option value="require" [disabled]="!canRequireAdvanced()">
+                {{ advancedRequirementLabel() }}
+              </option>
+            </select>
+          </div>
 
-          <div class="checkbox-grid">
+          <div class="checkbox-grid checkbox-grid--nested">
             @for (option of sexualPracticeOptions; track option.key) {
               <label class="checkbox-item">
                 <input type="checkbox" [formControlName]="'sp_' + option.key" />
@@ -90,9 +119,21 @@
         </div>
 
         <div class="preference-subgroup">
-          <strong class="preference-subgroup__title">Preferências físicas</strong>
+          <div class="preference-subgroup__header">
+            <strong class="preference-subgroup__title">Preferências físicas</strong>
+            <select
+              class="matching-mode__compact"
+              formControlName="bodyPreferenceMode"
+              aria-label="Como usar preferências físicas"
+            >
+              <option value="prefer">Preferir</option>
+              <option value="require" [disabled]="!canRequireAdvanced()">
+                {{ advancedRequirementLabel() }}
+              </option>
+            </select>
+          </div>
 
-          <div class="checkbox-grid">
+          <div class="checkbox-grid checkbox-grid--nested">
             @for (option of bodyPreferenceOptions; track option.key) {
               <label class="checkbox-item">
                 <input type="checkbox" [formControlName]="'bp_' + option.key" />
@@ -101,6 +142,13 @@
             }
           </div>
         </div>
+
+        @if (!canRequireAdvanced()) {
+          <p class="preference-note" role="note">
+            Seu plano usa estas escolhas para ordenar resultados. O Premium permite
+            torná-las obrigatórias.
+          </p>
+        }
       } @else {
         <div class="preference-upgrade" role="note">
           <span>
@@ -123,12 +171,46 @@
     <summary class="preference-group__summary">
       <span class="preference-group__title">
         <strong>Opções de descoberta</strong>
-        <small>Distância e tipos de perfil aceitos.</small>
+        <small>Idade, distância e tipos de perfil aceitos.</small>
       </span>
       <span class="preference-group__count">Configurar</span>
     </summary>
 
     <div class="preference-group__content form-grid">
+      <div class="form-field">
+        <label for="minAge">Idade mínima</label>
+        <input
+          id="minAge"
+          type="number"
+          formControlName="minAge"
+          min="18"
+          max="100"
+          step="1"
+          inputmode="numeric"
+          autocomplete="off"
+        />
+      </div>
+
+      <div class="form-field">
+        <label for="maxAge">Idade máxima</label>
+        <input
+          id="maxAge"
+          type="number"
+          formControlName="maxAge"
+          min="18"
+          max="100"
+          step="1"
+          inputmode="numeric"
+          autocomplete="off"
+        />
+      </div>
+
+      @if (ageRangeInvalid()) {
+        <p class="field-error form-field--wide" role="alert">
+          A idade mínima não pode ser maior que a idade máxima.
+        </p>
+      }
+
       <div class="form-field">
         <label for="maxDistanceKm">Distância máxima</label>
         <div class="input-with-suffix">
@@ -136,7 +218,8 @@
             id="maxDistanceKm"
             type="number"
             formControlName="maxDistanceKm"
-            min="0"
+            min="1"
+            max="500"
             step="1"
             inputmode="numeric"
           />
@@ -161,12 +244,12 @@
 
         <label class="checkbox-item">
           <input type="checkbox" formControlName="acceptsSingles" />
-          <span>Incluir pessoas solteiras</span>
+          <span>Incluir pessoas individuais</span>
         </label>
 
         <label class="checkbox-item">
           <input type="checkbox" formControlName="locationRequired" />
-          <span>Mostrar apenas perfis com localização</span>
+          <span>Exigir localização para aplicar distância</span>
         </label>
       </div>
     </div>
@@ -221,7 +304,7 @@
     <button
       type="submit"
       class="btn btn-primary"
-      [disabled]="!canEdit() || saving()"
+      [disabled]="!canEdit() || saving() || form.invalid"
       [attr.aria-busy]="saving() ? 'true' : 'false'"
     >
       {{ saving() ? 'Salvando…' : 'Salvar preferências' }}
