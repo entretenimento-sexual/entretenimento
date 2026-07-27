@@ -1,39 +1,39 @@
-//src\app\store\selectors\file.selectors.ts
+// src/app/store/selectors/selectors.user/file.selectors.ts
 import { createSelector } from '@ngrx/store';
+
 import { AppState } from '../../states/app.state';
 import { FileState } from '../../states/states.user/file.state';
+import { STORE_FEATURE } from '../../reducers/feature-keys';
 
+export const selectFileState = (state: AppState): FileState =>
+  state[STORE_FEATURE.file];
 
-
-// Seleciona a parte de 'file' do AppState corretamente
-export const selectFileState = (state: AppState): FileState => state.file;
-
-// Seleciona se o arquivo está sendo carregado
 export const selectFileUploading = createSelector(
   selectFileState,
-  (state: FileState) => state.uploading
+  (state) => state.uploading
 );
 
-// Seleciona o progresso do upload
 export const selectFileProgress = createSelector(
   selectFileState,
-  (state: FileState) => state.progress
+  (state) => state.progress
 );
 
-// Seleciona o erro do upload
 export const selectFileError = createSelector(
   selectFileState,
-  (state: FileState) => state.error
+  (state) => state.error
 );
 
-// Seleciona o sucesso do upload
 export const selectFileSuccess = createSelector(
   selectFileState,
-  (state: FileState) => state.success
+  (state) => state.success
 );
 
-// Seleciona a URL de download do arquivo
 export const selectFileDownloadUrl = createSelector(
   selectFileState,
-  (state: FileState) => state.downloadUrl
+  (state) => state.downloadUrl
+);
+
+export const selectActiveFileUpload = createSelector(
+  selectFileState,
+  (state) => state.activeUpload
 );

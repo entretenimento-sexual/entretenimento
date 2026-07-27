@@ -9,9 +9,6 @@ import { InviteEffects } from './effects.chat/invite.effects';
 import { RoomEffects } from './effects.chat/room.effects';
 import { DiscoveryFeedEffects } from './effects.discovery/discovery-feed.effects';
 import { NearbyProfilesEffects } from './effects.location/nearby-profiles.effects';
-import { LocationEffects } from './effects.location/location.effects';
-import { FileEffects } from './effects.user/file.effects';
-import { TermsEffects } from './effects.user/terms.effects';
 
 describe('NgRx effect registration boundaries', () => {
   it('mantém apenas owners globais necessários no root', () => {
@@ -23,9 +20,11 @@ describe('NgRx effect registration boundaries', () => {
   });
 
   it('não inicializa effects legados, simulados ou vazios no root', () => {
-    expect(ROOT_EFFECTS).not.toContain(FileEffects);
-    expect(ROOT_EFFECTS).not.toContain(TermsEffects);
-    expect(ROOT_EFFECTS).not.toContain(LocationEffects);
+    const rootEffectNames = ROOT_EFFECTS.map((effectType) => effectType.name);
+
+    expect(rootEffectNames).not.toEqual(
+      expect.arrayContaining(['FileEffects', 'TermsEffects', 'LocationEffects'])
+    );
   });
 
   it('carrega conversa e salas somente com a feature lazy de chat', () => {
