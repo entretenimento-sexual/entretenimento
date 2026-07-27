@@ -3,6 +3,8 @@
 // OBJETIVO DE REDUZIR A COMPLEXIDADE DA UI
 import { Routes } from '@angular/router';
 
+import { preferencesUnsavedChangesGuard } from './guards/preferences-unsaved-changes.guard';
+
 export const PREFERENCES_ROUTES: Routes = [
   {
     path: '',
@@ -22,6 +24,7 @@ export const PREFERENCES_ROUTES: Routes = [
     // O editor é exclusivamente da conta autenticada. O UID não faz parte da
     // URL canônica para evitar links obsoletos, enumeração e divergência de sessão.
     path: 'editar',
+    canDeactivate: [preferencesUnsavedChangesGuard],
     loadComponent: () =>
       import('./pages/preferences-editor/preferences-editor.component').then(
         (m) => m.PreferencesEditorComponent
