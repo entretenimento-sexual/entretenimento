@@ -5,7 +5,7 @@
 // Regras:
 // - nenhum QueryDocumentSnapshot/Timestamp entra no NgRx;
 // - cursor usa epoch + uid para paginação determinística;
-// - chave de consulta inclui usuário, modo, tamanho e revisão da política;
+// - chave de consulta inclui usuário, modo e tamanho da página;
 // - chave de cache inclui também o cursor da página;
 // - o prefixo pertence à política sensível já removida no logout.
 // -----------------------------------------------------------------------------
@@ -25,8 +25,6 @@ export interface DiscoveryFeedRequest {
   readonly viewerUid: string;
   readonly mode: PagedDiscoveryMode;
   readonly pageSize: number;
-  /** Epoch da projeção privada usada para invalidar páginas de política antiga. */
-  readonly policyRevision?: number;
 }
 
 export interface DiscoveryFeedPage {
@@ -67,13 +65,6 @@ export function normalizeDiscoveryPageSize(value: unknown): number {
   );
 }
 
-export function normalizeDiscoveryPolicyRevision(value: unknown): number {
-  const revision = Number(value);
-  return Number.isFinite(revision) && revision > 0
-    ? Math.trunc(revision)
-    : 0;
-}
-
 export function normalizeDiscoveryRequest(
   request: Partial<DiscoveryFeedRequest> | null | undefined
 ): DiscoveryFeedRequest | null {
@@ -88,7 +79,6 @@ export function normalizeDiscoveryRequest(
     viewerUid,
     mode,
     pageSize: normalizeDiscoveryPageSize(request?.pageSize),
-    policyRevision: normalizeDiscoveryPolicyRevision(request?.policyRevision),
   };
 }
 
@@ -126,7 +116,6 @@ export function buildDiscoveryFeedQueryKey(
     `viewer=${normalized.viewerUid}`,
     `mode=${normalized.mode}`,
     `size=${normalized.pageSize}`,
-    `policy=${normalized.policyRevision ?? 0}`,
   ].join('|');
 }
 
