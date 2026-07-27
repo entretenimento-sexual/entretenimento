@@ -22,6 +22,7 @@ export interface PublicProfileCard {
 
   gender?: string | null;
   orientation?: string | null;
+  age?: number | null;
 
   /**
    * Campos canônicos calculados no backend por syncPublicProfileDiscovery.
@@ -37,6 +38,13 @@ export interface PublicProfileCard {
   preferences?: readonly string[] | string | null;
   interestedInGenders?: readonly string[] | string | null;
   interestedInOrientations?: readonly string[] | string | null;
+
+  /** Dados publicados somente quando o dono permite sinais de preferências. */
+  publicRelationshipIntents?: readonly string[] | null;
+  publicSexualPractices?: readonly string[] | null;
+  publicBodyPreferences?: readonly string[] | null;
+  preferenceBadgesVisible?: boolean | null;
+  publicPreferencesUpdatedAt?: number | null;
 
   estado?: string | null;
   municipio?: string | null;
@@ -58,6 +66,10 @@ export interface PublicProfileCard {
 
   compatibilityScore?: number | null;
   compatibilityReason?: string | null;
+
+  /** Afinidade de preferências flexíveis calculada para o viewer atual. */
+  preferenceMatchScore?: number | null;
+  preferenceMatchReasons?: readonly string[] | null;
 
   /**
    * Métricas públicas agregadas por refreshPublicProfileMediaMetrics().
