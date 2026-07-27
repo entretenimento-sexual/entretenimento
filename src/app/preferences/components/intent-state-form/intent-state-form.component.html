@@ -106,10 +106,13 @@
   </details>
 
   <footer class="form-actions">
+    <span class="form-actions__status" aria-live="polite">
+      {{ saving() ? 'Salvando disponibilidade…' : (form.dirty ? 'Existem alterações não salvas.' : 'Disponibilidade salva.') }}
+    </span>
     <button
       type="submit"
       class="btn btn-primary"
-      [disabled]="!canEdit() || saving()"
+      [disabled]="!canEdit() || saving() || form.invalid || form.pristine"
       [attr.aria-busy]="saving() ? 'true' : 'false'"
     >
       {{ saving() ? 'Salvando…' : 'Salvar disponibilidade' }}
