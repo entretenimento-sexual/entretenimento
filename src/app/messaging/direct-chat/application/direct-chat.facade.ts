@@ -7,7 +7,12 @@
 // - manter a seleção atual do chat direto
 // - resolver a abertura de chat por participant uid
 // - derivar item selecionado / estado da lista
-// =======================================================================
+//
+// Isolamento de sessão:
+// - toda coleção é carregada em um escopo que transporta o UID proprietário;
+// - cada troca de UID começa com lista vazia antes do novo listener;
+// - a seleção registra o UID proprietário e não reaparece em outra sessão.
+// ============================================================================
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, combineLatest, Observable, of } from 'rxjs';
 import {
@@ -15,6 +20,7 @@ import {
   distinctUntilChanged,
   map,
   shareReplay,
+  startWith,
   switchMap,
   take,
   tap,
@@ -30,33 +36,85 @@ import { DirectChatService } from '../services/direct-chat.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { environment } from 'src/environments/environment';
+
+interface DirectChatSessionScope {
+  uid: string | null;
+  chats: IChat[];
+}
+
+interface DirectChatSelectionRequest {
+  ownerUid: string | null;
+  chatId: string | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class DirectChatFacade {
-  private readonly debug = !environment.production;
-  private readonly selectedChatIdSubject = new BehaviorSubject<string | null>(null);
+  private readonly selectedChatRequestSubject =
+    new BehaviorSubject<DirectChatSelectionRequest>({
+      ownerUid: null,
+      chatId: null,
+    });
 
-  readonly requestedSelectedChatId$ = this.selectedChatIdSubject.asObservable().pipe(
+  private readonly sessionUid$: Observable<string | null> =
+    this.authSession.uid$.pipe(
+      map((uid) => String(uid ?? '').trim() || null),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  /**
+   * Escopo canônico da lista.
+   *
+   * `startWith([])` é intencional: na troca A -> B a UI limpa imediatamente a
+   * projeção da conta A antes de qualquer snapshot inicial da conta B.
+   */
+  private readonly sessionChats$: Observable<DirectChatSessionScope> =
+    this.sessionUid$.pipe(
+      switchMap((uid) => {
+        if (!uid) {
+          return of({ uid: null, chats: [] } as DirectChatSessionScope);
+        }
+
+        return this.directChatService.getMyDirectChats$().pipe(
+          map((chats) => ({
+            uid,
+            chats: Array.isArray(chats) ? chats : [],
+          } as DirectChatSessionScope)),
+          startWith({ uid, chats: [] } as DirectChatSessionScope),
+          catchError((error) => {
+            this.reportSilent(error, 'DirectChatFacade.sessionChats$');
+            return of({ uid, chats: [] } as DirectChatSessionScope);
+          })
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly requestedSelectedChatId$ = combineLatest([
+    this.selectedChatRequestSubject.asObservable(),
+    this.sessionUid$,
+  ]).pipe(
+    map(([request, sessionUid]) => {
+      if (!request.chatId || !sessionUid) return null;
+      return request.ownerUid === sessionUid ? request.chatId : null;
+    }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly chats$: Observable<IChat[]> = this.directChatService.getMyDirectChats$().pipe(
-    catchError((error) => {
-      this.reportSilent(error, 'DirectChatFacade.chats$');
-      return of([] as IChat[]);
-    }),
+  readonly chats$: Observable<IChat[]> = this.sessionChats$.pipe(
+    map(({ chats }) => chats),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly items$: Observable<DirectChatListItem[]> = combineLatest([
-    this.chats$,
-    this.authSession.uid$,
-  ]).pipe(
-    switchMap(([chats, currentUid]) => {
+  readonly items$: Observable<DirectChatListItem[]> = this.sessionChats$.pipe(
+    switchMap(({ chats, uid }) => {
+      if (!uid) {
+        return of([] as DirectChatListItem[]);
+      }
+
       const items = (chats ?? [])
-        .map((chat) => this.toListItem(chat, currentUid))
+        .map((chat) => this.toListItem(chat, uid))
         .filter((item) => !!item.id);
 
       return this.enrichListItemsWithPublicProfiles$(items);
@@ -144,21 +202,24 @@ export class DirectChatFacade {
   );
 
   constructor(
-  private readonly directChatService: DirectChatService,
-  private readonly authSession: AuthSessionService,
-  private readonly firestoreUserQuery: FirestoreUserQueryService,
-  private readonly globalErrorHandler: GlobalErrorHandlerService
-) {}
+    private readonly directChatService: DirectChatService,
+    private readonly authSession: AuthSessionService,
+    private readonly firestoreUserQuery: FirestoreUserQueryService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService
+  ) {}
 
- selectChat(chatId: string | null | undefined): void {
-  const safeChatId = (chatId ?? '').trim() || null;
-  this.selectedChatIdSubject.next(safeChatId);
-}
+  selectChat(chatId: string | null | undefined): void {
+    const safeChatId = String(chatId ?? '').trim() || null;
+    const ownerUid = safeChatId ? this.getCurrentSessionUid() : null;
+
+    this.selectedChatRequestSubject.next({
+      ownerUid,
+      chatId: safeChatId && ownerUid ? safeChatId : null,
+    });
+  }
 
   /**
-   * Novo comando:
-   * recebe uid do outro perfil,
-   * resolve/cria a conversa e seleciona o chat real.
+   * Recebe UID do outro perfil, resolve/cria a conversa e seleciona o chat real.
    */
   openChatWithUser$(otherUserUid: string): Observable<string | null> {
     return this.directChatService.ensureDirectChatIdWithUser$(otherUserUid).pipe(
@@ -176,7 +237,10 @@ export class DirectChatFacade {
   }
 
   clearSelection(): void {
-    this.selectedChatIdSubject.next(null);
+    this.selectedChatRequestSubject.next({
+      ownerUid: null,
+      chatId: null,
+    });
   }
 
   /**
@@ -213,13 +277,13 @@ export class DirectChatFacade {
             ? publicProfiles[participantUid]
             : undefined;
 
-return {
-  ...item,
-  otherParticipantNickname:
-    String(publicProfile?.nickname ?? '').trim() || null,
-  otherParticipantPhotoURL:
-    String(publicProfile?.avatarUrl ?? '').trim() || null,
-};
+          return {
+            ...item,
+            otherParticipantNickname:
+              String(publicProfile?.nickname ?? '').trim() || null,
+            otherParticipantPhotoURL:
+              String(publicProfile?.avatarUrl ?? '').trim() || null,
+          };
         })
       ),
       catchError((error) => {
@@ -237,7 +301,7 @@ return {
     chat: IChat,
     currentUid: string | null
   ): DirectChatListItem {
-    const safeCurrentUid = (currentUid ?? '').trim() || null;
+    const safeCurrentUid = String(currentUid ?? '').trim() || null;
 
     const otherParticipantUid =
       (chat?.participants ?? []).find(
@@ -269,6 +333,10 @@ return {
       compatibilityLabel: null,
       isDesiredProfileMatch: null,
     };
+  }
+
+  private getCurrentSessionUid(): string | null {
+    return String(this.authSession.currentAuthUser?.uid ?? '').trim() || null;
   }
 
   private reportSilent(error: unknown, context: string): void {

@@ -22,8 +22,7 @@ export const reducers: ActionReducerMap<AppState> = {
   [STORE_FEATURE.file]: userReducers.file,
   [STORE_FEATURE.userPreferences]: userReducers.userPreferences,
 
-  // CHAT DOMAIN
-  [STORE_FEATURE.chat]: chatReducers.chat,
+  // MESSAGING GLOBAL
   [STORE_FEATURE.invite]: chatReducers.invite,
 
   // LOCATION DOMAIN

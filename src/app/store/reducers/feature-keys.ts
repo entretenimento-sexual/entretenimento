@@ -9,8 +9,8 @@ export const STORE_FEATURE = {
   file: 'file',
   userPreferences: 'userPreferences',
 
-  // CHAT DOMAIN
-  chat: 'chat',
+  // MESSAGING GLOBAL
+  // Chat direto e salas são Observable-first fora do Store global.
   invite: 'invite',
 
   // LOCATION DOMAIN

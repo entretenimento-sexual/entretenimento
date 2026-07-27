@@ -1,5 +1,5 @@
 // src/app/store/reducers/meta-reducers/reset-store-on-auth-change.metareducer.ts
-// Não esqueça os comentários e ferramentas de debug
+// Limpa projeções globais vinculadas à identidade anterior.
 import { type ActionReducer, type MetaReducer } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { STORE_FEATURE } from '../feature-keys';
@@ -9,16 +9,12 @@ import {
   logoutSuccess,
 } from '../../actions/actions.user/auth.actions';
 
-import { initialChatState } from '../../states/states.chat/chat.state';
 import { initialInviteState } from '../../states/states.chat/invite.state';
-
 import { initialLocationState } from '../../states/states.location/location.state';
 import { initialNearbyProfilesState } from '../../states/states.location/nearby-profiles.state';
 import { initialDiscoveryFeedState } from '../../states/states.discovery/discovery-feed.state';
-
 import { initialFriendsPaginationState } from '../../states/states.interactions/friends-pagination.state';
 import { initialState as initialFriendsState } from '../../states/states.interactions/friends.state';
-
 import { initialUserState } from '../../states/states.user/user.state';
 import { initialTermsState } from '../../states/states.user/terms.state';
 import { initialFileState } from '../../states/states.user/file.state';
@@ -27,14 +23,12 @@ import { initialUserPreferencesState } from '../../states/states.user/user-prefe
 /**
  * Limpa toda projeção vinculada à identidade anterior.
  *
- * discoveryFeeds também é user-scoped porque a consulta pode refletir
- * preferências, localização, bloqueios e elegibilidade da conta autenticada.
- * Preservá-lo numa troca de UID poderia mostrar conteúdo stale até o próximo
- * refresh, especialmente durante navegação rápida no celular.
+ * discoveryFeeds é user-scoped porque pode refletir preferências, localização,
+ * bloqueios e elegibilidade da conta autenticada.
  *
- * Salas não aparecem neste reset porque não possuem mais slice global. O stream
- * de RoomService é encerrado pelo ciclo de vida do consumidor e reaberto com o
- * UID canônico da sessão.
+ * Chats diretos e salas não aparecem neste reset porque não possuem slice
+ * global. Suas facades reabrem os listeners com escopo explícito de UID e emitem
+ * estado vazio antes do primeiro snapshot da nova sessão.
  */
 function resetUserScopedSlices(nextState: AppState): AppState {
   return {
@@ -45,7 +39,6 @@ function resetUserScopedSlices(nextState: AppState): AppState {
     [STORE_FEATURE.file]: initialFileState as any,
     [STORE_FEATURE.userPreferences]: initialUserPreferencesState as any,
 
-    [STORE_FEATURE.chat]: initialChatState as any,
     [STORE_FEATURE.invite]: initialInviteState as any,
 
     [STORE_FEATURE.location]: initialLocationState as any,
@@ -66,13 +59,12 @@ export const resetStoreOnAuthChangeMetaReducer: MetaReducer<AppState> =
         return resetUserScopedSlices(nextState);
       }
 
-      // Verifica mudança de UID na authSessionChanged.
-      // Manter uid como identificador canônico de usuário.
       if (action.type === authSessionChanged.type) {
-        const prevUid = (state as any)?.[STORE_FEATURE.auth]?.userId ?? null;
-        const nextUid = (action as any)?.uid ?? null;
+        const previousUid =
+          (state as any)?.[STORE_FEATURE.auth]?.userId ?? null;
+        const currentUid = (action as any)?.uid ?? null;
 
-        if (prevUid !== nextUid) {
+        if (previousUid !== currentUid) {
           return resetUserScopedSlices(nextState);
         }
       }

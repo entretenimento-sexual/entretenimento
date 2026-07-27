@@ -1,16 +1,12 @@
 // src/app/store/reducers/reducers.chat/index.ts
-// Não esqueça os comentários
-import { chatReducer } from './chat.reducer';
 import { inviteReducer } from './invite.reducer';
 
 /**
- * Agrupador dos reducers globais do domínio Chat.
+ * Agrupador do estado global de mensageria.
  *
- * Salas não mantêm uma segunda projeção no NgRx: leitura reativa pertence a
- * RoomService/RoomFirestoreGateway e comandos pertencem a
- * RoomManagementService/Cloud Functions.
+ * Somente convites permanecem no NgRx porque o badge precisa existir fora da
+ * rota de chat. Chats diretos e salas são streams reativos com lifecycle por UID.
  */
 export const chatReducers = {
-  chat: chatReducer,
   invite: inviteReducer,
 };

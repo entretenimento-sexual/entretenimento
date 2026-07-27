@@ -1,9 +1,9 @@
 // src/app/store/effects/effects.user/auth-status-sync.effects.ts
-// Não esqueça os comentários
+// Sincroniza efeitos globais de lifecycle da autenticação.
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 
-import { EMPTY, of } from 'rxjs';
+import { of } from 'rxjs';
 import {
   catchError,
   concatMap,
@@ -12,19 +12,16 @@ import {
   pairwise,
   startWith,
   take,
-  tap,
 } from 'rxjs/operators';
 
 import { PresenceService } from 'src/app/core/services/presence/presence.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 import {
   authSessionChanged,
   logoutSuccess,
 } from '../../actions/actions.user/auth.actions';
-
-import * as ChatActions from 'src/app/store/actions/actions.chat/chat.actions';
-import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 @Injectable()
 export class AuthStatusSyncEffects {
@@ -32,42 +29,33 @@ export class AuthStatusSyncEffects {
     private readonly actions$: Actions,
     private readonly presence: PresenceService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly privacyDebug: PrivacyDebugLoggerService,
-  ) { }
+    private readonly privacyDebug: PrivacyDebugLoggerService
+  ) {}
 
-  // ===========================================================================
-  // Helpers (best-effort)
-  // ===========================================================================
-private dbg(message: string, extra?: unknown): void {
-  this.privacyDebug.log('auth', `AuthStatusSyncEffects: ${message}`, extra);
-}
-
-  /**
-   * reportSilent()
-   * - Centraliza o roteamento de erros para o GlobalErrorHandlerService.
-   * - Mantém o effect “best-effort”: não quebra stream por erro.
-   */
-  private reportSilent(err: unknown, context: Record<string, unknown>): void {
-    try {
-        this.dbg('reportSilent()', {
-          context,
-          error: err,
-        });
-              const e = err instanceof Error ? err : new Error('AuthStatusSyncEffects internal error');
-      (e as any).silent = true;
-      (e as any).context = context;
-      (e as any).original = err;
-      this.globalErrorHandler.handleError(e);
-    } catch {
-      // última linha de defesa: nunca quebrar a app por erro dentro do handler
-    }
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('auth', `AuthStatusSyncEffects: ${message}`, extra);
   }
 
   /**
-   * stopPresenceBestEffort$()
-   * - Usa Observable para padronizar e facilitar composição.
-   * - Se PresenceService já for defensivo, isso vira “no-op” quando não ativo.
+   * Mantém o effect best-effort e envia falhas ao handler centralizado.
    */
+  private reportSilent(err: unknown, context: Record<string, unknown>): void {
+    try {
+      this.dbg('reportSilent()', { context, error: err });
+      const error =
+        err instanceof Error
+          ? err
+          : new Error('AuthStatusSyncEffects internal error');
+
+      (error as any).silent = true;
+      (error as any).context = context;
+      (error as any).original = err;
+      this.globalErrorHandler.handleError(error);
+    } catch {
+      // Falha de telemetria não interrompe o lifecycle da sessão.
+    }
+  }
+
   private stopPresenceBestEffort$() {
     return this.presence.stop$().pipe(
       take(1),
@@ -79,14 +67,7 @@ private dbg(message: string, extra?: unknown): void {
     );
   }
 
-  // ===========================================================================
-  // Presence cleanup
-  // ===========================================================================
-
-  /**
-   * ✅ Ao sair (logoutSuccess): parar presença (best-effort).
-   * - Importante: escutar APENAS logoutSuccess evita duplicidade e ruído.
-   */
+  /** Para presença no logout explícito. */
   stopPresenceOnLogout$ = createEffect(
     () =>
       this.actions$.pipe(
@@ -96,10 +77,7 @@ private dbg(message: string, extra?: unknown): void {
     { dispatch: false }
   );
 
-  /**
-   * ✅ Sessão perdida/expirada (uid: algo -> null): parar presença também.
-   * - Cobre “sessão morreu” sem ação explícita do usuário.
-   */
+  /** Para presença quando a sessão é perdida sem logout explícito. */
   stopPresenceOnSessionLost$ = createEffect(
     () =>
       this.actions$.pipe(
@@ -107,35 +85,9 @@ private dbg(message: string, extra?: unknown): void {
         map(({ uid }) => uid ?? null),
         startWith(null),
         pairwise(),
-        filter(([prevUid, currUid]) => !!prevUid && !currUid),
+        filter(([previousUid, currentUid]) => !!previousUid && !currentUid),
         concatMap(() => this.stopPresenceBestEffort$())
       ),
     { dispatch: false }
   );
-
-  // ===========================================================================
-  // Chat cleanup
-  // ===========================================================================
-
-  /**
-   * ✅ Sessão perdida/expirada (uid: algo -> null): encerra watchers + reseta chat.
-   * - Garante limpeza mesmo quando não houve logout explícito.
-   */
-  resetChatOnSessionLost$ = createEffect(() =>
-    this.actions$.pipe(
-      ofType(authSessionChanged),
-      map(({ uid }) => uid ?? null),
-      startWith(null),
-      pairwise(),
-      filter(([prevUid, currUid]) => !!prevUid && !currUid),
-      concatMap(() => {
-          this.dbg('session ended (uid -> null) -> stop chat watchers + reset chat state');
-        return of(ChatActions.watchChatsStopped());
-      }),
-      catchError((err) => {
-        this.reportSilent(err, { phase: 'resetChatOnSessionLost$' });
-        return EMPTY;
-      })
-    )
-  );
-} // Linha 169
+}

@@ -8,10 +8,7 @@ import { EffectsModule } from '@ngrx/effects';
 import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 import { environment } from '../../environments/environment';
 
-// ROOT reducers
 import { reducers } from './reducers';
-
-// metaReducers centralizados
 import { metaReducers as appMetaReducers } from './reducers/meta-reducers';
 
 // EFFECTS - USER
@@ -22,9 +19,9 @@ import { UserRoleEffects } from './effects/effects.user/user-role.effects';
 import { AuthStatusSyncEffects } from './effects/effects.user/auth-status-sync.effects';
 import { AuthSessionSyncEffects } from './effects/effects.user/auth-session-sync.effects';
 
-// EFFECTS - CHAT GLOBAL
-// InviteEffects permanece no root porque o LayoutShell mantém o badge de convites
-// ativo em todas as rotas autenticadas.
+// EFFECTS - MESSAGING GLOBAL
+// InviteEffects permanece no root porque o LayoutShell mantém o badge ativo
+// em todas as rotas autenticadas.
 import { InviteEffects } from './effects/effects.chat/invite.effects';
 
 // EFFECTS - INTERACTIONS - FRIENDS
@@ -42,22 +39,16 @@ const metaReducers = appMetaReducers;
  * Effects que precisam existir durante toda a sessão da aplicação.
  *
  * SUPRESSÃO EXPLÍCITA DO BOOTSTRAP GLOBAL:
- * - ChatEffects pertence exclusivamente à rota lazy `/chat`;
+ * - ChatEffects foi removido: DirectChatFacade/DirectThreadFacade são os owners
+ *   reativos atuais e vinculam listeners e seleção ao UID da sessão;
+ * - RoomEffects foi removido: salas pertencem a RoomService,
+ *   RoomFirestoreGateway e RoomManagementService/Cloud Functions;
  * - NearbyProfilesEffects pertence ao LayoutModule lazy;
  * - DiscoveryFeedEffects pertence ao DashboardModule lazy;
- * - FileEffects é legado e não possui consumidor de uploadStart no app atual;
- *   os fluxos modernos mantêm o objeto File dentro de services Observables;
- * - TermsEffects simulava carga/aceite sem persistência. O owner canônico é
- *   TermsAcceptanceService + callable acceptPlatformTerms;
- * - LocationEffects não possui effects e não deve ocupar o root enquanto vazio;
- * - RoomEffects foi removido porque salas já pertencem a RoomService,
- *   RoomFirestoreGateway e RoomManagementService/Cloud Functions;
- * - UserPreferencesEffects foi removido porque nenhum consumidor despachava seu
- *   comando de carga. UserPreferencesService já executa Store -> cache SWR ->
- *   Firestore e atualiza a projeção NgRx após resolver a leitura ou a gravação.
- *
- * Os reducers legados de file/terms/location/preferences são preservados nesta
- * etapa para não quebrar selectors ou imports durante a migração incremental.
+ * - FileEffects é legado e os fluxos modernos mantêm File em services;
+ * - TermsEffects simulava persistência; o owner é TermsAcceptanceService;
+ * - LocationEffects não possui effects;
+ * - UserPreferencesEffects duplicava UserPreferencesService.
  */
 export const ROOT_EFFECTS = [
   // USER
@@ -68,7 +59,7 @@ export const ROOT_EFFECTS = [
   AuthSessionSyncEffects,
   AuthStatusSyncEffects,
 
-  // CHAT GLOBAL
+  // MESSAGING GLOBAL
   InviteEffects,
 
   // INTERACTIONS
@@ -87,12 +78,6 @@ export const ROOT_EFFECTS = [
       runtimeChecks: {
         strictStateImmutability: true,
         strictActionImmutability: true,
-
-        /**
-         * Serializability:
-         * Store deve receber dados serializáveis. Datas/Timestamps devem ser
-         * convertidos para epoch na borda de entrada.
-         */
         strictStateSerializability: true,
         strictActionSerializability: true,
       },
@@ -100,7 +85,6 @@ export const ROOT_EFFECTS = [
 
     EffectsModule.forRoot(ROOT_EFFECTS),
 
-    // Devtools só em dev.
     ...(environment.production
       ? []
       : [
@@ -112,4 +96,4 @@ export const ROOT_EFFECTS = [
         ]),
   ],
 })
-export class AppStoreModule { }
+export class AppStoreModule {}

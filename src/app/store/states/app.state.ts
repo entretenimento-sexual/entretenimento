@@ -5,7 +5,6 @@ import { termsReducer } from '../reducers/reducers.user/terms.reducer';
 import { fileReducer } from '../reducers/reducers.user/file.reducer';
 import { userPreferencesReducer } from '../reducers/reducers.user/user-preferences.reducer';
 
-import { chatReducer } from '../reducers/reducers.chat/chat.reducer';
 import { inviteReducer } from '../reducers/reducers.chat/invite.reducer';
 
 import { locationReducer } from '../reducers/reducers.location/location.reducer';
@@ -24,8 +23,7 @@ export interface AppState {
   userPreferences: ReturnType<typeof userPreferencesReducer>;
   friendsPages: ReturnType<typeof friendsPaginationReducer>;
 
-  // CHAT DOMAIN
-  chat: ReturnType<typeof chatReducer>;
+  // MESSAGING GLOBAL
   invite: ReturnType<typeof inviteReducer>;
 
   // LOCATION DOMAIN
