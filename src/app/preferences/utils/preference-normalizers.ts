@@ -35,6 +35,9 @@ export function createEmptyPreferenceProfile(userId: string): PreferenceProfile 
       styles: [],
       interests: [],
     },
+    selfTraits: {
+      bodyTraits: [],
+    },
     matchingModes: {
       relationshipIntents: 'require',
       sexualPractices: 'prefer',
@@ -50,9 +53,8 @@ export function createEmptyPreferenceProfile(userId: string): PreferenceProfile 
 }
 
 /**
- * Documentos antigos não possuem matchingModes e podem conter números fora da
- * faixa atual. A normalização evita que a UI e o discovery interpretem valores
- * inconsistentes de maneiras diferentes.
+ * Documentos antigos não possuem matchingModes/selfTraits e podem conter números
+ * fora da faixa atual. A normalização evita interpretações divergentes.
  */
 export function normalizePreferenceProfile(
   value: PreferenceProfile | null | undefined,
@@ -94,6 +96,11 @@ export function normalizePreferenceProfile(
       vibes: uniqueStrings(source.softRules?.vibes),
       styles: uniqueStrings(source.softRules?.styles),
       interests: uniqueStrings(source.softRules?.interests),
+    },
+    selfTraits: {
+      ...fallback.selfTraits,
+      ...(source.selfTraits ?? {}),
+      bodyTraits: uniqueStrings(source.selfTraits?.bodyTraits),
     },
     matchingModes: {
       relationshipIntents: normalizeMatchMode(
