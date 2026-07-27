@@ -8,6 +8,7 @@ export {
 } from './user-intent-status.handler';
 
 export { syncPublicProfileDiscovery } from './sync-public-profile-discovery.handler';
+export { syncPublicPreferenceProjection } from './sync-public-preference-projection.handler';
 
 /**
  * Reexport defensivo.
