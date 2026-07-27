@@ -4,8 +4,8 @@
 // -----------------------------------------------------------------------------
 // Perfil, intenção opcional e projeção privada são gravados no mesmo batch.
 // Somente após confirmação do Firestore o estado reativo local é atualizado.
-// O cache paginado da descoberta é invalidado para que a próxima abertura não
-// reutilize páginas calculadas sob uma política anterior.
+// O feed paginado contém perfis públicos brutos, portanto permanece válido e é
+// reavaliado imediatamente com a nova política do usuário.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -18,7 +18,6 @@ import { map, tap } from 'rxjs/operators';
 import type { IUserDados } from '@core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
-import { clearDiscoveryFeeds } from '@store/actions/actions.discovery/discovery-feed.actions';
 import { updateUserInState } from '@store/actions/actions.user/user.actions';
 import type { AppState } from '@store/states/app.state';
 
@@ -96,13 +95,7 @@ export class PreferenceProfilePersistenceService {
 
       await batch.commit();
     }).pipe(
-      tap(() => {
-        // Primeiro remove slices e páginas da política anterior. Em seguida o
-        // novo revision epoch é emitido, fazendo a façade solicitar a primeira
-        // página com uma chave diferente.
-        this.store.dispatch(clearDiscoveryFeeds());
-        this.updateReactiveProjection(safeUid, userPatch);
-      }),
+      tap(() => this.updateReactiveProjection(safeUid, userPatch)),
       map(() => void 0)
     );
   }
