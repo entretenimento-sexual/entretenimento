@@ -41,6 +41,8 @@ class MockPublicProfilesListComponent {
   @Input() refreshing: unknown;
   @Input() hasMore: unknown;
   @Input() errorMessage: unknown;
+  @Input() emptyMessage: unknown;
+  @Input() filteredByPreferences: unknown;
 
   @Output() loadMore = new EventEmitter<void>();
   @Output() retry = new EventEmitter<void>();
@@ -75,6 +77,8 @@ describe('ProfilesDiscoveryPageComponent', () => {
     refreshing$: of(false),
     hasMore$: of(false),
     errorMessage$: of(null),
+    emptyMessage$: of('Nenhum perfil corresponde aos filtros desta página.'),
+    filteredByPreferences$: of(true),
     loadMore: vi.fn(),
     retry: vi.fn(),
   };
