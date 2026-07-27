@@ -33,6 +33,45 @@ describe('buildPreferenceDiscoveryProjection', () => {
     ]);
   });
 
+  it('projeta idade, distância, intenções e modos de correspondência', () => {
+    const profile = createEmptyPreferenceProfile('viewer');
+    profile.relationshipIntents = ['dating', 'serious'];
+    profile.hardRules.acceptedRelationshipIntents = ['dating', 'serious'];
+    profile.hardRules.ageRange = { min: 25, max: 45 };
+    profile.hardRules.maxDistanceKm = 30;
+    profile.hardRules.locationRequired = true;
+    profile.softRules.sexualPractices = ['bdsm'];
+    profile.softRules.bodyPreferences = ['tattoos'];
+    profile.matchingModes.relationshipIntents = 'prefer';
+    profile.matchingModes.sexualPractices = 'require';
+    profile.matchingModes.bodyPreferences = 'require';
+
+    const projection = buildPreferenceDiscoveryProjection(profile);
+
+    expect(projection.discoveryPreferences).toEqual(expect.objectContaining({
+      relationshipIntents: ['dating', 'serious'],
+      ageRange: { min: 25, max: 45 },
+      maxDistanceKm: 30,
+      locationRequired: true,
+      relationshipIntentMode: 'prefer',
+      sexualPractices: ['bdsm'],
+      sexualPracticeMode: 'require',
+      bodyPreferences: ['tattoos'],
+      bodyPreferenceMode: 'require',
+    }));
+  });
+
+  it('não mistura características próprias com características procuradas', () => {
+    const profile = createEmptyPreferenceProfile('viewer');
+    profile.selfTraits.bodyTraits = ['curvy'];
+    profile.softRules.bodyPreferences = ['athletic'];
+
+    const projection = buildPreferenceDiscoveryProjection(profile);
+
+    expect(projection.discoveryPreferences.bodyPreferences).toEqual(['athletic']);
+    expect(projection.discoveryPreferences).not.toHaveProperty('bodyTraits');
+  });
+
   it('remove casais da projeção quando o usuário não os aceita', () => {
     const profile = createEmptyPreferenceProfile('viewer');
     profile.hardRules.acceptedGenders = ['women', 'couple_ff'];
@@ -71,11 +110,14 @@ describe('buildPreferenceDiscoveryProjection', () => {
   });
 
   it('mantém projeção inclusiva vazia quando não há seleção explícita', () => {
-    const profile = createEmptyPreferenceProfile('viewer');
-
-    const projection = buildPreferenceDiscoveryProjection(profile);
+    const projection = buildPreferenceDiscoveryProjection(
+      createEmptyPreferenceProfile('viewer')
+    );
 
     expect(projection.interestedInGenders).toEqual([]);
     expect(projection.discoveryPreferences.genderInterests).toEqual([]);
+    expect(projection.discoveryPreferences.relationshipIntents).toEqual([]);
+    expect(projection.discoveryPreferences.ageRange).toBeNull();
+    expect(projection.discoveryPreferences.maxDistanceKm).toBeNull();
   });
 });
