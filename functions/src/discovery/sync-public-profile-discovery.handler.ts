@@ -36,9 +36,13 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
 
     const user = after.data() ?? {};
     const canonical = normalizeProfileDiscoveryFields(user);
+    const age = normalizePublicAge(user['idade'] ?? user['age']);
     const currentPublic = publicProfileSnapshot.data() ?? {};
 
-    if (publicProfileDiscoveryProjectionMatches(currentPublic, canonical)) {
+    if (
+      publicProfileDiscoveryProjectionMatches(currentPublic, canonical) &&
+      (currentPublic['age'] ?? null) === age
+    ) {
       return;
     }
 
@@ -49,6 +53,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         interestedInGenders: canonical.interestedInGenders,
         interestedInOrientations: canonical.interestedInOrientations,
         compatibilityReady: canonical.compatibilityReady,
+        age,
         discoveryNormalizedAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       },
@@ -60,6 +65,14 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
       normalizedGender: canonical.normalizedGender,
       normalizedOrientation: canonical.normalizedOrientation,
       compatibilityReady: canonical.compatibilityReady,
+      hasPublicAge: age !== null,
     });
   }
 );
+
+function normalizePublicAge(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+
+  const age = Math.round(value);
+  return age >= 18 && age <= 100 ? age : null;
+}
