@@ -7,6 +7,18 @@
 // financeiros e nunca deve ser usado como fonte de entitlement.
 // -----------------------------------------------------------------------------
 
+export type UserDiscoveryMatchMode = 'prefer' | 'require';
+
+export type UserDiscoveryRelationshipIntent =
+  | 'friendship'
+  | 'casual'
+  | 'dating'
+  | 'serious'
+  | 'open_relationship'
+  | 'polyamory'
+  | 'swing'
+  | 'fetish_exploration';
+
 export type UserDiscoveryGenderInterest =
   | 'men'
   | 'women'
@@ -25,15 +37,31 @@ export type UserDiscoveryGenderInterest =
   | 'genderqueer'
   | 'androgynous';
 
+export interface IUserDiscoveryAgeRange {
+  min: number;
+  max: number;
+}
+
 export interface IUserDiscoveryPreferences {
   /** Seleções explícitas feitas no editor. Array vazio significa sem filtro explícito. */
   genderInterests: readonly UserDiscoveryGenderInterest[];
+  relationshipIntents: readonly UserDiscoveryRelationshipIntent[];
 
   acceptsCouples: boolean;
   acceptsSingles: boolean;
 
   /** null = sem restrição; true = aceita; false = não exibir perfis trans. */
   acceptsTransProfiles: boolean | null;
+
+  ageRange: IUserDiscoveryAgeRange | null;
+  maxDistanceKm: number | null;
+  locationRequired: boolean;
+
+  relationshipIntentMode: UserDiscoveryMatchMode;
+  sexualPractices: readonly string[];
+  sexualPracticeMode: UserDiscoveryMatchMode;
+  bodyPreferences: readonly string[];
+  bodyPreferenceMode: UserDiscoveryMatchMode;
 
   /** Epoch em milissegundos para debug/sincronização, sem uso em autorização. */
   updatedAt: number;
