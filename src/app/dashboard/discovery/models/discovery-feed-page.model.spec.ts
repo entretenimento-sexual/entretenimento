@@ -7,6 +7,7 @@ import {
   buildDiscoveryFeedQueryKey,
   normalizeDiscoveryCursor,
   normalizeDiscoveryPageSize,
+  normalizeDiscoveryPolicyRevision,
   normalizeDiscoveryRequest,
 } from './discovery-feed-page.model';
 
@@ -17,6 +18,12 @@ describe('discovery-feed-page.model', () => {
     expect(normalizeDiscoveryPageSize(500)).toBe(48);
   });
 
+  it('deve normalizar a revisão da política sem permitir valores inválidos', () => {
+    expect(normalizeDiscoveryPolicyRevision(undefined)).toBe(0);
+    expect(normalizeDiscoveryPolicyRevision(-1)).toBe(0);
+    expect(normalizeDiscoveryPolicyRevision(123.9)).toBe(123);
+  });
+
   it('deve rejeitar consulta sem viewerUid válido', () => {
     expect(normalizeDiscoveryRequest({
       viewerUid: ' ',
@@ -25,29 +32,40 @@ describe('discovery-feed-page.model', () => {
     })).toBeNull();
   });
 
-  it('deve produzir chave distinta por usuário, modo e tamanho', () => {
+  it('deve produzir chave distinta por usuário, modo, tamanho e política', () => {
     const base = buildDiscoveryFeedQueryKey({
       viewerUid: 'viewer-a',
       mode: 'all',
       pageSize: 24,
+      policyRevision: 100,
     });
 
     expect(buildDiscoveryFeedQueryKey({
       viewerUid: 'viewer-b',
       mode: 'all',
       pageSize: 24,
+      policyRevision: 100,
     })).not.toBe(base);
 
     expect(buildDiscoveryFeedQueryKey({
       viewerUid: 'viewer-a',
       mode: 'compatible',
       pageSize: 24,
+      policyRevision: 100,
     })).not.toBe(base);
 
     expect(buildDiscoveryFeedQueryKey({
       viewerUid: 'viewer-a',
       mode: 'all',
       pageSize: 12,
+      policyRevision: 100,
+    })).not.toBe(base);
+
+    expect(buildDiscoveryFeedQueryKey({
+      viewerUid: 'viewer-a',
+      mode: 'all',
+      pageSize: 24,
+      policyRevision: 101,
     })).not.toBe(base);
   });
 
@@ -66,6 +84,7 @@ describe('discovery-feed-page.model', () => {
       viewerUid: 'viewer-a',
       mode: 'all' as const,
       pageSize: 24,
+      policyRevision: 100,
     };
 
     const first = buildDiscoveryFeedPageCacheKey(request, null);
