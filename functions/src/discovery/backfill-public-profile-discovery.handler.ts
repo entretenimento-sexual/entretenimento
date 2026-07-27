@@ -2,20 +2,22 @@
 // -----------------------------------------------------------------------------
 // BACKFILL PUBLIC PROFILE DISCOVERY
 // -----------------------------------------------------------------------------
-// Callable administrativa para preencher campos canônicos de discovery em
-// public_profiles existentes.
+// Callable administrativa para preencher em public_profiles:
+// - identidade normalizada e reciprocidade;
+// - idade pública adulta;
+// - intenções, práticas e características autorizadas pelo proprietário.
 //
-// Uso previsto:
-// - uma execução controlada após deploy da trigger syncPublicProfileDiscovery;
-// - manutenção pontual quando surgirem novos campos canônicos;
-// - não é exposta para usuários comuns.
+// Não é executada automaticamente. O fluxo operacional recomendado continua:
+// dry-run paginado -> revisão dos totais -> execução paginada após deploy.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FieldPath } from 'firebase-admin/firestore';
 import { FieldValue, db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
 import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
+import { buildPublicPreferenceProjection } from './public-preference-projection';
 
 interface BackfillPublicProfileDiscoveryRequest {
   limit?: number | null;
@@ -37,26 +39,17 @@ interface BackfillPublicProfileDiscoveryResult {
 }
 
 function normalizeLimit(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return 100;
-  }
-
-  return Math.max(1, Math.min(500, Math.floor(value)));
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(1, Math.min(500, Math.floor(value)))
+    : 100;
 }
 
 function normalizeCursor(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const cursor = value.trim();
-
-  return cursor.length ? cursor : null;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function normalizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-
   return value
     .map((item) => String(item ?? '').trim().toLowerCase())
     .filter(Boolean);
@@ -64,24 +57,21 @@ function normalizeStringArray(value: unknown): string[] {
 
 function hasElevatedAccess(source: Record<string, unknown>): boolean {
   const roles = new Set<string>([
-    ...normalizeStringArray(source.staffRoles),
-    ...normalizeStringArray(source.roles),
+    ...normalizeStringArray(source['staffRoles']),
+    ...normalizeStringArray(source['roles']),
   ]);
-  const permissions = new Set<string>(normalizeStringArray(source.permissions));
+  const permissions = new Set<string>(
+    normalizeStringArray(source['permissions'])
+  );
 
-  if (
-    source.superadmin === true ||
-    source.admin === true ||
-    source.moderator === true
-  ) {
-    return true;
-  }
-
-  return roles.has('superadmin') ||
-    roles.has('admin') ||
-    roles.has('moderator') ||
-    permissions.has('discovery:backfill') ||
-    permissions.has('users:lifecycle');
+  return source['superadmin'] === true
+    || source['admin'] === true
+    || source['moderator'] === true
+    || roles.has('superadmin')
+    || roles.has('admin')
+    || roles.has('moderator')
+    || permissions.has('discovery:backfill')
+    || permissions.has('users:lifecycle');
 }
 
 async function assertBackfillAuthorization(
@@ -92,14 +82,10 @@ async function assertBackfillAuthorization(
     throw new HttpsError('unauthenticated', 'Administrador não autenticado.');
   }
 
-  if (hasElevatedAccess(authToken ?? {})) {
-    return;
-  }
+  if (hasElevatedAccess(authToken ?? {})) return;
 
   const actorSnap = await db.collection('users').doc(actorUid).get();
-  const actorData = (actorSnap.data() ?? {}) as Record<string, unknown>;
-
-  if (hasElevatedAccess(actorData)) {
+  if (hasElevatedAccess((actorSnap.data() ?? {}) as Record<string, unknown>)) {
     return;
   }
 
@@ -110,12 +96,10 @@ async function assertBackfillAuthorization(
 }
 
 export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscoveryRequest>(
-
   {
     region: FUNCTIONS_REGION,
     invoker: 'public',
   },
-
   async (request): Promise<BackfillPublicProfileDiscoveryResult> => {
     const actorUid = request.auth?.uid ?? null;
     await assertBackfillAuthorization(
@@ -127,26 +111,19 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
     const dryRun = request.data?.dryRun === true;
     const startAfterUid = normalizeCursor(request.data?.startAfterUid);
 
-    let usersQuery = db
-      .collection('users')
-      .orderBy(FieldPath.documentId());
-
-    if (startAfterUid) {
-      usersQuery = usersQuery.startAfter(startAfterUid);
-    }
+    let usersQuery = db.collection('users').orderBy(FieldPath.documentId());
+    if (startAfterUid) usersQuery = usersQuery.startAfter(startAfterUid);
 
     const usersSnap = await usersQuery.limit(limit).get();
+    const batch = db.batch();
 
     let processed = 0;
     let updated = 0;
     let skippedWithoutPublicProfile = 0;
     let skippedWithoutUid = 0;
 
-    const batch = db.batch();
-
     for (const userDoc of usersSnap.docs) {
       const uid = String(userDoc.id ?? '').trim();
-
       if (!uid) {
         skippedWithoutUid += 1;
         continue;
@@ -155,27 +132,51 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
       processed += 1;
 
       const publicProfileRef = db.collection('public_profiles').doc(uid);
-      const publicProfileSnap = await publicProfileRef.get();
+      const preferenceRef = db
+        .collection('users')
+        .doc(uid)
+        .collection('preferences')
+        .doc('profile');
+      const [publicProfileSnap, preferenceSnap] = await Promise.all([
+        publicProfileRef.get(),
+        preferenceRef.get(),
+      ]);
 
       if (!publicProfileSnap.exists) {
         skippedWithoutPublicProfile += 1;
         continue;
       }
 
-      const canonical = normalizeProfileDiscoveryFields(userDoc.data() ?? {});
+      const user = (userDoc.data() ?? {}) as Record<string, unknown>;
+      const canonical = normalizeProfileDiscoveryFields(user);
+      const publicPreferences = buildPublicPreferenceProjection(
+        preferenceSnap.exists
+          ? (preferenceSnap.data() ?? {}) as Record<string, unknown>
+          : null,
+        {
+          canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic'),
+        }
+      );
 
       updated += 1;
 
       if (!dryRun) {
-        batch.set(publicProfileRef, {
-          normalizedGender: canonical.normalizedGender,
-          normalizedOrientation: canonical.normalizedOrientation,
-          interestedInGenders: canonical.interestedInGenders,
-          interestedInOrientations: canonical.interestedInOrientations,
-          compatibilityReady: canonical.compatibilityReady,
-          discoveryNormalizedAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
+        batch.set(
+          publicProfileRef,
+          {
+            normalizedGender: canonical.normalizedGender,
+            normalizedOrientation: canonical.normalizedOrientation,
+            interestedInGenders: canonical.interestedInGenders,
+            interestedInOrientations: canonical.interestedInOrientations,
+            compatibilityReady: canonical.compatibilityReady,
+            age: normalizePublicAge(user['idade'] ?? user['age']),
+            ...publicPreferences,
+            discoveryNormalizedAt: FieldValue.serverTimestamp(),
+            publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
       }
     }
 
@@ -214,3 +215,9 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
     };
   }
 );
+
+function normalizePublicAge(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const age = Math.round(value);
+  return age >= 18 && age <= 100 ? age : null;
+}
