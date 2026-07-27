@@ -1,7 +1,10 @@
-//src/app/store/reducers/reducers.location/nearby-profiles.reducer.spec.ts
+// src/app/store/reducers/reducers.location/nearby-profiles.reducer.spec.ts
 import { nearbyProfilesReducer } from './nearby-profiles.reducer';
 import { NearbyProfilesActions } from '../../actions/actions.location/nearby-profiles.actions';
-import { NearbyProfilesState, buildNearbyKey } from '../../states/states.location/nearby-profiles.state';
+import {
+  NearbyProfilesState,
+  buildNearbyKey,
+} from '../../states/states.location/nearby-profiles.state';
 import { IUserDados } from '../../../core/interfaces/iuser-dados';
 
 describe('nearbyProfilesReducer', () => {
@@ -13,12 +16,17 @@ describe('nearbyProfilesReducer', () => {
   const key = buildNearbyKey(params);
 
   it('should return initial state for unknown action', () => {
-    const state = nearbyProfilesReducer(undefined, { type: '@@init/unknown' } as any);
-    // shape básico esperado
-    expect(state).toEqual(expect.objectContaining({
-      ttlMs: expect.any(Number),
-      byKey: {},
-    }));
+    const state = nearbyProfilesReducer(
+      undefined,
+      { type: '@@init/unknown' } as any
+    );
+
+    expect(state).toEqual(
+      expect.objectContaining({
+        ttlMs: expect.any(Number),
+        byKey: {},
+      })
+    );
   });
 
   it('load: deve setar loading=true e limpar error para a key', () => {
@@ -27,14 +35,45 @@ describe('nearbyProfilesReducer', () => {
       byKey: {},
     };
 
-    const next = nearbyProfilesReducer(prev, NearbyProfilesActions.load({ params }));
+    const next = nearbyProfilesReducer(
+      prev,
+      NearbyProfilesActions.load({ params })
+    );
 
     expect(next).not.toBe(prev);
     expect(next.byKey[key]).toBeDefined();
     expect(next.byKey[key].loading).toBe(true);
     expect(next.byKey[key].error).toBeNull();
-    // não deve apagar lista existente se já houver (aqui não havia)
     expect(next.byKey[key].list).toEqual([]);
+  });
+
+  it('load: deve usar a key canônica arredondada para coordenadas precisas', () => {
+    const preciseParams = {
+      uid,
+      lat: -23.5505199,
+      lon: -46.6333081,
+      radiusKm: 10.4,
+    };
+    const canonicalKey = buildNearbyKey(preciseParams);
+    const rawKey = `${preciseParams.uid}:${preciseParams.lat},${preciseParams.lon}:${preciseParams.radiusKm}`;
+    const prev: NearbyProfilesState = {
+      ttlMs: 60000,
+      byKey: {},
+    };
+
+    const next = nearbyProfilesReducer(
+      prev,
+      NearbyProfilesActions.load({ params: preciseParams })
+    );
+
+    expect(canonicalKey).not.toBe(rawKey);
+    expect(next.byKey[canonicalKey]).toEqual({
+      list: [],
+      loading: true,
+      error: null,
+      updatedAt: 0,
+    });
+    expect(next.byKey[rawKey]).toBeUndefined();
   });
 
   it('loaded: deve preencher list, updatedAt e setar loading=false', () => {
@@ -45,10 +84,16 @@ describe('nearbyProfilesReducer', () => {
       },
     };
 
-    const list: IUserDados[] = [{ uid: 'a' } as IUserDados, { uid: 'b' } as IUserDados];
+    const list: IUserDados[] = [
+      { uid: 'a' } as IUserDados,
+      { uid: 'b' } as IUserDados,
+    ];
     const updatedAt = Date.now();
 
-    const next = nearbyProfilesReducer(prev, NearbyProfilesActions.loaded({ key, list, updatedAt }));
+    const next = nearbyProfilesReducer(
+      prev,
+      NearbyProfilesActions.loaded({ key, list, updatedAt })
+    );
 
     expect(next).not.toBe(prev);
     expect(next.byKey[key].loading).toBe(false);
@@ -61,11 +106,19 @@ describe('nearbyProfilesReducer', () => {
     const prev: NearbyProfilesState = {
       ttlMs: 60000,
       byKey: {
-        [key]: { list: [{ uid: 'x' } as IUserDados], loading: true, error: null, updatedAt: 123 },
+        [key]: {
+          list: [{ uid: 'x' } as IUserDados],
+          loading: true,
+          error: null,
+          updatedAt: 123,
+        },
       },
     };
 
-    const next = nearbyProfilesReducer(prev, NearbyProfilesActions.error({ key, message: 'Falha' }));
+    const next = nearbyProfilesReducer(
+      prev,
+      NearbyProfilesActions.error({ key, message: 'Falha' })
+    );
 
     expect(next.byKey[key].loading).toBe(false);
     expect(next.byKey[key].error).toBe('Falha');
@@ -83,7 +136,10 @@ describe('nearbyProfilesReducer', () => {
       },
     };
 
-    const next = nearbyProfilesReducer(prev, NearbyProfilesActions.invalidate({ key }));
+    const next = nearbyProfilesReducer(
+      prev,
+      NearbyProfilesActions.invalidate({ key })
+    );
 
     expect(next.byKey[key].updatedAt).toBe(0);
     expect(next.byKey[key2].updatedAt).toBe(222);
@@ -94,11 +150,14 @@ describe('nearbyProfilesReducer', () => {
       ttlMs: 60000,
       byKey: {
         [key]: { list: [], loading: false, error: null, updatedAt: 111 },
-        ['k2']: { list: [], loading: false, error: null, updatedAt: 222 },
+        k2: { list: [], loading: false, error: null, updatedAt: 222 },
       },
     };
 
-    const next = nearbyProfilesReducer(prev, NearbyProfilesActions.invalidate({}));
+    const next = nearbyProfilesReducer(
+      prev,
+      NearbyProfilesActions.invalidate({})
+    );
 
     expect(next.byKey[key].updatedAt).toBe(0);
     expect(next.byKey['k2'].updatedAt).toBe(0);

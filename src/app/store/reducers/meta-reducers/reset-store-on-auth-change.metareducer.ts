@@ -4,7 +4,10 @@ import { type ActionReducer, type MetaReducer } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { STORE_FEATURE } from '../feature-keys';
 
-import { authSessionChanged, logoutSuccess } from '../../actions/actions.user/auth.actions';
+import {
+  authSessionChanged,
+  logoutSuccess,
+} from '../../actions/actions.user/auth.actions';
 
 import { initialChatState } from '../../states/states.chat/chat.state';
 import { initialInviteState } from '../../states/states.chat/invite.state';
@@ -12,6 +15,7 @@ import { initialRoomState } from '../../states/states.chat/room.state';
 
 import { initialLocationState } from '../../states/states.location/location.state';
 import { initialNearbyProfilesState } from '../../states/states.location/nearby-profiles.state';
+import { initialDiscoveryFeedState } from '../../states/states.discovery/discovery-feed.state';
 
 import { initialFriendsPaginationState } from '../../states/states.interactions/friends-pagination.state';
 import { initialState as initialFriendsState } from '../../states/states.interactions/friends.state';
@@ -21,6 +25,14 @@ import { initialTermsState } from '../../states/states.user/terms.state';
 import { initialFileState } from '../../states/states.user/file.state';
 import { initialUserPreferencesState } from '../../states/states.user/user-preferences.state';
 
+/**
+ * Limpa toda projeção vinculada à identidade anterior.
+ *
+ * discoveryFeeds também é user-scoped porque a consulta pode refletir
+ * preferências, localização, bloqueios e elegibilidade da conta autenticada.
+ * Preservá-lo numa troca de UID poderia mostrar conteúdo stale até o próximo
+ * refresh, especialmente durante navegação rápida no celular.
+ */
 function resetUserScopedSlices(nextState: AppState): AppState {
   return {
     ...nextState,
@@ -36,6 +48,7 @@ function resetUserScopedSlices(nextState: AppState): AppState {
 
     [STORE_FEATURE.location]: initialLocationState as any,
     [STORE_FEATURE.nearbyProfiles]: initialNearbyProfilesState as any,
+    [STORE_FEATURE.discoveryFeeds]: initialDiscoveryFeedState as any,
 
     [STORE_FEATURE.friendsPages]: initialFriendsPaginationState as any,
     [STORE_FEATURE.interactionsFriends]: initialFriendsState as any,
@@ -50,6 +63,7 @@ export const resetStoreOnAuthChangeMetaReducer: MetaReducer<AppState> =
       if (action.type === logoutSuccess.type) {
         return resetUserScopedSlices(nextState);
       }
+
       // Verifica mudança de UID na authSessionChanged.
       // Manter uid como identificador canônico de usuário.
       if (action.type === authSessionChanged.type) {
