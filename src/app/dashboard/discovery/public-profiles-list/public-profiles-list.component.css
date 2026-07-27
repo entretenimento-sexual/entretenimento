@@ -45,7 +45,7 @@
 }
 
 .public-profiles__state p,
-.public-profiles__empty {
+.public-profiles__empty p {
   margin: 0;
   font-size: 0.88rem;
   font-weight: 650;
@@ -62,9 +62,24 @@
 }
 
 .public-profiles__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  width: min(100%, 560px);
   margin: clamp(1.5rem, 6vw, 3rem) auto;
+  padding-inline: 0.75rem;
   color: color-mix(in oklab, var(--text-color) 62%, transparent);
   text-align: center;
+}
+
+.public-profiles__empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  width: 100%;
 }
 
 .public-profiles__refreshing {
@@ -94,9 +109,13 @@
 
 .public-profiles__retry,
 .public-profiles__inline-error button,
-.public-profiles__load-more {
+.public-profiles__load-more,
+.public-profiles__review {
   appearance: none;
   -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 2.6rem;
   border: 1px solid color-mix(in oklab, var(--primary-color) 32%, var(--surface-border));
   border-radius: 0.75rem;
@@ -105,6 +124,8 @@
   font: inherit;
   font-size: 0.82rem;
   font-weight: 760;
+  line-height: 1.2;
+  text-decoration: none;
   cursor: pointer;
   transition:
     background-color 140ms ease,
@@ -113,7 +134,8 @@
 }
 
 .public-profiles__retry,
-.public-profiles__inline-error button {
+.public-profiles__inline-error button,
+.public-profiles__review {
   padding: 0.52rem 0.8rem;
 }
 
@@ -124,16 +146,23 @@
 
 .public-profiles__retry:hover,
 .public-profiles__inline-error button:hover,
-.public-profiles__load-more:hover {
+.public-profiles__load-more:hover:not(:disabled),
+.public-profiles__review:hover {
   border-color: color-mix(in oklab, var(--primary-color) 52%, var(--surface-border));
   background: color-mix(in oklab, var(--primary-color) 7%, transparent);
 }
 
 .public-profiles__retry:focus-visible,
 .public-profiles__inline-error button:focus-visible,
-.public-profiles__load-more:focus-visible {
+.public-profiles__load-more:focus-visible,
+.public-profiles__review:focus-visible {
   outline: var(--focus-ring, 2px solid var(--primary-color));
   outline-offset: var(--focus-offset, 2px);
+}
+
+.public-profiles__load-more:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .public-profiles__pagination {
@@ -190,7 +219,8 @@
 
 :host-context(.high-contrast) .public-profiles__retry,
 :host-context(.high-contrast) .public-profiles__inline-error button,
-:host-context(.high-contrast) .public-profiles__load-more {
+:host-context(.high-contrast) .public-profiles__load-more,
+:host-context(.high-contrast) .public-profiles__review {
   border: 2px solid var(--text-color);
   background: var(--background-color);
   color: var(--text-color);
@@ -224,7 +254,12 @@
     flex-direction: column;
   }
 
-  .public-profiles__load-more {
+  .public-profiles__empty-actions {
+    flex-direction: column;
+  }
+
+  .public-profiles__load-more,
+  .public-profiles__review {
     width: 100%;
   }
 }
@@ -236,7 +271,8 @@
 
   .public-profiles__retry,
   .public-profiles__inline-error button,
-  .public-profiles__load-more {
+  .public-profiles__load-more,
+  .public-profiles__review {
     transition: none;
   }
 }
