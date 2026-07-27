@@ -9,6 +9,7 @@
 
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { db, FieldValue } from '../firebaseApp';
+import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
 import {
   buildPublicPreferenceProjection,
   publicPreferenceProjectionMatches,
@@ -39,7 +40,7 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
       : null;
     const user = userSnapshot.exists ? (userSnapshot.data() ?? {}) : {};
     const expected = buildPublicPreferenceProjection(profile, {
-      canPublishAdvanced: hasMinimumActivePlan(user, 'basic'),
+      canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic'),
       bodyTraits: user['bodyTraits'],
     });
     const current = publicSnapshot.data() ?? {};
@@ -66,51 +67,3 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
     });
   }
 );
-
-type MinimumPlan = 'basic' | 'premium' | 'vip';
-
-function hasMinimumActivePlan(
-  user: Record<string, unknown>,
-  minimum: MinimumPlan,
-  now = Date.now()
-): boolean {
-  const role = String(user['tier'] ?? user['role'] ?? '')
-    .trim()
-    .toLowerCase();
-
-  if (role === 'admin') return true;
-
-  const rank: Readonly<Record<MinimumPlan, number>> = {
-    basic: 1,
-    premium: 2,
-    vip: 3,
-  };
-
-  if (!(role in rank)) return false;
-  if (user['billingProjectionVersion'] !== 1) return false;
-  if (user['isSubscriber'] !== true) return false;
-  if (user['subscriptionStatus'] !== 'active') return false;
-  if (user['subscriptionScope'] !== 'platform_subscription') return false;
-
-  const startsAt = toMillis(user['subscriptionStartedAt']);
-  const endsAt = toMillis(user['subscriptionEndsAt']);
-
-  return (
-    startsAt !== null &&
-    endsAt !== null &&
-    startsAt < endsAt &&
-    now >= startsAt &&
-    now < endsAt &&
-    rank[role as MinimumPlan] >= rank[minimum]
-  );
-}
-
-function toMillis(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-
-  const timestamp = value as { toMillis?: () => number } | null | undefined;
-  if (typeof timestamp?.toMillis !== 'function') return null;
-
-  const millis = timestamp.toMillis();
-  return Number.isFinite(millis) ? millis : null;
-}
