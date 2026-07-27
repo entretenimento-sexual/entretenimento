@@ -3,7 +3,7 @@
 // PROJEÇÃO DO PERFIL DE PREFERÊNCIAS PARA DISCOVERY
 // -----------------------------------------------------------------------------
 // Mantém dois níveis:
-// - discoveryPreferences: seleção exata e privada usada pelo filtro local;
+// - discoveryPreferences: política privada completa usada pelo filtro local;
 // - interestedInGenders: categorias canônicas amplas usadas pelo motor recíproco
 //   e pela projeção pública produzida no backend.
 // -----------------------------------------------------------------------------
@@ -67,6 +67,11 @@ export function buildPreferenceDiscoveryProjection(
 
   const discoveryPreferences: IUserDiscoveryPreferences = {
     genderInterests,
+    relationshipIntents: unique(
+      profile.hardRules?.acceptedRelationshipIntents ??
+        profile.relationshipIntents ??
+        []
+    ),
     acceptsCouples: profile.hardRules?.acceptsCouples !== false,
     acceptsSingles: profile.hardRules?.acceptsSingles !== false,
     acceptsTransProfiles:
@@ -75,6 +80,23 @@ export function buildPreferenceDiscoveryProjection(
         : profile.hardRules?.acceptsTransProfiles === false
           ? false
           : null,
+    ageRange: normalizeAgeRange(profile.hardRules?.ageRange),
+    maxDistanceKm: normalizeDistance(profile.hardRules?.maxDistanceKm),
+    locationRequired: profile.hardRules?.locationRequired === true,
+    relationshipIntentMode:
+      profile.matchingModes?.relationshipIntents === 'prefer'
+        ? 'prefer'
+        : 'require',
+    sexualPractices: unique(profile.softRules?.sexualPractices ?? []),
+    sexualPracticeMode:
+      profile.matchingModes?.sexualPractices === 'require'
+        ? 'require'
+        : 'prefer',
+    bodyPreferences: unique(profile.softRules?.bodyPreferences ?? []),
+    bodyPreferenceMode:
+      profile.matchingModes?.bodyPreferences === 'require'
+        ? 'require'
+        : 'prefer',
     updatedAt: Number.isFinite(profile.updatedAt)
       ? profile.updatedAt
       : Date.now(),
@@ -100,6 +122,22 @@ export function buildPreferenceDiscoveryProjection(
     interestedInGenders: canonical,
     discoveryPreferences,
   };
+}
+
+function normalizeAgeRange(
+  value: PreferenceProfile['hardRules']['ageRange']
+): IUserDiscoveryPreferences['ageRange'] {
+  if (!value) return null;
+
+  const min = Math.max(18, Math.min(100, Math.round(value.min)));
+  const max = Math.max(18, Math.min(100, Math.round(value.max)));
+
+  return min <= max ? { min, max } : { min: max, max: min };
+}
+
+function normalizeDistance(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return Math.max(1, Math.min(500, Math.round(value)));
 }
 
 function uniqueInterests(
