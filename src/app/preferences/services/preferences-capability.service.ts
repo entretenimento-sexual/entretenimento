@@ -31,6 +31,7 @@ export interface PreferencesCapabilitySnapshot {
   canEditCorePreferences: boolean;
   canEditIntentState: boolean;
   canEditAdvancedPreferences: boolean;
+  canRequireAdvancedPreferences: boolean;
   canUseContextualIntent: boolean;
 
   canUseAdvancedDiscovery: boolean;
@@ -88,6 +89,10 @@ export class PreferencesCapabilityService {
   ): PreferencesCapabilitySnapshot {
     const plan = this.resolvePlan(user);
     const hasUser = Boolean(user?.uid);
+    const canUseAdvancedDiscovery = this.hasFeature(
+      user,
+      'advanced_discovery'
+    );
 
     return {
       currentPlan: plan.role,
@@ -99,15 +104,16 @@ export class PreferencesCapabilityService {
       canEditIntentState: hasUser,
 
       // Matriz de produto:
-      // Básico  -> preferências detalhadas e contexto de disponibilidade.
-      // Premium -> descoberta avançada, modo discreto e compatibilidade.
-      // VIP     -> prioridade de visibilidade e boost de intenção.
+      // Básico  -> seleciona preferências detalhadas usadas no ranking.
+      // Premium -> transforma preferências avançadas em filtros obrigatórios.
+      // VIP     -> mantém prioridade de visibilidade e boost de intenção.
       canEditAdvancedPreferences: this.hasFeature(
         user,
         'advanced_preferences'
       ),
+      canRequireAdvancedPreferences: canUseAdvancedDiscovery,
       canUseContextualIntent: this.hasFeature(user, 'contextual_intent'),
-      canUseAdvancedDiscovery: this.hasFeature(user, 'advanced_discovery'),
+      canUseAdvancedDiscovery,
       canUseDiscreetMode: this.hasFeature(user, 'discreet_mode'),
       canUsePriorityVisibility: this.hasFeature(
         user,
