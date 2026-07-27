@@ -36,7 +36,9 @@ function profilePayload(uid: string) {
     softRules: {
       bodyPreferences: [],
       sexualPractices: [],
-      vibes: [], styles: [], interests: [],
+      vibes: [],
+      styles: [],
+      interests: [],
     },
     selfTraits: { bodyTraits: ['tattoos'] },
     matchingModes: {
@@ -110,15 +112,69 @@ describe('Firestore Rules / atomic discovery preference projection', () => {
   it('permite ao proprietário salvar perfil e projeção no mesmo batch', async () => {
     const db = authenticatedDb('owner');
     const batch = writeBatch(db);
-    batch.set(doc(db, 'users', 'owner', 'preferences', 'profile'), profilePayload('owner'));
-    batch.set(doc(db, 'users', 'owner'), discoveryProjection(), { merge: true });
+    batch.set(
+      doc(db, 'users', 'owner', 'preferences', 'profile'),
+      profilePayload('owner')
+    );
+    batch.set(
+      doc(db, 'users', 'owner'),
+      discoveryProjection(),
+      { merge: true }
+    );
+
     await assertSucceeds(batch.commit());
   });
 
   it('nega alteração da projeção privada de outro usuário', async () => {
     const db = authenticatedDb('attacker');
     const batch = writeBatch(db);
-    batch.set(doc(db, 'users', 'owner'), discoveryProjection(), { merge: true });
+    batch.set(
+      doc(db, 'users', 'owner'),
+      discoveryProjection(),
+      { merge: true }
+    );
+
     await assertFails(batch.commit());
+  });
+
+  it('nega projeção privada incompleta mesmo para o proprietário', async () => {
+    const db = authenticatedDb('owner');
+
+    await assertFails(
+      setDoc(
+        doc(db, 'users', 'owner'),
+        {
+          interestedInGenders: ['woman'],
+          discoveryPreferences: {
+            genderInterests: ['women'],
+            // demais campos obrigatórios foram omitidos deliberadamente
+          },
+          discoveryPreferencesUpdatedAt: Date.now(),
+        },
+        { merge: true }
+      )
+    );
+  });
+
+  it('nega listas acima dos limites definidos', async () => {
+    const db = authenticatedDb('owner');
+    const projection = discoveryProjection();
+
+    await assertFails(
+      setDoc(
+        doc(db, 'users', 'owner'),
+        {
+          ...projection,
+          discoveryPreferences: {
+            ...projection.discoveryPreferences,
+            bodyPreferences: Array.from(
+              { length: 31 },
+              (_, index) => `trait-${index}`
+            ),
+          },
+        },
+        { merge: true }
+      )
+    );
   });
 });
