@@ -4,6 +4,7 @@
 // -----------------------------------------------------------------------------
 // - deriva o editor principal diretamente da sessão autenticada;
 // - espera a sessão do proprietário antes de ler documentos privados;
+// - mantém as streams de perfil/intenção estáveis enquanto o UID não muda;
 // - mantém validação estrita para chamadas explícitas com UID;
 // - aplica capacidades derivadas da projeção canônica da assinatura;
 // - sanitiza benefícios pagos antes da persistência;
@@ -19,6 +20,7 @@ import {
 } from 'rxjs';
 import {
   catchError,
+  distinctUntilChanged,
   filter,
   map,
   shareReplay,
@@ -35,7 +37,6 @@ import type { IntentState } from '../models/intent-state.model';
 import type { PreferenceProfile } from '../models/preference-profile.model';
 import {
   createEmptyIntentState,
-  createEmptyPreferenceProfile,
   normalizePreferenceProfile,
 } from '../utils/preference-normalizers';
 
@@ -73,12 +74,24 @@ export class PreferencesEditorFacade {
   );
 
   /**
+   * O UID controla a vida das leituras privadas. Atualizações normais no usuário
+   * atual (plano, projeção de discovery, presença) não recriam profile$/intent$ e
+   * não sobrescrevem outro formulário que ainda esteja dirty.
+   */
+  private readonly authenticatedUid$ = this.authenticatedUser$.pipe(
+    map((user) => this.normalizeUid(user.uid)),
+    filter(Boolean),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  /**
    * Estado canônico do editor da própria conta.
    * Não recebe UID da URL e, portanto, não pode divergir da sessão ativa.
    */
   readonly currentEditorState$: Observable<PreferencesEditorState> =
-    this.authenticatedUser$.pipe(
-      switchMap((user) => this.buildEditorState$(user)),
+    this.authenticatedUid$.pipe(
+      switchMap((uid) => this.buildEditorState$(uid)),
       catchError((err) => {
         this.handleError(
           err,
@@ -103,12 +116,13 @@ export class PreferencesEditorFacade {
     }
 
     return this.authenticatedUser$.pipe(
+      take(1),
       switchMap((user) => {
         if (user.uid !== safeUid) {
           return throwError(() => this.createOwnershipError(safeUid, user.uid));
         }
 
-        return this.buildEditorState$(user);
+        return this.buildEditorState$(safeUid);
       }),
       catchError((err) => {
         this.handleError(
@@ -235,15 +249,17 @@ export class PreferencesEditorFacade {
     );
   }
 
-  private buildEditorState$(user: IUserDados): Observable<PreferencesEditorState> {
-    const uid = this.normalizeUid(user.uid);
-
-    // As leituras só começam depois que a sessão confirma o proprietário.
+  private buildEditorState$(uid: string): Observable<PreferencesEditorState> {
+    // As leituras são criadas uma vez por UID. O usuário segue reativo para que
+    // mudança de plano/capacidade seja refletida sem recriar os documentos.
     return combineLatest([
+      this.authenticatedUser$.pipe(
+        filter((user) => this.normalizeUid(user.uid) === uid)
+      ),
       this.profilePreferences.getProfile$(uid),
       this.intentState.getIntentState$(uid),
     ]).pipe(
-      map(([profile, intent]) => ({
+      map(([user, profile, intent]) => ({
         uid,
         user,
         profile: normalizePreferenceProfile(profile, uid),
