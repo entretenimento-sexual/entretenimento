@@ -1,40 +1,15 @@
 // src/app/store/selectors/selectors.user/online.selectors.ts
 // -----------------------------------------------------------------------------
-// Selectors de usuários online
+// SELECTORS DE USUÁRIOS ONLINE
 // -----------------------------------------------------------------------------
-//
-// Fonte de verdade:
-// - presence/{uid}: define estado efêmero de presença;
-// - public_profiles/{uid}: define o perfil público exibível;
-// - onlineUsers: lista materializada pelo OnlineUsersEffects;
-// - usersMap: cache local de perfis públicos.
-//
-// Regra deste selector:
-// - Online NÃO deve consultar Firestore;
-// - Online NÃO deve inferir presença por Auth;
-// - Online NÃO deve expor dados privados;
-// - Online deve exibir perfis públicos que estejam efetivamente online;
-// - presence sozinho não basta;
-// - perfil público sem nickname não entra;
-// - preferências privadas do viewer filtram apenas a saída local;
-// - estado/município/gênero enriquecem o card, mas não bloqueiam o modo Online
-//   quando o viewer não configurou filtros explícitos.
+// Este selector materializa perfil público + presença. Preferências, distância,
+// compatibilidade e ranking pertencem exclusivamente ao
+// DiscoveryCardEnrichmentService.
 // -----------------------------------------------------------------------------
 
 import { createSelector } from '@ngrx/store';
-
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import {
-  DiscoveryPreferenceRejectionReason,
-  evaluateDiscoveryCandidatePreference,
-} from 'src/app/core/utils/discovery/profile-type-preference-filter.util';
-
-import {
-  selectCurrentUser,
-  selectOnlineUsers,
-  selectUsersMap,
-} from './user.selectors';
-
+import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { selectOnlineUsers, selectUsersMap } from './user.selectors';
 import { selectAuthUid } from './auth.selectors';
 
 type OnlineRejectionReason =
@@ -44,8 +19,7 @@ type OnlineRejectionReason =
   | 'missing_public_profile'
   | 'missing_nickname'
   | 'hidden_from_online'
-  | 'not_online'
-  | DiscoveryPreferenceRejectionReason;
+  | 'not_online';
 
 export interface OnlineCandidateDebug {
   uid: string | null;
@@ -58,379 +32,157 @@ export interface OnlineCandidateDebug {
 }
 
 function toText(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const text = value.trim();
-
-  return text.length ? text : null;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function toBooleanTrue(value: unknown): boolean {
-  return value === true;
-}
-
-function sameUid(a: unknown, b: unknown): boolean {
-  const uidA = toText(a);
-  const uidB = toText(b);
-
-  return !!uidA && !!uidB && uidA === uidB;
-}
-
-/**
- * Lê campo textual aceitando aliases comuns.
- *
- * Isso protege contra pequenas diferenças entre:
- * - public_profiles;
- * - IUserDados;
- * - documentos antigos;
- * - dados vindos de migrações anteriores.
- */
-function readFirstText(source: any, keys: readonly string[]): string | null {
-  for (const key of keys) {
-    const value = toText(source?.[key]);
-
-    if (value) {
-      return value;
-    }
-  }
-
-  return null;
-}
-
-function readFirstValue<T = unknown>(
-  source: any,
+function readValue<T = unknown>(
+  primary: Record<string, unknown>,
+  fallback: Record<string, unknown>,
   keys: readonly string[]
 ): T | null {
-  for (const key of keys) {
-    const value = source?.[key];
-
-    if (value !== undefined && value !== null) {
-      return value as T;
+  for (const source of [primary, fallback]) {
+    for (const key of keys) {
+      const value = source[key];
+      if (value !== undefined && value !== null) return value as T;
     }
   }
-
   return null;
 }
 
-/**
- * Monta um perfil público normalizado usando:
- * - onlineItem como fonte principal, porque ele já vem hidratado pelo effect;
- * - storedProfile como fallback, porque pode conter cache útil.
- *
- * Importante:
- * - não espalhamos presence cru por cima de tudo;
- * - só copiamos campos públicos/efêmeros conhecidos;
- * - não entram e-mail, telefone ou dados privados.
- */
+function readText(
+  primary: Record<string, unknown>,
+  fallback: Record<string, unknown>,
+  keys: readonly string[]
+): string | null {
+  for (const source of [primary, fallback]) {
+    for (const key of keys) {
+      const value = toText(source[key]);
+      if (value) return value;
+    }
+  }
+  return null;
+}
+
 function buildOnlinePublicProfile(
   onlineItem: IUserDados | null | undefined,
   storedProfile: IUserDados | null | undefined
 ): IUserDados | null {
-  if (!onlineItem && !storedProfile) {
-    return null;
-  }
+  if (!onlineItem && !storedProfile) return null;
 
-  const online = onlineItem as any;
-  const stored = storedProfile as any;
-
-  const uid =
-    readFirstText(online, ['uid']) ??
-    readFirstText(stored, ['uid']);
-
-  if (!uid) {
-    return null;
-  }
+  const online = (onlineItem ?? {}) as IUserDados & Record<string, unknown>;
+  const stored = (storedProfile ?? {}) as IUserDados & Record<string, unknown>;
+  const uid = readText(online, stored, ['uid']);
+  if (!uid) return null;
 
   return {
     ...(storedProfile ?? {}),
     ...(onlineItem ?? {}),
-
     uid,
-
-    nickname:
-      readFirstText(online, ['nickname']) ??
-      readFirstText(stored, ['nickname']),
-
-    nicknameNormalized:
-      readFirstText(online, ['nicknameNormalized']) ??
-      readFirstText(stored, ['nicknameNormalized']),
-
-    photoURL:
-      readFirstText(online, ['photoURL', 'photoUrl', 'avatarUrl']) ??
-      readFirstText(stored, ['photoURL', 'photoUrl', 'avatarUrl']),
-
-    gender:
-      readFirstText(online, ['gender']) ??
-      readFirstText(stored, ['gender']),
-
-    normalizedGender:
-      readFirstText(online, ['normalizedGender']) ??
-      readFirstText(stored, ['normalizedGender']),
-
-    orientation:
-      readFirstText(online, [
-        'orientation',
-        'sexualOrientation',
-        'orientacao',
-        'orientacaoSexual',
-      ]) ??
-      readFirstText(stored, [
-        'orientation',
-        'sexualOrientation',
-        'orientacao',
-        'orientacaoSexual',
-      ]),
-
-    normalizedOrientation:
-      readFirstText(online, ['normalizedOrientation']) ??
-      readFirstText(stored, ['normalizedOrientation']),
-
-    interestedInGenders:
-      readFirstValue(online, ['interestedInGenders']) ??
-      readFirstValue(stored, ['interestedInGenders']),
-
-    interestedInOrientations:
-      readFirstValue(online, ['interestedInOrientations']) ??
-      readFirstValue(stored, ['interestedInOrientations']),
-
-    compatibilityReady:
-      readFirstValue<boolean>(online, ['compatibilityReady']) ??
-      readFirstValue<boolean>(stored, ['compatibilityReady']),
-
-    estado:
-      readFirstText(online, ['estado', 'uf', 'state']) ??
-      readFirstText(stored, ['estado', 'uf', 'state']),
-
-    municipio:
-      readFirstText(online, ['municipio', 'cidade', 'city']) ??
-      readFirstText(stored, ['municipio', 'cidade', 'city']),
-
-    role:
-      readFirstText(online, ['role']) ??
-      readFirstText(stored, ['role']) ??
-      'free',
-
-    latitude:
-      readFirstValue(online, ['latitude']) ??
-      readFirstValue(stored, ['latitude']),
-
-    longitude:
-      readFirstValue(online, ['longitude']) ??
-      readFirstValue(stored, ['longitude']),
-
-    geohash:
-      readFirstText(online, ['geohash']) ??
-      readFirstText(stored, ['geohash']),
-
-    createdAt:
-      readFirstValue(stored, ['createdAt']) ??
-      readFirstValue(online, ['createdAt']),
-
-    updatedAt:
-      readFirstValue(online, ['updatedAt']) ??
-      readFirstValue(stored, ['updatedAt']),
-
-    /**
-     * Campos de presença.
-     * Aqui o online é explícito: não inferimos por lastSeen.
-     */
-    isOnline:
-      readFirstValue<boolean>(online, ['isOnline']) ??
-      readFirstValue<boolean>(stored, ['isOnline']) ??
-      false,
-
-    lastSeen:
-      readFirstValue(online, ['lastSeen']) ??
-      readFirstValue(stored, ['lastSeen']),
-
-    lastOnlineAt:
-      readFirstValue(online, ['lastOnlineAt']) ??
-      readFirstValue(stored, ['lastOnlineAt']),
-
-    lastOfflineAt:
-      readFirstValue(online, ['lastOfflineAt']) ??
-      readFirstValue(stored, ['lastOfflineAt']),
-
-    lastStateChangeAt:
-      readFirstValue(online, ['lastStateChangeAt']) ??
-      readFirstValue(stored, ['lastStateChangeAt']),
-
-    presenceState:
-      readFirstText(online, ['presenceState']) ??
-      readFirstText(stored, ['presenceState']),
-
-    presenceSessionId:
-      readFirstText(online, ['presenceSessionId']) ??
-      readFirstText(stored, ['presenceSessionId']),
-
-    hideFromOnline:
-      readFirstValue<boolean>(online, ['hideFromOnline']) ??
-      readFirstValue<boolean>(stored, ['hideFromOnline']) ??
-      false,
+    nickname: readText(online, stored, ['nickname']),
+    nicknameNormalized: readText(online, stored, ['nicknameNormalized']),
+    photoURL: readText(online, stored, ['photoURL', 'photoUrl', 'avatarUrl']),
+    gender: readText(online, stored, ['gender', 'genero']) ?? undefined,
+    orientation: readText(online, stored, [
+      'orientation', 'sexualOrientation', 'orientacao', 'orientacaoSexual',
+    ]) ?? undefined,
+    age: readValue<number>(online, stored, ['age', 'idade']),
+    normalizedGender: readText(online, stored, ['normalizedGender']),
+    normalizedOrientation: readText(online, stored, ['normalizedOrientation']),
+    interestedInGenders: readValue(online, stored, ['interestedInGenders']),
+    interestedInOrientations: readValue(online, stored, ['interestedInOrientations']),
+    compatibilityReady: readValue<boolean>(online, stored, ['compatibilityReady']),
+    publicRelationshipIntents: readValue(online, stored, ['publicRelationshipIntents']),
+    publicSexualPractices: readValue(online, stored, ['publicSexualPractices']),
+    publicBodyTraits: readValue(online, stored, ['publicBodyTraits']),
+    preferenceBadgesVisible: readValue<boolean>(online, stored, ['preferenceBadgesVisible']),
+    publicPreferencesUpdatedAt: readValue<number>(online, stored, ['publicPreferencesUpdatedAt']),
+    estado: readText(online, stored, ['estado', 'uf', 'state']) ?? undefined,
+    municipio: readText(online, stored, ['municipio', 'cidade', 'city']) ?? undefined,
+    role: (readText(online, stored, ['role']) ?? 'free') as IUserDados['role'],
+    latitude: readValue<number>(online, stored, ['latitude']) ?? undefined,
+    longitude: readValue<number>(online, stored, ['longitude']) ?? undefined,
+    geohash: readText(online, stored, ['geohash']) ?? undefined,
+    createdAt: readValue<number>(stored, online, ['createdAt']),
+    updatedAt: readValue<number>(online, stored, ['updatedAt']),
+    isOnline: readValue<boolean>(online, stored, ['isOnline']) === true,
+    lastSeen: readValue<number>(online, stored, ['lastSeen']),
+    lastOnlineAt: readValue<number>(online, stored, ['lastOnlineAt']),
+    lastOfflineAt: readValue<number>(online, stored, ['lastOfflineAt']),
+    hideFromOnline: readValue<boolean>(online, stored, ['hideFromOnline']) === true,
   } as IUserDados;
 }
 
-/**
- * Regra final de exposição do modo Online.
- *
- * Segurança:
- * - exige uid;
- * - exige nickname público;
- * - exige isOnline true;
- * - respeita hideFromOnline;
- * - bloqueia o próprio usuário;
- * - aplica tipos de perfil e reciprocidade configurados pelo viewer.
- */
 function getOnlineRejectionReason(
   profile: IUserDados | null,
   meUid: string | null,
-  currentUser: IUserDados | null,
   seen: Set<string>
 ): OnlineRejectionReason | null {
   const uid = toText(profile?.uid);
-
-  if (!uid) {
-    return 'missing_uid';
-  }
-
-  if (sameUid(uid, meUid)) {
-    return 'current_user';
-  }
-
-  if (seen.has(uid)) {
-    return 'duplicated_uid';
-  }
-
-  if (!profile) {
-    return 'missing_public_profile';
-  }
-
-  if ((profile as any).hideFromOnline === true) {
+  if (!uid) return 'missing_uid';
+  if (meUid && uid === meUid) return 'current_user';
+  if (seen.has(uid)) return 'duplicated_uid';
+  if (!profile) return 'missing_public_profile';
+  if ((profile as IUserDados & { hideFromOnline?: boolean }).hideFromOnline === true) {
     return 'hidden_from_online';
   }
-
-  if (!toText((profile as any).nickname)) {
-    return 'missing_nickname';
-  }
-
-  if (!toBooleanTrue((profile as any).isOnline)) {
-    return 'not_online';
-  }
-
-  const preferenceResult = evaluateDiscoveryCandidatePreference(
-    currentUser,
-    profile
-  );
-
-  return preferenceResult.accepted ? null : preferenceResult.reason;
+  if (!toText(profile.nickname)) return 'missing_nickname';
+  if (profile.isOnline !== true) return 'not_online';
+  return null;
 }
 
-function toDebugItem(
+function buildDebug(
   profile: IUserDados | null,
-  rejectionReason: OnlineRejectionReason | null
+  reason: OnlineRejectionReason | null
 ): OnlineCandidateDebug {
-  const anyProfile = profile as any;
-
   return {
-    uid: toText(anyProfile?.uid),
-    nickname: toText(anyProfile?.nickname),
-    isOnline:
-      typeof anyProfile?.isOnline === 'boolean'
-        ? anyProfile.isOnline
-        : null,
-    gender: anyProfile?.gender,
-    estado: anyProfile?.estado,
-    municipio: anyProfile?.municipio,
-    rejectionReason,
+    uid: toText(profile?.uid),
+    nickname: toText(profile?.nickname),
+    isOnline: typeof profile?.isOnline === 'boolean' ? profile.isOnline : null,
+    gender: profile?.gender,
+    estado: profile?.estado,
+    municipio: profile?.municipio,
+    rejectionReason: reason,
   };
 }
 
-/**
- * Debug puro para inspeção via Store DevTools ou logs temporários.
- *
- * Não usar diretamente no template final.
- */
+function materialize(
+  onlineArr: readonly IUserDados[] | null | undefined,
+  usersMap: Record<string, IUserDados> | null | undefined,
+  meUid: string | null | undefined
+): { profiles: IUserDados[]; debug: OnlineCandidateDebug[] } {
+  const seen = new Set<string>();
+  const profiles: IUserDados[] = [];
+  const debug: OnlineCandidateDebug[] = [];
+
+  for (const onlineItem of onlineArr ?? []) {
+    const uid = toText(onlineItem?.uid);
+    const profile = buildOnlinePublicProfile(
+      onlineItem,
+      uid ? usersMap?.[uid] ?? null : null
+    );
+    const reason = getOnlineRejectionReason(profile, meUid ?? null, seen);
+    if (uid) seen.add(uid);
+    debug.push(buildDebug(profile, reason));
+    if (reason === null && profile) profiles.push(profile);
+  }
+
+  return { profiles, debug };
+}
+
 export const selectGlobalOnlineUsersDebug = createSelector(
   selectOnlineUsers,
   selectUsersMap,
   selectAuthUid,
-  selectCurrentUser,
-  (onlineArr, usersMap, meUid, currentUser): OnlineCandidateDebug[] => {
-    const list = Array.isArray(onlineArr) ? onlineArr : [];
-    const seen = new Set<string>();
-    const debug: OnlineCandidateDebug[] = [];
-
-    for (const onlineItem of list) {
-      const uid = toText(onlineItem?.uid);
-      const storedProfile = uid ? usersMap?.[uid] ?? null : null;
-
-      const profile = buildOnlinePublicProfile(
-        onlineItem,
-        storedProfile
-      );
-
-      const rejectionReason = getOnlineRejectionReason(
-        profile,
-        meUid ?? null,
-        currentUser ?? null,
-        seen
-      );
-
-      if (uid && !seen.has(uid)) {
-        seen.add(uid);
-      }
-
-      debug.push(toDebugItem(profile, rejectionReason));
-    }
-
-    return debug;
-  }
+  (onlineArr, usersMap, meUid): OnlineCandidateDebug[] =>
+    materialize(onlineArr, usersMap, meUid).debug
 );
 
-/**
- * Lista global de usuários online exibíveis.
- */
 export const selectGlobalOnlineUsers = createSelector(
   selectOnlineUsers,
   selectUsersMap,
   selectAuthUid,
-  selectCurrentUser,
-  (onlineArr, usersMap, meUid, currentUser): IUserDados[] => {
-    const list = Array.isArray(onlineArr) ? onlineArr : [];
-    const seen = new Set<string>();
-    const out: IUserDados[] = [];
-
-    for (const onlineItem of list) {
-      const uid = toText(onlineItem?.uid);
-      const storedProfile = uid ? usersMap?.[uid] ?? null : null;
-
-      const profile = buildOnlinePublicProfile(
-        onlineItem,
-        storedProfile
-      );
-
-      const rejectionReason = getOnlineRejectionReason(
-        profile,
-        meUid ?? null,
-        currentUser ?? null,
-        seen
-      );
-
-      if (uid && !seen.has(uid)) {
-        seen.add(uid);
-      }
-
-      if (rejectionReason !== null) {
-        continue;
-      }
-
-      out.push(profile as IUserDados);
-    }
-
-    return out;
-  }
+  (onlineArr, usersMap, meUid): IUserDados[] =>
+    materialize(onlineArr, usersMap, meUid).profiles
 );
 
 export const selectGlobalOnlineCount = createSelector(
