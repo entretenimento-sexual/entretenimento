@@ -7,6 +7,11 @@
 >
   <app-navbar></app-navbar>
 
+  <app-global-invite-badge
+    *ngIf="vm.shellMode === 'auth'"
+    [mobile]="vm.sidebarShouldOverlay"
+  ></app-global-invite-badge>
+
   <app-email-verification-gate-banner></app-email-verification-gate-banner>
 
   <div

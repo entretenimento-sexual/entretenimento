@@ -1,215 +1,296 @@
 // src/app/store/effects/effects.chat/invite.effects.ts
-//
-// Efeitos do inbox de convites.
-//
-// Objetivos desta revisão:
-// - manter o stream realtime de convites somente enquanto a feature/sessão estiver ativa
-// - cancelar explicitamente o listener no logout ou saída da tela
-// - limpar cache do InviteInboxService no momento da parada
-// - limpar o estado NgRx do inbox ao parar
-// - preservar a lógica de aceitar/recusar convite sem ampliar o raio da mudança
-//
-// Ajustes principais:
-// - remoção do uso de `any` na composição do stop
-// - separação entre stop manual da feature e stop por fim de sessão
-// - manutenção de `takeUntil(stopInvites$)` no stream realtime
-//
-// Observação:
-// - este arquivo NÃO resolve sozinho o problema pós-logout;
-//   ele depende também de:
-//   1) InviteInboxService com Injection Context correto
-//   2) reducer tratando StopInvites / ClearInvitesState
-//   3) componente disparando StopInvites() no destroy
+// Owner global do inbox de convites e das respostas via Cloud Functions.
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import * as InviteActions from '../../actions/actions.chat/invite.actions';
-import { authSessionChanged } from '../../actions/actions.user/auth.actions';
-import { ChatNotificationService } from '@core/services/batepapo/chat-notification.service';
-
+import { EMPTY, merge, of } from 'rxjs';
 import {
+  catchError,
+  concatMap,
+  distinctUntilChanged,
+  filter,
   map,
   switchMap,
-  catchError,
-  mergeMap,
-  filter,
+  take,
   takeUntil,
   tap,
 } from 'rxjs/operators';
-import { merge, of } from 'rxjs';
 
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { InviteInboxService } from '@core/services/batepapo/invite-service/invite-inbox.service';
 import { RoomInviteFlowService } from '@core/services/batepapo/room-services/room-invite-flow.service';
+import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+
+import * as InviteActions from '../../actions/actions.chat/invite.actions';
+import { authSessionChanged } from '../../actions/actions.user/auth.actions';
 
 @Injectable()
 export class InviteEffects {
-constructor(
-  private readonly actions$: Actions,
-  private readonly inbox: InviteInboxService,
-  private readonly roomInviteFlow: RoomInviteFlowService,
-  private readonly chatNotification: ChatNotificationService
-) {}
+  constructor(
+    private readonly actions$: Actions,
+    private readonly inbox: InviteInboxService,
+    private readonly roomInviteFlow: RoomInviteFlowService,
+    private readonly authSession: AuthSessionService,
+    private readonly notifier: ErrorNotificationService
+  ) {}
 
-  /**
-   * Stop manual da feature.
-   *
-   * Casos típicos:
-   * - componente saiu da rota
-   * - usuário fechou a tela
-   * - fluxo decidiu encerrar o inbox explicitamente
-   */
   private readonly stopInvitesManual$ = this.actions$.pipe(
     ofType(InviteActions.StopInvites)
   );
 
-  /**
-   * Stop por encerramento de sessão.
-   *
-   * Regra:
-   * - quando uid -> null, qualquer listener realtime do inbox deve ser encerrado
-   */
-  private readonly stopInvitesOnSessionEnd$ = this.actions$.pipe(
+  private readonly sessionUidChanged$ = this.actions$.pipe(
     ofType(authSessionChanged),
-    filter(({ uid }) => uid == null)
+    map(({ uid }) => this.normalizeUid(uid)),
+    distinctUntilChanged()
   );
 
   /**
-   * Stream unificado de parada.
+   * Backstop canônico de sessão.
    *
-   * Importante:
-   * - faz a limpeza do cache no mesmo ponto em que o cancelamento é sinalizado
-   * - isso evita reaproveitar stream antigo em sessão encerrada/trocada
+   * O LayoutShell ainda dispara Load/Stop por compatibilidade, mas este effect
+   * garante que authSessionChanged sempre produza um novo escopo após o
+   * meta-reducer limpar dados vinculados ao UID anterior.
    */
-  private readonly stopInvites$ = merge(
-    this.stopInvitesManual$,
-    this.stopInvitesOnSessionEnd$
-  ).pipe(
-    tap(() => {
-      this.inbox.clearAllCache();
-    })
+  syncInvitesWithSession$ = createEffect(() =>
+    this.sessionUidChanged$.pipe(
+      map((uid) =>
+        uid
+          ? InviteActions.LoadInvites({ userId: uid })
+          : InviteActions.StopInvites()
+      )
+    )
+  );
+
+  /** Cache nunca atravessa uma fronteira de sessão. */
+  clearInviteCacheOnBoundary$ = createEffect(
+    () =>
+      merge(this.stopInvitesManual$, this.sessionUidChanged$).pipe(
+        tap(() => this.inbox.clearAllCache())
+      ),
+    { dispatch: false }
   );
 
   /**
-   * Inbox realtime com cancelamento explícito.
+   * Listener realtime escopado pelo UID proprietário.
    *
-   * Regras:
-   * - cada LoadInvites abre/reativa o stream do usuário atual
-   * - se StopInvites ou authSessionChanged(uid:null) acontecer, o stream é cancelado
-   * - o effect então para de observar invites imediatamente
+   * A troca A -> B encerra A mesmo antes de um eventual novo LoadInvites de B.
+   * O reducer também limpa a lista imediatamente ao receber a nova carga.
    */
   loadInvites$ = createEffect(() =>
     this.actions$.pipe(
       ofType(InviteActions.LoadInvites),
-      switchMap(({ userId }) =>
-        this.inbox.observeMyPendingInvitesSafe(userId).pipe(
-          takeUntil(this.stopInvites$),
-          map((invites) => InviteActions.LoadInvitesSuccess({ invites })),
-          catchError((err) =>
+      switchMap(({ userId }) => {
+        const ownerUid = this.normalizeUid(userId);
+
+        if (!ownerUid) {
+          return of(
+            InviteActions.LoadInvitesFailure({
+              ownerUid: '',
+              error: 'Sessão inválida para carregar convites.',
+            })
+          );
+        }
+
+        const stopForOwner$ = merge(
+          this.stopInvitesManual$,
+          this.sessionUidChanged$.pipe(
+            filter((currentUid) => currentUid !== ownerUid)
+          )
+        );
+
+        return this.inbox.observeMyPendingInvites(ownerUid).pipe(
+          takeUntil(stopForOwner$),
+          map((invites) =>
+            InviteActions.LoadInvitesSuccess({ ownerUid, invites })
+          ),
+          catchError((error) =>
             of(
               InviteActions.LoadInvitesFailure({
-                error: String(err?.message ?? err),
+                ownerUid,
+                error: this.errorMessage(
+                  error,
+                  'Não foi possível carregar seus convites.'
+                ),
               })
             )
           )
-        )
-      )
+        );
+      })
     )
   );
 
-  /**
-   * Limpa o estado visual/store quando a feature para.
-   *
-   * Isso evita:
-   * - invites antigos persistidos na UI
-   * - estado "fantasma" após logout
-   * - reuso indevido de lista de outra sessão
-   */
-  clearInvitesOnStop$ = createEffect(() =>
-    this.stopInvites$.pipe(
+  clearInvitesOnManualStop$ = createEffect(() =>
+    this.stopInvitesManual$.pipe(
       map(() => InviteActions.ClearInvitesState())
     )
   );
 
-  /**
-   * Aceitar convite de sala via transação.
-   *
-   * Mantido intencionalmente sem refatoração extra nesta etapa,
-   * porque o problema principal analisado está no ciclo de vida
-   * do inbox realtime, não no fluxo de resposta.
-   */
   acceptInvite$ = createEffect(() =>
     this.actions$.pipe(
       ofType(InviteActions.AcceptInvite),
-      mergeMap(({ inviteId }) =>
-        this.roomInviteFlow.acceptRoomInvite$(inviteId).pipe(
-          map(() => InviteActions.AcceptInviteSuccess({ inviteId })),
-          catchError((err) =>
-            of(
-              InviteActions.AcceptInviteFailure({
-                error: String(err?.message ?? err),
+      concatMap(({ ownerUid, inviteId }) => {
+        const safeOwnerUid = this.normalizeUid(ownerUid);
+        const safeInviteId = String(inviteId ?? '').trim();
+
+        if (!safeOwnerUid || !safeInviteId) {
+          return of(
+            InviteActions.AcceptInviteFailure({
+              ownerUid: safeOwnerUid,
+              inviteId: safeInviteId,
+              error: 'Convite inválido.',
+            })
+          );
+        }
+
+        return this.roomInviteFlow.acceptRoomInvite$(safeInviteId).pipe(
+          switchMap(() =>
+            this.authSession.uid$.pipe(
+              take(1),
+              switchMap((currentUid) => {
+                if (this.normalizeUid(currentUid) !== safeOwnerUid) {
+                  return EMPTY;
+                }
+
+                this.notifier.showSuccess(
+                  'Convite aceito. A sala já está disponível.'
+                );
+                return of(
+                  InviteActions.AcceptInviteSuccess({
+                    ownerUid: safeOwnerUid,
+                    inviteId: safeInviteId,
+                  })
+                );
               })
             )
+          ),
+          catchError((error) =>
+            this.responseFailureForCurrentSession$(
+              'accepted',
+              safeOwnerUid,
+              safeInviteId,
+              error
+            )
           )
-        )
-      )
+        );
+      })
     )
   );
 
-  /**
-   * Recusar convite de sala via transação.
-   *
-   * Mantido intencionalmente sem ampliar o raio da mudança.
-   */
   declineInvite$ = createEffect(() =>
     this.actions$.pipe(
       ofType(InviteActions.DeclineInvite),
-      mergeMap(({ inviteId }) =>
-        this.roomInviteFlow.declineRoomInvite$(inviteId).pipe(
-          map(() => InviteActions.DeclineInviteSuccess({ inviteId })),
-          catchError((err) =>
-            of(
-              InviteActions.DeclineInviteFailure({
-                error: String(err?.message ?? err),
+      concatMap(({ ownerUid, inviteId }) => {
+        const safeOwnerUid = this.normalizeUid(ownerUid);
+        const safeInviteId = String(inviteId ?? '').trim();
+
+        if (!safeOwnerUid || !safeInviteId) {
+          return of(
+            InviteActions.DeclineInviteFailure({
+              ownerUid: safeOwnerUid,
+              inviteId: safeInviteId,
+              error: 'Convite inválido.',
+            })
+          );
+        }
+
+        return this.roomInviteFlow.declineRoomInvite$(safeInviteId).pipe(
+          switchMap(() =>
+            this.authSession.uid$.pipe(
+              take(1),
+              switchMap((currentUid) => {
+                if (this.normalizeUid(currentUid) !== safeOwnerUid) {
+                  return EMPTY;
+                }
+
+                this.notifier.showSuccess('Convite recusado.');
+                return of(
+                  InviteActions.DeclineInviteSuccess({
+                    ownerUid: safeOwnerUid,
+                    inviteId: safeInviteId,
+                  })
+                );
               })
             )
+          ),
+          catchError((error) =>
+            this.responseFailureForCurrentSession$(
+              'declined',
+              safeOwnerUid,
+              safeInviteId,
+              error
+            )
           )
-        )
-      )
+        );
+      })
     )
   );
 
-  /**
- * Sincroniza o badge global de convites com o resultado do inbox.
- *
- * Motivo:
- * - o ChatNotificationService hoje expõe o contador,
- *   mas não o deriva sozinho do store/inbox.
- */
-syncPendingInvitesCount$ = createEffect(
-  () =>
-    this.actions$.pipe(
-      ofType(InviteActions.LoadInvitesSuccess),
-      tap(({ invites }) => {
-        const pendingCount = (invites ?? []).filter(
-          (invite) => invite?.status === 'pending'
-        ).length;
+  private responseFailureForCurrentSession$(
+    decision: 'accepted' | 'declined',
+    ownerUid: string,
+    inviteId: string,
+    error: unknown
+  ) {
+    return this.authSession.uid$.pipe(
+      take(1),
+      switchMap((currentUid) => {
+        if (this.normalizeUid(currentUid) !== ownerUid) {
+          return EMPTY;
+        }
 
-        this.chatNotification.updatePendingInvites(pendingCount);
-      })
-    ),
-  { dispatch: false }
-);
+        const message = this.errorMessage(
+          error,
+          decision === 'accepted'
+            ? 'Não foi possível aceitar o convite.'
+            : 'Não foi possível recusar o convite.'
+        );
 
-/**
- * Reseta o badge quando a feature de convites é parada/limpa.
- */
-resetPendingInvitesCount$ = createEffect(
-  () =>
-    this.actions$.pipe(
-      ofType(InviteActions.ClearInvitesState),
-      tap(() => {
-        this.chatNotification.resetPendingInvites();
+        this.notifier.showError(message);
+
+        return of(
+          decision === 'accepted'
+            ? InviteActions.AcceptInviteFailure({
+                ownerUid,
+                inviteId,
+                error: message,
+              })
+            : InviteActions.DeclineInviteFailure({
+                ownerUid,
+                inviteId,
+                error: message,
+              })
+        );
       })
-    ),
-  { dispatch: false }
-);
-} // Linha 215
+    );
+  }
+
+  private normalizeUid(uid: string | null | undefined): string {
+    return String(uid ?? '').trim();
+  }
+
+  private errorMessage(error: unknown, fallback: string): string {
+    const code = String(
+      (error as { code?: unknown } | null)?.code ?? ''
+    ).toLowerCase();
+    const rawMessage = String(
+      (error as { message?: unknown } | null)?.message ?? ''
+    ).trim();
+
+    if (code.includes('unauthenticated')) {
+      return 'Entre novamente para responder ao convite.';
+    }
+
+    if (code.includes('permission-denied')) {
+      return 'Sua conta não pode responder a este convite.';
+    }
+
+    if (code.includes('failed-precondition')) {
+      return rawMessage || 'Este convite não está mais disponível.';
+    }
+
+    if (code.includes('not-found')) {
+      return 'O convite ou a sala não foi encontrado.';
+    }
+
+    return rawMessage || fallback;
+  }
+}

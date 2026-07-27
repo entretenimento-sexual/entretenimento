@@ -1,14 +1,19 @@
 // src/app/store/states/states.chat/invite.state.ts
-import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
+import { InviteInboxItem } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 
+/** Estado global do inbox, sempre pertencente a um único UID. */
 export interface InviteState {
-  invites: Invite[];      // Lista de convites
-  loading: boolean;       // Indicador de carregamento
-  error: string | null;   // Mensagem de erro, se houver
+  readonly ownerUid: string | null;
+  readonly invites: readonly InviteInboxItem[];
+  readonly loading: boolean;
+  readonly loaded: boolean;
+  readonly error: string | null;
 }
 
 export const initialInviteState: InviteState = {
+  ownerUid: null,
   invites: [],
   loading: false,
+  loaded: false,
   error: null,
 };

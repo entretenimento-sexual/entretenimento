@@ -2,35 +2,15 @@
 // -----------------------------------------------------------------------------
 // CHAT MODULE ROUTING
 // -----------------------------------------------------------------------------
-//
-// Rotas do domínio de conversas.
-//
-// Definição canônica de Sala:
-// - espaço de conversa em tempo real, público ou privado;
-// - pode ser temporário ou permanente;
-// - pode ser independente ou vinculado a um Local ou Comunidade;
-// - não é um Local físico e não é uma Comunidade de membros.
-//
-// Organização atual:
-// - /chat             => mensagens diretas 1:1;
-// - /chat/rooms       => salas de conversa;
-// - /chat/invite-list => compatibilidade: redireciona para Salas;
-// - /chat/:userId     => conversa direta com perfil específico.
-//
-// A tela legada de convites foi suprimida da navegação porque aceitar/recusar ainda
-// depende de transação estrutural no navegador. A URL permanece redirecionada para
-// evitar quebra de links até a migração completa para Functions.
-//
-// Regra importante:
-// - rotas estáticas devem permanecer antes de `:userId`;
-// - caso contrário, "rooms" e "invite-list" seriam interpretados como UID.
-// -----------------------------------------------------------------------------
-
+// Rotas estáticas permanecem antes de `:userId`.
+// Convites volta a ser uma tela funcional porque aceitar/recusar agora é feito
+// exclusivamente pelas callables acceptRoomInvite/declineRoomInvite.
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
 import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layout.component';
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
+import { InviteListComponent } from './invite-list/invite-list.component';
 
 const routes: Routes = [
   {
@@ -43,8 +23,7 @@ const routes: Routes = [
   },
   {
     path: 'invite-list',
-    redirectTo: 'rooms',
-    pathMatch: 'full',
+    component: InviteListComponent,
   },
   {
     path: ':userId',

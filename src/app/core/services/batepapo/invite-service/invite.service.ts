@@ -1,116 +1,108 @@
 // src/app/core/services/batepapo/invite-service/invite.service.ts
-// Não esqueça os comentários explicativos e ferramentas de debug.
-//
-// Ajustes desta versão:
-// - remove dependência de FirestoreQueryService para discovery de usuários
-// - usa UserDiscoveryQueryService (fonte pública / public_profiles)
-// - mantém createInvite() com docId determinístico
-// - mantém compat com sendInviteToRoom()
-// - preserva Observable em toda a API
-//
-// Observação importante:
-// - este ajuste NÃO resolve o erro de índice composto em /invites
-// - o índice pedido pelo Firestore ainda precisa ser criado no console
-
+// Serviço de criação e manutenção sender-side de convites.
+// Respostas accepted/declined pertencem exclusivamente ao RoomInviteFlowService.
 import { Injectable } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
 import {
+  Timestamp,
+  addDoc,
   collection,
+  deleteDoc,
   doc,
   getDocs,
   query,
-  where,
-  runTransaction,
-  updateDoc,
-  addDoc,
-  Timestamp,
-  setDoc,
-  deleteDoc,
   serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
 } from 'firebase/firestore';
-import { Observable, from, throwError, forkJoin, defer, of } from 'rxjs';
-import { map, catchError, switchMap, tap } from 'rxjs/operators';
+import { Observable, defer, forkJoin, from, of, throwError } from 'rxjs';
+import { catchError, map, switchMap } from 'rxjs/operators';
 
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { InviteDocId } from 'src/app/core/utils/invite-utils';
+import { UserDiscoveryQueryService } from '../../data-handling/queries/user-discovery.query.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { DistanceCalculationService } from '../../geolocation/distance-calculation.service';
-import { InviteDocId } from 'src/app/core/utils/invite-utils';
-import { UserDiscoveryQueryService } from '../../data-handling/queries/user-discovery.query.service';
 
 @Injectable({ providedIn: 'root' })
 export class InviteService {
   constructor(
-    private db: Firestore,
-    private errorNotifier: ErrorNotificationService,
-    private globalError: GlobalErrorHandlerService,
-    private discoveryQuery: UserDiscoveryQueryService,
-    private distanceService: DistanceCalculationService
+    private readonly db: Firestore,
+    private readonly errorNotifier: ErrorNotificationService,
+    private readonly globalError: GlobalErrorHandlerService,
+    private readonly discoveryQuery: UserDiscoveryQueryService,
+    private readonly distanceService: DistanceCalculationService
   ) {}
 
-  private report(err: unknown, context: Record<string, unknown>): void {
+  private report(error: unknown, context: Record<string, unknown>): void {
     try {
-      const e = new Error('[InviteService] operação falhou');
-      (e as any).feature = 'invites';
-      (e as any).original = err;
-      (e as any).context = context;
-      (e as any).skipUserNotification = true;
-      this.globalError.handleError(e);
+      const wrapped = new Error('[InviteService] operação falhou');
+      (wrapped as any).feature = 'invites';
+      (wrapped as any).original = error;
+      (wrapped as any).context = context;
+      (wrapped as any).skipUserNotification = true;
+      this.globalError.handleError(wrapped);
     } catch {
       // noop
     }
   }
 
-  /** ✅ RECOMENDADO: cria/atualiza por docId determinístico (anti-duplicação) */
+  /** Cria/atualiza convite de sala com docId determinístico. */
   createInvite(inviteData: Invite): Observable<void> {
     return defer(() => {
       const type = inviteData.type ?? 'room';
 
       if (type !== 'room') {
-        return throwError(() =>
-          new Error('InviteService.createInvite: type ainda não suportado neste fluxo.')
+        return throwError(
+          () =>
+            new Error(
+              'InviteService.createInvite: type ainda não suportado neste fluxo.'
+            )
         );
       }
 
-      const targetId = (inviteData.targetId || inviteData.roomId || '').trim();
-      const receiverId = (inviteData.receiverId || '').trim();
+      const targetId = String(
+        inviteData.targetId || inviteData.roomId || ''
+      ).trim();
+      const receiverId = String(inviteData.receiverId || '').trim();
 
       if (!targetId || !receiverId) {
         return throwError(() => new Error('Dados inválidos para convite de sala.'));
       }
 
       const id = InviteDocId.room(targetId, receiverId);
-      const ref = doc(this.db as any, 'invites', id);
-
+      const inviteRef = doc(this.db as any, 'invites', id);
       const payload: Invite = {
         ...inviteData,
-
         type: 'room',
         targetId,
         targetName: inviteData.targetName ?? inviteData.roomName ?? '',
-
-        // legacy (compat)
         roomId: targetId,
         roomName: inviteData.roomName ?? inviteData.targetName ?? '',
-
         updatedAt: serverTimestamp() as any,
       };
 
-      return from(setDoc(ref as any, payload as any, { merge: false })).pipe(
-        map(() => void 0)
-      );
+      return from(
+        setDoc(inviteRef as any, payload as any, { merge: false })
+      ).pipe(map(() => void 0));
     }).pipe(
-      catchError((err) => {
-        this.report(err, { op: 'createInvite' });
+      catchError((error) => {
+        this.report(error, { op: 'createInvite' });
         this.errorNotifier.showError('Erro ao criar convite.');
-        return throwError(() => err);
+        return throwError(() => error);
       })
     );
   }
 
-  /** Mantive, mas para ROOM prefira createInvite() */
+  /** Compatibilidade genérica. Convites de sala são normalizados pelo owner. */
   sendInvite(invite: Invite): Observable<void> {
+    if ((invite.type ?? 'room') === 'room') {
+      return this.createInvite(invite);
+    }
+
     const invitesCollection = collection(this.db, 'invites');
 
     return from(addDoc(invitesCollection, invite)).pipe(
@@ -123,16 +115,6 @@ export class InviteService {
     );
   }
 
-  /**
-   * Envia convites para usuários próximos com base em discovery público.
-   *
-   * SUPRESSÃO EXPLÍCITA:
-   * - removido FirestoreQueryService.searchUsers(...)
-   *
-   * Motivo:
-   * - este fluxo deve usar UserDiscoveryQueryService
-   * - assim a busca respeita a separação público/privado do projeto
-   */
   sendInvitesToNearbyUsers(
     roomId: string,
     roomName: string,
@@ -144,92 +126,113 @@ export class InviteService {
       return throwError(() => new Error('Dados do convidante inválidos.'));
     }
 
-    return this.discoveryQuery.searchUsers([
-      where('latitude', '>', 0),
-      where('longitude', '>', 0),
-    ]).pipe(
-      map((users) =>
-        users.filter((user) => {
-          if (!user?.uid || !user.latitude || !user.longitude) {
-            return false;
-          }
+    return this.discoveryQuery
+      .searchUsers([
+        where('latitude', '>', 0),
+        where('longitude', '>', 0),
+      ])
+      .pipe(
+        map((users) =>
+          users.filter((user) => {
+            if (!user?.uid || !user.latitude || !user.longitude) {
+              return false;
+            }
 
-          const distance = this.distanceService.calculateDistanceInKm(
-            inviter.latitude!,
-            inviter.longitude!,
-            user.latitude!,
-            user.longitude!,
-            maxDistanceKm
+            const distance = this.distanceService.calculateDistanceInKm(
+              inviter.latitude!,
+              inviter.longitude!,
+              user.latitude!,
+              user.longitude!,
+              maxDistanceKm
+            );
+
+            return user.uid !== inviter.uid && distance !== null;
+          })
+        ),
+        switchMap((nearbyUsers) => {
+          if (!nearbyUsers.length) return of(void 0);
+
+          const sentAt = Timestamp.fromDate(new Date());
+          const expiresAt = Timestamp.fromDate(
+            new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
           );
 
-          return user.uid !== inviter.uid && distance !== null;
+          return forkJoin(
+            nearbyUsers.map((user) =>
+              this.createInvite({
+                type: 'room',
+                targetId: roomId,
+                targetName: roomName,
+                roomId,
+                roomName,
+                receiverId: user.uid,
+                senderId: inviter.uid,
+                status: 'pending',
+                sentAt,
+                expiresAt,
+              })
+            )
+          ).pipe(map(() => void 0));
+        }),
+        catchError((error) => {
+          this.report(error, { op: 'sendInvitesToNearbyUsers', roomId });
+          this.errorNotifier.showError('Erro ao enviar convites.');
+          return throwError(() => error);
         })
-      ),
-      switchMap((nearbyUsers) => {
-        if (!nearbyUsers.length) {
-          return of(void 0);
-        }
-
-        const now = Timestamp.fromDate(new Date());
-        const expires = Timestamp.fromDate(
-          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        );
-
-        const tasks = nearbyUsers.map((user) =>
-          this.createInvite({
-            type: 'room',
-            targetId: roomId,
-            targetName: roomName,
-
-            // legacy
-            roomId,
-            roomName,
-
-            receiverId: user.uid,
-            senderId: inviter.uid,
-            status: 'pending',
-            sentAt: now,
-            expiresAt: expires,
-          })
-        );
-
-        return forkJoin(tasks).pipe(map(() => void 0));
-      }),
-      tap(() => console.log('Convites enviados com sucesso.')),
-      catchError((error) => {
-        this.report(error, { op: 'sendInvitesToNearbyUsers', roomId });
-        this.errorNotifier.showError('Erro ao enviar convites.');
-        return throwError(() => error);
-      })
-    );
+      );
   }
 
-  /** ✅ responder convite (rules exigem respondedAt/updatedAt) */
+  /**
+   * Método público preservado para compatibilidade sender-side.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - `accepted` e `declined` não fazem mais updateDoc no navegador;
+   * - use RoomInviteFlowService, que chama a autoridade backend;
+   * - `expired` e `canceled` continuam sujeitos às Rules do sender.
+   */
   updateInviteStatus(
     inviteId: string,
     status: 'accepted' | 'declined' | 'expired' | 'canceled'
   ): Observable<void> {
-    const inviteRef = doc(this.db, `invites/${inviteId}`);
-    const patch: any = {
-      status,
-      updatedAt: serverTimestamp(),
-    };
+    const safeInviteId = String(inviteId ?? '').trim();
 
-    if (status === 'accepted' || status === 'declined') {
-      patch.respondedAt = serverTimestamp();
-    }
+    return defer(() => {
+      if (!safeInviteId) {
+        return throwError(() => new Error('inviteId inválido.'));
+      }
 
-    return from(updateDoc(inviteRef, patch)).pipe(
-      map(() => void 0),
+      if (status === 'accepted' || status === 'declined') {
+        return throwError(
+          () =>
+            new Error(
+              'Resposta a convite deve usar RoomInviteFlowService/Cloud Functions.'
+            )
+        );
+      }
+
+      return from(
+        updateDoc(doc(this.db, `invites/${safeInviteId}`), {
+          status,
+          updatedAt: serverTimestamp(),
+        })
+      ).pipe(map(() => void 0));
+    }).pipe(
       catchError((error) => {
-        this.report(error, { op: 'updateInviteStatus', inviteId, status });
-        this.errorNotifier.showError('Erro ao atualizar status do convite.');
+        this.report(error, {
+          op: 'updateInviteStatus',
+          inviteId: safeInviteId,
+          status,
+        });
+        this.errorNotifier.showError(
+          status === 'accepted' || status === 'declined'
+            ? 'Use o fluxo seguro para responder ao convite.'
+            : 'Erro ao atualizar status do convite.'
+        );
         return throwError(() => error);
       })
     );
   }
 
-  /** inbox simples (sem realtime). Se quiser realtime, faço no InviteSearchService. */
   getInvites(userId: string): Observable<Invite[]> {
     const invitesQuery = query(
       collection(this.db, 'invites'),
@@ -238,7 +241,10 @@ export class InviteService {
 
     return from(getDocs(invitesQuery)).pipe(
       map((snapshot) =>
-        snapshot.docs.map((d) => ({ id: d.id, ...(d.data() as Invite) }))
+        snapshot.docs.map((item) => ({
+          id: item.id,
+          ...(item.data() as Invite),
+        }))
       ),
       catchError((error) => {
         this.report(error, { op: 'getInvites', userId });
@@ -248,112 +254,98 @@ export class InviteService {
     );
   }
 
+  /**
+   * Método público preservado.
+   * IDs aleatórios foram suprimidos; o fluxo delega ao createInvite canônico.
+   */
   sendInviteWithTransaction(invite: Invite): Observable<void> {
-    return from(
-      runTransaction(this.db, async (transaction) => {
-        const inviteRef = doc(collection(this.db, 'invites'));
-        const existing = query(
-          collection(this.db, 'invites'),
-          where('receiverId', '==', invite.receiverId),
-          where('roomId', '==', invite.roomId)
-        );
-        const snap = await getDocs(existing);
-        if (!snap.empty) throw new Error('Convite já existente.');
-        transaction.set(inviteRef, invite);
-      })
-    ).pipe(
-      map(() => void 0),
-      catchError((error) => {
-        this.errorNotifier.showError('Erro ao enviar convite.');
-        return throwError(() => error);
-      })
-    );
+    return this.createInvite(invite);
   }
 
   updateExpiredInvites(): Observable<void> {
-    const now = Timestamp.fromDate(new Date());
-    const invitesCol = collection(this.db, 'invites');
-    const q = query(
-      invitesCol,
+    const pendingExpiredQuery = query(
+      collection(this.db, 'invites'),
       where('status', '==', 'pending'),
-      where('expiresAt', '<=', now)
+      where('expiresAt', '<=', Timestamp.fromDate(new Date()))
     );
 
-    return from(getDocs(q)).pipe(
+    return from(getDocs(pendingExpiredQuery)).pipe(
       switchMap((snapshot) =>
-        forkJoin(snapshot.docs.map((d) => updateDoc(d.ref, { status: 'expired' })))
+        forkJoin(
+          snapshot.docs.map((item) =>
+            updateDoc(item.ref, {
+              status: 'expired',
+              updatedAt: serverTimestamp(),
+            })
+          )
+        )
       ),
       map(() => void 0),
       catchError((error) => {
-        console.log('Erro ao atualizar convites expirados:', error);
+        this.report(error, { op: 'updateExpiredInvites' });
         return throwError(() => error);
       })
     );
   }
 
   deleteExpiredInvites(): Observable<void> {
-    const invitesCol = collection(this.db, 'invites');
-    const q = query(invitesCol, where('status', '==', 'expired'));
+    const expiredQuery = query(
+      collection(this.db, 'invites'),
+      where('status', '==', 'expired')
+    );
 
-    return from(getDocs(q)).pipe(
+    return from(getDocs(expiredQuery)).pipe(
       switchMap((snapshot) =>
-        forkJoin(snapshot.docs.map((d) => deleteDoc(d.ref)))
+        forkJoin(snapshot.docs.map((item) => deleteDoc(item.ref)))
       ),
       map(() => void 0),
       catchError((error) => {
-        console.log('Erro ao remover convites expirados:', error);
+        this.report(error, { op: 'deleteExpiredInvites' });
         return throwError(() => error);
       })
     );
   }
 
-  /**
-   * ✅ Mantém compat com o ChatListComponent (nomenclatura existente)
-   * Recomendado: gravar SEMPRE em /invites (coleção raiz) via createInvite() (docId determinístico).
-   */
+  /** API compatível com o ChatListComponent. */
   sendInviteToRoom(roomId: string, inviteData: Invite): Observable<void> {
     return defer(() => {
-      const rid = (roomId ?? '').trim();
-      if (!rid) {
+      const safeRoomId = String(roomId ?? '').trim();
+      const receiverId = String(inviteData.receiverId ?? '').trim();
+      const senderId = String(inviteData.senderId ?? '').trim();
+
+      if (!safeRoomId) {
         return throwError(() => new Error('roomId ausente para convite.'));
       }
 
-      const receiverId = (inviteData.receiverId ?? '').trim();
-      const senderId = (inviteData.senderId ?? '').trim();
-
       if (!receiverId || !senderId) {
-        return throwError(() =>
-          new Error('senderId/receiverId ausentes para convite.')
+        return throwError(
+          () => new Error('senderId/receiverId ausentes para convite.')
         );
       }
 
-      const payload: Invite = {
+      return this.createInvite({
         ...inviteData,
-
-        // v2 (preferencial)
         type: 'room',
-        targetId: (inviteData.targetId ?? inviteData.roomId ?? rid).trim(),
+        targetId: String(
+          inviteData.targetId ?? inviteData.roomId ?? safeRoomId
+        ).trim(),
         targetName: inviteData.targetName ?? inviteData.roomName ?? '',
-
-        // legacy (compat)
-        roomId: rid,
+        roomId: safeRoomId,
         roomName: inviteData.roomName ?? inviteData.targetName ?? '',
-
-        // defaults defensivos
         status: inviteData.status ?? 'pending',
         sentAt: inviteData.sentAt ?? Timestamp.fromDate(new Date()),
         expiresAt:
           inviteData.expiresAt ??
-          Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-      };
-
-      return this.createInvite(payload);
+          Timestamp.fromDate(
+            new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+          ),
+      });
     }).pipe(
-      catchError((err) => {
-        this.report(err, { op: 'sendInviteToRoom', roomId });
+      catchError((error) => {
+        this.report(error, { op: 'sendInviteToRoom', roomId });
         this.errorNotifier.showError('Erro ao enviar convite.');
-        return throwError(() => err);
+        return throwError(() => error);
       })
     );
   }
-} // Linha 359
+}

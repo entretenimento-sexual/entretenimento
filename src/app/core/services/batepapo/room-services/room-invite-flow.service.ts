@@ -1,295 +1,149 @@
 // src/app/core/services/batepapo/room-services/room-invite-flow.service.ts
-// Serviço específico para fluxo de convite em salas de bate-papo.
-//
-// Objetivos:
-// - Aceitar/recusar convites de sala (Invite.type === 'room').
-// - Validar integridade do convite (destinatário, status, target da sala).
-// - Garantir consistência transacional entre:
-//   (1) invite
-//   (2) rooms/{roomId}
-//   (3) rooms/{roomId}/participants/{uid}
-// - Sincronizar users/{uid}.roomIds após aceite.
-//
-// Regras importantes:
-// - O ator autenticado vem SEMPRE de AuthSessionService.
-// - O contrato do inviteId para sala é canônico:
-//   room:<roomId>:to:<receiverUid>
-// - Esse contrato precisa bater com rooms.rules.
-//
-// Observação:
-// - O update em userRoomIds fica fora da transação principal.
-// - Portanto, ainda é um pós-passo best-effort.
-// - Se no futuro você quiser atomicidade total, o ideal é migrar o write de roomIds
-//   para uma camada/repository que participe da mesma transação.
-
+// Respostas a convites de sala executadas exclusivamente por Cloud Functions.
 import { Injectable } from '@angular/core';
-import { Firestore } from '@angular/fire/firestore';
-import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, throwError } from 'rxjs';
-import { catchError, map, switchMap, take } from 'rxjs/operators';
+import { catchError, map } from 'rxjs/operators';
 
-import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { UserRoomIdsService } from './user-room-ids.service';
+
+interface RoomInviteResponseRequest {
+  inviteId: string;
+}
+
+interface RoomInviteResponseResult {
+  inviteId: string;
+  roomId: string;
+  status: 'accepted' | 'declined';
+  deduplicated: boolean;
+}
 
 @Injectable({ providedIn: 'root' })
 export class RoomInviteFlowService {
+  private readonly acceptRoomInviteCallable: ReturnType<
+    typeof httpsCallable<RoomInviteResponseRequest, RoomInviteResponseResult>
+  >;
+
+  private readonly declineRoomInviteCallable: ReturnType<
+    typeof httpsCallable<RoomInviteResponseRequest, RoomInviteResponseResult>
+  >;
+
   constructor(
-    private readonly db: Firestore,
-    private readonly authSession: AuthSessionService,
-    private readonly userRoomIds: UserRoomIdsService,
-    private readonly notify: ErrorNotificationService,
+    private readonly functions: Functions,
     private readonly globalError: GlobalErrorHandlerService
-  ) { }
+  ) {
+    this.acceptRoomInviteCallable = httpsCallable<
+      RoomInviteResponseRequest,
+      RoomInviteResponseResult
+    >(this.functions, 'acceptRoomInvite');
 
-  // ---------------------------------------------------------------------------
-  // Utils
-  // ---------------------------------------------------------------------------
-
-  private norm(v: string | null | undefined): string {
-    return (v ?? '').trim();
+    this.declineRoomInviteCallable = httpsCallable<
+      RoomInviteResponseRequest,
+      RoomInviteResponseResult
+    >(this.functions, 'declineRoomInvite');
   }
 
   /**
-   * ID canônico de convite de sala.
-   * Este formato precisa bater com rooms.rules (joinInviteId()).
+   * Método público preservado.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - a transação Firestore executada no navegador foi removida;
+   * - a escrita em rooms, members, users e invites agora é atômica no backend;
+   * - a UI envia somente inviteId e nunca UID, roomId ou membership.
    */
-  private buildCanonicalInviteId(roomId: string, receiverUid: string): string {
-    return `room:${roomId}:to:${receiverUid}`;
-  }
-
-  private report(err: unknown, context: Record<string, unknown>): void {
-    try {
-      const e = err instanceof Error ? err : new Error('[RoomInviteFlow] operação falhou');
-      (e as any).feature = 'room-invites';
-      (e as any).original = err;
-      (e as any).context = context;
-      (e as any).skipUserNotification = true;
-      this.globalError.handleError(e);
-    } catch {
-      // noop
-    }
-  }
-
-  private fail<T>(
-    userMessage: string,
-    err: unknown,
-    context: Record<string, unknown>
-  ): Observable<T> {
-    this.notify.showError(userMessage);
-    this.report(err, context);
-    return throwError(() => err);
-  }
-
-  /**
-   * Resolve o ator autenticado a partir da sessão.
-   * Evita confiar em UID vindo da UI para ações sensíveis.
-   */
-  private withActorUid$<T>(operation: (actorUid: string) => Observable<T>): Observable<T> {
-    return this.authSession.uid$.pipe(
-      take(1),
-      switchMap((uid) => {
-        const actorUid = this.norm(uid);
-
-        if (!actorUid) {
-          return this.fail<T>(
-            'Sessão inválida para processar o convite.',
-            new Error('No authenticated actor'),
-            { op: 'withActorUid$' }
-          );
-        }
-
-        return operation(actorUid);
-      })
+  acceptRoomInvite$(inviteId: string): Observable<void> {
+    return this.invokeResponseCallable$(
+      inviteId,
+      'accepted',
+      this.acceptRoomInviteCallable,
+      'acceptRoomInvite$'
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Accept
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Aceita um convite de sala.
-   *
-   * Contrato importante:
-   * - inviteId deve ser o docId canônico: room:<roomId>:to:<uid>
-   * - se o doc existir mas o id não respeitar o padrão esperado, o fluxo falha.
-   */
-  acceptRoomInvite$(inviteId: string): Observable<void> {
-    const iid = this.norm(inviteId);
-
-    if (!iid) {
-      return this.fail<void>(
-        'Convite inválido.',
-        new Error('inviteId vazio'),
-        { op: 'acceptRoomInvite$', inviteId }
-      );
-    }
-
-    return this.withActorUid$((actorUid) => this.acceptRoomInviteForUid$(iid, actorUid));
+  /** Método público preservado, agora protegido pela callable. */
+  declineRoomInvite$(inviteId: string): Observable<void> {
+    return this.invokeResponseCallable$(
+      inviteId,
+      'declined',
+      this.declineRoomInviteCallable,
+      'declineRoomInvite$'
+    );
   }
 
-  private acceptRoomInviteForUid$(inviteId: string, actorUid: string): Observable<void> {
+  private invokeResponseCallable$(
+    inviteId: string,
+    expectedStatus: 'accepted' | 'declined',
+    callable: ReturnType<
+      typeof httpsCallable<RoomInviteResponseRequest, RoomInviteResponseResult>
+    >,
+    operation: string
+  ): Observable<void> {
+    const rawInviteId = String(inviteId ?? '').trim();
+
     return defer(() => {
-      const invRef = doc(this.db as any, 'invites', inviteId);
+      const safeInviteId = this.requireInviteId(rawInviteId);
 
-      return from(
-        runTransaction(this.db as any, async (tx) => {
-          const invSnap = await tx.get(invRef);
-          if (!invSnap.exists()) throw new Error('Convite não encontrado.');
-
-          const inv = invSnap.data() as Invite;
-
-          if (this.norm(inv.receiverId) !== actorUid) {
-            throw new Error('Você não é o destinatário deste convite.');
-          }
-
-          if ((inv.type ?? 'room') !== 'room') {
-            throw new Error('Convite não é do tipo ROOM.');
-          }
-
-          if (inv.status !== 'pending') {
-            throw new Error('Convite não está pendente.');
-          }
-
-          const roomId = this.norm(inv.targetId || inv.roomId);
-          if (!roomId) {
-            throw new Error('Convite sem targetId/roomId.');
-          }
-
-          const expectedInviteId = this.buildCanonicalInviteId(roomId, actorUid);
-          if (inviteId !== expectedInviteId) {
-            throw new Error(`InviteId fora do padrão canônico esperado: ${expectedInviteId}`);
-          }
-
-          const roomRef = doc(this.db as any, 'rooms', roomId);
-          const participantRef = doc(this.db as any, 'rooms', roomId, 'participants', actorUid);
-
-          const roomSnap = await tx.get(roomRef);
-          if (!roomSnap.exists()) throw new Error('Sala não encontrada.');
-
-          const roomData: any = roomSnap.data() ?? {};
-          const currentParticipants: string[] = Array.isArray(roomData.participants)
-            ? roomData.participants
-            : [];
-
-          const alreadyInRoom = currentParticipants.includes(actorUid);
-
-          if (!alreadyInRoom) {
-            tx.update(roomRef as any, {
-              participants: [...currentParticipants, actorUid],
-              lastActivity: serverTimestamp(),
-            });
-          }
-
-          tx.set(
-            participantRef as any,
-            {
-              uid: actorUid,
-              joinedAt: Date.now(),
-              removedAt: null,
-              removed: false,
-            },
-            { merge: true } as any
-          );
-
-          tx.update(invRef as any, {
-            status: 'accepted',
-            respondedAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-
-          return roomId;
+      return from(callable({ inviteId: safeInviteId })).pipe(
+        map((result) => {
+          this.assertValidResponse(result.data, safeInviteId, expectedStatus);
+          return void 0;
         })
       );
     }).pipe(
-      switchMap((roomId: string) =>
-        this.userRoomIds.addRoomId$(actorUid, roomId).pipe(
-          map(() => void 0)
-        )
-      ),
-      catchError((err) =>
-        this.fail<void>(
-          'Erro ao aceitar convite.',
-          err,
-          { op: 'acceptRoomInviteForUid$', inviteId, actorUid }
-        )
+      catchError((error) =>
+        this.reportAndRethrow(error, operation, rawInviteId)
       )
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Decline
-  // ---------------------------------------------------------------------------
+  private requireInviteId(inviteId: string): string {
+    const safeInviteId = String(inviteId ?? '').trim();
 
-  /**
-   * Recusa um convite de sala.
-   *
-   * Também valida o contrato canônico do inviteId para manter consistência
-   * arquitetural com rooms.rules, mesmo que aqui não haja update no room.
-   */
-  declineRoomInvite$(inviteId: string): Observable<void> {
-    const iid = this.norm(inviteId);
-
-    if (!iid) {
-      return this.fail<void>(
-        'Convite inválido.',
-        new Error('inviteId vazio'),
-        { op: 'declineRoomInvite$', inviteId }
-      );
+    if (!/^room:[^:]{1,160}:to:[^:]{1,160}$/.test(safeInviteId)) {
+      throw new Error('Convite de sala inválido.');
     }
 
-    return this.withActorUid$((actorUid) =>
-      defer(() => {
-        const invRef = doc(this.db as any, 'invites', iid);
-
-        return from(
-          runTransaction(this.db as any, async (tx) => {
-            const invSnap = await tx.get(invRef);
-            if (!invSnap.exists()) throw new Error('Convite não encontrado.');
-
-            const inv = invSnap.data() as Invite;
-
-            if (this.norm(inv.receiverId) !== actorUid) {
-              throw new Error('Você não é o destinatário deste convite.');
-            }
-
-            if ((inv.type ?? 'room') !== 'room') {
-              throw new Error('Convite não é do tipo ROOM.');
-            }
-
-            if (inv.status !== 'pending') {
-              throw new Error('Convite não está pendente.');
-            }
-
-            const roomId = this.norm(inv.targetId || inv.roomId);
-            if (!roomId) {
-              throw new Error('Convite sem targetId/roomId.');
-            }
-
-            const expectedInviteId = this.buildCanonicalInviteId(roomId, actorUid);
-            if (iid !== expectedInviteId) {
-              throw new Error(`InviteId fora do padrão canônico esperado: ${expectedInviteId}`);
-            }
-
-            tx.update(invRef as any, {
-              status: 'declined',
-              respondedAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-          })
-        ).pipe(map(() => void 0));
-      }).pipe(
-        catchError((err) =>
-          this.fail<void>(
-            'Erro ao recusar convite.',
-            err,
-            { op: 'declineRoomInvite$', inviteId: iid, actorUid }
-          )
-        )
-      )
-    );
+    return safeInviteId;
   }
-} // Linha 295, fim do room-invite-flow.service.ts
+
+  private assertValidResponse(
+    result: RoomInviteResponseResult | null | undefined,
+    inviteId: string,
+    expectedStatus: 'accepted' | 'declined'
+  ): void {
+    if (
+      !result ||
+      String(result.inviteId ?? '').trim() !== inviteId ||
+      String(result.roomId ?? '').trim().length === 0 ||
+      result.status !== expectedStatus
+    ) {
+      throw new Error('Resposta inválida ao processar convite de sala.');
+    }
+  }
+
+  private reportAndRethrow(
+    error: unknown,
+    operation: string,
+    inviteId: string
+  ): Observable<never> {
+    try {
+      const wrapped =
+        error instanceof Error
+          ? error
+          : new Error('[RoomInviteFlowService] operação falhou');
+
+      (wrapped as any).silent = true;
+      (wrapped as any).skipUserNotification = true;
+      (wrapped as any).original = error;
+      (wrapped as any).context = operation;
+      (wrapped as any).feature = 'room-invites';
+      (wrapped as any).extra = { inviteId };
+
+      this.globalError.handleError(wrapped);
+    } catch {
+      // noop: o Observable ainda propaga a falha ao effect owner do feedback.
+    }
+
+    return throwError(() => error);
+  }
+}

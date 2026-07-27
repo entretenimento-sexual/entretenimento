@@ -23,7 +23,10 @@
   } @else {
     @if (error$ | async; as error) {
       @if (error) {
-        <section class="invite-list-page__state invite-list-page__state--error" role="alert">
+        <section
+          class="invite-list-page__state invite-list-page__state--error"
+          role="alert"
+        >
           <p>{{ error }}</p>
         </section>
       }
@@ -42,16 +45,16 @@
               <mat-card class="invite-card">
                 <mat-card-header class="invite-card__header">
                   <mat-card-title>{{ getInviteTitle(invite) }}</mat-card-title>
-                  <mat-card-subtitle>Por {{ getInviteSubtitle(invite) }}</mat-card-subtitle>
+                  <mat-card-subtitle>{{ getInviteSubtitle(invite) }}</mat-card-subtitle>
                 </mat-card-header>
 
                 <mat-card-content class="invite-card__body">
                   <div class="invite-card__details" aria-label="Datas do convite">
-                    @if (formatInviteDate(invite.sentAt); as sentAtLabel) {
+                    @if (formatInviteDate(invite.sentAtMs); as sentAtLabel) {
                       <span>Enviado {{ sentAtLabel }}</span>
                     }
 
-                    @if (formatInviteDate(invite.expiresAt); as expiresAtLabel) {
+                    @if (formatInviteDate(invite.expiresAtMs); as expiresAtLabel) {
                       <span>Expira {{ expiresAtLabel }}</span>
                     }
                   </div>
@@ -63,8 +66,8 @@
                     color="primary"
                     type="button"
                     (click)="respondToInvite(invite, 'accepted')"
-                    [disabled]="!invite.id || !userId"
-                    [attr.aria-label]="'Aceitar convite de ' + getInviteSubtitle(invite)"
+                    [disabled]="!invite.id || !userId || invite.receiverId !== userId"
+                    [attr.aria-label]="'Aceitar convite para ' + getInviteTitle(invite)"
                   >
                     Aceitar
                   </button>
@@ -74,8 +77,8 @@
                     color="warn"
                     type="button"
                     (click)="respondToInvite(invite, 'declined')"
-                    [disabled]="!invite.id || !userId"
-                    [attr.aria-label]="'Recusar convite de ' + getInviteSubtitle(invite)"
+                    [disabled]="!invite.id || !userId || invite.receiverId !== userId"
+                    [attr.aria-label]="'Recusar convite para ' + getInviteTitle(invite)"
                   >
                     Recusar
                   </button>
