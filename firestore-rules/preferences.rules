@@ -9,10 +9,10 @@ match /preferences/{userId} {
 }
 
 match /users/{userId}/preferences/{docId} {
-  function validDiscoveryMode(mode) {
+  function validDiscoveryMode(mode, subscriptionRank) {
     return mode == "standard"
-      || (mode == "discreet" && hasMinimumActiveSubscriptionRole(userId, "premium"))
-      || (mode == "priority" && hasMinimumActiveSubscriptionRole(userId, "vip"));
+      || (mode == "discreet" && subscriptionRank >= 2)
+      || (mode == "priority" && subscriptionRank >= 3);
   }
 
   function validMatchMode(mode) {
@@ -40,13 +40,12 @@ match /users/{userId}/preferences/{docId} {
         || data.matchingModes.bodyPreferences == "require");
   }
 
-  function advancedModesAllowedOnCreate(data) {
-    return !advancedRequireRequested(data)
-      || hasMinimumActiveSubscriptionRole(userId, "premium");
+  function advancedModesAllowedOnCreate(data, subscriptionRank) {
+    return !advancedRequireRequested(data) || subscriptionRank >= 2;
   }
 
-  function advancedModesAllowedOnUpdate(data) {
-    return hasMinimumActiveSubscriptionRole(userId, "premium")
+  function advancedModesAllowedOnUpdate(data, subscriptionRank) {
+    return subscriptionRank >= 2
       || !advancedRequireRequested(data)
       || (hasMatchingModes(resource.data)
         && data.matchingModes.sexualPractices == resource.data.matchingModes.sexualPractices
@@ -64,104 +63,111 @@ match /users/{userId}/preferences/{docId} {
         && value.min <= value.max);
   }
 
-  function validHardRules(data) {
-    return data.hardRules.keys().hasAll([
+  function validHardRules(rules) {
+    return rules.keys().hasAll([
         "acceptedGenders", "acceptedRelationshipIntents", "ageRange",
         "maxDistanceKm", "acceptsCouples", "acceptsSingles",
         "acceptsTransProfiles", "locationRequired"
       ])
-      && data.hardRules.acceptedGenders is list
-      && data.hardRules.acceptedGenders.size() <= 20
-      && data.hardRules.acceptedRelationshipIntents is list
-      && data.hardRules.acceptedRelationshipIntents.size() <= 10
-      && validAgeRange(data.hardRules.ageRange)
-      && (data.hardRules.maxDistanceKm == null
-        || (data.hardRules.maxDistanceKm is number
-          && data.hardRules.maxDistanceKm >= 1
-          && data.hardRules.maxDistanceKm <= 500))
-      && data.hardRules.acceptsCouples is bool
-      && data.hardRules.acceptsSingles is bool
-      && (data.hardRules.acceptsTransProfiles == null
-        || data.hardRules.acceptsTransProfiles is bool)
-      && data.hardRules.locationRequired is bool;
+      && rules.acceptedGenders is list
+      && rules.acceptedGenders.size() <= 20
+      && rules.acceptedRelationshipIntents is list
+      && rules.acceptedRelationshipIntents.size() <= 10
+      && validAgeRange(rules.ageRange)
+      && (rules.maxDistanceKm == null
+        || (rules.maxDistanceKm is number
+          && rules.maxDistanceKm >= 1
+          && rules.maxDistanceKm <= 500))
+      && rules.acceptsCouples is bool
+      && rules.acceptsSingles is bool
+      && (rules.acceptsTransProfiles == null
+        || rules.acceptsTransProfiles is bool)
+      && rules.locationRequired is bool;
   }
 
-  function validSelfTraits(data) {
-    return data.keys().hasAny(["selfTraits"])
-      && data.selfTraits is map
-      && data.selfTraits.keys().hasOnly(["bodyTraits"])
-      && data.selfTraits.bodyTraits is list
-      && data.selfTraits.bodyTraits.size() <= 30;
+  function validSelfTraits(selfTraits) {
+    return selfTraits is map
+      && selfTraits.keys().hasOnly(["bodyTraits"])
+      && selfTraits.bodyTraits is list
+      && selfTraits.bodyTraits.size() <= 30;
   }
 
-  function validProfileIdentity() {
-    return request.resource.data.keys().hasAll([
+  function validProfileIdentity(subscriptionRank) {
+    let data = request.resource.data;
+    return data.keys().hasAll([
         "userId", "relationshipIntents", "hardRules", "softRules",
         "selfTraits", "visibility", "updatedAt"
       ])
-      && request.resource.data.userId == userId
-      && request.resource.data.relationshipIntents is list
-      && request.resource.data.relationshipIntents.size() <= 10
-      && request.resource.data.hardRules is map
-      && validHardRules(request.resource.data)
-      && request.resource.data.softRules is map
-      && request.resource.data.softRules.keys().hasAll(["bodyPreferences", "sexualPractices"])
-      && request.resource.data.softRules.bodyPreferences is list
-      && request.resource.data.softRules.bodyPreferences.size() <= 30
-      && request.resource.data.softRules.sexualPractices is list
-      && request.resource.data.softRules.sexualPractices.size() <= 40
-      && validSelfTraits(request.resource.data)
-      && validMatchingModesShape(request.resource.data)
-      && request.resource.data.visibility is map
-      && request.resource.data.visibility.keys().hasAll(["discoveryMode"])
-      && request.resource.data.visibility.discoveryMode is string
-      && validDiscoveryMode(request.resource.data.visibility.discoveryMode)
-      && request.resource.data.updatedAt is number;
+      && data.userId == userId
+      && data.relationshipIntents is list
+      && data.relationshipIntents.size() <= 10
+      && data.hardRules is map
+      && validHardRules(data.hardRules)
+      && data.softRules is map
+      && data.softRules.keys().hasAll(["bodyPreferences", "sexualPractices"])
+      && data.softRules.bodyPreferences is list
+      && data.softRules.bodyPreferences.size() <= 30
+      && data.softRules.sexualPractices is list
+      && data.softRules.sexualPractices.size() <= 40
+      && validSelfTraits(data.selfTraits)
+      && validMatchingModesShape(data)
+      && data.visibility is map
+      && data.visibility.keys().hasAll(["discoveryMode"])
+      && data.visibility.discoveryMode is string
+      && validDiscoveryMode(data.visibility.discoveryMode, subscriptionRank)
+      && data.updatedAt is number;
   }
 
-  function validProfileCreate() {
-    return validProfileIdentity()
-      && advancedModesAllowedOnCreate(request.resource.data)
-      && (hasMinimumActiveSubscriptionRole(userId, "basic")
-        || (request.resource.data.softRules.bodyPreferences.size() == 0
-          && request.resource.data.softRules.sexualPractices.size() == 0));
+  function validProfileCreate(subscriptionRank) {
+    let data = request.resource.data;
+    return validProfileIdentity(subscriptionRank)
+      && advancedModesAllowedOnCreate(data, subscriptionRank)
+      && (subscriptionRank >= 1
+        || (data.softRules.bodyPreferences.size() == 0
+          && data.softRules.sexualPractices.size() == 0));
   }
 
-  function validProfileUpdate() {
-    return validProfileIdentity()
-      && advancedModesAllowedOnUpdate(request.resource.data)
-      && (hasMinimumActiveSubscriptionRole(userId, "basic")
-        || (request.resource.data.softRules.bodyPreferences == resource.data.softRules.bodyPreferences
-          && request.resource.data.softRules.sexualPractices == resource.data.softRules.sexualPractices));
+  function validProfileUpdate(subscriptionRank) {
+    let data = request.resource.data;
+    return validProfileIdentity(subscriptionRank)
+      && advancedModesAllowedOnUpdate(data, subscriptionRank)
+      && (subscriptionRank >= 1
+        || (data.softRules.bodyPreferences == resource.data.softRules.bodyPreferences
+          && data.softRules.sexualPractices == resource.data.softRules.sexualPractices));
   }
 
-  function validIntentPayload() {
-    return request.resource.data.keys().hasAll([
+  function validIntentPayload(subscriptionRank) {
+    let data = request.resource.data;
+    return data.keys().hasAll([
         "userId", "mode", "availableNow", "availableToday",
         "cityOverride", "expiresAt", "tags", "updatedAt"
       ])
-      && request.resource.data.userId == userId
-      && request.resource.data.mode is string
-      && request.resource.data.availableNow is bool
-      && request.resource.data.availableToday is bool
-      && request.resource.data.tags is list
-      && request.resource.data.updatedAt is number
-      && (hasMinimumActiveSubscriptionRole(userId, "basic")
-        || (request.resource.data.cityOverride == null
-          && request.resource.data.expiresAt == null
-          && request.resource.data.tags.size() == 0));
+      && data.userId == userId
+      && data.mode is string
+      && data.availableNow is bool
+      && data.availableToday is bool
+      && data.tags is list
+      && data.updatedAt is number
+      && (subscriptionRank >= 1
+        || (data.cityOverride == null
+          && data.expiresAt == null
+          && data.tags.size() == 0));
   }
 
   function validCreateForDocument() {
-    return docId == "profile" ? validProfileCreate()
-      : docId == "intent" ? validIntentPayload()
-      : true;
+    return docId == "profile"
+      ? validProfileCreate(activeSubscriptionRank(userId))
+      : docId == "intent"
+        ? validIntentPayload(activeSubscriptionRank(userId))
+        : true;
   }
 
   function validUpdateForDocument() {
-    return docId == "profile" ? validProfileUpdate()
-      : docId == "intent" ? validIntentPayload()
-      : true;
+    return docId == "profile"
+      ? validProfileUpdate(activeSubscriptionRank(userId))
+      : docId == "intent"
+        ? validIntentPayload(activeSubscriptionRank(userId))
+        : true;
   }
 
   allow get, list: if isSelf(userId);
