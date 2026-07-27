@@ -20,8 +20,8 @@
       </button>
     </div>
   } @else if (profiles().length === 0) {
-    <div class="public-profiles__empty" role="status" aria-live="polite">
-      <p>{{ emptyMessage() }}</p>
+    <div class="public-profiles__empty">
+      <p role="status" aria-live="polite">{{ emptyMessage() }}</p>
 
       <div class="public-profiles__empty-actions">
         @if (hasMore()) {
