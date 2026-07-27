@@ -177,4 +177,21 @@ describe('Firestore Rules / atomic discovery preference projection', () => {
       )
     );
   });
+
+  it('não permite misturar a projeção privada com campo financeiro ou de plano', async () => {
+    const db = authenticatedDb('owner');
+
+    await assertFails(
+      setDoc(
+        doc(db, 'users', 'owner'),
+        {
+          ...discoveryProjection(),
+          role: 'vip',
+          tier: 'vip',
+          isSubscriber: true,
+        },
+        { merge: true }
+      )
+    );
+  });
 });
