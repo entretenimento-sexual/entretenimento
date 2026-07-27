@@ -1,4 +1,5 @@
 // src/app/messaging/direct-chat/application/direct-chat.facade.spec.ts
+import { DestroyRef } from '@angular/core';
 import { BehaviorSubject, Observable, of, Subject } from 'rxjs';
 import { describe, expect, it } from 'vitest';
 
@@ -22,7 +23,7 @@ function last<T>(values: T[]): T | undefined {
 }
 
 describe('DirectChatFacade session isolation', () => {
-  it('limpa a lista e não reaproveita seleção entre UIDs', () => {
+  it('limpa dados e seleção em troca de UID e novo login', () => {
     let currentUid: string | null = 'user-a';
     const uidSubject = new BehaviorSubject<string | null>(currentUid);
 
@@ -42,9 +43,6 @@ describe('DirectChatFacade session isolation', () => {
 
     const authSession = {
       uid$: uidSubject.asObservable(),
-      get currentAuthUser() {
-        return currentUid ? { uid: currentUid } : null;
-      },
     } as unknown as AuthSessionService;
 
     const firestoreUserQuery = {
@@ -55,11 +53,17 @@ describe('DirectChatFacade session isolation', () => {
       handleError: () => undefined,
     } as unknown as GlobalErrorHandlerService;
 
+    const destroyRef = {
+      destroyed: false,
+      onDestroy: () => () => undefined,
+    } as unknown as DestroyRef;
+
     const facade = new DirectChatFacade(
       directChatService,
       authSession,
       firestoreUserQuery,
-      globalErrorHandler
+      globalErrorHandler,
+      destroyRef
     );
 
     const chatEmissions: IChat[][] = [];
@@ -98,6 +102,19 @@ describe('DirectChatFacade session isolation', () => {
 
     facade.selectChat('shared-chat');
     expect(last(selectedEmissions)).toBe('shared-chat');
+
+    currentUid = null;
+    uidSubject.next(null);
+    expect(last(chatEmissions)).toEqual([]);
+    expect(last(selectedEmissions)).toBeNull();
+
+    currentUid = 'user-b';
+    uidSubject.next(currentUid);
+    userBChats.next([
+      buildChat('shared-chat', ['user-b', 'peer-b']),
+    ]);
+
+    expect(last(selectedEmissions)).toBeNull();
 
     chatsSubscription.unsubscribe();
     selectedSubscription.unsubscribe();

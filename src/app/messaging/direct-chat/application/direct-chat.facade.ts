@@ -9,11 +9,12 @@
 // - derivar item selecionado / estado da lista
 //
 // Isolamento de sessão:
-// - toda coleção é carregada em um escopo que transporta o UID proprietário;
-// - cada troca de UID começa com lista vazia antes do novo listener;
-// - a seleção registra o UID proprietário e não reaparece em outra sessão.
+// - toda coleção transporta o UID e a versão da sessão proprietária;
+// - cada troca de sessão começa com lista vazia antes do novo listener;
+// - a seleção não reaparece após troca de UID nem após novo login no mesmo UID.
 // ============================================================================
-import { Injectable } from '@angular/core';
+import { DestroyRef, Injectable } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { BehaviorSubject, combineLatest, Observable, of } from 'rxjs';
 import {
   catchError,
@@ -37,53 +38,68 @@ import { AuthSessionService } from '@core/services/autentication/auth/auth-sessi
 import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 
-interface DirectChatSessionScope {
+interface DirectChatSessionIdentity {
   uid: string | null;
+  epoch: number;
+}
+
+interface DirectChatSessionScope extends DirectChatSessionIdentity {
   chats: IChat[];
 }
 
 interface DirectChatSelectionRequest {
   ownerUid: string | null;
+  sessionEpoch: number;
   chatId: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
 export class DirectChatFacade {
+  private readonly sessionIdentitySubject =
+    new BehaviorSubject<DirectChatSessionIdentity>({
+      uid: null,
+      epoch: 0,
+    });
+
   private readonly selectedChatRequestSubject =
     new BehaviorSubject<DirectChatSelectionRequest>({
       ownerUid: null,
+      sessionEpoch: 0,
       chatId: null,
     });
 
-  private readonly sessionUid$: Observable<string | null> =
-    this.authSession.uid$.pipe(
-      map((uid) => String(uid ?? '').trim() || null),
-      distinctUntilChanged(),
+  private readonly sessionIdentity$ =
+    this.sessionIdentitySubject.asObservable().pipe(
+      distinctUntilChanged(
+        (previous, current) =>
+          previous.uid === current.uid && previous.epoch === current.epoch
+      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
   /**
    * Escopo canônico da lista.
    *
-   * `startWith([])` é intencional: na troca A -> B a UI limpa imediatamente a
-   * projeção da conta A antes de qualquer snapshot inicial da conta B.
+   * `startWith([])` é intencional: na troca de sessão a UI limpa imediatamente
+   * a projeção anterior antes de qualquer snapshot da nova identidade.
    */
   private readonly sessionChats$: Observable<DirectChatSessionScope> =
-    this.sessionUid$.pipe(
-      switchMap((uid) => {
+    this.sessionIdentity$.pipe(
+      switchMap(({ uid, epoch }) => {
         if (!uid) {
-          return of({ uid: null, chats: [] } as DirectChatSessionScope);
+          return of({ uid: null, epoch, chats: [] });
         }
 
         return this.directChatService.getMyDirectChats$().pipe(
           map((chats) => ({
             uid,
+            epoch,
             chats: Array.isArray(chats) ? chats : [],
-          } as DirectChatSessionScope)),
-          startWith({ uid, chats: [] } as DirectChatSessionScope),
+          })),
+          startWith({ uid, epoch, chats: [] }),
           catchError((error) => {
             this.reportSilent(error, 'DirectChatFacade.sessionChats$');
-            return of({ uid, chats: [] } as DirectChatSessionScope);
+            return of({ uid, epoch, chats: [] });
           })
         );
       }),
@@ -92,11 +108,15 @@ export class DirectChatFacade {
 
   readonly requestedSelectedChatId$ = combineLatest([
     this.selectedChatRequestSubject.asObservable(),
-    this.sessionUid$,
+    this.sessionIdentity$,
   ]).pipe(
-    map(([request, sessionUid]) => {
-      if (!request.chatId || !sessionUid) return null;
-      return request.ownerUid === sessionUid ? request.chatId : null;
+    map(([request, session]) => {
+      if (!request.chatId || !session.uid) return null;
+
+      return request.ownerUid === session.uid &&
+        request.sessionEpoch === session.epoch
+        ? request.chatId
+        : null;
     }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -205,16 +225,36 @@ export class DirectChatFacade {
     private readonly directChatService: DirectChatService,
     private readonly authSession: AuthSessionService,
     private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService
-  ) {}
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    destroyRef: DestroyRef
+  ) {
+    this.authSession.uid$
+      .pipe(
+        map((uid) => String(uid ?? '').trim() || null),
+        distinctUntilChanged(),
+        takeUntilDestroyed(destroyRef)
+      )
+      .subscribe((uid) => {
+        const epoch = this.sessionIdentitySubject.value.epoch + 1;
+        const identity = { uid, epoch };
+
+        this.sessionIdentitySubject.next(identity);
+        this.selectedChatRequestSubject.next({
+          ownerUid: uid,
+          sessionEpoch: epoch,
+          chatId: null,
+        });
+      });
+  }
 
   selectChat(chatId: string | null | undefined): void {
     const safeChatId = String(chatId ?? '').trim() || null;
-    const ownerUid = safeChatId ? this.getCurrentSessionUid() : null;
+    const session = this.sessionIdentitySubject.value;
 
     this.selectedChatRequestSubject.next({
-      ownerUid,
-      chatId: safeChatId && ownerUid ? safeChatId : null,
+      ownerUid: session.uid,
+      sessionEpoch: session.epoch,
+      chatId: safeChatId && session.uid ? safeChatId : null,
     });
   }
 
@@ -237,8 +277,11 @@ export class DirectChatFacade {
   }
 
   clearSelection(): void {
+    const session = this.sessionIdentitySubject.value;
+
     this.selectedChatRequestSubject.next({
-      ownerUid: null,
+      ownerUid: session.uid,
+      sessionEpoch: session.epoch,
       chatId: null,
     });
   }
@@ -315,14 +358,8 @@ export class DirectChatFacade {
       id: (chat?.id ?? '').trim(),
       chat,
       otherParticipantUid,
-
-      /**
-       * Dados de apresentação serão preenchidos somente pela projeção
-       * pública atualmente acessível em public_profiles.
-       */
       otherParticipantNickname: null,
       otherParticipantPhotoURL: null,
-
       unreadCount: Number((chat as any)?.unreadCount ?? 0),
       lastMessagePreview,
       lastMessageAt:
@@ -333,10 +370,6 @@ export class DirectChatFacade {
       compatibilityLabel: null,
       isDesiredProfileMatch: null,
     };
-  }
-
-  private getCurrentSessionUid(): string | null {
-    return String(this.authSession.currentAuthUser?.uid ?? '').trim() || null;
   }
 
   private reportSilent(error: unknown, context: string): void {
