@@ -6,6 +6,8 @@
 // Responsabilidade:
 // - renderizar cards públicos já processados pela facade;
 // - exibir loading inicial, revalidação, erro, vazio e carregamento incremental;
+// - permitir continuar a paginação mesmo quando a página atual foi totalmente
+//   eliminada pelos filtros do usuário;
 // - emitir retry/loadMore sem conhecer Firestore ou NgRx;
 // - reutilizar UserCardComponent para consistência visual e mobile.
 // -----------------------------------------------------------------------------
@@ -17,6 +19,7 @@ import {
   output,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
@@ -44,7 +47,7 @@ const USER_TIER_ROLES = [
 @Component({
   selector: 'app-public-profiles-list',
   standalone: true,
-  imports: [CommonModule, UserCardComponent],
+  imports: [CommonModule, RouterModule, UserCardComponent],
   templateUrl: './public-profiles-list.component.html',
   styleUrls: ['./public-profiles-list.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -56,6 +59,8 @@ export class PublicProfilesListComponent {
   readonly refreshing = input<boolean>(false);
   readonly hasMore = input<boolean>(false);
   readonly errorMessage = input<string | null>(null);
+  readonly emptyMessage = input<string>('Nenhum perfil disponível agora.');
+  readonly filteredByPreferences = input<boolean>(false);
 
   readonly loadMore = output<void>();
   readonly retry = output<void>();
