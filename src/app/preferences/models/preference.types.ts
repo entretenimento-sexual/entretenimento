@@ -11,6 +11,12 @@ export type DiscoveryMode =
   | 'discreet'
   | 'priority';
 
+/**
+ * prefer  -> influencia o ranking sem eliminar o perfil;
+ * require -> transforma a seleção em filtro rígido.
+ */
+export type PreferenceMatchMode = 'prefer' | 'require';
+
 export type IntentMode =
   | 'inactive'
   | 'chat'
