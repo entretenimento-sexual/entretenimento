@@ -18,7 +18,6 @@ import { metaReducers as appMetaReducers } from './reducers/meta-reducers';
 import { AuthEffects } from './effects/effects.user/auth.effects';
 import { UserEffects } from './effects/effects.user/user.effects';
 import { OnlineUsersEffects } from './effects/effects.user/online-users.effects';
-import { UserPreferencesEffects } from './effects/effects.user/user-preferences.effects';
 import { UserRoleEffects } from './effects/effects.user/user-role.effects';
 import { AuthStatusSyncEffects } from './effects/effects.user/auth-status-sync.effects';
 import { AuthSessionSyncEffects } from './effects/effects.user/auth-session-sync.effects';
@@ -43,24 +42,28 @@ const metaReducers = appMetaReducers;
  * Effects que precisam existir durante toda a sessão da aplicação.
  *
  * SUPRESSÃO EXPLÍCITA DO BOOTSTRAP GLOBAL:
- * - ChatEffects e RoomEffects pertencem exclusivamente à rota lazy `/chat`;
+ * - ChatEffects pertence exclusivamente à rota lazy `/chat`;
  * - NearbyProfilesEffects pertence ao LayoutModule lazy;
  * - DiscoveryFeedEffects pertence ao DashboardModule lazy;
  * - FileEffects é legado e não possui consumidor de uploadStart no app atual;
  *   os fluxos modernos mantêm o objeto File dentro de services Observables;
  * - TermsEffects simulava carga/aceite sem persistência. O owner canônico é
  *   TermsAcceptanceService + callable acceptPlatformTerms;
- * - LocationEffects não possui effects e não deve ocupar o root enquanto vazio.
+ * - LocationEffects não possui effects e não deve ocupar o root enquanto vazio;
+ * - RoomEffects foi removido porque salas já pertencem a RoomService,
+ *   RoomFirestoreGateway e RoomManagementService/Cloud Functions;
+ * - UserPreferencesEffects foi removido porque nenhum consumidor despachava seu
+ *   comando de carga. UserPreferencesService já executa Store -> cache SWR ->
+ *   Firestore e atualiza a projeção NgRx após resolver a leitura ou a gravação.
  *
- * Os reducers legados de file/terms/location são preservados nesta etapa para
- * não quebrar selectors ou imports compatíveis durante a migração incremental.
+ * Os reducers legados de file/terms/location/preferences são preservados nesta
+ * etapa para não quebrar selectors ou imports durante a migração incremental.
  */
 export const ROOT_EFFECTS = [
   // USER
   AuthEffects,
   UserEffects,
   OnlineUsersEffects,
-  UserPreferencesEffects,
   UserRoleEffects,
   AuthSessionSyncEffects,
   AuthStatusSyncEffects,

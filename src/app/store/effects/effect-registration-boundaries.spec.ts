@@ -17,7 +17,7 @@ describe('NgRx effect registration boundaries', () => {
     expect(ROOT_EFFECTS).not.toContain(DiscoveryFeedEffects);
   });
 
-  it('não inicializa effects legados, simulados ou vazios no root', () => {
+  it('não inicializa effects legados, duplicados, simulados ou vazios no root', () => {
     const rootEffectNames = ROOT_EFFECTS.map((effectType) => effectType.name);
 
     expect(rootEffectNames).not.toEqual(
@@ -26,6 +26,7 @@ describe('NgRx effect registration boundaries', () => {
         'TermsEffects',
         'LocationEffects',
         'RoomEffects',
+        'UserPreferencesEffects',
       ])
     );
   });

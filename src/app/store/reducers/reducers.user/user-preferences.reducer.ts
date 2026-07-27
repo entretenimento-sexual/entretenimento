@@ -1,27 +1,54 @@
-// src\app\store\reducers\reducers.user\user-preferences.reducer.ts
+// src/app/store/reducers/reducers.user/user-preferences.reducer.ts
 import { createReducer, on } from '@ngrx/store';
-import { IUserPreferences } from 'src/app/core/interfaces/interfaces-user-dados/iuser-preferences';
-import { loadUserPreferencesSuccess, updateUserPreferences } from '../../actions/actions.user/user-preferences.actions';
 
-export interface UserPreferencesState {
-  preferences: { [uid: string]: IUserPreferences };
+import {
+  loadUserPreferencesSuccess,
+  updateUserPreferences,
+} from '../../actions/actions.user/user-preferences.actions';
+import {
+  initialUserPreferencesState,
+  UserPreferencesState,
+} from '../../states/states.user/user-preferences.state';
+
+function normalizeUid(uid: string): string {
+  return String(uid ?? '').trim();
 }
 
-const initialState: UserPreferencesState = {
-  preferences: {}
-};
-
 export const userPreferencesReducer = createReducer(
-  initialState,
-  on(loadUserPreferencesSuccess, (state, { uid, preferences }) => ({
-    ...state,
-    preferences: { ...state.preferences, [uid]: preferences }
-  })),
-  on(updateUserPreferences, (state, { uid, preferences }) => ({
-    ...state,
-    preferences: {
-      ...state.preferences,
-      [uid]: { ...state.preferences[uid], ...preferences }
+  initialUserPreferencesState,
+
+  on(
+    loadUserPreferencesSuccess,
+    (state, { uid, preferences }): UserPreferencesState => {
+      const safeUid = normalizeUid(uid);
+      if (!safeUid) return state;
+
+      return {
+        ...state,
+        preferences: {
+          ...state.preferences,
+          [safeUid]: { ...(preferences ?? {}) },
+        },
+      };
     }
-  }))
+  ),
+
+  on(
+    updateUserPreferences,
+    (state, { uid, preferences }): UserPreferencesState => {
+      const safeUid = normalizeUid(uid);
+      if (!safeUid) return state;
+
+      return {
+        ...state,
+        preferences: {
+          ...state.preferences,
+          [safeUid]: {
+            ...(state.preferences[safeUid] ?? {}),
+            ...(preferences ?? {}),
+          },
+        },
+      };
+    }
+  )
 );
