@@ -1,6 +1,5 @@
 // src/app/store/actions/actions.user/auth.actions.ts
 import { createAction, props } from '@ngrx/store';
-import { User } from 'firebase/auth';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 /**
@@ -38,9 +37,21 @@ export const register = createAction(
   }>()
 );
 
+/**
+ * Feedback serializável do cadastro.
+ *
+ * SUPRESSÃO EXPLÍCITA:
+ * - o objeto runtime `firebase.User` não atravessa mais a action;
+ * - somente os campos simples usados para diagnóstico/telemetria permanecem.
+ *
+ * Motivo:
+ * - strictActionSerializability está habilitado no AppStoreModule;
+ * - a sessão oficial continua chegando por authSessionChanged;
+ * - o reducer não depende do objeto completo retornado pelo Firebase.
+ */
 export const registerSuccess = createAction(
   '[Auth] Register Success',
-  props<{ user: User }>()
+  props<{ uid: string; emailVerified: boolean }>()
 );
 
 export const registerFailure = createAction(

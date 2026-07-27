@@ -110,7 +110,10 @@ export class AuthEffects {
               })
             ),
             map((credential: UserCredential) =>
-              registerSuccess({ user: credential.user })
+              registerSuccess({
+                uid: credential.user.uid,
+                emailVerified: credential.user.emailVerified === true,
+              })
             ),
             catchError((error: unknown) => {
               const source = error as {
