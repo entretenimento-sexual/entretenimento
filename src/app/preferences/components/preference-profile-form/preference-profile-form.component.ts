@@ -5,6 +5,7 @@
 // Responsabilidade:
 // - renderizar preferências essenciais com navegação progressiva;
 // - aplicar limitações por assinatura sem esconder recursos de segurança;
+// - permitir que o usuário escolha entre preferir e exigir;
 // - preservar seleções pagas existentes quando o entitlement não está ativo;
 // - emitir o model normalizado para a página/facade salvar.
 // -----------------------------------------------------------------------------
@@ -21,8 +22,8 @@ import {
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 
-import { PreferenceProfile } from '../../models/preference-profile.model';
-import { PreferencesCapabilitySnapshot } from '../../services/preferences-capability.service';
+import type { PreferenceProfile } from '../../models/preference-profile.model';
+import type { PreferencesCapabilitySnapshot } from '../../services/preferences-capability.service';
 import { createEmptyPreferenceProfile } from '../../utils/preference-normalizers';
 import {
   BODY_PREFERENCE_OPTIONS,
@@ -68,6 +69,10 @@ export class PreferenceProfileFormComponent {
     () => this.capabilities()?.canEditAdvancedPreferences ?? false
   );
 
+  readonly canRequireAdvanced = computed(
+    () => this.capabilities()?.canRequireAdvancedPreferences ?? false
+  );
+
   readonly canUseDiscreetMode = computed(
     () => this.capabilities()?.canUseDiscreetMode ?? false
   );
@@ -86,6 +91,8 @@ export class PreferenceProfileFormComponent {
       this.form.patchValue(mapPreferenceProfileToFormValue(profile), {
         emitEvent: false,
       });
+      this.form.markAsPristine();
+      this.form.markAsUntouched();
     });
 
     effect(() => {
@@ -106,6 +113,19 @@ export class PreferenceProfileFormComponent {
         this.bodyPreferenceOptions,
         !this.canEditAdvanced()
       );
+      this.setControlDisabled(
+        'sexualPracticeMode',
+        !this.canEditAdvanced()
+      );
+      this.setControlDisabled(
+        'bodyPreferenceMode',
+        !this.canEditAdvanced()
+      );
+
+      if (!this.canRequireAdvanced()) {
+        this.forceAdvancedModeToPrefer('sexualPracticeMode');
+        this.forceAdvancedModeToPrefer('bodyPreferenceMode');
+      }
 
       const currentMode = this.form.controls['discoveryMode']?.value;
 
@@ -124,7 +144,10 @@ export class PreferenceProfileFormComponent {
   }
 
   submit(): void {
-    if (!this.canEdit() || this.saving() || this.form.invalid) return;
+    if (!this.canEdit() || this.saving() || this.form.invalid) {
+      this.form.markAllAsTouched();
+      return;
+    }
 
     const current = this.profile() ?? createEmptyPreferenceProfile('');
     const result = mapFormValueToPreferenceProfile(
@@ -154,12 +177,17 @@ export class PreferenceProfileFormComponent {
     return '';
   }
 
+  advancedRequirementLabel(): string {
+    return this.canRequireAdvanced() ? 'Exigir' : 'Exigir — Premium';
+  }
+
   selectedCount(
     prefix: string,
     options: ReadonlyArray<{ key: string }>
   ): number {
     return options.reduce((total, option) => {
-      return total + (this.form.get(`${prefix}_${option.key}`)?.value === true ? 1 : 0);
+      return total +
+        (this.form.get(`${prefix}_${option.key}`)?.value === true ? 1 : 0);
     }, 0);
   }
 
@@ -167,6 +195,14 @@ export class PreferenceProfileFormComponent {
     if (count === 0) return 'Nenhuma seleção';
     if (count === 1) return '1 selecionada';
     return `${count} selecionadas`;
+  }
+
+  ageRangeInvalid(): boolean {
+    return (
+      this.form.hasError('ageRangeOrder') &&
+      (this.form.controls['minAge']?.touched ||
+        this.form.controls['maxAge']?.touched)
+    );
   }
 
   private setFlagGroupDisabled(
@@ -184,5 +220,23 @@ export class PreferenceProfileFormComponent {
         control.enable({ emitEvent: false });
       }
     }
+  }
+
+  private setControlDisabled(controlName: string, disabled: boolean): void {
+    const control = this.form.get(controlName);
+    if (!control) return;
+
+    if (disabled) {
+      control.disable({ emitEvent: false });
+    } else {
+      control.enable({ emitEvent: false });
+    }
+  }
+
+  private forceAdvancedModeToPrefer(controlName: string): void {
+    const control = this.form.get(controlName);
+    if (control?.value !== 'require') return;
+
+    control.setValue('prefer', { emitEvent: false });
   }
 }
