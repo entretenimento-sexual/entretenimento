@@ -137,6 +137,18 @@ export interface IUserDados {
    * É usada apenas para filtrar/rankear discovery do próprio usuário.
    */
   discoveryPreferences?: IUserDiscoveryPreferences | null;
+  discoveryPreferencesUpdatedAt?: number | null;
+
+  /**
+   * Campos públicos e backend-managed dos candidatos. Eles nunca carregam a
+   * política privada do viewer; apenas dados que o dono autorizou a publicar.
+   */
+  age?: number | null;
+  publicRelationshipIntents?: readonly string[] | null;
+  publicSexualPractices?: readonly string[] | null;
+  publicBodyPreferences?: readonly string[] | null;
+  preferenceBadgesVisible?: boolean | null;
+  publicPreferencesUpdatedAt?: number | null;
 
   partner1Orientation?: string;
   partner2Orientation?: string;
