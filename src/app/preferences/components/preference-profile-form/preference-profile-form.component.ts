@@ -7,7 +7,8 @@
 // - aplicar limitações por assinatura sem esconder recursos de segurança;
 // - permitir que o usuário escolha entre preferir e exigir;
 // - preservar seleções pagas existentes quando o entitlement não está ativo;
-// - emitir o model normalizado para a página/facade salvar.
+// - emitir o model normalizado para a página/facade salvar;
+// - expor estado dirty/pristine para proteção de navegação.
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
@@ -91,8 +92,7 @@ export class PreferenceProfileFormComponent {
       this.form.patchValue(mapPreferenceProfileToFormValue(profile), {
         emitEvent: false,
       });
-      this.form.markAsPristine();
-      this.form.markAsUntouched();
+      this.markSaved();
     });
 
     effect(() => {
@@ -144,7 +144,12 @@ export class PreferenceProfileFormComponent {
   }
 
   submit(): void {
-    if (!this.canEdit() || this.saving() || this.form.invalid) {
+    if (
+      !this.canEdit() ||
+      this.saving() ||
+      this.form.invalid ||
+      this.form.pristine
+    ) {
       this.form.markAllAsTouched();
       return;
     }
@@ -157,6 +162,15 @@ export class PreferenceProfileFormComponent {
     );
 
     this.saveProfile.emit(result);
+  }
+
+  hasUnsavedChanges(): boolean {
+    return this.form.dirty;
+  }
+
+  markSaved(): void {
+    this.form.markAsPristine();
+    this.form.markAsUntouched();
   }
 
   isModeAvailable(mode: string): boolean {
