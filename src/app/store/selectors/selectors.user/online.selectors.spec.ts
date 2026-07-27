@@ -7,72 +7,41 @@ import {
   selectGlobalOnlineUsersDebug,
 } from './online.selectors';
 
-describe('online selectors with discovery preferences', () => {
-  it('mantém somente os tipos de perfil escolhidos pelo usuário', () => {
-    const viewer = user('viewer', {
-      discoveryPreferences: {
-        genderInterests: ['women'],
-        acceptsCouples: true,
-        acceptsSingles: true,
-        acceptsTransProfiles: null,
-        updatedAt: 1,
-      },
-      interestedInGenders: ['woman'],
-    });
-
+describe('online selectors', () => {
+  it('materializa perfis públicos online sem aplicar preferências do viewer', () => {
     const online = [
-      user('man', {
-        nickname: 'Homem',
-        gender: 'homem',
-        isOnline: true,
-      }),
+      user('man', { nickname: 'Homem', gender: 'homem', isOnline: true }),
       user('woman', {
         nickname: 'Mulher',
         gender: 'mulher',
+        age: 31,
+        publicRelationshipIntents: ['dating'],
+        publicBodyTraits: ['tattoos'],
         isOnline: true,
       }),
     ];
 
-    const result = selectGlobalOnlineUsers.projector(
-      online,
-      {},
-      viewer.uid,
-      viewer
-    );
+    const result = selectGlobalOnlineUsers.projector(online, {}, 'viewer');
 
-    expect(result.map((candidate) => candidate.uid)).toEqual(['woman']);
+    expect(result.map((candidate) => candidate.uid)).toEqual(['man', 'woman']);
+    expect(result[1]).toEqual(expect.objectContaining({
+      age: 31,
+      publicRelationshipIntents: ['dating'],
+      publicBodyTraits: ['tattoos'],
+    }));
   });
 
-  it('expõe no debug o motivo de rejeição por tipo não selecionado', () => {
-    const viewer = user('viewer', {
-      discoveryPreferences: {
-        genderInterests: ['couple_mf'],
-        acceptsCouples: true,
-        acceptsSingles: false,
-        acceptsTransProfiles: null,
-        updatedAt: 1,
-      },
-      interestedInGenders: ['couple'],
-    });
-
-    const single = user('single', {
+  it('expõe somente motivos de presença no debug', () => {
+    const offline = user('offline', {
       nickname: 'Pessoa',
       gender: 'mulher',
-      isOnline: true,
+      isOnline: false,
     });
 
-    const debug = selectGlobalOnlineUsersDebug.projector(
-      [single],
-      {},
-      viewer.uid,
-      viewer
-    );
+    const debug = selectGlobalOnlineUsersDebug.projector([offline], {}, 'viewer');
 
     expect(debug).toEqual([
-      expect.objectContaining({
-        uid: 'single',
-        rejectionReason: 'singles_disabled',
-      }),
+      expect.objectContaining({ uid: 'offline', rejectionReason: 'not_online' }),
     ]);
   });
 });
