@@ -1,9 +1,10 @@
 // src/app/preferences/utils/preference-profile-form.factory.spec.ts
 import { describe, expect, it } from 'vitest';
 
-import { PreferencesCapabilitySnapshot } from '../services/preferences-capability.service';
+import type { PreferencesCapabilitySnapshot } from '../services/preferences-capability.service';
 import { createEmptyPreferenceProfile } from './preference-normalizers';
 import {
+  ageRangeValidator,
   mapFormValueToPreferenceProfile,
   mapPreferenceProfileToFormValue,
 } from './preference-profile-form.factory';
@@ -18,6 +19,7 @@ function capabilities(
     canEditCorePreferences: true,
     canEditIntentState: true,
     canEditAdvancedPreferences: false,
+    canRequireAdvancedPreferences: false,
     canUseContextualIntent: false,
     canUseAdvancedDiscovery: false,
     canUseDiscreetMode: false,
@@ -50,11 +52,34 @@ describe('preference-profile-form.factory', () => {
     expect(result.softRules.sexualPractices).toEqual(['bdsm']);
   });
 
-  it('permite alterar preferências avançadas com Básico ativo', () => {
+  it('permite autodescrição e filtros essenciais no plano gratuito', () => {
+    const current = createEmptyPreferenceProfile('owner');
+    const raw = mapPreferenceProfileToFormValue(current);
+    raw['st_tattoos'] = true;
+    raw['minAge'] = 25;
+    raw['maxAge'] = 45;
+    raw['maxDistanceKm'] = 30;
+    raw['relationshipIntentMode'] = 'require';
+
+    const result = mapFormValueToPreferenceProfile(
+      raw,
+      current,
+      capabilities()
+    );
+
+    expect(result.selfTraits.bodyTraits).toEqual(['tattoos']);
+    expect(result.hardRules.ageRange).toEqual({ min: 25, max: 45 });
+    expect(result.hardRules.maxDistanceKm).toBe(30);
+    expect(result.matchingModes.relationshipIntents).toBe('require');
+  });
+
+  it('Básico altera preferências avançadas, mas normaliza exigir para preferir', () => {
     const current = createEmptyPreferenceProfile('owner');
     const raw = mapPreferenceProfileToFormValue(current);
     raw['bp_curvy'] = true;
     raw['sp_tantra'] = true;
+    raw['bodyPreferenceMode'] = 'require';
+    raw['sexualPracticeMode'] = 'require';
 
     const result = mapFormValueToPreferenceProfile(
       raw,
@@ -70,6 +95,31 @@ describe('preference-profile-form.factory', () => {
 
     expect(result.softRules.bodyPreferences).toEqual(['curvy']);
     expect(result.softRules.sexualPractices).toEqual(['tantra']);
+    expect(result.matchingModes.bodyPreferences).toBe('prefer');
+    expect(result.matchingModes.sexualPractices).toBe('prefer');
+  });
+
+  it('Premium mantém preferências avançadas obrigatórias', () => {
+    const current = createEmptyPreferenceProfile('owner');
+    const raw = mapPreferenceProfileToFormValue(current);
+    raw['bp_curvy'] = true;
+    raw['bodyPreferenceMode'] = 'require';
+
+    const result = mapFormValueToPreferenceProfile(
+      raw,
+      current,
+      capabilities({
+        currentPlan: 'premium',
+        currentPlanLabel: 'Premium',
+        hasActiveSubscription: true,
+        canEditAdvancedPreferences: true,
+        canRequireAdvancedPreferences: true,
+        canUseAdvancedDiscovery: true,
+        canUseDiscreetMode: true,
+      })
+    );
+
+    expect(result.matchingModes.bodyPreferences).toBe('require');
   });
 
   it('normaliza modo VIP para padrão quando o entitlement não permite prioridade', () => {
@@ -85,6 +135,7 @@ describe('preference-profile-form.factory', () => {
         currentPlanLabel: 'Premium',
         hasActiveSubscription: true,
         canEditAdvancedPreferences: true,
+        canRequireAdvancedPreferences: true,
         canUseContextualIntent: true,
         canUseAdvancedDiscovery: true,
         canUseDiscreetMode: true,
@@ -93,5 +144,14 @@ describe('preference-profile-form.factory', () => {
     );
 
     expect(result.visibility.discoveryMode).toBe('standard');
+  });
+
+  it('rejeita faixa etária invertida', () => {
+    const validator = ageRangeValidator();
+    const control = {
+      get: (name: string) => ({ value: name === 'minAge' ? 50 : 25 }),
+    } as never;
+
+    expect(validator(control)).toEqual({ ageRangeOrder: true });
   });
 });
