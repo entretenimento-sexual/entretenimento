@@ -33,7 +33,9 @@ export class PublicProfileDiscoveryService {
 
     return collectionData(q, { idField: 'uid' }).pipe(
       map((docs) => docs
-        .map((raw) => this.toUserDadosFromPublicProfile(raw))
+        .map((raw) => this.toUserDadosFromPublicProfile(
+          raw as unknown as Record<string, unknown>
+        ))
         .filter((profile) => this.isDiscoverablePublicProfile(profile))),
       catchError((err) => {
         this.reportSilentError('PublicProfileDiscoveryService.listDiscoverableProfiles$', err);
@@ -48,7 +50,11 @@ export class PublicProfileDiscoveryService {
     if (!safeUid) return of(null);
 
     return docData(doc(this.firestore, `public_profiles/${safeUid}`), { idField: 'uid' }).pipe(
-      map((raw) => raw ? this.toUserDadosFromPublicProfile(raw) : null),
+      map((raw) => raw
+        ? this.toUserDadosFromPublicProfile(
+            raw as unknown as Record<string, unknown>
+          )
+        : null),
       catchError((err) => {
         this.reportSilentError('PublicProfileDiscoveryService.getPublicProfileByUid$', err);
         return of(null);
