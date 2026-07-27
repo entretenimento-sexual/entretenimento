@@ -3,8 +3,8 @@
 //
 // Responsabilidade:
 // - ler/gravar o documento canônico de preferências estáveis
-// - não conhece legado
-// - não conhece UI
+// - normalizar documentos antigos antes de expor ao formulário/discovery
+// - não conhece legado de UI
 // - não duplica role no documento
 //
 // Observação:
@@ -18,8 +18,11 @@ import { catchError, map, shareReplay, take } from 'rxjs/operators';
 import { FirestoreReadService } from '@core/services/data-handling/firestore/core/firestore-read.service';
 import { FirestoreWriteService } from '@core/services/data-handling/firestore/core/firestore-write.service';
 
-import { PreferenceProfile } from '../models/preference-profile.model';
-import { createEmptyPreferenceProfile } from '../utils/preference-normalizers';
+import type { PreferenceProfile } from '../models/preference-profile.model';
+import {
+  createEmptyPreferenceProfile,
+  normalizePreferenceProfile,
+} from '../utils/preference-normalizers';
 import { preferencePaths } from '../utils/preference-paths';
 
 @Injectable({ providedIn: 'root' })
@@ -36,7 +39,7 @@ export class ProfilePreferencesService {
     return this.read.getDocumentLiveSafe<PreferenceProfile>(collectionName, docId, {
       requireAuth: true,
     }).pipe(
-      map((profile) => profile ?? createEmptyPreferenceProfile(userId)),
+      map((profile) => normalizePreferenceProfile(profile, userId)),
       catchError(() => of(createEmptyPreferenceProfile(userId))),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -47,9 +50,10 @@ export class ProfilePreferencesService {
     if (!userId) return of(void 0);
 
     const [collectionName, docId] = this.splitPath(preferencePaths.profile(userId));
+    const normalized = normalizePreferenceProfile(profile, userId);
 
     return this.write.setDocument(collectionName, docId, {
-      ...profile,
+      ...normalized,
       userId,
       updatedAt: Date.now(),
     }).pipe(
