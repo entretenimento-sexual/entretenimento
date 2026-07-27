@@ -42,7 +42,7 @@ export interface PublicProfileCard {
   /** Dados publicados somente quando o dono permite sinais de preferências. */
   publicRelationshipIntents?: readonly string[] | null;
   publicSexualPractices?: readonly string[] | null;
-  publicBodyPreferences?: readonly string[] | null;
+  publicBodyTraits?: readonly string[] | null;
   preferenceBadgesVisible?: boolean | null;
   publicPreferencesUpdatedAt?: number | null;
 
