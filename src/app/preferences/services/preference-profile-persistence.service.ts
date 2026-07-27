@@ -4,6 +4,8 @@
 // -----------------------------------------------------------------------------
 // Perfil, intenção opcional e projeção privada são gravados no mesmo batch.
 // Somente após confirmação do Firestore o estado reativo local é atualizado.
+// O cache paginado da descoberta é invalidado para que a próxima abertura não
+// reutilize páginas calculadas sob uma política anterior.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -16,6 +18,7 @@ import { map, tap } from 'rxjs/operators';
 import type { IUserDados } from '@core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
+import { clearDiscoveryFeeds } from '@store/actions/actions.discovery/discovery-feed.actions';
 import { updateUserInState } from '@store/actions/actions.user/user.actions';
 import type { AppState } from '@store/states/app.state';
 
@@ -93,7 +96,10 @@ export class PreferenceProfilePersistenceService {
 
       await batch.commit();
     }).pipe(
-      tap(() => this.updateReactiveProjection(safeUid, userPatch)),
+      tap(() => {
+        this.updateReactiveProjection(safeUid, userPatch);
+        this.store.dispatch(clearDiscoveryFeeds());
+      }),
       map(() => void 0)
     );
   }
