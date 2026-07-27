@@ -1,31 +1,8 @@
 // src/app/dashboard/discovery/application/discovery-public-profiles.facade.ts
-// -----------------------------------------------------------------------------
-// DiscoveryPublicProfilesFacade
-// -----------------------------------------------------------------------------
-//
-// Responsabilidades:
-// - orquestrar a consulta paginada do modo "Todos";
-// - expor estado visual reativo;
-// - preservar presença como enriquecimento opcional;
-// - aplicar preferências privadas do viewer antes do ranking;
-// - delegar compatibilidade, distância, visibilidade, score e ordenação para
-//   DiscoveryCardEnrichmentService;
-// - nunca carregar a coleção inteira de public_profiles.
-// -----------------------------------------------------------------------------
-
-import {
-  DestroyRef,
-  Injectable,
-  inject,
-} from '@angular/core';
+import { DestroyRef, Injectable, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
-
-import {
-  Observable,
-  combineLatest,
-  of,
-} from 'rxjs';
+import { Observable, combineLatest, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -36,28 +13,26 @@ import {
   take,
 } from 'rxjs/operators';
 
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserPresenceQueryService } from 'src/app/core/services/data-handling/queries/user-presence.query.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { filterDiscoveryCandidatesByViewerPreferences } from 'src/app/core/utils/discovery/profile-type-preference-filter.util';
+import * as DiscoveryActions from 'src/app/store/actions/actions.discovery/discovery-feed.actions';
+import { selectDiscoveryFeedSlice } from 'src/app/store/selectors/selectors.discovery/discovery-feed.selectors';
+import type { AppState } from 'src/app/store/states/app.state';
+import {
+  DiscoveryFeedSlice,
+  emptyDiscoveryFeedSlice,
+} from 'src/app/store/states/states.discovery/discovery-feed.state';
 
 import {
   DEFAULT_DISCOVERY_PAGE_SIZE,
   DiscoveryFeedRequest,
   buildDiscoveryFeedQueryKey,
 } from '../models/discovery-feed-page.model';
-import { PublicProfileCard } from '../models/public-profile-card.model';
+import type { PublicProfileCard } from '../models/public-profile-card.model';
 import { DiscoveryCardEnrichmentService } from './discovery-card-enrichment.service';
-
-import * as DiscoveryActions from 'src/app/store/actions/actions.discovery/discovery-feed.actions';
-import { selectDiscoveryFeedSlice } from 'src/app/store/selectors/selectors.discovery/discovery-feed.selectors';
-import { AppState } from 'src/app/store/states/app.state';
-import {
-  DiscoveryFeedSlice,
-  emptyDiscoveryFeedSlice,
-} from 'src/app/store/states/states.discovery/discovery-feed.state';
 
 export interface DiscoveryPublicProfilesState {
   readonly profiles: readonly PublicProfileCard[];
@@ -81,55 +56,36 @@ const EMPTY_STATE: DiscoveryPublicProfilesState = {
 export class DiscoveryPublicProfilesFacade {
   private readonly destroyRef = inject(DestroyRef);
   private readonly store = inject(Store<AppState>);
-
   private readonly accessControl = inject(AccessControlService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly presenceQuery = inject(UserPresenceQueryService);
   private readonly cardEnrichment = inject(DiscoveryCardEnrichmentService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
-  private readonly request$: Observable<DiscoveryFeedRequest | null> =
-    combineLatest([
-      this.accessControl.authUid$,
-      this.accessControl.canRunApp$,
-    ]).pipe(
-      map(([uid, canRunApp]) => {
-        const viewerUid = this.toNullableText(uid);
+  private readonly request$: Observable<DiscoveryFeedRequest | null> = combineLatest([
+    this.accessControl.authUid$,
+    this.accessControl.canRunApp$,
+  ]).pipe(
+    map(([uid, canRunApp]) => {
+      const viewerUid = this.toNullableText(uid);
+      return viewerUid && canRunApp
+        ? { viewerUid, mode: 'all' as const, pageSize: DEFAULT_DISCOVERY_PAGE_SIZE }
+        : null;
+    }),
+    distinctUntilChanged((a, b) => this.requestKey(a) === this.requestKey(b)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
-        if (!viewerUid || !canRunApp) {
-          return null;
-        }
+  private readonly feedSlice$: Observable<DiscoveryFeedSlice> = this.request$.pipe(
+    switchMap((request) => request
+      ? this.store.select(selectDiscoveryFeedSlice(buildDiscoveryFeedQueryKey(request)))
+      : of(emptyDiscoveryFeedSlice)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
-        return {
-          viewerUid,
-          mode: 'all' as const,
-          pageSize: DEFAULT_DISCOVERY_PAGE_SIZE,
-        };
-      }),
-      distinctUntilChanged((previous, current) =>
-        this.requestKey(previous) === this.requestKey(current)
-      ),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-  private readonly feedSlice$: Observable<DiscoveryFeedSlice> =
-    this.request$.pipe(
-      switchMap((request) => {
-        if (!request) {
-          return of(emptyDiscoveryFeedSlice);
-        }
-
-        return this.store.select(
-          selectDiscoveryFeedSlice(buildDiscoveryFeedQueryKey(request))
-        );
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-  private readonly onlinePresenceByUid$ =
-    this.getOnlinePresenceByUid$().pipe(
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
+  private readonly onlinePresenceByUid$ = this.getOnlinePresenceByUid$().pipe(
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   readonly state$: Observable<DiscoveryPublicProfilesState> = combineLatest([
     this.request$,
@@ -138,23 +94,10 @@ export class DiscoveryPublicProfilesFacade {
     this.onlinePresenceByUid$,
   ]).pipe(
     map(([request, slice, currentUser, onlinePresenceByUid]) => {
-      if (!request) {
-        return EMPTY_STATE;
-      }
-
-      /**
-       * O store contém somente PublicProfileCard serializável e seguro.
-       * A projeção privada existe apenas no currentUser e filtra localmente os
-       * candidatos públicos antes do enriquecimento/ranking.
-       */
-      const sourceProfiles = slice.items as unknown as readonly IUserDados[];
-      const filteredProfiles = filterDiscoveryCandidatesByViewerPreferences(
-        sourceProfiles,
-        currentUser ?? null
-      );
+      if (!request) return EMPTY_STATE;
 
       const result = this.cardEnrichment.buildCardsResult({
-        profiles: filteredProfiles,
+        profiles: slice.items as unknown as readonly IUserDados[],
         currentUser: currentUser ?? null,
         currentUid: request.viewerUid,
         mode: request.mode,
@@ -168,66 +111,38 @@ export class DiscoveryPublicProfilesFacade {
         loadingMore: slice.loadingMore,
         refreshing: slice.refreshing,
         hasMore: !slice.reachedEnd,
-        errorMessage: slice.error
-          ? 'Não foi possível carregar os perfis agora.'
-          : null,
+        errorMessage: slice.error ? 'Não foi possível carregar os perfis agora.' : null,
       };
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly profiles$ = this.state$.pipe(
-    map((state) => state.profiles)
-  );
-
-  readonly loading$ = this.state$.pipe(
-    map((state) => state.loading)
-  );
-
-  readonly loadingMore$ = this.state$.pipe(
-    map((state) => state.loadingMore)
-  );
-
-  readonly refreshing$ = this.state$.pipe(
-    map((state) => state.refreshing)
-  );
-
-  readonly hasMore$ = this.state$.pipe(
-    map((state) => state.hasMore)
-  );
-
-  readonly errorMessage$ = this.state$.pipe(
-    map((state) => state.errorMessage)
-  );
+  readonly profiles$ = this.state$.pipe(map((state) => state.profiles));
+  readonly loading$ = this.state$.pipe(map((state) => state.loading));
+  readonly loadingMore$ = this.state$.pipe(map((state) => state.loadingMore));
+  readonly refreshing$ = this.state$.pipe(map((state) => state.refreshing));
+  readonly hasMore$ = this.state$.pipe(map((state) => state.hasMore));
+  readonly errorMessage$ = this.state$.pipe(map((state) => state.errorMessage));
 
   constructor() {
-    this.request$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((request) => {
-        if (!request) {
-          this.store.dispatch(DiscoveryActions.clearDiscoveryFeeds());
-          return;
-        }
-
-        this.store.dispatch(
-          DiscoveryActions.loadDiscoveryFirstPage({ request })
-        );
-      });
+    this.request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((request) => {
+      if (!request) {
+        this.store.dispatch(DiscoveryActions.clearDiscoveryFeeds());
+        return;
+      }
+      this.store.dispatch(DiscoveryActions.loadDiscoveryFirstPage({ request }));
+    });
   }
 
   loadMore(): void {
     this.withCurrentRequest((request) =>
-      this.store.dispatch(
-        DiscoveryActions.loadDiscoveryNextPage({ request })
-      )
+      this.store.dispatch(DiscoveryActions.loadDiscoveryNextPage({ request }))
     );
   }
 
   refresh(): void {
     this.withCurrentRequest((request) =>
-      this.store.dispatch(
-        DiscoveryActions.refreshDiscoveryFeed({ request })
-      )
+      this.store.dispatch(DiscoveryActions.refreshDiscoveryFeed({ request }))
     );
   }
 
@@ -235,43 +150,27 @@ export class DiscoveryPublicProfilesFacade {
     this.refresh();
   }
 
-  private withCurrentRequest(
-    callback: (request: DiscoveryFeedRequest) => void
-  ): void {
-    this.request$
-      .pipe(take(1))
-      .subscribe((request) => {
-        if (request) {
-          callback(request);
-        }
-      });
+  private withCurrentRequest(callback: (request: DiscoveryFeedRequest) => void): void {
+    this.request$.pipe(take(1)).subscribe((request) => {
+      if (request) callback(request);
+    });
   }
 
   private getOnlinePresenceByUid$(): Observable<Map<string, IUserDados>> {
     return this.presenceQuery.getOnlineUsers$().pipe(
       startWith([] as IUserDados[]),
-      map((onlineUsers) => {
-        const byUid = new Map<string, IUserDados>();
-
-        for (const user of onlineUsers ?? []) {
-          const uid = this.toNullableText(user?.uid);
-
-          if (uid) {
-            byUid.set(uid, user);
-          }
-        }
-
-        return byUid;
-      }),
+      map((users) => new Map(
+        (users ?? [])
+          .map((user) => [this.toNullableText(user?.uid), user] as const)
+          .filter((entry): entry is readonly [string, IUserDados] => !!entry[0])
+      )),
       catchError((error: unknown) => {
         const normalized = error instanceof Error
           ? error
           : new Error('Falha ao enriquecer presença da descoberta.');
-
-        (normalized as any).skipUserNotification = true;
-        (normalized as any).context =
+        (normalized as Error & { skipUserNotification?: boolean }).skipUserNotification = true;
+        (normalized as Error & { context?: string }).context =
           'DiscoveryPublicProfilesFacade.getOnlinePresenceByUid$';
-
         this.globalErrorHandler.handleError(normalized);
         return of(new Map<string, IUserDados>());
       })
@@ -283,11 +182,6 @@ export class DiscoveryPublicProfilesFacade {
   }
 
   private toNullableText(value: unknown): string | null {
-    if (typeof value !== 'string') {
-      return null;
-    }
-
-    const text = value.trim();
-    return text.length ? text : null;
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
   }
 }
