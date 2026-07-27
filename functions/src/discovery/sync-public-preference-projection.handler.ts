@@ -1,12 +1,4 @@
 // functions/src/discovery/sync-public-preference-projection.handler.ts
-// -----------------------------------------------------------------------------
-// SYNC PUBLIC PREFERENCE PROJECTION
-// -----------------------------------------------------------------------------
-// Observa users/{uid}/preferences/profile e materializa em public_profiles apenas
-// sinais autorizados pelo próprio usuário. O documento privado continua sendo a
-// fonte de verdade; clientes não podem escrever os campos backend-managed.
-// -----------------------------------------------------------------------------
-
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { db, FieldValue } from '../firebaseApp';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
@@ -28,26 +20,16 @@ export const syncPublicPreferenceProjection = onDocumentWritten(
       userRef.get(),
     ]);
 
-    if (!publicSnapshot.exists) {
-      console.log('[discovery] Preferências públicas ignoradas: perfil ausente.', {
-        uid,
-      });
-      return;
-    }
+    if (!publicSnapshot.exists) return;
 
-    const profile = event.data?.after.exists
-      ? (event.data.after.data() ?? {})
-      : null;
+    const profile = event.data?.after.exists ? (event.data.after.data() ?? {}) : null;
     const user = userSnapshot.exists ? (userSnapshot.data() ?? {}) : {};
     const expected = buildPublicPreferenceProjection(profile, {
       canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic'),
-      bodyTraits: user['bodyTraits'],
     });
     const current = publicSnapshot.data() ?? {};
 
-    if (publicPreferenceProjectionMatches(current, expected)) {
-      return;
-    }
+    if (publicPreferenceProjectionMatches(current, expected)) return;
 
     await publicRef.set(
       {
