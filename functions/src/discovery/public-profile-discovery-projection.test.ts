@@ -4,6 +4,10 @@ import test from 'node:test';
 import {
   publicProfileDiscoveryProjectionMatches,
 } from './public-profile-discovery-projection';
+import {
+  buildPublicPreferenceProjection,
+  publicPreferenceProjectionMatches,
+} from './public-preference-projection';
 
 const CANONICAL = {
   normalizedGender: 'woman' as const,
@@ -13,45 +17,79 @@ const CANONICAL = {
   compatibilityReady: true,
 };
 
-test('ignora campos de billing quando discovery já está sincronizado', () => {
-  assert.equal(
-    publicProfileDiscoveryProjectionMatches(
-      {
-        ...CANONICAL,
-        role: 'premium',
-        billingProjectionVersion: 1,
-        billingProjectionUpdatedAt: 123,
-      },
-      CANONICAL
-    ),
-    true
-  );
+test('ignora billing quando discovery já está sincronizado', () => {
+  assert.equal(publicProfileDiscoveryProjectionMatches({
+    ...CANONICAL,
+    role: 'premium',
+    billingProjectionVersion: 1,
+  }, CANONICAL), true);
 });
 
-test('detecta alteração real de compatibilidade ou ordem das preferências', () => {
-  assert.equal(
-    publicProfileDiscoveryProjectionMatches(
-      { ...CANONICAL, normalizedGender: 'man' },
-      CANONICAL
-    ),
-    false
-  );
-
-  assert.equal(
-    publicProfileDiscoveryProjectionMatches(
-      {
-        ...CANONICAL,
-        interestedInGenders: ['woman', 'man'],
-      },
-      CANONICAL
-    ),
-    false
-  );
+test('detecta alteração real de compatibilidade', () => {
+  assert.equal(publicProfileDiscoveryProjectionMatches({
+    ...CANONICAL,
+    normalizedGender: 'man',
+  }, CANONICAL), false);
+  assert.equal(publicProfileDiscoveryProjectionMatches({
+    ...CANONICAL,
+    interestedInGenders: ['woman', 'man'],
+  }, CANONICAL), false);
 });
 
-test('detecta projeção ausente para permitir backfill', () => {
-  assert.equal(
-    publicProfileDiscoveryProjectionMatches({}, CANONICAL),
-    false
-  );
+test('detecta projeção ausente para backfill', () => {
+  assert.equal(publicProfileDiscoveryProjectionMatches({}, CANONICAL), false);
+});
+
+test('não publica sinais quando o usuário desativa badges', () => {
+  assert.deepEqual(buildPublicPreferenceProjection({
+    visibility: { showPreferenceBadges: false },
+    relationshipIntents: ['dating'],
+    selfTraits: { bodyTraits: ['tattoos'] },
+  }, { canPublishAdvanced: true }), {
+    preferenceBadgesVisible: false,
+    publicRelationshipIntents: [],
+    publicSexualPractices: [],
+    publicBodyTraits: [],
+  });
+});
+
+test('separa características próprias das características procuradas', () => {
+  const projection = buildPublicPreferenceProjection({
+    visibility: { showPreferenceBadges: true },
+    hardRules: { acceptedRelationshipIntents: ['dating'] },
+    softRules: {
+      sexualPractices: ['bdsm'],
+      bodyPreferences: ['athletic'],
+    },
+    selfTraits: { bodyTraits: ['curvy', 'tattoos'] },
+  }, { canPublishAdvanced: true });
+
+  assert.deepEqual(projection.publicRelationshipIntents, ['dating']);
+  assert.deepEqual(projection.publicSexualPractices, ['bdsm']);
+  assert.deepEqual(projection.publicBodyTraits, ['curvy', 'tattoos']);
+  assert.equal('publicBodyPreferences' in projection, false);
+});
+
+test('plano gratuito não publica práticas pagas, mas mantém autodescrição', () => {
+  const projection = buildPublicPreferenceProjection({
+    visibility: { showPreferenceBadges: true },
+    softRules: { sexualPractices: ['bdsm'] },
+    selfTraits: { bodyTraits: ['tattoos'] },
+  }, { canPublishAdvanced: false });
+
+  assert.deepEqual(projection.publicSexualPractices, []);
+  assert.deepEqual(projection.publicBodyTraits, ['tattoos']);
+});
+
+test('compara a projeção pública sem considerar campos não relacionados', () => {
+  const expected = buildPublicPreferenceProjection({
+    visibility: { showPreferenceBadges: true },
+    relationshipIntents: ['friendship'],
+    selfTraits: { bodyTraits: ['beard'] },
+  }, { canPublishAdvanced: false });
+
+  assert.equal(publicPreferenceProjectionMatches({
+    ...expected,
+    mediaCount: 12,
+  }, expected), true);
 });
