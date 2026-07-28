@@ -54,7 +54,7 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('mantém somente atalhos funcionais e oculta Convites legados', () => {
+  it('mantém os atalhos funcionais e expõe Convites de sala', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
       fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
@@ -63,7 +63,7 @@ describe('ChatModuleLayoutComponent', () => {
     expect(text).toContain('Conexões');
     expect(text).toContain('Solicitações');
     expect(text).toContain('Salas');
-    expect(text).not.toContain('Convites');
-    expect(hrefs).not.toContain('/chat/invite-list');
+    expect(text).toContain('Convites');
+    expect(hrefs).toContain('/chat/invite-list');
   });
 });
