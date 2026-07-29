@@ -9,12 +9,33 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import {
+  PLATFORM_LEGAL_MANIFEST,
+  PRIVACY_NOTICE_VERSION,
+  TERMS_ACCEPTANCE_VERSION,
+  TERMS_DOCUMENT_VERSION,
+} from './platform-legal.constants';
 
-export const TERMS_ACCEPTANCE_VERSION = 'v2';
+export {
+  PLATFORM_LEGAL_MANIFEST,
+  PRIVACY_NOTICE_VERSION,
+  TERMS_ACCEPTANCE_VERSION,
+  TERMS_DOCUMENT_VERSION,
+} from './platform-legal.constants';
+
+interface AcceptPlatformTermsPayload {
+  acceptedTerms: true;
+  acknowledgedPrivacyNotice: true;
+  adultAccessAcknowledgement: true;
+}
 
 interface AcceptPlatformTermsResponse {
   ok: true;
   version: string;
+  termsDocumentVersion: string;
+  privacyNoticeVersion: string;
+  acceptanceContext: 'initial' | 'material_update';
+  previousVersion: string | null;
   acceptedAtMs: number;
 }
 
@@ -27,8 +48,11 @@ export interface AcceptedPlatformTermsResult {
  * Termos são fail-closed:
  * - ausência de registro exige aceite;
  * - accepted=false exige aceite;
- * - a versão registrada deve coincidir com a versão atual;
- * - registros legados sem versão não satisfazem a versão v2.
+ * - a versão registrada deve coincidir com a versão material atual;
+ * - registros legados sem versão não satisfazem a versão v3.
+ *
+ * A ciência da Política de Privacidade é registrada separadamente e não é usada
+ * como consentimento genérico para todas as operações de tratamento de dados.
  */
 export function hasAcceptedCurrentTerms(
   record: IUserTermsAcceptance | null | undefined
@@ -39,11 +63,11 @@ export function hasAcceptedCurrentTerms(
 
   const version = String(record.version ?? '').trim();
 
-  if (version) {
-    return version === TERMS_ACCEPTANCE_VERSION;
+  if (!version || version !== TERMS_ACCEPTANCE_VERSION) {
+    return false;
   }
 
-  return false;
+  return record.acknowledgedPrivacyNotice === true;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -56,7 +80,7 @@ export class TermsAcceptanceService {
   private readonly ACTION_TIMEOUT_MS = 15_000;
 
   private readonly acceptTermsCallable = httpsCallable<
-    Record<string, never>,
+    AcceptPlatformTermsPayload,
     AcceptPlatformTermsResponse
   >(this.functions, 'acceptPlatformTerms');
 
@@ -81,7 +105,13 @@ export class TermsAcceptanceService {
       return throwError(() => new Error('UID inválido.'));
     }
 
-    return defer(() => from(this.acceptTermsCallable({}))).pipe(
+    const payload: AcceptPlatformTermsPayload = {
+      acceptedTerms: true,
+      acknowledgedPrivacyNotice: true,
+      adultAccessAcknowledgement: true,
+    };
+
+    return defer(() => from(this.acceptTermsCallable(payload))).pipe(
       timeout({ first: this.ACTION_TIMEOUT_MS }),
       map((response) => {
         const result = response.data;
@@ -89,10 +119,12 @@ export class TermsAcceptanceService {
         if (
           result?.ok !== true ||
           result.version !== TERMS_ACCEPTANCE_VERSION ||
+          result.termsDocumentVersion !== TERMS_DOCUMENT_VERSION ||
+          result.privacyNoticeVersion !== PRIVACY_NOTICE_VERSION ||
           !Number.isFinite(result.acceptedAtMs)
         ) {
           throw new Error(
-            'A confirmação dos termos retornou dados inválidos.'
+            'A confirmação dos documentos legais retornou dados inválidos.'
           );
         }
 
@@ -100,6 +132,12 @@ export class TermsAcceptanceService {
           accepted: true,
           date: result.acceptedAtMs,
           version: result.version,
+          termsDocumentVersion: result.termsDocumentVersion,
+          privacyNoticeVersion: result.privacyNoticeVersion,
+          acknowledgedPrivacyNotice: true,
+          adultAccessAcknowledgement: true,
+          acceptanceContext: result.acceptanceContext,
+          previousVersion: result.previousVersion,
           acceptedAt: result.acceptedAtMs,
           updatedAt: result.acceptedAtMs,
           source: 'web',
