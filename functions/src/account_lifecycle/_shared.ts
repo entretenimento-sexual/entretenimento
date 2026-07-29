@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import { TERMS_ACCEPTANCE_VERSION } from '../compliance/platform-legal.constants';
 
 export const ACCOUNT_LIFECYCLE_REGION = FUNCTIONS_REGION;
 export const MAX_LIFECYCLE_REASON_LENGTH = 500;
@@ -41,6 +42,7 @@ export type UserDoc = {
   acceptedTerms?: {
     accepted?: boolean | null;
     version?: string | null;
+    acknowledgedPrivacyNotice?: boolean | null;
   } | null;
   adultConsent?: {
     accepted?: boolean | null;
@@ -176,11 +178,16 @@ export function isUserEligibleForPublicProjection(user: UserDoc): boolean {
   const normalized = resolveNicknameNormalized(user);
   const adultConsentRequired =
     user.initialAdultConsentRequired !== false;
+  const currentLegalAcceptance =
+    user.acceptedTerms?.accepted === true &&
+    String(user.acceptedTerms.version ?? '').trim() ===
+      TERMS_ACCEPTANCE_VERSION &&
+    user.acceptedTerms.acknowledgedPrivacyNotice === true;
 
   return (
     user.emailVerified === true &&
     user.profileCompleted === true &&
-    user.acceptedTerms?.accepted === true &&
+    currentLegalAcceptance &&
     (!adultConsentRequired || user.adultConsent?.accepted === true) &&
     /^[a-z0-9._-]{3,40}$/.test(normalized) &&
     String(user.nickname ?? '').trim().length >= 3
