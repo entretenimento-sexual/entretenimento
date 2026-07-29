@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 //
 // As nomenclaturas públicas são preservadas para não quebrar consumidores antigos,
-// mas os acessos diretos a `communities`, `members` e `invites` foram suprimidos.
+// mas os acessos diretos a `communities`, `members` e convites foram suprimidos.
 // Essas operações agora pertencem exclusivamente a repositories/callables que
 // validam autenticação, assinatura, papel, moderação, idempotência e auditoria.
 // -----------------------------------------------------------------------------
@@ -12,8 +12,23 @@
 import { Injectable } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
 
-import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 import { Community } from 'src/app/core/interfaces/interfaces-chat/community.interface';
+
+/**
+ * Contrato legado isolado apenas para preservar a assinatura pública desativada.
+ *
+ * SUPRESSÃO EXPLÍCITA:
+ * - CommunityService não reutiliza mais o tipo Invite do domínio de salas;
+ * - isso não implementa convite comunitário;
+ * - o futuro fluxo terá contrato e callable próprios.
+ */
+interface LegacyCommunityInvitePayload {
+  communityId?: string;
+  senderId?: string;
+  receiverId?: string;
+  status?: string;
+  [key: string]: unknown;
+}
 
 @Injectable({
   providedIn: 'root',
@@ -60,10 +75,10 @@ export class CommunityService {
   }
 
   /**
-   * @deprecated Convites devem passar por backend autoritativo. O fluxo legado
-   * gravava o documento diretamente e não garantia o ciclo completo de segurança.
+   * @deprecated Convites comunitários devem passar por backend autoritativo.
+   * O fluxo legado permanece deliberadamente desativado até existir ciclo completo.
    */
-  async sendInvite(_inviteData: Omit<Invite, 'id'>): Promise<void> {
+  async sendInvite(_inviteData: LegacyCommunityInvitePayload): Promise<void> {
     void _inviteData;
     throw this.unsupported('sendInvite');
   }
