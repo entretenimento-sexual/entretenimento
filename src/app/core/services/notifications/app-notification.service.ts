@@ -243,6 +243,7 @@ export class AppNotificationService {
     switch (raw) {
       case 'user_intent_status.published':
       case 'user_intent_status.compatible':
+      case 'compliance.terms.update_required':
       case 'compliance.terms.updated':
       case 'compliance.violation.suspected':
       case 'compliance.violation.response_received':
