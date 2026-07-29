@@ -42,6 +42,24 @@ describe('MobileBottomNavComponent', () => {
     expect(component.isActive(feed)).toBe(true);
   });
 
+  it('mantém Chat ativo nas rotas de conexões', async () => {
+    await TestBed.configureTestingModule({
+      imports: [MobileBottomNavComponent, RouterTestingModule],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(MobileBottomNavComponent);
+    const component = fixture.componentInstance;
+    const chat = component.items.find((item) => item.id === 'chat');
+
+    expect(chat).toBeTruthy();
+
+    component.currentUrl = '/friends/requests';
+    expect(component.isActive(chat!)).toBe(true);
+
+    component.currentUrl = '/dashboard/friends/list';
+    expect(component.isActive(chat!)).toBe(true);
+  });
+
   it('sinaliza no Chat somente solicitações recebidas', async () => {
     await TestBed.configureTestingModule({
       imports: [MobileBottomNavComponent, RouterTestingModule],
