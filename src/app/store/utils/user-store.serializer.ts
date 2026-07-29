@@ -89,10 +89,29 @@ function sanitizeTermsAcceptance(
   const source = value as any;
   if (!source || typeof source !== 'object') return null;
 
+  const acceptanceContext = String(source.acceptanceContext ?? '').trim();
+
   return {
     accepted: source.accepted === true,
     date: toSerializableEpoch(source.date),
     version: String(source.version ?? '').trim() || null,
+    termsDocumentVersion:
+      String(source.termsDocumentVersion ?? '').trim() || null,
+    privacyNoticeVersion:
+      String(source.privacyNoticeVersion ?? '').trim() || null,
+    acknowledgedPrivacyNotice:
+      typeof source.acknowledgedPrivacyNotice === 'boolean'
+        ? source.acknowledgedPrivacyNotice
+        : null,
+    adultAccessAcknowledgement:
+      typeof source.adultAccessAcknowledgement === 'boolean'
+        ? source.adultAccessAcknowledgement
+        : null,
+    acceptanceContext:
+      acceptanceContext === 'initial' || acceptanceContext === 'material_update'
+        ? acceptanceContext
+        : null,
+    previousVersion: String(source.previousVersion ?? '').trim() || null,
     acceptedAt: toSerializableEpoch(source.acceptedAt),
     updatedAt: toSerializableEpoch(source.updatedAt),
     source: String(source.source ?? '').trim() || null,
