@@ -15,10 +15,12 @@
           @if (currentUser.photoURL) {
             <img
               [src]="currentUser.photoURL"
-              [alt]="'Foto de perfil de ' + (currentUser.nickname || 'usuário')"
+              alt=""
               width="48"
               height="48"
               decoding="async"
+              referrerpolicy="no-referrer"
+              appImageFallback
             />
           } @else {
             <span aria-hidden="true">
@@ -89,11 +91,13 @@
                     @if (friendPhoto(friend); as photo) {
                       <img
                         [src]="photo"
-                        [alt]="'Foto de perfil de ' + friendName(friend)"
+                        alt=""
                         width="66"
                         height="66"
                         loading="lazy"
                         decoding="async"
+                        referrerpolicy="no-referrer"
+                        appImageFallback
                       />
                     } @else {
                       <span aria-hidden="true">{{ friendInitial(friend) }}</span>
@@ -260,6 +264,8 @@
                             height="44"
                             loading="lazy"
                             decoding="async"
+                            referrerpolicy="no-referrer"
+                            appImageFallback
                           />
                         } @else {
                           <span aria-hidden="true">
@@ -315,6 +321,8 @@
                             height="44"
                             loading="lazy"
                             decoding="async"
+                            referrerpolicy="no-referrer"
+                            appImageFallback
                           />
                         } @else {
                           <i class="fas fa-location-dot" aria-hidden="true"></i>
