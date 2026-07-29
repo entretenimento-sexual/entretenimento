@@ -54,6 +54,11 @@ interface AppNotificationFirestoreDocument {
   title?: unknown;
   body?: unknown;
   route?: unknown;
+  caseId?: unknown;
+  legalVersion?: unknown;
+  actionRequired?: unknown;
+  responseDueAt?: unknown;
+  policySection?: unknown;
   readAt?: unknown;
   createdAt?: unknown;
   updatedAt?: unknown;
@@ -171,7 +176,9 @@ export class AppNotificationService {
     }))).pipe(
       map(() => undefined),
       catchError((error) => {
-        this.reportWriteError(error, 'markAsRead', { notificationId: safeNotificationId });
+        this.reportWriteError(error, 'markAsRead', {
+          notificationId: safeNotificationId,
+        });
         return throwError(() => error);
       })
     );
@@ -216,6 +223,14 @@ export class AppNotificationService {
       title,
       body,
       route: this.toText(raw.route) || null,
+      caseId: this.toText(raw.caseId) || null,
+      legalVersion: this.toText(raw.legalVersion) || null,
+      actionRequired:
+        typeof raw.actionRequired === 'boolean'
+          ? raw.actionRequired
+          : null,
+      responseDueAt: this.toMillis(raw.responseDueAt),
+      policySection: this.toText(raw.policySection) || null,
       readAt: this.toMillis(raw.readAt),
       createdAt: this.toMillis(raw.createdAt),
       updatedAt: this.toMillis(raw.updatedAt),
@@ -228,6 +243,11 @@ export class AppNotificationService {
     switch (raw) {
       case 'user_intent_status.published':
       case 'user_intent_status.compatible':
+      case 'compliance.terms.updated':
+      case 'compliance.violation.suspected':
+      case 'compliance.violation.response_received':
+      case 'compliance.violation.resolved':
+      case 'compliance.action.taken':
       case 'system':
       case 'social':
       case 'chat':
