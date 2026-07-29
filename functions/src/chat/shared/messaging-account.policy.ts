@@ -22,6 +22,8 @@ function actorProfileIncompleteMessage(operation: MessagingOperation): string {
       return 'Complete seu perfil antes de criar uma sala.';
     case 'close-private-room':
       return 'Complete seu perfil antes de encerrar uma sala.';
+    case 'send-room-invite':
+      return 'Complete seu perfil antes de convidar pessoas para salas.';
     case 'accept-room-invite':
     case 'decline-room-invite':
       return 'Complete seu perfil antes de responder a convites de sala.';
@@ -44,6 +46,8 @@ function actorUnavailableMessage(operation: MessagingOperation): string {
       return 'Sua conta não está disponível para criar salas.';
     case 'close-private-room':
       return 'Sua conta não está disponível para encerrar salas.';
+    case 'send-room-invite':
+      return 'Sua conta não está disponível para enviar convites de sala.';
     case 'accept-room-invite':
     case 'decline-room-invite':
       return 'Sua conta não está disponível para responder a convites de sala.';
