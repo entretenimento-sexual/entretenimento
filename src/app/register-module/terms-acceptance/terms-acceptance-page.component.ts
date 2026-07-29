@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, signal } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import {
   FormControl,
   ReactiveFormsModule,
@@ -54,11 +54,6 @@ export class TermsAcceptancePageComponent {
   });
 
   readonly isSaving = signal(false);
-  readonly acknowledgementsValid = computed(() =>
-    this.termsConfirmation.valid &&
-    this.privacyAcknowledgement.valid &&
-    this.adultAccessAcknowledgement.valid
-  );
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -151,6 +146,12 @@ export class TermsAcceptancePageComponent {
         })
       )
       .subscribe();
+  }
+
+  acknowledgementsValid(): boolean {
+    return this.termsConfirmation.valid &&
+      this.privacyAcknowledgement.valid &&
+      this.adultAccessAcknowledgement.valid;
   }
 
   isControlInvalid(control: FormControl<boolean>): boolean {
