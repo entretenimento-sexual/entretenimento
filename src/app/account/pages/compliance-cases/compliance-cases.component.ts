@@ -4,7 +4,6 @@ import {
   Component,
   DestroyRef,
   OnInit,
-  computed,
   inject,
   signal,
 } from '@angular/core';
@@ -40,10 +39,12 @@ export class ComplianceCasesComponent implements OnInit {
 
   readonly responseControl = new FormControl('', {
     nonNullable: true,
-    validators: [Validators.required, Validators.minLength(20), Validators.maxLength(4000)],
+    validators: [
+      Validators.required,
+      Validators.minLength(20),
+      Validators.maxLength(4000),
+    ],
   });
-
-  readonly responseLength = computed(() => this.responseControl.value.length);
 
   ngOnInit(): void {
     this.load();
@@ -57,7 +58,10 @@ export class ComplianceCasesComponent implements OnInit {
           ? vm.items.find((item) => item.caseId === selectedId) ?? null
           : vm.items[0] ?? null;
 
-        if (next?.caseId !== selected?.caseId || next?.status !== selected?.status) {
+        if (
+          next?.caseId !== selected?.caseId ||
+          next?.status !== selected?.status
+        ) {
           this.selectCase(next);
         }
       });
