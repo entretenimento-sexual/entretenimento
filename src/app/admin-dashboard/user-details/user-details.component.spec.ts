@@ -6,9 +6,9 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { UserDetailsComponent } from './user-details.component';
-import { UserModerationService } from '../../core/services/account-moderation/user-moderation.service';
 import { AccountLifecycleService } from '../../account/application/account-lifecycle.service';
+import { StaffComplianceService } from '../../core/services/compliance/staff-compliance.service';
+import { UserDetailsComponent } from './user-details.component';
 
 describe('UserDetailsComponent', () => {
   let fixture: ComponentFixture<UserDetailsComponent>;
@@ -49,14 +49,26 @@ describe('UserDetailsComponent', () => {
         {
           provide: AccountLifecycleService,
           useValue: {
+            moderateSuspendAccount$: vi.fn(() =>
+              of({ ok: true, accountStatus: 'moderation_suspended' })
+            ),
+            moderateUnsuspendAccount$: vi.fn(() =>
+              of({ ok: true, accountStatus: 'active' })
+            ),
             moderateScheduleDeletion$: scheduleDeletion,
           },
         },
         {
-          provide: UserModerationService,
+          provide: StaffComplianceService,
           useValue: {
-            suspendUser: vi.fn(() => of(void 0)),
-            unsuspendUser: vi.fn(() => of(void 0)),
+            issueSuspectedViolationNotice$: vi.fn(() =>
+              of({
+                ok: true,
+                caseId: 'case-1234567890',
+                status: 'AWAITING_USER_RESPONSE',
+                responseDueAt: Date.now() + 86_400_000,
+              })
+            ),
           },
         },
         {
