@@ -2,9 +2,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
+import { TERMS_ACCEPTANCE_VERSION } from './platform-legal.constants';
 
 const ADULT_CONSENT_VERSION = 'v1';
-const TERMS_ACCEPTANCE_VERSION = 'v1';
 
 function hasAcceptedCurrentTerms(value: unknown): boolean {
   if (!value || typeof value !== 'object') {
@@ -16,7 +16,8 @@ function hasAcceptedCurrentTerms(value: unknown): boolean {
 
   return (
     record['accepted'] === true &&
-    (!version || version === TERMS_ACCEPTANCE_VERSION)
+    version === TERMS_ACCEPTANCE_VERSION &&
+    record['acknowledgedPrivacyNotice'] === true
   );
 }
 
@@ -122,6 +123,7 @@ export const acceptAdultConsent = onCall(
         uid,
         type: 'adult_consent.accepted',
         version: ADULT_CONSENT_VERSION,
+        termsAcceptanceVersion: TERMS_ACCEPTANCE_VERSION,
         source: 'web',
         createdAt: now,
         createdAtMs: acceptedAtMs,
