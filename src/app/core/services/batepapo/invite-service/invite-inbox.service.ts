@@ -2,7 +2,7 @@
 // Inbox realtime de convites com cache por UID e borda serializável.
 import { Injectable } from '@angular/core';
 import { limit, orderBy, where } from '@angular/fire/firestore';
-import { Observable, of } from 'rxjs';
+import { combineLatest, Observable, of, timer } from 'rxjs';
 import { finalize, map, shareReplay } from 'rxjs/operators';
 
 import {
@@ -23,6 +23,7 @@ const INVITE_STATUSES: readonly InviteStatus[] = [
 ];
 
 const INVITE_TYPES: readonly InviteType[] = ['room', 'community', 'friend'];
+const EXPIRY_REFRESH_MS = 30_000;
 
 @Injectable({ providedIn: 'root' })
 export class InviteInboxService {
@@ -49,21 +50,39 @@ export class InviteInboxService {
     this.cache.clear();
   }
 
-  observeMyPendingRoomInvites(userId: string): Observable<InviteInboxItem[]> {
-    return this.observeMyPendingInvites(userId).pipe(
-      map((items) =>
-        items.filter(
+  /**
+   * Projeção exclusiva de convites para salas.
+   *
+   * O relógio reativo remove itens expirados da UI e do badge mesmo quando o
+   * Firestore ainda não publicou uma alteração de status. A callable permanece
+   * como autoridade final e revalida a expiração no aceite.
+   */
+  observeMyPendingRoomInvites(
+    userId: string
+  ): Observable<InviteInboxItem[]> {
+    return combineLatest([
+      this.observeMyPendingInvites(userId),
+      timer(0, EXPIRY_REFRESH_MS),
+    ]).pipe(
+      map(([items]) => {
+        const now = Date.now();
+
+        return items.filter(
           (invite) =>
             invite.status === 'pending' &&
-            (invite.type === 'room' || (invite.type === null && !!invite.roomId))
-        )
-      )
+            (invite.type === 'room' ||
+              (invite.type === null && !!invite.roomId)) &&
+            (invite.expiresAtMs === null || invite.expiresAtMs > now)
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
   /**
-   * Inbox realtime serializável.
+   * Inbox realtime serializável de infraestrutura.
    * Firestore Timestamp permanece na infraestrutura e vira epoch nesta borda.
+   * Consumidores de produto devem preferir a projeção específica do domínio.
    */
   observeMyPendingInvites(userId: string): Observable<InviteInboxItem[]> {
     const uid = this.requireUid(userId);
