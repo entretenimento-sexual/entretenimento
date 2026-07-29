@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { vi } from 'vitest';
 
+import { TERMS_ACCEPTANCE_VERSION } from '../../../core/services/compliance/platform-legal.constants';
 import { TermosECondicoesComponent } from './termos-e-condicoes.component';
 
 describe('TermosECondicoesComponent', () => {
@@ -29,20 +30,22 @@ describe('TermosECondicoesComponent', () => {
     fixture.detectChanges();
   });
 
-  it('deve criar e apresentar a versão atual dos termos', () => {
+  it('deve criar e apresentar a versão material atual dos termos', () => {
     expect(component).toBeTruthy();
-    expect(fixture.nativeElement.textContent).toContain('Versão v2');
+    expect(fixture.nativeElement.textContent).toContain(
+      `Versão de aceite ${TERMS_ACCEPTANCE_VERSION}`
+    );
   });
 
-  it('deve explicar cancelamento sem nova renovação e acesso até o fim da vigência', () => {
+  it('deve explicar cancelamento, fim de cobrança e vigência já paga', () => {
     const text = String(fixture.nativeElement.textContent ?? '')
       .replace(/\s+/g, ' ')
       .trim();
 
-    expect(text).toContain('cancelar a renovação da assinatura a qualquer momento');
-    expect(text).toContain('impede novas cobranças e renovações');
-    expect(text).toContain('até o término do período corrente já pago');
+    expect(text).toContain('O cancelamento impede cobranças futuras');
+    expect(text).toContain('até o fim do período já pago');
     expect(text).toContain('direito de arrependimento');
+    expect(text).toContain('renovação automática');
   });
 
   it('deve voltar à página inicial ao fechar a rota pública', () => {
