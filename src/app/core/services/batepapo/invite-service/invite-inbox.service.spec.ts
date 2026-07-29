@@ -9,6 +9,7 @@ import { InviteInboxService } from './invite-inbox.service';
 
 describe('InviteInboxService room serializable boundary', () => {
   it('converte Timestamp-like para epoch antes de expor o inbox de salas', async () => {
+    const expiresAtMs = Date.now() + 60_000;
     const rawInvite = {
       id: 'room:room-1:to:user-a',
       type: 'room',
@@ -18,7 +19,7 @@ describe('InviteInboxService room serializable boundary', () => {
       receiverId: 'user-a',
       status: 'pending',
       sentAt: { toMillis: () => 1234 },
-      expiresAt: { seconds: 5, nanoseconds: 250_000_000 },
+      expiresAt: { toMillis: () => expiresAtMs },
     } as unknown as Invite;
 
     const read = {
@@ -44,7 +45,7 @@ describe('InviteInboxService room serializable boundary', () => {
         receiverId: 'user-a',
         status: 'pending',
         sentAtMs: 1234,
-        expiresAtMs: 5250,
+        expiresAtMs,
         roomId: null,
         roomName: null,
       },
@@ -65,7 +66,36 @@ describe('InviteInboxService room serializable boundary', () => {
             receiverId: 'user-a',
             status: 'pending',
             sentAt: { toMillis: () => 1234 },
-            expiresAt: { toMillis: () => 9999 },
+            expiresAt: { toMillis: () => Date.now() + 60_000 },
+          } as unknown as Invite,
+        ]),
+    } as unknown as FirestoreReadService;
+
+    const ctx = {
+      deferObservable$: <T>(factory: () => T): T => factory(),
+    } as unknown as FirestoreContextService;
+
+    const service = new InviteInboxService(read, ctx);
+
+    await expect(
+      firstValueFrom(service.observeMyPendingRoomInvites('user-a'))
+    ).resolves.toEqual([]);
+  });
+
+  it('remove convite de sala já expirado da projeção e do badge', async () => {
+    const read = {
+      getDocumentsLiveSafe: () =>
+        of([
+          {
+            id: 'room:room-expired:to:user-a',
+            type: 'room',
+            targetId: 'room-expired',
+            targetName: 'Sala expirada',
+            senderId: 'sender-a',
+            receiverId: 'user-a',
+            status: 'pending',
+            sentAt: { toMillis: () => 1234 },
+            expiresAt: { toMillis: () => Date.now() - 1 },
           } as unknown as Invite,
         ]),
     } as unknown as FirestoreReadService;
