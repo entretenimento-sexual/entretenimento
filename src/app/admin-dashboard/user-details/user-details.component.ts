@@ -5,10 +5,9 @@ import { ActivatedRoute } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { EMPTY } from 'rxjs';
-import { catchError, finalize, switchMap } from 'rxjs/operators';
+import { finalize, switchMap } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { UserModerationService } from 'src/app/core/services/account-moderation/user-moderation.service';
 import { AccountLifecycleService } from 'src/app/account/application/account-lifecycle.service';
 import { StaffComplianceService } from 'src/app/core/services/compliance/staff-compliance.service';
 import { ConfirmDialogComponent } from '../shared/confirm-dialog/confirm-dialog.component';
@@ -52,7 +51,6 @@ export class UserDetailsComponent {
   constructor(
     route: ActivatedRoute,
     private readonly accountLifecycle: AccountLifecycleService,
-    private readonly moderation: UserModerationService,
     private readonly staffCompliance: StaffComplianceService,
     private readonly dialog: MatDialog,
     private readonly snack: MatSnackBar
@@ -104,7 +102,8 @@ export class UserDetailsComponent {
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
         title: 'Suspender usuário',
-        message: 'Confirmar suspensão deste usuário?',
+        message:
+          'Confirme somente após registrar os fatos e a regra aplicável. A suspensão será auditada e notificada ao usuário.',
       },
     });
 
@@ -112,16 +111,28 @@ export class UserDetailsComponent {
       if (!ok) return;
 
       this.loading = true;
-      this.moderation
-        .suspendUser(this.user.uid, 'Violação de regras', 'ADMIN_UID')
+      this.accountLifecycle
+        .moderateSuspendAccount$(
+          this.user.uid,
+          'Medida de suspensão aplicada após decisão da moderação.'
+        )
         .pipe(finalize(() => (this.loading = false)))
         .subscribe({
           next: () => {
-            this.user = { ...this.user, suspended: true };
-            this.snack.open('Usuário suspenso', 'Fechar', { duration: 3000 });
+            this.user = {
+              ...this.user,
+              suspended: true,
+              accountStatus: 'moderation_suspended',
+              publicVisibility: 'hidden',
+              interactionBlocked: true,
+            };
+            this.snack.open('Usuário suspenso e notificado', 'Fechar', {
+              duration: 3000,
+            });
           },
-          error: () =>
-            this.snack.open('Falha ao suspender', 'Fechar', { duration: 3000 }),
+          error: () => {
+            // AccountLifecycleService centraliza diagnóstico e feedback.
+          },
         });
     });
   }
@@ -135,16 +146,22 @@ export class UserDetailsComponent {
       if (!ok) return;
 
       this.loading = true;
-      this.moderation
-        .unsuspendUser(this.user.uid, 'ADMIN_UID')
+      this.accountLifecycle
+        .moderateUnsuspendAccount$(this.user.uid)
         .pipe(finalize(() => (this.loading = false)))
         .subscribe({
           next: () => {
-            this.user = { ...this.user, suspended: false };
+            this.user = {
+              ...this.user,
+              suspended: false,
+              accountStatus: 'active',
+              interactionBlocked: false,
+            };
             this.snack.open('Usuário reativado', 'Fechar', { duration: 3000 });
           },
-          error: () =>
-            this.snack.open('Falha ao reativar', 'Fechar', { duration: 3000 }),
+          error: () => {
+            // AccountLifecycleService centraliza diagnóstico e feedback.
+          },
         });
     });
   }
