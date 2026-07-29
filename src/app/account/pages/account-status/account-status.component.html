@@ -42,6 +42,18 @@
         }
       </section>
 
+      @if (vm.isBlocked) {
+        <section class="account-status-card" aria-label="Manifestação e revisão">
+          <h2>Manifestação e revisão</h2>
+          <p>
+            Consulte avisos de conformidade, prazos e manifestações vinculados à sua conta. Uma suspeita em análise não equivale a infração confirmada.
+          </p>
+          <a class="btn btn-secondary" routerLink="/conta/conformidade">
+            Abrir avisos e manifestações
+          </a>
+        </section>
+      }
+
       <section class="account-status-actions" aria-label="Ações de status da conta">
         @if (vm.canReactivateSelfSuspension) {
           <button
