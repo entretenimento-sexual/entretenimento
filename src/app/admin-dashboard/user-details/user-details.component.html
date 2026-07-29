@@ -1,7 +1,7 @@
-<!-- src\app\admin-dashboard\user-details\user-details.component.html -->
+<!-- src/app/admin-dashboard/user-details/user-details.component.html -->
 <mat-card *ngIf="user as u">
   <mat-card-header>
-    <mat-card-title>{{ u.nome }}</mat-card-title>
+    <mat-card-title>{{ u.nome || u.nickname || 'Usuário' }}</mat-card-title>
     <mat-card-subtitle>{{ u.email }}</mat-card-subtitle>
   </mat-card-header>
 
@@ -18,9 +18,31 @@
   <mat-progress-bar *ngIf="loading" mode="indeterminate"></mat-progress-bar>
 
   <mat-card-actions align="end">
-    <button mat-stroked-button color="primary" (click)="!u.suspended ? suspendUser() : unsuspendUser()">
+    <button
+      mat-stroked-button
+      type="button"
+      [disabled]="loading"
+      (click)="issueComplianceNotice()"
+    >
+      Notificar possível violação
+    </button>
+    <button
+      mat-stroked-button
+      color="primary"
+      type="button"
+      [disabled]="loading"
+      (click)="!u.suspended ? suspendUser() : unsuspendUser()"
+    >
       {{ u.suspended ? 'Reativar' : 'Suspender' }}
     </button>
-    <button mat-raised-button color="warn" (click)="deleteUser()">Excluir</button>
+    <button
+      mat-raised-button
+      color="warn"
+      type="button"
+      [disabled]="loading"
+      (click)="deleteUser()"
+    >
+      Excluir
+    </button>
   </mat-card-actions>
 </mat-card>
