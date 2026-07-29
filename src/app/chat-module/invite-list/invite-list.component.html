@@ -1,10 +1,7 @@
 <!-- src/app/chat-module/invite-list/invite-list.component.html -->
 <section class="invite-list-page" aria-labelledby="invite-list-title">
   <header class="invite-list-page__header invite-list-page__header--compact">
-    <div>
-      <p class="invite-list-page__eyebrow">Conversas</p>
-      <h1 id="invite-list-title">Convites para salas</h1>
-    </div>
+    <h1 id="invite-list-title">Convites para salas</h1>
 
     @if (pendingCount$ | async; as count) {
       @if (count > 0) {
