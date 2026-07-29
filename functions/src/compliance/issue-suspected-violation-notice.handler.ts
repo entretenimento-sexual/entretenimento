@@ -21,6 +21,11 @@ interface IssueSuspectedViolationNoticeRequest {
   preventiveMeasure?: string | null;
 }
 
+const SUSPECTED_VIOLATION_NOTICE_BODY = [
+  'Identificamos uma possível violação que ainda está em análise.',
+  'Consulte o caso e apresente sua manifestação dentro do prazo informado.',
+].join(' ');
+
 export const issueSuspectedViolationNotice = onCall<
   IssueSuspectedViolationNoticeRequest
 >(
@@ -90,6 +95,10 @@ export const issueSuspectedViolationNotice = onCall<
       }
 
       const now = FieldValue.serverTimestamp();
+      const route = [
+        '/conta/conformidade?caseId=',
+        encodeURIComponent(caseRef.id),
+      ].join('');
 
       tx.create(caseRef, {
         caseId: caseRef.id,
@@ -115,9 +124,8 @@ export const issueSuspectedViolationNotice = onCall<
         userId: targetUid,
         type: 'compliance.violation.suspected',
         title: 'Aviso de possível violação',
-        body:
-          'Identificamos uma possível violação que ainda está em análise. Consulte o caso e apresente sua manifestação dentro do prazo informado.',
-        route: `/conta/conformidade?caseId=${encodeURIComponent(caseRef.id)}`,
+        body: SUSPECTED_VIOLATION_NOTICE_BODY,
+        route,
         caseId: caseRef.id,
         actionRequired: true,
         responseDueAt,
