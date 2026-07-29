@@ -10,6 +10,7 @@ export type MessagingAccountStatus =
 export type MessagingOperation =
   | 'create-private-room'
   | 'close-private-room'
+  | 'send-room-invite'
   | 'accept-room-invite'
   | 'decline-room-invite'
   | 'publish-user-intent-status'
