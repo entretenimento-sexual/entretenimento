@@ -136,6 +136,27 @@ describe('Firestore Rules / invites backend response boundary', () => {
     await assertFails(getDoc(doc(db, 'invites', INVITE_ID)));
   });
 
+  it('nega criação direta mesmo para o owner da sala', async () => {
+    const db = authenticatedDb(SENDER_UID);
+    const receiverId = 'second-receiver';
+    const inviteId = `room:${ROOM_ID}:to:${receiverId}`;
+
+    await assertFails(
+      setDoc(doc(db, 'invites', inviteId), {
+        type: 'room',
+        targetId: ROOM_ID,
+        targetName: 'Sala por convite',
+        roomId: ROOM_ID,
+        roomName: 'Sala por convite',
+        senderId: SENDER_UID,
+        receiverId,
+        status: 'pending',
+        sentAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+      })
+    );
+  });
+
   it('nega accepted/declined direto pelo receiver', async () => {
     const db = authenticatedDb(RECEIVER_UID);
 
