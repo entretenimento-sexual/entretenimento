@@ -54,16 +54,18 @@ describe('ChatModuleLayoutComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('mantém os atalhos funcionais e expõe Convites de sala', () => {
+  it('diferencia conexões de convites para salas na navegação', () => {
     const text = fixture.nativeElement.textContent as string;
     const hrefs = Array.from(
       fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
     ).map((link) => link.getAttribute('href'));
 
     expect(text).toContain('Conexões');
-    expect(text).toContain('Solicitações');
+    expect(text).toContain('Solicitações de conexão');
     expect(text).toContain('Salas');
-    expect(text).toContain('Convites');
-    expect(hrefs).toContain('/chat/invite-list');
+    expect(text).toContain('Convites para salas');
+    expect(hrefs).toContain('/friends/requests');
+    expect(hrefs).toContain('/chat/room-invites');
+    expect(hrefs).not.toContain('/chat/invite-list');
   });
 });
