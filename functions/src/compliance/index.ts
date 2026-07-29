@@ -1,6 +1,15 @@
 export { acceptAdultConsent } from './adult-consent.handler';
 export { acceptPlatformTerms } from './terms-acceptance.handler';
 export {
+  issueSuspectedViolationNotice,
+} from './issue-suspected-violation-notice.handler';
+export {
+  getMyComplianceCases,
+} from './get-my-compliance-cases.handler';
+export {
+  submitComplianceCaseResponse,
+} from './submit-compliance-case-response.handler';
+export {
   reportProfileMinorSafety,
 } from './report-profile-minor-safety.handler';
 export {
