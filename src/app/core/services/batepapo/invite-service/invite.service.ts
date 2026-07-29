@@ -1,18 +1,17 @@
 // src/app/core/services/batepapo/invite-service/invite.service.ts
-// Serviço de criação e manutenção sender-side de convites.
+// Serviço de criação e manutenção sender-side de convites de sala.
 // Respostas accepted/declined pertencem exclusivamente ao RoomInviteFlowService.
 import { Injectable } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import {
   Timestamp,
-  addDoc,
   collection,
   deleteDoc,
   doc,
   getDocs,
   query,
   serverTimestamp,
-  setDoc,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -21,26 +20,51 @@ import { catchError, map, switchMap } from 'rxjs/operators';
 
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { InviteDocId } from 'src/app/core/utils/invite-utils';
 import { UserDiscoveryQueryService } from '../../data-handling/queries/user-discovery.query.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { DistanceCalculationService } from '../../geolocation/distance-calculation.service';
 
+interface SendRoomInviteCallablePayload {
+  roomId: string;
+  receiverId: string;
+}
+
+interface SendRoomInviteCallableResponse {
+  inviteId: string;
+  roomId: string;
+  receiverId: string;
+  status: 'pending';
+  deduplicated: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class InviteService {
+  private readonly sendRoomInviteCallable: ReturnType<
+    typeof httpsCallable<
+      SendRoomInviteCallablePayload,
+      SendRoomInviteCallableResponse
+    >
+  >;
+
   constructor(
     private readonly db: Firestore,
+    functions: Functions,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly discoveryQuery: UserDiscoveryQueryService,
     private readonly distanceService: DistanceCalculationService
-  ) {}
+  ) {
+    this.sendRoomInviteCallable = httpsCallable<
+      SendRoomInviteCallablePayload,
+      SendRoomInviteCallableResponse
+    >(functions, 'sendRoomInvite');
+  }
 
   private report(error: unknown, context: Record<string, unknown>): void {
     try {
       const wrapped = new Error('[InviteService] operação falhou');
-      (wrapped as any).feature = 'invites';
+      (wrapped as any).feature = 'room-invites';
       (wrapped as any).original = error;
       (wrapped as any).context = context;
       (wrapped as any).skipUserNotification = true;
@@ -50,69 +74,82 @@ export class InviteService {
     }
   }
 
-  /** Cria/atualiza convite de sala com docId determinístico. */
+  /**
+   * Cria ou deduplica convite de sala pela autoridade backend.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - removido setDoc direto em /invites;
+   * - senderId, nome da sala, timestamps e validade enviados pelo cliente são
+   *   ignorados como autoridade;
+   * - a callable deriva e valida esses campos no backend.
+   *
+   * O nome público é preservado para não quebrar os consumidores existentes.
+   */
   createInvite(inviteData: Invite): Observable<void> {
-    return defer(() => {
-      const type = inviteData.type ?? 'room';
+    const rawType = inviteData?.type ?? 'room';
+    const rawRoomId = inviteData?.targetId ?? inviteData?.roomId;
+    const rawReceiverId = inviteData?.receiverId;
 
-      if (type !== 'room') {
-        return throwError(
-          () =>
-            new Error(
-              'InviteService.createInvite: type ainda não suportado neste fluxo.'
-            )
+    return defer(() => {
+      if (rawType !== 'room') {
+        throw new Error(
+          'InviteService.createInvite: somente convites de sala pertencem a este fluxo.'
         );
       }
 
-      const targetId = String(
-        inviteData.targetId || inviteData.roomId || ''
-      ).trim();
-      const receiverId = String(inviteData.receiverId || '').trim();
-
-      if (!targetId || !receiverId) {
-        return throwError(() => new Error('Dados inválidos para convite de sala.'));
-      }
-
-      const id = InviteDocId.room(targetId, receiverId);
-      const inviteRef = doc(this.db as any, 'invites', id);
-      const payload: Invite = {
-        ...inviteData,
-        type: 'room',
-        targetId,
-        targetName: inviteData.targetName ?? inviteData.roomName ?? '',
-        roomId: targetId,
-        roomName: inviteData.roomName ?? inviteData.targetName ?? '',
-        updatedAt: serverTimestamp() as any,
-      };
+      const roomId = this.requireCanonicalPart(
+        rawRoomId,
+        'Sala inválida para convite.'
+      );
+      const receiverId = this.requireCanonicalPart(
+        rawReceiverId,
+        'Destinatário inválido para convite.'
+      );
 
       return from(
-        setDoc(inviteRef as any, payload as any, { merge: false })
-      ).pipe(map(() => void 0));
+        this.sendRoomInviteCallable({ roomId, receiverId })
+      ).pipe(
+        map((response) => {
+          this.assertValidSendResponse(response.data, roomId, receiverId);
+          return void 0;
+        })
+      );
     }).pipe(
       catchError((error) => {
-        this.report(error, { op: 'createInvite' });
-        this.errorNotifier.showError('Erro ao criar convite.');
+        this.report(error, {
+          op: 'createInvite',
+          roomId: String(rawRoomId ?? '').trim(),
+          receiverId: String(rawReceiverId ?? '').trim(),
+        });
+        this.errorNotifier.showError(
+          this.toUserMessage(error, 'Não foi possível enviar o convite para a sala.')
+        );
         return throwError(() => error);
       })
     );
   }
 
-  /** Compatibilidade genérica. Convites de sala são normalizados pelo owner. */
+  /**
+   * Compatibilidade genérica preservada.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - removido addDoc genérico para community/friend;
+   * - esses domínios devem usar contratos e callables próprios;
+   * - isso impede que um tipo não suportado apareça no inbox de salas.
+   */
   sendInvite(invite: Invite): Observable<void> {
-    if ((invite.type ?? 'room') === 'room') {
+    if ((invite?.type ?? 'room') === 'room') {
       return this.createInvite(invite);
     }
 
-    const invitesCollection = collection(this.db, 'invites');
-
-    return from(addDoc(invitesCollection, invite)).pipe(
-      map(() => void 0),
-      catchError((error) => {
-        this.report(error, { op: 'sendInvite' });
-        this.errorNotifier.showError('Erro ao enviar convite.');
-        return throwError(() => error);
-      })
+    const error = new Error(
+      'Este tipo de convite ainda não possui um fluxo próprio implementado.'
     );
+    this.report(error, { op: 'sendInvite', type: invite?.type ?? null });
+    this.errorNotifier.showError(
+      'Este tipo de convite ainda não está disponível.'
+    );
+    return throwError(() => error);
   }
 
   sendInvitesToNearbyUsers(
@@ -176,7 +213,7 @@ export class InviteService {
         }),
         catchError((error) => {
           this.report(error, { op: 'sendInvitesToNearbyUsers', roomId });
-          this.errorNotifier.showError('Erro ao enviar convites.');
+          this.errorNotifier.showError('Erro ao enviar convites para a sala.');
           return throwError(() => error);
         })
       );
@@ -248,16 +285,13 @@ export class InviteService {
       ),
       catchError((error) => {
         this.report(error, { op: 'getInvites', userId });
-        this.errorNotifier.showError('Erro ao carregar convites.');
+        this.errorNotifier.showError('Erro ao carregar convites para salas.');
         return throwError(() => error);
       })
     );
   }
 
-  /**
-   * Método público preservado.
-   * IDs aleatórios foram suprimidos; o fluxo delega ao createInvite canônico.
-   */
+  /** Método público preservado; delega ao envio canônico backend-only. */
   sendInviteWithTransaction(invite: Invite): Observable<void> {
     return this.createInvite(invite);
   }
@@ -308,44 +342,51 @@ export class InviteService {
 
   /** API compatível com o ChatListComponent. */
   sendInviteToRoom(roomId: string, inviteData: Invite): Observable<void> {
-    return defer(() => {
-      const safeRoomId = String(roomId ?? '').trim();
-      const receiverId = String(inviteData.receiverId ?? '').trim();
-      const senderId = String(inviteData.senderId ?? '').trim();
+    const safeRoomId = String(roomId ?? '').trim();
 
-      if (!safeRoomId) {
-        return throwError(() => new Error('roomId ausente para convite.'));
-      }
+    return this.createInvite({
+      ...inviteData,
+      type: 'room',
+      targetId: String(
+        inviteData?.targetId ?? inviteData?.roomId ?? safeRoomId
+      ).trim(),
+      roomId: safeRoomId,
+    });
+  }
 
-      if (!receiverId || !senderId) {
-        return throwError(
-          () => new Error('senderId/receiverId ausentes para convite.')
-        );
-      }
+  private requireCanonicalPart(value: unknown, message: string): string {
+    const normalized = String(value ?? '').trim();
 
-      return this.createInvite({
-        ...inviteData,
-        type: 'room',
-        targetId: String(
-          inviteData.targetId ?? inviteData.roomId ?? safeRoomId
-        ).trim(),
-        targetName: inviteData.targetName ?? inviteData.roomName ?? '',
-        roomId: safeRoomId,
-        roomName: inviteData.roomName ?? inviteData.targetName ?? '',
-        status: inviteData.status ?? 'pending',
-        sentAt: inviteData.sentAt ?? Timestamp.fromDate(new Date()),
-        expiresAt:
-          inviteData.expiresAt ??
-          Timestamp.fromDate(
-            new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-          ),
-      });
-    }).pipe(
-      catchError((error) => {
-        this.report(error, { op: 'sendInviteToRoom', roomId });
-        this.errorNotifier.showError('Erro ao enviar convite.');
-        return throwError(() => error);
-      })
-    );
+    if (!normalized || normalized.length > 160 || normalized.includes(':')) {
+      throw new Error(message);
+    }
+
+    return normalized;
+  }
+
+  private assertValidSendResponse(
+    result: SendRoomInviteCallableResponse | null | undefined,
+    roomId: string,
+    receiverId: string
+  ): void {
+    const expectedInviteId = `room:${roomId}:to:${receiverId}`;
+
+    if (
+      !result ||
+      result.status !== 'pending' ||
+      String(result.roomId ?? '').trim() !== roomId ||
+      String(result.receiverId ?? '').trim() !== receiverId ||
+      String(result.inviteId ?? '').trim() !== expectedInviteId
+    ) {
+      throw new Error('Resposta inválida ao enviar convite para sala.');
+    }
+  }
+
+  private toUserMessage(error: unknown, fallback: string): string {
+    const raw = String(
+      (error as { message?: unknown } | null)?.message ?? ''
+    ).trim();
+
+    return raw || fallback;
   }
 }
