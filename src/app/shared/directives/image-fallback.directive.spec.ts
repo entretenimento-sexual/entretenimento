@@ -13,6 +13,12 @@ import { ImageFallbackDirective } from './image-fallback.directive';
       [src]="source"
       alt="Foto do usuário"
     />
+    <img
+      class="marker-photo"
+      appImageFallback
+      [src]="source"
+      alt="Foto com marcador"
+    />
   `,
 })
 class ImageFallbackHostComponent {
@@ -21,7 +27,8 @@ class ImageFallbackHostComponent {
 
 describe('ImageFallbackDirective', () => {
   let fixture: ComponentFixture<ImageFallbackHostComponent>;
-  let image: HTMLImageElement;
+  let userPhoto: HTMLImageElement;
+  let markerPhoto: HTMLImageElement;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -30,19 +37,27 @@ describe('ImageFallbackDirective', () => {
 
     fixture = TestBed.createComponent(ImageFallbackHostComponent);
     fixture.detectChanges();
-    image = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+    userPhoto = fixture.nativeElement.querySelector('.user-photo') as HTMLImageElement;
+    markerPhoto = fixture.nativeElement.querySelector('.marker-photo') as HTMLImageElement;
   });
 
-  it('deve substituir a imagem quebrada pelo fallback padrão', () => {
-    image.dispatchEvent(new Event('error'));
+  it('substitui a imagem quebrada pelo fallback padrão', () => {
+    userPhoto.dispatchEvent(new Event('error'));
 
-    expect(image.getAttribute('src')).toBe('assets/imagem-padrao.webp');
+    expect(userPhoto.getAttribute('src')).toBe('assets/imagem-padrao.webp');
+    expect(userPhoto.getAttribute('data-image-fallback')).toBe('applied');
   });
 
-  it('não deve entrar em loop quando o fallback também falhar', () => {
-    image.dispatchEvent(new Event('error'));
-    image.dispatchEvent(new Event('error'));
+  it('mantém o fallback padrão quando a diretiva é usada somente como marcador', () => {
+    markerPhoto.dispatchEvent(new Event('error'));
 
-    expect(image.getAttribute('src')).toBe('assets/imagem-padrao.webp');
+    expect(markerPhoto.getAttribute('src')).toBe('assets/imagem-padrao.webp');
+  });
+
+  it('não entra em loop quando o fallback também falha', () => {
+    userPhoto.dispatchEvent(new Event('error'));
+    userPhoto.dispatchEvent(new Event('error'));
+
+    expect(userPhoto.getAttribute('src')).toBe('assets/imagem-padrao.webp');
   });
 });
