@@ -22,6 +22,7 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
+import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 
 interface UserIntentStatusRadarVm {
   loading: boolean;
@@ -31,9 +32,12 @@ interface UserIntentStatusRadarVm {
 @Component({
   selector: 'app-user-intent-status-radar',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, ImageFallbackDirective],
   templateUrl: './user-intent-status-radar.component.html',
-  styleUrls: ['./user-intent-status-radar.component.css'],
+  styleUrls: [
+    './user-intent-status-radar.component.css',
+    './user-intent-status-radar.compact.css',
+  ],
 })
 export class UserIntentStatusRadarComponent implements OnChanges {
   @Input() user: IUserDados | null = null;
