@@ -238,6 +238,14 @@
                     >
                       {{ child.label }}
                     </span>
+
+                    <span
+                      *ngIf="hasBadge(child.badgeCount)"
+                      class="universal-sidebar__badge"
+                      [attr.aria-label]="child.badgeLabel || (formatBadgeCount(child.badgeCount) + ' pendências')"
+                    >
+                      {{ formatBadgeCount(child.badgeCount) }}
+                    </span>
                   </a>
                 </ng-container>
 
@@ -287,6 +295,14 @@
                     *ngIf="shouldShowExpandedContent"
                   >
                     {{ linkItem.label }}
+                  </span>
+
+                  <span
+                    *ngIf="hasBadge(linkItem.badgeCount)"
+                    class="universal-sidebar__badge"
+                    [attr.aria-label]="linkItem.badgeLabel || (formatBadgeCount(linkItem.badgeCount) + ' pendências')"
+                  >
+                    {{ formatBadgeCount(linkItem.badgeCount) }}
                   </span>
                 </a>
               </ng-container>
