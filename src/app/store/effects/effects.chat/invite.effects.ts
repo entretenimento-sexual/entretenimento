@@ -1,5 +1,5 @@
 // src/app/store/effects/effects.chat/invite.effects.ts
-// Owner global do inbox de convites e das respostas via Cloud Functions.
+// Owner global do inbox de convites para salas e das respostas via Cloud Functions.
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { EMPTY, merge, of } from 'rxjs';
@@ -72,6 +72,11 @@ export class InviteEffects {
   /**
    * Listener realtime escopado pelo UID proprietário.
    *
+   * SUPRESSÃO EXPLÍCITA:
+   * - o effect não consome mais o inbox genérico de todos os tipos;
+   * - somente convites `room` ou documentos legados com roomId entram na Store;
+   * - solicitações de conexão e futuros convites comunitários permanecem fora.
+   *
    * A troca A -> B encerra A mesmo antes de um eventual novo LoadInvites de B.
    * O reducer também limpa a lista imediatamente ao receber a nova carga.
    */
@@ -85,7 +90,7 @@ export class InviteEffects {
           return of(
             InviteActions.LoadInvitesFailure({
               ownerUid: '',
-              error: 'Sessão inválida para carregar convites.',
+              error: 'Sessão inválida para carregar convites para salas.',
             })
           );
         }
@@ -97,7 +102,7 @@ export class InviteEffects {
           )
         );
 
-        return this.inbox.observeMyPendingInvites(ownerUid).pipe(
+        return this.inbox.observeMyPendingRoomInvites(ownerUid).pipe(
           takeUntil(stopForOwner$),
           map((invites) =>
             InviteActions.LoadInvitesSuccess({ ownerUid, invites })
@@ -108,7 +113,7 @@ export class InviteEffects {
                 ownerUid,
                 error: this.errorMessage(
                   error,
-                  'Não foi possível carregar seus convites.'
+                  'Não foi possível carregar seus convites para salas.'
                 ),
               })
             )
@@ -136,7 +141,7 @@ export class InviteEffects {
             InviteActions.AcceptInviteFailure({
               ownerUid: safeOwnerUid,
               inviteId: safeInviteId,
-              error: 'Convite inválido.',
+              error: 'Convite para sala inválido.',
             })
           );
         }
@@ -187,7 +192,7 @@ export class InviteEffects {
             InviteActions.DeclineInviteFailure({
               ownerUid: safeOwnerUid,
               inviteId: safeInviteId,
-              error: 'Convite inválido.',
+              error: 'Convite para sala inválido.',
             })
           );
         }
@@ -201,7 +206,7 @@ export class InviteEffects {
                   return EMPTY;
                 }
 
-                this.notifier.showSuccess('Convite recusado.');
+                this.notifier.showSuccess('Convite para sala recusado.');
                 return of(
                   InviteActions.DeclineInviteSuccess({
                     ownerUid: safeOwnerUid,
@@ -240,8 +245,8 @@ export class InviteEffects {
         const message = this.errorMessage(
           error,
           decision === 'accepted'
-            ? 'Não foi possível aceitar o convite.'
-            : 'Não foi possível recusar o convite.'
+            ? 'Não foi possível aceitar o convite para sala.'
+            : 'Não foi possível recusar o convite para sala.'
         );
 
         this.notifier.showError(message);
@@ -276,15 +281,15 @@ export class InviteEffects {
     ).trim();
 
     if (code.includes('unauthenticated')) {
-      return 'Entre novamente para responder ao convite.';
+      return 'Entre novamente para responder ao convite para sala.';
     }
 
     if (code.includes('permission-denied')) {
-      return 'Sua conta não pode responder a este convite.';
+      return 'Sua conta não pode responder a este convite para sala.';
     }
 
     if (code.includes('failed-precondition')) {
-      return rawMessage || 'Este convite não está mais disponível.';
+      return rawMessage || 'Este convite para sala não está mais disponível.';
     }
 
     if (code.includes('not-found')) {
