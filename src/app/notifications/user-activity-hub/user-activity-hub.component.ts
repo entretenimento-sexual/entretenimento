@@ -6,9 +6,9 @@
 //
 // Decisões:
 // - não funciona como uma segunda navegação de domínio;
-// - Locais e Salas permanecem exclusivamente na navegação canônica do sidebar;
+// - Locais e Salas permanecem na navegação canônica do sidebar;
 // - Conexões aponta somente para solicitações entre pessoas;
-// - convites de Sala permanecem classificados como atividade de Sala/Central;
+// - convites para salas possuem categoria e rota próprias;
 // - badges aparecem apenas quando houver pendência;
 // - usa o stream reativo já protegido por Rules;
 // - não escreve no Firestore;
@@ -71,11 +71,20 @@ export class UserActivityHubComponent {
     {
       id: 'connections',
       label: 'Conexões',
-      description: 'Solicitações e conexões entre pessoas',
+      description: 'Solicitações entre pessoas',
       count: 0,
       icon: '🤝',
       route: '/friends/requests',
       priority: 90,
+    },
+    {
+      id: 'rooms',
+      label: 'Salas',
+      description: 'Convites pendentes para salas privadas',
+      count: 0,
+      icon: '✉️',
+      route: '/chat/room-invites',
+      priority: 80,
     },
     {
       id: 'status',
@@ -131,16 +140,16 @@ export class UserActivityHubComponent {
     const route = this.safeRoute(item.route) ?? this.defaultRouteFor(item);
     const searchable = this.searchableText(item);
 
+    if (this.isRoomActivity(route, searchable)) {
+      return 'rooms';
+    }
+
     if (this.isMessageActivity(item, route, searchable)) {
       return 'messages';
     }
 
     if (this.isConnectionActivity(route, searchable)) {
       return 'connections';
-    }
-
-    if (this.isRoomActivity(route, searchable)) {
-      return 'rooms';
     }
 
     if (this.isPlaceActivity(route, searchable)) {
@@ -166,10 +175,18 @@ export class UserActivityHubComponent {
     route: string,
     searchable: string
   ): boolean {
-    return item.type === 'chat' ||
-      (route.startsWith('/chat') && !route.includes('invite-list')) ||
+    const isRoomInviteRoute =
+      route.includes('/chat/room-invites') ||
+      route.includes('/chat/invite-list');
+
+    return (
+      (item.type === 'chat' && !isRoomInviteRoute) ||
+      (route.startsWith('/chat') &&
+        !route.includes('/rooms') &&
+        !isRoomInviteRoute) ||
       searchable.includes('mensagem') ||
-      searchable.includes('conversa');
+      searchable.includes('conversa direta')
+    );
   }
 
   private isConnectionActivity(route: string, searchable: string): boolean {
@@ -183,9 +200,10 @@ export class UserActivityHubComponent {
 
   private isRoomActivity(route: string, searchable: string): boolean {
     return route.startsWith('/chat/rooms') ||
+      route.includes('/chat/room-invites') ||
       route.includes('/chat/invite-list') ||
-      searchable.includes('sala') ||
-      searchable.includes('convite');
+      searchable.includes('convite para sala') ||
+      searchable.includes('convite de sala');
   }
 
   private isPlaceActivity(route: string, searchable: string): boolean {
