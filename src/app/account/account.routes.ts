@@ -14,6 +14,14 @@ export const ACCOUNT_ROUTES: Routes = [
       ),
   },
   {
+    path: 'conformidade',
+    canActivate: [authOnlyGuard],
+    loadComponent: () =>
+      import('./pages/compliance-cases/compliance-cases.component').then(
+        (m) => m.ComplianceCasesComponent
+      ),
+  },
+  {
     path: 'status',
     canActivate: [authOnlyGuard, accountStatusPageGuard],
     loadComponent: () =>
