@@ -31,14 +31,22 @@ export const DEFAULT_RESPONSE_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
 export const MIN_RESPONSE_WINDOW_MS = 24 * 60 * 60 * 1_000;
 export const MAX_RESPONSE_WINDOW_MS = 30 * 24 * 60 * 60 * 1_000;
 
+function replaceControlCharacters(value: string): string {
+  return [...value]
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code <= 31 || code === 127 ? ' ' : character;
+    })
+    .join('');
+}
+
 export function normalizeComplianceText(
   value: unknown,
   fieldLabel: string,
   minLength: number,
   maxLength: number
 ): string {
-  const normalized = String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+  const normalized = replaceControlCharacters(String(value ?? ''))
     .replace(/\s+/g, ' ')
     .trim();
 
