@@ -94,8 +94,14 @@ match /public_profiles/{userId} {
   function hasAcceptedTerms(data) {
     return data.keys().hasAny(["acceptedTerms"])
       && data.acceptedTerms is map
-      && data.acceptedTerms.keys().hasAny(["accepted"])
-      && data.acceptedTerms.accepted == true;
+      && data.acceptedTerms.keys().hasAll([
+        "accepted",
+        "version",
+        "acknowledgedPrivacyNotice"
+      ])
+      && data.acceptedTerms.accepted == true
+      && data.acceptedTerms.version == "v3"
+      && data.acceptedTerms.acknowledgedPrivacyNotice == true;
   }
 
   function hasRequiredAdultConsent(data) {
