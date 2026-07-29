@@ -87,6 +87,9 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
     await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
       const userRef = db.collection('users').doc(targetUid);
       const publicProfileRef = db.collection('public_profiles').doc(targetUid);
+      const notificationRef = db
+        .collection('notifications')
+        .doc(`moderation_suspend_${targetUid}_${now}`);
 
       const userSnap = await tx.get(userRef);
       if (!userSnap.exists) {
@@ -138,6 +141,20 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
         tx.delete(db.collection('public_index').doc(nicknameIndexDocId));
       }
 
+      tx.create(notificationRef, {
+        userId: targetUid,
+        type: 'compliance.action.taken',
+        title: 'Conta suspensa pela moderação',
+        body: endsAt
+          ? 'Uma medida de suspensão foi aplicada à sua conta. Consulte o motivo e a data prevista de término no status da conta.'
+          : 'Uma medida de suspensão foi aplicada à sua conta. Consulte o motivo e os canais de revisão no status da conta.',
+        route: '/conta/status',
+        actionRequired: true,
+        readAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+
       createLifecycleAudit(tx, {
         uid: targetUid,
         actorUid,
@@ -147,6 +164,7 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
         source: 'moderator',
         moderationReason: reason,
         suspensionEndsAt: endsAt,
+        notificationId: notificationRef.id,
         createdAt: now,
         updatedAt: now,
       });
