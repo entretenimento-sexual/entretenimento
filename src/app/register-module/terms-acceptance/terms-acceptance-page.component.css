@@ -12,7 +12,7 @@
 }
 
 .terms-acceptance__shell {
-  width: min(100%, 42rem);
+  width: min(100%, 46rem);
   margin: 0 auto;
 }
 
@@ -68,6 +68,28 @@ h1 {
   line-height: 1.65;
 }
 
+.terms-acceptance__changes {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.terms-acceptance__changes h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+}
+
+.terms-acceptance__changes ul {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #d4d4d4;
+  line-height: 1.45;
+}
+
 .terms-acceptance__links {
   display: grid;
   gap: 0.65rem;
@@ -96,6 +118,11 @@ h1 {
 .terms-acceptance__links a:focus-visible {
   border-color: rgba(255, 255, 255, 0.42);
   background: rgba(255, 255, 255, 0.06);
+}
+
+.terms-acceptance__confirmations {
+  display: grid;
+  gap: 0.75rem;
 }
 
 .terms-acceptance__confirmation {
@@ -135,6 +162,7 @@ h1 {
 }
 
 .terms-acceptance__error {
+  margin-top: -0.35rem;
   color: #ffb9b9;
   font-weight: 700;
 }
@@ -205,7 +233,7 @@ h1 {
   }
 
   .terms-acceptance__button--ghost {
-    min-width: 7rem;
+    min-width: 9.5rem;
   }
 }
 
