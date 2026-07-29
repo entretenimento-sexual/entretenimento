@@ -20,6 +20,20 @@ interface ExistingTermsAcceptance {
   version?: unknown;
 }
 
+function buildAcceptanceNotificationBody(
+  acceptanceContext: 'initial' | 'material_update'
+): string {
+  if (acceptanceContext === 'initial') {
+    return `Seu aceite da versão ${TERMS_ACCEPTANCE_VERSION} foi registrado.`;
+  }
+
+  const changes = PLATFORM_LEGAL_CHANGE_SUMMARY.join('; ');
+  return [
+    `Seu reaceite da versão ${TERMS_ACCEPTANCE_VERSION} foi registrado.`,
+    `Principais mudanças: ${changes}.`,
+  ].join(' ');
+}
+
 export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<{
@@ -47,7 +61,10 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
     ) {
       throw new HttpsError(
         'invalid-argument',
-        'Confirme os Termos de Uso, a ciência da Política de Privacidade e a condição de acesso adulto.'
+        [
+          'Confirme os Termos de Uso, a ciência da Política de Privacidade',
+          'e a condição de acesso adulto.',
+        ].join(' ')
       );
     }
 
@@ -128,9 +145,7 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
           title: acceptanceContext === 'material_update'
             ? 'Termos atualizados e aceitos'
             : 'Termos de Uso aceitos',
-          body: acceptanceContext === 'material_update'
-            ? `Seu reaceite da versão ${TERMS_ACCEPTANCE_VERSION} foi registrado. Principais mudanças: ${PLATFORM_LEGAL_CHANGE_SUMMARY.join('; ')}.`
-            : `Seu aceite da versão ${TERMS_ACCEPTANCE_VERSION} foi registrado.`,
+          body: buildAcceptanceNotificationBody(acceptanceContext),
           route: '/termos-e-condicoes',
           legalVersion: TERMS_ACCEPTANCE_VERSION,
           readAt: null,
