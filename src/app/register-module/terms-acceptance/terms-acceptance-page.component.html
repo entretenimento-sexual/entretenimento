@@ -9,59 +9,122 @@
       class="terms-acceptance__card"
       [attr.aria-busy]="isSaving()"
     >
-      <p class="terms-acceptance__kicker">Etapa do cadastro</p>
+      <p class="terms-acceptance__kicker">
+        Documentos legais · versão {{ legalManifest.termsAcceptanceVersion }}
+      </p>
 
-      <h1 id="terms-acceptance-title">Revise e aceite os termos</h1>
+      <h1 id="terms-acceptance-title">Revise os documentos atualizados</h1>
 
       <p class="terms-acceptance__lead">
-        Antes de completar seu perfil, confirme que conhece as regras de uso e de privacidade da plataforma.
+        Esta é uma atualização material com vigência em
+        {{ legalManifest.effectiveDateLabel }}. Para continuar, revise os documentos e registre cada confirmação separadamente.
       </p>
+
+      <section class="terms-acceptance__changes" aria-labelledby="terms-change-title">
+        <h2 id="terms-change-title">Principais mudanças</h2>
+        <ul>
+          @for (change of legalManifest.changeSummary; track change) {
+            <li>{{ change }}</li>
+          }
+        </ul>
+      </section>
 
       <div class="terms-acceptance__links" aria-label="Documentos legais">
         <a routerLink="/termos-e-condicoes" target="_blank" rel="noopener noreferrer">
-          Ler Termos e Condições
+          Termos de Uso {{ legalManifest.termsDocumentVersion }}
         </a>
         <a routerLink="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">
-          Ler Política de Privacidade
+          Política de Privacidade {{ legalManifest.privacyNoticeVersion }}
         </a>
       </div>
 
-      <label class="terms-acceptance__confirmation">
-        <input
-          type="checkbox"
-          [formControl]="confirmation"
-          [attr.aria-invalid]="confirmation.touched && confirmation.invalid"
-          aria-describedby="terms-confirmation-help terms-confirmation-error"
-        />
+      <div class="terms-acceptance__confirmations">
+        <label class="terms-acceptance__confirmation">
+          <input
+            type="checkbox"
+            [formControl]="termsConfirmation"
+            [attr.aria-invalid]="isControlInvalid(termsConfirmation)"
+            aria-describedby="terms-confirmation-help terms-confirmation-error"
+          />
 
-        <span>
-          Li e aceito os Termos e Condições e a Política de Privacidade vigentes.
-        </span>
-      </label>
+          <span>
+            Li e aceito os Termos de Uso vigentes, inclusive as regras de conteúdo, segurança, moderação, assinaturas e encerramento da conta.
+          </span>
+        </label>
+
+        @if (isControlInvalid(termsConfirmation)) {
+          <p id="terms-confirmation-error" class="terms-acceptance__error" role="alert">
+            Confirme o aceite dos Termos de Uso.
+          </p>
+        } @else {
+          <span id="terms-confirmation-error" class="terms-acceptance__sr-only">
+            Nenhum erro no aceite dos Termos de Uso.
+          </span>
+        }
+
+        <label class="terms-acceptance__confirmation">
+          <input
+            type="checkbox"
+            [formControl]="privacyAcknowledgement"
+            [attr.aria-invalid]="isControlInvalid(privacyAcknowledgement)"
+            aria-describedby="privacy-confirmation-help privacy-confirmation-error"
+          />
+
+          <span>
+            Declaro que tive acesso à Política de Privacidade e fui informado sobre dados tratados, finalidades, bases legais, compartilhamentos, retenção e direitos.
+          </span>
+        </label>
+
+        @if (isControlInvalid(privacyAcknowledgement)) {
+          <p id="privacy-confirmation-error" class="terms-acceptance__error" role="alert">
+            Confirme a ciência da Política de Privacidade.
+          </p>
+        } @else {
+          <span id="privacy-confirmation-error" class="terms-acceptance__sr-only">
+            Nenhum erro na ciência da Política de Privacidade.
+          </span>
+        }
+
+        <label class="terms-acceptance__confirmation">
+          <input
+            type="checkbox"
+            [formControl]="adultAccessAcknowledgement"
+            [attr.aria-invalid]="isControlInvalid(adultAccessAcknowledgement)"
+            aria-describedby="adult-confirmation-help adult-confirmation-error"
+          />
+
+          <span>
+            Confirmo que sou maior de 18 anos, fornecerei informações verdadeiras e reconheço que o acesso a conteúdo adulto depende dos mecanismos de verificação etária da plataforma.
+          </span>
+        </label>
+
+        @if (isControlInvalid(adultAccessAcknowledgement)) {
+          <p id="adult-confirmation-error" class="terms-acceptance__error" role="alert">
+            Confirme a condição de acesso adulto.
+          </p>
+        } @else {
+          <span id="adult-confirmation-error" class="terms-acceptance__sr-only">
+            Nenhum erro na confirmação de acesso adulto.
+          </span>
+        }
+      </div>
 
       <p id="terms-confirmation-help" class="terms-acceptance__help">
-        O aceite será associado à sua conta e registrado com data e versão dos documentos.
+        O aceite será associado à sua conta, com data, versão dos documentos e indicação de aceite inicial ou reaceite material.
       </p>
-
-      @if (confirmation.touched && confirmation.invalid) {
-        <p
-          id="terms-confirmation-error"
-          class="terms-acceptance__error"
-          role="alert"
-        >
-          Marque a confirmação para continuar.
-        </p>
-      } @else {
-        <span id="terms-confirmation-error" class="terms-acceptance__sr-only">
-          Nenhum erro de confirmação.
-        </span>
-      }
+      <p id="privacy-confirmation-help" class="terms-acceptance__help">
+        A ciência da Política de Privacidade não cria consentimento genérico para todo tratamento de dados; cada operação deve possuir finalidade e base legal próprias.
+      </p>
+      <p id="adult-confirmation-help" class="terms-acceptance__help">
+        Esta declaração não substitui a verificação de idade exigida para o acesso a conteúdo impróprio para menores.
+      </p>
 
       <div class="terms-acceptance__actions">
         <button
           type="button"
           class="terms-acceptance__button terms-acceptance__button--primary"
           [disabled]="isSaving()"
+          [attr.aria-busy]="isSaving()"
           (click)="accept()"
         >
           {{ isSaving() ? 'Registrando aceite...' : 'Aceitar e continuar' }}
@@ -73,7 +136,7 @@
           [disabled]="isSaving()"
           (click)="decline()"
         >
-          Sair
+          Não aceitar e sair
         </button>
       </div>
     </article>
