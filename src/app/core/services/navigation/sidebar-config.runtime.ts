@@ -3,7 +3,8 @@
 // Responsabilidade:
 // - preservar os contratos e filtros puros de sidebar-config.ts;
 // - apresentar Feed, Pessoas, Locais e Comunidades dentro de Descobrir;
-// - apresentar Mensagens, Salas e Convites para salas dentro de Conversas;
+// - apresentar Mensagens, Solicitações de conexão, Salas e Convites para salas
+//   dentro de Conversas;
 // - mover a gestão da assinatura para o grupo Conta;
 // - manter Área VIP e Recursos premium como destinos condicionais;
 // - remover seções que fiquem vazias após a composição.
@@ -190,6 +191,14 @@ function composeDomainNavigation(
               icon: '💬',
               exact: true,
               ariaLabel: 'Abrir mensagens diretas',
+            },
+            {
+              id: 'friend-requests',
+              label: 'Solicitações de conexão',
+              route: '/friends/requests',
+              icon: '🤝',
+              exact: false,
+              ariaLabel: 'Abrir solicitações de conexão recebidas e enviadas',
             },
             {
               id: 'chat-rooms',
