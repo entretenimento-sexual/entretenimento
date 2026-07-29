@@ -47,7 +47,7 @@ import { ChatNotificationService } from 'src/app/core/services/batepapo/chat-not
 
 import * as InviteActions from 'src/app/store/actions/actions.chat/invite.actions';
 import { selectPendingInvitesCount } from 'src/app/store/selectors/selectors.chat/invite.selectors';
-import { selectInboundRequestsCount, selectOutboundRequestsCount } from 'src/app/store/selectors/selectors.interactions/friends';
+import { selectInboundRequestsCount } from 'src/app/store/selectors/selectors.interactions/friends';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 @Component({
@@ -149,7 +149,7 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     this.sidebarShouldOverlay$,
     this.sidebarShouldCompact$,
     this.store.select(selectInboundRequestsCount).pipe(distinctUntilChanged()),
-    this.store.select(selectOutboundRequestsCount).pipe(distinctUntilChanged()),
+    this.store.select(selectPendingInvitesCount).pipe(distinctUntilChanged()),
   ]).pipe(
     map(([
       sidebar,
@@ -157,7 +157,7 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
       sidebarShouldOverlay,
       sidebarShouldCompact,
       inboundRequestsCount,
-      outboundRequestsCount,
+      roomInvitesCount,
     ]): LayoutShellVm => {
       const currentUrl = sidebar.currentUrl;
       const shellMode = this.resolveShellMode(currentUrl);
@@ -165,16 +165,24 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
 
       /**
        * Chat mode:
-       * - vale para /chat, /chat/rooms, /chat/invite-list etc.
-       * - não depende de query string
+       * - vale para /chat, /chat/rooms, /chat/room-invites etc.;
+       * - não depende de query string.
        */
       const isChatLayout = /^\/chat(\/|$)/.test(this.normalizeUrl(currentUrl));
+
+      /**
+       * SUPRESSÃO EXPLÍCITA:
+       * - solicitações enviadas não entram mais no badge acionável;
+       * - somente recebidas exigem resposta do usuário atual.
+       */
       const safeFriendRequestsCount = this.normalizeBadgeCount(
-        inboundRequestsCount + outboundRequestsCount
+        inboundRequestsCount
       );
+      const safeRoomInvitesCount = this.normalizeBadgeCount(roomInvitesCount);
       const sidebarWithBadges = this.applySidebarBadges(
         sidebar,
-        safeFriendRequestsCount
+        safeFriendRequestsCount,
+        safeRoomInvitesCount
       );
 
       const shellContextActions =
@@ -253,13 +261,13 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Owner global apenas de convites.
+   * Owner global apenas de convites para salas.
    *
    * SUPRESSÃO EXPLÍCITA:
    * - friends bootstrap/listeners NÃO ficam mais aqui.
    *
    * Motivo:
-   * - FriendsNetworkEffects já é o owner oficial dessa feature.
+   * - FriendsNetworkEffects já é o owner oficial dessa feature;
    * - manter isso aqui duplicava start/stop e bootstrap.
    */
   private bindGlobalSocialOwners(): void {
@@ -268,14 +276,14 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
         tap((uid) => {
           if (uid) {
             this.store.dispatch(InviteActions.LoadInvites({ userId: uid }));
-            this.dbg('invites:start', { uid });
+            this.dbg('room-invites:start', { uid });
             return;
           }
 
           this.store.dispatch(InviteActions.StopInvites());
           this.chatNotification.resetPendingInvites();
 
-          this.dbg('invites:stop');
+          this.dbg('room-invites:stop');
         }),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -329,29 +337,42 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
 
   private applySidebarBadges(
     sidebar: SidebarVm,
-    friendRequestsCount: number
+    friendRequestsCount: number,
+    roomInvitesCount: number
   ): SidebarVm {
-    if (!friendRequestsCount) {
+    if (!friendRequestsCount && !roomInvitesCount) {
       return sidebar;
     }
 
-    const badgeText = this.buildFriendRequestsBadgeLabel(friendRequestsCount);
+    const friendBadgeText = this.buildFriendRequestsBadgeLabel(
+      friendRequestsCount
+    );
+    const roomBadgeText = this.buildRoomInvitesBadgeLabel(roomInvitesCount);
 
     return {
       ...sidebar,
       sections: sidebar.sections.map((section) => ({
         ...section,
         items: section.items.map((item) => {
-          if (item.id !== 'friend-requests') {
-            return item;
+          if (item.id === 'friend-requests' && friendRequestsCount > 0) {
+            return {
+              ...item,
+              badgeCount: friendRequestsCount,
+              badgeLabel: friendBadgeText,
+              ariaLabel: `Consultar solicitações de conexão. ${friendBadgeText}.`,
+            };
           }
 
-          return {
-            ...item,
-            badgeCount: friendRequestsCount,
-            badgeLabel: badgeText,
-            ariaLabel: `Consultar solicitações de amizade. ${badgeText}.`,
-          };
+          if (item.id === 'room-invites' && roomInvitesCount > 0) {
+            return {
+              ...item,
+              badgeCount: roomInvitesCount,
+              badgeLabel: roomBadgeText,
+              ariaLabel: `Consultar convites para salas. ${roomBadgeText}.`,
+            };
+          }
+
+          return item;
         }),
       })),
     };
@@ -361,10 +382,20 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     const safeCount = this.normalizeBadgeCount(count);
 
     if (safeCount === 1) {
-      return '1 solicitação de amizade pendente';
+      return '1 solicitação de conexão recebida';
     }
 
-    return `${safeCount} solicitações de amizade pendentes`;
+    return `${safeCount} solicitações de conexão recebidas`;
+  }
+
+  private buildRoomInvitesBadgeLabel(count: number): string {
+    const safeCount = this.normalizeBadgeCount(count);
+
+    if (safeCount === 1) {
+      return '1 convite para sala pendente';
+    }
+
+    return `${safeCount} convites para salas pendentes`;
   }
 
   private buildShellContextActions(
@@ -399,10 +430,10 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
         label: `Solicitações (${formattedCount})`,
         route: ['/friends/requests'],
         icon: '🤝',
-        ariaLabel: `Abrir solicitações de amizade. ${this.buildFriendRequestsBadgeLabel(friendRequestsCount)}.`,
+        ariaLabel: `Abrir solicitações de conexão. ${this.buildFriendRequestsBadgeLabel(friendRequestsCount)}.`,
         variant: 'primary',
         badgeCount: friendRequestsCount,
-        badgeLabel: `${friendRequestsCount} solicitação de amizade pendente`,
+        badgeLabel: this.buildFriendRequestsBadgeLabel(friendRequestsCount),
       });
     }
 
