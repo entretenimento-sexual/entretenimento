@@ -1,5 +1,5 @@
 // src/app/core/services/batepapo/invite-service/invite-inbox.service.ts
-// Inbox realtime de convites com cache por UID e borda serializável.
+// Inbox realtime de convites para salas com cache por UID e borda serializável.
 import { Injectable } from '@angular/core';
 import { limit, orderBy, where } from '@angular/fire/firestore';
 import { combineLatest, Observable, of, timer } from 'rxjs';
@@ -9,7 +9,6 @@ import {
   Invite,
   InviteInboxItem,
   InviteStatus,
-  InviteType,
 } from '@core/interfaces/interfaces-chat/invite.interface';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 import { FirestoreReadService } from '@core/services/data-handling/firestore/core/firestore-read.service';
@@ -22,7 +21,6 @@ const INVITE_STATUSES: readonly InviteStatus[] = [
   'canceled',
 ];
 
-const INVITE_TYPES: readonly InviteType[] = ['room', 'community', 'friend'];
 const EXPIRY_REFRESH_MS = 30_000;
 
 @Injectable({ providedIn: 'root' })
@@ -36,14 +34,14 @@ export class InviteInboxService {
 
   private requireUid(userId: string): string {
     const uid = String(userId ?? '').trim();
-    if (!uid) throw new Error('UID ausente para consulta de convites.');
+    if (!uid) throw new Error('UID ausente para consulta de convites para salas.');
     return uid;
   }
 
   clearCacheForUser(userId: string | null | undefined): void {
     const uid = String(userId ?? '').trim();
     if (!uid) return;
-    this.cache.delete(`invites:pending:${uid}`);
+    this.cache.delete(`room-invites:pending:${uid}`);
   }
 
   clearAllCache(): void {
@@ -80,13 +78,13 @@ export class InviteInboxService {
   }
 
   /**
-   * Inbox realtime serializável de infraestrutura.
-   * Firestore Timestamp permanece na infraestrutura e vira epoch nesta borda.
-   * Consumidores de produto devem preferir a projeção específica do domínio.
+   * Método público legado preservado para compatibilidade.
+   * A projeção normaliza somente documentos de sala; tipos de outros domínios
+   * são descartados antes de chegar ao NgRx.
    */
   observeMyPendingInvites(userId: string): Observable<InviteInboxItem[]> {
     const uid = this.requireUid(userId);
-    const key = `invites:pending:${uid}`;
+    const key = `room-invites:pending:${uid}`;
 
     const cached = this.cache.get(key);
     if (cached) return cached;
@@ -131,7 +129,7 @@ export class InviteInboxService {
     userId: string | null | undefined
   ): Observable<InviteInboxItem[]> {
     const uid = String(userId ?? '').trim();
-    return uid ? this.observeMyPendingInvites(uid) : of([]);
+    return uid ? this.observeMyPendingRoomInvites(uid) : of([]);
   }
 
   private toInboxItem(invite: Invite): InviteInboxItem | null {
@@ -141,12 +139,19 @@ export class InviteInboxService {
     const rawStatus = invite?.status;
     const status =
       rawStatus && INVITE_STATUSES.includes(rawStatus) ? rawStatus : null;
+    const roomId = this.optionalString(invite?.roomId ?? invite?.targetId);
+    const rawType = String((invite as { type?: unknown })?.type ?? '').trim();
+    const type = rawType === 'room' ? 'room' : null;
 
     if (!id || !senderId || !receiverId || !status) return null;
 
-    const rawType = invite?.type;
-    const type =
-      rawType && INVITE_TYPES.includes(rawType) ? rawType : null;
+    /**
+     * Documentos explicitamente pertencentes a outro domínio não entram no
+     * contrato de salas. O legado sem `type` só é aceito quando possui roomId.
+     */
+    if ((rawType && rawType !== 'room') || (!rawType && !roomId)) {
+      return null;
+    }
 
     return {
       id,
@@ -158,7 +163,7 @@ export class InviteInboxService {
       status,
       sentAtMs: this.toEpochMs(invite?.sentAt),
       expiresAtMs: this.toEpochMs(invite?.expiresAt),
-      roomId: this.optionalString(invite?.roomId),
+      roomId,
       roomName: this.optionalString(invite?.roomName),
     };
   }
