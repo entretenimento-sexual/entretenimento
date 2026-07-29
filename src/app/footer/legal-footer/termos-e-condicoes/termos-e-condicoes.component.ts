@@ -3,8 +3,8 @@ import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 
 import {
-  TERMS_ACCEPTANCE_VERSION,
-} from '../../../core/services/compliance/terms-acceptance.service';
+  PLATFORM_LEGAL_MANIFEST,
+} from '../../../core/services/compliance/platform-legal.constants';
 
 @Component({
   selector: 'app-termos-e-condicoes',
@@ -13,7 +13,7 @@ import {
   styleUrls: ['./termos-e-condicoes.component.css'],
 })
 export class TermosECondicoesComponent {
-  readonly termsVersion = TERMS_ACCEPTANCE_VERSION;
+  readonly legalManifest = PLATFORM_LEGAL_MANIFEST;
 
   private readonly router = inject(Router);
 
