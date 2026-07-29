@@ -1,0 +1,22 @@
+/* Estado vazio compacto da disponibilidade na home. */
+
+.intent-radar__state--empty {
+  justify-content: flex-start;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  background: var(--surface-color, #101923);
+  text-align: left;
+}
+
+.intent-radar__state--empty i {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 520px) {
+  .intent-radar__state--empty {
+    min-height: 52px;
+    border-radius: 12px;
+  }
+}
