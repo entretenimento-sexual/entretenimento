@@ -41,4 +41,28 @@ describe('MobileBottomNavComponent', () => {
     component.currentUrl = '/dashboard/explorar';
     expect(component.isActive(feed)).toBe(true);
   });
+
+  it('sinaliza no Chat somente solicitações recebidas', async () => {
+    await TestBed.configureTestingModule({
+      imports: [MobileBottomNavComponent, RouterTestingModule],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(MobileBottomNavComponent);
+    const component = fixture.componentInstance;
+    const chat = component.items.find((item) => item.id === 'chat');
+
+    expect(chat).toBeTruthy();
+
+    component.friendRequestsCount = 3;
+
+    expect(component.itemBadgeCount(chat!)).toBe(3);
+    expect(component.itemAriaLabel(chat!)).toContain(
+      '3 solicitações de conexão recebidas'
+    );
+
+    component.friendRequestsCount = 0;
+
+    expect(component.itemBadgeCount(chat!)).toBe(0);
+    expect(component.itemAriaLabel(chat!)).toBe(chat!.ariaLabel);
+  });
 });
