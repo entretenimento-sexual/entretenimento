@@ -10,6 +10,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 
 export type TPublicPhotoCardVariant =
   | 'profile'
@@ -21,7 +22,7 @@ export type TPublicPhotoCardVariant =
 @Component({
   selector: 'app-public-photo-card',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, ImageFallbackDirective],
   templateUrl: './public-photo-card.component.html',
   styleUrls: [
     './public-photo-card.component.css',
