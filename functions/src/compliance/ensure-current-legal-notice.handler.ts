@@ -21,6 +21,15 @@ function hasAcceptedCurrentLegalDocuments(value: unknown): boolean {
   );
 }
 
+function buildPendingLegalNoticeBody(): string {
+  const changes = PLATFORM_LEGAL_CHANGE_SUMMARY.join('; ');
+  return [
+    `Revise e aceite a versão ${TERMS_ACCEPTANCE_VERSION}`,
+    'para continuar usando os recursos da plataforma.',
+    `Principais mudanças: ${changes}.`,
+  ].join(' ');
+}
+
 export const ensureCurrentLegalNotice = onCall(
   { region: FUNCTIONS_REGION },
   async (request): Promise<{
@@ -75,8 +84,7 @@ export const ensureCurrentLegalNotice = onCall(
         userId: uid,
         type: 'compliance.terms.update_required',
         title: 'Termos e Política de Privacidade atualizados',
-        body:
-          `Revise e aceite a versão ${TERMS_ACCEPTANCE_VERSION} para continuar usando os recursos da plataforma. Principais mudanças: ${PLATFORM_LEGAL_CHANGE_SUMMARY.join('; ')}.`,
+        body: buildPendingLegalNoticeBody(),
         route: '/register/aceitar-termos',
         legalVersion: TERMS_ACCEPTANCE_VERSION,
         termsDocumentVersion: TERMS_DOCUMENT_VERSION,
