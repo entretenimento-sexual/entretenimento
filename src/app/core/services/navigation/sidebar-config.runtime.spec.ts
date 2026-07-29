@@ -76,7 +76,7 @@ describe('sidebar runtime composition', () => {
     );
   });
 
-  it('separa Mensagens e Salas dentro de Conversas', () => {
+  it('separa mensagens, conexões, salas e convites para salas', () => {
     const sections = buildSidebarSections({
       isSubscriber: false,
       isVip: false,
@@ -86,7 +86,9 @@ describe('sidebar runtime composition', () => {
 
     expect(chat?.items.map(({ id }) => id)).toEqual([
       'chat-list',
+      'friend-requests',
       'chat-rooms',
+      'room-invites',
     ]);
     expect(
       chat?.items.map((item) =>
@@ -94,7 +96,9 @@ describe('sidebar runtime composition', () => {
       )
     ).toEqual([
       '/chat',
+      '/friends/requests',
       '/chat/rooms',
+      '/chat/room-invites',
     ]);
   });
 
