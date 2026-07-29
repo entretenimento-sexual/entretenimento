@@ -76,17 +76,31 @@ describe('sidebar runtime composition', () => {
     );
   });
 
-  it('separa mensagens, conexões, salas e convites para salas', () => {
+  it('separa conexões de mensagens, salas e convites para salas', () => {
     const sections = buildSidebarSections({
       isSubscriber: false,
       isVip: false,
       isAdmin: false,
     });
+    const connections = sections.find(({ key }) => key === 'profiles');
     const chat = sections.find(({ key }) => key === 'chat');
+
+    expect(connections?.title).toBe('Conexões');
+    expect(connections?.items.map(({ id }) => id)).toEqual([
+      'friends-list',
+      'friend-requests',
+    ]);
+    expect(
+      connections?.items.map((item) =>
+        isSidebarGroupItem(item) ? null : item.route
+      )
+    ).toEqual([
+      '/dashboard/friends/list',
+      '/friends/requests',
+    ]);
 
     expect(chat?.items.map(({ id }) => id)).toEqual([
       'chat-list',
-      'friend-requests',
       'chat-rooms',
       'room-invites',
     ]);
@@ -96,10 +110,14 @@ describe('sidebar runtime composition', () => {
       )
     ).toEqual([
       '/chat',
-      '/friends/requests',
       '/chat/rooms',
       '/chat/room-invites',
     ]);
+
+    expect(resolveSidebarSectionFromUrl('/friends/requests')).toBe('profiles');
+    expect(resolveSidebarSectionFromUrl('/dashboard/friends/list')).toBe(
+      'profiles'
+    );
   });
 
   it('mantém Feed e Pessoas quando Locais e Comunidades estão desativados', () => {
