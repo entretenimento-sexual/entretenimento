@@ -1,7 +1,15 @@
 // src/app/core/interfaces/interfaces-chat/invite.interface.ts
 import type { FieldValue, Timestamp } from 'firebase/firestore';
 
-export type InviteType = 'room' | 'community' | 'friend';
+/**
+ * Este contrato pertence exclusivamente ao domínio de salas de conversa.
+ *
+ * SUPRESSÃO EXPLÍCITA:
+ * - `community` e `friend` foram removidos de InviteType;
+ * - solicitações de conexão continuam em FriendRequest/friendRequests;
+ * - futuros convites comunitários terão contrato, Store e callables próprios.
+ */
+export type InviteType = 'room';
 export type InviteStatus =
   | 'pending'
   | 'accepted'
@@ -10,35 +18,35 @@ export type InviteStatus =
   | 'canceled';
 
 /**
- * Documento de domínio recebido diretamente do Firestore.
+ * Documento de convite para sala recebido diretamente do Firestore.
  * Não deve atravessar a borda do NgRx porque contém Timestamp/FieldValue.
  */
-export interface Invite {
+export interface RoomInvite {
   id?: string;
 
-  // v2
-  type?: InviteType;
+  type?: 'room';
   targetId?: string;
   targetName?: string;
 
-  // canônico
   senderId: string;
   receiverId: string;
   status: InviteStatus;
   sentAt: Timestamp;
   expiresAt: Timestamp;
 
-  // audit
   respondedAt?: Timestamp | FieldValue | null;
   updatedAt?: Timestamp | FieldValue;
 
-  // legacy room
+  // Compatibilidade com documentos de sala anteriores ao contrato v2.
   roomId?: string;
   roomName?: string;
 }
 
+/** Nome público legado preservado para os consumidores existentes. */
+export type Invite = RoomInvite;
+
 /**
- * Projeção plain/serializável do inbox.
+ * Projeção plain/serializável do inbox de salas.
  *
  * SUPRESSÃO EXPLÍCITA:
  * - Timestamp e FieldValue são convertidos para epoch em milissegundos;
@@ -47,7 +55,7 @@ export interface Invite {
  */
 export interface InviteInboxItem {
   readonly id: string;
-  readonly type: InviteType | null;
+  readonly type: 'room' | null;
   readonly targetId: string | null;
   readonly targetName: string | null;
   readonly senderId: string;
