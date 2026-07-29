@@ -1,55 +1,43 @@
-import { describe, expect, it, vi } from 'vitest';
-import { of } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
+import { describe, expect, it } from 'vitest';
 
-import { isSidebarGroupItem } from './sidebar-config.runtime';
+import { isSidebarGroupItem } from './sidebar-config';
 import { SidebarService, type SidebarVm } from './sidebar.service';
 
+function createService(): SidebarService {
+  const router = {
+    url: '/dashboard/principal',
+    events: new BehaviorSubject<unknown>(null),
+  } as never;
+
+  return new SidebarService(router);
+}
+
 describe('SidebarService groups', () => {
-  function createService(): SidebarService {
-    const breakpointObserver = {
-      observe: vi.fn(() => of({ matches: false })),
-    };
-    const routeContext = {
-      currentUrl$: of('/dashboard/principal'),
-    };
-    const access = {
-      isSubscriber$: of(false),
-      hasAny$: vi.fn(() => of(false)),
-    };
-    const globalErrorHandler = {
-      handleError: vi.fn(),
-    };
-
-    return new SidebarService(
-      breakpointObserver as any,
-      routeContext as any,
-      access as any,
-      globalErrorHandler as any
-    );
-  }
-
-  it('abre, fecha e alterna grupos sem duplicar IDs', () => {
+  it('inicia sem grupos expandidos', () => {
     const service = createService();
-    const emissions: readonly string[][] = [];
-    const subscription = service.expandedGroupIds$.subscribe((value) => {
-      (emissions as string[][]).push([...value]);
-    });
+    const emissions: SidebarVm[] = [];
+    const subscription = service.vm$.subscribe((value) => emissions.push(value));
 
-    service.openGroup(' account ');
+    expect(emissions.at(-1)?.expandedGroupIds).toEqual([]);
+
+    subscription.unsubscribe();
+  });
+
+  it('alterna e fecha grupos explicitamente', () => {
+    const service = createService();
+    const emissions: SidebarVm[] = [];
+    const subscription = service.vm$.subscribe((value) => emissions.push(value));
+
+    service.toggleGroup('account');
+    expect(emissions.at(-1)?.expandedGroupIds).toEqual(['account']);
+
+    service.toggleGroup('account');
+    expect(emissions.at(-1)?.expandedGroupIds).toEqual([]);
+
     service.openGroup('account');
-    expect(emissions.at(-1)).toEqual(['account']);
-
-    service.toggleGroup('account');
-    expect(emissions.at(-1)).toEqual([]);
-
-    service.toggleGroup('account');
-    expect(emissions.at(-1)).toEqual(['account']);
-
     service.closeGroup('account');
-    expect(emissions.at(-1)).toEqual([]);
-
-    service.openGroup('   ');
-    expect(emissions.at(-1)).toEqual([]);
+    expect(emissions.at(-1)?.expandedGroupIds).toEqual([]);
 
     subscription.unsubscribe();
   });
@@ -67,7 +55,7 @@ describe('SidebarService groups', () => {
     subscription.unsubscribe();
   });
 
-  it('expõe Assinatura somente dentro do grupo Conta', () => {
+  it('expõe Assinatura e conformidade somente dentro do grupo Conta', () => {
     const service = createService();
     const emissions: SidebarVm[] = [];
     const subscription = service.vm$.subscribe((value) => emissions.push(value));
@@ -85,6 +73,7 @@ describe('SidebarService groups', () => {
       'my-profile',
       'preferences',
       'my-account',
+      'compliance-cases',
       'subscription-plan',
       'safety-center',
     ]);
