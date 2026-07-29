@@ -9,6 +9,11 @@ interface SubmitComplianceCaseResponseRequest {
   response: string;
 }
 
+const RESPONSE_DEADLINE_MESSAGE = [
+  'O prazo indicado para manifestação terminou.',
+  'Use o canal de atendimento para solicitar análise excepcional.',
+].join(' ');
+
 export const submitComplianceCaseResponse = onCall<
   SubmitComplianceCaseResponseRequest
 >(
@@ -68,16 +73,22 @@ export const submitComplianceCaseResponse = onCall<
       }
 
       const responseDueAt = Number(data.responseDueAt ?? 0);
-      if (Number.isFinite(responseDueAt) && responseDueAt > 0) {
-        if (respondedAtMs > responseDueAt) {
-          throw new HttpsError(
-            'deadline-exceeded',
-            'O prazo indicado para manifestação terminou. Use o canal de atendimento para solicitar análise excepcional.'
-          );
-        }
+      if (
+        Number.isFinite(responseDueAt) &&
+        responseDueAt > 0 &&
+        respondedAtMs > responseDueAt
+      ) {
+        throw new HttpsError(
+          'deadline-exceeded',
+          RESPONSE_DEADLINE_MESSAGE
+        );
       }
 
       const now = FieldValue.serverTimestamp();
+      const route = [
+        '/conta/conformidade?caseId=',
+        encodeURIComponent(caseId),
+      ].join('');
 
       tx.update(caseRef, {
         userResponse: response,
@@ -102,7 +113,7 @@ export const submitComplianceCaseResponse = onCall<
           title: 'Manifestação recebida',
           body:
             'Sua manifestação foi registrada e será considerada na análise do caso.',
-          route: `/conta/conformidade?caseId=${encodeURIComponent(caseId)}`,
+          route,
           caseId,
           actionRequired: false,
           readAt: null,
