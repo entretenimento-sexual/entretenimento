@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, signal } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import {
   FormControl,
   ReactiveFormsModule,
@@ -18,7 +18,10 @@ import {
 } from 'rxjs/operators';
 
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
-import { TermsAcceptanceService } from 'src/app/core/services/compliance/terms-acceptance.service';
+import {
+  PLATFORM_LEGAL_MANIFEST,
+  TermsAcceptanceService,
+} from 'src/app/core/services/compliance/terms-acceptance.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
@@ -33,12 +36,29 @@ import { RegisterFlowVm } from '../data-access/register-flow.model';
 export class TermsAcceptancePageComponent {
   private readonly FLOW_RESOLUTION_TIMEOUT_MS = 5000;
 
-  readonly confirmation = new FormControl(false, {
+  readonly legalManifest = PLATFORM_LEGAL_MANIFEST;
+
+  readonly termsConfirmation = new FormControl(false, {
+    nonNullable: true,
+    validators: [Validators.requiredTrue],
+  });
+
+  readonly privacyAcknowledgement = new FormControl(false, {
+    nonNullable: true,
+    validators: [Validators.requiredTrue],
+  });
+
+  readonly adultAccessAcknowledgement = new FormControl(false, {
     nonNullable: true,
     validators: [Validators.requiredTrue],
   });
 
   readonly isSaving = signal(false);
+  readonly acknowledgementsValid = computed(() =>
+    this.termsConfirmation.valid &&
+    this.privacyAcknowledgement.valid &&
+    this.adultAccessAcknowledgement.valid
+  );
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -54,10 +74,10 @@ export class TermsAcceptancePageComponent {
       return;
     }
 
-    if (this.confirmation.invalid) {
-      this.confirmation.markAsTouched();
+    if (!this.acknowledgementsValid()) {
+      this.markAcknowledgementsTouched();
       this.errorNotifier.showWarning(
-        'Confirme que leu e aceita os termos para continuar.'
+        'Confirme separadamente os Termos de Uso, a ciência da Política de Privacidade e a condição de acesso adulto.'
       );
       return;
     }
@@ -113,7 +133,7 @@ export class TermsAcceptancePageComponent {
 
     this.isSaving.set(true);
     this.errorNotifier.showWarning(
-      'Para criar e usar a conta, é necessário aceitar os termos vigentes.',
+      'Sem aceitar os Termos de Uso vigentes, a conta não pode continuar usando os recursos da plataforma.',
       4200
     );
 
@@ -131,6 +151,16 @@ export class TermsAcceptancePageComponent {
         })
       )
       .subscribe();
+  }
+
+  isControlInvalid(control: FormControl<boolean>): boolean {
+    return control.touched && control.invalid;
+  }
+
+  private markAcknowledgementsTouched(): void {
+    this.termsConfirmation.markAsTouched();
+    this.privacyAcknowledgement.markAsTouched();
+    this.adultAccessAcknowledgement.markAsTouched();
   }
 
   private resolveNextRoute(
