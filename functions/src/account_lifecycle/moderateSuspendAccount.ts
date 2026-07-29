@@ -55,6 +55,18 @@ function normalizeOptionalEpoch(
   return normalized;
 }
 
+function buildSuspensionNotificationBody(endsAt: number | null): string {
+  const destination = endsAt
+    ? 'a data prevista de término no status da conta.'
+    : 'os canais de revisão no status da conta.';
+
+  return [
+    'Uma medida de suspensão foi aplicada à sua conta.',
+    'Consulte o motivo e',
+    destination,
+  ].join(' ');
+}
+
 export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
   { region: ACCOUNT_LIFECYCLE_REGION },
   async (request): Promise<AccountLifecycleCommandResult> => {
@@ -145,9 +157,7 @@ export const moderateSuspendAccount = onCall<ModerateSuspendAccountRequest>(
         userId: targetUid,
         type: 'compliance.action.taken',
         title: 'Conta suspensa pela moderação',
-        body: endsAt
-          ? 'Uma medida de suspensão foi aplicada à sua conta. Consulte o motivo e a data prevista de término no status da conta.'
-          : 'Uma medida de suspensão foi aplicada à sua conta. Consulte o motivo e os canais de revisão no status da conta.',
+        body: buildSuspensionNotificationBody(endsAt),
         route: '/conta/status',
         actionRequired: true,
         readAt: null,
