@@ -10,7 +10,8 @@
 // - não substitui a sidebar universal no desktop;
 // - fica oculto em chat para não competir com teclado/thread;
 // - reduz a navegação fixa para quatro áreas mentais: Hoje, Feed, Chat e Perfil;
-// - mantém rotas existentes para não quebrar deep links ou guards.
+// - mantém rotas existentes para não quebrar deep links ou guards;
+// - sinaliza no destino Chat somente solicitações recebidas e acionáveis.
 // -----------------------------------------------------------------------------
 
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
@@ -40,14 +41,15 @@ export class MobileBottomNavComponent {
   @Input() currentUrl = '/';
 
   /**
-   * Entrada preservada para compatibilidade com o LayoutShell atual.
+   * Quantidade de solicitações de conexão recebidas.
    *
    * SUPRESSÃO EXPLÍCITA:
-   * - a badge de solicitações saiu da bottom nav.
+   * - solicitações enviadas não entram neste indicador;
+   * - convites para salas não são somados aqui.
    *
    * Motivo:
-   * - Conexões deixou de ser destino fixo principal no mobile.
-   * - solicitações passam a ser ação contextual dentro de Chat/Perfil.
+   * - somente solicitações recebidas exigem resposta imediata neste destino;
+   * - convites para salas mantêm identidade e feedback próprios.
    */
   @Input() friendRequestsCount = 0;
 
@@ -107,6 +109,28 @@ export class MobileBottomNavComponent {
     return item.activePrefixes.some(
       (prefix) => clean === prefix || clean.startsWith(`${prefix}/`)
     );
+  }
+
+  itemBadgeCount(item: MobileBottomNavItem): number {
+    if (item.id === 'chat') {
+      return this.normalizeBadgeCount(this.friendRequestsCount);
+    }
+
+    return this.normalizeBadgeCount(item.badgeCount);
+  }
+
+  itemAriaLabel(item: MobileBottomNavItem): string {
+    const count = this.itemBadgeCount(item);
+
+    if (item.id !== 'chat' || count <= 0) {
+      return item.ariaLabel;
+    }
+
+    const pendingLabel = count === 1
+      ? '1 solicitação de conexão recebida'
+      : `${count} solicitações de conexão recebidas`;
+
+    return `${item.ariaLabel}. ${pendingLabel}.`;
   }
 
   trackById(_index: number, item: MobileBottomNavItem): string {
