@@ -1,61 +1,210 @@
 <!-- src/app/footer/legal-footer/termos-e-condicoes/termos-e-condicoes.component.html -->
-<div class="conteudo-termosecondicoes" role="document" aria-labelledby="modal-title">
-  <h1 id="modal-title">Termos e Condições de Uso</h1>
+<main class="legal-document" role="document" aria-labelledby="terms-title">
+  <header class="legal-document__header">
+    <p class="legal-document__eyebrow">Documento contratual</p>
+    <h1 id="terms-title">Termos de Uso da plataforma SEXO É O LIMITE</h1>
+    <p class="legal-document__version">
+      <strong>Versão de aceite {{ legalManifest.termsAcceptanceVersion }}</strong>
+      · documento {{ legalManifest.termsDocumentVersion }}
+      · vigente desde {{ legalManifest.effectiveDateLabel }}
+    </p>
+    <p>
+      Estes Termos regulam o acesso e o uso da plataforma digital SEXO É O LIMITE pela pessoa usuária. A operadora responsável é a pessoa jurídica identificada nos dados empresariais, endereço e canais eletrônicos disponibilizados no rodapé e na central de atendimento da aplicação.
+    </p>
+  </header>
 
-  <p class="terms-version">
-    <strong>Versão {{ termsVersion }}</strong> — atualizada em 22 de julho de 2026.
-  </p>
+  <nav class="legal-document__summary" aria-label="Resumo dos Termos de Uso">
+    <h2>Resumo essencial</h2>
+    <ul>
+      <li>a plataforma é exclusiva para pessoas com 18 anos ou mais;</li>
+      <li>o acesso a conteúdo adulto depende de mecanismos eficazes de verificação etária;</li>
+      <li>somente é permitido publicar conteúdo lícito, consentido e envolvendo exclusivamente pessoas adultas;</li>
+      <li>suspeitas de violação podem gerar restrições preventivas, notificação e apuração;</li>
+      <li>mudanças materiais nos Termos exigem novo aceite;</li>
+      <li>assinaturas, cancelamentos e reembolsos respeitam a oferta e os direitos obrigatórios do consumidor.</li>
+    </ul>
+  </nav>
 
-  <p>Bem-vindo à [Nome do Site]! Ao acessar ou usar nossa plataforma, você concorda em cumprir e estar vinculado aos
-    seguintes termos e condições. Por favor, leia-os atentamente. Se você não concorda com estes termos, não utilize
-    nosso site.</p>
+  <section>
+    <h2>1. Aceite, capacidade e formação do contrato</h2>
+    <p>
+      Ao marcar a confirmação de aceite e prosseguir, a pessoa usuária declara que leu estes Termos, teve oportunidade de conservar e reproduzir seu conteúdo e concorda em ficar vinculada às regras vigentes. O aceite é registrado com data, versão do documento, contexto de aceite inicial ou reaceite material e vínculo com a conta autenticada.
+    </p>
+    <p>
+      A ciência da Política de Privacidade é registrada separadamente. Ela não constitui consentimento genérico para todas as operações de tratamento de dados, que devem observar finalidade específica e base legal adequada.
+    </p>
+  </section>
 
-  <h4>Restrição de Idade</h4>
-  <p>O acesso a [Nome do Site] é estritamente restrito a indivíduos com 18 anos ou mais. Ao utilizar este site, você
-    declara e garante que tem pelo menos 18 anos de idade. Se não tiver, por favor, não acesse ou utilize a plataforma.
-  </p>
+  <section>
+    <h2>2. Restrição etária e verificação de maioridade</h2>
+    <p>
+      A plataforma e seus conteúdos adultos são impróprios e proibidos para crianças e adolescentes. É vedada a criação, manutenção ou utilização de conta por pessoa menor de 18 anos, ainda que com autorização de responsável.
+    </p>
+    <p>
+      A autodeclaração de idade, isoladamente, não é suficiente para liberar conteúdo adulto. A plataforma poderá exigir mecanismos de aferição ou verificação de idade adequados, proporcionais, auditáveis e tecnicamente seguros, inclusive a cada acesso quando exigido pela legislação ou pelo nível de risco do recurso.
+    </p>
+    <p>
+      Dados coletados especificamente para verificação de idade serão limitados ao necessário para essa finalidade, protegidos por medidas de segurança e não poderão ser reutilizados para publicidade comportamental ou finalidade incompatível.
+    </p>
+    <p>
+      Diante de indícios fundados de menoridade, a plataforma poderá restringir preventivamente o acesso, ocultar o perfil e solicitar verificação complementar. A pessoa usuária será informada e terá acesso a procedimento de contestação, salvo quando a comunicação imediata puder comprometer a segurança de vítima, investigação legítima, preservação de prova ou determinação legal.
+    </p>
+  </section>
 
-  <h4>Uso do Conteúdo</h4>
-  <p>O conteúdo deste site é fornecido apenas para sua informação geral e uso pessoal. Ele está sujeito a alterações sem
-    aviso prévio. Você concorda em utilizar o conteúdo de forma responsável e em conformidade com todas as leis
-    aplicáveis.</p>
+  <section>
+    <h2>3. Conta, informações verdadeiras e segurança</h2>
+    <ul>
+      <li>cada pessoa deve utilizar apenas sua própria conta e manter dados cadastrais verdadeiros e atualizados;</li>
+      <li>credenciais, códigos de autenticação e dispositivos de acesso não devem ser compartilhados;</li>
+      <li>é proibido criar contas falsas, impersonar terceiros, contornar suspensão, verificação etária, bloqueios ou limites técnicos;</li>
+      <li>a pessoa usuária deve comunicar imediatamente suspeita de acesso indevido ou comprometimento da conta;</li>
+      <li>a plataforma pode exigir reautenticação, verificação de identidade ou confirmação adicional para ações sensíveis.</li>
+    </ul>
+  </section>
 
-  <h4>Assinaturas, renovação e cancelamento</h4>
-  <p>
-    As assinaturas pagas têm vigência pelo período informado no momento da contratação e podem ser renovadas
-    automaticamente quando essa modalidade estiver claramente indicada e autorizada. O usuário pode cancelar a
-    renovação da assinatura a qualquer momento pelos meios disponibilizados na plataforma. O cancelamento impede novas
-    cobranças e renovações, mas os benefícios do plano permanecem disponíveis até o término do período corrente já pago,
-    conforme a data de vigência exibida na área da conta.
-  </p>
-  <p>
-    Salvo nas hipóteses de direito de arrependimento, cobrança indevida, falha atribuível à plataforma ou outra obrigação
-    prevista em lei, o cancelamento não gera reembolso proporcional do período já iniciado. O direito de arrependimento
-    aplicável às contratações realizadas fora do estabelecimento comercial e os demais direitos obrigatórios do
-    consumidor permanecem preservados.
-  </p>
+  <section>
+    <h2>4. Conteúdo adulto permitido e dever de consentimento</h2>
+    <p>
+      A plataforma admite conteúdo adulto somente quando lícito, consensual e produzido ou compartilhado por pessoas maiores de 18 anos. A pessoa que publica declara possuir os direitos necessários e o consentimento livre, informado, específico e atual de todas as pessoas identificáveis no material.
+    </p>
+    <p>
+      A autorização para registrar uma imagem não presume autorização para publicar, comercializar, impulsionar, republicar ou utilizar o conteúdo fora da finalidade acordada. Quando solicitado, o publicador deverá demonstrar a origem lícita, a maioridade e a autorização pertinente, observados os limites de privacidade e segurança.
+    </p>
+  </section>
 
-  <h4>Propriedade Intelectual</h4>
-  <p>Todo o conteúdo presente neste site, incluindo, mas não se limitando a, textos, gráficos, logotipos, ícones,
-    imagens e software, é propriedade da [Nome da Empresa] ou de seus licenciadores e está protegido por leis de
-    direitos autorais e outras leis de propriedade intelectual.</p>
+  <section>
+    <h2>5. Conteúdo e condutas proibidos</h2>
+    <p>É proibido publicar, solicitar, armazenar, transmitir, promover ou facilitar:</p>
+    <ul>
+      <li>qualquer representação sexual, erotizada ou sugestiva envolvendo criança ou adolescente, pessoa que aparente menoridade ou cuja idade não possa ser razoavelmente confirmada;</li>
+      <li>exploração, abuso sexual, aliciamento, sequestro, tráfico de pessoas, coerção ou qualquer forma de violência sexual;</li>
+      <li>conteúdo íntimo sem consentimento, gravação oculta, exposição vingativa, montagem ou mídia sexual sintética de pessoa real sem autorização;</li>
+      <li>ameaça, perseguição, chantagem, extorsão, assédio, discriminação, discurso de ódio ou divulgação de dados pessoais para causar dano;</li>
+      <li>fraude, estelionato, falsidade, lavagem de dinheiro, financiamento ilícito ou tentativa de burlar controles de pagamento, identidade ou segurança;</li>
+      <li>venda ou promoção de bens, substâncias, serviços ou atividades proibidos por lei;</li>
+      <li>malware, coleta automatizada não autorizada, engenharia reversa abusiva, sobrecarga, invasão ou exploração de vulnerabilidades;</li>
+      <li>violação de direitos autorais, imagem, honra, privacidade, marca ou outros direitos de terceiros;</li>
+      <li>qualquer conduta que viole a legislação, estes Termos ou regras específicas de comunidades, salas, locais e recursos da plataforma.</li>
+    </ul>
+  </section>
 
-  <h4>Uso Aceitável</h4>
-  <p>Você concorda em não utilizar o site para qualquer propósito ilegal ou proibido por estes termos. É proibido
-    transmitir ou divulgar conteúdo ilegal, ameaçador, abusivo, difamatório, obsceno ou que viole os direitos de
-    terceiros.</p>
+  <section>
+    <h2>6. Denúncias, suspeitas e apuração</h2>
+    <p>
+      Uma denúncia ou sinal automatizado é indício e não representa, por si só, confirmação de infração. A plataforma poderá abrir caso de conformidade, preservar registros necessários, reduzir alcance, ocultar conteúdo, limitar interações, exigir documentação ou aplicar outra medida preventiva proporcional ao risco.
+    </p>
+    <p>Quando cabível, a notificação de suspeita informará:</p>
+    <ul>
+      <li>identificador do caso;</li>
+      <li>categoria da possível violação e cláusula relacionada;</li>
+      <li>resumo objetivo dos fatos, sem expor indevidamente denunciantes, vítimas, dados sensíveis ou métodos antifraude;</li>
+      <li>medida preventiva eventualmente aplicada e sua duração estimada;</li>
+      <li>prazo e canal para manifestação ou envio de documentos;</li>
+      <li>resultado da análise e possibilidade de revisão, quando aplicável.</li>
+    </ul>
+    <p>
+      A ausência de detalhes poderá ser justificada quando a divulgação criar risco de retaliação, comprometer investigação, facilitar fraude, revelar segredo de segurança, violar direitos de terceiros ou contrariar ordem legal.
+    </p>
+  </section>
 
-  <h4>Links para Outros Sites</h4>
-  <p>Nosso site pode conter links para sites de terceiros que não são controlados ou operados por nós. Não nos
-    responsabilizamos pelo conteúdo ou práticas desses sites. Recomendamos que você leia os termos e políticas de
-    privacidade de qualquer site de terceiros que visitar.</p>
+  <section>
+    <h2>7. Medidas de moderação e revisão</h2>
+    <p>
+      Confirmada ou suficientemente demonstrada uma violação, a plataforma poderá advertir, remover conteúdo, reduzir distribuição, restringir recursos, suspender pagamentos, bloquear interações, suspender ou encerrar a conta, preservar registros e comunicar autoridades competentes quando exigido ou permitido por lei.
+    </p>
+    <p>
+      As medidas considerarão gravidade, risco, reincidência, cooperação, possibilidade de correção, proteção de vítimas e urgência. A pessoa usuária poderá apresentar manifestação ou solicitar revisão pelo canal indicado no aviso. Conteúdo manifestamente ilegal, exploração sexual de menores, risco iminente, fraude relevante ou ordem de autoridade podem justificar ação imediata antes da manifestação.
+    </p>
+  </section>
 
-  <h4>Alterações nos Termos</h4>
-  <p>Reservamo-nos o direito de modificar estes termos. Alterações materiais serão identificadas por nova versão e
-    poderão exigir novo aceite antes da continuidade do uso de recursos da plataforma.</p>
+  <section>
+    <h2>8. Notificações e comunicações obrigatórias</h2>
+    <p>
+      A plataforma poderá enviar comunicações operacionais, jurídicas, de segurança, cobrança, verificação etária e conformidade por notificação interna, e-mail cadastrado ou outro canal confirmado. Essas comunicações essenciais não são publicidade e podem ser necessárias para execução do contrato, proteção da conta, cumprimento de obrigação legal ou exercício regular de direitos.
+    </p>
+    <p>
+      A pessoa usuária deve manter seus canais atualizados. A notificação interna será considerada disponibilizada quando registrada na conta; comunicações externas serão consideradas enviadas quando encaminhadas ao endereço ou contato cadastrado, sem prejuízo de requisitos legais específicos.
+    </p>
+  </section>
 
-  <h4>Contato</h4>
-  <p>Se você tiver alguma dúvida sobre estes termos, entre em contato conosco em [email de contato].</p>
+  <section>
+    <h2>9. Alterações destes Termos</h2>
+    <p>
+      Alterações materiais serão identificadas por nova versão de aceite, acompanhadas de resumo em linguagem clara e aviso destacado. O acesso a recursos da plataforma poderá ficar condicionado ao novo aceite. Exemplos incluem mudança de direitos e deveres, critérios de moderação, tratamento de conteúdo, cobrança, verificação etária ou uso relevante de dados.
+    </p>
+    <p>
+      Ajustes editoriais, correções, melhorias de clareza ou atualizações que não reduzam direitos nem ampliem obrigações poderão ser comunicados sem exigir novo aceite. O histórico de versões e a data de vigência devem permanecer acessíveis.
+    </p>
+  </section>
 
-  <button type="button" (click)="closeDialog()">Fechar</button>
-</div>
+  <section>
+    <h2>10. Privacidade e proteção de dados</h2>
+    <p>
+      O tratamento de dados pessoais segue a Política de Privacidade, a legislação aplicável e os princípios de finalidade, adequação, necessidade, transparência, segurança, prevenção, não discriminação e responsabilização. Dados relativos à vida sexual ou orientação sexual podem constituir dados pessoais sensíveis e recebem proteção reforçada.
+    </p>
+    <p>
+      Solicitações de acesso, correção, portabilidade, informação, oposição, revisão de decisões automatizadas, revogação de consentimento quando aplicável e eliminação serão tratadas conforme a base legal, os direitos de terceiros e os prazos de retenção obrigatória.
+    </p>
+  </section>
+
+  <section>
+    <h2>11. Assinaturas, renovação, cancelamento e arrependimento</h2>
+    <p>
+      Preço, duração, recursos, limites, tributos, forma de pagamento, eventual renovação automática e restrições serão apresentados antes da contratação. A renovação automática somente ocorrerá quando informada de forma clara e autorizada no fluxo de compra.
+    </p>
+    <p>
+      O cancelamento impede cobranças futuras, preservando os benefícios até o fim do período já pago, salvo regra mais favorável apresentada na oferta. Permanecem assegurados o direito de arrependimento aplicável às contratações eletrônicas, a restituição por cobrança indevida, falha atribuível à plataforma e demais direitos obrigatórios do consumidor.
+    </p>
+  </section>
+
+  <section>
+    <h2>12. Pagamentos, verificação de identidade e prevenção a ilícitos</h2>
+    <p>
+      Recursos financeiros, pagamentos, gorjetas, assinaturas, repasses ou saques podem ser processados por parceiros regulados e depender de verificação de identidade, titularidade, capacidade, origem de recursos e análise de risco. A plataforma e os parceiros poderão bloquear temporariamente operações suspeitas, solicitar documentos, preservar registros e comunicar fatos às autoridades quando houver obrigação ou fundamento legal.
+    </p>
+    <p>
+      É proibido utilizar a plataforma para dissimular origem, destino, natureza ou titularidade de valores, realizar autofinanciamento fictício, fraude de pagamento, chargeback abusivo ou intermediação financeira não autorizada.
+    </p>
+  </section>
+
+  <section>
+    <h2>13. Propriedade intelectual e licença técnica</h2>
+    <p>
+      A pessoa usuária mantém os direitos que possua sobre seu conteúdo. Ao publicá-lo, concede à plataforma licença não exclusiva, limitada, revogável conforme as funcionalidades e necessária para armazenar, processar, adaptar tecnicamente, exibir, distribuir e moderar o conteúdo dentro do serviço e de suas configurações.
+    </p>
+    <p>
+      Marcas, código, identidade visual, interfaces, textos institucionais e demais ativos próprios ou licenciados da plataforma não podem ser copiados ou explorados sem autorização.
+    </p>
+  </section>
+
+  <section>
+    <h2>14. Disponibilidade, terceiros e responsabilidade</h2>
+    <p>
+      A plataforma busca manter o serviço seguro e disponível, mas poderá realizar manutenções, correções, migrações e interrupções justificadas. Links, integrações, meios de pagamento e serviços de terceiros seguem também os respectivos contratos e políticas.
+    </p>
+    <p>
+      Nenhuma cláusula exclui responsabilidade que não possa ser afastada por lei, direitos do consumidor, proteção de dados, deveres de segurança ou reparação por conduta própria comprovada.
+    </p>
+  </section>
+
+  <section>
+    <h2>15. Encerramento da conta e retenção</h2>
+    <p>
+      A pessoa usuária pode solicitar suspensão ou exclusão pelos canais disponíveis. Dados e conteúdos serão eliminados ou anonimizados conforme a Política de Privacidade, ressalvadas retenções necessárias para cumprimento legal, exercício de direitos, segurança, prevenção a fraude, proteção de vítimas, cobrança e preservação de provas.
+    </p>
+  </section>
+
+  <section>
+    <h2>16. Lei aplicável, atendimento e direitos preservados</h2>
+    <p>
+      Aplicam-se as leis da República Federativa do Brasil. Nas relações de consumo, permanece preservado o foro do domicílio do consumidor e qualquer outro direito inderrogável. Dúvidas, reclamações, solicitações de privacidade, manifestações de conformidade e pedidos de revisão devem ser encaminhados pelos canais oficiais indicados no rodapé, na central de atendimento ou na área de segurança da conta.
+    </p>
+  </section>
+
+  <footer class="legal-document__footer">
+    <p>
+      A pessoa usuária pode conservar uma cópia deste documento por impressão ou salvamento da página. A versão registrada no aceite permanece vinculada ao histórico de conformidade da conta.
+    </p>
+    <button type="button" (click)="closeDialog()">Fechar</button>
+  </footer>
+</main>
