@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { TERMS_ACCEPTANCE_VERSION } from '../compliance/platform-legal.constants';
 import {
   MAX_LIFECYCLE_REASON_LENGTH,
   assertRecentAuthentication,
@@ -17,7 +18,11 @@ function eligibleUser(overrides: Partial<UserDoc> = {}): UserDoc {
     emailVerified: true,
     profileCompleted: true,
     nickname: 'Pessoa Segura',
-    acceptedTerms: { accepted: true, version: 'v1' },
+    acceptedTerms: {
+      accepted: true,
+      version: TERMS_ACCEPTANCE_VERSION,
+      acknowledgedPrivacyNotice: true,
+    },
     initialAdultConsentRequired: true,
     adultConsent: { accepted: true, version: 'v1' },
     role: 'vip',
@@ -81,6 +86,30 @@ describe('account lifecycle shared guards', () => {
     assert.equal(
       isUserEligibleForPublicProjection(
         eligibleUser({ acceptedTerms: { accepted: false } })
+      ),
+      false
+    );
+    assert.equal(
+      isUserEligibleForPublicProjection(
+        eligibleUser({
+          acceptedTerms: {
+            accepted: true,
+            version: 'v2',
+            acknowledgedPrivacyNotice: true,
+          },
+        })
+      ),
+      false
+    );
+    assert.equal(
+      isUserEligibleForPublicProjection(
+        eligibleUser({
+          acceptedTerms: {
+            accepted: true,
+            version: TERMS_ACCEPTANCE_VERSION,
+            acknowledgedPrivacyNotice: false,
+          },
+        })
       ),
       false
     );
