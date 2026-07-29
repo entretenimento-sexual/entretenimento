@@ -1,6 +1,9 @@
 export { acceptAdultConsent } from './adult-consent.handler';
 export { acceptPlatformTerms } from './terms-acceptance.handler';
 export {
+  ensureCurrentLegalNotice,
+} from './ensure-current-legal-notice.handler';
+export {
   issueSuspectedViolationNotice,
 } from './issue-suspected-violation-notice.handler';
 export {
