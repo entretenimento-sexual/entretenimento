@@ -29,7 +29,7 @@ function buildInvite(id: string, receiverId: string): InviteInboxItem {
   };
 }
 
-describe('InviteEffects session isolation', () => {
+describe('InviteEffects room session isolation', () => {
   it('cancela A, ignora emissão tardia e publica somente B', () => {
     const actionSubject = new Subject<Action>();
     const userAInvites = new Subject<InviteInboxItem[]>();
@@ -37,9 +37,10 @@ describe('InviteEffects session isolation', () => {
     const uidSubject = new BehaviorSubject<string | null>('user-a');
 
     const inbox = {
-      observeMyPendingInvites: vi.fn((uid: string): Observable<InviteInboxItem[]> => {
-        return uid === 'user-a' ? userAInvites : userBInvites;
-      }),
+      observeMyPendingRoomInvites: vi.fn(
+        (uid: string): Observable<InviteInboxItem[]> =>
+          uid === 'user-a' ? userAInvites : userBInvites
+      ),
       clearAllCache: vi.fn(),
     } as unknown as InviteInboxService;
 
@@ -102,7 +103,7 @@ describe('InviteEffects session isolation', () => {
     const acceptResult = new Subject<void>();
 
     const inbox = {
-      observeMyPendingInvites: () => of([]),
+      observeMyPendingRoomInvites: () => of([]),
       clearAllCache: vi.fn(),
     } as unknown as InviteInboxService;
 
