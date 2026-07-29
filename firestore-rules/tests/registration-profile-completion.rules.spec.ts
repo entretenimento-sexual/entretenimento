@@ -90,7 +90,11 @@ async function seedReadyPrivateUser(): Promise<void> {
       registrationFlowVersion: 'v3-private-by-default',
       initialAdultConsentRequired: true,
       registrationCompletedAt: null,
-      acceptedTerms: { accepted: true },
+      acceptedTerms: {
+        accepted: true,
+        version: 'v3',
+        acknowledgedPrivacyNotice: true,
+      },
       adultConsent: { accepted: true, version: 'v1' },
       createdAt: new Date(),
       updatedAt: new Date(),
