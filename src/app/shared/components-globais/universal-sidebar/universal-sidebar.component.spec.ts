@@ -1,6 +1,12 @@
+import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { RouterTestingModule } from '@angular/router/testing';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { SidebarGroupItem } from '@core/services/navigation/sidebar-config';
+import type {
+  SidebarGroupItem,
+  SidebarLinkItem,
+} from '@core/services/navigation/sidebar-config';
 import type { SidebarVm } from '@core/services/navigation/sidebar.service';
 
 import { UniversalSidebarComponent } from './universal-sidebar.component';
@@ -40,6 +46,24 @@ function buildVm(
         key: 'settings',
         title: '',
         items: [accountGroup],
+      },
+    ],
+  };
+}
+
+function buildBadgeVm(item: SidebarLinkItem): SidebarVm {
+  return {
+    isMobile: false,
+    isOpen: true,
+    isCollapsed: false,
+    currentUrl: '/dashboard/principal',
+    currentSection: 'chat',
+    expandedGroupIds: [],
+    sections: [
+      {
+        key: 'chat',
+        title: 'Conversas',
+        items: [item],
       },
     ],
   };
@@ -95,5 +119,28 @@ describe('UniversalSidebarComponent account group', () => {
     expect(component.groupPanelId('account settings')).toBe(
       'sidebar-group-account-settings'
     );
+  });
+
+  it('renderiza badge em link comum da navegação', async () => {
+    await TestBed.configureTestingModule({
+      imports: [UniversalSidebarComponent, RouterTestingModule],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(UniversalSidebarComponent);
+    fixture.componentInstance.vm = buildBadgeVm({
+      id: 'friend-requests',
+      label: 'Solicitações de conexão',
+      route: '/friends/requests',
+      badgeCount: 2,
+      badgeLabel: '2 solicitações de conexão recebidas',
+    });
+    fixture.detectChanges();
+
+    const badge = fixture.debugElement.query(
+      By.css('.universal-sidebar__link .universal-sidebar__badge')
+    );
+
+    expect(badge).toBeTruthy();
+    expect(badge.nativeElement.textContent.trim()).toBe('2');
   });
 });
