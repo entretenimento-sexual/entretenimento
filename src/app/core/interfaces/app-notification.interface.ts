@@ -1,6 +1,7 @@
 export type AppNotificationType =
   | 'user_intent_status.published'
   | 'user_intent_status.compatible'
+  | 'compliance.terms.update_required'
   | 'compliance.terms.updated'
   | 'compliance.violation.suspected'
   | 'compliance.violation.response_received'
