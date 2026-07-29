@@ -33,6 +33,7 @@ export interface ComplianceCaseItem {
 }
 
 export interface ComplianceCasesVm {
+  ownerUid: string | null;
   loading: boolean;
   submittingCaseId: string | null;
   items: ComplianceCaseItem[];
