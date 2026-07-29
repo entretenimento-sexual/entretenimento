@@ -16,6 +16,7 @@ const entryPath = resolve(process.cwd(), 'functions', 'lib', 'index.js');
 const requiredExports = [
   'createPrivateRoom',
   'closePrivateRoom',
+  'sendRoomInvite',
   'acceptRoomInvite',
   'declineRoomInvite',
   'ensureDirectChat',
