@@ -30,31 +30,33 @@ export const getMyComplianceCases = onCall(
     const snapshot = await db
       .collection('compliance_cases')
       .where('targetUid', '==', uid)
-      .orderBy('createdAt', 'desc')
-      .limit(30)
+      .limit(50)
       .get();
 
-    const items = snapshot.docs.map((doc) => {
-      const data = doc.data();
+    const items = snapshot.docs
+      .map((doc) => {
+        const data = doc.data();
 
-      return {
-        caseId: doc.id,
-        category: String(data.category ?? ''),
-        summary: String(data.summary ?? ''),
-        policySection: String(data.policySection ?? ''),
-        preventiveMeasure:
-          String(data.preventiveMeasure ?? '').trim() || null,
-        status: String(data.status ?? ''),
-        presumption: String(data.presumption ?? ''),
-        responseDueAt: toMillis(data.responseDueAt),
-        userResponse: String(data.userResponse ?? '').trim() || null,
-        userRespondedAt: toMillis(data.userRespondedAt),
-        resolution: String(data.resolution ?? '').trim() || null,
-        resolvedAt: toMillis(data.resolvedAt),
-        createdAt: toMillis(data.createdAt),
-        updatedAt: toMillis(data.updatedAt),
-      };
-    });
+        return {
+          caseId: doc.id,
+          category: String(data.category ?? ''),
+          summary: String(data.summary ?? ''),
+          policySection: String(data.policySection ?? ''),
+          preventiveMeasure:
+            String(data.preventiveMeasure ?? '').trim() || null,
+          status: String(data.status ?? ''),
+          presumption: String(data.presumption ?? ''),
+          responseDueAt: toMillis(data.responseDueAt),
+          userResponse: String(data.userResponse ?? '').trim() || null,
+          userRespondedAt: toMillis(data.userRespondedAt),
+          resolution: String(data.resolution ?? '').trim() || null,
+          resolvedAt: toMillis(data.resolvedAt),
+          createdAt: toMillis(data.createdAt),
+          updatedAt: toMillis(data.updatedAt),
+        };
+      })
+      .sort((a, b) => Number(b.createdAt ?? 0) - Number(a.createdAt ?? 0))
+      .slice(0, 30);
 
     return { items };
   }
