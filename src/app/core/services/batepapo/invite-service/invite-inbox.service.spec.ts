@@ -7,8 +7,8 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { FirestoreReadService } from 'src/app/core/services/data-handling/firestore/core/firestore-read.service';
 import { InviteInboxService } from './invite-inbox.service';
 
-describe('InviteInboxService serializable boundary', () => {
-  it('converte Timestamp-like para epoch antes de expor o inbox', async () => {
+describe('InviteInboxService room serializable boundary', () => {
+  it('converte Timestamp-like para epoch antes de expor o inbox de salas', async () => {
     const rawInvite = {
       id: 'room:room-1:to:user-a',
       type: 'room',
@@ -31,7 +31,7 @@ describe('InviteInboxService serializable boundary', () => {
 
     const service = new InviteInboxService(read, ctx);
     const items = await firstValueFrom(
-      service.observeMyPendingInvites('user-a')
+      service.observeMyPendingRoomInvites('user-a')
     );
 
     expect(items).toEqual([
@@ -50,6 +50,35 @@ describe('InviteInboxService serializable boundary', () => {
       },
     ]);
     expect(JSON.parse(JSON.stringify(items))).toEqual(items);
+  });
+
+  it('não deixa convite comunitário entrar na Store de salas', async () => {
+    const read = {
+      getDocumentsLiveSafe: () =>
+        of([
+          {
+            id: 'community:community-1:to:user-a',
+            type: 'community',
+            targetId: 'community-1',
+            targetName: 'Comunidade 1',
+            senderId: 'manager-a',
+            receiverId: 'user-a',
+            status: 'pending',
+            sentAt: { toMillis: () => 1234 },
+            expiresAt: { toMillis: () => 9999 },
+          } as unknown as Invite,
+        ]),
+    } as unknown as FirestoreReadService;
+
+    const ctx = {
+      deferObservable$: <T>(factory: () => T): T => factory(),
+    } as unknown as FirestoreContextService;
+
+    const service = new InviteInboxService(read, ctx);
+
+    await expect(
+      firstValueFrom(service.observeMyPendingRoomInvites('user-a'))
+    ).resolves.toEqual([]);
   });
 
   it('descarta documento inválido em vez de contaminar o Store', async () => {
@@ -71,7 +100,7 @@ describe('InviteInboxService serializable boundary', () => {
     const service = new InviteInboxService(read, ctx);
 
     await expect(
-      firstValueFrom(service.observeMyPendingInvites('user-a'))
+      firstValueFrom(service.observeMyPendingRoomInvites('user-a'))
     ).resolves.toEqual([]);
   });
 });
