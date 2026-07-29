@@ -174,7 +174,7 @@ function buildNotificationId(roomId: string, receiverId: string): string {
   return `room_invite_received_${roomId}_${receiverId}`;
 }
 
-async function sendRoomInvite(
+async function handleSendRoomInvite(
   request: CallableRequest<SendRoomInviteRequest>
 ): Promise<SendRoomInviteResult> {
   const actorUid = normalizeText(request.auth?.uid);
@@ -379,5 +379,5 @@ async function sendRoomInvite(
 
 export const sendRoomInvite = onCall<SendRoomInviteRequest>(
   { region: FUNCTIONS_REGION, invoker: 'public' },
-  sendRoomInvite
+  handleSendRoomInvite
 );
