@@ -1,0 +1,94 @@
+<h2 mat-dialog-title>Emitir aviso de possível violação</h2>
+
+<mat-dialog-content>
+  <p class="compliance-dialog__lead">
+    Destinatário: <strong>{{ data.targetLabel }}</strong>
+  </p>
+
+  <p class="compliance-dialog__notice">
+    Este formulário registra uma suspeita para apuração. Não descreva a pessoa como infratora antes da conclusão da análise.
+  </p>
+
+  <form class="compliance-dialog__form" [formGroup]="form" (ngSubmit)="submit()">
+    <label>
+      <span>Categoria</span>
+      <select formControlName="category">
+        @for (category of categories; track category.value) {
+          <option [value]="category.value">{{ category.label }}</option>
+        }
+      </select>
+    </label>
+
+    <label>
+      <span>Resumo objetivo dos fatos</span>
+      <textarea
+        rows="6"
+        maxlength="1200"
+        formControlName="summary"
+        aria-describedby="compliance-summary-help"
+      ></textarea>
+      <small id="compliance-summary-help">
+        Informe o que foi identificado, quando e em qual recurso. Não revele dados desnecessários de vítima, denunciante ou métodos antifraude.
+      </small>
+      @if (form.controls.summary.touched && form.controls.summary.invalid) {
+        <span class="compliance-dialog__error" role="alert">
+          Use entre 20 e 1.200 caracteres.
+        </span>
+      }
+    </label>
+
+    <label>
+      <span>Cláusula ou política relacionada</span>
+      <input
+        type="text"
+        maxlength="160"
+        formControlName="policySection"
+        placeholder="Ex.: Termos de Uso, item 5 — conteúdo sem consentimento"
+      />
+      @if (
+        form.controls.policySection.touched &&
+        form.controls.policySection.invalid
+      ) {
+        <span class="compliance-dialog__error" role="alert">
+          Informe a regra relacionada.
+        </span>
+      }
+    </label>
+
+    <label>
+      <span>Medida preventiva já aplicada, se houver</span>
+      <textarea
+        rows="3"
+        maxlength="300"
+        formControlName="preventiveMeasure"
+        placeholder="Ex.: conteúdo ocultado temporariamente durante a análise"
+      ></textarea>
+    </label>
+
+    <label>
+      <span>Prazo para manifestação, em dias</span>
+      <input
+        type="number"
+        min="1"
+        max="30"
+        inputmode="numeric"
+        formControlName="responseWindowDays"
+      />
+      @if (
+        form.controls.responseWindowDays.touched &&
+        form.controls.responseWindowDays.invalid
+      ) {
+        <span class="compliance-dialog__error" role="alert">
+          Escolha um prazo entre 1 e 30 dias.
+        </span>
+      }
+    </label>
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancel()">Cancelar</button>
+  <button mat-raised-button color="primary" type="button" (click)="submit()">
+    Emitir aviso
+  </button>
+</mat-dialog-actions>
