@@ -1,0 +1,166 @@
+<main class="compliance-page app-page" aria-labelledby="compliance-title">
+  <section class="compliance-shell ui-container">
+    <header class="compliance-hero">
+      <p class="compliance-hero__eyebrow">Segurança e conformidade</p>
+      <h1 id="compliance-title">Avisos e manifestações</h1>
+      <p>
+        Uma suspeita não significa que uma infração foi confirmada. Consulte os fatos informados, a regra relacionada, eventual medida preventiva e o prazo para apresentar sua manifestação.
+      </p>
+    </header>
+
+    @if (vm$ | async; as vm) {
+      @if (vm.loading && vm.items.length === 0) {
+        <section class="compliance-state" role="status" aria-live="polite">
+          <span class="fas fa-spinner fa-spin" aria-hidden="true"></span>
+          <p>Carregando avisos de conformidade...</p>
+        </section>
+      } @else if (vm.error && vm.items.length === 0) {
+        <section class="compliance-state" role="alert">
+          <p>{{ vm.error }}</p>
+          <button type="button" class="compliance-button" (click)="load()">
+            Tentar novamente
+          </button>
+        </section>
+      } @else if (vm.items.length === 0) {
+        <section class="compliance-state" role="status">
+          <span class="fas fa-shield-check" aria-hidden="true"></span>
+          <h2>Nenhum caso aberto</h2>
+          <p>Não há avisos de suspeita ou solicitações de manifestação vinculados à sua conta.</p>
+        </section>
+      } @else {
+        <div class="compliance-layout">
+          <nav class="compliance-list" aria-label="Casos de conformidade">
+            @for (item of vm.items; track trackCase($index, item)) {
+              <button
+                type="button"
+                class="compliance-list__item"
+                [class.compliance-list__item--active]="selectedCase()?.caseId === item.caseId"
+                [attr.aria-current]="selectedCase()?.caseId === item.caseId ? 'true' : null"
+                (click)="selectCase(item)"
+              >
+                <span class="compliance-list__category">
+                  {{ categoryLabel(item.category) }}
+                </span>
+                <strong>Caso {{ item.caseId }}</strong>
+                <span>{{ statusLabel(item.status) }}</span>
+                @if (item.createdAt) {
+                  <time [attr.datetime]="item.createdAt | date:'yyyy-MM-ddTHH:mm:ss'">
+                    {{ item.createdAt | date:'dd/MM/yyyy HH:mm' }}
+                  </time>
+                }
+              </button>
+            }
+          </nav>
+
+          @if (selectedCase(); as item) {
+            <article class="compliance-detail" [attr.aria-busy]="vm.submittingCaseId === item.caseId">
+              <header class="compliance-detail__header">
+                <div>
+                  <p class="compliance-detail__eyebrow">Caso {{ item.caseId }}</p>
+                  <h2>{{ categoryLabel(item.category) }}</h2>
+                </div>
+                <span class="compliance-status" role="status">
+                  {{ statusLabel(item.status) }}
+                </span>
+              </header>
+
+              <section class="compliance-notice" aria-label="Presunção do caso">
+                <strong>Possível violação em análise</strong>
+                <p>
+                  Este aviso registra uma suspeita. Ele não declara que você cometeu uma infração.
+                </p>
+              </section>
+
+              <dl class="compliance-facts">
+                <div>
+                  <dt>Resumo objetivo</dt>
+                  <dd>{{ item.summary }}</dd>
+                </div>
+                <div>
+                  <dt>Regra relacionada</dt>
+                  <dd>{{ item.policySection }}</dd>
+                </div>
+                @if (item.preventiveMeasure) {
+                  <div>
+                    <dt>Medida preventiva informada</dt>
+                    <dd>{{ item.preventiveMeasure }}</dd>
+                  </div>
+                }
+                @if (item.responseDueAt) {
+                  <div>
+                    <dt>Prazo para manifestação</dt>
+                    <dd>{{ item.responseDueAt | date:'dd/MM/yyyy HH:mm' }}</dd>
+                  </div>
+                }
+                @if (item.resolution) {
+                  <div>
+                    <dt>Resultado informado</dt>
+                    <dd>{{ item.resolution }}</dd>
+                  </div>
+                }
+              </dl>
+
+              @if (canRespond(item)) {
+                <form class="compliance-response" (ngSubmit)="submitResponse(item)">
+                  <label for="compliance-response-text">Sua manifestação</label>
+                  <p id="compliance-response-help">
+                    Explique o contexto e informe fatos relevantes. Não envie senhas, dados bancários completos ou documentos de terceiros neste campo.
+                  </p>
+                  <textarea
+                    id="compliance-response-text"
+                    rows="8"
+                    maxlength="4000"
+                    [formControl]="responseControl"
+                    aria-describedby="compliance-response-help compliance-response-count compliance-response-error"
+                    [attr.aria-invalid]="responseControl.touched && responseControl.invalid"
+                  ></textarea>
+                  <div class="compliance-response__meta">
+                    <span id="compliance-response-count">
+                      {{ responseControl.value.length }} de 4.000 caracteres
+                    </span>
+                    @if (responseControl.touched && responseControl.invalid) {
+                      <span id="compliance-response-error" class="compliance-error" role="alert">
+                        Escreva entre 20 e 4.000 caracteres.
+                      </span>
+                    } @else {
+                      <span id="compliance-response-error" class="sr-only">Nenhum erro.</span>
+                    }
+                  </div>
+                  <button
+                    type="submit"
+                    class="compliance-button compliance-button--primary"
+                    [disabled]="vm.submittingCaseId === item.caseId"
+                    [attr.aria-busy]="vm.submittingCaseId === item.caseId"
+                  >
+                    {{ vm.submittingCaseId === item.caseId ? 'Enviando...' : 'Enviar manifestação' }}
+                  </button>
+                </form>
+              } @else if (item.userResponse) {
+                <section class="compliance-response compliance-response--submitted">
+                  <h3>Manifestação registrada</h3>
+                  <p>{{ item.userResponse }}</p>
+                  @if (item.userRespondedAt) {
+                    <time [attr.datetime]="item.userRespondedAt | date:'yyyy-MM-ddTHH:mm:ss'">
+                      Enviada em {{ item.userRespondedAt | date:'dd/MM/yyyy HH:mm' }}
+                    </time>
+                  }
+                </section>
+              } @else if (item.status === 'AWAITING_USER_RESPONSE') {
+                <section class="compliance-notice compliance-notice--warning" role="alert">
+                  <strong>Prazo encerrado</strong>
+                  <p>Use o canal oficial de atendimento para solicitar análise excepcional.</p>
+                </section>
+              }
+
+              <footer class="compliance-detail__footer">
+                <a routerLink="/termos-e-condicoes">Consultar Termos de Uso</a>
+                <a routerLink="/politica-de-privacidade">Consultar Política de Privacidade</a>
+                <a routerLink="/dashboard/seguranca">Central de segurança</a>
+              </footer>
+            </article>
+          }
+        </div>
+      }
+    }
+  </section>
+</main>
