@@ -5,7 +5,7 @@
 // Objetivo:
 // - impedir que um barrel TypeScript correto esconda um functions/lib obsoleto;
 // - falhar antes de iniciar emuladores ou validar produção;
-// - manter diagnóstico explícito para as callables críticas de mensageria.
+// - manter diagnóstico explícito para callables críticas de mensageria e compliance.
 // -----------------------------------------------------------------------------
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -22,6 +22,10 @@ const requiredExports = [
   'ensureDirectChat',
   'sendDirectMessage',
   'deleteDirectMessage',
+  'acceptPlatformTerms',
+  'issueSuspectedViolationNotice',
+  'getMyComplianceCases',
+  'submitComplianceCaseResponse',
 ];
 
 if (!existsSync(entryPath)) {
