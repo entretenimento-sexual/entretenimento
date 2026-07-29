@@ -164,14 +164,19 @@ const routes: Routes = [
         },
       },
 
+      /**
+       * Notificações jurídicas, de segurança e conformidade permanecem
+       * acessíveis para contas suspensas, em reverificação ou com onboarding
+       * incompleto. Os recursos sociais continuam protegidos pelos seus guards.
+       */
       {
         path: 'notificacoes',
         loadComponent: () =>
           import('./notifications/notifications-page/notifications-page.component')
             .then((m) => m.NotificationsPageComponent),
-        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard],
+        canActivate: [authGuard],
         data: {
-          requireVerified: true,
+          requireVerified: false,
         },
       },
 
