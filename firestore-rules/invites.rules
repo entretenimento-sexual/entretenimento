@@ -2,7 +2,7 @@
 // INVITES.RULES
 // ================================================================
 // - leitura: somente sender/receiver;
-// - criação: sender cria convite pending válido;
+// - criação: somente Cloud Functions/Admin SDK;
 // - resposta accepted/declined: somente Cloud Functions/Admin SDK;
 // - cliente sender pode apenas cancelar/expirar convite pending;
 // - delete legado: sender pode apagar enquanto pending.
@@ -17,64 +17,23 @@ match /invites/{inviteId} {
     return signedIn() && resource.data.receiverId == uid();
   }
 
-  function hasField(field) {
-    return request.resource.data.keys().hasAny([field]);
-  }
-
-  function allowedKeys() {
-    return request.resource.data.keys().hasOnly([
-      "type",
-      "targetId",
-      "targetName",
-      "senderId",
-      "receiverId",
-      "status",
-      "sentAt",
-      "expiresAt",
-      "respondedAt",
-      "updatedAt",
-      "roomId",
-      "roomName"
-    ]);
-  }
-
-  function validCreateV2() {
-    return allowedKeys()
-      && request.resource.data.senderId == uid()
-      && request.resource.data.receiverId is string
-      && request.resource.data.receiverId != uid()
-      && request.resource.data.type in ["room", "community", "friend"]
-      && request.resource.data.targetId is string
-      && request.resource.data.status == "pending"
-      && isTs(request.resource.data.sentAt)
-      && isTs(request.resource.data.expiresAt)
-      && (!hasField("updatedAt") || request.resource.data.updatedAt == request.time)
-      && (!hasField("respondedAt") || request.resource.data.respondedAt == null);
-  }
-
-  function validCreateLegacyRoom() {
-    return allowedKeys()
-      && request.resource.data.senderId == uid()
-      && request.resource.data.receiverId is string
-      && request.resource.data.receiverId != uid()
-      && request.resource.data.roomId is string
-      && request.resource.data.status == "pending"
-      && isTs(request.resource.data.sentAt)
-      && isTs(request.resource.data.expiresAt)
-      && (!hasField("updatedAt") || request.resource.data.updatedAt == request.time)
-      && (!hasField("respondedAt") || request.resource.data.respondedAt == null);
-  }
-
   allow get: if signedIn() && (isSender() || isReceiver());
 
   // A consulta do inbox precisa restringir receiverId/status no cliente.
   allow list: if signedIn() && (isSender() || isReceiver());
 
-  allow create: if signedIn() && (validCreateV2() || validCreateLegacyRoom());
+  /**
+   * SUPRESSÃO EXPLÍCITA:
+   * - removida a criação direta pelo sender no navegador;
+   * - removidos validCreateV2/validCreateLegacyRoom, pois Rules não conseguem
+   *   validar integralmente autoridade na sala, bloqueios e elegibilidade;
+   * - sendRoomInvite usa Admin SDK, request.auth.uid e transação auditada.
+   */
+  allow create: if false;
 
   /**
    * SUPRESSÃO EXPLÍCITA:
-   * - receiver não pode mais aceitar/recusar por update direto;
+   * - receiver não pode aceitar/recusar por update direto;
    * - acceptRoomInvite/declineRoomInvite usam Admin SDK e validam a operação
    *   junto com membership, projeção do usuário e auditoria.
    */
