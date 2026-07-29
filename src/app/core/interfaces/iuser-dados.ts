@@ -53,10 +53,18 @@ export interface IUserAgeReverification {
   resolution?: string | null;
 }
 
+export type TermsAcceptanceContext = 'initial' | 'material_update';
+
 export interface IUserTermsAcceptance {
   accepted: boolean;
   date: number | null;
   version?: string | null;
+  termsDocumentVersion?: string | null;
+  privacyNoticeVersion?: string | null;
+  acknowledgedPrivacyNotice?: boolean | null;
+  adultAccessAcknowledgement?: boolean | null;
+  acceptanceContext?: TermsAcceptanceContext | null;
+  previousVersion?: string | null;
   acceptedAt?: number | null;
   updatedAt?: number | null;
   source?: string | null;
@@ -123,133 +131,60 @@ export interface IUserDados {
   ageReverificationRestrictedAt?: number | null;
 
   // ---------------------------------------------------------------------------
-  // Perfil
+  // Lifecycle / moderação
   // ---------------------------------------------------------------------------
-  gender?: string;
-  orientation?: string;
-
-  /** Campos canônicos de discovery calculados no backend. */
-  normalizedGender?: string | null;
-  normalizedOrientation?: string | null;
-  compatibilityReady?: boolean | null;
-  interestedInGenders?: readonly string[] | string | null;
-  interestedInOrientations?: readonly string[] | string | null;
-
-  /**
-   * Projeção privada das escolhas explícitas do editor de preferências.
-   * É usada apenas para filtrar/rankear discovery do próprio usuário.
-   */
-  discoveryPreferences?: IUserDiscoveryPreferences | null;
-  discoveryPreferencesUpdatedAt?: number | null;
-
-  /**
-   * Campos públicos e backend-managed dos candidatos. Eles nunca carregam a
-   * política privada do viewer; apenas dados que o dono autorizou a publicar.
-   */
-  age?: number | null;
-  publicRelationshipIntents?: readonly string[] | null;
-  publicSexualPractices?: readonly string[] | null;
-  publicBodyTraits?: readonly string[] | null;
-  preferenceBadgesVisible?: boolean | null;
-  publicPreferencesUpdatedAt?: number | null;
-
-  partner1Orientation?: string;
-  partner2Orientation?: string;
-  estado?: string;
-  municipio?: string;
-  isSidebarOpen?: boolean;
-  preferences?: string[];
-  descricao: string;
+  accountStatus?: AccountStatus | string | null;
+  publicVisibility?: PublicVisibility | null;
+  interactionBlocked?: boolean | null;
+  loginAllowed?: boolean | null;
+  suspended?: boolean | null;
+  accountLocked?: boolean | null;
+  suspensionReason?: string | null;
+  suspensionSource?: LifecycleActorSource | null;
+  suspensionEndsAt?: number | null;
+  suspendedAtMs?: number | null;
+  suspendedBy?: string | null;
+  deletionRequestedAt?: number | null;
+  deletionRequestedBy?: LifecycleActorSource | null;
+  deletionUndoUntil?: number | null;
+  purgeAfter?: number | null;
+  statusUpdatedAt?: number | null;
+  statusUpdatedBy?: string | null;
 
   // ---------------------------------------------------------------------------
-  // Estado de presença / uso
+  // Assinatura e projeções financeiras
   // ---------------------------------------------------------------------------
-  isOnline?: boolean;
-  isSubscriber: boolean;
-
-  /** Alias legado, sincronizado pela projeção canônica. */
+  isSubscriber?: boolean;
   monthlyPayer?: boolean;
-
-  lastSeen?: number | null;
-  lastOfflineAt?: number | null;
-  lastOnlineAt?: number | null;
-  lastLocationAt?: number | null;
-
-  // ---------------------------------------------------------------------------
-  // Assinatura / billing — projeção operacional do entitlement
-  // ---------------------------------------------------------------------------
-  billingProjectionVersion?: number | null;
-  subscriptionStatus?: 'active' | 'inactive' | 'canceled' | 'past_due' | null;
+  subscriptionStatus?: string | null;
   subscriptionScope?: string | null;
   subscriptionStartedAt?: number | null;
   subscriptionEndsAt?: number | null;
-
-  /** Alias legado de subscriptionEndsAt. */
   subscriptionExpires?: number | null;
-
-  lastBillingCheckoutSessionId?: string | null;
-  lastBillingTransactionId?: string | null;
   billingUpdatedAt?: number | null;
-
-  singleRoomCreationRightExpires?: number | null;
   roomCreationSubscriptionExpires?: number | null;
+  singleRoomCreationRightExpires?: number | null;
 
-  nicknameHistory?: Array<{ nickname: string; date: number | null }>;
-  socialLinks?: IUserSocialLinks;
+  // ---------------------------------------------------------------------------
+  // Perfil / descoberta
+  // ---------------------------------------------------------------------------
   profileCompleted?: boolean;
+  discoveryPreferences?: IUserDiscoveryPreferences | null;
+  socialLinks?: IUserSocialLinks | null;
+  estado?: string | null;
+  municipio?: string | null;
+  genero?: string | null;
+  orientacaoSexual?: string | null;
 
   // ---------------------------------------------------------------------------
-  // Moderação / lifecycle da conta
+  // Presença
   // ---------------------------------------------------------------------------
+  online?: boolean | null;
+  lastSeen?: number | null;
+  lastOnlineAt?: number | null;
+  lastOfflineAt?: number | null;
+  lastLocationAt?: number | null;
+  lastStateChangeAt?: number | null;
 
-  /** Campo legado mantido por compatibilidade com fluxos antigos. */
-  suspended?: boolean;
-
-  /** Fonte canônica para lifecycle da conta. */
-  accountStatus?: AccountStatus;
-
-  /** Controle de visibilidade pública. */
-  publicVisibility?: PublicVisibility;
-
-  /** Bloqueio de interações. */
-  interactionBlocked?: boolean;
-
-  /**
-   * Permite login/sessão em estados restritos para mostrar punição, prazo,
-   * reativação ou cancelamento da exclusão.
-   */
-  loginAllowed?: boolean;
-
-  /** Auditoria mínima do estado atual. */
-  statusUpdatedAt?: number | null;
-  statusUpdatedBy?: string | LifecycleActorSource | null;
-
-  /** Suspensão. */
-  suspensionReason?: string | null;
-  suspensionSource?: 'self' | 'moderator' | null;
-  suspensionEndsAt?: number | null;
-
-  /** Campos legados/compatíveis com serviços de moderação atuais. */
-  suspendedAtMs?: number | null;
-  suspendedBy?: string | null;
-  unsuspendedAtMs?: number | null;
-  unsuspendedBy?: string | null;
-
-  /** Lock técnico/administrativo. */
-  accountLocked?: boolean;
-  lockedAtMs?: number | null;
-  lockedBy?: string | null;
-  unlockedAtMs?: number | null;
-  unlockedBy?: string | null;
-
-  /** Exclusão com janela de arrependimento e expurgo posterior. */
-  deletionRequestedAt?: number | null;
-  deletionRequestedBy?: 'self' | 'moderator' | null;
-  deletionUndoUntil?: number | null;
-  purgeAfter?: number | null;
-  deletedAt?: number | null;
-
-  /** Holds de retenção mínima. */
-  legalHold?: boolean;
-  billingHold?: boolean;
+  [key: string]: unknown;
 }
