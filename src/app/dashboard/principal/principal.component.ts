@@ -40,6 +40,7 @@ import {
 } from 'src/app/core/services/user-profile/profile-completion.service';
 import { PublicPhotoCardComponent } from 'src/app/media/shared/components/public-photo-card/public-photo-card.component';
 import { PublicPhotoLightboxComponent } from 'src/app/media/shared/components/public-photo-lightbox/public-photo-lightbox.component';
+import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { PAGE_SIZES } from 'src/app/shared/pagination/page.constants';
 import * as P from 'src/app/store/actions/actions.interactions/friends/friends-pagination.actions';
 import {
@@ -68,11 +69,12 @@ interface IPrincipalChecklistVm extends IProfileChecklistVm {
 @Component({
   selector: 'app-principal',
   templateUrl: './principal.component.html',
-  styleUrls: ['./principal.component.css'],
+  styleUrls: ['./principal.component.css', './principal.layout.css'],
   standalone: true,
   imports: [
     CommonModule,
     RouterModule,
+    ImageFallbackDirective,
     UserIntentStatusComposerComponent,
     UserIntentStatusRadarComponent,
     HotPlacesWidgetComponent,
