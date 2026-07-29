@@ -3,8 +3,8 @@
 // Responsabilidade:
 // - preservar os contratos e filtros puros de sidebar-config.ts;
 // - apresentar Feed, Pessoas, Locais e Comunidades dentro de Descobrir;
-// - apresentar Mensagens, Solicitações de conexão, Salas e Convites para salas
-//   dentro de Conversas;
+// - apresentar Minhas conexões e Solicitações dentro de Conexões;
+// - apresentar Mensagens, Salas e Convites para salas dentro de Conversas;
 // - mover a gestão da assinatura para o grupo Conta;
 // - manter Área VIP e Recursos premium como destinos condicionais;
 // - remover seções que fiquem vazias após a composição.
@@ -123,6 +123,15 @@ export function resolveSidebarSectionFromUrl(
     return 'explore';
   }
 
+  if (
+    clean === '/friends'
+    || clean.startsWith('/friends/')
+    || clean === '/dashboard/friends'
+    || clean.startsWith('/dashboard/friends/')
+  ) {
+    return 'profiles';
+  }
+
   return resolveBaseSidebarSectionFromUrl(url);
 }
 
@@ -130,7 +139,7 @@ function composeDomainNavigation(
   sections: readonly SidebarSection[],
   communityPreviewEnabled: boolean
 ): SidebarSection[] {
-  return sections
+  const composed = sections
     .filter((section) => section.key !== 'communities')
     .map((section): SidebarSection => {
       if (section.key === 'explore') {
@@ -193,18 +202,10 @@ function composeDomainNavigation(
               ariaLabel: 'Abrir mensagens diretas',
             },
             {
-              id: 'friend-requests',
-              label: 'Solicitações de conexão',
-              route: '/friends/requests',
-              icon: '🤝',
-              exact: false,
-              ariaLabel: 'Abrir solicitações de conexão recebidas e enviadas',
-            },
-            {
               id: 'chat-rooms',
               label: SOCIAL_SPACE_DEFINITIONS.room.pluralLabel,
               route: SOCIAL_SPACE_DEFINITIONS.room.navigationRoute,
-              icon: '🗨️',
+              icon: '🗣️',
               exact: false,
               ariaLabel: SOCIAL_SPACE_DEFINITIONS.room.description,
             },
@@ -212,7 +213,7 @@ function composeDomainNavigation(
               id: 'room-invites',
               label: 'Convites para salas',
               route: '/chat/room-invites',
-              icon: '✉️',
+              icon: '📨',
               exact: false,
               ariaLabel: 'Abrir convites pendentes para salas privadas',
             },
@@ -222,6 +223,40 @@ function composeDomainNavigation(
 
       return section;
     });
+
+  const chatIndex = composed.findIndex((section) => section.key === 'chat');
+  if (chatIndex < 0) {
+    return composed;
+  }
+
+  const connectionsSection: SidebarSection = {
+    key: 'profiles',
+    title: 'Conexões',
+    items: [
+      {
+        id: 'friends-list',
+        label: 'Minhas conexões',
+        route: '/dashboard/friends/list',
+        icon: '🔗',
+        exact: false,
+        ariaLabel: 'Abrir minha lista de conexões',
+      },
+      {
+        id: 'friend-requests',
+        label: 'Solicitações',
+        route: '/friends/requests',
+        icon: '🤝',
+        exact: false,
+        ariaLabel: 'Abrir solicitações de conexão recebidas e enviadas',
+      },
+    ],
+  };
+
+  return [
+    ...composed.slice(0, chatIndex),
+    connectionsSection,
+    ...composed.slice(chatIndex),
+  ];
 }
 
 function appendSubscriptionToAccount(
