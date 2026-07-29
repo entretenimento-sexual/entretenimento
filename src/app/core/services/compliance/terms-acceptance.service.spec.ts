@@ -17,30 +17,45 @@ describe('hasAcceptedCurrentTerms', () => {
     ).toBe(false);
   });
 
-  it('aceita somente a versão atual registrada', () => {
-    expect(TERMS_ACCEPTANCE_VERSION).toBe('v2');
+  it('aceita somente a versão atual com ciência de privacidade registrada', () => {
+    expect(TERMS_ACCEPTANCE_VERSION).toBe('v3');
+    expect(
+      hasAcceptedCurrentTerms({
+        accepted: true,
+        date: Date.now(),
+        version: TERMS_ACCEPTANCE_VERSION,
+        acknowledgedPrivacyNotice: true,
+      })
+    ).toBe(true);
+  });
+
+  it('exige ciência explícita da Política de Privacidade', () => {
     expect(
       hasAcceptedCurrentTerms({
         accepted: true,
         date: Date.now(),
         version: TERMS_ACCEPTANCE_VERSION,
       })
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it('exige novo aceite de registros v1 e legados sem versão', () => {
-    expect(
-      hasAcceptedCurrentTerms({
-        accepted: true,
-        date: Date.now(),
-        version: 'v1',
-      })
-    ).toBe(false);
+  it('exige novo aceite de registros v1, v2 e legados sem versão', () => {
+    for (const version of ['v1', 'v2']) {
+      expect(
+        hasAcceptedCurrentTerms({
+          accepted: true,
+          date: Date.now(),
+          version,
+          acknowledgedPrivacyNotice: true,
+        })
+      ).toBe(false);
+    }
 
     expect(
       hasAcceptedCurrentTerms({
         accepted: true,
         date: Date.now(),
+        acknowledgedPrivacyNotice: true,
       })
     ).toBe(false);
   });
@@ -51,6 +66,7 @@ describe('hasAcceptedCurrentTerms', () => {
         accepted: true,
         date: Date.now(),
         version: 'versao-desconhecida',
+        acknowledgedPrivacyNotice: true,
       })
     ).toBe(false);
   });
