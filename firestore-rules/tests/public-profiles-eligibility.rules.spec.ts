@@ -40,7 +40,11 @@ function privateUser(
     publicVisibility: 'visible',
     interactionBlocked: false,
     loginAllowed: true,
-    acceptedTerms: { accepted: true },
+    acceptedTerms: {
+      accepted: true,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    },
     initialAdultConsentRequired: true,
     adultConsent: { accepted: true, version: 'v1' },
     ...overrides,
@@ -142,6 +146,32 @@ describe('Firestore Rules / public profile eligibility', () => {
     await seedUser({ acceptedTerms: { accepted: false } });
     const db = authenticatedDb();
 
+    await assertFails(
+      setDoc(doc(db, 'public_profiles', UID), publicProfile())
+    );
+  });
+
+  it('nega projeção com versão anterior ou sem ciência de privacidade', async () => {
+    const db = authenticatedDb();
+
+    await seedUser({
+      acceptedTerms: {
+        accepted: true,
+        version: 'v2',
+        acknowledgedPrivacyNotice: true,
+      },
+    });
+    await assertFails(
+      setDoc(doc(db, 'public_profiles', UID), publicProfile())
+    );
+
+    await seedUser({
+      acceptedTerms: {
+        accepted: true,
+        version: 'v3',
+        acknowledgedPrivacyNotice: false,
+      },
+    });
     await assertFails(
       setDoc(doc(db, 'public_profiles', UID), publicProfile())
     );
