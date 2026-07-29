@@ -1,0 +1,119 @@
+/* src/app/dashboard/principal/principal.layout.css
+   --------------------------------------------------------------------------
+   Organização responsiva complementar da home.
+
+   Desktop amplo:
+   - mantém o feed com largura confortável;
+   - usa uma coluna lateral compacta para conexões e conclusão do perfil;
+   - reduz a sequência de cartões antes da primeira publicação.
+
+   Tablet/mobile:
+   - retorna para uma única coluna na ordem natural de uso;
+   - não altera os contratos ou a lógica dos componentes.
+   -------------------------------------------------------------------------- */
+
+.principal-feed {
+  grid-template-columns: minmax(0, 720px) minmax(260px, 300px);
+  grid-template-areas:
+    'create connections'
+    'composer connections'
+    'radar checklist'
+    'stream checklist'
+    'stream hot-places';
+  column-gap: 18px;
+  align-items: start;
+  width: min(100%, 1038px);
+}
+
+.feed-create-bar {
+  grid-area: create;
+}
+
+.feed-block--composer {
+  grid-area: composer;
+}
+
+.connections-feed {
+  grid-area: connections;
+}
+
+.profile-checklist {
+  grid-area: checklist;
+}
+
+app-user-intent-status-radar {
+  grid-area: radar;
+}
+
+app-hot-places-widget {
+  grid-area: hot-places;
+}
+
+.feed-stream {
+  grid-area: stream;
+}
+
+@media (min-width: 1081px) {
+  .connections-feed {
+    padding: 11px 10px 9px;
+  }
+
+  .connections-strip {
+    gap: 8px;
+  }
+
+  .connection-item {
+    flex-basis: 58px;
+  }
+
+  .connection-item__avatar {
+    width: 52px;
+    height: 52px;
+  }
+
+  .connection-item__name {
+    font-size: 0.67rem;
+  }
+
+  .profile-checklist__summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .profile-checklist__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .profile-checklist .feed-action {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    text-align: center;
+  }
+
+  .profile-checklist__item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .profile-checklist__item > span:last-child {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 1080px) {
+  .principal-feed {
+    grid-template-columns: minmax(0, 720px);
+    grid-template-areas:
+      'create'
+      'composer'
+      'connections'
+      'checklist'
+      'radar'
+      'hot-places'
+      'stream';
+    width: min(100%, 720px);
+    column-gap: 0;
+  }
+}
