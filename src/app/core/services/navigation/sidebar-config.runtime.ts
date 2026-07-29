@@ -6,6 +6,7 @@
 // - apresentar Minhas conexões e Solicitações dentro de Conexões;
 // - apresentar Mensagens, Salas e Convites para salas dentro de Conversas;
 // - mover a gestão da assinatura para o grupo Conta;
+// - apresentar avisos e manifestações dentro da conta;
 // - manter Área VIP e Recursos premium como destinos condicionais;
 // - remover seções que fiquem vazias após a composição.
 import {
@@ -44,7 +45,17 @@ export interface SidebarRuntimeOptions {
 
 const ACCOUNT_GROUP_ID = 'account';
 const SUBSCRIPTION_ITEM_ID = 'subscription-plan';
+const COMPLIANCE_CASES_ITEM_ID = 'compliance-cases';
 const SAFETY_ITEM_ID = 'safety-center';
+
+const COMPLIANCE_CASES_ITEM: SidebarLinkItem = {
+  id: COMPLIANCE_CASES_ITEM_ID,
+  label: 'Avisos e manifestações',
+  route: '/conta/conformidade',
+  icon: '⚖️',
+  exact: false,
+  ariaLabel: 'Consultar avisos de conformidade e manifestações da conta',
+};
 
 export function buildSidebarSections(
   flags: SidebarAccessFlags,
@@ -84,10 +95,6 @@ export function buildSidebarSections(
     options.communityPreviewEnabled !== false
   );
 
-  if (!subscriptionItem) {
-    return domainSections;
-  }
-
   return domainSections.map((section): SidebarSection => {
     if (section.key !== 'settings') {
       return section;
@@ -96,7 +103,10 @@ export function buildSidebarSections(
     return {
       ...section,
       items: section.items.map((item): SidebarItem =>
-        appendSubscriptionToAccount(item, subscriptionItem as SidebarLinkItem)
+        appendAccountDestinations(
+          item,
+          subscriptionItem as SidebarLinkItem | null
+        )
       ),
     };
   });
@@ -110,6 +120,8 @@ export function resolveSidebarSectionFromUrl(
   if (
     clean === '/subscription-plan'
     || clean.startsWith('/subscription-plan/')
+    || clean === '/conta/conformidade'
+    || clean.startsWith('/conta/conformidade/')
   ) {
     return 'settings';
   }
@@ -259,15 +271,11 @@ function composeDomainNavigation(
   ];
 }
 
-function appendSubscriptionToAccount(
+function appendAccountDestinations(
   item: SidebarItem,
-  subscriptionItem: SidebarLinkItem
+  subscriptionItem: SidebarLinkItem | null
 ): SidebarItem {
-  if (
-    !isSidebarGroupItem(item)
-    || item.id !== ACCOUNT_GROUP_ID
-    || item.children.some((child) => child.id === SUBSCRIPTION_ITEM_ID)
-  ) {
+  if (!isSidebarGroupItem(item) || item.id !== ACCOUNT_GROUP_ID) {
     return item;
   }
 
@@ -275,9 +283,19 @@ function appendSubscriptionToAccount(
   const safetyIndex = children.findIndex(
     (child) => child.id === SAFETY_ITEM_ID
   );
-  const insertionIndex = safetyIndex >= 0 ? safetyIndex : children.length;
+  let insertionIndex = safetyIndex >= 0 ? safetyIndex : children.length;
 
-  children.splice(insertionIndex, 0, subscriptionItem);
+  if (!children.some((child) => child.id === COMPLIANCE_CASES_ITEM_ID)) {
+    children.splice(insertionIndex, 0, COMPLIANCE_CASES_ITEM);
+    insertionIndex += 1;
+  }
+
+  if (
+    subscriptionItem &&
+    !children.some((child) => child.id === SUBSCRIPTION_ITEM_ID)
+  ) {
+    children.splice(insertionIndex, 0, subscriptionItem);
+  }
 
   return {
     ...item,
