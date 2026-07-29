@@ -1,7 +1,16 @@
-import { Injectable, inject } from '@angular/core';
+import { DestroyRef, Injectable, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { BehaviorSubject, Observable, defer, from, throwError } from 'rxjs';
-import { catchError, finalize, map, tap } from 'rxjs/operators';
+import {
+  catchError,
+  distinctUntilChanged,
+  finalize,
+  map,
+  switchMap,
+  take,
+  tap,
+} from 'rxjs/operators';
 
 import {
   ComplianceCaseCategory,
@@ -9,6 +18,7 @@ import {
   ComplianceCaseStatus,
   ComplianceCasesVm,
 } from 'src/app/core/interfaces/compliance-case.interface';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
@@ -29,6 +39,7 @@ interface SubmitComplianceCaseResponseResult {
 }
 
 const INITIAL_VM: ComplianceCasesVm = {
+  ownerUid: null,
   loading: false,
   submittingCaseId: null,
   items: [],
@@ -38,6 +49,8 @@ const INITIAL_VM: ComplianceCasesVm = {
 @Injectable({ providedIn: 'root' })
 export class ComplianceCaseService {
   private readonly functions = inject(Functions);
+  private readonly session = inject(AuthSessionService);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly notifier = inject(ErrorNotificationService);
 
@@ -57,20 +70,48 @@ export class ComplianceCaseService {
     SubmitComplianceCaseResponseResult
   >(this.functions, 'submitComplianceCaseResponse');
 
-  load$(): Observable<ComplianceCaseItem[]> {
-    this.patchState({ loading: true, error: null });
+  constructor() {
+    this.session.uid$
+      .pipe(
+        map((uid) => String(uid ?? '').trim() || null),
+        distinctUntilChanged(),
+        tap((ownerUid) => {
+          this.stateSubject.next({
+            ...INITIAL_VM,
+            ownerUid,
+          });
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
 
-    return defer(() => from(this.getCasesCallable({}))).pipe(
-      map((result) => this.normalizeItems(result.data?.items)),
-      tap((items) => this.patchState({ items })),
-      catchError((error) => {
-        this.report(error, 'load', {});
-        this.patchState({
-          error: 'Não foi possível carregar os casos de conformidade.',
-        });
-        return throwError(() => error);
-      }),
-      finalize(() => this.patchState({ loading: false }))
+  load$(): Observable<ComplianceCaseItem[]> {
+    return this.session.uid$.pipe(
+      map((uid) => String(uid ?? '').trim()),
+      take(1),
+      switchMap((ownerUid) => {
+        if (!ownerUid) {
+          return throwError(() => new Error('Usuário não autenticado.'));
+        }
+
+        this.patchStateForOwner(ownerUid, { loading: true, error: null });
+
+        return defer(() => from(this.getCasesCallable({}))).pipe(
+          map((result) => this.normalizeItems(result.data?.items)),
+          tap((items) => this.patchStateForOwner(ownerUid, { items })),
+          catchError((error) => {
+            this.report(error, 'load', { ownerUid });
+            this.patchStateForOwner(ownerUid, {
+              error: 'Não foi possível carregar os casos de conformidade.',
+            });
+            return throwError(() => error);
+          }),
+          finalize(() => {
+            this.patchStateForOwner(ownerUid, { loading: false });
+          })
+        );
+      })
     );
   }
 
@@ -80,6 +121,11 @@ export class ComplianceCaseService {
   ): Observable<SubmitComplianceCaseResponseResult> {
     const safeCaseId = String(caseId ?? '').trim();
     const safeResponse = String(response ?? '').trim();
+    const ownerUid = this.stateSubject.value.ownerUid;
+
+    if (!ownerUid) {
+      return throwError(() => new Error('Usuário não autenticado.'));
+    }
 
     if (!safeCaseId) {
       return throwError(() => new Error('Caso de conformidade inválido.'));
@@ -92,7 +138,10 @@ export class ComplianceCaseService {
       return throwError(() => new Error('Manifestação inválida.'));
     }
 
-    this.patchState({ submittingCaseId: safeCaseId, error: null });
+    this.patchStateForOwner(ownerUid, {
+      submittingCaseId: safeCaseId,
+      error: null,
+    });
 
     return defer(() => from(this.submitResponseCallable({
       caseId: safeCaseId,
@@ -100,7 +149,9 @@ export class ComplianceCaseService {
     }))).pipe(
       map((result) => result.data),
       tap((result) => {
-        this.patchState({
+        if (!this.isCurrentOwner(ownerUid)) return;
+
+        this.patchStateForOwner(ownerUid, {
           items: this.stateSubject.value.items.map((item) =>
             item.caseId === safeCaseId
               ? {
@@ -116,20 +167,39 @@ export class ComplianceCaseService {
         this.notifier.showSuccess('Manifestação registrada para análise.');
       }),
       catchError((error) => {
-        this.report(error, 'submitResponse', { caseId: safeCaseId });
-        this.notifier.showError(
-          'Não foi possível registrar sua manifestação agora.'
-        );
+        this.report(error, 'submitResponse', {
+          ownerUid,
+          caseId: safeCaseId,
+        });
+
+        if (this.isCurrentOwner(ownerUid)) {
+          this.notifier.showError(
+            'Não foi possível registrar sua manifestação agora.'
+          );
+        }
+
         return throwError(() => error);
       }),
-      finalize(() => this.patchState({ submittingCaseId: null }))
+      finalize(() => {
+        this.patchStateForOwner(ownerUid, { submittingCaseId: null });
+      })
     );
   }
 
-  private patchState(patch: Partial<ComplianceCasesVm>): void {
+  private isCurrentOwner(ownerUid: string): boolean {
+    return this.stateSubject.value.ownerUid === ownerUid;
+  }
+
+  private patchStateForOwner(
+    ownerUid: string,
+    patch: Partial<ComplianceCasesVm>
+  ): void {
+    if (!this.isCurrentOwner(ownerUid)) return;
+
     this.stateSubject.next({
       ...this.stateSubject.value,
       ...patch,
+      ownerUid,
     });
   }
 
