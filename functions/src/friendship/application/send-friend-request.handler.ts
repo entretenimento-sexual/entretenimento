@@ -256,7 +256,7 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
       ) {
         throw new HttpsError(
           'failed-precondition',
-          'Este perfil já enviou uma solicitação para você. Revise seus convites.'
+          'Este perfil já enviou uma solicitação para você. Revise suas solicitações recebidas.'
         );
       }
 
@@ -280,7 +280,7 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
           type: 'social',
           title: 'Nova solicitação de conexão',
           body: `${requesterNickname} quer se conectar com você.`,
-          route: '/chat/invite-list',
+          route: '/friends/requests',
           requestId,
           actorUid: requesterUid,
           readAt: null,
