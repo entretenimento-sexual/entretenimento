@@ -5,7 +5,7 @@
       class="mobile-bottom-nav__item"
       [class.mobile-bottom-nav__item--active]="isActive(item)"
       [routerLink]="item.route"
-      [attr.aria-label]="item.ariaLabel"
+      [attr.aria-label]="itemAriaLabel(item)"
       [attr.aria-current]="isActive(item) ? 'page' : null"
     >
       <span class="mobile-bottom-nav__icon" aria-hidden="true">
@@ -16,7 +16,7 @@
         {{ item.label }}
       </span>
 
-      @if (formatBadge(item.badgeCount); as badge) {
+      @if (formatBadge(itemBadgeCount(item)); as badge) {
         <span class="mobile-bottom-nav__badge" aria-hidden="true">
           {{ badge }}
         </span>
