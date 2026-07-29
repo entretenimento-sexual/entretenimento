@@ -7,7 +7,7 @@ import {
 } from './sidebar-config.runtime';
 
 describe('sidebar runtime composition', () => {
-  it('keeps the subscription route only inside account', () => {
+  it('keeps subscription and compliance routes only inside account', () => {
     const sections = buildSidebarSections({
       isSubscriber: false,
       isVip: false,
@@ -23,12 +23,16 @@ describe('sidebar runtime composition', () => {
       'my-profile',
       'preferences',
       'my-account',
+      'compliance-cases',
       'subscription-plan',
       'safety-center',
     ]);
     expect(
       sections.filter(({ key }) => key === 'subscriptions')
     ).toHaveLength(0);
+    expect(resolveSidebarSectionFromUrl('/conta/conformidade')).toBe(
+      'settings'
+    );
   });
 
   it('preserves conditional premium links and account route context', () => {
