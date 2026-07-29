@@ -1,13 +1,16 @@
 <!-- src/app/chat-module/invite-list/invite-list.component.html -->
 <section class="invite-list-page" aria-labelledby="invite-list-title">
   <header class="invite-list-page__header invite-list-page__header--compact">
-    <h1 id="invite-list-title">Convites</h1>
+    <div>
+      <p class="invite-list-page__eyebrow">Conversas</p>
+      <h1 id="invite-list-title">Convites para salas</h1>
+    </div>
 
     @if (pendingCount$ | async; as count) {
       @if (count > 0) {
         <span
           class="invite-list-page__count"
-          [attr.aria-label]="count + ' convites pendentes'"
+          [attr.aria-label]="count + ' convites para salas pendentes'"
         >
           {{ count }} novo{{ count === 1 ? '' : 's' }}
         </span>
@@ -18,7 +21,7 @@
   @if (loading$ | async) {
     <section class="invite-list-page__state" role="status" aria-live="polite">
       <mat-spinner diameter="28"></mat-spinner>
-      <p>Carregando convites...</p>
+      <p>Carregando convites para salas...</p>
     </section>
   } @else {
     @if (error$ | async; as error) {
@@ -35,11 +38,11 @@
     @if (invites$ | async; as invites) {
       @if (invites.length === 0) {
         <section class="invite-list-page__state" role="status">
-          <h2>Nenhum convite.</h2>
-          <p>Novos convites de sala aparecerão aqui.</p>
+          <h2>Nenhum convite para sala.</h2>
+          <p>Convites para participar de conversas coletivas privadas aparecerão aqui.</p>
         </section>
       } @else {
-        <ul class="invite-list-page__cards" aria-label="Convites pendentes">
+        <ul class="invite-list-page__cards" aria-label="Convites para salas pendentes">
           @for (invite of invites; track trackByInviteId($index, invite)) {
             <li>
               <mat-card class="invite-card">
@@ -49,7 +52,11 @@
                 </mat-card-header>
 
                 <mat-card-content class="invite-card__body">
-                  <div class="invite-card__details" aria-label="Datas do convite">
+                  <p class="invite-card__context">
+                    Ao aceitar, esta sala será adicionada às suas conversas.
+                  </p>
+
+                  <div class="invite-card__details" aria-label="Datas do convite para sala">
                     @if (formatInviteDate(invite.sentAtMs); as sentAtLabel) {
                       <span>Enviado {{ sentAtLabel }}</span>
                     }
@@ -67,9 +74,9 @@
                     type="button"
                     (click)="respondToInvite(invite, 'accepted')"
                     [disabled]="!invite.id || !userId || invite.receiverId !== userId"
-                    [attr.aria-label]="'Aceitar convite para ' + getInviteTitle(invite)"
+                    [attr.aria-label]="'Aceitar convite para a sala ' + getInviteTitle(invite)"
                   >
-                    Aceitar
+                    Aceitar e entrar
                   </button>
 
                   <button
@@ -78,7 +85,7 @@
                     type="button"
                     (click)="respondToInvite(invite, 'declined')"
                     [disabled]="!invite.id || !userId || invite.receiverId !== userId"
-                    [attr.aria-label]="'Recusar convite para ' + getInviteTitle(invite)"
+                    [attr.aria-label]="'Recusar convite para a sala ' + getInviteTitle(invite)"
                   >
                     Recusar
                   </button>
