@@ -12,7 +12,7 @@ import {
 } from 'src/app/store/selectors/selectors.chat/invite.selectors';
 import { GlobalInviteBadgeComponent } from './global-invite-badge.component';
 
-describe('GlobalInviteBadgeComponent session ownership', () => {
+describe('GlobalInviteBadgeComponent room session ownership', () => {
   let fixture: ComponentFixture<GlobalInviteBadgeComponent>;
   let store: MockStore;
   let uidSubject: BehaviorSubject<string | null>;
@@ -50,6 +50,13 @@ describe('GlobalInviteBadgeComponent session ownership', () => {
       countLabel: '4',
       visible: true,
     });
+  });
+
+  it('navega para o inbox canônico de convites para salas', () => {
+    const link = fixture.nativeElement.querySelector('a') as HTMLAnchorElement;
+
+    expect(link?.textContent).toContain('Convites para salas');
+    expect(link?.getAttribute('href')).toBe('/chat/room-invites');
   });
 
   it('zera imediatamente quando a sessão muda antes do novo owner', async () => {
