@@ -2,6 +2,15 @@
   position: relative;
 }
 
+.universal-sidebar:not(.universal-sidebar--collapsed)
+  .universal-sidebar__link
+  > .universal-sidebar__badge,
+.universal-sidebar:not(.universal-sidebar--collapsed)
+  .universal-sidebar__quick-action
+  > .universal-sidebar__badge {
+  margin-left: auto;
+}
+
 .universal-sidebar__group-toggle {
   width: 100%;
   box-sizing: border-box;
