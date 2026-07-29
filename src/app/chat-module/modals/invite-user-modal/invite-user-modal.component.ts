@@ -1,22 +1,20 @@
-// src/app/chat-module/invite-user-modal/invite-user-modal.component.ts
-// Modal para convidar usuários para uma sala.
+// src/app/chat-module/modals/invite-user-modal/invite-user-modal.component.ts
+// Modal para selecionar usuários para um convite de sala.
 //
-// Ajustes desta versão:
-// - usa AuthSessionService como fonte canônica do UID
-// - usa CurrentUserStoreService como fonte do perfil/role
-// - corrige filtro por uid (antes estava usando Observable dentro do where)
-// - corrige listener de busca (Subject<void> + distinctUntilChanged travava novas buscas)
-// - mantém nomes públicos do componente
-// - centraliza tratamento de erro
+// Responsabilidades desta versão:
+// - usa AuthSessionService como fonte canônica do UID;
+// - usa CurrentUserStoreService como fonte do perfil/role;
+// - pesquisa usuários por nome, gênero e região;
+// - retorna somente os receiverIds selecionados;
+// - não grava convites nem chama Cloud Functions diretamente.
 import { Component, DestroyRef, Inject, OnInit, inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 
-import { from, of, Subject } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import {
   catchError,
-  concatMap,
   debounceTime,
   distinctUntilChanged,
   finalize,
@@ -27,10 +25,9 @@ import {
 } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { Timestamp, where, type QueryConstraint } from 'firebase/firestore';
+import { where, type QueryConstraint } from 'firebase/firestore';
 
 import { InviteSearchService } from '../../../core/services/batepapo/invite-service/invite-search.service';
-import { InviteService } from '../../../core/services/batepapo/invite-service/invite.service';
 import { RegionFilterService } from '../../../core/services/filtering/filters/region-filter.service';
 import { IBGELocationService } from '../../../core/services/general/api/ibge-location.service';
 
@@ -54,7 +51,12 @@ import { IUserDados } from '../../../core/interfaces/iuser-dados';
 export class InviteUserModalComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
-  availableUsers: { id: string; nickname: string; selected: boolean; photoURL?: string }[] = [];
+  availableUsers: {
+    id: string;
+    nickname: string;
+    selected: boolean;
+    photoURL?: string;
+  }[] = [];
   searchTerm = '';
   selectedGender?: string;
   selectedRegion: { uf?: string; city?: string } = {};
@@ -69,16 +71,15 @@ export class InviteUserModalComponent implements OnInit {
   private readonly searchSubject = new Subject<string>();
 
   constructor(
-    @Inject(MAT_DIALOG_DATA) public data: { roomId: string; roomName: string },
+    @Inject(MAT_DIALOG_DATA) public data: { roomId: string },
     public dialogRef: MatDialogRef<InviteUserModalComponent>,
     private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly ibgeLocationService: IBGELocationService,
     private readonly inviteSearchService: InviteSearchService,
-    private readonly inviteService: InviteService,
     private readonly regionFilter: RegionFilterService,
     private readonly globalError: GlobalErrorHandlerService,
-    private readonly errorNotifier: ErrorNotificationService,
+    private readonly errorNotifier: ErrorNotificationService
   ) {}
 
   ngOnInit(): void {
@@ -141,7 +142,8 @@ export class InviteUserModalComponent implements OnInit {
   }
 
   loadInitialData(): void {
-    this.ibgeLocationService.getEstados()
+    this.ibgeLocationService
+      .getEstados()
       .pipe(
         tap((states: Array<{ sigla: string }>) => {
           this.availableStates = states.map((state) => state.sigla);
@@ -199,7 +201,9 @@ export class InviteUserModalComponent implements OnInit {
   }
 
   isRegionFieldEditable(): boolean {
-    return !['visitante', 'free'].includes(this.currentUserRole || 'visitante');
+    return !['visitante', 'free'].includes(
+      this.currentUserRole || 'visitante'
+    );
   }
 
   onRegionChange(): void {
@@ -208,7 +212,8 @@ export class InviteUserModalComponent implements OnInit {
       return;
     }
 
-    this.ibgeLocationService.getMunicipios(this.selectedRegion.uf)
+    this.ibgeLocationService
+      .getMunicipios(this.selectedRegion.uf)
       .pipe(
         tap((cities: Array<{ nome: string }>) => {
           this.availableCities = cities.map((city) => city.nome);
@@ -264,15 +269,16 @@ export class InviteUserModalComponent implements OnInit {
       filters.push(where('uid', '!=', currentUserId));
     }
 
-    this.inviteSearchService.searchEligibleUsers(this.data.roomId, this.searchTerm, filters)
+    this.inviteSearchService
+      .searchEligibleUsers(this.data.roomId, this.searchTerm, filters)
       .pipe(
-        tap((users: any[]) => {
+        tap((users: IUserDados[]) => {
           this.availableUsers = users.map((user) => ({
-            id: user.uid,
+            id: String(user.uid ?? '').trim(),
             nickname: user.nickname || 'Sem apelido',
             selected: false,
             photoURL: user.photoURL || this.defaultAvatar,
-          }));
+          })).filter((user) => user.id.length > 0);
         }),
         catchError((error) => {
           this.reportError(
@@ -306,55 +312,37 @@ export class InviteUserModalComponent implements OnInit {
     return this.availableUsers.some((user) => user.selected);
   }
 
+  /**
+   * Retorna a seleção ao owner do fluxo.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - removido o envio de convites dentro do modal;
+   * - isso eliminou a segunda chamada que duplicava o envio feito pelo ChatList;
+   * - o modal não conhece senderId, timestamps ou regras de persistência.
+   */
   confirmSelection(): void {
-    const senderId = this.currentUserUid;
-
-    if (!senderId) {
+    if (!this.currentUserUid) {
       this.errorNotifier.showError('Erro: usuário não autenticado.');
       return;
     }
 
-    const selectedUserIds = this.availableUsers
-      .filter((user) => user.selected)
-      .map((user) => user.id);
+    const selectedUserIds = Array.from(
+      new Set(
+        this.availableUsers
+          .filter((user) => user.selected)
+          .map((user) => String(user.id ?? '').trim())
+          .filter(Boolean)
+      )
+    );
 
     if (!selectedUserIds.length) {
-      this.errorNotifier.showWarning('Selecione pelo menos um usuário para enviar convite.');
+      this.errorNotifier.showWarning(
+        'Selecione pelo menos um usuário para enviar convite.'
+      );
       return;
     }
 
-    from(selectedUserIds)
-      .pipe(
-        concatMap((receiverId) =>
-          this.inviteService.createInvite({
-            roomId: this.data.roomId,
-            roomName: this.data.roomName,
-            receiverId,
-            senderId,
-            status: 'pending',
-            sentAt: Timestamp.fromDate(new Date()),
-            expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-          })
-        ),
-        catchError((error) => {
-          this.reportError(
-            'Erro ao enviar convite.',
-            error,
-            {
-              op: 'confirmSelection',
-              roomId: this.data.roomId,
-              senderId,
-              selectedUserIds,
-            }
-          );
-          return of(null);
-        }),
-        finalize(() => {
-          this.dialogRef.close(selectedUserIds);
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
+    this.dialogRef.close(selectedUserIds);
   }
 
   private buildSearchKey(): string {
@@ -375,7 +363,9 @@ export class InviteUserModalComponent implements OnInit {
     if (notifyUser) {
       try {
         this.errorNotifier.showError(userMessage);
-      } catch {}
+      } catch {
+        // O diagnóstico técnico abaixo permanece ativo.
+      }
     }
 
     try {
@@ -387,6 +377,8 @@ export class InviteUserModalComponent implements OnInit {
       };
       (err as any).skipUserNotification = true;
       this.globalError.handleError(err);
-    } catch {}
+    } catch {
+      // Falha secundária não interrompe o modal.
+    }
   }
-}// Linha 426
+}
