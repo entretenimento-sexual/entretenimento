@@ -18,49 +18,49 @@ function normalizedAccountStatus(user: MessagingUserDoc | undefined): string {
 
 function actorProfileIncompleteMessage(operation: MessagingOperation): string {
   switch (operation) {
-    case 'create-private-room':
-      return 'Complete seu perfil antes de criar uma sala.';
-    case 'close-private-room':
-      return 'Complete seu perfil antes de encerrar uma sala.';
-    case 'send-room-invite':
-      return 'Complete seu perfil antes de convidar pessoas para salas.';
-    case 'accept-room-invite':
-    case 'decline-room-invite':
-      return 'Complete seu perfil antes de responder a convites de sala.';
-    case 'publish-user-intent-status':
-      return 'Complete seu perfil antes de publicar seu status.';
-    case 'hide-user-intent-status':
-      return 'Complete seu perfil antes de encerrar seu status.';
-    case 'ensure-direct-chat':
-      return 'Complete seu perfil antes de iniciar conversas.';
-    case 'send-direct-message':
-      return 'Complete seu perfil antes de enviar mensagens.';
-    case 'create-message-request':
-      return 'Complete seu perfil antes de solicitar uma conversa.';
+  case 'create-private-room':
+    return 'Complete seu perfil antes de criar uma sala.';
+  case 'close-private-room':
+    return 'Complete seu perfil antes de encerrar uma sala.';
+  case 'send-room-invite':
+    return 'Complete seu perfil antes de convidar pessoas para salas.';
+  case 'accept-room-invite':
+  case 'decline-room-invite':
+    return 'Complete seu perfil antes de responder a convites de sala.';
+  case 'publish-user-intent-status':
+    return 'Complete seu perfil antes de publicar seu status.';
+  case 'hide-user-intent-status':
+    return 'Complete seu perfil antes de encerrar seu status.';
+  case 'ensure-direct-chat':
+    return 'Complete seu perfil antes de iniciar conversas.';
+  case 'send-direct-message':
+    return 'Complete seu perfil antes de enviar mensagens.';
+  case 'create-message-request':
+    return 'Complete seu perfil antes de solicitar uma conversa.';
   }
 }
 
 function actorUnavailableMessage(operation: MessagingOperation): string {
   switch (operation) {
-    case 'create-private-room':
-      return 'Sua conta não está disponível para criar salas.';
-    case 'close-private-room':
-      return 'Sua conta não está disponível para encerrar salas.';
-    case 'send-room-invite':
-      return 'Sua conta não está disponível para enviar convites de sala.';
-    case 'accept-room-invite':
-    case 'decline-room-invite':
-      return 'Sua conta não está disponível para responder a convites de sala.';
-    case 'publish-user-intent-status':
-      return 'Sua conta não está disponível para publicar status.';
-    case 'hide-user-intent-status':
-      return 'Sua conta não está disponível para encerrar status.';
-    case 'ensure-direct-chat':
-      return 'Sua conta não está disponível para iniciar conversas.';
-    case 'send-direct-message':
-      return 'Sua conta não está disponível para enviar mensagens.';
-    case 'create-message-request':
-      return 'Sua conta não está disponível para solicitar conversas.';
+  case 'create-private-room':
+    return 'Sua conta não está disponível para criar salas.';
+  case 'close-private-room':
+    return 'Sua conta não está disponível para encerrar salas.';
+  case 'send-room-invite':
+    return 'Sua conta não está disponível para enviar convites de sala.';
+  case 'accept-room-invite':
+  case 'decline-room-invite':
+    return 'Sua conta não está disponível para responder a convites de sala.';
+  case 'publish-user-intent-status':
+    return 'Sua conta não está disponível para publicar status.';
+  case 'hide-user-intent-status':
+    return 'Sua conta não está disponível para encerrar status.';
+  case 'ensure-direct-chat':
+    return 'Sua conta não está disponível para iniciar conversas.';
+  case 'send-direct-message':
+    return 'Sua conta não está disponível para enviar mensagens.';
+  case 'create-message-request':
+    return 'Sua conta não está disponível para solicitar conversas.';
   }
 }
 
