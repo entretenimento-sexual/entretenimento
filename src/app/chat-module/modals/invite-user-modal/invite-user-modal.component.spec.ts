@@ -12,7 +12,6 @@ import { CurrentUserStoreService } from '../../../core/services/autentication/au
 import { IBGELocationService } from '../../../core/services/general/api/ibge-location.service';
 import { RegionFilterService } from '../../../core/services/filtering/filters/region-filter.service';
 import { InviteSearchService } from '../../../core/services/batepapo/invite-service/invite-search.service';
-import { InviteService } from '../../../core/services/batepapo/invite-service/invite.service';
 import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 import {
@@ -45,7 +44,6 @@ describe('InviteUserModalComponent', () => {
   let ibgeStub: { getEstados: Mock; getMunicipios: Mock };
   let regionFilterStub: { getUserRegion: Mock };
   let inviteSearchStub: { searchEligibleUsers: Mock };
-  let inviteServiceStub: { createInvite: Mock };
   let globalErrorHandlerMock: { handleError: Mock };
   let errorNotifierMock: {
     showError: Mock;
@@ -93,10 +91,6 @@ describe('InviteUserModalComponent', () => {
       searchEligibleUsers: vi.fn(() => of([])),
     };
 
-    inviteServiceStub = {
-      createInvite: vi.fn(() => of(void 0)),
-    };
-
     globalErrorHandlerMock = {
       handleError: vi.fn(),
     };
@@ -113,14 +107,13 @@ describe('InviteUserModalComponent', () => {
         { provide: MatDialogRef, useValue: dialogRefMock },
         {
           provide: MAT_DIALOG_DATA,
-          useValue: { roomId: 'r1', roomName: 'Sala' },
+          useValue: { roomId: 'r1' },
         },
         { provide: AuthSessionService, useValue: authSessionMock },
         { provide: CurrentUserStoreService, useValue: currentUserStoreMock },
         { provide: IBGELocationService, useValue: ibgeStub },
         { provide: RegionFilterService, useValue: regionFilterStub },
         { provide: InviteSearchService, useValue: inviteSearchStub },
-        { provide: InviteService, useValue: inviteServiceStub },
         { provide: GlobalErrorHandlerService, useValue: globalErrorHandlerMock },
         { provide: ErrorNotificationService, useValue: errorNotifierMock },
       ],
@@ -171,5 +164,18 @@ describe('InviteUserModalComponent', () => {
 
     expect(searchButton.type).toBe('submit');
     expect(searchButton.getAttribute('aria-label')).toBe('Buscar usuários');
+  });
+
+  it('retorna apenas os IDs selecionados ao owner do fluxo', () => {
+    component.availableUsers = [
+      { id: 'uid-a', nickname: 'A', selected: true },
+      { id: 'uid-b', nickname: 'B', selected: false },
+      { id: 'uid-a', nickname: 'A duplicado', selected: true },
+    ];
+
+    component.confirmSelection();
+
+    expect(dialogRefMock.close).toHaveBeenCalledTimes(1);
+    expect(dialogRefMock.close).toHaveBeenCalledWith(['uid-a']);
   });
 });
