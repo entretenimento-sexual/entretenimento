@@ -46,7 +46,7 @@ describe('InviteInboxService room serializable boundary', () => {
         status: 'pending',
         sentAtMs: 1234,
         expiresAtMs,
-        roomId: null,
+        roomId: 'room-1',
         roomName: null,
       },
     ]);
