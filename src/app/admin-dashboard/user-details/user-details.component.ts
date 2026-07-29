@@ -4,12 +4,17 @@ import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { finalize } from 'rxjs/operators';
+import { EMPTY } from 'rxjs';
+import { catchError, finalize, switchMap } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UserModerationService } from 'src/app/core/services/account-moderation/user-moderation.service';
 import { AccountLifecycleService } from 'src/app/account/application/account-lifecycle.service';
+import { StaffComplianceService } from 'src/app/core/services/compliance/staff-compliance.service';
 import { ConfirmDialogComponent } from '../shared/confirm-dialog/confirm-dialog.component';
+import {
+  ComplianceNoticeDialogComponent,
+} from './compliance-notice-dialog.component';
 import {
   MatCardTitle,
   MatCardSubtitle,
@@ -20,6 +25,7 @@ import {
 } from '@angular/material/card';
 import { MatChip } from '@angular/material/chips';
 import { MatProgressBar } from '@angular/material/progress-bar';
+import { MatButtonModule } from '@angular/material/button';
 
 @Component({
   selector: 'app-user-details',
@@ -36,6 +42,7 @@ import { MatProgressBar } from '@angular/material/progress-bar';
     MatCardActions,
     MatCardHeader,
     MatCard,
+    MatButtonModule,
   ],
 })
 export class UserDetailsComponent {
@@ -46,10 +53,51 @@ export class UserDetailsComponent {
     route: ActivatedRoute,
     private readonly accountLifecycle: AccountLifecycleService,
     private readonly moderation: UserModerationService,
+    private readonly staffCompliance: StaffComplianceService,
     private readonly dialog: MatDialog,
     private readonly snack: MatSnackBar
   ) {
     this.user = route.snapshot.data['user'];
+  }
+
+  issueComplianceNotice(): void {
+    if (this.loading) return;
+
+    const ref = this.dialog.open(ComplianceNoticeDialogComponent, {
+      width: 'min(94vw, 640px)',
+      maxWidth: '94vw',
+      data: {
+        targetUid: this.user.uid,
+        targetLabel:
+          String(this.user.nickname ?? this.user.nome ?? '').trim() ||
+          this.user.email ||
+          this.user.uid,
+      },
+    });
+
+    ref.afterClosed()
+      .pipe(
+        switchMap((payload) => {
+          if (!payload) return EMPTY;
+          this.loading = true;
+          return this.staffCompliance.issueSuspectedViolationNotice$(payload);
+        }),
+        finalize(() => {
+          this.loading = false;
+        })
+      )
+      .subscribe({
+        next: (result) => {
+          this.snack.open(
+            `Aviso emitido. Caso ${result.caseId}`,
+            'Fechar',
+            { duration: 5000 }
+          );
+        },
+        error: () => {
+          // StaffComplianceService centraliza diagnóstico e feedback.
+        },
+      });
   }
 
   suspendUser(): void {
