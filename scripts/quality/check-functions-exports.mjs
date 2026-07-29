@@ -23,6 +23,7 @@ const requiredExports = [
   'sendDirectMessage',
   'deleteDirectMessage',
   'acceptPlatformTerms',
+  'ensureCurrentLegalNotice',
   'issueSuspectedViolationNotice',
   'getMyComplianceCases',
   'submitComplianceCaseResponse',
