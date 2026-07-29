@@ -14,6 +14,11 @@ import { STORE_FEATURE } from '../feature-keys';
 import { resetStoreOnAuthChangeMetaReducer } from './reset-store-on-auth-change.metareducer';
 
 function buildState(uid: string): AppState {
+  /**
+   * Fixture deliberadamente parcial: este teste valida apenas a fronteira entre
+   * auth e discoveryFeeds. A dupla conversão deixa isso explícito sem fingir que
+   * todos os slices do AppState foram construídos.
+   */
   return {
     [STORE_FEATURE.auth]: {
       ready: true,
@@ -32,7 +37,7 @@ function buildState(uid: string): AppState {
         },
       },
     },
-  } as AppState;
+  } as unknown as AppState;
 }
 
 describe('resetStoreOnAuthChangeMetaReducer', () => {
