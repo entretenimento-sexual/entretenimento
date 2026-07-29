@@ -3,8 +3,8 @@
 // CHAT MODULE ROUTING
 // -----------------------------------------------------------------------------
 // Rotas estáticas permanecem antes de `:userId`.
-// Convites volta a ser uma tela funcional porque aceitar/recusar agora é feito
-// exclusivamente pelas callables acceptRoomInvite/declineRoomInvite.
+// `/chat/room-invites` é a rota canônica de convites para salas.
+// `/chat/invite-list` permanece somente como redirecionamento legado.
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
@@ -22,8 +22,13 @@ const routes: Routes = [
     component: ChatRoomsComponent,
   },
   {
-    path: 'invite-list',
+    path: 'room-invites',
     component: InviteListComponent,
+  },
+  {
+    path: 'invite-list',
+    redirectTo: 'room-invites',
+    pathMatch: 'full',
   },
   {
     path: ':userId',
