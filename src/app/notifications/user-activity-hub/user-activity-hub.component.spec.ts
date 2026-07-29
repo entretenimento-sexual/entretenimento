@@ -58,21 +58,33 @@ describe('UserActivityHubComponent', () => {
     const fixture = TestBed.createComponent(UserActivityHubComponent);
     fixture.detectChanges();
 
+    const links = Array.from(
+      fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
+    );
     const labels = Array.from(
       fixture.nativeElement.querySelectorAll('.activity-bar__label') as NodeListOf<HTMLElement>
     ).map((element) => element.textContent?.trim());
-    const connectionLink = Array.from(
-      fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
-    ).find((link) => link.textContent?.includes('Conexões'));
-    const momentsLink = Array.from(
-      fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
-    ).find((link) => link.textContent?.includes('Momentos'));
+    const connectionLink = links.find((link) =>
+      link.textContent?.includes('Conexões')
+    );
+    const roomLink = links.find((link) =>
+      link.textContent?.includes('Salas')
+    );
+    const momentsLink = links.find((link) =>
+      link.textContent?.includes('Momentos')
+    );
 
-    expect(labels).toEqual(['Mensagens', 'Conexões', 'Momentos', 'Central']);
+    expect(labels).toEqual([
+      'Mensagens',
+      'Conexões',
+      'Salas',
+      'Momentos',
+      'Central',
+    ]);
     expect(labels).not.toContain('Status');
     expect(labels).not.toContain('Locais');
-    expect(labels).not.toContain('Salas');
     expect(connectionLink?.getAttribute('href')).toBe('/friends/requests');
+    expect(roomLink?.getAttribute('href')).toBe('/chat/room-invites');
     expect(momentsLink?.getAttribute('href')).toBe('/descobrir');
     expect(fixture.nativeElement.textContent).toContain('3');
   });
