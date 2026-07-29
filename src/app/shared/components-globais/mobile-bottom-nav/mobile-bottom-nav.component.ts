@@ -86,7 +86,7 @@ export class MobileBottomNavComponent {
       label: 'Chat',
       icon: '💬',
       route: ['/chat'],
-      activePrefixes: ['/chat', '/friends'],
+      activePrefixes: ['/chat', '/friends', '/dashboard/friends'],
       ariaLabel: 'Abrir conversas, convites e conexões',
     },
     {
