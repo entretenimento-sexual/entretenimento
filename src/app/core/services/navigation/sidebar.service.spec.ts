@@ -67,7 +67,7 @@ describe('SidebarService groups', () => {
     subscription.unsubscribe();
   });
 
-  it('expõe Assinatura e conformidade somente dentro do grupo Conta', () => {
+  it('expõe documentos, assinatura e conformidade somente dentro do grupo Conta', () => {
     const service = createService();
     const emissions: SidebarVm[] = [];
     const subscription = service.vm$.subscribe((value) => emissions.push(value));
@@ -85,6 +85,7 @@ describe('SidebarService groups', () => {
       'my-profile',
       'preferences',
       'my-account',
+      'legal-documents',
       'compliance-cases',
       'subscription-plan',
       'safety-center',
