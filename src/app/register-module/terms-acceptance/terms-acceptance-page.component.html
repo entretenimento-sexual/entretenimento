@@ -9,32 +9,44 @@
       class="terms-acceptance__card"
       [attr.aria-busy]="isSaving()"
     >
-      <p class="terms-acceptance__kicker">
-        Documentos legais · versão {{ legalManifest.termsAcceptanceVersion }}
-      </p>
+      @if (isMaterialUpdate$ | async) {
+        <p class="terms-acceptance__kicker">
+          Atualização legal · versão {{ legalManifest.termsAcceptanceVersion }}
+        </p>
 
-      <h1 id="terms-acceptance-title">Revise os documentos atualizados</h1>
+        <h1 id="terms-acceptance-title">Atualizamos os documentos</h1>
 
-      <p class="terms-acceptance__lead">
-        Esta é uma atualização material com vigência em
-        {{ legalManifest.effectiveDateLabel }}. Para continuar, revise os documentos e registre cada confirmação separadamente.
-      </p>
+        <p class="terms-acceptance__lead">
+          Houve mudanças relevantes com vigência em
+          {{ legalManifest.effectiveDateLabel }}. Revise o resumo e confirme o novo aceite uma única vez.
+        </p>
 
-      <section class="terms-acceptance__changes" aria-labelledby="terms-change-title">
-        <h2 id="terms-change-title">Principais mudanças</h2>
-        <ul>
-          @for (change of legalManifest.changeSummary; track change) {
-            <li>{{ change }}</li>
-          }
-        </ul>
-      </section>
+        <section class="terms-acceptance__changes" aria-labelledby="terms-change-title">
+          <h2 id="terms-change-title">O que mudou</h2>
+          <ul>
+            @for (change of legalManifest.changeSummary; track change) {
+              <li>{{ change }}</li>
+            }
+          </ul>
+        </section>
+      } @else {
+        <p class="terms-acceptance__kicker">
+          Cadastro · versão {{ legalManifest.termsAcceptanceVersion }}
+        </p>
+
+        <h1 id="terms-acceptance-title">Termos da plataforma</h1>
+
+        <p class="terms-acceptance__lead">
+          Antes de continuar, consulte os Termos de Uso e a Política de Privacidade. Esta confirmação será solicitada novamente somente se houver alteração material.
+        </p>
+      }
 
       <div class="terms-acceptance__links" aria-label="Documentos legais">
         <a routerLink="/termos-e-condicoes" target="_blank" rel="noopener noreferrer">
-          Termos de Uso {{ legalManifest.termsDocumentVersion }}
+          Termos de Uso
         </a>
         <a routerLink="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">
-          Política de Privacidade {{ legalManifest.privacyNoticeVersion }}
+          Política de Privacidade
         </a>
       </div>
 
@@ -48,75 +60,23 @@
           />
 
           <span>
-            Li e aceito os Termos de Uso vigentes, inclusive as regras de conteúdo, segurança, moderação, assinaturas e encerramento da conta.
+            Li e aceito os Termos de Uso e declaro que tive acesso à Política de Privacidade.
           </span>
         </label>
 
         @if (isControlInvalid(termsConfirmation)) {
           <p id="terms-confirmation-error" class="terms-acceptance__error" role="alert">
-            Confirme o aceite dos Termos de Uso.
+            Confirme o aceite para continuar.
           </p>
         } @else {
           <span id="terms-confirmation-error" class="terms-acceptance__sr-only">
-            Nenhum erro no aceite dos Termos de Uso.
-          </span>
-        }
-
-        <label class="terms-acceptance__confirmation">
-          <input
-            type="checkbox"
-            [formControl]="privacyAcknowledgement"
-            [attr.aria-invalid]="isControlInvalid(privacyAcknowledgement)"
-            aria-describedby="privacy-confirmation-help privacy-confirmation-error"
-          />
-
-          <span>
-            Declaro que tive acesso à Política de Privacidade e fui informado sobre dados tratados, finalidades, bases legais, compartilhamentos, retenção e direitos.
-          </span>
-        </label>
-
-        @if (isControlInvalid(privacyAcknowledgement)) {
-          <p id="privacy-confirmation-error" class="terms-acceptance__error" role="alert">
-            Confirme a ciência da Política de Privacidade.
-          </p>
-        } @else {
-          <span id="privacy-confirmation-error" class="terms-acceptance__sr-only">
-            Nenhum erro na ciência da Política de Privacidade.
-          </span>
-        }
-
-        <label class="terms-acceptance__confirmation">
-          <input
-            type="checkbox"
-            [formControl]="adultAccessAcknowledgement"
-            [attr.aria-invalid]="isControlInvalid(adultAccessAcknowledgement)"
-            aria-describedby="adult-confirmation-help adult-confirmation-error"
-          />
-
-          <span>
-            Confirmo que sou maior de 18 anos, fornecerei informações verdadeiras e reconheço que o acesso a conteúdo adulto depende dos mecanismos de verificação etária da plataforma.
-          </span>
-        </label>
-
-        @if (isControlInvalid(adultAccessAcknowledgement)) {
-          <p id="adult-confirmation-error" class="terms-acceptance__error" role="alert">
-            Confirme a condição de acesso adulto.
-          </p>
-        } @else {
-          <span id="adult-confirmation-error" class="terms-acceptance__sr-only">
-            Nenhum erro na confirmação de acesso adulto.
+            Nenhum erro no aceite dos documentos legais.
           </span>
         }
       </div>
 
       <p id="terms-confirmation-help" class="terms-acceptance__help">
-        O aceite será associado à sua conta, com data, versão dos documentos e indicação de aceite inicial ou reaceite material.
-      </p>
-      <p id="privacy-confirmation-help" class="terms-acceptance__help">
-        A ciência da Política de Privacidade não cria consentimento genérico para todo tratamento de dados; cada operação deve possuir finalidade e base legal próprias.
-      </p>
-      <p id="adult-confirmation-help" class="terms-acceptance__help">
-        Esta declaração não substitui a verificação de idade exigida para o acesso a conteúdo impróprio para menores.
+        O registro guarda a conta, a data e as versões aceitas. A Política de Privacidade não autoriza tratamentos genéricos de dados.
       </p>
 
       <div class="terms-acceptance__actions">
