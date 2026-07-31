@@ -1,0 +1,112 @@
+<main class="legal-center" aria-labelledby="legal-center-title">
+  <header class="legal-center__header">
+    <p class="legal-center__eyebrow">Conta e transparência</p>
+    <h1 id="legal-center-title">Documentos legais</h1>
+    <p>
+      Consulte os documentos vigentes quando precisar. A leitura desta página ou
+      a abertura de qualquer documento não altera seu aceite e não gera nova
+      confirmação.
+    </p>
+  </header>
+
+  @if (acceptance$ | async; as acceptance) {
+    <section class="acceptance-card" aria-labelledby="acceptance-title">
+      <div>
+        <p class="acceptance-card__label" id="acceptance-title">
+          Situação do aceite
+        </p>
+
+        @if (acceptance.accepted) {
+          <p class="acceptance-card__status acceptance-card__status--ok">
+            Termos atuais aceitos
+          </p>
+          <p class="acceptance-card__meta">
+            Versão {{ acceptance.acceptedVersion }}
+            @if (acceptance.acceptedAt) {
+              · registrada em
+              {{ acceptance.acceptedAt | date: 'dd/MM/yyyy, HH:mm' }}
+            }
+          </p>
+        } @else {
+          <p class="acceptance-card__status">Aceite atual não identificado</p>
+          <p class="acceptance-card__meta">
+            A aplicação solicitará confirmação apenas quando ela for realmente
+            necessária.
+          </p>
+        }
+      </div>
+
+      <span class="acceptance-card__version">
+        Documento {{ legalManifest.termsDocumentVersion }}
+      </span>
+    </section>
+  }
+
+  <nav class="document-grid" aria-label="Documentos legais disponíveis">
+    <a
+      class="document-card"
+      routerLink="/termos-e-condicoes"
+      target="_blank"
+      rel="noopener"
+      aria-label="Abrir Termos de Uso em nova aba"
+    >
+      <span class="document-card__icon" aria-hidden="true">📄</span>
+      <span class="document-card__content">
+        <strong>Termos de Uso</strong>
+        <span>
+          Regras de acesso, conteúdo, segurança, moderação, pagamentos e conta.
+        </span>
+        <small>
+          Versão {{ legalManifest.termsDocumentVersion }} · vigente desde
+          {{ legalManifest.effectiveDateLabel }}
+        </small>
+      </span>
+      <span class="document-card__action" aria-hidden="true">↗</span>
+    </a>
+
+    <a
+      class="document-card"
+      routerLink="/politica-de-privacidade"
+      target="_blank"
+      rel="noopener"
+      aria-label="Abrir Política de Privacidade em nova aba"
+    >
+      <span class="document-card__icon" aria-hidden="true">🔐</span>
+      <span class="document-card__content">
+        <strong>Política de Privacidade</strong>
+        <span>
+          Tratamento de dados, segurança, compartilhamentos e direitos da pessoa
+          titular.
+        </span>
+        <small>
+          Versão {{ legalManifest.privacyNoticeVersion }} · vigente desde
+          {{ legalManifest.effectiveDateLabel }}
+        </small>
+      </span>
+      <span class="document-card__action" aria-hidden="true">↗</span>
+    </a>
+
+    <a
+      class="document-card"
+      routerLink="/politica-de-cookies"
+      target="_blank"
+      rel="noopener"
+      aria-label="Abrir Política de Cookies em nova aba"
+    >
+      <span class="document-card__icon" aria-hidden="true">🍪</span>
+      <span class="document-card__content">
+        <strong>Política de Cookies</strong>
+        <span>
+          Cookies, armazenamento local, preferências e tecnologias necessárias.
+        </span>
+        <small>Consulta informativa, sem alteração de consentimentos.</small>
+      </span>
+      <span class="document-card__action" aria-hidden="true">↗</span>
+    </a>
+  </nav>
+
+  <footer class="legal-center__footer">
+    <p>Os documentos abrem em nova aba para preservar a tela em que você estava.</p>
+    <a routerLink="/conta">Voltar para Conta</a>
+  </footer>
+</main>
