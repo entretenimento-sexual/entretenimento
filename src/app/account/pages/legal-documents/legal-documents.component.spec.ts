@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { TERMS_ACCEPTANCE_VERSION } from '@core/services/compliance/terms-acceptance.service';
@@ -25,6 +26,7 @@ describe('LegalDocumentsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [LegalDocumentsComponent],
       providers: [
+        provideRouter([]),
         {
           provide: CurrentUserStoreService,
           useClass: MockCurrentUserStoreService,
