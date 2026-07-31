@@ -6,20 +6,24 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { EMPTY, of } from 'rxjs';
+import { EMPTY, combineLatest, of } from 'rxjs';
 import {
   catchError,
+  distinctUntilChanged,
   filter,
   finalize,
   map,
+  shareReplay,
   switchMap,
   take,
   timeout,
 } from 'rxjs/operators';
 
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import {
   PLATFORM_LEGAL_MANIFEST,
+  TERMS_ACCEPTANCE_VERSION,
   TermsAcceptanceService,
 } from 'src/app/core/services/compliance/terms-acceptance.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -38,20 +42,35 @@ export class TermsAcceptancePageComponent {
 
   readonly legalManifest = PLATFORM_LEGAL_MANIFEST;
 
+  /**
+   * Uma única manifestação contratual cobre o aceite dos Termos e a ciência de
+   * que a Política de Privacidade foi disponibilizada. O fluxo separado de
+   * acesso adulto permanece responsável por declaração e verificação etária.
+   */
   readonly termsConfirmation = new FormControl(false, {
     nonNullable: true,
     validators: [Validators.requiredTrue],
   });
 
-  readonly privacyAcknowledgement = new FormControl(false, {
-    nonNullable: true,
-    validators: [Validators.requiredTrue],
-  });
+  readonly isMaterialUpdate$ = combineLatest([
+    this.currentUser.user$,
+    this.route.queryParamMap,
+  ]).pipe(
+    map(([user, queryParams]) => {
+      const record = user?.acceptedTerms;
+      const previousVersion = String(record?.version ?? '').trim();
+      const routedAsUpdate =
+        queryParams.get('reason') === 'material_terms_update_required';
 
-  readonly adultAccessAcknowledgement = new FormControl(false, {
-    nonNullable: true,
-    validators: [Validators.requiredTrue],
-  });
+      return routedAsUpdate || (
+        record?.accepted === true &&
+        !!previousVersion &&
+        previousVersion !== TERMS_ACCEPTANCE_VERSION
+      );
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   readonly isSaving = signal(false);
 
@@ -60,6 +79,7 @@ export class TermsAcceptancePageComponent {
     private readonly router: Router,
     private readonly termsAcceptance: TermsAcceptanceService,
     private readonly registerFlow: RegisterFlowFacade,
+    private readonly currentUser: CurrentUserStoreService,
     private readonly logout: LogoutService,
     private readonly errorNotifier: ErrorNotificationService,
   ) {}
@@ -72,7 +92,7 @@ export class TermsAcceptancePageComponent {
     if (!this.acknowledgementsValid()) {
       this.markAcknowledgementsTouched();
       this.errorNotifier.showWarning(
-        'Confirme separadamente os Termos de Uso, a ciência da Política de Privacidade e a condição de acesso adulto.'
+        'Confirme o aceite dos Termos de Uso e a ciência da Política de Privacidade.'
       );
       return;
     }
@@ -149,9 +169,7 @@ export class TermsAcceptancePageComponent {
   }
 
   acknowledgementsValid(): boolean {
-    return this.termsConfirmation.valid &&
-      this.privacyAcknowledgement.valid &&
-      this.adultAccessAcknowledgement.valid;
+    return this.termsConfirmation.valid;
   }
 
   isControlInvalid(control: FormControl<boolean>): boolean {
@@ -160,8 +178,6 @@ export class TermsAcceptancePageComponent {
 
   private markAcknowledgementsTouched(): void {
     this.termsConfirmation.markAsTouched();
-    this.privacyAcknowledgement.markAsTouched();
-    this.adultAccessAcknowledgement.markAsTouched();
   }
 
   private resolveNextRoute(
