@@ -26,7 +26,6 @@ export {
 interface AcceptPlatformTermsPayload {
   acceptedTerms: true;
   acknowledgedPrivacyNotice: true;
-  adultAccessAcknowledgement: true;
 }
 
 interface AcceptPlatformTermsResponse {
@@ -51,8 +50,13 @@ export interface AcceptedPlatformTermsResult {
  * - a versão registrada deve coincidir com a versão material atual;
  * - registros legados sem versão não satisfazem a versão v3.
  *
- * A ciência da Política de Privacidade é registrada separadamente e não é usada
- * como consentimento genérico para todas as operações de tratamento de dados.
+ * A ciência da Política de Privacidade é registrada no mesmo ato contratual,
+ * sem ser convertida em consentimento genérico para tratamento de dados.
+ *
+ * SUPRESSÃO EXPLÍCITA:
+ * `adultAccessAcknowledgement` deixou de ser coletado neste fluxo. A declaração
+ * e a verificação de maioridade pertencem ao domínio separado de acesso adulto,
+ * evitando pedir duas vezes a mesma confirmação ao usuário.
  */
 export function hasAcceptedCurrentTerms(
   record: IUserTermsAcceptance | null | undefined
@@ -108,7 +112,6 @@ export class TermsAcceptanceService {
     const payload: AcceptPlatformTermsPayload = {
       acceptedTerms: true,
       acknowledgedPrivacyNotice: true,
-      adultAccessAcknowledgement: true,
     };
 
     return defer(() => from(this.acceptTermsCallable(payload))).pipe(
@@ -135,7 +138,6 @@ export class TermsAcceptanceService {
           termsDocumentVersion: result.termsDocumentVersion,
           privacyNoticeVersion: result.privacyNoticeVersion,
           acknowledgedPrivacyNotice: true,
-          adultAccessAcknowledgement: true,
           acceptanceContext: result.acceptanceContext,
           previousVersion: result.previousVersion,
           acceptedAt: result.acceptedAtMs,
