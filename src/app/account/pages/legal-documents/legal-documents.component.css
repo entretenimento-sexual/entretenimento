@@ -1,0 +1,244 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.legal-center {
+  width: min(100%, 56rem);
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.legal-center__header {
+  margin-bottom: 1rem;
+}
+
+.legal-center__eyebrow,
+.acceptance-card__label {
+  margin: 0 0 0.35rem;
+  color: color-mix(in oklab, var(--text-color, #111827) 68%, transparent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.legal-center h1 {
+  margin: 0;
+  color: var(--text-color, #111827);
+  font-size: clamp(1.55rem, 5vw, 2.15rem);
+  line-height: 1.15;
+}
+
+.legal-center__header > p:last-child,
+.legal-center__footer p {
+  margin: 0.7rem 0 0;
+  color: color-mix(in oklab, var(--text-color, #111827) 72%, transparent);
+  line-height: 1.55;
+}
+
+.acceptance-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--surface-border, #e5e7eb);
+  border-radius: 0.9rem;
+  background: var(--surface-color, #ffffff);
+}
+
+.acceptance-card p {
+  margin: 0;
+}
+
+.acceptance-card__status {
+  color: var(--text-color, #111827);
+  font-weight: 800;
+}
+
+.acceptance-card__status--ok {
+  color: var(--success-color, #147a43);
+}
+
+.acceptance-card__meta,
+.acceptance-card__version {
+  color: color-mix(in oklab, var(--text-color, #111827) 68%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.acceptance-card__version {
+  align-self: flex-start;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff4d57) 8%,
+    transparent
+  );
+  font-weight: 750;
+}
+
+.document-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.document-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 4.75rem;
+  padding: 0.9rem;
+  border: 1px solid var(--surface-border, #e5e7eb);
+  border-radius: 0.9rem;
+  background: var(--surface-color, #ffffff);
+  color: var(--text-color, #111827);
+  text-decoration: none;
+}
+
+.document-card:hover {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff4d57) 45%,
+    var(--surface-border, #e5e7eb)
+  );
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff4d57) 4%,
+    var(--surface-color, #ffffff)
+  );
+}
+
+.document-card:focus-visible,
+.legal-center__footer a:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color, #ff4d57));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+.document-card__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.75rem;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff4d57) 9%,
+    transparent
+  );
+  font-size: 1.1rem;
+}
+
+.document-card__content {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.document-card__content strong {
+  font-size: 0.95rem;
+}
+
+.document-card__content span,
+.document-card__content small {
+  color: color-mix(in oklab, var(--text-color, #111827) 70%, transparent);
+  line-height: 1.4;
+}
+
+.document-card__content span {
+  font-size: 0.84rem;
+}
+
+.document-card__content small {
+  font-size: 0.75rem;
+}
+
+.document-card__action {
+  color: var(--primary-color, #ff4d57);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.legal-center__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.8rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--surface-border, #e5e7eb);
+}
+
+.legal-center__footer p {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.legal-center__footer a {
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  color: var(--primary-color, #ff4d57);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.legal-center__footer a:hover {
+  text-decoration: underline;
+}
+
+@media (min-width: 48rem) {
+  .legal-center {
+    padding: 1.5rem;
+  }
+
+  .acceptance-card {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .acceptance-card__version {
+    align-self: center;
+    white-space: nowrap;
+  }
+
+  .document-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .document-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-content: start;
+  }
+
+  .document-card__action {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .legal-center__footer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .acceptance-card,
+  .document-card {
+    border-width: 2px;
+  }
+
+  .legal-center__header > p:last-child,
+  .legal-center__footer p,
+  .acceptance-card__meta,
+  .acceptance-card__version,
+  .document-card__content span,
+  .document-card__content small {
+    color: var(--text-color, #111827);
+  }
+}
