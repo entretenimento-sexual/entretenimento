@@ -10,7 +10,6 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { MatExpansionModule } from '@angular/material/expansion';
 import { toObservable } from '@angular/core/rxjs-interop';
 
 import {
@@ -48,7 +47,7 @@ type Platform = { key: PlatformKey; label: string; icon: string };
   templateUrl: './user-social-links-accordion.component.html',
   styleUrls: ['./user-social-links-accordion.component.css'],
   standalone: true,
-  imports: [CommonModule, MatExpansionModule],
+  imports: [CommonModule],
 })
 export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
   readonly uid = input<string | null | undefined>(null);
