@@ -14,6 +14,14 @@ export const ACCOUNT_ROUTES: Routes = [
       ),
   },
   {
+    path: 'documentos-legais',
+    canActivate: [authOnlyGuard],
+    loadComponent: () =>
+      import('./pages/legal-documents/legal-documents.component').then(
+        (m) => m.LegalDocumentsComponent
+      ),
+  },
+  {
     path: 'conformidade',
     canActivate: [authOnlyGuard],
     loadComponent: () =>
