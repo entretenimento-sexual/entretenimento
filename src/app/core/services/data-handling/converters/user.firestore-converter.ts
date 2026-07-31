@@ -7,8 +7,27 @@ import {
   QueryDocumentSnapshot,
   SnapshotOptions,
 } from 'firebase/firestore';
-import { IUserDados } from '../../../interfaces/iuser-dados';
+import {
+  IUserDados,
+  TermsAcceptanceContext,
+} from '../../../interfaces/iuser-dados';
 import { toEpoch, toTimestamp } from 'src/app/core/utils/epoch-utils';
+
+function nullableText(value: unknown): string | null {
+  return String(value ?? '').trim() || null;
+}
+
+function nullableBoolean(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
+function termsAcceptanceContext(
+  value: unknown
+): TermsAcceptanceContext | null {
+  return value === 'initial' || value === 'material_update'
+    ? value
+    : null;
+}
 
 export const userConverter: FirestoreDataConverter<IUserDados> = {
   fromFirestore(
@@ -38,13 +57,30 @@ export const userConverter: FirestoreDataConverter<IUserDados> = {
       ...(d.acceptedTerms
         ? {
             acceptedTerms: {
-              accepted: !!d.acceptedTerms.accepted,
+              accepted: d.acceptedTerms.accepted === true,
               date: ms(d.acceptedTerms.date),
-              version:
-                String(d.acceptedTerms.version ?? '').trim() || null,
+              version: nullableText(d.acceptedTerms.version),
+              termsDocumentVersion: nullableText(
+                d.acceptedTerms.termsDocumentVersion
+              ),
+              privacyNoticeVersion: nullableText(
+                d.acceptedTerms.privacyNoticeVersion
+              ),
+              acknowledgedPrivacyNotice: nullableBoolean(
+                d.acceptedTerms.acknowledgedPrivacyNotice
+              ),
+              adultAccessAcknowledgement: nullableBoolean(
+                d.acceptedTerms.adultAccessAcknowledgement
+              ),
+              acceptanceContext: termsAcceptanceContext(
+                d.acceptedTerms.acceptanceContext
+              ),
+              previousVersion: nullableText(
+                d.acceptedTerms.previousVersion
+              ),
               acceptedAt: ms(d.acceptedTerms.acceptedAt),
               updatedAt: ms(d.acceptedTerms.updatedAt),
-              source: String(d.acceptedTerms.source ?? '').trim() || null,
+              source: nullableText(d.acceptedTerms.source),
             },
           }
         : {}),
@@ -104,10 +140,43 @@ export const userConverter: FirestoreDataConverter<IUserDados> = {
       ...(acceptedTerms
         ? {
             acceptedTerms: {
-              accepted: !!acceptedTerms.accepted,
+              accepted: acceptedTerms.accepted === true,
               date: ts(acceptedTerms.date ?? null),
               ...(acceptedTerms.version
                 ? { version: acceptedTerms.version }
+                : {}),
+              ...(acceptedTerms.termsDocumentVersion
+                ? {
+                    termsDocumentVersion:
+                      acceptedTerms.termsDocumentVersion,
+                  }
+                : {}),
+              ...(acceptedTerms.privacyNoticeVersion
+                ? {
+                    privacyNoticeVersion:
+                      acceptedTerms.privacyNoticeVersion,
+                  }
+                : {}),
+              ...(typeof acceptedTerms.acknowledgedPrivacyNotice === 'boolean'
+                ? {
+                    acknowledgedPrivacyNotice:
+                      acceptedTerms.acknowledgedPrivacyNotice,
+                  }
+                : {}),
+              ...(typeof acceptedTerms.adultAccessAcknowledgement === 'boolean'
+                ? {
+                    adultAccessAcknowledgement:
+                      acceptedTerms.adultAccessAcknowledgement,
+                  }
+                : {}),
+              ...(acceptedTerms.acceptanceContext
+                ? { acceptanceContext: acceptedTerms.acceptanceContext }
+                : {}),
+              ...(acceptedTerms.previousVersion !== undefined
+                ? {
+                    previousVersion:
+                      acceptedTerms.previousVersion ?? null,
+                  }
                 : {}),
               ...(acceptedTerms.acceptedAt
                 ? { acceptedAt: ts(acceptedTerms.acceptedAt) }
