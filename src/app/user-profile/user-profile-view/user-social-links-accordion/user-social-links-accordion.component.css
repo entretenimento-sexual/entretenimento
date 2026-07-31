@@ -12,9 +12,6 @@
 
 .social-links-accordion {
   width: 100%;
-}
-
-:host ::ng-deep .mat-expansion-panel {
   overflow: hidden;
   margin: 0;
   border: 1px solid color-mix(
@@ -25,17 +22,28 @@
   border-radius: 0.9rem;
   background: var(--surface-color, #ffffff);
   color: var(--text-color, #111827);
-  box-shadow: none !important;
 }
 
-:host ::ng-deep .mat-expansion-panel-header {
+.social-links-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   min-height: 3.2rem;
+  box-sizing: border-box;
   padding: 0 0.9rem;
   background: transparent;
-  color: var(--text-color, #111827) !important;
+  color: var(--text-color, #111827);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
 }
 
-:host ::ng-deep .mat-expansion-panel-header:hover {
+.social-links-summary::-webkit-details-marker {
+  display: none;
+}
+
+.social-links-summary:hover {
   background: color-mix(
     in oklab,
     var(--primary-color, #ff4d57) 5%,
@@ -43,12 +51,14 @@
   );
 }
 
-:host ::ng-deep .mat-panel-title,
-:host ::ng-deep .mat-panel-title * {
-  color: var(--text-color, #111827) !important;
+.social-links-summary:focus-visible,
+.social-link-value:focus-visible,
+.social-links-management button:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color, #ff4d57));
+  outline-offset: var(--focus-offset, 2px);
 }
 
-:host ::ng-deep .mat-panel-title {
+.social-links-title {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -57,15 +67,22 @@
   font-weight: 800;
 }
 
-:host ::ng-deep .mat-panel-title i {
-  color: var(--primary-color, #ff4d57) !important;
+.social-links-title i {
+  color: var(--primary-color, #ff4d57);
 }
 
-:host ::ng-deep .mat-expansion-indicator::after {
-  color: var(--text-color, #111827) !important;
+.social-links-chevron {
+  flex: 0 0 auto;
+  color: color-mix(in oklab, var(--text-color, #111827) 72%, transparent);
+  font-size: 0.75rem;
+  transition: transform 160ms ease;
 }
 
-:host ::ng-deep .mat-expansion-panel-body {
+.social-links-accordion[open] .social-links-chevron {
+  transform: rotate(180deg);
+}
+
+.social-links-body {
   padding: 0.75rem 0.9rem 0.9rem;
 }
 
@@ -140,12 +157,6 @@
   text-decoration: underline;
 }
 
-.social-link-value:focus-visible,
-.social-links-management button:focus-visible {
-  outline: var(--focus-ring, 2px solid var(--primary-color, #ff4d57));
-  outline-offset: var(--focus-offset, 2px);
-}
-
 .social-links-management {
   display: flex;
   flex-wrap: wrap;
@@ -189,23 +200,23 @@
 }
 
 /* Perfil visitado: conteúdo aberto, sem outro cartão dentro da vitrine. */
-:host ::ng-deep .social-links-accordion--compact .mat-expansion-panel {
+.social-links-accordion--compact {
   border: 0;
   border-radius: 0;
   background: transparent;
 }
 
-:host ::ng-deep .social-links-accordion--compact .mat-expansion-panel-header {
+.social-links-accordion--compact .social-links-summary {
   min-height: 2.75rem;
   padding: 0;
   border: 0;
 }
 
-:host ::ng-deep .social-links-accordion--compact .mat-expansion-panel-header:hover {
+.social-links-accordion--compact .social-links-summary:hover {
   background: transparent;
 }
 
-:host ::ng-deep .social-links-accordion--compact .mat-expansion-panel-body {
+.social-links-accordion--compact .social-links-body {
   padding: 0.2rem 0 0;
 }
 
@@ -248,8 +259,14 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .social-links-chevron {
+    transition: none;
+  }
+}
+
 @media (prefers-contrast: more) {
-  :host ::ng-deep .mat-expansion-panel,
+  .social-links-accordion,
   .social-links-management button {
     border-width: 2px;
   }
