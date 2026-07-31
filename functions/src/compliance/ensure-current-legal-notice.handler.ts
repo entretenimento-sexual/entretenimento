@@ -9,16 +9,37 @@ import {
   TERMS_DOCUMENT_VERSION,
 } from './platform-legal.constants';
 
-function hasAcceptedCurrentLegalDocuments(value: unknown): boolean {
-  if (!value || typeof value !== 'object') return false;
+export interface LegalAcceptanceState {
+  current: boolean;
+  hasPriorAcceptance: boolean;
+  previousVersion: string | null;
+}
+
+export function resolveLegalAcceptanceState(
+  value: unknown
+): LegalAcceptanceState {
+  if (!value || typeof value !== 'object') {
+    return {
+      current: false,
+      hasPriorAcceptance: false,
+      previousVersion: null,
+    };
+  }
 
   const record = value as Record<string, unknown>;
+  const accepted = record['accepted'] === true;
+  const previousVersion = String(record['version'] ?? '').trim() || null;
+  const acknowledgedPrivacyNotice =
+    record['acknowledgedPrivacyNotice'] === true;
 
-  return (
-    record['accepted'] === true &&
-    String(record['version'] ?? '').trim() === TERMS_ACCEPTANCE_VERSION &&
-    record['acknowledgedPrivacyNotice'] === true
-  );
+  return {
+    current:
+      accepted &&
+      previousVersion === TERMS_ACCEPTANCE_VERSION &&
+      acknowledgedPrivacyNotice,
+    hasPriorAcceptance: accepted && previousVersion !== null,
+    previousVersion,
+  };
 }
 
 function buildPendingLegalNoticeBody(): string {
@@ -70,11 +91,22 @@ export const ensureCurrentLegalNotice = onCall(
         );
       }
 
-      required = !hasAcceptedCurrentLegalDocuments(
+      const legalState = resolveLegalAcceptanceState(
         userSnap.data()?.['acceptedTerms']
       );
+      required = !legalState.current;
 
-      if (!required || notificationSnap.exists) {
+      /**
+       * Usuários novos já estão na etapa obrigatória do cadastro. Criar uma
+       * notificação dizendo que os documentos foram "atualizados" seria
+       * redundante e incorreto. O aviso é reservado a quem já aceitou uma versão
+       * anterior e precisa de reaceite material.
+       */
+      if (
+        !required ||
+        !legalState.hasPriorAcceptance ||
+        notificationSnap.exists
+      ) {
         return;
       }
 
@@ -83,12 +115,13 @@ export const ensureCurrentLegalNotice = onCall(
       tx.create(notificationRef, {
         userId: uid,
         type: 'compliance.terms.update_required',
-        title: 'Termos e Política de Privacidade atualizados',
+        title: 'Documentos legais atualizados',
         body: buildPendingLegalNoticeBody(),
-        route: '/register/aceitar-termos',
+        route: '/register/aceitar-termos?reason=material_terms_update_required',
         legalVersion: TERMS_ACCEPTANCE_VERSION,
         termsDocumentVersion: TERMS_DOCUMENT_VERSION,
         privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+        previousVersion: legalState.previousVersion,
         actionRequired: true,
         readAt: null,
         createdAt: now,
@@ -101,6 +134,7 @@ export const ensureCurrentLegalNotice = onCall(
           uid,
           type: 'terms.update_notice_issued',
           version: TERMS_ACCEPTANCE_VERSION,
+          previousVersion: legalState.previousVersion,
           termsDocumentVersion: TERMS_DOCUMENT_VERSION,
           privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
           createdAt: now,
