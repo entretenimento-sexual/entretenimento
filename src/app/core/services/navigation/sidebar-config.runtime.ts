@@ -6,7 +6,7 @@
 // - apresentar Minhas conexões e Solicitações dentro de Conexões;
 // - apresentar Mensagens, Salas e Convites para salas dentro de Conversas;
 // - mover a gestão da assinatura para o grupo Conta;
-// - apresentar avisos e manifestações dentro da conta;
+// - apresentar documentos legais, avisos e manifestações dentro da conta;
 // - manter Área VIP e Recursos premium como destinos condicionais;
 // - remover seções que fiquem vazias após a composição.
 import {
@@ -45,8 +45,18 @@ export interface SidebarRuntimeOptions {
 
 const ACCOUNT_GROUP_ID = 'account';
 const SUBSCRIPTION_ITEM_ID = 'subscription-plan';
+const LEGAL_DOCUMENTS_ITEM_ID = 'legal-documents';
 const COMPLIANCE_CASES_ITEM_ID = 'compliance-cases';
 const SAFETY_ITEM_ID = 'safety-center';
+
+const LEGAL_DOCUMENTS_ITEM: SidebarLinkItem = {
+  id: LEGAL_DOCUMENTS_ITEM_ID,
+  label: 'Documentos legais',
+  route: '/conta/documentos-legais',
+  icon: '📄',
+  exact: false,
+  ariaLabel: 'Consultar Termos de Uso, Privacidade e Cookies',
+};
 
 const COMPLIANCE_CASES_ITEM: SidebarLinkItem = {
   id: COMPLIANCE_CASES_ITEM_ID,
@@ -120,6 +130,8 @@ export function resolveSidebarSectionFromUrl(
   if (
     clean === '/subscription-plan'
     || clean.startsWith('/subscription-plan/')
+    || clean === '/conta/documentos-legais'
+    || clean.startsWith('/conta/documentos-legais/')
     || clean === '/conta/conformidade'
     || clean.startsWith('/conta/conformidade/')
   ) {
@@ -284,6 +296,11 @@ function appendAccountDestinations(
     (child) => child.id === SAFETY_ITEM_ID
   );
   let insertionIndex = safetyIndex >= 0 ? safetyIndex : children.length;
+
+  if (!children.some((child) => child.id === LEGAL_DOCUMENTS_ITEM_ID)) {
+    children.splice(insertionIndex, 0, LEGAL_DOCUMENTS_ITEM);
+    insertionIndex += 1;
+  }
 
   if (!children.some((child) => child.id === COMPLIANCE_CASES_ITEM_ID)) {
     children.splice(insertionIndex, 0, COMPLIANCE_CASES_ITEM);
