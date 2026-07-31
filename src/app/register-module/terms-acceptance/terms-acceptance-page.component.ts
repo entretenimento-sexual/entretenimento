@@ -6,7 +6,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { EMPTY, combineLatest, of } from 'rxjs';
+import { EMPTY, Observable, combineLatest, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -52,26 +52,7 @@ export class TermsAcceptancePageComponent {
     validators: [Validators.requiredTrue],
   });
 
-  readonly isMaterialUpdate$ = combineLatest([
-    this.currentUser.user$,
-    this.route.queryParamMap,
-  ]).pipe(
-    map(([user, queryParams]) => {
-      const record = user?.acceptedTerms;
-      const previousVersion = String(record?.version ?? '').trim();
-      const routedAsUpdate =
-        queryParams.get('reason') === 'material_terms_update_required';
-
-      return routedAsUpdate || (
-        record?.accepted === true &&
-        !!previousVersion &&
-        previousVersion !== TERMS_ACCEPTANCE_VERSION
-      );
-    }),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
+  readonly isMaterialUpdate$: Observable<boolean>;
   readonly isSaving = signal(false);
 
   constructor(
@@ -82,7 +63,27 @@ export class TermsAcceptancePageComponent {
     private readonly currentUser: CurrentUserStoreService,
     private readonly logout: LogoutService,
     private readonly errorNotifier: ErrorNotificationService,
-  ) {}
+  ) {
+    this.isMaterialUpdate$ = combineLatest([
+      this.currentUser.user$,
+      this.route.queryParamMap,
+    ]).pipe(
+      map(([user, queryParams]) => {
+        const record = user?.acceptedTerms;
+        const previousVersion = String(record?.version ?? '').trim();
+        const routedAsUpdate =
+          queryParams.get('reason') === 'material_terms_update_required';
+
+        return routedAsUpdate || (
+          record?.accepted === true &&
+          !!previousVersion &&
+          previousVersion !== TERMS_ACCEPTANCE_VERSION
+        );
+      }),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
 
   accept(): void {
     if (this.isSaving()) {
