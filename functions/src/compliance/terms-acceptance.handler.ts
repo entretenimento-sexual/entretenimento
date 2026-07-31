@@ -3,7 +3,6 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
-  PLATFORM_LEGAL_CHANGE_SUMMARY,
   PRIVACY_NOTICE_VERSION,
   TERMS_ACCEPTANCE_VERSION,
   TERMS_DOCUMENT_VERSION,
@@ -12,26 +11,11 @@ import {
 interface AcceptPlatformTermsRequest {
   acceptedTerms: true;
   acknowledgedPrivacyNotice: true;
-  adultAccessAcknowledgement: true;
 }
 
 interface ExistingTermsAcceptance {
   accepted?: unknown;
   version?: unknown;
-}
-
-function buildAcceptanceNotificationBody(
-  acceptanceContext: 'initial' | 'material_update'
-): string {
-  if (acceptanceContext === 'initial') {
-    return `Seu aceite da versão ${TERMS_ACCEPTANCE_VERSION} foi registrado.`;
-  }
-
-  const changes = PLATFORM_LEGAL_CHANGE_SUMMARY.join('; ');
-  return [
-    `Seu reaceite da versão ${TERMS_ACCEPTANCE_VERSION} foi registrado.`,
-    `Principais mudanças: ${changes}.`,
-  ].join(' ');
 }
 
 export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
@@ -56,15 +40,11 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
 
     if (
       request.data?.acceptedTerms !== true ||
-      request.data?.acknowledgedPrivacyNotice !== true ||
-      request.data?.adultAccessAcknowledgement !== true
+      request.data?.acknowledgedPrivacyNotice !== true
     ) {
       throw new HttpsError(
         'invalid-argument',
-        [
-          'Confirme os Termos de Uso, a ciência da Política de Privacidade',
-          'e a condição de acesso adulto.',
-        ].join(' ')
+        'Confirme o aceite dos Termos de Uso e a ciência da Política de Privacidade.'
       );
     }
 
@@ -73,9 +53,9 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
     const auditRef = db
       .collection('compliance_audit')
       .doc(`terms_acceptance_${uid}_${acceptedAtMs}`);
-    const notificationRef = db
+    const pendingNotificationRef = db
       .collection('notifications')
-      .doc(`terms_update_ack_${uid}_${TERMS_ACCEPTANCE_VERSION}`);
+      .doc(`terms_update_required_${uid}_${TERMS_ACCEPTANCE_VERSION}`);
 
     let previousVersion: string | null = null;
     let acceptanceContext: 'initial' | 'material_update' = 'initial';
@@ -111,7 +91,6 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
             termsDocumentVersion: TERMS_DOCUMENT_VERSION,
             privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
             acknowledgedPrivacyNotice: true,
-            adultAccessAcknowledgement: true,
             acceptanceContext,
             previousVersion,
             date: now,
@@ -130,30 +109,22 @@ export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
         termsDocumentVersion: TERMS_DOCUMENT_VERSION,
         privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
         acknowledgedPrivacyNotice: true,
-        adultAccessAcknowledgement: true,
         acceptanceContext,
         previousVersion,
         source: 'web',
         createdAt: now,
       });
 
-      tx.set(
-        notificationRef,
-        {
-          userId: uid,
-          type: 'compliance.terms.updated',
-          title: acceptanceContext === 'material_update'
-            ? 'Termos atualizados e aceitos'
-            : 'Termos de Uso aceitos',
-          body: buildAcceptanceNotificationBody(acceptanceContext),
-          route: '/termos-e-condicoes',
-          legalVersion: TERMS_ACCEPTANCE_VERSION,
-          readAt: null,
-          createdAt: now,
-          updatedAt: now,
-        },
-        { merge: true }
-      );
+      /**
+       * SUPRESSÕES EXPLÍCITAS:
+       * - não criamos uma nova notificação de "aceite concluído", pois o usuário
+       *   acabou de executar a ação e o registro auditável já existe;
+       * - removemos o aviso pendente da versão aceita para não manter uma ação
+       *   obsoleta na central de notificações;
+       * - a confirmação de maioridade permanece no fluxo separado de acesso
+       *   adulto e não é duplicada neste contrato.
+       */
+      tx.delete(pendingNotificationRef);
     });
 
     return {
