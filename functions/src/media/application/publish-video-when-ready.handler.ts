@@ -240,9 +240,9 @@ export const publishVideoWhenReady = onDocumentUpdated(
       const response = claim === 'PUBLISH'
         ? await publishReadyVideo(ownerUid, videoId)
         : {
-            videoId,
-            moderationStatus: 'EXISTING',
-          };
+          videoId,
+          moderationStatus: 'EXISTING',
+        };
 
       await synchronizePublishedVideoSettings(ownerUid, videoId);
       await completeDeferredPublication(ownerUid, videoId);
