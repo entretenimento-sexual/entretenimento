@@ -26,12 +26,7 @@
         </header>
       }
 
-      @if (
-        message().deleted !== true &&
-        message().messageType === 'public_video' &&
-        message().publicVideoReference;
-        as videoReference
-      ) {
+      @if (getPublicVideoReference(); as videoReference) {
         <a
           class="thread-message__reply-card thread-message__video-reference"
           [routerLink]="[
@@ -46,7 +41,7 @@
             Vídeo compartilhado
           </strong>
           <span>{{ videoReference.title }}</span>
-          <small>Abrir vídeo</small>
+          <span>Abrir vídeo</span>
         </a>
       } @else {
         @let parsedContent = message().content | chatReplyQuote;
