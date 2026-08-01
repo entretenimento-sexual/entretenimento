@@ -90,6 +90,7 @@
               <button
                 type="button"
                 class="video-card__preview"
+                [appPublicVideoMetadataPreload]="item"
                 (click)="openVideo(index)"
                 [disabled]="viewerOpening()"
                 [attr.aria-busy]="isVideoOpening(item) ? 'true' : null"
