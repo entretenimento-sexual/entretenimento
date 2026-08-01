@@ -18,6 +18,7 @@ export interface IVideoPublicationConfig {
   readonly videoId: string;
   readonly ownerUid: string;
   readonly isPublished: boolean;
+  readonly publishWhenReady?: boolean;
   readonly visibility: TVideoPublicationVisibility;
   readonly orderIndex: number;
   readonly moderationStatus: TVideoPublicationModerationStatus;
