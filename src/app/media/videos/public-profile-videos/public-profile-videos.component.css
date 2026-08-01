@@ -11,7 +11,7 @@
 
 .public-videos-header {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   align-items: start;
   margin-bottom: clamp(16px, 3vw, 28px);
 }
@@ -53,25 +53,6 @@
   letter-spacing: -0.035em;
 }
 
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  margin-bottom: 8px;
-  color: var(--primary-color);
-  font-size: 0.76rem;
-  font-weight: 850;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.subtitle {
-  max-width: 720px;
-  margin: 10px 0 0;
-  color: color-mix(in oklab, var(--text-color) 76%, transparent);
-  font-size: clamp(0.94rem, 0.9rem + 0.16vw, 1rem);
-  line-height: 1.55;
-}
-
 .gallery-summary {
   display: inline-flex;
   align-items: center;
@@ -96,33 +77,6 @@
   color: color-mix(in oklab, var(--text-color) 66%, transparent);
   font-size: 0.8rem;
   font-weight: 760;
-}
-
-.gallery-strip {
-  display: flex;
-  gap: 8px;
-  margin: 0 -12px 14px;
-  padding: 0 12px 4px;
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scroll-snap-type: x proximity;
-}
-
-.gallery-pill {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 7px;
-  min-height: 34px;
-  padding: 6px 12px;
-  border: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
-  color: color-mix(in oklab, var(--text-color) 74%, transparent);
-  font-size: 0.82rem;
-  font-weight: 760;
-  scroll-snap-align: start;
-  white-space: nowrap;
 }
 
 .videos-grid,
@@ -188,7 +142,11 @@
   display: grid;
   place-items: center;
   background:
-    radial-gradient(circle at 50% 40%, color-mix(in oklab, var(--primary-color) 18%, transparent), transparent 42%),
+    radial-gradient(
+      circle at 50% 40%,
+      color-mix(in oklab, var(--primary-color) 18%, transparent),
+      transparent 42%
+    ),
     color-mix(in oklab, var(--surface-color) 72%, black 28%);
   color: color-mix(in oklab, var(--text-color) 76%, transparent);
   font-size: clamp(2rem, 8vw, 3.5rem);
@@ -222,13 +180,12 @@
   transform: translateX(2px);
 }
 
-.video-card__duration,
-.video-card__featured-label {
+.video-card__duration {
   position: absolute;
   z-index: 1;
+  inset: auto 10px 10px auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   min-height: 30px;
   padding: 5px 9px;
   border: 1px solid rgb(255 255 255 / 22%);
@@ -239,14 +196,6 @@
   font-weight: 840;
   backdrop-filter: blur(9px);
   pointer-events: none;
-}
-
-.video-card__duration {
-  inset: auto 10px 10px auto;
-}
-
-.video-card__featured-label {
-  inset: 10px auto auto 10px;
 }
 
 .video-card__body {
@@ -399,11 +348,6 @@
     padding-inline: clamp(16px, 3vw, 28px);
   }
 
-  .gallery-strip {
-    margin-inline: 0;
-    padding-inline: 0;
-  }
-
   .videos-grid,
   .videos-skeleton {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -458,10 +402,6 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 18px;
   }
-
-  .video-card--featured {
-    grid-column: span 2;
-  }
 }
 
 @media (max-width: 380px) {
@@ -480,12 +420,10 @@
 }
 
 html.high-contrast .gallery-summary,
-html.high-contrast .gallery-pill,
 html.high-contrast .video-card,
 html.high-contrast .state-card,
 html.high-contrast .video-card__play,
 html.high-contrast .video-card__duration,
-html.high-contrast .video-card__featured-label,
 html.high-contrast .video-card__actions {
   border-color: currentColor !important;
   box-shadow: none !important;
