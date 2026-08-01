@@ -7,9 +7,12 @@ import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
+  OnInit,
   inject,
   signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import {
@@ -22,6 +25,7 @@ import {
 import {
   catchError,
   distinctUntilChanged,
+  filter,
   map,
   shareReplay,
   startWith,
@@ -33,6 +37,7 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 
 interface PublicProfileVideosState {
@@ -57,18 +62,23 @@ interface ViewerUserLike {
   styleUrls: ['./public-profile-videos.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PublicProfileVideosComponent {
+export class PublicProfileVideosComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
+  private readonly publicVideoShare = inject(PublicVideoShareService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
+  private readonly autoOpenedVideoKeys = new Set<string>();
+  private deepLinkWatcherStarted = false;
 
   readonly viewerOpening = signal(false);
   readonly openingVideoId = signal<string | null>(null);
+  readonly sharingVideoId = signal<string | null>(null);
   readonly failedPosterKeys = signal<ReadonlySet<string>>(new Set<string>());
 
   readonly viewerUid$: Observable<string | null> =
@@ -79,7 +89,15 @@ export class PublicProfileVideosComponent {
     );
 
   readonly ownerUid$: Observable<string> = this.route.paramMap.pipe(
-    map((params) => (params.get('id') ?? '').trim()),
+    map((params) =>
+      (params.get('id') ?? params.get('ownerUid') ?? '').trim()
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly requestedVideoId$: Observable<string> = this.route.paramMap.pipe(
+    map((params) => (params.get('videoId') ?? '').trim()),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -108,6 +126,10 @@ export class PublicProfileVideosComponent {
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  ngOnInit(): void {
+    this.watchRequestedVideo();
+  }
 
   retry(): void {
     this.failedPosterKeys.set(new Set<string>());
@@ -173,6 +195,22 @@ export class PublicProfileVideosComponent {
     }
   }
 
+  async shareVideo(item: IPublicVideoItem): Promise<void> {
+    if (!item?.id || this.sharingVideoId()) {
+      return;
+    }
+
+    this.sharingVideoId.set(item.id);
+
+    try {
+      await this.publicVideoShare.sharePublicVideo(item);
+    } finally {
+      if (this.sharingVideoId() === item.id) {
+        this.sharingVideoId.set(null);
+      }
+    }
+  }
+
   trackByVideoId(_index: number, item: IPublicVideoItem): string {
     return item.id;
   }
@@ -184,6 +222,10 @@ export class PublicProfileVideosComponent {
 
   isVideoOpening(item: IPublicVideoItem): boolean {
     return this.openingVideoId() === item.id;
+  }
+
+  isVideoSharing(item: IPublicVideoItem): boolean {
+    return this.sharingVideoId() === item.id;
   }
 
   onPosterError(item: IPublicVideoItem): void {
@@ -259,6 +301,55 @@ export class PublicProfileVideosComponent {
     return `Abrir ${title}. Vídeo ${index + 1} de ${total}.`;
   }
 
+  getShareAriaLabel(item: IPublicVideoItem): string {
+    const title = item.title?.trim() || item.alt?.trim() || 'vídeo público';
+
+    return this.isVideoSharing(item)
+      ? `Compartilhando ${title}.`
+      : `Compartilhar ${title}.`;
+  }
+
+  private watchRequestedVideo(): void {
+    if (this.deepLinkWatcherStarted) {
+      return;
+    }
+
+    this.deepLinkWatcherStarted = true;
+
+    combineLatest([
+      this.ownerUid$,
+      this.requestedVideoId$,
+      this.state$,
+    ]).pipe(
+      filter(([, videoId, state]) =>
+        !!videoId && (state.status === 'ready' || state.status === 'empty')
+      ),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(([ownerUid, videoId, state]) => {
+      const deepLinkKey = `${ownerUid}:${videoId}`;
+
+      if (!ownerUid || this.autoOpenedVideoKeys.has(deepLinkKey)) {
+        return;
+      }
+
+      this.autoOpenedVideoKeys.add(deepLinkKey);
+      const requestedIndex = state.items.findIndex(
+        (item) => item.id === videoId && item.ownerUid === ownerUid
+      );
+
+      if (requestedIndex < 0) {
+        this.errorNotification.showWarning(
+          'Este vídeo não está mais disponível para visitantes.'
+        );
+        return;
+      }
+
+      queueMicrotask(() => {
+        void this.openVideo(requestedIndex);
+      });
+    });
+  }
+
   private posterKey(item: IPublicVideoItem): string {
     const ownerUid = item.ownerUid?.trim() ?? '';
     const videoId = item.id?.trim() ?? '';
@@ -298,7 +389,7 @@ export class PublicProfileVideosComponent {
   ): void {
     try {
       const normalized = error instanceof Error
-        ? error
+        ? new Error(error.message)
         : new Error('Falha na galeria pública de vídeos.');
 
       (normalized as any).original = error;
