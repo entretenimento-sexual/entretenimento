@@ -5,6 +5,8 @@
 @let uploadProgress = (uploadProgress$ | async) || 0;
 @let uploadStep = (uploadStep$ | async) || '';
 @let previewUrl = (previewUrl$ | async);
+@let selectedPosterUrl = (selectedPosterUrl$ | async);
+@let capturingPoster = (capturingPoster$ | async) === true;
 @let selectedFileName = (selectedFileName$ | async);
 @let selectedFileSize = (selectedFileSize$ | async);
 @let canUpload = (canUpload$ | async) === true;
@@ -17,7 +19,12 @@
       [attr.aria-busy]="isUploadActive() ? 'true' : 'false'"
     >
       <div class="profile-videos__upload-copy">
-        <h2 id="video-upload-title">Enviar vídeo</h2>
+        <span class="profile-videos__eyebrow">Nova publicação</span>
+        <h2 id="video-upload-title">Prepare e publique seu vídeo</h2>
+        <p>
+          Escolha a capa, revise as informações e envie. O processamento e a
+          publicação continuam automaticamente, mesmo que você saia desta página.
+        </p>
       </div>
 
       @if (!canUpload) {
@@ -30,57 +37,208 @@
         </div>
       }
 
-      <div class="profile-videos__picker">
-        <input
-          #videoInput
-          id="profile-video-file"
-          class="profile-videos__file-input"
-          type="file"
-          accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
-          aria-describedby="profile-video-file-help"
-          [disabled]="!canUpload || isUploadActive()"
-          (change)="onVideoSelected($event)"
-        />
+      <div class="profile-videos__upload-layout">
+        <div class="profile-videos__picker">
+          <input
+            #videoInput
+            id="profile-video-file"
+            class="profile-videos__file-input"
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+            aria-describedby="profile-video-file-help"
+            [disabled]="!canUpload || isUploadActive()"
+            (change)="onVideoSelected($event)"
+          />
 
-        <label
-          class="profile-videos__file-label app-action app-action--ghost"
-          for="profile-video-file"
-          [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
-        >
-          {{ selectedFileName ? 'Trocar vídeo' : 'Selecionar vídeo' }}
-        </label>
+          <label
+            class="profile-videos__file-label app-action app-action--ghost"
+            for="profile-video-file"
+            [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
+          >
+            {{ selectedFileName ? 'Trocar vídeo' : 'Selecionar vídeo' }}
+          </label>
 
-        <p class="profile-videos__limits" id="profile-video-file-help">
-          MP4, WebM ou MOV · até 500 MB · mínimo de 5 segundos.
-        </p>
+          <p class="profile-videos__limits" id="profile-video-file-help">
+            MP4, WebM ou MOV · até 500 MB · mínimo de 5 segundos.
+          </p>
+
+          @if (selectedFileName) {
+            <div class="profile-videos__selected-file" role="status" aria-live="polite">
+              <i class="fas fa-circle-check" aria-hidden="true"></i>
+              <div>
+                <strong>{{ selectedFileName }}</strong>
+                <span>{{ selectedFileSize }}</span>
+              </div>
+            </div>
+          }
+
+          @if (previewUrl) {
+            <div class="profile-videos__preview">
+              <video
+                #uploadPreview
+                [src]="previewUrl"
+                aria-label="Prévia local do vídeo selecionado"
+                preload="metadata"
+                controls
+                playsinline
+                muted
+              ></video>
+            </div>
+
+            <div class="profile-videos__cover-tools">
+              <div>
+                <strong>Escolher capa</strong>
+                <p>
+                  Posicione a linha do tempo no quadro desejado e use esse quadro
+                  como a capa que aparecerá para outras pessoas.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                class="app-action app-action--ghost"
+                [disabled]="capturingPoster || isUploadActive()"
+                [attr.aria-busy]="capturingPoster ? 'true' : 'false'"
+                (click)="capturePoster(uploadPreview)"
+              >
+                {{ capturingPoster ? 'Gerando capa...' : 'Usar quadro atual' }}
+              </button>
+            </div>
+
+            @if (selectedPosterUrl) {
+              <figure class="profile-videos__selected-cover">
+                <img
+                  [src]="selectedPosterUrl"
+                  alt="Capa escolhida para o vídeo"
+                  width="320"
+                  height="180"
+                />
+                <figcaption>
+                  <i class="fas fa-circle-check" aria-hidden="true"></i>
+                  Capa escolhida
+                </figcaption>
+              </figure>
+            }
+          } @else {
+            <div class="profile-videos__preview profile-videos__preview--empty">
+              <i class="fas fa-film" aria-hidden="true"></i>
+              <span>A prévia e os controles de capa aparecerão aqui.</span>
+            </div>
+          }
+        </div>
 
         @if (selectedFileName) {
-          <div class="profile-videos__selected-file" role="status" aria-live="polite">
-            <i class="fas fa-circle-check" aria-hidden="true"></i>
+          <form
+            class="profile-videos__settings-form profile-videos__upload-composer"
+            [formGroup]="uploadPublicationForm"
+            (ngSubmit)="startUpload(true)"
+          >
+            <div class="profile-videos__composer-heading">
+              <span>Informações da publicação</span>
+              <strong>Como o vídeo aparecerá no perfil</strong>
+            </div>
+
+            <label for="new-video-title">
+              <span>Título</span>
+              <input
+                id="new-video-title"
+                type="text"
+                formControlName="title"
+                maxlength="120"
+                autocomplete="off"
+                [readonly]="isUploadActive()"
+              />
+            </label>
+
+            @if (
+              uploadPublicationForm.controls.title.touched &&
+              uploadPublicationForm.controls.title.invalid
+            ) {
+              <p class="profile-videos__field-error" role="alert">
+                Informe um título com até 120 caracteres.
+              </p>
+            }
+
+            <label for="new-video-description">
+              <span>Descrição ou legenda</span>
+              <textarea
+                id="new-video-description"
+                formControlName="description"
+                maxlength="1000"
+                rows="5"
+                placeholder="Conte a história desse momento."
+                [readonly]="isUploadActive()"
+              ></textarea>
+            </label>
+
+            <fieldset
+              class="profile-videos__settings-options"
+              [disabled]="isUploadActive()"
+            >
+              <legend>Permitir na publicação</legend>
+
+              <label>
+                <input type="checkbox" formControlName="reactionsEnabled" />
+                <span>Curtidas</span>
+              </label>
+
+              <label>
+                <input type="checkbox" formControlName="commentsEnabled" />
+                <span>Comentários</span>
+              </label>
+
+              <label>
+                <input type="checkbox" formControlName="ratingsEnabled" />
+                <span>Avaliações</span>
+              </label>
+            </fieldset>
+
+            <div class="profile-videos__composer-flow" aria-label="Etapas após o envio">
+              <span><i class="fas fa-upload" aria-hidden="true"></i> Envio</span>
+              <i class="fas fa-chevron-right" aria-hidden="true"></i>
+              <span><i class="fas fa-gears" aria-hidden="true"></i> Preparação</span>
+              <i class="fas fa-chevron-right" aria-hidden="true"></i>
+              <span><i class="fas fa-shield" aria-hidden="true"></i> Análise</span>
+              <i class="fas fa-chevron-right" aria-hidden="true"></i>
+              <span><i class="fas fa-globe" aria-hidden="true"></i> Perfil</span>
+            </div>
+
+            <p class="profile-videos__settings-note">
+              O original permanece privado. Somente a versão processada e aprovada
+              pode ser exibida publicamente.
+            </p>
+
+            <div class="profile-videos__settings-actions">
+              <button
+                type="submit"
+                class="app-action app-action--primary"
+                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
+              >
+                {{ isUploadActive() ? 'Enviando...' : 'Enviar e publicar' }}
+              </button>
+
+              <button
+                type="button"
+                class="app-action app-action--ghost"
+                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
+                (click)="startUpload(false)"
+              >
+                Salvar como privado
+              </button>
+            </div>
+          </form>
+        } @else {
+          <div class="profile-videos__composer-empty">
+            <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
             <div>
-              <strong>{{ selectedFileName }}</strong>
-              <span>{{ selectedFileSize }}</span>
+              <strong>Uma única preparação</strong>
+              <span>
+                Título, legenda, capa e permissões serão definidos antes do envio.
+              </span>
             </div>
           </div>
-
-          <p class="profile-videos__limits">
-            O original permanece privado. Só a versão processada pode ser publicada.
-          </p>
         }
       </div>
-
-      @if (previewUrl) {
-        <div class="profile-videos__preview">
-          <video
-            [src]="previewUrl"
-            aria-label="Prévia local do vídeo selecionado"
-            preload="metadata"
-            controls
-            playsinline
-            muted
-          ></video>
-        </div>
-      }
 
       @if (uploadPhase !== 'IDLE' && uploadPhase !== 'READY') {
         <div class="profile-videos__progress" aria-live="polite">
@@ -113,35 +271,24 @@
             class="app-action app-action--primary"
             (click)="resetSelection(videoInput)"
           >
-            Enviar outro vídeo
+            Preparar outro vídeo
           </button>
-        } @else {
+        } @else if (canCancelUpload()) {
           <button
             type="button"
-            class="app-action app-action--primary"
-            [disabled]="!canUpload || !selectedFileName || isUploadActive()"
-            (click)="startUpload()"
+            class="app-action app-action--ghost"
+            (click)="cancelUpload()"
           >
-            {{ isUploadActive() ? 'Enviando...' : 'Enviar vídeo' }}
+            Cancelar upload
           </button>
-
-          @if (canCancelUpload()) {
-            <button
-              type="button"
-              class="app-action app-action--ghost"
-              (click)="cancelUpload()"
-            >
-              Cancelar upload
-            </button>
-          } @else if (selectedFileName && !isUploadActive()) {
-            <button
-              type="button"
-              class="app-action app-action--ghost"
-              (click)="resetSelection(videoInput)"
-            >
-              Limpar seleção
-            </button>
-          }
+        } @else if (selectedFileName && !isUploadActive()) {
+          <button
+            type="button"
+            class="app-action app-action--ghost"
+            (click)="resetSelection(videoInput)"
+          >
+            Limpar preparação
+          </button>
         }
       </div>
     </section>
@@ -171,10 +318,10 @@
                   <span
                     class="profile-videos__publication-chip"
                     [class.profile-videos__publication-chip--published]="item.publication?.moderationStatus === 'APPROVED'"
-                    [class.profile-videos__publication-chip--pending]="item.publication?.moderationStatus === 'PENDING_REVIEW'"
-                    [class.profile-videos__publication-chip--rejected]="item.publication?.moderationStatus === 'REJECTED'"
+                    [class.profile-videos__publication-chip--pending]="isPendingPublication(item)"
+                    [class.profile-videos__publication-chip--rejected]="item.publication?.moderationStatus === 'REJECTED' || item.video.status === 'failed'"
                   >
-                    {{ item.publication?.moderationStatus === 'REJECTED' ? 'Rejeitado' : publicationLabel(item) }}
+                    {{ publicationLabel(item) }}
                   </span>
                 </div>
 
@@ -187,7 +334,6 @@
                 <div class="profile-videos__meta" aria-label="Informações do vídeo">
                   <span>{{ formatFileSize(item.video.sizeBytes) }}</span>
                   <span>{{ formatDuration(item.video.durationMs) }}</span>
-                  <span>{{ item.video.status === 'queued' ? 'Na fila' : processingLabel(item.video) }}</span>
                 </div>
 
                 @if (editingVideoId === item.video.id) {
@@ -264,15 +410,15 @@
                   </form>
                 }
 
-                @if (item.video.status === 'queued') {
+                @if (item.video.status === 'queued' || item.video.status === 'processing') {
                   <p class="profile-videos__helper" role="status">
-                    Vídeo adicionado à fila. O processamento continuará em segundo
-                    plano e esta tela será atualizada automaticamente.
-                  </p>
-                } @else if (item.video.status === 'processing') {
-                  <p class="profile-videos__helper" role="status">
-                    O backend está preparando uma versão compatível. Aguarde a
-                    conclusão antes de publicar.
+                    @if (item.publication?.publishWhenReady) {
+                      Estamos preparando uma versão compatível. A publicação seguirá
+                      automaticamente quando esta etapa terminar.
+                    } @else {
+                      Estamos preparando uma versão compatível para sua biblioteca
+                      privada.
+                    }
                   </p>
                 } @else if (item.video.status === 'failed') {
                   <p class="profile-videos__helper profile-videos__helper--error" role="alert">
@@ -285,15 +431,7 @@
                   </p>
                 } @else if (!isPublicPlaybackCompatible(item.video)) {
                   <p class="profile-videos__helper" role="status">
-                    O derivado compatível ainda não foi confirmado pelo backend.
-                  </p>
-                } @else if (item.video.status !== 'ready') {
-                  <p class="profile-videos__helper" role="status">
-                    O vídeo ainda não está pronto para publicação.
-                  </p>
-                } @else if (item.publication?.moderationStatus === 'PENDING_REVIEW') {
-                  <p class="profile-videos__helper" role="status">
-                    A publicação aguarda análise de moderação.
+                    A versão compatível ainda não foi confirmada pelo backend.
                   </p>
                 }
 
@@ -318,7 +456,7 @@
                     >
                       {{ busyActions?.get(item.video.id) === 'unpublish' ? 'Removendo...' : 'Remover do perfil' }}
                     </button>
-                  } @else {
+                  } @else if (!item.publication?.publishWhenReady) {
                     <button
                       type="button"
                       class="app-action app-action--primary"
