@@ -14,6 +14,7 @@ export interface PublicVideoMetadataPreloadCapability {
   readonly online: boolean;
   readonly saveData: boolean;
   readonly effectiveType: string | null;
+  readonly downlinkMbps: number | null;
 }
 
 export type PublicVideoMetadataPreloadCapabilityReader =
@@ -23,11 +24,13 @@ interface NavigatorWithConnection extends Navigator {
   readonly connection?: {
     readonly saveData?: boolean;
     readonly effectiveType?: string;
+    readonly downlink?: number;
   };
 }
 
 const ACCESS_EXPIRY_SAFETY_MS = 30_000;
 const METADATA_PRELOAD_TIMEOUT_MS = 8_000;
+const MIN_DOWNLINK_MBPS = 1.5;
 const BLOCKED_EFFECTIVE_TYPES = new Set(['slow-2g', '2g']);
 
 export function canPreloadPublicVideoMetadata(
@@ -36,11 +39,17 @@ export function canPreloadPublicVideoMetadata(
   const effectiveType = String(capability.effectiveType ?? '')
     .trim()
     .toLowerCase();
+  const downlinkMbps = Number(capability.downlinkMbps);
+  const hasInsufficientMeasuredDownlink =
+    Number.isFinite(downlinkMbps) &&
+    downlinkMbps > 0 &&
+    downlinkMbps < MIN_DOWNLINK_MBPS;
 
   return capability.documentVisible &&
     capability.online &&
     !capability.saveData &&
-    !BLOCKED_EFFECTIVE_TYPES.has(effectiveType);
+    !BLOCKED_EFFECTIVE_TYPES.has(effectiveType) &&
+    !hasInsufficientMeasuredDownlink;
 }
 
 export const PUBLIC_VIDEO_METADATA_PRELOAD_CAPABILITY_READER =
@@ -53,6 +62,7 @@ export const PUBLIC_VIDEO_METADATA_PRELOAD_CAPABILITY_READER =
         return () => {
           const navigatorLike = globalThis.navigator as
             NavigatorWithConnection | undefined;
+          const downlink = Number(navigatorLike?.connection?.downlink);
 
           return {
             documentVisible: document.visibilityState !== 'hidden',
@@ -62,6 +72,10 @@ export const PUBLIC_VIDEO_METADATA_PRELOAD_CAPABILITY_READER =
               String(
                 navigatorLike?.connection?.effectiveType ?? ''
               ).trim() || null,
+            downlinkMbps:
+              Number.isFinite(downlink) && downlink > 0
+                ? downlink
+                : null,
           };
         };
       },
