@@ -204,6 +204,7 @@ export class PublicVideoPlaybackFeedbackDirective
   private retrySubscription: { unsubscribe(): void } | null = null;
   private posterProbe: HTMLImageElement | null = null;
   private adjacentPreloadTimer: ReturnType<typeof setTimeout> | null = null;
+  private adjacentPreloadCandidate: IPublicVideoItem | null = null;
   private viewerBodyObserver: MutationObserver | null = null;
   private currentItemIndex = -1;
   private preloadDirection: TAdjacentVideoNavigationDirection = 'next';
@@ -252,7 +253,7 @@ export class PublicVideoPlaybackFeedbackDirective
   ngOnDestroy(): void {
     this.destroyed = true;
     this.posterProbe = null;
-    this.clearAdjacentPreloadTimer();
+    this.cancelAdjacentMetadataPreload();
     this.viewerBodyObserver?.disconnect();
     this.viewerBodyObserver = null;
     this.retrySubscription?.unsubscribe();
@@ -268,7 +269,7 @@ export class PublicVideoPlaybackFeedbackDirective
   @HostListener('document:visibilitychange')
   onDocumentVisibilityChange(): void {
     if (this.document.visibilityState !== 'visible') {
-      this.clearAdjacentPreloadTimer();
+      this.cancelAdjacentMetadataPreload();
       return;
     }
 
@@ -282,13 +283,13 @@ export class PublicVideoPlaybackFeedbackDirective
 
   @HostListener('window:offline')
   onWindowOffline(): void {
-    this.clearAdjacentPreloadTimer();
+    this.cancelAdjacentMetadataPreload();
   }
 
   @HostListener('loadstart')
   onLoadStart(): void {
     this.currentPlaybackReady = false;
-    this.clearAdjacentPreloadTimer();
+    this.cancelAdjacentMetadataPreload();
     this.markLoading('Carregando vídeo...');
     this.validatePoster();
   }
@@ -315,7 +316,7 @@ export class PublicVideoPlaybackFeedbackDirective
   @HostListener('error')
   onError(): void {
     this.currentPlaybackReady = false;
-    this.clearAdjacentPreloadTimer();
+    this.cancelAdjacentMetadataPreload();
     this.markError(
       'O acesso pode ter expirado ou a conexão foi interrompida.'
     );
@@ -327,7 +328,7 @@ export class PublicVideoPlaybackFeedbackDirective
   }
 
   markRefreshing(message = 'Atualizando acesso ao vídeo...'): void {
-    this.clearAdjacentPreloadTimer();
+    this.cancelAdjacentMetadataPreload();
     this.setFeedback('refreshing', message);
   }
 
@@ -369,7 +370,7 @@ export class PublicVideoPlaybackFeedbackDirective
 
     this.viewerBodyObserver = new MutationObserver(() => {
       if (this.isViewerPanelOpen()) {
-        this.clearAdjacentPreloadTimer();
+        this.cancelAdjacentMetadataPreload();
         return;
       }
 
@@ -455,9 +456,22 @@ export class PublicVideoPlaybackFeedbackDirective
       this.preloadDirection
     );
 
-    if (candidate) {
-      this.metadataPreload.preloadMetadata(candidate);
+    if (candidate && this.metadataPreload.preloadMetadata(candidate)) {
+      this.adjacentPreloadCandidate = candidate;
     }
+  }
+
+  private cancelAdjacentMetadataPreload(): void {
+    this.clearAdjacentPreloadTimer();
+
+    if (!this.adjacentPreloadCandidate) {
+      return;
+    }
+
+    this.metadataPreload.cancelMetadataPreload(
+      this.adjacentPreloadCandidate
+    );
+    this.adjacentPreloadCandidate = null;
   }
 
   private clearAdjacentPreloadTimer(): void {
