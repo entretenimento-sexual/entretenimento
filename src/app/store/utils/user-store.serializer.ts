@@ -16,6 +16,88 @@ function toSerializableEpoch(value: unknown): number | null {
   return typeof epoch === 'number' && Number.isFinite(epoch) ? epoch : null;
 }
 
+function isTimestampLike(value: object): boolean {
+  const candidate = value as {
+    toMillis?: unknown;
+    seconds?: unknown;
+    nanoseconds?: unknown;
+  };
+
+  return typeof candidate.toMillis === 'function' ||
+    (
+      typeof candidate.seconds === 'number' &&
+      typeof candidate.nanoseconds === 'number'
+    );
+}
+
+/**
+ * Converte qualquer valor destinado ao NgRx/cache em uma estrutura plana.
+ *
+ * Regras:
+ * - Date e Timestamp do Firestore viram epoch ms;
+ * - arrays e objetos são copiados recursivamente;
+ * - protótipos de SDK não atravessam a fronteira do Store;
+ * - propriedades undefined, funções e símbolos são suprimidas;
+ * - ciclos inválidos são substituídos por null, sem quebrar o dispatch.
+ *
+ * Esta função não altera o objeto recebido.
+ */
+export function sanitizeValueForStore<T>(value: T): T {
+  return sanitizeSerializableValue(value, new WeakSet<object>()) as T;
+}
+
+function sanitizeSerializableValue(
+  value: unknown,
+  visited: WeakSet<object>
+): unknown {
+  if (value === null) return null;
+
+  switch (typeof value) {
+    case 'string':
+    case 'boolean':
+      return value;
+    case 'number':
+      return Number.isFinite(value) ? value : null;
+    case 'bigint':
+      return value.toString();
+    case 'undefined':
+    case 'function':
+    case 'symbol':
+      return undefined;
+  }
+
+  if (value instanceof Date || isTimestampLike(value)) {
+    return toSerializableEpoch(value);
+  }
+
+  if (visited.has(value)) {
+    return null;
+  }
+
+  visited.add(value);
+
+  if (Array.isArray(value)) {
+    const sanitizedArray = value.map((item) =>
+      sanitizeSerializableValue(item, visited) ?? null
+    );
+    visited.delete(value);
+    return sanitizedArray;
+  }
+
+  const sanitizedObject: Record<string, unknown> = {};
+
+  for (const [key, entryValue] of Object.entries(value)) {
+    const sanitizedEntry = sanitizeSerializableValue(entryValue, visited);
+
+    if (sanitizedEntry !== undefined) {
+      sanitizedObject[key] = sanitizedEntry;
+    }
+  }
+
+  visited.delete(value);
+  return sanitizedObject;
+}
+
 function sanitizeConsent(value: unknown): IUserAdultConsent | null {
   const source = value as any;
   if (!source || typeof source !== 'object') return null;
@@ -120,10 +202,12 @@ function sanitizeTermsAcceptance(
 
 export function sanitizeUserForStore(u: IUserDados): IUserDados {
   if (!u) return u;
+
   const anyU = u as any;
+  const plainUser = sanitizeValueForStore(u);
 
   const serialized = {
-    ...u,
+    ...plainUser,
 
     lastLogin: toSerializableEpoch(anyU.lastLogin) ?? 0,
     firstLogin: toSerializableEpoch(anyU.firstLogin),
