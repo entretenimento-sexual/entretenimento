@@ -114,12 +114,13 @@
               <button
                 type="button"
                 class="video-card__preview"
+                [class.video-card__preview--opening]="isVideoOpening(item)"
                 (click)="openVideo(index)"
                 [disabled]="viewerOpening()"
-                [attr.aria-busy]="viewerOpening() ? 'true' : 'false'"
+                [attr.aria-busy]="isVideoOpening(item) ? 'true' : null"
                 [attr.aria-label]="getVideoAriaLabel(item, index, state.items.length)"
               >
-                @if (item.posterUrl) {
+                @if (hasUsablePoster(item)) {
                   <img
                     [src]="item.posterUrl"
                     [alt]="item.alt || item.title || 'Capa do vídeo público'"
@@ -127,6 +128,7 @@
                     [attr.fetchpriority]="index === 0 ? 'high' : null"
                     decoding="async"
                     referrerpolicy="no-referrer"
+                    (error)="onPosterError(item)"
                   />
                 } @else {
                   <span class="video-card__placeholder" aria-hidden="true">
@@ -137,8 +139,18 @@
                 <span class="video-card__shade" aria-hidden="true"></span>
 
                 <span class="video-card__play" aria-hidden="true">
-                  <i class="fas fa-play"></i>
+                  @if (isVideoOpening(item)) {
+                    <i class="fas fa-circle-notch fa-spin"></i>
+                  } @else {
+                    <i class="fas fa-play"></i>
+                  }
                 </span>
+
+                @if (isVideoOpening(item)) {
+                  <span class="visually-hidden" role="status" aria-live="polite">
+                    Abrindo vídeo.
+                  </span>
+                }
 
                 <span class="video-card__duration">
                   {{ formatDuration(item.durationMs) }}
