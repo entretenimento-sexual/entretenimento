@@ -1,5 +1,11 @@
 :host {
-  display: contents;
+  display: block;
+}
+
+.public-video-share-actions {
+  position: relative;
+  display: grid;
+  justify-items: center;
 }
 
 .public-video-share-action {
@@ -40,15 +46,55 @@
   text-overflow: ellipsis;
 }
 
+.public-video-share-menu {
+  position: absolute;
+  z-index: 20;
+  right: calc(100% + 10px);
+  bottom: 0;
+  display: grid;
+  min-width: 202px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 14px;
+  background: rgb(10 12 18 / 96%);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 44%);
+  backdrop-filter: blur(18px);
+}
+
+.public-video-share-menu button {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 13px;
+  border: 0;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.public-video-share-menu button:last-child {
+  border-bottom: 0;
+}
+
+.public-video-share-menu button:hover,
+.public-video-share-menu button:focus-visible {
+  background: rgb(255 255 255 / 10%);
+}
+
+.public-video-share-menu button:focus-visible,
+.public-video-share-action:focus-visible {
+  outline: 3px solid rgb(255 112 112 / 94%);
+  outline-offset: 2px;
+}
+
 .public-video-share-action:hover:not(:disabled) .public-video-share-action__icon {
   border-color: rgb(255 255 255 / 48%);
   background: rgb(255 255 255 / 18%);
-}
-
-.public-video-share-action:focus-visible {
-  outline: 3px solid rgb(255 112 112 / 94%);
-  outline-offset: 3px;
-  border-radius: 12px;
 }
 
 .public-video-share-action:disabled {
@@ -70,15 +116,21 @@
     max-width: 56px;
     font-size: 0.64rem;
   }
+
+  .public-video-share-menu {
+    right: calc(100% + 8px);
+    min-width: 188px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .public-video-share-action * {
+  .public-video-share-actions * {
     animation-duration: 0.01ms !important;
   }
 }
 
-html.high-contrast .public-video-share-action__icon {
+html.high-contrast .public-video-share-action__icon,
+html.high-contrast .public-video-share-menu {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
