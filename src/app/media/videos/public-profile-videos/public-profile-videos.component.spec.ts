@@ -1,7 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
-import { ActivatedRoute, convertToParamMap } from '@angular/router';
-import { of } from 'rxjs';
+import {
+  ActivatedRoute,
+  ParamMap,
+  convertToParamMap,
+} from '@angular/router';
+import { BehaviorSubject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
@@ -9,6 +13,7 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { PublicProfileVideosComponent } from './public-profile-videos.component';
 
 const VIDEO: IPublicVideoItem = {
@@ -60,17 +65,35 @@ const VIDEO: IPublicVideoItem = {
 
 describe('PublicProfileVideosComponent', () => {
   let component: PublicProfileVideosComponent;
+  let routeParamMapSubject: BehaviorSubject<ParamMap>;
+  let errorNotification: {
+    showError: ReturnType<typeof vi.fn>;
+    showWarning: ReturnType<typeof vi.fn>;
+  };
   let globalErrorHandler: { handleError: ReturnType<typeof vi.fn> };
+  let publicVideoShare: {
+    sharePublicVideo: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
+    routeParamMapSubject = new BehaviorSubject<ParamMap>(
+      convertToParamMap({ id: VIDEO.ownerUid })
+    );
+    errorNotification = {
+      showError: vi.fn(),
+      showWarning: vi.fn(),
+    };
     globalErrorHandler = { handleError: vi.fn() };
+    publicVideoShare = {
+      sharePublicVideo: vi.fn().mockResolvedValue('copied'),
+    };
 
     TestBed.configureTestingModule({
       providers: [
         {
           provide: ActivatedRoute,
           useValue: {
-            paramMap: of(convertToParamMap({ id: VIDEO.ownerUid })),
+            paramMap: routeParamMapSubject.asObservable(),
           },
         },
         {
@@ -88,11 +111,12 @@ describe('PublicProfileVideosComponent', () => {
           },
         },
         {
+          provide: PublicVideoShareService,
+          useValue: publicVideoShare,
+        },
+        {
           provide: ErrorNotificationService,
-          useValue: {
-            showError: vi.fn(),
-            showWarning: vi.fn(),
-          },
+          useValue: errorNotification,
         },
         {
           provide: GlobalErrorHandlerService,
@@ -134,6 +158,53 @@ describe('PublicProfileVideosComponent', () => {
     expect(component.isVideoOpening(VIDEO)).toBe(true);
     expect(component.getVideoAriaLabel(VIDEO, 0, 1)).toBe(
       'Abrindo Vídeo de apresentação.'
+    );
+  });
+
+  it('mantém feedback ocupado enquanto compartilha o vídeo', async () => {
+    publicVideoShare.sharePublicVideo.mockImplementation(async () => {
+      expect(component.isVideoSharing(VIDEO)).toBe(true);
+      return 'copied';
+    });
+
+    await component.shareVideo(VIDEO);
+
+    expect(publicVideoShare.sharePublicVideo).toHaveBeenCalledWith(VIDEO);
+    expect(component.isVideoSharing(VIDEO)).toBe(false);
+  });
+
+  it('abre automaticamente o vídeo solicitado pela rota canônica', async () => {
+    const openVideo = vi.spyOn(component, 'openVideo').mockResolvedValue();
+    component.ngOnInit();
+
+    routeParamMapSubject.next(
+      convertToParamMap({
+        ownerUid: VIDEO.ownerUid,
+        videoId: VIDEO.id,
+      })
+    );
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(openVideo).toHaveBeenCalledTimes(1);
+    expect(openVideo).toHaveBeenCalledWith(0);
+  });
+
+  it('informa quando um link direto aponta para vídeo indisponível', async () => {
+    component.ngOnInit();
+
+    routeParamMapSubject.next(
+      convertToParamMap({
+        ownerUid: VIDEO.ownerUid,
+        videoId: 'video-removido',
+      })
+    );
+
+    await Promise.resolve();
+
+    expect(errorNotification.showWarning).toHaveBeenCalledWith(
+      'Este vídeo não está mais disponível para visitantes.'
     );
   });
 });
