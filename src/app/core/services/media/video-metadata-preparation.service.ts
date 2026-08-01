@@ -19,6 +19,10 @@ export class VideoMetadataPreparationService {
     return defer(() => from(this.prepare(file)));
   }
 
+  captureCurrentFrame$(video: HTMLVideoElement): Observable<Blob> {
+    return defer(() => from(this.captureCurrentFrame(video)));
+  }
+
   private async prepare(file: File): Promise<IPreparedVideoMetadata> {
     if (
       typeof document === 'undefined' ||
@@ -68,6 +72,26 @@ export class VideoMetadataPreparationService {
     }
   }
 
+  private async captureCurrentFrame(video: HTMLVideoElement): Promise<Blob> {
+    if (
+      typeof document === 'undefined' ||
+      !video ||
+      !video.videoWidth ||
+      !video.videoHeight ||
+      video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+    ) {
+      throw new Error('Aguarde o quadro do vídeo aparecer antes de escolher a capa.');
+    }
+
+    const blob = await this.drawCurrentFrame(video);
+
+    if (!blob) {
+      throw new Error('Não foi possível gerar a capa neste navegador.');
+    }
+
+    return blob;
+  }
+
   private async capturePosterBestEffort(
     video: HTMLVideoElement
   ): Promise<Blob | null> {
@@ -86,24 +110,30 @@ export class VideoMetadataPreparationService {
         await this.waitForEvent(video, 'loadeddata', 8_000);
       }
 
-      const scale = Math.min(1, POSTER_MAX_WIDTH / video.videoWidth);
-      const width = Math.max(1, Math.round(video.videoWidth * scale));
-      const height = Math.max(1, Math.round(video.videoHeight * scale));
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-
-      if (!context) {
-        return null;
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      context.drawImage(video, 0, 0, width, height);
-
-      return await this.canvasToBlob(canvas);
+      return await this.drawCurrentFrame(video);
     } catch {
       return null;
     }
+  }
+
+  private async drawCurrentFrame(
+    video: HTMLVideoElement
+  ): Promise<Blob | null> {
+    const scale = Math.min(1, POSTER_MAX_WIDTH / video.videoWidth);
+    const width = Math.max(1, Math.round(video.videoWidth * scale));
+    const height = Math.max(1, Math.round(video.videoHeight * scale));
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      return null;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    context.drawImage(video, 0, 0, width, height);
+
+    return await this.canvasToBlob(canvas);
   }
 
   private waitForEvent(
