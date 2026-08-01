@@ -39,6 +39,9 @@ export {
 export {
   publishVideo,
 } from './application/publish-video-orchestrator.handler';
+export {
+  publishVideoWhenReady,
+} from './application/publish-video-when-ready.handler';
 
 export {
   updateVideoPublicationSettings,
