@@ -113,6 +113,16 @@ function dispatchPointer(
   return event;
 }
 
+function dispatchKey(target: EventTarget, key: string): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', {
+    key,
+    bubbles: true,
+    cancelable: true,
+  });
+  target.dispatchEvent(event);
+  return event;
+}
+
 describe('PublicVideoViewerComponent', () => {
   let fixture: ComponentFixture<PublicVideoViewerComponent>;
   const dialogRef = { close: vi.fn() };
@@ -207,11 +217,14 @@ describe('PublicVideoViewerComponent', () => {
     vi.restoreAllMocks();
   });
 
-  it('renderiza o palco vertical com vídeo, perfil, metadados e trilho de ações', () => {
+  it('renderiza o palco vertical com conteúdo essencial e trilho de ações', () => {
     const element = fixture.nativeElement as HTMLElement;
     const stage = element.querySelector('.public-video-viewer__stage');
     const video = element.querySelector('video');
     const actionRail = element.querySelector('.public-video-viewer__interactions');
+    const metadataStats = element.querySelectorAll(
+      '.public-video-viewer__metadata-stats span'
+    );
 
     expect(stage).not.toBeNull();
     expect(video?.getAttribute('playsinline')).not.toBeNull();
@@ -219,7 +232,9 @@ describe('PublicVideoViewerComponent', () => {
     expect(element.textContent).toContain('Vídeo vertical público');
     expect(element.textContent).toContain('Perfil teste');
     expect(element.textContent).toContain('120 visualizações');
-    expect(element.textContent).toContain('deslize para cima ou para baixo');
+    expect(element.textContent).toContain('setas para cima e para baixo');
+    expect(element.querySelector('.public-video-viewer__eyebrow')).toBeNull();
+    expect(metadataStats).toHaveLength(1);
   });
 
   it('mantém os controles acessíveis sem contar a simples abertura', () => {
@@ -236,8 +251,50 @@ describe('PublicVideoViewerComponent', () => {
 
     expect(closeButton).not.toBeNull();
     expect(previousButton?.disabled).toBe(true);
+    expect(previousButton?.getAttribute('aria-keyshortcuts')).toBe('ArrowUp');
     expect(nextButton?.disabled).toBe(false);
+    expect(nextButton?.getAttribute('aria-keyshortcuts')).toBe('ArrowDown');
     expect(videoViewTracking.recordVideoView$).not.toHaveBeenCalled();
+  });
+
+  it('navega com seta para baixo quando o foco não está em controle interativo', () => {
+    const event = dispatchKey(document, 'ArrowDown');
+    fixture.detectChanges();
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(fixture.componentInstance.current?.id).toBe('video-2');
+  });
+
+  it('preserva as setas laterais para os controles nativos do vídeo', () => {
+    const event = dispatchKey(document, 'ArrowRight');
+    fixture.detectChanges();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(fixture.componentInstance.current?.id).toBe('video-1');
+  });
+
+  it('não troca de vídeo quando a seta parte do elemento de mídia', () => {
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+    const event = dispatchKey(video, 'ArrowDown');
+    fixture.detectChanges();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(fixture.componentInstance.current?.id).toBe('video-1');
+  });
+
+  it('não usa atalhos de galeria com painel de comentários aberto', () => {
+    fixture.componentInstance.commentsExpanded.set(true);
+    fixture.detectChanges();
+
+    const event = dispatchKey(document, 'ArrowDown');
+    fixture.detectChanges();
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(fixture.componentInstance.current?.id).toBe('video-1');
+    expect(
+      fixture.nativeElement.querySelector('.public-video-viewer__panel-heading')
+        ?.textContent
+    ).toContain('Comentários');
   });
 
   it('navega ao próximo vídeo com gesto vertical para cima fora dos controles', () => {
