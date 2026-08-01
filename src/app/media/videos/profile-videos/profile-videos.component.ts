@@ -52,6 +52,11 @@ import { VideoLibraryService } from 'src/app/core/services/media/video-library.s
 import { VideoMetadataPreparationService } from 'src/app/core/services/media/video-metadata-preparation.service';
 import { VideoPublicationService } from 'src/app/core/services/media/video-publication.service';
 import {
+  VIDEO_UPLOAD_ACCEPT,
+  VIDEO_UPLOAD_FORMAT_LABEL,
+  resolveVideoUploadFormat,
+} from 'src/app/core/services/media/video-upload-format.policy';
+import {
   IVideoUploadFlowEvent,
   VideoUploadFlowService,
   VideoUploadProgressPhase,
@@ -60,6 +65,13 @@ import {
 interface ProfileVideoViewItem {
   video: IVideoItem;
   publication: IVideoPublicationConfig | null;
+}
+
+interface VideoUploadFailureFeedback {
+  title: string;
+  message: string;
+  recovery: string;
+  retryable: boolean;
 }
 
 type VideoBusyAction = 'publish' | 'unpublish' | 'delete' | 'save';
@@ -72,11 +84,6 @@ type VideoUploadUiPhase =
   | 'DONE';
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
-const ALLOWED_VIDEO_TYPES = new Set([
-  'video/mp4',
-  'video/webm',
-  'video/quicktime',
-]);
 const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
 const DENY_UNKNOWN: IMediaPolicyResult = {
   decision: 'DENY',
@@ -105,6 +112,9 @@ export class ProfileVideosComponent {
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly errorNotification = inject(ErrorNotificationService);
+
+  readonly videoUploadAccept = VIDEO_UPLOAD_ACCEPT;
+  readonly videoUploadFormatLabel = VIDEO_UPLOAD_FORMAT_LABEL;
 
   private readonly busyActionsSubject = new BehaviorSubject<
     ReadonlyMap<string, VideoBusyAction>
@@ -167,6 +177,10 @@ export class ProfileVideosComponent {
     'Selecione um vídeo para começar.'
   );
   readonly uploadStep$ = this.uploadStepSubject.asObservable();
+
+  private readonly uploadFailureSubject =
+    new BehaviorSubject<VideoUploadFailureFeedback | null>(null);
+  readonly uploadFailure$ = this.uploadFailureSubject.asObservable();
 
   private uploadSubscription: Subscription | null = null;
   private cancelRequestedByUser = false;
@@ -304,10 +318,12 @@ export class ProfileVideosComponent {
       return;
     }
 
-    const mimeType = String(file.type ?? '').toLowerCase();
+    const format = resolveVideoUploadFormat(file);
 
-    if (!ALLOWED_VIDEO_TYPES.has(mimeType)) {
-      this.errorNotification.showError('Envie um vídeo MP4, WebM ou MOV.');
+    if (!format) {
+      this.errorNotification.showError(
+        `Formato não aceito. Use ${this.videoUploadFormatLabel}.`
+      );
       input.value = '';
       return;
     }
@@ -324,6 +340,7 @@ export class ProfileVideosComponent {
       return;
     }
 
+    this.uploadFailureSubject.next(null);
     this.revokePreviewUrl();
     this.revokePosterUrl();
     this.selectedPosterBlobSubject.next(null);
@@ -339,9 +356,9 @@ export class ProfileVideosComponent {
     this.uploadPhaseSubject.next('READY');
     this.uploadProgressSubject.next(0);
     this.uploadStepSubject.next(
-      mimeType === 'video/quicktime'
-        ? 'Prepare a publicação. O MOV será convertido antes de aparecer no perfil.'
-        : 'Prepare a publicação e escolha a capa antes de enviar.'
+      format.browserPreviewLikely
+        ? 'Revise a capa e as informações antes de enviar.'
+        : 'Formato aceito. A prévia pode não abrir neste navegador; o vídeo será convertido após o envio.'
     );
   }
 
@@ -390,6 +407,7 @@ export class ProfileVideosComponent {
       return;
     }
 
+    this.uploadFailureSubject.next(null);
     this.cancelRequestedByUser = false;
     this.uploadPublishWhenReady = publishWhenReady;
     let subscription: Subscription | null = null;
@@ -420,7 +438,7 @@ export class ProfileVideosComponent {
         const publication = this.uploadPublicationSettings(publishWhenReady);
         this.uploadPhaseSubject.next('PREPARING');
         this.uploadProgressSubject.next(0);
-        this.uploadStepSubject.next('Validando o vídeo e a capa escolhida.');
+        this.uploadStepSubject.next('Validando vídeo e capa.');
 
         return this.videoUploadFlow.uploadPrivateVideo$({
           ownerUid,
@@ -441,7 +459,7 @@ export class ProfileVideosComponent {
           this.uploadPhaseSubject.next('READY');
           this.uploadProgressSubject.next(0);
           this.uploadStepSubject.next(
-            'Upload cancelado. A preparação foi mantida para nova tentativa.'
+            'Upload cancelado. A preparação foi mantida.'
           );
         }
       }),
@@ -450,19 +468,29 @@ export class ProfileVideosComponent {
 
     subscription = upload$.subscribe({
       next: (event) => this.handleUploadEvent(event),
-      error: () => {
+      error: (error: unknown) => {
+        const failure = this.describeUploadFailure(error);
+        this.uploadFailureSubject.next(failure);
         this.uploadPhaseSubject.next('READY');
         this.uploadProgressSubject.next(0);
-        this.uploadStepSubject.next(
-          'Falha no envio. A preparação foi mantida para nova tentativa.'
-        );
-        this.errorNotification.showError(
-          'Não foi possível enviar o vídeo. Nenhum arquivo incompleto foi mantido.'
-        );
+        this.uploadStepSubject.next('Envio interrompido.');
+        this.errorNotification.showError(failure.message);
       },
     });
 
     this.uploadSubscription = subscription.closed ? null : subscription;
+  }
+
+  retryUpload(): void {
+    if (
+      this.uploadSubscription ||
+      this.uploadPhaseSubject.value !== 'READY' ||
+      !this.selectedFileSubject.value
+    ) {
+      return;
+    }
+
+    this.startUpload(this.uploadPublishWhenReady);
   }
 
   cancelUpload(): void {
@@ -480,6 +508,7 @@ export class ProfileVideosComponent {
       return;
     }
 
+    this.uploadFailureSubject.next(null);
     this.revokePreviewUrl();
     this.revokePosterUrl();
     this.selectedFileSubject.next(null);
@@ -858,17 +887,19 @@ export class ProfileVideosComponent {
 
   private handleUploadEvent(event: IVideoUploadFlowEvent): void {
     if (event.type === 'progress') {
+      this.uploadFailureSubject.next(null);
       this.uploadProgressSubject.next(event.progress);
       this.applyUploadProgressPhase(event.phase);
       return;
     }
 
+    this.uploadFailureSubject.next(null);
     this.uploadPhaseSubject.next('DONE');
     this.uploadProgressSubject.next(100);
     this.uploadStepSubject.next(
       this.uploadPublishWhenReady
         ? 'Vídeo recebido. A publicação continuará automaticamente.'
-        : 'Vídeo recebido e salvo como privado.'
+        : 'Vídeo recebido e salvo sem publicação.'
     );
     this.revokePreviewUrl();
     this.revokePosterUrl();
@@ -877,38 +908,116 @@ export class ProfileVideosComponent {
     this.previewUrlSubject.next(null);
     this.errorNotification.showSuccess(
       this.uploadPublishWhenReady
-        ? 'Envio concluído. Você pode sair desta página; o vídeo seguirá para publicação.'
-        : 'Vídeo salvo na biblioteca privada.'
+        ? 'Envio concluído. O vídeo seguirá para processamento e publicação.'
+        : 'Vídeo salvo sem publicação.'
     );
   }
 
   private applyUploadProgressPhase(phase: VideoUploadProgressPhase): void {
     if (phase === 'preparing') {
       this.uploadPhaseSubject.next('PREPARING');
-      this.uploadStepSubject.next(
-        'Lendo duração e preparando a versão de envio.'
-      );
+      this.uploadStepSubject.next('Lendo o arquivo e preparando o envio.');
       return;
     }
 
     if (phase === 'uploading-video') {
       this.uploadPhaseSubject.next('UPLOADING');
-      this.uploadStepSubject.next('Enviando o vídeo privado com segurança.');
+      this.uploadStepSubject.next('Enviando vídeo. Mantenha esta página aberta.');
       return;
     }
 
     if (phase === 'uploading-poster') {
       this.uploadPhaseSubject.next('UPLOADING');
-      this.uploadStepSubject.next('Enviando a capa escolhida.');
+      this.uploadStepSubject.next('Enviando capa.');
       return;
     }
 
     this.uploadPhaseSubject.next('SAVING');
     this.uploadStepSubject.next(
       this.uploadPublishWhenReady
-        ? 'Registrando e preparando a publicação automática.'
-        : 'Registrando o vídeo privado.'
+        ? 'Registrando publicação.'
+        : 'Registrando vídeo.'
     );
+  }
+
+  private describeUploadFailure(error: unknown): VideoUploadFailureFeedback {
+    const code = this.uploadErrorCode(error);
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return {
+        title: 'Sem conexão',
+        message: 'A internet caiu durante o envio.',
+        recovery: 'Reconecte-se e tente novamente. O arquivo e as informações foram mantidos.',
+        retryable: true,
+      };
+    }
+
+    if ([
+      'storage/retry-limit-exceeded',
+      'storage/unknown',
+      'functions/unavailable',
+      'functions/deadline-exceeded',
+      'unavailable',
+      'deadline-exceeded',
+      'network-request-failed',
+    ].includes(code)) {
+      return {
+        title: 'Conexão instável',
+        message: 'O envio foi interrompido antes da conclusão.',
+        recovery: 'Use uma rede mais estável ou aproxime-se do Wi-Fi e tente novamente. A preparação foi mantida.',
+        retryable: true,
+      };
+    }
+
+    if ([
+      'storage/quota-exceeded',
+      'functions/resource-exhausted',
+      'resource-exhausted',
+    ].includes(code)) {
+      return {
+        title: 'Limite temporário atingido',
+        message: 'O serviço não conseguiu receber o vídeo agora.',
+        recovery: 'Aguarde alguns minutos e tente novamente. Nenhuma cópia incompleta foi mantida.',
+        retryable: true,
+      };
+    }
+
+    if ([
+      'storage/unauthenticated',
+      'storage/unauthorized',
+      'functions/unauthenticated',
+      'functions/permission-denied',
+      'unauthenticated',
+      'permission-denied',
+    ].includes(code)) {
+      return {
+        title: 'Acesso expirado',
+        message: 'Sua sessão ou permissão mudou durante o envio.',
+        recovery: 'Entre novamente na conta e repita o envio.',
+        retryable: false,
+      };
+    }
+
+    const message = error instanceof Error && error.message.trim()
+      ? error.message.trim()
+      : 'Não foi possível concluir o envio do vídeo.';
+
+    return {
+      title: 'Falha no envio',
+      message,
+      recovery: 'Revise o arquivo e tente novamente. A preparação atual foi mantida.',
+      retryable: true,
+    };
+  }
+
+  private uploadErrorCode(error: unknown): string {
+    if (typeof error !== 'object' || error === null || !('code' in error)) {
+      return '';
+    }
+
+    return String((error as { code?: unknown }).code ?? '')
+      .trim()
+      .toLowerCase();
   }
 
   private setBusyAction(videoId: string, action: VideoBusyAction): void {
