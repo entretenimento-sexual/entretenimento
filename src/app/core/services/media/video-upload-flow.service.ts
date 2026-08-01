@@ -17,6 +17,7 @@ import {
 import { Observable, firstValueFrom } from 'rxjs';
 
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
+import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { VideoMetadataPreparationService } from './video-metadata-preparation.service';
@@ -45,13 +46,18 @@ export type IVideoUploadFlowEvent =
 export interface IVideoUploadCommand {
   ownerUid: string;
   file: File;
+  posterBlob?: Blob | null;
+  publication: IVideoPublicationSettingsInput & {
+    publishWhenReady: boolean;
+  };
 }
 
 interface UploadedBinary {
   path: string;
 }
 
-interface RegisterPrivateVideoUploadRequest {
+interface RegisterPrivateVideoUploadRequest
+  extends IVideoPublicationSettingsInput {
   ownerUid: string;
   videoId: string;
   videoStoragePath: string;
@@ -60,6 +66,7 @@ interface RegisterPrivateVideoUploadRequest {
   mimeType: string;
   sizeBytes: number;
   durationMs: number | null;
+  publishWhenReady: boolean;
 }
 
 interface RegisterPrivateVideoUploadResponse {
@@ -75,6 +82,7 @@ interface RegisterPrivateVideoUploadResponse {
 }
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
+const MAX_POSTER_SIZE_BYTES = 10 * 1024 * 1024;
 const REGISTER_RETRY_DELAY_MS = 650;
 const ALLOWED_VIDEO_TYPES = new Set([
   'video/mp4',
@@ -111,15 +119,18 @@ export class VideoUploadFlowService {
     return new Observable<IVideoUploadFlowEvent>((observer) => {
       let ownerUid = '';
       let file: File;
+      let selectedPosterBlob: Blob | null = null;
 
       try {
         ownerUid = this.requireOwnedUid(command.ownerUid);
         file = this.validateFile(command.file);
+        selectedPosterBlob = this.validateOptionalPoster(command.posterBlob);
       } catch (error) {
         this.reportError(error, {
           op: 'uploadPrivateVideo$.validate',
           hasOwnerUid: !!String(command.ownerUid ?? '').trim(),
           hasFile: !!command.file,
+          hasSelectedPoster: !!command.posterBlob,
         });
         observer.error(error);
         return undefined;
@@ -176,6 +187,7 @@ export class VideoUploadFlowService {
           const metadata = await firstValueFrom(
             this.metadataPreparation.prepare$(file)
           );
+          const posterBlob = selectedPosterBlob ?? metadata.posterBlob;
           assertNotCancelled();
 
           observer.next({ type: 'progress', phase: 'preparing', progress: 6 });
@@ -201,13 +213,13 @@ export class VideoUploadFlowService {
 
           let posterBinary: UploadedBinary | null = null;
 
-          if (metadata.posterBlob && metadata.posterMimeType) {
+          if (posterBlob) {
             posterPath = this.buildPosterPath(ownerUid, videoId);
             posterUploadStarted = true;
             posterBinary = await this.uploadBinary(
               posterPath,
-              metadata.posterBlob,
-              metadata.posterMimeType,
+              posterBlob,
+              'image/jpeg',
               (task) => {
                 activeTask = task;
               },
@@ -228,6 +240,7 @@ export class VideoUploadFlowService {
           registrationStarted = true;
 
           const fileName = this.normalizeDisplayFileName(file.name);
+          const publication = this.normalizePublication(command.publication);
           const registration = await this.registerUploadedVideo({
             ownerUid,
             videoId,
@@ -237,6 +250,7 @@ export class VideoUploadFlowService {
             mimeType: file.type,
             sizeBytes: file.size,
             durationMs: metadata.durationMs,
+            ...publication,
           });
 
           completed = true;
@@ -269,6 +283,7 @@ export class VideoUploadFlowService {
             hasVideoId: true,
             hasPoster: !!posterBinary,
             processingQueued: true,
+            publishWhenReady: publication.publishWhenReady,
             mimeType: registration.mimeType,
             sizeBytes: registration.sizeBytes,
           });
@@ -442,6 +457,50 @@ export class VideoUploadFlowService {
     return file;
   }
 
+  private validateOptionalPoster(value: Blob | null | undefined): Blob | null {
+    if (!value) {
+      return null;
+    }
+
+    if (value.type !== 'image/jpeg') {
+      throw new Error('A capa escolhida precisa ser gerada em JPEG.');
+    }
+
+    if (!Number.isFinite(value.size) || value.size <= 0) {
+      throw new Error('A capa escolhida está vazia.');
+    }
+
+    if (value.size > MAX_POSTER_SIZE_BYTES) {
+      throw new Error('A capa escolhida excede o limite de 10 MB.');
+    }
+
+    return value;
+  }
+
+  private normalizePublication(
+    publication: IVideoUploadCommand['publication']
+  ): RegisterPrivateVideoUploadRequest extends infer _Unused
+    ? IVideoPublicationSettingsInput & { publishWhenReady: boolean }
+    : never {
+    const title = String(publication?.title ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120);
+    const description = String(publication?.description ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 1000);
+
+    return {
+      title: title || null,
+      description: description || null,
+      reactionsEnabled: publication?.reactionsEnabled !== false,
+      commentsEnabled: publication?.commentsEnabled !== false,
+      ratingsEnabled: publication?.ratingsEnabled !== false,
+      publishWhenReady: publication?.publishWhenReady === true,
+    };
+  }
+
   private buildVideoPath(ownerUid: string, videoId: string, file: File): string {
     const extension = this.resolveVideoExtension(file);
 
@@ -531,7 +590,9 @@ export class VideoUploadFlowService {
         ? error
         : new Error('Falha no fluxo de upload de vídeo.');
 
-      (normalized as any).original = error;
+      if (normalized !== error) {
+        (normalized as any).original = error;
+      }
       (normalized as any).context = {
         scope: 'VideoUploadFlowService',
         ...context,
