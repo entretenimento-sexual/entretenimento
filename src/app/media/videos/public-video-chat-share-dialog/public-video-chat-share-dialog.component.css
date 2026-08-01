@@ -1,0 +1,185 @@
+:host {
+  display: block;
+}
+
+.video-chat-share {
+  display: grid;
+  gap: 14px;
+  width: min(92vw, 520px);
+  max-height: min(82dvh, 720px);
+  padding: 18px;
+  overflow: hidden;
+  color: var(--text-color);
+  background: var(--surface-color);
+}
+
+.video-chat-share > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.video-chat-share > header > div {
+  min-width: 0;
+}
+
+.video-chat-share header span {
+  color: var(--primary-color);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.video-chat-share h2 {
+  margin: 4px 0 0;
+  overflow: hidden;
+  font-size: clamp(1.1rem, 1rem + 0.5vw, 1.35rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-chat-share__close {
+  display: grid;
+  flex: 0 0 44px;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--surface-border);
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.video-chat-share__hint {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.video-chat-share__list {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  max-height: 56dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.video-chat-share__item {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 68px;
+  padding: 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--surface-color) 94%, var(--background-color));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.video-chat-share__item:hover:not(:disabled),
+.video-chat-share__item:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color) 58%, var(--surface-border));
+  background: color-mix(in oklab, var(--primary-color) 8%, var(--surface-color));
+}
+
+.video-chat-share__item:focus-visible,
+.video-chat-share__close:focus-visible {
+  outline: var(--focus-ring, 3px solid var(--primary-color));
+  outline-offset: 2px;
+}
+
+.video-chat-share__item:disabled,
+.video-chat-share__close:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.video-chat-share__item img,
+.video-chat-share__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.video-chat-share__item img {
+  object-fit: cover;
+}
+
+.video-chat-share__avatar {
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--primary-color) 16%, var(--surface-color));
+  color: var(--primary-color);
+  font-weight: 850;
+}
+
+.video-chat-share__copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.video-chat-share__copy strong,
+.video-chat-share__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-chat-share__copy small {
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+}
+
+.video-chat-share__action {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--primary-color);
+}
+
+.video-chat-share__state {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  min-height: 180px;
+  padding: 24px;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  text-align: center;
+}
+
+.video-chat-share__state i {
+  font-size: 1.5rem;
+}
+
+@media (max-width: 520px) {
+  .video-chat-share {
+    width: 100%;
+    max-height: 88dvh;
+    padding: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-chat-share * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+html.high-contrast .video-chat-share__item,
+html.high-contrast .video-chat-share__close {
+  border-color: currentColor !important;
+}
