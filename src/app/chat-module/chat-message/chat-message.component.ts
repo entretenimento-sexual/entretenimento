@@ -44,7 +44,10 @@ import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Firestore } from '@angular/fire/firestore';
 import { doc, updateDoc } from 'firebase/firestore';
 
-import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
+import {
+  Message,
+  PublicVideoMessageReference,
+} from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
@@ -94,8 +97,16 @@ export class ChatMessageComponent implements OnInit {
       (a?.nickname ?? null) === (b?.nickname ?? null) &&
       (a?.status ?? null) === (b?.status ?? null) &&
       (a?.content ?? null) === (b?.content ?? null) &&
+      (a?.messageType ?? null) === (b?.messageType ?? null) &&
+      (a?.publicVideoReference?.ownerUid ?? null) ===
+        (b?.publicVideoReference?.ownerUid ?? null) &&
+      (a?.publicVideoReference?.videoId ?? null) ===
+        (b?.publicVideoReference?.videoId ?? null) &&
+      (a?.publicVideoReference?.title ?? null) ===
+        (b?.publicVideoReference?.title ?? null) &&
       (a?.deleted ?? null) === (b?.deleted ?? null) &&
-      JSON.stringify(a?.reactionsByUser ?? {}) === JSON.stringify(b?.reactionsByUser ?? {})
+      JSON.stringify(a?.reactionsByUser ?? {}) ===
+        JSON.stringify(b?.reactionsByUser ?? {})
     )
   );
 
@@ -142,7 +153,9 @@ export class ChatMessageComponent implements OnInit {
           senderId: (message?.senderId ?? '').trim(),
           nickname: (message?.nickname ?? '').trim(),
         })),
-        distinctUntilChanged((a, b) => a.senderId === b.senderId && a.nickname === b.nickname),
+        distinctUntilChanged(
+          (a, b) => a.senderId === b.senderId && a.nickname === b.nickname
+        ),
         switchMap(({ senderId, nickname }) => {
           if (nickname) {
             return of(nickname);
@@ -159,7 +172,10 @@ export class ChatMessageComponent implements OnInit {
 
           return user$.pipe(
             take(1),
-            map((user: IUserDados | null) => user?.nickname?.trim() || 'Usuário desconhecido'),
+            map(
+              (user: IUserDados | null) =>
+                user?.nickname?.trim() || 'Usuário desconhecido'
+            ),
             catchError((error) => {
               this.reportError(
                 'Erro ao buscar nome do usuário.',
@@ -188,7 +204,9 @@ export class ChatMessageComponent implements OnInit {
           }
 
           const safeUid = String(uid ?? '').trim();
-          return safeUid ? String(message?.reactionsByUser?.[safeUid] ?? '').trim() || null : null;
+          return safeUid
+            ? String(message?.reactionsByUser?.[safeUid] ?? '').trim() || null
+            : null;
         }),
         tap((reaction) => {
           this.selectedReaction = reaction;
@@ -251,7 +269,11 @@ export class ChatMessageComponent implements OnInit {
     from(updateDoc(messageRef, { reactionsByUser: nextReactionsByUser }))
       .pipe(
         tap(() => {
-          this.dbg('persistDirectChatReaction -> ok', { chatId, messageId, selected: !!nextReaction });
+          this.dbg('persistDirectChatReaction -> ok', {
+            chatId,
+            messageId,
+            selected: !!nextReaction,
+          });
         }),
         catchError((error) => {
           this.selectedReaction = previousReaction;
@@ -277,11 +299,15 @@ export class ChatMessageComponent implements OnInit {
   }
 
   getReactionAriaLabel(reaction: QuickReaction): string {
-    return this.selectedReaction === reaction.emoji ? `Remover reação ${reaction.emoji}` : reaction.label;
+    return this.selectedReaction === reaction.emoji
+      ? `Remover reação ${reaction.emoji}`
+      : reaction.label;
   }
 
   getSelectedReactionTitle(): string {
-    return this.selectedReaction ? 'Sua reação nesta mensagem' : 'Reação nesta mensagem';
+    return this.selectedReaction
+      ? 'Sua reação nesta mensagem'
+      : 'Reação nesta mensagem';
   }
 
   getVisibleReactions(): string[] {
@@ -298,7 +324,26 @@ export class ChatMessageComponent implements OnInit {
       values.unshift(this.selectedReaction);
     }
 
-    return Array.from(new Set(values)).sort((a, b) => ordered.indexOf(a) - ordered.indexOf(b));
+    return Array.from(new Set(values)).sort(
+      (a, b) => ordered.indexOf(a) - ordered.indexOf(b)
+    );
+  }
+
+  getPublicVideoReference(): PublicVideoMessageReference | null {
+    const message = this.message();
+    const reference = message.publicVideoReference;
+
+    if (
+      message.deleted === true ||
+      message.messageType !== 'public_video' ||
+      reference?.kind !== 'PUBLIC_VIDEO' ||
+      !reference.ownerUid?.trim() ||
+      !reference.videoId?.trim()
+    ) {
+      return null;
+    }
+
+    return reference;
   }
 
   private persistLocalReaction(reaction: string | null): void {
@@ -320,12 +365,16 @@ export class ChatMessageComponent implements OnInit {
     const messageId = String(this.message()?.id ?? '').trim();
     const chatId = String(this.chatId() ?? '').trim();
     const type = this.type();
-    return messageId ? `chat-reaction:${type}:${chatId || 'thread'}:${messageId}` : null;
+    return messageId
+      ? `chat-reaction:${type}:${chatId || 'thread'}:${messageId}`
+      : null;
   }
 
   isDirectChat(): boolean { return this.type() === 'chat'; }
   isRoomMessage(): boolean { return this.type() === 'room'; }
-  isMessageSent(): boolean { return (this.message().senderId ?? null) === this.currentUserUid; }
+  isMessageSent(): boolean {
+    return (this.message().senderId ?? null) === this.currentUserUid;
+  }
 
   isSameSenderAsPrevious(): boolean {
     const currentSenderId = (this.message().senderId ?? '').trim();
@@ -341,7 +390,9 @@ export class ChatMessageComponent implements OnInit {
 
   isFirstInGroup(): boolean { return !this.isSameSenderAsPrevious(); }
   isLastInGroup(): boolean { return !this.isSameSenderAsNext(); }
-  isSingleMessageGroup(): boolean { return this.isFirstInGroup() && this.isLastInGroup(); }
+  isSingleMessageGroup(): boolean {
+    return this.isFirstInGroup() && this.isLastInGroup();
+  }
 
   canDeleteMessage(): boolean {
     return this.isDirectChat()
@@ -350,8 +401,14 @@ export class ChatMessageComponent implements OnInit {
       && !!this.message().id;
   }
 
-  shouldShowSenderName(): boolean { return this.isRoomMessage() && this.isFirstInGroup(); }
-  shouldShowMessageHeader(): boolean { return this.shouldShowSenderName() || this.canDeleteMessage(); }
+  shouldShowSenderName(): boolean {
+    return this.isRoomMessage() && this.isFirstInGroup();
+  }
+
+  shouldShowMessageHeader(): boolean {
+    return this.shouldShowSenderName() || this.canDeleteMessage();
+  }
+
   shouldShowTail(): boolean { return this.isLastInGroup(); }
 
   getStatusText(): string {
@@ -381,10 +438,17 @@ export class ChatMessageComponent implements OnInit {
 
   getAriaLabel(): string {
     const sender = this.senderName || 'Usuário';
-    const content = this.message().deleted === true ? 'Mensagem apagada' : this.message().content ?? '';
+    const videoReference = this.getPublicVideoReference();
+    const content = this.message().deleted === true
+      ? 'Mensagem apagada'
+      : videoReference
+        ? `Vídeo compartilhado: ${videoReference.title}`
+        : this.message().content ?? '';
     const status = this.getStatusText();
     const reactions = this.getVisibleReactions();
-    const reaction = reactions.length ? `. Reações: ${reactions.join(' ')}.` : '';
+    const reaction = reactions.length
+      ? `. Reações: ${reactions.join(' ')}.`
+      : '';
     return `${sender}: ${content}${status ? `. Status: ${status}.` : '.'}${reaction}`;
   }
 
@@ -417,7 +481,10 @@ export class ChatMessageComponent implements OnInit {
     try {
       const err = error instanceof Error ? error : new Error(userMessage);
       (err as any).original = error;
-      (err as any).context = { scope: 'ChatMessageComponent', ...(context ?? {}) };
+      (err as any).context = {
+        scope: 'ChatMessageComponent',
+        ...(context ?? {}),
+      };
       (err as any).skipUserNotification = true;
       this.globalError.handleError(err);
     } catch {
