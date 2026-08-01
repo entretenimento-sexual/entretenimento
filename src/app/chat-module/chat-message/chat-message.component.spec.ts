@@ -78,4 +78,49 @@ describe('ChatMessageComponent', () => {
   it('should create', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
+
+  it('renderiza referência de vídeo sem expor URL assinada', () => {
+    fixture.componentRef.setInput('message', {
+      senderId: 'u2',
+      nickname: 'Outro',
+      content: 'Vídeo compartilhado',
+      messageType: 'public_video',
+      publicVideoReference: {
+        kind: 'PUBLIC_VIDEO',
+        ownerUid: 'owner_1',
+        videoId: 'video_1',
+        title: 'Apresentação do perfil',
+      },
+      timestamp: { toDate: () => new Date() },
+    } as any);
+    fixture.detectChanges();
+
+    const card = fixture.nativeElement.querySelector(
+      '.thread-message__video-reference'
+    ) as HTMLAnchorElement | null;
+
+    expect(card).toBeTruthy();
+    expect(card?.textContent).toContain('Apresentação do perfil');
+    expect(card?.textContent).toContain('Abrir vídeo');
+    expect(fixture.nativeElement.textContent).not.toContain('signed');
+    expect(fixture.componentInstance.getAriaLabel()).toContain(
+      'Vídeo compartilhado: Apresentação do perfil'
+    );
+  });
+
+  it('mantém mensagem textual quando não há referência válida', () => {
+    fixture.componentRef.setInput('message', {
+      senderId: 'u2',
+      nickname: 'Outro',
+      content: 'Mensagem normal',
+      messageType: 'text',
+      timestamp: { toDate: () => new Date() },
+    } as any);
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector('.thread-message__video-reference')
+    ).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Mensagem normal');
+  });
 });
