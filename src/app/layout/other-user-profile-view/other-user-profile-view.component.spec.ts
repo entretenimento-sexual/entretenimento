@@ -180,6 +180,24 @@ describe('OtherUserProfileViewComponent', () => {
     expect(primaryAction.textContent).toContain('Mostrar interesse');
   });
 
+  it('troca foto pública quebrada pelo fallback local sem toast', () => {
+    const notifier = TestBed.inject(ErrorNotificationService);
+    const photo = fixture.debugElement.query(
+      By.css('.other-profile-page__photo')
+    ).nativeElement as HTMLImageElement;
+
+    photo.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+
+    const refreshedPhoto = fixture.debugElement.query(
+      By.css('.other-profile-page__photo')
+    ).nativeElement as HTMLImageElement;
+
+    expect(component.profilePhotoFailed).toBe(true);
+    expect(refreshedPhoto.src).toContain('assets/imagem-padrao.webp');
+    expect(notifier.showError).not.toHaveBeenCalled();
+  });
+
   it('renderiza a galeria logo após o hero', () => {
     const page = fixture.nativeElement.querySelector(
       '.other-profile-page'
