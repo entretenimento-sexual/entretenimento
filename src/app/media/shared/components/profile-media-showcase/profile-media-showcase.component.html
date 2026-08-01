@@ -49,6 +49,8 @@
           [class.profile-media-showcase__mosaic--single]="state.items.length === 1"
           [class.profile-media-showcase__mosaic--two]="state.items.length === 2"
           [class.profile-media-showcase__mosaic--three]="state.items.length === 3"
+          [class.profile-media-showcase__mosaic--video-only]="state.videosCount > 0 && state.photosCount === 0"
+          [class.profile-media-showcase__mosaic--single-video]="state.items.length === 1 && state.videosCount === 1"
           role="group"
           [attr.aria-label]="'Galeria pública de ' + profileName()"
         >
@@ -60,7 +62,7 @@
             <button
               type="button"
               class="profile-media-showcase__item"
-              [class.profile-media-showcase__item--featured]="index === 0"
+              [class.profile-media-showcase__item--featured]="index === 0 && !isVideo(item)"
               [class.profile-media-showcase__item--video]="isVideo(item)"
               (click)="openMedia(item, index)"
               [disabled]="viewerOpening()"
