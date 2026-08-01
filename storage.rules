@@ -22,7 +22,10 @@ service firebase.storage {
 
     function isVideoCreateOrUpdate() {
       return request.resource != null
-        && request.resource.contentType.matches('video/.*')
+        && (
+          request.resource.contentType.matches('video/.*')
+          || request.resource.contentType == 'application/mxf'
+        )
         && request.resource.size <= 500 * 1024 * 1024;
     }
 
