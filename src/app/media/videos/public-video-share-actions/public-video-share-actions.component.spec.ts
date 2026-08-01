@@ -36,10 +36,10 @@ describe('PublicVideoShareActionsComponent', () => {
   });
 
   it('mantém feedback ocupado durante o compartilhamento externo', async () => {
-    let resolveShare: ((value: string) => void) | null = null;
+    let finishShare: () => void = () => undefined;
     sharePublicVideo.mockImplementation(
-      () => new Promise((resolve) => {
-        resolveShare = resolve;
+      () => new Promise<string>((resolve) => {
+        finishShare = () => resolve('shared');
       })
     );
 
@@ -52,7 +52,7 @@ describe('PublicVideoShareActionsComponent', () => {
     expect(fixture.componentInstance.sharingExternally()).toBe(true);
     expect(sharePublicVideo).toHaveBeenCalledWith(VIDEO);
 
-    resolveShare?.('shared');
+    finishShare();
     await action;
 
     expect(fixture.componentInstance.sharingExternally()).toBe(false);
