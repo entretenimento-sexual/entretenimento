@@ -21,6 +21,11 @@ import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { VideoMetadataPreparationService } from './video-metadata-preparation.service';
+import {
+  VideoUploadFormat,
+  VIDEO_UPLOAD_FORMAT_LABEL,
+  resolveVideoUploadFormat,
+} from './video-upload-format.policy';
 
 export type VideoUploadProgressPhase =
   | 'preparing'
@@ -84,11 +89,6 @@ interface RegisterPrivateVideoUploadResponse {
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_POSTER_SIZE_BYTES = 10 * 1024 * 1024;
 const REGISTER_RETRY_DELAY_MS = 650;
-const ALLOWED_VIDEO_TYPES = new Set([
-  'video/mp4',
-  'video/webm',
-  'video/quicktime',
-]);
 
 class VideoUploadCancelledError extends Error {
   readonly code = 'media/video-upload-cancelled';
@@ -119,11 +119,13 @@ export class VideoUploadFlowService {
     return new Observable<IVideoUploadFlowEvent>((observer) => {
       let ownerUid = '';
       let file: File;
+      let sourceFormat: VideoUploadFormat;
       let selectedPosterBlob: Blob | null = null;
 
       try {
         ownerUid = this.requireOwnedUid(command.ownerUid);
-        file = this.validateFile(command.file);
+        file = command.file;
+        sourceFormat = this.validateFile(file);
         selectedPosterBlob = this.validateOptionalPoster(command.posterBlob);
       } catch (error) {
         this.reportError(error, {
@@ -140,7 +142,7 @@ export class VideoUploadFlowService {
         doc(collection(this.firestore, `users/${ownerUid}/videos`))
       );
       const videoId = videoRef.id;
-      const videoPath = this.buildVideoPath(ownerUid, videoId, file);
+      const videoPath = this.buildVideoPath(ownerUid, videoId, sourceFormat);
       let posterPath: string | null = null;
       let activeTask: UploadTask | null = null;
       let cancelRequested = false;
@@ -196,7 +198,7 @@ export class VideoUploadFlowService {
           const videoBinary = await this.uploadBinary(
             videoPath,
             file,
-            file.type,
+            sourceFormat.mimeType,
             (task) => {
               activeTask = task;
             },
@@ -247,7 +249,7 @@ export class VideoUploadFlowService {
             videoStoragePath: videoBinary.path,
             posterStoragePath: posterBinary?.path ?? null,
             fileName,
-            mimeType: file.type,
+            mimeType: sourceFormat.mimeType,
             sizeBytes: file.size,
             durationMs: metadata.durationMs,
             ...publication,
@@ -285,6 +287,7 @@ export class VideoUploadFlowService {
             processingQueued: true,
             publishWhenReady: publication.publishWhenReady,
             mimeType: registration.mimeType,
+            sourceExtension: sourceFormat.extension,
             sizeBytes: registration.sizeBytes,
           });
         } catch (error) {
@@ -308,7 +311,8 @@ export class VideoUploadFlowService {
             op: 'uploadPrivateVideo$',
             hasOwnerUid: !!ownerUid,
             hasVideoId: !!videoId,
-            mimeType: file.type,
+            mimeType: sourceFormat.mimeType,
+            sourceExtension: sourceFormat.extension,
             sizeBytes: file.size,
             registrationStarted,
           });
@@ -435,15 +439,15 @@ export class VideoUploadFlowService {
     return safeOwnerUid;
   }
 
-  private validateFile(file: File): File {
+  private validateFile(file: File): VideoUploadFormat {
     if (!file) {
       throw new Error('Selecione um vídeo antes de enviar.');
     }
 
-    const mimeType = String(file.type ?? '').toLowerCase();
+    const format = resolveVideoUploadFormat(file);
 
-    if (!ALLOWED_VIDEO_TYPES.has(mimeType)) {
-      throw new Error('Envie um vídeo MP4, WebM ou MOV.');
+    if (!format) {
+      throw new Error(`Envie um vídeo em um destes formatos: ${VIDEO_UPLOAD_FORMAT_LABEL}.`);
     }
 
     if (!Number.isFinite(file.size) || file.size <= 0) {
@@ -454,7 +458,7 @@ export class VideoUploadFlowService {
       throw new Error('O vídeo excede o limite de 500 MB.');
     }
 
-    return file;
+    return format;
   }
 
   private validateOptionalPoster(value: Blob | null | undefined): Blob | null {
@@ -491,6 +495,12 @@ export class VideoUploadFlowService {
       .trim()
       .slice(0, 1000);
 
+    /**
+     * MANUTENÇÃO — ARMAZENAMENTO PRIVADO POR PLANO
+     * `publishWhenReady: false` não pode representar armazenamento ilimitado.
+     * Cota, retenção, expiração e entitlement devem ser validados no backend;
+     * a interface não é uma barreira de cobrança ou de capacidade.
+     */
     return {
       title: title || null,
       description: description || null,
@@ -501,12 +511,14 @@ export class VideoUploadFlowService {
     };
   }
 
-  private buildVideoPath(ownerUid: string, videoId: string, file: File): string {
-    const extension = this.resolveVideoExtension(file);
-
+  private buildVideoPath(
+    ownerUid: string,
+    videoId: string,
+    format: VideoUploadFormat
+  ): string {
     return (
       `users/${ownerUid}/uploads/videos/` +
-      `${videoId}-${this.randomId()}.${extension}`
+      `${videoId}-${this.randomId()}.${format.extension}`
     );
   }
 
@@ -515,20 +527,6 @@ export class VideoUploadFlowService {
       `users/${ownerUid}/uploads/video-posters/${videoId}/` +
       `poster-${this.randomId()}.jpg`
     );
-  }
-
-  private resolveVideoExtension(file: File): string {
-    const mimeType = String(file.type ?? '').toLowerCase();
-
-    if (mimeType === 'video/webm') {
-      return 'webm';
-    }
-
-    if (mimeType === 'video/quicktime') {
-      return 'mov';
-    }
-
-    return 'mp4';
   }
 
   private normalizeDisplayFileName(value: string): string {
