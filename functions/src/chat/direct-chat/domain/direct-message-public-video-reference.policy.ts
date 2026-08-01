@@ -41,9 +41,19 @@ function normalizeId(value: unknown): string {
   return SAFE_ID_PATTERN.test(normalized) ? normalized : '';
 }
 
+function replaceControlCharacters(value: string): string {
+  let sanitized = '';
+
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    sanitized += code <= 31 || code === 127 ? ' ' : value[index];
+  }
+
+  return sanitized;
+}
+
 function normalizeTitle(value: unknown): string {
-  const normalized = String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+  const normalized = replaceControlCharacters(String(value ?? ''))
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 120);
