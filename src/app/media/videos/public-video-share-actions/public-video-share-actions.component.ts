@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  HostListener,
   inject,
   input,
   signal,
@@ -25,14 +26,38 @@ export class PublicVideoShareActionsComponent {
   private readonly publicVideoShare = inject(PublicVideoShareService);
   private readonly errorNotification = inject(ErrorNotificationService);
 
+  readonly menuOpen = signal(false);
   readonly sharingExternally = signal(false);
   readonly openingConversationPicker = signal(false);
 
-  async shareExternally(): Promise<void> {
+  @HostListener('document:click')
+  closeMenu(): void {
+    this.menuOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  closeMenuFromKeyboard(): void {
+    this.menuOpen.set(false);
+  }
+
+  toggleMenu(event: Event): void {
+    event.stopPropagation();
+
     if (this.sharingExternally() || this.openingConversationPicker()) {
       return;
     }
 
+    this.menuOpen.update((current) => !current);
+  }
+
+  async shareExternally(event?: Event): Promise<void> {
+    event?.stopPropagation();
+
+    if (this.sharingExternally() || this.openingConversationPicker()) {
+      return;
+    }
+
+    this.menuOpen.set(false);
     this.sharingExternally.set(true);
     try {
       await this.publicVideoShare.sharePublicVideo(this.video());
@@ -41,7 +66,9 @@ export class PublicVideoShareActionsComponent {
     }
   }
 
-  async sendToConversation(): Promise<void> {
+  async sendToConversation(event?: Event): Promise<void> {
+    event?.stopPropagation();
+
     if (this.sharingExternally() || this.openingConversationPicker()) {
       return;
     }
@@ -54,6 +81,7 @@ export class PublicVideoShareActionsComponent {
       return;
     }
 
+    this.menuOpen.set(false);
     this.openingConversationPicker.set(true);
     try {
       const { PublicVideoChatShareDialogComponent } = await import(
