@@ -1,0 +1,33 @@
+<button
+  type="button"
+  class="public-video-share-action"
+  (click)="shareExternally()"
+  [disabled]="sharingExternally() || openingConversationPicker()"
+  [attr.aria-busy]="sharingExternally() ? 'true' : null"
+  aria-label="Compartilhar vídeo"
+>
+  <span class="public-video-share-action__icon">
+    <i
+      [class]="sharingExternally() ? 'fas fa-circle-notch fa-spin' : 'fas fa-share-nodes'"
+      aria-hidden="true"
+    ></i>
+  </span>
+  <small>{{ sharingExternally() ? 'Abrindo…' : 'Compartilhar' }}</small>
+</button>
+
+<button
+  type="button"
+  class="public-video-share-action"
+  (click)="sendToConversation()"
+  [disabled]="sharingExternally() || openingConversationPicker()"
+  [attr.aria-busy]="openingConversationPicker() ? 'true' : null"
+  aria-label="Enviar vídeo em uma conversa"
+>
+  <span class="public-video-share-action__icon">
+    <i
+      [class]="openingConversationPicker() ? 'fas fa-circle-notch fa-spin' : 'fas fa-paper-plane'"
+      aria-hidden="true"
+    ></i>
+  </span>
+  <small>{{ openingConversationPicker() ? 'Abrindo…' : 'Enviar' }}</small>
+</button>
