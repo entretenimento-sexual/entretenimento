@@ -54,6 +54,16 @@
   flex: 1 1 320px;
 }
 
+.profile-videos__file-input:focus-visible
+  ~ .profile-videos__upload-layout
+  .profile-videos__file-label,
+.profile-videos__file-input:focus-visible
+  ~ .profile-videos__upload-start
+  .profile-videos__file-label {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
+}
+
 .profile-videos__settings-form > label {
   display: grid;
   gap: 6px;
