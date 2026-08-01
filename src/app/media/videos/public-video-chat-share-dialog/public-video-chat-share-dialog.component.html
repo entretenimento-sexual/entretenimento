@@ -1,11 +1,6 @@
 <section class="video-chat-share" aria-labelledby="video-chat-share-title">
   <header>
-    <div>
-      <span>Compartilhar em conversa</span>
-      <h2 id="video-chat-share-title">
-        {{ data.video.title || 'Vídeo do perfil' }}
-      </h2>
-    </div>
+    <h2 id="video-chat-share-title">Escolha uma conversa</h2>
 
     <button
       type="button"
@@ -18,11 +13,6 @@
     </button>
   </header>
 
-  <p class="video-chat-share__hint">
-    O chat receberá somente uma referência segura. O acesso ao vídeo será
-    verificado novamente quando a outra pessoa abrir.
-  </p>
-
   @if (state$ | async; as state) {
     @if (state.loading && !state.loaded) {
       <div class="video-chat-share__state" role="status">
@@ -33,7 +23,7 @@
       <div class="video-chat-share__state" role="status">
         <i class="fas fa-comment-slash" aria-hidden="true"></i>
         <strong>Nenhuma conversa disponível</strong>
-        <span>Conecte-se com outro perfil antes de enviar vídeos.</span>
+        <span>Conecte-se com outro perfil para enviar o vídeo.</span>
       </div>
     } @else {
       <div class="video-chat-share__list" role="list">
@@ -63,7 +53,9 @@
 
             <span class="video-chat-share__copy">
               <strong>{{ displayName(item) }}</strong>
-              <small>{{ item.lastMessagePreview || 'Conversa direta' }}</small>
+              @if (item.lastMessagePreview) {
+                <small>{{ item.lastMessagePreview }}</small>
+              }
             </span>
 
             <span class="video-chat-share__action" aria-hidden="true">
