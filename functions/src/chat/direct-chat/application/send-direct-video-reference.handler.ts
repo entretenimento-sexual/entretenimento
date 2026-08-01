@@ -145,11 +145,11 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
       const target = targetSnapshot.data() as MessagingUserDoc | undefined;
 
       assertMessagingAccountOperational(actor, {
-        operation: 'send-direct-video-reference',
+        operation: 'send-direct-message',
         perspective: 'actor',
       });
       assertMessagingAccountOperational(target, {
-        operation: 'send-direct-video-reference',
+        operation: 'send-direct-message',
         perspective: 'target',
       });
       assertNoDirectMessagingBlock({
