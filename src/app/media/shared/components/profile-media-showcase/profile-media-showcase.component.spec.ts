@@ -119,7 +119,7 @@ describe('ProfileMediaShowcaseComponent', () => {
     fixture.detectChanges();
   });
 
-  it('renderiza a mídia como conteúdo principal', () => {
+  it('renderiza a mídia como prévia pública acionável', () => {
     const item = fixture.debugElement.query(
       By.css('.profile-media-showcase__item')
     );
@@ -132,40 +132,54 @@ describe('ProfileMediaShowcaseComponent', () => {
     expect(ariaLabel).toContain('1 de 1');
   });
 
-  it('não renderiza cabeçalho, contadores ou instruções duplicadas', () => {
+  it('renderiza um único cabeçalho sem instruções ou contadores redundantes', () => {
+    const header = fixture.debugElement.query(
+      By.css('.profile-media-showcase__header')
+    );
+    const heading = header.query(By.css('h2')).nativeElement as HTMLElement;
     const text = fixture.nativeElement.textContent as string;
 
-    expect(
-      fixture.debugElement.query(By.css('.profile-media-showcase__header'))
-    ).toBeNull();
+    expect(heading.textContent?.trim()).toBe('Mídias');
     expect(
       fixture.debugElement.query(By.css('.profile-media-showcase__summary'))
     ).toBeNull();
-    expect(text).not.toContain('Mídias públicas');
     expect(text).not.toContain('Galeria de');
     expect(text).not.toContain('Toque em uma mídia');
     expect(text).not.toContain('Abrir destaque');
     expect(text).not.toContain('Capa');
   });
 
-  it('mantém apenas o atalho compacto para a galeria completa', () => {
-    const links = fixture.debugElement.query(
-      By.css('.profile-media-showcase__links')
+  it('mantém os atalhos compactos no cabeçalho da seção', () => {
+    const header = fixture.debugElement.query(
+      By.css('.profile-media-showcase__header')
+    ).nativeElement as HTMLElement;
+    const links = header.querySelector(
+      '.profile-media-showcase__links'
+    ) as HTMLElement;
+    const grid = fixture.debugElement.query(
+      By.css('.profile-media-showcase__grid')
     ).nativeElement as HTMLElement;
 
+    expect(links).toBeTruthy();
     expect(links.textContent).toContain('Fotos');
     expect(links.textContent).not.toContain('Ver todas as fotos');
+    expect(
+      Boolean(
+        header.compareDocumentPosition(grid) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    ).toBe(true);
   });
 
   it('usa a mesma grade para foto única sem aplicar destaque variável', () => {
-    const mosaic = fixture.debugElement.query(
-      By.css('.profile-media-showcase__mosaic')
+    const grid = fixture.debugElement.query(
+      By.css('.profile-media-showcase__grid')
     ).nativeElement as HTMLElement;
     const item = fixture.debugElement.query(
       By.css('.profile-media-showcase__item')
     ).nativeElement as HTMLElement;
 
-    expect(mosaic.className).toBe('profile-media-showcase__mosaic');
+    expect(grid.className).toBe('profile-media-showcase__grid');
     expect(
       item.classList.contains('profile-media-showcase__item--featured')
     ).toBe(false);
@@ -178,14 +192,14 @@ describe('ProfileMediaShowcaseComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const mosaic = fixture.debugElement.query(
-      By.css('.profile-media-showcase__mosaic')
+    const grid = fixture.debugElement.query(
+      By.css('.profile-media-showcase__grid')
     ).nativeElement as HTMLElement;
     const item = fixture.debugElement.query(
       By.css('.profile-media-showcase__item--video')
     ).nativeElement as HTMLElement;
 
-    expect(mosaic.className).toBe('profile-media-showcase__mosaic');
+    expect(grid.className).toBe('profile-media-showcase__grid');
     expect(
       item.classList.contains('profile-media-showcase__item--featured')
     ).toBe(false);
