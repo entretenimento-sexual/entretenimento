@@ -78,11 +78,38 @@ interface PendingPlaybackResume {
   shouldResume: boolean;
 }
 
+interface SwipeNavigationGesture {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  lastX: number;
+  lastY: number;
+  startedAt: number;
+}
+
 type TAccessRefreshReason = 'automatic' | 'manual' | 'expiry';
 
 const ACCESS_REFRESH_WINDOW_MS = 60_000;
 const ACCESS_REFRESH_RETRY_MS = 15_000;
 const MAX_TIMER_DELAY_MS = 2_147_000_000;
+const SWIPE_MIN_DISTANCE_PX = 64;
+const SWIPE_INTENT_DISTANCE_PX = 18;
+const SWIPE_AXIS_DOMINANCE = 1.2;
+const SWIPE_MAX_DURATION_MS = 800;
+const SWIPE_BLOCKED_TARGET_SELECTOR = [
+  'video',
+  'button',
+  'a',
+  'input',
+  'textarea',
+  'select',
+  'option',
+  'label',
+  '[contenteditable="true"]',
+  '[role="button"]',
+  '[role="link"]',
+  '[role="slider"]',
+].join(',');
 
 @Component({
   selector: 'app-public-video-viewer',
@@ -121,6 +148,7 @@ export class PublicVideoViewerComponent {
   private accessRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private refreshingAccess = false;
   private pendingPlaybackResume: PendingPlaybackResume | null = null;
+  private swipeNavigationGesture: SwipeNavigationGesture | null = null;
 
   @ViewChild('videoPlayer')
   private videoPlayer?: ElementRef<HTMLVideoElement>;
@@ -135,6 +163,7 @@ export class PublicVideoViewerComponent {
   readonly ratingOptions = [1, 2, 3, 4, 5] as const;
   readonly commentsExpanded = signal(false);
   readonly ratingsExpanded = signal(false);
+  readonly navigationAnnouncement = signal('');
   readonly commentControl = new FormControl('', {
     nonNullable: true,
     validators: [Validators.required, Validators.maxLength(500)],
@@ -385,7 +414,82 @@ export class PublicVideoViewerComponent {
     this.changeDetector.markForCheck();
   }
 
+  onSwipePointerDown(event: PointerEvent): void {
+    if (!this.canStartSwipeNavigation(event)) {
+      this.cancelSwipeNavigation();
+      return;
+    }
+
+    this.swipeNavigationGesture = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      startedAt: Date.now(),
+    };
+  }
+
+  onSwipePointerMove(event: PointerEvent): void {
+    const gesture = this.swipeNavigationGesture;
+
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      return;
+    }
+
+    gesture.lastX = event.clientX;
+    gesture.lastY = event.clientY;
+
+    const deltaX = gesture.lastX - gesture.startX;
+    const deltaY = gesture.lastY - gesture.startY;
+    const horizontalDistance = Math.abs(deltaX);
+    const verticalDistance = Math.abs(deltaY);
+
+    if (
+      verticalDistance >= SWIPE_INTENT_DISTANCE_PX &&
+      verticalDistance > horizontalDistance * SWIPE_AXIS_DOMINANCE &&
+      event.cancelable
+    ) {
+      event.preventDefault();
+    }
+  }
+
+  onSwipePointerUp(event: PointerEvent): void {
+    const gesture = this.swipeNavigationGesture;
+    this.swipeNavigationGesture = null;
+
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    const horizontalDistance = Math.abs(deltaX);
+    const verticalDistance = Math.abs(deltaY);
+    const durationMs = Date.now() - gesture.startedAt;
+
+    if (
+      durationMs > SWIPE_MAX_DURATION_MS ||
+      verticalDistance < SWIPE_MIN_DISTANCE_PX ||
+      verticalDistance <= horizontalDistance * SWIPE_AXIS_DOMINANCE
+    ) {
+      return;
+    }
+
+    if (deltaY < 0) {
+      this.next();
+      return;
+    }
+
+    this.previous();
+  }
+
+  cancelSwipeNavigation(): void {
+    this.swipeNavigationGesture = null;
+  }
+
   close(): void {
+    this.cancelSwipeNavigation();
     this.pauseCurrentVideo();
     this.dialogRef.close();
   }
@@ -706,6 +810,7 @@ export class PublicVideoViewerComponent {
   }
 
   private changeIndex(nextIndex: number): void {
+    this.cancelSwipeNavigation();
     this.pauseCurrentVideo();
     this.clearAccessRefreshTimer();
     this.index = nextIndex;
@@ -716,6 +821,7 @@ export class PublicVideoViewerComponent {
     this.pendingPlaybackResume = null;
     this.playbackFeedback?.markLoading();
     this.syncCurrentVideoId();
+    this.announceCurrentVideo();
     this.scheduleAccessRefresh();
 
     queueMicrotask(() => {
@@ -734,6 +840,45 @@ export class PublicVideoViewerComponent {
     this.currentVideoIdSubject.next(current?.id ?? '');
     this.currentVideoSubject.next(current);
     this.changeDetector.markForCheck();
+  }
+
+  private announceCurrentVideo(): void {
+    const current = this.current;
+
+    if (!current) {
+      this.navigationAnnouncement.set('');
+      return;
+    }
+
+    const title = current.title?.trim() ||
+      current.alt?.trim() ||
+      'Vídeo do perfil';
+    this.navigationAnnouncement.set(`${this.positionLabel}. ${title}.`);
+  }
+
+  private canStartSwipeNavigation(event: PointerEvent): boolean {
+    const pointerType = String(event.pointerType ?? '').trim().toLowerCase();
+
+    if (
+      pointerType === 'mouse' ||
+      event.isPrimary === false ||
+      event.button !== 0 ||
+      this.commentsExpanded() ||
+      this.ratingsExpanded() ||
+      (!this.hasPrevious && !this.hasNext)
+    ) {
+      return false;
+    }
+
+    return !this.isSwipeNavigationTargetBlocked(event.target);
+  }
+
+  private isSwipeNavigationTargetBlocked(target: EventTarget | null): boolean {
+    if (!(target instanceof Element)) {
+      return true;
+    }
+
+    return !!target.closest(SWIPE_BLOCKED_TARGET_SELECTOR);
   }
 
   private syncViewQualification(): void {
