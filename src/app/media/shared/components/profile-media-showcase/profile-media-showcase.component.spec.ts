@@ -157,7 +157,21 @@ describe('ProfileMediaShowcaseComponent', () => {
     expect(links.textContent).not.toContain('Ver todas as fotos');
   });
 
-  it('padroniza um vídeo único sem tratá-lo como foto destacada', async () => {
+  it('usa a mesma grade para foto única sem aplicar destaque variável', () => {
+    const mosaic = fixture.debugElement.query(
+      By.css('.profile-media-showcase__mosaic')
+    ).nativeElement as HTMLElement;
+    const item = fixture.debugElement.query(
+      By.css('.profile-media-showcase__item')
+    ).nativeElement as HTMLElement;
+
+    expect(mosaic.className).toBe('profile-media-showcase__mosaic');
+    expect(
+      item.classList.contains('profile-media-showcase__item--featured')
+    ).toBe(false);
+  });
+
+  it('usa a mesma grade para vídeo sem criar layout especial', async () => {
     mediaItems = [video];
     fixture.componentInstance.retry();
     fixture.detectChanges();
@@ -171,12 +185,7 @@ describe('ProfileMediaShowcaseComponent', () => {
       By.css('.profile-media-showcase__item--video')
     ).nativeElement as HTMLElement;
 
-    expect(
-      mosaic.classList.contains('profile-media-showcase__mosaic--video-only')
-    ).toBe(true);
-    expect(
-      mosaic.classList.contains('profile-media-showcase__mosaic--single-video')
-    ).toBe(true);
+    expect(mosaic.className).toBe('profile-media-showcase__mosaic');
     expect(
       item.classList.contains('profile-media-showcase__item--featured')
     ).toBe(false);
