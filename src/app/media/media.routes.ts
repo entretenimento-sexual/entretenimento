@@ -17,6 +17,13 @@ export const MEDIA_ROUTES: Routes = [
       ),
   },
   {
+    path: 'video/:ownerUid/:videoId',
+    loadComponent: () =>
+      import('./videos/public-profile-videos/public-profile-videos.component').then(
+        (m) => m.PublicProfileVideosComponent
+      ),
+  },
+  {
     path: 'perfil/:id/fotos',
     loadComponent: () =>
       import('./photos/profile-photos/profile-photos.component').then(
