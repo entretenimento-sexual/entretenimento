@@ -26,21 +26,45 @@
         </header>
       }
 
-      @let parsedContent = message().content | chatReplyQuote;
+      @if (
+        message().deleted !== true &&
+        message().messageType === 'public_video' &&
+        message().publicVideoReference;
+        as videoReference
+      ) {
+        <a
+          class="thread-message__reply-card thread-message__video-reference"
+          [routerLink]="[
+            '/media/video',
+            videoReference.ownerUid,
+            videoReference.videoId
+          ]"
+          [attr.aria-label]="'Abrir vídeo compartilhado: ' + videoReference.title"
+        >
+          <strong>
+            <i class="fas fa-video" aria-hidden="true"></i>
+            Vídeo compartilhado
+          </strong>
+          <span>{{ videoReference.title }}</span>
+          <small>Abrir vídeo</small>
+        </a>
+      } @else {
+        @let parsedContent = message().content | chatReplyQuote;
 
-      @if (message().deleted !== true && parsedContent.hasQuote) {
-        <blockquote class="thread-message__reply-card">
-          <strong>{{ parsedContent.quoteSender }}</strong>
-          <span>{{ parsedContent.quoteText }}</span>
-        </blockquote>
+        @if (message().deleted !== true && parsedContent.hasQuote) {
+          <blockquote class="thread-message__reply-card">
+            <strong>{{ parsedContent.quoteSender }}</strong>
+            <span>{{ parsedContent.quoteText }}</span>
+          </blockquote>
+        }
+
+        <p
+          class="thread-message__content"
+          [class.thread-message__content--deleted]="message().deleted === true"
+        >
+          {{ message().deleted === true ? 'Mensagem apagada' : parsedContent.body }}
+        </p>
       }
-
-      <p
-        class="thread-message__content"
-        [class.thread-message__content--deleted]="message().deleted === true"
-      >
-        {{ message().deleted === true ? 'Mensagem apagada' : parsedContent.body }}
-      </p>
 
       <footer class="thread-message__footer">
         <time
