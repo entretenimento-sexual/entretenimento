@@ -25,8 +25,8 @@
   @if (current; as video) {
     @if (hasPrevious || hasNext) {
       <p id="public-video-swipe-instructions" class="visually-hidden">
-        Em telas sensíveis ao toque, deslize para cima ou para baixo fora dos
-        controles do vídeo para navegar pela galeria.
+        Use as setas para cima e para baixo ou, em telas sensíveis ao toque,
+        deslize fora dos controles do vídeo para navegar pela galeria.
       </p>
     }
 
@@ -124,6 +124,7 @@
             (click)="previous()"
             [disabled]="!hasPrevious"
             aria-label="Abrir vídeo anterior"
+            aria-keyshortcuts="ArrowUp"
           >
             <i class="fas fa-chevron-up" aria-hidden="true"></i>
           </button>
@@ -134,6 +135,7 @@
             (click)="next()"
             [disabled]="!hasNext"
             aria-label="Abrir próximo vídeo"
+            aria-keyshortcuts="ArrowDown"
           >
             <i class="fas fa-chevron-down" aria-hidden="true"></i>
           </button>
@@ -214,7 +216,6 @@
         </div>
 
         <div class="public-video-viewer__metadata">
-          <span class="public-video-viewer__eyebrow">Vídeo público</span>
           <h2 id="public-video-viewer-title">
             {{ video.title || 'Vídeo do perfil' }}
           </h2>
@@ -223,38 +224,28 @@
             <p>{{ video.description }}</p>
           }
 
-          <div class="public-video-viewer__metadata-stats" aria-label="Informações do vídeo">
-            <span>
-              <i class="fas fa-clock" aria-hidden="true"></i>
-              {{ formatDuration(video.durationMs) }}
-            </span>
+          <div class="public-video-viewer__metadata-stats" aria-label="Visualizações do vídeo">
             <span>
               <i class="fas fa-eye" aria-hidden="true"></i>
               {{ video.viewsCount }} visualizações
             </span>
-            @if (video.ratingsCount > 0) {
-              <span>
-                <i class="fas fa-star" aria-hidden="true"></i>
-                {{ video.ratingAverage }} · {{ video.ratingsCount }} avaliações
-              </span>
-            }
           </div>
         </div>
       </article>
 
       @if (commentsExpanded() || ratingsExpanded()) {
-        <aside class="public-video-viewer__footer" aria-label="Detalhes e interações do vídeo">
+        <aside
+          class="public-video-viewer__footer"
+          [attr.aria-label]="commentsExpanded() ? 'Comentários do vídeo' : 'Avaliação do vídeo'"
+        >
           <div class="public-video-viewer__panel-heading">
-            <div>
-              <span>Interações</span>
-              <strong>{{ video.title || 'Vídeo do perfil' }}</strong>
-            </div>
+            <strong>{{ commentsExpanded() ? 'Comentários' : 'Avaliação' }}</strong>
 
             <button
               type="button"
               class="public-video-viewer__panel-close"
               (click)="commentsExpanded() ? toggleComments() : toggleRatings()"
-              aria-label="Fechar painel de interações"
+              [attr.aria-label]="commentsExpanded() ? 'Fechar comentários' : 'Fechar avaliação'"
             >
               <i class="fas fa-xmark" aria-hidden="true"></i>
             </button>
