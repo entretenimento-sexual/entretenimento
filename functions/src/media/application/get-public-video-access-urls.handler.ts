@@ -148,6 +148,17 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
+    /**
+     * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
+     *
+     * Este handler é a barreira definitiva antes de emitir URL assinada.
+     * Quando FRIENDS, SUBSCRIBERS ou PREMIUM forem ativados, não basta ocultar
+     * o vídeo na interface: `request.auth.uid` deverá ser passado à política
+     * central de audiência para validar amizade, assinatura/entitlement
+     * vigente, cancelamento, bloqueios e lifecycle a cada emissão ou renovação.
+     * Compartilhar um link ou uma referência no chat nunca concede acesso.
+     */
+
     const rawItems = Array.isArray(request.data?.items)
       ? request.data.items
       : [];
