@@ -290,6 +290,27 @@
   font-weight: 720;
 }
 
+.video-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in oklab, var(--surface-border) 72%, transparent);
+}
+
+.video-card__share {
+  flex: 1 1 150px;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.video-card__actions app-report-content-button {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
 .state-card {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr);
@@ -464,7 +485,8 @@ html.high-contrast .video-card,
 html.high-contrast .state-card,
 html.high-contrast .video-card__play,
 html.high-contrast .video-card__duration,
-html.high-contrast .video-card__featured-label {
+html.high-contrast .video-card__featured-label,
+html.high-contrast .video-card__actions {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
