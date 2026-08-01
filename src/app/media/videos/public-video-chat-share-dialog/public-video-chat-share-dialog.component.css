@@ -15,25 +15,14 @@
 
 .video-chat-share > header {
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
   gap: 14px;
 }
 
-.video-chat-share > header > div {
-  min-width: 0;
-}
-
-.video-chat-share header span {
-  color: var(--primary-color);
-  font-size: 0.72rem;
-  font-weight: 850;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
 .video-chat-share h2 {
-  margin: 4px 0 0;
+  min-width: 0;
+  margin: 0;
   overflow: hidden;
   font-size: clamp(1.1rem, 1rem + 0.5vw, 1.35rem);
   text-overflow: ellipsis;
@@ -52,13 +41,6 @@
   background: transparent;
   color: inherit;
   cursor: pointer;
-}
-
-.video-chat-share__hint {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
-  font-size: 0.86rem;
-  line-height: 1.45;
 }
 
 .video-chat-share__list {
