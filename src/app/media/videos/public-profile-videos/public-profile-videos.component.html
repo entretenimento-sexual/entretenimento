@@ -178,18 +178,37 @@
                   </span>
                 </div>
 
-                @if (viewerUid && viewerUid !== item.ownerUid) {
-                  <app-report-content-button
-                    appearance="link"
-                    label="Denunciar vídeo"
-                    targetType="video"
-                    [targetId]="item.id"
-                    [parentTargetId]="item.id"
-                    [targetOwnerUid]="item.ownerUid"
-                    [targetAuthorUid]="item.ownerUid"
-                    [title]="item.title || 'vídeo do perfil'"
-                  />
-                }
+                <div class="video-card__actions" aria-label="Ações do vídeo">
+                  <button
+                    type="button"
+                    class="video-card__share app-action app-action--ghost"
+                    [disabled]="isVideoSharing(item)"
+                    [attr.aria-busy]="isVideoSharing(item) ? 'true' : null"
+                    [attr.aria-label]="getShareAriaLabel(item)"
+                    (click)="shareVideo(item)"
+                  >
+                    @if (isVideoSharing(item)) {
+                      <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
+                      <span>Compartilhando...</span>
+                    } @else {
+                      <i class="fas fa-share-nodes" aria-hidden="true"></i>
+                      <span>Compartilhar</span>
+                    }
+                  </button>
+
+                  @if (viewerUid && viewerUid !== item.ownerUid) {
+                    <app-report-content-button
+                      appearance="link"
+                      label="Denunciar vídeo"
+                      targetType="video"
+                      [targetId]="item.id"
+                      [parentTargetId]="item.id"
+                      [targetOwnerUid]="item.ownerUid"
+                      [targetAuthorUid]="item.ownerUid"
+                      [title]="item.title || 'vídeo do perfil'"
+                    />
+                  }
+                </div>
               </div>
             </article>
           }
