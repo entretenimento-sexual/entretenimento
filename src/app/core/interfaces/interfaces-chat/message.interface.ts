@@ -2,6 +2,24 @@
 // Não esqueça os comentários
 import { Timestamp } from 'firebase/firestore';
 
+export type DirectMessageType = 'text' | 'public_video';
+
+export interface PublicVideoMessageReference {
+  readonly kind: 'PUBLIC_VIDEO';
+  readonly ownerUid: string;
+  readonly videoId: string;
+  readonly title: string;
+}
+
+/**
+ * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
+ *
+ * A referência acima nunca concede acesso ao vídeo. Quando as audiências
+ * FRIENDS, SUBSCRIBERS ou PREMIUM forem ativadas, o backend deverá validar o
+ * entitlement do destinatário no envio e o backend de playback deverá validar
+ * novamente ao abrir. Nunca persistir URL assinada, caminho de Storage, token
+ * ou snapshot financeiro dentro da mensagem.
+ */
 export interface Message {
   id?: string;
   content: string;
@@ -9,6 +27,8 @@ export interface Message {
   nickname: string;
   timestamp: Timestamp;
   status?: 'sent' | 'delivered' | 'read';
+  messageType?: DirectMessageType;
+  publicVideoReference?: PublicVideoMessageReference;
 
   /**
    * Estado de exclusão lógica.
