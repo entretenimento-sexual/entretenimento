@@ -358,20 +358,22 @@ export class PublicVideoViewerComponent {
     return total > 0 ? `${this.index + 1} de ${total}` : 'Sem vídeos';
   }
 
-  @HostListener('document:keydown.arrowleft', ['$event'])
-  onArrowLeft(event: Event): void {
-    if (this.isTypingTarget(event.target)) {
+  @HostListener('document:keydown.arrowup', ['$event'])
+  onArrowUp(event: KeyboardEvent): void {
+    if (!this.canUseGalleryKeyboardNavigation(event) || !this.hasPrevious) {
       return;
     }
+
     event.preventDefault();
     this.previous();
   }
 
-  @HostListener('document:keydown.arrowright', ['$event'])
-  onArrowRight(event: Event): void {
-    if (this.isTypingTarget(event.target)) {
+  @HostListener('document:keydown.arrowdown', ['$event'])
+  onArrowDown(event: KeyboardEvent): void {
+    if (!this.canUseGalleryKeyboardNavigation(event) || !this.hasNext) {
       return;
     }
+
     event.preventDefault();
     this.next();
   }
@@ -883,6 +885,24 @@ export class PublicVideoViewerComponent {
     return !!target.closest(SWIPE_BLOCKED_TARGET_SELECTOR);
   }
 
+  private canUseGalleryKeyboardNavigation(event: KeyboardEvent): boolean {
+    if (
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      this.commentsExpanded() ||
+      this.ratingsExpanded()
+    ) {
+      return false;
+    }
+
+    const target = event.target;
+
+    return !(target instanceof Element) ||
+      !target.closest(SWIPE_BLOCKED_TARGET_SELECTOR);
+  }
+
   private syncViewQualification(): void {
     const video = this.current;
 
@@ -1130,16 +1150,5 @@ export class PublicVideoViewerComponent {
     } catch {
       // noop
     }
-  }
-
-  private isTypingTarget(target: EventTarget | null): boolean {
-    if (!(target instanceof HTMLElement)) {
-      return false;
-    }
-
-    return target.isContentEditable ||
-      target.tagName === 'INPUT' ||
-      target.tagName === 'TEXTAREA' ||
-      target.tagName === 'SELECT';
   }
 }
