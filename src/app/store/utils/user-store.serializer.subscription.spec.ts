@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { IUserDados } from '../../core/interfaces/iuser-dados';
-import { sanitizeUserForStore } from './user-store.serializer';
+import {
+  sanitizeUserForStore,
+  sanitizeValueForStore,
+} from './user-store.serializer';
 
 const NOW = 1_800_000_000_000;
 
@@ -20,6 +23,18 @@ function createUser(overrides: Partial<IUserDados> = {}): IUserDados {
     subscriptionStatus: 'active',
     subscriptionScope: 'platform_subscription',
     ...overrides,
+  };
+}
+
+function firestoreTimestampLike(epochMs: number): {
+  seconds: number;
+  nanoseconds: number;
+  toMillis: () => number;
+} {
+  return {
+    seconds: Math.floor(epochMs / 1000),
+    nanoseconds: (epochMs % 1000) * 1_000_000,
+    toMillis: () => epochMs,
   };
 }
 
@@ -51,5 +66,68 @@ describe('sanitizeUserForStore / subscription projection', () => {
     expect(user.monthlyPayer).toBe(false);
     expect(user.subscriptionStatus).toBe('inactive');
     expect(user.subscriptionScope).toBeNull();
+  });
+
+  it('converte Timestamp de métricas e objetos aninhados antes do NgRx', () => {
+    const timestamp = firestoreTimestampLike(NOW);
+    const rawUser = createUser() as IUserDados & {
+      mediaMetricsUpdatedAt: unknown;
+      mediaProjection: {
+        updatedAt: unknown;
+        history: unknown[];
+      };
+    };
+
+    rawUser.mediaMetricsUpdatedAt = timestamp;
+    rawUser.mediaProjection = {
+      updatedAt: timestamp,
+      history: [timestamp, new Date(NOW + 1_000)],
+    };
+
+    const user = sanitizeUserForStore(rawUser) as IUserDados & {
+      mediaMetricsUpdatedAt: number;
+      mediaProjection: {
+        updatedAt: number;
+        history: number[];
+      };
+    };
+
+    expect(user.mediaMetricsUpdatedAt).toBe(NOW);
+    expect(user.mediaProjection.updatedAt).toBe(NOW);
+    expect(user.mediaProjection.history).toEqual([NOW, NOW + 1_000]);
+    expect(JSON.stringify(user)).toContain(`"mediaMetricsUpdatedAt":${NOW}`);
+    expect(rawUser.mediaMetricsUpdatedAt).toBe(timestamp);
+  });
+
+  it('remove protótipos e valores não serializáveis sem mutar a origem', () => {
+    class ProjectionValue {
+      constructor(
+        readonly value: string,
+        readonly updatedAt: unknown
+      ) {}
+
+      describe(): string {
+        return this.value;
+      }
+    }
+
+    const source = {
+      projection: new ProjectionValue(
+        'video',
+        firestoreTimestampLike(NOW)
+      ),
+      ignored: undefined,
+    };
+
+    const sanitized = sanitizeValueForStore(source);
+
+    expect(sanitized).toEqual({
+      projection: {
+        value: 'video',
+        updatedAt: NOW,
+      },
+    });
+    expect(Object.getPrototypeOf(sanitized.projection)).toBe(Object.prototype);
+    expect(source.projection.describe()).toBe('video');
   });
 });
