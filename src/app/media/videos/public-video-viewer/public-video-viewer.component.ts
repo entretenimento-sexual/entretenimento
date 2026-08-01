@@ -51,6 +51,7 @@ import {
   TVideoViewSource,
   VideoViewTrackingService,
 } from 'src/app/core/services/media/video-view-tracking.service';
+import { PublicVideoShareActionsComponent } from '../public-video-share-actions/public-video-share-actions.component';
 import { PublicVideoPlaybackFeedbackDirective } from './public-video-playback-feedback.directive';
 import {
   PublicVideoQualifiedViewDetail,
@@ -121,6 +122,7 @@ const SWIPE_BLOCKED_TARGET_SELECTOR = [
     MatDialogModule,
     PublicVideoPlaybackFeedbackDirective,
     PublicVideoViewQualificationDirective,
+    PublicVideoShareActionsComponent,
   ],
   templateUrl: './public-video-viewer.component.html',
   styleUrls: ['./public-video-viewer.component.css'],
