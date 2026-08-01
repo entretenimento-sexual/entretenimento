@@ -62,6 +62,7 @@ interface VideoPublicationDoc {
   videoId?: string;
   ownerUid?: string;
   isPublished?: boolean;
+  publishWhenReady?: boolean;
   visibility?: TVideoPublicationVisibility;
   orderIndex?: number;
   moderationStatus?: TVideoPublicationModerationStatus;
@@ -291,6 +292,7 @@ export class VideoPublicationService {
       videoId: this.normalizeId(item.videoId ?? id),
       ownerUid: this.normalizeId(item.ownerUid ?? ownerUid),
       isPublished: item.isPublished === true,
+      publishWhenReady: item.publishWhenReady === true,
       visibility: this.normalizeVisibility(item.visibility),
       orderIndex: this.normalizeOrderIndex(item.orderIndex),
       moderationStatus: this.normalizeModerationStatus(
@@ -395,7 +397,9 @@ export class VideoPublicationService {
         ? error
         : new Error('Erro no fluxo de publicação do vídeo.');
 
-      (normalizedError as any).original = error;
+      if (normalizedError !== error) {
+        (normalizedError as any).original = error;
+      }
       (normalizedError as any).context = {
         scope: 'VideoPublicationService',
         ...context,
