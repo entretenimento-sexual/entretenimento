@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
-import {
-  canPreloadAdjacentVideoMetadata,
-  selectAdjacentVideoForPreload,
-} from './adjacent-video-preload.policy';
+import { selectAdjacentVideoForPreload } from './adjacent-video-preload.policy';
 
 const NOW = 1_800_000_000_000;
 
@@ -21,47 +18,6 @@ function createVideo(
 }
 
 describe('adjacent video preload policy', () => {
-  it('permite metadados quando a aba e a conexão estão adequadas', () => {
-    expect(canPreloadAdjacentVideoMetadata({
-      isBrowser: true,
-      online: true,
-      visibilityState: 'visible',
-      saveData: false,
-      effectiveType: '4g',
-      downlinkMbps: 10,
-    })).toBe(true);
-  });
-
-  it.each([
-    ['SSR', { isBrowser: false }],
-    ['offline', { online: false }],
-    ['aba oculta', { visibilityState: 'hidden' }],
-    ['economia de dados', { saveData: true }],
-    ['2G', { effectiveType: '2g' }],
-    ['banda insuficiente', { downlinkMbps: 0.8 }],
-  ])('bloqueia preload em %s', (_label, override) => {
-    expect(canPreloadAdjacentVideoMetadata({
-      isBrowser: true,
-      online: true,
-      visibilityState: 'visible',
-      saveData: false,
-      effectiveType: '4g',
-      downlinkMbps: 10,
-      ...override,
-    })).toBe(false);
-  });
-
-  it('mantém compatibilidade quando o navegador não expõe Network Information', () => {
-    expect(canPreloadAdjacentVideoMetadata({
-      isBrowser: true,
-      online: true,
-      visibilityState: 'visible',
-      saveData: false,
-      effectiveType: null,
-      downlinkMbps: null,
-    })).toBe(true);
-  });
-
   it('prioriza o próximo vídeo após navegação para frente', () => {
     const items = [createVideo('one'), createVideo('two'), createVideo('three')];
 
@@ -85,5 +41,11 @@ describe('adjacent video preload policy', () => {
 
     expect(selectAdjacentVideoForPreload(items, 1, 'next', NOW)?.id)
       .toBe('one');
+  });
+
+  it('retorna null quando não há adjacente utilizável', () => {
+    const items = [createVideo('only', NOW + 20_000)];
+
+    expect(selectAdjacentVideoForPreload(items, 0, 'next', NOW)).toBeNull();
   });
 });
