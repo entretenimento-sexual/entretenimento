@@ -73,6 +73,11 @@ const ALLOWED_VIDEO_TYPES = new Set([
   'video/mp4',
   'video/webm',
   'video/quicktime',
+  'video/x-matroska',
+  'video/x-msvideo',
+  'video/x-ms-wmv',
+  'video/mp2t',
+  'application/mxf',
 ]);
 const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
 const ALLOWED_POSTER_TYPES = new Set([
@@ -568,6 +573,13 @@ export const registerPrivateVideoUpload = onCall<
         }
       );
       const publishWhenReady = request.data?.publishWhenReady === true;
+
+      /**
+       * MANUTENÇÃO — ARMAZENAMENTO PRIVADO POR PLANO
+       * `publishWhenReady: false` não concede armazenamento ilimitado. Antes da
+       * abertura comercial, esta callable deve validar quota, retenção, expiração
+       * e entitlement no backend. A interface não é barreira de capacidade.
+       */
       const videoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
       const publicationRef = db.doc(
         `users/${ownerUid}/video_publications/${videoId}`
