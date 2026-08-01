@@ -171,14 +171,14 @@ describe('ProfileMediaShowcaseComponent', () => {
       By.css('.profile-media-showcase__item--video')
     ).nativeElement as HTMLElement;
 
-    expect(mosaic.classList).toContain(
-      'profile-media-showcase__mosaic--video-only'
-    );
-    expect(mosaic.classList).toContain(
-      'profile-media-showcase__mosaic--single-video'
-    );
-    expect(item.classList).not.toContain(
-      'profile-media-showcase__item--featured'
-    );
+    expect(
+      mosaic.classList.contains('profile-media-showcase__mosaic--video-only')
+    ).toBe(true);
+    expect(
+      mosaic.classList.contains('profile-media-showcase__mosaic--single-video')
+    ).toBe(true);
+    expect(
+      item.classList.contains('profile-media-showcase__item--featured')
+    ).toBe(false);
   });
 });
