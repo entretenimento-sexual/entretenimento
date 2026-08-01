@@ -4,6 +4,34 @@
     [attr.aria-label]="'Mídias públicas de ' + profileName()"
     [attr.aria-busy]="state.status === 'loading' ? 'true' : 'false'"
   >
+    <header class="profile-media-showcase__header">
+      <h2>Mídias</h2>
+
+      @if (
+        state.status === 'ready' &&
+        (state.photosCount > 0 || state.videosCount > 0)
+      ) {
+        <nav
+          class="profile-media-showcase__links"
+          aria-label="Abrir galerias completas"
+        >
+          @if (state.photosCount > 0) {
+            <a [routerLink]="photoGalleryLink()">
+              <i class="fas fa-images" aria-hidden="true"></i>
+              Fotos
+            </a>
+          }
+
+          @if (state.videosCount > 0) {
+            <a [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']">
+              <i class="fas fa-film" aria-hidden="true"></i>
+              Vídeos
+            </a>
+          }
+        </nav>
+      }
+    </header>
+
     @switch (state.status) {
       @case ('loading') {
         <div
@@ -45,7 +73,7 @@
 
       @case ('ready') {
         <div
-          class="profile-media-showcase__mosaic"
+          class="profile-media-showcase__grid"
           role="group"
           [attr.aria-label]="'Galeria pública de ' + profileName()"
         >
@@ -111,27 +139,6 @@
             </button>
           }
         </div>
-
-        @if (state.photosCount > 0 || state.videosCount > 0) {
-          <nav
-            class="profile-media-showcase__links"
-            aria-label="Abrir galerias completas"
-          >
-            @if (state.photosCount > 0) {
-              <a [routerLink]="photoGalleryLink()">
-                <i class="fas fa-images" aria-hidden="true"></i>
-                Fotos
-              </a>
-            }
-
-            @if (state.videosCount > 0) {
-              <a [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']">
-                <i class="fas fa-film" aria-hidden="true"></i>
-                Vídeos
-              </a>
-            }
-          </nav>
-        }
       }
     }
   </section>
