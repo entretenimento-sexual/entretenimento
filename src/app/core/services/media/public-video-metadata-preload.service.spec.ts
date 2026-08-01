@@ -61,37 +61,35 @@ describe('canPreloadPublicVideoMetadata', () => {
       online: true,
       saveData: false,
       effectiveType: '4g',
+      downlinkMbps: 10,
     })).toBe(true);
   });
 
-  it('bloqueia economia de dados, rede lenta, offline e aba oculta', () => {
-    expect(canPreloadPublicVideoMetadata({
-      documentVisible: true,
-      online: true,
-      saveData: true,
-      effectiveType: '4g',
-    })).toBe(false);
-
+  it.each([
+    ['economia de dados', { saveData: true }],
+    ['2G', { effectiveType: '2g' }],
+    ['banda medida insuficiente', { downlinkMbps: 0.8 }],
+    ['offline', { online: false }],
+    ['aba oculta', { documentVisible: false }],
+  ])('bloqueia %s', (_label, override) => {
     expect(canPreloadPublicVideoMetadata({
       documentVisible: true,
       online: true,
       saveData: false,
-      effectiveType: '2g',
+      effectiveType: '4g',
+      downlinkMbps: 10,
+      ...override,
     })).toBe(false);
+  });
 
+  it('mantém compatibilidade quando o navegador não informa a banda', () => {
     expect(canPreloadPublicVideoMetadata({
       documentVisible: true,
-      online: false,
-      saveData: false,
-      effectiveType: '4g',
-    })).toBe(false);
-
-    expect(canPreloadPublicVideoMetadata({
-      documentVisible: false,
       online: true,
       saveData: false,
-      effectiveType: '4g',
-    })).toBe(false);
+      effectiveType: null,
+      downlinkMbps: null,
+    })).toBe(true);
   });
 });
 
@@ -117,6 +115,7 @@ describe('PublicVideoMetadataPreloadService', () => {
             online: true,
             saveData: false,
             effectiveType: '4g',
+            downlinkMbps: 10,
           }),
         },
         {
@@ -162,6 +161,7 @@ describe('PublicVideoMetadataPreloadService', () => {
             online: true,
             saveData: true,
             effectiveType: '4g',
+            downlinkMbps: 10,
           }),
         },
         {
