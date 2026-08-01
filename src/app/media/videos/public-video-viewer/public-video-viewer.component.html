@@ -191,6 +191,8 @@
             </button>
           }
 
+          <app-public-video-share-actions [video]="video" />
+
           @if (viewerUid && !viewerIsOwner) {
             <a
               class="public-video-viewer__interaction"
