@@ -21,10 +21,10 @@ import {
 import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 
 import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import { PublicVideoMetadataPreloadService } from 'src/app/core/services/media/public-video-metadata-preload.service';
 import {
-  TAdjacentVideoNavigationDirection,
-  canPreloadAdjacentVideoMetadata,
   selectAdjacentVideoForPreload,
+  type TAdjacentVideoNavigationDirection,
 } from './adjacent-video-preload.policy';
 
 export type TPublicVideoPlaybackFeedbackState =
@@ -36,18 +36,6 @@ export type TPublicVideoPlaybackFeedbackState =
 interface PublicVideoViewerPreloadData {
   readonly items?: readonly IPublicVideoItem[];
   readonly startIndex?: number;
-}
-
-interface NetworkInformationLike extends EventTarget {
-  readonly saveData?: boolean;
-  readonly effectiveType?: string;
-  readonly downlink?: number;
-}
-
-interface NavigatorWithNetworkInformation extends Navigator {
-  readonly connection?: NetworkInformationLike;
-  readonly mozConnection?: NetworkInformationLike;
-  readonly webkitConnection?: NetworkInformationLike;
 }
 
 const ADJACENT_PRELOAD_DELAY_MS = 280;
@@ -201,6 +189,7 @@ export class PublicVideoPlaybackFeedbackDirective
   private readonly environmentInjector = inject(EnvironmentInjector);
   private readonly document = inject(DOCUMENT);
   private readonly platformId = inject(PLATFORM_ID);
+  private readonly metadataPreload = inject(PublicVideoMetadataPreloadService);
   private readonly viewerData = inject<PublicVideoViewerPreloadData | null>(
     MAT_DIALOG_DATA,
     { optional: true }
@@ -209,16 +198,13 @@ export class PublicVideoPlaybackFeedbackDirective
   private readonly feedbackState = signal<TPublicVideoPlaybackFeedbackState>(
     'loading'
   );
-  private readonly preloadedAssetKeys = new Set<string>();
   private feedbackMessage = 'Carregando vídeo...';
   private feedbackRef: ComponentRef<PublicVideoPlaybackFeedbackComponent> | null =
     null;
   private retrySubscription: { unsubscribe(): void } | null = null;
   private posterProbe: HTMLImageElement | null = null;
   private adjacentPreloadTimer: ReturnType<typeof setTimeout> | null = null;
-  private adjacentPreloadElement: HTMLVideoElement | null = null;
   private viewerBodyObserver: MutationObserver | null = null;
-  private networkInformation: NetworkInformationLike | null = null;
   private currentItemIndex = -1;
   private preloadDirection: TAdjacentVideoNavigationDirection = 'next';
   private currentPlaybackReady = false;
@@ -259,7 +245,6 @@ export class PublicVideoPlaybackFeedbackDirective
     });
     this.currentItemIndex = this.resolveCurrentItemIndex();
     this.observeViewerPanelState();
-    this.observeNetworkInformation();
     this.syncFeedback();
     this.validatePoster();
   }
@@ -267,14 +252,9 @@ export class PublicVideoPlaybackFeedbackDirective
   ngOnDestroy(): void {
     this.destroyed = true;
     this.posterProbe = null;
-    this.stopAdjacentMetadataPreload();
+    this.clearAdjacentPreloadTimer();
     this.viewerBodyObserver?.disconnect();
     this.viewerBodyObserver = null;
-    this.networkInformation?.removeEventListener(
-      'change',
-      this.onNetworkInformationChange
-    );
-    this.networkInformation = null;
     this.retrySubscription?.unsubscribe();
     this.retrySubscription = null;
 
@@ -288,7 +268,7 @@ export class PublicVideoPlaybackFeedbackDirective
   @HostListener('document:visibilitychange')
   onDocumentVisibilityChange(): void {
     if (this.document.visibilityState !== 'visible') {
-      this.stopAdjacentMetadataPreload();
+      this.clearAdjacentPreloadTimer();
       return;
     }
 
@@ -302,13 +282,13 @@ export class PublicVideoPlaybackFeedbackDirective
 
   @HostListener('window:offline')
   onWindowOffline(): void {
-    this.stopAdjacentMetadataPreload();
+    this.clearAdjacentPreloadTimer();
   }
 
   @HostListener('loadstart')
   onLoadStart(): void {
     this.currentPlaybackReady = false;
-    this.stopAdjacentMetadataPreload();
+    this.clearAdjacentPreloadTimer();
     this.markLoading('Carregando vídeo...');
     this.validatePoster();
   }
@@ -335,7 +315,7 @@ export class PublicVideoPlaybackFeedbackDirective
   @HostListener('error')
   onError(): void {
     this.currentPlaybackReady = false;
-    this.stopAdjacentMetadataPreload();
+    this.clearAdjacentPreloadTimer();
     this.markError(
       'O acesso pode ter expirado ou a conexão foi interrompida.'
     );
@@ -347,7 +327,7 @@ export class PublicVideoPlaybackFeedbackDirective
   }
 
   markRefreshing(message = 'Atualizando acesso ao vídeo...'): void {
-    this.stopAdjacentMetadataPreload();
+    this.clearAdjacentPreloadTimer();
     this.setFeedback('refreshing', message);
   }
 
@@ -358,11 +338,6 @@ export class PublicVideoPlaybackFeedbackDirective
   markError(message: string): void {
     this.setFeedback('error', message);
   }
-
-  private readonly onNetworkInformationChange = (): void => {
-    this.stopAdjacentMetadataPreload();
-    this.scheduleAdjacentMetadataPreload();
-  };
 
   private setFeedback(
     state: TPublicVideoPlaybackFeedbackState,
@@ -394,7 +369,7 @@ export class PublicVideoPlaybackFeedbackDirective
 
     this.viewerBodyObserver = new MutationObserver(() => {
       if (this.isViewerPanelOpen()) {
-        this.stopAdjacentMetadataPreload();
+        this.clearAdjacentPreloadTimer();
         return;
       }
 
@@ -404,18 +379,6 @@ export class PublicVideoPlaybackFeedbackDirective
       attributes: true,
       attributeFilter: ['class'],
     });
-  }
-
-  private observeNetworkInformation(): void {
-    const navigatorWithConnection = navigator as NavigatorWithNetworkInformation;
-    this.networkInformation = navigatorWithConnection.connection ??
-      navigatorWithConnection.mozConnection ??
-      navigatorWithConnection.webkitConnection ??
-      null;
-    this.networkInformation?.addEventListener(
-      'change',
-      this.onNetworkInformationChange
-    );
   }
 
   private updateCurrentItemIndex(): void {
@@ -465,85 +428,36 @@ export class PublicVideoPlaybackFeedbackDirective
   private scheduleAdjacentMetadataPreload(): void {
     this.clearAdjacentPreloadTimer();
 
-    if (!this.canStartAdjacentMetadataPreload()) {
+    if (!this.canScheduleAdjacentMetadataPreload()) {
       return;
     }
 
     this.adjacentPreloadTimer = setTimeout(() => {
       this.adjacentPreloadTimer = null;
-      this.startAdjacentMetadataPreload();
+      this.preloadAdjacentMetadata();
     }, ADJACENT_PRELOAD_DELAY_MS);
   }
 
-  private canStartAdjacentMetadataPreload(): boolean {
+  private canScheduleAdjacentMetadataPreload(): boolean {
     return this.currentPlaybackReady &&
       !this.destroyed &&
-      !this.isViewerPanelOpen() &&
-      canPreloadAdjacentVideoMetadata(this.readPreloadEnvironment());
+      !this.isViewerPanelOpen();
   }
 
-  private startAdjacentMetadataPreload(): void {
-    if (!this.canStartAdjacentMetadataPreload()) {
+  private preloadAdjacentMetadata(): void {
+    if (!this.canScheduleAdjacentMetadataPreload()) {
       return;
     }
 
-    const items = this.viewerData?.items ?? [];
     const candidate = selectAdjacentVideoForPreload(
-      items,
+      this.viewerData?.items ?? [],
       this.currentItemIndex,
       this.preloadDirection
     );
 
-    if (!candidate) {
-      return;
+    if (candidate) {
+      this.metadataPreload.preloadMetadata(candidate);
     }
-
-    const assetKey = `${candidate.ownerUid}:${candidate.id}:${candidate.url}`;
-
-    if (this.preloadedAssetKeys.has(assetKey)) {
-      return;
-    }
-
-    this.stopAdjacentMetadataPreload();
-    this.preloadedAssetKeys.add(assetKey);
-
-    const preload = this.document.createElement('video');
-    preload.preload = 'metadata';
-    preload.muted = true;
-    preload.playsInline = true;
-    preload.disablePictureInPicture = true;
-    preload.src = candidate.url;
-
-    const release = (): void => {
-      if (this.adjacentPreloadElement !== preload) {
-        return;
-      }
-
-      this.releaseAdjacentPreloadElement(preload);
-      this.adjacentPreloadElement = null;
-    };
-
-    preload.addEventListener('loadedmetadata', release, { once: true });
-    preload.addEventListener('error', release, { once: true });
-    this.adjacentPreloadElement = preload;
-
-    try {
-      preload.load();
-    } catch {
-      release();
-    }
-  }
-
-  private stopAdjacentMetadataPreload(): void {
-    this.clearAdjacentPreloadTimer();
-
-    if (!this.adjacentPreloadElement) {
-      return;
-    }
-
-    const preload = this.adjacentPreloadElement;
-    this.adjacentPreloadElement = null;
-    this.releaseAdjacentPreloadElement(preload);
   }
 
   private clearAdjacentPreloadTimer(): void {
@@ -553,37 +467,6 @@ export class PublicVideoPlaybackFeedbackDirective
 
     clearTimeout(this.adjacentPreloadTimer);
     this.adjacentPreloadTimer = null;
-  }
-
-  private releaseAdjacentPreloadElement(preload: HTMLVideoElement): void {
-    preload.removeAttribute('src');
-
-    try {
-      preload.load();
-    } catch {
-      // O preload é oportunista e nunca interfere no vídeo em reprodução.
-    }
-  }
-
-  private readPreloadEnvironment() {
-    const navigatorWithConnection = navigator as NavigatorWithNetworkInformation;
-    const connection = this.networkInformation ??
-      navigatorWithConnection.connection ??
-      navigatorWithConnection.mozConnection ??
-      navigatorWithConnection.webkitConnection ??
-      null;
-    const downlink = Number(connection?.downlink);
-
-    return {
-      isBrowser: isPlatformBrowser(this.platformId),
-      online: navigator.onLine !== false,
-      visibilityState: this.document.visibilityState,
-      saveData: connection?.saveData === true,
-      effectiveType: connection?.effectiveType ?? null,
-      downlinkMbps: Number.isFinite(downlink) && downlink > 0
-        ? downlink
-        : null,
-    };
   }
 
   private isViewerPanelOpen(): boolean {
