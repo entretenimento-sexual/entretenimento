@@ -68,6 +68,8 @@ export class PublicProfileVideosComponent {
   private readonly refreshSubject = new BehaviorSubject<number>(0);
 
   readonly viewerOpening = signal(false);
+  readonly openingVideoId = signal<string | null>(null);
+  readonly failedPosterKeys = signal<ReadonlySet<string>>(new Set<string>());
 
   readonly viewerUid$: Observable<string | null> =
     this.currentUserStore.user$.pipe(
@@ -108,6 +110,7 @@ export class PublicProfileVideosComponent {
   );
 
   retry(): void {
+    this.failedPosterKeys.set(new Set<string>());
     this.refreshSubject.next(this.refreshSubject.value + 1);
   }
 
@@ -131,6 +134,7 @@ export class PublicProfileVideosComponent {
     }
 
     this.viewerOpening.set(true);
+    this.openingVideoId.set(selected.id);
 
     try {
       const { PublicVideoViewerComponent } = await import(
@@ -162,12 +166,47 @@ export class PublicProfileVideosComponent {
         'Não foi possível abrir o vídeo neste momento.'
       );
     } finally {
+      if (this.openingVideoId() === selected.id) {
+        this.openingVideoId.set(null);
+      }
       this.viewerOpening.set(false);
     }
   }
 
   trackByVideoId(_index: number, item: IPublicVideoItem): string {
     return item.id;
+  }
+
+  hasUsablePoster(item: IPublicVideoItem): boolean {
+    return !!item.posterUrl?.trim() &&
+      !this.failedPosterKeys().has(this.posterKey(item));
+  }
+
+  isVideoOpening(item: IPublicVideoItem): boolean {
+    return this.openingVideoId() === item.id;
+  }
+
+  onPosterError(item: IPublicVideoItem): void {
+    const key = this.posterKey(item);
+
+    if (!key || this.failedPosterKeys().has(key)) {
+      return;
+    }
+
+    this.failedPosterKeys.update((current) => {
+      const next = new Set(current);
+      next.add(key);
+      return next;
+    });
+
+    this.reportSilent(
+      new Error('Falha ao carregar a capa de um vídeo público.'),
+      {
+        op: 'loadPublicVideoPoster',
+        hasOwnerUid: !!item.ownerUid,
+        hasVideoId: !!item.id,
+      }
+    );
   }
 
   formatDuration(durationMs: number | null | undefined): string {
@@ -212,7 +251,19 @@ export class PublicProfileVideosComponent {
     total: number
   ): string {
     const title = item.title?.trim() || item.alt?.trim() || 'vídeo público';
+
+    if (this.isVideoOpening(item)) {
+      return `Abrindo ${title}.`;
+    }
+
     return `Abrir ${title}. Vídeo ${index + 1} de ${total}.`;
+  }
+
+  private posterKey(item: IPublicVideoItem): string {
+    const ownerUid = item.ownerUid?.trim() ?? '';
+    const videoId = item.id?.trim() ?? '';
+
+    return ownerUid && videoId ? `${ownerUid}:${videoId}` : '';
   }
 
   private buildState(
