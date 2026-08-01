@@ -7,6 +7,10 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
 import {
+  normalizeVideoPublicationSettings,
+  type VideoPublicationSettingsInput,
+} from './video-publication-settings';
+import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
@@ -14,7 +18,8 @@ import {
 type RegisteredVideoStatus = 'uploaded' | 'ready';
 type PrivateUploadAssetKind = 'video' | 'poster';
 
-interface RegisterPrivateVideoUploadRequest {
+interface RegisterPrivateVideoUploadRequest
+  extends VideoPublicationSettingsInput {
   ownerUid?: string;
   videoId?: string;
   videoStoragePath?: string;
@@ -23,6 +28,7 @@ interface RegisterPrivateVideoUploadRequest {
   mimeType?: string;
   sizeBytes?: number;
   durationMs?: number | null;
+  publishWhenReady?: boolean;
 }
 
 interface RegisterPrivateVideoUploadResponse {
@@ -551,15 +557,30 @@ export const registerPrivateVideoUpload = onCall<
           ? 'ready'
           : 'uploaded';
       const createdAt = Date.now();
+      const fileName = cleanFileName(request.data?.fileName);
+      const publicationSettings = normalizeVideoPublicationSettings(
+        request.data,
+        {
+          title: fileName.replace(/\.[A-Za-z0-9]{2,5}$/, '').slice(0, 120),
+          reactionsEnabled: true,
+          commentsEnabled: true,
+          ratingsEnabled: true,
+        }
+      );
+      const publishWhenReady = request.data?.publishWhenReady === true;
       const videoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
+      const publicationRef = db.doc(
+        `users/${ownerUid}/video_publications/${videoId}`
+      );
 
       try {
-        await videoRef.create({
+        const batch = db.batch();
+        batch.create(videoRef, {
           id: videoId,
           ownerUid,
           url: videoStoragePath,
           path: videoStoragePath,
-          fileName: cleanFileName(request.data?.fileName),
+          fileName,
           mimeType: videoMetadata.mimeType,
           sizeBytes: videoMetadata.sizeBytes,
           durationMs,
@@ -569,6 +590,20 @@ export const registerPrivateVideoUpload = onCall<
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
+        batch.set(publicationRef, {
+          ownerUid,
+          videoId,
+          isPublished: false,
+          publishWhenReady,
+          visibility: 'PRIVATE',
+          orderIndex: 0,
+          moderationStatus: 'PRIVATE',
+          moderationReason: null,
+          ...publicationSettings,
+          createdAt,
+          updatedAt: createdAt,
+        });
+        await batch.commit();
         registrationCommitted = true;
       } catch (createError) {
         if (isAlreadyExistsError(createError)) {
