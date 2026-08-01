@@ -194,6 +194,16 @@ export class PublicVideoMetadataPreloadService {
     }
   }
 
+  cancelMetadataPreload(item: IPublicVideoItem | null | undefined): void {
+    const key = this.buildKey(item);
+
+    if (!key) {
+      return;
+    }
+
+    this.activeCleanups.get(key)?.();
+  }
+
   private hasUsableAccess(
     item: IPublicVideoItem | null | undefined
   ): item is IPublicVideoItem {
