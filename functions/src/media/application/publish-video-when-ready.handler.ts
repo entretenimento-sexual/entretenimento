@@ -32,6 +32,11 @@ interface PublishVideoResponse {
   [key: string]: unknown;
 }
 
+type DeferredPublicationClaim =
+  | 'PUBLISH'
+  | 'SYNCHRONIZE'
+  | 'SKIPPED';
+
 const AUTO_PUBLISH_LEASE_MS = 2 * 60 * 1000;
 
 function cleanId(value: unknown): string {
@@ -53,7 +58,7 @@ function normalizeErrorMessage(error: unknown): string {
 async function claimDeferredPublication(
   ownerUid: string,
   videoId: string
-): Promise<'CLAIMED' | 'COMPLETED' | 'SKIPPED'> {
+): Promise<DeferredPublicationClaim> {
   const publicationRef = db.doc(
     `users/${ownerUid}/video_publications/${videoId}`
   );
@@ -77,21 +82,6 @@ async function claimDeferredPublication(
 
     const now = Date.now();
 
-    if (publication.isPublished === true) {
-      transaction.set(
-        publicationRef,
-        {
-          publishWhenReady: false,
-          autoPublishState: 'COMPLETED',
-          autoPublishLeaseUntil: null,
-          autoPublishError: null,
-          updatedAt: now,
-        },
-        { merge: true }
-      );
-      return 'COMPLETED';
-    }
-
     if (
       String(publication.moderationStatus ?? '').trim().toUpperCase() ===
       'REJECTED'
@@ -108,6 +98,20 @@ async function claimDeferredPublication(
         { merge: true }
       );
       return 'SKIPPED';
+    }
+
+    if (publication.isPublished === true) {
+      transaction.set(
+        publicationRef,
+        {
+          autoPublishState: 'SYNCHRONIZING',
+          autoPublishLeaseUntil: now + AUTO_PUBLISH_LEASE_MS,
+          autoPublishError: null,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+      return 'SYNCHRONIZE';
     }
 
     const leaseUntil = Number(publication.autoPublishLeaseUntil ?? 0);
@@ -132,7 +136,7 @@ async function claimDeferredPublication(
       { merge: true }
     );
 
-    return 'CLAIMED';
+    return 'PUBLISH';
   });
 }
 
@@ -166,6 +170,28 @@ async function releaseDeferredPublication(
     },
     { merge: true }
   );
+}
+
+async function publishReadyVideo(
+  ownerUid: string,
+  videoId: string
+): Promise<PublishVideoResponse> {
+  return (
+    await publishVideoCore.run({
+      auth: {
+        uid: ownerUid,
+        token: {},
+      },
+      data: {
+        ownerUid,
+        videoId,
+        visibility: 'PUBLIC',
+        orderIndex: 0,
+      },
+      rawRequest: {},
+      acceptsStreaming: false,
+    } as any)
+  ) as PublishVideoResponse;
 }
 
 /**
@@ -206,34 +232,25 @@ export const publishVideoWhenReady = onDocumentUpdated(
 
     const claim = await claimDeferredPublication(ownerUid, videoId);
 
-    if (claim !== 'CLAIMED') {
+    if (claim === 'SKIPPED') {
       return;
     }
 
     try {
-      const response = (
-        await publishVideoCore.run({
-          auth: {
-            uid: ownerUid,
-            token: {},
-          },
-          data: {
-            ownerUid,
+      const response = claim === 'PUBLISH'
+        ? await publishReadyVideo(ownerUid, videoId)
+        : {
             videoId,
-            visibility: 'PUBLIC',
-            orderIndex: 0,
-          },
-          rawRequest: {},
-          acceptsStreaming: false,
-        } as any)
-      ) as PublishVideoResponse;
+            moderationStatus: 'EXISTING',
+          };
 
-      await synchronizePublishedVideoSettings(ownerUid, response.videoId);
+      await synchronizePublishedVideoSettings(ownerUid, videoId);
       await completeDeferredPublication(ownerUid, videoId);
 
       logger.info('[publishVideoWhenReady] Publicação automática concluída.', {
         ownerUid,
         videoId,
+        resumedSynchronization: claim === 'SYNCHRONIZE',
         moderationStatus: response.moderationStatus,
       });
     } catch (error) {
@@ -241,6 +258,7 @@ export const publishVideoWhenReady = onDocumentUpdated(
       logger.error('[publishVideoWhenReady] Publicação automática falhou.', {
         ownerUid,
         videoId,
+        stage: claim,
         error: normalizeErrorMessage(error),
       });
       throw error;
