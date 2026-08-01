@@ -84,6 +84,35 @@ function createVideo(overrides: Partial<IPublicVideoItem> = {}): IPublicVideoIte
   };
 }
 
+function dispatchPointer(
+  target: Element,
+  type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
+  coordinates: { x: number; y: number },
+  overrides: Partial<{
+    pointerId: number;
+    pointerType: string;
+    isPrimary: boolean;
+    button: number;
+  }> = {}
+): Event {
+  const event = new Event(type, {
+    bubbles: true,
+    cancelable: true,
+  });
+
+  Object.defineProperties(event, {
+    pointerId: { value: overrides.pointerId ?? 1 },
+    pointerType: { value: overrides.pointerType ?? 'touch' },
+    isPrimary: { value: overrides.isPrimary ?? true },
+    button: { value: overrides.button ?? 0 },
+    clientX: { value: coordinates.x },
+    clientY: { value: coordinates.y },
+  });
+
+  target.dispatchEvent(event);
+  return event;
+}
+
 describe('PublicVideoViewerComponent', () => {
   let fixture: ComponentFixture<PublicVideoViewerComponent>;
   const dialogRef = { close: vi.fn() };
@@ -120,7 +149,23 @@ describe('PublicVideoViewerComponent', () => {
   };
   const data: IPublicVideoViewerData = {
     ownerUid: 'owner-1',
-    items: [createVideo()],
+    items: [
+      createVideo(),
+      createVideo({
+        id: 'video-2',
+        title: 'Segundo vídeo',
+        alt: 'Segundo vídeo',
+        orderIndex: 1,
+        url: 'https://example.test/video-2.mp4?token=temporary',
+      }),
+      createVideo({
+        id: 'video-3',
+        title: 'Terceiro vídeo',
+        alt: 'Terceiro vídeo',
+        orderIndex: 2,
+        url: 'https://example.test/video-3.mp4?token=temporary',
+      }),
+    ],
     startIndex: 0,
     source: 'top',
   };
@@ -174,6 +219,7 @@ describe('PublicVideoViewerComponent', () => {
     expect(element.textContent).toContain('Vídeo vertical público');
     expect(element.textContent).toContain('Perfil teste');
     expect(element.textContent).toContain('120 visualizações');
+    expect(element.textContent).toContain('deslize para cima ou para baixo');
   });
 
   it('mantém os controles acessíveis sem contar a simples abertura', () => {
@@ -181,13 +227,68 @@ describe('PublicVideoViewerComponent', () => {
     const closeButton = element.querySelector<HTMLButtonElement>(
       '[aria-label="Fechar visualizador de vídeo"]'
     );
+    const previousButton = element.querySelector<HTMLButtonElement>(
+      '[aria-label="Abrir vídeo anterior"]'
+    );
     const nextButton = element.querySelector<HTMLButtonElement>(
       '[aria-label="Abrir próximo vídeo"]'
     );
 
     expect(closeButton).not.toBeNull();
-    expect(nextButton?.disabled).toBe(true);
+    expect(previousButton?.disabled).toBe(true);
+    expect(nextButton?.disabled).toBe(false);
     expect(videoViewTracking.recordVideoView$).not.toHaveBeenCalled();
+  });
+
+  it('navega ao próximo vídeo com gesto vertical para cima fora dos controles', () => {
+    const metadata = fixture.nativeElement.querySelector(
+      '.public-video-viewer__metadata'
+    ) as HTMLElement;
+
+    dispatchPointer(metadata, 'pointerdown', { x: 120, y: 520 });
+    dispatchPointer(metadata, 'pointermove', { x: 124, y: 450 });
+    dispatchPointer(metadata, 'pointerup', { x: 126, y: 390 });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.current?.id).toBe('video-2');
+    expect(fixture.componentInstance.navigationAnnouncement()).toBe(
+      '2 de 3. Segundo vídeo.'
+    );
+  });
+
+  it('ignora gesto iniciado sobre o vídeo para preservar controles nativos', () => {
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+
+    dispatchPointer(video, 'pointerdown', { x: 120, y: 520 });
+    dispatchPointer(video, 'pointerup', { x: 120, y: 380 });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.current?.id).toBe('video-1');
+  });
+
+  it('ignora gesto predominantemente horizontal', () => {
+    const metadata = fixture.nativeElement.querySelector(
+      '.public-video-viewer__metadata'
+    ) as HTMLElement;
+
+    dispatchPointer(metadata, 'pointerdown', { x: 40, y: 500 });
+    dispatchPointer(metadata, 'pointerup', { x: 170, y: 470 });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.current?.id).toBe('video-1');
+  });
+
+  it('desativa o gesto enquanto o painel de comentários está aberto', () => {
+    const metadata = fixture.nativeElement.querySelector(
+      '.public-video-viewer__metadata'
+    ) as HTMLElement;
+    fixture.componentInstance.commentsExpanded.set(true);
+
+    dispatchPointer(metadata, 'pointerdown', { x: 120, y: 520 });
+    dispatchPointer(metadata, 'pointerup', { x: 120, y: 380 });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.current?.id).toBe('video-1');
   });
 
   it('registra uma única vez após reprodução qualificada', () => {
