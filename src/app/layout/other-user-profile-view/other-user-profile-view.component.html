@@ -32,7 +32,7 @@
     >
       <figure class="other-profile-page__photo-wrap">
         <img
-          [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
+          [src]="profilePhotoUrl"
           [attr.alt]="profile.nickname ? ('Foto de ' + profile.nickname) : 'Foto do perfil'"
           class="other-profile-page__photo"
           width="640"
@@ -41,6 +41,7 @@
           fetchpriority="high"
           decoding="async"
           referrerpolicy="no-referrer"
+          (error)="onProfilePhotoError()"
         />
       </figure>
 
