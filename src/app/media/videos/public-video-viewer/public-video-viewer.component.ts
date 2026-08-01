@@ -359,22 +359,29 @@ export class PublicVideoViewerComponent {
   }
 
   @HostListener('document:keydown.arrowup', ['$event'])
-  onArrowUp(event: KeyboardEvent): void {
-    if (!this.canUseGalleryKeyboardNavigation(event) || !this.hasPrevious) {
+  onArrowUp(event: Event): void {
+    const keyboardEvent = event as KeyboardEvent;
+
+    if (
+      !this.canUseGalleryKeyboardNavigation(keyboardEvent) ||
+      !this.hasPrevious
+    ) {
       return;
     }
 
-    event.preventDefault();
+    keyboardEvent.preventDefault();
     this.previous();
   }
 
   @HostListener('document:keydown.arrowdown', ['$event'])
-  onArrowDown(event: KeyboardEvent): void {
-    if (!this.canUseGalleryKeyboardNavigation(event) || !this.hasNext) {
+  onArrowDown(event: Event): void {
+    const keyboardEvent = event as KeyboardEvent;
+
+    if (!this.canUseGalleryKeyboardNavigation(keyboardEvent) || !this.hasNext) {
       return;
     }
 
-    event.preventDefault();
+    keyboardEvent.preventDefault();
     this.next();
   }
 
