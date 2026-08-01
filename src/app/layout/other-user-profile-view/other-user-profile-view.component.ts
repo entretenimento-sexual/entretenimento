@@ -61,6 +61,8 @@ interface FriendshipInteractionState {
   liveStatus: string;
 }
 
+const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
+
 @Component({
   selector: 'app-other-user-profile-view',
   templateUrl: './other-user-profile-view.component.html',
@@ -85,6 +87,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   uid: string | null = null;
   userProfile: IUserDados | null = null;
   isLoading = true;
+  profilePhotoFailed = false;
 
   readonly friendRequestBusy$ = new BehaviorSubject<boolean>(false);
   readonly directChatBusy$ = new BehaviorSubject<boolean>(false);
@@ -170,6 +173,14 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     return this.userProfile?.nickname?.trim() || 'Perfil de usuário';
   }
 
+  get profilePhotoUrl(): string {
+    const photoUrl = this.userProfile?.photoURL?.trim() ?? '';
+
+    return !this.profilePhotoFailed && photoUrl
+      ? photoUrl
+      : DEFAULT_PROFILE_PHOTO_URL;
+  }
+
   get discoveryLink(): any[] {
     return ['/dashboard/explorar'];
   }
@@ -183,6 +194,18 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       .map((item) => String(item ?? '').trim())
       .filter(Boolean)
       .slice(0, 8);
+  }
+
+  onProfilePhotoError(): void {
+    if (this.profilePhotoFailed) {
+      return;
+    }
+
+    this.profilePhotoFailed = true;
+    this.debug('profile photo failed; using local fallback', {
+      hasConfiguredPhoto: !!this.userProfile?.photoURL,
+    });
+    this.markView();
   }
 
   loadUserProfile(uid: string): void {
@@ -199,6 +222,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     }
 
     this.isLoading = true;
+    this.profilePhotoFailed = false;
     this.markView();
 
     this.debug('loadUserProfile start', {
@@ -239,6 +263,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
           return;
         }
 
+        this.profilePhotoFailed = false;
         this.userProfile = {
           ...profile,
           preferences: Array.isArray(profile.preferences)
