@@ -24,7 +24,6 @@ import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/
 
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatExpansionModule } from '@angular/material/expansion';
 
 @NgModule({
   declarations: [
@@ -42,7 +41,6 @@ import { MatExpansionModule } from '@angular/material/expansion';
     LayoutModule,
     MatCardModule,
     MatButtonModule,
-    MatExpansionModule,
   ],
 })
 export class UserProfileModule {}
