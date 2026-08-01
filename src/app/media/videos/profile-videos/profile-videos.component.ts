@@ -49,6 +49,7 @@ import {
   MediaPolicyService,
 } from 'src/app/core/services/media/media-policy.service';
 import { VideoLibraryService } from 'src/app/core/services/media/video-library.service';
+import { VideoMetadataPreparationService } from 'src/app/core/services/media/video-metadata-preparation.service';
 import { VideoPublicationService } from 'src/app/core/services/media/video-publication.service';
 import {
   IVideoUploadFlowEvent,
@@ -101,6 +102,7 @@ export class ProfileVideosComponent {
   private readonly videoLibrary = inject(VideoLibraryService);
   private readonly videoPublication = inject(VideoPublicationService);
   private readonly videoUploadFlow = inject(VideoUploadFlowService);
+  private readonly metadataPreparation = inject(VideoMetadataPreparationService);
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly errorNotification = inject(ErrorNotificationService);
 
@@ -120,6 +122,14 @@ export class ProfileVideosComponent {
   );
   readonly editingVideoId$ = this.editingVideoIdSubject.asObservable();
 
+  readonly uploadPublicationForm = this.formBuilder.nonNullable.group({
+    title: ['', [Validators.required, Validators.maxLength(120)]],
+    description: ['', [Validators.maxLength(1000)]],
+    reactionsEnabled: [true],
+    commentsEnabled: [true],
+    ratingsEnabled: [true],
+  });
+
   readonly publicationSettingsForm = this.formBuilder.nonNullable.group({
     title: ['', [Validators.maxLength(120)]],
     description: ['', [Validators.maxLength(1000)]],
@@ -133,6 +143,17 @@ export class ProfileVideosComponent {
 
   private readonly previewUrlSubject = new BehaviorSubject<string | null>(null);
   readonly previewUrl$ = this.previewUrlSubject.asObservable();
+
+  private readonly selectedPosterBlobSubject =
+    new BehaviorSubject<Blob | null>(null);
+  readonly selectedPosterBlob$ = this.selectedPosterBlobSubject.asObservable();
+
+  private readonly selectedPosterUrlSubject =
+    new BehaviorSubject<string | null>(null);
+  readonly selectedPosterUrl$ = this.selectedPosterUrlSubject.asObservable();
+
+  private readonly capturingPosterSubject = new BehaviorSubject(false);
+  readonly capturingPoster$ = this.capturingPosterSubject.asObservable();
 
   private readonly uploadPhaseSubject = new BehaviorSubject<VideoUploadUiPhase>(
     'IDLE'
@@ -149,6 +170,7 @@ export class ProfileVideosComponent {
 
   private uploadSubscription: Subscription | null = null;
   private cancelRequestedByUser = false;
+  private uploadPublishWhenReady = true;
 
   readonly viewer$: Observable<IMediaPolicyViewerSnapshot | null | undefined> =
     this.currentUserStore.user$.pipe(
@@ -270,6 +292,7 @@ export class ProfileVideosComponent {
     this.destroyRef.onDestroy(() => {
       this.uploadSubscription?.unsubscribe();
       this.revokePreviewUrl();
+      this.revokePosterUrl();
     });
   }
 
@@ -302,33 +325,84 @@ export class ProfileVideosComponent {
     }
 
     this.revokePreviewUrl();
+    this.revokePosterUrl();
+    this.selectedPosterBlobSubject.next(null);
     this.selectedFileSubject.next(file);
     this.previewUrlSubject.next(URL.createObjectURL(file));
+    this.uploadPublicationForm.reset({
+      title: this.defaultFileTitle(file.name),
+      description: '',
+      reactionsEnabled: true,
+      commentsEnabled: true,
+      ratingsEnabled: true,
+    });
     this.uploadPhaseSubject.next('READY');
     this.uploadProgressSubject.next(0);
     this.uploadStepSubject.next(
       mimeType === 'video/quicktime'
-        ? 'MOV será enviado e convertido pelo backend antes da publicação.'
-        : 'Vídeo pronto para envio e processamento seguro.'
+        ? 'Prepare a publicação. O MOV será convertido antes de aparecer no perfil.'
+        : 'Prepare a publicação e escolha a capa antes de enviar.'
     );
   }
 
-  startUpload(): void {
+  capturePoster(video: HTMLVideoElement): void {
+    if (
+      this.capturingPosterSubject.value ||
+      this.uploadPhaseSubject.value !== 'READY' ||
+      !this.selectedFileSubject.value
+    ) {
+      return;
+    }
+
+    this.capturingPosterSubject.next(true);
+
+    this.metadataPreparation.captureCurrentFrame$(video).pipe(
+      take(1),
+      finalize(() => this.capturingPosterSubject.next(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (blob) => {
+        this.revokePosterUrl();
+        this.selectedPosterBlobSubject.next(blob);
+        this.selectedPosterUrlSubject.next(URL.createObjectURL(blob));
+        this.errorNotification.showSuccess('Capa do vídeo atualizada.');
+      },
+      error: (error: unknown) => {
+        this.errorNotification.showWarning(
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível escolher este quadro como capa.'
+        );
+      },
+    });
+  }
+
+  startUpload(publishWhenReady = true): void {
     if (this.uploadSubscription) {
       return;
     }
 
+    if (this.uploadPublicationForm.invalid) {
+      this.uploadPublicationForm.markAllAsTouched();
+      this.errorNotification.showWarning(
+        'Informe um título válido antes de enviar o vídeo.'
+      );
+      return;
+    }
+
     this.cancelRequestedByUser = false;
+    this.uploadPublishWhenReady = publishWhenReady;
     let subscription: Subscription | null = null;
 
     const upload$ = combineLatest([
       this.uploadPolicyResult$,
       this.ownerUid$,
       this.selectedFile$,
+      this.selectedPosterBlob$,
       this.uploadPhase$,
     ]).pipe(
       take(1),
-      switchMap(([policyResult, ownerUid, file, phase]) => {
+      switchMap(([policyResult, ownerUid, file, posterBlob, phase]) => {
         if (phase !== 'READY' || !file) {
           this.errorNotification.showWarning(
             'Selecione um vídeo válido antes de enviar.'
@@ -343,13 +417,16 @@ export class ProfileVideosComponent {
           return EMPTY;
         }
 
+        const publication = this.uploadPublicationSettings(publishWhenReady);
         this.uploadPhaseSubject.next('PREPARING');
         this.uploadProgressSubject.next(0);
-        this.uploadStepSubject.next('Preparando duração e imagem de capa.');
+        this.uploadStepSubject.next('Validando o vídeo e a capa escolhida.');
 
         return this.videoUploadFlow.uploadPrivateVideo$({
           ownerUid,
           file,
+          posterBlob,
+          publication,
         });
       }),
       finalize(() => {
@@ -364,7 +441,7 @@ export class ProfileVideosComponent {
           this.uploadPhaseSubject.next('READY');
           this.uploadProgressSubject.next(0);
           this.uploadStepSubject.next(
-            'Upload cancelado. O arquivo pode ser reenviado.'
+            'Upload cancelado. A preparação foi mantida para nova tentativa.'
           );
         }
       }),
@@ -377,7 +454,7 @@ export class ProfileVideosComponent {
         this.uploadPhaseSubject.next('READY');
         this.uploadProgressSubject.next(0);
         this.uploadStepSubject.next(
-          'Falha no envio. Revise o arquivo e tente novamente.'
+          'Falha no envio. A preparação foi mantida para nova tentativa.'
         );
         this.errorNotification.showError(
           'Não foi possível enviar o vídeo. Nenhum arquivo incompleto foi mantido.'
@@ -404,8 +481,17 @@ export class ProfileVideosComponent {
     }
 
     this.revokePreviewUrl();
+    this.revokePosterUrl();
     this.selectedFileSubject.next(null);
+    this.selectedPosterBlobSubject.next(null);
     this.previewUrlSubject.next(null);
+    this.uploadPublicationForm.reset({
+      title: '',
+      description: '',
+      reactionsEnabled: true,
+      commentsEnabled: true,
+      ratingsEnabled: true,
+    });
     this.uploadPhaseSubject.next('IDLE');
     this.uploadProgressSubject.next(0);
     this.uploadStepSubject.next('Selecione um vídeo para começar.');
@@ -612,6 +698,7 @@ export class ProfileVideosComponent {
   canPublish(item: ProfileVideoViewItem): boolean {
     return (
       !item.publication?.isPublished &&
+      item.publication?.publishWhenReady !== true &&
       item.video.status === 'ready' &&
       !!item.video.processedStoragePath &&
       this.isPublicPlaybackCompatible(item.video)
@@ -647,6 +734,14 @@ export class ProfileVideosComponent {
   }
 
   publicationLabel(item: ProfileVideoViewItem): string {
+    if (item.video.status === 'failed') {
+      return 'Falha';
+    }
+
+    if (!item.publication?.isPublished && item.publication?.publishWhenReady) {
+      return item.video.status === 'ready' ? 'Publicando' : 'Preparando';
+    }
+
     if (!item.publication?.isPublished) {
       return 'Privado';
     }
@@ -659,7 +754,12 @@ export class ProfileVideosComponent {
       return 'Em análise';
     }
 
-    return 'Publicação indisponível';
+    return 'Indisponível';
+  }
+
+  isPendingPublication(item: ProfileVideoViewItem): boolean {
+    return item.publication?.publishWhenReady === true ||
+      item.publication?.moderationStatus === 'PENDING_REVIEW';
   }
 
   processingLabel(video: IVideoItem): string {
@@ -730,15 +830,30 @@ export class ProfileVideosComponent {
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
   }
 
+  private uploadPublicationSettings(
+    publishWhenReady: boolean
+  ): IVideoPublicationSettingsInput & { publishWhenReady: boolean } {
+    const raw = this.uploadPublicationForm.getRawValue();
+
+    return {
+      title: raw.title.trim() || null,
+      description: raw.description.trim() || null,
+      reactionsEnabled: raw.reactionsEnabled,
+      commentsEnabled: raw.commentsEnabled,
+      ratingsEnabled: raw.ratingsEnabled,
+      publishWhenReady,
+    };
+  }
+
+  private defaultFileTitle(fileName: string): string {
+    return String(fileName ?? '')
+      .trim()
+      .replace(/\.[A-Za-z0-9]{2,5}$/, '')
+      .slice(0, 120) || 'Vídeo';
+  }
+
   private defaultVideoTitle(video: IVideoItem): string {
-    const fileName = String(video.fileName ?? '').trim();
-
-    if (!fileName) {
-      return 'Vídeo';
-    }
-
-    return fileName.replace(/\.[A-Za-z0-9]{2,5}$/, '').slice(0, 120) ||
-      'Vídeo';
+    return this.defaultFileTitle(video.fileName ?? 'Vídeo');
   }
 
   private handleUploadEvent(event: IVideoUploadFlowEvent): void {
@@ -751,17 +866,19 @@ export class ProfileVideosComponent {
     this.uploadPhaseSubject.next('DONE');
     this.uploadProgressSubject.next(100);
     this.uploadStepSubject.next(
-      event.result.status === 'queued'
-        ? 'Vídeo salvo e adicionado à fila de processamento.'
-        : event.result.status === 'ready'
-          ? 'Vídeo salvo e pronto para publicação.'
-          : 'Vídeo salvo e aguardando processamento.'
+      this.uploadPublishWhenReady
+        ? 'Vídeo recebido. A publicação continuará automaticamente.'
+        : 'Vídeo recebido e salvo como privado.'
     );
     this.revokePreviewUrl();
+    this.revokePosterUrl();
     this.selectedFileSubject.next(null);
+    this.selectedPosterBlobSubject.next(null);
     this.previewUrlSubject.next(null);
     this.errorNotification.showSuccess(
-      'Vídeo recebido. O processamento continuará em segundo plano.'
+      this.uploadPublishWhenReady
+        ? 'Envio concluído. Você pode sair desta página; o vídeo seguirá para publicação.'
+        : 'Vídeo salvo na biblioteca privada.'
     );
   }
 
@@ -769,27 +886,29 @@ export class ProfileVideosComponent {
     if (phase === 'preparing') {
       this.uploadPhaseSubject.next('PREPARING');
       this.uploadStepSubject.next(
-        'Lendo duração e preparando imagem de capa.'
+        'Lendo duração e preparando a versão de envio.'
       );
       return;
     }
 
     if (phase === 'uploading-video') {
       this.uploadPhaseSubject.next('UPLOADING');
-      this.uploadStepSubject.next(
-        'Enviando o arquivo privado com segurança.'
-      );
+      this.uploadStepSubject.next('Enviando o vídeo privado com segurança.');
       return;
     }
 
     if (phase === 'uploading-poster') {
       this.uploadPhaseSubject.next('UPLOADING');
-      this.uploadStepSubject.next('Enviando a imagem de capa do vídeo.');
+      this.uploadStepSubject.next('Enviando a capa escolhida.');
       return;
     }
 
     this.uploadPhaseSubject.next('SAVING');
-    this.uploadStepSubject.next('Registrando o vídeo e preparando a fila.');
+    this.uploadStepSubject.next(
+      this.uploadPublishWhenReady
+        ? 'Registrando e preparando a publicação automática.'
+        : 'Registrando o vídeo privado.'
+    );
   }
 
   private setBusyAction(videoId: string, action: VideoBusyAction): void {
@@ -809,6 +928,16 @@ export class ProfileVideosComponent {
 
     if (currentUrl) {
       URL.revokeObjectURL(currentUrl);
+      this.previewUrlSubject.next(null);
+    }
+  }
+
+  private revokePosterUrl(): void {
+    const currentUrl = this.selectedPosterUrlSubject.value;
+
+    if (currentUrl) {
+      URL.revokeObjectURL(currentUrl);
+      this.selectedPosterUrlSubject.next(null);
     }
   }
 
