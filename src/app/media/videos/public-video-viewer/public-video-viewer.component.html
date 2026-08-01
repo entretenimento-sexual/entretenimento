@@ -20,13 +20,36 @@
   role="dialog"
   aria-modal="true"
   aria-labelledby="public-video-viewer-title"
+  [attr.aria-describedby]="hasPrevious || hasNext ? 'public-video-swipe-instructions' : null"
 >
   @if (current; as video) {
+    @if (hasPrevious || hasNext) {
+      <p id="public-video-swipe-instructions" class="visually-hidden">
+        Em telas sensíveis ao toque, deslize para cima ou para baixo fora dos
+        controles do vídeo para navegar pela galeria.
+      </p>
+    }
+
+    <p
+      class="visually-hidden"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      {{ navigationAnnouncement() }}
+    </p>
+
     <div
       class="public-video-viewer__body"
       [class.public-video-viewer__body--panel-open]="commentsExpanded() || ratingsExpanded()"
     >
-      <article class="public-video-viewer__stage">
+      <article
+        class="public-video-viewer__stage"
+        (pointerdown)="onSwipePointerDown($event)"
+        (pointermove)="onSwipePointerMove($event)"
+        (pointerup)="onSwipePointerUp($event)"
+        (pointercancel)="cancelSwipeNavigation()"
+      >
         <div class="public-video-viewer__media-frame">
           <video
             #videoPlayer
