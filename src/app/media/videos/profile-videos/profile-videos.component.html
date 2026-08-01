@@ -4,6 +4,7 @@
 @let uploadPhase = (uploadPhase$ | async) || 'IDLE';
 @let uploadProgress = (uploadProgress$ | async) || 0;
 @let uploadStep = (uploadStep$ | async) || '';
+@let uploadFailure = (uploadFailure$ | async);
 @let previewUrl = (previewUrl$ | async);
 @let selectedPosterUrl = (selectedPosterUrl$ | async);
 @let capturingPoster = (capturingPoster$ | async) === true;
@@ -13,251 +14,102 @@
 
 <section class="profile-videos" aria-label="Vídeos">
   @if (isOwner$ | async) {
-    <section
-      class="profile-videos__upload app-card"
-      aria-labelledby="video-upload-title"
-      [attr.aria-busy]="isUploadActive() ? 'true' : 'false'"
-    >
-      <div class="profile-videos__upload-copy">
-        <h2 id="video-upload-title">Novo vídeo</h2>
-      </div>
+    <section class="profile-videos__upload app-card" aria-labelledby="video-upload-title" [attr.aria-busy]="isUploadActive() ? 'true' : 'false'">
+      <div class="profile-videos__upload-copy"><h2 id="video-upload-title">Novo vídeo</h2></div>
 
       @if (!canUpload) {
         <div class="profile-videos__policy-state" role="status" aria-live="polite">
           <i class="fas fa-shield-halved" aria-hidden="true"></i>
-          <span>
-            Confirme o e-mail, conclua o perfil e mantenha a conta regular para
-            liberar o envio de vídeos.
-          </span>
+          <span>Confirme o e-mail, conclua o perfil e mantenha a conta regular para liberar o envio de vídeos.</span>
         </div>
       }
 
       <div class="profile-videos__upload-layout">
         <div class="profile-videos__picker">
-          <input
-            #videoInput
-            id="profile-video-file"
-            class="profile-videos__file-input"
-            type="file"
-            accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
-            aria-describedby="profile-video-file-help"
-            [disabled]="!canUpload || isUploadActive()"
-            (change)="onVideoSelected($event)"
-          />
-
-          <label
-            class="profile-videos__file-label app-action app-action--ghost"
-            for="profile-video-file"
-            [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
-          >
+          <input #videoInput id="profile-video-file" class="profile-videos__file-input" type="file" [attr.accept]="videoUploadAccept" aria-describedby="profile-video-file-help" [disabled]="!canUpload || isUploadActive()" (change)="onVideoSelected($event)" />
+          <label class="profile-videos__file-label app-action app-action--ghost" for="profile-video-file" [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()">
             {{ selectedFileName ? 'Trocar vídeo' : 'Selecionar vídeo' }}
           </label>
-
-          <p class="profile-videos__limits" id="profile-video-file-help">
-            MP4, WebM ou MOV · até 500 MB · mínimo de 5 segundos
-          </p>
+          <p class="profile-videos__limits" id="profile-video-file-help">{{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos</p>
 
           @if (selectedFileName) {
             <div class="profile-videos__selected-file" role="status" aria-live="polite">
               <i class="fas fa-circle-check" aria-hidden="true"></i>
-              <div>
-                <strong>{{ selectedFileName }}</strong>
-                <span>{{ selectedFileSize }}</span>
-              </div>
+              <div><strong>{{ selectedFileName }}</strong><span>{{ selectedFileSize }}</span></div>
             </div>
           }
 
           @if (previewUrl) {
             <div class="profile-videos__preview">
-              <video
-                #uploadPreview
-                [src]="previewUrl"
-                aria-label="Prévia local do vídeo selecionado"
-                preload="metadata"
-                controls
-                playsinline
-                muted
-              ></video>
+              <video #uploadPreview [src]="previewUrl" aria-label="Prévia local do vídeo selecionado" preload="metadata" controls playsinline muted></video>
             </div>
-
             <div class="profile-videos__cover-tools">
               <strong>Capa</strong>
-
-              <button
-                type="button"
-                class="app-action app-action--ghost"
-                [disabled]="capturingPoster || isUploadActive()"
-                [attr.aria-busy]="capturingPoster ? 'true' : 'false'"
-                (click)="capturePoster(uploadPreview)"
-              >
+              <button type="button" class="app-action app-action--ghost" [disabled]="capturingPoster || isUploadActive()" [attr.aria-busy]="capturingPoster ? 'true' : 'false'" (click)="capturePoster(uploadPreview)">
                 {{ capturingPoster ? 'Gerando...' : 'Usar quadro atual' }}
               </button>
             </div>
-
             @if (selectedPosterUrl) {
               <figure class="profile-videos__selected-cover">
-                <img
-                  [src]="selectedPosterUrl"
-                  alt="Capa escolhida para o vídeo"
-                  width="320"
-                  height="180"
-                />
-                <figcaption>
-                  <i class="fas fa-circle-check" aria-hidden="true"></i>
-                  Capa escolhida
-                </figcaption>
+                <img [src]="selectedPosterUrl" alt="Capa escolhida para o vídeo" width="320" height="180" />
+                <figcaption><i class="fas fa-circle-check" aria-hidden="true"></i>Capa escolhida</figcaption>
               </figure>
             }
           } @else {
-            <div class="profile-videos__preview profile-videos__preview--empty">
-              <i class="fas fa-film" aria-hidden="true"></i>
-              <span>A prévia aparecerá aqui</span>
-            </div>
+            <div class="profile-videos__preview profile-videos__preview--empty"><i class="fas fa-film" aria-hidden="true"></i><span>A prévia aparecerá aqui</span></div>
           }
         </div>
 
         @if (selectedFileName) {
-          <form
-            class="profile-videos__settings-form profile-videos__upload-composer"
-            [formGroup]="uploadPublicationForm"
-            (ngSubmit)="startUpload(true)"
-          >
-            <label for="new-video-title">
-              <span>Título</span>
-              <input
-                id="new-video-title"
-                type="text"
-                formControlName="title"
-                maxlength="120"
-                autocomplete="off"
-                [readonly]="isUploadActive()"
-              />
-            </label>
-
-            @if (
-              uploadPublicationForm.controls.title.touched &&
-              uploadPublicationForm.controls.title.invalid
-            ) {
-              <p class="profile-videos__field-error" role="alert">
-                Informe um título com até 120 caracteres.
-              </p>
+          <form class="profile-videos__settings-form profile-videos__upload-composer" [formGroup]="uploadPublicationForm" (ngSubmit)="startUpload(true)">
+            <label for="new-video-title"><span>Título</span><input id="new-video-title" type="text" formControlName="title" maxlength="120" autocomplete="off" [readonly]="isUploadActive()" /></label>
+            @if (uploadPublicationForm.controls.title.touched && uploadPublicationForm.controls.title.invalid) {
+              <p class="profile-videos__field-error" role="alert">Informe um título com até 120 caracteres.</p>
             }
-
-            <label for="new-video-description">
-              <span>Descrição</span>
-              <textarea
-                id="new-video-description"
-                formControlName="description"
-                maxlength="1000"
-                rows="4"
-                placeholder="Descrição opcional"
-                [readonly]="isUploadActive()"
-              ></textarea>
-            </label>
-
-            <fieldset
-              class="profile-videos__settings-options"
-              [disabled]="isUploadActive()"
-            >
+            <label for="new-video-description"><span>Descrição</span><textarea id="new-video-description" formControlName="description" maxlength="1000" rows="4" placeholder="Descrição opcional" [readonly]="isUploadActive()"></textarea></label>
+            <fieldset class="profile-videos__settings-options" [disabled]="isUploadActive()">
               <legend>Interações</legend>
-
-              <label>
-                <input type="checkbox" formControlName="reactionsEnabled" />
-                <span>Curtidas</span>
-              </label>
-
-              <label>
-                <input type="checkbox" formControlName="commentsEnabled" />
-                <span>Comentários</span>
-              </label>
-
-              <label>
-                <input type="checkbox" formControlName="ratingsEnabled" />
-                <span>Avaliações</span>
-              </label>
+              <label><input type="checkbox" formControlName="reactionsEnabled" /><span>Curtidas</span></label>
+              <label><input type="checkbox" formControlName="commentsEnabled" /><span>Comentários</span></label>
+              <label><input type="checkbox" formControlName="ratingsEnabled" /><span>Avaliações</span></label>
             </fieldset>
-
             <div class="profile-videos__settings-actions">
-              <button
-                type="submit"
-                class="app-action app-action--primary"
-                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
-              >
-                {{ isUploadActive() ? 'Enviando...' : 'Enviar e publicar' }}
-              </button>
-
-              <!--
-                MANUTENÇÃO — ARMAZENAMENTO PRIVADO POR PLANO
-                Esta ação permanece funcional por compatibilidade. Antes da abertura
-                comercial, cota, retenção, expiração e elegibilidade por assinatura
-                devem ser aplicadas no backend. Ocultar o botão não impede abuso.
-              -->
-              <button
-                type="button"
-                class="app-action app-action--ghost"
-                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
-                (click)="startUpload(false)"
-              >
-                Salvar sem publicar
-              </button>
+              <button type="submit" class="app-action app-action--primary" [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()">{{ isUploadActive() ? 'Enviando...' : 'Enviar e publicar' }}</button>
+              <!-- MANUTENÇÃO: cota, retenção, expiração e elegibilidade por assinatura devem ser validadas no backend; ocultar esta ação não impede abuso de armazenamento. -->
+              <button type="button" class="app-action app-action--ghost" [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()" (click)="startUpload(false)">Salvar sem publicar</button>
             </div>
           </form>
         } @else {
-          <div class="profile-videos__composer-empty">
-            <span>Selecione um vídeo para definir capa e publicação.</span>
-          </div>
+          <div class="profile-videos__composer-empty"><span>Selecione um vídeo para definir capa e publicação.</span></div>
         }
       </div>
 
       @if (uploadPhase !== 'IDLE' && uploadPhase !== 'READY') {
         <div class="profile-videos__progress" aria-live="polite">
-          <div class="profile-videos__progress-copy">
-            <strong>{{ uploadStep }}</strong>
-            <span>{{ uploadProgress }}%</span>
-          </div>
-
-          <div
-            class="profile-videos__progress-track"
-            role="progressbar"
-            aria-label="Progresso do upload do vídeo"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            [attr.aria-valuenow]="uploadProgress"
-          >
-            <span [style.width.%]="uploadProgress"></span>
-          </div>
+          <div class="profile-videos__progress-copy"><strong>{{ uploadStep }}</strong><span>{{ uploadProgress }}%</span></div>
+          <div class="profile-videos__progress-track" role="progressbar" aria-label="Progresso do upload do vídeo" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="uploadProgress"><span [style.width.%]="uploadProgress"></span></div>
         </div>
       } @else {
-        <p class="profile-videos__upload-status" role="status" aria-live="polite">
-          {{ uploadStep }}
-        </p>
+        <p class="profile-videos__upload-status" role="status" aria-live="polite">{{ uploadStep }}</p>
+      }
+
+      @if (uploadFailure) {
+        <div class="profile-videos__upload-failure" role="alert" aria-live="assertive">
+          <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+          <div><strong>{{ uploadFailure.title }}</strong><span>{{ uploadFailure.message }}</span><small>{{ uploadFailure.recovery }}</small></div>
+          @if (uploadFailure.retryable) {
+            <button type="button" class="app-action app-action--primary" [disabled]="isUploadActive()" (click)="retryUpload()">Tentar novamente</button>
+          }
+        </div>
       }
 
       <div class="profile-videos__upload-actions">
         @if (uploadPhase === 'DONE') {
-          <button
-            type="button"
-            class="app-action app-action--primary"
-            (click)="resetSelection(videoInput)"
-          >
-            Enviar outro
-          </button>
+          <button type="button" class="app-action app-action--primary" (click)="resetSelection(videoInput)">Enviar outro</button>
         } @else if (canCancelUpload()) {
-          <button
-            type="button"
-            class="app-action app-action--ghost"
-            (click)="cancelUpload()"
-          >
-            Cancelar upload
-          </button>
+          <button type="button" class="app-action app-action--ghost" (click)="cancelUpload()">Cancelar upload</button>
         } @else if (selectedFileName && !isUploadActive()) {
-          <button
-            type="button"
-            class="app-action app-action--ghost"
-            (click)="resetSelection(videoInput)"
-          >
-            Limpar
-          </button>
+          <button type="button" class="app-action app-action--ghost" (click)="resetSelection(videoInput)">Limpar</button>
         }
       </div>
     </section>
@@ -267,243 +119,54 @@
         <div class="profile-videos__grid" aria-label="Meus vídeos">
           @for (item of items; track trackByVideoId($index, item)) {
             <article class="profile-videos__card">
-              <div class="profile-videos__media">
-                <video
-                  [src]="item.video.url"
-                  [poster]="item.video.thumbnailUrl || null"
-                  [attr.aria-label]="displayVideoTitle(item)"
-                  preload="metadata"
-                  controls
-                  controlsList="nodownload"
-                  playsinline
-                  disablePictureInPicture
-                ></video>
-              </div>
-
+              <div class="profile-videos__media"><video [src]="item.video.url" [poster]="item.video.thumbnailUrl || null" [attr.aria-label]="displayVideoTitle(item)" preload="metadata" controls controlsList="nodownload" playsinline disablePictureInPicture></video></div>
               <div class="profile-videos__body">
                 <div class="profile-videos__title-row">
                   <strong>{{ displayVideoTitle(item) }}</strong>
-
-                  <span
-                    class="profile-videos__publication-chip"
-                    [class.profile-videos__publication-chip--published]="item.publication?.moderationStatus === 'APPROVED'"
-                    [class.profile-videos__publication-chip--pending]="isPendingPublication(item)"
-                    [class.profile-videos__publication-chip--rejected]="item.publication?.moderationStatus === 'REJECTED' || item.video.status === 'failed'"
-                  >
-                    {{ publicationLabel(item) }}
-                  </span>
+                  <span class="profile-videos__publication-chip" [class.profile-videos__publication-chip--published]="item.publication?.moderationStatus === 'APPROVED'" [class.profile-videos__publication-chip--pending]="isPendingPublication(item)" [class.profile-videos__publication-chip--rejected]="item.publication?.moderationStatus === 'REJECTED' || item.video.status === 'failed'">{{ publicationLabel(item) }}</span>
                 </div>
-
-                @if (item.publication?.description) {
-                  <p class="profile-videos__description">
-                    {{ item.publication?.description }}
-                  </p>
-                }
-
-                <div class="profile-videos__meta" aria-label="Informações do vídeo">
-                  <span>{{ formatDuration(item.video.durationMs) }}</span>
-                  <span>{{ formatFileSize(item.video.sizeBytes) }}</span>
-                </div>
+                @if (item.publication?.description) { <p class="profile-videos__description">{{ item.publication?.description }}</p> }
+                <div class="profile-videos__meta" aria-label="Informações do vídeo"><span>{{ formatDuration(item.video.durationMs) }}</span><span>{{ formatFileSize(item.video.sizeBytes) }}</span></div>
 
                 @if (editingVideoId === item.video.id) {
-                  <form
-                    class="profile-videos__settings-form"
-                    [formGroup]="publicationSettingsForm"
-                    (ngSubmit)="savePublicationSettings(item)"
-                  >
-                    <label>
-                      <span>Título</span>
-                      <input
-                        [id]="'video-title-' + item.video.id"
-                        type="text"
-                        formControlName="title"
-                        maxlength="120"
-                        autocomplete="off"
-                      />
-                    </label>
-
-                    <label>
-                      <span>Descrição</span>
-                      <textarea
-                        [id]="'video-description-' + item.video.id"
-                        formControlName="description"
-                        maxlength="1000"
-                        rows="4"
-                        placeholder="Descrição opcional"
-                      ></textarea>
-                    </label>
-
-                    <fieldset class="profile-videos__settings-options">
-                      <legend>Interações</legend>
-
-                      <label>
-                        <input type="checkbox" formControlName="reactionsEnabled" />
-                        <span>Curtidas</span>
-                      </label>
-
-                      <label>
-                        <input type="checkbox" formControlName="commentsEnabled" />
-                        <span>Comentários</span>
-                      </label>
-
-                      <label>
-                        <input type="checkbox" formControlName="ratingsEnabled" />
-                        <span>Avaliações</span>
-                      </label>
-                    </fieldset>
-
-                    @if (item.publication?.isPublished) {
-                      <p class="profile-videos__settings-note">
-                        Título e descrição passam por nova moderação.
-                      </p>
-                    }
-
-                    <div class="profile-videos__settings-actions">
-                      <button
-                        type="submit"
-                        class="app-action app-action--primary"
-                        [disabled]="publicationSettingsForm.invalid || isBusy(item.video.id)"
-                      >
-                        {{ busyActions?.get(item.video.id) === 'save' ? 'Salvando...' : 'Salvar' }}
-                      </button>
-
-                      <button
-                        type="button"
-                        class="app-action app-action--ghost"
-                        [disabled]="isBusy(item.video.id)"
-                        (click)="cancelEditingPublication(item.video.id)"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
+                  <form class="profile-videos__settings-form" [formGroup]="publicationSettingsForm" (ngSubmit)="savePublicationSettings(item)">
+                    <label><span>Título</span><input [id]="'video-title-' + item.video.id" type="text" formControlName="title" maxlength="120" autocomplete="off" /></label>
+                    <label><span>Descrição</span><textarea [id]="'video-description-' + item.video.id" formControlName="description" maxlength="1000" rows="4" placeholder="Descrição opcional"></textarea></label>
+                    <fieldset class="profile-videos__settings-options"><legend>Interações</legend><label><input type="checkbox" formControlName="reactionsEnabled" /><span>Curtidas</span></label><label><input type="checkbox" formControlName="commentsEnabled" /><span>Comentários</span></label><label><input type="checkbox" formControlName="ratingsEnabled" /><span>Avaliações</span></label></fieldset>
+                    @if (item.publication?.isPublished) { <p class="profile-videos__settings-note">Título e descrição passam por nova moderação.</p> }
+                    <div class="profile-videos__settings-actions"><button type="submit" class="app-action app-action--primary" [disabled]="publicationSettingsForm.invalid || isBusy(item.video.id)">{{ busyActions?.get(item.video.id) === 'save' ? 'Salvando...' : 'Salvar' }}</button><button type="button" class="app-action app-action--ghost" [disabled]="isBusy(item.video.id)" (click)="cancelEditingPublication(item.video.id)">Cancelar</button></div>
                   </form>
                 }
 
                 @if (item.video.status === 'queued' || item.video.status === 'processing') {
-                  <p class="profile-videos__helper" role="status">
-                    @if (item.publication?.publishWhenReady) {
-                      Preparando o vídeo para publicação automática.
-                    } @else {
-                      Preparando o vídeo.
-                    }
-                  </p>
+                  <p class="profile-videos__helper" role="status">{{ item.publication?.publishWhenReady ? 'Preparando o vídeo para publicação automática.' : 'Preparando o vídeo.' }}</p>
                 } @else if (item.video.status === 'failed') {
-                  <p class="profile-videos__helper profile-videos__helper--error" role="alert">
-                    {{ item.video.processingErrorMessage || 'Não foi possível processar este arquivo. Exclua-o e envie uma nova versão.' }}
-                  </p>
+                  <p class="profile-videos__helper profile-videos__helper--error" role="alert">{{ item.video.processingErrorMessage || 'Não foi possível processar este arquivo. Exclua-o e envie uma nova versão.' }}</p>
                 } @else if (item.publication?.moderationStatus === 'REJECTED') {
-                  <p class="profile-videos__helper profile-videos__helper--error" role="alert">
-                    A moderação rejeitou esta versão.
-                    {{ item.publication?.moderationReason || 'Exclua o arquivo e envie uma nova versão antes de tentar publicar novamente.' }}
-                  </p>
+                  <p class="profile-videos__helper profile-videos__helper--error" role="alert">A moderação rejeitou esta versão. {{ item.publication?.moderationReason || 'Exclua o arquivo e envie uma nova versão antes de tentar publicar novamente.' }}</p>
                 } @else if (!isPublicPlaybackCompatible(item.video)) {
-                  <p class="profile-videos__helper" role="status">
-                    A versão compatível ainda não foi confirmada.
-                  </p>
+                  <p class="profile-videos__helper" role="status">A versão compatível ainda não foi confirmada.</p>
                 }
 
                 <div class="profile-videos__actions">
-                  <button
-                    type="button"
-                    class="app-action app-action--ghost"
-                    (click)="startEditingPublication(item)"
-                    [disabled]="isBusy(item.video.id) || editingVideoId === item.video.id"
-                    [attr.aria-expanded]="editingVideoId === item.video.id"
-                  >
-                    Editar
-                  </button>
-
-                  <details
-                    class="profile-videos__more"
-                    [class.profile-videos__more--disabled]="isBusy(item.video.id) || editingVideoId === item.video.id"
-                  >
-                    <summary
-                      class="app-action app-action--ghost"
-                      [attr.aria-label]="'Mais ações para ' + displayVideoTitle(item)"
-                    >
-                      <i class="fas fa-ellipsis" aria-hidden="true"></i>
-                      <span>Mais</span>
-                    </summary>
-
+                  <button type="button" class="app-action app-action--ghost" (click)="startEditingPublication(item)" [disabled]="isBusy(item.video.id) || editingVideoId === item.video.id" [attr.aria-expanded]="editingVideoId === item.video.id">Editar</button>
+                  <details class="profile-videos__more" [class.profile-videos__more--disabled]="isBusy(item.video.id) || editingVideoId === item.video.id">
+                    <summary class="app-action app-action--ghost" [attr.aria-label]="'Mais ações para ' + displayVideoTitle(item)"><i class="fas fa-ellipsis" aria-hidden="true"></i><span>Mais</span></summary>
                     <div class="profile-videos__more-menu">
                       @if (item.publication?.isPublished) {
-                        <button
-                          type="button"
-                          (click)="unpublishVideo(item)"
-                          [disabled]="isBusy(item.video.id)"
-                          [attr.aria-busy]="isBusy(item.video.id) ? 'true' : 'false'"
-                        >
-                          <i class="fas fa-eye-slash" aria-hidden="true"></i>
-                          <span>
-                            {{ busyActions?.get(item.video.id) === 'unpublish' ? 'Removendo...' : 'Remover do perfil' }}
-                          </span>
-                        </button>
+                        <button type="button" (click)="unpublishVideo(item)" [disabled]="isBusy(item.video.id)" [attr.aria-busy]="isBusy(item.video.id) ? 'true' : 'false'"><i class="fas fa-eye-slash" aria-hidden="true"></i><span>{{ busyActions?.get(item.video.id) === 'unpublish' ? 'Removendo...' : 'Remover do perfil' }}</span></button>
                       } @else if (!item.publication?.publishWhenReady) {
-                        <button
-                          type="button"
-                          (click)="publishVideo(item)"
-                          [disabled]="!canPublish(item) || isBusy(item.video.id) || item.publication?.moderationStatus === 'REJECTED'"
-                          [attr.aria-busy]="isBusy(item.video.id) ? 'true' : 'false'"
-                        >
-                          <i class="fas fa-globe" aria-hidden="true"></i>
-                          <span>
-                            {{ busyActions?.get(item.video.id) === 'publish' ? 'Preparando...' : 'Publicar no perfil' }}
-                          </span>
-                        </button>
+                        <button type="button" (click)="publishVideo(item)" [disabled]="!canPublish(item) || isBusy(item.video.id) || item.publication?.moderationStatus === 'REJECTED'" [attr.aria-busy]="isBusy(item.video.id) ? 'true' : 'false'"><i class="fas fa-globe" aria-hidden="true"></i><span>{{ busyActions?.get(item.video.id) === 'publish' ? 'Preparando...' : 'Publicar no perfil' }}</span></button>
                       }
-
-                      <button
-                        type="button"
-                        class="profile-videos__more-danger"
-                        (click)="requestDelete(item)"
-                        [disabled]="isBusy(item.video.id)"
-                        [attr.aria-expanded]="pendingDeleteVideoId === item.video.id"
-                        [attr.aria-controls]="'video-delete-confirmation-' + item.video.id"
-                        [attr.aria-busy]="busyActions?.get(item.video.id) === 'delete' ? 'true' : 'false'"
-                      >
-                        <i class="fas fa-trash" aria-hidden="true"></i>
-                        <span>
-                          {{ busyActions?.get(item.video.id) === 'delete' ? 'Excluindo...' : 'Excluir' }}
-                        </span>
-                      </button>
+                      <button type="button" class="profile-videos__more-danger" (click)="requestDelete(item)" [disabled]="isBusy(item.video.id)" [attr.aria-expanded]="pendingDeleteVideoId === item.video.id" [attr.aria-controls]="'video-delete-confirmation-' + item.video.id" [attr.aria-busy]="busyActions?.get(item.video.id) === 'delete' ? 'true' : 'false'"><i class="fas fa-trash" aria-hidden="true"></i><span>{{ busyActions?.get(item.video.id) === 'delete' ? 'Excluindo...' : 'Excluir' }}</span></button>
                     </div>
                   </details>
                 </div>
 
                 @if (pendingDeleteVideoId === item.video.id) {
-                  <div
-                    class="profile-videos__delete-confirmation"
-                    [id]="'video-delete-confirmation-' + item.video.id"
-                    role="alert"
-                    aria-live="assertive"
-                  >
-                    <div>
-                      <strong>Excluir definitivamente?</strong>
-                      <p>
-                        O original, as versões processadas e a publicação serão
-                        removidos. Esta ação não pode ser desfeita.
-                      </p>
-                    </div>
-
-                    <div class="profile-videos__delete-confirmation-actions">
-                      <button
-                        type="button"
-                        class="app-action app-action--danger"
-                        (click)="confirmDelete(item)"
-                        [disabled]="isBusy(item.video.id)"
-                      >
-                        Excluir
-                      </button>
-
-                      <button
-                        type="button"
-                        class="app-action app-action--ghost"
-                        (click)="cancelDelete(item.video.id)"
-                        [disabled]="isBusy(item.video.id)"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
+                  <div class="profile-videos__delete-confirmation" [id]="'video-delete-confirmation-' + item.video.id" role="alert" aria-live="assertive">
+                    <div><strong>Excluir definitivamente?</strong><p>O original, as versões processadas e a publicação serão removidos. Esta ação não pode ser desfeita.</p></div>
+                    <div class="profile-videos__delete-confirmation-actions"><button type="button" class="app-action app-action--danger" (click)="confirmDelete(item)" [disabled]="isBusy(item.video.id)">Excluir</button><button type="button" class="app-action app-action--ghost" (click)="cancelDelete(item.video.id)" [disabled]="isBusy(item.video.id)">Cancelar</button></div>
                   </div>
                 }
               </div>
@@ -511,14 +174,10 @@
           }
         </div>
       } @else {
-        <p class="profile-videos__upload-status" role="status">
-          Nenhum vídeo enviado.
-        </p>
+        <p class="profile-videos__upload-status" role="status">Nenhum vídeo enviado.</p>
       }
     }
   } @else {
-    <p class="profile-videos__upload-status" role="status">
-      Nenhum vídeo público disponível.
-    </p>
+    <p class="profile-videos__upload-status" role="status">Nenhum vídeo público disponível.</p>
   }
 </section>
