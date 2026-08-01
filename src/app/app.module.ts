@@ -39,6 +39,7 @@ import {
   CACHE_MAINTENANCE_AUTO_START,
   CacheMaintenanceService,
 } from './core/services/general/cache/cache-maintenance.service';
+import { PublicVideoSwipeFeedbackService } from './media/videos/public-video-viewer/public-video-swipe-feedback.service';
 
 registerLocaleData(localePt, 'pt-BR');
 
@@ -66,6 +67,9 @@ registerLocaleData(localePt, 'pt-BR');
     },
     ErrorNotificationService,
     { provide: LOCALE_ID, useValue: 'pt-BR' },
+    provideAppInitializer(() => {
+      inject(PublicVideoSwipeFeedbackService).start();
+    }),
     provideAppInitializer(() => {
       if (inject(CACHE_MAINTENANCE_AUTO_START)) {
         inject(CacheMaintenanceService).scheduleOncePerSession();
