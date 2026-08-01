@@ -39,6 +39,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
+import { PublicVideoMetadataPreloadDirective } from '../public-video-metadata-preload.directive';
 
 interface PublicProfileVideosState {
   status: 'loading' | 'ready' | 'empty' | 'error';
@@ -56,6 +57,7 @@ interface ViewerUserLike {
     CommonModule,
     RouterModule,
     MatDialogModule,
+    PublicVideoMetadataPreloadDirective,
     ReportContentButtonComponent,
   ],
   templateUrl: './public-profile-videos.component.html',
