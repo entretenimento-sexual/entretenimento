@@ -114,7 +114,6 @@
               <button
                 type="button"
                 class="video-card__preview"
-                [class.video-card__preview--opening]="isVideoOpening(item)"
                 (click)="openVideo(index)"
                 [disabled]="viewerOpening()"
                 [attr.aria-busy]="isVideoOpening(item) ? 'true' : null"
@@ -122,7 +121,7 @@
               >
                 @if (hasUsablePoster(item)) {
                   <img
-                    [src]="item.posterUrl"
+                    [src]="item.posterUrl || ''"
                     [alt]="item.alt || item.title || 'Capa do vídeo público'"
                     [attr.loading]="index === 0 ? 'eager' : 'lazy'"
                     [attr.fetchpriority]="index === 0 ? 'high' : null"
