@@ -47,6 +47,8 @@ const SLOW_BUFFERING_MESSAGE_MS = 8_000;
 const BUFFERING_FAILURE_MS = 25_000;
 const OFFLINE_PLAYBACK_MESSAGE =
   'Você está sem conexão. O vídeo será recarregado quando a internet voltar.';
+const REPEATED_ACCESS_FAILURE_MESSAGE =
+  'O vídeo continua indisponível após a atualização de acesso. Tente novamente mais tarde ou abra outro vídeo.';
 
 @Component({
   selector: 'app-public-video-playback-feedback',
@@ -203,6 +205,7 @@ export class PublicVideoPlaybackFeedbackDirective
     MAT_DIALOG_DATA,
     { optional: true }
   );
+  private readonly automaticAccessRecoveryKeys = new Set<string>();
 
   private readonly feedbackState = signal<TPublicVideoPlaybackFeedbackState>(
     'loading'
@@ -261,6 +264,11 @@ export class PublicVideoPlaybackFeedbackDirective
         return;
       }
 
+      const recoveryKey = this.currentRecoveryKey();
+      if (recoveryKey) {
+        this.automaticAccessRecoveryKeys.delete(recoveryKey);
+      }
+
       this.offlineRecoveryPending = false;
       this.markRefreshing('Atualizando acesso ao vídeo...');
       this.dispatch('publicVideoRetry');
@@ -303,6 +311,11 @@ export class PublicVideoPlaybackFeedbackDirective
   @HostListener('window:online')
   onWindowOnline(): void {
     if (this.offlineRecoveryPending) {
+      const recoveryKey = this.currentRecoveryKey();
+      if (recoveryKey) {
+        this.automaticAccessRecoveryKeys.delete(recoveryKey);
+      }
+
       this.offlineRecoveryPending = false;
       this.markRefreshing('Conexão restabelecida. Recarregando vídeo...');
       this.dispatch('publicVideoRetry');
@@ -399,9 +412,25 @@ export class PublicVideoPlaybackFeedbackDirective
     this.offlineRecoveryPending = failure.retryWhenOnline;
     this.markError(failure.message);
 
-    if (failure.shouldRefreshAccess) {
-      this.dispatch('publicVideoAccessError');
+    if (!failure.shouldRefreshAccess) {
+      return;
     }
+
+    const recoveryKey = this.currentRecoveryKey();
+
+    if (
+      recoveryKey &&
+      this.automaticAccessRecoveryKeys.has(recoveryKey)
+    ) {
+      this.markError(REPEATED_ACCESS_FAILURE_MESSAGE);
+      return;
+    }
+
+    if (recoveryKey) {
+      this.automaticAccessRecoveryKeys.add(recoveryKey);
+    }
+
+    this.dispatch('publicVideoAccessError');
   }
 
   markLoading(message = 'Carregando vídeo...'): void {
@@ -570,15 +599,24 @@ export class PublicVideoPlaybackFeedbackDirective
       video.currentSrc || video.getAttribute('src') || video.src
     );
 
-    if (!currentIdentity) {
-      return this.normalizeStartIndex(items.length);
+    if (currentIdentity) {
+      const matchedIndex = items.findIndex(
+        (item) => this.assetIdentity(item.url) === currentIdentity
+      );
+
+      if (matchedIndex >= 0) {
+        return matchedIndex;
+      }
     }
 
-    const index = items.findIndex(
-      (item) => this.assetIdentity(item.url) === currentIdentity
-    );
+    if (
+      this.currentItemIndex >= 0 &&
+      this.currentItemIndex < items.length
+    ) {
+      return this.currentItemIndex;
+    }
 
-    return index >= 0 ? index : this.normalizeStartIndex(items.length);
+    return this.normalizeStartIndex(items.length);
   }
 
   private normalizeStartIndex(itemsCount: number): number {
@@ -589,6 +627,15 @@ export class PublicVideoPlaybackFeedbackDirective
     const startIndex = Number(this.viewerData?.startIndex ?? 0);
     const normalized = Number.isFinite(startIndex) ? Math.trunc(startIndex) : 0;
     return Math.max(0, Math.min(normalized, itemsCount - 1));
+  }
+
+  private currentRecoveryKey(): string {
+    const items = this.viewerData?.items ?? [];
+    const item = items[this.currentItemIndex];
+    const ownerUid = String(item?.ownerUid ?? '').trim();
+    const videoId = String(item?.id ?? '').trim();
+
+    return ownerUid && videoId ? `${ownerUid}:${videoId}` : '';
   }
 
   private scheduleAdjacentMetadataPreload(): void {
