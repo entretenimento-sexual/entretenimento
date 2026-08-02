@@ -16,6 +16,7 @@ export {
   getPrivateVideoAccessUrls,
   getPublicPhotoAccessUrls,
   getPublicVideoAccessUrls,
+  getPublicVideoHlsAccess,
   listAuthorizedPublicVideos,
 } from './application/protected-media-access-callables.handler';
 
