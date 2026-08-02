@@ -2,6 +2,9 @@ import { onCall } from 'firebase-functions/v2/https';
 
 import { PROTECTED_CALLABLE_OPTIONS } from '../../config/protected-callable-options';
 import {
+  assertAdminAuthorization,
+} from './admin-authorization.policy';
+import {
   authorizePublicVideoShare as authorizePublicVideoShareCore,
 } from './authorize-public-video-share.handler';
 import {
@@ -265,8 +268,13 @@ export const reviewVideoContentReport = onCall<
 >(
   PROTECTED_CALLABLE_OPTIONS,
   async (request) => {
+    const adminUid = assertAdminAuthorization(
+      request.auth,
+      'Apenas administradores podem revisar denúncias de vídeo.'
+    );
+
     await consumeLimit({
-      actorUid: request.auth?.uid,
+      actorUid: adminUid,
       action: 'REPORT_MODERATE',
       resourceKey: `report:${keyPart(request.data?.reportId)}`,
     });

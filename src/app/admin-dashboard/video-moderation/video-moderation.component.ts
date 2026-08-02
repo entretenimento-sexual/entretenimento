@@ -3,10 +3,14 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  computed,
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  takeUntilDestroyed,
+  toSignal,
+} from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import {
@@ -25,6 +29,12 @@ import {
   switchMap,
 } from 'rxjs/operators';
 
+import {
+  ICallableCooldownState,
+} from 'src/app/core/services/error-handler/callable-cooldown.policy';
+import {
+  CallableCooldownService,
+} from 'src/app/core/services/error-handler/callable-cooldown.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
   AdminVideoModerationDecision,
@@ -70,6 +80,23 @@ type ReasonDrafts = Record<string, string>;
 
 const ACCESS_REFRESH_INTERVAL_MS = 8 * 60 * 1000;
 const PROCESSING_STATUS_REFRESH_INTERVAL_MS = 60 * 1000;
+const COOLDOWN_SCOPE = {
+  status: 'admin-video-processing-status',
+  moderationQueue: 'admin-video-moderation-queue',
+  recoveryQueue: 'admin-video-recovery-queue',
+  moderationAction: 'admin-video-moderation-action',
+  recoveryAction: 'admin-video-recovery-action',
+} as const;
+
+function inactiveCooldown(scope: string): ICallableCooldownState {
+  return {
+    scope,
+    active: false,
+    expiresAt: 0,
+    remainingMs: 0,
+    remainingSeconds: 0,
+  };
+}
 
 @Component({
   selector: 'app-video-moderation',
@@ -87,6 +114,7 @@ export class VideoModerationComponent {
   private readonly moderation = inject(AdminVideoModerationService);
   private readonly recovery = inject(AdminVideoProcessingRecoveryService);
   private readonly notification = inject(ErrorNotificationService);
+  private readonly cooldowns = inject(CallableCooldownService);
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
   readonly busyVideoKey = signal<string | null>(null);
@@ -95,6 +123,57 @@ export class VideoModerationComponent {
   readonly recoveryReasonDrafts = signal<ReasonDrafts>({});
   readonly pendingRecoveryConfirmation =
     signal<PendingRecoveryConfirmation | null>(null);
+
+  readonly statusCooldown = toSignal(
+    this.cooldowns.state$(COOLDOWN_SCOPE.status),
+    { initialValue: inactiveCooldown(COOLDOWN_SCOPE.status) }
+  );
+  readonly moderationQueueCooldown = toSignal(
+    this.cooldowns.state$(COOLDOWN_SCOPE.moderationQueue),
+    { initialValue: inactiveCooldown(COOLDOWN_SCOPE.moderationQueue) }
+  );
+  readonly recoveryQueueCooldown = toSignal(
+    this.cooldowns.state$(COOLDOWN_SCOPE.recoveryQueue),
+    { initialValue: inactiveCooldown(COOLDOWN_SCOPE.recoveryQueue) }
+  );
+  readonly moderationActionCooldown = toSignal(
+    this.cooldowns.state$(COOLDOWN_SCOPE.moderationAction),
+    { initialValue: inactiveCooldown(COOLDOWN_SCOPE.moderationAction) }
+  );
+  readonly recoveryActionCooldown = toSignal(
+    this.cooldowns.state$(COOLDOWN_SCOPE.recoveryAction),
+    { initialValue: inactiveCooldown(COOLDOWN_SCOPE.recoveryAction) }
+  );
+
+  readonly refreshCooldown = computed(() => {
+    const states = [
+      this.statusCooldown(),
+      this.moderationQueueCooldown(),
+      this.recoveryQueueCooldown(),
+    ];
+
+    return states.reduce((longest, current) =>
+      current.remainingMs > longest.remainingMs ? current : longest
+    );
+  });
+
+  readonly cooldownMessage = computed(() => {
+    const active = [
+      this.refreshCooldown(),
+      this.moderationActionCooldown(),
+      this.recoveryActionCooldown(),
+    ].filter((state) => state.active);
+
+    if (active.length === 0) {
+      return '';
+    }
+
+    const remainingSeconds = Math.max(
+      ...active.map((state) => state.remainingSeconds)
+    );
+
+    return `Proteção contra excesso de chamadas ativa. Tente novamente em ${remainingSeconds} segundo(s).`;
+  });
 
   readonly processingState$: Observable<VideoProcessingPanelState> = merge(
     this.refreshSubject,
@@ -113,10 +192,17 @@ export class VideoModerationComponent {
           status: 'loading',
           data: null,
         } as VideoProcessingPanelState),
-        catchError(() => of({
-          status: 'error',
-          data: null,
-        } as VideoProcessingPanelState))
+        catchError((error) => {
+          this.cooldowns.captureResourceExhausted(
+            error,
+            COOLDOWN_SCOPE.status,
+            3_000
+          );
+          return of({
+            status: 'error',
+            data: null,
+          } as VideoProcessingPanelState);
+        })
       )
     ),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -143,12 +229,19 @@ export class VideoModerationComponent {
           skippedItems: 0,
           checkedAt: 0,
         } as VideoProcessingRecoveryPanelState),
-        catchError(() => of({
-          status: 'error',
-          items: [],
-          skippedItems: 0,
-          checkedAt: 0,
-        } as VideoProcessingRecoveryPanelState))
+        catchError((error) => {
+          this.cooldowns.captureResourceExhausted(
+            error,
+            COOLDOWN_SCOPE.recoveryQueue,
+            2_000
+          );
+          return of({
+            status: 'error',
+            items: [],
+            skippedItems: 0,
+            checkedAt: 0,
+          } as VideoProcessingRecoveryPanelState);
+        })
       )
     ),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -170,17 +263,28 @@ export class VideoModerationComponent {
           items: [],
           skippedItems: 0,
         } as VideoModerationQueueState),
-        catchError(() => of({
-          status: 'error',
-          items: [],
-          skippedItems: 0,
-        } as VideoModerationQueueState))
+        catchError((error) => {
+          this.cooldowns.captureResourceExhausted(
+            error,
+            COOLDOWN_SCOPE.moderationQueue,
+            2_000
+          );
+          return of({
+            status: 'error',
+            items: [],
+            skippedItems: 0,
+          } as VideoModerationQueueState);
+        })
       )
     ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
   retry(): void {
+    if (this.cooldowns.notifyIfActive(this.refreshCooldown().scope)) {
+      return;
+    }
+
     this.refreshSubject.next(this.refreshSubject.value + 1);
   }
 
@@ -298,6 +402,7 @@ export class VideoModerationComponent {
     action: AdminVideoProcessingRecoveryAction
   ): void {
     if (
+      this.cooldowns.notifyIfActive(COOLDOWN_SCOPE.recoveryAction) ||
       this.busyRecoveryKey() ||
       !item.availableActions.includes(action)
     ) {
@@ -330,7 +435,11 @@ export class VideoModerationComponent {
     const key = this.recoveryItemKey(item);
     const reason = this.recoveryReason(item).trim();
 
-    if (!this.isRecoveryConfirmation(item, action) || this.busyRecoveryKey()) {
+    if (
+      this.cooldowns.notifyIfActive(COOLDOWN_SCOPE.recoveryAction) ||
+      !this.isRecoveryConfirmation(item, action) ||
+      this.busyRecoveryKey()
+    ) {
       return;
     }
 
@@ -369,10 +478,18 @@ export class VideoModerationComponent {
         );
         this.retry();
       },
-      error: () => {
-        this.notification.showError(
-          'Não foi possível concluir a recuperação deste processamento.'
-        );
+      error: (error) => {
+        if (
+          !this.cooldowns.captureResourceExhausted(
+            error,
+            COOLDOWN_SCOPE.recoveryAction,
+            3_000
+          )
+        ) {
+          this.notification.showError(
+            'Não foi possível concluir a recuperação deste processamento.'
+          );
+        }
       },
     });
   }
@@ -473,7 +590,11 @@ export class VideoModerationComponent {
   ): void {
     const key = this.itemKey(item);
 
-    if (!key || this.busyVideoKey()) {
+    if (
+      this.cooldowns.notifyIfActive(COOLDOWN_SCOPE.moderationAction) ||
+      !key ||
+      this.busyVideoKey()
+    ) {
       return;
     }
 
@@ -499,10 +620,18 @@ export class VideoModerationComponent {
         );
         this.retry();
       },
-      error: () => {
-        this.notification.showError(
-          'Não foi possível concluir a revisão deste vídeo.'
-        );
+      error: (error) => {
+        if (
+          !this.cooldowns.captureResourceExhausted(
+            error,
+            COOLDOWN_SCOPE.moderationAction,
+            2_000
+          )
+        ) {
+          this.notification.showError(
+            'Não foi possível concluir a revisão deste vídeo.'
+          );
+        }
       },
     });
   }

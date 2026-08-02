@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import './admin-authorization.policy.test';
 import './media-callable-rate-limit.policy.test';
 import './media-mutation-idempotency.policy.test';
 import './photo-audience-access.policy.test';
