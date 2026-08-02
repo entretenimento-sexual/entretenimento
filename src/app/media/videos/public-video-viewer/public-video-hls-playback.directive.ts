@@ -4,10 +4,13 @@ import {
   Directive,
   ElementRef,
   HostListener,
+  Injector,
   OnDestroy,
   PLATFORM_ID,
   inject,
 } from '@angular/core';
+import { Auth } from '@angular/fire/auth';
+import { Functions } from '@angular/fire/functions';
 import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 
 import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
@@ -30,9 +33,7 @@ export class PublicVideoHlsPlaybackDirective
   private readonly elementRef = inject(ElementRef<HTMLVideoElement>);
   private readonly document = inject(DOCUMENT);
   private readonly platformId = inject(PLATFORM_ID);
-  private readonly coordinator = inject(
-    PublicVideoHlsPlaybackCoordinatorService
-  );
+  private readonly injector = inject(Injector);
   private readonly viewerData = inject<PublicVideoViewerHlsData | null>(
     MAT_DIALOG_DATA,
     { optional: true }
@@ -46,8 +47,24 @@ export class PublicVideoHlsPlaybackDirective
       return;
     }
 
+    /**
+     * HLS é melhoria progressiva. Fixtures isolados, SSR ou uma configuração
+     * sem AngularFire continuam usando o MP4 já presente no elemento, sem
+     * instanciar serviços que dependem de Auth/Functions.
+     */
+    const auth = this.injector.get(Auth, null);
+    const functions = this.injector.get(Functions, null);
+
+    if (!auth || !functions) {
+      this.elementRef.nativeElement.dataset['playbackMode'] = 'mp4';
+      return;
+    }
+
+    const coordinator = this.injector.get(
+      PublicVideoHlsPlaybackCoordinatorService
+    );
     this.currentItemIndex = this.resolveCurrentItemIndex();
-    this.connection = this.coordinator.connect(
+    this.connection = coordinator.connect(
       this.elementRef.nativeElement,
       () => this.resolveCurrentItem()
     );
