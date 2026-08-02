@@ -12,7 +12,10 @@ import {
   buildPublicVideoHlsBundle,
   type PublicVideoHlsPlaylist,
 } from './public-video-hls-manifest.service';
-import { normalizeOwnedProcessedVideoPath } from './video-storage-path';
+import {
+  extractOwnedPrivateVideoPathForId,
+  normalizeOwnedProcessedVideoPath,
+} from './video-storage-path';
 
 interface PublicVideoHlsAccessRequest {
   ownerUid?: string;
@@ -35,9 +38,15 @@ interface BasePublicVideoAccessResponse {
 }
 
 interface PrivateVideoDocument {
+  path?: unknown;
+  url?: unknown;
   processedHlsManifestStoragePath?: unknown;
   processingStage?: unknown;
   processingPipelineVersion?: unknown;
+}
+
+interface VideoPublicationDocument {
+  sourceStoragePath?: unknown;
 }
 
 const HLS_ACCESS_TTL_MS = 30 * 60 * 1000;
@@ -78,6 +87,29 @@ async function assertBasePlaybackAccess(
   }
 }
 
+function assertPublishedSourceMatches(
+  ownerUid: string,
+  videoId: string,
+  video: PrivateVideoDocument,
+  publication: VideoPublicationDocument
+): void {
+  const currentSource =
+    extractOwnedPrivateVideoPathForId(ownerUid, videoId, video.path) ??
+    extractOwnedPrivateVideoPathForId(ownerUid, videoId, video.url);
+  const publishedSource = extractOwnedPrivateVideoPathForId(
+    ownerUid,
+    videoId,
+    publication.sourceStoragePath
+  );
+
+  if (!currentSource || currentSource !== publishedSource) {
+    throw new HttpsError(
+      'failed-precondition',
+      'O streaming adaptativo aguarda a publicação da versão atual do vídeo.'
+    );
+  }
+}
+
 /**
  * Emite os manifests HLS reescritos somente quando o usuário inicia o player.
  * O feed continua recebendo apenas MP4s temporários, evitando assinar centenas
@@ -100,15 +132,20 @@ export const getPublicVideoHlsAccess = onCall<PublicVideoHlsAccessRequest>(
 
     await assertBasePlaybackAccess(request, ownerUid, videoId);
 
-    const videoSnapshot = await db
-      .doc(`users/${ownerUid}/videos/${videoId}`)
-      .get();
+    const [videoSnapshot, publicationSnapshot] = await Promise.all([
+      db.doc(`users/${ownerUid}/videos/${videoId}`).get(),
+      db.doc(`users/${ownerUid}/video_publications/${videoId}`).get(),
+    ]);
 
-    if (!videoSnapshot.exists) {
+    if (!videoSnapshot.exists || !publicationSnapshot.exists) {
       throw new HttpsError('not-found', 'Vídeo não encontrado.');
     }
 
     const video = videoSnapshot.data() as PrivateVideoDocument;
+    const publication =
+      publicationSnapshot.data() as VideoPublicationDocument;
+    assertPublishedSourceMatches(ownerUid, videoId, video, publication);
+
     const processingStage = String(video.processingStage ?? '')
       .trim()
       .toLowerCase();
