@@ -13,6 +13,12 @@ export type TVideoPublicationModerationStatus =
   | 'FLAGGED'
   | 'HIDDEN';
 
+export type TVideoMinimumPlaybackPlan =
+  | 'free'
+  | 'basic'
+  | 'premium'
+  | 'vip';
+
 export interface IVideoPublicationConfig {
   readonly id: string;
   readonly videoId: string;
@@ -28,6 +34,7 @@ export interface IVideoPublicationConfig {
   readonly reactionsEnabled?: boolean;
   readonly commentsEnabled?: boolean;
   readonly ratingsEnabled?: boolean;
+  readonly minimumPlaybackPlan?: TVideoMinimumPlaybackPlan;
   readonly publishedAt?: number | null;
   readonly updatedAt?: number | null;
 }
@@ -38,4 +45,5 @@ export interface IVideoPublicationSettingsInput {
   reactionsEnabled: boolean;
   commentsEnabled: boolean;
   ratingsEnabled: boolean;
+  minimumPlaybackPlan?: TVideoMinimumPlaybackPlan;
 }
