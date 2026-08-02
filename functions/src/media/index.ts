@@ -1,25 +1,20 @@
 // functions/src/media/index.ts
-export { togglePhotoReaction } from './application/toggle-photo-reaction.handler';
-export { toggleVideoReaction } from './application/toggle-video-reaction.handler';
-export { rateVideo } from './application/rate-video.handler';
-export { reportVideoContent } from './application/report-video-content.handler';
 export {
-  reviewVideoContentReport,
-} from './application/review-video-content-report.handler';
-
-export {
+  authorizePublicVideoShare,
   createPhotoComment,
-} from './application/create-photo-comment-orchestrator.handler';
-export {
+  createVideoComment,
   moderatePhotoComment,
-} from './application/manage-photo-comment.handler';
+  moderateVideoComment,
+  rateVideo,
+  reportVideoContent,
+  reviewVideoContentReport,
+  togglePhotoReaction,
+  toggleVideoReaction,
+} from './application/protected-media-callables.handler';
 
 export {
-  createVideoComment,
-} from './application/create-video-comment-orchestrator.handler';
-export {
-  moderateVideoComment,
-} from './application/manage-video-comment.handler';
+  cleanupMediaCallableRateLimits,
+} from './application/media-callable-rate-limit.service';
 
 export {
   publishPhoto,
@@ -119,9 +114,6 @@ export {
 export {
   listAuthorizedPublicVideos,
 } from './application/list-authorized-public-videos.handler';
-export {
-  authorizePublicVideoShare,
-} from './application/authorize-public-video-share.handler';
 
 export {
   issueVideoViewSession,
