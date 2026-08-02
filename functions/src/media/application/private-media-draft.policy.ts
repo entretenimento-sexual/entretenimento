@@ -14,15 +14,23 @@ export interface PrivateMediaDraftUsage {
   videoReservedBytes: number;
 }
 
-export interface PrivateMediaDraftCapacityDecision {
-  allowed: boolean;
-  reason: 'ALLOWED' | 'ITEM_LIMIT' | 'BYTE_LIMIT';
+interface PrivateMediaDraftCapacityDecisionBase {
   currentItems: number;
   currentReservedBytes: number;
   nextItems: number;
   nextReservedBytes: number;
   limit: PrivateMediaDraftLimit;
 }
+
+export type PrivateMediaDraftCapacityDecision =
+  | (PrivateMediaDraftCapacityDecisionBase & {
+      allowed: true;
+      reason: 'ALLOWED';
+    })
+  | (PrivateMediaDraftCapacityDecisionBase & {
+      allowed: false;
+      reason: 'ITEM_LIMIT' | 'BYTE_LIMIT';
+    });
 
 export const PRIVATE_MEDIA_DRAFT_LIFECYCLE_VERSION = 1;
 export const PRIVATE_MEDIA_DRAFT_USAGE_VERSION = 1;
