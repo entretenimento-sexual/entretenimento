@@ -21,6 +21,9 @@
     >
       <div class="profile-videos__upload-copy">
         <h2 id="video-upload-title">Novo vídeo</h2>
+        <p>
+          O vídeo será processado, moderado e encaminhado para publicação. A plataforma não oferece armazenamento pessoal de arquivos.
+        </p>
       </div>
 
       @if (!canUpload) {
@@ -112,7 +115,7 @@
           <form
             class="profile-videos__settings-form profile-videos__upload-composer"
             [formGroup]="uploadPublicationForm"
-            (ngSubmit)="startUpload(true)"
+            (ngSubmit)="startUpload()"
           >
             <label for="new-video-title">
               <span>Título</span>
@@ -172,17 +175,7 @@
                 class="app-action app-action--primary"
                 [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
               >
-                {{ isUploadActive() ? 'Enviando...' : 'Enviar e publicar' }}
-              </button>
-
-              <!-- MANUTENÇÃO: cota, retenção, expiração e elegibilidade por assinatura devem ser validadas no backend; ocultar esta ação não impede abuso de armazenamento. -->
-              <button
-                type="button"
-                class="app-action app-action--ghost"
-                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
-                (click)="startUpload(false)"
-              >
-                Salvar sem publicar
+                {{ isUploadActive() ? 'Enviando...' : 'Enviar para publicação' }}
               </button>
             </div>
           </form>
@@ -384,7 +377,7 @@
 
                 @if (item.video.status === 'queued' || item.video.status === 'processing') {
                   <p class="profile-videos__helper" role="status">
-                    {{ item.publication?.publishWhenReady ? 'Preparando o vídeo para publicação automática.' : 'Preparando o vídeo.' }}
+                    Preparando o vídeo para publicação automática. Você pode sair desta página; o processamento continuará.
                   </p>
                 } @else if (item.video.status === 'failed') {
                   <p class="profile-videos__helper profile-videos__helper--error" role="alert">
@@ -397,6 +390,10 @@
                 } @else if (!isPublicPlaybackCompatible(item.video)) {
                   <p class="profile-videos__helper" role="status">
                     A versão compatível ainda não foi confirmada.
+                  </p>
+                } @else if (!item.publication?.isPublished && !item.publication?.publishWhenReady) {
+                  <p class="profile-videos__helper" role="status">
+                    Este vídeo foi criado antes da publicação obrigatória. Publique-o agora ou exclua o arquivo.
                   </p>
                 }
 
@@ -423,19 +420,7 @@
                       <span>Mais</span>
                     </summary>
                     <div class="profile-videos__more-menu">
-                      @if (item.publication?.isPublished) {
-                        <button
-                          type="button"
-                          (click)="unpublishVideo(item)"
-                          [disabled]="isBusy(item.video.id)"
-                          [attr.aria-busy]="isBusy(item.video.id) ? 'true' : 'false'"
-                        >
-                          <i class="fas fa-eye-slash" aria-hidden="true"></i>
-                          <span>
-                            {{ busyActions?.get(item.video.id) === 'unpublish' ? 'Removendo...' : 'Remover do perfil' }}
-                          </span>
-                        </button>
-                      } @else if (!item.publication?.publishWhenReady) {
+                      @if (!item.publication?.isPublished && !item.publication?.publishWhenReady) {
                         <button
                           type="button"
                           (click)="publishVideo(item)"
@@ -444,7 +429,7 @@
                         >
                           <i class="fas fa-globe" aria-hidden="true"></i>
                           <span>
-                            {{ busyActions?.get(item.video.id) === 'publish' ? 'Preparando...' : 'Publicar no perfil' }}
+                            {{ busyActions?.get(item.video.id) === 'publish' ? 'Preparando...' : 'Publicar agora' }}
                           </span>
                         </button>
                       }
