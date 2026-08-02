@@ -14,14 +14,18 @@ import {
   PHOTO_RANKING_BACKFILL_ID,
   PHOTO_RANKING_BACKFILL_LEASE_MS,
   type PhotoRankingBackfillControlAction,
+  type PhotoRankingBackfillPublicState,
   type PhotoRankingBackfillState,
   buildInitialPhotoRankingBackfillState,
+  buildPhotoRankingBackfillPublicState,
   isPhotoRankingBackfillLeaseAvailable,
   nextPhotoRankingBackfillFailureStatus,
   normalizePhotoRankingBackfillAction,
   normalizePhotoRankingBackfillOperationId,
   normalizePhotoRankingBackfillPageSize,
   normalizePhotoRankingBackfillState,
+  resolvePhotoRankingBackfillControlStatus,
+  resolvePhotoRankingBackfillPostBatchStatus,
 } from './photo-ranking-backfill.policy';
 import {
   buildPhotoRankingUpdate,
@@ -37,7 +41,7 @@ interface ControlPhotoRankingBackfillRequest {
   pageSize?: number;
 }
 
-interface PhotoRankingBackfillBatchResult {
+interface InternalPhotoRankingBackfillBatchResult {
   acquired: boolean;
   completed: boolean;
   processed: number;
@@ -47,8 +51,17 @@ interface PhotoRankingBackfillBatchResult {
   status: PhotoRankingBackfillState['status'];
 }
 
+interface PhotoRankingBackfillBatchResult {
+  acquired: boolean;
+  completed: boolean;
+  processed: number;
+  updated: number;
+  skipped: number;
+  status: PhotoRankingBackfillState['status'];
+}
+
 interface PhotoRankingBackfillStatusResponse {
-  state: PhotoRankingBackfillState;
+  state: PhotoRankingBackfillPublicState;
   leaseActive: boolean;
   checkedAt: number;
 }
@@ -56,7 +69,7 @@ interface PhotoRankingBackfillStatusResponse {
 interface ControlPhotoRankingBackfillResponse {
   action: PhotoRankingBackfillControlAction;
   alreadyApplied: boolean;
-  state: PhotoRankingBackfillState;
+  state: PhotoRankingBackfillPublicState;
   batch: PhotoRankingBackfillBatchResult | null;
 }
 
@@ -73,10 +86,20 @@ function stateRef(): FirebaseFirestore.DocumentReference {
 
 function stateForResponse(
   state: PhotoRankingBackfillState
-): PhotoRankingBackfillState {
+): PhotoRankingBackfillPublicState {
+  return buildPhotoRankingBackfillPublicState(state);
+}
+
+function batchForResponse(
+  batch: InternalPhotoRankingBackfillBatchResult
+): PhotoRankingBackfillBatchResult {
   return {
-    ...state,
-    leaseOwner: state.leaseOwner ? 'active' : null,
+    acquired: batch.acquired,
+    completed: batch.completed,
+    processed: batch.processed,
+    updated: batch.updated,
+    skipped: batch.skipped,
+    status: batch.status,
   };
 }
 
@@ -93,6 +116,7 @@ async function readBackfillState(
 async function acquireBackfillLease(input: {
   runId: string;
   now: number;
+  allowPaused: boolean;
 }): Promise<PhotoRankingBackfillState | null> {
   const ref = stateRef();
 
@@ -103,9 +127,9 @@ async function acquireBackfillLease(input: {
       : buildInitialPhotoRankingBackfillState({ now: input.now });
 
     if (
-      state.status === 'PAUSED' ||
       state.status === 'COMPLETED' ||
-      state.status === 'FAILED'
+      state.status === 'FAILED' ||
+      (state.status === 'PAUSED' && !input.allowPaused)
     ) {
       return null;
     }
@@ -122,7 +146,9 @@ async function acquireBackfillLease(input: {
 
     const nextState: PhotoRankingBackfillState = {
       ...state,
-      status: 'RUNNING',
+      status: input.allowPaused && state.status === 'PAUSED'
+        ? 'PAUSED'
+        : 'RUNNING',
       startedAt: state.startedAt ?? input.now,
       leaseOwner: input.runId,
       leaseExpiresAt: input.now + PHOTO_RANKING_BACKFILL_LEASE_MS,
@@ -234,11 +260,10 @@ async function finalizeBackfillBatch(input: {
 
     const nextState: PhotoRankingBackfillState = {
       ...state,
-      status: state.status === 'PAUSED'
-        ? 'PAUSED'
-        : input.completed
-          ? 'COMPLETED'
-          : 'RUNNING',
+      status: resolvePhotoRankingBackfillPostBatchStatus({
+        currentStatus: state.status,
+        completed: input.completed,
+      }),
       cursorPath: input.cursorPath ?? state.cursorPath,
       processedCount: state.processedCount + input.processed,
       updatedCount: state.updatedCount + input.updated,
@@ -299,12 +324,16 @@ async function markBackfillBatchFailure(input: {
   });
 }
 
-export async function executePhotoRankingBackfillBatch(): Promise<
-  PhotoRankingBackfillBatchResult
-  > {
+export async function executePhotoRankingBackfillBatch(
+  options: { allowPaused?: boolean } = {}
+): Promise<InternalPhotoRankingBackfillBatchResult> {
   const runId = randomUUID();
   const startedAt = Date.now();
-  const leasedState = await acquireBackfillLease({ runId, now: startedAt });
+  const leasedState = await acquireBackfillLease({
+    runId,
+    now: startedAt,
+    allowPaused: options.allowPaused === true,
+  });
 
   if (!leasedState) {
     const state = await readBackfillState(startedAt);
@@ -418,6 +447,13 @@ async function applyAdminControl(input: {
       );
     }
 
+    if (current.status === 'FAILED' && input.action === 'RUN_PAGE') {
+      throw new HttpsError(
+        'failed-precondition',
+        'Retome a migração antes de executar um novo lote.'
+      );
+    }
+
     let nextState: PhotoRankingBackfillState;
 
     if (input.action === 'RESET') {
@@ -435,16 +471,19 @@ async function applyAdminControl(input: {
 
       nextState = {
         ...current,
-        status: input.action === 'PAUSE' ? 'PAUSED' : 'RUNNING',
+        status: resolvePhotoRankingBackfillControlStatus({
+          currentStatus: current.status,
+          action: input.action,
+        }),
         pageSize,
         startedAt: current.startedAt ?? now,
         completedAt: null,
         updatedAt: now,
         lastErrorCode: null,
         lastErrorMessage: null,
-        consecutiveFailures: input.action === 'PAUSE'
-          ? current.consecutiveFailures
-          : 0,
+        consecutiveFailures: input.action === 'START_OR_RESUME'
+          ? 0
+          : current.consecutiveFailures,
       };
     }
 
@@ -521,14 +560,16 @@ export async function controlPhotoRankingBackfillCore(
     };
   }
 
-  const batch = await executePhotoRankingBackfillBatch();
+  const batch = await executePhotoRankingBackfillBatch({
+    allowPaused: true,
+  });
   const state = await readBackfillState();
 
   return {
     action,
     alreadyApplied: false,
     state: stateForResponse(state),
-    batch,
+    batch: batchForResponse(batch),
   };
 }
 

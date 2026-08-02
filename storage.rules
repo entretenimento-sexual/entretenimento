@@ -23,8 +23,9 @@ service firebase.storage {
     function isVideoCreateOrUpdate() {
       return request.resource != null
         && (
-          request.resource.contentType.matches('video/.*')
-          || request.resource.contentType == 'application/mxf'
+          request.resource.contentType == 'video/mp4'
+          || request.resource.contentType == 'video/webm'
+          || request.resource.contentType == 'video/quicktime'
         )
         && request.resource.size <= 500 * 1024 * 1024;
     }
@@ -32,7 +33,8 @@ service firebase.storage {
     // ============================================================
     // Upload bruto e privado do usuário
     // - upload e rollback continuam sob controle do proprietário;
-    // - reprodução usa URL temporária emitida pelo backend.
+    // - reprodução usa URL temporária emitida pelo backend;
+    // - somente formatos processáveis pelo pipeline podem ser enviados.
     // ============================================================
 
     match /users/{uid}/uploads/images/{fileName} {

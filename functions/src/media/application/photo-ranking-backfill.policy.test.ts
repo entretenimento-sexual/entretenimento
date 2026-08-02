@@ -7,6 +7,7 @@ import {
   PHOTO_RANKING_BACKFILL_MAX_CONSECUTIVE_FAILURES,
   PHOTO_RANKING_BACKFILL_MIN_PAGE_SIZE,
   buildInitialPhotoRankingBackfillState,
+  buildPhotoRankingBackfillPublicState,
   isPhotoRankingBackfillLeaseAvailable,
   nextPhotoRankingBackfillFailureStatus,
   normalizePhotoRankingBackfillAction,
@@ -14,6 +15,8 @@ import {
   normalizePhotoRankingBackfillOperationId,
   normalizePhotoRankingBackfillPageSize,
   normalizePhotoRankingBackfillState,
+  resolvePhotoRankingBackfillControlStatus,
+  resolvePhotoRankingBackfillPostBatchStatus,
 } from './photo-ranking-backfill.policy';
 
 describe('photo-ranking-backfill.policy', () => {
@@ -92,6 +95,66 @@ describe('photo-ranking-backfill.policy', () => {
     assert.equal(state.cursorPath, null);
     assert.equal(state.processedCount, 0);
     assert.equal(state.generation, 1);
+  });
+
+  it('remove identificadores internos do estado devolvido ao navegador', () => {
+    const state = buildInitialPhotoRankingBackfillState({ now: 10_000 });
+    state.cursorPath = 'public_profiles/u/public_photos/p';
+    state.leaseOwner = 'lease-secret';
+    state.leaseExpiresAt = 30_000;
+    state.lastAdminOperationId = 'operation_123';
+    state.lastAdminBy = 'admin-secret';
+    state.lastAdminAction = 'RUN_PAGE';
+
+    const publicState = buildPhotoRankingBackfillPublicState(state);
+
+    assert.equal(publicState.lastAdminAction, 'RUN_PAGE');
+    assert.equal('cursorPath' in publicState, false);
+    assert.equal('leaseOwner' in publicState, false);
+    assert.equal('leaseExpiresAt' in publicState, false);
+    assert.equal('lastAdminOperationId' in publicState, false);
+    assert.equal('lastAdminBy' in publicState, false);
+  });
+
+  it('mantém lote manual pausado quando a execução não estava automática', () => {
+    assert.equal(
+      resolvePhotoRankingBackfillControlStatus({
+        currentStatus: 'PAUSED',
+        action: 'RUN_PAGE',
+      }),
+      'PAUSED'
+    );
+    assert.equal(
+      resolvePhotoRankingBackfillControlStatus({
+        currentStatus: 'IDLE',
+        action: 'RUN_PAGE',
+      }),
+      'PAUSED'
+    );
+    assert.equal(
+      resolvePhotoRankingBackfillControlStatus({
+        currentStatus: 'RUNNING',
+        action: 'RUN_PAGE',
+      }),
+      'RUNNING'
+    );
+  });
+
+  it('prioriza conclusão sobre uma pausa solicitada no último lote', () => {
+    assert.equal(
+      resolvePhotoRankingBackfillPostBatchStatus({
+        currentStatus: 'PAUSED',
+        completed: true,
+      }),
+      'COMPLETED'
+    );
+    assert.equal(
+      resolvePhotoRankingBackfillPostBatchStatus({
+        currentStatus: 'PAUSED',
+        completed: false,
+      }),
+      'PAUSED'
+    );
   });
 
   it('impede concorrência até o lease expirar', () => {

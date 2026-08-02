@@ -210,7 +210,7 @@ export class PhotoRankingBackfillComponent {
   }
 
   canRunPage(status: AdminPhotoRankingBackfillStatus): boolean {
-    return status !== 'COMPLETED';
+    return status === 'IDLE' || status === 'RUNNING' || status === 'PAUSED';
   }
 
   statusLabel(status: AdminPhotoRankingBackfillStatus): string {
@@ -328,12 +328,17 @@ export class PhotoRankingBackfillComponent {
         return 'Pausa registrada. O lote ativo terminará antes da interrupção.';
       case 'RESET':
         return 'Nova geração criada. A migração recomeçará do primeiro documento.';
-      case 'RUN_PAGE':
+      case 'RUN_PAGE': {
         if (!result.batch?.acquired) {
           return 'Já existe um lote ativo. Nenhum processamento paralelo foi iniciado.';
         }
 
-        return `Lote concluído: ${result.batch.processed} foto(s) examinada(s), ${result.batch.updated} atualizada(s) e ${result.batch.skipped} ignorada(s).`;
+        const summary = `Lote concluído: ${result.batch.processed} foto(s) examinada(s), ${result.batch.updated} atualizada(s) e ${result.batch.skipped} ignorada(s).`;
+
+        return result.state.status === 'PAUSED'
+          ? `${summary} A migração permanece pausada.`
+          : summary;
+      }
     }
   }
 

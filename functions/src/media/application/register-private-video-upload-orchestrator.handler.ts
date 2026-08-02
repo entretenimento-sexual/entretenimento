@@ -17,6 +17,10 @@ import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
+import {
+  isSupportedVideoUploadMimeType,
+  normalizeVideoUploadMimeType,
+} from './video-upload-format.policy';
 
 interface RegisterPrivateVideoUploadRequest
   extends VideoPublicationSettingsInput {
@@ -346,7 +350,8 @@ function resolveOwnedUploadAssets(
 /**
  * Registra o upload e só responde depois que a fila idempotente foi persistida.
  * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
- * A elegibilidade é revalidada no backend antes do registro definitivo.
+ * A elegibilidade e o formato processável são revalidados no backend antes do
+ * registro definitivo.
  */
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
@@ -356,11 +361,22 @@ export const registerPrivateVideoUpload = onCall<
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
+    const requestedMimeType = normalizeVideoUploadMimeType(
+      request.data?.mimeType
+    );
     const assets = ownerUid && videoId
       ? resolveOwnedUploadAssets(ownerUid, videoId, request.data)
       : null;
 
     if (requesterUid && requesterUid === ownerUid && assets) {
+      if (!isSupportedVideoUploadMimeType(requestedMimeType)) {
+        await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
+        throw new HttpsError(
+          'failed-precondition',
+          'Envie um vídeo MP4, M4V, MOV ou WebM compatível.'
+        );
+      }
+
       try {
         await assertPrivateVideoUploadEligibility(ownerUid);
       } catch (error) {
