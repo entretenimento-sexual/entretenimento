@@ -1,6 +1,7 @@
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import {
   AfterViewInit,
+  DestroyRef,
   Directive,
   ElementRef,
   NgZone,
@@ -8,6 +9,14 @@ import {
   PLATFORM_ID,
   inject,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { take } from 'rxjs/operators';
+
+import {
+  TVideoViewSource,
+  VideoViewTrackingService,
+} from 'src/app/core/services/media/video-view-tracking.service';
 
 export const PUBLIC_VIDEO_VIEW_MIN_PLAYBACK_MS = 3_000;
 export const PUBLIC_VIDEO_VIEW_MAX_PLAYBACK_MS = 10_000;
@@ -19,6 +28,10 @@ export interface PublicVideoQualifiedViewDetail {
   playbackMs: number;
   durationMs: number;
   qualifiedAt: number;
+}
+
+interface PublicVideoViewContext {
+  source?: TVideoViewSource;
 }
 
 export function calculatePublicVideoQualifiedPlaybackMs(
@@ -58,10 +71,17 @@ export class PublicVideoViewQualificationDirective
   private readonly document = inject(DOCUMENT);
   private readonly ngZone = inject(NgZone);
   private readonly platformId = inject(PLATFORM_ID);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly viewTracking = inject(VideoViewTrackingService);
+  private readonly viewerContext = inject<PublicVideoViewContext | null>(
+    MAT_DIALOG_DATA,
+    { optional: true }
+  );
 
   private readonly cleanupListeners: Array<() => void> = [];
   private identity = '';
   private sessionId = '';
+  private preparingIdentity = '';
   private mediaPlaybackMs = 0;
   private activeWallMs = 0;
   private activeStartedAt: number | null = null;
@@ -99,25 +119,114 @@ export class PublicVideoViewQualificationDirective
     }
   }
 
-  resetForVideo(identity: string): void {
+  /**
+   * Preserva o método existente. Quando a sessão não é fornecida, a diretiva
+   * solicita ao backend uma sessão curta vinculada ao usuário e ao vídeo.
+   */
+  resetForVideo(identity: string, sessionId = ''): void {
     const normalizedIdentity = String(identity ?? '').trim();
+    const normalizedSessionId = this.normalizeSessionId(sessionId);
+    const identityChanged = normalizedIdentity !== this.identity;
 
-    if (!normalizedIdentity || normalizedIdentity === this.identity) {
+    if (identityChanged) {
+      this.stopActivePlayback(false);
+      this.identity = normalizedIdentity;
+      this.sessionId = '';
+      this.preparingIdentity = '';
+      this.resetPlaybackEvidence();
+    }
+
+    if (!this.identity) {
+      return;
+    }
+
+    if (normalizedSessionId) {
+      if (normalizedSessionId !== this.sessionId) {
+        this.applySession(normalizedSessionId);
+      }
+      return;
+    }
+
+    if (!this.sessionId) {
+      this.prepareBackendSession();
+    }
+  }
+
+  private prepareBackendSession(): void {
+    if (!this.identity || this.preparingIdentity === this.identity) {
+      return;
+    }
+
+    const separatorIndex = this.identity.indexOf(':');
+    const ownerUid = separatorIndex > 0
+      ? this.identity.slice(0, separatorIndex).trim()
+      : '';
+    const videoId = separatorIndex > 0
+      ? this.identity.slice(separatorIndex + 1).trim()
+      : '';
+    const prepareSession = this.viewTracking.prepareVideoViewSession$?.bind(
+      this.viewTracking
+    );
+
+    if (
+      !ownerUid ||
+      !videoId ||
+      videoId.includes(':') ||
+      typeof prepareSession !== 'function'
+    ) {
+      return;
+    }
+
+    const requestedIdentity = this.identity;
+    const source = this.viewerContext?.source ?? 'unknown';
+    this.preparingIdentity = requestedIdentity;
+
+    prepareSession(ownerUid, videoId, source)
+      .pipe(
+        take(1),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((session) => {
+        if (this.preparingIdentity === requestedIdentity) {
+          this.preparingIdentity = '';
+        }
+
+        if (
+          !session ||
+          this.identity !== requestedIdentity ||
+          session.ownerUid !== ownerUid ||
+          session.videoId !== videoId
+        ) {
+          return;
+        }
+
+        this.applySession(session.sessionId);
+      });
+  }
+
+  private applySession(sessionId: string): void {
+    const normalizedSessionId = this.normalizeSessionId(sessionId);
+
+    if (!normalizedSessionId) {
       return;
     }
 
     this.stopActivePlayback(false);
-    this.identity = normalizedIdentity;
-    this.sessionId = this.createSessionId();
-    this.mediaPlaybackMs = 0;
-    this.activeWallMs = 0;
-    this.lastMediaTimeMs = this.currentMediaTimeMs();
-    this.emitted = false;
+    this.sessionId = normalizedSessionId;
+    this.resetPlaybackEvidence();
 
     const video = this.elementRef.nativeElement;
-    if (!video.paused && !video.seeking) {
+    if (!video.paused && !video.seeking && !video.ended) {
       this.startActivePlayback();
     }
+  }
+
+  private resetPlaybackEvidence(): void {
+    this.mediaPlaybackMs = 0;
+    this.activeWallMs = 0;
+    this.activeStartedAt = null;
+    this.lastMediaTimeMs = this.currentMediaTimeMs();
+    this.emitted = false;
   }
 
   private onLoadedMetadata(): void {
@@ -159,6 +268,7 @@ export class PublicVideoViewQualificationDirective
   private startActivePlayback(): void {
     if (
       !this.identity ||
+      !this.sessionId ||
       this.emitted ||
       this.document.visibilityState === 'hidden' ||
       this.activeStartedAt !== null
@@ -261,19 +371,14 @@ export class PublicVideoViewQualificationDirective
     return this.document.defaultView?.performance?.now() ?? Date.now();
   }
 
-  private createSessionId(): string {
-    const randomUuid = globalThis.crypto?.randomUUID?.();
+  private normalizeSessionId(value: unknown): string {
+    const sessionId = String(value ?? '').trim();
 
-    if (randomUuid) {
-      return randomUuid.replace(/-/g, '_');
-    }
-
-    return [
-      'view',
-      Date.now().toString(36),
-      Math.random().toString(36).slice(2),
-      Math.random().toString(36).slice(2),
-    ].join('_');
+    return sessionId.length >= 32 &&
+      sessionId.length <= 128 &&
+      /^[A-Za-z0-9_-]+$/.test(sessionId)
+      ? sessionId
+      : '';
   }
 
   private listen(

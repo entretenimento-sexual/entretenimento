@@ -29,6 +29,24 @@ export interface VideoViewPlaybackEvidence {
   qualifiedAt: number;
 }
 
+export interface VideoViewSession {
+  ownerUid: string;
+  videoId: string;
+  sessionId: string;
+  issuedAt: number;
+  expiresAt: number;
+}
+
+interface IssueVideoViewSessionRequest {
+  ownerUid: string;
+  videoId: string;
+  source: TVideoViewSource;
+}
+
+interface IssueVideoViewSessionResponse extends VideoViewSession {
+  ok: true;
+}
+
 interface RecordVideoViewRequest {
   ownerUid: string;
   videoId: string;
@@ -45,12 +63,25 @@ interface RecordVideoViewResponse {
   retryAfterMs: number;
 }
 
+interface VideoViewTrackingError extends Error {
+  original?: unknown;
+  context?: Record<string, unknown>;
+  skipUserNotification?: boolean;
+}
+
+const SESSION_EXPIRY_SAFETY_WINDOW_MS = 15_000;
+
 @Injectable({ providedIn: 'root' })
 export class VideoViewTrackingService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly functions = inject(Functions);
   private readonly nextEligibleAt = new Map<string, number>();
   private readonly inFlight = new Map<string, Observable<void>>();
+  private readonly sessions = new Map<string, VideoViewSession>();
+  private readonly sessionInFlight = new Map<
+    string,
+    Observable<VideoViewSession | null>
+  >();
   private lastSessionUid: string | null | undefined = undefined;
 
   constructor(
@@ -72,10 +103,82 @@ export class VideoViewTrackingService {
         ) {
           this.nextEligibleAt.clear();
           this.inFlight.clear();
+          this.sessions.clear();
+          this.sessionInFlight.clear();
         }
 
         this.lastSessionUid = normalizedUid;
       });
+  }
+
+  prepareVideoViewSession$(
+    ownerUid: string,
+    videoId: string,
+    source: TVideoViewSource = 'unknown'
+  ): Observable<VideoViewSession | null> {
+    const safeOwnerUid = (ownerUid ?? '').trim();
+    const safeVideoId = (videoId ?? '').trim();
+
+    if (!safeOwnerUid || !safeVideoId) {
+      return of(null);
+    }
+
+    const viewKey = this.buildViewKey(safeOwnerUid, safeVideoId);
+    const cached = this.sessions.get(viewKey);
+
+    if (
+      cached &&
+      cached.expiresAt > Date.now() + SESSION_EXPIRY_SAFETY_WINDOW_MS
+    ) {
+      return of(cached);
+    }
+
+    this.sessions.delete(viewKey);
+
+    const pending = this.sessionInFlight.get(viewKey);
+    if (pending) {
+      return pending;
+    }
+
+    const request$ = this.firestoreCtx.deferPromise$(async () => {
+      const callable = httpsCallable<
+        IssueVideoViewSessionRequest,
+        IssueVideoViewSessionResponse
+      >(this.functions, 'issueVideoViewSession');
+      const response = await callable({
+        ownerUid: safeOwnerUid,
+        videoId: safeVideoId,
+        source,
+      });
+
+      return response.data;
+    }).pipe(
+      map((candidate) => this.normalizeSession(
+        candidate,
+        safeOwnerUid,
+        safeVideoId
+      )),
+      map((session) => {
+        if (session) {
+          this.sessions.set(viewKey, session);
+        }
+        return session;
+      }),
+      catchError((error: unknown) => {
+        this.reportError(error, {
+          op: 'prepareVideoViewSession$',
+          hasOwnerUid: true,
+          hasVideoId: true,
+          source,
+        });
+        return of(null);
+      }),
+      finalize(() => this.sessionInFlight.delete(viewKey)),
+      shareReplay({ bufferSize: 1, refCount: false })
+    );
+
+    this.sessionInFlight.set(viewKey, request$);
+    return request$;
   }
 
   recordVideoView$(
@@ -92,10 +195,22 @@ export class VideoViewTrackingService {
       return of(void 0);
     }
 
-    const viewKey = `${safeOwnerUid}:${safeVideoId}`;
+    const viewKey = this.buildViewKey(safeOwnerUid, safeVideoId);
+    const preparedSession = this.sessions.get(viewKey);
+
+    if (
+      !preparedSession ||
+      preparedSession.sessionId !== safeEvidence.sessionId ||
+      preparedSession.expiresAt <= Date.now()
+    ) {
+      this.sessions.delete(viewKey);
+      return of(void 0);
+    }
+
     const now = Date.now();
 
     if ((this.nextEligibleAt.get(viewKey) ?? 0) > now) {
+      this.sessions.delete(viewKey);
       return of(void 0);
     }
 
@@ -103,6 +218,9 @@ export class VideoViewTrackingService {
     if (pending) {
       return pending;
     }
+
+    // A sessão é de uso único. Uma falha de rede exige nova emissão.
+    this.sessions.delete(viewKey);
 
     const request$ = this.firestoreCtx.deferPromise$(async () => {
       const callable = httpsCallable<
@@ -148,6 +266,45 @@ export class VideoViewTrackingService {
     return request$;
   }
 
+  private buildViewKey(ownerUid: string, videoId: string): string {
+    return `${ownerUid}:${videoId}`;
+  }
+
+  private normalizeSession(
+    candidate: IssueVideoViewSessionResponse,
+    expectedOwnerUid: string,
+    expectedVideoId: string
+  ): VideoViewSession | null {
+    const ownerUid = String(candidate?.ownerUid ?? '').trim();
+    const videoId = String(candidate?.videoId ?? '').trim();
+    const sessionId = String(candidate?.sessionId ?? '').trim();
+    const issuedAt = Number(candidate?.issuedAt ?? 0);
+    const expiresAt = Number(candidate?.expiresAt ?? 0);
+
+    if (
+      candidate?.ok !== true ||
+      ownerUid !== expectedOwnerUid ||
+      videoId !== expectedVideoId ||
+      sessionId.length < 32 ||
+      sessionId.length > 128 ||
+      !/^[A-Za-z0-9_-]+$/.test(sessionId) ||
+      !Number.isFinite(issuedAt) ||
+      issuedAt <= 0 ||
+      !Number.isFinite(expiresAt) ||
+      expiresAt <= Date.now() + SESSION_EXPIRY_SAFETY_WINDOW_MS
+    ) {
+      return null;
+    }
+
+    return {
+      ownerUid,
+      videoId,
+      sessionId,
+      issuedAt: Math.floor(issuedAt),
+      expiresAt: Math.floor(expiresAt),
+    };
+  }
+
   private normalizeEvidence(
     evidence: VideoViewPlaybackEvidence | undefined
   ): VideoViewPlaybackEvidence | null {
@@ -161,7 +318,7 @@ export class VideoViewTrackingService {
     const qualifiedAt = Number(evidence.qualifiedAt);
 
     if (
-      sessionId.length < 16 ||
+      sessionId.length < 32 ||
       sessionId.length > 128 ||
       !/^[A-Za-z0-9_-]+$/.test(sessionId) ||
       !Number.isFinite(playbackMs) ||
@@ -187,20 +344,20 @@ export class VideoViewTrackingService {
     context: Record<string, unknown>
   ): void {
     try {
-      const normalizedError = error instanceof Error
+      const normalizedError: VideoViewTrackingError = error instanceof Error
         ? error
         : new Error('Erro ao registrar visualização do vídeo.');
 
-      (normalizedError as any).original = error;
-      (normalizedError as any).context = {
+      normalizedError.original = error;
+      normalizedError.context = {
         scope: 'VideoViewTrackingService',
         ...context,
       };
-      (normalizedError as any).skipUserNotification = true;
+      normalizedError.skipUserNotification = true;
 
       this.errorHandler.handleError(normalizedError);
     } catch {
-      // noop
+      // Métricas não podem interromper a reprodução do vídeo.
     }
   }
 }

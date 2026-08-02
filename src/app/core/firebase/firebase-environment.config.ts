@@ -19,6 +19,14 @@ interface FirebaseDebugWindow extends Window {
   DBG?: (...args: unknown[]) => void;
 }
 
+interface RuntimeProcessLike {
+  env?: Record<string, string | undefined>;
+}
+
+interface RuntimeGlobalLike {
+  process?: RuntimeProcessLike;
+}
+
 export function isBrowserRuntime(): boolean {
   return typeof window !== 'undefined';
 }
@@ -72,10 +80,18 @@ export function getFirebaseEmulatorEndpoint(
   );
 }
 
+function isUnitTestRuntime(): boolean {
+  const processLike = (globalThis as RuntimeGlobalLike).process;
+  const env = processLike?.env;
+
+  return env?.['VITEST'] === 'true' || env?.['NODE_ENV'] === 'test';
+}
+
 export function isFirebaseAppCheckEnabled(): boolean {
   return (
     environment.appCheck?.enabled === true &&
-    !isFirebaseEmulatorSuiteEnabled()
+    !isFirebaseEmulatorSuiteEnabled() &&
+    !isUnitTestRuntime()
   );
 }
 

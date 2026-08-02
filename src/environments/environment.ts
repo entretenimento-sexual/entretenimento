@@ -39,9 +39,11 @@ export const environment: AppEnvironment = {
   },
 
   appCheck: {
-    enabled: false,
+    // Dev-real usa o mesmo app Firebase e as mesmas Functions protegidas.
+    // Localhost precisa estar autorizado no provedor reCAPTCHA/App Check.
+    enabled: true,
     provider: 'reCaptchaV3',
-    siteKey: 'dev-recaptcha-v3-site-key',
+    siteKey: '6LcL3k8tAAAAALjZRaY4sQiD40xSnkNqtXVed-dI',
   },
 
   // 🔐 Integrações externas
