@@ -12,19 +12,9 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
-import {
-  BehaviorSubject,
-  EMPTY,
-  Observable,
-  combineLatest,
-  firstValueFrom,
-  from,
-  of,
-  throwError,
-} from 'rxjs';
+import { BehaviorSubject, EMPTY, Observable, combineLatest, of } from 'rxjs';
 import {
   catchError,
-  concatMap,
   distinctUntilChanged,
   map,
   shareReplay,
@@ -37,7 +27,6 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/photo-editor-session.service';
-import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 import {
   IPhotoFlowResult,
   IPhotoUploadFlowEvent,
@@ -49,7 +38,6 @@ import {
   MediaPolicyDenyReason,
   MediaPolicyService,
 } from 'src/app/core/services/media/media-policy.service';
-import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { environment } from 'src/environments/environment';
 
 const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
@@ -81,8 +69,6 @@ export class PhotoUploadComponent {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
   private readonly photoUploadFlow = inject(PhotoUploadFlowService);
-  private readonly photoFirestore = inject(PhotoFirestoreService);
-  private readonly mediaPublication = inject(MediaPublicationService);
   private readonly photoEditorSession = inject(PhotoEditorSessionService);
 
   private readonly DEBUG =
@@ -278,19 +264,17 @@ export class PhotoUploadComponent {
             originalFileName: file.name,
             mimeType: file.type,
           }).pipe(
-            concatMap((event: IPhotoUploadFlowEvent) => {
+            tap((event: IPhotoUploadFlowEvent) => {
               if (event.type === 'progress') {
                 this.uploadPercentSubject.next(event.progress);
-                return EMPTY;
+                this.phaseSubject.next(
+                  event.progress >= 100 ? 'PUBLISHING' : 'UPLOADING'
+                );
+                return;
               }
 
-              this.debug('uploadSuccess', event.result);
-              this.phaseSubject.next('PUBLISHING');
-              this.uploadPercentSubject.next(100);
-
-              return this.publishUploadedPhoto$(ownerUid, event.result).pipe(
-                tap(() => this.completePublishedPhoto(event.result))
-              );
+              this.debug('uploadAndPublicationSuccess', event.result);
+              this.completePublishedPhoto(event.result);
             }),
             catchError((error) => {
               this.phaseSubject.next('READY');
@@ -415,12 +399,7 @@ export class PhotoUploadComponent {
         return;
       }
 
-      const result = payload.photo as IPhotoFlowResult;
-      this.phaseSubject.next('PUBLISHING');
-      this.uploadPercentSubject.next(100);
-
-      await firstValueFrom(this.publishUploadedPhoto$(ownerUid, result));
-      this.completePublishedPhoto(result);
+      this.completePublishedPhoto(payload.photo as IPhotoFlowResult);
     } catch (error) {
       if (error !== 'close' && error !== 'dismiss') {
         this.phaseSubject.next('READY');
@@ -441,57 +420,12 @@ export class PhotoUploadComponent {
     }
   }
 
-  private publishUploadedPhoto$(
-    ownerUid: string,
-    result: IPhotoFlowResult
-  ): Observable<void> {
-    return this.mediaPublication.publishPhoto$({
-      ownerUid,
-      photo: {
-        id: result.photoId,
-        ownerUid,
-        url: result.url,
-        alt: result.fileName,
-        createdAt: result.createdAt.getTime(),
-        path: result.path,
-        fileName: result.fileName,
-      },
-      visibility: 'PUBLIC',
-      isCover: false,
-      orderIndex: 0,
-      commentsEnabled: true,
-      commentsPolicy: 'EVERYONE',
-      reactionsEnabled: true,
-    }).pipe(
-      catchError((publicationError) =>
-        from(
-          this.photoFirestore.deletePhoto(
-            ownerUid,
-            result.photoId,
-            result.path
-          )
-        ).pipe(
-          catchError((cleanupError) => {
-            this.reportSilent(cleanupError, {
-              op: 'publishUploadedPhoto$.rollback',
-              ownerUid,
-              photoId: result.photoId,
-              hasStoragePath: !!result.path,
-            });
-            return of(void 0);
-          }),
-          switchMap(() => throwError(() => publicationError))
-        )
-      )
-    );
-  }
-
   private completePublishedPhoto(result: IPhotoFlowResult): void {
     this.phaseSubject.next('DONE');
     this.uploadedPhotoIdSubject.next(result.photoId);
     this.uploadPercentSubject.next(100);
 
-    if (result.url) {
+    if (/^https?:\/\//i.test(String(result.url ?? '').trim())) {
       this.revokePreviewUrl();
       this.previewUrlSubject.next(result.url);
     }
@@ -581,27 +515,6 @@ export class PhotoUploadComponent {
         return `Assinatura necessária para ${actionLabel}.`;
       default:
         return `Não foi possível autorizar ${actionLabel} agora.`;
-    }
-  }
-
-  private reportSilent(
-    error: unknown,
-    context?: Record<string, unknown>
-  ): void {
-    try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha secundária no fluxo de publicação da foto.');
-      (normalized as any).original = error;
-      (normalized as any).context = {
-        scope: 'PhotoUploadComponent',
-        ...(context ?? {}),
-      };
-      (normalized as any).silent = true;
-      (normalized as any).skipUserNotification = true;
-      this.errorHandler.handleError(normalized);
-    } catch {
-      // A telemetria não pode quebrar o rollback.
     }
   }
 
