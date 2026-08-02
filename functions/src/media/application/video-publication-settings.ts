@@ -1,9 +1,15 @@
+import {
+  normalizePublicVideoMinimumPlaybackPlan,
+  type PublicVideoMinimumPlaybackPlan,
+} from './public-video-playback-plan.policy';
+
 export interface VideoPublicationSettingsInput {
   title?: unknown;
   description?: unknown;
   reactionsEnabled?: unknown;
   commentsEnabled?: unknown;
   ratingsEnabled?: unknown;
+  minimumPlaybackPlan?: unknown;
 }
 
 export interface VideoPublicationSettings {
@@ -12,6 +18,7 @@ export interface VideoPublicationSettings {
   reactionsEnabled: boolean;
   commentsEnabled: boolean;
   ratingsEnabled: boolean;
+  minimumPlaybackPlan: PublicVideoMinimumPlaybackPlan;
 }
 
 function replaceControlCharacters(value: string): string {
@@ -58,6 +65,9 @@ export function normalizeVideoPublicationSettings(
     ratingsEnabled: normalizeBoolean(
       input?.ratingsEnabled,
       defaults.ratingsEnabled ?? true
+    ),
+    minimumPlaybackPlan: normalizePublicVideoMinimumPlaybackPlan(
+      input?.minimumPlaybackPlan ?? defaults.minimumPlaybackPlan
     ),
   };
 }
