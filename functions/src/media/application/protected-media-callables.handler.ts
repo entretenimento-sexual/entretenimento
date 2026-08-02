@@ -20,9 +20,12 @@ import {
 } from './rate-video.handler';
 import {
   reportVideoContent as reportVideoContentCore,
+  type VideoReportReason,
+  type VideoReportTargetType,
 } from './report-video-content.handler';
 import {
   reviewVideoContentReport as reviewVideoContentReportCore,
+  type VideoContentReportDecision,
 } from './review-video-content-report.handler';
 import {
   togglePhotoReaction as togglePhotoReactionCore,
@@ -32,38 +35,51 @@ import {
 } from './toggle-video-reaction.handler';
 
 interface PhotoTargetRequest {
-  ownerUid?: unknown;
-  photoId?: unknown;
+  ownerUid?: string;
+  photoId?: string;
 }
 
 interface VideoTargetRequest {
-  ownerUid?: unknown;
-  videoId?: unknown;
+  ownerUid?: string;
+  videoId?: string;
 }
 
 interface CreatePhotoCommentRequest extends PhotoTargetRequest {
-  parentCommentId?: unknown;
+  content?: string;
+  parentCommentId?: string | null;
 }
 
 interface ModeratePhotoCommentRequest extends PhotoTargetRequest {
-  commentId?: unknown;
+  commentId?: string;
+  action?: 'HIDE' | 'RESTORE' | 'DELETE';
 }
 
 interface CreateVideoCommentRequest extends VideoTargetRequest {
-  parentCommentId?: unknown;
+  content?: string;
+  parentCommentId?: string | null;
 }
 
 interface ModerateVideoCommentRequest extends VideoTargetRequest {
-  commentId?: unknown;
+  commentId?: string;
+  action?: 'HIDE' | 'RESTORE' | 'DELETE';
+}
+
+interface RateVideoRequest extends VideoTargetRequest {
+  rating?: number;
 }
 
 interface ReportVideoContentRequest extends VideoTargetRequest {
-  targetType?: unknown;
-  targetId?: unknown;
+  targetType?: VideoReportTargetType;
+  targetId?: string | null;
+  reason?: VideoReportReason;
+  details?: string | null;
+  route?: string | null;
 }
 
 interface ReviewVideoContentReportRequest {
-  reportId?: unknown;
+  reportId?: string;
+  decision?: VideoContentReportDecision;
+  resolution?: string | null;
 }
 
 function cleanActorUid(value: unknown): string {
@@ -209,7 +225,7 @@ export const moderateVideoComment = onCall<ModerateVideoCommentRequest>(
   }
 );
 
-export const rateVideo = onCall<VideoTargetRequest>(
+export const rateVideo = onCall<RateVideoRequest>(
   PROTECTED_CALLABLE_OPTIONS,
   async (request) => {
     await consumeLimit({
