@@ -85,6 +85,10 @@ export {
 } from './application/video-processing.handler';
 
 export {
+  finalizeVideoProcessingVariants,
+} from './application/finalize-video-processing-variants.handler';
+
+export {
   cleanupRetriedVideoProcessingOutputs,
 } from './application/admin-video-processing-recovery.handler';
 
