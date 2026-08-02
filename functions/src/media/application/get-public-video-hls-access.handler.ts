@@ -1,7 +1,11 @@
 import { posix } from 'node:path';
 
 import { logger } from 'firebase-functions';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import {
+  HttpsError,
+  onCall,
+  type CallableRequest,
+} from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
@@ -63,17 +67,20 @@ function normalizeErrorMessage(error: unknown): string {
 }
 
 async function assertBasePlaybackAccess(
-  request: Parameters<typeof getPublicVideoAccessUrlsCore.run>[0],
+  request: CallableRequest<PublicVideoHlsAccessRequest>,
   ownerUid: string,
   videoId: string
 ): Promise<void> {
+  type BaseAccessRequest =
+    Parameters<typeof getPublicVideoAccessUrlsCore.run>[0];
+  const baseRequest = {
+    ...request,
+    data: {
+      items: [{ ownerUid, videoId }],
+    },
+  } as unknown as BaseAccessRequest;
   const response = (
-    await getPublicVideoAccessUrlsCore.run({
-      ...request,
-      data: {
-        items: [{ ownerUid, videoId }],
-      },
-    } as Parameters<typeof getPublicVideoAccessUrlsCore.run>[0])
+    await getPublicVideoAccessUrlsCore.run(baseRequest)
   ) as BasePublicVideoAccessResponse;
   const authorized = response.items?.some((item) =>
     cleanId(item.ownerUid) === ownerUid && cleanId(item.videoId) === videoId
