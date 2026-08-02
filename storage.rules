@@ -30,6 +30,13 @@ service firebase.storage {
         && request.resource.size <= 500 * 1024 * 1024;
     }
 
+    function isCaptionCreateOrUpdate(fileName) {
+      return request.resource != null
+        && fileName.matches('.*[.]vtt')
+        && request.resource.contentType == 'text/vtt'
+        && request.resource.size <= 1024 * 1024;
+    }
+
     function isPhotoSourceSlot(slot) {
       return slot == 'source-a' || slot == 'source-b';
     }
@@ -77,6 +84,15 @@ service firebase.storage {
     match /users/{uid}/uploads/video-posters/{videoId}/{fileName} {
       allow read: if false;
       allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+      allow delete: if isSelf(uid);
+    }
+
+    // Legendas WebVTT permanecem privadas e só são lidas por URL temporária
+    // emitida após nova validação da publicação e da audiência.
+    match /users/{uid}/uploads/video-captions/{videoId}/{fileName} {
+      allow read: if false;
+      allow create, update: if isSelf(uid)
+        && isCaptionCreateOrUpdate(fileName);
       allow delete: if isSelf(uid);
     }
 
