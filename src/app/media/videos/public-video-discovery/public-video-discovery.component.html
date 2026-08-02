@@ -1,0 +1,125 @@
+@if (state$ | async; as state) {
+  <section class="video-discovery" aria-labelledby="video-discovery-title">
+    <header class="video-discovery__header">
+      <div>
+        <p class="video-discovery__eyebrow">Descoberta complementar</p>
+        <h1 id="video-discovery-title">Vídeos públicos</h1>
+        <p>
+          Conteúdos dos perfis para conhecer melhor as pessoas, sem reprodução automática.
+        </p>
+      </div>
+
+      <div
+        class="video-discovery__modes"
+        role="group"
+        aria-label="Ordenação dos vídeos"
+      >
+        <button
+          type="button"
+          class="app-action app-action--ghost"
+          [class.video-discovery__mode--active]="state.mode === 'latest'"
+          [attr.aria-pressed]="state.mode === 'latest'"
+          (click)="selectMode('latest')"
+        >
+          Recentes
+        </button>
+        <button
+          type="button"
+          class="app-action app-action--ghost"
+          [class.video-discovery__mode--active]="state.mode === 'top'"
+          [attr.aria-pressed]="state.mode === 'top'"
+          (click)="selectMode('top')"
+        >
+          Em destaque
+        </button>
+      </div>
+    </header>
+
+    @if (state.status === 'loading') {
+      <div class="video-discovery__status" role="status" aria-live="polite">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Carregando vídeos disponíveis.</span>
+      </div>
+    } @else if (state.status === 'empty') {
+      <div class="video-discovery__status" role="status">
+        <i class="fas fa-video-slash" aria-hidden="true"></i>
+        <strong>Nenhum vídeo disponível nesta seleção.</strong>
+        <span>Isso também pode ocorrer quando o conteúdo exige outro plano ou não está elegível para sua conta.</span>
+        <button
+          type="button"
+          class="app-action app-action--ghost"
+          (click)="retry()"
+        >
+          Atualizar
+        </button>
+      </div>
+    } @else {
+      <div class="video-discovery__grid" aria-label="Lista de vídeos públicos">
+        @for (item of state.items; track trackByVideoId($index, item); let index = $index) {
+          <article class="video-discovery__card">
+            <button
+              type="button"
+              class="video-discovery__poster"
+              [attr.aria-label]="'Abrir vídeo: ' + item.title"
+              [disabled]="openingVideoId() !== null"
+              (click)="openVideo(index)"
+            >
+              @if (hasPoster(item)) {
+                <img
+                  [src]="item.posterUrl"
+                  [alt]="item.alt"
+                  width="360"
+                  height="640"
+                  loading="lazy"
+                  decoding="async"
+                  (error)="onPosterError(item)"
+                />
+              } @else {
+                <span class="video-discovery__poster-fallback" aria-hidden="true">
+                  <i class="fas fa-play"></i>
+                </span>
+              }
+
+              <span class="video-discovery__duration">
+                {{ formatDuration(item.durationMs) }}
+              </span>
+              <span class="video-discovery__play" aria-hidden="true">
+                <i
+                  class="fas"
+                  [class.fa-spinner]="openingVideoId() === item.id"
+                  [class.fa-spin]="openingVideoId() === item.id"
+                  [class.fa-play]="openingVideoId() !== item.id"
+                ></i>
+              </span>
+            </button>
+
+            <div class="video-discovery__body">
+              <h2>{{ item.title }}</h2>
+              <a
+                [routerLink]="['/perfil', item.ownerUid]"
+                class="video-discovery__owner"
+              >
+                {{ ownerLabel(item) }}
+              </a>
+              <span>{{ formatViews(item.viewsCount) }}</span>
+            </div>
+          </article>
+        }
+      </div>
+
+      @if (state.hasMore) {
+        <div class="video-discovery__more">
+          <button
+            type="button"
+            class="app-action app-action--ghost"
+            [disabled]="state.loadingMore"
+            [attr.aria-busy]="state.loadingMore"
+            (click)="loadMore()"
+          >
+            {{ state.loadingMore ? 'Carregando...' : 'Ver mais vídeos' }}
+          </button>
+        </div>
+      }
+    }
+  </section>
+}
