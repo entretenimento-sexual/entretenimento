@@ -10,9 +10,13 @@ import {
   inject,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { take } from 'rxjs/operators';
 
-import { VideoViewTrackingService } from 'src/app/core/services/media/video-view-tracking.service';
+import {
+  TVideoViewSource,
+  VideoViewTrackingService,
+} from 'src/app/core/services/media/video-view-tracking.service';
 
 export const PUBLIC_VIDEO_VIEW_MIN_PLAYBACK_MS = 3_000;
 export const PUBLIC_VIDEO_VIEW_MAX_PLAYBACK_MS = 10_000;
@@ -24,6 +28,10 @@ export interface PublicVideoQualifiedViewDetail {
   playbackMs: number;
   durationMs: number;
   qualifiedAt: number;
+}
+
+interface PublicVideoViewContext {
+  source?: TVideoViewSource;
 }
 
 export function calculatePublicVideoQualifiedPlaybackMs(
@@ -65,6 +73,10 @@ export class PublicVideoViewQualificationDirective
   private readonly platformId = inject(PLATFORM_ID);
   private readonly destroyRef = inject(DestroyRef);
   private readonly viewTracking = inject(VideoViewTrackingService);
+  private readonly viewerContext = inject<PublicVideoViewContext | null>(
+    MAT_DIALOG_DATA,
+    { optional: true }
+  );
 
   private readonly cleanupListeners: Array<() => void> = [];
   private identity = '';
@@ -158,9 +170,10 @@ export class PublicVideoViewQualificationDirective
     }
 
     const requestedIdentity = this.identity;
+    const source = this.viewerContext?.source ?? 'unknown';
     this.preparingIdentity = requestedIdentity;
 
-    this.viewTracking.prepareVideoViewSession$(ownerUid, videoId, 'unknown')
+    this.viewTracking.prepareVideoViewSession$(ownerUid, videoId, source)
       .pipe(
         take(1),
         takeUntilDestroyed(this.destroyRef)
