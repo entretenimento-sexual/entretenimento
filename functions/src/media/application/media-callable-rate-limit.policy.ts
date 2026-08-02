@@ -15,7 +15,11 @@ export type MediaCallableRateAction =
   | 'MEDIA_UNPUBLISH'
   | 'MEDIA_DELETE'
   | 'MEDIA_SETTINGS'
-  | 'MEDIA_COVER';
+  | 'MEDIA_COVER'
+  | 'ADMIN_STATUS'
+  | 'ADMIN_QUEUE'
+  | 'ADMIN_MODERATION'
+  | 'ADMIN_PROCESSING_RECOVERY';
 
 export interface MediaCallableRateLimitRule {
   readonly windowMs: number;
@@ -153,6 +157,30 @@ const RULES: Readonly<Record<
     globalMaxPerWindow: 60,
     resourceMaxPerWindow: 15,
     minIntervalMs: 500,
+  },
+  ADMIN_STATUS: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 30,
+    resourceMaxPerWindow: 30,
+    minIntervalMs: 3_000,
+  },
+  ADMIN_QUEUE: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 600,
+    resourceMaxPerWindow: 240,
+    minIntervalMs: 1_500,
+  },
+  ADMIN_MODERATION: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 120,
+    resourceMaxPerWindow: 12,
+    minIntervalMs: 300,
+  },
+  ADMIN_PROCESSING_RECOVERY: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 90,
+    resourceMaxPerWindow: 9,
+    minIntervalMs: 1_000,
   },
 };
 
