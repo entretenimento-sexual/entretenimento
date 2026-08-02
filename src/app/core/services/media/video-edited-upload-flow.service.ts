@@ -21,6 +21,7 @@ import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import { PrivateMediaDraftCapacityService } from './private-media-draft-capacity.service';
 import {
   IPreparedVideoMetadata,
   VideoMetadataPreparationService,
@@ -96,6 +97,7 @@ export class VideoEditedUploadFlowService {
   private readonly storage = inject(Storage);
   private readonly injector = inject(Injector);
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
+  private readonly draftCapacity = inject(PrivateMediaDraftCapacityService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly registerCallable = httpsCallable<
@@ -189,6 +191,16 @@ export class VideoEditedUploadFlowService {
             metadata
           );
           const posterBlob = selectedPosterBlob ?? metadata.posterBlob;
+          assertNotCancelled();
+
+          emitProgress('preparing', 4);
+          await firstValueFrom(
+            this.draftCapacity.assertCapacity$(
+              'video',
+              file.size,
+              posterBlob?.size ?? 0
+            )
+          );
           assertNotCancelled();
 
           emitProgress('preparing', 6);
