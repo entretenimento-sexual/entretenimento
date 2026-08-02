@@ -66,6 +66,13 @@ export {
 } from './application/private-media-draft-lifecycle.handler';
 
 export {
+  registerPrivatePhotoUpload,
+} from './application/register-private-photo-upload.handler';
+export {
+  replacePrivatePhotoUpload,
+} from './application/replace-private-photo-upload.handler';
+
+export {
   cleanupUnpublishedVideoInteractions,
 } from './application/cleanup-unpublished-video-interactions.handler';
 
