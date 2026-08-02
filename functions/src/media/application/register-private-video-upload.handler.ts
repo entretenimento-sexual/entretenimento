@@ -8,14 +8,16 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
 import {
   applyPrivateMediaDraftReservation,
-  calculatePrivateMediaDraftExpiry,
-  calculatePrivateMediaDraftReservationBytes,
   evaluatePrivateMediaDraftCapacity,
   normalizePrivateMediaDraftUsage,
   PRIVATE_MEDIA_DRAFT_LIFECYCLE_VERSION,
   PRIVATE_MEDIA_DRAFT_USAGE_VERSION,
-  resolvePrivateMediaDraftPlan,
+  releasePrivateMediaDraftReservation,
 } from './private-media-draft.policy';
+import {
+  cancelPrivateMediaUploadReservationById,
+  consumePrivateMediaUploadReservation,
+} from './private-media-upload-reservation.handler';
 import {
   normalizeVideoPublicationSettings,
   type VideoPublicationSettingsInput,
@@ -37,6 +39,7 @@ interface RegisterPrivateVideoUploadRequest
   extends VideoPublicationSettingsInput {
   ownerUid?: string;
   videoId?: string;
+  reservationId?: string;
   videoStoragePath?: string;
   posterStoragePath?: string | null;
   fileName?: string;
@@ -67,6 +70,7 @@ interface RegisteredVideoDocument {
   thumbnailPath?: string | null;
   status?: RegisteredVideoStatus;
   createdAt?: unknown;
+  draftReservationId?: unknown;
 }
 
 interface PrivateUploadCleanupJob {
@@ -83,6 +87,17 @@ interface PrivateUploadCleanupJob {
 interface RegistrationTransactionResult {
   response: RegisterPrivateVideoUploadResponse;
   created: boolean;
+}
+
+interface StoredVideoMetadata {
+  mimeType: string;
+  sizeBytes: number;
+  reservationId: string;
+}
+
+interface StoredPosterMetadata {
+  sizeBytes: number;
+  reservationId: string | null;
 }
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
@@ -192,16 +207,6 @@ function cleanupJobId(storagePath: string): string {
   return createHash('sha256').update(storagePath).digest('hex');
 }
 
-function draftReservationId(
-  ownerUid: string,
-  videoId: string,
-  createdAt: number
-): string {
-  return createHash('sha256')
-    .update(`video:${ownerUid}:${videoId}:${createdAt}`)
-    .digest('hex');
-}
-
 function validateCleanupPath(
   ownerUid: string,
   videoId: string,
@@ -217,10 +222,9 @@ function validateCleanupPath(
     );
 }
 
-async function readRequiredVideoMetadata(storagePath: string): Promise<{
-  mimeType: string;
-  sizeBytes: number;
-}> {
+async function readRequiredVideoMetadata(
+  storagePath: string
+): Promise<StoredVideoMetadata> {
   const file = storage.bucket().file(storagePath);
   const [exists] = await file.exists();
 
@@ -234,6 +238,7 @@ async function readRequiredVideoMetadata(storagePath: string): Promise<{
   const [metadata] = await file.getMetadata();
   const mimeType = normalizeMimeType(metadata.contentType);
   const sizeBytes = normalizePositiveInteger(metadata.size);
+  const reservationId = cleanId(metadata.metadata?.['mediaReservationId']);
 
   if (!isAllowedNewVideoUploadMimeType(mimeType)) {
     throw new HttpsError(
@@ -249,14 +254,21 @@ async function readRequiredVideoMetadata(storagePath: string): Promise<{
     );
   }
 
-  return { mimeType, sizeBytes };
+  if (!reservationId) {
+    throw new HttpsError(
+      'failed-precondition',
+      'O vídeo não possui uma reserva de upload válida.'
+    );
+  }
+
+  return { mimeType, sizeBytes, reservationId };
 }
 
-async function readOptionalPosterSize(
+async function readOptionalPosterMetadata(
   storagePath: string | null
-): Promise<number> {
+): Promise<StoredPosterMetadata> {
   if (!storagePath) {
-    return 0;
+    return { sizeBytes: 0, reservationId: null };
   }
 
   const file = storage.bucket().file(storagePath);
@@ -272,6 +284,7 @@ async function readOptionalPosterSize(
   const [metadata] = await file.getMetadata();
   const mimeType = normalizeMimeType(metadata.contentType);
   const sizeBytes = normalizePositiveInteger(metadata.size);
+  const reservationId = cleanId(metadata.metadata?.['mediaReservationId']);
 
   if (!ALLOWED_POSTER_TYPES.has(mimeType)) {
     throw new HttpsError(
@@ -287,7 +300,14 @@ async function readOptionalPosterSize(
     );
   }
 
-  return sizeBytes;
+  if (!reservationId) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A capa não possui uma reserva de upload válida.'
+    );
+  }
+
+  return { sizeBytes, reservationId };
 }
 
 async function enqueueCleanup(
@@ -406,7 +426,8 @@ function buildExistingResponse(
   ownerUid: string,
   videoStoragePath: string,
   posterStoragePath: string | null,
-  existing: RegisteredVideoDocument
+  existing: RegisteredVideoDocument,
+  expectedReservationId?: string
 ): RegisterPrivateVideoUploadResponse | null {
   const existingOwnerUid = cleanId(existing.ownerUid);
   const existingVideoPath = extractOwnedPrivateVideoPathForId(
@@ -424,13 +445,15 @@ function buildExistingResponse(
   const mimeType = normalizeMimeType(existing.mimeType);
   const sizeBytes = normalizePositiveInteger(existing.sizeBytes);
   const status = existing.status === 'ready' ? 'ready' : 'uploaded';
+  const existingReservationId = cleanId(existing.draftReservationId);
 
   if (
     existingOwnerUid !== ownerUid ||
     existingVideoPath !== videoStoragePath ||
     existingPosterPath !== posterStoragePath ||
     !isRecognizedRegisteredVideoMimeType(mimeType) ||
-    !sizeBytes
+    !sizeBytes ||
+    (expectedReservationId && existingReservationId !== expectedReservationId)
   ) {
     return null;
   }
@@ -452,7 +475,8 @@ async function findExistingResponse(
   ownerUid: string,
   videoId: string,
   videoStoragePath: string,
-  posterStoragePath: string | null
+  posterStoragePath: string | null,
+  expectedReservationId: string
 ): Promise<RegisterPrivateVideoUploadResponse | null> {
   const snapshot = await db.doc(`users/${ownerUid}/videos/${videoId}`).get();
 
@@ -465,7 +489,8 @@ async function findExistingResponse(
     ownerUid,
     videoStoragePath,
     posterStoragePath,
-    snapshot.data() as RegisteredVideoDocument
+    snapshot.data() as RegisteredVideoDocument,
+    expectedReservationId
   );
 }
 
@@ -477,9 +502,10 @@ export const registerPrivateVideoUpload = onCall<
     const requesterUid = request.auth?.uid ?? null;
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
+    const requestedReservationId = cleanId(request.data?.reservationId);
 
-    if (!ownerUid || !videoId) {
-      throw new HttpsError('invalid-argument', 'Vídeo inválido.');
+    if (!ownerUid || !videoId || !requestedReservationId) {
+      throw new HttpsError('invalid-argument', 'Vídeo ou reserva inválida.');
     }
 
     assertOwner(requesterUid, ownerUid);
@@ -491,6 +517,7 @@ export const registerPrivateVideoUpload = onCall<
     );
 
     if (!videoStoragePath) {
+      await cancelPrivateMediaUploadReservationById(requestedReservationId);
       throw new HttpsError(
         'invalid-argument',
         'O caminho privado do vídeo não pertence ao upload informado.'
@@ -509,6 +536,7 @@ export const registerPrivateVideoUpload = onCall<
       : null;
 
     if (rawPosterStoragePath && !posterStoragePath) {
+      await cancelPrivateMediaUploadReservationById(requestedReservationId);
       await deleteUploadedAssetsRecoverably(ownerUid, videoId, [
         { storagePath: videoStoragePath, assetKind: 'video' },
       ]);
@@ -522,7 +550,8 @@ export const registerPrivateVideoUpload = onCall<
       ownerUid,
       videoId,
       videoStoragePath,
-      posterStoragePath
+      posterStoragePath,
+      requestedReservationId
     );
 
     if (existingResponse) {
@@ -542,14 +571,25 @@ export const registerPrivateVideoUpload = onCall<
     ];
 
     try {
-      const [videoMetadata, posterSizeBytes] = await Promise.all([
+      const [videoMetadata, posterMetadata] = await Promise.all([
         readRequiredVideoMetadata(videoStoragePath),
-        readOptionalPosterSize(posterStoragePath),
+        readOptionalPosterMetadata(posterStoragePath),
       ]);
       const requestedMimeType = normalizeMimeType(request.data?.mimeType);
       const requestedSizeBytes = normalizePositiveInteger(
         request.data?.sizeBytes
       );
+
+      if (
+        videoMetadata.reservationId !== requestedReservationId ||
+        (posterStoragePath &&
+          posterMetadata.reservationId !== requestedReservationId)
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A reserva informada diverge dos arquivos armazenados.'
+        );
+      }
 
       if (
         requestedMimeType &&
@@ -592,23 +632,12 @@ export const registerPrivateVideoUpload = onCall<
       const publicationRef = db.doc(
         `users/${ownerUid}/video_publications/${videoId}`
       );
-      const userRef = db.doc(`users/${ownerUid}`);
       const usageRef = db.collection(DRAFT_USAGE_COLLECTION).doc(ownerUid);
-      const reservedBytes = calculatePrivateMediaDraftReservationBytes(
-        'video',
-        videoMetadata.sizeBytes,
-        posterSizeBytes
-      );
 
       const transactionResult = await db.runTransaction(
         async (transaction): Promise<RegistrationTransactionResult> => {
-          const [
-            existingVideoSnapshot,
-            userSnapshot,
-            usageSnapshot,
-          ] = await Promise.all([
+          const [existingVideoSnapshot, usageSnapshot] = await Promise.all([
             transaction.get(videoRef),
-            transaction.get(userRef),
             transaction.get(usageRef),
           ]);
 
@@ -618,7 +647,8 @@ export const registerPrivateVideoUpload = onCall<
               ownerUid,
               videoStoragePath,
               posterStoragePath,
-              existingVideoSnapshot.data() as RegisteredVideoDocument
+              existingVideoSnapshot.data() as RegisteredVideoDocument,
+              requestedReservationId
             );
 
             if (!concurrentResponse) {
@@ -634,43 +664,49 @@ export const registerPrivateVideoUpload = onCall<
             };
           }
 
-          const plan = resolvePrivateMediaDraftPlan(
-            userSnapshot.exists ? userSnapshot.data() : null,
-            createdAt
+          const reservation = await consumePrivateMediaUploadReservation(
+            transaction,
+            {
+              reservationId: requestedReservationId,
+              ownerUid,
+              mediaId: videoId,
+              kind: 'video',
+              operation: 'CREATE',
+              sourceStoragePath: videoStoragePath,
+              auxiliaryStoragePath: posterStoragePath,
+              sourceSizeBytes: videoMetadata.sizeBytes,
+              auxiliarySizeBytes: posterMetadata.sizeBytes,
+              now: createdAt,
+            }
           );
           const usage = normalizePrivateMediaDraftUsage(
             usageSnapshot.exists ? usageSnapshot.data() : null
           );
+          const baselineUsage = releasePrivateMediaDraftReservation(
+            'video',
+            usage,
+            reservation.reservedUsageBytes
+          );
           const capacity = evaluatePrivateMediaDraftCapacity(
             'video',
-            plan,
-            usage,
-            reservedBytes
+            reservation.plan,
+            baselineUsage,
+            reservation.draftReservedBytes
           );
 
           if (!capacity.allowed) {
-            const message = capacity.reason === 'ITEM_LIMIT'
-              ? 'Você atingiu o limite de rascunhos de vídeos. Publique ou exclua um rascunho antes de enviar outro.'
-              : 'Seus rascunhos de vídeos atingiram o limite de armazenamento temporário.';
-
-            throw new HttpsError('resource-exhausted', message);
+            throw new HttpsError(
+              'resource-exhausted',
+              'A capacidade de rascunhos mudou antes do registro do vídeo.'
+            );
           }
 
           const nextUsage = applyPrivateMediaDraftReservation(
             'video',
-            usage,
-            reservedBytes
+            baselineUsage,
+            reservation.draftReservedBytes
           );
-          const expiresAt = calculatePrivateMediaDraftExpiry(
-            'video',
-            plan,
-            createdAt
-          );
-          const reservationId = draftReservationId(
-            ownerUid,
-            videoId,
-            createdAt
-          );
+          const expiresAt = reservation.draftExpiresAt ?? createdAt;
 
           transaction.set(
             usageRef,
@@ -696,9 +732,9 @@ export const registerPrivateVideoUpload = onCall<
             draftLifecycleVersion: PRIVATE_MEDIA_DRAFT_LIFECYCLE_VERSION,
             draftLifecycleState: 'ACTIVE',
             draftReservationActive: true,
-            draftReservationId: reservationId,
-            draftPlanAtReservation: plan,
-            draftReservedBytes: reservedBytes,
+            draftReservationId: reservation.reservationId,
+            draftPlanAtReservation: reservation.plan,
+            draftReservedBytes: reservation.draftReservedBytes,
             draftExpiresAt: expiresAt,
             draftUpdatedAt: createdAt,
             createdAt: FieldValue.serverTimestamp(),
@@ -740,13 +776,12 @@ export const registerPrivateVideoUpload = onCall<
         rollbackAssets.map((asset) => asset.storagePath)
       );
 
-      if (!transactionResult.created) {
-        return transactionResult.response;
-      }
-
       return transactionResult.response;
     } catch (error) {
       if (!registrationCommitted) {
+        await cancelPrivateMediaUploadReservationById(
+          requestedReservationId
+        );
         await deleteUploadedAssetsRecoverably(
           ownerUid,
           videoId,
