@@ -42,7 +42,7 @@ const DOMAIN_CODES = new Set<PrivateMediaDraftDomainErrorCode>([
 ]);
 
 export class PrivateMediaDraftOperationError extends Error {
-  readonly name = 'PrivateMediaDraftOperationError';
+  override readonly name = 'PrivateMediaDraftOperationError';
 
   constructor(
     readonly domainCode: PrivateMediaDraftDomainErrorCode,
