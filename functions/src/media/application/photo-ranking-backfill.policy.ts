@@ -47,6 +47,25 @@ export interface PhotoRankingBackfillState {
   generation: number;
 }
 
+export interface PhotoRankingBackfillPublicState {
+  version: number;
+  status: PhotoRankingBackfillStatus;
+  pageSize: number;
+  processedCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  pagesCount: number;
+  consecutiveFailures: number;
+  startedAt: number | null;
+  updatedAt: number;
+  completedAt: number | null;
+  lastBatchAt: number | null;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+  lastAdminAction: PhotoRankingBackfillControlAction | null;
+  generation: number;
+}
+
 function normalizeNonNegativeInteger(value: unknown): number {
   const numeric = Number(value ?? 0);
 
@@ -203,6 +222,55 @@ export function normalizePhotoRankingBackfillState(
     lastAdminBy: String(data.lastAdminBy ?? '').trim() || null,
     generation: Math.max(1, normalizeNonNegativeInteger(data.generation)),
   };
+}
+
+export function buildPhotoRankingBackfillPublicState(
+  state: PhotoRankingBackfillState
+): PhotoRankingBackfillPublicState {
+  return {
+    version: state.version,
+    status: state.status,
+    pageSize: state.pageSize,
+    processedCount: state.processedCount,
+    updatedCount: state.updatedCount,
+    skippedCount: state.skippedCount,
+    pagesCount: state.pagesCount,
+    consecutiveFailures: state.consecutiveFailures,
+    startedAt: state.startedAt,
+    updatedAt: state.updatedAt,
+    completedAt: state.completedAt,
+    lastBatchAt: state.lastBatchAt,
+    lastErrorCode: state.lastErrorCode,
+    lastErrorMessage: state.lastErrorMessage,
+    lastAdminAction: state.lastAdminAction,
+    generation: state.generation,
+  };
+}
+
+export function resolvePhotoRankingBackfillControlStatus(input: {
+  currentStatus: PhotoRankingBackfillStatus;
+  action: PhotoRankingBackfillControlAction;
+}): PhotoRankingBackfillStatus {
+  if (input.action === 'PAUSE') {
+    return 'PAUSED';
+  }
+
+  if (input.action === 'RUN_PAGE') {
+    return input.currentStatus === 'RUNNING' ? 'RUNNING' : 'PAUSED';
+  }
+
+  return 'RUNNING';
+}
+
+export function resolvePhotoRankingBackfillPostBatchStatus(input: {
+  currentStatus: PhotoRankingBackfillStatus;
+  completed: boolean;
+}): PhotoRankingBackfillStatus {
+  if (input.completed) {
+    return 'COMPLETED';
+  }
+
+  return input.currentStatus === 'PAUSED' ? 'PAUSED' : 'RUNNING';
 }
 
 export function isPhotoRankingBackfillLeaseAvailable(input: {
