@@ -55,6 +55,17 @@ export {
 } from './application/sync-video-edit-result.handler';
 
 export {
+  cleanupExpiredPrivateMediaDrafts,
+  getPrivateMediaDraftCapacity,
+  initializePrivatePhotoDraftLifecycle,
+  initializePrivateVideoDraftLifecycle,
+  releaseDeletedPrivatePhotoDraftUsage,
+  releaseDeletedPrivateVideoDraftUsage,
+  syncPhotoDraftLifecycleFromPublication,
+  syncVideoDraftLifecycleFromPublication,
+} from './application/private-media-draft-lifecycle.handler';
+
+export {
   cleanupUnpublishedVideoInteractions,
 } from './application/cleanup-unpublished-video-interactions.handler';
 
