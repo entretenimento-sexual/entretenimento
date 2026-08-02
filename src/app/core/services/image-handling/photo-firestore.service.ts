@@ -29,6 +29,7 @@ export interface Photo {
   createdAt: Date;
   displayDate?: number | null;
   path?: string;
+  sizeBytes?: number | null;
 }
 
 export interface PhotoComment {
@@ -38,8 +39,12 @@ export interface PhotoComment {
 }
 
 export type PhotoUpdateData =
-  Partial<Pick<Photo, 'url' | 'fileName' | 'createdAt' | 'displayDate' | 'path'>> &
-  Record<string, unknown>;
+  Partial<
+    Pick<
+      Photo,
+      'url' | 'fileName' | 'createdAt' | 'displayDate' | 'path' | 'sizeBytes'
+    >
+  > & Record<string, unknown>;
 
 interface DeleteProfilePhotoCallableRequest {
   ownerUid: string;
