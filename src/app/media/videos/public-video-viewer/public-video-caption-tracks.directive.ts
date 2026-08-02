@@ -196,8 +196,10 @@ export class PublicVideoCaptionTracksDirective
 
   private removePlatformTracks(): void {
     this.elementRef.nativeElement
-      .querySelectorAll(`track[${PLATFORM_TRACK_ATTRIBUTE}]`)
-      .forEach((track) => track.remove());
+      .querySelectorAll<HTMLTrackElement>(
+        `track[${PLATFORM_TRACK_ATTRIBUTE}]`
+      )
+      .forEach((track: HTMLTrackElement) => track.remove());
   }
 
   private isValidTrack(track: IPublicVideoCaptionTrack): boolean {
