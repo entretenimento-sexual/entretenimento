@@ -13,6 +13,13 @@ export {
 } from './application/protected-media-callables.handler';
 
 export {
+  getPrivateVideoAccessUrls,
+  getPublicPhotoAccessUrls,
+  getPublicVideoAccessUrls,
+  listAuthorizedPublicVideos,
+} from './application/protected-media-access-callables.handler';
+
+export {
   cleanupMediaCallableRateLimits,
 } from './application/media-callable-rate-limit.service';
 
@@ -99,21 +106,6 @@ export {
 export {
   cleanupPendingPublishedVideoAssets,
 } from './application/cleanup-published-video-assets.handler';
-
-export {
-  getPrivateVideoAccessUrls,
-} from './application/get-private-video-access-urls.handler';
-
-export {
-  getPublicPhotoAccessUrls,
-} from './application/get-public-photo-access-urls.handler';
-
-export {
-  getPublicVideoAccessUrls,
-} from './application/get-public-video-access-urls.handler';
-export {
-  listAuthorizedPublicVideos,
-} from './application/list-authorized-public-videos.handler';
 
 export {
   issueVideoViewSession,
