@@ -11,7 +11,6 @@ import {
 } from './public-video-hls-access.service';
 import {
   PublicVideoHlsRuntimeService,
-  type HlsRuntimeConstructor,
   type HlsRuntimeErrorData,
   type HlsRuntimeInstance,
 } from './public-video-hls-runtime.service';
@@ -139,7 +138,6 @@ export class PublicVideoHlsPlaybackCoordinatorService {
       releaseObjectUrls();
       networkRecoveryAttempted = false;
       mediaRecoveryAttempted = false;
-      accessRefreshAttempted = false;
       delete video.dataset['playbackMode'];
     };
 
@@ -156,10 +154,11 @@ export class PublicVideoHlsPlaybackCoordinatorService {
       snapshot: PlaybackSnapshot,
       reason: string
     ): void => {
-      const staleGeneration = ++generation;
+      const fallbackGeneration = ++generation;
       destroyRuntime();
+      accessRefreshAttempted = false;
 
-      if (destroyed || staleGeneration !== generation) {
+      if (destroyed || fallbackGeneration !== generation) {
         return;
       }
 
@@ -214,7 +213,8 @@ export class PublicVideoHlsPlaybackCoordinatorService {
 
     const setup = (
       forceRefresh = false,
-      playbackSnapshot?: PlaybackSnapshot
+      playbackSnapshot?: PlaybackSnapshot,
+      alreadyRefreshedAccess = false
     ): void => {
       const item = resolveItem();
 
@@ -232,6 +232,7 @@ export class PublicVideoHlsPlaybackCoordinatorService {
       const setupGeneration = ++generation;
       const snapshot = playbackSnapshot ?? capturePlayback(video);
       destroyRuntime();
+      accessRefreshAttempted = alreadyRefreshedAccess;
 
       subscription = forkJoin({
         runtime: this.hlsRuntime.load$().pipe(take(1)),
@@ -298,9 +299,8 @@ export class PublicVideoHlsPlaybackCoordinatorService {
                   (unauthorized || accessExpired) &&
                   !accessRefreshAttempted
                 ) {
-                  accessRefreshAttempted = true;
                   this.hlsAccess.invalidate(item.ownerUid, item.id);
-                  setup(true, capturePlayback(video));
+                  setup(true, capturePlayback(video), true);
                   return;
                 }
 
@@ -353,9 +353,9 @@ export class PublicVideoHlsPlaybackCoordinatorService {
         return;
       }
 
-      const currentSource = video.currentSrc || video.src;
+      const declaredSource = video.getAttribute('src') || video.src;
 
-      if (isBlobUrl(currentSource) && hls) {
+      if (isBlobUrl(declaredSource) && hls) {
         return;
       }
 
@@ -376,7 +376,7 @@ export class PublicVideoHlsPlaybackCoordinatorService {
         }
 
         this.hlsAccess.invalidate(item.ownerUid, item.id);
-        setup(true, capturePlayback(video));
+        setup(true, capturePlayback(video), true);
       },
       destroy: () => {
         if (destroyed) {
