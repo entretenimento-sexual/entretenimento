@@ -103,6 +103,18 @@ const PHOTO_MAX_SIZE_BYTES = 10 * 1024 * 1024;
 const VIDEO_MAX_SIZE_BYTES = 500 * 1024 * 1024;
 const VIDEO_POSTER_MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
+function containsControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+
+    if (code <= 31 || code === 127) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
 
@@ -110,7 +122,7 @@ function cleanId(value: unknown): string {
     !normalized ||
     normalized.length > 128 ||
     normalized.includes('/') ||
-    /[\u0000-\u001f\u007f]/.test(normalized)
+    containsControlCharacter(normalized)
   ) {
     return '';
   }
