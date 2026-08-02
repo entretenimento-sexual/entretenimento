@@ -164,8 +164,16 @@ export class PublicVideoViewQualificationDirective
     const videoId = separatorIndex > 0
       ? this.identity.slice(separatorIndex + 1).trim()
       : '';
+    const prepareSession = this.viewTracking.prepareVideoViewSession$?.bind(
+      this.viewTracking
+    );
 
-    if (!ownerUid || !videoId || videoId.includes(':')) {
+    if (
+      !ownerUid ||
+      !videoId ||
+      videoId.includes(':') ||
+      typeof prepareSession !== 'function'
+    ) {
       return;
     }
 
@@ -173,7 +181,7 @@ export class PublicVideoViewQualificationDirective
     const source = this.viewerContext?.source ?? 'unknown';
     this.preparingIdentity = requestedIdentity;
 
-    this.viewTracking.prepareVideoViewSession$(ownerUid, videoId, source)
+    prepareSession(ownerUid, videoId, source)
       .pipe(
         take(1),
         takeUntilDestroyed(this.destroyRef)
