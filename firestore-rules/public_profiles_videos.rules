@@ -24,15 +24,33 @@ match /public_profiles/{userId}/public_videos/{videoId} {
     return get(videoPath()).data;
   }
 
+  function blockPath(blockerUid, targetUid) {
+    return /databases/$(database)/documents/users/$(blockerUid)/blocks/$(targetUid);
+  }
+
+  function hasActiveBlock(blockerUid, targetUid) {
+    return exists(blockPath(blockerUid, targetUid))
+      && get(blockPath(blockerUid, targetUid)).data.isBlocked == true;
+  }
+
+  function isBlockedBetween(viewerUid, ownerUid) {
+    return viewerUid != ownerUid
+      && (
+        hasActiveBlock(viewerUid, ownerUid)
+        || hasActiveBlock(ownerUid, viewerUid)
+      );
+  }
+
   function isApprovedPublicVideoData(data) {
-    return data.visibility == "PUBLIC"
+    return data.ownerUid == userId
+      && data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
   function isPublicReadableVideo() {
     return publicProfileExists()
-      && resource.data.visibility == "PUBLIC"
-      && resource.data.moderationStatus == "APPROVED";
+      && isApprovedPublicVideoData(resource.data)
+      && !isBlockedBetween(request.auth.uid, userId);
   }
 
   allow get: if signedIn() && (isSelf(userId) || isPublicReadableVideo());
@@ -42,13 +60,17 @@ match /public_profiles/{userId}/public_videos/{videoId} {
   allow create, update, delete: if false;
 
   match /likes/{viewerUid} {
-    allow get: if signedIn() && request.auth.uid == viewerUid;
+    allow get: if signedIn()
+      && request.auth.uid == viewerUid
+      && !isBlockedBetween(request.auth.uid, userId);
     allow list: if false;
     allow create, update, delete: if false;
   }
 
   match /ratings/{viewerUid} {
-    allow get: if signedIn() && request.auth.uid == viewerUid;
+    allow get: if signedIn()
+      && request.auth.uid == viewerUid
+      && !isBlockedBetween(request.auth.uid, userId);
     allow list: if false;
     allow create, update, delete: if false;
   }
@@ -59,6 +81,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
         isSelf(userId)
         || (
           publicProfileExists()
+          && !isBlockedBetween(request.auth.uid, userId)
           && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
@@ -70,6 +93,7 @@ match /public_profiles/{userId}/public_videos/{videoId} {
         isSelf(userId)
         || (
           publicProfileExists()
+          && !isBlockedBetween(request.auth.uid, userId)
           && resource.data.status == "VISIBLE"
           && videoExists()
           && isApprovedPublicVideoData(videoData())
@@ -82,15 +106,15 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 
 // ------------------------------------------------------------
 // Collection group: public_videos
-// A revalidação muda a projeção para PRIVATE na mesma transação;
-// por isso a consulta global continua filtrável por visibility.
-// Leituras diretas permanecem no match específico acima, que também
-// confirma a existência do perfil público pai.
 // ------------------------------------------------------------
+// SUPRESSÃO INTENCIONAL DO ACESSO DIRETO GLOBAL:
+// Firestore Rules não funcionam como filtro por bloqueio. Uma consulta global
+// não consegue declarar "exclua proprietários bloqueados" e poderia expor
+// metadados antes da autorização backend. O feed global/compatível deve ser
+// servido por uma projeção ou callable backend que aplique VideoAudiencePolicy.
+// Galerias de um perfil específico continuam autorizadas no match acima.
 match /{path=**}/public_videos/{videoId} {
-  allow list: if signedIn()
-    && resource.data.visibility == "PUBLIC"
-    && resource.data.moderationStatus == "APPROVED";
+  allow list: if false;
 
   allow create, update, delete: if false;
 }
