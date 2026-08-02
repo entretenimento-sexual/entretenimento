@@ -54,6 +54,20 @@ describe('video-processing-output', () => {
     ]);
   });
 
+  it('mantém WebM compatível no processamento do Emulator', () => {
+    const inventory = inventoryVideoProcessingOutputs([
+      {
+        storagePath: 'users/u/processed/videos/v/run/playback.webm',
+        contentType: 'video/webm',
+        sizeBytes: 2_000,
+      },
+    ]);
+
+    expect(inventory.variants).toEqual([
+      expect.objectContaining({ quality: 'HD', mimeType: 'video/webm' }),
+    ]);
+  });
+
   it('usa menor e maior MP4 como fallback para templates sem nomes canônicos', () => {
     const inventory = inventoryVideoProcessingOutputs([
       {
@@ -82,13 +96,13 @@ describe('video-processing-output', () => {
     ]);
   });
 
-  it('falha quando não existe MP4 público compatível', () => {
+  it('falha quando não existe variante reproduzível', () => {
     expect(() => inventoryVideoProcessingOutputs([
       {
         storagePath: 'users/u/processed/videos/v/run/manifest.m3u8',
         contentType: 'application/vnd.apple.mpegurl',
         sizeBytes: 100,
       },
-    ])).toThrow('variante MP4 compatível');
+    ])).toThrow('variante reproduzível');
   });
 });
