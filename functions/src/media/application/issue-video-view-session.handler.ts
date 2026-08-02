@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -20,14 +20,13 @@ import {
   buildVideoViewSessionRateDecision,
   type VideoViewSessionRateState,
 } from './video-view-session.policy';
-
-export type VideoViewSource =
-  | 'discover'
-  | 'profile'
-  | 'latest'
-  | 'top'
-  | 'boosted'
-  | 'unknown';
+import {
+  VIDEO_VIEW_SESSION_COLLECTION,
+  VIDEO_VIEW_SESSION_RATE_LIMIT_COLLECTION,
+  cleanVideoViewSource,
+  getVideoViewSessionRef,
+  hashVideoViewRateLimitKey,
+} from './video-view-session.store';
 
 interface IssueVideoViewSessionRequest {
   ownerUid?: unknown;
@@ -44,19 +43,8 @@ interface IssueVideoViewSessionResponse {
   expiresAt: number;
 }
 
-export interface VideoViewSessionDocument {
-  viewerUid?: unknown;
-  ownerUid?: unknown;
-  videoId?: unknown;
-  source?: unknown;
-  appId?: unknown;
-  issuedAt?: unknown;
-  expiresAt?: unknown;
-}
-
-const SESSION_COLLECTION = 'video_view_sessions';
-const RATE_LIMIT_COLLECTION = 'video_view_session_rate_limits';
-const CLEANUP_BATCH_LIMIT = 400;
+const CLEANUP_BATCH_LIMIT = 240;
+const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -70,39 +58,9 @@ function cleanAppId(value: unknown): string {
     : '';
 }
 
-export function cleanVideoViewSource(value: unknown): VideoViewSource {
-  const source = String(value ?? '').trim().toLowerCase();
-
-  if (
-    source === 'discover' ||
-    source === 'profile' ||
-    source === 'latest' ||
-    source === 'top' ||
-    source === 'boosted'
-  ) {
-    return source;
-  }
-
-  return 'unknown';
-}
-
-export function hashVideoViewSessionToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
-
-function hashRateLimitKey(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
-}
-
-export function getVideoViewSessionRef(token: string) {
-  return db.collection(SESSION_COLLECTION).doc(
-    hashVideoViewSessionToken(token)
-  );
-}
-
 function getGlobalRateLimitRef(viewerUid: string) {
-  return db.collection(RATE_LIMIT_COLLECTION).doc(
-    hashRateLimitKey(`global:${viewerUid}`)
+  return db.collection(VIDEO_VIEW_SESSION_RATE_LIMIT_COLLECTION).doc(
+    hashVideoViewRateLimitKey(`global:${viewerUid}`)
   );
 }
 
@@ -111,8 +69,8 @@ function getVideoRateLimitRef(
   ownerUid: string,
   videoId: string
 ) {
-  return db.collection(RATE_LIMIT_COLLECTION).doc(
-    hashRateLimitKey(`video:${viewerUid}:${ownerUid}:${videoId}`)
+  return db.collection(VIDEO_VIEW_SESSION_RATE_LIMIT_COLLECTION).doc(
+    hashVideoViewRateLimitKey(`video:${viewerUid}:${ownerUid}:${videoId}`)
   );
 }
 
@@ -270,22 +228,30 @@ export const cleanupExpiredVideoViewSessions = onSchedule(
   },
   async () => {
     const now = Date.now();
-    const snapshot = await db
-      .collection(SESSION_COLLECTION)
-      .where('expiresAt', '<=', now)
-      .limit(CLEANUP_BATCH_LIMIT)
-      .get();
+    const rateLimitCutoff = now - RATE_LIMIT_RETENTION_MS;
+    const [sessions, staleRateLimits] = await Promise.all([
+      db.collection(VIDEO_VIEW_SESSION_COLLECTION)
+        .where('expiresAt', '<=', now)
+        .limit(CLEANUP_BATCH_LIMIT)
+        .get(),
+      db.collection(VIDEO_VIEW_SESSION_RATE_LIMIT_COLLECTION)
+        .where('updatedAt', '<=', rateLimitCutoff)
+        .limit(CLEANUP_BATCH_LIMIT)
+        .get(),
+    ]);
 
-    if (snapshot.empty) {
+    if (sessions.empty && staleRateLimits.empty) {
       return;
     }
 
     const batch = db.batch();
-    snapshot.docs.forEach((document) => batch.delete(document.ref));
+    sessions.docs.forEach((document) => batch.delete(document.ref));
+    staleRateLimits.docs.forEach((document) => batch.delete(document.ref));
     await batch.commit();
 
-    logger.info('[cleanupExpiredVideoViewSessions] Sessões removidas.', {
-      removed: snapshot.size,
+    logger.info('[cleanupExpiredVideoViewSessions] Dados removidos.', {
+      sessions: sessions.size,
+      rateLimits: staleRateLimits.size,
     });
   }
 );
