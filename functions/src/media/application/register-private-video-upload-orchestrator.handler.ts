@@ -10,23 +10,37 @@ import { ensurePrivateVideoProcessingQueued } from './queue-video-processing.han
 import {
   registerPrivateVideoUpload as registerPrivateVideoUploadCore,
 } from './register-private-video-upload.handler';
+import type {
+  VideoPublicationSettingsInput,
+} from './video-publication-settings';
 import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
 
-interface RegisterPrivateVideoUploadRequest {
+interface RegisterPrivateVideoUploadRequest
+  extends VideoPublicationSettingsInput {
   ownerUid?: string;
   videoId?: string;
   videoStoragePath?: string;
   posterStoragePath?: string | null;
-  [key: string]: unknown;
+  fileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  durationMs?: number | null;
+  publishWhenReady?: boolean;
 }
 
 interface RegisteredPrivateVideoResponse {
   ownerUid: string;
   videoId: string;
-  [key: string]: unknown;
+  status: 'uploaded' | 'ready';
+  mimeType: string;
+  sizeBytes: number;
+  durationMs: number | null;
+  videoStoragePath: string;
+  posterStoragePath: string | null;
+  createdAt: number;
 }
 
 interface PrivateMediaUploadAuthSnapshot {
@@ -338,7 +352,7 @@ export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
 >(
   { region: FUNCTIONS_REGION },
-  async (request) => {
+  async (request): Promise<RegisteredPrivateVideoResponse> => {
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
@@ -355,9 +369,7 @@ export const registerPrivateVideoUpload = onCall<
       }
     }
 
-    const response = (
-      await registerPrivateVideoUploadCore.run(request as any)
-    ) as RegisteredPrivateVideoResponse;
+    const response = await registerPrivateVideoUploadCore.run(request);
 
     await ensurePrivateVideoProcessingQueued(
       response.ownerUid,
