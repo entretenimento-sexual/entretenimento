@@ -42,8 +42,10 @@ match /public_profiles/{userId}/public_videos/{videoId} {
   }
 
   function isApprovedPublicVideoData(data) {
-    return data.ownerUid == userId
-      && data.visibility == "PUBLIC"
+    // A coleção é escopada pelo userId e não aceita escrita cliente. Exigir
+    // ownerUid aqui faria queries por perfil dependerem de um filtro redundante.
+    // A consistência ownerUid/path é validada nas callables e projeções backend.
+    return data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
@@ -110,8 +112,8 @@ match /public_profiles/{userId}/public_videos/{videoId} {
 // SUPRESSÃO INTENCIONAL DO ACESSO DIRETO GLOBAL:
 // Firestore Rules não funcionam como filtro por bloqueio. Uma consulta global
 // não consegue declarar "exclua proprietários bloqueados" e poderia expor
-// metadados antes da autorização backend. O feed global/compatível deve ser
-// servido por uma projeção ou callable backend que aplique VideoAudiencePolicy.
+// metadados antes da autorização backend. O feed global/compatível é servido
+// pela callable listAuthorizedPublicVideos com VideoAudiencePolicy.
 // Galerias de um perfil específico continuam autorizadas no match acima.
 match /{path=**}/public_videos/{videoId} {
   allow list: if false;
