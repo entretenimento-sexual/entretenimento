@@ -227,7 +227,7 @@ export function normalizeOwnedPublishedVideoPath(
     ownerUid,
     value,
     `${PUBLISHED_VIDEO_PREFIX}/${escapeRegExp(safeVideoId)}/` +
-      `assets/(?:[^/]+|[^/]+/(?:sd|hd)\.(?:mp4|webm))`
+      'assets/(?:[^/]+|[^/]+/(?:sd|hd)[.](?:mp4|webm))'
   );
 }
 
@@ -248,7 +248,7 @@ export function normalizeOwnedPublishedVideoVariantPath(
     ownerUid,
     value,
     `${PUBLISHED_VIDEO_PREFIX}/${escapeRegExp(safeVideoId)}/` +
-      `assets/[^/]+/${safeQuality.toLowerCase()}\.(?:mp4|webm)`
+      `assets/[^/]+/${safeQuality.toLowerCase()}[.](?:mp4|webm)`
   );
 }
 
