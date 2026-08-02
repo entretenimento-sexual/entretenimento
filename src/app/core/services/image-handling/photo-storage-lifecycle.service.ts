@@ -112,7 +112,7 @@ export class PhotoStorageLifecycleService {
       '\\$&'
     );
     const expectedPath = new RegExp(
-      `^users/${escapedOwnerUid}/uploads/images/[^/]+$`
+      `^users/${escapedOwnerUid}/uploads/images/(?:[^/]+|[^/]+/(?:source-a|source-b))$`
     );
 
     return expectedPath.test(safePath) ? safePath : null;
