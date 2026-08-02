@@ -1,22 +1,16 @@
 import { onCall } from 'firebase-functions/v2/https';
 
+import { PROTECTED_CALLABLE_OPTIONS } from '../../config/protected-callable-options';
 import {
-  assertInteractionAccess,
-} from '../../account_lifecycle/interaction-access.policy';
-import { FUNCTIONS_REGION } from '../../config/functions-region';
-import {
-  recordVideoView as recordVideoViewCore,
+  recordVideoViewCore,
+  type RecordVideoViewRequest,
 } from './record-video-view.handler';
 
-export const recordVideoView = onCall(
-  { region: FUNCTIONS_REGION },
-  async (request) => {
-    const viewerUid = String(request.auth?.uid ?? '').trim();
-
-    if (viewerUid) {
-      await assertInteractionAccess(viewerUid);
-    }
-
-    return recordVideoViewCore.run(request as any);
-  }
+/**
+ * Mantém o nome público da callable e remove a execução indireta por `.run`.
+ * Lifecycle, audiência, App Check e sessão são validados no núcleo tipado.
+ */
+export const recordVideoView = onCall<RecordVideoViewRequest>(
+  PROTECTED_CALLABLE_OPTIONS,
+  recordVideoViewCore
 );
