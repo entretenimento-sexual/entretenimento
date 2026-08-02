@@ -1,15 +1,23 @@
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import { Injectable, PLATFORM_ID, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PublicVideoShareAuthorizationService } from './public-video-share-authorization.service';
 
 export type PublicVideoShareOutcome =
   | 'shared'
   | 'copied'
   | 'cancelled'
   | 'failed';
+
+interface ContextualError extends Error {
+  original?: unknown;
+  context?: Record<string, unknown>;
+  skipUserNotification?: boolean;
+}
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -36,18 +44,44 @@ export class PublicVideoShareService {
   private readonly platformId = inject(PLATFORM_ID);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+  private readonly shareAuthorization = inject(
+    PublicVideoShareAuthorizationService
+  );
 
   async sharePublicVideo(
     video: Pick<IPublicVideoItem, 'id' | 'ownerUid'>
   ): Promise<PublicVideoShareOutcome> {
-    const canonicalPath = buildPublicVideoCanonicalPath(
+    const localCanonicalPath = buildPublicVideoCanonicalPath(
       video?.ownerUid,
       video?.id
     );
 
-    if (!canonicalPath || !isPlatformBrowser(this.platformId)) {
+    if (!localCanonicalPath || !isPlatformBrowser(this.platformId)) {
       this.errorNotification.showWarning(
         'Este vídeo não possui um link compartilhável.'
+      );
+      return 'failed';
+    }
+
+    let canonicalPath: string | null = null;
+
+    try {
+      canonicalPath = await firstValueFrom(
+        this.shareAuthorization.authorizeShare$(
+          video.ownerUid,
+          video.id
+        )
+      );
+    } catch {
+      this.errorNotification.showError(
+        'Não foi possível autorizar o compartilhamento deste vídeo.'
+      );
+      return 'failed';
+    }
+
+    if (canonicalPath !== localCanonicalPath) {
+      this.errorNotification.showWarning(
+        'Este vídeo não está disponível para compartilhamento.'
       );
       return 'failed';
     }
@@ -155,17 +189,16 @@ export class PublicVideoShareService {
 
   private reportError(error: unknown): void {
     try {
-      const normalized = error instanceof Error
+      const normalized: ContextualError = error instanceof Error
         ? new Error(error.message)
         : new Error('Falha ao compartilhar vídeo público.');
 
-      (normalized as any).original = error;
-      (normalized as any).context = {
+      normalized.original = error;
+      normalized.context = {
         scope: 'PublicVideoShareService',
         op: 'sharePublicVideo',
       };
-      (normalized as any).skipUserNotification = true;
-
+      normalized.skipUserNotification = true;
       this.globalErrorHandler.handleError(normalized);
     } catch {
       // noop
