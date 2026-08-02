@@ -19,6 +19,14 @@ describe('media-callable-rate-limit.policy', () => {
     const upload = resolveMediaCallableRateLimitRule('UPLOAD_REGISTER');
     const publish = resolveMediaCallableRateLimitRule('MEDIA_PUBLISH');
     const deletion = resolveMediaCallableRateLimitRule('MEDIA_DELETE');
+    const adminStatus = resolveMediaCallableRateLimitRule('ADMIN_STATUS');
+    const adminQueue = resolveMediaCallableRateLimitRule('ADMIN_QUEUE');
+    const adminModeration = resolveMediaCallableRateLimitRule(
+      'ADMIN_MODERATION'
+    );
+    const adminRecovery = resolveMediaCallableRateLimitRule(
+      'ADMIN_PROCESSING_RECOVERY'
+    );
 
     assert.ok(reaction.globalMaxPerWindow > reaction.resourceMaxPerWindow);
     assert.ok(report.windowMs > reaction.windowMs);
@@ -34,6 +42,15 @@ describe('media-callable-rate-limit.policy', () => {
     assert.equal(upload.windowMs, report.windowMs);
     assert.equal(deletion.windowMs, report.windowMs);
     assert.ok(upload.globalMaxPerWindow > publish.globalMaxPerWindow);
+    assert.equal(adminStatus.globalMaxPerWindow, adminStatus.resourceMaxPerWindow);
+    assert.ok(adminStatus.minIntervalMs > adminModeration.minIntervalMs);
+    assert.ok(adminQueue.globalMaxPerWindow > adminQueue.resourceMaxPerWindow);
+    assert.ok(
+      adminModeration.globalMaxPerWindow > adminRecovery.globalMaxPerWindow
+    );
+    assert.ok(
+      adminRecovery.resourceMaxPerWindow < adminModeration.resourceMaxPerWindow
+    );
   });
 
   it('aceita a primeira operação e incrementa o estado', () => {
