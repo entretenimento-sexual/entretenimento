@@ -76,11 +76,10 @@ export class PublicVideoHlsPlaybackDirective
   private resolveCurrentItemIndex(): number {
     const items = this.viewerData?.items ?? [];
     const video = this.elementRef.nativeElement;
-    const currentIdentity = this.assetIdentity(
-      video.currentSrc || video.getAttribute('src') || video.src
-    );
+    const declaredSource = video.getAttribute('src') || video.src;
+    const currentIdentity = this.assetIdentity(declaredSource);
 
-    if (currentIdentity && !currentIdentity.startsWith('blob:')) {
+    if (currentIdentity && currentIdentity !== 'blob:') {
       const matchedIndex = items.findIndex(
         (item) => this.assetIdentity(item.url) === currentIdentity
       );
