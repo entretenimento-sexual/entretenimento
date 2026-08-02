@@ -85,35 +85,6 @@
           }
         </p>
 
-        @if (
-          hasLocation ||
-          (profile.distanciaKm !== null && profile.distanciaKm !== undefined)
-        ) {
-          <p class="other-profile-page__location">
-            <i class="fas fa-location-dot" aria-hidden="true"></i>
-
-            @if (hasLocation) {
-              <span>{{ profile.municipio }}, {{ profile.estado }}</span>
-            }
-
-            @if (
-              profile.distanciaKm !== null &&
-              profile.distanciaKm !== undefined
-            ) {
-              @if (hasLocation) {
-                <span aria-hidden="true">•</span>
-              }
-              <strong>{{ profile.distanciaKm | number:'1.0-0' }} km</strong>
-            }
-          </p>
-        }
-
-        @if (hasDescription) {
-          <p class="other-profile-page__description">
-            {{ profile.descricao }}
-          </p>
-        }
-
         @if (friendshipInteractionState$ | async; as interactionState) {
           <div class="other-profile-page__actions" aria-label="Ações do perfil">
             @if (interactionState.isFriend) {
@@ -174,39 +145,93 @@
       </div>
     </article>
 
-    <app-profile-media-showcase
-      [ownerUid]="uid || ''"
-      [profileName]="displayName"
-    />
-
-    @if (hasPreferenceChips) {
-      <section
-        class="other-profile-page__affinities"
-        aria-labelledby="profile-affinities-heading"
+    <div class="other-profile-page__content">
+      <main
+        class="other-profile-page__main"
+        aria-label="Conteúdo público do perfil"
       >
-        <h2 id="profile-affinities-heading">Afinidades</h2>
+        <app-profile-media-showcase
+          [ownerUid]="uid || ''"
+          [profileName]="displayName"
+        />
+      </main>
 
-        <div
-          class="other-profile-page__preference-cloud"
-          aria-label="Interesses declarados"
-        >
-          @for (preference of preferenceChips; track preference) {
-            <span class="other-profile-page__preference-chip">
-              {{ preference }}
-            </span>
-          }
-        </div>
-      </section>
-    }
+      <aside
+        class="other-profile-page__sidebar"
+        aria-label="Informações públicas do perfil"
+      >
+        @if (
+          hasDescription ||
+          hasLocation ||
+          (profile.distanciaKm !== null && profile.distanciaKm !== undefined)
+        ) {
+          <section
+            class="other-profile-page__panel other-profile-page__about"
+            aria-labelledby="profile-about-heading"
+          >
+            <h2 id="profile-about-heading">Sobre</h2>
 
-    <app-social-links-accordion
-      class="other-profile-page__social"
-      [uid]="uid"
-      [isOwner]="false"
-      [compact]="true"
-      [hideWhenEmpty]="true"
-      aria-label="Links sociais do perfil"
-    />
+            @if (
+              hasLocation ||
+              (profile.distanciaKm !== null && profile.distanciaKm !== undefined)
+            ) {
+              <p class="other-profile-page__location">
+                <i class="fas fa-location-dot" aria-hidden="true"></i>
+
+                @if (hasLocation) {
+                  <span>{{ profile.municipio }}, {{ profile.estado }}</span>
+                }
+
+                @if (
+                  profile.distanciaKm !== null &&
+                  profile.distanciaKm !== undefined
+                ) {
+                  @if (hasLocation) {
+                    <span aria-hidden="true">•</span>
+                  }
+                  <strong>{{ profile.distanciaKm | number:'1.0-0' }} km</strong>
+                }
+              </p>
+            }
+
+            @if (hasDescription) {
+              <p class="other-profile-page__description">
+                {{ profile.descricao }}
+              </p>
+            }
+          </section>
+        }
+
+        @if (hasPreferenceChips) {
+          <section
+            class="other-profile-page__panel other-profile-page__affinities"
+            aria-labelledby="profile-affinities-heading"
+          >
+            <h2 id="profile-affinities-heading">Afinidades</h2>
+
+            <div
+              class="other-profile-page__preference-cloud"
+              aria-label="Interesses declarados"
+            >
+              @for (preference of preferenceChips; track preference) {
+                <span class="other-profile-page__preference-chip">
+                  {{ preference }}
+                </span>
+              }
+            </div>
+          </section>
+        }
+
+        <app-social-links-accordion
+          class="other-profile-page__panel other-profile-page__social"
+          [uid]="uid"
+          [isOwner]="false"
+          [compact]="true"
+          [hideWhenEmpty]="true"
+          aria-label="Links sociais do perfil"
+        />
+      </aside>
+    </div>
   } @else {
     <div
       class="other-profile-page__empty"
