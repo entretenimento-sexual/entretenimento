@@ -3,13 +3,6 @@ import { HttpsError } from 'firebase-functions/v2/https';
 
 import { db, FieldValue } from '../../firebaseApp';
 import {
-  cleanVideoViewSource,
-  getVideoViewSessionRef,
-  hashVideoViewSessionToken,
-  type VideoViewSessionDocument,
-  type VideoViewSource,
-} from './issue-video-view-session.handler';
-import {
   MEDIA_RANKING_VERSION,
   buildMediaEngagementScore,
   normalizeMediaCount,
@@ -35,6 +28,13 @@ import {
   normalizeVideoViewPlaybackEvidence,
 } from './video-view-qualification';
 import { normalizeVideoViewSessionToken } from './video-view-session.policy';
+import {
+  cleanVideoViewSource,
+  getVideoViewSessionRef,
+  hashVideoViewSessionToken,
+  type VideoViewSessionDocument,
+  type VideoViewSource,
+} from './video-view-session.store';
 
 export interface RecordVideoViewRequest {
   ownerUid?: string;
