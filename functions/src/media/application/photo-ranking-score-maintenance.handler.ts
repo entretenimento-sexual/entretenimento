@@ -42,6 +42,14 @@ function hasProfileAggregateInputChange(
     before.isCover !== after.isCover;
 }
 
+async function refreshOwnerProfile(ownerUidValue: unknown): Promise<void> {
+  const ownerUid = String(ownerUidValue ?? '').trim();
+
+  if (ownerUid) {
+    await refreshPublicProfileMediaMetrics(ownerUid);
+  }
+}
+
 export const recalculatePhotoRankingOnWrite = onDocumentWritten(
   {
     document: 'public_profiles/{ownerUid}/public_photos/{photoId}',
@@ -49,34 +57,41 @@ export const recalculatePhotoRankingOnWrite = onDocumentWritten(
     maxInstances: 20,
   },
   async (event) => {
-    const after = event.data?.after;
+    const beforeSnapshot = event.data?.before;
+    const afterSnapshot = event.data?.after;
+    const before = beforeSnapshot?.exists
+      ? beforeSnapshot.data() as PublicPhotoRankingDocument
+      : null;
 
-    if (!after?.exists) {
+    if (!afterSnapshot?.exists) {
+      if (before && isRankablePhoto(before)) {
+        await refreshOwnerProfile(event.params.ownerUid);
+      }
       return;
     }
 
-    const data = after.data() as PublicPhotoRankingDocument;
+    const data = afterSnapshot.data() as PublicPhotoRankingDocument;
 
     if (!isRankablePhoto(data)) {
+      if (
+        (before && isRankablePhoto(before)) ||
+        hasProfileAggregateInputChange(before, data)
+      ) {
+        await refreshOwnerProfile(event.params.ownerUid);
+      }
       return;
     }
 
-    const before = event.data?.before.exists
-      ? event.data.before.data() as PublicPhotoRankingDocument
-      : null;
     const update = buildPhotoRankingUpdate(data, Date.now());
     const rankingChanged = !hasEquivalentPhotoRanking(data, update);
     const aggregateInputChanged = hasProfileAggregateInputChange(before, data);
 
     if (rankingChanged) {
-      await after.ref.set(update, { merge: true });
+      await afterSnapshot.ref.set(update, { merge: true });
     }
 
     if (rankingChanged || aggregateInputChanged) {
-      const ownerUid = String(event.params.ownerUid ?? '').trim();
-      if (ownerUid) {
-        await refreshPublicProfileMediaMetrics(ownerUid);
-      }
+      await refreshOwnerProfile(event.params.ownerUid);
     }
   }
 );
