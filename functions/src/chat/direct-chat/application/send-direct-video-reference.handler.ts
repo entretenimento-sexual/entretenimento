@@ -4,6 +4,12 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
 import { db, FieldValue } from '../../../firebaseApp';
 import {
+  createVideoAudienceAccessEvaluator,
+  resolveCanonicalVideoAudienceTarget,
+  type PublicVideoAudienceDocument,
+  type VideoPublicationAudienceDocument,
+} from '../../../media/application/video-audience-access.policy';
+import {
   assertMessagingAccountOperational,
 } from '../../shared/messaging-account.policy';
 import type { MessagingUserDoc } from '../../shared/messaging.types';
@@ -96,6 +102,18 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
 
     const messageId = buildMessageId(chatId, actorUid, clientRequestId);
     const chatRef = db.doc(`chats/${chatId}`);
+    const initialChatSnapshot = await chatRef.get();
+    const initialChat = initialChatSnapshot.exists
+      ? initialChatSnapshot.data() as DirectChatDocumentForSend
+      : undefined;
+    const expectedTargetUid = resolveDirectMessageTargetUid(
+      initialChat,
+      actorUid
+    );
+    const [actorAudience, targetAudience] = await Promise.all([
+      createVideoAudienceAccessEvaluator(actorUid),
+      createVideoAudienceAccessEvaluator(expectedTargetUid),
+    ]);
     const messageRef = chatRef.collection('messages').doc(messageId);
 
     return db.runTransaction(async (transaction) => {
@@ -104,6 +122,13 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
         ? chatSnapshot.data() as DirectChatDocumentForSend
         : undefined;
       const targetUid = resolveDirectMessageTargetUid(chat, actorUid);
+
+      if (targetUid !== expectedTargetUid) {
+        throw new HttpsError(
+          'aborted',
+          'A conversa mudou durante o envio. Tente novamente.'
+        );
+      }
 
       const actorRef = db.doc(`users/${actorUid}`);
       const targetRef = db.doc(`users/${targetUid}`);
@@ -164,6 +189,35 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
         actorFriendSnapshot.exists,
         targetFriendSnapshot.exists
       );
+
+      const publicVideo = publicVideoSnapshot.exists
+        ? publicVideoSnapshot.data() as PublicVideoAudienceDocument
+        : undefined;
+      const publication = publicationSnapshot.exists
+        ? publicationSnapshot.data() as VideoPublicationAudienceDocument
+        : undefined;
+      const audienceTarget = resolveCanonicalVideoAudienceTarget({
+        ownerUid: requestedReference.ownerUid,
+        videoId: requestedReference.videoId,
+        action: 'SHARE',
+        publicVideo,
+        publication,
+      });
+
+      if (!publicProfileSnapshot.exists || !audienceTarget) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Este vídeo não está disponível para compartilhamento.'
+        );
+      }
+
+      /**
+       * Compartilhar uma referência não concede acesso. Remetente e
+       * destinatário precisam possuir audiência válida no instante do envio;
+       * o playback revalida tudo novamente ao abrir a mensagem.
+       */
+      await actorAudience.assertInTransaction(transaction, audienceTarget);
+      await targetAudience.assertInTransaction(transaction, audienceTarget);
 
       const storedReference =
         resolveStoredDirectMessagePublicVideoReference({
