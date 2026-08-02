@@ -6,6 +6,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
+import { doc, setDoc } from 'firebase/firestore';
 import {
   deleteObject,
   getBytes,
@@ -23,9 +24,12 @@ import {
 
 const PROJECT_ID = 'demo-entretenimento-storage-rules';
 const BUCKET_URL = `gs://${PROJECT_ID}.appspot.com`;
+const FIRESTORE_HOST = '127.0.0.1';
+const FIRESTORE_PORT = 8188;
 const STORAGE_HOST = '127.0.0.1';
 const STORAGE_PORT = 9299;
 const SMALL_VIDEO = new Uint8Array([0, 1, 2, 3]);
+const SMALL_IMAGE = new Uint8Array([4, 5, 6, 7]);
 
 let testEnvironment: RulesTestEnvironment;
 
@@ -53,9 +57,49 @@ function uploadVideo(input: {
   );
 }
 
+function uploadPhoto(input: {
+  storage: FirebaseStorage;
+  ownerUid: string;
+  photoId?: string;
+  slot?: string;
+  contentType?: string;
+}) {
+  const photoId = input.photoId ?? 'photo-1';
+  const slot = input.slot ?? 'source-a';
+
+  return uploadBytes(
+    ref(
+      input.storage,
+      `users/${input.ownerUid}/uploads/images/${photoId}/${slot}`
+    ),
+    SMALL_IMAGE,
+    { contentType: input.contentType ?? 'image/jpeg' }
+  );
+}
+
+async function seedRegisteredPhoto(
+  ownerUid: string,
+  photoId = 'photo-1'
+): Promise<void> {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+      doc(context.firestore(), `users/${ownerUid}/photos/${photoId}`),
+      {
+        id: photoId,
+        path: `users/${ownerUid}/uploads/images/${photoId}/source-a`,
+      }
+    );
+  });
+}
+
 beforeAll(async () => {
   testEnvironment = await initializeTestEnvironment({
     projectId: PROJECT_ID,
+    firestore: {
+      host: FIRESTORE_HOST,
+      port: FIRESTORE_PORT,
+      rules: readFileSync('firestore.storage-rules-test.rules', 'utf8'),
+    },
     storage: {
       host: STORAGE_HOST,
       port: STORAGE_PORT,
@@ -65,7 +109,10 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  await testEnvironment.clearStorage();
+  await Promise.all([
+    testEnvironment.clearFirestore(),
+    testEnvironment.clearStorage(),
+  ]);
 });
 
 afterAll(async () => {
@@ -171,6 +218,118 @@ describe('Storage Rules — uploads privados de vídeo', () => {
     );
 
     await assertFails(deleteObject(otherUserRef));
+    await assertSucceeds(deleteObject(ownerRef));
+  });
+});
+
+describe('Storage Rules — staging limitado de fotos', () => {
+  it('permite os dois slots fixos ao proprietário', async () => {
+    const storage = authenticatedStorage('alice');
+
+    await assertSucceeds(
+      uploadPhoto({ storage, ownerUid: 'alice', slot: 'source-a' })
+    );
+    await assertSucceeds(
+      uploadPhoto({ storage, ownerUid: 'alice', slot: 'source-b' })
+    );
+  });
+
+  it('bloqueia slots e namespaces arbitrários', async () => {
+    const storage = authenticatedStorage('alice');
+
+    await assertFails(
+      uploadPhoto({ storage, ownerUid: 'alice', slot: 'arquivo-extra' })
+    );
+    await assertFails(
+      uploadBytes(
+        ref(storage, 'users/alice/uploads/images/foto-livre.jpg'),
+        SMALL_IMAGE,
+        { contentType: 'image/jpeg' }
+      )
+    );
+  });
+
+  it('bloqueia leitura antes do registro backend', async () => {
+    const storage = authenticatedStorage('alice');
+    const photoRef = ref(
+      storage,
+      'users/alice/uploads/images/photo-1/source-a'
+    );
+
+    await assertSucceeds(
+      uploadBytes(photoRef, SMALL_IMAGE, { contentType: 'image/jpeg' })
+    );
+    await assertFails(getBytes(photoRef));
+  });
+
+  it('libera leitura do proprietário após registro backend', async () => {
+    const storage = authenticatedStorage('alice');
+    const photoRef = ref(
+      storage,
+      'users/alice/uploads/images/photo-1/source-a'
+    );
+
+    await assertSucceeds(
+      uploadBytes(photoRef, SMALL_IMAGE, { contentType: 'image/jpeg' })
+    );
+    await seedRegisteredPhoto('alice');
+    await assertSucceeds(getBytes(photoRef));
+  });
+
+  it('não libera a foto registrada para outro usuário', async () => {
+    const ownerStorage = authenticatedStorage('alice');
+    const ownerRef = ref(
+      ownerStorage,
+      'users/alice/uploads/images/photo-1/source-a'
+    );
+
+    await assertSucceeds(
+      uploadBytes(ownerRef, SMALL_IMAGE, { contentType: 'image/jpeg' })
+    );
+    await seedRegisteredPhoto('alice');
+
+    const otherRef = ref(
+      authenticatedStorage('bob'),
+      'users/alice/uploads/images/photo-1/source-a'
+    );
+    await assertFails(getBytes(otherRef));
+  });
+
+  it('bloqueia upload de foto no perfil de outro usuário', async () => {
+    await assertFails(
+      uploadPhoto({
+        storage: authenticatedStorage('bob'),
+        ownerUid: 'alice',
+      })
+    );
+  });
+
+  it('bloqueia conteúdo que não seja imagem', async () => {
+    await assertFails(
+      uploadPhoto({
+        storage: authenticatedStorage('alice'),
+        ownerUid: 'alice',
+        contentType: 'application/octet-stream',
+      })
+    );
+  });
+
+  it('permite exclusão do staging somente ao proprietário', async () => {
+    const ownerRef = ref(
+      authenticatedStorage('alice'),
+      'users/alice/uploads/images/photo-1/source-a'
+    );
+
+    await assertSucceeds(
+      uploadBytes(ownerRef, SMALL_IMAGE, { contentType: 'image/jpeg' })
+    );
+
+    const otherRef = ref(
+      authenticatedStorage('bob'),
+      'users/alice/uploads/images/photo-1/source-a'
+    );
+
+    await assertFails(deleteObject(otherRef));
     await assertSucceeds(deleteObject(ownerRef));
   });
 });
