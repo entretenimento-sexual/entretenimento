@@ -265,6 +265,52 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  storage-rules:
+    name: Storage Rules tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Prepare logs
+        run: mkdir -p logs
+
+      - name: Install application dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee logs/storage-rules-install.log
+
+      - name: Run Storage Rules tests
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/quality/run-storage-rules-tests.mjs 2>&1 | tee logs/storage-rules-tests.log
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: quality-gate-storage-rules-${{ github.run_id }}-${{ github.run_attempt }}
+          path: logs/
+          if-no-files-found: error
+          retention-days: 14
+
   quality-gate-status:
     name: Quality Gate status
     if: always()
@@ -274,6 +320,7 @@ jobs:
       - angular-tests
       - angular-build
       - firestore-rules
+      - storage-rules
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -287,6 +334,7 @@ jobs:
           ANGULAR_TESTS_RESULT: ${{ needs.angular-tests.result }}
           ANGULAR_BUILD_RESULT: ${{ needs.angular-build.result }}
           FIRESTORE_RULES_RESULT: ${{ needs.firestore-rules.result }}
+          STORAGE_RULES_RESULT: ${{ needs.storage-rules.result }}
         run: |
           state='success'
           description='Todos os checks de qualidade passaram.'
@@ -296,7 +344,8 @@ jobs:
             "$FUNCTIONS_RESULT" \
             "$ANGULAR_TESTS_RESULT" \
             "$ANGULAR_BUILD_RESULT" \
-            "$FIRESTORE_RULES_RESULT"; do
+            "$FIRESTORE_RULES_RESULT" \
+            "$STORAGE_RULES_RESULT"; do
             if [[ "$result" != 'success' ]]; then
               state='failure'
               description='Um ou mais checks de qualidade falharam.'
