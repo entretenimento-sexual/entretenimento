@@ -8,6 +8,10 @@ import { PhotoFirestoreService } from './photo-firestore.service';
 import { PhotoStorageLifecycleService } from './photo-storage-lifecycle.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import {
+  PrivateMediaDraftCapacityError,
+  PrivateMediaDraftCapacityService,
+} from '../media/private-media-draft-capacity.service';
 
 export interface IPhotoUploadFlowCommand {
   userId: string;
@@ -28,6 +32,7 @@ export interface IPhotoFlowResult {
   path: string;
   fileName: string;
   createdAt: Date;
+  sizeBytes?: number;
 }
 
 export interface IPhotoUploadProgressEvent {
@@ -52,6 +57,7 @@ export class PhotoUploadFlowService {
     private readonly storageService: StorageService,
     private readonly photoFirestoreService: PhotoFirestoreService,
     private readonly photoStorageLifecycle: PhotoStorageLifecycleService,
+    private readonly draftCapacity: PrivateMediaDraftCapacityService,
     private readonly errorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
   ) {}
@@ -73,13 +79,17 @@ export class PhotoUploadFlowService {
       photoId: this.createPhotoId(),
       fileName,
       createdAt: new Date(),
+      sizeBytes: file.size,
     };
 
-    return this.uploadNewPhotoBinary$(
-      safeUserId,
-      file,
-      requestedStoragePath
-    ).pipe(
+    return this.draftCapacity.assertCapacity$('photo', file.size).pipe(
+      switchMap(() =>
+        this.uploadNewPhotoBinary$(
+          safeUserId,
+          file,
+          requestedStoragePath
+        )
+      ),
       switchMap(({ displayUrl, storagePath }) => {
         const result: IPhotoFlowResult = {
           ...resultBase,
@@ -96,7 +106,7 @@ export class PhotoUploadFlowService {
       catchError((error) =>
         this.failFlow$(
           error,
-          'Erro ao enviar a imagem.',
+          this.resolveUserMessage(error, 'Erro ao enviar a imagem.'),
           {
             op: 'uploadProcessedPhoto$',
             userId: safeUserId,
@@ -169,6 +179,7 @@ export class PhotoUploadFlowService {
           path: storagePath,
           fileName,
           createdAt: new Date(),
+          sizeBytes: file.size,
         };
 
         return from(
@@ -179,6 +190,7 @@ export class PhotoUploadFlowService {
               url: displayUrl,
               path: storagePath,
               fileName,
+              sizeBytes: file.size,
             }
           )
         ).pipe(
@@ -238,54 +250,61 @@ export class PhotoUploadFlowService {
       photoId: this.createPhotoId(),
       fileName,
       createdAt: new Date(),
+      sizeBytes: file.size,
     };
 
     return new Observable<IPhotoUploadFlowEvent>((observer) => {
       observer.next({ type: 'progress', progress: 0 });
 
-      const subscription = this.uploadNewPhotoBinary$(
-        safeUserId,
-        file,
-        requestedStoragePath,
-        (progress) => {
-          observer.next({
-            type: 'progress',
-            progress: this.normalizeProgress(progress),
-          });
-        }
-      ).pipe(
-        switchMap(({ displayUrl, storagePath }) => {
-          const result: IPhotoFlowResult = {
-            ...resultBase,
-            url: displayUrl,
-            path: storagePath,
-          };
+      const subscription = this.draftCapacity
+        .assertCapacity$('photo', file.size)
+        .pipe(
+          switchMap(() =>
+            this.uploadNewPhotoBinary$(
+              safeUserId,
+              file,
+              requestedStoragePath,
+              (progress) => {
+                observer.next({
+                  type: 'progress',
+                  progress: this.normalizeProgress(progress),
+                });
+              }
+            )
+          ),
+          switchMap(({ displayUrl, storagePath }) => {
+            const result: IPhotoFlowResult = {
+              ...resultBase,
+              url: displayUrl,
+              path: storagePath,
+            };
 
-          return this.persistNewPhoto$(
-            safeUserId,
-            result,
-            command.imageStateStr
-          );
-        }),
-        catchError((error) =>
-          this.failFlow$(
-            error,
-            'Erro ao enviar a imagem.',
-            {
-              op: 'uploadProcessedPhotoWithProgress$',
-              userId: safeUserId,
-              fileName,
-            }
+            return this.persistNewPhoto$(
+              safeUserId,
+              result,
+              command.imageStateStr
+            );
+          }),
+          catchError((error) =>
+            this.failFlow$(
+              error,
+              this.resolveUserMessage(error, 'Erro ao enviar a imagem.'),
+              {
+                op: 'uploadProcessedPhotoWithProgress$',
+                userId: safeUserId,
+                fileName,
+              }
+            )
           )
         )
-      ).subscribe({
-        next: (result) => {
-          observer.next({ type: 'progress', progress: 100 });
-          observer.next({ type: 'success', result });
-          observer.complete();
-        },
-        error: (error) => observer.error(error),
-      });
+        .subscribe({
+          next: (result) => {
+            observer.next({ type: 'progress', progress: 100 });
+            observer.next({ type: 'success', result });
+            observer.complete();
+          },
+          error: (error) => observer.error(error),
+        });
 
       return () => subscription.unsubscribe();
     });
@@ -321,6 +340,7 @@ export class PhotoUploadFlowService {
         path: result.path,
         fileName: result.fileName,
         createdAt: result.createdAt,
+        sizeBytes: result.sizeBytes ?? null,
       })
     ).pipe(
       switchMap(() =>
@@ -499,6 +519,14 @@ export class PhotoUploadFlowService {
     const error = new Error(message);
     (error as any).code = code;
     return error;
+  }
+
+  private resolveUserMessage(error: unknown, fallback: string): string {
+    if (error instanceof PrivateMediaDraftCapacityError) {
+      return error.message;
+    }
+
+    return fallback;
   }
 
   private reportSilent(
