@@ -16,8 +16,8 @@ import {
 } from 'firebase/storage';
 import { Observable, firstValueFrom } from 'rxjs';
 
-import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
-import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
+import type { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
+import type { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { VideoMetadataPreparationService } from './video-metadata-preparation.service';
