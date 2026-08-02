@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import './media-callable-rate-limit.policy.test';
+import './media-mutation-idempotency.policy.test';
 import './photo-audience-access.policy.test';
 import {
   VIDEO_VIEW_SESSION_MIN_INTERVAL_MS,
@@ -35,35 +36,31 @@ describe('video-view-session.policy', () => {
     });
   });
 
-  it('aplica intervalo mínimo entre emissões', () => {
+  it('bloqueia emissões rápidas para o mesmo escopo', () => {
     const now = 1_800_000_000_000;
     const decision = buildVideoViewSessionRateDecision({
-      now,
+      now: now + VIDEO_VIEW_SESSION_MIN_INTERVAL_MS - 1,
       state: {
-        windowStartedAt: now - 1_000,
+        windowStartedAt: now,
         count: 1,
-        lastIssuedAt: now - 500,
+        lastIssuedAt: now,
       },
       maxPerWindow: 6,
     });
 
     assert.equal(decision.allowed, false);
-    assert.equal(
-      decision.retryAfterMs,
-      VIDEO_VIEW_SESSION_MIN_INTERVAL_MS - 500
-    );
+    assert.equal(decision.retryAfterMs, 1_000);
     assert.equal(decision.nextState.count, 1);
   });
 
-  it('bloqueia a janela cheia e informa quando pode tentar novamente', () => {
+  it('bloqueia ao atingir o máximo da janela', () => {
     const now = 1_800_000_000_000;
-    const windowStartedAt = now - 60_000;
     const decision = buildVideoViewSessionRateDecision({
-      now,
+      now: now + 30_000,
       state: {
-        windowStartedAt,
+        windowStartedAt: now,
         count: 6,
-        lastIssuedAt: now - VIDEO_VIEW_SESSION_MIN_INTERVAL_MS,
+        lastIssuedAt: now,
       },
       maxPerWindow: 6,
     });
@@ -71,27 +68,28 @@ describe('video-view-session.policy', () => {
     assert.equal(decision.allowed, false);
     assert.equal(
       decision.retryAfterMs,
-      VIDEO_VIEW_SESSION_RATE_WINDOW_MS - 60_000
+      VIDEO_VIEW_SESSION_RATE_WINDOW_MS - 30_000
     );
   });
 
-  it('reinicia a contagem quando a janela expira', () => {
+  it('reinicia a janela expirada', () => {
     const now = 1_800_000_000_000;
+    const nextWindow = now + VIDEO_VIEW_SESSION_RATE_WINDOW_MS;
     const decision = buildVideoViewSessionRateDecision({
-      now,
+      now: nextWindow,
       state: {
-        windowStartedAt: now - VIDEO_VIEW_SESSION_RATE_WINDOW_MS,
+        windowStartedAt: now,
         count: 99,
-        lastIssuedAt: now - VIDEO_VIEW_SESSION_MIN_INTERVAL_MS,
+        lastIssuedAt: now,
       },
       maxPerWindow: 6,
     });
 
     assert.equal(decision.allowed, true);
     assert.deepEqual(decision.nextState, {
-      windowStartedAt: now,
+      windowStartedAt: nextWindow,
       count: 1,
-      lastIssuedAt: now,
+      lastIssuedAt: nextWindow,
     });
   });
 });
