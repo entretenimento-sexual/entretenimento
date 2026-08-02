@@ -1,4 +1,4 @@
-import { onCall } from 'firebase-functions/v2/https';
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { PROTECTED_CALLABLE_OPTIONS } from '../../config/protected-callable-options';
 import { storage } from '../../firebaseApp';
@@ -10,11 +10,7 @@ import {
 } from './delete-profile-video.handler';
 import {
   setCoverPhoto as setCoverPhotoCore,
-  unpublishPhoto as unpublishPhotoCore,
 } from './manage-photo-publication.handler';
-import {
-  unpublishVideo as unpublishVideoCore,
-} from './manage-video-publication.handler';
 import {
   assertMediaCallableRateLimit,
 } from './media-callable-rate-limit.service';
@@ -26,11 +22,17 @@ import {
   resolveUploadMutationCost,
 } from './media-mutation-idempotency.policy';
 import {
+  extractOwnedPrivatePhotoPathForId,
+} from './photo-storage-path';
+import {
   publishPhoto as publishPhotoCore,
 } from './publish-photo-orchestrator.handler';
 import {
   publishVideo as publishVideoCore,
 } from './publish-video-orchestrator.handler';
+import {
+  registerAndPublishPhotoUpload as registerAndPublishPhotoUploadCore,
+} from './register-and-publish-photo-upload.handler';
 import {
   registerPrivateVideoUpload as registerPrivateVideoUploadCore,
 } from './register-private-video-upload-orchestrator.handler';
@@ -54,6 +56,14 @@ interface PublishPhotoRequest {
   commentsEnabled?: boolean;
   commentsPolicy?: 'OFF' | 'FRIENDS' | 'SUBSCRIBERS' | 'EVERYONE';
   reactionsEnabled?: boolean;
+}
+
+interface RegisterAndPublishPhotoUploadRequest extends PublishPhotoRequest {
+  storagePath?: string;
+  fileName?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  [key: string]: unknown;
 }
 
 interface PhotoTargetRequest {
@@ -140,7 +150,7 @@ async function executeProtectedMutation<T>(input: {
   });
 }
 
-async function resolveUploadCost(
+async function resolveVideoUploadCost(
   actorUid: string,
   data: RegisterPrivateVideoUploadRequest | undefined
 ): Promise<number> {
@@ -155,6 +165,35 @@ async function resolveUploadCost(
     ownerUid,
     videoId,
     data?.videoStoragePath
+  );
+
+  if (!storagePath) {
+    return resolveUploadMutationCost(null);
+  }
+
+  try {
+    const [metadata] = await storage.bucket().file(storagePath).getMetadata();
+    return resolveUploadMutationCost(metadata.size);
+  } catch {
+    return resolveUploadMutationCost(null);
+  }
+}
+
+async function resolvePhotoUploadCost(
+  actorUid: string,
+  data: RegisterAndPublishPhotoUploadRequest | undefined
+): Promise<number> {
+  const ownerUid = cleanId(data?.ownerUid);
+  const photoId = cleanId(data?.photoId);
+
+  if (!actorUid || actorUid !== ownerUid || !photoId) {
+    return resolveUploadMutationCost(null);
+  }
+
+  const storagePath = extractOwnedPrivatePhotoPathForId(
+    ownerUid,
+    photoId,
+    data?.storagePath
   );
 
   if (!storagePath) {
@@ -184,11 +223,36 @@ export const registerPrivateVideoUpload = onCall<RegisterPrivateVideoUploadReque
         actorUid,
         action: 'UPLOAD_REGISTER',
         resourceKey: key,
-        cost: await resolveUploadCost(actorUid, request.data),
+        cost: await resolveVideoUploadCost(actorUid, request.data),
       });
     }
 
     return registerPrivateVideoUploadCore.run(request);
+  }
+);
+
+export const registerAndPublishPhotoUpload = onCall<
+  RegisterAndPublishPhotoUploadRequest
+>(
+  PROTECTED_CALLABLE_OPTIONS,
+  async (request) => {
+    const actorUid = cleanId(request.auth?.uid);
+    const key = resourceKey(
+      'photo',
+      request.data?.ownerUid,
+      request.data?.photoId
+    );
+
+    if (actorUid) {
+      await assertMediaCallableRateLimit({
+        actorUid,
+        action: 'UPLOAD_REGISTER',
+        resourceKey: key,
+        cost: await resolvePhotoUploadCost(actorUid, request.data),
+      });
+    }
+
+    return registerAndPublishPhotoUploadCore.run(request);
   }
 );
 
@@ -209,21 +273,19 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
   })
 );
 
+/**
+ * Mantemos o nome público para clientes antigos receberem uma resposta segura,
+ * mas a operação foi encerrada: publicação não pode voltar a ser armazenamento
+ * pessoal. Para remover conteúdo, o usuário deve usar deleteProfilePhoto.
+ */
 export const unpublishPhoto = onCall<PhotoTargetRequest>(
   PROTECTED_CALLABLE_OPTIONS,
-  async (request) => executeProtectedMutation({
-    actorUid: cleanId(request.auth?.uid),
-    idempotencyAction: 'PHOTO_UNPUBLISH',
-    rateAction: 'MEDIA_UNPUBLISH',
-    resourceKey: resourceKey(
-      'photo',
-      request.data?.ownerUid,
-      request.data?.photoId
-    ),
-    requestData: request.data,
-    cost: 1,
-    execute: () => unpublishPhotoCore.run(request),
-  })
+  async () => {
+    throw new HttpsError(
+      'failed-precondition',
+      'Fotos publicadas não podem ser convertidas em arquivos privados. Exclua a foto para removê-la da plataforma.'
+    );
+  }
 );
 
 export const setCoverPhoto = onCall<PhotoTargetRequest>(
@@ -260,21 +322,18 @@ export const publishVideo = onCall<PublishVideoRequest>(
   })
 );
 
+/**
+ * Mesma política das fotos: remover do perfil sem excluir reabriria a biblioteca
+ * privada. O nome permanece para compatibilidade e devolve orientação explícita.
+ */
 export const unpublishVideo = onCall<VideoTargetRequest>(
   PROTECTED_CALLABLE_OPTIONS,
-  async (request) => executeProtectedMutation({
-    actorUid: cleanId(request.auth?.uid),
-    idempotencyAction: 'VIDEO_UNPUBLISH',
-    rateAction: 'MEDIA_UNPUBLISH',
-    resourceKey: resourceKey(
-      'video',
-      request.data?.ownerUid,
-      request.data?.videoId
-    ),
-    requestData: request.data,
-    cost: 2,
-    execute: () => unpublishVideoCore.run(request),
-  })
+  async () => {
+    throw new HttpsError(
+      'failed-precondition',
+      'Vídeos publicados não podem ser convertidos em arquivos privados. Exclua o vídeo para removê-lo da plataforma.'
+    );
+  }
 );
 
 export const deleteProfilePhoto = onCall<PhotoTargetRequest>(

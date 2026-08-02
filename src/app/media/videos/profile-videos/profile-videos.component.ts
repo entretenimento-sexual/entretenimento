@@ -1,6 +1,6 @@
 // src/app/media/videos/profile-videos/profile-videos.component.ts
 // -----------------------------------------------------------------------------
-// Biblioteca privada, upload recuperável e publicação controlada de vídeos.
+// Upload temporário, processamento e publicação controlada de vídeos.
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
@@ -57,9 +57,15 @@ import {
   resolveVideoUploadFormat,
 } from 'src/app/core/services/media/video-upload-format.policy';
 import {
+  buildVideoUploadSafetyAttestation,
+} from 'src/app/core/services/media/video-upload-safety-attestation.policy';
+import type {
+  IVideoUploadCaptionInput,
   IVideoUploadFlowEvent,
-  VideoUploadFlowService,
   VideoUploadProgressPhase,
+} from 'src/app/core/services/media/video-upload-flow.service';
+import {
+  VideoUploadFlowService,
 } from 'src/app/core/services/media/video-upload-flow.service';
 
 interface ProfileVideoViewItem {
@@ -84,11 +90,16 @@ type VideoUploadUiPhase =
   | 'DONE';
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
+const MAX_CAPTION_SIZE_BYTES = 1024 * 1024;
 const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
 const DENY_UNKNOWN: IMediaPolicyResult = {
   decision: 'DENY',
   reason: 'UNKNOWN',
 };
+const DEFAULT_CAPTION_LANGUAGE = 'pt-BR';
+const DEFAULT_CAPTION_LABEL = 'Português (Brasil)';
+const WEBVTT_CUE_PATTERN =
+  /\d{2}:\d{2}(?::\d{2})?[.,]\d{3}\s+-->\s+\d{2}:\d{2}(?::\d{2})?[.,]\d{3}/;
 
 @Component({
   selector: 'app-profile-videos',
@@ -138,6 +149,14 @@ export class ProfileVideosComponent {
     reactionsEnabled: [true],
     commentsEnabled: [true],
     ratingsEnabled: [true],
+    captionLanguage: [
+      DEFAULT_CAPTION_LANGUAGE,
+      [Validators.pattern(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/)],
+    ],
+    captionLabel: [DEFAULT_CAPTION_LABEL, [Validators.maxLength(40)]],
+    allParticipantsAdultsAndConsenting: [false, Validators.requiredTrue],
+    rightsAndPermissionsConfirmed: [false, Validators.requiredTrue],
+    prohibitedContentAcknowledged: [false, Validators.requiredTrue],
   });
 
   readonly publicationSettingsForm = this.formBuilder.nonNullable.group({
@@ -162,6 +181,14 @@ export class ProfileVideosComponent {
     new BehaviorSubject<string | null>(null);
   readonly selectedPosterUrl$ = this.selectedPosterUrlSubject.asObservable();
 
+  private readonly selectedCaptionFileSubject =
+    new BehaviorSubject<File | null>(null);
+  readonly selectedCaptionFile$ =
+    this.selectedCaptionFileSubject.asObservable();
+
+  private readonly captionValidatingSubject = new BehaviorSubject(false);
+  readonly captionValidating$ = this.captionValidatingSubject.asObservable();
+
   private readonly capturingPosterSubject = new BehaviorSubject(false);
   readonly capturingPoster$ = this.capturingPosterSubject.asObservable();
 
@@ -184,7 +211,6 @@ export class ProfileVideosComponent {
 
   private uploadSubscription: Subscription | null = null;
   private cancelRequestedByUser = false;
-  private uploadPublishWhenReady = true;
 
   readonly viewer$: Observable<IMediaPolicyViewerSnapshot | null | undefined> =
     this.currentUserStore.user$.pipe(
@@ -195,6 +221,10 @@ export class ProfileVideosComponent {
               emailVerified: user.emailVerified === true,
               profileCompleted: user.profileCompleted === true,
               interactionBlocked: user.interactionBlocked === true,
+              ageReverificationStatus:
+                user.ageReverification?.status ?? null,
+              ageReverificationResult:
+                user.ageReverification?.result ?? null,
             }
           : user
       ),
@@ -205,7 +235,11 @@ export class ProfileVideosComponent {
           previous.uid === current.uid &&
           previous.emailVerified === current.emailVerified &&
           previous.profileCompleted === current.profileCompleted &&
-          previous.interactionBlocked === current.interactionBlocked)
+          previous.interactionBlocked === current.interactionBlocked &&
+          previous.ageReverificationStatus ===
+            current.ageReverificationStatus &&
+          previous.ageReverificationResult ===
+            current.ageReverificationResult)
       ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -261,6 +295,11 @@ export class ProfileVideosComponent {
 
   readonly selectedFileSize$ = this.selectedFile$.pipe(
     map((file) => (file ? this.formatFileSize(file.size) : null)),
+    distinctUntilChanged()
+  );
+
+  readonly selectedCaptionFileName$ = this.selectedCaptionFile$.pipe(
+    map((file) => file?.name ?? null),
     distinctUntilChanged()
   );
 
@@ -344,6 +383,7 @@ export class ProfileVideosComponent {
     this.revokePreviewUrl();
     this.revokePosterUrl();
     this.selectedPosterBlobSubject.next(null);
+    this.selectedCaptionFileSubject.next(null);
     this.selectedFileSubject.next(file);
     this.previewUrlSubject.next(URL.createObjectURL(file));
     this.uploadPublicationForm.reset({
@@ -352,14 +392,67 @@ export class ProfileVideosComponent {
       reactionsEnabled: true,
       commentsEnabled: true,
       ratingsEnabled: true,
+      captionLanguage: DEFAULT_CAPTION_LANGUAGE,
+      captionLabel: DEFAULT_CAPTION_LABEL,
+      allParticipantsAdultsAndConsenting: false,
+      rightsAndPermissionsConfirmed: false,
+      prohibitedContentAcknowledged: false,
     });
     this.uploadPhaseSubject.next('READY');
     this.uploadProgressSubject.next(0);
     this.uploadStepSubject.next(
       format.browserPreviewLikely
-        ? 'Revise a capa e as informações antes de enviar.'
+        ? 'Revise a capa, as informações, a legenda opcional e as declarações antes de enviar.'
         : 'Formato aceito. A prévia pode não abrir neste navegador; o vídeo será convertido após o envio.'
     );
+  }
+
+  async onCaptionSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+
+    if (!file) {
+      return;
+    }
+
+    this.captionValidatingSubject.next(true);
+
+    try {
+      this.assertValidCaptionFile(file);
+      const content = await file.text();
+      this.assertValidWebVttContent(content);
+      this.selectedCaptionFileSubject.next(
+        file.type === 'text/vtt'
+          ? file
+          : new File([file], file.name, {
+              type: 'text/vtt',
+              lastModified: file.lastModified,
+            })
+      );
+      this.errorNotification.showSuccess('Legenda WebVTT adicionada.');
+    } catch (error) {
+      input.value = '';
+      this.selectedCaptionFileSubject.next(null);
+      this.errorNotification.showError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível validar a legenda.'
+      );
+    } finally {
+      this.captionValidatingSubject.next(false);
+    }
+  }
+
+  removeCaption(fileInput?: HTMLInputElement): void {
+    if (this.isUploadActive()) {
+      return;
+    }
+
+    this.selectedCaptionFileSubject.next(null);
+
+    if (fileInput) {
+      fileInput.value = '';
+    }
   }
 
   capturePoster(video: HTMLVideoElement): void {
@@ -394,22 +487,21 @@ export class ProfileVideosComponent {
     });
   }
 
-  startUpload(publishWhenReady = true): void {
-    if (this.uploadSubscription) {
+  startUpload(): void {
+    if (this.uploadSubscription || this.captionValidatingSubject.value) {
       return;
     }
 
     if (this.uploadPublicationForm.invalid) {
       this.uploadPublicationForm.markAllAsTouched();
       this.errorNotification.showWarning(
-        'Informe um título válido antes de enviar o vídeo.'
+        'Revise o título, a legenda e confirme todas as declarações obrigatórias.'
       );
       return;
     }
 
     this.uploadFailureSubject.next(null);
     this.cancelRequestedByUser = false;
-    this.uploadPublishWhenReady = publishWhenReady;
     let subscription: Subscription | null = null;
 
     const upload$ = combineLatest([
@@ -417,10 +509,18 @@ export class ProfileVideosComponent {
       this.ownerUid$,
       this.selectedFile$,
       this.selectedPosterBlob$,
+      this.selectedCaptionFile$,
       this.uploadPhase$,
     ]).pipe(
       take(1),
-      switchMap(([policyResult, ownerUid, file, posterBlob, phase]) => {
+      switchMap(([
+        policyResult,
+        ownerUid,
+        file,
+        posterBlob,
+        captionFile,
+        phase,
+      ]) => {
         if (phase !== 'READY' || !file) {
           this.errorNotification.showWarning(
             'Selecione um vídeo válido antes de enviar.'
@@ -435,16 +535,22 @@ export class ProfileVideosComponent {
           return EMPTY;
         }
 
-        const publication = this.uploadPublicationSettings(publishWhenReady);
+        const publication = this.uploadPublicationSettings();
+        const safetyAttestation = this.uploadSafetyAttestation();
+        const caption = this.buildCaptionInput(captionFile);
         this.uploadPhaseSubject.next('PREPARING');
         this.uploadProgressSubject.next(0);
-        this.uploadStepSubject.next('Validando vídeo e capa.');
+        this.uploadStepSubject.next(
+          'Validando vídeo, capa, legenda e declarações.'
+        );
 
         return this.videoUploadFlow.uploadPrivateVideo$({
           ownerUid,
           file,
           posterBlob,
+          caption,
           publication,
+          safetyAttestation,
         });
       }),
       finalize(() => {
@@ -490,7 +596,7 @@ export class ProfileVideosComponent {
       return;
     }
 
-    this.startUpload(this.uploadPublishWhenReady);
+    this.startUpload();
   }
 
   cancelUpload(): void {
@@ -513,6 +619,7 @@ export class ProfileVideosComponent {
     this.revokePosterUrl();
     this.selectedFileSubject.next(null);
     this.selectedPosterBlobSubject.next(null);
+    this.selectedCaptionFileSubject.next(null);
     this.previewUrlSubject.next(null);
     this.uploadPublicationForm.reset({
       title: '',
@@ -520,6 +627,11 @@ export class ProfileVideosComponent {
       reactionsEnabled: true,
       commentsEnabled: true,
       ratingsEnabled: true,
+      captionLanguage: DEFAULT_CAPTION_LANGUAGE,
+      captionLabel: DEFAULT_CAPTION_LABEL,
+      allParticipantsAdultsAndConsenting: false,
+      rightsAndPermissionsConfirmed: false,
+      prohibitedContentAcknowledged: false,
     });
     this.uploadPhaseSubject.next('IDLE');
     this.uploadProgressSubject.next(0);
@@ -772,7 +884,7 @@ export class ProfileVideosComponent {
     }
 
     if (!item.publication?.isPublished) {
-      return 'Privado';
+      return 'Publicação pendente';
     }
 
     if (item.publication.moderationStatus === 'APPROVED') {
@@ -859,9 +971,8 @@ export class ProfileVideosComponent {
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
   }
 
-  private uploadPublicationSettings(
-    publishWhenReady: boolean
-  ): IVideoPublicationSettingsInput & { publishWhenReady: boolean } {
+  private uploadPublicationSettings():
+    IVideoPublicationSettingsInput & { publishWhenReady: true } {
     const raw = this.uploadPublicationForm.getRawValue();
 
     return {
@@ -870,8 +981,71 @@ export class ProfileVideosComponent {
       reactionsEnabled: raw.reactionsEnabled,
       commentsEnabled: raw.commentsEnabled,
       ratingsEnabled: raw.ratingsEnabled,
-      publishWhenReady,
+      publishWhenReady: true,
     };
+  }
+
+  private uploadSafetyAttestation() {
+    const raw = this.uploadPublicationForm.getRawValue();
+
+    return buildVideoUploadSafetyAttestation({
+      allParticipantsAdultsAndConsenting:
+        raw.allParticipantsAdultsAndConsenting,
+      rightsAndPermissionsConfirmed:
+        raw.rightsAndPermissionsConfirmed,
+      prohibitedContentAcknowledged:
+        raw.prohibitedContentAcknowledged,
+    });
+  }
+
+  private buildCaptionInput(file: File | null): IVideoUploadCaptionInput | null {
+    if (!file) {
+      return null;
+    }
+
+    const raw = this.uploadPublicationForm.getRawValue();
+    const language = raw.captionLanguage.trim();
+    const label = raw.captionLabel.replace(/\s+/g, ' ').trim();
+
+    if (!language || this.uploadPublicationForm.controls.captionLanguage.invalid) {
+      throw new Error('Informe um idioma válido para a legenda.');
+    }
+
+    if (!label || this.uploadPublicationForm.controls.captionLabel.invalid) {
+      throw new Error('Informe um rótulo de até 40 caracteres para a legenda.');
+    }
+
+    return { file, language, label };
+  }
+
+  private assertValidCaptionFile(file: File): void {
+    const fileName = String(file.name ?? '').trim().toLowerCase();
+
+    if (!fileName.endsWith('.vtt')) {
+      throw new Error('Selecione uma legenda no formato WebVTT (.vtt).');
+    }
+
+    if (!Number.isFinite(file.size) || file.size <= 0) {
+      throw new Error('O arquivo de legenda está vazio.');
+    }
+
+    if (file.size > MAX_CAPTION_SIZE_BYTES) {
+      throw new Error('A legenda excede o limite de 1 MB.');
+    }
+  }
+
+  private assertValidWebVttContent(value: string): void {
+    const normalized = String(value ?? '')
+      .replace(/^\uFEFF/, '')
+      .replace(/\r\n?/g, '\n');
+
+    if (!/^WEBVTT(?:[ \t].*)?(?:\n|$)/.test(normalized)) {
+      throw new Error('O arquivo não possui um cabeçalho WebVTT válido.');
+    }
+
+    if (!WEBVTT_CUE_PATTERN.test(normalized)) {
+      throw new Error('A legenda precisa conter pelo menos um trecho com tempo.');
+    }
   }
 
   private defaultFileTitle(fileName: string): string {
@@ -897,19 +1071,16 @@ export class ProfileVideosComponent {
     this.uploadPhaseSubject.next('DONE');
     this.uploadProgressSubject.next(100);
     this.uploadStepSubject.next(
-      this.uploadPublishWhenReady
-        ? 'Vídeo recebido. A publicação continuará automaticamente.'
-        : 'Vídeo recebido e salvo sem publicação.'
+      'Vídeo recebido. O processamento e a publicação continuarão automaticamente.'
     );
     this.revokePreviewUrl();
     this.revokePosterUrl();
     this.selectedFileSubject.next(null);
     this.selectedPosterBlobSubject.next(null);
+    this.selectedCaptionFileSubject.next(null);
     this.previewUrlSubject.next(null);
     this.errorNotification.showSuccess(
-      this.uploadPublishWhenReady
-        ? 'Envio concluído. O vídeo seguirá para processamento e publicação.'
-        : 'Vídeo salvo sem publicação.'
+      'Envio concluído. O vídeo seguirá para processamento, moderação e publicação.'
     );
   }
 
@@ -932,11 +1103,15 @@ export class ProfileVideosComponent {
       return;
     }
 
+    if (phase === 'uploading-caption') {
+      this.uploadPhaseSubject.next('UPLOADING');
+      this.uploadStepSubject.next('Enviando legenda acessível.');
+      return;
+    }
+
     this.uploadPhaseSubject.next('SAVING');
     this.uploadStepSubject.next(
-      this.uploadPublishWhenReady
-        ? 'Registrando publicação.'
-        : 'Registrando vídeo.'
+      'Registrando publicação, legenda e declarações.'
     );
   }
 
@@ -979,6 +1154,22 @@ export class ProfileVideosComponent {
         message: 'O serviço não conseguiu receber o vídeo agora.',
         recovery: 'Aguarde alguns minutos e tente novamente. Nenhuma cópia incompleta foi mantida.',
         retryable: true,
+      };
+    }
+
+    if ([
+      'functions/failed-precondition',
+      'failed-precondition',
+      'functions/invalid-argument',
+      'invalid-argument',
+    ].includes(code)) {
+      return {
+        title: 'Envio bloqueado',
+        message: error instanceof Error && error.message.trim()
+          ? error.message.trim()
+          : 'Existe uma pendência que impede o envio deste vídeo.',
+        recovery: 'Corrija a informação indicada e confirme novamente as declarações antes de um novo envio.',
+        retryable: false,
       };
     }
 
@@ -1051,6 +1242,14 @@ export class ProfileVideosComponent {
   }
 
   private getPolicyDeniedMessage(reason?: MediaPolicyDenyReason): string {
+    if (reason === 'AGE_REVERIFICATION_REQUIRED') {
+      return 'Conclua a revalidação de idade antes de enviar vídeos.';
+    }
+
+    if (reason === 'AGE_REVERIFICATION_RESTRICTED') {
+      return 'Sua conta não pode enviar vídeos por restrição de idade.';
+    }
+
     if (reason === 'EMAIL_UNVERIFIED') {
       return 'Confirme seu e-mail antes de enviar vídeos.';
     }

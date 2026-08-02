@@ -3,9 +3,14 @@ import { createHash, randomUUID } from 'node:crypto';
 import { logger } from 'firebase-functions';
 
 import { db, storage } from '../../firebaseApp';
+import type {
+  VideoPlaybackMimeType,
+  VideoPlaybackQuality,
+  VideoProcessingVariant,
+} from './video-processing-output';
 import {
-  buildPublishedVideoPath,
   buildPublishedVideoPosterPath,
+  buildPublishedVideoVariantPath,
   normalizeOwnedProcessedVideoPath,
   normalizeOwnedPublishedVideoPath,
   normalizeOwnedPublishedVideoPosterPath,
@@ -36,13 +41,25 @@ interface PrivateVideoProcessingDocument {
   processedStoragePath?: string;
   processedMimeType?: string;
   processedSizeBytes?: number;
+  processedVariants?: unknown;
+  processedDefaultQuality?: unknown;
 }
 
-interface PublishedVideoAssetResult {
+export interface PublishedVideoVariantAsset {
+  quality: VideoPlaybackQuality;
+  storagePath: string;
+  contentType: VideoPlaybackMimeType;
+  sizeBytes: number;
+}
+
+export interface PublishedVideoAssetResult {
+  /** Variante padrão mantida para compatibilidade com leitores antigos. */
   videoStoragePath: string;
   posterStoragePath: string | null;
-  videoContentType: string;
+  videoContentType: VideoPlaybackMimeType;
   sizeBytes: number;
+  variants: PublishedVideoVariantAsset[];
+  defaultQuality: VideoPlaybackQuality;
 }
 
 interface DeletePublishedVideoAssetCommand {
@@ -56,7 +73,7 @@ interface DeletePublishedVideoAssetCommand {
 const CLEANUP_COLLECTION = 'media_published_video_asset_cleanup_jobs';
 const MAX_PUBLISHED_VIDEO_BYTES = 500 * 1024 * 1024;
 const MAX_PUBLISHED_POSTER_BYTES = 10 * 1024 * 1024;
-const ALLOWED_VIDEO_CONTENT_TYPES = new Set([
+const ALLOWED_VIDEO_CONTENT_TYPES = new Set<VideoPlaybackMimeType>([
   'video/mp4',
   'video/webm',
 ]);
@@ -90,7 +107,18 @@ function resolveValidatedSize(value: unknown, maxBytes: number): number {
     throw new Error('O arquivo excede o limite permitido para publicação.');
   }
 
-  return sizeBytes;
+  return Math.trunc(sizeBytes);
+}
+
+function normalizeQuality(value: unknown): VideoPlaybackQuality | null {
+  const quality = String(value ?? '').trim().toUpperCase();
+  return quality === 'SD' || quality === 'HD' ? quality : null;
+}
+
+function normalizeVideoMimeType(value: unknown): VideoPlaybackMimeType | null {
+  const mimeType = String(value ?? '').trim().toLowerCase() as
+    VideoPlaybackMimeType;
+  return ALLOWED_VIDEO_CONTENT_TYPES.has(mimeType) ? mimeType : null;
 }
 
 function normalizePublishedAssetPath(
@@ -114,9 +142,121 @@ function normalizePublishedAssetPath(
   );
 }
 
-async function resolveProcessedVideoSource(
+function normalizeProcessedVariants(
+  ownerUid: string,
+  videoId: string,
+  privateVideo: PrivateVideoProcessingDocument
+): {
+  variants: VideoProcessingVariant[];
+  defaultQuality: VideoPlaybackQuality;
+} {
+  const normalized = (Array.isArray(privateVideo.processedVariants)
+    ? privateVideo.processedVariants
+    : []
+  ).flatMap((candidate) => {
+    if (typeof candidate !== 'object' || candidate === null) {
+      return [];
+    }
+
+    const data = candidate as Partial<VideoProcessingVariant>;
+    const quality = normalizeQuality(data.quality);
+    const storagePath = normalizeOwnedProcessedVideoPath(
+      ownerUid,
+      videoId,
+      data.storagePath
+    );
+    const mimeType = normalizeVideoMimeType(data.mimeType);
+    const sizeBytes = Number(data.sizeBytes ?? 0);
+
+    if (
+      !quality ||
+      !storagePath ||
+      !mimeType ||
+      !Number.isFinite(sizeBytes) ||
+      sizeBytes <= 0
+    ) {
+      return [];
+    }
+
+    return [{
+      quality,
+      storagePath,
+      mimeType,
+      sizeBytes: Math.trunc(sizeBytes),
+    }];
+  });
+  const byQuality = new Map<VideoPlaybackQuality, VideoProcessingVariant>();
+
+  for (const variant of normalized) {
+    byQuality.set(variant.quality, variant);
+  }
+
+  let variants = [...byQuality.values()].sort((left, right) =>
+    left.quality === right.quality
+      ? 0
+      : left.quality === 'SD'
+        ? -1
+        : 1
+  );
+
+  if (!variants.length) {
+    const legacyStoragePath =
+      normalizeOwnedProcessedVideoPath(
+        ownerUid,
+        videoId,
+        privateVideo.processedStoragePath
+      ) ??
+      normalizeOwnedProcessedVideoPath(
+        ownerUid,
+        videoId,
+        privateVideo.playbackPath
+      );
+    const legacyMimeType = normalizeVideoMimeType(
+      privateVideo.processedMimeType
+    );
+    const legacySizeBytes = Number(privateVideo.processedSizeBytes ?? 0);
+
+    if (
+      legacyStoragePath &&
+      legacyMimeType &&
+      Number.isFinite(legacySizeBytes) &&
+      legacySizeBytes > 0
+    ) {
+      variants = [{
+        quality: 'HD',
+        storagePath: legacyStoragePath,
+        mimeType: legacyMimeType,
+        sizeBytes: Math.trunc(legacySizeBytes),
+      }];
+    }
+  }
+
+  if (!variants.length) {
+    throw new Error(
+      'O vídeo ainda não possui derivados processados para publicação.'
+    );
+  }
+
+  const requestedDefault = normalizeQuality(
+    privateVideo.processedDefaultQuality
+  );
+  const defaultQuality = requestedDefault && variants.some(
+    (variant) => variant.quality === requestedDefault
+  )
+    ? requestedDefault
+    : variants.some((variant) => variant.quality === 'HD')
+      ? 'HD'
+      : 'SD';
+
+  return { variants, defaultQuality };
+}
+
+async function resolveProcessedVideoSources(
   command: CopyPublishedVideoAssetCommand
-): Promise<string> {
+): Promise<{
+  variants: VideoProcessingVariant[];
+  defaultQuality: VideoPlaybackQuality;
+}> {
   const privateVideoSnap = await db
     .doc(`users/${command.ownerUid}/videos/${command.videoId}`)
     .get();
@@ -128,25 +268,16 @@ async function resolveProcessedVideoSource(
   const privateVideo =
     privateVideoSnap.data() as PrivateVideoProcessingDocument;
   const status = String(privateVideo.status ?? '').trim().toLowerCase();
-  const processedStoragePath =
-    normalizeOwnedProcessedVideoPath(
-      command.ownerUid,
-      command.videoId,
-      privateVideo.processedStoragePath
-    ) ??
-    normalizeOwnedProcessedVideoPath(
-      command.ownerUid,
-      command.videoId,
-      privateVideo.playbackPath
-    );
 
-  if (status !== 'ready' || !processedStoragePath) {
-    throw new Error(
-      'O vídeo ainda não possui um derivado processado para publicação.'
-    );
+  if (status !== 'ready') {
+    throw new Error('O vídeo ainda não está pronto para publicação.');
   }
 
-  return processedStoragePath;
+  return normalizeProcessedVariants(
+    command.ownerUid,
+    command.videoId,
+    privateVideo
+  );
 }
 
 async function enqueuePublishedVideoAssetCleanup(
@@ -231,24 +362,27 @@ async function copyPosterIfAvailable(
   };
 }
 
-export async function copyPrivateVideoToPublishedAsset(
-  command: CopyPublishedVideoAssetCommand
-): Promise<PublishedVideoAssetResult> {
+async function copyVariant(
+  command: CopyPublishedVideoAssetCommand,
+  variant: VideoProcessingVariant,
+  assetVersion: string
+): Promise<PublishedVideoVariantAsset> {
   const bucket = storage.bucket();
-  const processedStoragePath = await resolveProcessedVideoSource(command);
-  const sourceVideo = bucket.file(processedStoragePath);
+  const sourceVideo = bucket.file(variant.storagePath);
   const [videoExists] = await sourceVideo.exists();
 
   if (!videoExists) {
-    throw new Error('O derivado processado do vídeo não foi encontrado.');
+    throw new Error(
+      `A variante ${variant.quality} processada não foi encontrada.`
+    );
   }
 
   const [videoMetadata] = await sourceVideo.getMetadata();
-  const videoContentType = String(videoMetadata.contentType ?? '').toLowerCase();
+  const metadataContentType = normalizeVideoMimeType(videoMetadata.contentType);
 
-  if (!ALLOWED_VIDEO_CONTENT_TYPES.has(videoContentType)) {
+  if (!metadataContentType || metadataContentType !== variant.mimeType) {
     throw new Error(
-      'O derivado processado não possui um formato público compatível.'
+      `A variante ${variant.quality} não possui MIME público compatível.`
     );
   }
 
@@ -256,48 +390,84 @@ export async function copyPrivateVideoToPublishedAsset(
     videoMetadata.size,
     MAX_PUBLISHED_VIDEO_BYTES
   );
-  const assetVersion = `${Date.now()}-${randomUUID()}`;
-  const videoStoragePath = buildPublishedVideoPath(
+  const destinationPath = buildPublishedVideoVariantPath(
     command.ownerUid,
     command.videoId,
-    assetVersion
+    assetVersion,
+    variant.quality,
+    metadataContentType
   );
-  const destinationVideo = bucket.file(videoStoragePath);
+  const destinationVideo = bucket.file(destinationPath);
+
+  await sourceVideo.copy(destinationVideo, {
+    metadata: {
+      contentType: metadataContentType,
+      contentDisposition: 'inline',
+      cacheControl: 'private, max-age=0, no-store, no-transform',
+    },
+  });
+
+  return {
+    quality: variant.quality,
+    storagePath: destinationPath,
+    contentType: metadataContentType,
+    sizeBytes,
+  };
+}
+
+export async function copyPrivateVideoToPublishedAsset(
+  command: CopyPublishedVideoAssetCommand
+): Promise<PublishedVideoAssetResult> {
+  const processed = await resolveProcessedVideoSources(command);
+  const assetVersion = `${Date.now()}-${randomUUID()}`;
+  const copiedVariantPaths: string[] = [];
   let posterStoragePath: string | null = null;
 
   try {
-    await sourceVideo.copy(destinationVideo, {
-      metadata: {
-        contentType: videoContentType,
-        contentDisposition: 'inline',
-        cacheControl: 'private, max-age=0, no-store, no-transform',
-      },
-    });
+    const variants: PublishedVideoVariantAsset[] = [];
+
+    for (const variant of processed.variants) {
+      const publishedVariant = await copyVariant(
+        command,
+        variant,
+        assetVersion
+      );
+      variants.push(publishedVariant);
+      copiedVariantPaths.push(publishedVariant.storagePath);
+    }
 
     const poster = await copyPosterIfAvailable(command, assetVersion);
     posterStoragePath = poster?.storagePath ?? null;
 
-    return {
-      videoStoragePath,
-      posterStoragePath,
-      videoContentType,
-      sizeBytes,
-    };
-  } catch (error) {
-    const cleanupTasks: Promise<unknown>[] = [
-      destinationVideo.delete({ ignoreNotFound: true }).catch(() => undefined),
-    ];
+    const defaultVariant = variants.find(
+      (variant) => variant.quality === processed.defaultQuality
+    ) ?? variants[0];
 
-    if (posterStoragePath) {
-      cleanupTasks.push(
-        bucket
-          .file(posterStoragePath)
-          .delete({ ignoreNotFound: true })
-          .catch(() => undefined)
-      );
+    if (!defaultVariant) {
+      throw new Error('Nenhuma variante publicada foi criada.');
     }
 
-    await Promise.all(cleanupTasks);
+    return {
+      videoStoragePath: defaultVariant.storagePath,
+      posterStoragePath,
+      videoContentType: defaultVariant.contentType,
+      sizeBytes: defaultVariant.sizeBytes,
+      variants,
+      defaultQuality: defaultVariant.quality,
+    };
+  } catch (error) {
+    const cleanupPaths = [
+      ...copiedVariantPaths,
+      ...(posterStoragePath ? [posterStoragePath] : []),
+    ];
+
+    await Promise.all(
+      cleanupPaths.map((storagePath) =>
+        storage.bucket().file(storagePath)
+          .delete({ ignoreNotFound: true })
+          .catch(() => undefined)
+      )
+    );
     throw error;
   }
 }

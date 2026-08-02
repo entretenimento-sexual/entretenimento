@@ -3,7 +3,7 @@
 // Contratos do domínio de vídeos privados.
 //
 // Decisão de produto:
-// - vídeo começa como biblioteca privada do usuário;
+// - vídeo começa em staging técnico privado;
 // - publicação cria cópia física e projeção pública separadas;
 // - uid continua sendo o identificador canônico do usuário;
 // - paths privados nunca entram em contratos de exibição pública.
@@ -15,6 +15,15 @@ export type VideoProcessingStatus =
   | 'processing'
   | 'ready'
   | 'failed';
+
+export interface IPrivateVideoCaptionTrack {
+  readonly id: string;
+  readonly kind: 'captions';
+  readonly language: string;
+  readonly label: string;
+  readonly storagePath: string;
+  readonly isDefault: boolean;
+}
 
 export interface IVideoItem {
   readonly id: string;
@@ -39,6 +48,7 @@ export interface IVideoItem {
   readonly processingErrorCode?: string | null;
   readonly processingErrorMessage?: string | null;
   readonly processingCompletedAt?: number | null;
+  readonly captionTracks?: readonly IPrivateVideoCaptionTrack[];
   readonly status: VideoProcessingStatus;
   readonly createdAt: number;
   readonly updatedAt?: number | null;
@@ -54,4 +64,5 @@ export interface IPrivateVideoMetadataInput {
   readonly durationMs?: number | null;
   readonly thumbnailUrl?: string | null;
   readonly thumbnailPath?: string | null;
+  readonly captionTracks?: readonly IPrivateVideoCaptionTrack[];
 }

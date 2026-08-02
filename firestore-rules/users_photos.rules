@@ -1,13 +1,13 @@
 // ===============================================================
 // USERS / photos + imageStates + comments
-// - Fluxo atual: metadado da foto salva id, url, path, fileName, createdAt
-// - Somente o dono lê/escreve
-// - displayDate é metadado privado de organização e só pode ser alterado por assinantes
-// - Sem scraping, sem enumeração
+// - Novas fotos são registradas exclusivamente pelo backend junto da publicação
+// - O cliente só lê e atualiza fotos já existentes
+// - displayDate é metadado de organização e só pode ser alterado por assinantes
+// - Sem scraping, sem enumeração e sem criação de biblioteca privada
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // uso de helpers globais
 // firestore-rules/users_photos.rules
-// 14ABR2026
+// 02AGO2026
 // ===============================================================
 match /users/{userId}/photos/{photoId} {
 
@@ -53,12 +53,6 @@ match /users/{userId}/photos/{photoId} {
       );
   }
 
-  function displayDateCreateAllowed() {
-    return !hasField("displayDate")
-      || request.resource.data.displayDate == null
-      || hasPaidPhotoDateAccess();
-  }
-
   function displayDateUpdateAllowed() {
     return !request.resource.data.diff(resource.data).changedKeys().hasAny(["displayDate"])
       || hasPaidPhotoDateAccess();
@@ -75,14 +69,20 @@ match /users/{userId}/photos/{photoId} {
       && optTimestamp("updatedAt");
   }
 
+  function immutableIdentity() {
+    return !resource.data.keys().hasAny(["id"])
+      || request.resource.data.id == resource.data.id;
+  }
+
   allow get, list: if isSelf(userId);
 
-  allow create: if isSelf(userId)
-    && validPhotoPayload()
-    && displayDateCreateAllowed();
+  // A criação direta foi suprimida. A callable registerAndPublishPhotoUpload
+  // valida Auth, App Check, lifecycle, arquivo real, custo, moderação e rollback.
+  allow create: if false;
 
   allow update: if isSelf(userId)
     && validPhotoPayload()
+    && immutableIdentity()
     && displayDateUpdateAllowed();
 
   allow delete: if isSelf(userId);
@@ -105,7 +105,7 @@ match /users/{userId}/photos/{photoId} {
 }
 
 // -------------------------------------------------------------------------
-// imageStates (subcollection) — MVP: só dono
+// imageStates (subcollection) — estado de edição, somente dono
 // -------------------------------------------------------------------------
 match /users/{userId}/imageStates/{stateId} {
   function allowedKeys() {

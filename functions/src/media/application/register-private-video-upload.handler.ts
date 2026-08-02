@@ -14,12 +14,18 @@ import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
+import {
+  assertVideoUploadSafetyAttestation,
+  type VideoUploadSafetyAttestation,
+  type VideoUploadSafetyAttestationInput,
+} from './video-upload-safety-attestation';
 
 type RegisteredVideoStatus = 'uploaded' | 'ready';
 type PrivateUploadAssetKind = 'video' | 'poster';
 
 interface RegisterPrivateVideoUploadRequest
-  extends VideoPublicationSettingsInput {
+  extends VideoPublicationSettingsInput,
+    VideoUploadSafetyAttestationInput {
   ownerUid?: string;
   videoId?: string;
   videoStoragePath?: string;
@@ -454,6 +460,25 @@ async function findExistingResponse(
   );
 }
 
+function buildStoredSafetyAttestation(
+  attestation: VideoUploadSafetyAttestation,
+  ownerUid: string,
+  confirmedAt: number
+): Record<string, unknown> {
+  return {
+    version: attestation.version,
+    allParticipantsAdultsAndConsenting:
+      attestation.allParticipantsAdultsAndConsenting,
+    rightsAndPermissionsConfirmed:
+      attestation.rightsAndPermissionsConfirmed,
+    prohibitedContentAcknowledged:
+      attestation.prohibitedContentAcknowledged,
+    confirmedBy: ownerUid,
+    confirmedAt,
+    source: 'WEB_UPLOAD',
+  };
+}
+
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
 >(
@@ -503,6 +528,25 @@ export const registerPrivateVideoUpload = onCall<
       );
     }
 
+    const uploadedAssets = [
+      { storagePath: videoStoragePath, assetKind: 'video' as const },
+      ...(posterStoragePath
+        ? [{ storagePath: posterStoragePath, assetKind: 'poster' as const }]
+        : []),
+    ];
+    let safetyAttestation: VideoUploadSafetyAttestation;
+
+    try {
+      safetyAttestation = assertVideoUploadSafetyAttestation(request.data);
+    } catch (error) {
+      await deleteUploadedAssetsRecoverably(
+        ownerUid,
+        videoId,
+        uploadedAssets
+      );
+      throw error;
+    }
+
     const existingResponse = await findExistingResponse(
       ownerUid,
       videoId,
@@ -511,20 +555,14 @@ export const registerPrivateVideoUpload = onCall<
     );
 
     if (existingResponse) {
-      await clearCleanupJobsBestEffort([
-        videoStoragePath,
-        ...(posterStoragePath ? [posterStoragePath] : []),
-      ]);
+      await clearCleanupJobsBestEffort(
+        uploadedAssets.map((asset) => asset.storagePath)
+      );
       return existingResponse;
     }
 
     let registrationCommitted = false;
-    const rollbackAssets = [
-      { storagePath: videoStoragePath, assetKind: 'video' as const },
-      ...(posterStoragePath
-        ? [{ storagePath: posterStoragePath, assetKind: 'poster' as const }]
-        : []),
-    ];
+    const rollbackAssets = uploadedAssets;
 
     try {
       const [videoMetadata] = await Promise.all([
@@ -573,13 +611,11 @@ export const registerPrivateVideoUpload = onCall<
         }
       );
       const publishWhenReady = request.data?.publishWhenReady === true;
-
-      /**
-       * MANUTENÇÃO — ARMAZENAMENTO PRIVADO POR PLANO
-       * `publishWhenReady: false` não concede armazenamento ilimitado. Antes da
-       * abertura comercial, esta callable deve validar quota, retenção, expiração
-       * e entitlement no backend. A interface não é barreira de capacidade.
-       */
+      const storedSafetyAttestation = buildStoredSafetyAttestation(
+        safetyAttestation,
+        ownerUid,
+        createdAt
+      );
       const videoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
       const publicationRef = db.doc(
         `users/${ownerUid}/video_publications/${videoId}`
@@ -599,6 +635,7 @@ export const registerPrivateVideoUpload = onCall<
           thumbnailUrl: posterStoragePath,
           thumbnailPath: posterStoragePath,
           status,
+          safetyAttestation: storedSafetyAttestation,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
@@ -611,6 +648,8 @@ export const registerPrivateVideoUpload = onCall<
           orderIndex: 0,
           moderationStatus: 'PRIVATE',
           moderationReason: null,
+          safetyAttestationVersion: safetyAttestation.version,
+          safetyAttestedAt: createdAt,
           ...publicationSettings,
           createdAt,
           updatedAt: createdAt,

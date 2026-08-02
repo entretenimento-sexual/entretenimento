@@ -1,14 +1,14 @@
 <!-- src/app/media/photos/profile-photos/profile-photos.component.html -->
 <!--
-  Gestão simplificada das fotos do perfil.
+  Gestão das publicações de fotos do perfil.
 
-  Diretriz visual:
-  - usa o card system global: app-card, app-toolbar, app-action, app-chip;
-  - mantém classes locais para compatibilidade visual durante a migração gradual;
-  - preserva as ações atuais: editar, publicar, ocultar, definir capa e excluir;
-  - mantém capa como recurso discreto de destaque, fora dos filtros principais;
-  - adiciona organização por data sem criar pastas ou eventos;
-  - prioriza mobile, acessibilidade e leitura clara dos estados.
+  Decisão de produto:
+  - novas fotos seguem diretamente para publicação e moderação;
+  - o estado interno `private` permanece apenas para localizar itens legados;
+  - a ação de despublicar e manter o arquivo foi suprimida para impedir que a
+    plataforma funcione como armazenamento pessoal gratuito;
+  - itens legados pendentes devem ser publicados ou excluídos;
+  - edição, organização por data, capa e exclusão permanecem disponíveis.
 -->
 
 @let ownerUid = (ownerUid$ | async);
@@ -22,7 +22,7 @@
 @let savingDisplayDateId = (savingDisplayDateId$ | async);
 @let canUsePhotoDate = (canUsePhotoDate$ | async);
 
-<section class="photos-page" aria-label="Fotos do perfil">
+<section class="photos-page" aria-label="Publicações de fotos do perfil">
   <header class="photos-header">
     <div class="photos-title">
       <span class="eyebrow">Vitrine do perfil</span>
@@ -30,7 +30,7 @@
       <h2>Fotos do perfil</h2>
 
       <p class="subtitle">
-        Organize quais fotos ficam privadas, quais aparecem no perfil e qual imagem deve funcionar como capa da sua presença pública.
+        Acompanhe moderação, organize a apresentação e escolha a capa das fotos enviadas para publicação.
       </p>
     </div>
 
@@ -48,9 +48,9 @@
           type="button"
           class="gallery-action gallery-action--primary app-action app-action--primary"
           (click)="openUpload(ownerUid)"
-          aria-label="Adicionar nova foto"
+          aria-label="Publicar nova foto"
         >
-          + Adicionar foto
+          + Publicar foto
         </button>
       </div>
     }
@@ -62,11 +62,11 @@
 
       <p class="subtitle">
         @if (policy?.reason === 'NOT_AUTHENTICATED') {
-          Faça login para ver suas fotos.
+          Faça login para ver suas publicações de fotos.
         } @else if (policy?.reason === 'NOT_OWNER') {
-          Você só pode ver fotos do seu próprio perfil por enquanto.
+          Você só pode gerenciar as fotos do próprio perfil.
         } @else {
-          Não foi possível liberar a galeria agora.
+          Não foi possível liberar a gestão das fotos agora.
         }
       </p>
     </div>
@@ -80,7 +80,7 @@
             <h3 class="app-empty-card__title">Sua vitrine ainda está vazia</h3>
 
             <p class="app-empty-card__text">
-              Adicione fotos para montar sua galeria e escolher depois o que aparece no perfil público.
+              Publique uma foto para iniciar sua galeria. O arquivo será enviado para moderação, não armazenado como arquivo pessoal.
             </p>
           </div>
         </div>
@@ -91,18 +91,17 @@
             class="btn btn-secondary app-action"
             (click)="openUpload(ownerUid)"
           >
-            Adicionar foto
+            Publicar foto
           </button>
         }
       </div>
     } @else {
-      <!-- Toolbar principal: contador, filtros e ordenação. -->
       <div class="gallery-toolbar app-toolbar" aria-live="polite">
         <div class="gallery-toolbar__summary app-toolbar__summary">
           @let total = (totalPhotos$ | async) || 0;
 
           <strong>{{ total }}</strong>
-          {{ total === 1 ? 'foto salva' : 'fotos salvas' }}
+          {{ total === 1 ? 'foto na gestão' : 'fotos na gestão' }}
 
           @if ((items?.length || 0) !== total) {
             <span>
@@ -133,7 +132,7 @@
               [class.app-segmented__button--active]="getFilterModeSnapshot() === 'published'"
               (click)="setFilterMode('published')"
             >
-              No perfil
+              Publicadas
             </button>
 
             <button
@@ -143,7 +142,7 @@
               [class.app-segmented__button--active]="getFilterModeSnapshot() === 'private'"
               (click)="setFilterMode('private')"
             >
-              Só eu
+              Pendentes antigas
             </button>
           </div>
 
@@ -171,7 +170,6 @@
         </div>
       </div>
 
-      <!-- Lista de cards de mídia. -->
       <div
         class="photos-grid app-card-grid app-card-grid--media"
         role="list"
@@ -241,7 +239,7 @@
 
                       @case ('HIDDEN') {
                         <span class="status-chip status-chip--hidden app-chip app-chip--overlay app-chip--muted">
-                          Oculta
+                          Indisponível
                         </span>
                       }
 
@@ -253,7 +251,7 @@
                     }
                   } @else {
                     <span class="status-chip status-chip--private app-chip app-chip--overlay app-chip--muted">
-                      Só eu
+                      Publicação pendente
                     </span>
                   }
 
@@ -271,6 +269,12 @@
             </button>
 
             @if (isOwner) {
+              @if (!item.publication.isPublished) {
+                <p class="publication-note" role="status">
+                  Item legado: publique esta foto ou exclua o arquivo. Novos envios não ficam armazenados sem publicação.
+                </p>
+              }
+
               <div
                 class="management-bar app-card__footer"
                 [class.management-bar--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
@@ -331,42 +335,25 @@
                     class="management-action management-action--primary app-action app-action--primary"
                     (click)="publishPhoto(item, $event)"
                     [disabled]="!publicationFeatureReady || publishingPhotoId === item.id || savingDisplayDateId === item.id"
-                    aria-label="Mostrar foto no perfil"
-                    title="Mostrar no perfil"
+                    aria-label="Publicar foto no perfil"
+                    title="Publicar no perfil"
                   >
                     @if (publishingPhotoId === item.id) {
                       Publicando...
                     } @else {
-                      Mostrar no perfil
+                      Publicar agora
                     }
                   </button>
-                } @else {
-                  @if (!item.publication.isCover) {
-                    <button
-                      type="button"
-                      class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
-                      (click)="setCoverPhoto(item, $event)"
-                      [disabled]="!publicationFeatureReady || publishingPhotoId === item.id || savingDisplayDateId === item.id"
-                      aria-label="Definir foto como capa do perfil"
-                      title="Definir como capa"
-                    >
-                      <span aria-hidden="true">☆</span>
-                    </button>
-                  }
-
+                } @else if (!item.publication.isCover) {
                   <button
                     type="button"
-                    class="management-action management-action--neutral app-action app-action--ghost"
-                    (click)="unpublishPhoto(item, $event)"
+                    class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
+                    (click)="setCoverPhoto(item, $event)"
                     [disabled]="!publicationFeatureReady || publishingPhotoId === item.id || savingDisplayDateId === item.id"
-                    aria-label="Ocultar foto do perfil público"
-                    title="Ocultar do perfil"
+                    aria-label="Definir foto como capa do perfil"
+                    title="Definir como capa"
                   >
-                    @if (publishingPhotoId === item.id) {
-                      Atualizando...
-                    } @else {
-                      Ocultar
-                    }
+                    <span aria-hidden="true">☆</span>
                   </button>
                 }
 
@@ -386,7 +373,7 @@
 
               @if (confirmDeleteId === item.id) {
                 <div class="delete-confirm-box" role="alert" aria-live="polite">
-                  <p>Excluir esta foto das suas fotos?</p>
+                  <p>Excluir definitivamente o original, os derivados e a publicação desta foto?</p>
 
                   <div class="delete-confirm-actions">
                     <button
@@ -420,7 +407,7 @@
 
       @if (!publicationFeatureReady) {
         <p class="publication-note">
-          A publicação de fotos já está preparada na interface, mas ainda depende da camada pública ativa.
+          A publicação de fotos depende da camada pública ativa neste ambiente.
         </p>
       }
     }

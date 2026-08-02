@@ -16,6 +16,7 @@ export {
   getPrivateVideoAccessUrls,
   getPublicPhotoAccessUrls,
   getPublicVideoAccessUrls,
+  getPublicVideoHlsAccess,
   listAuthorizedPublicVideos,
 } from './application/protected-media-access-callables.handler';
 
@@ -24,6 +25,7 @@ export {
   deleteProfileVideo,
   publishPhoto,
   publishVideo,
+  registerAndPublishPhotoUpload,
   registerPrivateVideoUpload,
   setCoverPhoto,
   unpublishPhoto,
@@ -69,6 +71,21 @@ export {
 } from './application/register-private-video-upload.handler';
 
 export {
+  reconcilePendingVideoCaptionRegistrations,
+} from './application/register-private-video-upload-orchestrator.handler';
+
+export {
+  cleanupPendingPrivateVideoCaptions,
+  cleanupVideoCaptionsOnDelete,
+  indexPrivateVideoCaptionForCleanup,
+} from './application/video-caption-staging-cleanup.handler';
+
+export {
+  cleanupPendingPrivatePhotoUploadAssets,
+  indexPrivatePhotoUploadForCleanup,
+} from './application/register-and-publish-photo-upload.handler';
+
+export {
   queuePrivateVideoProcessing,
 } from './application/queue-video-processing.handler';
 
@@ -77,6 +94,10 @@ export {
   reconcileVideoProcessing,
   submitQueuedVideoProcessing,
 } from './application/video-processing.handler';
+
+export {
+  finalizeVideoProcessingVariants,
+} from './application/finalize-video-processing-variants.handler';
 
 export {
   cleanupRetriedVideoProcessingOutputs,

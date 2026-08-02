@@ -26,6 +26,10 @@ import {
   selectAdjacentVideoForPreload,
   type TAdjacentVideoNavigationDirection,
 } from './adjacent-video-preload.policy';
+import { PublicVideoHlsPlaybackDirective } from './public-video-hls-playback.directive';
+import {
+  classifyPublicVideoPlaybackFailure,
+} from './public-video-playback.policy';
 
 export type TPublicVideoPlaybackFeedbackState =
   | 'hidden'
@@ -39,6 +43,14 @@ interface PublicVideoViewerPreloadData {
 }
 
 const ADJACENT_PRELOAD_DELAY_MS = 280;
+const BUFFERING_FEEDBACK_DELAY_MS = 350;
+const SLOW_BUFFERING_MESSAGE_MS = 8_000;
+const BUFFERING_FAILURE_MS = 25_000;
+const HAVE_CURRENT_DATA = 2;
+const OFFLINE_PLAYBACK_MESSAGE =
+  'Você está sem conexão. O vídeo será recarregado quando a internet voltar.';
+const REPEATED_ACCESS_FAILURE_MESSAGE =
+  'O vídeo continua indisponível após a atualização de acesso. Tente novamente mais tarde ou abra outro vídeo.';
 
 @Component({
   selector: 'app-public-video-playback-feedback',
@@ -49,8 +61,9 @@ const ADJACENT_PRELOAD_DELAY_MS = 280;
       <div
         class="playback-feedback"
         [class.playback-feedback--error]="state() === 'error'"
-        role="status"
-        aria-live="polite"
+        [attr.role]="state() === 'error' ? 'alert' : 'status'"
+        [attr.aria-live]="state() === 'error' ? 'assertive' : 'polite'"
+        aria-atomic="true"
       >
         @if (state() === 'error') {
           <span class="playback-feedback__error-icon" aria-hidden="true">!</span>
@@ -181,6 +194,7 @@ export class PublicVideoPlaybackFeedbackComponent {
 @Directive({
   selector: 'video.public-video-viewer__video',
   standalone: true,
+  hostDirectives: [PublicVideoHlsPlaybackDirective],
 })
 export class PublicVideoPlaybackFeedbackDirective
   implements AfterViewInit, OnDestroy {
@@ -194,6 +208,7 @@ export class PublicVideoPlaybackFeedbackDirective
     MAT_DIALOG_DATA,
     { optional: true }
   );
+  private readonly automaticAccessRecoveryKeys = new Set<string>();
 
   private readonly feedbackState = signal<TPublicVideoPlaybackFeedbackState>(
     'loading'
@@ -206,9 +221,14 @@ export class PublicVideoPlaybackFeedbackDirective
   private adjacentPreloadTimer: ReturnType<typeof setTimeout> | null = null;
   private adjacentPreloadCandidate: IPublicVideoItem | null = null;
   private viewerBodyObserver: MutationObserver | null = null;
+  private bufferingFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+  private slowBufferingTimer: ReturnType<typeof setTimeout> | null = null;
+  private bufferingFailureTimer: ReturnType<typeof setTimeout> | null = null;
   private currentItemIndex = -1;
   private preloadDirection: TAdjacentVideoNavigationDirection = 'next';
   private currentPlaybackReady = false;
+  private bufferingActive = false;
+  private offlineRecoveryPending = false;
   private destroyed = false;
 
   @HostBinding('attr.aria-busy')
@@ -241,6 +261,18 @@ export class PublicVideoPlaybackFeedbackDirective
     });
     this.applicationRef.attachView(this.feedbackRef.hostView);
     this.retrySubscription = this.feedbackRef.instance.retry.subscribe(() => {
+      if (!this.isOnline()) {
+        this.offlineRecoveryPending = true;
+        this.markError(OFFLINE_PLAYBACK_MESSAGE);
+        return;
+      }
+
+      const recoveryKey = this.currentRecoveryKey();
+      if (recoveryKey) {
+        this.automaticAccessRecoveryKeys.delete(recoveryKey);
+      }
+
+      this.offlineRecoveryPending = false;
       this.markRefreshing('Atualizando acesso ao vídeo...');
       this.dispatch('publicVideoRetry');
     });
@@ -253,6 +285,7 @@ export class PublicVideoPlaybackFeedbackDirective
   ngOnDestroy(): void {
     this.destroyed = true;
     this.posterProbe = null;
+    this.finishBufferingFeedback();
     this.cancelAdjacentMetadataPreload();
     this.viewerBodyObserver?.disconnect();
     this.viewerBodyObserver = null;
@@ -273,41 +306,92 @@ export class PublicVideoPlaybackFeedbackDirective
       return;
     }
 
-    this.scheduleAdjacentMetadataPreload();
+    if (this.isOnline()) {
+      this.scheduleAdjacentMetadataPreload();
+    }
   }
 
   @HostListener('window:online')
   onWindowOnline(): void {
+    if (this.offlineRecoveryPending) {
+      const recoveryKey = this.currentRecoveryKey();
+      if (recoveryKey) {
+        this.automaticAccessRecoveryKeys.delete(recoveryKey);
+      }
+
+      this.offlineRecoveryPending = false;
+      this.markRefreshing('Conexão restabelecida. Recarregando vídeo...');
+      this.dispatch('publicVideoRetry');
+      return;
+    }
+
     this.scheduleAdjacentMetadataPreload();
   }
 
   @HostListener('window:offline')
   onWindowOffline(): void {
     this.cancelAdjacentMetadataPreload();
+
+    if (
+      this.bufferingActive ||
+      this.feedbackState() === 'loading' ||
+      this.feedbackState() === 'refreshing'
+    ) {
+      this.offlineRecoveryPending = true;
+      this.finishBufferingFeedback();
+      this.markError(OFFLINE_PLAYBACK_MESSAGE);
+    }
   }
 
   @HostListener('loadstart')
   onLoadStart(): void {
     this.currentPlaybackReady = false;
+    this.updateCurrentItemIndex();
     this.cancelAdjacentMetadataPreload();
-    this.markLoading('Carregando vídeo...');
+    this.startBufferingFeedback('Carregando vídeo...', true);
     this.validatePoster();
   }
 
   @HostListener('waiting')
   @HostListener('stalled')
   onWaiting(): void {
+    if (this.feedbackState() === 'refreshing') {
+      return;
+    }
+
+    this.startBufferingFeedback('Aguardando o vídeo...', false);
+  }
+
+  @HostListener('seeking')
+  onSeeking(): void {
     if (this.feedbackState() !== 'refreshing') {
-      this.markLoading('Aguardando o vídeo...');
+      this.startBufferingFeedback('Buscando trecho...', false);
     }
   }
 
   @HostListener('loadedmetadata')
+  onLoadedMetadata(): void {
+    this.updateCurrentItemIndex();
+    this.validatePoster();
+  }
+
   @HostListener('canplay')
   @HostListener('playing')
+  @HostListener('seeked')
   onReady(): void {
+    const video = this.elementRef.nativeElement;
+
+    if (
+      video.readyState < HAVE_CURRENT_DATA &&
+      !video.ended
+    ) {
+      return;
+    }
+
     this.currentPlaybackReady = true;
+    this.offlineRecoveryPending = false;
     this.updateCurrentItemIndex();
+    this.finishBufferingFeedback();
     this.markReady();
     this.scheduleAdjacentMetadataPreload();
     this.dispatch('publicVideoReady');
@@ -315,11 +399,41 @@ export class PublicVideoPlaybackFeedbackDirective
 
   @HostListener('error')
   onError(): void {
-    this.currentPlaybackReady = false;
-    this.cancelAdjacentMetadataPreload();
-    this.markError(
-      'O acesso pode ter expirado ou a conexão foi interrompida.'
+    const video = this.elementRef.nativeElement;
+    const failure = classifyPublicVideoPlaybackFailure(
+      video.error?.code,
+      this.isOnline()
     );
+
+    this.currentPlaybackReady = false;
+    this.finishBufferingFeedback();
+    this.cancelAdjacentMetadataPreload();
+
+    if (failure.ignored) {
+      return;
+    }
+
+    this.offlineRecoveryPending = failure.retryWhenOnline;
+    this.markError(failure.message);
+
+    if (!failure.shouldRefreshAccess) {
+      return;
+    }
+
+    const recoveryKey = this.currentRecoveryKey();
+
+    if (
+      recoveryKey &&
+      this.automaticAccessRecoveryKeys.has(recoveryKey)
+    ) {
+      this.markError(REPEATED_ACCESS_FAILURE_MESSAGE);
+      return;
+    }
+
+    if (recoveryKey) {
+      this.automaticAccessRecoveryKeys.add(recoveryKey);
+    }
+
     this.dispatch('publicVideoAccessError');
   }
 
@@ -328,16 +442,100 @@ export class PublicVideoPlaybackFeedbackDirective
   }
 
   markRefreshing(message = 'Atualizando acesso ao vídeo...'): void {
+    this.finishBufferingFeedback();
     this.cancelAdjacentMetadataPreload();
     this.setFeedback('refreshing', message);
   }
 
   markReady(): void {
+    this.finishBufferingFeedback();
     this.setFeedback('hidden', '');
   }
 
   markError(message: string): void {
+    this.finishBufferingFeedback();
     this.setFeedback('error', message);
+  }
+
+  private startBufferingFeedback(message: string, immediate: boolean): void {
+    if (this.feedbackState() === 'refreshing') {
+      return;
+    }
+
+    if (!this.isOnline()) {
+      this.offlineRecoveryPending = true;
+      this.markError(OFFLINE_PLAYBACK_MESSAGE);
+      return;
+    }
+
+    if (this.bufferingActive) {
+      return;
+    }
+
+    this.bufferingActive = true;
+    this.cancelAdjacentMetadataPreload();
+    this.clearBufferingTimers();
+
+    if (immediate) {
+      this.markLoading(message);
+      this.bufferingActive = true;
+    } else {
+      this.bufferingFeedbackTimer = setTimeout(() => {
+        this.bufferingFeedbackTimer = null;
+
+        if (this.bufferingActive && !this.destroyed) {
+          this.markLoading(message);
+          this.bufferingActive = true;
+        }
+      }, BUFFERING_FEEDBACK_DELAY_MS);
+    }
+
+    this.slowBufferingTimer = setTimeout(() => {
+      this.slowBufferingTimer = null;
+
+      if (this.bufferingActive && !this.destroyed) {
+        this.markLoading(
+          'A conexão está lenta. O vídeo ainda está carregando...'
+        );
+        this.bufferingActive = true;
+      }
+    }, SLOW_BUFFERING_MESSAGE_MS);
+
+    this.bufferingFailureTimer = setTimeout(() => {
+      this.bufferingFailureTimer = null;
+
+      if (!this.bufferingActive || this.destroyed) {
+        return;
+      }
+
+      this.bufferingActive = false;
+      this.clearBufferingTimers();
+      this.markError(
+        'O carregamento demorou mais que o esperado. Verifique a conexão e tente novamente.'
+      );
+    }, BUFFERING_FAILURE_MS);
+  }
+
+  private finishBufferingFeedback(): void {
+    this.bufferingActive = false;
+    this.clearBufferingTimers();
+  }
+
+  private clearBufferingTimers(): void {
+    if (this.bufferingFeedbackTimer !== null) {
+      clearTimeout(this.bufferingFeedbackTimer);
+      this.bufferingFeedbackTimer = null;
+    }
+
+    if (this.slowBufferingTimer !== null) {
+      clearTimeout(this.slowBufferingTimer);
+      this.slowBufferingTimer = null;
+    }
+
+    if (this.bufferingFailureTimer !== null) {
+      clearTimeout(this.bufferingFailureTimer);
+      this.bufferingFailureTimer = null;
+    }
   }
 
   private setFeedback(
@@ -405,15 +603,24 @@ export class PublicVideoPlaybackFeedbackDirective
       video.currentSrc || video.getAttribute('src') || video.src
     );
 
-    if (!currentIdentity) {
-      return this.normalizeStartIndex(items.length);
+    if (currentIdentity) {
+      const matchedIndex = items.findIndex(
+        (item) => this.assetIdentity(item.url) === currentIdentity
+      );
+
+      if (matchedIndex >= 0) {
+        return matchedIndex;
+      }
     }
 
-    const index = items.findIndex(
-      (item) => this.assetIdentity(item.url) === currentIdentity
-    );
+    if (
+      this.currentItemIndex >= 0 &&
+      this.currentItemIndex < items.length
+    ) {
+      return this.currentItemIndex;
+    }
 
-    return index >= 0 ? index : this.normalizeStartIndex(items.length);
+    return this.normalizeStartIndex(items.length);
   }
 
   private normalizeStartIndex(itemsCount: number): number {
@@ -424,6 +631,15 @@ export class PublicVideoPlaybackFeedbackDirective
     const startIndex = Number(this.viewerData?.startIndex ?? 0);
     const normalized = Number.isFinite(startIndex) ? Math.trunc(startIndex) : 0;
     return Math.max(0, Math.min(normalized, itemsCount - 1));
+  }
+
+  private currentRecoveryKey(): string {
+    const items = this.viewerData?.items ?? [];
+    const item = items[this.currentItemIndex];
+    const ownerUid = String(item?.ownerUid ?? '').trim();
+    const videoId = String(item?.id ?? '').trim();
+
+    return ownerUid && videoId ? `${ownerUid}:${videoId}` : '';
   }
 
   private scheduleAdjacentMetadataPreload(): void {
@@ -441,6 +657,8 @@ export class PublicVideoPlaybackFeedbackDirective
 
   private canScheduleAdjacentMetadataPreload(): boolean {
     return this.currentPlaybackReady &&
+      this.isOnline() &&
+      this.document.visibilityState === 'visible' &&
       !this.destroyed &&
       !this.isViewerPanelOpen();
   }
@@ -537,6 +755,14 @@ export class PublicVideoPlaybackFeedbackDirective
       }
     };
     probe.src = posterUrl;
+  }
+
+  private isOnline(): boolean {
+    if (typeof navigator === 'undefined') {
+      return true;
+    }
+
+    return navigator.onLine !== false;
   }
 
   private dispatch(eventName: string): void {

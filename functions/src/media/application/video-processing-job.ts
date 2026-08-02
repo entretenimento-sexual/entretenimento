@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
+import {
+  VIDEO_PROCESSING_PIPELINE_VERSION,
+  type VideoPlaybackQuality,
+  type VideoProcessingVariant,
+} from './video-processing-output';
+
 export type VideoProcessingJobState =
   | 'QUEUED'
   | 'SUBMITTING'
@@ -18,7 +24,13 @@ export interface VideoProcessingJob {
   sourceSizeBytes: number;
   sourceDurationMs: number | null;
   outputPrefix: string;
+  /** Identidade única desta execução, usada para idempotência no provedor. */
   processingVersion: string;
+  /**
+   * Versão semântica do contrato. Opcional apenas para ler jobs criados antes
+   * do pipeline multirresolução; todo job novo recebe valor explícito.
+   */
+  pipelineVersion?: string;
   provider: 'GOOGLE_TRANSCODER';
   state: VideoProcessingJobState;
   attempts: number;
@@ -29,6 +41,10 @@ export interface VideoProcessingJob {
   outputStoragePath: string | null;
   outputMimeType: string | null;
   outputSizeBytes: number | null;
+  outputVariants?: VideoProcessingVariant[];
+  outputDefaultQuality?: VideoPlaybackQuality | null;
+  hlsManifestStoragePath?: string | null;
+  dashManifestStoragePath?: string | null;
   submittedAt: number | null;
   completedAt: number | null;
   cancelRequestedAt: number | null;
@@ -91,6 +107,7 @@ export function buildQueuedVideoProcessingJob(
       processingVersion
     ),
     processingVersion,
+    pipelineVersion: VIDEO_PROCESSING_PIPELINE_VERSION,
     provider: 'GOOGLE_TRANSCODER',
     state: 'QUEUED',
     attempts: 0,
@@ -101,6 +118,10 @@ export function buildQueuedVideoProcessingJob(
     outputStoragePath: null,
     outputMimeType: null,
     outputSizeBytes: null,
+    outputVariants: [],
+    outputDefaultQuality: null,
+    hlsManifestStoragePath: null,
+    dashManifestStoragePath: null,
     submittedAt: null,
     completedAt: null,
     cancelRequestedAt: null,

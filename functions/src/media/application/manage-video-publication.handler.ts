@@ -7,18 +7,19 @@ import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics
 import {
   copyPrivateVideoToPublishedAsset,
   deletePublishedVideoAssetOrQueue,
+  type PublishedVideoAssetResult,
+  type PublishedVideoVariantAsset,
 } from './published-video-asset.service';
 import {
   extractOwnedPrivateVideoPath,
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
+  normalizeOwnedPublishedVideoPath,
 } from './video-storage-path';
 
 type VideoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
 type ModerationStatus = 'PENDING_REVIEW' | 'APPROVED';
-type PublishedVideoAssets = Awaited<
-  ReturnType<typeof copyPrivateVideoToPublishedAsset>
->;
+type PublishedVideoAssets = PublishedVideoAssetResult;
 
 type PrivateVideoDoc = {
   id?: string;
@@ -42,6 +43,8 @@ type VideoPublicationDoc = {
   rejectedSourceStoragePath?: string;
   publishedStoragePath?: string;
   publishedPosterStoragePath?: string;
+  publishedVariants?: unknown;
+  publishedDefaultQuality?: unknown;
 };
 
 interface PublishVideoRequest {
@@ -195,36 +198,81 @@ function assertSourceWasNotRejected(
   }
 }
 
+function normalizePublishedVariantPaths(
+  ownerUid: string,
+  videoId: string,
+  publication: VideoPublicationDoc | null
+): string[] {
+  const paths = new Set<string>();
+  const legacyPath = normalizeOwnedPublishedVideoPath(
+    ownerUid,
+    videoId,
+    publication?.publishedStoragePath
+  );
+
+  if (legacyPath) {
+    paths.add(legacyPath);
+  }
+
+  const rawVariants = Array.isArray(publication?.publishedVariants)
+    ? publication.publishedVariants
+    : [];
+
+  for (const candidate of rawVariants) {
+    if (typeof candidate !== 'object' || candidate === null) {
+      continue;
+    }
+
+    const storagePath = normalizeOwnedPublishedVideoPath(
+      ownerUid,
+      videoId,
+      (candidate as { storagePath?: unknown }).storagePath
+    );
+
+    if (storagePath) {
+      paths.add(storagePath);
+    }
+  }
+
+  return [...paths];
+}
+
 async function cleanupReplacedPublishedAssets(
   ownerUid: string,
   videoId: string,
   previousPublication: VideoPublicationDoc | null,
-  currentVideoStoragePath: string,
-  currentPosterStoragePath: string | null
+  currentAssets: PublishedVideoAssets
 ): Promise<void> {
-  const previousVideoStoragePath = previousPublication?.publishedStoragePath;
-  const previousPosterStoragePath =
-    previousPublication?.publishedPosterStoragePath;
+  const currentVideoPaths = new Set(
+    currentAssets.variants.map((variant) => variant.storagePath)
+  );
+  const previousVideoPaths = normalizePublishedVariantPaths(
+    ownerUid,
+    videoId,
+    previousPublication
+  );
   const cleanupTasks: Promise<boolean>[] = [];
 
-  if (
-    previousVideoStoragePath &&
-    previousVideoStoragePath !== currentVideoStoragePath
-  ) {
-    cleanupTasks.push(
-      deletePublishedVideoAssetOrQueue({
-        ownerUid,
-        videoId,
-        storagePath: previousVideoStoragePath,
-        assetKind: 'video',
-        reason: 'replace-published-video-version',
-      })
-    );
+  for (const storagePath of previousVideoPaths) {
+    if (!currentVideoPaths.has(storagePath)) {
+      cleanupTasks.push(
+        deletePublishedVideoAssetOrQueue({
+          ownerUid,
+          videoId,
+          storagePath,
+          assetKind: 'video',
+          reason: 'replace-published-video-version',
+        })
+      );
+    }
   }
+
+  const previousPosterStoragePath =
+    previousPublication?.publishedPosterStoragePath;
 
   if (
     previousPosterStoragePath &&
-    previousPosterStoragePath !== currentPosterStoragePath
+    previousPosterStoragePath !== currentAssets.posterStoragePath
   ) {
     cleanupTasks.push(
       deletePublishedVideoAssetOrQueue({
@@ -246,13 +294,15 @@ async function rollbackPublishedAssets(
   publishedAssets: PublishedVideoAssets
 ): Promise<void> {
   await Promise.all([
-    deletePublishedVideoAssetOrQueue({
-      ownerUid,
-      videoId,
-      storagePath: publishedAssets.videoStoragePath,
-      assetKind: 'video',
-      reason: 'publish-video-firestore-rollback',
-    }),
+    ...publishedAssets.variants.map((variant) =>
+      deletePublishedVideoAssetOrQueue({
+        ownerUid,
+        videoId,
+        storagePath: variant.storagePath,
+        assetKind: 'video',
+        reason: 'publish-video-firestore-rollback',
+      })
+    ),
     deletePublishedVideoAssetOrQueue({
       ownerUid,
       videoId,
@@ -261,6 +311,20 @@ async function rollbackPublishedAssets(
       reason: 'publish-video-poster-firestore-rollback',
     }),
   ]);
+}
+
+function publicVariantMetadata(
+  variants: readonly PublishedVideoVariantAsset[]
+): Array<{
+  quality: string;
+  mimeType: string;
+  sizeBytes: number;
+}> {
+  return variants.map((variant) => ({
+    quality: variant.quality,
+    mimeType: variant.contentType,
+    sizeBytes: variant.sizeBytes,
+  }));
 }
 
 export const publishVideo = onCall<PublishVideoRequest>(
@@ -337,7 +401,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
         sourcePosterStoragePath,
       });
     } catch (error) {
-      logger.error('[publishVideo] Falha ao preparar ativo publicado.', {
+      logger.error('[publishVideo] Falha ao preparar ativos publicados.', {
         ownerUid,
         videoId,
         error: error instanceof Error ? error.message : String(error ?? ''),
@@ -375,10 +439,11 @@ export const publishVideo = onCall<PublishVideoRequest>(
         lastModeratedAt: moderationStatus === 'APPROVED' ? now : null,
         sourceStoragePath: sourceVideoStoragePath,
         rejectedSourceStoragePath: FieldValue.delete(),
-        moderatedBy: FieldValue.delete(),
         publishedStoragePath: publishedAssets.videoStoragePath,
         publishedPosterStoragePath:
           publishedAssets.posterStoragePath ?? FieldValue.delete(),
+        publishedVariants: publishedAssets.variants,
+        publishedDefaultQuality: publishedAssets.defaultQuality,
         assetVersion: now,
       },
       { merge: true }
@@ -402,6 +467,11 @@ export const publishVideo = onCall<PublishVideoRequest>(
         alt: 'Vídeo publicado no perfil',
         mimeType: publishedAssets.videoContentType,
         sizeBytes: publishedAssets.sizeBytes,
+        availableQualities: publishedAssets.variants.map(
+          (variant) => variant.quality
+        ),
+        defaultQuality: publishedAssets.defaultQuality,
+        variants: publicVariantMetadata(publishedAssets.variants),
         durationMs,
         createdAt: normalizeCreatedAt(privateVideo.createdAt),
         publishedAt: now,
@@ -429,8 +499,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
       ownerUid,
       videoId,
       previousPublication,
-      publishedAssets.videoStoragePath,
-      publishedAssets.posterStoragePath
+      publishedAssets
     );
     await refreshPublicProfileMediaMetrics(ownerUid);
 
@@ -469,6 +538,11 @@ export const unpublishVideo = onCall<UnpublishVideoRequest>(
       return { videoId };
     }
 
+    const publishedVideoPaths = normalizePublishedVariantPaths(
+      ownerUid,
+      videoId,
+      publication
+    );
     const now = Date.now();
     const batch = db.batch();
 
@@ -484,6 +558,8 @@ export const unpublishVideo = onCall<UnpublishVideoRequest>(
         sourceStoragePath: FieldValue.delete(),
         publishedStoragePath: FieldValue.delete(),
         publishedPosterStoragePath: FieldValue.delete(),
+        publishedVariants: FieldValue.delete(),
+        publishedDefaultQuality: FieldValue.delete(),
         assetVersion: FieldValue.delete(),
       },
       { merge: true }
@@ -492,13 +568,15 @@ export const unpublishVideo = onCall<UnpublishVideoRequest>(
     await batch.commit();
 
     await Promise.all([
-      deletePublishedVideoAssetOrQueue({
-        ownerUid,
-        videoId,
-        storagePath: publication?.publishedStoragePath,
-        assetKind: 'video',
-        reason: 'unpublish-video',
-      }),
+      ...publishedVideoPaths.map((storagePath) =>
+        deletePublishedVideoAssetOrQueue({
+          ownerUid,
+          videoId,
+          storagePath,
+          assetKind: 'video',
+          reason: 'unpublish-video',
+        })
+      ),
       deletePublishedVideoAssetOrQueue({
         ownerUid,
         videoId,

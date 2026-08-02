@@ -1,5 +1,5 @@
 // src/app/media/photos/photo-upload/photo-upload.component.ts
-// Fluxo reativo de seleção, ajuste e envio de fotos do perfil.
+// Fluxo reativo de seleção, ajuste, envio e publicação de fotos do perfil.
 // O editor é carregado sob demanda e o foco é gerenciado antes da abertura do modal.
 
 import { CommonModule, DOCUMENT } from '@angular/common';
@@ -28,6 +28,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/photo-editor-session.service';
 import {
+  IPhotoFlowResult,
   IPhotoUploadFlowEvent,
   PhotoUploadFlowService,
 } from 'src/app/core/services/image-handling/photo-upload-flow.service';
@@ -41,7 +42,12 @@ import { environment } from 'src/environments/environment';
 
 const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
 
-type UploadPhase = 'IDLE' | 'READY' | 'UPLOADING' | 'DONE';
+type UploadPhase =
+  | 'IDLE'
+  | 'READY'
+  | 'UPLOADING'
+  | 'PUBLISHING'
+  | 'DONE';
 
 @Component({
   selector: 'app-photo-upload',
@@ -221,13 +227,16 @@ export class PhotoUploadComponent {
       .pipe(
         take(1),
         switchMap(([policyResult, file, ownerUid, phase]) => {
-          if (phase === 'UPLOADING') {
+          if (phase === 'UPLOADING' || phase === 'PUBLISHING') {
             return EMPTY;
           }
 
           if (policyResult.decision !== 'ALLOW') {
             this.errorNotifier.showError(
-              this.getPolicyDeniedMessage(policyResult.reason, 'enviar fotos')
+              this.getPolicyDeniedMessage(
+                policyResult.reason,
+                'enviar fotos para publicação'
+              )
             );
             return EMPTY;
           }
@@ -258,27 +267,20 @@ export class PhotoUploadComponent {
             tap((event: IPhotoUploadFlowEvent) => {
               if (event.type === 'progress') {
                 this.uploadPercentSubject.next(event.progress);
+                this.phaseSubject.next(
+                  event.progress >= 100 ? 'PUBLISHING' : 'UPLOADING'
+                );
                 return;
               }
 
-              this.debug('uploadSuccess', event.result);
-              this.phaseSubject.next('DONE');
-              this.uploadedPhotoIdSubject.next(event.result.photoId);
-              this.uploadPercentSubject.next(100);
-
-              if (event.result.url) {
-                this.revokePreviewUrl();
-                this.previewUrlSubject.next(event.result.url);
-              }
-
-              this.fileSubject.next(null);
-              this.errorNotifier.showSuccess('Upload concluído com sucesso.');
+              this.debug('uploadAndPublicationSuccess', event.result);
+              this.completePublishedPhoto(event.result);
             }),
             catchError((error) => {
               this.phaseSubject.next('READY');
               this.uploadPercentSubject.next(0);
               this.reportError(
-                'Erro ao enviar a imagem.',
+                'Não foi possível enviar e publicar a imagem.',
                 error,
                 {
                   op: 'startUpload',
@@ -301,7 +303,7 @@ export class PhotoUploadComponent {
     combineLatest([this.policyResult$, this.file$, this.ownerUid$, this.phase$])
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe(([policyResult, file, ownerUid, phase]) => {
-        if (phase === 'UPLOADING') {
+        if (phase === 'UPLOADING' || phase === 'PUBLISHING') {
           return;
         }
 
@@ -309,7 +311,7 @@ export class PhotoUploadComponent {
           this.errorNotifier.showError(
             this.getPolicyDeniedMessage(
               policyResult.reason,
-              'editar e enviar fotos'
+              'editar e enviar fotos para publicação'
             )
           );
           return;
@@ -334,6 +336,13 @@ export class PhotoUploadComponent {
   }
 
   resetSelection(fileInput?: HTMLInputElement): void {
+    if (
+      this.phaseSubject.value === 'UPLOADING' ||
+      this.phaseSubject.value === 'PUBLISHING'
+    ) {
+      return;
+    }
+
     this.revokePreviewUrl();
     this.fileSubject.next(null);
     this.previewUrlSubject.next(null);
@@ -390,21 +399,13 @@ export class PhotoUploadComponent {
         return;
       }
 
-      this.phaseSubject.next('DONE');
-      this.uploadedPhotoIdSubject.next(payload.photo.photoId ?? null);
-      this.uploadPercentSubject.next(100);
-
-      if (payload.photo.url) {
-        this.revokePreviewUrl();
-        this.previewUrlSubject.next(payload.photo.url);
-      }
-
-      this.fileSubject.next(null);
-      this.errorNotifier.showSuccess('Foto editada e enviada com sucesso.');
+      this.completePublishedPhoto(payload.photo as IPhotoFlowResult);
     } catch (error) {
       if (error !== 'close' && error !== 'dismiss') {
+        this.phaseSubject.next('READY');
+        this.uploadPercentSubject.next(0);
         this.reportError(
-          'Erro ao abrir o editor da foto.',
+          'Não foi possível editar, enviar e publicar a foto.',
           error,
           {
             op: 'openEditorModal',
@@ -417,6 +418,22 @@ export class PhotoUploadComponent {
       this.photoEditorSession.clearDraft();
       this.restoreFocusAfterModal(focusOrigin);
     }
+  }
+
+  private completePublishedPhoto(result: IPhotoFlowResult): void {
+    this.phaseSubject.next('DONE');
+    this.uploadedPhotoIdSubject.next(result.photoId);
+    this.uploadPercentSubject.next(100);
+
+    if (/^https?:\/\//i.test(String(result.url ?? '').trim())) {
+      this.revokePreviewUrl();
+      this.previewUrlSubject.next(result.url);
+    }
+
+    this.fileSubject.next(null);
+    this.errorNotifier.showSuccess(
+      'Foto enviada para moderação e publicação.'
+    );
   }
 
   private resolveFocusOrigin(event?: Event): HTMLElement | null {

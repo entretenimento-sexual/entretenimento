@@ -13,6 +13,8 @@ export type TPublicVideoVisibility = 'PUBLIC';
 export type TPublicVideoModerationStatus = 'APPROVED';
 export type TPublicVideoAssetAccess = 'SIGNED_URL';
 export type TPublicVideoPosterAccess = 'SIGNED_URL' | 'NONE';
+export type TPublicVideoQuality = 'SD' | 'HD';
+export type TPublicVideoPlaybackMimeType = 'video/mp4' | 'video/webm';
 export type TPublicVideoViewSource =
   | 'discover'
   | 'profile'
@@ -89,12 +91,33 @@ export interface IPublicVideoProjection {
   readonly owner: IPublicVideoOwnerSummary | null;
 }
 
+export interface IPublicVideoAccessVariant {
+  readonly quality: TPublicVideoQuality;
+  readonly url: string;
+  readonly mimeType: TPublicVideoPlaybackMimeType;
+  readonly sizeBytes: number;
+}
+
+export interface IPublicVideoCaptionTrack {
+  readonly id: string;
+  readonly kind: 'captions';
+  readonly language: string;
+  readonly label: string;
+  readonly url: string;
+  readonly isDefault: boolean;
+}
+
 /** URL temporária emitida pelo backend após nova validação de acesso. */
 export interface IPublicVideoAccess {
   readonly ownerUid: string;
   readonly videoId: string;
+  /** Variante padrão preservada para respostas e clientes legados. */
   readonly url: string;
   readonly posterUrl: string | null;
+  /** Ausente apenas em respostas anteriores ao pipeline multirresolução. */
+  readonly variants?: readonly IPublicVideoAccessVariant[];
+  readonly defaultQuality?: TPublicVideoQuality;
+  readonly captionTracks?: readonly IPublicVideoCaptionTrack[];
   readonly expiresAt: number;
 }
 
@@ -103,4 +126,11 @@ export interface IPublicVideoItem extends IPublicVideoProjection {
   readonly url: string;
   readonly posterUrl: string | null;
   readonly accessExpiresAt: number;
+  /**
+   * O hidratador atual sempre preenche estes campos. Eles são opcionais somente
+   * para leitura de itens legados já presentes em testes ou caches de sessão.
+   */
+  readonly playbackQuality?: TPublicVideoQuality;
+  readonly playbackVariants?: readonly IPublicVideoAccessVariant[];
+  readonly captionTracks?: readonly IPublicVideoCaptionTrack[];
 }

@@ -152,6 +152,228 @@
   cursor: default;
 }
 
+.profile-videos__caption-settings {
+  display: grid;
+  gap: 10px;
+  margin: 2px 0 0;
+  padding: 13px;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 28%,
+    var(--surface-border, rgb(255 255 255 / 14%))
+  );
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 5%,
+    transparent
+  );
+}
+
+.profile-videos__caption-settings legend {
+  padding-inline: 4px;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.84rem;
+  font-weight: 820;
+}
+
+.profile-videos__caption-settings legend span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.profile-videos__caption-settings > p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+  font-size: 0.77rem;
+  line-height: 1.45;
+}
+
+.profile-videos__caption-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.profile-videos__caption-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 42px;
+  cursor: pointer;
+}
+
+.profile-videos__caption-picker--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.profile-videos__caption-input:focus-visible + .profile-videos__caption-picker {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
+}
+
+.profile-videos__caption-selected {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 34%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+  border-radius: 12px;
+  background: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 7%,
+    transparent
+  );
+}
+
+.profile-videos__caption-selected > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.profile-videos__caption-selected strong,
+.profile-videos__caption-selected span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-videos__caption-selected strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.82rem;
+}
+
+.profile-videos__caption-selected span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 65%, transparent);
+  font-size: 0.74rem;
+}
+
+.profile-videos__caption-selected .app-action {
+  min-height: 38px;
+}
+
+.profile-videos__caption-metadata {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1.3fr);
+  gap: 10px;
+}
+
+.profile-videos__caption-metadata label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.78rem;
+  font-weight: 740;
+}
+
+.profile-videos__caption-metadata input {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 16%));
+  border-radius: 10px;
+  background: var(--background-color, #080d13);
+  color: var(--text-color, #f5f7fb);
+  font: inherit;
+}
+
+.profile-videos__caption-settings:disabled {
+  opacity: 0.62;
+}
+
+.profile-videos__safety-attestation {
+  display: grid;
+  gap: 10px;
+  margin: 2px 0 0;
+  padding: 13px;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--warning-color, #f5c451) 34%,
+    var(--surface-border, rgb(255 255 255 / 14%))
+  );
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--warning-color, #f5c451) 7%,
+    transparent
+  );
+}
+
+.profile-videos__safety-attestation legend {
+  padding-inline: 4px;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.84rem;
+  font-weight: 820;
+}
+
+.profile-videos__safety-attestation > p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+  font-size: 0.77rem;
+  line-height: 1.45;
+}
+
+.profile-videos__safety-attestation > label {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  min-height: 42px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.8rem;
+  line-height: 1.42;
+  cursor: pointer;
+}
+
+.profile-videos__safety-attestation > label:hover {
+  background: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 5%,
+    transparent
+  );
+}
+
+.profile-videos__safety-attestation input {
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--primary-color, #ff6b6b);
+}
+
+.profile-videos__safety-attestation input:focus-visible {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
+}
+
+.profile-videos__safety-attestation .profile-videos__field-error {
+  margin: 0;
+}
+
+.profile-videos__safety-attestation:disabled,
+.profile-videos__safety-attestation:disabled label {
+  opacity: 0.62;
+  cursor: default;
+}
+
 .profile-videos__settings-note {
   margin: 0;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
@@ -426,6 +648,24 @@
     min-height: 40px;
   }
 
+  .profile-videos__caption-settings,
+  .profile-videos__safety-attestation {
+    padding: 11px;
+  }
+
+  .profile-videos__caption-picker {
+    width: 100%;
+  }
+
+  .profile-videos__caption-metadata {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-videos__safety-attestation > label {
+    min-height: 48px;
+    padding: 9px 7px;
+  }
+
   .profile-videos__cover-tools {
     align-items: stretch;
   }
@@ -462,6 +702,14 @@
     max-width: 220px;
   }
 
+  .profile-videos__caption-selected {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-videos__caption-selected .app-action {
+    width: 100%;
+  }
+
   .profile-videos__actions {
     grid-template-columns: minmax(0, 1fr) 84px;
   }
@@ -481,6 +729,9 @@ html.high-contrast .profile-videos__settings-form input,
 html.high-contrast .profile-videos__settings-form textarea,
 html.high-contrast .profile-videos__selected-cover,
 html.high-contrast .profile-videos__upload-start,
+html.high-contrast .profile-videos__caption-settings,
+html.high-contrast .profile-videos__caption-selected,
+html.high-contrast .profile-videos__safety-attestation,
 html.high-contrast .profile-videos__more-menu,
 html.high-contrast .profile-videos__upload-failure {
   border-color: currentColor !important;

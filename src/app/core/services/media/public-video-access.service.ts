@@ -24,6 +24,9 @@ import {
   isPublicVideoAccessUsable,
   mapPublicVideoProjection,
 } from './public-video-item.mapper';
+import {
+  PUBLIC_VIDEO_METADATA_PRELOAD_CAPABILITY_READER,
+} from './public-video-playback-capability';
 
 interface PublicVideoAccessRequestItem {
   ownerUid: string;
@@ -45,6 +48,9 @@ const CACHE_EXPIRY_SAFETY_MS = 30_000;
 export class PublicVideoAccessService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly functions = inject(Functions);
+  private readonly capabilityReader = inject(
+    PUBLIC_VIDEO_METADATA_PRELOAD_CAPABILITY_READER
+  );
   private readonly accessCache = new Map<string, IPublicVideoAccess>();
   private readonly inFlightRefreshes = new Map<
     string,
@@ -194,7 +200,12 @@ export class PublicVideoAccessService {
         }
 
         this.accessCache.set(this.buildCacheKey(projection), access);
-        return hydratePublicVideoItem(projection, access, now);
+        return hydratePublicVideoItem(
+          projection,
+          access,
+          now,
+          this.capabilityReader()
+        );
       }),
       finalize(() => this.inFlightRefreshes.delete(identityKey)),
       shareReplay({ bufferSize: 1, refCount: false })
@@ -247,12 +258,14 @@ export class PublicVideoAccessService {
     resolved: ReadonlyMap<string, IPublicVideoAccess>,
     now: number
   ): IPublicVideoItem[] {
+    const capability = this.capabilityReader();
+
     return projections.flatMap((projection) => {
       const access = resolved.get(
         buildPublicVideoKey(projection.ownerUid, projection.id)
       );
       const item = access
-        ? hydratePublicVideoItem(projection, access, now)
+        ? hydratePublicVideoItem(projection, access, now, capability)
         : null;
 
       return item ? [item] : [];

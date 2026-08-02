@@ -3,12 +3,19 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
+import {
+  MAX_VIDEO_CAPTION_SIZE_BYTES,
+  VIDEO_CAPTION_MIME_TYPE,
+  normalizeVideoCaptionLabel,
+  normalizeVideoCaptionLanguage,
+} from './video-caption-track.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
   createVideoAudienceAccessEvaluator,
   type VideoAudienceAccessEvaluator,
 } from './video-audience-access.policy';
 import {
+  extractOwnedPrivateVideoCaptionPath,
   normalizeOwnedPublishedVideoPath,
   normalizeOwnedPublishedVideoPosterPath,
 } from './video-storage-path';
@@ -22,11 +29,34 @@ interface PublicVideoAccessRequest {
   items?: PublicVideoAccessRequestItem[];
 }
 
+type PublicVideoQuality = 'SD' | 'HD';
+type PublicVideoMimeType = 'video/mp4' | 'video/webm';
+
+interface PublicVideoAccessVariant {
+  quality: PublicVideoQuality;
+  url: string;
+  mimeType: PublicVideoMimeType;
+  sizeBytes: number;
+}
+
+interface PublicVideoCaptionTrack {
+  id: string;
+  kind: 'captions';
+  language: string;
+  label: string;
+  url: string;
+  isDefault: boolean;
+}
+
 interface PublicVideoAccessResponseItem {
   ownerUid: string;
   videoId: string;
+  /** Variante padrão preservada para clientes anteriores. */
   url: string;
   posterUrl: string | null;
+  variants: PublicVideoAccessVariant[];
+  defaultQuality: PublicVideoQuality;
+  captionTracks: PublicVideoCaptionTrack[];
   expiresAt: number;
 }
 
@@ -39,8 +69,30 @@ interface PublicVideoAccessResolution {
   technicalFailure: boolean;
 }
 
+interface PublishedVariantDocument {
+  quality?: unknown;
+  storagePath?: unknown;
+  contentType?: unknown;
+  mimeType?: unknown;
+  sizeBytes?: unknown;
+}
+
+interface CaptionTrackDocument {
+  id?: unknown;
+  kind?: unknown;
+  language?: unknown;
+  label?: unknown;
+  storagePath?: unknown;
+  isDefault?: unknown;
+}
+
 const MAX_ITEMS_PER_REQUEST = 16;
+const MAX_CAPTION_TRACKS_PER_VIDEO = 4;
 const SIGNED_URL_TTL_MS = 5 * 60 * 1000;
+const PUBLIC_VIDEO_TYPES = new Set<PublicVideoMimeType>([
+  'video/mp4',
+  'video/webm',
+]);
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -60,8 +112,234 @@ function normalizeEnum(value: unknown): string {
   return String(value ?? '').trim().toUpperCase();
 }
 
+function normalizeQuality(value: unknown): PublicVideoQuality | null {
+  const quality = normalizeEnum(value);
+  return quality === 'SD' || quality === 'HD' ? quality : null;
+}
+
+function normalizeMimeType(value: unknown): PublicVideoMimeType | null {
+  const mimeType = String(value ?? '').trim().toLowerCase() as
+    PublicVideoMimeType;
+  return PUBLIC_VIDEO_TYPES.has(mimeType) ? mimeType : null;
+}
+
+function normalizePositiveInteger(value: unknown): number | null {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) && numeric > 0
+    ? Math.trunc(numeric)
+    : null;
+}
+
 function buildRequestKey(ownerUid: string, videoId: string): string {
   return `${ownerUid}:${videoId}`;
+}
+
+function normalizePublishedVariants(
+  ownerUid: string,
+  videoId: string,
+  publicVideo: Record<string, unknown>,
+  publication: Record<string, unknown>
+): {
+  variants: Array<{
+    quality: PublicVideoQuality;
+    storagePath: string;
+    mimeType: PublicVideoMimeType;
+    sizeBytes: number;
+  }>;
+  defaultQuality: PublicVideoQuality;
+} {
+  const byQuality = new Map<PublicVideoQuality, {
+    quality: PublicVideoQuality;
+    storagePath: string;
+    mimeType: PublicVideoMimeType;
+    sizeBytes: number;
+  }>();
+  const rawVariants = Array.isArray(publication['publishedVariants'])
+    ? publication['publishedVariants']
+    : [];
+
+  for (const candidate of rawVariants) {
+    if (typeof candidate !== 'object' || candidate === null) {
+      continue;
+    }
+
+    const data = candidate as PublishedVariantDocument;
+    const quality = normalizeQuality(data.quality);
+    const storagePath = normalizeOwnedPublishedVideoPath(
+      ownerUid,
+      videoId,
+      data.storagePath
+    );
+    const mimeType = normalizeMimeType(
+      data.contentType ?? data.mimeType
+    );
+    const sizeBytes = normalizePositiveInteger(data.sizeBytes);
+
+    if (quality && storagePath && mimeType && sizeBytes) {
+      byQuality.set(quality, {
+        quality,
+        storagePath,
+        mimeType,
+        sizeBytes,
+      });
+    }
+  }
+
+  if (!byQuality.size) {
+    const storagePath = normalizeOwnedPublishedVideoPath(
+      ownerUid,
+      videoId,
+      publication['publishedStoragePath']
+    );
+    const mimeType = normalizeMimeType(publicVideo['mimeType']);
+    const sizeBytes = normalizePositiveInteger(publicVideo['sizeBytes']);
+
+    if (storagePath && mimeType && sizeBytes) {
+      byQuality.set('HD', {
+        quality: 'HD',
+        storagePath,
+        mimeType,
+        sizeBytes,
+      });
+    }
+  }
+
+  const variants = [...byQuality.values()].sort((left, right) =>
+    left.quality === right.quality
+      ? 0
+      : left.quality === 'SD'
+        ? -1
+        : 1
+  );
+
+  if (!variants.length) {
+    throw new Error('A publicação não possui variantes de vídeo válidas.');
+  }
+
+  const requestedDefault = normalizeQuality(
+    publication['publishedDefaultQuality'] ?? publicVideo['defaultQuality']
+  );
+  const defaultQuality = requestedDefault && byQuality.has(requestedDefault)
+    ? requestedDefault
+    : byQuality.has('HD')
+      ? 'HD'
+      : 'SD';
+
+  return { variants, defaultQuality };
+}
+
+function normalizeCaptionTrackDocuments(
+  ownerUid: string,
+  videoId: string,
+  publication: Record<string, unknown>
+): Array<{
+  id: string;
+  language: string;
+  label: string;
+  storagePath: string;
+  isDefault: boolean;
+}> {
+  const rawTracks = Array.isArray(publication['captionTracks'])
+    ? publication['captionTracks'].slice(0, MAX_CAPTION_TRACKS_PER_VIDEO)
+    : [];
+  const tracks: Array<{
+    id: string;
+    language: string;
+    label: string;
+    storagePath: string;
+    isDefault: boolean;
+  }> = [];
+  const seenIds = new Set<string>();
+
+  for (const candidate of rawTracks) {
+    if (typeof candidate !== 'object' || candidate === null) {
+      continue;
+    }
+
+    const data = candidate as CaptionTrackDocument;
+    const id = cleanId(data.id);
+    const storagePath = extractOwnedPrivateVideoCaptionPath(
+      ownerUid,
+      videoId,
+      data.storagePath
+    );
+
+    if (
+      !id ||
+      seenIds.has(id) ||
+      normalizeEnum(data.kind) !== 'CAPTIONS' ||
+      !storagePath
+    ) {
+      continue;
+    }
+
+    try {
+      tracks.push({
+        id,
+        language: normalizeVideoCaptionLanguage(data.language),
+        label: normalizeVideoCaptionLabel(data.label),
+        storagePath,
+        isDefault: data.isDefault === true,
+      });
+      seenIds.add(id);
+    } catch {
+      // Faixa inválida é ignorada; o vídeo e demais faixas continuam disponíveis.
+    }
+  }
+
+  if (tracks.length && !tracks.some((track) => track.isDefault)) {
+    tracks[0] = { ...tracks[0], isDefault: true };
+  }
+
+  return tracks;
+}
+
+async function authorizeCaptionTracks(
+  ownerUid: string,
+  videoId: string,
+  publication: Record<string, unknown>,
+  expiresAt: number
+): Promise<PublicVideoCaptionTrack[]> {
+  const authorized: PublicVideoCaptionTrack[] = [];
+
+  for (const track of normalizeCaptionTrackDocuments(
+    ownerUid,
+    videoId,
+    publication
+  )) {
+    const file = storage.bucket().file(track.storagePath);
+    const [exists] = await file.exists();
+
+    if (!exists) {
+      continue;
+    }
+
+    const [metadata] = await file.getMetadata();
+    const mimeType = String(metadata.contentType ?? '').trim().toLowerCase();
+    const sizeBytes = normalizePositiveInteger(metadata.size);
+
+    if (
+      mimeType !== VIDEO_CAPTION_MIME_TYPE ||
+      !sizeBytes ||
+      sizeBytes > MAX_VIDEO_CAPTION_SIZE_BYTES
+    ) {
+      continue;
+    }
+
+    authorized.push({
+      id: track.id,
+      kind: 'captions',
+      language: track.language,
+      label: track.label,
+      url: await createTemporaryStorageReadUrl(
+        track.storagePath,
+        expiresAt
+      ),
+      isDefault: track.isDefault,
+    });
+  }
+
+  return authorized;
 }
 
 async function resolveAccessItem(
@@ -92,22 +370,19 @@ async function resolveAccessItem(
     return null;
   }
 
-  const publicVideo = publicVideoSnap.data();
-  const publication = publicationSnap.data();
-  const projectionOwnerUid = cleanId(publicVideo?.ownerUid);
-  const projectionVideoId = cleanId(publicVideo?.id);
-  const projectionMediaType = normalizeEnum(publicVideo?.mediaType);
-  const projectionAssetAccess = normalizeEnum(publicVideo?.assetAccess);
-  const projectionVisibility = normalizeEnum(publicVideo?.visibility);
-  const publicationVisibility = normalizeEnum(publication?.visibility);
-  const projectionModeration = normalizeEnum(publicVideo?.moderationStatus);
-  const publicationModeration = normalizeEnum(publication?.moderationStatus);
+  const publicVideo = (publicVideoSnap.data() ?? {}) as
+    Record<string, unknown>;
+  const publication = (publicationSnap.data() ?? {}) as
+    Record<string, unknown>;
+  const projectionOwnerUid = cleanId(publicVideo['ownerUid']);
+  const projectionVideoId = cleanId(publicVideo['id']);
+  const projectionMediaType = normalizeEnum(publicVideo['mediaType']);
+  const projectionAssetAccess = normalizeEnum(publicVideo['assetAccess']);
+  const projectionVisibility = normalizeEnum(publicVideo['visibility']);
+  const publicationVisibility = normalizeEnum(publication['visibility']);
+  const projectionModeration = normalizeEnum(publicVideo['moderationStatus']);
+  const publicationModeration = normalizeEnum(publication['moderationStatus']);
 
-  /**
-   * A projeção pública não é autoridade isolada. Campo ausente ou divergência
-   * entre caminho, projeção e publicação canônica fecha o acesso até a
-   * reconciliação do backend.
-   */
   if (
     projectionOwnerUid !== ownerUid ||
     projectionVideoId !== videoId ||
@@ -125,7 +400,7 @@ async function resolveAccessItem(
     ownerUid,
     action: 'PLAY',
     visibility: publicationVisibility,
-    isPublished: publication?.isPublished === true,
+    isPublished: publication['isPublished'] === true,
     moderationStatus: publicationModeration,
   });
 
@@ -133,29 +408,47 @@ async function resolveAccessItem(
     return null;
   }
 
-  const videoStoragePath = normalizeOwnedPublishedVideoPath(
+  const resolved = normalizePublishedVariants(
     ownerUid,
     videoId,
-    publication?.publishedStoragePath
+    publicVideo,
+    publication
   );
+  const variants: PublicVideoAccessVariant[] = [];
 
-  if (!videoStoragePath) {
-    return null;
+  for (const variant of resolved.variants) {
+    const file = storage.bucket().file(variant.storagePath);
+    const [exists] = await file.exists();
+
+    if (!exists) {
+      throw new Error(
+        `A variante ${variant.quality} publicada não foi encontrada no Storage.`
+      );
+    }
+
+    variants.push({
+      quality: variant.quality,
+      url: await createTemporaryStorageReadUrl(
+        variant.storagePath,
+        expiresAt
+      ),
+      mimeType: variant.mimeType,
+      sizeBytes: variant.sizeBytes,
+    });
   }
 
-  const videoFile = storage.bucket().file(videoStoragePath);
-  const [videoExists] = await videoFile.exists();
+  const defaultVariant = variants.find(
+    (variant) => variant.quality === resolved.defaultQuality
+  ) ?? variants[0];
 
-  if (!videoExists) {
-    throw new Error(
-      'O ativo publicado do vídeo não foi encontrado no Storage.'
-    );
+  if (!defaultVariant) {
+    throw new Error('Nenhuma variante pública pôde ser autorizada.');
   }
 
   const posterStoragePath = normalizeOwnedPublishedVideoPosterPath(
     ownerUid,
     videoId,
-    publication?.publishedPosterStoragePath
+    publication['publishedPosterStoragePath']
   );
   let posterUrl: string | null = null;
 
@@ -174,8 +467,16 @@ async function resolveAccessItem(
   return {
     ownerUid,
     videoId,
-    url: await createTemporaryStorageReadUrl(videoStoragePath, expiresAt),
+    url: defaultVariant.url,
     posterUrl,
+    variants,
+    defaultQuality: defaultVariant.quality,
+    captionTracks: await authorizeCaptionTracks(
+      ownerUid,
+      videoId,
+      publication,
+      expiresAt
+    ),
     expiresAt,
   };
 }
@@ -226,12 +527,6 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
       );
     }
 
-    /**
-     * Esta sessão é a barreira definitiva antes de emitir ou renovar URLs.
-     * Lifecycle/idade são validados uma vez; bloqueios e relações são cacheados
-     * por proprietário no lote. Link direto e referência no chat não concedem
-     * audiência nem entitlement.
-     */
     const audienceEvaluator = await createVideoAudienceAccessEvaluator(
       viewerUid
     );

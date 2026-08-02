@@ -408,6 +408,10 @@ describe('PublicVideoViewerComponent', () => {
 
     expect(video.getAttribute('aria-busy')).toBe('true');
 
+    Object.defineProperty(video, 'readyState', {
+      configurable: true,
+      value: HTMLMediaElement.HAVE_FUTURE_DATA,
+    });
     video.dispatchEvent(new Event('canplay'));
     fixture.detectChanges();
 

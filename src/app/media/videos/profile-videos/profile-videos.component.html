@@ -10,7 +10,10 @@
 @let capturingPoster = (capturingPoster$ | async) === true;
 @let selectedFileName = (selectedFileName$ | async);
 @let selectedFileSize = (selectedFileSize$ | async);
-@let canUpload = (canUpload$ | async) === true;
+@let selectedCaptionFileName = (selectedCaptionFileName$ | async);
+@let captionValidating = (captionValidating$ | async) === true;
+@let uploadPolicy = (uploadPolicyResult$ | async);
+@let canUpload = uploadPolicy?.decision === 'ALLOW';
 
 <section class="profile-videos" aria-label="Vídeos">
   @if (isOwner$ | async) {
@@ -21,13 +24,26 @@
     >
       <div class="profile-videos__upload-copy">
         <h2 id="video-upload-title">Novo vídeo</h2>
+        <p>
+          O vídeo será processado, moderado e encaminhado para publicação. A plataforma não oferece armazenamento pessoal de arquivos.
+        </p>
       </div>
 
       @if (!canUpload) {
         <div class="profile-videos__policy-state" role="status" aria-live="polite">
           <i class="fas fa-shield-halved" aria-hidden="true"></i>
           <span>
-            Confirme o e-mail, conclua o perfil e mantenha a conta regular para liberar o envio de vídeos.
+            @if (uploadPolicy?.reason === 'AGE_REVERIFICATION_REQUIRED') {
+              Conclua a revalidação de idade antes de enviar vídeos.
+            } @else if (uploadPolicy?.reason === 'AGE_REVERIFICATION_RESTRICTED') {
+              Esta conta não pode enviar vídeos por restrição de idade.
+            } @else if (uploadPolicy?.reason === 'EMAIL_UNVERIFIED') {
+              Confirme seu e-mail antes de enviar vídeos.
+            } @else if (uploadPolicy?.reason === 'PROFILE_INCOMPLETE') {
+              Conclua seu perfil antes de enviar vídeos.
+            } @else {
+              Mantenha a conta regular para liberar o envio de vídeos.
+            }
           </span>
         </div>
       }
@@ -55,7 +71,7 @@
             </label>
 
             <p class="profile-videos__limits" id="profile-video-file-help">
-              {{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos
+              {{ videoUploadFormatLabel }} · até 500 MB · duração e compatibilidade verificadas no processamento
             </p>
 
             <div class="profile-videos__selected-file" role="status" aria-live="polite">
@@ -112,7 +128,7 @@
           <form
             class="profile-videos__settings-form profile-videos__upload-composer"
             [formGroup]="uploadPublicationForm"
-            (ngSubmit)="startUpload(true)"
+            (ngSubmit)="startUpload()"
           >
             <label for="new-video-title">
               <span>Título</span>
@@ -166,23 +182,148 @@
               </label>
             </fieldset>
 
+            <fieldset
+              class="profile-videos__caption-settings"
+              [disabled]="isUploadActive() || captionValidating"
+              aria-describedby="video-caption-help"
+            >
+              <legend>Legenda acessível <span>(opcional)</span></legend>
+              <p id="video-caption-help">
+                Envie um arquivo WebVTT (.vtt) de até 1 MB. Ele será validado e vinculado a este vídeo.
+              </p>
+
+              <input
+                #captionInput
+                id="new-video-caption"
+                class="profile-videos__caption-input"
+                type="file"
+                accept=".vtt,text/vtt"
+                [disabled]="isUploadActive() || captionValidating"
+                (change)="onCaptionSelected($event)"
+              />
+
+              <label
+                class="profile-videos__caption-picker app-action app-action--ghost"
+                for="new-video-caption"
+                [class.profile-videos__caption-picker--disabled]="isUploadActive() || captionValidating"
+              >
+                <i class="fas fa-closed-captioning" aria-hidden="true"></i>
+                {{ captionValidating ? 'Validando legenda...' : selectedCaptionFileName ? 'Trocar legenda' : 'Selecionar legenda' }}
+              </label>
+
+              @if (selectedCaptionFileName) {
+                <div class="profile-videos__caption-selected" role="status" aria-live="polite">
+                  <div>
+                    <strong>{{ selectedCaptionFileName }}</strong>
+                    <span>WebVTT validado localmente</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="app-action app-action--ghost"
+                    [disabled]="isUploadActive()"
+                    (click)="removeCaption(captionInput)"
+                  >
+                    Remover
+                  </button>
+                </div>
+
+                <div class="profile-videos__caption-metadata">
+                  <label for="new-video-caption-language">
+                    <span>Idioma</span>
+                    <input
+                      id="new-video-caption-language"
+                      type="text"
+                      formControlName="captionLanguage"
+                      maxlength="20"
+                      autocomplete="off"
+                      placeholder="pt-BR"
+                    />
+                  </label>
+                  <label for="new-video-caption-label">
+                    <span>Rótulo exibido</span>
+                    <input
+                      id="new-video-caption-label"
+                      type="text"
+                      formControlName="captionLabel"
+                      maxlength="40"
+                      autocomplete="off"
+                      placeholder="Português (Brasil)"
+                    />
+                  </label>
+                </div>
+
+                @if (
+                  uploadPublicationForm.controls.captionLanguage.invalid ||
+                  uploadPublicationForm.controls.captionLabel.invalid
+                ) {
+                  <p class="profile-videos__field-error" role="alert">
+                    Revise o idioma e o rótulo da legenda.
+                  </p>
+                }
+              }
+            </fieldset>
+
+            <fieldset
+              class="profile-videos__safety-attestation"
+              [disabled]="isUploadActive()"
+              aria-describedby="video-safety-attestation-help"
+            >
+              <legend>Declarações obrigatórias</legend>
+              <p id="video-safety-attestation-help">
+                Confirme apenas quando todas as afirmações forem verdadeiras. O aceite fica vinculado a este envio.
+              </p>
+
+              <label>
+                <input
+                  type="checkbox"
+                  formControlName="allParticipantsAdultsAndConsenting"
+                />
+                <span>
+                  Todas as pessoas visíveis são maiores de 18 anos e consentiram com a gravação e a publicação.
+                </span>
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  formControlName="rightsAndPermissionsConfirmed"
+                />
+                <span>
+                  Tenho os direitos e as autorizações necessárias para publicar este vídeo.
+                </span>
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  formControlName="prohibitedContentAcknowledged"
+                />
+                <span>
+                  O vídeo não contém menores, coerção, exploração, violência não consentida ou outro conteúdo proibido.
+                </span>
+              </label>
+
+              @if (
+                uploadPublicationForm.touched &&
+                (
+                  uploadPublicationForm.controls.allParticipantsAdultsAndConsenting.invalid ||
+                  uploadPublicationForm.controls.rightsAndPermissionsConfirmed.invalid ||
+                  uploadPublicationForm.controls.prohibitedContentAcknowledged.invalid
+                )
+              ) {
+                <p class="profile-videos__field-error" role="alert">
+                  Confirme todas as declarações para prosseguir.
+                </p>
+              }
+            </fieldset>
+
             <div class="profile-videos__settings-actions">
               <button
                 type="submit"
                 class="app-action app-action--primary"
-                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
+                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive() || captionValidating"
               >
-                {{ isUploadActive() ? 'Enviando...' : 'Enviar e publicar' }}
-              </button>
-
-              <!-- MANUTENÇÃO: cota, retenção, expiração e elegibilidade por assinatura devem ser validadas no backend; ocultar esta ação não impede abuso de armazenamento. -->
-              <button
-                type="button"
-                class="app-action app-action--ghost"
-                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
-                (click)="startUpload(false)"
-              >
-                Salvar sem publicar
+                {{ isUploadActive() ? 'Enviando...' : 'Enviar para publicação' }}
               </button>
             </div>
           </form>
@@ -198,7 +339,7 @@
             Selecionar vídeo
           </label>
           <p class="profile-videos__limits" id="profile-video-file-help">
-            {{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos
+            {{ videoUploadFormatLabel }} · até 500 MB · duração e compatibilidade verificadas no processamento
           </p>
         </div>
       }
@@ -314,6 +455,12 @@
                 <div class="profile-videos__meta" aria-label="Informações do vídeo">
                   <span>{{ formatDuration(item.video.durationMs) }}</span>
                   <span>{{ formatFileSize(item.video.sizeBytes) }}</span>
+                  @if (item.video.captionTracks?.length) {
+                    <span>
+                      <i class="fas fa-closed-captioning" aria-hidden="true"></i>
+                      Legenda
+                    </span>
+                  }
                 </div>
 
                 @if (editingVideoId === item.video.id) {
@@ -384,7 +531,7 @@
 
                 @if (item.video.status === 'queued' || item.video.status === 'processing') {
                   <p class="profile-videos__helper" role="status">
-                    {{ item.publication?.publishWhenReady ? 'Preparando o vídeo para publicação automática.' : 'Preparando o vídeo.' }}
+                    Preparando o vídeo para publicação automática. Você pode sair desta página; o processamento continuará.
                   </p>
                 } @else if (item.video.status === 'failed') {
                   <p class="profile-videos__helper profile-videos__helper--error" role="alert">
@@ -397,6 +544,10 @@
                 } @else if (!isPublicPlaybackCompatible(item.video)) {
                   <p class="profile-videos__helper" role="status">
                     A versão compatível ainda não foi confirmada.
+                  </p>
+                } @else if (!item.publication?.isPublished && !item.publication?.publishWhenReady) {
+                  <p class="profile-videos__helper" role="status">
+                    Este vídeo foi criado antes da publicação obrigatória. Publique-o agora ou exclua o arquivo.
                   </p>
                 }
 
@@ -423,19 +574,7 @@
                       <span>Mais</span>
                     </summary>
                     <div class="profile-videos__more-menu">
-                      @if (item.publication?.isPublished) {
-                        <button
-                          type="button"
-                          (click)="unpublishVideo(item)"
-                          [disabled]="isBusy(item.video.id)"
-                          [attr.aria-busy]="isBusy(item.video.id) ? 'true' : 'false'"
-                        >
-                          <i class="fas fa-eye-slash" aria-hidden="true"></i>
-                          <span>
-                            {{ busyActions?.get(item.video.id) === 'unpublish' ? 'Removendo...' : 'Remover do perfil' }}
-                          </span>
-                        </button>
-                      } @else if (!item.publication?.publishWhenReady) {
+                      @if (!item.publication?.isPublished && !item.publication?.publishWhenReady) {
                         <button
                           type="button"
                           (click)="publishVideo(item)"
@@ -444,7 +583,7 @@
                         >
                           <i class="fas fa-globe" aria-hidden="true"></i>
                           <span>
-                            {{ busyActions?.get(item.video.id) === 'publish' ? 'Preparando...' : 'Publicar no perfil' }}
+                            {{ busyActions?.get(item.video.id) === 'publish' ? 'Preparando...' : 'Publicar agora' }}
                           </span>
                         </button>
                       }
@@ -476,7 +615,7 @@
                     <div>
                       <strong>Excluir definitivamente?</strong>
                       <p>
-                        O original, as versões processadas e a publicação serão removidos. Esta ação não pode ser desfeita.
+                        O original, a legenda, as versões processadas e a publicação serão removidos. Esta ação não pode ser desfeita.
                       </p>
                     </div>
                     <div class="profile-videos__delete-confirmation-actions">

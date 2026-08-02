@@ -1,11 +1,21 @@
 import type {
   IPublicVideoAccess,
+  IPublicVideoAccessVariant,
+  IPublicVideoCaptionTrack,
   IPublicVideoItem,
   IPublicVideoOwnerSummary,
   IPublicVideoProjection,
   IPublicVideoScoreBreakdown,
+  TPublicVideoPlaybackMimeType,
   TPublicVideoPosterAccess,
+  TPublicVideoQuality,
 } from 'src/app/core/interfaces/media/i-public-video-item';
+import type {
+  PublicVideoMetadataPreloadCapability,
+} from './public-video-playback-capability';
+import {
+  selectPublicVideoAccessVariant,
+} from './public-video-quality.policy';
 
 interface PublicVideoMapperInput {
   readonly documentId: unknown;
@@ -13,8 +23,19 @@ interface PublicVideoMapperInput {
   readonly expectedOwnerUid?: unknown;
 }
 
-const SUPPORTED_PUBLIC_VIDEO_TYPES = new Set(['video/mp4', 'video/webm']);
+const SUPPORTED_PUBLIC_VIDEO_TYPES = new Set<TPublicVideoPlaybackMimeType>([
+  'video/mp4',
+  'video/webm',
+]);
 const ACCESS_EXPIRY_SAFETY_WINDOW_MS = 15_000;
+const MAX_CAPTION_TRACKS = 4;
+const DEFAULT_PLAYBACK_CAPABILITY: PublicVideoMetadataPreloadCapability = {
+  documentVisible: true,
+  online: true,
+  saveData: false,
+  effectiveType: null,
+  downlinkMbps: null,
+};
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -132,15 +153,37 @@ function normalizeBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback;
 }
 
-function normalizeMimeType(value: unknown): string {
-  const mimeType = String(value ?? '').trim().toLowerCase();
+function normalizeMimeType(
+  value: unknown
+): TPublicVideoPlaybackMimeType | '' {
+  const mimeType = String(value ?? '').trim().toLowerCase() as
+    TPublicVideoPlaybackMimeType;
   return SUPPORTED_PUBLIC_VIDEO_TYPES.has(mimeType) ? mimeType : '';
+}
+
+function normalizeQuality(value: unknown): TPublicVideoQuality | null {
+  const quality = String(value ?? '').trim().toUpperCase();
+  return quality === 'SD' || quality === 'HD' ? quality : null;
 }
 
 function normalizePosterAccess(value: unknown): TPublicVideoPosterAccess {
   return String(value ?? '').trim().toUpperCase() === 'SIGNED_URL'
     ? 'SIGNED_URL'
     : 'NONE';
+}
+
+function normalizeLanguage(value: unknown): string | null {
+  const raw = String(value ?? '').trim();
+
+  if (!/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(raw)) {
+    return null;
+  }
+
+  try {
+    return Intl.getCanonicalLocales(raw)[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizeOwnerSummary(
@@ -211,6 +254,80 @@ function isTemporaryUrl(value: unknown): value is string {
   } catch {
     return false;
   }
+}
+
+function normalizeAccessVariants(
+  access: IPublicVideoAccess
+): IPublicVideoAccessVariant[] {
+  const byQuality = new Map<TPublicVideoQuality, IPublicVideoAccessVariant>();
+
+  for (const candidate of access.variants ?? []) {
+    const quality = normalizeQuality(candidate?.quality);
+    const mimeType = normalizeMimeType(candidate?.mimeType);
+    const sizeBytes = normalizePositiveInteger(candidate?.sizeBytes);
+    const url = String(candidate?.url ?? '').trim();
+
+    if (quality && mimeType && sizeBytes && isTemporaryUrl(url)) {
+      byQuality.set(quality, {
+        quality,
+        url,
+        mimeType,
+        sizeBytes,
+      });
+    }
+  }
+
+  return [...byQuality.values()].sort((left, right) =>
+    left.quality === right.quality
+      ? 0
+      : left.quality === 'SD'
+        ? -1
+        : 1
+  );
+}
+
+function normalizeCaptionTracks(
+  access: IPublicVideoAccess
+): IPublicVideoCaptionTrack[] {
+  const normalized: IPublicVideoCaptionTrack[] = [];
+  const seenIds = new Set<string>();
+
+  for (const candidate of (access.captionTracks ?? []).slice(
+    0,
+    MAX_CAPTION_TRACKS
+  )) {
+    const id = normalizeId(candidate?.id);
+    const language = normalizeLanguage(candidate?.language);
+    const label = normalizeText(candidate?.label, 40);
+    const url = String(candidate?.url ?? '').trim();
+
+    if (
+      !id ||
+      seenIds.has(id) ||
+      candidate?.kind !== 'captions' ||
+      !language ||
+      !label ||
+      !isTemporaryUrl(url)
+    ) {
+      continue;
+    }
+
+    normalized.push({
+      id,
+      kind: 'captions',
+      language,
+      label,
+      url,
+      isDefault: candidate.isDefault === true,
+    });
+    seenIds.add(id);
+  }
+
+  if (normalized.length && !normalized.some((track) => track.isDefault)) {
+    normalized[0] = { ...normalized[0], isDefault: true };
+  }
+
+  return normalized;
 }
 
 export function buildPublicVideoKey(ownerUid: string, videoId: string): string {
@@ -315,28 +432,55 @@ export function isPublicVideoAccessUsable(
   access: IPublicVideoAccess | null | undefined,
   now = Date.now()
 ): access is IPublicVideoAccess {
-  return !!access &&
-    access.ownerUid === projection.ownerUid &&
-    access.videoId === projection.id &&
-    isTemporaryUrl(access.url) &&
-    (!access.posterUrl || isTemporaryUrl(access.posterUrl)) &&
-    Number.isFinite(access.expiresAt) &&
-    access.expiresAt > now + ACCESS_EXPIRY_SAFETY_WINDOW_MS;
+  if (
+    !access ||
+    access.ownerUid !== projection.ownerUid ||
+    access.videoId !== projection.id ||
+    !isTemporaryUrl(access.url) ||
+    (access.posterUrl && !isTemporaryUrl(access.posterUrl)) ||
+    !Number.isFinite(access.expiresAt) ||
+    access.expiresAt <= now + ACCESS_EXPIRY_SAFETY_WINDOW_MS
+  ) {
+    return false;
+  }
+
+  const rawVariants = access.variants ?? [];
+  const normalizedVariants = normalizeAccessVariants(access);
+
+  return rawVariants.length === 0 || normalizedVariants.length > 0;
 }
 
 export function hydratePublicVideoItem(
   projection: IPublicVideoProjection,
   access: IPublicVideoAccess,
-  now = Date.now()
+  now = Date.now(),
+  capability: PublicVideoMetadataPreloadCapability =
+    DEFAULT_PLAYBACK_CAPABILITY
 ): IPublicVideoItem | null {
   if (!isPublicVideoAccessUsable(projection, access, now)) {
     return null;
   }
 
+  const variants = normalizeAccessVariants(access);
+  const selected = selectPublicVideoAccessVariant(
+    variants,
+    access.defaultQuality,
+    capability
+  );
+  const legacyQuality = normalizeQuality(access.defaultQuality) ?? 'HD';
+  const selectedUrl = selected?.url.trim() || access.url.trim();
+  const selectedMimeType = selected?.mimeType || projection.mimeType;
+  const selectedSizeBytes = selected?.sizeBytes || projection.sizeBytes;
+
   return {
     ...projection,
-    url: access.url.trim(),
+    mimeType: selectedMimeType,
+    sizeBytes: selectedSizeBytes,
+    url: selectedUrl,
     posterUrl: access.posterUrl?.trim() || null,
     accessExpiresAt: Math.floor(access.expiresAt),
+    playbackQuality: selected?.quality ?? legacyQuality,
+    playbackVariants: variants,
+    captionTracks: normalizeCaptionTracks(access),
   };
 }

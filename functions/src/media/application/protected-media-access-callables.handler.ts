@@ -10,6 +10,9 @@ import {
   getPublicPhotoAccessUrls as getPublicPhotoAccessUrlsCore,
 } from './get-public-photo-access-urls.handler';
 import {
+  getPublicVideoHlsAccess as getPublicVideoHlsAccessCore,
+} from './get-public-video-hls-access.handler';
+import {
   getPublicVideoAccessUrls as getPublicVideoAccessUrlsCore,
 } from './get-public-video-access-urls.handler';
 import {
@@ -40,6 +43,11 @@ interface PublicVideoAccessRequestItem {
 
 interface PublicVideoAccessRequest {
   items?: PublicVideoAccessRequestItem[];
+}
+
+interface PublicVideoHlsAccessRequest {
+  ownerUid?: string;
+  videoId?: string;
 }
 
 interface RankingCursor {
@@ -109,6 +117,14 @@ function publicVideoFingerprint(request: PublicVideoAccessRequest): string {
   });
 
   return `public-video:${fingerprint([...new Set(keys)])}`;
+}
+
+function publicVideoHlsFingerprint(
+  request: PublicVideoHlsAccessRequest
+): string {
+  const ownerUid = cleanId(request.ownerUid) || 'invalid-owner';
+  const videoId = cleanId(request.videoId) || 'invalid-video';
+  return `public-video-hls:${ownerUid}:${videoId}`;
 }
 
 function normalizePageSize(value: unknown): number {
@@ -185,6 +201,25 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
     }
 
     return getPublicVideoAccessUrlsCore.run(request);
+  }
+);
+
+export const getPublicVideoHlsAccess = onCall<PublicVideoHlsAccessRequest>(
+  PROTECTED_CALLABLE_OPTIONS,
+  async (request) => {
+    const actorUid = cleanId(request.auth?.uid);
+
+    if (actorUid) {
+      await assertMediaCallableRateLimit({
+        actorUid,
+        action: 'ACCESS_PUBLIC',
+        resourceKey: publicVideoHlsFingerprint(request.data ?? {}),
+        // Uma sessão HLS assina várias playlists e segmentos.
+        cost: 8,
+      });
+    }
+
+    return getPublicVideoHlsAccessCore.run(request);
   }
 );
 

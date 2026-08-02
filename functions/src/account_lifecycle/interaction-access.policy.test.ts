@@ -9,7 +9,7 @@ describe('interaction access policy', () => {
       accountStatus: 'active',
       suspended: false,
       interactionBlocked: false,
-      ageReverification: { status: 'VERIFIED' },
+      ageReverification: { status: 'VERIFIED', result: 'ADULT' },
     }));
   });
 
@@ -33,6 +33,25 @@ describe('interaction access policy', () => {
         ageReverification: { status },
       }));
     }
+  });
+
+  it('bloqueia revalidação rejeitada', () => {
+    assert.throws(() => assertInteractionAccessData({
+      accountStatus: 'active',
+      interactionBlocked: false,
+      ageReverification: { status: 'REJECTED' },
+    }));
+  });
+
+  it('bloqueia resultado de menoridade mesmo com status inconsistente', () => {
+    assert.throws(() => assertInteractionAccessData({
+      accountStatus: 'active',
+      interactionBlocked: false,
+      ageReverification: {
+        status: 'VERIFIED',
+        result: 'UNDERAGE',
+      },
+    }));
   });
 
   it('bloqueia conta suspensa ou fora do estado ativo', () => {
