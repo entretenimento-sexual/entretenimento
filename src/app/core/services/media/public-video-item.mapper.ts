@@ -1,6 +1,7 @@
 import type {
   IPublicVideoAccess,
   IPublicVideoAccessVariant,
+  IPublicVideoCaptionTrack,
   IPublicVideoItem,
   IPublicVideoOwnerSummary,
   IPublicVideoProjection,
@@ -27,6 +28,7 @@ const SUPPORTED_PUBLIC_VIDEO_TYPES = new Set<TPublicVideoPlaybackMimeType>([
   'video/webm',
 ]);
 const ACCESS_EXPIRY_SAFETY_WINDOW_MS = 15_000;
+const MAX_CAPTION_TRACKS = 4;
 const DEFAULT_PLAYBACK_CAPABILITY: PublicVideoMetadataPreloadCapability = {
   documentVisible: true,
   online: true,
@@ -170,6 +172,20 @@ function normalizePosterAccess(value: unknown): TPublicVideoPosterAccess {
     : 'NONE';
 }
 
+function normalizeLanguage(value: unknown): string | null {
+  const raw = String(value ?? '').trim();
+
+  if (!/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(raw)) {
+    return null;
+  }
+
+  try {
+    return Intl.getCanonicalLocales(raw)[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeOwnerSummary(
   data: Record<string, unknown>
 ): IPublicVideoOwnerSummary | null {
@@ -268,6 +284,50 @@ function normalizeAccessVariants(
         ? -1
         : 1
   );
+}
+
+function normalizeCaptionTracks(
+  access: IPublicVideoAccess
+): IPublicVideoCaptionTrack[] {
+  const normalized: IPublicVideoCaptionTrack[] = [];
+  const seenIds = new Set<string>();
+
+  for (const candidate of (access.captionTracks ?? []).slice(
+    0,
+    MAX_CAPTION_TRACKS
+  )) {
+    const id = normalizeId(candidate?.id);
+    const language = normalizeLanguage(candidate?.language);
+    const label = normalizeText(candidate?.label, 40);
+    const url = String(candidate?.url ?? '').trim();
+
+    if (
+      !id ||
+      seenIds.has(id) ||
+      candidate?.kind !== 'captions' ||
+      !language ||
+      !label ||
+      !isTemporaryUrl(url)
+    ) {
+      continue;
+    }
+
+    normalized.push({
+      id,
+      kind: 'captions',
+      language,
+      label,
+      url,
+      isDefault: candidate.isDefault === true,
+    });
+    seenIds.add(id);
+  }
+
+  if (normalized.length && !normalized.some((track) => track.isDefault)) {
+    normalized[0] = { ...normalized[0], isDefault: true };
+  }
+
+  return normalized;
 }
 
 export function buildPublicVideoKey(ownerUid: string, videoId: string): string {
@@ -421,5 +481,6 @@ export function hydratePublicVideoItem(
     accessExpiresAt: Math.floor(access.expiresAt),
     playbackQuality: selected?.quality ?? legacyQuality,
     playbackVariants: variants,
+    captionTracks: normalizeCaptionTracks(access),
   };
 }
