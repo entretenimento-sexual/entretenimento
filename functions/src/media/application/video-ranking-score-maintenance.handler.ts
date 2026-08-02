@@ -8,7 +8,10 @@ import {
   MEDIA_RANKING_VERSION,
   buildMediaEngagementScore,
   normalizeMediaCount,
+  normalizeMediaRatingAverage,
   normalizeMediaScore,
+  normalizeMediaTimestamp,
+  normalizeMediaTotal,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
 
@@ -37,6 +40,17 @@ interface PublicVideoRankingDocument extends FirebaseFirestore.DocumentData {
   scoreBreakdown?: Partial<MediaScoreBreakdown> | null;
 }
 
+interface VideoRankingUpdate {
+  score: number;
+  engagementScore: number;
+  viewScore: number;
+  retentionScore: number;
+  freshnessScore: number;
+  scoreBreakdown: MediaScoreBreakdown;
+  rankingVersion: number;
+  rankingUpdatedAt: number;
+}
+
 function normalizeEnum(value: unknown): string {
   return String(value ?? '').trim().toUpperCase();
 }
@@ -49,20 +63,24 @@ function isRankableVideo(data: PublicVideoRankingDocument): boolean {
 function buildRankingUpdate(
   data: PublicVideoRankingDocument,
   now: number
-): Record<string, unknown> {
+): VideoRankingUpdate {
   const ranking = buildMediaEngagementScore({
     reactionsCount: normalizeMediaCount(
       data.reactionsCount ?? data.likesCount
     ),
     commentsCount: normalizeMediaCount(data.commentsCount),
     ratingsCount: normalizeMediaCount(data.ratingsCount),
-    ratingAverage: data.ratingAverage,
+    ratingAverage: normalizeMediaRatingAverage(data.ratingAverage),
     viewsCount: normalizeMediaCount(data.viewsCount),
     uniqueViewersCount: normalizeMediaCount(data.uniqueViewersCount),
     qualifiedViewsCount: normalizeMediaCount(data.qualifiedViewsCount),
-    totalQualifiedPlaybackMs: data.totalQualifiedPlaybackMs as number,
-    totalQualifiedDurationMs: data.totalQualifiedDurationMs as number,
-    publishedAt: data.publishedAt as number,
+    totalQualifiedPlaybackMs: normalizeMediaTotal(
+      data.totalQualifiedPlaybackMs
+    ),
+    totalQualifiedDurationMs: normalizeMediaTotal(
+      data.totalQualifiedDurationMs
+    ),
+    publishedAt: normalizeMediaTimestamp(data.publishedAt),
     now,
     currentBreakdown: data.scoreBreakdown,
   });
@@ -81,17 +99,17 @@ function buildRankingUpdate(
 
 function hasEquivalentRanking(
   data: PublicVideoRankingDocument,
-  update: Record<string, unknown>
+  update: VideoRankingUpdate
 ): boolean {
   const currentBreakdown = data.scoreBreakdown ?? {};
-  const nextBreakdown = update['scoreBreakdown'] as MediaScoreBreakdown;
+  const nextBreakdown = update.scoreBreakdown;
 
   return normalizeMediaCount(data.rankingVersion) === MEDIA_RANKING_VERSION &&
-    normalizeMediaScore(data.score) === update['score'] &&
-    normalizeMediaScore(data.engagementScore) === update['engagementScore'] &&
-    normalizeMediaScore(data.viewScore) === update['viewScore'] &&
-    normalizeMediaScore(data.retentionScore) === update['retentionScore'] &&
-    normalizeMediaScore(data.freshnessScore) === update['freshnessScore'] &&
+    normalizeMediaScore(data.score) === update.score &&
+    normalizeMediaScore(data.engagementScore) === update.engagementScore &&
+    normalizeMediaScore(data.viewScore) === update.viewScore &&
+    normalizeMediaScore(data.retentionScore) === update.retentionScore &&
+    normalizeMediaScore(data.freshnessScore) === update.freshnessScore &&
     normalizeMediaScore(currentBreakdown.rankingScore) ===
       nextBreakdown.rankingScore &&
     normalizeMediaScore(currentBreakdown.qualityScore) ===
