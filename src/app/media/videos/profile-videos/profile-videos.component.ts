@@ -60,6 +60,7 @@ import {
   buildVideoUploadSafetyAttestation,
 } from 'src/app/core/services/media/video-upload-safety-attestation.policy';
 import {
+  IVideoUploadCaptionInput,
   IVideoUploadFlowEvent,
   VideoUploadFlowService,
   VideoUploadProgressPhase,
@@ -87,11 +88,16 @@ type VideoUploadUiPhase =
   | 'DONE';
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
+const MAX_CAPTION_SIZE_BYTES = 1024 * 1024;
 const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
 const DENY_UNKNOWN: IMediaPolicyResult = {
   decision: 'DENY',
   reason: 'UNKNOWN',
 };
+const DEFAULT_CAPTION_LANGUAGE = 'pt-BR';
+const DEFAULT_CAPTION_LABEL = 'Português (Brasil)';
+const WEBVTT_CUE_PATTERN =
+  /\d{2}:\d{2}(?::\d{2})?[.,]\d{3}\s+-->\s+\d{2}:\d{2}(?::\d{2})?[.,]\d{3}/;
 
 @Component({
   selector: 'app-profile-videos',
@@ -141,6 +147,11 @@ export class ProfileVideosComponent {
     reactionsEnabled: [true],
     commentsEnabled: [true],
     ratingsEnabled: [true],
+    captionLanguage: [
+      DEFAULT_CAPTION_LANGUAGE,
+      [Validators.pattern(/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/)],
+    ],
+    captionLabel: [DEFAULT_CAPTION_LABEL, [Validators.maxLength(40)]],
     allParticipantsAdultsAndConsenting: [false, Validators.requiredTrue],
     rightsAndPermissionsConfirmed: [false, Validators.requiredTrue],
     prohibitedContentAcknowledged: [false, Validators.requiredTrue],
@@ -167,6 +178,14 @@ export class ProfileVideosComponent {
   private readonly selectedPosterUrlSubject =
     new BehaviorSubject<string | null>(null);
   readonly selectedPosterUrl$ = this.selectedPosterUrlSubject.asObservable();
+
+  private readonly selectedCaptionFileSubject =
+    new BehaviorSubject<File | null>(null);
+  readonly selectedCaptionFile$ =
+    this.selectedCaptionFileSubject.asObservable();
+
+  private readonly captionValidatingSubject = new BehaviorSubject(false);
+  readonly captionValidating$ = this.captionValidatingSubject.asObservable();
 
   private readonly capturingPosterSubject = new BehaviorSubject(false);
   readonly capturingPoster$ = this.capturingPosterSubject.asObservable();
@@ -277,6 +296,11 @@ export class ProfileVideosComponent {
     distinctUntilChanged()
   );
 
+  readonly selectedCaptionFileName$ = this.selectedCaptionFile$.pipe(
+    map((file) => file?.name ?? null),
+    distinctUntilChanged()
+  );
+
   readonly viewItems$: Observable<ProfileVideoViewItem[]> = combineLatest([
     this.ownerUid$,
     this.isOwner$,
@@ -357,6 +381,7 @@ export class ProfileVideosComponent {
     this.revokePreviewUrl();
     this.revokePosterUrl();
     this.selectedPosterBlobSubject.next(null);
+    this.selectedCaptionFileSubject.next(null);
     this.selectedFileSubject.next(file);
     this.previewUrlSubject.next(URL.createObjectURL(file));
     this.uploadPublicationForm.reset({
@@ -365,6 +390,8 @@ export class ProfileVideosComponent {
       reactionsEnabled: true,
       commentsEnabled: true,
       ratingsEnabled: true,
+      captionLanguage: DEFAULT_CAPTION_LANGUAGE,
+      captionLabel: DEFAULT_CAPTION_LABEL,
       allParticipantsAdultsAndConsenting: false,
       rightsAndPermissionsConfirmed: false,
       prohibitedContentAcknowledged: false,
@@ -373,9 +400,57 @@ export class ProfileVideosComponent {
     this.uploadProgressSubject.next(0);
     this.uploadStepSubject.next(
       format.browserPreviewLikely
-        ? 'Revise a capa, as informações e as declarações antes de enviar.'
+        ? 'Revise a capa, as informações, a legenda opcional e as declarações antes de enviar.'
         : 'Formato aceito. A prévia pode não abrir neste navegador; o vídeo será convertido após o envio.'
     );
+  }
+
+  async onCaptionSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+
+    if (!file) {
+      return;
+    }
+
+    this.captionValidatingSubject.next(true);
+
+    try {
+      this.assertValidCaptionFile(file);
+      const content = await file.text();
+      this.assertValidWebVttContent(content);
+      this.selectedCaptionFileSubject.next(
+        file.type === 'text/vtt'
+          ? file
+          : new File([file], file.name, {
+              type: 'text/vtt',
+              lastModified: file.lastModified,
+            })
+      );
+      this.errorNotification.showSuccess('Legenda WebVTT adicionada.');
+    } catch (error) {
+      input.value = '';
+      this.selectedCaptionFileSubject.next(null);
+      this.errorNotification.showError(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível validar a legenda.'
+      );
+    } finally {
+      this.captionValidatingSubject.next(false);
+    }
+  }
+
+  removeCaption(fileInput?: HTMLInputElement): void {
+    if (this.isUploadActive()) {
+      return;
+    }
+
+    this.selectedCaptionFileSubject.next(null);
+
+    if (fileInput) {
+      fileInput.value = '';
+    }
   }
 
   capturePoster(video: HTMLVideoElement): void {
@@ -411,14 +486,14 @@ export class ProfileVideosComponent {
   }
 
   startUpload(): void {
-    if (this.uploadSubscription) {
+    if (this.uploadSubscription || this.captionValidatingSubject.value) {
       return;
     }
 
     if (this.uploadPublicationForm.invalid) {
       this.uploadPublicationForm.markAllAsTouched();
       this.errorNotification.showWarning(
-        'Revise o título e confirme todas as declarações obrigatórias.'
+        'Revise o título, a legenda e confirme todas as declarações obrigatórias.'
       );
       return;
     }
@@ -432,10 +507,18 @@ export class ProfileVideosComponent {
       this.ownerUid$,
       this.selectedFile$,
       this.selectedPosterBlob$,
+      this.selectedCaptionFile$,
       this.uploadPhase$,
     ]).pipe(
       take(1),
-      switchMap(([policyResult, ownerUid, file, posterBlob, phase]) => {
+      switchMap(([
+        policyResult,
+        ownerUid,
+        file,
+        posterBlob,
+        captionFile,
+        phase,
+      ]) => {
         if (phase !== 'READY' || !file) {
           this.errorNotification.showWarning(
             'Selecione um vídeo válido antes de enviar.'
@@ -452,14 +535,18 @@ export class ProfileVideosComponent {
 
         const publication = this.uploadPublicationSettings();
         const safetyAttestation = this.uploadSafetyAttestation();
+        const caption = this.buildCaptionInput(captionFile);
         this.uploadPhaseSubject.next('PREPARING');
         this.uploadProgressSubject.next(0);
-        this.uploadStepSubject.next('Validando vídeo, capa e declarações.');
+        this.uploadStepSubject.next(
+          'Validando vídeo, capa, legenda e declarações.'
+        );
 
         return this.videoUploadFlow.uploadPrivateVideo$({
           ownerUid,
           file,
           posterBlob,
+          caption,
           publication,
           safetyAttestation,
         });
@@ -530,6 +617,7 @@ export class ProfileVideosComponent {
     this.revokePosterUrl();
     this.selectedFileSubject.next(null);
     this.selectedPosterBlobSubject.next(null);
+    this.selectedCaptionFileSubject.next(null);
     this.previewUrlSubject.next(null);
     this.uploadPublicationForm.reset({
       title: '',
@@ -537,6 +625,8 @@ export class ProfileVideosComponent {
       reactionsEnabled: true,
       commentsEnabled: true,
       ratingsEnabled: true,
+      captionLanguage: DEFAULT_CAPTION_LANGUAGE,
+      captionLabel: DEFAULT_CAPTION_LABEL,
       allParticipantsAdultsAndConsenting: false,
       rightsAndPermissionsConfirmed: false,
       prohibitedContentAcknowledged: false,
@@ -906,6 +996,56 @@ export class ProfileVideosComponent {
     });
   }
 
+  private buildCaptionInput(file: File | null): IVideoUploadCaptionInput | null {
+    if (!file) {
+      return null;
+    }
+
+    const raw = this.uploadPublicationForm.getRawValue();
+    const language = raw.captionLanguage.trim();
+    const label = raw.captionLabel.replace(/\s+/g, ' ').trim();
+
+    if (!language || this.uploadPublicationForm.controls.captionLanguage.invalid) {
+      throw new Error('Informe um idioma válido para a legenda.');
+    }
+
+    if (!label || this.uploadPublicationForm.controls.captionLabel.invalid) {
+      throw new Error('Informe um rótulo de até 40 caracteres para a legenda.');
+    }
+
+    return { file, language, label };
+  }
+
+  private assertValidCaptionFile(file: File): void {
+    const fileName = String(file.name ?? '').trim().toLowerCase();
+
+    if (!fileName.endsWith('.vtt')) {
+      throw new Error('Selecione uma legenda no formato WebVTT (.vtt).');
+    }
+
+    if (!Number.isFinite(file.size) || file.size <= 0) {
+      throw new Error('O arquivo de legenda está vazio.');
+    }
+
+    if (file.size > MAX_CAPTION_SIZE_BYTES) {
+      throw new Error('A legenda excede o limite de 1 MB.');
+    }
+  }
+
+  private assertValidWebVttContent(value: string): void {
+    const normalized = String(value ?? '')
+      .replace(/^\uFEFF/, '')
+      .replace(/\r\n?/g, '\n');
+
+    if (!/^WEBVTT(?:[ \t].*)?(?:\n|$)/.test(normalized)) {
+      throw new Error('O arquivo não possui um cabeçalho WebVTT válido.');
+    }
+
+    if (!WEBVTT_CUE_PATTERN.test(normalized)) {
+      throw new Error('A legenda precisa conter pelo menos um trecho com tempo.');
+    }
+  }
+
   private defaultFileTitle(fileName: string): string {
     return String(fileName ?? '')
       .trim()
@@ -935,6 +1075,7 @@ export class ProfileVideosComponent {
     this.revokePosterUrl();
     this.selectedFileSubject.next(null);
     this.selectedPosterBlobSubject.next(null);
+    this.selectedCaptionFileSubject.next(null);
     this.previewUrlSubject.next(null);
     this.errorNotification.showSuccess(
       'Envio concluído. O vídeo seguirá para processamento, moderação e publicação.'
@@ -960,8 +1101,16 @@ export class ProfileVideosComponent {
       return;
     }
 
+    if (phase === 'uploading-caption') {
+      this.uploadPhaseSubject.next('UPLOADING');
+      this.uploadStepSubject.next('Enviando legenda acessível.');
+      return;
+    }
+
     this.uploadPhaseSubject.next('SAVING');
-    this.uploadStepSubject.next('Registrando publicação e declarações.');
+    this.uploadStepSubject.next(
+      'Registrando publicação, legenda e declarações.'
+    );
   }
 
   private describeUploadFailure(error: unknown): VideoUploadFailureFeedback {
@@ -1009,13 +1158,15 @@ export class ProfileVideosComponent {
     if ([
       'functions/failed-precondition',
       'failed-precondition',
+      'functions/invalid-argument',
+      'invalid-argument',
     ].includes(code)) {
       return {
         title: 'Envio bloqueado',
         message: error instanceof Error && error.message.trim()
           ? error.message.trim()
           : 'Existe uma pendência que impede o envio deste vídeo.',
-        recovery: 'Resolva a pendência indicada e confirme novamente as declarações antes de um novo envio.',
+        recovery: 'Corrija a informação indicada e confirme novamente as declarações antes de um novo envio.',
         retryable: false,
       };
     }
