@@ -19,7 +19,8 @@ export type MediaCallableRateAction =
   | 'ADMIN_STATUS'
   | 'ADMIN_QUEUE'
   | 'ADMIN_MODERATION'
-  | 'ADMIN_PROCESSING_RECOVERY';
+  | 'ADMIN_PROCESSING_RECOVERY'
+  | 'ADMIN_RANKING_BACKFILL';
 
 export interface MediaCallableRateLimitRule {
   readonly windowMs: number;
@@ -180,6 +181,12 @@ const RULES: Readonly<Record<
     windowMs: TEN_MINUTES_MS,
     globalMaxPerWindow: 90,
     resourceMaxPerWindow: 9,
+    minIntervalMs: 1_000,
+  },
+  ADMIN_RANKING_BACKFILL: {
+    windowMs: ONE_HOUR_MS,
+    globalMaxPerWindow: 60,
+    resourceMaxPerWindow: 36,
     minIntervalMs: 1_000,
   },
 };
