@@ -3,7 +3,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import {
   assertInteractionAccessData,
 } from '../../account_lifecycle/interaction-access.policy';
-import { db } from '../../firebaseApp';
+import { auth, db } from '../../firebaseApp';
 
 export type VideoAudienceAction = 'LIST' | 'PLAY' | 'INTERACT' | 'SHARE';
 
@@ -63,18 +63,24 @@ export interface VideoAudienceAccessEvaluator {
   ): Promise<VideoAudienceAccessDecision>;
 }
 
-interface RelationshipContext {
+interface BlockContext {
   viewerBlockedOwner: boolean;
   ownerBlockedViewer: boolean;
+}
+
+interface FriendshipContext {
   bilateralFriendship: boolean;
-  mutuallyCompatible: boolean;
-  hasCreatorSubscriberEntitlement: boolean;
-  hasCreatorPremiumEntitlement: boolean;
 }
 
 interface RelationshipDocument {
   isBlocked?: unknown;
   friendUid?: unknown;
+}
+
+interface ViewerAccountDocument extends Record<string, unknown> {
+  uid?: unknown;
+  accountLocked?: unknown;
+  loginAllowed?: unknown;
 }
 
 const SUPPORTED_VISIBILITIES = new Set<VideoAudienceVisibility>([
@@ -211,59 +217,67 @@ function isValidFriendEdge(
   return friendUid === expectedFriendUid;
 }
 
-async function readRelationshipContext(
+async function readBlockContext(
   viewerUid: string,
   ownerUid: string
-): Promise<RelationshipContext> {
-  if (viewerUid === ownerUid) {
-    return {
-      viewerBlockedOwner: false,
-      ownerBlockedViewer: false,
-      bilateralFriendship: true,
-      mutuallyCompatible: true,
-      hasCreatorSubscriberEntitlement: true,
-      hasCreatorPremiumEntitlement: true,
-    };
-  }
-
-  const [viewerBlock, ownerBlock, viewerFriend, ownerFriend] =
-    await Promise.all([
-      db.doc(`users/${viewerUid}/blocks/${ownerUid}`).get(),
-      db.doc(`users/${ownerUid}/blocks/${viewerUid}`).get(),
-      db.doc(`users/${viewerUid}/friends/${ownerUid}`).get(),
-      db.doc(`users/${ownerUid}/friends/${viewerUid}`).get(),
-    ]);
+): Promise<BlockContext> {
+  const [viewerBlock, ownerBlock] = await Promise.all([
+    db.doc(`users/${viewerUid}/blocks/${ownerUid}`).get(),
+    db.doc(`users/${ownerUid}/blocks/${viewerUid}`).get(),
+  ]);
 
   return {
     viewerBlockedOwner: isActiveBlock(viewerBlock),
     ownerBlockedViewer: isActiveBlock(ownerBlock),
+  };
+}
+
+async function readFriendshipContext(
+  viewerUid: string,
+  ownerUid: string
+): Promise<FriendshipContext> {
+  const [viewerFriend, ownerFriend] = await Promise.all([
+    db.doc(`users/${viewerUid}/friends/${ownerUid}`).get(),
+    db.doc(`users/${ownerUid}/friends/${viewerUid}`).get(),
+  ]);
+
+  return {
     bilateralFriendship:
       isValidFriendEdge(viewerFriend, ownerUid) &&
       isValidFriendEdge(ownerFriend, viewerUid),
-
-    /**
-     * COMPATIBLE ainda depende de uma projeção backend canônica. Nunca confiar
-     * apenas no cálculo Angular para autorizar mídia por link direto.
-     */
-    mutuallyCompatible: false,
-
-    /**
-     * SUBSCRIBERS/PREMIUM permanecem fechados até existir entitlement bilateral
-     * de criador, com vigência, cancelamento, chargeback e status KYC/AML.
-     * A assinatura da plataforma não concede acesso ao conteúdo de um criador.
-     */
-    hasCreatorSubscriberEntitlement: false,
-    hasCreatorPremiumEntitlement: false,
   };
+}
+
+function assertViewerAccountAvailable(
+  viewer: ViewerAccountDocument,
+  expectedUid: string,
+  authDisabled: boolean
+): void {
+  const documentUid = cleanId(viewer.uid ?? expectedUid);
+
+  if (
+    authDisabled ||
+    documentUid !== expectedUid ||
+    viewer.accountLocked === true ||
+    viewer.loginAllowed === false
+  ) {
+    throw new HttpsError(
+      'permission-denied',
+      'Sua conta não está disponível para acessar vídeos.'
+    );
+  }
+
+  assertInteractionAccessData(viewer);
 }
 
 /**
  * Cria uma sessão de autorização por requisição.
  *
- * - valida lifecycle/idade uma única vez;
- * - mantém cache das relações por proprietário no lote;
- * - usa bloqueio bilateral e amizade bilateral;
- * - nega audiências sem fonte autorizativa no backend.
+ * - valida Auth, lifecycle e idade uma única vez;
+ * - mantém caches separados de bloqueios e amizades por proprietário;
+ * - vídeos públicos fazem apenas as duas leituras bilaterais de bloqueio;
+ * - amizade só é consultada quando a audiência realmente é FRIENDS;
+ * - audiências sem fonte autorizativa no backend permanecem negadas.
  */
 export async function createVideoAudienceAccessEvaluator(
   rawViewerUid: unknown
@@ -274,15 +288,22 @@ export async function createVideoAudienceAccessEvaluator(
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
   }
 
-  const viewerSnapshot = await db.doc(`users/${viewerUid}`).get();
-  assertInteractionAccessData(
-    viewerSnapshot.exists ? viewerSnapshot.data() : null
-  );
+  const [viewerSnapshot, authUser] = await Promise.all([
+    db.doc(`users/${viewerUid}`).get(),
+    auth.getUser(viewerUid),
+  ]);
+  const viewer = viewerSnapshot.exists
+    ? viewerSnapshot.data() as ViewerAccountDocument
+    : null;
 
-  const relationshipCache = new Map<
-    string,
-    Promise<RelationshipContext>
-  >();
+  if (!viewer) {
+    throw new HttpsError('not-found', 'Conta não encontrada.');
+  }
+
+  assertViewerAccountAvailable(viewer, viewerUid, authUser.disabled);
+
+  const blockCache = new Map<string, Promise<BlockContext>>();
+  const friendshipCache = new Map<string, Promise<FriendshipContext>>();
 
   return {
     evaluate: async (
@@ -294,14 +315,65 @@ export async function createVideoAudienceAccessEvaluator(
         return denied('invalid_target');
       }
 
-      let relationshipPromise = relationshipCache.get(ownerUid);
-
-      if (!relationshipPromise) {
-        relationshipPromise = readRelationshipContext(viewerUid, ownerUid);
-        relationshipCache.set(ownerUid, relationshipPromise);
+      if (viewerUid === ownerUid) {
+        return evaluateVideoAudienceAccess({
+          viewerUid,
+          ownerUid,
+          action: target.action,
+          visibility: target.visibility,
+          isPublished: target.isPublished,
+          moderationStatus: target.moderationStatus,
+          viewerLifecycleAllowed: true,
+          viewerBlockedOwner: false,
+          ownerBlockedViewer: false,
+          bilateralFriendship: true,
+          mutuallyCompatible: true,
+          hasCreatorSubscriberEntitlement: true,
+          hasCreatorPremiumEntitlement: true,
+        });
       }
 
-      const relationship = await relationshipPromise;
+      let blockPromise = blockCache.get(ownerUid);
+
+      if (!blockPromise) {
+        blockPromise = readBlockContext(viewerUid, ownerUid);
+        blockCache.set(ownerUid, blockPromise);
+      }
+
+      const blocks = await blockPromise;
+      const visibility = normalizeVisibility(target.visibility);
+
+      if (blocks.viewerBlockedOwner || blocks.ownerBlockedViewer) {
+        return evaluateVideoAudienceAccess({
+          viewerUid,
+          ownerUid,
+          action: target.action,
+          visibility: target.visibility,
+          isPublished: target.isPublished,
+          moderationStatus: target.moderationStatus,
+          viewerLifecycleAllowed: true,
+          ...blocks,
+          bilateralFriendship: false,
+          mutuallyCompatible: false,
+          hasCreatorSubscriberEntitlement: false,
+          hasCreatorPremiumEntitlement: false,
+        });
+      }
+
+      let bilateralFriendship = false;
+
+      if (visibility === 'FRIENDS') {
+        let friendshipPromise = friendshipCache.get(ownerUid);
+
+        if (!friendshipPromise) {
+          friendshipPromise = readFriendshipContext(viewerUid, ownerUid);
+          friendshipCache.set(ownerUid, friendshipPromise);
+        }
+
+        bilateralFriendship = (
+          await friendshipPromise
+        ).bilateralFriendship;
+      }
 
       return evaluateVideoAudienceAccess({
         viewerUid,
@@ -311,7 +383,22 @@ export async function createVideoAudienceAccessEvaluator(
         isPublished: target.isPublished,
         moderationStatus: target.moderationStatus,
         viewerLifecycleAllowed: true,
-        ...relationship,
+        ...blocks,
+        bilateralFriendship,
+
+        /**
+         * COMPATIBLE depende de projeção backend canônica. O cálculo Angular
+         * nunca autoriza mídia por link direto.
+         */
+        mutuallyCompatible: false,
+
+        /**
+         * SUBSCRIBERS/PREMIUM dependem de entitlement bilateral do criador,
+         * com vigência, cancelamento, chargeback e status KYC/AML. A assinatura
+         * da plataforma não concede acesso ao conteúdo de um criador.
+         */
+        hasCreatorSubscriberEntitlement: false,
+        hasCreatorPremiumEntitlement: false,
       });
     },
   };
