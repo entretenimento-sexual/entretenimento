@@ -4,6 +4,9 @@ import { Observable, defer, from, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import {
+  normalizePrivateMediaDraftOperationError,
+} from './private-media-draft-operation-error';
 
 export interface RegisterPrivatePhotoUploadCommand {
   ownerUid: string;
@@ -67,13 +70,23 @@ export class PrivatePhotoUploadRegistrationService {
   ): Observable<RegisterPrivatePhotoUploadResult> {
     return defer(() => from(this.registerCallable(command))).pipe(
       map((response) => response.data),
-      catchError((error) => this.handleError$(error, {
-        op: 'register$',
-        hasOwnerUid: !!String(command.ownerUid ?? '').trim(),
-        hasPhotoId: !!String(command.photoId ?? '').trim(),
-        hasReservationId: !!String(command.reservationId ?? '').trim(),
-        sizeBytes: command.sizeBytes,
-      }))
+      catchError((error) => {
+        const normalizedError = normalizePrivateMediaDraftOperationError(
+          error,
+          'Não foi possível registrar a foto enviada.'
+        );
+
+        return this.handleError$<RegisterPrivatePhotoUploadResult>(
+          normalizedError,
+          {
+            op: 'register$',
+            hasOwnerUid: !!String(command.ownerUid ?? '').trim(),
+            hasPhotoId: !!String(command.photoId ?? '').trim(),
+            hasReservationId: !!String(command.reservationId ?? '').trim(),
+            sizeBytes: command.sizeBytes,
+          }
+        );
+      })
     );
   }
 
@@ -82,32 +95,37 @@ export class PrivatePhotoUploadRegistrationService {
   ): Observable<ReplacePrivatePhotoUploadResult> {
     return defer(() => from(this.replaceCallable(command))).pipe(
       map((response) => response.data),
-      catchError((error) => this.handleError$(error, {
-        op: 'replace$',
-        hasOwnerUid: !!String(command.ownerUid ?? '').trim(),
-        hasPhotoId: !!String(command.photoId ?? '').trim(),
-        hasReservationId: !!String(command.reservationId ?? '').trim(),
-        sizeBytes: command.sizeBytes,
-      }))
+      catchError((error) => {
+        const normalizedError = normalizePrivateMediaDraftOperationError(
+          error,
+          'Não foi possível substituir a foto.'
+        );
+
+        return this.handleError$<ReplacePrivatePhotoUploadResult>(
+          normalizedError,
+          {
+            op: 'replace$',
+            hasOwnerUid: !!String(command.ownerUid ?? '').trim(),
+            hasPhotoId: !!String(command.photoId ?? '').trim(),
+            hasReservationId: !!String(command.reservationId ?? '').trim(),
+            sizeBytes: command.sizeBytes,
+          }
+        );
+      })
     );
   }
 
   private handleError$<T>(
-    error: unknown,
+    error: Error,
     context: Record<string, unknown>
   ): Observable<T> {
     try {
-      const normalized = error instanceof Error
-        ? error
-        : new Error('Falha ao registrar a foto privada.');
-
-      (normalized as any).original = error;
-      (normalized as any).context = {
+      (error as any).context = {
         scope: 'PrivatePhotoUploadRegistrationService',
         ...context,
       };
-      (normalized as any).skipUserNotification = true;
-      this.errorHandler.handleError(normalized);
+      (error as any).skipUserNotification = true;
+      this.errorHandler.handleError(error);
     } catch {
       // A telemetria não substitui o erro original.
     }
