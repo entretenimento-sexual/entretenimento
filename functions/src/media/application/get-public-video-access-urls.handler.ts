@@ -8,6 +8,7 @@ import {
   isActiveUserBlock,
   type PublicVideoAccountDenialReason,
 } from './public-video-audience-access.policy';
+import { hasPublicVideoPlaybackPlan } from './public-video-playback-plan.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
   normalizeOwnedPublishedVideoPath,
@@ -143,7 +144,8 @@ async function canViewerAccessOwner(
 async function resolveAccessItem(
   ownerUid: string,
   videoId: string,
-  expiresAt: number
+  expiresAt: number,
+  viewerUser: Readonly<Record<string, unknown>>
 ): Promise<PublicVideoAccessResponseItem | null> {
   const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
   const publicVideoRef = db.doc(
@@ -175,6 +177,13 @@ async function resolveAccessItem(
     publicVideo?.moderationStatus !== 'APPROVED' ||
     publication?.isPublished !== true
   ) {
+    return null;
+  }
+
+  const minimumPlaybackPlan =
+    publication?.minimumPlaybackPlan ?? publicVideo?.minimumPlaybackPlan;
+
+  if (!hasPublicVideoPlaybackPlan(viewerUser, minimumPlaybackPlan)) {
     return null;
   }
 
@@ -288,6 +297,7 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
       );
     }
 
+    const normalizedViewerUser = viewerUser as Readonly<Record<string, unknown>>;
     const ownerAccessCache = new Map<string, Promise<boolean>>();
     const ownerAccess = (ownerUid: string): Promise<boolean> => {
       const cached = ownerAccessCache.get(ownerUid);
@@ -298,7 +308,7 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
 
       const pending = canViewerAccessOwner(
         viewerUid,
-        viewerUser as Readonly<Record<string, unknown>>,
+        normalizedViewerUser,
         ownerUid
       );
       ownerAccessCache.set(ownerUid, pending);
@@ -315,7 +325,12 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
             }
 
             return {
-              item: await resolveAccessItem(ownerUid, videoId, expiresAt),
+              item: await resolveAccessItem(
+                ownerUid,
+                videoId,
+                expiresAt,
+                normalizedViewerUser
+              ),
               technicalFailure: false,
             };
           } catch (error) {
