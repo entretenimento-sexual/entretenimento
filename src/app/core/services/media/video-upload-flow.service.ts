@@ -34,6 +34,7 @@ export type VideoUploadProgressPhase =
   | 'preparing'
   | 'uploading-video'
   | 'uploading-poster'
+  | 'uploading-caption'
   | 'saving';
 
 export interface IVideoUploadProgressEvent {
@@ -51,10 +52,17 @@ export type IVideoUploadFlowEvent =
   | IVideoUploadProgressEvent
   | IVideoUploadSuccessEvent;
 
+export interface IVideoUploadCaptionInput {
+  file: File;
+  language: string;
+  label: string;
+}
+
 export interface IVideoUploadCommand {
   ownerUid: string;
   file: File;
   posterBlob?: Blob | null;
+  caption?: IVideoUploadCaptionInput | null;
   publication: IVideoPublicationSettingsInput & {
     publishWhenReady: boolean;
   };
@@ -65,6 +73,12 @@ interface UploadedBinary {
   path: string;
 }
 
+interface NormalizedCaptionInput {
+  file: File;
+  language: string;
+  label: string;
+}
+
 interface RegisterPrivateVideoUploadRequest
   extends IVideoPublicationSettingsInput,
     IVideoUploadSafetyAttestationInput {
@@ -72,6 +86,9 @@ interface RegisterPrivateVideoUploadRequest
   videoId: string;
   videoStoragePath: string;
   posterStoragePath: string | null;
+  captionStoragePath: string | null;
+  captionLanguage: string | null;
+  captionLabel: string | null;
   fileName: string;
   mimeType: string;
   sizeBytes: number;
@@ -93,6 +110,7 @@ interface RegisterPrivateVideoUploadResponse {
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_POSTER_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_CAPTION_SIZE_BYTES = 1024 * 1024;
 const REGISTER_RETRY_DELAY_MS = 650;
 
 class VideoUploadCancelledError extends Error {
@@ -126,18 +144,21 @@ export class VideoUploadFlowService {
       let file: File;
       let sourceFormat: VideoUploadFormat;
       let selectedPosterBlob: Blob | null = null;
+      let caption: NormalizedCaptionInput | null = null;
 
       try {
         ownerUid = this.requireOwnedUid(command.ownerUid);
         file = command.file;
         sourceFormat = this.validateFile(file);
         selectedPosterBlob = this.validateOptionalPoster(command.posterBlob);
+        caption = this.validateOptionalCaption(command.caption);
       } catch (error) {
         this.reportError(error, {
           op: 'uploadPrivateVideo$.validate',
           hasOwnerUid: !!String(command.ownerUid ?? '').trim(),
           hasFile: !!command.file,
           hasSelectedPoster: !!command.posterBlob,
+          hasCaption: !!command.caption,
         });
         observer.error(error);
         return undefined;
@@ -149,6 +170,7 @@ export class VideoUploadFlowService {
       const videoId = videoRef.id;
       const videoPath = this.buildVideoPath(ownerUid, videoId, sourceFormat);
       let posterPath: string | null = null;
+      let captionPath: string | null = null;
       let activeTask: UploadTask | null = null;
       let cancelRequested = false;
       let registrationStarted = false;
@@ -156,10 +178,18 @@ export class VideoUploadFlowService {
       let cleanupChain = Promise.resolve();
       let videoUploadStarted = false;
       let posterUploadStarted = false;
+      let captionUploadStarted = false;
 
       const scheduleCleanup = (): Promise<void> => {
         cleanupChain = cleanupChain.then(async () => {
           const cleanupTasks: Promise<void>[] = [];
+
+          if (captionUploadStarted && captionPath) {
+            cleanupTasks.push(
+              this.deleteBinaryBestEffort(captionPath, 'caption')
+            );
+            captionUploadStarted = false;
+          }
 
           if (posterUploadStarted && posterPath) {
             cleanupTasks.push(
@@ -211,7 +241,7 @@ export class VideoUploadFlowService {
               observer.next({
                 type: 'progress',
                 phase: 'uploading-video',
-                progress: this.mapProgress(progress, 6, 86),
+                progress: this.mapProgress(progress, 6, 82),
               });
             }
           );
@@ -234,7 +264,31 @@ export class VideoUploadFlowService {
                 observer.next({
                   type: 'progress',
                   phase: 'uploading-poster',
-                  progress: this.mapProgress(progress, 86, 96),
+                  progress: this.mapProgress(progress, 82, 90),
+                });
+              }
+            );
+            activeTask = null;
+            assertNotCancelled();
+          }
+
+          let captionBinary: UploadedBinary | null = null;
+
+          if (caption) {
+            captionPath = this.buildCaptionPath(ownerUid, videoId);
+            captionUploadStarted = true;
+            captionBinary = await this.uploadBinary(
+              captionPath,
+              caption.file,
+              'text/vtt',
+              (task) => {
+                activeTask = task;
+              },
+              (progress) => {
+                observer.next({
+                  type: 'progress',
+                  phase: 'uploading-caption',
+                  progress: this.mapProgress(progress, 90, 96),
                 });
               }
             );
@@ -253,6 +307,9 @@ export class VideoUploadFlowService {
             videoId,
             videoStoragePath: videoBinary.path,
             posterStoragePath: posterBinary?.path ?? null,
+            captionStoragePath: captionBinary?.path ?? null,
+            captionLanguage: caption?.language ?? null,
+            captionLabel: caption?.label ?? null,
             fileName,
             mimeType: sourceFormat.mimeType,
             sizeBytes: file.size,
@@ -278,6 +335,16 @@ export class VideoUploadFlowService {
               durationMs: registration.durationMs,
               thumbnailUrl: registration.posterStoragePath,
               thumbnailPath: registration.posterStoragePath,
+              captionTracks: captionBinary && caption
+                ? [{
+                    id: 'captions-1',
+                    kind: 'captions',
+                    language: caption.language,
+                    label: caption.label,
+                    storagePath: captionBinary.path,
+                    isDefault: true,
+                  }]
+                : [],
               processingStage: 'queued',
               status: 'queued',
               createdAt: registration.createdAt,
@@ -290,6 +357,7 @@ export class VideoUploadFlowService {
             hasOwnerUid: true,
             hasVideoId: true,
             hasPoster: !!posterBinary,
+            hasCaption: !!captionBinary,
             processingQueued: true,
             publishWhenReady: publication.publishWhenReady,
             safetyAttestationVersion:
@@ -319,6 +387,7 @@ export class VideoUploadFlowService {
             op: 'uploadPrivateVideo$',
             hasOwnerUid: !!ownerUid,
             hasVideoId: !!videoId,
+            hasCaption: !!caption,
             mimeType: sourceFormat.mimeType,
             sourceExtension: sourceFormat.extension,
             sizeBytes: file.size,
@@ -412,7 +481,7 @@ export class VideoUploadFlowService {
 
   private deleteBinaryBestEffort(
     storagePath: string,
-    assetKind: 'video' | 'poster'
+    assetKind: 'video' | 'poster' | 'caption'
   ): Promise<void> {
     return deleteObject(ref(this.storage, storagePath)).catch((error) => {
       if (this.isObjectNotFoundError(error)) {
@@ -455,7 +524,9 @@ export class VideoUploadFlowService {
     const format = resolveVideoUploadFormat(file);
 
     if (!format) {
-      throw new Error(`Envie um vídeo em um destes formatos: ${VIDEO_UPLOAD_FORMAT_LABEL}.`);
+      throw new Error(
+        `Envie um vídeo em um destes formatos: ${VIDEO_UPLOAD_FORMAT_LABEL}.`
+      );
     }
 
     if (!Number.isFinite(file.size) || file.size <= 0) {
@@ -489,6 +560,55 @@ export class VideoUploadFlowService {
     return value;
   }
 
+  private validateOptionalCaption(
+    value: IVideoUploadCaptionInput | null | undefined
+  ): NormalizedCaptionInput | null {
+    if (!value) {
+      return null;
+    }
+
+    const file = value.file;
+    const fileName = String(file?.name ?? '').trim();
+
+    if (!file || !fileName.toLowerCase().endsWith('.vtt')) {
+      throw new Error('Selecione uma legenda no formato WebVTT (.vtt).');
+    }
+
+    if (!Number.isFinite(file.size) || file.size <= 0) {
+      throw new Error('O arquivo de legenda está vazio.');
+    }
+
+    if (file.size > MAX_CAPTION_SIZE_BYTES) {
+      throw new Error('A legenda excede o limite de 1 MB.');
+    }
+
+    const language = String(value.language ?? '').trim();
+
+    if (!/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(language)) {
+      throw new Error('Informe um idioma válido para a legenda.');
+    }
+
+    const label = String(value.label ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 40);
+
+    if (!label) {
+      throw new Error('Informe um rótulo para a legenda.');
+    }
+
+    return {
+      file: file.type === 'text/vtt'
+        ? file
+        : new File([file], file.name, {
+            type: 'text/vtt',
+            lastModified: file.lastModified,
+          }),
+      language,
+      label,
+    };
+  }
+
   private normalizePublication(
     publication: IVideoUploadCommand['publication']
   ): RegisterPrivateVideoUploadRequest extends infer _Unused
@@ -503,11 +623,6 @@ export class VideoUploadFlowService {
       .trim()
       .slice(0, 1000);
 
-    /**
-     * O upload privado é somente uma etapa técnica temporária. Todo vídeo novo
-     * deve seguir para processamento, moderação e publicação; o cliente não
-     * oferece armazenamento pessoal ou rascunho permanente.
-     */
     return {
       title: title || null,
       description: description || null,
@@ -533,6 +648,13 @@ export class VideoUploadFlowService {
     return (
       `users/${ownerUid}/uploads/video-posters/${videoId}/` +
       `poster-${this.randomId()}.jpg`
+    );
+  }
+
+  private buildCaptionPath(ownerUid: string, videoId: string): string {
+    return (
+      `users/${ownerUid}/uploads/video-captions/${videoId}/` +
+      `captions-${this.randomId()}.vtt`
     );
   }
 
@@ -578,7 +700,7 @@ export class VideoUploadFlowService {
 
   private reportCleanupError(
     error: unknown,
-    assetKind: 'video' | 'poster'
+    assetKind: 'video' | 'poster' | 'caption'
   ): void {
     this.reportError(error, {
       op: 'rollbackUploadedBinary',
