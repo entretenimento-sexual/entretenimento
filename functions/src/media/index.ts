@@ -20,34 +20,31 @@ export {
 } from './application/protected-media-access-callables.handler';
 
 export {
-  cleanupMediaCallableRateLimits,
-} from './application/media-callable-rate-limit.service';
+  deleteProfilePhoto,
+  deleteProfileVideo,
+  publishPhoto,
+  publishVideo,
+  registerPrivateVideoUpload,
+  setCoverPhoto,
+  unpublishPhoto,
+  unpublishVideo,
+  updateVideoPublicationSettings,
+} from './application/protected-media-lifecycle-callables.handler';
 
 export {
-  publishPhoto,
-} from './application/publish-photo-orchestrator.handler';
+  cleanupMediaCallableRateLimits,
+} from './application/media-callable-rate-limit.service';
 export {
-  unpublishPhoto,
-  setCoverPhoto,
-} from './application/manage-photo-publication.handler';
+  cleanupMediaMutationIdempotency,
+} from './application/media-mutation-idempotency.service';
 
 export {
   syncPublishedPhotoOnPrivateUpdate,
 } from './application/sync-published-photo-on-private-update.handler';
 
 export {
-  unpublishVideo,
-} from './application/manage-video-publication.handler';
-export {
-  publishVideo,
-} from './application/publish-video-orchestrator.handler';
-export {
   publishVideoWhenReady,
 } from './application/publish-video-when-ready.handler';
-
-export {
-  updateVideoPublicationSettings,
-} from './application/update-video-publication-settings.handler';
 
 export {
   syncPublishedVideoSettings,
@@ -60,9 +57,6 @@ export {
 export {
   cleanupPendingPrivateVideoUploadAssets,
 } from './application/register-private-video-upload.handler';
-export {
-  registerPrivateVideoUpload,
-} from './application/register-private-video-upload-orchestrator.handler';
 
 export {
   queuePrivateVideoProcessing,
@@ -91,12 +85,10 @@ export {
 
 export {
   cleanupPendingPhotoDeletions,
-  deleteProfilePhoto,
 } from './application/delete-profile-photo.handler';
 
 export {
   cleanupPendingVideoDeletions,
-  deleteProfileVideo,
 } from './application/delete-profile-video.handler';
 
 export {
