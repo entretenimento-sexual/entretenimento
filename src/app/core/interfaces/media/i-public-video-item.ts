@@ -105,7 +105,7 @@ export interface IPublicVideoAccess {
   /** Variante padrão preservada para respostas e clientes legados. */
   readonly url: string;
   readonly posterUrl: string | null;
-  /** Ausente apenas em respostas legadas anteriores ao pipeline multirresolução. */
+  /** Ausente apenas em respostas anteriores ao pipeline multirresolução. */
   readonly variants?: readonly IPublicVideoAccessVariant[];
   readonly defaultQuality?: TPublicVideoQuality;
   readonly expiresAt: number;
@@ -116,6 +116,10 @@ export interface IPublicVideoItem extends IPublicVideoProjection {
   readonly url: string;
   readonly posterUrl: string | null;
   readonly accessExpiresAt: number;
-  readonly playbackQuality: TPublicVideoQuality;
-  readonly playbackVariants: readonly IPublicVideoAccessVariant[];
+  /**
+   * O hidratador atual sempre preenche estes campos. Eles são opcionais somente
+   * para leitura de itens legados já presentes em testes ou caches de sessão.
+   */
+  readonly playbackQuality?: TPublicVideoQuality;
+  readonly playbackVariants?: readonly IPublicVideoAccessVariant[];
 }
