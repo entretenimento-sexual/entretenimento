@@ -132,37 +132,33 @@ describe('ProfileMediaShowcaseComponent', () => {
     expect(ariaLabel).toContain('1 de 1');
   });
 
-  it('renderiza um único cabeçalho sem instruções ou contadores redundantes', () => {
+  it('usa o tipo disponível como título sem repetir a navegação', () => {
     const header = fixture.debugElement.query(
       By.css('.profile-media-showcase__header')
     );
     const heading = header.query(By.css('h2')).nativeElement as HTMLElement;
+    const links = header.query(
+      By.css('.profile-media-showcase__links')
+    ).nativeElement as HTMLElement;
     const text = fixture.nativeElement.textContent as string;
 
-    expect(heading.textContent?.trim()).toBe('Mídias');
-    expect(
-      fixture.debugElement.query(By.css('.profile-media-showcase__summary'))
-    ).toBeNull();
+    expect(heading.textContent?.trim()).toBe('Fotos');
+    expect(links.textContent?.trim()).toContain('Ver todas');
+    expect(links.textContent).not.toContain('Fotos');
     expect(text).not.toContain('Galeria de');
     expect(text).not.toContain('Toque em uma mídia');
     expect(text).not.toContain('Abrir destaque');
     expect(text).not.toContain('Capa');
   });
 
-  it('mantém os atalhos compactos no cabeçalho da seção', () => {
+  it('mantém a grade abaixo do cabeçalho da seção', () => {
     const header = fixture.debugElement.query(
       By.css('.profile-media-showcase__header')
     ).nativeElement as HTMLElement;
-    const links = header.querySelector(
-      '.profile-media-showcase__links'
-    ) as HTMLElement;
     const grid = fixture.debugElement.query(
       By.css('.profile-media-showcase__grid')
     ).nativeElement as HTMLElement;
 
-    expect(links).toBeTruthy();
-    expect(links.textContent).toContain('Fotos');
-    expect(links.textContent).not.toContain('Ver todas as fotos');
     expect(
       Boolean(
         header.compareDocumentPosition(grid) &
@@ -185,13 +181,19 @@ describe('ProfileMediaShowcaseComponent', () => {
     ).toBe(false);
   });
 
-  it('usa a mesma grade para vídeo sem criar layout especial', async () => {
+  it('contextualiza a seção quando há somente vídeos', async () => {
     mediaItems = [video];
     fixture.componentInstance.retry();
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
 
+    const heading = fixture.debugElement.query(
+      By.css('.profile-media-showcase__header h2')
+    ).nativeElement as HTMLElement;
+    const links = fixture.debugElement.query(
+      By.css('.profile-media-showcase__links')
+    ).nativeElement as HTMLElement;
     const grid = fixture.debugElement.query(
       By.css('.profile-media-showcase__grid')
     ).nativeElement as HTMLElement;
@@ -199,9 +201,32 @@ describe('ProfileMediaShowcaseComponent', () => {
       By.css('.profile-media-showcase__item--video')
     ).nativeElement as HTMLElement;
 
+    expect(heading.textContent?.trim()).toBe('Vídeos');
+    expect(links.textContent?.trim()).toContain('Ver todos');
     expect(grid.className).toBe('profile-media-showcase__grid');
     expect(
       item.classList.contains('profile-media-showcase__item--featured')
     ).toBe(false);
+  });
+
+  it('mantém atalhos separados quando fotos e vídeos coexistem', async () => {
+    mediaItems = [photo, video];
+    fixture.componentInstance.retry();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const heading = fixture.debugElement.query(
+      By.css('.profile-media-showcase__header h2')
+    ).nativeElement as HTMLElement;
+    const links = fixture.debugElement.query(
+      By.css('.profile-media-showcase__links')
+    ).nativeElement as HTMLElement;
+
+    expect(heading.textContent?.trim()).toBe('Mídias');
+    expect(links.textContent).toContain('Fotos');
+    expect(links.textContent).toContain('Vídeos');
+    expect(links.textContent).not.toContain('Ver todas');
+    expect(links.textContent).not.toContain('Ver todos');
   });
 });
