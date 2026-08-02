@@ -20,6 +20,7 @@ interface RegisterPrivateVideoUploadRequest {
   videoId?: string;
   videoStoragePath?: string;
   posterStoragePath?: string | null;
+  mimeType?: string;
   [key: string]: unknown;
 }
 
@@ -60,6 +61,11 @@ interface PrivateUploadAsset {
 }
 
 const CLEANUP_COLLECTION = 'media_private_video_upload_cleanup_jobs';
+const ALLOWED_VIDEO_TYPES = new Set([
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+]);
 
 function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -86,6 +92,10 @@ function cleanId(value: unknown): string {
   }
 
   return normalized;
+}
+
+function normalizeMimeType(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase();
 }
 
 function normalizeErrorMessage(error: unknown): string {
@@ -332,7 +342,8 @@ function resolveOwnedUploadAssets(
 /**
  * Registra o upload e só responde depois que a fila idempotente foi persistida.
  * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
- * A elegibilidade é revalidada no backend antes do registro definitivo.
+ * A elegibilidade e o formato processável são revalidados no backend antes do
+ * registro definitivo.
  */
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
@@ -342,11 +353,20 @@ export const registerPrivateVideoUpload = onCall<
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
+    const requestedMimeType = normalizeMimeType(request.data?.mimeType);
     const assets = ownerUid && videoId
       ? resolveOwnedUploadAssets(ownerUid, videoId, request.data)
       : null;
 
     if (requesterUid && requesterUid === ownerUid && assets) {
+      if (!ALLOWED_VIDEO_TYPES.has(requestedMimeType)) {
+        await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
+        throw new HttpsError(
+          'failed-precondition',
+          'Envie um vídeo MP4, M4V, MOV ou WebM compatível.'
+        );
+      }
+
       try {
         await assertPrivateVideoUploadEligibility(ownerUid);
       } catch (error) {

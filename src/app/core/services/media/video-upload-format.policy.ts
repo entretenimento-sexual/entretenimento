@@ -4,6 +4,17 @@ export interface VideoUploadFormat {
   browserPreviewLikely: boolean;
 }
 
+/**
+ * Formatos aceitos de ponta a ponta pelo pipeline atual.
+ *
+ * Esta lista deve permanecer alinhada com:
+ * - storage.rules;
+ * - register-private-video-upload-orchestrator.handler.ts;
+ * - queue-video-processing.handler.ts.
+ *
+ * Não anunciar um formato apenas porque o navegador permite selecioná-lo. O
+ * upload só é aceito quando o backend também consegue registrá-lo e processá-lo.
+ */
 const FORMAT_BY_EXTENSION: Readonly<Record<string, VideoUploadFormat>> = {
   mp4: {
     extension: 'mp4',
@@ -25,41 +36,6 @@ const FORMAT_BY_EXTENSION: Readonly<Record<string, VideoUploadFormat>> = {
     mimeType: 'video/webm',
     browserPreviewLikely: true,
   },
-  mkv: {
-    extension: 'mkv',
-    mimeType: 'video/x-matroska',
-    browserPreviewLikely: false,
-  },
-  avi: {
-    extension: 'avi',
-    mimeType: 'video/x-msvideo',
-    browserPreviewLikely: false,
-  },
-  wmv: {
-    extension: 'wmv',
-    mimeType: 'video/x-ms-wmv',
-    browserPreviewLikely: false,
-  },
-  ts: {
-    extension: 'ts',
-    mimeType: 'video/mp2t',
-    browserPreviewLikely: false,
-  },
-  mts: {
-    extension: 'mts',
-    mimeType: 'video/mp2t',
-    browserPreviewLikely: false,
-  },
-  m2ts: {
-    extension: 'm2ts',
-    mimeType: 'video/mp2t',
-    browserPreviewLikely: false,
-  },
-  mxf: {
-    extension: 'mxf',
-    mimeType: 'application/mxf',
-    browserPreviewLikely: false,
-  },
 };
 
 const EXTENSION_BY_MIME_TYPE: Readonly<Record<string, string>> = {
@@ -67,14 +43,6 @@ const EXTENSION_BY_MIME_TYPE: Readonly<Record<string, string>> = {
   'video/x-m4v': 'm4v',
   'video/quicktime': 'mov',
   'video/webm': 'webm',
-  'video/x-matroska': 'mkv',
-  'video/x-msvideo': 'avi',
-  'video/avi': 'avi',
-  'video/msvideo': 'avi',
-  'video/x-ms-wmv': 'wmv',
-  'video/mp2t': 'ts',
-  'application/mxf': 'mxf',
-  'video/mxf': 'mxf',
 };
 
 export const VIDEO_UPLOAD_ACCEPT = [
@@ -82,8 +50,7 @@ export const VIDEO_UPLOAD_ACCEPT = [
   ...Object.keys(FORMAT_BY_EXTENSION).map((extension) => `.${extension}`),
 ].join(',');
 
-export const VIDEO_UPLOAD_FORMAT_LABEL =
-  'MP4, M4V, MOV, WebM, MKV, AVI, WMV, TS, MTS, M2TS ou MXF';
+export const VIDEO_UPLOAD_FORMAT_LABEL = 'MP4, M4V, MOV ou WebM';
 
 export function resolveVideoUploadFormat(
   candidate: Pick<File, 'name' | 'type'> | null | undefined
