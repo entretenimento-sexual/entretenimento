@@ -1,8 +1,10 @@
 import { TestBed } from '@angular/core/testing';
+import { of, throwError } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PublicVideoShareAuthorizationService } from './public-video-share-authorization.service';
 import {
   PublicVideoShareService,
   buildPublicVideoCanonicalPath,
@@ -16,6 +18,9 @@ describe('PublicVideoShareService', () => {
     showError: ReturnType<typeof vi.fn>;
   };
   let globalErrorHandler: { handleError: ReturnType<typeof vi.fn> };
+  let shareAuthorization: {
+    authorizeShare$: ReturnType<typeof vi.fn>;
+  };
   const originalShare = Object.getOwnPropertyDescriptor(navigator, 'share');
   const originalCanShare = Object.getOwnPropertyDescriptor(
     navigator,
@@ -33,6 +38,9 @@ describe('PublicVideoShareService', () => {
       showError: vi.fn(),
     };
     globalErrorHandler = { handleError: vi.fn() };
+    shareAuthorization = {
+      authorizeShare$: vi.fn(() => of('/media/video/owner_1/video-1')),
+    };
 
     TestBed.configureTestingModule({
       providers: [
@@ -43,6 +51,10 @@ describe('PublicVideoShareService', () => {
         {
           provide: GlobalErrorHandlerService,
           useValue: globalErrorHandler,
+        },
+        {
+          provide: PublicVideoShareAuthorizationService,
+          useValue: shareAuthorization,
         },
       ],
     });
@@ -64,7 +76,7 @@ describe('PublicVideoShareService', () => {
     expect(buildPublicVideoCanonicalPath('../owner', 'video-1')).toBeNull();
   });
 
-  it('usa o compartilhamento nativo quando o navegador permite', async () => {
+  it('usa o compartilhamento nativo após autorização backend', async () => {
     const nativeShare = vi.fn().mockResolvedValue(undefined);
     setNavigatorProperty('share', nativeShare);
     setNavigatorProperty('canShare', vi.fn(() => true));
@@ -75,6 +87,10 @@ describe('PublicVideoShareService', () => {
     });
 
     expect(outcome).toBe('shared');
+    expect(shareAuthorization.authorizeShare$).toHaveBeenCalledWith(
+      'owner_1',
+      'video-1'
+    );
     expect(nativeShare).toHaveBeenCalledWith(
       expect.objectContaining({
         url: `${document.location.origin}/media/video/owner_1/video-1`,
@@ -102,6 +118,42 @@ describe('PublicVideoShareService', () => {
     );
     expect(errorNotification.showSuccess).toHaveBeenCalledWith(
       'Link do vídeo copiado.'
+    );
+  });
+
+  it('não expõe o link quando o backend nega a audiência', async () => {
+    shareAuthorization.authorizeShare$.mockReturnValue(of(null));
+    const nativeShare = vi.fn().mockResolvedValue(undefined);
+    setNavigatorProperty('share', nativeShare);
+
+    const outcome = await service.sharePublicVideo({
+      ownerUid: 'owner_1',
+      id: 'video-1',
+    });
+
+    expect(outcome).toBe('failed');
+    expect(nativeShare).not.toHaveBeenCalled();
+    expect(errorNotification.showWarning).toHaveBeenCalledWith(
+      'Este vídeo não está disponível para compartilhamento.'
+    );
+  });
+
+  it('informa falha de autorização sem tentar compartilhar', async () => {
+    shareAuthorization.authorizeShare$.mockReturnValue(
+      throwError(() => new Error('permission-denied'))
+    );
+    const nativeShare = vi.fn().mockResolvedValue(undefined);
+    setNavigatorProperty('share', nativeShare);
+
+    const outcome = await service.sharePublicVideo({
+      ownerUid: 'owner_1',
+      id: 'video-1',
+    });
+
+    expect(outcome).toBe('failed');
+    expect(nativeShare).not.toHaveBeenCalled();
+    expect(errorNotification.showError).toHaveBeenCalledWith(
+      'Não foi possível autorizar o compartilhamento deste vídeo.'
     );
   });
 
