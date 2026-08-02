@@ -8,18 +8,28 @@ import {
   publishPhoto as publishPhotoCore,
 } from './manage-photo-publication.handler';
 
-export const publishPhoto = onCall(
+interface PublishPhotoRequest {
+  ownerUid?: string;
+  photoId?: string;
+  visibility?: 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
+  caption?: string | null;
+  isCover?: boolean;
+  orderIndex?: number;
+  commentsEnabled?: boolean;
+  commentsPolicy?: 'OFF' | 'FRIENDS' | 'SUBSCRIBERS' | 'EVERYONE';
+  reactionsEnabled?: boolean;
+}
+
+export const publishPhoto = onCall<PublishPhotoRequest>(
   { region: FUNCTIONS_REGION },
   async (request) => {
-    const ownerUid = String(
-      (request.data as { ownerUid?: unknown } | null | undefined)?.ownerUid ?? ''
-    ).trim();
+    const ownerUid = String(request.data?.ownerUid ?? '').trim();
     const requesterUid = String(request.auth?.uid ?? '').trim();
 
     if (ownerUid && requesterUid === ownerUid) {
       await assertInteractionAccess(ownerUid);
     }
 
-    return publishPhotoCore.run(request as any);
+    return publishPhotoCore.run(request);
   }
 );
