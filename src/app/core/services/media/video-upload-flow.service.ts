@@ -26,6 +26,9 @@ import {
   VIDEO_UPLOAD_FORMAT_LABEL,
   resolveVideoUploadFormat,
 } from './video-upload-format.policy';
+import type {
+  IVideoUploadSafetyAttestationInput,
+} from './video-upload-safety-attestation.policy';
 
 export type VideoUploadProgressPhase =
   | 'preparing'
@@ -55,6 +58,7 @@ export interface IVideoUploadCommand {
   publication: IVideoPublicationSettingsInput & {
     publishWhenReady: boolean;
   };
+  safetyAttestation: IVideoUploadSafetyAttestationInput;
 }
 
 interface UploadedBinary {
@@ -62,7 +66,8 @@ interface UploadedBinary {
 }
 
 interface RegisterPrivateVideoUploadRequest
-  extends IVideoPublicationSettingsInput {
+  extends IVideoPublicationSettingsInput,
+    IVideoUploadSafetyAttestationInput {
   ownerUid: string;
   videoId: string;
   videoStoragePath: string;
@@ -253,6 +258,7 @@ export class VideoUploadFlowService {
             sizeBytes: file.size,
             durationMs: metadata.durationMs,
             ...publication,
+            ...command.safetyAttestation,
           });
 
           completed = true;
@@ -286,6 +292,8 @@ export class VideoUploadFlowService {
             hasPoster: !!posterBinary,
             processingQueued: true,
             publishWhenReady: publication.publishWhenReady,
+            safetyAttestationVersion:
+              command.safetyAttestation.safetyAttestationVersion,
             mimeType: registration.mimeType,
             sourceExtension: sourceFormat.extension,
             sizeBytes: registration.sizeBytes,
