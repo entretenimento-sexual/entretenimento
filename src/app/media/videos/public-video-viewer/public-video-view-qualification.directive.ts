@@ -99,23 +99,36 @@ export class PublicVideoViewQualificationDirective
     }
   }
 
-  resetForVideo(identity: string): void {
+  /**
+   * A qualificação só começa depois que o backend emite uma sessão vinculada
+   * ao usuário e ao vídeo. Sessões locais aleatórias foram removidas.
+   */
+  resetForVideo(identity: string, sessionId = ''): void {
     const normalizedIdentity = String(identity ?? '').trim();
+    const normalizedSessionId = this.normalizeSessionId(sessionId);
 
-    if (!normalizedIdentity || normalizedIdentity === this.identity) {
+    if (
+      normalizedIdentity === this.identity &&
+      normalizedSessionId === this.sessionId
+    ) {
       return;
     }
 
     this.stopActivePlayback(false);
     this.identity = normalizedIdentity;
-    this.sessionId = this.createSessionId();
+    this.sessionId = normalizedSessionId;
     this.mediaPlaybackMs = 0;
     this.activeWallMs = 0;
     this.lastMediaTimeMs = this.currentMediaTimeMs();
     this.emitted = false;
 
     const video = this.elementRef.nativeElement;
-    if (!video.paused && !video.seeking) {
+    if (
+      this.identity &&
+      this.sessionId &&
+      !video.paused &&
+      !video.seeking
+    ) {
       this.startActivePlayback();
     }
   }
@@ -159,6 +172,7 @@ export class PublicVideoViewQualificationDirective
   private startActivePlayback(): void {
     if (
       !this.identity ||
+      !this.sessionId ||
       this.emitted ||
       this.document.visibilityState === 'hidden' ||
       this.activeStartedAt !== null
@@ -261,19 +275,14 @@ export class PublicVideoViewQualificationDirective
     return this.document.defaultView?.performance?.now() ?? Date.now();
   }
 
-  private createSessionId(): string {
-    const randomUuid = globalThis.crypto?.randomUUID?.();
+  private normalizeSessionId(value: unknown): string {
+    const sessionId = String(value ?? '').trim();
 
-    if (randomUuid) {
-      return randomUuid.replace(/-/g, '_');
-    }
-
-    return [
-      'view',
-      Date.now().toString(36),
-      Math.random().toString(36).slice(2),
-      Math.random().toString(36).slice(2),
-    ].join('_');
+    return sessionId.length >= 32 &&
+      sessionId.length <= 128 &&
+      /^[A-Za-z0-9_-]+$/.test(sessionId)
+      ? sessionId
+      : '';
   }
 
   private listen(
