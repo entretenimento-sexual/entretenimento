@@ -1,12 +1,21 @@
 // functions/src/chat/direct-chat/domain/direct-message-public-video-reference.policy.ts
 // -----------------------------------------------------------------------------
-// Referência segura de vídeo público em mensagens diretas.
+// Referência segura de vídeo publicado em mensagens diretas.
 //
 // A mensagem persiste somente identidade e metadado público mínimo. URL
 // assinada, caminho de Storage e tokens de acesso nunca pertencem ao chat.
+// A audiência do remetente e do destinatário é validada separadamente pelo
+// VideoAudiencePolicy antes da criação da mensagem.
 // -----------------------------------------------------------------------------
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+const SHAREABLE_VISIBILITIES = new Set([
+  'PUBLIC',
+  'COMPATIBLE',
+  'FRIENDS',
+  'SUBSCRIBERS',
+  'PREMIUM',
+]);
 
 export interface RequestedPublicVideoReference {
   ownerUid: string;
@@ -14,8 +23,10 @@ export interface RequestedPublicVideoReference {
 }
 
 export interface PublicVideoDocumentForDirectShare {
+  id?: unknown;
   ownerUid?: unknown;
   mediaType?: unknown;
+  assetAccess?: unknown;
   visibility?: unknown;
   moderationStatus?: unknown;
   title?: unknown;
@@ -39,6 +50,10 @@ export interface StoredDirectMessagePublicVideoReference {
 function normalizeId(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return SAFE_ID_PATTERN.test(normalized) ? normalized : '';
+}
+
+function normalizeEnum(value: unknown): string {
+  return String(value ?? '').trim().toUpperCase();
 }
 
 function replaceControlCharacters(value: string): string {
@@ -78,15 +93,6 @@ export function normalizeRequestedPublicVideoReference(
   return ownerUid && videoId ? { ownerUid, videoId } : null;
 }
 
-/**
- * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
- *
- * Hoje a referência direta aceita somente vídeo PUBLIC + APPROVED. Quando
- * FRIENDS, SUBSCRIBERS ou PREMIUM forem ativados, esta decisão deverá receber
- * o UID do destinatário e validar amizade/entitlement vigente. O envio da
- * referência jamais concede acesso: o playback deve revalidar a audiência
- * novamente, inclusive após cancelamento ou mudança do plano.
- */
 export function resolveStoredDirectMessagePublicVideoReference(params: {
   requested: RequestedPublicVideoReference;
   publicProfileExists: boolean;
@@ -99,20 +105,27 @@ export function resolveStoredDirectMessagePublicVideoReference(params: {
     return null;
   }
 
+  const videoId = normalizeId(publicVideo.id);
   const videoOwnerUid = normalizeId(publicVideo.ownerUid);
   const publicationOwnerUid = normalizeId(publication.ownerUid);
   const publicationVideoId = normalizeId(publication.videoId);
+  const projectionVisibility = normalizeEnum(publicVideo.visibility);
+  const publicationVisibility = normalizeEnum(publication.visibility);
+  const projectionModeration = normalizeEnum(publicVideo.moderationStatus);
+  const publicationModeration = normalizeEnum(publication.moderationStatus);
 
   if (
+    videoId !== requested.videoId ||
     videoOwnerUid !== requested.ownerUid ||
     publicationOwnerUid !== requested.ownerUid ||
     publicationVideoId !== requested.videoId ||
-    publicVideo.mediaType !== 'VIDEO' ||
-    publicVideo.visibility !== 'PUBLIC' ||
-    publicVideo.moderationStatus !== 'APPROVED' ||
-    publication.isPublished !== true ||
-    publication.visibility !== 'PUBLIC' ||
-    publication.moderationStatus !== 'APPROVED'
+    normalizeEnum(publicVideo.mediaType) !== 'VIDEO' ||
+    normalizeEnum(publicVideo.assetAccess) !== 'SIGNED_URL' ||
+    !SHAREABLE_VISIBILITIES.has(projectionVisibility) ||
+    projectionVisibility !== publicationVisibility ||
+    projectionModeration !== 'APPROVED' ||
+    projectionModeration !== publicationModeration ||
+    publication.isPublished !== true
   ) {
     return null;
   }
