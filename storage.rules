@@ -3,7 +3,7 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // ============================================================
-    // Helpers básicos - 14ABR2026
+    // Helpers básicos - 02AGO2026
     // ============================================================
 
     function signedIn() {
@@ -30,29 +30,83 @@ service firebase.storage {
         && request.resource.size <= 500 * 1024 * 1024;
     }
 
+    function hasUploadReservationId() {
+      return request.resource != null
+        && request.resource.metadata != null
+        && request.resource.metadata.mediaReservationId is string
+        && request.resource.metadata.mediaReservationId.size() > 0
+        && request.resource.metadata.mediaReservationId.size() <= 128;
+    }
+
+    function uploadReservation() {
+      return firestore.get(
+        /databases/(default)/documents/media_private_upload_reservations/$(request.resource.metadata.mediaReservationId)
+      ).data;
+    }
+
+    function activeReservationFor(uid, kind) {
+      let reservation = uploadReservation();
+      return hasUploadReservationId()
+        && reservation.ownerUid == uid
+        && reservation.kind == kind
+        && reservation.state == 'ACTIVE'
+        && reservation.expiresAt > request.time;
+    }
+
+    function reservedSourceUpload(uid, kind, objectPath) {
+      let reservation = uploadReservation();
+      return activeReservationFor(uid, kind)
+        && reservation.sourceStoragePath == objectPath
+        && reservation.sourceSizeBytes == request.resource.size;
+    }
+
+    function reservedAuxiliaryUpload(uid, objectPath) {
+      let reservation = uploadReservation();
+      return activeReservationFor(uid, 'video')
+        && reservation.auxiliaryStoragePath == objectPath
+        && reservation.auxiliarySizeBytes == request.resource.size;
+    }
+
     // ============================================================
     // Upload bruto e privado do usuário
-    // - upload e rollback continuam sob controle do proprietário;
+    // - toda criação exige reserva de quota vigente no Firestore;
+    // - rollback e exclusão continuam disponíveis ao proprietário;
     // - reprodução usa URL temporária emitida pelo backend.
     // ============================================================
 
     match /users/{uid}/uploads/images/{fileName} {
       allow read: if isSelf(uid);
-      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+      allow create, update: if isSelf(uid)
+        && isImageCreateOrUpdate()
+        && reservedSourceUpload(
+          uid,
+          'photo',
+          'users/' + uid + '/uploads/images/' + fileName
+        );
       allow delete: if isSelf(uid);
     }
 
     match /users/{uid}/uploads/videos/{fileName} {
       allow read: if false;
-      allow create, update: if isSelf(uid) && isVideoCreateOrUpdate();
+      allow create, update: if isSelf(uid)
+        && isVideoCreateOrUpdate()
+        && reservedSourceUpload(
+          uid,
+          'video',
+          'users/' + uid + '/uploads/videos/' + fileName
+        );
       allow delete: if isSelf(uid);
     }
 
     // Poster gerado localmente para um vídeo privado específico.
-    // O namespace separado permite limpeza segura junto do vídeo sem afetar fotos.
     match /users/{uid}/uploads/video-posters/{videoId}/{fileName} {
       allow read: if false;
-      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+      allow create, update: if isSelf(uid)
+        && isImageCreateOrUpdate()
+        && reservedAuxiliaryUpload(
+          uid,
+          'users/' + uid + '/uploads/video-posters/' + videoId + '/' + fileName
+        );
       allow delete: if isSelf(uid);
     }
 
@@ -74,8 +128,6 @@ service firebase.storage {
 
     // ============================================================
     // Mídia publicada sensível
-    // - leitura ocorre somente por URL temporária emitida pelo backend;
-    // - clientes não acessam nem escrevem diretamente estes namespaces.
     // ============================================================
 
     match /users/{uid}/published/images/{allPaths=**} {
