@@ -6,6 +6,8 @@
 .profile-media-showcase {
   display: grid;
   gap: 0.75rem;
+  width: 100%;
+  max-width: 48rem;
   min-width: 0;
   padding-top: 1rem;
   border-top: 1px solid color-mix(
@@ -35,9 +37,8 @@
 .profile-media-showcase__grid,
 .profile-media-showcase__skeleton {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 12rem));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: start;
-  justify-content: start;
   gap: 0.65rem;
   width: 100%;
   min-width: 0;
@@ -231,6 +232,7 @@
 
 @media (max-width: 640px) {
   .profile-media-showcase {
+    max-width: none;
     padding-inline: 0.75rem;
   }
 
