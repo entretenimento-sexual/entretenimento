@@ -11,6 +11,12 @@ import {
   registerPrivateVideoUpload as registerPrivateVideoUploadCore,
 } from './register-private-video-upload.handler';
 import {
+  normalizeVideoEditRecipe,
+  VideoEditRecipeValidationError,
+  type VideoEditRecipe,
+} from './video-edit-recipe';
+import { buildVideoProcessingJobId } from './video-processing-job';
+import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
@@ -20,6 +26,8 @@ interface RegisterPrivateVideoUploadRequest {
   videoId?: string;
   videoStoragePath?: string;
   posterStoragePath?: string | null;
+  durationMs?: number | null;
+  editRecipe?: unknown;
   [key: string]: unknown;
 }
 
@@ -60,6 +68,7 @@ interface PrivateUploadAsset {
 }
 
 const CLEANUP_COLLECTION = 'media_private_video_upload_cleanup_jobs';
+export const VIDEO_EDIT_DRAFTS_COLLECTION = 'media_video_edit_drafts';
 
 function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -113,6 +122,12 @@ function authErrorCode(error: unknown): string {
 
 function cleanupJobId(storagePath: string): string {
   return createHash('sha256').update(storagePath).digest('hex');
+}
+
+function editDraftReference(ownerUid: string, videoId: string) {
+  return db
+    .collection(VIDEO_EDIT_DRAFTS_COLLECTION)
+    .doc(buildVideoProcessingJobId(ownerUid, videoId));
 }
 
 function assertPrivateVideoUploadEligibilityData(
@@ -329,6 +344,53 @@ function resolveOwnedUploadAssets(
   ];
 }
 
+function normalizeRequestedEditRecipe(
+  data: RegisterPrivateVideoUploadRequest | undefined
+): VideoEditRecipe | null {
+  if (data?.editRecipe === undefined) {
+    return null;
+  }
+
+  try {
+    return normalizeVideoEditRecipe(data.editRecipe, data.durationMs);
+  } catch (error) {
+    if (error instanceof VideoEditRecipeValidationError) {
+      throw new HttpsError('invalid-argument', error.message);
+    }
+
+    throw error;
+  }
+}
+
+async function persistEditDraft(
+  ownerUid: string,
+  videoId: string,
+  editRecipe: VideoEditRecipe,
+  sourceDurationMs: number | null | undefined
+): Promise<void> {
+  const now = Date.now();
+
+  await editDraftReference(ownerUid, videoId).set({
+    ownerUid,
+    videoId,
+    editRecipe,
+    sourceDurationMs: sourceDurationMs ?? null,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+async function deleteEditDraftBestEffort(
+  ownerUid: string,
+  videoId: string
+): Promise<void> {
+  try {
+    await editDraftReference(ownerUid, videoId).delete();
+  } catch {
+    // A fila também remove o rascunho na transação de criação do job.
+  }
+}
+
 /**
  * Registra o upload e só responde depois que a fila idempotente foi persistida.
  * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
@@ -345,25 +407,50 @@ export const registerPrivateVideoUpload = onCall<
     const assets = ownerUid && videoId
       ? resolveOwnedUploadAssets(ownerUid, videoId, request.data)
       : null;
+    let editRecipe: VideoEditRecipe | null = null;
+    let registrationCompleted = false;
 
     if (requesterUid && requesterUid === ownerUid && assets) {
       try {
         await assertPrivateVideoUploadEligibility(ownerUid);
+        editRecipe = normalizeRequestedEditRecipe(request.data);
+
+        if (editRecipe) {
+          await persistEditDraft(
+            ownerUid,
+            videoId,
+            editRecipe,
+            request.data?.durationMs
+          );
+        }
       } catch (error) {
         await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
         throw error;
       }
     }
 
-    const response = (
-      await registerPrivateVideoUploadCore.run(request as any)
-    ) as RegisteredPrivateVideoResponse;
+    try {
+      const response = (
+        await registerPrivateVideoUploadCore.run(request as any)
+      ) as RegisteredPrivateVideoResponse;
+      registrationCompleted = true;
 
-    await ensurePrivateVideoProcessingQueued(
-      response.ownerUid,
-      response.videoId
-    );
+      await ensurePrivateVideoProcessingQueued(
+        response.ownerUid,
+        response.videoId
+      );
 
-    return response;
+      if (editRecipe) {
+        await deleteEditDraftBestEffort(response.ownerUid, response.videoId);
+      }
+
+      return response;
+    } catch (error) {
+      if (editRecipe && !registrationCompleted && ownerUid && videoId) {
+        await deleteEditDraftBestEffort(ownerUid, videoId);
+      }
+
+      throw error;
+    }
   }
 );
