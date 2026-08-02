@@ -141,39 +141,43 @@
                 Rever do início
               </button>
             </div>
-          }
 
-          <div class="video-editor__cover">
-            <div class="video-editor__cover-heading">
-              <div>
-                <strong>Capa</strong>
-                <span>O quadro respeita o enquadramento selecionado.</span>
+            <div class="video-editor__cover">
+              <div class="video-editor__cover-heading">
+                <div>
+                  <strong>Capa</strong>
+                  <span>O quadro respeita o enquadramento selecionado.</span>
+                </div>
+                <button
+                  type="button"
+                  class="app-action app-action--ghost"
+                  [disabled]="capturingPoster || isUploadActive(phase)"
+                  [attr.aria-busy]="capturingPoster ? 'true' : 'false'"
+                  (click)="capturePoster(preview)"
+                >
+                  {{ capturingPoster ? 'Gerando...' : 'Usar quadro atual' }}
+                </button>
               </div>
-              <button
-                type="button"
-                class="app-action app-action--ghost"
-                [disabled]="capturingPoster || !previewUrl || isUploadActive(phase)"
-                [attr.aria-busy]="capturingPoster ? 'true' : 'false'"
-                (click)="capturePoster(preview)"
-              >
-                {{ capturingPoster ? 'Gerando...' : 'Usar quadro atual' }}
-              </button>
+
+              @if (posterUrl) {
+                <img
+                  class="video-editor__poster"
+                  [src]="posterUrl"
+                  alt="Capa selecionada para o vídeo"
+                  width="480"
+                  height="270"
+                />
+              } @else {
+                <div class="video-editor__poster-empty" role="status">
+                  A capa automática será gerada quando o navegador permitir.
+                </div>
+              }
             </div>
-
-            @if (posterUrl) {
-              <img
-                class="video-editor__poster"
-                [src]="posterUrl"
-                alt="Capa selecionada para o vídeo"
-                width="480"
-                height="270"
-              />
-            } @else {
-              <div class="video-editor__poster-empty" role="status">
-                A capa automática será gerada quando o navegador permitir.
-              </div>
-            }
-          </div>
+          } @else {
+            <div class="video-editor__poster-empty" role="status">
+              A prévia local não está disponível para este arquivo neste navegador.
+            </div>
+          }
         </section>
 
         <div class="video-editor__forms">
