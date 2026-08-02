@@ -14,7 +14,7 @@
 //
 // Observação de manutenção:
 // - Este componente não deve escrever diretamente no Firestore.
-// - Visualizações passam por MediaPublicationService.
+// - Visualizações passam por PhotoViewTrackingService.
 // - Comentários e moderação passam por MediaPhotoCommentsService.
 // - Reações passam por MediaReactionsService.
 // - Regras reais de permissão ficam no backend/rules; o template apenas melhora UX.
@@ -24,6 +24,7 @@ import {
   Component,
   HostListener,
   Inject,
+  OnDestroy,
   inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -31,7 +32,14 @@ import { RouterModule } from '@angular/router';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 
-import { BehaviorSubject, EMPTY, Observable, combineLatest, of } from 'rxjs';
+import {
+  BehaviorSubject,
+  EMPTY,
+  Observable,
+  Subscription,
+  combineLatest,
+  of,
+} from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -47,7 +55,7 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { MediaPhotoCommentsService } from 'src/app/core/services/media/media-photo-comments.service';
-import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
+import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view-tracking.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 
 import { IPhotoComment } from 'src/app/core/interfaces/media/i-photo-comment';
@@ -122,12 +130,14 @@ type TPhotoCommentThread = {
   styleUrls: ['./photo-viewer.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PhotoViewerComponent {
+export class PhotoViewerComponent implements OnDestroy {
   private readonly currentUserStore = inject(CurrentUserStoreService);
-  private readonly mediaPublication = inject(MediaPublicationService);
+  private readonly photoViewTracking = inject(PhotoViewTrackingService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   private readonly recordedViewKeys = new Set<string>();
+  private viewTrackingSubscription: Subscription | null = null;
+  private activeViewKey: string | null = null;
 
   index: number;
 
@@ -290,13 +300,16 @@ export class PhotoViewerComponent {
     );
 
     this.syncCurrentPhotoId();
-    this.recordCurrentPhotoView();
 
     this.debug('init', {
       index: this.index,
       count: data.items?.length ?? 0,
       hasOwnerUid: !!data.ownerUid,
     });
+  }
+
+  ngOnDestroy(): void {
+    this.cancelCurrentPhotoViewTracking();
   }
 
   get current(): IProfilePhotoItem | null {
@@ -332,6 +345,7 @@ export class PhotoViewerComponent {
   }
 
   close(): void {
+    this.cancelCurrentPhotoViewTracking();
     this.dialogRef.close();
   }
 
@@ -340,11 +354,11 @@ export class PhotoViewerComponent {
       return;
     }
 
+    this.cancelCurrentPhotoViewTracking();
     this.index -= 1;
     this.commentControl.setValue('');
     this.cancelReply();
     this.syncCurrentPhotoId();
-    this.recordCurrentPhotoView();
   }
 
   next(): void {
@@ -352,11 +366,60 @@ export class PhotoViewerComponent {
       return;
     }
 
+    this.cancelCurrentPhotoViewTracking();
     this.index += 1;
     this.commentControl.setValue('');
     this.cancelReply();
     this.syncCurrentPhotoId();
-    this.recordCurrentPhotoView();
+  }
+
+  onCurrentPhotoLoaded(): void {
+    const current = this.current;
+    const ownerUid = (current?.ownerUid || this.data.ownerUid || '').trim();
+    const photoId = (current?.id || '').trim();
+    const state = this.getPhotoInteractionState(current);
+
+    if (!ownerUid || !photoId || state.moderationStatus !== 'APPROVED') {
+      return;
+    }
+
+    const viewKey = `${ownerUid}:${photoId}`;
+
+    if (
+      this.recordedViewKeys.has(viewKey) ||
+      this.activeViewKey === viewKey
+    ) {
+      return;
+    }
+
+    this.cancelCurrentPhotoViewTracking();
+    this.activeViewKey = viewKey;
+
+    this.viewTrackingSubscription = combineLatest([
+      this.viewerUid$,
+      this.viewerIsOwner$,
+    ]).pipe(
+      take(1),
+      switchMap(([viewerUid, viewerIsOwner]) => {
+        if (!viewerUid || viewerIsOwner) {
+          return EMPTY;
+        }
+
+        return this.photoViewTracking.trackQualifiedPhotoView$(
+          ownerUid,
+          photoId,
+          this.data.source ?? 'profile'
+        );
+      }),
+      catchError(() => EMPTY),
+      finalize(() => {
+        if (this.activeViewKey === viewKey) {
+          this.activeViewKey = null;
+        }
+      })
+    ).subscribe(() => {
+      this.recordedViewKeys.add(viewKey);
+    });
   }
 
   toggleLike(): void {
@@ -591,41 +654,10 @@ export class PhotoViewerComponent {
     return !!comment?.id && comment.id === replyingToCommentId;
   }
 
-  private recordCurrentPhotoView(): void {
-    const current = this.current;
-    const ownerUid = (current?.ownerUid || this.data.ownerUid || '').trim();
-    const photoId = (current?.id || '').trim();
-    const state = this.getPhotoInteractionState(current);
-
-    if (!ownerUid || !photoId || state.moderationStatus !== 'APPROVED') {
-      return;
-    }
-
-    const viewKey = `${ownerUid}:${photoId}`;
-
-    if (this.recordedViewKeys.has(viewKey)) {
-      return;
-    }
-
-    combineLatest([this.viewerUid$, this.viewerIsOwner$])
-      .pipe(
-        take(1),
-        switchMap(([viewerUid, viewerIsOwner]) => {
-          if (!viewerUid || viewerIsOwner) {
-            return EMPTY;
-          }
-
-          this.recordedViewKeys.add(viewKey);
-
-          return this.mediaPublication.recordPhotoView$(
-            ownerUid,
-            photoId,
-            this.data.source ?? 'profile'
-          );
-        }),
-        catchError(() => EMPTY)
-      )
-      .subscribe();
+  private cancelCurrentPhotoViewTracking(): void {
+    this.viewTrackingSubscription?.unsubscribe();
+    this.viewTrackingSubscription = null;
+    this.activeViewKey = null;
   }
 
   private moderateComment(
