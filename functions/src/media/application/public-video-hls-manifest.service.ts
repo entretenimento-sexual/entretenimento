@@ -27,6 +27,7 @@ const MAX_MANIFEST_BYTES = 256 * 1024;
 const MAX_MEDIA_PLAYLISTS = 8;
 const MAX_MEDIA_ASSETS = 1_200;
 const MAX_RESPONSE_CHARACTERS = 2_500_000;
+const MAX_CONCURRENT_SIGNATURES = 16;
 const HLS_PLAYLIST_CONTENT_TYPE = 'application/vnd.apple.mpegurl';
 const ALLOWED_MEDIA_EXTENSIONS = new Set([
   '.ts',
@@ -149,6 +150,32 @@ function assertMediaAssetPath(storagePath: string): void {
   }
 }
 
+function createConcurrencyLimiter(limit: number): <T>(
+  task: () => Promise<T>
+) => Promise<T> {
+  let activeCount = 0;
+  const queue: Array<() => void> = [];
+
+  const release = (): void => {
+    activeCount -= 1;
+    queue.shift()?.();
+  };
+
+  return <T>(task: () => Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const execute = (): void => {
+        activeCount += 1;
+        void task().then(resolve, reject).finally(release);
+      };
+
+      if (activeCount < limit) {
+        execute();
+      } else {
+        queue.push(execute);
+      }
+    });
+}
+
 async function replaceUriAttributes(
   line: string,
   replaceUri: (uri: string) => Promise<string>
@@ -180,25 +207,21 @@ async function rewriteManifest(
   manifest: string,
   replaceUri: (uri: string) => Promise<string>
 ): Promise<string> {
-  const output: string[] = [];
-
-  for (const line of manifest.split('\n')) {
+  const lines = await Promise.all(manifest.split('\n').map(async (line) => {
     const trimmed = line.trim();
 
     if (!trimmed) {
-      output.push(line);
-      continue;
+      return line;
     }
 
     if (trimmed.startsWith('#')) {
-      output.push(await replaceUriAttributes(line, replaceUri));
-      continue;
+      return replaceUriAttributes(line, replaceUri);
     }
 
-    output.push(await replaceUri(trimmed));
-  }
+    return replaceUri(trimmed);
+  }));
 
-  return output.join('\n');
+  return lines.join('\n');
 }
 
 async function defaultReadTextFile(storagePath: string): Promise<string> {
@@ -240,6 +263,7 @@ export async function buildPublicVideoHlsBundle(
 
   const readTextFile = command.readTextFile ?? defaultReadTextFile;
   const signReadUrl = command.signReadUrl ?? defaultSignReadUrl;
+  const limitSignature = createConcurrencyLimiter(MAX_CONCURRENT_SIGNATURES);
   const masterSource = normalizeManifestText(
     await readTextFile(masterStoragePath),
     masterStoragePath
@@ -299,7 +323,7 @@ export async function buildPublicVideoHlsBundle(
     let signedUrl = signedUrlCache.get(storagePath);
 
     if (!signedUrl) {
-      signedUrl = signReadUrl(storagePath, expiresAt);
+      signedUrl = limitSignature(() => signReadUrl(storagePath, expiresAt));
       signedUrlCache.set(storagePath, signedUrl);
     }
 
@@ -345,4 +369,5 @@ export const PUBLIC_VIDEO_HLS_CONFIGURATION = {
   playlistContentType: HLS_PLAYLIST_CONTENT_TYPE,
   maxMediaPlaylists: MAX_MEDIA_PLAYLISTS,
   maxMediaAssets: MAX_MEDIA_ASSETS,
+  maxConcurrentSignatures: MAX_CONCURRENT_SIGNATURES,
 } as const;
