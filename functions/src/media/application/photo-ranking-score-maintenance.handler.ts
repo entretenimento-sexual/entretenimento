@@ -4,16 +4,33 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
+import { MEDIA_RANKING_VERSION } from './media-engagement-score';
 import {
   buildPhotoRankingUpdate,
   hasEquivalentPhotoRanking,
   isRankablePhoto,
   type PublicPhotoRankingDocument,
 } from './photo-ranking-score';
-import { MEDIA_RANKING_VERSION } from './media-engagement-score';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 
 const RANKING_REFRESH_LIMIT_PER_QUERY = 240;
+const PROFILE_REFRESH_CONCURRENCY = 20;
+
+async function refreshChangedProfiles(
+  ownerUids: readonly string[]
+): Promise<void> {
+  for (
+    let index = 0;
+    index < ownerUids.length;
+    index += PROFILE_REFRESH_CONCURRENCY
+  ) {
+    await Promise.all(
+      ownerUids
+        .slice(index, index + PROFILE_REFRESH_CONCURRENCY)
+        .map((ownerUid) => refreshPublicProfileMediaMetrics(ownerUid))
+    );
+  }
+}
 
 export const recalculatePhotoRankingOnWrite = onDocumentWritten(
   {
@@ -81,6 +98,7 @@ export const refreshPublicPhotoRankingScores = onSchedule(
 
     const now = Date.now();
     const changedOwners = new Set<string>();
+    const batch = db.batch();
     let updatedPhotos = 0;
 
     for (const document of candidates.values()) {
@@ -96,7 +114,7 @@ export const refreshPublicPhotoRankingScores = onSchedule(
         continue;
       }
 
-      await document.ref.set(update, { merge: true });
+      batch.set(document.ref, update, { merge: true });
       const ownerUid = document.ref.parent.parent?.id ?? '';
       if (ownerUid) {
         changedOwners.add(ownerUid);
@@ -104,8 +122,9 @@ export const refreshPublicPhotoRankingScores = onSchedule(
       updatedPhotos += 1;
     }
 
-    for (const ownerUid of changedOwners) {
-      await refreshPublicProfileMediaMetrics(ownerUid);
+    if (updatedPhotos > 0) {
+      await batch.commit();
+      await refreshChangedProfiles([...changedOwners]);
     }
 
     logger.info('[refreshPublicPhotoRankingScores] Ranking atualizado.', {
