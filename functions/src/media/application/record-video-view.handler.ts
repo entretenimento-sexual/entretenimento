@@ -5,6 +5,11 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
 import {
+  evaluatePublicVideoAccountEligibility,
+  isActiveUserBlock,
+} from './public-video-audience-access.policy';
+import { hasPublicVideoPlaybackPlan } from './public-video-playback-plan.policy';
+import {
   PROFILE_VIEWER_INDEX_VERSION,
   PROFILE_VIEWERS_COLLECTION,
   calculatePublicProfileEngagementScore,
@@ -35,7 +40,8 @@ interface RecordVideoViewResponse {
 const VIEWER_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
 
 function cleanId(value: unknown): string {
-  return String(value ?? '').trim();
+  const normalized = String(value ?? '').trim();
+  return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
 }
 
 function cleanSource(
@@ -81,6 +87,97 @@ function assertPublicApprovedVideo(
   }
 }
 
+async function assertViewerCanRecordVideoView(input: {
+  viewerUid: string;
+  ownerUid: string;
+  videoId: string;
+  authenticatedEmailVerified: boolean;
+}): Promise<void> {
+  const viewerRef = db.doc(`users/${input.viewerUid}`);
+  const ownerRef = db.doc(`users/${input.ownerUid}`);
+  const viewerBlockRef = db.doc(
+    `users/${input.viewerUid}/blocks/${input.ownerUid}`
+  );
+  const ownerBlockRef = db.doc(
+    `users/${input.ownerUid}/blocks/${input.viewerUid}`
+  );
+  const publicationRef = db.doc(
+    `users/${input.ownerUid}/video_publications/${input.videoId}`
+  );
+  const [viewerSnap, ownerSnap, viewerBlockSnap, ownerBlockSnap, publicationSnap] =
+    await Promise.all([
+      viewerRef.get(),
+      ownerRef.get(),
+      viewerBlockRef.get(),
+      ownerBlockRef.get(),
+      publicationRef.get(),
+    ]);
+
+  const viewerUser = viewerSnap.exists ? viewerSnap.data() : null;
+  const viewerDecision = evaluatePublicVideoAccountEligibility(
+    viewerUser,
+    input.viewerUid,
+    {
+      authenticatedEmailVerified: input.authenticatedEmailVerified,
+    }
+  );
+
+  if (!viewerDecision.allowed) {
+    throw new HttpsError(
+      'permission-denied',
+      'Sua conta não está autorizada a registrar esta visualização.'
+    );
+  }
+
+  const ownerDecision = evaluatePublicVideoAccountEligibility(
+    ownerSnap.exists ? ownerSnap.data() : null,
+    input.ownerUid,
+    { requireVerifiedEmail: false }
+  );
+
+  if (!ownerDecision.allowed) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Este perfil não está disponível para visualização.'
+    );
+  }
+
+  if (
+    isActiveUserBlock(
+      viewerBlockSnap.exists ? viewerBlockSnap.data() : null
+    ) ||
+    isActiveUserBlock(
+      ownerBlockSnap.exists ? ownerBlockSnap.data() : null
+    )
+  ) {
+    throw new HttpsError(
+      'permission-denied',
+      'A visualização não está disponível entre estes perfis.'
+    );
+  }
+
+  const publication = publicationSnap.exists
+    ? publicationSnap.data()
+    : null;
+
+  if (publication?.isPublished !== true) {
+    throw new HttpsError(
+      'failed-precondition',
+      'O vídeo não está publicado.'
+    );
+  }
+
+  if (!hasPublicVideoPlaybackPlan(
+    viewerUser,
+    publication?.minimumPlaybackPlan
+  )) {
+    throw new HttpsError(
+      'permission-denied',
+      'Seu plano atual não permite registrar esta reprodução.'
+    );
+  }
+}
+
 function calculateViewScore(input: {
   viewsCount: number;
   uniqueViewersCount: number;
@@ -116,7 +213,7 @@ function hashPlaybackSession(input: {
 export const recordVideoView = onCall<RecordVideoViewRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<RecordVideoViewResponse> => {
-    const viewerUid = request.auth?.uid ?? null;
+    const viewerUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
     const source = cleanSource(request.data?.source);
@@ -139,6 +236,14 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
         retryAfterMs: 0,
       };
     }
+
+    await assertViewerCanRecordVideoView({
+      viewerUid,
+      ownerUid,
+      videoId,
+      authenticatedEmailVerified:
+        request.auth?.token?.email_verified === true,
+    });
 
     const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
     const publicVideoRef = db.doc(
