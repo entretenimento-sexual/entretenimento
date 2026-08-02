@@ -22,11 +22,24 @@ interface PublicVideoAccessRequest {
   items?: PublicVideoAccessRequestItem[];
 }
 
+type PublicVideoQuality = 'SD' | 'HD';
+type PublicVideoMimeType = 'video/mp4' | 'video/webm';
+
+interface PublicVideoAccessVariant {
+  quality: PublicVideoQuality;
+  url: string;
+  mimeType: PublicVideoMimeType;
+  sizeBytes: number;
+}
+
 interface PublicVideoAccessResponseItem {
   ownerUid: string;
   videoId: string;
+  /** Variante padrão preservada para clientes anteriores. */
   url: string;
   posterUrl: string | null;
+  variants: PublicVideoAccessVariant[];
+  defaultQuality: PublicVideoQuality;
   expiresAt: number;
 }
 
@@ -39,8 +52,20 @@ interface PublicVideoAccessResolution {
   technicalFailure: boolean;
 }
 
+interface PublishedVariantDocument {
+  quality?: unknown;
+  storagePath?: unknown;
+  contentType?: unknown;
+  mimeType?: unknown;
+  sizeBytes?: unknown;
+}
+
 const MAX_ITEMS_PER_REQUEST = 16;
 const SIGNED_URL_TTL_MS = 5 * 60 * 1000;
+const PUBLIC_VIDEO_TYPES = new Set<PublicVideoMimeType>([
+  'video/mp4',
+  'video/webm',
+]);
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -60,8 +85,120 @@ function normalizeEnum(value: unknown): string {
   return String(value ?? '').trim().toUpperCase();
 }
 
+function normalizeQuality(value: unknown): PublicVideoQuality | null {
+  const quality = normalizeEnum(value);
+  return quality === 'SD' || quality === 'HD' ? quality : null;
+}
+
+function normalizeMimeType(value: unknown): PublicVideoMimeType | null {
+  const mimeType = String(value ?? '').trim().toLowerCase() as
+    PublicVideoMimeType;
+  return PUBLIC_VIDEO_TYPES.has(mimeType) ? mimeType : null;
+}
+
+function normalizePositiveInteger(value: unknown): number | null {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) && numeric > 0
+    ? Math.trunc(numeric)
+    : null;
+}
+
 function buildRequestKey(ownerUid: string, videoId: string): string {
   return `${ownerUid}:${videoId}`;
+}
+
+function normalizePublishedVariants(
+  ownerUid: string,
+  videoId: string,
+  publicVideo: Record<string, unknown>,
+  publication: Record<string, unknown>
+): {
+  variants: Array<{
+    quality: PublicVideoQuality;
+    storagePath: string;
+    mimeType: PublicVideoMimeType;
+    sizeBytes: number;
+  }>;
+  defaultQuality: PublicVideoQuality;
+} {
+  const byQuality = new Map<PublicVideoQuality, {
+    quality: PublicVideoQuality;
+    storagePath: string;
+    mimeType: PublicVideoMimeType;
+    sizeBytes: number;
+  }>();
+  const rawVariants = Array.isArray(publication['publishedVariants'])
+    ? publication['publishedVariants']
+    : [];
+
+  for (const candidate of rawVariants) {
+    if (typeof candidate !== 'object' || candidate === null) {
+      continue;
+    }
+
+    const data = candidate as PublishedVariantDocument;
+    const quality = normalizeQuality(data.quality);
+    const storagePath = normalizeOwnedPublishedVideoPath(
+      ownerUid,
+      videoId,
+      data.storagePath
+    );
+    const mimeType = normalizeMimeType(
+      data.contentType ?? data.mimeType
+    );
+    const sizeBytes = normalizePositiveInteger(data.sizeBytes);
+
+    if (quality && storagePath && mimeType && sizeBytes) {
+      byQuality.set(quality, {
+        quality,
+        storagePath,
+        mimeType,
+        sizeBytes,
+      });
+    }
+  }
+
+  if (!byQuality.size) {
+    const storagePath = normalizeOwnedPublishedVideoPath(
+      ownerUid,
+      videoId,
+      publication['publishedStoragePath']
+    );
+    const mimeType = normalizeMimeType(publicVideo['mimeType']);
+    const sizeBytes = normalizePositiveInteger(publicVideo['sizeBytes']);
+
+    if (storagePath && mimeType && sizeBytes) {
+      byQuality.set('HD', {
+        quality: 'HD',
+        storagePath,
+        mimeType,
+        sizeBytes,
+      });
+    }
+  }
+
+  const variants = [...byQuality.values()].sort((left, right) =>
+    left.quality === right.quality
+      ? 0
+      : left.quality === 'SD'
+        ? -1
+        : 1
+  );
+
+  if (!variants.length) {
+    throw new Error('A publicação não possui variantes de vídeo válidas.');
+  }
+
+  const requestedDefault = normalizeQuality(
+    publication['publishedDefaultQuality'] ?? publicVideo['defaultQuality']
+  );
+  const defaultQuality = requestedDefault && byQuality.has(requestedDefault)
+    ? requestedDefault
+    : byQuality.has('HD')
+      ? 'HD'
+      : 'SD';
+
+  return { variants, defaultQuality };
 }
 
 async function resolveAccessItem(
@@ -103,11 +240,6 @@ async function resolveAccessItem(
   const projectionModeration = normalizeEnum(publicVideo?.moderationStatus);
   const publicationModeration = normalizeEnum(publication?.moderationStatus);
 
-  /**
-   * A projeção pública não é autoridade isolada. Campo ausente ou divergência
-   * entre caminho, projeção e publicação canônica fecha o acesso até a
-   * reconciliação do backend.
-   */
   if (
     projectionOwnerUid !== ownerUid ||
     projectionVideoId !== videoId ||
@@ -133,23 +265,41 @@ async function resolveAccessItem(
     return null;
   }
 
-  const videoStoragePath = normalizeOwnedPublishedVideoPath(
+  const resolved = normalizePublishedVariants(
     ownerUid,
     videoId,
-    publication?.publishedStoragePath
+    publicVideo,
+    publication
   );
+  const variants: PublicVideoAccessVariant[] = [];
 
-  if (!videoStoragePath) {
-    return null;
+  for (const variant of resolved.variants) {
+    const file = storage.bucket().file(variant.storagePath);
+    const [exists] = await file.exists();
+
+    if (!exists) {
+      throw new Error(
+        `A variante ${variant.quality} publicada não foi encontrada no Storage.`
+      );
+    }
+
+    variants.push({
+      quality: variant.quality,
+      url: await createTemporaryStorageReadUrl(
+        variant.storagePath,
+        expiresAt
+      ),
+      mimeType: variant.mimeType,
+      sizeBytes: variant.sizeBytes,
+    });
   }
 
-  const videoFile = storage.bucket().file(videoStoragePath);
-  const [videoExists] = await videoFile.exists();
+  const defaultVariant = variants.find(
+    (variant) => variant.quality === resolved.defaultQuality
+  ) ?? variants[0];
 
-  if (!videoExists) {
-    throw new Error(
-      'O ativo publicado do vídeo não foi encontrado no Storage.'
-    );
+  if (!defaultVariant) {
+    throw new Error('Nenhuma variante pública pôde ser autorizada.');
   }
 
   const posterStoragePath = normalizeOwnedPublishedVideoPosterPath(
@@ -174,8 +324,10 @@ async function resolveAccessItem(
   return {
     ownerUid,
     videoId,
-    url: await createTemporaryStorageReadUrl(videoStoragePath, expiresAt),
+    url: defaultVariant.url,
     posterUrl,
+    variants,
+    defaultQuality: defaultVariant.quality,
     expiresAt,
   };
 }
@@ -226,12 +378,6 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
       );
     }
 
-    /**
-     * Esta sessão é a barreira definitiva antes de emitir ou renovar URLs.
-     * Lifecycle/idade são validados uma vez; bloqueios e relações são cacheados
-     * por proprietário no lote. Link direto e referência no chat não concedem
-     * audiência nem entitlement.
-     */
     const audienceEvaluator = await createVideoAudienceAccessEvaluator(
       viewerUid
     );
