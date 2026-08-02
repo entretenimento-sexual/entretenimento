@@ -3,9 +3,9 @@
 // Executa a suíte de Cloud Storage Rules contra um emulador isolado.
 //
 // Compatibilidade:
-// - executa a entrada JavaScript do firebase-tools pelo próprio Node;
-// - não depende de firebase.cmd no Windows;
-// - não usa shell, evitando problemas de escaping e injeção de argumentos.
+// - executa as entradas JavaScript locais do firebase-tools e do Vitest;
+// - não depende de firebase.cmd, vitest.cmd ou resolução de node_modules/.bin;
+// - não usa shell no processo principal, evitando injeção de argumentos.
 // -----------------------------------------------------------------------------
 
 import { spawn } from 'node:child_process';
@@ -20,6 +20,20 @@ const firebaseCliEntry = resolve(
   'bin',
   'firebase.js'
 );
+const vitestCliEntry = resolve(
+  process.cwd(),
+  'node_modules',
+  'vitest',
+  'vitest.mjs'
+);
+const testCommand = [
+  'node',
+  'node_modules/vitest/vitest.mjs',
+  'run',
+  '--config',
+  'vitest.storage-rules.config.ts',
+  '--reporter=verbose',
+].join(' ');
 
 const args = [
   firebaseCliEntry,
@@ -30,14 +44,19 @@ const args = [
   'storage',
   '--project',
   'demo-entretenimento-storage-rules',
-  'vitest run --config vitest.storage-rules.config.ts --reporter=verbose',
+  testCommand,
 ];
 
-if (!existsSync(firebaseCliEntry)) {
-  console.error(
-    `[storage-rules] Firebase CLI não encontrado em: ${firebaseCliEntry}. Execute npm install antes dos testes.`
-  );
-  process.exit(1);
+for (const [label, entry] of [
+  ['Firebase CLI', firebaseCliEntry],
+  ['Vitest CLI', vitestCliEntry],
+]) {
+  if (!existsSync(entry)) {
+    console.error(
+      `[storage-rules] ${label} não encontrado em: ${entry}. Execute npm install antes dos testes.`
+    );
+    process.exit(1);
+  }
 }
 
 const child = spawn(process.execPath, args, {
