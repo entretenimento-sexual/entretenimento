@@ -9,6 +9,7 @@ interface InteractionAccessUserDocument {
   interactionBlocked?: unknown;
   ageReverification?: {
     status?: unknown;
+    result?: unknown;
   } | null;
 }
 
@@ -25,10 +26,16 @@ export function assertInteractionAccessData(
   const ageStatus = String(user.ageReverification?.status ?? '')
     .trim()
     .toUpperCase();
-  const ageRestricted = ageStatus === 'REQUIRED' ||
+  const ageResult = String(user.ageReverification?.result ?? '')
+    .trim()
+    .toUpperCase();
+  const ageVerificationPending = ageStatus === 'REQUIRED' ||
     ageStatus === 'SUBMITTED' ||
     ageStatus === 'UNDER_REVIEW' ||
     ageStatus === 'EXPIRED';
+  const ageVerificationRestricted = ageStatus === 'REJECTED' ||
+    ageResult === 'UNDERAGE';
+  const ageRestricted = ageVerificationPending || ageVerificationRestricted;
 
   if (
     accountStatus !== 'active' ||
@@ -38,9 +45,11 @@ export function assertInteractionAccessData(
   ) {
     throw new HttpsError(
       'failed-precondition',
-      ageRestricted
-        ? 'Conclua a revalidação de idade antes de realizar esta ação.'
-        : 'Esta conta não pode realizar interações no momento.'
+      ageVerificationRestricted
+        ? 'Esta conta não pode realizar interações por restrição de idade.'
+        : ageVerificationPending
+          ? 'Conclua a revalidação de idade antes de realizar esta ação.'
+          : 'Esta conta não pode realizar interações no momento.'
     );
   }
 }
