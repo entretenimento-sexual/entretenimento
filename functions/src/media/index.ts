@@ -66,6 +66,10 @@ export {
 } from './application/private-media-draft-lifecycle.handler';
 
 export {
+  reconcilePrivateMediaDraftUsageAdmin,
+} from './application/admin-private-media-draft-reconciliation.handler';
+
+export {
   cancelPrivateMediaUploadReservation,
   cleanupPrivateMediaUploadReservations,
   reservePrivateMediaUpload,
