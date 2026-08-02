@@ -5,6 +5,7 @@ import './admin-authorization.policy.test';
 import './media-callable-rate-limit.policy.test';
 import './media-mutation-idempotency.policy.test';
 import './photo-audience-access.policy.test';
+import './photo-ranking-backfill.policy.test';
 import './photo-ranking-score.test';
 import './photo-view-session.policy.test';
 import {

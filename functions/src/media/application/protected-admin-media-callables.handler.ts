@@ -20,6 +20,10 @@ import {
 import {
   assertMediaCallableRateLimit,
 } from './media-callable-rate-limit.service';
+import {
+  controlPhotoRankingBackfillCore,
+  getPhotoRankingBackfillStatusCore,
+} from './photo-ranking-backfill.handler';
 
 interface ListVideoModerationQueueRequest {
   limit?: number;
@@ -42,6 +46,12 @@ interface RecoverVideoProcessingJobRequest {
   action?: 'RETRY_FAILED' | 'RECHECK_STALE' | 'CANCEL_ACTIVE';
   reason?: string;
   operationId?: string;
+}
+
+interface ControlPhotoRankingBackfillRequest {
+  action?: 'START_OR_RESUME' | 'PAUSE' | 'RUN_PAGE' | 'RESET';
+  operationId?: string;
+  pageSize?: number;
 }
 
 const DEFAULT_MODERATION_QUEUE_LIMIT = 40;
@@ -77,13 +87,28 @@ function mediaResourceKey(
     `${cleanId(mediaId) || 'invalid-media'}`;
 }
 
+function photoRankingBackfillCost(action: unknown): number {
+  const normalized = String(action ?? '').trim().toUpperCase();
+
+  if (normalized === 'RUN_PAGE') {
+    return 12;
+  }
+
+  if (normalized === 'RESET') {
+    return 6;
+  }
+
+  return 2;
+}
+
 async function applyAdminRateLimit(input: {
   actorUid: string;
   action:
     | 'ADMIN_STATUS'
     | 'ADMIN_QUEUE'
     | 'ADMIN_MODERATION'
-    | 'ADMIN_PROCESSING_RECOVERY';
+    | 'ADMIN_PROCESSING_RECOVERY'
+    | 'ADMIN_RANKING_BACKFILL';
   resourceKey: string;
   cost?: number;
 }): Promise<void> {
@@ -207,5 +232,46 @@ export const recoverVideoProcessingJob = onCall<
     });
 
     return recoverVideoProcessingJobCore.run(request);
+  }
+);
+
+export const getPhotoRankingBackfillStatus = onCall<
+  Record<string, never>
+>(
+  ADMIN_BROWSER_CALLABLE_OPTIONS,
+  async (request) => {
+    const adminUid = assertAdminAuthorization(
+      request.auth,
+      'Apenas administradores podem consultar o backfill de fotos.'
+    );
+
+    await applyAdminRateLimit({
+      actorUid: adminUid,
+      action: 'ADMIN_STATUS',
+      resourceKey: 'photo-ranking-backfill-status',
+    });
+
+    return getPhotoRankingBackfillStatusCore(request);
+  }
+);
+
+export const controlPhotoRankingBackfill = onCall<
+  ControlPhotoRankingBackfillRequest
+>(
+  ADMIN_BROWSER_CALLABLE_OPTIONS,
+  async (request) => {
+    const adminUid = assertAdminAuthorization(
+      request.auth,
+      'Apenas administradores podem controlar o backfill de fotos.'
+    );
+
+    await applyAdminRateLimit({
+      actorUid: adminUid,
+      action: 'ADMIN_RANKING_BACKFILL',
+      resourceKey: 'photo-ranking-backfill-control',
+      cost: photoRankingBackfillCost(request.data?.action),
+    });
+
+    return controlPhotoRankingBackfillCore(request);
   }
 );

@@ -32,6 +32,8 @@ export {
 } from './application/protected-media-lifecycle-callables.handler';
 
 export {
+  controlPhotoRankingBackfill,
+  getPhotoRankingBackfillStatus,
   getVideoProcessingOperationalStatus,
   listVideoModerationQueue,
   listVideoProcessingRecoveryJobs,
@@ -111,6 +113,9 @@ export {
   recordVideoView,
 } from './application/record-video-view-orchestrator.handler';
 
+export {
+  continuePhotoRankingBackfill,
+} from './application/photo-ranking-backfill.handler';
 export {
   recalculatePhotoRankingOnWrite,
   refreshPublicPhotoRankingScores,
