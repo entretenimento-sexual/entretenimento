@@ -4,6 +4,9 @@ import {
   ADMIN_BROWSER_CALLABLE_OPTIONS,
 } from '../../config/admin-browser-callable-options';
 import {
+  assertAdminAuthorization,
+} from './admin-authorization.policy';
+import {
   listVideoModerationQueue as listVideoModerationQueueCore,
   reviewVideoModeration as reviewVideoModerationCore,
 } from './admin-video-moderation.handler';
@@ -84,10 +87,6 @@ async function applyAdminRateLimit(input: {
   resourceKey: string;
   cost?: number;
 }): Promise<void> {
-  if (!input.actorUid) {
-    return;
-  }
-
   await assertMediaCallableRateLimit(input);
 }
 
@@ -96,8 +95,13 @@ export const getVideoProcessingOperationalStatus = onCall<
 >(
   ADMIN_BROWSER_CALLABLE_OPTIONS,
   async (request) => {
+    const adminUid = assertAdminAuthorization(
+      request.auth,
+      'Apenas administradores podem consultar o processamento de vídeos.'
+    );
+
     await applyAdminRateLimit({
-      actorUid: cleanId(request.auth?.uid),
+      actorUid: adminUid,
       action: 'ADMIN_STATUS',
       resourceKey: 'video-processing-operational-status',
     });
@@ -111,6 +115,10 @@ export const listVideoModerationQueue = onCall<
 >(
   ADMIN_BROWSER_CALLABLE_OPTIONS,
   async (request) => {
+    const adminUid = assertAdminAuthorization(
+      request.auth,
+      'Apenas administradores podem moderar vídeos.'
+    );
     const limit = normalizeLimit(
       request.data?.limit,
       DEFAULT_MODERATION_QUEUE_LIMIT,
@@ -118,7 +126,7 @@ export const listVideoModerationQueue = onCall<
     );
 
     await applyAdminRateLimit({
-      actorUid: cleanId(request.auth?.uid),
+      actorUid: adminUid,
       action: 'ADMIN_QUEUE',
       resourceKey: 'video-moderation-queue',
       cost: limit,
@@ -131,8 +139,13 @@ export const listVideoModerationQueue = onCall<
 export const reviewVideoModeration = onCall<ReviewVideoModerationRequest>(
   ADMIN_BROWSER_CALLABLE_OPTIONS,
   async (request) => {
+    const adminUid = assertAdminAuthorization(
+      request.auth,
+      'Apenas administradores podem moderar vídeos.'
+    );
+
     await applyAdminRateLimit({
-      actorUid: cleanId(request.auth?.uid),
+      actorUid: adminUid,
       action: 'ADMIN_MODERATION',
       resourceKey: mediaResourceKey(
         'video-moderation',
@@ -151,6 +164,10 @@ export const listVideoProcessingRecoveryJobs = onCall<
 >(
   ADMIN_BROWSER_CALLABLE_OPTIONS,
   async (request) => {
+    const adminUid = assertAdminAuthorization(
+      request.auth,
+      'Apenas administradores podem recuperar o processamento de vídeos.'
+    );
     const limit = normalizeLimit(
       request.data?.limit,
       DEFAULT_RECOVERY_QUEUE_LIMIT,
@@ -158,7 +175,7 @@ export const listVideoProcessingRecoveryJobs = onCall<
     );
 
     await applyAdminRateLimit({
-      actorUid: cleanId(request.auth?.uid),
+      actorUid: adminUid,
       action: 'ADMIN_QUEUE',
       resourceKey: 'video-processing-recovery-queue',
       cost: limit,
@@ -173,8 +190,13 @@ export const recoverVideoProcessingJob = onCall<
 >(
   ADMIN_BROWSER_CALLABLE_OPTIONS,
   async (request) => {
+    const adminUid = assertAdminAuthorization(
+      request.auth,
+      'Apenas administradores podem recuperar o processamento de vídeos.'
+    );
+
     await applyAdminRateLimit({
-      actorUid: cleanId(request.auth?.uid),
+      actorUid: adminUid,
       action: 'ADMIN_PROCESSING_RECOVERY',
       resourceKey: mediaResourceKey(
         'video-processing-recovery',
