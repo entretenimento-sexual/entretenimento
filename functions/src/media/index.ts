@@ -32,6 +32,14 @@ export {
 } from './application/protected-media-lifecycle-callables.handler';
 
 export {
+  getVideoProcessingOperationalStatus,
+  listVideoModerationQueue,
+  listVideoProcessingRecoveryJobs,
+  recoverVideoProcessingJob,
+  reviewVideoModeration,
+} from './application/protected-admin-media-callables.handler';
+
+export {
   cleanupMediaCallableRateLimits,
 } from './application/media-callable-rate-limit.service';
 export {
@@ -69,19 +77,8 @@ export {
 } from './application/video-processing.handler';
 
 export {
-  getVideoProcessingOperationalStatus,
-} from './application/admin-video-processing-status.handler';
-
-export {
   cleanupRetriedVideoProcessingOutputs,
-  listVideoProcessingRecoveryJobs,
-  recoverVideoProcessingJob,
 } from './application/admin-video-processing-recovery.handler';
-
-export {
-  listVideoModerationQueue,
-  reviewVideoModeration,
-} from './application/admin-video-moderation.handler';
 
 export {
   cleanupPendingPhotoDeletions,
