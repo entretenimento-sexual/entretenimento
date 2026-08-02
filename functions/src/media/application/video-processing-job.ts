@@ -26,8 +26,11 @@ export interface VideoProcessingJob {
   outputPrefix: string;
   /** Identidade única desta execução, usada para idempotência no provedor. */
   processingVersion: string;
-  /** Versão semântica do contrato de processamento. */
-  pipelineVersion: string;
+  /**
+   * Versão semântica do contrato. Opcional apenas para ler jobs criados antes
+   * do pipeline multirresolução; todo job novo recebe valor explícito.
+   */
+  pipelineVersion?: string;
   provider: 'GOOGLE_TRANSCODER';
   state: VideoProcessingJobState;
   attempts: number;
@@ -38,10 +41,10 @@ export interface VideoProcessingJob {
   outputStoragePath: string | null;
   outputMimeType: string | null;
   outputSizeBytes: number | null;
-  outputVariants: VideoProcessingVariant[];
-  outputDefaultQuality: VideoPlaybackQuality | null;
-  hlsManifestStoragePath: string | null;
-  dashManifestStoragePath: string | null;
+  outputVariants?: VideoProcessingVariant[];
+  outputDefaultQuality?: VideoPlaybackQuality | null;
+  hlsManifestStoragePath?: string | null;
+  dashManifestStoragePath?: string | null;
   submittedAt: number | null;
   completedAt: number | null;
   cancelRequestedAt: number | null;
