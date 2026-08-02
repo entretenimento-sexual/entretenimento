@@ -32,6 +32,10 @@ const requiredExports = [
   'registerPrivateVideoUpload',
   'getPublicVideoHlsAccess',
   'finalizeVideoProcessingVariants',
+  'reconcilePendingVideoCaptionRegistrations',
+  'indexPrivateVideoCaptionForCleanup',
+  'cleanupPendingPrivateVideoCaptions',
+  'cleanupVideoCaptionsOnDelete',
 ];
 
 if (!existsSync(entryPath)) {
