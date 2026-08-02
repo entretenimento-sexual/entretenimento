@@ -10,6 +10,15 @@ import {
   buildPublicVideoCanonicalPath,
 } from './public-video-share.service';
 
+const CANONICAL_PATH = '/media/video/owner_1/video-1';
+
+function expectedCanonicalUrl(): string {
+  const origin = String(document.location?.origin ?? '').trim();
+  return origin && origin !== 'null'
+    ? `${origin}${CANONICAL_PATH}`
+    : CANONICAL_PATH;
+}
+
 describe('PublicVideoShareService', () => {
   let service: PublicVideoShareService;
   let errorNotification: {
@@ -39,7 +48,7 @@ describe('PublicVideoShareService', () => {
     };
     globalErrorHandler = { handleError: vi.fn() };
     shareAuthorization = {
-      authorizeShare$: vi.fn(() => of('/media/video/owner_1/video-1')),
+      authorizeShare$: vi.fn(() => of(CANONICAL_PATH)),
     };
 
     TestBed.configureTestingModule({
@@ -71,7 +80,7 @@ describe('PublicVideoShareService', () => {
 
   it('monta endereço canônico sem incluir URL temporária do Storage', () => {
     expect(buildPublicVideoCanonicalPath('owner_1', 'video-1')).toBe(
-      '/media/video/owner_1/video-1'
+      CANONICAL_PATH
     );
     expect(buildPublicVideoCanonicalPath('../owner', 'video-1')).toBeNull();
   });
@@ -93,7 +102,7 @@ describe('PublicVideoShareService', () => {
     );
     expect(nativeShare).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: `${document.location.origin}/media/video/owner_1/video-1`,
+        url: expectedCanonicalUrl(),
       })
     );
     expect(errorNotification.showSuccess).toHaveBeenCalledWith(
@@ -113,9 +122,7 @@ describe('PublicVideoShareService', () => {
     });
 
     expect(outcome).toBe('copied');
-    expect(writeText).toHaveBeenCalledWith(
-      `${document.location.origin}/media/video/owner_1/video-1`
-    );
+    expect(writeText).toHaveBeenCalledWith(expectedCanonicalUrl());
     expect(errorNotification.showSuccess).toHaveBeenCalledWith(
       'Link do vídeo copiado.'
     );
