@@ -97,6 +97,10 @@ export {
 } from './application/cleanup-published-video-assets.handler';
 
 export {
+  issuePhotoViewSession,
+  cleanupExpiredPhotoViewSessions,
+} from './application/issue-photo-view-session.handler';
+export {
   issueVideoViewSession,
   cleanupExpiredVideoViewSessions,
 } from './application/issue-video-view-session.handler';
