@@ -16,6 +16,9 @@ describe('media-callable-rate-limit.policy', () => {
     const publicAccess = resolveMediaCallableRateLimitRule('ACCESS_PUBLIC');
     const privateAccess = resolveMediaCallableRateLimitRule('ACCESS_PRIVATE');
     const listPublic = resolveMediaCallableRateLimitRule('LIST_PUBLIC');
+    const upload = resolveMediaCallableRateLimitRule('UPLOAD_REGISTER');
+    const publish = resolveMediaCallableRateLimitRule('MEDIA_PUBLISH');
+    const deletion = resolveMediaCallableRateLimitRule('MEDIA_DELETE');
 
     assert.ok(reaction.globalMaxPerWindow > reaction.resourceMaxPerWindow);
     assert.ok(report.windowMs > reaction.windowMs);
@@ -28,6 +31,9 @@ describe('media-callable-rate-limit.policy', () => {
     assert.ok(
       listPublic.globalMaxPerWindow > publicAccess.globalMaxPerWindow
     );
+    assert.equal(upload.windowMs, report.windowMs);
+    assert.equal(deletion.windowMs, report.windowMs);
+    assert.ok(upload.globalMaxPerWindow > publish.globalMaxPerWindow);
   });
 
   it('aceita a primeira operação e incrementa o estado', () => {
