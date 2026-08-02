@@ -8,7 +8,7 @@
 // - permitir resposta do dono da foto a um comentário;
 // - permitir moderação pelo dono da foto;
 // - permitir remoção suave pelo autor do comentário;
-// - atualizar commentsCount e score no backend.
+// - atualizar commentsCount e ranking pela infraestrutura canônica de mídia.
 //
 // Segurança:
 // - cliente não edita comentário diretamente;
@@ -20,29 +20,21 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { normalizeMediaCount } from './media-engagement-score';
+import {
+  buildPhotoRankingUpdate,
+  type PublicPhotoRankingDocument,
+} from './photo-ranking-score';
 
 type CommentStatus = 'VISIBLE' | 'PENDING_REVIEW' | 'HIDDEN' | 'DELETED';
 
-type ScoreBreakdown = {
-  rankingScore: number;
-  qualityScore: number;
-  engagementScore: number;
-  safetyScore: number;
-};
-
-type PublicPhotoDoc = {
+type PublicPhotoDoc = PublicPhotoRankingDocument & {
   ownerUid?: string;
   visibility?: string;
   moderationStatus?: string;
   commentsEnabled?: boolean;
   commentsPolicy?: string;
   reactionsEnabled?: boolean;
-  reactionsCount?: number;
-  likesCount?: number;
-  commentsCount?: number;
-  score?: number;
-  engagementScore?: number;
-  scoreBreakdown?: Partial<ScoreBreakdown>;
 };
 
 type PublicProfileDoc = {
@@ -110,80 +102,24 @@ function cleanContent(value: unknown): string {
     .slice(0, 500);
 }
 
-function normalizeCount(value: unknown): number {
-  const count = Number(value ?? 0);
-
-  if (!Number.isFinite(count) || count < 0) {
-    return 0;
-  }
-
-  return Math.floor(count);
-}
-
-function normalizeScore(value: unknown): number {
-  const score = Number(value ?? 0);
-
-  if (!Number.isFinite(score)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
-function calculateEngagementScore(input: {
-  reactionsCount: number;
-  commentsCount: number;
-}): number {
-  const weightedEngagement =
-    input.reactionsCount * 2 +
-    input.commentsCount * 4;
-
-  return normalizeScore(Math.round(Math.log1p(weightedEngagement) * 18));
-}
-
-function calculateRankingScore(score: ScoreBreakdown): number {
-  const quality = normalizeScore(score.qualityScore);
-  const engagement = normalizeScore(score.engagementScore);
-  const safety = normalizeScore(score.safetyScore);
-
-  return normalizeScore(
-    Math.round(
-      quality * 0.25 +
-      engagement * 0.45 +
-      safety * 0.30
-    )
-  );
-}
-
-function buildNextScore(
+function buildRankingFields(
   photo: PublicPhotoDoc,
-  nextCommentsCount: number
-): {
-  score: number;
-  engagementScore: number;
-  scoreBreakdown: ScoreBreakdown;
-} {
-  const currentBreakdown = photo.scoreBreakdown ?? {};
-  const reactionsCount = normalizeCount(photo.reactionsCount ?? photo.likesCount ?? 0);
-
-  const engagementScore = calculateEngagementScore({
-    reactionsCount,
+  nextCommentsCount: number,
+  now: number
+) {
+  const ranking = buildPhotoRankingUpdate(photo, now, {
     commentsCount: nextCommentsCount,
   });
 
-  const scoreBreakdown: ScoreBreakdown = {
-    qualityScore: normalizeScore(currentBreakdown.qualityScore ?? 0),
-    safetyScore: normalizeScore(currentBreakdown.safetyScore ?? 100),
-    engagementScore,
-    rankingScore: 0,
-  };
-
-  scoreBreakdown.rankingScore = calculateRankingScore(scoreBreakdown);
-
   return {
-    score: scoreBreakdown.rankingScore,
-    engagementScore,
-    scoreBreakdown,
+    engagementScore: ranking.engagementScore,
+    viewScore: ranking.viewScore,
+    retentionScore: ranking.retentionScore,
+    freshnessScore: ranking.freshnessScore,
+    score: ranking.score,
+    scoreBreakdown: ranking.scoreBreakdown,
+    rankingVersion: ranking.rankingVersion,
+    rankingUpdatedAt: ranking.rankingUpdatedAt,
   };
 }
 
@@ -214,7 +150,10 @@ function assertPublicPhotoAllowsComments(photo: PublicPhotoDoc): void {
   }
 }
 
-function resolveNickname(profile: PublicProfileDoc | undefined, fallback = 'Usuário'): string {
+function resolveNickname(
+  profile: PublicProfileDoc | undefined,
+  fallback = 'Usuário'
+): string {
   const nickname =
     profile?.nickname ??
     profile?.displayName ??
@@ -253,7 +192,9 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
       throw new HttpsError('invalid-argument', 'Comentário muito longo.');
     }
 
-    const photoRef = db.doc(`public_profiles/${ownerUid}/public_photos/${photoId}`);
+    const photoRef = db.doc(
+      `public_profiles/${ownerUid}/public_photos/${photoId}`
+    );
     const authorProfileRef = db.doc(`public_profiles/${authorUid}`);
     const commentsCollection = photoRef.collection('comments');
     const newCommentRef = commentsCollection.doc();
@@ -277,7 +218,9 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
       assertPublicPhotoAllowsComments(photo);
 
       const authorNickname = resolveNickname(
-        authorProfileSnap.exists ? (authorProfileSnap.data() as PublicProfileDoc) : undefined
+        authorProfileSnap.exists
+          ? authorProfileSnap.data() as PublicProfileDoc
+          : undefined
       );
 
       let replyToAuthorUid: string | null = null;
@@ -296,7 +239,10 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
         const parentSnap = await transaction.get(parentRef);
 
         if (!parentSnap.exists) {
-          throw new HttpsError('not-found', 'Comentário original não encontrado.');
+          throw new HttpsError(
+            'not-found',
+            'Comentário original não encontrado.'
+          );
         }
 
         const parent = parentSnap.data() as PhotoCommentDoc;
@@ -326,11 +272,15 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
 
       const now = Date.now();
       const isRootComment = !parentCommentId;
-      const currentCommentsCount = normalizeCount(photo.commentsCount ?? 0);
+      const currentCommentsCount = normalizeMediaCount(photo.commentsCount);
       const nextCommentsCount = isRootComment
         ? currentCommentsCount + 1
         : currentCommentsCount;
-      const nextScore = buildNextScore(photo, nextCommentsCount);
+      const rankingFields = buildRankingFields(
+        photo,
+        nextCommentsCount,
+        now
+      );
 
       const commentDoc: PhotoCommentDoc = {
         ownerUid,
@@ -359,9 +309,7 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
 
       transaction.update(photoRef, {
         commentsCount: nextCommentsCount,
-        engagementScore: nextScore.engagementScore,
-        score: nextScore.score,
-        scoreBreakdown: nextScore.scoreBreakdown,
+        ...rankingFields,
         updatedAt: now,
       });
 
@@ -386,7 +334,6 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
     const commentId = cleanId(request.data?.commentId);
     const action = String(request.data?.action ?? '').trim().toUpperCase();
 
-
     if (!ownerUid || !photoId || !commentId) {
       throw new HttpsError('invalid-argument', 'Comentário inválido.');
     }
@@ -395,7 +342,9 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
       throw new HttpsError('invalid-argument', 'Ação inválida.');
     }
 
-    const photoRef = db.doc(`public_profiles/${ownerUid}/public_photos/${photoId}`);
+    const photoRef = db.doc(
+      `public_profiles/${ownerUid}/public_photos/${photoId}`
+    );
     const commentRef = photoRef.collection('comments').doc(commentId);
 
     return db.runTransaction(async (transaction) => {
@@ -420,7 +369,10 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
       }
 
       if (comment.ownerUid !== ownerUid || comment.photoId !== photoId) {
-        throw new HttpsError('failed-precondition', 'Comentário inconsistente.');
+        throw new HttpsError(
+          'failed-precondition',
+          'Comentário inconsistente.'
+        );
       }
 
       const isPhotoOwner = requesterUid === ownerUid;
@@ -490,9 +442,16 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
       }
 
       const now = Date.now();
-      const currentCommentsCount = normalizeCount(photo.commentsCount ?? 0);
-      const nextCommentsCount = Math.max(0, currentCommentsCount + countDelta);
-      const nextScore = buildNextScore(photo, nextCommentsCount);
+      const currentCommentsCount = normalizeMediaCount(photo.commentsCount);
+      const nextCommentsCount = Math.max(
+        0,
+        currentCommentsCount + countDelta
+      );
+      const rankingFields = buildRankingFields(
+        photo,
+        nextCommentsCount,
+        now
+      );
 
       transaction.update(commentRef, {
         status: nextStatus,
@@ -503,16 +462,14 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
 
       transaction.update(photoRef, {
         commentsCount: nextCommentsCount,
-        engagementScore: nextScore.engagementScore,
-        score: nextScore.score,
-        scoreBreakdown: nextScore.scoreBreakdown,
+        ...rankingFields,
         updatedAt: now,
       });
 
       return {
         status: nextStatus,
         commentsCount: nextCommentsCount,
-        score: nextScore.score,
+        score: rankingFields.score,
       };
     });
   }
