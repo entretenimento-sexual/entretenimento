@@ -24,6 +24,7 @@ export {
   deleteProfileVideo,
   publishPhoto,
   publishVideo,
+  registerAndPublishPhotoUpload,
   registerPrivateVideoUpload,
   setCoverPhoto,
   unpublishPhoto,
@@ -67,6 +68,11 @@ export {
 export {
   cleanupPendingPrivateVideoUploadAssets,
 } from './application/register-private-video-upload.handler';
+
+export {
+  cleanupPendingPrivatePhotoUploadAssets,
+  indexPrivatePhotoUploadForCleanup,
+} from './application/register-and-publish-photo-upload.handler';
 
 export {
   queuePrivateVideoProcessing,
