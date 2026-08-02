@@ -119,6 +119,9 @@ export {
 export {
   listAuthorizedPublicVideos,
 } from './application/list-authorized-public-videos.handler';
+export {
+  authorizePublicVideoShare,
+} from './application/authorize-public-video-share.handler';
 
 export {
   recordPhotoView,

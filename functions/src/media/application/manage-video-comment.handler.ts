@@ -7,14 +7,17 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import {
+  createVideoAudienceAccessEvaluator,
+  resolveCanonicalVideoAudienceTarget,
+  type PublicVideoAudienceDocument,
+  type VideoPublicationAudienceDocument,
+} from './video-audience-access.policy';
 
 type VideoCommentStatus = 'VISIBLE' | 'HIDDEN' | 'DELETED';
 type VideoCommentModerationAction = 'HIDE' | 'RESTORE' | 'DELETE';
 
-interface PublicVideoDoc {
-  ownerUid?: string;
-  visibility?: string;
-  moderationStatus?: string;
+interface PublicVideoDoc extends PublicVideoAudienceDocument {
   commentsEnabled?: boolean;
   reactionsCount?: number;
   likesCount?: number;
@@ -100,17 +103,6 @@ function resolveNickname(
 }
 
 function assertVideoAllowsComments(video: PublicVideoDoc): void {
-  if (video.visibility !== 'PUBLIC') {
-    throw new HttpsError('failed-precondition', 'Este vídeo não está público.');
-  }
-
-  if (video.moderationStatus !== 'APPROVED') {
-    throw new HttpsError(
-      'failed-precondition',
-      'Este vídeo ainda não está aprovado para comentários.'
-    );
-  }
-
   if (video.commentsEnabled !== true) {
     throw new HttpsError(
       'failed-precondition',
@@ -140,29 +132,54 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
       throw new HttpsError('invalid-argument', 'Comentário vazio.');
     }
 
+    if (authorUid === ownerUid && !parentCommentId) {
+      throw new HttpsError(
+        'failed-precondition',
+        'O autor pode responder comentários, mas não comentar o próprio vídeo.'
+      );
+    }
+
+    const audience = await createVideoAudienceAccessEvaluator(authorUid);
     const videoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
+    );
+    const publicationRef = db.doc(
+      `users/${ownerUid}/video_publications/${videoId}`
     );
     const authorProfileRef = db.doc(`public_profiles/${authorUid}`);
     const commentsCollection = videoRef.collection('comments');
     const newCommentRef = commentsCollection.doc();
 
     return db.runTransaction(async (transaction) => {
-      const [videoSnap, authorProfileSnap] = await Promise.all([
+      const [videoSnap, publicationSnap, authorProfileSnap] = await Promise.all([
         transaction.get(videoRef),
+        transaction.get(publicationRef),
         transaction.get(authorProfileRef),
       ]);
 
-      if (!videoSnap.exists) {
+      if (!videoSnap.exists || !publicationSnap.exists) {
         throw new HttpsError('not-found', 'Vídeo público não encontrado.');
       }
 
       const video = videoSnap.data() as PublicVideoDoc;
+      const publication =
+        publicationSnap.data() as VideoPublicationAudienceDocument;
+      const target = resolveCanonicalVideoAudienceTarget({
+        ownerUid,
+        videoId,
+        action: 'INTERACT',
+        publicVideo: video,
+        publication,
+      });
 
-      if (video.ownerUid !== ownerUid) {
-        throw new HttpsError('failed-precondition', 'Vídeo inconsistente.');
+      if (!target) {
+        throw new HttpsError(
+          'failed-precondition',
+          'O vídeo possui dados de publicação inconsistentes.'
+        );
       }
 
+      await audience.assertInTransaction(transaction, target);
       assertVideoAllowsComments(video);
 
       const authorNickname = resolveNickname(

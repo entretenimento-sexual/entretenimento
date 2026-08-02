@@ -8,8 +8,10 @@ import {
 
 const REQUESTED = Object.freeze({ ownerUid: 'owner_1', videoId: 'video_1' });
 const PUBLIC_VIDEO = Object.freeze({
+  id: 'video_1',
   ownerUid: 'owner_1',
   mediaType: 'VIDEO',
+  assetAccess: 'SIGNED_URL',
   visibility: 'PUBLIC',
   moderationStatus: 'APPROVED',
   title: '  Vídeo público  ',
@@ -38,7 +40,7 @@ test('normaliza somente identificadores seguros', () => {
   );
 });
 
-test('gera referência mínima para vídeo público e aprovado', () => {
+test('gera referência mínima para vídeo publicado e aprovado', () => {
   const result = resolveStoredDirectMessagePublicVideoReference({
     requested: REQUESTED,
     publicProfileExists: true,
@@ -56,6 +58,17 @@ test('gera referência mínima para vídeo público e aprovado', () => {
   assert.equal('storagePath' in (result ?? {}), false);
 });
 
+test('preserva audiência FRIENDS para validação central posterior', () => {
+  const result = resolveStoredDirectMessagePublicVideoReference({
+    requested: REQUESTED,
+    publicProfileExists: true,
+    publicVideo: { ...PUBLIC_VIDEO, visibility: 'FRIENDS' },
+    publication: { ...PUBLICATION, visibility: 'FRIENDS' },
+  });
+
+  assert.equal(result?.videoId, 'video_1');
+});
+
 test('rejeita vídeo removido, privado ou sem publicação ativa', () => {
   assert.equal(
     resolveStoredDirectMessagePublicVideoReference({
@@ -71,7 +84,7 @@ test('rejeita vídeo removido, privado ou sem publicação ativa', () => {
       requested: REQUESTED,
       publicProfileExists: true,
       publicVideo: { ...PUBLIC_VIDEO, visibility: 'PRIVATE' },
-      publication: PUBLICATION,
+      publication: { ...PUBLICATION, visibility: 'PRIVATE' },
     }),
     null
   );
@@ -93,6 +106,15 @@ test('rejeita divergência entre a referência e os documentos', () => {
       publicProfileExists: true,
       publicVideo: { ...PUBLIC_VIDEO, ownerUid: 'other' },
       publication: PUBLICATION,
+    }),
+    null
+  );
+  assert.equal(
+    resolveStoredDirectMessagePublicVideoReference({
+      requested: REQUESTED,
+      publicProfileExists: true,
+      publicVideo: PUBLIC_VIDEO,
+      publication: { ...PUBLICATION, visibility: 'FRIENDS' },
     }),
     null
   );

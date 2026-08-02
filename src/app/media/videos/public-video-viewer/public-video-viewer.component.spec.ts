@@ -18,6 +18,7 @@ import { MediaReactionsService } from 'src/app/core/services/media/media-reactio
 import { MediaVideoCommentsService } from 'src/app/core/services/media/media-video-comments.service';
 import { MediaVideoRatingsService } from 'src/app/core/services/media/media-video-ratings.service';
 import { PublicVideoAccessService } from 'src/app/core/services/media/public-video-access.service';
+import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { VideoViewTrackingService } from 'src/app/core/services/media/video-view-tracking.service';
 import {
   IPublicVideoViewerData,
@@ -133,6 +134,9 @@ describe('PublicVideoViewerComponent', () => {
     refreshPublicVideoUrl$: vi.fn((video: IPublicVideoItem) => of(video)),
     invalidatePublicVideoAccess: vi.fn(),
   };
+  const publicVideoShare = {
+    sharePublicVideo: vi.fn(() => Promise.resolve('shared' as const)),
+  };
   const reactions = {
     getVideoLikesCount$: vi.fn(() => of(12)),
     isVideoLikedByViewer$: vi.fn(() => of(false)),
@@ -201,6 +205,7 @@ describe('PublicVideoViewerComponent', () => {
         },
         { provide: VideoViewTrackingService, useValue: videoViewTracking },
         { provide: PublicVideoAccessService, useValue: publicVideoAccess },
+        { provide: PublicVideoShareService, useValue: publicVideoShare },
         { provide: MediaReactionsService, useValue: reactions },
         { provide: MediaVideoCommentsService, useValue: comments },
         { provide: MediaVideoRatingsService, useValue: ratings },

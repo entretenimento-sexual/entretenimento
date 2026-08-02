@@ -1,3 +1,4 @@
+import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import {
@@ -57,10 +58,32 @@ export interface VideoAudienceAccessTarget {
   moderationStatus: unknown;
 }
 
+export interface PublicVideoAudienceDocument {
+  id?: unknown;
+  ownerUid?: unknown;
+  mediaType?: unknown;
+  assetAccess?: unknown;
+  visibility?: unknown;
+  moderationStatus?: unknown;
+}
+
+export interface VideoPublicationAudienceDocument {
+  ownerUid?: unknown;
+  videoId?: unknown;
+  isPublished?: unknown;
+  visibility?: unknown;
+  moderationStatus?: unknown;
+}
+
 export interface VideoAudienceAccessEvaluator {
   evaluate(
     target: VideoAudienceAccessTarget
   ): Promise<VideoAudienceAccessDecision>;
+  assert(target: VideoAudienceAccessTarget): Promise<void>;
+  assertInTransaction(
+    transaction: Transaction,
+    target: VideoAudienceAccessTarget
+  ): Promise<void>;
 }
 
 interface BlockContext {
@@ -112,8 +135,12 @@ function cleanId(value: unknown): string {
   return normalized;
 }
 
+function normalizeEnum(value: unknown): string {
+  return String(value ?? '').trim().toUpperCase();
+}
+
 function normalizeVisibility(value: unknown): VideoAudienceVisibility | null {
-  const normalized = String(value ?? '').trim().toUpperCase();
+  const normalized = normalizeEnum(value);
 
   return SUPPORTED_VISIBILITIES.has(normalized as VideoAudienceVisibility)
     ? normalized as VideoAudienceVisibility
@@ -121,11 +148,123 @@ function normalizeVisibility(value: unknown): VideoAudienceVisibility | null {
 }
 
 function isApproved(value: unknown): boolean {
-  return String(value ?? '').trim().toUpperCase() === 'APPROVED';
+  return normalizeEnum(value) === 'APPROVED';
 }
 
 function denied(reason: VideoAudienceAccessReason): VideoAudienceAccessDecision {
   return { allowed: false, reason };
+}
+
+function actionLabel(action: VideoAudienceAction): string {
+  switch (action) {
+  case 'LIST':
+    return 'listar';
+  case 'PLAY':
+    return 'reproduzir';
+  case 'INTERACT':
+    return 'interagir com';
+  case 'SHARE':
+    return 'compartilhar';
+  default:
+    return 'acessar';
+  }
+}
+
+export function assertVideoAudienceAccessDecision(
+  decision: VideoAudienceAccessDecision,
+  action: VideoAudienceAction
+): void {
+  if (decision.allowed) {
+    return;
+  }
+
+  const reason = decision.reason ?? 'unsupported_visibility';
+  const details = { action, reason };
+
+  if (reason === 'invalid_target') {
+    throw new HttpsError(
+      'invalid-argument',
+      'A referência do vídeo é inválida.',
+      details
+    );
+  }
+
+  if (reason === 'viewer_restricted') {
+    throw new HttpsError(
+      'failed-precondition',
+      `Sua conta não pode ${actionLabel(action)} este vídeo no momento.`,
+      details
+    );
+  }
+
+  if (
+    reason === 'blocked' ||
+    reason === 'compatibility_required' ||
+    reason === 'friendship_required' ||
+    reason === 'subscriber_entitlement_required' ||
+    reason === 'premium_entitlement_required'
+  ) {
+    throw new HttpsError(
+      'permission-denied',
+      `Você não possui audiência válida para ${actionLabel(action)} este vídeo.`,
+      details
+    );
+  }
+
+  throw new HttpsError(
+    'failed-precondition',
+    `Este vídeo não está disponível para ${actionLabel(action)}.`,
+    details
+  );
+}
+
+export function resolveCanonicalVideoAudienceTarget(params: {
+  ownerUid: unknown;
+  videoId: unknown;
+  action: VideoAudienceAction;
+  publicVideo: PublicVideoAudienceDocument | null | undefined;
+  publication: VideoPublicationAudienceDocument | null | undefined;
+}): VideoAudienceAccessTarget | null {
+  const ownerUid = cleanId(params.ownerUid);
+  const videoId = cleanId(params.videoId);
+  const publicVideo = params.publicVideo;
+  const publication = params.publication;
+
+  if (!ownerUid || !videoId || !publicVideo || !publication) {
+    return null;
+  }
+
+  const projectionId = cleanId(publicVideo.id);
+  const projectionOwnerUid = cleanId(publicVideo.ownerUid);
+  const publicationOwnerUid = cleanId(publication.ownerUid);
+  const publicationVideoId = cleanId(publication.videoId);
+  const projectionVisibility = normalizeVisibility(publicVideo.visibility);
+  const publicationVisibility = normalizeVisibility(publication.visibility);
+  const projectionModeration = normalizeEnum(publicVideo.moderationStatus);
+  const publicationModeration = normalizeEnum(publication.moderationStatus);
+
+  if (
+    projectionId !== videoId ||
+    projectionOwnerUid !== ownerUid ||
+    publicationOwnerUid !== ownerUid ||
+    publicationVideoId !== videoId ||
+    normalizeEnum(publicVideo.mediaType) !== 'VIDEO' ||
+    normalizeEnum(publicVideo.assetAccess) !== 'SIGNED_URL' ||
+    !projectionVisibility ||
+    projectionVisibility !== publicationVisibility ||
+    !projectionModeration ||
+    projectionModeration !== publicationModeration
+  ) {
+    return null;
+  }
+
+  return {
+    ownerUid,
+    action: params.action,
+    visibility: publicationVisibility,
+    isPublished: publication.isPublished === true,
+    moderationStatus: publicationModeration,
+  };
 }
 
 export function evaluateVideoAudienceAccess(
@@ -238,6 +377,22 @@ async function readBlockContext(
   };
 }
 
+async function readBlockContextInTransaction(
+  transaction: Transaction,
+  viewerUid: string,
+  ownerUid: string
+): Promise<BlockContext> {
+  const [viewerBlock, ownerBlock] = await Promise.all([
+    transaction.get(db.doc(`users/${viewerUid}/blocks/${ownerUid}`)),
+    transaction.get(db.doc(`users/${ownerUid}/blocks/${viewerUid}`)),
+  ]);
+
+  return {
+    viewerBlockedOwner: isActiveBlock(viewerBlock),
+    ownerBlockedViewer: isActiveBlock(ownerBlock),
+  };
+}
+
 async function readFriendshipContext(
   viewerUid: string,
   ownerUid: string
@@ -245,6 +400,23 @@ async function readFriendshipContext(
   const [viewerFriend, ownerFriend] = await Promise.all([
     db.doc(`users/${viewerUid}/friends/${ownerUid}`).get(),
     db.doc(`users/${ownerUid}/friends/${viewerUid}`).get(),
+  ]);
+
+  return {
+    bilateralFriendship:
+      isValidFriendEdge(viewerFriend, ownerUid) &&
+      isValidFriendEdge(ownerFriend, viewerUid),
+  };
+}
+
+async function readFriendshipContextInTransaction(
+  transaction: Transaction,
+  viewerUid: string,
+  ownerUid: string
+): Promise<FriendshipContext> {
+  const [viewerFriend, ownerFriend] = await Promise.all([
+    transaction.get(db.doc(`users/${viewerUid}/friends/${ownerUid}`)),
+    transaction.get(db.doc(`users/${ownerUid}/friends/${viewerUid}`)),
   ]);
 
   return {
@@ -276,11 +448,66 @@ function assertViewerAccountAvailable(
   assertInteractionAccessData(viewer);
 }
 
+function buildAccessInput(
+  viewerUid: string,
+  target: VideoAudienceAccessTarget,
+  blocks: BlockContext,
+  bilateralFriendship: boolean
+): VideoAudienceAccessInput {
+  return {
+    viewerUid,
+    ownerUid: target.ownerUid,
+    action: target.action,
+    visibility: target.visibility,
+    isPublished: target.isPublished,
+    moderationStatus: target.moderationStatus,
+    viewerLifecycleAllowed: true,
+    ...blocks,
+    bilateralFriendship,
+
+    /**
+     * COMPATIBLE depende de projeção backend canônica. O cálculo Angular
+     * nunca autoriza mídia por link direto.
+     */
+    mutuallyCompatible: false,
+
+    /**
+     * SUBSCRIBERS/PREMIUM dependem de entitlement bilateral do criador,
+     * com vigência, cancelamento, chargeback e status KYC/AML. A assinatura
+     * da plataforma não concede acesso ao conteúdo de um criador.
+     */
+    hasCreatorSubscriberEntitlement: false,
+    hasCreatorPremiumEntitlement: false,
+  };
+}
+
+function ownerAccessInput(
+  viewerUid: string,
+  target: VideoAudienceAccessTarget
+): VideoAudienceAccessInput {
+  return {
+    viewerUid,
+    ownerUid: target.ownerUid,
+    action: target.action,
+    visibility: target.visibility,
+    isPublished: target.isPublished,
+    moderationStatus: target.moderationStatus,
+    viewerLifecycleAllowed: true,
+    viewerBlockedOwner: false,
+    ownerBlockedViewer: false,
+    bilateralFriendship: true,
+    mutuallyCompatible: true,
+    hasCreatorSubscriberEntitlement: true,
+    hasCreatorPremiumEntitlement: true,
+  };
+}
+
 /**
  * Cria uma sessão de autorização por requisição.
  *
  * - valida Auth, lifecycle e idade uma única vez;
  * - mantém caches separados de bloqueios e amizades por proprietário;
+ * - oferece assert transacional para impedir TOCTOU em interações e envios;
  * - vídeos públicos fazem apenas as duas leituras bilaterais de bloqueio;
  * - amizade só é consultada quando a audiência realmente é FRIENDS;
  * - audiências sem fonte autorizativa no backend permanecem negadas.
@@ -311,101 +538,136 @@ export async function createVideoAudienceAccessEvaluator(
   const blockCache = new Map<string, Promise<BlockContext>>();
   const friendshipCache = new Map<string, Promise<FriendshipContext>>();
 
+  const evaluate = async (
+    target: VideoAudienceAccessTarget
+  ): Promise<VideoAudienceAccessDecision> => {
+    const ownerUid = cleanId(target.ownerUid);
+
+    if (!ownerUid) {
+      return denied('invalid_target');
+    }
+
+    if (viewerUid === ownerUid) {
+      return evaluateVideoAudienceAccess(ownerAccessInput(viewerUid, target));
+    }
+
+    let blockPromise = blockCache.get(ownerUid);
+
+    if (!blockPromise) {
+      blockPromise = readBlockContext(viewerUid, ownerUid);
+      blockCache.set(ownerUid, blockPromise);
+    }
+
+    const blocks = await blockPromise;
+    const visibility = normalizeVisibility(target.visibility);
+    let bilateralFriendship = false;
+
+    if (
+      !blocks.viewerBlockedOwner &&
+      !blocks.ownerBlockedViewer &&
+      visibility === 'FRIENDS'
+    ) {
+      let friendshipPromise = friendshipCache.get(ownerUid);
+
+      if (!friendshipPromise) {
+        friendshipPromise = readFriendshipContext(viewerUid, ownerUid);
+        friendshipCache.set(ownerUid, friendshipPromise);
+      }
+
+      bilateralFriendship = (
+        await friendshipPromise
+      ).bilateralFriendship;
+    }
+
+    return evaluateVideoAudienceAccess(buildAccessInput(
+      viewerUid,
+      { ...target, ownerUid },
+      blocks,
+      bilateralFriendship
+    ));
+  };
+
   return {
-    evaluate: async (
+    evaluate,
+    assert: async (target: VideoAudienceAccessTarget): Promise<void> => {
+      assertVideoAudienceAccessDecision(
+        await evaluate(target),
+        target.action
+      );
+    },
+    assertInTransaction: async (
+      transaction: Transaction,
       target: VideoAudienceAccessTarget
-    ): Promise<VideoAudienceAccessDecision> => {
+    ): Promise<void> => {
       const ownerUid = cleanId(target.ownerUid);
 
       if (!ownerUid) {
-        return denied('invalid_target');
+        assertVideoAudienceAccessDecision(
+          denied('invalid_target'),
+          target.action
+        );
+        return;
       }
+
+      const viewerSnapshot = await transaction.get(
+        db.doc(`users/${viewerUid}`)
+      );
+      const transactionalViewer = viewerSnapshot.exists
+        ? viewerSnapshot.data() as ViewerAccountDocument
+        : null;
+
+      if (!transactionalViewer) {
+        throw new HttpsError('not-found', 'Conta não encontrada.');
+      }
+
+      assertViewerAccountAvailable(
+        transactionalViewer,
+        viewerUid,
+        authUser.disabled
+      );
 
       if (viewerUid === ownerUid) {
-        return evaluateVideoAudienceAccess({
-          viewerUid,
-          ownerUid,
-          action: target.action,
-          visibility: target.visibility,
-          isPublished: target.isPublished,
-          moderationStatus: target.moderationStatus,
-          viewerLifecycleAllowed: true,
-          viewerBlockedOwner: false,
-          ownerBlockedViewer: false,
-          bilateralFriendship: true,
-          mutuallyCompatible: true,
-          hasCreatorSubscriberEntitlement: true,
-          hasCreatorPremiumEntitlement: true,
-        });
+        assertVideoAudienceAccessDecision(
+          evaluateVideoAudienceAccess(ownerAccessInput(
+            viewerUid,
+            { ...target, ownerUid }
+          )),
+          target.action
+        );
+        return;
       }
 
-      let blockPromise = blockCache.get(ownerUid);
-
-      if (!blockPromise) {
-        blockPromise = readBlockContext(viewerUid, ownerUid);
-        blockCache.set(ownerUid, blockPromise);
-      }
-
-      const blocks = await blockPromise;
+      const blocks = await readBlockContextInTransaction(
+        transaction,
+        viewerUid,
+        ownerUid
+      );
       const visibility = normalizeVisibility(target.visibility);
-
-      if (blocks.viewerBlockedOwner || blocks.ownerBlockedViewer) {
-        return evaluateVideoAudienceAccess({
-          viewerUid,
-          ownerUid,
-          action: target.action,
-          visibility: target.visibility,
-          isPublished: target.isPublished,
-          moderationStatus: target.moderationStatus,
-          viewerLifecycleAllowed: true,
-          ...blocks,
-          bilateralFriendship: false,
-          mutuallyCompatible: false,
-          hasCreatorSubscriberEntitlement: false,
-          hasCreatorPremiumEntitlement: false,
-        });
-      }
-
       let bilateralFriendship = false;
 
-      if (visibility === 'FRIENDS') {
-        let friendshipPromise = friendshipCache.get(ownerUid);
-
-        if (!friendshipPromise) {
-          friendshipPromise = readFriendshipContext(viewerUid, ownerUid);
-          friendshipCache.set(ownerUid, friendshipPromise);
-        }
-
+      if (
+        !blocks.viewerBlockedOwner &&
+        !blocks.ownerBlockedViewer &&
+        visibility === 'FRIENDS'
+      ) {
         bilateralFriendship = (
-          await friendshipPromise
+          await readFriendshipContextInTransaction(
+            transaction,
+            viewerUid,
+            ownerUid
+          )
         ).bilateralFriendship;
       }
 
-      return evaluateVideoAudienceAccess({
-        viewerUid,
-        ownerUid,
-        action: target.action,
-        visibility: target.visibility,
-        isPublished: target.isPublished,
-        moderationStatus: target.moderationStatus,
-        viewerLifecycleAllowed: true,
-        ...blocks,
-        bilateralFriendship,
-
-        /**
-         * COMPATIBLE depende de projeção backend canônica. O cálculo Angular
-         * nunca autoriza mídia por link direto.
-         */
-        mutuallyCompatible: false,
-
-        /**
-         * SUBSCRIBERS/PREMIUM dependem de entitlement bilateral do criador,
-         * com vigência, cancelamento, chargeback e status KYC/AML. A assinatura
-         * da plataforma não concede acesso ao conteúdo de um criador.
-         */
-        hasCreatorSubscriberEntitlement: false,
-        hasCreatorPremiumEntitlement: false,
-      });
+      assertVideoAudienceAccessDecision(
+        evaluateVideoAudienceAccess(buildAccessInput(
+          viewerUid,
+          { ...target, ownerUid },
+          blocks,
+          bilateralFriendship
+        )),
+        target.action
+      );
     },
   };
 }

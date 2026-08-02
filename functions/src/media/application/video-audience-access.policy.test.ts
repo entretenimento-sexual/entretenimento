@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  assertVideoAudienceAccessDecision,
   evaluateVideoAudienceAccess,
+  resolveCanonicalVideoAudienceTarget,
   type VideoAudienceAccessInput,
 } from './video-audience-access.policy';
 
@@ -144,6 +146,82 @@ describe('video-audience-access.policy', () => {
     assert.deepEqual(
       evaluateVideoAudienceAccess(accessInput({ visibility: 'CUSTOM' })),
       { allowed: false, reason: 'unsupported_visibility' }
+    );
+  });
+
+  it('resolve somente projeção e publicação canônicas', () => {
+    const target = resolveCanonicalVideoAudienceTarget({
+      ownerUid: 'owner-uid',
+      videoId: 'video-uid',
+      action: 'INTERACT',
+      publicVideo: {
+        id: 'video-uid',
+        ownerUid: 'owner-uid',
+        mediaType: 'VIDEO',
+        assetAccess: 'SIGNED_URL',
+        visibility: 'PUBLIC',
+        moderationStatus: 'APPROVED',
+      },
+      publication: {
+        ownerUid: 'owner-uid',
+        videoId: 'video-uid',
+        isPublished: true,
+        visibility: 'PUBLIC',
+        moderationStatus: 'APPROVED',
+      },
+    });
+
+    assert.deepEqual(target, {
+      ownerUid: 'owner-uid',
+      action: 'INTERACT',
+      visibility: 'PUBLIC',
+      isPublished: true,
+      moderationStatus: 'APPROVED',
+    });
+
+    assert.equal(
+      resolveCanonicalVideoAudienceTarget({
+        ownerUid: 'owner-uid',
+        videoId: 'video-uid',
+        action: 'SHARE',
+        publicVideo: {
+          id: 'video-uid',
+          ownerUid: 'owner-uid',
+          mediaType: 'VIDEO',
+          assetAccess: 'SIGNED_URL',
+          visibility: 'PUBLIC',
+          moderationStatus: 'APPROVED',
+        },
+        publication: {
+          ownerUid: 'owner-uid',
+          videoId: 'video-uid',
+          isPublished: true,
+          visibility: 'FRIENDS',
+          moderationStatus: 'APPROVED',
+        },
+      }),
+      null
+    );
+  });
+
+  it('converte negação em erro callable sem expor direção do bloqueio', () => {
+    assert.throws(
+      () => assertVideoAudienceAccessDecision(
+        { allowed: false, reason: 'blocked' },
+        'SHARE'
+      ),
+      (error: unknown) => {
+        const candidate = error as {
+          code?: unknown;
+          message?: unknown;
+          details?: { reason?: unknown };
+        };
+
+        assert.equal(candidate.code, 'permission-denied');
+        assert.match(String(candidate.message), /audiência válida/i);
+        assert.equal(candidate.details?.reason, 'blocked');
+        return true;
+      }
     );
   });
 });

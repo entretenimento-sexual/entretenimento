@@ -1,8 +1,5 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import {
-  assertInteractionAccessInTransaction,
-} from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
@@ -10,16 +7,19 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import {
+  createVideoAudienceAccessEvaluator,
+  resolveCanonicalVideoAudienceTarget,
+  type PublicVideoAudienceDocument,
+  type VideoPublicationAudienceDocument,
+} from './video-audience-access.policy';
 
 interface ToggleVideoReactionRequest {
   ownerUid?: string;
   videoId?: string;
 }
 
-interface PublicVideoDoc {
-  ownerUid?: string;
-  visibility?: string;
-  moderationStatus?: string;
+interface PublicVideoDoc extends PublicVideoAudienceDocument {
   reactionsEnabled?: boolean;
   reactionsCount?: number;
   likesCount?: number;
@@ -56,45 +56,57 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
       );
     }
 
+    const audience = await createVideoAudienceAccessEvaluator(viewerUid);
     const videoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
+    );
+    const publicationRef = db.doc(
+      `users/${ownerUid}/video_publications/${videoId}`
     );
     const likeRef = videoRef.collection('likes').doc(viewerUid);
 
     return db.runTransaction(async (transaction) => {
-      await assertInteractionAccessInTransaction(transaction, viewerUid);
-
-      const [videoSnap, likeSnap] = await Promise.all([
+      const [videoSnap, publicationSnap, likeSnap] = await Promise.all([
         transaction.get(videoRef),
+        transaction.get(publicationRef),
         transaction.get(likeRef),
       ]);
 
-      if (!videoSnap.exists) {
+      if (!videoSnap.exists || !publicationSnap.exists) {
         throw new HttpsError('not-found', 'Vídeo público não encontrado.');
       }
 
       const video = videoSnap.data() as PublicVideoDoc;
+      const publication =
+        publicationSnap.data() as VideoPublicationAudienceDocument;
+      const target = resolveCanonicalVideoAudienceTarget({
+        ownerUid,
+        videoId,
+        action: 'INTERACT',
+        publicVideo: video,
+        publication,
+      });
 
-      if (video.ownerUid !== ownerUid) {
-        throw new HttpsError('failed-precondition', 'Vídeo inconsistente.');
-      }
-
-      if (video.visibility !== 'PUBLIC') {
-        throw new HttpsError('failed-precondition', 'Este vídeo não está público.');
-      }
-
-      if (video.moderationStatus !== 'APPROVED') {
+      if (!target) {
         throw new HttpsError(
           'failed-precondition',
-          'Este vídeo ainda não está aprovado para curtidas.'
+          'O vídeo possui dados de publicação inconsistentes.'
         );
       }
 
-      if (video.reactionsEnabled !== true) {
-        throw new HttpsError(
-          'failed-precondition',
-          'Curtidas desabilitadas neste vídeo.'
-        );
+      /**
+       * Remover a própria reação é limpeza de dado e permanece disponível
+       * mesmo após revogação de audiência. Criar uma reação exige autorização.
+       */
+      if (!likeSnap.exists) {
+        await audience.assertInTransaction(transaction, target);
+
+        if (video.reactionsEnabled !== true) {
+          throw new HttpsError(
+            'failed-precondition',
+            'Curtidas desabilitadas neste vídeo.'
+          );
+        }
       }
 
       const currentCount = normalizeMediaCount(
