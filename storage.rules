@@ -30,6 +30,93 @@ service firebase.storage {
         && request.resource.size <= 500 * 1024 * 1024;
     }
 
+    function privateMediaUser(uid) {
+      return firestore.get(
+        /databases/(default)/documents/users/$(uid)
+      ).data;
+    }
+
+    function hasVerifiedEmail(user) {
+      return (
+          'email_verified' in request.auth.token
+          && request.auth.token.email_verified == true
+        )
+        || (
+          'emailVerified' in user
+          && user.emailVerified == true
+        );
+    }
+
+    function hasOperationalPrivateMediaAccount(uid) {
+      let user = privateMediaUser(uid);
+      return user.uid == uid
+        && (!('accountStatus' in user) || user.accountStatus == 'active')
+        && (!('suspended' in user) || user.suspended != true)
+        && (!('interactionBlocked' in user) || user.interactionBlocked != true)
+        && (!('accountLocked' in user) || user.accountLocked != true)
+        && (!('loginAllowed' in user) || user.loginAllowed != false)
+        && hasVerifiedEmail(user)
+        && user.profileCompleted == true
+        && (!('idade' in user) || !(user.idade is number) || user.idade >= 18)
+        && (!('age' in user) || !(user.age is number) || user.age >= 18)
+        && (
+          !('ageReverification' in user)
+          || (
+            user.ageReverification is map
+            && (
+              !('result' in user.ageReverification)
+              || user.ageReverification.result != 'UNDERAGE'
+            )
+            && (
+              !('status' in user.ageReverification)
+              || (
+                user.ageReverification.status != 'REQUIRED'
+                && user.ageReverification.status != 'SUBMITTED'
+                && user.ageReverification.status != 'UNDER_REVIEW'
+                && user.ageReverification.status != 'REJECTED'
+                && user.ageReverification.status != 'EXPIRED'
+              )
+            )
+          )
+        )
+        && (
+          !('adultConsent' in user)
+          || (
+            user.adultConsent is map
+            && (
+              !('accepted' in user.adultConsent)
+              || user.adultConsent.accepted != false
+            )
+          )
+        )
+        && (
+          !('acceptedTerms' in user)
+          || (
+            user.acceptedTerms is map
+            && (
+              !('accepted' in user.acceptedTerms)
+              || user.acceptedTerms.accepted != false
+            )
+            && (
+              !('adultAccessAcknowledgement' in user.acceptedTerms)
+              || user.acceptedTerms.adultAccessAcknowledgement != false
+            )
+          )
+        )
+        && (
+          !('initialAdultConsentRequired' in user)
+          || user.initialAdultConsentRequired != true
+          || (
+            'adultConsent' in user
+            && user.adultConsent is map
+            && user.adultConsent.accepted == true
+            && 'acceptedTerms' in user
+            && user.acceptedTerms is map
+            && user.acceptedTerms.accepted == true
+          )
+        );
+    }
+
     function hasUploadReservationId() {
       return request.resource != null
         && request.resource.metadata != null
@@ -47,6 +134,7 @@ service firebase.storage {
     function activeReservationFor(uid, kind) {
       let reservation = uploadReservation();
       return hasUploadReservationId()
+        && hasOperationalPrivateMediaAccount(uid)
         && reservation.ownerUid == uid
         && reservation.kind == kind
         && reservation.state == 'ACTIVE'
@@ -70,6 +158,7 @@ service firebase.storage {
     // ============================================================
     // Upload bruto e privado do usuário
     // - toda criação exige reserva de quota vigente no Firestore;
+    // - a conta precisa permanecer operacional e elegível;
     // - rollback e exclusão continuam disponíveis ao proprietário;
     // - reprodução usa URL temporária emitida pelo backend.
     // ============================================================
