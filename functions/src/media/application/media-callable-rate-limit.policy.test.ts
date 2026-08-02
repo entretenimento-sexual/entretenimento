@@ -27,6 +27,9 @@ describe('media-callable-rate-limit.policy', () => {
     const adminRecovery = resolveMediaCallableRateLimitRule(
       'ADMIN_PROCESSING_RECOVERY'
     );
+    const adminBackfill = resolveMediaCallableRateLimitRule(
+      'ADMIN_RANKING_BACKFILL'
+    );
 
     assert.ok(reaction.globalMaxPerWindow > reaction.resourceMaxPerWindow);
     assert.ok(report.windowMs > reaction.windowMs);
@@ -50,6 +53,13 @@ describe('media-callable-rate-limit.policy', () => {
     );
     assert.ok(
       adminRecovery.resourceMaxPerWindow < adminModeration.resourceMaxPerWindow
+    );
+    assert.equal(adminBackfill.windowMs, report.windowMs);
+    assert.ok(
+      adminBackfill.globalMaxPerWindow > adminBackfill.resourceMaxPerWindow
+    );
+    assert.ok(
+      adminBackfill.resourceMaxPerWindow > adminRecovery.resourceMaxPerWindow
     );
   });
 
