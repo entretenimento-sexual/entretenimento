@@ -1,6 +1,6 @@
 // src/app/media/videos/profile-videos/profile-videos.component.ts
 // -----------------------------------------------------------------------------
-// Biblioteca privada, upload recuperável e publicação controlada de vídeos.
+// Upload temporário, processamento e publicação controlada de vídeos.
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
@@ -184,7 +184,6 @@ export class ProfileVideosComponent {
 
   private uploadSubscription: Subscription | null = null;
   private cancelRequestedByUser = false;
-  private uploadPublishWhenReady = true;
 
   readonly viewer$: Observable<IMediaPolicyViewerSnapshot | null | undefined> =
     this.currentUserStore.user$.pipe(
@@ -394,7 +393,7 @@ export class ProfileVideosComponent {
     });
   }
 
-  startUpload(publishWhenReady = true): void {
+  startUpload(): void {
     if (this.uploadSubscription) {
       return;
     }
@@ -409,7 +408,6 @@ export class ProfileVideosComponent {
 
     this.uploadFailureSubject.next(null);
     this.cancelRequestedByUser = false;
-    this.uploadPublishWhenReady = publishWhenReady;
     let subscription: Subscription | null = null;
 
     const upload$ = combineLatest([
@@ -435,7 +433,7 @@ export class ProfileVideosComponent {
           return EMPTY;
         }
 
-        const publication = this.uploadPublicationSettings(publishWhenReady);
+        const publication = this.uploadPublicationSettings();
         this.uploadPhaseSubject.next('PREPARING');
         this.uploadProgressSubject.next(0);
         this.uploadStepSubject.next('Validando vídeo e capa.');
@@ -490,7 +488,7 @@ export class ProfileVideosComponent {
       return;
     }
 
-    this.startUpload(this.uploadPublishWhenReady);
+    this.startUpload();
   }
 
   cancelUpload(): void {
@@ -772,7 +770,7 @@ export class ProfileVideosComponent {
     }
 
     if (!item.publication?.isPublished) {
-      return 'Privado';
+      return 'Publicação pendente';
     }
 
     if (item.publication.moderationStatus === 'APPROVED') {
@@ -859,9 +857,8 @@ export class ProfileVideosComponent {
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
   }
 
-  private uploadPublicationSettings(
-    publishWhenReady: boolean
-  ): IVideoPublicationSettingsInput & { publishWhenReady: boolean } {
+  private uploadPublicationSettings():
+    IVideoPublicationSettingsInput & { publishWhenReady: true } {
     const raw = this.uploadPublicationForm.getRawValue();
 
     return {
@@ -870,7 +867,7 @@ export class ProfileVideosComponent {
       reactionsEnabled: raw.reactionsEnabled,
       commentsEnabled: raw.commentsEnabled,
       ratingsEnabled: raw.ratingsEnabled,
-      publishWhenReady,
+      publishWhenReady: true,
     };
   }
 
@@ -897,9 +894,7 @@ export class ProfileVideosComponent {
     this.uploadPhaseSubject.next('DONE');
     this.uploadProgressSubject.next(100);
     this.uploadStepSubject.next(
-      this.uploadPublishWhenReady
-        ? 'Vídeo recebido. A publicação continuará automaticamente.'
-        : 'Vídeo recebido e salvo sem publicação.'
+      'Vídeo recebido. O processamento e a publicação continuarão automaticamente.'
     );
     this.revokePreviewUrl();
     this.revokePosterUrl();
@@ -907,9 +902,7 @@ export class ProfileVideosComponent {
     this.selectedPosterBlobSubject.next(null);
     this.previewUrlSubject.next(null);
     this.errorNotification.showSuccess(
-      this.uploadPublishWhenReady
-        ? 'Envio concluído. O vídeo seguirá para processamento e publicação.'
-        : 'Vídeo salvo sem publicação.'
+      'Envio concluído. O vídeo seguirá para processamento, moderação e publicação.'
     );
   }
 
@@ -933,11 +926,7 @@ export class ProfileVideosComponent {
     }
 
     this.uploadPhaseSubject.next('SAVING');
-    this.uploadStepSubject.next(
-      this.uploadPublishWhenReady
-        ? 'Registrando publicação.'
-        : 'Registrando vídeo.'
-    );
+    this.uploadStepSubject.next('Registrando publicação.');
   }
 
   private describeUploadFailure(error: unknown): VideoUploadFailureFeedback {
