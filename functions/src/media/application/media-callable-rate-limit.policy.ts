@@ -6,7 +6,10 @@ export type MediaCallableRateAction =
   | 'REPORT'
   | 'REPORT_MODERATE'
   | 'SHARE_AUTHORIZE'
-  | 'SHARE_MESSAGE';
+  | 'SHARE_MESSAGE'
+  | 'ACCESS_PRIVATE'
+  | 'ACCESS_PUBLIC'
+  | 'LIST_PUBLIC';
 
 export interface MediaCallableRateLimitRule {
   readonly windowMs: number;
@@ -27,6 +30,7 @@ export interface MediaCallableRateDecisionInput {
   readonly maxPerWindow: number;
   readonly windowMs: number;
   readonly minIntervalMs: number;
+  readonly cost?: number;
 }
 
 export interface MediaCallableRateDecision {
@@ -90,6 +94,24 @@ const RULES: Readonly<Record<
     resourceMaxPerWindow: 12,
     minIntervalMs: 500,
   },
+  ACCESS_PRIVATE: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 600,
+    resourceMaxPerWindow: 120,
+    minIntervalMs: 150,
+  },
+  ACCESS_PUBLIC: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 480,
+    resourceMaxPerWindow: 96,
+    minIntervalMs: 100,
+  },
+  LIST_PUBLIC: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 960,
+    resourceMaxPerWindow: 640,
+    minIntervalMs: 150,
+  },
 };
 
 function normalizeNonNegativeInteger(value: unknown): number {
@@ -119,6 +141,7 @@ export function buildMediaCallableRateDecision(
     normalizeNonNegativeInteger(input.windowMs)
   );
   const minIntervalMs = normalizeNonNegativeInteger(input.minIntervalMs);
+  const cost = Math.max(1, normalizeNonNegativeInteger(input.cost));
   const previousWindowStartedAt = normalizeNonNegativeInteger(
     input.state?.windowStartedAt
   );
@@ -139,13 +162,13 @@ export function buildMediaCallableRateDecision(
     1_000,
     windowMs - Math.max(0, now - windowStartedAt)
   );
-  const reachedWindowLimit = count >= maxPerWindow;
-  const allowed = !reachedWindowLimit && intervalRemainingMs === 0;
+  const exceedsWindowLimit = count + cost > maxPerWindow;
+  const allowed = !exceedsWindowLimit && intervalRemainingMs === 0;
 
   if (!allowed) {
     return {
       allowed: false,
-      retryAfterMs: reachedWindowLimit
+      retryAfterMs: exceedsWindowLimit
         ? windowRemainingMs
         : Math.max(1_000, intervalRemainingMs),
       nextState: {
@@ -161,7 +184,7 @@ export function buildMediaCallableRateDecision(
     retryAfterMs: minIntervalMs,
     nextState: {
       windowStartedAt,
-      count: count + 1,
+      count: count + cost,
       lastAcceptedAt: now,
     },
   };

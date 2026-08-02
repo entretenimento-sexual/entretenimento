@@ -4,10 +4,19 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import {
+  resolveCanonicalPhotoAudienceTarget,
+  type PhotoPublicationAudienceDocument,
+  type PublicPhotoAudienceDocument,
+} from './photo-audience-access.policy';
+import {
   containsControlCharacter,
   normalizeOwnedPublishedPhotoPath,
 } from './photo-storage-path';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
+import {
+  createVideoAudienceAccessEvaluator,
+  type VideoAudienceAccessEvaluator,
+} from './video-audience-access.policy';
 
 interface PublicPhotoAccessRequestItem {
   ownerUid?: string;
@@ -57,6 +66,7 @@ function buildRequestKey(ownerUid: string, photoId: string): string {
 }
 
 async function resolveAccessItem(
+  audience: VideoAudienceAccessEvaluator,
   ownerUid: string,
   photoId: string,
   expiresAt: number
@@ -83,21 +93,33 @@ async function resolveAccessItem(
     return null;
   }
 
-  const publicPhoto = publicPhotoSnap.data();
-  const publication = publicationSnap.data();
+  const publicPhoto =
+    publicPhotoSnap.data() as PublicPhotoAudienceDocument;
+  const publication =
+    publicationSnap.data() as PhotoPublicationAudienceDocument & {
+      publishedStoragePath?: unknown;
+    };
+  const target = resolveCanonicalPhotoAudienceTarget({
+    ownerUid,
+    photoId,
+    publicPhoto,
+    publication,
+  });
 
-  if (
-    publicPhoto?.visibility !== 'PUBLIC' ||
-    publicPhoto?.moderationStatus !== 'APPROVED' ||
-    publication?.isPublished !== true
-  ) {
+  if (!target) {
+    return null;
+  }
+
+  const audienceDecision = await audience.evaluate(target);
+
+  if (!audienceDecision.allowed) {
     return null;
   }
 
   const storagePath = normalizeOwnedPublishedPhotoPath(
     ownerUid,
     photoId,
-    publication?.publishedStoragePath
+    publication.publishedStoragePath
   );
 
   if (!storagePath) {
@@ -122,7 +144,9 @@ async function resolveAccessItem(
 export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<PublicPhotoAccessResponse> => {
-    if (!request.auth?.uid) {
+    const viewerUid = cleanId(request.auth?.uid);
+
+    if (!viewerUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
@@ -163,13 +187,19 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
       );
     }
 
+    const audience = await createVideoAudienceAccessEvaluator(viewerUid);
     const expiresAt = Date.now() + SIGNED_URL_TTL_MS;
     const resolutions = await Promise.all(
       [...uniqueItems.values()].map(
         async ({ ownerUid, photoId }): Promise<PublicPhotoAccessResolution> => {
           try {
             return {
-              item: await resolveAccessItem(ownerUid, photoId, expiresAt),
+              item: await resolveAccessItem(
+                audience,
+                ownerUid,
+                photoId,
+                expiresAt
+              ),
               technicalFailure: false,
             };
           } catch (error) {

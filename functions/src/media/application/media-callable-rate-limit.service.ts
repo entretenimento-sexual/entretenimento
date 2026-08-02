@@ -17,11 +17,13 @@ import {
 const RATE_LIMIT_COLLECTION = 'media_callable_rate_limits';
 const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
 const CLEANUP_BATCH_LIMIT = 450;
+const MAX_RATE_LIMIT_COST = 1_000;
 
 export interface MediaCallableRateLimitInput {
   readonly actorUid: string;
   readonly action: MediaCallableRateAction;
   readonly resourceKey: string;
+  readonly cost?: number;
   readonly now?: number;
 }
 
@@ -33,6 +35,16 @@ function cleanActorUid(value: unknown): string {
 function cleanResourceKey(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return normalized && normalized.length <= 512 ? normalized : '';
+}
+
+function normalizeCost(value: unknown): number {
+  const numeric = Number(value ?? 1);
+
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 1;
+  }
+
+  return Math.min(MAX_RATE_LIMIT_COST, Math.max(1, Math.floor(numeric)));
 }
 
 function hashKey(value: string): string {
@@ -79,9 +91,9 @@ function throwRateLimit(
 /**
  * Consome limites global e por recurso em uma transação Firestore.
  *
- * Casos de uso podem chamar esta função dentro da própria transação, depois
- * das demais leituras, ou utilizar `assertMediaCallableRateLimit` como barreira
- * prévia para proteger consultas e validações mais caras.
+ * `cost` permite que operações em lote sejam cobradas pela quantidade de itens
+ * processados, impedindo que lotes máximos tenham o mesmo peso de uma ação
+ * unitária. Chamadores sem custo explícito preservam o comportamento anterior.
  */
 export async function assertMediaCallableRateLimitInTransaction(
   transaction: Transaction,
@@ -101,6 +113,7 @@ export async function assertMediaCallableRateLimitInTransaction(
   const now = Number.isFinite(requestedNow) && requestedNow > 0
     ? Math.floor(requestedNow)
     : Date.now();
+  const cost = normalizeCost(input.cost);
   const rule = resolveMediaCallableRateLimitRule(input.action);
   const globalRef = rateLimitRef(
     'global',
@@ -124,6 +137,7 @@ export async function assertMediaCallableRateLimitInTransaction(
     maxPerWindow: rule.globalMaxPerWindow,
     windowMs: rule.windowMs,
     minIntervalMs: rule.minIntervalMs,
+    cost,
   });
   const resourceDecision = buildMediaCallableRateDecision({
     now,
@@ -131,6 +145,7 @@ export async function assertMediaCallableRateLimitInTransaction(
     maxPerWindow: rule.resourceMaxPerWindow,
     windowMs: rule.windowMs,
     minIntervalMs: rule.minIntervalMs,
+    cost,
   });
 
   if (!globalDecision.allowed || !resourceDecision.allowed) {
@@ -147,6 +162,7 @@ export async function assertMediaCallableRateLimitInTransaction(
     scope: 'global',
     actorUid,
     action: input.action,
+    lastCost: cost,
     ...globalDecision.nextState,
     updatedAt: now,
   });
@@ -155,6 +171,7 @@ export async function assertMediaCallableRateLimitInTransaction(
     actorUid,
     action: input.action,
     resourceHash: hashKey(resourceKey),
+    lastCost: cost,
     ...resourceDecision.nextState,
     updatedAt: now,
   });

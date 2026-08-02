@@ -1,6 +1,9 @@
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  assertInteractionAccess,
+} from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
@@ -147,6 +150,12 @@ export const getPrivateVideoAccessUrls = onCall<PrivateVideoAccessRequest>(
         'Você só pode acessar os vídeos do próprio perfil.'
       );
     }
+
+    /**
+     * Conteúdo adulto privado continua sujeito a lifecycle e revalidação de
+     * idade. Restrições não impedem exclusão ou suporte, apenas o playback.
+     */
+    await assertInteractionAccess(requesterUid);
 
     const rawVideoIds = Array.isArray(request.data?.videoIds)
       ? request.data.videoIds
