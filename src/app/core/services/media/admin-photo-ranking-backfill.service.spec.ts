@@ -40,10 +40,10 @@ describe('AdminPhotoRankingBackfillService normalização', () => {
       generation: 1,
     });
 
-    expect('cursorPath' in state).toBeFalse();
-    expect('leaseOwner' in state).toBeFalse();
-    expect('lastAdminOperationId' in state).toBeFalse();
-    expect('lastAdminBy' in state).toBeFalse();
+    expect('cursorPath' in state).toBe(false);
+    expect('leaseOwner' in state).toBe(false);
+    expect('lastAdminOperationId' in state).toBe(false);
+    expect('lastAdminBy' in state).toBe(false);
   });
 
   it('preserva apenas status, métricas e erro sanitizado', () => {
@@ -70,7 +70,7 @@ describe('AdminPhotoRankingBackfillService normalização', () => {
       checkedAt: 2100,
     });
 
-    expect(response.leaseActive).toBeTrue();
+    expect(response.leaseActive).toBe(true);
     expect(response.checkedAt).toBe(2100);
     expect(response.state.status).toBe('FAILED');
     expect(response.state.processedCount).toBe(500);
@@ -82,7 +82,7 @@ describe('AdminPhotoRankingBackfillService normalização', () => {
   it('aplica valores seguros a respostas ausentes', () => {
     const response = normalizeAdminPhotoRankingBackfillStatusResponse(null);
 
-    expect(response.leaseActive).toBeFalse();
+    expect(response.leaseActive).toBe(false);
     expect(response.checkedAt).toBe(0);
     expect(response.state.status).toBe('IDLE');
     expect(response.state.pageSize).toBe(120);
