@@ -7,6 +7,16 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
 import {
+  applyPrivateMediaDraftReservation,
+  calculatePrivateMediaDraftExpiry,
+  calculatePrivateMediaDraftReservationBytes,
+  evaluatePrivateMediaDraftCapacity,
+  normalizePrivateMediaDraftUsage,
+  PRIVATE_MEDIA_DRAFT_LIFECYCLE_VERSION,
+  PRIVATE_MEDIA_DRAFT_USAGE_VERSION,
+  resolvePrivateMediaDraftPlan,
+} from './private-media-draft.policy';
+import {
   normalizeVideoPublicationSettings,
   type VideoPublicationSettingsInput,
 } from './video-publication-settings';
@@ -70,9 +80,15 @@ interface PrivateUploadCleanupJob {
   lastError: string | null;
 }
 
+interface RegistrationTransactionResult {
+  response: RegisterPrivateVideoUploadResponse;
+  created: boolean;
+}
+
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_POSTER_SIZE_BYTES = 10 * 1024 * 1024;
 const CLEANUP_COLLECTION = 'media_private_video_upload_cleanup_jobs';
+const DRAFT_USAGE_COLLECTION = 'media_private_draft_usage';
 const CLEANUP_BATCH_SIZE = 50;
 const ALLOWED_POSTER_TYPES = new Set([
   'image/jpeg',
@@ -176,6 +192,16 @@ function cleanupJobId(storagePath: string): string {
   return createHash('sha256').update(storagePath).digest('hex');
 }
 
+function draftReservationId(
+  ownerUid: string,
+  videoId: string,
+  createdAt: number
+): string {
+  return createHash('sha256')
+    .update(`video:${ownerUid}:${videoId}:${createdAt}`)
+    .digest('hex');
+}
+
 function validateCleanupPath(
   ownerUid: string,
   videoId: string,
@@ -226,9 +252,11 @@ async function readRequiredVideoMetadata(storagePath: string): Promise<{
   return { mimeType, sizeBytes };
 }
 
-async function validateOptionalPoster(storagePath: string | null): Promise<void> {
+async function readOptionalPosterSize(
+  storagePath: string | null
+): Promise<number> {
   if (!storagePath) {
-    return;
+    return 0;
   }
 
   const file = storage.bucket().file(storagePath);
@@ -258,6 +286,8 @@ async function validateOptionalPoster(storagePath: string | null): Promise<void>
       'A imagem de capa excede o limite permitido ou está vazia.'
     );
   }
+
+  return sizeBytes;
 }
 
 async function enqueueCleanup(
@@ -418,15 +448,6 @@ function buildExistingResponse(
   };
 }
 
-function isAlreadyExistsError(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) {
-    return false;
-  }
-
-  const withCode = error as { code?: unknown };
-  return withCode.code === 6 || String(withCode.code ?? '') === 'already-exists';
-}
-
 async function findExistingResponse(
   ownerUid: string,
   videoId: string,
@@ -521,9 +542,9 @@ export const registerPrivateVideoUpload = onCall<
     ];
 
     try {
-      const [videoMetadata] = await Promise.all([
+      const [videoMetadata, posterSizeBytes] = await Promise.all([
         readRequiredVideoMetadata(videoStoragePath),
-        validateOptionalPoster(posterStoragePath),
+        readOptionalPosterSize(posterStoragePath),
       ]);
       const requestedMimeType = normalizeMimeType(request.data?.mimeType);
       const requestedSizeBytes = normalizePositiveInteger(
@@ -567,86 +588,163 @@ export const registerPrivateVideoUpload = onCall<
         }
       );
       const publishWhenReady = request.data?.publishWhenReady === true;
-
-      /**
-       * MANUTENÇÃO — ARMAZENAMENTO PRIVADO POR PLANO
-       * `publishWhenReady: false` não concede armazenamento ilimitado. Antes da
-       * abertura comercial, esta callable deve validar quota, retenção, expiração
-       * e entitlement no backend. A interface não é barreira de capacidade.
-       */
       const videoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
       const publicationRef = db.doc(
         `users/${ownerUid}/video_publications/${videoId}`
       );
+      const userRef = db.doc(`users/${ownerUid}`);
+      const usageRef = db.collection(DRAFT_USAGE_COLLECTION).doc(ownerUid);
+      const reservedBytes = calculatePrivateMediaDraftReservationBytes(
+        'video',
+        videoMetadata.sizeBytes,
+        posterSizeBytes
+      );
 
-      try {
-        const batch = db.batch();
-        batch.create(videoRef, {
-          id: videoId,
-          ownerUid,
-          url: videoStoragePath,
-          path: videoStoragePath,
-          fileName,
-          mimeType: videoMetadata.mimeType,
-          sizeBytes: videoMetadata.sizeBytes,
-          durationMs,
-          thumbnailUrl: posterStoragePath,
-          thumbnailPath: posterStoragePath,
-          status,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-        batch.set(publicationRef, {
-          ownerUid,
-          videoId,
-          isPublished: false,
-          publishWhenReady,
-          visibility: 'PRIVATE',
-          orderIndex: 0,
-          moderationStatus: 'PRIVATE',
-          moderationReason: null,
-          ...publicationSettings,
-          createdAt,
-          updatedAt: createdAt,
-        });
-        await batch.commit();
-        registrationCommitted = true;
-      } catch (createError) {
-        if (isAlreadyExistsError(createError)) {
-          const concurrentResponse = await findExistingResponse(
-            ownerUid,
-            videoId,
-            videoStoragePath,
-            posterStoragePath
+      const transactionResult = await db.runTransaction(
+        async (transaction): Promise<RegistrationTransactionResult> => {
+          const [
+            existingVideoSnapshot,
+            userSnapshot,
+            usageSnapshot,
+          ] = await Promise.all([
+            transaction.get(videoRef),
+            transaction.get(userRef),
+            transaction.get(usageRef),
+          ]);
+
+          if (existingVideoSnapshot.exists) {
+            const concurrentResponse = buildExistingResponse(
+              videoId,
+              ownerUid,
+              videoStoragePath,
+              posterStoragePath,
+              existingVideoSnapshot.data() as RegisteredVideoDocument
+            );
+
+            if (!concurrentResponse) {
+              throw new HttpsError(
+                'already-exists',
+                'Já existe outro vídeo com este identificador.'
+              );
+            }
+
+            return {
+              response: concurrentResponse,
+              created: false,
+            };
+          }
+
+          const plan = resolvePrivateMediaDraftPlan(
+            userSnapshot.exists ? userSnapshot.data() : null,
+            createdAt
+          );
+          const usage = normalizePrivateMediaDraftUsage(
+            usageSnapshot.exists ? usageSnapshot.data() : null
+          );
+          const capacity = evaluatePrivateMediaDraftCapacity(
+            'video',
+            plan,
+            usage,
+            reservedBytes
           );
 
-          if (concurrentResponse) {
-            registrationCommitted = true;
-            await clearCleanupJobsBestEffort(
-              rollbackAssets.map((asset) => asset.storagePath)
-            );
-            return concurrentResponse;
+          if (!capacity.allowed) {
+            const message = capacity.reason === 'ITEM_LIMIT'
+              ? 'Você atingiu o limite de rascunhos de vídeos. Publique ou exclua um rascunho antes de enviar outro.'
+              : 'Seus rascunhos de vídeos atingiram o limite de armazenamento temporário.';
+
+            throw new HttpsError('resource-exhausted', message);
           }
+
+          const nextUsage = applyPrivateMediaDraftReservation(
+            'video',
+            usage,
+            reservedBytes
+          );
+          const expiresAt = calculatePrivateMediaDraftExpiry(
+            'video',
+            plan,
+            createdAt
+          );
+          const reservationId = draftReservationId(
+            ownerUid,
+            videoId,
+            createdAt
+          );
+
+          transaction.set(
+            usageRef,
+            {
+              ...nextUsage,
+              version: PRIVATE_MEDIA_DRAFT_USAGE_VERSION,
+              updatedAt: createdAt,
+            },
+            { merge: true }
+          );
+          transaction.create(videoRef, {
+            id: videoId,
+            ownerUid,
+            url: videoStoragePath,
+            path: videoStoragePath,
+            fileName,
+            mimeType: videoMetadata.mimeType,
+            sizeBytes: videoMetadata.sizeBytes,
+            durationMs,
+            thumbnailUrl: posterStoragePath,
+            thumbnailPath: posterStoragePath,
+            status,
+            draftLifecycleVersion: PRIVATE_MEDIA_DRAFT_LIFECYCLE_VERSION,
+            draftLifecycleState: 'ACTIVE',
+            draftReservationActive: true,
+            draftReservationId: reservationId,
+            draftPlanAtReservation: plan,
+            draftReservedBytes: reservedBytes,
+            draftExpiresAt: expiresAt,
+            draftUpdatedAt: createdAt,
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          transaction.set(publicationRef, {
+            ownerUid,
+            videoId,
+            isPublished: false,
+            publishWhenReady,
+            visibility: 'PRIVATE',
+            orderIndex: 0,
+            moderationStatus: 'PRIVATE',
+            moderationReason: null,
+            ...publicationSettings,
+            createdAt,
+            updatedAt: createdAt,
+          });
+
+          return {
+            response: {
+              videoId,
+              ownerUid,
+              status,
+              mimeType: videoMetadata.mimeType,
+              sizeBytes: videoMetadata.sizeBytes,
+              durationMs,
+              videoStoragePath,
+              posterStoragePath,
+              createdAt,
+            },
+            created: true,
+          };
         }
+      );
 
-        throw createError;
-      }
-
+      registrationCommitted = true;
       await clearCleanupJobsBestEffort(
         rollbackAssets.map((asset) => asset.storagePath)
       );
 
-      return {
-        videoId,
-        ownerUid,
-        status,
-        mimeType: videoMetadata.mimeType,
-        sizeBytes: videoMetadata.sizeBytes,
-        durationMs,
-        videoStoragePath,
-        posterStoragePath,
-        createdAt,
-      };
+      if (!transactionResult.created) {
+        return transactionResult.response;
+      }
+
+      return transactionResult.response;
     } catch (error) {
       if (!registrationCommitted) {
         await deleteUploadedAssetsRecoverably(
