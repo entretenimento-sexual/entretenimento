@@ -5,6 +5,10 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
+  createVideoAudienceAccessEvaluator,
+  type VideoAudienceAccessEvaluator,
+} from './video-audience-access.policy';
+import {
   normalizeOwnedPublishedVideoPath,
   normalizeOwnedPublishedVideoPosterPath,
 } from './video-storage-path';
@@ -52,11 +56,16 @@ function cleanId(value: unknown): string {
   return normalized;
 }
 
+function normalizeEnum(value: unknown): string {
+  return String(value ?? '').trim().toUpperCase();
+}
+
 function buildRequestKey(ownerUid: string, videoId: string): string {
   return `${ownerUid}:${videoId}`;
 }
 
 async function resolveAccessItem(
+  audienceEvaluator: VideoAudienceAccessEvaluator,
   ownerUid: string,
   videoId: string,
   expiresAt: number
@@ -85,12 +94,42 @@ async function resolveAccessItem(
 
   const publicVideo = publicVideoSnap.data();
   const publication = publicationSnap.data();
+  const projectionOwnerUid = cleanId(publicVideo?.ownerUid);
+  const projectionVideoId = cleanId(publicVideo?.id);
+  const projectionMediaType = normalizeEnum(publicVideo?.mediaType);
+  const projectionAssetAccess = normalizeEnum(publicVideo?.assetAccess);
+  const projectionVisibility = normalizeEnum(publicVideo?.visibility);
+  const publicationVisibility = normalizeEnum(publication?.visibility);
+  const projectionModeration = normalizeEnum(publicVideo?.moderationStatus);
+  const publicationModeration = normalizeEnum(publication?.moderationStatus);
 
+  /**
+   * A projeção pública não é autoridade isolada. Campo ausente ou divergência
+   * entre caminho, projeção e publicação canônica fecha o acesso até a
+   * reconciliação do backend.
+   */
   if (
-    publicVideo?.visibility !== 'PUBLIC' ||
-    publicVideo?.moderationStatus !== 'APPROVED' ||
-    publication?.isPublished !== true
+    projectionOwnerUid !== ownerUid ||
+    projectionVideoId !== videoId ||
+    projectionMediaType !== 'VIDEO' ||
+    projectionAssetAccess !== 'SIGNED_URL' ||
+    !projectionVisibility ||
+    projectionVisibility !== publicationVisibility ||
+    !projectionModeration ||
+    projectionModeration !== publicationModeration
   ) {
+    return null;
+  }
+
+  const audienceDecision = await audienceEvaluator.evaluate({
+    ownerUid,
+    action: 'PLAY',
+    visibility: publicationVisibility,
+    isPublished: publication?.isPublished === true,
+    moderationStatus: publicationModeration,
+  });
+
+  if (!audienceDecision.allowed) {
     return null;
   }
 
@@ -144,20 +183,11 @@ async function resolveAccessItem(
 export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<PublicVideoAccessResponse> => {
-    if (!request.auth?.uid) {
+    const viewerUid = cleanId(request.auth?.uid);
+
+    if (!viewerUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
-
-    /**
-     * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
-     *
-     * Este handler é a barreira definitiva antes de emitir URL assinada.
-     * Quando FRIENDS, SUBSCRIBERS ou PREMIUM forem ativados, não basta ocultar
-     * o vídeo na interface: `request.auth.uid` deverá ser passado à política
-     * central de audiência para validar amizade, assinatura/entitlement
-     * vigente, cancelamento, bloqueios e lifecycle a cada emissão ou renovação.
-     * Compartilhar um link ou uma referência no chat nunca concede acesso.
-     */
 
     const rawItems = Array.isArray(request.data?.items)
       ? request.data.items
@@ -196,13 +226,27 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
       );
     }
 
+    /**
+     * Esta sessão é a barreira definitiva antes de emitir ou renovar URLs.
+     * Lifecycle/idade são validados uma vez; bloqueios e relações são cacheados
+     * por proprietário no lote. Link direto e referência no chat não concedem
+     * audiência nem entitlement.
+     */
+    const audienceEvaluator = await createVideoAudienceAccessEvaluator(
+      viewerUid
+    );
     const expiresAt = Date.now() + SIGNED_URL_TTL_MS;
     const resolutions = await Promise.all(
       [...uniqueItems.values()].map(
         async ({ ownerUid, videoId }): Promise<PublicVideoAccessResolution> => {
           try {
             return {
-              item: await resolveAccessItem(ownerUid, videoId, expiresAt),
+              item: await resolveAccessItem(
+                audienceEvaluator,
+                ownerUid,
+                videoId,
+                expiresAt
+              ),
               technicalFailure: false,
             };
           } catch (error) {
