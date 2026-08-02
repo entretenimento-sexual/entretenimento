@@ -1,6 +1,26 @@
 {
   "indexes": [
     {
+      "collectionGroup": "photos",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "draftLifecycleVersion", "order": "ASCENDING" },
+        { "fieldPath": "draftExpiresAt", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "videos",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "draftLifecycleVersion", "order": "ASCENDING" },
+        { "fieldPath": "draftExpiresAt", "order": "ASCENDING" },
+        { "fieldPath": "__name__", "order": "ASCENDING" }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
       "collectionGroup": "public_photos",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
