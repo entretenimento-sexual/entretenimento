@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -7,19 +5,22 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
 import {
   applyPrivateMediaDraftReservation,
-  calculatePrivateMediaDraftExpiry,
-  calculatePrivateMediaDraftReservationBytes,
   evaluatePrivateMediaDraftCapacity,
   normalizePrivateMediaDraftUsage,
   PRIVATE_MEDIA_DRAFT_LIFECYCLE_VERSION,
   PRIVATE_MEDIA_DRAFT_USAGE_VERSION,
-  resolvePrivateMediaDraftPlan,
+  releasePrivateMediaDraftReservation,
 } from './private-media-draft.policy';
+import {
+  cancelPrivateMediaUploadReservationById,
+  consumePrivateMediaUploadReservation,
+} from './private-media-upload-reservation.handler';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 
 interface RegisterPrivatePhotoUploadRequest {
   ownerUid?: unknown;
   photoId?: unknown;
+  reservationId?: unknown;
   storagePath?: unknown;
   displayUrl?: unknown;
   fileName?: unknown;
@@ -109,7 +110,7 @@ function normalizePositiveInteger(value: unknown): number | null {
   return Math.trunc(parsed);
 }
 
-function normalizeHttpsUrl(value: unknown): string {
+function normalizeDisplayUrl(value: unknown): string {
   const normalized = String(value ?? '').trim();
 
   if (!normalized || normalized.length > 2048) {
@@ -118,7 +119,15 @@ function normalizeHttpsUrl(value: unknown): string {
 
   try {
     const parsed = new URL(normalized);
-    return parsed.protocol === 'https:' ? parsed.toString() : '';
+    const localHttp = parsed.protocol === 'http:' && (
+      parsed.hostname === 'localhost' ||
+      parsed.hostname === '127.0.0.1' ||
+      parsed.hostname === '::1'
+    );
+
+    return parsed.protocol === 'https:' || localHttp
+      ? parsed.toString()
+      : '';
   } catch {
     return '';
   }
@@ -150,16 +159,6 @@ function normalizeErrorMessage(error: unknown): string {
   return String(error ?? 'unknown').slice(0, 500);
 }
 
-function reservationId(
-  ownerUid: string,
-  photoId: string,
-  createdAt: number
-): string {
-  return createHash('sha256')
-    .update(`photo:${ownerUid}:${photoId}:${createdAt}`)
-    .digest('hex');
-}
-
 function buildExistingResponse(
   ownerUid: string,
   photoId: string,
@@ -184,7 +183,7 @@ function buildExistingResponse(
     photoId,
     ownerUid,
     storagePath,
-    displayUrl: normalizeHttpsUrl(existing.url) || displayUrl,
+    displayUrl: normalizeDisplayUrl(existing.url) || displayUrl,
     fileName: cleanFileName(existing.fileName),
     sizeBytes,
     createdAt: timestampToMillis(existing.createdAt),
@@ -196,6 +195,7 @@ function buildExistingResponse(
 async function readPhotoMetadata(storagePath: string): Promise<{
   mimeType: string;
   sizeBytes: number;
+  reservationId: string;
 }> {
   const file = storage.bucket().file(storagePath);
   const [exists] = await file.exists();
@@ -210,6 +210,7 @@ async function readPhotoMetadata(storagePath: string): Promise<{
   const [metadata] = await file.getMetadata();
   const mimeType = String(metadata.contentType ?? '').trim().toLowerCase();
   const sizeBytes = normalizePositiveInteger(metadata.size);
+  const reservationId = cleanId(metadata.metadata?.['mediaReservationId']);
 
   if (!ALLOWED_PHOTO_TYPES.has(mimeType)) {
     throw new HttpsError(
@@ -225,7 +226,14 @@ async function readPhotoMetadata(storagePath: string): Promise<{
     );
   }
 
-  return { mimeType, sizeBytes };
+  if (!reservationId) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A foto não possui uma reserva de upload válida.'
+    );
+  }
+
+  return { mimeType, sizeBytes, reservationId };
 }
 
 async function deleteUnregisteredPhotoBestEffort(
@@ -266,13 +274,14 @@ export const registerPrivatePhotoUpload = onCall<
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const photoId = cleanId(request.data?.photoId);
+    const requestedReservationId = cleanId(request.data?.reservationId);
 
     if (!requesterUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    if (!ownerUid || !photoId) {
-      throw new HttpsError('invalid-argument', 'Foto inválida.');
+    if (!ownerUid || !photoId || !requestedReservationId) {
+      throw new HttpsError('invalid-argument', 'Foto ou reserva inválida.');
     }
 
     if (requesterUid !== ownerUid) {
@@ -286,7 +295,7 @@ export const registerPrivatePhotoUpload = onCall<
       ownerUid,
       request.data?.storagePath
     );
-    const displayUrl = normalizeHttpsUrl(request.data?.displayUrl);
+    const displayUrl = normalizeDisplayUrl(request.data?.displayUrl);
     const displayUrlPath = extractOwnedPrivatePhotoPath(ownerUid, displayUrl);
 
     if (!storagePath || !displayUrl || displayUrlPath !== storagePath) {
@@ -312,6 +321,8 @@ export const registerPrivatePhotoUpload = onCall<
         return existing;
       }
 
+      await cancelPrivateMediaUploadReservationById(requestedReservationId);
+      await deleteUnregisteredPhotoBestEffort(ownerUid, photoId, storagePath);
       throw new HttpsError(
         'already-exists',
         'Já existe outra foto com este identificador.'
@@ -326,6 +337,13 @@ export const registerPrivatePhotoUpload = onCall<
         request.data?.sizeBytes
       );
 
+      if (metadata.reservationId !== requestedReservationId) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A reserva informada diverge da foto armazenada.'
+        );
+      }
+
       if (requestedSizeBytes && requestedSizeBytes !== metadata.sizeBytes) {
         throw new HttpsError(
           'failed-precondition',
@@ -335,21 +353,14 @@ export const registerPrivatePhotoUpload = onCall<
 
       const createdAt = Date.now();
       const fileName = cleanFileName(request.data?.fileName);
-      const userRef = db.doc(`users/${ownerUid}`);
       const usageRef = db.collection(DRAFT_USAGE_COLLECTION).doc(ownerUid);
-      const reservedBytes = calculatePrivateMediaDraftReservationBytes(
-        'photo',
-        metadata.sizeBytes
-      );
 
       const response = await db.runTransaction(
         async (transaction): Promise<RegisterPrivatePhotoUploadResponse> => {
-          const [currentPhotoSnapshot, userSnapshot, usageSnapshot] =
-            await Promise.all([
-              transaction.get(photoRef),
-              transaction.get(userRef),
-              transaction.get(usageRef),
-            ]);
+          const [currentPhotoSnapshot, usageSnapshot] = await Promise.all([
+            transaction.get(photoRef),
+            transaction.get(usageRef),
+          ]);
 
           if (currentPhotoSnapshot.exists) {
             const existing = buildExistingResponse(
@@ -370,38 +381,49 @@ export const registerPrivatePhotoUpload = onCall<
             );
           }
 
-          const plan = resolvePrivateMediaDraftPlan(
-            userSnapshot.exists ? userSnapshot.data() : null,
-            createdAt
+          const reservation = await consumePrivateMediaUploadReservation(
+            transaction,
+            {
+              reservationId: requestedReservationId,
+              ownerUid,
+              mediaId: photoId,
+              kind: 'photo',
+              operation: 'CREATE',
+              sourceStoragePath: storagePath,
+              auxiliaryStoragePath: null,
+              sourceSizeBytes: metadata.sizeBytes,
+              auxiliarySizeBytes: 0,
+              now: createdAt,
+            }
           );
           const usage = normalizePrivateMediaDraftUsage(
             usageSnapshot.exists ? usageSnapshot.data() : null
           );
+          const baselineUsage = releasePrivateMediaDraftReservation(
+            'photo',
+            usage,
+            reservation.reservedUsageBytes
+          );
           const capacity = evaluatePrivateMediaDraftCapacity(
             'photo',
-            plan,
-            usage,
-            reservedBytes
+            reservation.plan,
+            baselineUsage,
+            reservation.draftReservedBytes
           );
 
           if (!capacity.allowed) {
-            const message = capacity.reason === 'ITEM_LIMIT'
-              ? 'Você atingiu o limite de rascunhos de fotos. Publique ou exclua um rascunho antes de enviar outro.'
-              : 'Seus rascunhos de fotos atingiram o limite de armazenamento temporário.';
-
-            throw new HttpsError('resource-exhausted', message);
+            throw new HttpsError(
+              'resource-exhausted',
+              'A capacidade de rascunhos mudou antes do registro da foto.'
+            );
           }
 
           const nextUsage = applyPrivateMediaDraftReservation(
             'photo',
-            usage,
-            reservedBytes
+            baselineUsage,
+            reservation.draftReservedBytes
           );
-          const draftExpiresAt = calculatePrivateMediaDraftExpiry(
-            'photo',
-            plan,
-            createdAt
-          );
+          const draftExpiresAt = reservation.draftExpiresAt ?? createdAt;
 
           transaction.set(
             usageRef,
@@ -423,9 +445,9 @@ export const registerPrivatePhotoUpload = onCall<
             draftLifecycleVersion: PRIVATE_MEDIA_DRAFT_LIFECYCLE_VERSION,
             draftLifecycleState: 'ACTIVE',
             draftReservationActive: true,
-            draftReservationId: reservationId(ownerUid, photoId, createdAt),
-            draftPlanAtReservation: plan,
-            draftReservedBytes: reservedBytes,
+            draftReservationId: reservation.reservationId,
+            draftPlanAtReservation: reservation.plan,
+            draftReservedBytes: reservation.draftReservedBytes,
             draftExpiresAt,
             draftUpdatedAt: createdAt,
             createdAt: FieldValue.serverTimestamp(),
@@ -449,6 +471,9 @@ export const registerPrivatePhotoUpload = onCall<
       return response;
     } catch (error) {
       if (!registrationCommitted) {
+        await cancelPrivateMediaUploadReservationById(
+          requestedReservationId
+        );
         await deleteUnregisteredPhotoBestEffort(
           ownerUid,
           photoId,
