@@ -129,3 +129,8 @@ export {
 export {
   recordVideoView,
 } from './application/record-video-view-orchestrator.handler';
+
+export {
+  recalculateVideoRankingOnWrite,
+  refreshPublicVideoRankingScores,
+} from './application/video-ranking-score-maintenance.handler';
