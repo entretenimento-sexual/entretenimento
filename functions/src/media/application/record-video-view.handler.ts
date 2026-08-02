@@ -5,6 +5,14 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
 import {
+  MEDIA_RANKING_VERSION,
+  buildMediaEngagementScore,
+  normalizeMediaCount,
+  normalizeMediaScore,
+  normalizeMediaTotal,
+  type MediaScoreBreakdown,
+} from './media-engagement-score';
+import {
   PROFILE_VIEWER_INDEX_VERSION,
   PROFILE_VIEWERS_COLLECTION,
   calculatePublicProfileEngagementScore,
@@ -79,22 +87,6 @@ function assertPublicApprovedVideo(
       'Vídeo indisponível para visualização pública.'
     );
   }
-}
-
-function calculateViewScore(input: {
-  viewsCount: number;
-  uniqueViewersCount: number;
-  lastViewedAt: number;
-  publishedAt: number;
-}): number {
-  const recencyBoost =
-    Math.max(0, input.lastViewedAt - input.publishedAt) / 1_000_000_000;
-
-  return Math.round(
-    input.viewsCount * 4 +
-      input.uniqueViewersCount * 6 +
-      recencyBoost
-  );
 }
 
 function hashPlaybackSession(input: {
@@ -229,26 +221,64 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
       });
       const canCountView = countDecision.canCount;
 
-      const currentVideoViewsCount = safeNumber(publicVideo.viewsCount);
-      const currentVideoUniqueViewersCount = safeNumber(
+      const currentVideoViewsCount = normalizeMediaCount(
+        publicVideo.viewsCount
+      );
+      const currentVideoUniqueViewersCount = normalizeMediaCount(
         publicVideo.uniqueViewersCount
       );
-      const currentVideoViewScore = safeNumber(publicVideo.viewScore);
+      const currentVideoViewScore = normalizeMediaScore(
+        publicVideo.viewScore
+      );
+      const currentQualifiedViewsCount = normalizeMediaCount(
+        publicVideo.qualifiedViewsCount
+      );
+      const currentTotalQualifiedPlaybackMs = normalizeMediaTotal(
+        publicVideo.totalQualifiedPlaybackMs
+      );
+      const currentTotalQualifiedDurationMs = normalizeMediaTotal(
+        publicVideo.totalQualifiedDurationMs
+      );
       const nextVideoViewsCount = canCountView
         ? currentVideoViewsCount + 1
         : currentVideoViewsCount;
       const nextVideoUniqueViewersCount = isUniqueVideoViewer
         ? currentVideoUniqueViewersCount + 1
         : currentVideoUniqueViewersCount;
+      const nextQualifiedViewsCount = canCountView
+        ? currentQualifiedViewsCount + 1
+        : currentQualifiedViewsCount;
+      const nextTotalQualifiedPlaybackMs = canCountView
+        ? currentTotalQualifiedPlaybackMs + Math.min(
+          evidence.playbackMs,
+          evidence.durationMs
+        )
+        : currentTotalQualifiedPlaybackMs;
+      const nextTotalQualifiedDurationMs = canCountView
+        ? currentTotalQualifiedDurationMs + evidence.durationMs
+        : currentTotalQualifiedDurationMs;
       const publishedAt = safeNumber(publicVideo.publishedAt) || now;
-      const nextVideoViewScore = canCountView
-        ? calculateViewScore({
+      const nextVideoRanking = canCountView
+        ? buildMediaEngagementScore({
+          reactionsCount: normalizeMediaCount(
+            publicVideo.reactionsCount ?? publicVideo.likesCount
+          ),
+          commentsCount: normalizeMediaCount(publicVideo.commentsCount),
+          ratingsCount: normalizeMediaCount(publicVideo.ratingsCount),
+          ratingAverage: publicVideo.ratingAverage,
           viewsCount: nextVideoViewsCount,
           uniqueViewersCount: nextVideoUniqueViewersCount,
-          lastViewedAt: now,
+          qualifiedViewsCount: nextQualifiedViewsCount,
+          totalQualifiedPlaybackMs: nextTotalQualifiedPlaybackMs,
+          totalQualifiedDurationMs: nextTotalQualifiedDurationMs,
           publishedAt,
+          now,
+          currentBreakdown: publicVideo.scoreBreakdown as
+            Partial<MediaScoreBreakdown> | undefined,
         })
-        : currentVideoViewScore;
+        : null;
+      const nextVideoViewScore = nextVideoRanking?.viewScore ??
+        currentVideoViewScore;
 
       const currentProfileViewsCount = safeNumber(
         publicProfile.profileViewsCount ?? publicProfile.viewsCount
@@ -362,14 +392,24 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
         );
       }
 
-      if (canCountView) {
+      if (canCountView && nextVideoRanking) {
         transaction.set(
           publicVideoRef,
           {
             viewsCount: nextVideoViewsCount,
             uniqueViewersCount: nextVideoUniqueViewersCount,
+            qualifiedViewsCount: nextQualifiedViewsCount,
+            totalQualifiedPlaybackMs: nextTotalQualifiedPlaybackMs,
+            totalQualifiedDurationMs: nextTotalQualifiedDurationMs,
             lastViewedAt: now,
-            viewScore: nextVideoViewScore,
+            viewScore: nextVideoRanking.viewScore,
+            retentionScore: nextVideoRanking.retentionScore,
+            freshnessScore: nextVideoRanking.freshnessScore,
+            engagementScore: nextVideoRanking.engagementScore,
+            score: nextVideoRanking.score,
+            scoreBreakdown: nextVideoRanking.scoreBreakdown,
+            rankingVersion: MEDIA_RANKING_VERSION,
+            rankingUpdatedAt: now,
           },
           { merge: true }
         );
