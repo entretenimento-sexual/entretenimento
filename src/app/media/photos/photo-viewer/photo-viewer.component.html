@@ -43,6 +43,7 @@
             [alt]="current.alt || 'Foto do perfil'"
             loading="eager"
             referrerpolicy="no-referrer"
+            (load)="onCurrentPhotoLoaded()"
           />
         } @else {
           <p class="empty">Nenhuma foto para exibir.</p>

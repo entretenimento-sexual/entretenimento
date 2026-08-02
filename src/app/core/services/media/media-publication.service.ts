@@ -5,14 +5,9 @@
 // - separar publicação da biblioteca privada;
 // - ler configuração privada de publicação;
 // - solicitar publicação/despublicação/capa via Cloud Functions;
-// - registrar visualização pública por backend confiável;
+// - delegar visualização pública ao serviço canônico de tracking;
 // - manter Observable na API pública;
 // - impedir escrita direta do cliente na projeção pública.
-//
-// Segurança:
-// - cliente não escreve public_profiles/{uid}/public_photos;
-// - cliente não atualiza score/contadores/moderação;
-// - publicação e visualização passam pelo backend.
 
 import { Injectable, inject } from '@angular/core';
 import {
@@ -33,6 +28,11 @@ import {
   TPhotoCommentsPolicy,
   TPhotoVisibility,
 } from 'src/app/core/interfaces/media/i-photo-publication-config';
+import {
+  PhotoViewEvidence,
+  PhotoViewTrackingService,
+  TPhotoViewSource,
+} from './photo-view-tracking.service';
 
 const MAX_PUBLICATION_CAPTION_LENGTH = 800;
 
@@ -47,14 +47,6 @@ export interface IPublishPhotoCommand {
   commentsPolicy?: TPhotoCommentsPolicy;
   reactionsEnabled?: boolean;
 }
-
-type TRecordPhotoViewSource =
-  | 'discover'
-  | 'profile'
-  | 'latest'
-  | 'top'
-  | 'boosted'
-  | 'unknown';
 
 interface PublishPhotoCallableRequest {
   ownerUid: string;
@@ -78,16 +70,11 @@ interface PhotoIdCallableRequest {
   photoId: string;
 }
 
-interface RecordPhotoViewCallableRequest {
-  ownerUid: string;
-  photoId: string;
-  source: TRecordPhotoViewSource;
-}
-
 @Injectable({ providedIn: 'root' })
 export class MediaPublicationService {
   private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
+  private readonly photoViewTracking = inject(PhotoViewTrackingService);
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
@@ -125,21 +112,16 @@ export class MediaPublicationService {
             isPublished: !!item.isPublished,
             visibility: item.visibility ?? 'PRIVATE',
             caption: this.normalizeCaption(item.caption),
-
             isCover: !!item.isCover,
             orderIndex: item.orderIndex ?? 0,
-
             commentsEnabled: item.commentsEnabled ?? false,
             commentsPolicy: item.commentsPolicy ?? 'OFF',
             commentsCount: item.commentsCount ?? 0,
-
             reactionsEnabled: item.reactionsEnabled ?? false,
             reactionsCount: item.reactionsCount ?? 0,
-
             moderationStatus: item.moderationStatus ?? 'PRIVATE',
             moderationReason: item.moderationReason ?? null,
             reportsCount: item.reportsCount ?? 0,
-
             score: item.score ?? 0,
             scoreBreakdown: item.scoreBreakdown ?? {
               rankingScore: 0,
@@ -147,7 +129,6 @@ export class MediaPublicationService {
               engagementScore: 0,
               safetyScore: 100,
             },
-
             publishedAt: item.publishedAt ?? null,
             updatedAt: item.updatedAt,
             lastModeratedAt: item.lastModeratedAt ?? null,
@@ -176,25 +157,19 @@ export class MediaPublicationService {
     return {
       photoId,
       ownerUid,
-
       isPublished: false,
       visibility: 'PRIVATE',
       caption: null,
-
       isCover: false,
       orderIndex: 0,
-
       commentsEnabled: false,
       commentsPolicy: 'OFF',
       commentsCount: 0,
-
       reactionsEnabled: false,
       reactionsCount: 0,
-
       moderationStatus: 'PRIVATE',
       moderationReason: null,
       reportsCount: 0,
-
       score: 0,
       scoreBreakdown: {
         rankingScore: 0,
@@ -202,7 +177,6 @@ export class MediaPublicationService {
         engagementScore: 0,
         safetyScore: 100,
       },
-
       publishedAt: null,
       updatedAt: Date.now(),
       lastModeratedAt: null,
@@ -327,46 +301,33 @@ export class MediaPublicationService {
     );
   }
 
+  /**
+   * Fachada preservada para consumidores existentes que já possuem evidência.
+   * Novos visualizadores devem usar trackQualifiedPhotoView$ após o load.
+   */
   recordPhotoView$(
     ownerUid: string,
     photoId: string,
-    source: TRecordPhotoViewSource = 'profile'
+    source: TPhotoViewSource = 'profile',
+    evidence?: PhotoViewEvidence
   ): Observable<void> {
-    const safeOwnerUid = (ownerUid ?? '').trim();
-    const safePhotoId = (photoId ?? '').trim();
+    return this.photoViewTracking.recordPhotoView$(
+      ownerUid,
+      photoId,
+      source,
+      evidence
+    );
+  }
 
-    if (!safeOwnerUid || !safePhotoId) {
-      return of(void 0);
-    }
-
-    return this.firestoreCtx.deferPromise$(async () => {
-      const callable = httpsCallable<
-        RecordPhotoViewCallableRequest,
-        { ok: true }
-      >(this.functions, 'recordPhotoView');
-
-      await callable({
-        ownerUid: safeOwnerUid,
-        photoId: safePhotoId,
-        source,
-      });
-    }).pipe(
-      map(() => void 0),
-      catchError((error) => {
-        this.reportError(
-          'Erro ao registrar visualização da foto.',
-          error,
-          {
-            op: 'recordPhotoView$',
-            ownerUid: safeOwnerUid,
-            photoId: safePhotoId,
-            source,
-          },
-          true
-        );
-
-        return of(void 0);
-      })
+  trackQualifiedPhotoView$(
+    ownerUid: string,
+    photoId: string,
+    source: TPhotoViewSource = 'profile'
+  ): Observable<void> {
+    return this.photoViewTracking.trackQualifiedPhotoView$(
+      ownerUid,
+      photoId,
+      source
     );
   }
 

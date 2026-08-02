@@ -16,12 +16,12 @@ import {
   take,
 } from 'rxjs/operators';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import type { TPhotoViewSource } from 'src/app/core/services/media/photo-view-tracking.service';
 import { PublicPhotoCardComponent } from 'src/app/media/shared/components/public-photo-card/public-photo-card.component';
 import { PublicPhotoLightboxComponent } from 'src/app/media/shared/components/public-photo-lightbox/public-photo-lightbox.component';
 import { ExploreFeedFacade } from '../../facades/explore-feed.facade';
 import { IExploreFeedVm } from '../../services/explore-feed.service';
 import { TExploreSectionId } from '../../models/i-explore-section';
-import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view-tracking.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -80,7 +80,6 @@ export class SocialExplorePageComponent {
 
   private readonly exploreFeedFacade = inject(ExploreFeedFacade);
   private readonly personalMedia = inject(ExplorePersonalMediaService);
-  private readonly photoViewTracking = inject(PhotoViewTrackingService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly authSession = inject(AuthSessionService);
   private readonly statusService = inject(UserIntentStatusService);
@@ -115,10 +114,6 @@ export class SocialExplorePageComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  /**
-   * Pool de fotos já priorizado por amizade, compatibilidade e recência.
-   * Momentos temporários são inseridos somente depois desse ranking pessoal.
-   */
   private readonly photoFeedPool$: Observable<readonly IPublicPhotoItem[]> =
     this.vm$.pipe(
       map((vm) =>
@@ -129,11 +124,6 @@ export class SocialExplorePageComponent {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  /**
-   * Momentos públicos da região são consultados apenas quando existe algum
-   * vínculo pessoal resolvido. O modelo puro faz o filtro final por autor e
-   * exclui o próprio usuário, cujo momento ocupa o primeiro cartão da timeline.
-   */
   private readonly relatedStatuses$ = combineLatest([
     this.authUid$,
     this.vm$,
@@ -251,20 +241,6 @@ export class SocialExplorePageComponent {
 
   openPhoto(section: TExplorePhotoSection, index: number): void {
     this.lightboxStateSubject.next({ section, index });
-
-    this.activeLightboxItems$.pipe(take(1)).subscribe((items) => {
-      const item = items[index];
-      if (!item) return;
-
-      this.photoViewTracking
-        .recordPhotoView$(
-          item.ownerUid,
-          item.id,
-          this.resolveViewSource(section)
-        )
-        .pipe(take(1))
-        .subscribe();
-    });
   }
 
   loadMoreFeed(): void {
@@ -309,7 +285,7 @@ export class SocialExplorePageComponent {
     return item.key;
   }
 
-  private resolveViewSource(section: TExplorePhotoSection) {
+  resolveViewSource(section: TExplorePhotoSection): TPhotoViewSource {
     switch (section) {
       case 'feed':
       case 'mostViewed':
