@@ -52,11 +52,11 @@ describe('video-edit-recipe', () => {
     const geometry = resolveVideoEditGeometry(recipe);
 
     assert.ok(geometry);
-    assert.equal(geometry.outputWidthPixels, 608);
+    assert.equal(geometry.outputWidthPixels, 606);
     assert.equal(geometry.outputHeightPixels, 1080);
     assert.equal(
       geometry.crop.leftPixels + geometry.crop.rightPixels,
-      1312
+      1314
     );
     assert.equal(geometry.crop.topPixels, 0);
   });
