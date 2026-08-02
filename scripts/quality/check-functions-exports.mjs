@@ -30,6 +30,7 @@ const requiredExports = [
   'submitComplianceCaseResponse',
   'registerAndPublishPhotoUpload',
   'registerPrivateVideoUpload',
+  'getPublicVideoHlsAccess',
   'finalizeVideoProcessingVariants',
 ];
 
