@@ -77,8 +77,14 @@ interface RelationshipDocument {
   friendUid?: unknown;
 }
 
-interface ViewerAccountDocument extends Record<string, unknown> {
+interface ViewerAccountDocument {
   uid?: unknown;
+  accountStatus?: unknown;
+  suspended?: unknown;
+  interactionBlocked?: unknown;
+  ageReverification?: {
+    status?: unknown;
+  } | null;
   accountLocked?: unknown;
   loginAllowed?: unknown;
 }
