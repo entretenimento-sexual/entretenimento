@@ -49,7 +49,7 @@ describe('video-view-session.policy', () => {
     });
 
     assert.equal(decision.allowed, false);
-    assert.equal(decision.retryAfterMs, 1_000);
+    assert.equal(decision.retryAfterMs, 1);
     assert.equal(decision.nextState.count, 1);
   });
 
