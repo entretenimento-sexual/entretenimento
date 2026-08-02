@@ -6,7 +6,7 @@
 // - impedir que um barrel TypeScript correto esconda um functions/lib obsoleto;
 // - falhar antes de iniciar emuladores ou validar produção;
 // - manter diagnóstico explícito para callables críticas de mensageria,
-//   compliance e publicação obrigatória de mídia.
+//   compliance e publicação/processamento obrigatório de mídia.
 // -----------------------------------------------------------------------------
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -30,6 +30,7 @@ const requiredExports = [
   'submitComplianceCaseResponse',
   'registerAndPublishPhotoUpload',
   'registerPrivateVideoUpload',
+  'finalizeVideoProcessingVariants',
 ];
 
 if (!existsSync(entryPath)) {
