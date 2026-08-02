@@ -1,0 +1,58 @@
+name: Media Draft Functions E2E
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: media-draft-functions-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  functional-e2e:
+    name: Reservation concurrency and reconciliation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Install Functions dependencies
+        run: npm --prefix functions ci
+
+      - name: Build rules and Functions
+        run: |
+          npm run rules:build
+          npm --prefix functions run build
+
+      - name: Validate reservation concurrency and reconciliation
+        shell: bash
+        run: |
+          npx firebase emulators:exec \
+            --config firebase.media-e2e.json \
+            --only auth,firestore,functions \
+            --project demo-entretenimento-media-draft-functions \
+            "node scripts/tests/private-media-draft-functions.e2e.mjs"
