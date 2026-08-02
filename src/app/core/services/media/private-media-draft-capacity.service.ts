@@ -4,6 +4,9 @@ import { Observable, defer, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import {
+  normalizePrivateMediaDraftOperationError,
+} from './private-media-draft-operation-error';
 
 export type PrivateMediaDraftKind = 'photo' | 'video';
 export type PrivateMediaDraftPlan = 'free' | 'basic' | 'premium' | 'vip';
@@ -162,7 +165,12 @@ export class PrivateMediaDraftCapacityService {
     return defer(() => from(this.reserveCallable(request))).pipe(
       map((response) => this.normalizeReservation(response.data)),
       catchError((error) => {
-        this.reportError(error, {
+        const normalizedError = normalizePrivateMediaDraftOperationError(
+          error,
+          'Não foi possível reservar espaço para o envio.'
+        );
+
+        this.reportError(normalizedError, {
           op: 'reserveUpload$',
           kind: request.kind,
           operation: request.operation,
@@ -171,7 +179,7 @@ export class PrivateMediaDraftCapacityService {
           sourceSizeBytes: request.sourceSizeBytes,
           auxiliarySizeBytes: request.auxiliarySizeBytes,
         });
-        return throwError(() => error);
+        return throwError(() => normalizedError);
       })
     );
   }
