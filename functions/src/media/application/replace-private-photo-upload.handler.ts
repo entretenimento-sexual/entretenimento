@@ -4,17 +4,20 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
 import {
-  calculatePrivateMediaDraftReservationBytes,
   getPrivateMediaDraftLimit,
   normalizePrivateMediaDraftUsage,
   PRIVATE_MEDIA_DRAFT_USAGE_VERSION,
-  resolvePrivateMediaDraftPlan,
 } from './private-media-draft.policy';
+import {
+  cancelPrivateMediaUploadReservationById,
+  consumePrivateMediaUploadReservation,
+} from './private-media-upload-reservation.handler';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 
 interface ReplacePrivatePhotoUploadRequest {
   ownerUid?: unknown;
   photoId?: unknown;
+  reservationId?: unknown;
   currentStoragePath?: unknown;
   newStoragePath?: unknown;
   newDisplayUrl?: unknown;
@@ -139,6 +142,7 @@ function normalizeErrorMessage(error: unknown): string {
 async function readPhotoMetadata(storagePath: string): Promise<{
   mimeType: string;
   sizeBytes: number;
+  reservationId: string;
 }> {
   const file = storage.bucket().file(storagePath);
   const [exists] = await file.exists();
@@ -153,6 +157,7 @@ async function readPhotoMetadata(storagePath: string): Promise<{
   const [metadata] = await file.getMetadata();
   const mimeType = String(metadata.contentType ?? '').trim().toLowerCase();
   const sizeBytes = normalizePositiveInteger(metadata.size);
+  const reservationId = cleanId(metadata.metadata?.['mediaReservationId']);
 
   if (!ALLOWED_PHOTO_TYPES.has(mimeType)) {
     throw new HttpsError(
@@ -168,7 +173,14 @@ async function readPhotoMetadata(storagePath: string): Promise<{
     );
   }
 
-  return { mimeType, sizeBytes };
+  if (!reservationId) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A nova foto não possui uma reserva de upload válida.'
+    );
+  }
+
+  return { mimeType, sizeBytes, reservationId };
 }
 
 async function deleteNewPhotoBestEffort(storagePath: string): Promise<void> {
@@ -192,13 +204,14 @@ export const replacePrivatePhotoUpload = onCall<
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const photoId = cleanId(request.data?.photoId);
+    const requestedReservationId = cleanId(request.data?.reservationId);
 
     if (!requesterUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    if (!ownerUid || !photoId) {
-      throw new HttpsError('invalid-argument', 'Foto inválida.');
+    if (!ownerUid || !photoId || !requestedReservationId) {
+      throw new HttpsError('invalid-argument', 'Foto ou reserva inválida.');
     }
 
     if (requesterUid !== ownerUid) {
@@ -243,6 +256,13 @@ export const replacePrivatePhotoUpload = onCall<
         request.data?.sizeBytes
       );
 
+      if (metadata.reservationId !== requestedReservationId) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A reserva informada diverge da nova foto armazenada.'
+        );
+      }
+
       if (requestedSizeBytes && requestedSizeBytes !== metadata.sizeBytes) {
         throw new HttpsError(
           'failed-precondition',
@@ -254,28 +274,18 @@ export const replacePrivatePhotoUpload = onCall<
       const publicationRef = db.doc(
         `users/${ownerUid}/photo_publications/${photoId}`
       );
-      const userRef = db.doc(`users/${ownerUid}`);
       const usageRef = db.collection(DRAFT_USAGE_COLLECTION).doc(ownerUid);
       const updatedAt = Date.now();
       const fileName = cleanFileName(request.data?.fileName);
-      const newReservedBytes = calculatePrivateMediaDraftReservationBytes(
-        'photo',
-        metadata.sizeBytes
-      );
 
       const response = await db.runTransaction(
         async (transaction): Promise<ReplacePrivatePhotoUploadResponse> => {
-          const [
-            photoSnapshot,
-            publicationSnapshot,
-            userSnapshot,
-            usageSnapshot,
-          ] = await Promise.all([
-            transaction.get(photoRef),
-            transaction.get(publicationRef),
-            transaction.get(userRef),
-            transaction.get(usageRef),
-          ]);
+          const [photoSnapshot, publicationSnapshot, usageSnapshot] =
+            await Promise.all([
+              transaction.get(photoRef),
+              transaction.get(publicationRef),
+              transaction.get(usageRef),
+            ]);
 
           if (!photoSnapshot.exists) {
             throw new HttpsError('not-found', 'A foto original não existe.');
@@ -293,35 +303,48 @@ export const replacePrivatePhotoUpload = onCall<
             );
           }
 
+          const reservation = await consumePrivateMediaUploadReservation(
+            transaction,
+            {
+              reservationId: requestedReservationId,
+              ownerUid,
+              mediaId: photoId,
+              kind: 'photo',
+              operation: 'REPLACE',
+              sourceStoragePath: newStoragePath,
+              auxiliaryStoragePath: null,
+              sourceSizeBytes: metadata.sizeBytes,
+              auxiliarySizeBytes: 0,
+              now: updatedAt,
+            }
+          );
           const publication = publicationSnapshot.exists
             ? publicationSnapshot.data() as PhotoPublicationDocument
             : null;
           const isPublished = publication?.isPublished === true;
           const reservationActive = photo.draftReservationActive === true;
+          const usage = normalizePrivateMediaDraftUsage(
+            usageSnapshot.exists ? usageSnapshot.data() : null
+          );
 
           if (!isPublished && reservationActive) {
-            const usage = normalizePrivateMediaDraftUsage(
-              usageSnapshot.exists ? usageSnapshot.data() : null
-            );
             const previousReservedBytes =
               normalizePositiveInteger(photo.draftReservedBytes) ?? 0;
+            const baselineReservedBytes = Math.max(
+              0,
+              usage.photoReservedBytes - reservation.reservedUsageBytes
+            );
             const nextTotalReservedBytes = Math.max(
               0,
-              usage.photoReservedBytes - previousReservedBytes +
-                newReservedBytes
+              baselineReservedBytes - previousReservedBytes +
+                reservation.draftReservedBytes
             );
-            const plan = resolvePrivateMediaDraftPlan(
-              userSnapshot.exists ? userSnapshot.data() : null,
-              updatedAt
+            const limit = getPrivateMediaDraftLimit(
+              'photo',
+              reservation.plan
             );
-            const limit = getPrivateMediaDraftLimit('photo', plan);
-            const increasesReservation =
-              newReservedBytes > previousReservedBytes;
 
-            if (
-              increasesReservation &&
-              nextTotalReservedBytes > limit.maxReservedBytes
-            ) {
+            if (nextTotalReservedBytes > limit.maxReservedBytes) {
               throw new HttpsError(
                 'resource-exhausted',
                 'A nova versão ultrapassa o armazenamento temporário disponível para fotos.'
@@ -344,12 +367,28 @@ export const replacePrivatePhotoUpload = onCall<
               fileName,
               mimeType: metadata.mimeType,
               sizeBytes: metadata.sizeBytes,
-              draftPlanAtReservation: plan,
-              draftReservedBytes: newReservedBytes,
+              draftPlanAtReservation: reservation.plan,
+              draftReservedBytes: reservation.draftReservedBytes,
               draftUpdatedAt: updatedAt,
               updatedAt: FieldValue.serverTimestamp(),
             });
           } else {
+            if (reservation.reservedUsageBytes > 0) {
+              transaction.set(
+                usageRef,
+                {
+                  ...usage,
+                  photoReservedBytes: Math.max(
+                    0,
+                    usage.photoReservedBytes - reservation.reservedUsageBytes
+                  ),
+                  version: PRIVATE_MEDIA_DRAFT_USAGE_VERSION,
+                  updatedAt,
+                },
+                { merge: true }
+              );
+            }
+
             transaction.update(photoRef, {
               url: newDisplayUrl,
               path: newStoragePath,
@@ -377,6 +416,9 @@ export const replacePrivatePhotoUpload = onCall<
       return response;
     } catch (error) {
       if (!replacementCommitted) {
+        await cancelPrivateMediaUploadReservationById(
+          requestedReservationId
+        );
         await deleteNewPhotoBestEffort(newStoragePath);
       }
 
