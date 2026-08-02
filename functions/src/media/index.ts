@@ -66,6 +66,12 @@ export {
 } from './application/private-media-draft-lifecycle.handler';
 
 export {
+  cancelPrivateMediaUploadReservation,
+  cleanupPrivateMediaUploadReservations,
+  reservePrivateMediaUpload,
+} from './application/private-media-upload-reservation.handler';
+
+export {
   registerPrivatePhotoUpload,
 } from './application/register-private-photo-upload.handler';
 export {
