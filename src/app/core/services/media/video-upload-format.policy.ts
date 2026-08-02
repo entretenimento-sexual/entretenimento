@@ -9,7 +9,7 @@ export interface VideoUploadFormat {
  *
  * Esta lista deve permanecer alinhada com:
  * - storage.rules;
- * - register-private-video-upload.handler.ts;
+ * - register-private-video-upload-orchestrator.handler.ts;
  * - queue-video-processing.handler.ts.
  *
  * Não anunciar um formato apenas porque o navegador permite selecioná-lo. O
