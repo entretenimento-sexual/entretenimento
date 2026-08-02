@@ -23,6 +23,7 @@ export interface PublicPhotoRankingDocument
   qualifiedViewsCount?: unknown;
   totalQualifiedVisibleMs?: unknown;
   totalQualifiedTargetMs?: unknown;
+  averageQualifiedVisibleMs?: unknown;
   publishedAt?: unknown;
   score?: unknown;
   viewScore?: unknown;
@@ -155,6 +156,9 @@ export function buildPhotoRankingUpdate(
       data.totalQualifiedTargetMs
     )
   );
+  const averageQualifiedVisibleMs = qualifiedViewsCount > 0
+    ? Math.round(totalQualifiedVisibleMs / qualifiedViewsCount)
+    : 0;
   const ranking = buildMediaEngagementScore({
     reactionsCount: normalizeMediaCount(
       valueOrFallback(
@@ -194,9 +198,7 @@ export function buildPhotoRankingUpdate(
     qualifiedViewsCount,
     totalQualifiedVisibleMs,
     totalQualifiedTargetMs,
-    averageQualifiedVisibleMs: qualifiedViewsCount > 0
-      ? Math.round(totalQualifiedVisibleMs / qualifiedViewsCount)
-      : 0,
+    averageQualifiedVisibleMs,
     rankingVersion: MEDIA_RANKING_VERSION,
     rankingUpdatedAt: now,
   };
@@ -221,6 +223,8 @@ export function hasEquivalentPhotoRanking(
       update.totalQualifiedVisibleMs &&
     normalizeMediaTotal(data.totalQualifiedTargetMs) ===
       update.totalQualifiedTargetMs &&
+    normalizeMediaTotal(data.averageQualifiedVisibleMs) ===
+      update.averageQualifiedVisibleMs &&
     normalizeMediaScore(currentBreakdown.rankingScore) ===
       nextBreakdown.rankingScore &&
     normalizeMediaScore(currentBreakdown.qualityScore) ===
