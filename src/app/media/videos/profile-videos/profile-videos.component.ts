@@ -57,6 +57,9 @@ import {
   resolveVideoUploadFormat,
 } from 'src/app/core/services/media/video-upload-format.policy';
 import {
+  buildVideoUploadSafetyAttestation,
+} from 'src/app/core/services/media/video-upload-safety-attestation.policy';
+import {
   IVideoUploadFlowEvent,
   VideoUploadFlowService,
   VideoUploadProgressPhase,
@@ -138,6 +141,9 @@ export class ProfileVideosComponent {
     reactionsEnabled: [true],
     commentsEnabled: [true],
     ratingsEnabled: [true],
+    allParticipantsAdultsAndConsenting: [false, Validators.requiredTrue],
+    rightsAndPermissionsConfirmed: [false, Validators.requiredTrue],
+    prohibitedContentAcknowledged: [false, Validators.requiredTrue],
   });
 
   readonly publicationSettingsForm = this.formBuilder.nonNullable.group({
@@ -194,6 +200,10 @@ export class ProfileVideosComponent {
               emailVerified: user.emailVerified === true,
               profileCompleted: user.profileCompleted === true,
               interactionBlocked: user.interactionBlocked === true,
+              ageReverificationStatus:
+                user.ageReverification?.status ?? null,
+              ageReverificationResult:
+                user.ageReverification?.result ?? null,
             }
           : user
       ),
@@ -204,7 +214,11 @@ export class ProfileVideosComponent {
           previous.uid === current.uid &&
           previous.emailVerified === current.emailVerified &&
           previous.profileCompleted === current.profileCompleted &&
-          previous.interactionBlocked === current.interactionBlocked)
+          previous.interactionBlocked === current.interactionBlocked &&
+          previous.ageReverificationStatus ===
+            current.ageReverificationStatus &&
+          previous.ageReverificationResult ===
+            current.ageReverificationResult)
       ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -351,12 +365,15 @@ export class ProfileVideosComponent {
       reactionsEnabled: true,
       commentsEnabled: true,
       ratingsEnabled: true,
+      allParticipantsAdultsAndConsenting: false,
+      rightsAndPermissionsConfirmed: false,
+      prohibitedContentAcknowledged: false,
     });
     this.uploadPhaseSubject.next('READY');
     this.uploadProgressSubject.next(0);
     this.uploadStepSubject.next(
       format.browserPreviewLikely
-        ? 'Revise a capa e as informações antes de enviar.'
+        ? 'Revise a capa, as informações e as declarações antes de enviar.'
         : 'Formato aceito. A prévia pode não abrir neste navegador; o vídeo será convertido após o envio.'
     );
   }
@@ -401,7 +418,7 @@ export class ProfileVideosComponent {
     if (this.uploadPublicationForm.invalid) {
       this.uploadPublicationForm.markAllAsTouched();
       this.errorNotification.showWarning(
-        'Informe um título válido antes de enviar o vídeo.'
+        'Revise o título e confirme todas as declarações obrigatórias.'
       );
       return;
     }
@@ -434,15 +451,17 @@ export class ProfileVideosComponent {
         }
 
         const publication = this.uploadPublicationSettings();
+        const safetyAttestation = this.uploadSafetyAttestation();
         this.uploadPhaseSubject.next('PREPARING');
         this.uploadProgressSubject.next(0);
-        this.uploadStepSubject.next('Validando vídeo e capa.');
+        this.uploadStepSubject.next('Validando vídeo, capa e declarações.');
 
         return this.videoUploadFlow.uploadPrivateVideo$({
           ownerUid,
           file,
           posterBlob,
           publication,
+          safetyAttestation,
         });
       }),
       finalize(() => {
@@ -518,6 +537,9 @@ export class ProfileVideosComponent {
       reactionsEnabled: true,
       commentsEnabled: true,
       ratingsEnabled: true,
+      allParticipantsAdultsAndConsenting: false,
+      rightsAndPermissionsConfirmed: false,
+      prohibitedContentAcknowledged: false,
     });
     this.uploadPhaseSubject.next('IDLE');
     this.uploadProgressSubject.next(0);
@@ -871,6 +893,19 @@ export class ProfileVideosComponent {
     };
   }
 
+  private uploadSafetyAttestation() {
+    const raw = this.uploadPublicationForm.getRawValue();
+
+    return buildVideoUploadSafetyAttestation({
+      allParticipantsAdultsAndConsenting:
+        raw.allParticipantsAdultsAndConsenting,
+      rightsAndPermissionsConfirmed:
+        raw.rightsAndPermissionsConfirmed,
+      prohibitedContentAcknowledged:
+        raw.prohibitedContentAcknowledged,
+    });
+  }
+
   private defaultFileTitle(fileName: string): string {
     return String(fileName ?? '')
       .trim()
@@ -926,7 +961,7 @@ export class ProfileVideosComponent {
     }
 
     this.uploadPhaseSubject.next('SAVING');
-    this.uploadStepSubject.next('Registrando publicação.');
+    this.uploadStepSubject.next('Registrando publicação e declarações.');
   }
 
   private describeUploadFailure(error: unknown): VideoUploadFailureFeedback {
@@ -968,6 +1003,20 @@ export class ProfileVideosComponent {
         message: 'O serviço não conseguiu receber o vídeo agora.',
         recovery: 'Aguarde alguns minutos e tente novamente. Nenhuma cópia incompleta foi mantida.',
         retryable: true,
+      };
+    }
+
+    if ([
+      'functions/failed-precondition',
+      'failed-precondition',
+    ].includes(code)) {
+      return {
+        title: 'Envio bloqueado',
+        message: error instanceof Error && error.message.trim()
+          ? error.message.trim()
+          : 'Existe uma pendência que impede o envio deste vídeo.',
+        recovery: 'Resolva a pendência indicada e confirme novamente as declarações antes de um novo envio.',
+        retryable: false,
       };
     }
 
@@ -1040,6 +1089,14 @@ export class ProfileVideosComponent {
   }
 
   private getPolicyDeniedMessage(reason?: MediaPolicyDenyReason): string {
+    if (reason === 'AGE_REVERIFICATION_REQUIRED') {
+      return 'Conclua a revalidação de idade antes de enviar vídeos.';
+    }
+
+    if (reason === 'AGE_REVERIFICATION_RESTRICTED') {
+      return 'Sua conta não pode enviar vídeos por restrição de idade.';
+    }
+
     if (reason === 'EMAIL_UNVERIFIED') {
       return 'Confirme seu e-mail antes de enviar vídeos.';
     }
