@@ -94,18 +94,29 @@ async function resolveAccessItem(
 
   const publicVideo = publicVideoSnap.data();
   const publication = publicationSnap.data();
-  const projectionOwnerUid = cleanId(publicVideo?.ownerUid ?? ownerUid);
+  const projectionOwnerUid = cleanId(publicVideo?.ownerUid);
+  const projectionVideoId = cleanId(publicVideo?.id);
+  const projectionMediaType = normalizeEnum(publicVideo?.mediaType);
+  const projectionAssetAccess = normalizeEnum(publicVideo?.assetAccess);
   const projectionVisibility = normalizeEnum(publicVideo?.visibility);
   const publicationVisibility = normalizeEnum(publication?.visibility);
+  const projectionModeration = normalizeEnum(publicVideo?.moderationStatus);
+  const publicationModeration = normalizeEnum(publication?.moderationStatus);
 
   /**
-   * A projeção pública não é autoridade isolada. Divergência entre projeção e
-   * publicação canônica fecha o acesso até a reconciliação do backend.
+   * A projeção pública não é autoridade isolada. Campo ausente ou divergência
+   * entre caminho, projeção e publicação canônica fecha o acesso até a
+   * reconciliação do backend.
    */
   if (
     projectionOwnerUid !== ownerUid ||
+    projectionVideoId !== videoId ||
+    projectionMediaType !== 'VIDEO' ||
+    projectionAssetAccess !== 'SIGNED_URL' ||
     !projectionVisibility ||
-    projectionVisibility !== publicationVisibility
+    projectionVisibility !== publicationVisibility ||
+    !projectionModeration ||
+    projectionModeration !== publicationModeration
   ) {
     return null;
   }
@@ -115,7 +126,7 @@ async function resolveAccessItem(
     action: 'PLAY',
     visibility: publicationVisibility,
     isPublished: publication?.isPublished === true,
-    moderationStatus: publicVideo?.moderationStatus,
+    moderationStatus: publicationModeration,
   });
 
   if (!audienceDecision.allowed) {
