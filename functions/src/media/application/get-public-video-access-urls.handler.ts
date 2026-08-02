@@ -3,6 +3,11 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
+import {
+  evaluatePublicVideoAccountEligibility,
+  isActiveUserBlock,
+  type PublicVideoAccountDenialReason,
+} from './public-video-audience-access.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
   normalizeOwnedPublishedVideoPath,
@@ -54,6 +59,85 @@ function cleanId(value: unknown): string {
 
 function buildRequestKey(ownerUid: string, videoId: string): string {
   return `${ownerUid}:${videoId}`;
+}
+
+function viewerEligibilityError(
+  reason: PublicVideoAccountDenialReason | null
+): HttpsError {
+  switch (reason) {
+  case 'profile_missing':
+    return new HttpsError('not-found', 'Seu perfil não foi localizado.');
+
+  case 'account_restricted':
+    return new HttpsError(
+      'permission-denied',
+      'Sua conta não está disponível para visualizar vídeos.'
+    );
+
+  case 'email_unverified':
+    return new HttpsError(
+      'failed-precondition',
+      'Confirme seu e-mail antes de visualizar vídeos.'
+    );
+
+  case 'adult_access_required':
+    return new HttpsError(
+      'failed-precondition',
+      'A confirmação de acesso adulto precisa ser concluída.'
+    );
+
+  case 'terms_required':
+    return new HttpsError(
+      'failed-precondition',
+      'Aceite os termos atuais antes de visualizar vídeos.'
+    );
+
+  case 'profile_incomplete':
+  default:
+    return new HttpsError(
+      'failed-precondition',
+      'Complete seu perfil antes de visualizar vídeos.'
+    );
+  }
+}
+
+async function canViewerAccessOwner(
+  viewerUid: string,
+  viewerUser: Readonly<Record<string, unknown>>,
+  ownerUid: string
+): Promise<boolean> {
+  if (ownerUid === viewerUid) {
+    return evaluatePublicVideoAccountEligibility(
+      viewerUser,
+      ownerUid,
+      { requireVerifiedEmail: false }
+    ).allowed;
+  }
+
+  const ownerRef = db.doc(`users/${ownerUid}`);
+  const viewerBlockRef = db.doc(`users/${viewerUid}/blocks/${ownerUid}`);
+  const ownerBlockRef = db.doc(`users/${ownerUid}/blocks/${viewerUid}`);
+  const [ownerSnap, viewerBlockSnap, ownerBlockSnap] = await Promise.all([
+    ownerRef.get(),
+    viewerBlockRef.get(),
+    ownerBlockRef.get(),
+  ]);
+
+  const ownerDecision = evaluatePublicVideoAccountEligibility(
+    ownerSnap.exists ? ownerSnap.data() : null,
+    ownerUid,
+    { requireVerifiedEmail: false }
+  );
+
+  if (!ownerDecision.allowed) {
+    return false;
+  }
+
+  return !isActiveUserBlock(
+    viewerBlockSnap.exists ? viewerBlockSnap.data() : null
+  ) && !isActiveUserBlock(
+    ownerBlockSnap.exists ? ownerBlockSnap.data() : null
+  );
 }
 
 async function resolveAccessItem(
@@ -144,20 +228,28 @@ async function resolveAccessItem(
 export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<PublicVideoAccessResponse> => {
-    if (!request.auth?.uid) {
+    const viewerUid = cleanId(request.auth?.uid);
+
+    if (!viewerUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    /**
-     * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
-     *
-     * Este handler é a barreira definitiva antes de emitir URL assinada.
-     * Quando FRIENDS, SUBSCRIBERS ou PREMIUM forem ativados, não basta ocultar
-     * o vídeo na interface: `request.auth.uid` deverá ser passado à política
-     * central de audiência para validar amizade, assinatura/entitlement
-     * vigente, cancelamento, bloqueios e lifecycle a cada emissão ou renovação.
-     * Compartilhar um link ou uma referência no chat nunca concede acesso.
-     */
+    const viewerSnap = await db.doc(`users/${viewerUid}`).get();
+    const viewerUser = viewerSnap.exists
+      ? viewerSnap.data()
+      : null;
+    const viewerDecision = evaluatePublicVideoAccountEligibility(
+      viewerUser,
+      viewerUid,
+      {
+        authenticatedEmailVerified:
+          request.auth?.token?.email_verified === true,
+      }
+    );
+
+    if (!viewerDecision.allowed) {
+      throw viewerEligibilityError(viewerDecision.reason);
+    }
 
     const rawItems = Array.isArray(request.data?.items)
       ? request.data.items
@@ -196,17 +288,39 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
       );
     }
 
+    const ownerAccessCache = new Map<string, Promise<boolean>>();
+    const ownerAccess = (ownerUid: string): Promise<boolean> => {
+      const cached = ownerAccessCache.get(ownerUid);
+
+      if (cached) {
+        return cached;
+      }
+
+      const pending = canViewerAccessOwner(
+        viewerUid,
+        viewerUser as Readonly<Record<string, unknown>>,
+        ownerUid
+      );
+      ownerAccessCache.set(ownerUid, pending);
+      return pending;
+    };
+
     const expiresAt = Date.now() + SIGNED_URL_TTL_MS;
     const resolutions = await Promise.all(
       [...uniqueItems.values()].map(
         async ({ ownerUid, videoId }): Promise<PublicVideoAccessResolution> => {
           try {
+            if (!await ownerAccess(ownerUid)) {
+              return { item: null, technicalFailure: false };
+            }
+
             return {
               item: await resolveAccessItem(ownerUid, videoId, expiresAt),
               technicalFailure: false,
             };
           } catch (error) {
             logger.warn('[getPublicVideoAccessUrls] Falha ao gerar acesso.', {
+              viewerUid,
               ownerUid,
               videoId,
               error: error instanceof Error
