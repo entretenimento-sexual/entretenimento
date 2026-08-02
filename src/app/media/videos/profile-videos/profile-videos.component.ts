@@ -59,11 +59,13 @@ import {
 import {
   buildVideoUploadSafetyAttestation,
 } from 'src/app/core/services/media/video-upload-safety-attestation.policy';
-import {
+import type {
   IVideoUploadCaptionInput,
   IVideoUploadFlowEvent,
-  VideoUploadFlowService,
   VideoUploadProgressPhase,
+} from 'src/app/core/services/media/video-upload-flow.service';
+import {
+  VideoUploadFlowService,
 } from 'src/app/core/services/media/video-upload-flow.service';
 
 interface ProfileVideoViewItem {
