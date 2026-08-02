@@ -1,4 +1,5 @@
 export type VideoPlaybackQuality = 'SD' | 'HD';
+export type VideoPlaybackMimeType = 'video/mp4' | 'video/webm';
 
 export interface VideoProcessingOutputFile {
   storagePath: string;
@@ -9,7 +10,7 @@ export interface VideoProcessingOutputFile {
 export interface VideoProcessingVariant {
   quality: VideoPlaybackQuality;
   storagePath: string;
-  mimeType: 'video/mp4';
+  mimeType: VideoPlaybackMimeType;
   sizeBytes: number;
 }
 
@@ -56,14 +57,15 @@ function normalizeOutputFiles(
   });
 }
 
-function asMp4Variant(
+function asVariant(
   file: VideoProcessingOutputFile,
-  quality: VideoPlaybackQuality
+  quality: VideoPlaybackQuality,
+  mimeType: VideoPlaybackMimeType
 ): VideoProcessingVariant {
   return {
     quality,
     storagePath: file.storagePath,
-    mimeType: 'video/mp4',
+    mimeType,
     sizeBytes: file.sizeBytes,
   };
 }
@@ -77,8 +79,8 @@ function selectCanonicalMp4Variants(
   const sd = mp4Files.find((file) => fileName(file.storagePath) === 'sd.mp4');
   const hd = mp4Files.find((file) => fileName(file.storagePath) === 'hd.mp4');
   const canonical = [
-    ...(sd ? [asMp4Variant(sd, 'SD')] : []),
-    ...(hd ? [asMp4Variant(hd, 'HD')] : []),
+    ...(sd ? [asVariant(sd, 'SD', 'video/mp4')] : []),
+    ...(hd ? [asVariant(hd, 'HD', 'video/mp4')] : []),
   ];
 
   if (canonical.length) {
@@ -99,13 +101,29 @@ function selectCanonicalMp4Variants(
   }
 
   if (sorted.length === 1) {
-    return [asMp4Variant(sorted[0], 'HD')];
+    return [asVariant(sorted[0], 'HD', 'video/mp4')];
   }
 
   return [
-    asMp4Variant(sorted[0], 'SD'),
-    asMp4Variant(sorted.at(-1)!, 'HD'),
+    asVariant(sorted[0], 'SD', 'video/mp4'),
+    asVariant(sorted.at(-1)!, 'HD', 'video/mp4'),
   ];
+}
+
+function selectLegacyWebmVariant(
+  files: readonly VideoProcessingOutputFile[]
+): VideoProcessingVariant[] {
+  const webmFiles = files
+    .filter((file) =>
+      file.contentType === 'video/webm' ||
+      fileName(file.storagePath).endsWith('.webm')
+    )
+    .sort((left, right) => right.sizeBytes - left.sizeBytes);
+  const candidate = webmFiles[0];
+
+  return candidate
+    ? [asVariant(candidate, 'HD', 'video/webm')]
+    : [];
 }
 
 function findManifest(
@@ -129,16 +147,21 @@ export function inventoryVideoProcessingOutputs(
 ): VideoProcessingOutputInventory {
   const normalizedFiles = normalizeOutputFiles(files);
   const variants = selectCanonicalMp4Variants(normalizedFiles);
+  const compatibleVariants = variants.length
+    ? variants
+    : selectLegacyWebmVariant(normalizedFiles);
 
-  if (!variants.length) {
+  if (!compatibleVariants.length) {
     throw new Error(
-      'O Transcoder concluiu sem gerar uma variante MP4 compatível.'
+      'O processamento concluiu sem gerar uma variante reproduzível.'
     );
   }
 
   return {
-    variants,
-    defaultQuality: variants.some((variant) => variant.quality === 'HD')
+    variants: compatibleVariants,
+    defaultQuality: compatibleVariants.some(
+      (variant) => variant.quality === 'HD'
+    )
       ? 'HD'
       : 'SD',
     hlsManifestStoragePath: findManifest(
