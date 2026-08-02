@@ -8,6 +8,11 @@ import {
   resolveCanonicalPhotoAudienceTarget,
 } from './photo-audience-access.policy';
 import {
+  buildNextPhotoQualificationMetrics,
+  buildPhotoRankingUpdate,
+  type PublicPhotoRankingDocument,
+} from './photo-ranking-score';
+import {
   PHOTO_VIEW_MIN_VISIBLE_MS,
   type PhotoViewEvidenceInput,
   normalizePhotoViewEvidence,
@@ -123,22 +128,6 @@ function assertPhotoViewSession(input: {
       'A sessão de visualização é inválida ou expirou.'
     );
   }
-}
-
-function calculateViewScore(input: {
-  viewsCount: number;
-  uniqueViewersCount: number;
-  lastViewedAt: number;
-  publishedAt: number;
-}): number {
-  const recencyBoost =
-    Math.max(0, input.lastViewedAt - input.publishedAt) / 1_000_000_000;
-
-  return Math.round(
-    input.viewsCount * 4 +
-      input.uniqueViewersCount * 6 +
-      recencyBoost
-  );
 }
 
 export async function recordPhotoViewCore(
@@ -291,15 +280,24 @@ export async function recordPhotoViewCore(
     const nextPhotoUniqueViewersCount = isUniquePhotoViewer
       ? currentPhotoUniqueViewersCount + 1
       : currentPhotoUniqueViewersCount;
-    const publishedAt = safeNumber(publicPhoto.publishedAt) || now;
-    const nextPhotoViewScore = canCountView
-      ? calculateViewScore({
+    const qualification = buildNextPhotoQualificationMetrics({
+      currentQualifiedViewsCount: publicPhoto.qualifiedViewsCount,
+      currentTotalQualifiedVisibleMs: publicPhoto.totalQualifiedVisibleMs,
+      currentTotalQualifiedTargetMs: publicPhoto.totalQualifiedTargetMs,
+      visibleMs: evidence.visibleMs,
+      counted: canCountView,
+    });
+    const nextPhotoRanking = buildPhotoRankingUpdate(
+      publicPhoto as PublicPhotoRankingDocument,
+      now,
+      {
         viewsCount: nextPhotoViewsCount,
         uniqueViewersCount: nextPhotoUniqueViewersCount,
-        lastViewedAt: now,
-        publishedAt,
-      })
-      : currentPhotoViewScore;
+        qualifiedViewsCount: qualification.qualifiedViewsCount,
+        totalQualifiedVisibleMs: qualification.totalQualifiedVisibleMs,
+        totalQualifiedTargetMs: qualification.totalQualifiedTargetMs,
+      }
+    );
 
     const currentProfileViewsCount = safeNumber(
       publicProfile.profileViewsCount ?? publicProfile.viewsCount
@@ -326,7 +324,7 @@ export async function recordPhotoViewCore(
         0,
         currentProfileViewScore -
           currentPhotoViewScore +
-          nextPhotoViewScore
+          nextPhotoRanking.viewScore
       )
       : currentProfileViewScore;
 
@@ -417,8 +415,19 @@ export async function recordPhotoViewCore(
         {
           viewsCount: nextPhotoViewsCount,
           uniqueViewersCount: nextPhotoUniqueViewersCount,
+          qualifiedViewsCount: qualification.qualifiedViewsCount,
+          totalQualifiedVisibleMs: qualification.totalQualifiedVisibleMs,
+          totalQualifiedTargetMs: qualification.totalQualifiedTargetMs,
+          averageQualifiedVisibleMs: qualification.averageQualifiedVisibleMs,
           lastViewedAt: now,
-          viewScore: nextPhotoViewScore,
+          score: nextPhotoRanking.score,
+          engagementScore: nextPhotoRanking.engagementScore,
+          viewScore: nextPhotoRanking.viewScore,
+          retentionScore: nextPhotoRanking.retentionScore,
+          freshnessScore: nextPhotoRanking.freshnessScore,
+          scoreBreakdown: nextPhotoRanking.scoreBreakdown,
+          rankingVersion: nextPhotoRanking.rankingVersion,
+          rankingUpdatedAt: nextPhotoRanking.rankingUpdatedAt,
           updatedAt: now,
         },
         { merge: true }
