@@ -20,6 +20,10 @@ import {
   type PrivateMediaDraftKind,
   type PrivateMediaDraftPlan,
 } from './private-media-draft.policy';
+import {
+  evaluatePrivateMediaDraftEligibility,
+} from './private-media-draft-eligibility.policy';
+import { privateMediaDraftHttpsError } from './private-media-draft-error';
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 import {
   extractOwnedPrivateVideoPathForId,
@@ -184,7 +188,10 @@ function normalizeErrorMessage(error: unknown): string {
   return String(error ?? 'unknown').slice(0, 500);
 }
 
-function reservationDocumentId(ownerUid: string, clientRequestId: string): string {
+function reservationDocumentId(
+  ownerUid: string,
+  clientRequestId: string
+): string {
   return createHash('sha256')
     .update(`${ownerUid}:${clientRequestId}`)
     .digest('hex');
@@ -408,9 +415,11 @@ export async function consumePrivateMediaUploadReservation(
   const reservationId = cleanId(input.reservationId);
 
   if (!reservationId) {
-    throw new HttpsError(
+    throw privateMediaDraftHttpsError(
       'failed-precondition',
-      'A reserva de upload não foi informada.'
+      'MEDIA_UPLOAD_RESERVATION_EXPIRED',
+      'A reserva de upload não foi informada.',
+      'Inicie o envio novamente para gerar uma nova reserva.'
     );
   }
 
@@ -418,9 +427,11 @@ export async function consumePrivateMediaUploadReservation(
   const snapshot = await transaction.get(reservationRef);
 
   if (!snapshot.exists) {
-    throw new HttpsError(
+    throw privateMediaDraftHttpsError(
       'failed-precondition',
-      'A reserva de upload não existe ou expirou.'
+      'MEDIA_UPLOAD_RESERVATION_EXPIRED',
+      'A reserva de upload não existe ou expirou.',
+      'Inicie o envio novamente para gerar uma nova reserva.'
     );
   }
 
@@ -429,7 +440,17 @@ export async function consumePrivateMediaUploadReservation(
 
   if (
     reservation.state !== 'ACTIVE' ||
-    reservation.expiresAt.toMillis() <= now ||
+    reservation.expiresAt.toMillis() <= now
+  ) {
+    throw privateMediaDraftHttpsError(
+      'failed-precondition',
+      'MEDIA_UPLOAD_RESERVATION_EXPIRED',
+      'A reserva de upload expirou ou já foi utilizada.',
+      'Inicie o envio novamente para gerar uma nova reserva.'
+    );
+  }
+
+  if (
     reservation.ownerUid !== input.ownerUid ||
     reservation.mediaId !== input.mediaId ||
     reservation.kind !== input.kind ||
@@ -439,9 +460,11 @@ export async function consumePrivateMediaUploadReservation(
     reservation.sourceSizeBytes !== input.sourceSizeBytes ||
     reservation.auxiliarySizeBytes !== input.auxiliarySizeBytes
   ) {
-    throw new HttpsError(
+    throw privateMediaDraftHttpsError(
       'failed-precondition',
-      'A reserva não corresponde ao arquivo enviado.'
+      'MEDIA_UPLOAD_RESERVATION_MISMATCH',
+      'A reserva não corresponde ao arquivo enviado.',
+      'Selecione novamente o arquivo e reinicie o envio.'
     );
   }
 
@@ -490,6 +513,8 @@ export const reservePrivateMediaUpload = onCall<
     const clientRequestId = cleanId(request.data?.clientRequestId);
     const kind = normalizeKind(request.data?.kind);
     const operation = normalizeOperation(request.data?.operation);
+    const authenticatedEmailVerified =
+      request.auth?.token?.['email_verified'] === true;
 
     if (!requesterUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
@@ -603,6 +628,20 @@ export const reservePrivateMediaUpload = onCall<
           ? transaction.get(publicationRef)
           : Promise.resolve(null),
       ]);
+      const eligibility = evaluatePrivateMediaDraftEligibility(
+        userSnapshot.exists ? userSnapshot.data() : null,
+        ownerUid,
+        authenticatedEmailVerified
+      );
+
+      if (!eligibility.allowed) {
+        throw privateMediaDraftHttpsError(
+          'permission-denied',
+          eligibility.errorCode ?? 'MEDIA_UPLOAD_NOT_ALLOWED',
+          eligibility.message ?? 'A conta não está liberada para enviar mídia.',
+          eligibility.recovery ?? 'Regularize a conta antes de continuar.'
+        );
+      }
 
       const requestIdentity = {
         ownerUid,
@@ -657,11 +696,21 @@ export const reservePrivateMediaUpload = onCall<
 
         if (!capacity.allowed) {
           const mediaLabel = kind === 'photo' ? 'fotos' : 'vídeos';
-          const message = capacity.reason === 'ITEM_LIMIT'
-            ? `Você atingiu o limite de rascunhos de ${mediaLabel}. Publique ou exclua um rascunho antes de enviar outro.`
-            : `Seus rascunhos de ${mediaLabel} atingiram o limite de armazenamento temporário.`;
+          const itemMessage =
+            `Você atingiu o limite de rascunhos de ${mediaLabel}. ` +
+            'Publique ou exclua um rascunho antes de enviar outro.';
+          const byteMessage =
+            `Seus rascunhos de ${mediaLabel} atingiram o limite ` +
+            'de armazenamento temporário.';
 
-          throw new HttpsError('resource-exhausted', message);
+          throw privateMediaDraftHttpsError(
+            'resource-exhausted',
+            capacity.reason === 'ITEM_LIMIT'
+              ? 'MEDIA_DRAFT_ITEM_LIMIT'
+              : 'MEDIA_DRAFT_BYTE_LIMIT',
+            capacity.reason === 'ITEM_LIMIT' ? itemMessage : byteMessage,
+            'Publique ou exclua um rascunho antes de continuar.'
+          );
         }
 
         nextUsage = applyPrivateMediaDraftReservation(
@@ -708,9 +757,11 @@ export const reservePrivateMediaUpload = onCall<
           const limit = getPrivateMediaDraftLimit('photo', plan);
 
           if (nextTotalReservedBytes > limit.maxReservedBytes) {
-            throw new HttpsError(
+            throw privateMediaDraftHttpsError(
               'resource-exhausted',
-              'A nova versão ultrapassa o armazenamento temporário disponível para fotos.'
+              'MEDIA_DRAFT_BYTE_LIMIT',
+              'A nova versão ultrapassa o armazenamento temporário disponível.',
+              'Reduza a imagem ou libere espaço antes de tentar novamente.'
             );
           }
 
@@ -719,7 +770,8 @@ export const reservePrivateMediaUpload = onCall<
             photoReservedBytes: nextTotalReservedBytes,
           };
           reservedUsageBytes = positiveDelta;
-          draftExpiresAt = normalizePositiveInteger(photo.draftExpiresAt) || null;
+          draftExpiresAt =
+            normalizePositiveInteger(photo.draftExpiresAt) || null;
         }
       }
 
