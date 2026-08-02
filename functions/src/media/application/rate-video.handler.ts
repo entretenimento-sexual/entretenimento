@@ -1,8 +1,5 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import {
-  assertInteractionAccessInTransaction,
-} from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
@@ -10,6 +7,12 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import {
+  createVideoAudienceAccessEvaluator,
+  resolveCanonicalVideoAudienceTarget,
+  type PublicVideoAudienceDocument,
+  type VideoPublicationAudienceDocument,
+} from './video-audience-access.policy';
 import {
   buildNextVideoRatingAggregate,
   normalizeVideoRating,
@@ -21,10 +24,7 @@ interface RateVideoRequest {
   rating?: number;
 }
 
-interface PublicVideoDoc {
-  ownerUid?: string;
-  visibility?: string;
-  moderationStatus?: string;
+interface PublicVideoDoc extends PublicVideoAudienceDocument {
   ratingsEnabled?: boolean;
   reactionsCount?: number;
   likesCount?: number;
@@ -45,26 +45,6 @@ interface VideoRatingDoc {
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
-}
-
-function assertRateableVideo(video: PublicVideoDoc): void {
-  if (video.visibility !== 'PUBLIC') {
-    throw new HttpsError('failed-precondition', 'Este vídeo não está público.');
-  }
-
-  if (video.moderationStatus !== 'APPROVED') {
-    throw new HttpsError(
-      'failed-precondition',
-      'Este vídeo ainda não está aprovado para avaliações.'
-    );
-  }
-
-  if (video.ratingsEnabled !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Avaliações desabilitadas neste vídeo.'
-    );
-  }
 }
 
 export const rateVideo = onCall<RateVideoRequest>(
@@ -93,30 +73,52 @@ export const rateVideo = onCall<RateVideoRequest>(
       );
     }
 
+    const audience = await createVideoAudienceAccessEvaluator(viewerUid);
     const videoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
+    );
+    const publicationRef = db.doc(
+      `users/${ownerUid}/video_publications/${videoId}`
     );
     const ratingRef = videoRef.collection('ratings').doc(viewerUid);
 
     return db.runTransaction(async (transaction) => {
-      await assertInteractionAccessInTransaction(transaction, viewerUid);
-
-      const [videoSnap, ratingSnap] = await Promise.all([
+      const [videoSnap, publicationSnap, ratingSnap] = await Promise.all([
         transaction.get(videoRef),
+        transaction.get(publicationRef),
         transaction.get(ratingRef),
       ]);
 
-      if (!videoSnap.exists) {
+      if (!videoSnap.exists || !publicationSnap.exists) {
         throw new HttpsError('not-found', 'Vídeo público não encontrado.');
       }
 
       const video = videoSnap.data() as PublicVideoDoc;
+      const publication =
+        publicationSnap.data() as VideoPublicationAudienceDocument;
+      const target = resolveCanonicalVideoAudienceTarget({
+        ownerUid,
+        videoId,
+        action: 'INTERACT',
+        publicVideo: video,
+        publication,
+      });
 
-      if (video.ownerUid !== ownerUid) {
-        throw new HttpsError('failed-precondition', 'Vídeo inconsistente.');
+      if (!target) {
+        throw new HttpsError(
+          'failed-precondition',
+          'O vídeo possui dados de publicação inconsistentes.'
+        );
       }
 
-      assertRateableVideo(video);
+      await audience.assertInTransaction(transaction, target);
+
+      if (video.ratingsEnabled !== true) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Avaliações desabilitadas neste vídeo.'
+        );
+      }
 
       const currentRating = ratingSnap.exists
         ? ratingSnap.data() as VideoRatingDoc
