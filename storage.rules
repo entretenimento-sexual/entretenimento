@@ -30,17 +30,40 @@ service firebase.storage {
         && request.resource.size <= 500 * 1024 * 1024;
     }
 
+    function isPhotoSourceSlot(slot) {
+      return slot == 'source-a' || slot == 'source-b';
+    }
+
+    function registeredPhotoExists(uid, photoId) {
+      return firestore.exists(
+        /databases/(default)/documents/users/$(uid)/photos/$(photoId)
+      );
+    }
+
     // ============================================================
-    // Upload bruto e privado do usuário
-    // - upload e rollback continuam sob controle do proprietário;
-    // - reprodução usa URL temporária emitida pelo backend;
-    // - somente formatos processáveis pelo pipeline podem ser enviados.
+    // Staging técnico do usuário
+    // - não existe biblioteca privada para novos uploads;
+    // - cada foto possui somente dois slots fixos para copy-on-write;
+    // - leitura só é liberada depois que o backend registra a publicação;
+    // - objetos abandonados são removidos pela limpeza agendada.
     // ============================================================
 
+    // Compatibilidade de leitura/exclusão para fotos legadas. Novos objetos não
+    // podem mais ser criados no namespace plano ilimitado.
     match /users/{uid}/uploads/images/{fileName} {
       allow read: if isSelf(uid);
-      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+      allow create, update: if false;
       allow delete: if isSelf(uid);
+    }
+
+    match /users/{uid}/uploads/images/{photoId}/{slot} {
+      allow read: if isSelf(uid)
+        && isPhotoSourceSlot(slot)
+        && registeredPhotoExists(uid, photoId);
+      allow create, update: if isSelf(uid)
+        && isPhotoSourceSlot(slot)
+        && isImageCreateOrUpdate();
+      allow delete: if isSelf(uid) && isPhotoSourceSlot(slot);
     }
 
     match /users/{uid}/uploads/videos/{fileName} {
