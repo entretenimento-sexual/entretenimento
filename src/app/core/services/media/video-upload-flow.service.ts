@@ -496,10 +496,9 @@ export class VideoUploadFlowService {
       .slice(0, 1000);
 
     /**
-     * MANUTENÇÃO — ARMAZENAMENTO PRIVADO POR PLANO
-     * `publishWhenReady: false` não pode representar armazenamento ilimitado.
-     * Cota, retenção, expiração e entitlement devem ser validados no backend;
-     * a interface não é uma barreira de cobrança ou de capacidade.
+     * O upload privado é somente uma etapa técnica temporária. Todo vídeo novo
+     * deve seguir para processamento, moderação e publicação; o cliente não
+     * oferece armazenamento pessoal ou rascunho permanente.
      */
     return {
       title: title || null,
@@ -507,7 +506,7 @@ export class VideoUploadFlowService {
       reactionsEnabled: publication?.reactionsEnabled !== false,
       commentsEnabled: publication?.commentsEnabled !== false,
       ratingsEnabled: publication?.ratingsEnabled !== false,
-      publishWhenReady: publication?.publishWhenReady === true,
+      publishWhenReady: true,
     };
   }
 
