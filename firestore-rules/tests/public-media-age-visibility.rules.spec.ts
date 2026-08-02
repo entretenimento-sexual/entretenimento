@@ -201,7 +201,7 @@ describe('Firestore Rules / public media age visibility', () => {
     );
   });
 
-  it('mantém consultas globais válidas e exclui projeções privadas', async () => {
+  it('mantém fotos globais e exige feed backend para vídeos', async () => {
     await setMediaVisibility('PRIVATE');
     const db = viewerDb();
     const videoQuery = query(
@@ -215,16 +215,13 @@ describe('Firestore Rules / public media age visibility', () => {
       where('moderationStatus', '==', 'APPROVED')
     );
 
-    const [videos, photos] = await Promise.all([
-      assertSucceeds(getDocs(videoQuery)),
-      assertSucceeds(getDocs(photoQuery)),
-    ]);
+    await assertFails(getDocs(videoQuery));
+    const photos = await assertSucceeds(getDocs(photoQuery));
 
-    expect(videos.empty).toBe(true);
     expect(photos.empty).toBe(true);
   });
 
-  it('volta a incluir as projeções após restauração para PUBLIC', async () => {
+  it('restaura fotos globais sem reabrir consulta global de vídeos', async () => {
     await setMediaVisibility('PRIVATE');
     await setMediaVisibility('PUBLIC');
     const db = viewerDb();
@@ -239,12 +236,9 @@ describe('Firestore Rules / public media age visibility', () => {
       where('moderationStatus', '==', 'APPROVED')
     );
 
-    const [videos, photos] = await Promise.all([
-      assertSucceeds(getDocs(videoQuery)),
-      assertSucceeds(getDocs(photoQuery)),
-    ]);
+    await assertFails(getDocs(videoQuery));
+    const photos = await assertSucceeds(getDocs(photoQuery));
 
-    expect(videos.size).toBe(1);
     expect(photos.size).toBe(1);
   });
 });
