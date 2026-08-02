@@ -1,5 +1,6 @@
 const PRIVATE_PREFIX = 'uploads/images';
 const PUBLISHED_PREFIX = 'published/images';
+const PRIVATE_SOURCE_SLOTS = new Set(['source-a', 'source-b']);
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -94,11 +95,74 @@ function matchesOwnedPath(
   return expectedPath.test(storagePath) ? storagePath : null;
 }
 
+/**
+ * Mantém compatibilidade com objetos legados no formato plano e reconhece os
+ * dois slots limitados usados pelos uploads atuais.
+ */
 export function extractOwnedPrivatePhotoPath(
   ownerUid: string,
   value: unknown
 ): string | null {
-  return matchesOwnedPath(ownerUid, value, `${PRIVATE_PREFIX}/[^/]+`);
+  return matchesOwnedPath(
+    ownerUid,
+    value,
+    `${PRIVATE_PREFIX}/(?:[^/]+|[^/]+/(?:source-a|source-b))`
+  );
+}
+
+/**
+ * Para novos uploads, o photoId precisa fazer parte do path e o arquivo só pode
+ * ocupar um dos dois slots fixos. Isso impede namespaces arbitrários por foto.
+ */
+export function extractOwnedPrivatePhotoPathForId(
+  ownerUid: string,
+  photoId: string,
+  value: unknown
+): string | null {
+  const safePhotoId = normalizeId(photoId);
+
+  if (!safePhotoId) {
+    return null;
+  }
+
+  return matchesOwnedPath(
+    ownerUid,
+    value,
+    `${PRIVATE_PREFIX}/${escapeRegExp(safePhotoId)}/(?:source-a|source-b)`
+  );
+}
+
+export function parseOwnedPrivatePhotoStagingPath(value: unknown): {
+  ownerUid: string;
+  photoId: string;
+  slot: 'source-a' | 'source-b';
+} | null {
+  const storagePath = resolveStoragePath(value);
+  const match = storagePath?.match(
+    /^users\/([^/]+)\/uploads\/images\/([^/]+)\/(source-a|source-b)$/
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const ownerUid = normalizeId(match[1]);
+  const photoId = normalizeId(match[2]);
+  const slot = match[3];
+
+  if (
+    !ownerUid ||
+    !photoId ||
+    !PRIVATE_SOURCE_SLOTS.has(slot)
+  ) {
+    return null;
+  }
+
+  return {
+    ownerUid,
+    photoId,
+    slot: slot as 'source-a' | 'source-b',
+  };
 }
 
 export function normalizeOwnedPublishedPhotoPath(
