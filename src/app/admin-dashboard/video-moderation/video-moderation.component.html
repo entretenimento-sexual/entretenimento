@@ -13,11 +13,27 @@
       type="button"
       class="app-action app-action--ghost"
       (click)="retry()"
+      [disabled]="refreshCooldown().active"
     >
       <i class="fas fa-rotate" aria-hidden="true"></i>
-      Atualizar fila
+      {{ refreshCooldown().active
+        ? 'Aguarde ' + refreshCooldown().remainingSeconds + 's'
+        : 'Atualizar fila' }}
     </button>
   </header>
+
+  @if (cooldownMessage(); as message) {
+    @if (message) {
+      <p
+        class="video-moderation__warning"
+        role="status"
+        aria-live="polite"
+      >
+        <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+        {{ message }}
+      </p>
+    }
+  }
 
   @if (processingState$ | async; as processing) {
     <section
@@ -163,8 +179,15 @@
         >
           <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
           <span>Não foi possível carregar os jobs de recuperação.</span>
-          <button type="button" class="app-action app-action--ghost" (click)="retry()">
-            Tentar novamente
+          <button
+            type="button"
+            class="app-action app-action--ghost"
+            (click)="retry()"
+            [disabled]="refreshCooldown().active"
+          >
+            {{ refreshCooldown().active
+              ? 'Aguarde ' + refreshCooldown().remainingSeconds + 's'
+              : 'Tentar novamente' }}
           </button>
         </div>
       } @else if (recoveryState.status === 'empty') {
@@ -261,7 +284,7 @@
                             maxlength="900"
                             [ngModel]="recoveryReason(item)"
                             (ngModelChange)="setRecoveryReason(item, $event)"
-                            [disabled]="isRecoveryBusy(item)"
+                            [disabled]="isRecoveryBusy(item) || recoveryActionCooldown().active"
                             placeholder="Descreva por que esta intervenção é necessária."
                           ></textarea>
                           <small>{{ recoveryReason(item).length }}/900</small>
@@ -272,10 +295,14 @@
                             type="button"
                             class="app-action app-action--primary"
                             (click)="confirmRecovery(item, action)"
-                            [disabled]="isRecoveryBusy(item)"
+                            [disabled]="isRecoveryBusy(item) || recoveryActionCooldown().active"
                           >
                             <i class="fas fa-check" aria-hidden="true"></i>
-                            {{ isRecoveryBusy(item) ? 'Confirmando...' : 'Confirmar ação' }}
+                            {{ isRecoveryBusy(item)
+                              ? 'Confirmando...'
+                              : recoveryActionCooldown().active
+                                ? 'Aguarde ' + recoveryActionCooldown().remainingSeconds + 's'
+                                : 'Confirmar ação' }}
                           </button>
                           <button
                             type="button"
@@ -294,7 +321,7 @@
                         [class.app-action--danger]="action === 'CANCEL_ACTIVE'"
                         [class.app-action--ghost]="action !== 'CANCEL_ACTIVE'"
                         (click)="beginRecovery(item, action)"
-                        [disabled]="isRecoveryBusy(item)"
+                        [disabled]="isRecoveryBusy(item) || recoveryActionCooldown().active"
                       >
                         <i
                           class="fas"
@@ -302,7 +329,9 @@
                           [class.fa-ban]="action === 'CANCEL_ACTIVE'"
                           aria-hidden="true"
                         ></i>
-                        {{ recoveryActionLabel(action) }}
+                        {{ recoveryActionCooldown().active
+                          ? 'Aguarde ' + recoveryActionCooldown().remainingSeconds + 's'
+                          : recoveryActionLabel(action) }}
                       </button>
                     }
                   }
@@ -331,8 +360,15 @@
           <strong>Não foi possível carregar a fila.</strong>
           <span>Verifique a sessão administrativa e tente novamente.</span>
         </div>
-        <button type="button" class="app-action app-action--ghost" (click)="retry()">
-          Tentar novamente
+        <button
+          type="button"
+          class="app-action app-action--ghost"
+          (click)="retry()"
+          [disabled]="refreshCooldown().active"
+        >
+          {{ refreshCooldown().active
+            ? 'Aguarde ' + refreshCooldown().remainingSeconds + 's'
+            : 'Tentar novamente' }}
         </button>
       </div>
     } @else if (state.status === 'empty') {
@@ -407,7 +443,7 @@
                   maxlength="900"
                   [ngModel]="reason(item)"
                   (ngModelChange)="setReason(item, $event)"
-                  [disabled]="isBusy(item)"
+                  [disabled]="isBusy(item) || moderationActionCooldown().active"
                   placeholder="Obrigatória para rejeição; opcional para aprovação."
                 ></textarea>
                 <small>{{ reason(item).length }}/900</small>
@@ -418,20 +454,28 @@
                   type="button"
                   class="app-action app-action--primary"
                   (click)="approve(item)"
-                  [disabled]="isBusy(item)"
+                  [disabled]="isBusy(item) || moderationActionCooldown().active"
                 >
                   <i class="fas fa-check" aria-hidden="true"></i>
-                  {{ isBusy(item) ? 'Processando...' : 'Aprovar vídeo' }}
+                  {{ isBusy(item)
+                    ? 'Processando...'
+                    : moderationActionCooldown().active
+                      ? 'Aguarde ' + moderationActionCooldown().remainingSeconds + 's'
+                      : 'Aprovar vídeo' }}
                 </button>
 
                 <button
                   type="button"
                   class="app-action app-action--danger"
                   (click)="reject(item)"
-                  [disabled]="isBusy(item)"
+                  [disabled]="isBusy(item) || moderationActionCooldown().active"
                 >
                   <i class="fas fa-ban" aria-hidden="true"></i>
-                  {{ isBusy(item) ? 'Processando...' : 'Rejeitar vídeo' }}
+                  {{ isBusy(item)
+                    ? 'Processando...'
+                    : moderationActionCooldown().active
+                      ? 'Aguarde ' + moderationActionCooldown().remainingSeconds + 's'
+                      : 'Rejeitar vídeo' }}
                 </button>
               </div>
             </div>
