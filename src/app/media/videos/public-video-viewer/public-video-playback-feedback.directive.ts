@@ -26,6 +26,7 @@ import {
   selectAdjacentVideoForPreload,
   type TAdjacentVideoNavigationDirection,
 } from './adjacent-video-preload.policy';
+import { PublicVideoHlsPlaybackDirective } from './public-video-hls-playback.directive';
 import {
   classifyPublicVideoPlaybackFailure,
 } from './public-video-playback.policy';
@@ -193,6 +194,7 @@ export class PublicVideoPlaybackFeedbackComponent {
 @Directive({
   selector: 'video.public-video-viewer__video',
   standalone: true,
+  hostDirectives: [PublicVideoHlsPlaybackDirective],
 })
 export class PublicVideoPlaybackFeedbackDirective
   implements AfterViewInit, OnDestroy {
