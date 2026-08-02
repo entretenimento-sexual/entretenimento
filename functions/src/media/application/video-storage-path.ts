@@ -3,6 +3,9 @@ const PRIVATE_VIDEO_POSTER_PREFIX = 'uploads/video-posters';
 const PROCESSED_VIDEO_PREFIX = 'processed/videos';
 const PUBLISHED_VIDEO_PREFIX = 'published/videos';
 
+export type PublishedVideoVariantQuality = 'SD' | 'HD';
+export type PublishedVideoVariantMimeType = 'video/mp4' | 'video/webm';
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -96,6 +99,21 @@ function matchesOwnedPath(
   return expectedPath.test(storagePath) ? storagePath : null;
 }
 
+function normalizeVariantQuality(
+  value: unknown
+): PublishedVideoVariantQuality | null {
+  const normalized = String(value ?? '').trim().toUpperCase();
+  return normalized === 'SD' || normalized === 'HD'
+    ? normalized
+    : null;
+}
+
+function extensionForMimeType(
+  mimeType: PublishedVideoVariantMimeType
+): 'mp4' | 'webm' {
+  return mimeType === 'video/webm' ? 'webm' : 'mp4';
+}
+
 export function extractOwnedPrivateVideoPath(
   ownerUid: string,
   value: unknown
@@ -125,9 +143,6 @@ export function extractOwnedPrivateVideoPathForId(
  * Compatibilidade:
  * - assinatura antiga: (ownerUid, value);
  * - assinatura endurecida: (ownerUid, videoId, value).
- *
- * Documentos novos usam o videoId para vincular o poster ao vídeo. A assinatura
- * antiga continua lendo apenas o namespace privado isolado durante a migração.
  */
 export function extractOwnedPrivateVideoPosterPath(
   ownerUid: string,
@@ -194,6 +209,9 @@ export function normalizeOwnedProcessedVideoPrefix(
   return matched ? `${matched}/` : null;
 }
 
+/**
+ * Aceita tanto o ativo único legado quanto a nova variante versionada.
+ */
 export function normalizeOwnedPublishedVideoPath(
   ownerUid: string,
   videoId: string,
@@ -208,7 +226,29 @@ export function normalizeOwnedPublishedVideoPath(
   return matchesOwnedPath(
     ownerUid,
     value,
-    `${PUBLISHED_VIDEO_PREFIX}/${escapeRegExp(safeVideoId)}/assets/[^/]+`
+    `${PUBLISHED_VIDEO_PREFIX}/${escapeRegExp(safeVideoId)}/` +
+      `assets/(?:[^/]+|[^/]+/(?:sd|hd)\.(?:mp4|webm))`
+  );
+}
+
+export function normalizeOwnedPublishedVideoVariantPath(
+  ownerUid: string,
+  videoId: string,
+  quality: unknown,
+  value: unknown
+): string | null {
+  const safeVideoId = normalizeId(videoId);
+  const safeQuality = normalizeVariantQuality(quality);
+
+  if (!safeVideoId || !safeQuality) {
+    return null;
+  }
+
+  return matchesOwnedPath(
+    ownerUid,
+    value,
+    `${PUBLISHED_VIDEO_PREFIX}/${escapeRegExp(safeVideoId)}/` +
+      `assets/[^/]+/${safeQuality.toLowerCase()}\.(?:mp4|webm)`
   );
 }
 
@@ -230,6 +270,7 @@ export function normalizeOwnedPublishedVideoPosterPath(
   );
 }
 
+/** Mantido para ativos legados e integrações ainda não migradas. */
 export function buildPublishedVideoPath(
   ownerUid: string,
   videoId: string,
@@ -246,6 +287,29 @@ export function buildPublishedVideoPath(
   return (
     `users/${safeOwnerUid}/${PUBLISHED_VIDEO_PREFIX}/${safeVideoId}/` +
     `assets/${safeAssetVersion}`
+  );
+}
+
+export function buildPublishedVideoVariantPath(
+  ownerUid: string,
+  videoId: string,
+  assetVersion: string,
+  quality: PublishedVideoVariantQuality,
+  mimeType: PublishedVideoVariantMimeType
+): string {
+  const safeOwnerUid = normalizeId(ownerUid);
+  const safeVideoId = normalizeId(videoId);
+  const safeAssetVersion = normalizeId(assetVersion);
+  const safeQuality = normalizeVariantQuality(quality);
+
+  if (!safeOwnerUid || !safeVideoId || !safeAssetVersion || !safeQuality) {
+    throw new Error('Identificadores inválidos para variante publicada.');
+  }
+
+  return (
+    `users/${safeOwnerUid}/${PUBLISHED_VIDEO_PREFIX}/${safeVideoId}/` +
+    `assets/${safeAssetVersion}/${safeQuality.toLowerCase()}.` +
+    extensionForMimeType(mimeType)
   );
 }
 
