@@ -229,16 +229,18 @@ async function resolveAccessItem(
     return null;
   }
 
-  const publicVideo = publicVideoSnap.data();
-  const publication = publicationSnap.data();
-  const projectionOwnerUid = cleanId(publicVideo?.ownerUid);
-  const projectionVideoId = cleanId(publicVideo?.id);
-  const projectionMediaType = normalizeEnum(publicVideo?.mediaType);
-  const projectionAssetAccess = normalizeEnum(publicVideo?.assetAccess);
-  const projectionVisibility = normalizeEnum(publicVideo?.visibility);
-  const publicationVisibility = normalizeEnum(publication?.visibility);
-  const projectionModeration = normalizeEnum(publicVideo?.moderationStatus);
-  const publicationModeration = normalizeEnum(publication?.moderationStatus);
+  const publicVideo = (publicVideoSnap.data() ?? {}) as
+    Record<string, unknown>;
+  const publication = (publicationSnap.data() ?? {}) as
+    Record<string, unknown>;
+  const projectionOwnerUid = cleanId(publicVideo['ownerUid']);
+  const projectionVideoId = cleanId(publicVideo['id']);
+  const projectionMediaType = normalizeEnum(publicVideo['mediaType']);
+  const projectionAssetAccess = normalizeEnum(publicVideo['assetAccess']);
+  const projectionVisibility = normalizeEnum(publicVideo['visibility']);
+  const publicationVisibility = normalizeEnum(publication['visibility']);
+  const projectionModeration = normalizeEnum(publicVideo['moderationStatus']);
+  const publicationModeration = normalizeEnum(publication['moderationStatus']);
 
   if (
     projectionOwnerUid !== ownerUid ||
@@ -257,7 +259,7 @@ async function resolveAccessItem(
     ownerUid,
     action: 'PLAY',
     visibility: publicationVisibility,
-    isPublished: publication?.isPublished === true,
+    isPublished: publication['isPublished'] === true,
     moderationStatus: publicationModeration,
   });
 
@@ -305,7 +307,7 @@ async function resolveAccessItem(
   const posterStoragePath = normalizeOwnedPublishedVideoPosterPath(
     ownerUid,
     videoId,
-    publication?.publishedPosterStoragePath
+    publication['publishedPosterStoragePath']
   );
   let posterUrl: string | null = null;
 
