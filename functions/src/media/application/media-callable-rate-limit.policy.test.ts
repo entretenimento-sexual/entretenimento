@@ -13,11 +13,20 @@ describe('media-callable-rate-limit.policy', () => {
     const moderation = resolveMediaCallableRateLimitRule(
       'COMMENT_MODERATE'
     );
+    const publicAccess = resolveMediaCallableRateLimitRule('ACCESS_PUBLIC');
+    const privateAccess = resolveMediaCallableRateLimitRule('ACCESS_PRIVATE');
+    const listPublic = resolveMediaCallableRateLimitRule('LIST_PUBLIC');
 
     assert.ok(reaction.globalMaxPerWindow > reaction.resourceMaxPerWindow);
     assert.ok(report.windowMs > reaction.windowMs);
     assert.ok(
       moderation.globalMaxPerWindow > reaction.globalMaxPerWindow
+    );
+    assert.ok(
+      privateAccess.globalMaxPerWindow > publicAccess.globalMaxPerWindow
+    );
+    assert.ok(
+      listPublic.globalMaxPerWindow > publicAccess.globalMaxPerWindow
     );
   });
 
@@ -36,6 +45,39 @@ describe('media-callable-rate-limit.policy', () => {
       count: 1,
       lastAcceptedAt: 10_000,
     });
+  });
+
+  it('cobra operações em lote pelo número de itens', () => {
+    const decision = buildMediaCallableRateDecision({
+      now: 10_000,
+      state: null,
+      maxPerWindow: 100,
+      windowMs: 60_000,
+      minIntervalMs: 0,
+      cost: 32,
+    });
+
+    assert.equal(decision.allowed, true);
+    assert.equal(decision.nextState.count, 32);
+  });
+
+  it('bloqueia um lote que ultrapassaria o saldo da janela', () => {
+    const decision = buildMediaCallableRateDecision({
+      now: 20_000,
+      state: {
+        windowStartedAt: 10_000,
+        count: 90,
+        lastAcceptedAt: 10_000,
+      },
+      maxPerWindow: 100,
+      windowMs: 60_000,
+      minIntervalMs: 0,
+      cost: 16,
+    });
+
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.retryAfterMs, 50_000);
+    assert.equal(decision.nextState.count, 90);
   });
 
   it('bloqueia rajadas até cumprir o intervalo mínimo', () => {
@@ -73,7 +115,7 @@ describe('media-callable-rate-limit.policy', () => {
     assert.equal(decision.retryAfterMs, 40_000);
   });
 
-  it('reinicia a janela expirada', () => {
+  it('reinicia a janela expirada e aplica o custo atual', () => {
     const decision = buildMediaCallableRateDecision({
       now: 80_000,
       state: {
@@ -81,15 +123,16 @@ describe('media-callable-rate-limit.policy', () => {
         count: 99,
         lastAcceptedAt: 20_000,
       },
-      maxPerWindow: 3,
+      maxPerWindow: 20,
       windowMs: 60_000,
       minIntervalMs: 1_000,
+      cost: 12,
     });
 
     assert.equal(decision.allowed, true);
     assert.deepEqual(decision.nextState, {
       windowStartedAt: 80_000,
-      count: 1,
+      count: 12,
       lastAcceptedAt: 80_000,
     });
   });
