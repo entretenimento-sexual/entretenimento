@@ -124,6 +124,10 @@ export {
 } from './application/authorize-public-video-share.handler';
 
 export {
+  issueVideoViewSession,
+  cleanupExpiredVideoViewSessions,
+} from './application/issue-video-view-session.handler';
+export {
   recordPhotoView,
 } from './application/record-photo-view-orchestrator.handler';
 export {
