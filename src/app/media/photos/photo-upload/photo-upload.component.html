@@ -21,8 +21,8 @@
     </a>
 
     <div class="upload-header__copy">
-      <h1 id="photo-upload-title">Adicionar foto</h1>
-      <p>Escolha, confira e envie.</p>
+      <h1 id="photo-upload-title">Publicar foto</h1>
+      <p>Escolha, ajuste e envie para moderação e publicação.</p>
     </div>
   </header>
 
@@ -45,17 +45,17 @@
           @if (!policy || policy.reason === 'UNKNOWN') {
             Aguarde enquanto verificamos sua sessão.
           } @else if (policy.reason === 'NOT_AUTHENTICATED') {
-            Faça login para enviar fotos.
+            Faça login para publicar fotos.
           } @else if (policy.reason === 'NOT_OWNER') {
-            Você só pode enviar fotos do próprio perfil.
+            Você só pode publicar fotos no próprio perfil.
           } @else if (policy.reason === 'EMAIL_UNVERIFIED') {
             Confirme seu e-mail antes de continuar.
           } @else if (policy.reason === 'PROFILE_INCOMPLETE') {
             Finalize seu cadastro antes de continuar.
           } @else if (policy.reason === 'INTERACTION_BLOCKED' || policy.reason === 'BLOCKED') {
-            Sua conta não pode enviar fotos no momento.
+            Sua conta não pode publicar fotos no momento.
           } @else if (policy.reason === 'SUBSCRIPTION_REQUIRED') {
-            Assinatura necessária para enviar fotos.
+            Assinatura necessária para publicar fotos.
           } @else {
             Não foi possível autorizar o envio agora.
           }
@@ -66,7 +66,7 @@
     <article class="upload-card app-card">
       @if (phase !== 'DONE') {
         <div class="upload-grid">
-          <section class="upload-panel" aria-label="Selecionar e enviar foto">
+          <section class="upload-panel" aria-label="Selecionar e publicar foto">
             <label class="file-drop" for="fileInput">
               <input
                 #fileInput
@@ -75,7 +75,7 @@
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 (change)="onFileSelected($event)"
-                [disabled]="phase === 'UPLOADING'"
+                [disabled]="phase === 'UPLOADING' || phase === 'PUBLISHING'"
               />
 
               <span class="file-drop__icon" aria-hidden="true">
@@ -98,7 +98,7 @@
             }
 
             <p class="upload-note">
-              A foto entra na biblioteca privada. A publicação no perfil é uma etapa separada.
+              O arquivo é usado somente para esta publicação. Se a publicação falhar, o envio é removido automaticamente.
             </p>
 
             <div class="upload-actions">
@@ -110,8 +110,10 @@
               >
                 @if (phase === 'UPLOADING') {
                   Enviando...
+                } @else if (phase === 'PUBLISHING') {
+                  Publicando...
                 } @else {
-                  Enviar foto
+                  Enviar para publicação
                 }
               </button>
 
@@ -129,7 +131,7 @@
                 type="button"
                 class="btn btn-ghost"
                 (click)="resetSelection(fileInput)"
-                [disabled]="phase === 'UPLOADING' || phase === 'IDLE'"
+                [disabled]="phase === 'UPLOADING' || phase === 'PUBLISHING' || phase === 'IDLE'"
               >
                 Limpar
               </button>
@@ -149,6 +151,10 @@
                 </div>
                 <span class="upload-progress__label">{{ uploadPercent || 0 }}%</span>
               </div>
+            } @else if (phase === 'PUBLISHING') {
+              <p class="upload-note" role="status" aria-live="polite">
+                Upload concluído. Registrando a publicação e enviando para moderação.
+              </p>
             }
           </section>
 
@@ -171,7 +177,7 @@
         <section class="upload-done" role="status" aria-live="polite">
           <div class="upload-done__visual">
             @if (preview) {
-              <img [src]="preview" alt="Foto enviada com sucesso" />
+              <img [src]="preview" alt="Foto enviada para publicação" />
             } @else {
               <div class="upload-done__fallback" aria-hidden="true">
                 <i class="fas fa-check"></i>
@@ -180,8 +186,8 @@
           </div>
 
           <div class="upload-done__copy">
-            <h2>Foto adicionada</h2>
-            <p>Ela permanece privada até você decidir publicá-la no perfil.</p>
+            <h2>Foto enviada</h2>
+            <p>Ela seguirá para moderação e aparecerá no perfil quando estiver aprovada.</p>
 
             <div class="upload-actions upload-actions--done">
               <button
@@ -197,7 +203,7 @@
                 class="btn btn-secondary"
                 (click)="sendAnotherPhoto()"
               >
-                Adicionar outra
+                Publicar outra
               </button>
             </div>
           </div>
