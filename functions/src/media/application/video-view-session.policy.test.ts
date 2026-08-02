@@ -5,6 +5,7 @@ import './admin-authorization.policy.test';
 import './media-callable-rate-limit.policy.test';
 import './media-mutation-idempotency.policy.test';
 import './photo-audience-access.policy.test';
+import './photo-view-session.policy.test';
 import {
   VIDEO_VIEW_SESSION_MIN_INTERVAL_MS,
   VIDEO_VIEW_SESSION_RATE_WINDOW_MS,
