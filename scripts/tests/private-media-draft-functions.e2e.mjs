@@ -61,7 +61,8 @@ function videoReservationPayload(ownerUid, mediaId, clientRequestId) {
     mediaId,
     kind: 'video',
     operation: 'CREATE',
-    sourceStoragePath: `users/${ownerUid}/uploads/videos/${mediaId}.mp4`,
+    sourceStoragePath:
+      `users/${ownerUid}/uploads/videos/${mediaId}-source.mp4`,
     auxiliaryStoragePath: null,
     currentStoragePath: null,
     sourceSizeBytes: 1_000,
