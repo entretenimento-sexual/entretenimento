@@ -29,9 +29,7 @@ import {
   isRankablePhoto,
   type PublicPhotoRankingDocument,
 } from './photo-ranking-score';
-import {
-  normalizeMediaScore,
-} from './media-engagement-score';
+import { normalizeMediaScore } from './media-engagement-score';
 
 interface ControlPhotoRankingBackfillRequest {
   action?: PhotoRankingBackfillControlAction;
@@ -89,10 +87,7 @@ async function readBackfillState(
 
   return snapshot.exists
     ? normalizePhotoRankingBackfillState(snapshot.data(), now)
-    : buildInitialPhotoRankingBackfillState({
-      now,
-      status: 'IDLE',
-    });
+    : buildInitialPhotoRankingBackfillState({ now, status: 'IDLE' });
 }
 
 async function acquireBackfillLease(input: {
@@ -158,12 +153,9 @@ function buildPhotoQuery(
 async function commitPhotoRankingPage(input: {
   documents: FirebaseFirestore.QueryDocumentSnapshot[];
   now: number;
-}): Promise<{
-  updated: number;
-  skipped: number;
-}> {
+}): Promise<{ updated: number; skipped: number }> {
   const batch = db.batch();
-  const profileViewScoreDeltas = new Map<string, number>();
+  const profileDeltas = new Map<string, number>();
   let updated = 0;
   let skipped = 0;
 
@@ -186,18 +178,17 @@ async function commitPhotoRankingPage(input: {
     updated += 1;
 
     const ownerUid = document.ref.parent.parent?.id ?? '';
-    const viewScoreDelta = update.viewScore -
-      normalizeMediaScore(data.viewScore);
+    const delta = update.viewScore - normalizeMediaScore(data.viewScore);
 
-    if (ownerUid && viewScoreDelta !== 0) {
-      profileViewScoreDeltas.set(
+    if (ownerUid && delta !== 0) {
+      profileDeltas.set(
         ownerUid,
-        (profileViewScoreDeltas.get(ownerUid) ?? 0) + viewScoreDelta
+        (profileDeltas.get(ownerUid) ?? 0) + delta
       );
     }
   }
 
-  for (const [ownerUid, delta] of profileViewScoreDeltas) {
+  for (const [ownerUid, delta] of profileDeltas) {
     batch.set(
       db.doc(`public_profiles/${ownerUid}`),
       {
@@ -241,10 +232,9 @@ async function finalizeBackfillBatch(input: {
       );
     }
 
-    const paused = state.status === 'PAUSED';
     const nextState: PhotoRankingBackfillState = {
       ...state,
-      status: paused
+      status: state.status === 'PAUSED'
         ? 'PAUSED'
         : input.completed
           ? 'COMPLETED'
@@ -292,13 +282,13 @@ async function markBackfillBatchFailure(input: {
     }
 
     const consecutiveFailures = state.consecutiveFailures + 1;
-    const nextStatus = state.status === 'PAUSED'
+    const status = state.status === 'PAUSED'
       ? 'PAUSED'
       : nextPhotoRankingBackfillFailureStatus(consecutiveFailures);
 
     transaction.set(ref, {
       ...state,
-      status: nextStatus,
+      status,
       consecutiveFailures,
       leaseOwner: null,
       leaseExpiresAt: 0,
@@ -311,13 +301,10 @@ async function markBackfillBatchFailure(input: {
 
 export async function executePhotoRankingBackfillBatch(): Promise<
   PhotoRankingBackfillBatchResult
-> {
+  > {
   const runId = randomUUID();
   const startedAt = Date.now();
-  const leasedState = await acquireBackfillLease({
-    runId,
-    now: startedAt,
-  });
+  const leasedState = await acquireBackfillLease({ runId, now: startedAt });
 
   if (!leasedState) {
     const state = await readBackfillState(startedAt);
@@ -375,7 +362,6 @@ export async function executePhotoRankingBackfillBatch(): Promise<
     };
   } catch (error) {
     await markBackfillBatchFailure({ runId, now: Date.now() });
-
     logger.error('[photoRankingBackfill] Falha ao executar lote.', {
       error: error instanceof Error ? error.message : String(error ?? ''),
     });
@@ -405,10 +391,7 @@ async function applyAdminControl(input: {
     const snapshot = await transaction.get(ref);
     const current = snapshot.exists
       ? normalizePhotoRankingBackfillState(snapshot.data(), now)
-      : buildInitialPhotoRankingBackfillState({
-        now,
-        status: 'IDLE',
-      });
+      : buildInitialPhotoRankingBackfillState({ now, status: 'IDLE' });
 
     if (current.lastAdminOperationId === input.operationId) {
       return { state: current, alreadyApplied: true };
@@ -428,10 +411,7 @@ async function applyAdminControl(input: {
       );
     }
 
-    if (
-      current.status === 'COMPLETED' &&
-      input.action !== 'RESET'
-    ) {
+    if (current.status === 'COMPLETED' && input.action !== 'RESET') {
       throw new HttpsError(
         'failed-precondition',
         'O backfill já foi concluído. Use RESET para executá-lo novamente.'
@@ -452,13 +432,10 @@ async function applyAdminControl(input: {
       const pageSize = input.pageSize === undefined
         ? current.pageSize
         : normalizePhotoRankingBackfillPageSize(input.pageSize);
-      const nextStatus = input.action === 'PAUSE'
-        ? 'PAUSED'
-        : 'RUNNING';
 
       nextState = {
         ...current,
-        status: nextStatus,
+        status: input.action === 'PAUSE' ? 'PAUSED' : 'RUNNING',
         pageSize,
         startedAt: current.startedAt ?? now,
         completedAt: null,
