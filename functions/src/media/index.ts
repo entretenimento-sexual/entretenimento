@@ -116,6 +116,9 @@ export {
 export {
   getPublicVideoAccessUrls,
 } from './application/get-public-video-access-urls.handler';
+export {
+  listAuthorizedPublicVideos,
+} from './application/list-authorized-public-videos.handler';
 
 export {
   recordPhotoView,
