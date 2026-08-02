@@ -152,6 +152,82 @@
   cursor: default;
 }
 
+.profile-videos__safety-attestation {
+  display: grid;
+  gap: 10px;
+  margin: 2px 0 0;
+  padding: 13px;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--warning-color, #f5c451) 34%,
+    var(--surface-border, rgb(255 255 255 / 14%))
+  );
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--warning-color, #f5c451) 7%,
+    transparent
+  );
+}
+
+.profile-videos__safety-attestation legend {
+  padding-inline: 4px;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.84rem;
+  font-weight: 820;
+}
+
+.profile-videos__safety-attestation > p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+  font-size: 0.77rem;
+  line-height: 1.45;
+}
+
+.profile-videos__safety-attestation > label {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  min-height: 42px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.8rem;
+  line-height: 1.42;
+  cursor: pointer;
+}
+
+.profile-videos__safety-attestation > label:hover {
+  background: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 5%,
+    transparent
+  );
+}
+
+.profile-videos__safety-attestation input {
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--primary-color, #ff6b6b);
+}
+
+.profile-videos__safety-attestation input:focus-visible {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
+}
+
+.profile-videos__safety-attestation .profile-videos__field-error {
+  margin: 0;
+}
+
+.profile-videos__safety-attestation:disabled,
+.profile-videos__safety-attestation:disabled label {
+  opacity: 0.62;
+  cursor: default;
+}
+
 .profile-videos__settings-note {
   margin: 0;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
@@ -426,6 +502,15 @@
     min-height: 40px;
   }
 
+  .profile-videos__safety-attestation {
+    padding: 11px;
+  }
+
+  .profile-videos__safety-attestation > label {
+    min-height: 48px;
+    padding: 9px 7px;
+  }
+
   .profile-videos__cover-tools {
     align-items: stretch;
   }
@@ -481,6 +566,7 @@ html.high-contrast .profile-videos__settings-form input,
 html.high-contrast .profile-videos__settings-form textarea,
 html.high-contrast .profile-videos__selected-cover,
 html.high-contrast .profile-videos__upload-start,
+html.high-contrast .profile-videos__safety-attestation,
 html.high-contrast .profile-videos__more-menu,
 html.high-contrast .profile-videos__upload-failure {
   border-color: currentColor !important;
