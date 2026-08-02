@@ -58,6 +58,31 @@ function createValidDocument(): Record<string, unknown> {
   };
 }
 
+function createAccess(): IPublicVideoAccess {
+  return {
+    ownerUid: 'owner-1',
+    videoId: 'video-1',
+    url: 'http://127.0.0.1:9199/hd.mp4?token=default',
+    posterUrl: 'https://example.test/poster.webp?token=test',
+    variants: [
+      {
+        quality: 'SD',
+        url: 'http://127.0.0.1:9199/sd.mp4?token=sd',
+        mimeType: 'video/mp4',
+        sizeBytes: 512,
+      },
+      {
+        quality: 'HD',
+        url: 'http://127.0.0.1:9199/hd.mp4?token=hd',
+        mimeType: 'video/mp4',
+        sizeBytes: 2_048,
+      },
+    ],
+    defaultQuality: 'HD',
+    expiresAt: NOW + 5 * 60_000,
+  };
+}
+
 describe('public-video-item.mapper', () => {
   it('normaliza a projeção pública completa sem expor URL ou path', () => {
     const projection = mapPublicVideoProjection({
@@ -151,23 +176,17 @@ describe('public-video-item.mapper', () => {
       documentId: 'video-1',
       data: createValidDocument(),
     });
+    const access = createAccess();
 
     expect(projection).not.toBeNull();
-
-    const access: IPublicVideoAccess = {
-      ownerUid: 'owner-1',
-      videoId: 'video-1',
-      url: 'http://127.0.0.1:9199/video.mp4?token=test',
-      posterUrl: 'https://example.test/poster.webp?token=test',
-      expiresAt: NOW + 5 * 60_000,
-    };
-
     expect(isPublicVideoAccessUsable(projection!, access, NOW)).toBe(true);
     expect(hydratePublicVideoItem(projection!, access, NOW)).toMatchObject({
       id: 'video-1',
-      url: access.url,
+      url: access.variants?.[1].url,
       posterUrl: access.posterUrl,
       accessExpiresAt: access.expiresAt,
+      playbackQuality: 'HD',
+      sizeBytes: 2_048,
     });
 
     expect(hydratePublicVideoItem(projection!, {
@@ -179,6 +198,72 @@ describe('public-video-item.mapper', () => {
       ...access,
       expiresAt: NOW + 5_000,
     }, NOW)).toBeNull();
+  });
+
+  it('seleciona SD para economia de dados', () => {
+    const projection = mapPublicVideoProjection({
+      documentId: 'video-1',
+      data: createValidDocument(),
+    });
+    const access = createAccess();
+    const item = hydratePublicVideoItem(
+      projection!,
+      access,
+      NOW,
+      {
+        documentVisible: true,
+        online: true,
+        saveData: true,
+        effectiveType: '4g',
+        downlinkMbps: 10,
+      }
+    );
+
+    expect(item).toMatchObject({
+      url: access.variants?.[0].url,
+      playbackQuality: 'SD',
+      sizeBytes: 512,
+    });
+  });
+
+  it('mantém compatibilidade com resposta de URL única', () => {
+    const projection = mapPublicVideoProjection({
+      documentId: 'video-1',
+      data: createValidDocument(),
+    });
+    const legacyAccess: IPublicVideoAccess = {
+      ownerUid: 'owner-1',
+      videoId: 'video-1',
+      url: 'http://127.0.0.1:9199/video.mp4?token=legacy',
+      posterUrl: null,
+      expiresAt: NOW + 5 * 60_000,
+    };
+
+    expect(hydratePublicVideoItem(projection!, legacyAccess, NOW)).toMatchObject({
+      url: legacyAccess.url,
+      playbackQuality: 'HD',
+      playbackVariants: [],
+    });
+  });
+
+  it('rejeita lote de variantes informado, mas totalmente inválido', () => {
+    const projection = mapPublicVideoProjection({
+      documentId: 'video-1',
+      data: createValidDocument(),
+    });
+    const access: IPublicVideoAccess = {
+      ...createAccess(),
+      variants: [
+        {
+          quality: 'HD',
+          url: 'javascript:alert(1)',
+          mimeType: 'video/mp4',
+          sizeBytes: 2_048,
+        },
+      ],
+    };
+
+    expect(isPublicVideoAccessUsable(projection!, access, NOW)).toBe(false);
   });
 
   it('gera chave estável para cache e deduplicação', () => {
