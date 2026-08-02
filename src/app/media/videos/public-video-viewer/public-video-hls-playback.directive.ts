@@ -18,6 +18,7 @@ import {
   PublicVideoHlsPlaybackCoordinatorService,
   type PublicVideoHlsPlaybackConnection,
 } from 'src/app/core/services/media/public-video-hls-playback-coordinator.service';
+import { PublicVideoCaptionTracksDirective } from './public-video-caption-tracks.directive';
 
 interface PublicVideoViewerHlsData {
   readonly items?: readonly IPublicVideoItem[];
@@ -27,6 +28,7 @@ interface PublicVideoViewerHlsData {
 @Directive({
   selector: '[appPublicVideoHlsPlayback]',
   standalone: true,
+  hostDirectives: [PublicVideoCaptionTracksDirective],
 })
 export class PublicVideoHlsPlaybackDirective
   implements AfterViewInit, OnDestroy {
@@ -51,6 +53,9 @@ export class PublicVideoHlsPlaybackDirective
      * HLS é melhoria progressiva. Fixtures isolados, SSR ou uma configuração
      * sem AngularFire continuam usando o MP4 já presente no elemento, sem
      * instanciar serviços que dependem de Auth/Functions.
+     *
+     * As faixas WebVTT são uma host directive independente: continuam ativas no
+     * fallback MP4 e não compartilham o lifecycle interno do runtime HLS.
      */
     const auth = this.injector.get(Auth, null);
     const functions = this.injector.get(Functions, null);
