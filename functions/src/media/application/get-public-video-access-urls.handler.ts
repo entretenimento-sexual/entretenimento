@@ -3,12 +3,19 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
+import {
+  MAX_VIDEO_CAPTION_SIZE_BYTES,
+  VIDEO_CAPTION_MIME_TYPE,
+  normalizeVideoCaptionLabel,
+  normalizeVideoCaptionLanguage,
+} from './video-caption-track.policy';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
   createVideoAudienceAccessEvaluator,
   type VideoAudienceAccessEvaluator,
 } from './video-audience-access.policy';
 import {
+  extractOwnedPrivateVideoCaptionPath,
   normalizeOwnedPublishedVideoPath,
   normalizeOwnedPublishedVideoPosterPath,
 } from './video-storage-path';
@@ -32,6 +39,15 @@ interface PublicVideoAccessVariant {
   sizeBytes: number;
 }
 
+interface PublicVideoCaptionTrack {
+  id: string;
+  kind: 'captions';
+  language: string;
+  label: string;
+  url: string;
+  isDefault: boolean;
+}
+
 interface PublicVideoAccessResponseItem {
   ownerUid: string;
   videoId: string;
@@ -40,6 +56,7 @@ interface PublicVideoAccessResponseItem {
   posterUrl: string | null;
   variants: PublicVideoAccessVariant[];
   defaultQuality: PublicVideoQuality;
+  captionTracks: PublicVideoCaptionTrack[];
   expiresAt: number;
 }
 
@@ -60,7 +77,17 @@ interface PublishedVariantDocument {
   sizeBytes?: unknown;
 }
 
+interface CaptionTrackDocument {
+  id?: unknown;
+  kind?: unknown;
+  language?: unknown;
+  label?: unknown;
+  storagePath?: unknown;
+  isDefault?: unknown;
+}
+
 const MAX_ITEMS_PER_REQUEST = 16;
+const MAX_CAPTION_TRACKS_PER_VIDEO = 4;
 const SIGNED_URL_TTL_MS = 5 * 60 * 1000;
 const PUBLIC_VIDEO_TYPES = new Set<PublicVideoMimeType>([
   'video/mp4',
@@ -201,6 +228,120 @@ function normalizePublishedVariants(
   return { variants, defaultQuality };
 }
 
+function normalizeCaptionTrackDocuments(
+  ownerUid: string,
+  videoId: string,
+  publication: Record<string, unknown>
+): Array<{
+  id: string;
+  language: string;
+  label: string;
+  storagePath: string;
+  isDefault: boolean;
+}> {
+  const rawTracks = Array.isArray(publication['captionTracks'])
+    ? publication['captionTracks'].slice(0, MAX_CAPTION_TRACKS_PER_VIDEO)
+    : [];
+  const tracks: Array<{
+    id: string;
+    language: string;
+    label: string;
+    storagePath: string;
+    isDefault: boolean;
+  }> = [];
+  const seenIds = new Set<string>();
+
+  for (const candidate of rawTracks) {
+    if (typeof candidate !== 'object' || candidate === null) {
+      continue;
+    }
+
+    const data = candidate as CaptionTrackDocument;
+    const id = cleanId(data.id);
+    const storagePath = extractOwnedPrivateVideoCaptionPath(
+      ownerUid,
+      videoId,
+      data.storagePath
+    );
+
+    if (
+      !id ||
+      seenIds.has(id) ||
+      normalizeEnum(data.kind) !== 'CAPTIONS' ||
+      !storagePath
+    ) {
+      continue;
+    }
+
+    try {
+      tracks.push({
+        id,
+        language: normalizeVideoCaptionLanguage(data.language),
+        label: normalizeVideoCaptionLabel(data.label),
+        storagePath,
+        isDefault: data.isDefault === true,
+      });
+      seenIds.add(id);
+    } catch {
+      // Faixa inválida é ignorada; o vídeo e demais faixas continuam disponíveis.
+    }
+  }
+
+  if (tracks.length && !tracks.some((track) => track.isDefault)) {
+    tracks[0] = { ...tracks[0], isDefault: true };
+  }
+
+  return tracks;
+}
+
+async function authorizeCaptionTracks(
+  ownerUid: string,
+  videoId: string,
+  publication: Record<string, unknown>,
+  expiresAt: number
+): Promise<PublicVideoCaptionTrack[]> {
+  const authorized: PublicVideoCaptionTrack[] = [];
+
+  for (const track of normalizeCaptionTrackDocuments(
+    ownerUid,
+    videoId,
+    publication
+  )) {
+    const file = storage.bucket().file(track.storagePath);
+    const [exists] = await file.exists();
+
+    if (!exists) {
+      continue;
+    }
+
+    const [metadata] = await file.getMetadata();
+    const mimeType = String(metadata.contentType ?? '').trim().toLowerCase();
+    const sizeBytes = normalizePositiveInteger(metadata.size);
+
+    if (
+      mimeType !== VIDEO_CAPTION_MIME_TYPE ||
+      !sizeBytes ||
+      sizeBytes > MAX_VIDEO_CAPTION_SIZE_BYTES
+    ) {
+      continue;
+    }
+
+    authorized.push({
+      id: track.id,
+      kind: 'captions',
+      language: track.language,
+      label: track.label,
+      url: await createTemporaryStorageReadUrl(
+        track.storagePath,
+        expiresAt
+      ),
+      isDefault: track.isDefault,
+    });
+  }
+
+  return authorized;
+}
+
 async function resolveAccessItem(
   audienceEvaluator: VideoAudienceAccessEvaluator,
   ownerUid: string,
@@ -330,6 +471,12 @@ async function resolveAccessItem(
     posterUrl,
     variants,
     defaultQuality: defaultVariant.quality,
+    captionTracks: await authorizeCaptionTracks(
+      ownerUid,
+      videoId,
+      publication,
+      expiresAt
+    ),
     expiresAt,
   };
 }
