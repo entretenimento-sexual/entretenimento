@@ -1,0 +1,449 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.backfill-page {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding-bottom: 1rem;
+  color: var(--text-color, #111827);
+}
+
+.backfill-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.backfill-page__eyebrow {
+  margin: 0 0 0.25rem;
+  color: var(--primary-color, #d64d4d);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.backfill-page h2,
+.backfill-page h3,
+.backfill-page p,
+.backfill-page dl,
+.backfill-page dd {
+  margin: 0;
+}
+
+.backfill-page h2 {
+  font-size: clamp(1.35rem, 1.2rem + 0.8vw, 2rem);
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.backfill-page h3 {
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.backfill-page__description,
+.backfill-card__heading p,
+.backfill-state p,
+.backfill-status p,
+.reset-confirmation p {
+  margin-top: 0.35rem;
+  color: color-mix(in oklab, var(--text-color, #111827) 68%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.button {
+  min-height: 42px;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.15;
+  cursor: pointer;
+}
+
+.button:focus-visible,
+.page-size-field input:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--primary-color, #d64d4d) 34%, transparent);
+  outline-offset: 2px;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.button--primary,
+.button--danger {
+  background: var(--primary-color, #d64d4d);
+  color: #fff;
+}
+
+.button--secondary {
+  border-color: var(--surface-border, rgba(0, 0, 0, 0.14));
+  background: var(--surface-card, #fff);
+  color: var(--text-color, #111827);
+}
+
+.button--danger-ghost {
+  border-color: color-mix(in oklab, #b42318 38%, transparent);
+  background: color-mix(in oklab, #b42318 6%, transparent);
+  color: #b42318;
+}
+
+.button--danger {
+  background: #b42318;
+}
+
+.backfill-state,
+.backfill-status,
+.backfill-card,
+.metric-card,
+.backfill-notice,
+.reset-confirmation {
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
+  border-radius: 1rem;
+  background: var(--surface-card, #fff);
+  box-shadow: 0 12px 30px color-mix(in oklab, #000 5%, transparent);
+}
+
+.backfill-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 120px;
+  padding: 1rem;
+}
+
+.backfill-state--loading {
+  justify-content: flex-start;
+}
+
+.backfill-state--error {
+  border-color: color-mix(in oklab, #b42318 34%, transparent);
+}
+
+.backfill-spinner {
+  width: 1.4rem;
+  height: 1.4rem;
+  flex: 0 0 auto;
+  border: 3px solid color-mix(in oklab, var(--primary-color, #d64d4d) 18%, transparent);
+  border-top-color: var(--primary-color, #d64d4d);
+  border-radius: 50%;
+  animation: backfill-spin 0.8s linear infinite;
+}
+
+.backfill-status {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.status-badge {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, #667085 10%, transparent);
+  color: #475467;
+  font-size: 0.75rem;
+  font-weight: 850;
+}
+
+.status-badge[data-tone='success'] {
+  background: color-mix(in oklab, #067647 10%, transparent);
+  color: #067647;
+}
+
+.status-badge[data-tone='info'] {
+  background: color-mix(in oklab, #175cd3 10%, transparent);
+  color: #175cd3;
+}
+
+.status-badge[data-tone='warning'] {
+  background: color-mix(in oklab, #b54708 10%, transparent);
+  color: #b54708;
+}
+
+.status-badge[data-tone='danger'] {
+  background: color-mix(in oklab, #b42318 10%, transparent);
+  color: #b42318;
+}
+
+.backfill-status__meta,
+.detail-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.backfill-status__meta div,
+.detail-list div {
+  min-width: 0;
+  padding: 0.7rem;
+  border-radius: 0.8rem;
+  background: color-mix(in oklab, var(--surface-ground, #f5f6f8) 78%, transparent);
+}
+
+.backfill-status__meta dt,
+.detail-list dt {
+  color: color-mix(in oklab, var(--text-color, #111827) 58%, transparent);
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.backfill-status__meta dd,
+.detail-list dd {
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.metric-card {
+  min-width: 0;
+  padding: 0.9rem;
+}
+
+.metric-card span,
+.metric-card small {
+  display: block;
+}
+
+.metric-card span {
+  color: color-mix(in oklab, var(--text-color, #111827) 66%, transparent);
+  font-size: 0.73rem;
+  font-weight: 760;
+}
+
+.metric-card strong {
+  display: block;
+  margin: 0.3rem 0;
+  font-size: clamp(1.4rem, 1.1rem + 1vw, 2rem);
+  line-height: 1;
+}
+
+.metric-card small {
+  color: color-mix(in oklab, var(--text-color, #111827) 55%, transparent);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.backfill-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.backfill-card--compact {
+  gap: 0.75rem;
+}
+
+.backfill-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.backfill-card__heading > strong {
+  flex: 0 0 auto;
+  color: var(--primary-color, #d64d4d);
+  font-size: 1.2rem;
+}
+
+.backfill-card__heading--controls {
+  align-items: flex-end;
+}
+
+.backfill-progress {
+  width: 100%;
+  height: 0.65rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--text-color, #111827) 9%, transparent);
+}
+
+.backfill-progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--text-color, #111827) 9%, transparent);
+}
+
+.backfill-progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--primary-color, #d64d4d);
+}
+
+.backfill-progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--primary-color, #d64d4d);
+}
+
+.backfill-notice {
+  padding: 0.85rem 1rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.backfill-notice--warning {
+  border-color: color-mix(in oklab, #b54708 32%, transparent);
+  background: color-mix(in oklab, #b54708 6%, var(--surface-card, #fff));
+  color: #7a2e0e;
+}
+
+.backfill-notice--danger {
+  border-color: color-mix(in oklab, #b42318 32%, transparent);
+  background: color-mix(in oklab, #b42318 6%, var(--surface-card, #fff));
+  color: #7a271a;
+}
+
+.backfill-notice p {
+  margin-top: 0.25rem;
+}
+
+.backfill-notice small {
+  display: block;
+  margin-top: 0.35rem;
+  font-weight: 700;
+}
+
+.page-size-field {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 150px;
+  color: color-mix(in oklab, var(--text-color, #111827) 70%, transparent);
+  font-size: 0.72rem;
+  font-weight: 760;
+}
+
+.page-size-field input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.16));
+  border-radius: 0.7rem;
+  background: var(--surface-card, #fff);
+  color: var(--text-color, #111827);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.page-size-field small {
+  color: color-mix(in oklab, var(--text-color, #111827) 52%, transparent);
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.backfill-inline-help {
+  color: color-mix(in oklab, var(--text-color, #111827) 62%, transparent);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.reset-confirmation {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.9rem;
+  border-color: color-mix(in oklab, #b42318 35%, transparent);
+  background: color-mix(in oklab, #b42318 5%, var(--surface-card, #fff));
+}
+
+.reset-confirmation__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+@keyframes backfill-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (min-width: 760px) {
+  .backfill-status {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.8fr);
+    align-items: center;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .backfill-page__header,
+  .backfill-card__heading,
+  .backfill-card__heading--controls,
+  .backfill-state {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .backfill-page__header .button,
+  .backfill-state .button,
+  .action-grid .button,
+  .reset-confirmation__actions .button {
+    width: 100%;
+  }
+
+  .metric-grid,
+  .action-grid,
+  .backfill-status__meta,
+  .detail-list {
+    grid-template-columns: 1fr;
+  }
+
+  .page-size-field {
+    width: 100%;
+  }
+
+  .reset-confirmation__actions {
+    flex-direction: column-reverse;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backfill-spinner {
+    animation: none;
+  }
+}
+
+:host-context(html.high-contrast) .backfill-state,
+:host-context(html.high-contrast) .backfill-status,
+:host-context(html.high-contrast) .backfill-card,
+:host-context(html.high-contrast) .metric-card,
+:host-context(html.high-contrast) .backfill-notice,
+:host-context(html.high-contrast) .reset-confirmation,
+:host-context(html.high-contrast) .button,
+:host-context(html.high-contrast) .page-size-field input {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: none !important;
+}
