@@ -50,6 +50,9 @@ export {
 export {
   syncPublishedVideoSettings,
 } from './application/sync-published-video-settings.handler';
+export {
+  syncVideoEditResult,
+} from './application/sync-video-edit-result.handler';
 
 export {
   cleanupUnpublishedVideoInteractions,
