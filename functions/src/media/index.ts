@@ -71,6 +71,10 @@ export {
 } from './application/register-private-video-upload.handler';
 
 export {
+  reconcilePendingVideoCaptionRegistrations,
+} from './application/register-private-video-upload-orchestrator.handler';
+
+export {
   cleanupPendingPrivatePhotoUploadAssets,
   indexPrivatePhotoUploadForCleanup,
 } from './application/register-and-publish-photo-upload.handler';
