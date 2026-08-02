@@ -145,6 +145,28 @@ async function run() {
       ownerClient.functions,
       'reservePrivateMediaUpload'
     );
+
+    await adminDb.doc(`users/${ownerUid}`).set(
+      { suspended: true },
+      { merge: true }
+    );
+    await assert.rejects(
+      () => reserve(videoReservationPayload(
+        ownerUid,
+        `video-restricted-${runId}`,
+        `request-restricted-${runId}`
+      )),
+      (error) => {
+        assert.equal(error.code, 'functions/permission-denied');
+        assert.equal(error.details?.code, 'MEDIA_UPLOAD_NOT_ALLOWED');
+        return true;
+      }
+    );
+    await adminDb.doc(`users/${ownerUid}`).set(
+      { suspended: false },
+      { merge: true }
+    );
+
     const attempts = await Promise.allSettled([
       reserve(videoReservationPayload(
         ownerUid,
@@ -160,8 +182,16 @@ async function run() {
     const fulfilled = attempts.filter((result) => result.status === 'fulfilled');
     const rejected = attempts.filter((result) => result.status === 'rejected');
 
-    assert.equal(fulfilled.length, 1, 'somente uma reserva deve ocupar o último slot');
+    assert.equal(
+      fulfilled.length,
+      1,
+      'somente uma reserva deve ocupar o último slot'
+    );
     assert.equal(rejected.length, 1, 'a segunda reserva deve ser recusada');
+    assert.equal(
+      rejected[0].reason.details?.code,
+      'MEDIA_DRAFT_ITEM_LIMIT'
+    );
 
     const successfulReservation = fulfilled[0].value.data;
     const usageAfterReservation = (
