@@ -168,15 +168,22 @@ function normalizeProcessedVariants(
     const mimeType = normalizeVideoMimeType(data.mimeType);
     const sizeBytes = Number(data.sizeBytes ?? 0);
 
-    return quality && storagePath && mimeType &&
-      Number.isFinite(sizeBytes) && sizeBytes > 0
-      ? [{
-          quality,
-          storagePath,
-          mimeType,
-          sizeBytes: Math.trunc(sizeBytes),
-        }]
-      : [];
+    if (
+      !quality ||
+      !storagePath ||
+      !mimeType ||
+      !Number.isFinite(sizeBytes) ||
+      sizeBytes <= 0
+    ) {
+      return [];
+    }
+
+    return [{
+      quality,
+      storagePath,
+      mimeType,
+      sizeBytes: Math.trunc(sizeBytes),
+    }];
   });
   const byQuality = new Map<VideoPlaybackQuality, VideoProcessingVariant>();
 
