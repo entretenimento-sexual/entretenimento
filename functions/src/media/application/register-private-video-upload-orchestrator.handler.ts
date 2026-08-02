@@ -21,9 +21,14 @@ import {
   isSupportedVideoUploadMimeType,
   normalizeVideoUploadMimeType,
 } from './video-upload-format.policy';
+import {
+  assertVideoUploadSafetyAttestation,
+  type VideoUploadSafetyAttestationInput,
+} from './video-upload-safety-attestation';
 
 interface RegisterPrivateVideoUploadRequest
-  extends VideoPublicationSettingsInput {
+  extends VideoPublicationSettingsInput,
+    VideoUploadSafetyAttestationInput {
   ownerUid?: string;
   videoId?: string;
   videoStoragePath?: string;
@@ -62,6 +67,7 @@ interface PrivateMediaUploadAccountSnapshot {
   interactionBlocked?: unknown;
   ageReverification?: {
     status?: unknown;
+    result?: unknown;
   } | null;
 }
 
@@ -350,7 +356,7 @@ function resolveOwnedUploadAssets(
 /**
  * Registra o upload e só responde depois que a fila idempotente foi persistida.
  * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
- * A elegibilidade, o formato processável e a intenção de publicação são
+ * Elegibilidade, formato, declaração de segurança e intenção de publicação são
  * revalidados no backend antes do registro definitivo.
  */
 export const registerPrivateVideoUpload = onCall<
@@ -386,6 +392,7 @@ export const registerPrivateVideoUpload = onCall<
       }
 
       try {
+        assertVideoUploadSafetyAttestation(request.data);
         await assertPrivateVideoUploadEligibility(ownerUid);
       } catch (error) {
         await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
