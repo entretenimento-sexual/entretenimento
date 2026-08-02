@@ -350,8 +350,8 @@ function resolveOwnedUploadAssets(
 /**
  * Registra o upload e só responde depois que a fila idempotente foi persistida.
  * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
- * A elegibilidade e o formato processável são revalidados no backend antes do
- * registro definitivo.
+ * A elegibilidade, o formato processável e a intenção de publicação são
+ * revalidados no backend antes do registro definitivo.
  */
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
@@ -369,6 +369,14 @@ export const registerPrivateVideoUpload = onCall<
       : null;
 
     if (requesterUid && requesterUid === ownerUid && assets) {
+      if (request.data?.publishWhenReady !== true) {
+        await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
+        throw new HttpsError(
+          'failed-precondition',
+          'Todo vídeo enviado deve seguir para processamento e publicação.'
+        );
+      }
+
       if (!isSupportedVideoUploadMimeType(requestedMimeType)) {
         await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
         throw new HttpsError(
