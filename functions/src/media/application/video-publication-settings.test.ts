@@ -14,6 +14,7 @@ describe('video-publication-settings', () => {
       reactionsEnabled: false,
       commentsEnabled: true,
       ratingsEnabled: false,
+      minimumPlaybackPlan: 'premium',
     });
 
     assert.deepEqual(settings, {
@@ -22,10 +23,11 @@ describe('video-publication-settings', () => {
       reactionsEnabled: false,
       commentsEnabled: true,
       ratingsEnabled: false,
+      minimumPlaybackPlan: 'premium',
     });
   });
 
-  it('aplica preferências abertas por padrão', () => {
+  it('aplica preferências abertas e reprodução gratuita por padrão', () => {
     const settings = normalizeVideoPublicationSettings({});
 
     assert.equal(settings.title, null);
@@ -33,6 +35,7 @@ describe('video-publication-settings', () => {
     assert.equal(settings.reactionsEnabled, true);
     assert.equal(settings.commentsEnabled, true);
     assert.equal(settings.ratingsEnabled, true);
+    assert.equal(settings.minimumPlaybackPlan, 'free');
   });
 
   it('limita título e descrição no backend', () => {
@@ -45,6 +48,14 @@ describe('video-publication-settings', () => {
     assert.equal(settings.description?.length, 1000);
   });
 
+  it('normaliza planos desconhecidos para gratuito', () => {
+    const settings = normalizeVideoPublicationSettings({
+      minimumPlaybackPlan: 'enterprise',
+    });
+
+    assert.equal(settings.minimumPlaybackPlan, 'free');
+  });
+
   it('exige nova moderação apenas quando texto muda', () => {
     const previous = normalizeVideoPublicationSettings({
       title: 'Título',
@@ -52,10 +63,12 @@ describe('video-publication-settings', () => {
       reactionsEnabled: true,
       commentsEnabled: true,
       ratingsEnabled: true,
+      minimumPlaybackPlan: 'free',
     });
     const preferencesOnly = {
       ...previous,
       commentsEnabled: false,
+      minimumPlaybackPlan: 'basic' as const,
     };
     const changedText = {
       ...previous,
