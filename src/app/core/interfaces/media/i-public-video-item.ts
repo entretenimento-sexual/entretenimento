@@ -98,6 +98,15 @@ export interface IPublicVideoAccessVariant {
   readonly sizeBytes: number;
 }
 
+export interface IPublicVideoCaptionTrack {
+  readonly id: string;
+  readonly kind: 'captions';
+  readonly language: string;
+  readonly label: string;
+  readonly url: string;
+  readonly isDefault: boolean;
+}
+
 /** URL temporária emitida pelo backend após nova validação de acesso. */
 export interface IPublicVideoAccess {
   readonly ownerUid: string;
@@ -108,6 +117,7 @@ export interface IPublicVideoAccess {
   /** Ausente apenas em respostas anteriores ao pipeline multirresolução. */
   readonly variants?: readonly IPublicVideoAccessVariant[];
   readonly defaultQuality?: TPublicVideoQuality;
+  readonly captionTracks?: readonly IPublicVideoCaptionTrack[];
   readonly expiresAt: number;
 }
 
@@ -122,4 +132,5 @@ export interface IPublicVideoItem extends IPublicVideoProjection {
    */
   readonly playbackQuality?: TPublicVideoQuality;
   readonly playbackVariants?: readonly IPublicVideoAccessVariant[];
+  readonly captionTracks?: readonly IPublicVideoCaptionTrack[];
 }
