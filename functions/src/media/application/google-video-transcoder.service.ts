@@ -2,8 +2,17 @@ import axios from 'axios';
 import { applicationDefault } from 'firebase-admin/app';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { adminApp, storage } from '../../firebaseApp';
-import type { VideoProcessingJob } from './video-processing-job';
+import { adminApp, db, storage } from '../../firebaseApp';
+import { buildEditedTranscoderJobConfig } from './google-video-transcoder-edit-config';
+import {
+  normalizeVideoEditRecipe,
+  type VideoEditRecipe,
+} from './video-edit-recipe';
+import {
+  buildVideoProcessingJobId,
+  VIDEO_PROCESSING_JOBS_COLLECTION,
+  type VideoProcessingJob,
+} from './video-processing-job';
 
 interface GoogleTranscoderErrorStatus {
   code?: number;
@@ -51,6 +60,11 @@ export interface GoogleVideoTranscoderProbeResult {
   errorMessage: string | null;
 }
 
+interface PersistedVideoEditSnapshot {
+  recipe: VideoEditRecipe;
+  sourceDurationMs: number | null;
+}
+
 const TRANSCODER_API_BASE_URL = 'https://transcoder.googleapis.com/v1';
 const TRANSCODER_SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
 const TRANSCODER_TEMPLATE_ID =
@@ -94,6 +108,14 @@ function normalizeProcessingVersion(value: unknown): string | null {
   return /^[a-z0-9_-]{1,63}$/.test(normalized) ? normalized : null;
 }
 
+function normalizePositiveInteger(value: unknown): number | null {
+  const numberValue = Number(value ?? 0);
+
+  return Number.isFinite(numberValue) && numberValue > 0
+    ? Math.trunc(numberValue)
+    : null;
+}
+
 async function authorizationHeader(): Promise<string> {
   const accessToken = await credential.getAccessToken();
   const token = String(accessToken.access_token ?? '').trim();
@@ -130,6 +152,26 @@ function inputUri(sourceStoragePath: string): string {
   }
 
   return `gs://${bucketName}/${normalizedPath}`;
+}
+
+async function readPersistedVideoEditSnapshot(
+  job: VideoProcessingJob
+): Promise<PersistedVideoEditSnapshot> {
+  const jobId = buildVideoProcessingJobId(job.ownerUid, job.videoId);
+  const snapshot = await db
+    .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
+    .doc(jobId)
+    .get();
+  const raw = snapshot.exists ? snapshot.data() ?? {} : {};
+  const sourceDurationMs = normalizePositiveInteger(
+    raw['sourceDurationMs'] ?? job.sourceDurationMs
+  );
+  const recipe = normalizeVideoEditRecipe(
+    raw['editRecipe'] ?? job.editRecipe,
+    sourceDurationMs
+  );
+
+  return { recipe, sourceDurationMs };
 }
 
 export async function probeGoogleVideoTranscoder(): Promise<GoogleVideoTranscoderProbeResult> {
@@ -225,17 +267,31 @@ export async function submitGoogleVideoTranscoderJob(
 
   const parent = parentName();
   const authorization = await authorizationHeader();
+  const sourceUri = inputUri(job.sourceStoragePath);
+  const destinationUri = outputUri(job.outputPrefix);
+  const editSnapshot = await readPersistedVideoEditSnapshot(job);
+  const editedConfig = buildEditedTranscoderJobConfig({
+    inputUri: sourceUri,
+    outputUri: destinationUri,
+    recipe: editSnapshot.recipe,
+    sourceDurationMs: editSnapshot.sourceDurationMs,
+  });
   const response = await axios.post<GoogleTranscoderJobResponse>(
     `${TRANSCODER_API_BASE_URL}/${parent}/jobs`,
     {
-      inputUri: inputUri(job.sourceStoragePath),
-      outputUri: outputUri(job.outputPrefix),
-      templateId: TRANSCODER_TEMPLATE_ID,
+      ...(editedConfig
+        ? { config: editedConfig }
+        : {
+          inputUri: sourceUri,
+          outputUri: destinationUri,
+          templateId: TRANSCODER_TEMPLATE_ID,
+        }),
       ttlAfterCompletionDays: 7,
       labels: {
         source: 'entretenimento',
         media: 'profile-video',
         processing_version: processingVersion,
+        edited: editedConfig ? 'true' : 'false',
       },
     },
     {

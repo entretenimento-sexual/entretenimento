@@ -1,5 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
+import {
+  DEFAULT_VIDEO_EDIT_RECIPE,
+  resolveEditedVideoDurationMs,
+  resolveVideoEditGeometry,
+  type VideoEditRecipe,
+} from './video-edit-recipe';
+
 export type VideoProcessingJobState =
   | 'QUEUED'
   | 'SUBMITTING'
@@ -36,6 +43,11 @@ export interface VideoProcessingJob {
   updatedAt: number;
   lastErrorCode: string | null;
   lastError: string | null;
+  /** Campos opcionais preservam compatibilidade com jobs legados. */
+  editRecipe?: VideoEditRecipe;
+  outputDurationMs?: number | null;
+  outputWidthPixels?: number | null;
+  outputHeightPixels?: number | null;
 }
 
 export interface BuildQueuedVideoProcessingJobCommand {
@@ -46,6 +58,7 @@ export interface BuildQueuedVideoProcessingJobCommand {
   sourceMimeType: string;
   sourceSizeBytes: number;
   sourceDurationMs: number | null;
+  editRecipe?: VideoEditRecipe;
   now?: number;
 }
 
@@ -76,6 +89,8 @@ export function buildQueuedVideoProcessingJob(
 ): VideoProcessingJob {
   const now = command.now ?? Date.now();
   const processingVersion = `${now}-${randomUUID()}`;
+  const editRecipe = command.editRecipe ?? DEFAULT_VIDEO_EDIT_RECIPE;
+  const geometry = resolveVideoEditGeometry(editRecipe);
 
   return {
     ownerUid: command.ownerUid,
@@ -108,5 +123,12 @@ export function buildQueuedVideoProcessingJob(
     updatedAt: now,
     lastErrorCode: null,
     lastError: null,
+    editRecipe,
+    outputDurationMs: resolveEditedVideoDurationMs(
+      editRecipe,
+      command.sourceDurationMs
+    ),
+    outputWidthPixels: geometry?.outputWidthPixels ?? null,
+    outputHeightPixels: geometry?.outputHeightPixels ?? null,
   };
 }

@@ -14,6 +14,11 @@ import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
+import {
+  isAllowedNewVideoUploadMimeType,
+  isDirectPublicPlaybackMimeType,
+  isRecognizedRegisteredVideoMimeType,
+} from './video-upload-format.policy';
 
 type RegisteredVideoStatus = 'uploaded' | 'ready';
 type PrivateUploadAssetKind = 'video' | 'poster';
@@ -69,17 +74,6 @@ const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_POSTER_SIZE_BYTES = 10 * 1024 * 1024;
 const CLEANUP_COLLECTION = 'media_private_video_upload_cleanup_jobs';
 const CLEANUP_BATCH_SIZE = 50;
-const ALLOWED_VIDEO_TYPES = new Set([
-  'video/mp4',
-  'video/webm',
-  'video/quicktime',
-  'video/x-matroska',
-  'video/x-msvideo',
-  'video/x-ms-wmv',
-  'video/mp2t',
-  'application/mxf',
-]);
-const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
 const ALLOWED_POSTER_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
@@ -215,10 +209,10 @@ async function readRequiredVideoMetadata(storagePath: string): Promise<{
   const mimeType = normalizeMimeType(metadata.contentType);
   const sizeBytes = normalizePositiveInteger(metadata.size);
 
-  if (!ALLOWED_VIDEO_TYPES.has(mimeType)) {
+  if (!isAllowedNewVideoUploadMimeType(mimeType)) {
     throw new HttpsError(
       'failed-precondition',
-      'O arquivo armazenado não possui um formato de vídeo permitido.'
+      'Novos vídeos devem estar em MP4/M4V, MOV ou WebM.'
     );
   }
 
@@ -405,7 +399,7 @@ function buildExistingResponse(
     existingOwnerUid !== ownerUid ||
     existingVideoPath !== videoStoragePath ||
     existingPosterPath !== posterStoragePath ||
-    !ALLOWED_VIDEO_TYPES.has(mimeType) ||
+    !isRecognizedRegisteredVideoMimeType(mimeType) ||
     !sizeBytes
   ) {
     return null;
@@ -558,7 +552,7 @@ export const registerPrivateVideoUpload = onCall<
 
       const durationMs = normalizePositiveInteger(request.data?.durationMs);
       const status: RegisteredVideoStatus =
-        PUBLIC_PLAYBACK_TYPES.has(videoMetadata.mimeType) && durationMs
+        isDirectPublicPlaybackMimeType(videoMetadata.mimeType) && durationMs
           ? 'ready'
           : 'uploaded';
       const createdAt = Date.now();

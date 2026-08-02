@@ -6,6 +6,13 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import { completeVideoProcessingInEmulator } from './emulator-video-processing.service';
 import {
+  DEFAULT_VIDEO_EDIT_RECIPE,
+  normalizeVideoEditRecipe,
+  resolveEditedVideoDurationMs,
+  resolveVideoEditGeometry,
+  type VideoEditRecipe,
+} from './video-edit-recipe';
+import {
   buildQueuedVideoProcessingJob,
   buildVideoProcessingJobId,
   VIDEO_PROCESSING_JOBS_COLLECTION,
@@ -28,6 +35,7 @@ interface PrivateVideoDocument {
   mimeType?: string;
   sizeBytes?: number;
   durationMs?: number | null;
+  editRecipe?: unknown;
   processedStoragePath?: string | null;
   processingJobId?: string | null;
   processingStage?: string;
@@ -35,8 +43,16 @@ interface PrivateVideoDocument {
   status?: string;
 }
 
+interface VideoEditDraftDocument {
+  ownerUid?: unknown;
+  videoId?: unknown;
+  sourceDurationMs?: unknown;
+  editRecipe?: unknown;
+}
+
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 const MIN_VIDEO_DURATION_MS = 5_000;
+const VIDEO_EDIT_DRAFTS_COLLECTION = 'media_video_edit_drafts';
 const ALLOWED_VIDEO_TYPES = new Set([
   'video/mp4',
   'video/webm',
@@ -91,6 +107,50 @@ function processingJobReference(
     .doc(buildVideoProcessingJobId(ownerUid, videoId));
 }
 
+function editDraftReference(
+  ownerUid: string,
+  videoId: string
+): DocumentReference {
+  return db
+    .collection(VIDEO_EDIT_DRAFTS_COLLECTION)
+    .doc(buildVideoProcessingJobId(ownerUid, videoId));
+}
+
+function resolveEditRecipe(
+  video: PrivateVideoDocument,
+  draft: VideoEditDraftDocument | null,
+  sourceDurationMs: number | null
+): VideoEditRecipe {
+  try {
+    return normalizeVideoEditRecipe(
+      draft?.editRecipe ?? video.editRecipe,
+      draft?.sourceDurationMs ?? sourceDurationMs
+    );
+  } catch (error) {
+    logger.warn('[queuePrivateVideoProcessing] Receita inválida ignorada.', {
+      error: error instanceof Error ? error.message : String(error ?? ''),
+    });
+    return DEFAULT_VIDEO_EDIT_RECIPE;
+  }
+}
+
+function editJobPatch(
+  editRecipe: VideoEditRecipe,
+  sourceDurationMs: number | null
+): Record<string, unknown> {
+  const geometry = resolveVideoEditGeometry(editRecipe);
+
+  return {
+    editRecipe,
+    outputDurationMs: resolveEditedVideoDurationMs(
+      editRecipe,
+      sourceDurationMs
+    ),
+    outputWidthPixels: geometry?.outputWidthPixels ?? null,
+    outputHeightPixels: geometry?.outputHeightPixels ?? null,
+  };
+}
+
 async function requestCancellationIfPresent(
   jobRef: DocumentReference
 ): Promise<void> {
@@ -143,11 +203,13 @@ export async function ensurePrivateVideoProcessingQueued(
   const processingJobId = buildVideoProcessingJobId(ownerUid, videoId);
   const videoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
   const jobRef = processingJobReference(ownerUid, videoId);
+  const draftRef = editDraftReference(ownerUid, videoId);
   const queuedJob = await db.runTransaction<VideoProcessingJob | null>(
     async (transaction) => {
-      const [videoSnap, jobSnap] = await Promise.all([
+      const [videoSnap, jobSnap, draftSnap] = await Promise.all([
         transaction.get(videoRef),
         transaction.get(jobRef),
+        transaction.get(draftRef),
       ]);
 
       if (!videoSnap.exists) {
@@ -155,30 +217,44 @@ export async function ensurePrivateVideoProcessingQueued(
       }
 
       const video = videoSnap.data() as PrivateVideoDocument;
+      const draft = draftSnap.exists
+        ? draftSnap.data() as VideoEditDraftDocument
+        : null;
 
       if (String(video.processedStoragePath ?? '').trim()) {
+        if (draftSnap.exists) {
+          transaction.delete(draftRef);
+        }
         return null;
       }
+
+      const sourceDurationMs = normalizePositiveInteger(video.durationMs);
+      const editRecipe = resolveEditRecipe(video, draft, sourceDurationMs);
 
       if (jobSnap.exists) {
         const existingJob = jobSnap.data() as Partial<VideoProcessingJob>;
         const state = String(existingJob.state ?? '').trim().toUpperCase();
         const expected = statusForExistingJob(state);
+        const videoPatch: Record<string, unknown> = {
+          processingJobId,
+          status: expected.status,
+          processingStage: expected.stage,
+          editRecipe,
+          updatedAt: Date.now(),
+        };
 
-        if (
-          video.processingJobId !== processingJobId ||
-          video.status !== expected.status
-        ) {
+        transaction.set(videoRef, videoPatch, { merge: true });
+
+        if (draftSnap.exists && state === 'QUEUED') {
           transaction.set(
-            videoRef,
-            {
-              processingJobId,
-              status: expected.status,
-              processingStage: expected.stage,
-              updatedAt: Date.now(),
-            },
+            jobRef,
+            editJobPatch(editRecipe, sourceDurationMs),
             { merge: true }
           );
+        }
+
+        if (draftSnap.exists) {
+          transaction.delete(draftRef);
         }
 
         return null;
@@ -200,7 +276,6 @@ export async function ensurePrivateVideoProcessingQueued(
         );
       const sourceMimeType = normalizeMimeType(video.mimeType);
       const sourceSizeBytes = normalizePositiveInteger(video.sizeBytes);
-      const sourceDurationMs = normalizePositiveInteger(video.durationMs);
 
       if (
         !sourceStoragePath ||
@@ -230,6 +305,10 @@ export async function ensurePrivateVideoProcessingQueued(
           { merge: true }
         );
 
+        if (draftSnap.exists) {
+          transaction.delete(draftRef);
+        }
+
         return null;
       }
 
@@ -242,6 +321,7 @@ export async function ensurePrivateVideoProcessingQueued(
         sourceMimeType,
         sourceSizeBytes,
         sourceDurationMs,
+        editRecipe,
         now,
       });
 
@@ -254,10 +334,15 @@ export async function ensurePrivateVideoProcessingQueued(
           processingStage: 'queued',
           processingErrorCode: null,
           processingErrorMessage: null,
+          editRecipe,
           updatedAt: now,
         },
         { merge: true }
       );
+
+      if (draftSnap.exists) {
+        transaction.delete(draftRef);
+      }
 
       return job;
     }

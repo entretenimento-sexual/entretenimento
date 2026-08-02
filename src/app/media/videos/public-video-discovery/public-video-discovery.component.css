@@ -1,0 +1,222 @@
+:host {
+  display: block;
+}
+
+.video-discovery {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.video-discovery__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.video-discovery__header h1,
+.video-discovery__header p {
+  margin: 0;
+}
+
+.video-discovery__header h1 {
+  font-size: clamp(1.45rem, 4vw, 2rem);
+}
+
+.video-discovery__header > div:first-child > p:last-child {
+  max-width: 42rem;
+  margin-top: 0.35rem;
+  color: var(--app-text-muted, #6b7280);
+}
+
+.video-discovery__eyebrow {
+  margin-bottom: 0.25rem !important;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-text-muted, #6b7280);
+}
+
+.video-discovery__modes {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.video-discovery__mode--active {
+  font-weight: 700;
+  box-shadow: inset 0 -2px currentColor;
+}
+
+.video-discovery__status {
+  min-height: 14rem;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.65rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--app-text-muted, #6b7280);
+}
+
+.video-discovery__status strong {
+  color: var(--app-text, #111827);
+}
+
+.video-discovery__status span {
+  max-width: 34rem;
+}
+
+.video-discovery__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.video-discovery__card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--app-border, rgba(107, 114, 128, 0.22));
+  border-radius: 0.9rem;
+  background: var(--app-surface, #fff);
+}
+
+.video-discovery__poster {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: #111827;
+  cursor: pointer;
+}
+
+.video-discovery__poster:disabled {
+  cursor: progress;
+}
+
+.video-discovery__poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.video-discovery__poster-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.86);
+  background: linear-gradient(145deg, #1f2937, #111827);
+}
+
+.video-discovery__play {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.56);
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(6px);
+}
+
+.video-discovery__duration {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  padding: 0.22rem 0.42rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.68);
+}
+
+.video-discovery__body {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.75rem;
+}
+
+.video-discovery__body h2 {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.video-discovery__body > span,
+.video-discovery__owner {
+  font-size: 0.78rem;
+  color: var(--app-text-muted, #6b7280);
+}
+
+.video-discovery__owner {
+  width: fit-content;
+  text-decoration: none;
+}
+
+.video-discovery__owner:hover,
+.video-discovery__owner:focus-visible {
+  text-decoration: underline;
+}
+
+.video-discovery__poster:focus-visible,
+.video-discovery__owner:focus-visible,
+.video-discovery button:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 3px;
+}
+
+.video-discovery__more {
+  display: flex;
+  justify-content: center;
+  padding-top: 1.25rem;
+}
+
+@media (min-width: 720px) {
+  .video-discovery__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .video-discovery__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .video-discovery__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .video-discovery__modes {
+    width: 100%;
+  }
+
+  .video-discovery__modes button {
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-discovery * {
+    scroll-behavior: auto !important;
+  }
+}

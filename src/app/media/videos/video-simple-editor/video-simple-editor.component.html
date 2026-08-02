@@ -1,0 +1,448 @@
+@let canUpload = (canUpload$ | async) === true;
+@let selectedFileName = (selectedFileName$ | async);
+@let selectedFileSize = (selectedFileSize$ | async);
+@let previewUrl = (previewUrl$ | async);
+@let metadata = (metadata$ | async);
+@let posterUrl = (posterUrl$ | async);
+@let phase = (phase$ | async) || 'IDLE';
+@let progress = (progress$ | async) || 0;
+@let step = (step$ | async) || '';
+@let failure = (failure$ | async);
+@let capturingPoster = (capturingPoster$ | async) === true;
+
+<section class="video-editor" aria-labelledby="video-editor-title">
+  <header class="video-editor__header">
+    <div>
+      <span class="video-editor__eyebrow">Vídeo do perfil</span>
+      <h1 id="video-editor-title">Editor simples</h1>
+      <p>
+        Corte o início e o fim, ajuste o enquadramento, escolha a capa e remova
+        o áudio antes do envio.
+      </p>
+    </div>
+
+    <nav class="video-editor__header-actions" aria-label="Navegação do editor">
+      <a class="app-action app-action--ghost" routerLink="/media/videos">
+        Minha biblioteca
+      </a>
+      <a class="app-action app-action--ghost" routerLink="/media/descobrir-videos">
+        Vídeos públicos
+      </a>
+    </nav>
+  </header>
+
+  @if (!canUpload) {
+    <div class="video-editor__policy" role="status" aria-live="polite">
+      <i class="fas fa-shield-halved" aria-hidden="true"></i>
+      <span>
+        Confirme o e-mail, conclua o perfil e mantenha a conta regular para
+        liberar o envio.
+      </span>
+    </div>
+  }
+
+  <section class="video-editor__workspace app-card">
+    <input
+      #fileInput
+      id="edited-video-file"
+      class="video-editor__file-input"
+      type="file"
+      [attr.accept]="videoUploadAccept"
+      [disabled]="!canUpload || isUploadActive(phase)"
+      aria-describedby="edited-video-help"
+      (change)="onVideoSelected($event)"
+    />
+
+    @if (!selectedFileName) {
+      <div class="video-editor__empty">
+        <span class="video-editor__empty-icon" aria-hidden="true">
+          <i class="fas fa-video"></i>
+        </span>
+        <strong>Selecione o arquivo original</strong>
+        <p id="edited-video-help">
+          {{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos
+        </p>
+        <label
+          class="app-action app-action--primary"
+          for="edited-video-file"
+          [class.video-editor__disabled]="!canUpload"
+        >
+          Escolher vídeo
+        </label>
+      </div>
+    } @else {
+      <div class="video-editor__file-bar" role="status" aria-live="polite">
+        <div>
+          <i class="fas fa-circle-check" aria-hidden="true"></i>
+          <span>
+            <strong>{{ selectedFileName }}</strong>
+            <small>{{ selectedFileSize }}</small>
+          </span>
+        </div>
+        <label
+          class="app-action app-action--ghost"
+          for="edited-video-file"
+          [class.video-editor__disabled]="isUploadActive(phase)"
+        >
+          Trocar arquivo
+        </label>
+      </div>
+
+      <div class="video-editor__layout">
+        <section class="video-editor__preview-panel" aria-labelledby="preview-title">
+          <div class="video-editor__section-title">
+            <div>
+              <span>Prévia local</span>
+              <h2 id="preview-title">Revise o quadro</h2>
+            </div>
+            @if (metadata?.durationMs) {
+              <span class="video-editor__duration">
+                {{ formatDuration(metadata?.durationMs) }}
+              </span>
+            }
+          </div>
+
+          @if (previewUrl) {
+            <div class="video-editor__preview-frame">
+              <video
+                #preview
+                [src]="previewUrl"
+                controls
+                muted
+                playsinline
+                preload="metadata"
+                aria-label="Prévia local do vídeo em edição"
+              ></video>
+            </div>
+
+            <div class="video-editor__timeline-actions">
+              <button
+                type="button"
+                class="app-action app-action--ghost"
+                [disabled]="!isEditingAvailable(metadata) || isUploadActive(phase)"
+                (click)="useCurrentTimeAsStart(preview)"
+              >
+                Usar posição como início
+              </button>
+              <button
+                type="button"
+                class="app-action app-action--ghost"
+                [disabled]="!isEditingAvailable(metadata) || isUploadActive(phase)"
+                (click)="useCurrentTimeAsEnd(preview)"
+              >
+                Usar posição como fim
+              </button>
+              <button
+                type="button"
+                class="app-action app-action--ghost"
+                [disabled]="!isEditingAvailable(metadata) || isUploadActive(phase)"
+                (click)="seekToStart(preview)"
+              >
+                Rever do início
+              </button>
+            </div>
+
+            <div class="video-editor__cover">
+              <div class="video-editor__cover-heading">
+                <div>
+                  <strong>Capa</strong>
+                  <span>O quadro respeita o enquadramento selecionado.</span>
+                </div>
+                <button
+                  type="button"
+                  class="app-action app-action--ghost"
+                  [disabled]="capturingPoster || isUploadActive(phase)"
+                  [attr.aria-busy]="capturingPoster ? 'true' : 'false'"
+                  (click)="capturePoster(preview)"
+                >
+                  {{ capturingPoster ? 'Gerando...' : 'Usar quadro atual' }}
+                </button>
+              </div>
+
+              @if (posterUrl) {
+                <img
+                  class="video-editor__poster"
+                  [src]="posterUrl"
+                  alt="Capa selecionada para o vídeo"
+                  width="480"
+                  height="270"
+                />
+              } @else {
+                <div class="video-editor__poster-empty" role="status">
+                  A capa automática será gerada quando o navegador permitir.
+                </div>
+              }
+            </div>
+          } @else {
+            <div class="video-editor__poster-empty" role="status">
+              A prévia local não está disponível para este arquivo neste navegador.
+            </div>
+          }
+        </section>
+
+        <div class="video-editor__forms">
+          <form
+            class="video-editor__edit-form"
+            [formGroup]="editForm"
+            aria-labelledby="edit-options-title"
+          >
+            <div class="video-editor__section-title">
+              <div>
+                <span>Edição não destrutiva</span>
+                <h2 id="edit-options-title">Ajustes do vídeo</h2>
+              </div>
+            </div>
+
+            <fieldset
+              class="video-editor__fieldset"
+              [disabled]="isUploadActive(phase)"
+            >
+              <legend>Corte</legend>
+              <div class="video-editor__time-grid">
+                <label for="trim-start-seconds">
+                  <span>Início</span>
+                  <span class="video-editor__input-suffix">
+                    <input
+                      id="trim-start-seconds"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      formControlName="trimStartSeconds"
+                      [readonly]="!isEditingAvailable(metadata)"
+                    />
+                    <small>s</small>
+                  </span>
+                </label>
+                <label for="trim-end-seconds">
+                  <span>Fim</span>
+                  <span class="video-editor__input-suffix">
+                    <input
+                      id="trim-end-seconds"
+                      type="number"
+                      min="5"
+                      step="0.1"
+                      formControlName="trimEndSeconds"
+                      [readonly]="!isEditingAvailable(metadata)"
+                    />
+                    <small>s</small>
+                  </span>
+                </label>
+              </div>
+              <p class="video-editor__hint">
+                O resultado precisa ter pelo menos 5 segundos. O arquivo
+                original não é alterado.
+              </p>
+            </fieldset>
+
+            <fieldset
+              class="video-editor__fieldset"
+              [disabled]="isUploadActive(phase)"
+            >
+              <legend>Enquadramento</legend>
+              <div class="video-editor__aspect-grid">
+                @for (option of aspectOptions; track option.value) {
+                  <label
+                    class="video-editor__aspect-option"
+                    [class.video-editor__aspect-option--disabled]="
+                      option.value !== 'ORIGINAL' && !isEditingAvailable(metadata)
+                    "
+                  >
+                    <input
+                      type="radio"
+                      formControlName="aspectRatio"
+                      [value]="option.value"
+                      [disabled]="
+                        option.value !== 'ORIGINAL' && !isEditingAvailable(metadata)
+                      "
+                    />
+                    <span>
+                      <strong>{{ option.label }}</strong>
+                      <small>{{ option.description }}</small>
+                    </span>
+                  </label>
+                }
+              </div>
+              <p class="video-editor__hint">
+                O crop é centralizado. A orientação gravada pelo celular é
+                normalizada automaticamente.
+              </p>
+            </fieldset>
+
+            <label class="video-editor__toggle">
+              <input type="checkbox" formControlName="muteAudio" />
+              <span>
+                <strong>Remover áudio</strong>
+                <small>O arquivo final será publicado sem faixa sonora.</small>
+              </span>
+            </label>
+
+            <div class="video-editor__technical-note" role="note">
+              <i class="fas fa-circle-info" aria-hidden="true"></i>
+              <span>
+                Rotação manual não é simulada: o processamento atual corrige a
+                orientação do arquivo automaticamente, sem criar um job extra.
+              </span>
+            </div>
+          </form>
+
+          <form
+            class="video-editor__publication-form"
+            [formGroup]="publicationForm"
+            (ngSubmit)="startUpload(true)"
+          >
+            <div class="video-editor__section-title">
+              <div>
+                <span>Publicação</span>
+                <h2>Informações e interações</h2>
+              </div>
+            </div>
+
+            <label for="edited-video-title">
+              <span>Título</span>
+              <input
+                id="edited-video-title"
+                type="text"
+                maxlength="120"
+                autocomplete="off"
+                formControlName="title"
+                [readonly]="isUploadActive(phase)"
+              />
+            </label>
+
+            @if (
+              publicationForm.controls.title.touched &&
+              publicationForm.controls.title.invalid
+            ) {
+              <p class="video-editor__field-error" role="alert">
+                Informe um título com até 120 caracteres.
+              </p>
+            }
+
+            <label for="edited-video-description">
+              <span>Descrição</span>
+              <textarea
+                id="edited-video-description"
+                rows="4"
+                maxlength="1000"
+                placeholder="Descrição opcional"
+                formControlName="description"
+                [readonly]="isUploadActive(phase)"
+              ></textarea>
+            </label>
+
+            <fieldset
+              class="video-editor__fieldset"
+              [disabled]="isUploadActive(phase)"
+            >
+              <legend>Interações</legend>
+              <div class="video-editor__interaction-grid">
+                <label>
+                  <input type="checkbox" formControlName="reactionsEnabled" />
+                  <span>Curtidas</span>
+                </label>
+                <label>
+                  <input type="checkbox" formControlName="commentsEnabled" />
+                  <span>Comentários</span>
+                </label>
+                <label>
+                  <input type="checkbox" formControlName="ratingsEnabled" />
+                  <span>Avaliações</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <div class="video-editor__submit-actions">
+              <button
+                type="submit"
+                class="app-action app-action--primary"
+                [disabled]="
+                  !canUpload ||
+                  publicationForm.invalid ||
+                  phase === 'PREPARING_FILE' ||
+                  isUploadActive(phase)
+                "
+              >
+                {{ isUploadActive(phase) ? 'Enviando...' : 'Enviar e publicar' }}
+              </button>
+              <button
+                type="button"
+                class="app-action app-action--ghost"
+                [disabled]="
+                  !canUpload ||
+                  publicationForm.invalid ||
+                  phase === 'PREPARING_FILE' ||
+                  isUploadActive(phase)
+                "
+                (click)="startUpload(false)"
+              >
+                Salvar sem publicar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      @if (phase !== 'IDLE' && phase !== 'READY') {
+        <div class="video-editor__progress" aria-live="polite">
+          <div>
+            <strong>{{ step }}</strong>
+            <span>{{ progress }}%</span>
+          </div>
+          <div
+            class="video-editor__progress-track"
+            role="progressbar"
+            aria-label="Progresso do envio do vídeo editado"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            [attr.aria-valuenow]="progress"
+          >
+            <span [style.width.%]="progress"></span>
+          </div>
+        </div>
+      } @else {
+        <p class="video-editor__status" role="status" aria-live="polite">
+          {{ step }}
+        </p>
+      }
+
+      @if (failure) {
+        <div class="video-editor__failure" role="alert" aria-live="assertive">
+          <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+          <span>
+            <strong>{{ failure.title }}</strong>
+            <span>{{ failure.message }}</span>
+            <small>{{ failure.recovery }}</small>
+          </span>
+        </div>
+      }
+
+      <div class="video-editor__footer-actions">
+        @if (isUploadActive(phase) && phase !== 'SAVING') {
+          <button
+            type="button"
+            class="app-action app-action--ghost"
+            (click)="cancelUpload()"
+          >
+            Cancelar upload
+          </button>
+        } @else if (phase === 'DONE') {
+          <button
+            type="button"
+            class="app-action app-action--primary"
+            (click)="reset(fileInput)"
+          >
+            Editar outro vídeo
+          </button>
+        } @else if (!isUploadActive(phase)) {
+          <button
+            type="button"
+            class="app-action app-action--ghost"
+            (click)="reset(fileInput)"
+          >
+            Limpar edição
+          </button>
+        }
+      </div>
+    }
+  </section>
+</section>

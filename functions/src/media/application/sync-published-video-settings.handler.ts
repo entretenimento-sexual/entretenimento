@@ -14,6 +14,7 @@ interface VideoPublicationDoc {
   reactionsEnabled?: boolean;
   commentsEnabled?: boolean;
   ratingsEnabled?: boolean;
+  minimumPlaybackPlan?: unknown;
 }
 
 interface PrivateVideoDoc {
@@ -88,6 +89,7 @@ export async function synchronizePublishedVideoSettings(
         reactionsEnabled: true,
         commentsEnabled: true,
         ratingsEnabled: true,
+        minimumPlaybackPlan: 'free',
       });
 
       transaction.set(
@@ -98,6 +100,7 @@ export async function synchronizePublishedVideoSettings(
           reactionsEnabled: settings.reactionsEnabled,
           commentsEnabled: settings.commentsEnabled,
           ratingsEnabled: settings.ratingsEnabled,
+          minimumPlaybackPlan: settings.minimumPlaybackPlan,
           moderationStatus: String(
             publication.moderationStatus ?? 'PENDING_REVIEW'
           ).trim().toUpperCase(),
