@@ -4,6 +4,11 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import {
+  resolveCanonicalPhotoAudienceTarget,
+  type PhotoPublicationAudienceDocument,
+  type PublicPhotoAudienceDocument,
+} from './photo-audience-access.policy';
+import {
   containsControlCharacter,
   normalizeOwnedPublishedPhotoPath,
 } from './photo-storage-path';
@@ -56,10 +61,6 @@ function cleanId(value: unknown): string {
   return normalized;
 }
 
-function normalizeEnum(value: unknown): string {
-  return String(value ?? '').trim().toUpperCase();
-}
-
 function buildRequestKey(ownerUid: string, photoId: string): string {
   return `${ownerUid}:${photoId}`;
 }
@@ -92,40 +93,24 @@ async function resolveAccessItem(
     return null;
   }
 
-  const publicPhoto = publicPhotoSnap.data();
-  const publication = publicationSnap.data();
-  const projectionVisibility = normalizeEnum(publicPhoto?.visibility);
-  const publicationVisibility = normalizeEnum(publication?.visibility);
-  const projectionModeration = normalizeEnum(publicPhoto?.moderationStatus);
-  const publicationModeration = normalizeEnum(publication?.moderationStatus);
+  const publicPhoto =
+    publicPhotoSnap.data() as PublicPhotoAudienceDocument;
+  const publication =
+    publicationSnap.data() as PhotoPublicationAudienceDocument & {
+      publishedStoragePath?: unknown;
+    };
+  const target = resolveCanonicalPhotoAudienceTarget({
+    ownerUid,
+    photoId,
+    publicPhoto,
+    publication,
+  });
 
-  /**
-   * A projeção pública não autoriza acesso isoladamente. Identidade, tipo,
-   * estratégia de ativo, visibilidade e moderação precisam coincidir com a
-   * publicação canônica antes da avaliação de audiência.
-   */
-  if (
-    cleanId(publicPhoto?.id) !== photoId ||
-    cleanId(publicPhoto?.ownerUid) !== ownerUid ||
-    cleanId(publication?.photoId) !== photoId ||
-    cleanId(publication?.ownerUid) !== ownerUid ||
-    normalizeEnum(publicPhoto?.mediaType) !== 'PHOTO' ||
-    normalizeEnum(publicPhoto?.assetAccess) !== 'SIGNED_URL' ||
-    !projectionVisibility ||
-    projectionVisibility !== publicationVisibility ||
-    !projectionModeration ||
-    projectionModeration !== publicationModeration
-  ) {
+  if (!target) {
     return null;
   }
 
-  const audienceDecision = await audience.evaluate({
-    ownerUid,
-    action: 'PLAY',
-    visibility: publicationVisibility,
-    isPublished: publication?.isPublished === true,
-    moderationStatus: publicationModeration,
-  });
+  const audienceDecision = await audience.evaluate(target);
 
   if (!audienceDecision.allowed) {
     return null;
@@ -134,7 +119,7 @@ async function resolveAccessItem(
   const storagePath = normalizeOwnedPublishedPhotoPath(
     ownerUid,
     photoId,
-    publication?.publishedStoragePath
+    publication.publishedStoragePath
   );
 
   if (!storagePath) {
