@@ -4,6 +4,7 @@ export type MediaCallableRateAction =
   | 'COMMENT_MODERATE'
   | 'RATING'
   | 'REPORT'
+  | 'REPORT_MODERATE'
   | 'SHARE_AUTHORIZE'
   | 'SHARE_MESSAGE';
 
@@ -70,6 +71,12 @@ const RULES: Readonly<Record<
     globalMaxPerWindow: 12,
     resourceMaxPerWindow: 2,
     minIntervalMs: 3_000,
+  },
+  REPORT_MODERATE: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 240,
+    resourceMaxPerWindow: 3,
+    minIntervalMs: 100,
   },
   SHARE_AUTHORIZE: {
     windowMs: TEN_MINUTES_MS,
