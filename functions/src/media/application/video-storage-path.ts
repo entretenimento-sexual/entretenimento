@@ -1,5 +1,6 @@
 const PRIVATE_VIDEO_PREFIX = 'uploads/videos';
 const PRIVATE_VIDEO_POSTER_PREFIX = 'uploads/video-posters';
+const PRIVATE_VIDEO_CAPTION_PREFIX = 'uploads/video-captions';
 const PROCESSED_VIDEO_PREFIX = 'processed/videos';
 const PUBLISHED_VIDEO_PREFIX = 'published/videos';
 
@@ -167,6 +168,25 @@ export function extractOwnedPrivateVideoPosterPath(
     ownerUid,
     value,
     `${PRIVATE_VIDEO_POSTER_PREFIX}/${videoSegment}/[^/]+`
+  );
+}
+
+export function extractOwnedPrivateVideoCaptionPath(
+  ownerUid: string,
+  videoId: string,
+  value: unknown
+): string | null {
+  const safeVideoId = normalizeId(videoId);
+
+  if (!safeVideoId) {
+    return null;
+  }
+
+  return matchesOwnedPath(
+    ownerUid,
+    value,
+    `${PRIVATE_VIDEO_CAPTION_PREFIX}/${escapeRegExp(safeVideoId)}/` +
+      '[^/]+[.]vtt'
   );
 }
 
