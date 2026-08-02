@@ -9,7 +9,13 @@ export type MediaCallableRateAction =
   | 'SHARE_MESSAGE'
   | 'ACCESS_PRIVATE'
   | 'ACCESS_PUBLIC'
-  | 'LIST_PUBLIC';
+  | 'LIST_PUBLIC'
+  | 'UPLOAD_REGISTER'
+  | 'MEDIA_PUBLISH'
+  | 'MEDIA_UNPUBLISH'
+  | 'MEDIA_DELETE'
+  | 'MEDIA_SETTINGS'
+  | 'MEDIA_COVER';
 
 export interface MediaCallableRateLimitRule {
   readonly windowMs: number;
@@ -111,6 +117,42 @@ const RULES: Readonly<Record<
     globalMaxPerWindow: 960,
     resourceMaxPerWindow: 640,
     minIntervalMs: 150,
+  },
+  UPLOAD_REGISTER: {
+    windowMs: ONE_HOUR_MS,
+    globalMaxPerWindow: 300,
+    resourceMaxPerWindow: 60,
+    minIntervalMs: 1_000,
+  },
+  MEDIA_PUBLISH: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 60,
+    resourceMaxPerWindow: 12,
+    minIntervalMs: 1_000,
+  },
+  MEDIA_UNPUBLISH: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 90,
+    resourceMaxPerWindow: 15,
+    minIntervalMs: 500,
+  },
+  MEDIA_DELETE: {
+    windowMs: ONE_HOUR_MS,
+    globalMaxPerWindow: 120,
+    resourceMaxPerWindow: 10,
+    minIntervalMs: 1_000,
+  },
+  MEDIA_SETTINGS: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 90,
+    resourceMaxPerWindow: 15,
+    minIntervalMs: 500,
+  },
+  MEDIA_COVER: {
+    windowMs: TEN_MINUTES_MS,
+    globalMaxPerWindow: 60,
+    resourceMaxPerWindow: 15,
+    minIntervalMs: 500,
   },
 };
 
