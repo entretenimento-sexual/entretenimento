@@ -1,0 +1,308 @@
+<section class="backfill-page" aria-labelledby="backfill-title">
+  <header class="backfill-page__header">
+    <div>
+      <p class="backfill-page__eyebrow">Operação de mídia</p>
+      <h2 id="backfill-title">Ranking de fotos</h2>
+      <p class="backfill-page__description">
+        Acompanhe e controle a migração das fotos antigas para o ranking canônico.
+      </p>
+    </div>
+
+    <button
+      class="button button--secondary"
+      type="button"
+      [disabled]="isBusy() || statusCooldown().active"
+      (click)="refresh()"
+    >
+      {{ statusCooldown().active
+        ? 'Atualizar em ' + statusCooldown().remainingSeconds + 's'
+        : 'Atualizar status' }}
+    </button>
+  </header>
+
+  <p
+    *ngIf="cooldownMessage()"
+    class="backfill-notice backfill-notice--warning"
+    role="status"
+    aria-live="polite"
+  >
+    {{ cooldownMessage() }}
+  </p>
+
+  <ng-container *ngIf="panelState() as panel">
+    <div
+      *ngIf="panel.status === 'loading'"
+      class="backfill-state backfill-state--loading"
+      role="status"
+      aria-live="polite"
+    >
+      <span class="backfill-spinner" aria-hidden="true"></span>
+      <div>
+        <strong>Carregando a migração</strong>
+        <p>Consultando o estado seguro do backfill.</p>
+      </div>
+    </div>
+
+    <div
+      *ngIf="panel.status === 'error'"
+      class="backfill-state backfill-state--error"
+      role="alert"
+    >
+      <div>
+        <strong>Não foi possível carregar o status</strong>
+        <p>O erro foi encaminhado ao tratamento global. Tente atualizar novamente.</p>
+      </div>
+      <button
+        class="button button--secondary"
+        type="button"
+        [disabled]="statusCooldown().active"
+        (click)="refresh()"
+      >
+        Tentar novamente
+      </button>
+    </div>
+
+    <ng-container *ngIf="panel.status === 'ready' && panel.data as data">
+      <div class="backfill-status" aria-live="polite">
+        <div>
+          <span
+            class="status-badge"
+            [attr.data-tone]="statusTone(data.state.status)"
+          >
+            {{ statusLabel(data.state.status) }}
+          </span>
+          <p>{{ statusDescription(data.state.status) }}</p>
+        </div>
+
+        <dl class="backfill-status__meta">
+          <div>
+            <dt>Versão</dt>
+            <dd>{{ data.state.version }}</dd>
+          </div>
+          <div>
+            <dt>Geração</dt>
+            <dd>{{ data.state.generation }}</dd>
+          </div>
+          <div>
+            <dt>Lote ativo</dt>
+            <dd>{{ data.leaseActive ? 'Sim' : 'Não' }}</dd>
+          </div>
+          <div>
+            <dt>Última atividade</dt>
+            <dd>{{ lastActivityAt(data) | date:'dd/MM/yyyy HH:mm' }}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="metric-grid" aria-label="Métricas da migração">
+        <article class="metric-card">
+          <span>Fotos examinadas</span>
+          <strong>{{ data.state.processedCount | number:'1.0-0' }}</strong>
+          <small>Documentos percorridos pelo cursor</small>
+        </article>
+
+        <article class="metric-card">
+          <span>Fotos atualizadas</span>
+          <strong>{{ data.state.updatedCount | number:'1.0-0' }}</strong>
+          <small>Documentos que precisaram do ranking canônico</small>
+        </article>
+
+        <article class="metric-card">
+          <span>Fotos ignoradas</span>
+          <strong>{{ data.state.skippedCount | number:'1.0-0' }}</strong>
+          <small>Já corretas ou fora do conjunto elegível</small>
+        </article>
+
+        <article class="metric-card">
+          <span>Lotes concluídos</span>
+          <strong>{{ data.state.pagesCount | number:'1.0-0' }}</strong>
+          <small>{{ data.state.pageSize }} documentos por lote</small>
+        </article>
+      </div>
+
+      <section class="backfill-card" aria-labelledby="quality-title">
+        <div class="backfill-card__heading">
+          <div>
+            <h3 id="quality-title">Resultado dos documentos examinados</h3>
+            <p>
+              Esta barra mostra a proporção que exigiu atualização. Ela não representa
+              o percentual total da migração, pois o backfill não expõe a quantidade
+              global de fotos antes de percorrer a coleção.
+            </p>
+          </div>
+          <strong>{{ updateRate(data) }}%</strong>
+        </div>
+
+        <progress
+          class="backfill-progress"
+          [value]="data.state.updatedCount"
+          [max]="data.state.processedCount || 1"
+        >
+          {{ updateRate(data) }}%
+        </progress>
+      </section>
+
+      <section
+        *ngIf="data.state.lastErrorMessage"
+        class="backfill-notice backfill-notice--danger"
+        role="alert"
+        aria-labelledby="backfill-error-title"
+      >
+        <div>
+          <strong id="backfill-error-title">Última falha registrada</strong>
+          <p>{{ data.state.lastErrorMessage }}</p>
+          <small *ngIf="data.state.lastErrorCode">
+            Código: {{ data.state.lastErrorCode }}
+          </small>
+        </div>
+      </section>
+
+      <section class="backfill-card" aria-labelledby="controls-title">
+        <div class="backfill-card__heading backfill-card__heading--controls">
+          <div>
+            <h3 id="controls-title">Controle da migração</h3>
+            <p>
+              As ações são protegidas por App Check, autorização administrativa,
+              idempotência e limite de chamadas.
+            </p>
+          </div>
+
+          <label class="page-size-field">
+            <span>Fotos por lote</span>
+            <input
+              type="number"
+              min="20"
+              max="180"
+              step="10"
+              [value]="pageSize()"
+              [disabled]="isBusy()"
+              aria-describedby="page-size-help"
+              (input)="onPageSizeInput($event)"
+            />
+            <small id="page-size-help">Entre 20 e 180. Padrão: 120.</small>
+          </label>
+        </div>
+
+        <div class="action-grid">
+          <button
+            *ngIf="canStartOrResume(data.state.status)"
+            class="button button--primary"
+            type="button"
+            [disabled]="isBusy() || actionCooldown().active"
+            (click)="startOrResume()"
+          >
+            {{ busyAction() === 'START_OR_RESUME' ? 'Retomando...' : 'Iniciar ou retomar' }}
+          </button>
+
+          <button
+            *ngIf="canPause(data.state.status)"
+            class="button button--secondary"
+            type="button"
+            [disabled]="isBusy() || actionCooldown().active"
+            (click)="pause()"
+          >
+            {{ busyAction() === 'PAUSE' ? 'Pausando...' : 'Pausar após o lote atual' }}
+          </button>
+
+          <button
+            *ngIf="canRunPage(data.state.status)"
+            class="button button--secondary"
+            type="button"
+            [disabled]="isBusy() || actionCooldown().active || data.leaseActive"
+            (click)="runPage()"
+          >
+            {{ busyAction() === 'RUN_PAGE' ? 'Executando lote...' : 'Executar próximo lote agora' }}
+          </button>
+
+          <button
+            class="button button--danger-ghost"
+            type="button"
+            [disabled]="isBusy() || actionCooldown().active || data.leaseActive"
+            (click)="beginReset()"
+          >
+            Reiniciar migração
+          </button>
+        </div>
+
+        <p
+          *ngIf="data.leaseActive"
+          class="backfill-inline-help"
+          role="status"
+        >
+          Um lote está em andamento. Novas execuções ficam bloqueadas até a liberação
+          do lease.
+        </p>
+
+        <div
+          *ngIf="resetConfirmation()"
+          class="reset-confirmation"
+          role="alertdialog"
+          aria-modal="false"
+          aria-labelledby="reset-title"
+          aria-describedby="reset-description"
+        >
+          <div>
+            <strong id="reset-title">Reiniciar desde o primeiro documento?</strong>
+            <p id="reset-description">
+              Uma nova geração será criada. Os scores corretos continuam preservados,
+              mas todas as fotos serão verificadas novamente.
+            </p>
+          </div>
+
+          <div class="reset-confirmation__actions">
+            <button
+              class="button button--secondary"
+              type="button"
+              [disabled]="isBusy()"
+              (click)="cancelReset()"
+            >
+              Cancelar
+            </button>
+            <button
+              class="button button--danger"
+              type="button"
+              [disabled]="isBusy()"
+              (click)="confirmReset()"
+            >
+              {{ busyAction() === 'RESET' ? 'Reiniciando...' : 'Confirmar reinício' }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="backfill-card backfill-card--compact" aria-labelledby="details-title">
+        <h3 id="details-title">Detalhes operacionais</h3>
+        <dl class="detail-list">
+          <div>
+            <dt>Falhas consecutivas</dt>
+            <dd>{{ data.state.consecutiveFailures }}</dd>
+          </div>
+          <div>
+            <dt>Início</dt>
+            <dd>
+              {{ data.state.startedAt
+                ? (data.state.startedAt | date:'dd/MM/yyyy HH:mm')
+                : 'Não iniciado' }}
+            </dd>
+          </div>
+          <div>
+            <dt>Último lote</dt>
+            <dd>
+              {{ data.state.lastBatchAt
+                ? (data.state.lastBatchAt | date:'dd/MM/yyyy HH:mm')
+                : 'Nenhum lote concluído' }}
+            </dd>
+          </div>
+          <div>
+            <dt>Conclusão</dt>
+            <dd>
+              {{ data.state.completedAt
+                ? (data.state.completedAt | date:'dd/MM/yyyy HH:mm')
+                : 'Em aberto' }}
+            </dd>
+          </div>
+        </dl>
+      </section>
+    </ng-container>
+  </ng-container>
+</section>
