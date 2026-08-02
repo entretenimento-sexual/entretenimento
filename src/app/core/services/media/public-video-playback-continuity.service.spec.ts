@@ -87,23 +87,26 @@ describe('PublicVideoPlaybackContinuityService', () => {
     vi.restoreAllMocks();
   });
 
-  it('preserva volume e mudo ao trocar de vídeo', () => {
+  it('preserva volume e mudo ao abrir outro elemento de vídeo', () => {
     video.volume = 0.35;
     video.muted = true;
     video.dispatchEvent(new Event('volumechange', { bubbles: true }));
 
-    video.volume = 1;
-    video.muted = false;
-    video.setAttribute(
+    const nextVideo = document.createElement('video');
+    nextVideo.className = 'public-video-viewer__video';
+    nextVideo.setAttribute(
       'src',
       'https://example.test/video-2.mp4?token=initial'
     );
-    video.dispatchEvent(new Event('loadstart', { bubbles: true }));
+    document.body.appendChild(nextVideo);
+    nextVideo.dispatchEvent(new Event('loadstart', { bubbles: true }));
 
-    expect(video.volume).toBeCloseTo(0.35);
-    expect(video.muted).toBe(true);
+    expect(nextVideo.volume).toBeCloseTo(0.35);
+    expect(nextVideo.muted).toBe(true);
     expect(sessionStorage.getItem('public-video-audio-preference.v1'))
       .toContain('0.35');
+
+    nextVideo.remove();
   });
 
   it('reproduz o próximo vídeo após intenção ativa', async () => {
