@@ -77,9 +77,11 @@ function throwRateLimit(
 }
 
 /**
- * Consome limites global e por recurso dentro da transação da própria ação.
- * Deve ser chamado somente após todas as leituras necessárias ao caso de uso,
- * imediatamente antes das gravações, para respeitar a ordem do Firestore.
+ * Consome limites global e por recurso em uma transação Firestore.
+ *
+ * Casos de uso podem chamar esta função dentro da própria transação, depois
+ * das demais leituras, ou utilizar `assertMediaCallableRateLimit` como barreira
+ * prévia para proteger consultas e validações mais caras.
  */
 export async function assertMediaCallableRateLimitInTransaction(
   transaction: Transaction,
@@ -95,8 +97,9 @@ export async function assertMediaCallableRateLimitInTransaction(
     );
   }
 
-  const now = Number.isFinite(input.now)
-    ? Math.max(1, Math.floor(input.now!))
+  const requestedNow = Number(input.now);
+  const now = Number.isFinite(requestedNow) && requestedNow > 0
+    ? Math.floor(requestedNow)
     : Date.now();
   const rule = resolveMediaCallableRateLimitRule(input.action);
   const globalRef = rateLimitRef(
