@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
 
 import {
   inventoryVideoProcessingOutputs,
@@ -30,14 +31,20 @@ describe('video-processing-output', () => {
       },
     ]);
 
-    expect(inventory.variants).toEqual([
-      expect.objectContaining({ quality: 'SD', sizeBytes: 1_000 }),
-      expect.objectContaining({ quality: 'HD', sizeBytes: 3_000 }),
-    ]);
-    expect(inventory.defaultQuality).toBe('HD');
-    expect(inventory.hlsManifestStoragePath).toContain('manifest.m3u8');
-    expect(inventory.dashManifestStoragePath).toContain('manifest.mpd');
-    expect(selectDefaultVideoProcessingVariant(inventory).quality).toBe('HD');
+    assert.deepEqual(
+      inventory.variants.map((variant) => ({
+        quality: variant.quality,
+        sizeBytes: variant.sizeBytes,
+      })),
+      [
+        { quality: 'SD', sizeBytes: 1_000 },
+        { quality: 'HD', sizeBytes: 3_000 },
+      ]
+    );
+    assert.equal(inventory.defaultQuality, 'HD');
+    assert.match(inventory.hlsManifestStoragePath ?? '', /manifest[.]m3u8$/);
+    assert.match(inventory.dashManifestStoragePath ?? '', /manifest[.]mpd$/);
+    assert.equal(selectDefaultVideoProcessingVariant(inventory).quality, 'HD');
   });
 
   it('mantém compatibilidade com um único MP4 legado', () => {
@@ -49,9 +56,9 @@ describe('video-processing-output', () => {
       },
     ]);
 
-    expect(inventory.variants).toEqual([
-      expect.objectContaining({ quality: 'HD', mimeType: 'video/mp4' }),
-    ]);
+    assert.equal(inventory.variants.length, 1);
+    assert.equal(inventory.variants[0]?.quality, 'HD');
+    assert.equal(inventory.variants[0]?.mimeType, 'video/mp4');
   });
 
   it('mantém WebM compatível no processamento do Emulator', () => {
@@ -63,12 +70,12 @@ describe('video-processing-output', () => {
       },
     ]);
 
-    expect(inventory.variants).toEqual([
-      expect.objectContaining({ quality: 'HD', mimeType: 'video/webm' }),
-    ]);
+    assert.equal(inventory.variants.length, 1);
+    assert.equal(inventory.variants[0]?.quality, 'HD');
+    assert.equal(inventory.variants[0]?.mimeType, 'video/webm');
   });
 
-  it('usa menor e maior MP4 como fallback para templates sem nomes canônicos', () => {
+  it('usa menor e maior MP4 como fallback', () => {
     const inventory = inventoryVideoProcessingOutputs([
       {
         storagePath: 'users/u/processed/videos/v/run/a.mp4',
@@ -87,22 +94,28 @@ describe('video-processing-output', () => {
       },
     ]);
 
-    expect(inventory.variants.map((variant) => [
-      variant.quality,
-      variant.sizeBytes,
-    ])).toEqual([
-      ['SD', 900],
-      ['HD', 2_900],
-    ]);
+    assert.deepEqual(
+      inventory.variants.map((variant) => [
+        variant.quality,
+        variant.sizeBytes,
+      ]),
+      [
+        ['SD', 900],
+        ['HD', 2_900],
+      ]
+    );
   });
 
   it('falha quando não existe variante reproduzível', () => {
-    expect(() => inventoryVideoProcessingOutputs([
-      {
-        storagePath: 'users/u/processed/videos/v/run/manifest.m3u8',
-        contentType: 'application/vnd.apple.mpegurl',
-        sizeBytes: 100,
-      },
-    ])).toThrow('variante reproduzível');
+    assert.throws(
+      () => inventoryVideoProcessingOutputs([
+        {
+          storagePath: 'users/u/processed/videos/v/run/manifest.m3u8',
+          contentType: 'application/vnd.apple.mpegurl',
+          sizeBytes: 100,
+        },
+      ]),
+      /variante reproduzível/
+    );
   });
 });
