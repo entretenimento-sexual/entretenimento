@@ -103,6 +103,7 @@ export const updateVideoPublicationSettings =
             reactionsEnabled: true,
             commentsEnabled: true,
             ratingsEnabled: true,
+            minimumPlaybackPlan: 'free',
           }
         );
         const nextSettings = normalizeVideoPublicationSettings(
@@ -152,6 +153,7 @@ export const updateVideoPublicationSettings =
               reactionsEnabled: nextSettings.reactionsEnabled,
               commentsEnabled: nextSettings.commentsEnabled,
               ratingsEnabled: nextSettings.ratingsEnabled,
+              minimumPlaybackPlan: nextSettings.minimumPlaybackPlan,
               moderationStatus,
               moderationReason: textChanged
                 ? null
