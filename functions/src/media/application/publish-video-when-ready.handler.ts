@@ -14,6 +14,9 @@ interface PrivateVideoDoc {
   ownerUid?: unknown;
   status?: unknown;
   processedStoragePath?: unknown;
+  processedVariants?: unknown;
+  processingJobId?: unknown;
+  processingStage?: unknown;
 }
 
 interface VideoPublicationDoc {
@@ -45,8 +48,24 @@ function cleanId(value: unknown): string {
 }
 
 function isReadyVideo(value: PrivateVideoDoc | null): boolean {
-  return String(value?.status ?? '').trim().toLowerCase() === 'ready' &&
-    !!String(value?.processedStoragePath ?? '').trim();
+  const status = String(value?.status ?? '').trim().toLowerCase();
+  const processedStoragePath = String(
+    value?.processedStoragePath ?? ''
+  ).trim();
+  const processingJobId = cleanId(value?.processingJobId);
+  const processingStage = String(
+    value?.processingStage ?? ''
+  ).trim().toLowerCase();
+  const variants = Array.isArray(value?.processedVariants)
+    ? value.processedVariants
+    : [];
+  const hasLegacyReadyContract = !processingJobId;
+  const hasCurrentDeliveryContract =
+    processingStage === 'delivery_ready' && variants.length > 0;
+
+  return status === 'ready' &&
+    !!processedStoragePath &&
+    (hasLegacyReadyContract || hasCurrentDeliveryContract);
 }
 
 function normalizeErrorMessage(error: unknown): string {
@@ -195,9 +214,9 @@ async function publishReadyVideo(
 }
 
 /**
- * Continua a intenção "enviar e publicar" assim que o derivado seguro fica
- * pronto. A publicação continua passando pelas mesmas validações e pela mesma
- * moderação do callable manual.
+ * Continua a intenção "enviar e publicar" somente depois que o job externo foi
+ * reconciliado e as variantes públicas foram inventariadas. O estado legado sem
+ * processingJobId permanece compatível para vídeos anteriores ao pipeline atual.
  */
 export const publishVideoWhenReady = onDocumentUpdated(
   {
