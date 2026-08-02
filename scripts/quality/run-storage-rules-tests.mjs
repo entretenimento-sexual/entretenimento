@@ -1,6 +1,8 @@
 // scripts/quality/run-storage-rules-tests.mjs
 // -----------------------------------------------------------------------------
-// Executa a suíte de Cloud Storage Rules contra um emulador isolado.
+// Executa a suíte de Cloud Storage Rules contra emuladores isolados de Storage
+// e Firestore. O Firestore é necessário para testar autorização cruzada do
+// staging de fotos após o registro backend da publicação.
 //
 // Compatibilidade:
 // - executa as entradas JavaScript locais do firebase-tools e do Vitest;
@@ -41,7 +43,7 @@ const args = [
   '--config',
   'firebase.storage-rules-test.json',
   '--only',
-  'storage',
+  'storage,firestore',
   '--project',
   'demo-entretenimento-storage-rules',
   testCommand,
@@ -71,7 +73,7 @@ let launchFailed = false;
 child.on('error', (error) => {
   launchFailed = true;
   console.error(
-    '[storage-rules] Não foi possível iniciar o emulador:',
+    '[storage-rules] Não foi possível iniciar os emuladores:',
     error
   );
   process.exitCode = 1;
