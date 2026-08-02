@@ -4,7 +4,10 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
-import { MEDIA_RANKING_VERSION } from './media-engagement-score';
+import {
+  MEDIA_RANKING_VERSION,
+  normalizeMediaCount,
+} from './media-engagement-score';
 import {
   buildPhotoRankingUpdate,
   hasEquivalentPhotoRanking,
@@ -14,22 +17,29 @@ import {
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 
 const RANKING_REFRESH_LIMIT_PER_QUERY = 240;
-const PROFILE_REFRESH_CONCURRENCY = 20;
 
-async function refreshChangedProfiles(
-  ownerUids: readonly string[]
-): Promise<void> {
-  for (
-    let index = 0;
-    index < ownerUids.length;
-    index += PROFILE_REFRESH_CONCURRENCY
-  ) {
-    await Promise.all(
-      ownerUids
-        .slice(index, index + PROFILE_REFRESH_CONCURRENCY)
-        .map((ownerUid) => refreshPublicProfileMediaMetrics(ownerUid))
-    );
+function normalizeEnum(value: unknown): string {
+  return String(value ?? '').trim().toUpperCase();
+}
+
+function hasProfileAggregateInputChange(
+  before: PublicPhotoRankingDocument | null,
+  after: PublicPhotoRankingDocument
+): boolean {
+  if (!before) {
+    return true;
   }
+
+  return normalizeEnum(before.visibility) !== normalizeEnum(after.visibility) ||
+    normalizeEnum(before.moderationStatus) !==
+      normalizeEnum(after.moderationStatus) ||
+    normalizeMediaCount(before.viewsCount) !==
+      normalizeMediaCount(after.viewsCount) ||
+    normalizeMediaCount(before.uniqueViewersCount) !==
+      normalizeMediaCount(after.uniqueViewersCount) ||
+    normalizeMediaCount(before.reactionsCount ?? before.likesCount) !==
+      normalizeMediaCount(after.reactionsCount ?? after.likesCount) ||
+    before.isCover !== after.isCover;
 }
 
 export const recalculatePhotoRankingOnWrite = onDocumentWritten(
@@ -51,17 +61,22 @@ export const recalculatePhotoRankingOnWrite = onDocumentWritten(
       return;
     }
 
+    const before = event.data?.before.exists
+      ? event.data.before.data() as PublicPhotoRankingDocument
+      : null;
     const update = buildPhotoRankingUpdate(data, Date.now());
+    const rankingChanged = !hasEquivalentPhotoRanking(data, update);
+    const aggregateInputChanged = hasProfileAggregateInputChange(before, data);
 
-    if (hasEquivalentPhotoRanking(data, update)) {
-      return;
+    if (rankingChanged) {
+      await after.ref.set(update, { merge: true });
     }
 
-    await after.ref.set(update, { merge: true });
-
-    const ownerUid = String(event.params.ownerUid ?? '').trim();
-    if (ownerUid) {
-      await refreshPublicProfileMediaMetrics(ownerUid);
+    if (rankingChanged || aggregateInputChanged) {
+      const ownerUid = String(event.params.ownerUid ?? '').trim();
+      if (ownerUid) {
+        await refreshPublicProfileMediaMetrics(ownerUid);
+      }
     }
   }
 );
@@ -97,7 +112,6 @@ export const refreshPublicPhotoRankingScores = onSchedule(
     }
 
     const now = Date.now();
-    const changedOwners = new Set<string>();
     const batch = db.batch();
     let updatedPhotos = 0;
 
@@ -115,22 +129,16 @@ export const refreshPublicPhotoRankingScores = onSchedule(
       }
 
       batch.set(document.ref, update, { merge: true });
-      const ownerUid = document.ref.parent.parent?.id ?? '';
-      if (ownerUid) {
-        changedOwners.add(ownerUid);
-      }
       updatedPhotos += 1;
     }
 
     if (updatedPhotos > 0) {
       await batch.commit();
-      await refreshChangedProfiles([...changedOwners]);
     }
 
     logger.info('[refreshPublicPhotoRankingScores] Ranking atualizado.', {
       scannedPhotos: candidates.size,
       updatedPhotos,
-      updatedProfiles: changedOwners.size,
       rankingVersion: MEDIA_RANKING_VERSION,
     });
   }
