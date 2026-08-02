@@ -20,6 +20,7 @@ import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import { PrivateMediaDraftCapacityService } from './private-media-draft-capacity.service';
 import { VideoMetadataPreparationService } from './video-metadata-preparation.service';
 import {
   VideoUploadFormat,
@@ -106,6 +107,7 @@ export class VideoUploadFlowService {
   private readonly storage = inject(Storage);
   private readonly injector = inject(Injector);
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
+  private readonly draftCapacity = inject(PrivateMediaDraftCapacityService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly registerPrivateVideoUploadCallable = httpsCallable<
@@ -190,6 +192,16 @@ export class VideoUploadFlowService {
             this.metadataPreparation.prepare$(file)
           );
           const posterBlob = selectedPosterBlob ?? metadata.posterBlob;
+          assertNotCancelled();
+
+          observer.next({ type: 'progress', phase: 'preparing', progress: 4 });
+          await firstValueFrom(
+            this.draftCapacity.assertCapacity$(
+              'video',
+              file.size,
+              posterBlob?.size ?? 0
+            )
+          );
           assertNotCancelled();
 
           observer.next({ type: 'progress', phase: 'preparing', progress: 6 });
@@ -447,7 +459,9 @@ export class VideoUploadFlowService {
     const format = resolveVideoUploadFormat(file);
 
     if (!format) {
-      throw new Error(`Envie um vídeo em um destes formatos: ${VIDEO_UPLOAD_FORMAT_LABEL}.`);
+      throw new Error(
+        `Envie um vídeo em um destes formatos: ${VIDEO_UPLOAD_FORMAT_LABEL}.`
+      );
     }
 
     if (!Number.isFinite(file.size) || file.size <= 0) {
@@ -496,10 +510,9 @@ export class VideoUploadFlowService {
       .slice(0, 1000);
 
     /**
-     * MANUTENÇÃO — ARMAZENAMENTO PRIVADO POR PLANO
-     * `publishWhenReady: false` não pode representar armazenamento ilimitado.
-     * Cota, retenção, expiração e entitlement devem ser validados no backend;
-     * a interface não é uma barreira de cobrança ou de capacidade.
+     * `publishWhenReady: false` cria um rascunho temporário. A quota e a
+     * expiração são revalidadas no backend; o preflight apenas evita transferir
+     * bytes quando a capacidade já está esgotada.
      */
     return {
       title: title || null,
