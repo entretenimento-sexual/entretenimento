@@ -1,6 +1,7 @@
 import { DOCUMENT, isPlatformBrowser } from '@angular/common';
 import {
   AfterViewInit,
+  DestroyRef,
   Directive,
   ElementRef,
   NgZone,
@@ -8,6 +9,10 @@ import {
   PLATFORM_ID,
   inject,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { take } from 'rxjs/operators';
+
+import { VideoViewTrackingService } from 'src/app/core/services/media/video-view-tracking.service';
 
 export const PUBLIC_VIDEO_VIEW_MIN_PLAYBACK_MS = 3_000;
 export const PUBLIC_VIDEO_VIEW_MAX_PLAYBACK_MS = 10_000;
@@ -58,10 +63,13 @@ export class PublicVideoViewQualificationDirective
   private readonly document = inject(DOCUMENT);
   private readonly ngZone = inject(NgZone);
   private readonly platformId = inject(PLATFORM_ID);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly viewTracking = inject(VideoViewTrackingService);
 
   private readonly cleanupListeners: Array<() => void> = [];
   private identity = '';
   private sessionId = '';
+  private preparingIdentity = '';
   private mediaPlaybackMs = 0;
   private activeWallMs = 0;
   private activeStartedAt: number | null = null;
@@ -100,37 +108,104 @@ export class PublicVideoViewQualificationDirective
   }
 
   /**
-   * A qualificação só começa depois que o backend emite uma sessão vinculada
-   * ao usuário e ao vídeo. Sessões locais aleatórias foram removidas.
+   * Preserva o método existente. Quando a sessão não é fornecida, a diretiva
+   * solicita ao backend uma sessão curta vinculada ao usuário e ao vídeo.
    */
   resetForVideo(identity: string, sessionId = ''): void {
     const normalizedIdentity = String(identity ?? '').trim();
     const normalizedSessionId = this.normalizeSessionId(sessionId);
+    const identityChanged = normalizedIdentity !== this.identity;
 
-    if (
-      normalizedIdentity === this.identity &&
-      normalizedSessionId === this.sessionId
-    ) {
+    if (identityChanged) {
+      this.stopActivePlayback(false);
+      this.identity = normalizedIdentity;
+      this.sessionId = '';
+      this.preparingIdentity = '';
+      this.resetPlaybackEvidence();
+    }
+
+    if (!this.identity) {
+      return;
+    }
+
+    if (normalizedSessionId) {
+      if (normalizedSessionId !== this.sessionId) {
+        this.applySession(normalizedSessionId);
+      }
+      return;
+    }
+
+    if (!this.sessionId) {
+      this.prepareBackendSession();
+    }
+  }
+
+  private prepareBackendSession(): void {
+    if (!this.identity || this.preparingIdentity === this.identity) {
+      return;
+    }
+
+    const separatorIndex = this.identity.indexOf(':');
+    const ownerUid = separatorIndex > 0
+      ? this.identity.slice(0, separatorIndex).trim()
+      : '';
+    const videoId = separatorIndex > 0
+      ? this.identity.slice(separatorIndex + 1).trim()
+      : '';
+
+    if (!ownerUid || !videoId || videoId.includes(':')) {
+      return;
+    }
+
+    const requestedIdentity = this.identity;
+    this.preparingIdentity = requestedIdentity;
+
+    this.viewTracking.prepareVideoViewSession$(ownerUid, videoId, 'unknown')
+      .pipe(
+        take(1),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((session) => {
+        if (this.preparingIdentity === requestedIdentity) {
+          this.preparingIdentity = '';
+        }
+
+        if (
+          !session ||
+          this.identity !== requestedIdentity ||
+          session.ownerUid !== ownerUid ||
+          session.videoId !== videoId
+        ) {
+          return;
+        }
+
+        this.applySession(session.sessionId);
+      });
+  }
+
+  private applySession(sessionId: string): void {
+    const normalizedSessionId = this.normalizeSessionId(sessionId);
+
+    if (!normalizedSessionId) {
       return;
     }
 
     this.stopActivePlayback(false);
-    this.identity = normalizedIdentity;
     this.sessionId = normalizedSessionId;
-    this.mediaPlaybackMs = 0;
-    this.activeWallMs = 0;
-    this.lastMediaTimeMs = this.currentMediaTimeMs();
-    this.emitted = false;
+    this.resetPlaybackEvidence();
 
     const video = this.elementRef.nativeElement;
-    if (
-      this.identity &&
-      this.sessionId &&
-      !video.paused &&
-      !video.seeking
-    ) {
+    if (!video.paused && !video.seeking && !video.ended) {
       this.startActivePlayback();
     }
+  }
+
+  private resetPlaybackEvidence(): void {
+    this.mediaPlaybackMs = 0;
+    this.activeWallMs = 0;
+    this.activeStartedAt = null;
+    this.lastMediaTimeMs = this.currentMediaTimeMs();
+    this.emitted = false;
   }
 
   private onLoadedMetadata(): void {
