@@ -98,6 +98,29 @@ async function uploadAs(uid, path, bytes, contentType, reservationId, claims = {
   );
 }
 
+async function assertIneligibleAccount(
+  caseId,
+  userOverrides,
+  claims = {}
+) {
+  const path = `users/${ownerUid}/uploads/images/${caseId}.jpg`;
+
+  await seedDocument(
+    `users/${ownerUid}`,
+    eligibleUser(ownerUid, userOverrides)
+  );
+  await seedReservation({
+    reservationId: caseId,
+    kind: 'photo',
+    sourceStoragePath: path,
+    sourceSizeBytes: 10,
+  });
+  await assertFails(
+    uploadAs(ownerUid, path, 10, 'image/jpeg', caseId, claims)
+  );
+  await seedDocument(`users/${ownerUid}`, eligibleUser(ownerUid));
+}
+
 try {
   await seedDocument(`users/${ownerUid}`, eligibleUser(ownerUid));
   await seedDocument(`users/${otherUid}`, eligibleUser(otherUid));
@@ -165,26 +188,32 @@ try {
     )
   );
 
-  await seedDocument(
-    `users/${ownerUid}`,
-    eligibleUser(ownerUid, { suspended: true })
+  await assertIneligibleAccount(
+    'restricted-user',
+    { suspended: true }
   );
-  await seedReservation({
-    reservationId: 'restricted-user',
-    kind: 'photo',
-    sourceStoragePath: `users/${ownerUid}/uploads/images/restricted.jpg`,
-    sourceSizeBytes: 10,
-  });
-  await assertFails(
-    uploadAs(
-      ownerUid,
-      `users/${ownerUid}/uploads/images/restricted.jpg`,
-      10,
-      'image/jpeg',
-      'restricted-user'
-    )
+  await assertIneligibleAccount(
+    'email-unverified',
+    { emailVerified: false },
+    { email_verified: false }
   );
-  await seedDocument(`users/${ownerUid}`, eligibleUser(ownerUid));
+  await assertIneligibleAccount(
+    'underage-user',
+    { idade: 17 }
+  );
+  await assertIneligibleAccount(
+    'terms-required',
+    {
+      acceptedTerms: {
+        accepted: false,
+        adultAccessAcknowledgement: false,
+      },
+    }
+  );
+  await assertIneligibleAccount(
+    'profile-incomplete',
+    { profileCompleted: false }
+  );
 
   await seedReservation({
     reservationId: 'valid-video',
