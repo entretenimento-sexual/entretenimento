@@ -2,6 +2,7 @@
 // Policy central de mídia privada e publicação controlada.
 // - somente o dono acessa bibliotecas privadas;
 // - upload exige e-mail verificado, perfil concluído e conta sem bloqueio;
+// - revalidação etária pendente, rejeitada ou com resultado de menoridade bloqueia;
 // - fotos e vídeos compartilham a mesma defesa em profundidade.
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
@@ -14,6 +15,8 @@ export type MediaPolicyDenyReason =
   | 'EMAIL_UNVERIFIED'
   | 'PROFILE_INCOMPLETE'
   | 'INTERACTION_BLOCKED'
+  | 'AGE_REVERIFICATION_REQUIRED'
+  | 'AGE_REVERIFICATION_RESTRICTED'
   | 'BLOCKED'
   | 'SUBSCRIPTION_REQUIRED'
   | 'UNKNOWN';
@@ -28,6 +31,8 @@ export interface IMediaPolicyViewerSnapshot {
   emailVerified?: boolean | null;
   profileCompleted?: boolean | null;
   interactionBlocked?: boolean | null;
+  ageReverificationStatus?: string | null;
+  ageReverificationResult?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -127,6 +132,26 @@ export class MediaPolicyService {
 
     if (viewer?.interactionBlocked === true) {
       return this.deny$('INTERACTION_BLOCKED');
+    }
+
+    const ageStatus = String(viewer?.ageReverificationStatus ?? '')
+      .trim()
+      .toUpperCase();
+    const ageResult = String(viewer?.ageReverificationResult ?? '')
+      .trim()
+      .toUpperCase();
+
+    if (ageStatus === 'REJECTED' || ageResult === 'UNDERAGE') {
+      return this.deny$('AGE_REVERIFICATION_RESTRICTED');
+    }
+
+    if ([
+      'REQUIRED',
+      'SUBMITTED',
+      'UNDER_REVIEW',
+      'EXPIRED',
+    ].includes(ageStatus)) {
+      return this.deny$('AGE_REVERIFICATION_REQUIRED');
     }
 
     if (viewer?.emailVerified !== true) {
