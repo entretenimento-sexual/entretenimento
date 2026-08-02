@@ -7,7 +7,7 @@
 // - receber intenção autenticada de curtir/descurtir foto pública;
 // - validar que a foto está PUBLIC + APPROVED + reactionsEnabled;
 // - gravar/remover o like do usuário;
-// - recalcular reactionsCount, engagementScore, rankingScore e score no backend.
+// - recalcular o ranking pela infraestrutura canônica de mídia.
 //
 // Segurança:
 // - cliente não escreve score;
@@ -23,110 +23,46 @@ import {
 } from '../../account_lifecycle/interaction-access.policy';
 import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  buildPhotoRankingUpdate,
+  type PublicPhotoRankingDocument,
+} from './photo-ranking-score';
+import { normalizeMediaCount } from './media-engagement-score';
 
 interface TogglePhotoReactionRequest {
   ownerUid?: string;
   photoId?: string;
 }
 
-type ScoreBreakdown = {
-  rankingScore: number;
-  qualityScore: number;
-  engagementScore: number;
-  safetyScore: number;
-};
-
-type PublicPhotoDoc = {
+type PublicPhotoDoc = PublicPhotoRankingDocument & {
   ownerUid?: string;
   visibility?: string;
   moderationStatus?: string;
   reactionsEnabled?: boolean;
-  reactionsCount?: number;
-  likesCount?: number;
-  commentsCount?: number;
-  score?: number;
-  engagementScore?: number;
-  scoreBreakdown?: Partial<ScoreBreakdown>;
 };
 
 function cleanId(value: unknown): string {
   return String(value ?? '').trim();
 }
 
-function normalizeCount(value: unknown): number {
-  const count = Number(value ?? 0);
-
-  if (!Number.isFinite(count) || count < 0) {
-    return 0;
-  }
-
-  return Math.floor(count);
-}
-
-function normalizeScore(value: unknown): number {
-  const score = Number(value ?? 0);
-
-  if (!Number.isFinite(score)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
-
-function calculateEngagementScore(input: {
-  reactionsCount: number;
-  commentsCount: number;
-}): number {
-  const weightedEngagement =
-    input.reactionsCount * 2 +
-    input.commentsCount * 4;
-
-  return normalizeScore(Math.round(Math.log1p(weightedEngagement) * 18));
-}
-
-function calculateRankingScore(score: ScoreBreakdown): number {
-  const quality = normalizeScore(score.qualityScore);
-  const engagement = normalizeScore(score.engagementScore);
-  const safety = normalizeScore(score.safetyScore);
-
-  return normalizeScore(
-    Math.round(
-      quality * 0.25 +
-      engagement * 0.45 +
-      safety * 0.30
-    )
-  );
-}
-
-function buildNextScore(
+function buildRankingFields(
   photo: PublicPhotoDoc,
-  nextReactionsCount: number
-): {
-  score: number;
-  engagementScore: number;
-  scoreBreakdown: ScoreBreakdown;
-} {
-  const currentBreakdown = photo.scoreBreakdown ?? {};
-  const commentsCount = normalizeCount(photo.commentsCount ?? 0);
-
-  const engagementScore = calculateEngagementScore({
+  nextReactionsCount: number,
+  now: number
+) {
+  const ranking = buildPhotoRankingUpdate(photo, now, {
     reactionsCount: nextReactionsCount,
-    commentsCount,
   });
 
-  const scoreBreakdown: ScoreBreakdown = {
-    qualityScore: normalizeScore(currentBreakdown.qualityScore ?? 0),
-    safetyScore: normalizeScore(currentBreakdown.safetyScore ?? 100),
-    engagementScore,
-    rankingScore: 0,
-  };
-
-  scoreBreakdown.rankingScore = calculateRankingScore(scoreBreakdown);
-
   return {
-    score: scoreBreakdown.rankingScore,
-    engagementScore,
-    scoreBreakdown,
+    engagementScore: ranking.engagementScore,
+    viewScore: ranking.viewScore,
+    retentionScore: ranking.retentionScore,
+    freshnessScore: ranking.freshnessScore,
+    score: ranking.score,
+    scoreBreakdown: ranking.scoreBreakdown,
+    rankingVersion: ranking.rankingVersion,
+    rankingUpdatedAt: ranking.rankingUpdatedAt,
   };
 }
 
@@ -208,37 +144,32 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
       }
 
       const likeSnap = await transaction.get(likeRef);
-      const currentCount = normalizeCount(
-        photo.reactionsCount ?? photo.likesCount ?? 0
+      const currentCount = normalizeMediaCount(
+        photo.reactionsCount ?? photo.likesCount
       );
+      const now = Date.now();
 
       if (likeSnap.exists) {
         const nextCount = Math.max(0, currentCount - 1);
-        const nextScore = buildNextScore(photo, nextCount);
-        const now = Date.now();
+        const rankingFields = buildRankingFields(photo, nextCount, now);
 
         transaction.delete(likeRef);
         transaction.update(photoRef, {
           reactionsCount: nextCount,
           likesCount: nextCount,
-
-          engagementScore: nextScore.engagementScore,
-          score: nextScore.score,
-          scoreBreakdown: nextScore.scoreBreakdown,
-
+          ...rankingFields,
           updatedAt: now,
         });
 
         return {
           liked: false,
           reactionsCount: nextCount,
-          score: nextScore.score,
+          score: rankingFields.score,
         };
       }
 
-      const now = Date.now();
       const nextCount = currentCount + 1;
-      const nextScore = buildNextScore(photo, nextCount);
+      const rankingFields = buildRankingFields(photo, nextCount, now);
 
       transaction.set(likeRef, {
         uid: viewerUid,
@@ -248,18 +179,14 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
       transaction.update(photoRef, {
         reactionsCount: nextCount,
         likesCount: nextCount,
-
-        engagementScore: nextScore.engagementScore,
-        score: nextScore.score,
-        scoreBreakdown: nextScore.scoreBreakdown,
-
+        ...rankingFields,
         updatedAt: now,
       });
 
       return {
         liked: true,
         reactionsCount: nextCount,
-        score: nextScore.score,
+        score: rankingFields.score,
       };
     });
   }
