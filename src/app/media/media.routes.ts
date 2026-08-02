@@ -17,6 +17,13 @@ export const MEDIA_ROUTES: Routes = [
       ),
   },
   {
+    path: 'descobrir-videos',
+    loadComponent: () =>
+      import('./videos/public-video-discovery/public-video-discovery.component').then(
+        (m) => m.PublicVideoDiscoveryComponent
+      ),
+  },
+  {
     path: 'video/:ownerUid/:videoId',
     loadComponent: () =>
       import('./videos/public-profile-videos/public-profile-videos.component').then(
