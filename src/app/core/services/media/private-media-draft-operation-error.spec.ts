@@ -23,7 +23,7 @@ describe('normalizePrivateMediaDraftOperationError', () => {
     expect(normalized.code).toBe('functions/permission-denied');
     expect(normalized.domainCode).toBe('MEDIA_PROFILE_INCOMPLETE');
     expect(normalized.recovery).toBe('Preencha os dados obrigatórios.');
-    expect(normalized.retryable).toBeFalse();
+    expect(normalized.retryable).toBe(false);
   });
 
   it('mantém o erro original quando não há código de domínio reconhecido', () => {
