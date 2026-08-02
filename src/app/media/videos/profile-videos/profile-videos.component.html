@@ -10,6 +10,8 @@
 @let capturingPoster = (capturingPoster$ | async) === true;
 @let selectedFileName = (selectedFileName$ | async);
 @let selectedFileSize = (selectedFileSize$ | async);
+@let selectedCaptionFileName = (selectedCaptionFileName$ | async);
+@let captionValidating = (captionValidating$ | async) === true;
 @let uploadPolicy = (uploadPolicyResult$ | async);
 @let canUpload = uploadPolicy?.decision === 'ALLOW';
 
@@ -181,6 +183,87 @@
             </fieldset>
 
             <fieldset
+              class="profile-videos__caption-settings"
+              [disabled]="isUploadActive() || captionValidating"
+              aria-describedby="video-caption-help"
+            >
+              <legend>Legenda acessível <span>(opcional)</span></legend>
+              <p id="video-caption-help">
+                Envie um arquivo WebVTT (.vtt) de até 1 MB. Ele será validado e vinculado a este vídeo.
+              </p>
+
+              <input
+                #captionInput
+                id="new-video-caption"
+                class="profile-videos__caption-input"
+                type="file"
+                accept=".vtt,text/vtt"
+                [disabled]="isUploadActive() || captionValidating"
+                (change)="onCaptionSelected($event)"
+              />
+
+              <label
+                class="profile-videos__caption-picker app-action app-action--ghost"
+                for="new-video-caption"
+                [class.profile-videos__caption-picker--disabled]="isUploadActive() || captionValidating"
+              >
+                <i class="fas fa-closed-captioning" aria-hidden="true"></i>
+                {{ captionValidating ? 'Validando legenda...' : selectedCaptionFileName ? 'Trocar legenda' : 'Selecionar legenda' }}
+              </label>
+
+              @if (selectedCaptionFileName) {
+                <div class="profile-videos__caption-selected" role="status" aria-live="polite">
+                  <div>
+                    <strong>{{ selectedCaptionFileName }}</strong>
+                    <span>WebVTT validado localmente</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="app-action app-action--ghost"
+                    [disabled]="isUploadActive()"
+                    (click)="removeCaption(captionInput)"
+                  >
+                    Remover
+                  </button>
+                </div>
+
+                <div class="profile-videos__caption-metadata">
+                  <label for="new-video-caption-language">
+                    <span>Idioma</span>
+                    <input
+                      id="new-video-caption-language"
+                      type="text"
+                      formControlName="captionLanguage"
+                      maxlength="20"
+                      autocomplete="off"
+                      placeholder="pt-BR"
+                    />
+                  </label>
+                  <label for="new-video-caption-label">
+                    <span>Rótulo exibido</span>
+                    <input
+                      id="new-video-caption-label"
+                      type="text"
+                      formControlName="captionLabel"
+                      maxlength="40"
+                      autocomplete="off"
+                      placeholder="Português (Brasil)"
+                    />
+                  </label>
+                </div>
+
+                @if (
+                  uploadPublicationForm.controls.captionLanguage.invalid ||
+                  uploadPublicationForm.controls.captionLabel.invalid
+                ) {
+                  <p class="profile-videos__field-error" role="alert">
+                    Revise o idioma e o rótulo da legenda.
+                  </p>
+                }
+              }
+            </fieldset>
+
+            <fieldset
               class="profile-videos__safety-attestation"
               [disabled]="isUploadActive()"
               aria-describedby="video-safety-attestation-help"
@@ -238,7 +321,7 @@
               <button
                 type="submit"
                 class="app-action app-action--primary"
-                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
+                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive() || captionValidating"
               >
                 {{ isUploadActive() ? 'Enviando...' : 'Enviar para publicação' }}
               </button>
@@ -372,6 +455,12 @@
                 <div class="profile-videos__meta" aria-label="Informações do vídeo">
                   <span>{{ formatDuration(item.video.durationMs) }}</span>
                   <span>{{ formatFileSize(item.video.sizeBytes) }}</span>
+                  @if (item.video.captionTracks?.length) {
+                    <span>
+                      <i class="fas fa-closed-captioning" aria-hidden="true"></i>
+                      Legenda
+                    </span>
+                  }
                 </div>
 
                 @if (editingVideoId === item.video.id) {
@@ -526,7 +615,7 @@
                     <div>
                       <strong>Excluir definitivamente?</strong>
                       <p>
-                        O original, as versões processadas e a publicação serão removidos. Esta ação não pode ser desfeita.
+                        O original, a legenda, as versões processadas e a publicação serão removidos. Esta ação não pode ser desfeita.
                       </p>
                     </div>
                     <div class="profile-videos__delete-confirmation-actions">
