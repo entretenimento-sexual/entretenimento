@@ -161,11 +161,11 @@ export class PhotoUploadFlowService {
     /**
      * A substituição usa copy-on-write:
      * 1) envia um novo objeto;
-     * 2) troca os metadados;
-     * 3) remove o objeto antigo.
+     * 2) o backend troca o caminho e ajusta a reserva de volume atomicamente;
+     * 3) remove o objeto antigo somente depois da confirmação.
      *
-     * Isso evita sobrescrever a única cópia válida antes de o Firestore aceitar
-     * os novos metadados.
+     * Isso evita sobrescrever a única cópia válida e impede que a edição burle
+     * a quota temporária do rascunho.
      */
     return this.uploadNewPhotoBinary$(
       safeUserId,
@@ -183,9 +183,10 @@ export class PhotoUploadFlowService {
         };
 
         return from(
-          this.photoFirestoreService.updatePhotoMetadata(
+          this.photoFirestoreService.replacePrivatePhotoUpload(
             safeUserId,
             safePhotoId,
+            currentStoragePath,
             {
               url: displayUrl,
               path: storagePath,
@@ -221,7 +222,7 @@ export class PhotoUploadFlowService {
       catchError((error) =>
         this.failFlow$(
           error,
-          'Erro ao atualizar a imagem.',
+          this.resolveUserMessage(error, 'Erro ao atualizar a imagem.'),
           {
             op: 'replaceProcessedPhoto$',
             userId: safeUserId,
@@ -334,7 +335,7 @@ export class PhotoUploadFlowService {
     imageStateStr?: string
   ): Observable<IPhotoFlowResult> {
     return from(
-      this.photoFirestoreService.savePhotoMetadata(userId, {
+      this.photoFirestoreService.registerPrivatePhotoUpload(userId, {
         id: result.photoId,
         url: result.url,
         path: result.path,
@@ -526,7 +527,11 @@ export class PhotoUploadFlowService {
       return error.message;
     }
 
-    return fallback;
+    const message = error instanceof Error
+      ? String(error.message ?? '').trim()
+      : '';
+
+    return message || fallback;
   }
 
   private reportSilent(
