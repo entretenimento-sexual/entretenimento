@@ -12,7 +12,6 @@ import {
   deleteObject,
   ref,
   type UploadTask,
-  uploadBytesResumable,
 } from 'firebase/storage';
 import { Observable, firstValueFrom } from 'rxjs';
 
@@ -22,6 +21,7 @@ import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { PrivateMediaDraftCapacityService } from './private-media-draft-capacity.service';
+import { PrivateMediaReservedUploadService } from './private-media-reserved-upload.service';
 import {
   IPreparedVideoMetadata,
   VideoMetadataPreparationService,
@@ -50,6 +50,7 @@ interface RegisterEditedVideoRequest
   extends IVideoPublicationSettingsInput {
   ownerUid: string;
   videoId: string;
+  reservationId: string;
   videoStoragePath: string;
   posterStoragePath: string | null;
   fileName: string;
@@ -70,10 +71,6 @@ interface RegisterEditedVideoResponse {
   videoStoragePath: string;
   posterStoragePath: string | null;
   createdAt: number;
-}
-
-interface UploadedBinary {
-  path: string;
 }
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
@@ -98,6 +95,7 @@ export class VideoEditedUploadFlowService {
   private readonly injector = inject(Injector);
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
   private readonly draftCapacity = inject(PrivateMediaDraftCapacityService);
+  private readonly reservedUpload = inject(PrivateMediaReservedUploadService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly registerCallable = httpsCallable<
@@ -135,6 +133,7 @@ export class VideoEditedUploadFlowService {
       const videoId = videoRef.id;
       const videoPath = this.buildVideoPath(ownerUid, videoId, sourceFormat);
       let posterPath: string | null = null;
+      let reservationId = '';
       let activeTask: UploadTask | null = null;
       let cancelRequested = false;
       let registrationStarted = false;
@@ -146,6 +145,11 @@ export class VideoEditedUploadFlowService {
       const scheduleCleanup = (): Promise<void> => {
         cleanupChain = cleanupChain.then(async () => {
           const tasks: Promise<void>[] = [];
+
+          if (reservationId) {
+            tasks.push(this.cancelReservationBestEffort(reservationId));
+            reservationId = '';
+          }
 
           if (posterUploadStarted && posterPath) {
             tasks.push(this.deleteBinaryBestEffort(posterPath, 'poster'));
@@ -191,56 +195,71 @@ export class VideoEditedUploadFlowService {
             metadata
           );
           const posterBlob = selectedPosterBlob ?? metadata.posterBlob;
+          posterPath = posterBlob
+            ? this.buildPosterPath(ownerUid, videoId)
+            : null;
           assertNotCancelled();
 
           emitProgress('preparing', 4);
-          await firstValueFrom(
-            this.draftCapacity.assertCapacity$(
-              'video',
-              file.size,
-              posterBlob?.size ?? 0
-            )
+          const reservation = await firstValueFrom(
+            this.draftCapacity.reserveUpload$({
+              ownerUid,
+              mediaId: videoId,
+              kind: 'video',
+              operation: 'CREATE',
+              sourceStoragePath: videoPath,
+              auxiliaryStoragePath: posterPath,
+              sourceSizeBytes: file.size,
+              auxiliarySizeBytes: posterBlob?.size ?? 0,
+            })
           );
+          reservationId = reservation.reservationId;
           assertNotCancelled();
 
           emitProgress('preparing', 6);
           videoUploadStarted = true;
-          const videoBinary = await this.uploadBinary(
-            videoPath,
-            file,
-            sourceFormat.mimeType,
-            (task) => {
-              activeTask = task;
-            },
-            (progress) => {
-              emitProgress(
-                'uploading-video',
-                this.mapProgress(progress, 6, 86)
-              );
-            }
+          const videoBinary = await firstValueFrom(
+            this.reservedUpload.upload$(
+              videoPath,
+              file,
+              sourceFormat.mimeType,
+              reservationId,
+              (progress) => {
+                emitProgress(
+                  'uploading-video',
+                  this.mapProgress(progress, 6, 86)
+                );
+              },
+              (task) => {
+                activeTask = task;
+              }
+            )
           );
           activeTask = null;
           assertNotCancelled();
 
-          let posterBinary: UploadedBinary | null = null;
+          let uploadedPosterPath: string | null = null;
 
-          if (posterBlob) {
-            posterPath = this.buildPosterPath(ownerUid, videoId);
+          if (posterBlob && posterPath) {
             posterUploadStarted = true;
-            posterBinary = await this.uploadBinary(
-              posterPath,
-              posterBlob,
-              'image/jpeg',
-              (task) => {
-                activeTask = task;
-              },
-              (progress) => {
-                emitProgress(
-                  'uploading-poster',
-                  this.mapProgress(progress, 86, 96)
-                );
-              }
+            const posterBinary = await firstValueFrom(
+              this.reservedUpload.upload$(
+                posterPath,
+                posterBlob,
+                'image/jpeg',
+                reservationId,
+                (progress) => {
+                  emitProgress(
+                    'uploading-poster',
+                    this.mapProgress(progress, 86, 96)
+                  );
+                },
+                (task) => {
+                  activeTask = task;
+                }
+              )
             );
+            uploadedPosterPath = posterBinary.storagePath;
             activeTask = null;
             assertNotCancelled();
           }
@@ -252,8 +271,9 @@ export class VideoEditedUploadFlowService {
           const registration = await this.registerUploadedVideo({
             ownerUid,
             videoId,
-            videoStoragePath: videoBinary.path,
-            posterStoragePath: posterBinary?.path ?? null,
+            reservationId,
+            videoStoragePath: videoBinary.storagePath,
+            posterStoragePath: uploadedPosterPath,
             fileName,
             mimeType: sourceFormat.mimeType,
             sizeBytes: file.size,
@@ -263,6 +283,7 @@ export class VideoEditedUploadFlowService {
           });
 
           completed = true;
+          reservationId = '';
           emitProgress('saving', 100);
           observer.next({
             type: 'success',
@@ -290,7 +311,7 @@ export class VideoEditedUploadFlowService {
           this.privacyDebug.log('media', 'VideoEditedUpload: upload concluído', {
             hasOwnerUid: true,
             hasVideoId: true,
-            hasPoster: !!posterBinary,
+            hasPoster: !!uploadedPosterPath,
             aspectRatio: editRecipe.aspectRatio,
             muted: editRecipe.muteAudio,
             trimmed: editRecipe.trimStartMs > 0 || editRecipe.trimEndMs !== null,
@@ -406,32 +427,10 @@ export class VideoEditedUploadFlowService {
     }
   }
 
-  private uploadBinary(
-    storagePath: string,
-    data: Blob,
-    contentType: string,
-    registerTask: (task: UploadTask) => void,
-    onProgress: (progress: number) => void
-  ): Promise<UploadedBinary> {
-    return new Promise<UploadedBinary>((resolve, reject) => {
-      const task = uploadBytesResumable(ref(this.storage, storagePath), data, {
-        contentType,
-        cacheControl: 'private, max-age=0, no-store, no-transform',
-      });
-
-      registerTask(task);
-      task.on(
-        'state_changed',
-        (snapshot) => {
-          const progress = snapshot.totalBytes > 0
-            ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-            : 0;
-          onProgress(this.normalizeProgress(progress));
-        },
-        reject,
-        () => resolve({ path: storagePath })
-      );
-    });
+  private cancelReservationBestEffort(reservationId: string): Promise<void> {
+    return firstValueFrom(
+      this.draftCapacity.cancelUploadReservation$(reservationId)
+    ).then(() => undefined).catch(() => undefined);
   }
 
   private deleteBinaryBestEffort(
@@ -568,7 +567,6 @@ export class VideoEditedUploadFlowService {
     return [
       'deadline-exceeded',
       'internal',
-      'resource-exhausted',
       'unavailable',
       'unknown',
     ].includes(code);
