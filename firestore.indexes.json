@@ -61,7 +61,7 @@
     },
     {
       "collectionGroup": "public_videos",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "visibility", "order": "ASCENDING" },
         { "fieldPath": "moderationStatus", "order": "ASCENDING" },
@@ -75,7 +75,7 @@
     },
     {
       "collectionGroup": "public_videos",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "visibility", "order": "ASCENDING" },
         { "fieldPath": "moderationStatus", "order": "ASCENDING" },
