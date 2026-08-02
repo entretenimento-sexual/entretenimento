@@ -75,6 +75,12 @@ export {
 } from './application/register-private-video-upload-orchestrator.handler';
 
 export {
+  cleanupPendingPrivateVideoCaptions,
+  cleanupVideoCaptionsOnDelete,
+  indexPrivateVideoCaptionForCleanup,
+} from './application/video-caption-staging-cleanup.handler';
+
+export {
   cleanupPendingPrivatePhotoUploadAssets,
   indexPrivatePhotoUploadForCleanup,
 } from './application/register-and-publish-photo-upload.handler';
