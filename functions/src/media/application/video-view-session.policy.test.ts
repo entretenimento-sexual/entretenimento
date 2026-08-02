@@ -8,6 +8,7 @@ import './photo-audience-access.policy.test';
 import './photo-ranking-backfill.policy.test';
 import './photo-ranking-score.test';
 import './photo-view-session.policy.test';
+import './video-upload-format.policy.test';
 import {
   VIDEO_VIEW_SESSION_MIN_INTERVAL_MS,
   VIDEO_VIEW_SESSION_RATE_WINDOW_MS,
