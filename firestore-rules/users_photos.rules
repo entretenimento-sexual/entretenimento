@@ -1,13 +1,13 @@
 // ===============================================================
 // USERS / photos + imageStates + comments
-// - Fluxo atual: metadado da foto salva id, url, path, fileName, createdAt
-// - Somente o dono lê/escreve
-// - displayDate é metadado privado de organização e só pode ser alterado por assinantes
+// - Criação, substituição e exclusão de arquivos passam por callables backend
+// - O dono mantém leitura e organização privada por displayDate
+// - Campos de quota, retenção e ciclo de vida são controlados pelo backend
 // - Sem scraping, sem enumeração
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // uso de helpers globais
 // firestore-rules/users_photos.rules
-// 14ABR2026
+// 02AGO2026
 // ===============================================================
 match /users/{userId}/photos/{photoId} {
 
@@ -34,12 +34,25 @@ match /users/{userId}/photos/{photoId} {
   function allowedKeys() {
     return request.resource.data.keys().hasOnly([
       "id",
+      "ownerUid",
       "url",
       "path",
       "fileName",
+      "mimeType",
+      "sizeBytes",
       "createdAt",
       "displayDate",
-      "updatedAt"
+      "updatedAt",
+      "draftLifecycleVersion",
+      "draftLifecycleState",
+      "draftReservationActive",
+      "draftReservationId",
+      "draftPlanAtReservation",
+      "draftReservedBytes",
+      "draftExpiresAt",
+      "draftUpdatedAt",
+      "draftRejectedReason",
+      "draftRejectedMessage"
     ]);
   }
 
@@ -53,12 +66,6 @@ match /users/{userId}/photos/{photoId} {
       );
   }
 
-  function displayDateCreateAllowed() {
-    return !hasField("displayDate")
-      || request.resource.data.displayDate == null
-      || hasPaidPhotoDateAccess();
-  }
-
   function displayDateUpdateAllowed() {
     return !request.resource.data.diff(resource.data).changedKeys().hasAny(["displayDate"])
       || hasPaidPhotoDateAccess();
@@ -67,25 +74,50 @@ match /users/{userId}/photos/{photoId} {
   function validPhotoPayload() {
     return allowedKeys()
       && (!hasField("id") || request.resource.data.id is string)
+      && (!hasField("ownerUid") || request.resource.data.ownerUid is string)
       && (!hasField("url") || request.resource.data.url is string)
       && (!hasField("path") || request.resource.data.path is string)
       && (!hasField("fileName") || request.resource.data.fileName is string)
+      && (!hasField("mimeType") || request.resource.data.mimeType is string)
+      && (!hasField("sizeBytes") || (
+        request.resource.data.sizeBytes is number
+        && request.resource.data.sizeBytes > 0
+        && request.resource.data.sizeBytes <= 10485760
+      ))
       && optTimestamp("createdAt")
       && validDisplayDate()
-      && optTimestamp("updatedAt");
+      && optTimestamp("updatedAt")
+      && (!hasField("draftLifecycleVersion") || request.resource.data.draftLifecycleVersion is number)
+      && (!hasField("draftLifecycleState") || request.resource.data.draftLifecycleState is string)
+      && (!hasField("draftReservationActive") || request.resource.data.draftReservationActive is bool)
+      && (!hasField("draftReservationId") || request.resource.data.draftReservationId is string)
+      && (!hasField("draftPlanAtReservation") || request.resource.data.draftPlanAtReservation is string)
+      && (!hasField("draftReservedBytes") || request.resource.data.draftReservedBytes is number)
+      && (!hasField("draftExpiresAt") || request.resource.data.draftExpiresAt is number)
+      && (!hasField("draftUpdatedAt") || request.resource.data.draftUpdatedAt is number)
+      && (!hasField("draftRejectedReason") || request.resource.data.draftRejectedReason is string)
+      && (!hasField("draftRejectedMessage") || request.resource.data.draftRejectedMessage is string);
+  }
+
+  function onlyOrganizationFieldsChanged() {
+    return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      "displayDate",
+      "updatedAt"
+    ]);
   }
 
   allow get, list: if isSelf(userId);
 
-  allow create: if isSelf(userId)
-    && validPhotoPayload()
-    && displayDateCreateAllowed();
+  // Admin SDK das callables registra o arquivo e reserva quota atomicamente.
+  allow create: if false;
 
   allow update: if isSelf(userId)
     && validPhotoPayload()
+    && onlyOrganizationFieldsChanged()
     && displayDateUpdateAllowed();
 
-  allow delete: if isSelf(userId);
+  // Exclusão direta deixaria objeto órfão no Storage; use deleteProfilePhoto.
+  allow delete: if false;
 
   match /comments/{commentId} {
     function allowedCommentKeys() {
