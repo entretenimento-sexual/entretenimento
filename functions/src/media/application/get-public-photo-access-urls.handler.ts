@@ -8,6 +8,10 @@ import {
   normalizeOwnedPublishedPhotoPath,
 } from './photo-storage-path';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
+import {
+  createVideoAudienceAccessEvaluator,
+  type VideoAudienceAccessEvaluator,
+} from './video-audience-access.policy';
 
 interface PublicPhotoAccessRequestItem {
   ownerUid?: string;
@@ -52,11 +56,16 @@ function cleanId(value: unknown): string {
   return normalized;
 }
 
+function normalizeEnum(value: unknown): string {
+  return String(value ?? '').trim().toUpperCase();
+}
+
 function buildRequestKey(ownerUid: string, photoId: string): string {
   return `${ownerUid}:${photoId}`;
 }
 
 async function resolveAccessItem(
+  audience: VideoAudienceAccessEvaluator,
   ownerUid: string,
   photoId: string,
   expiresAt: number
@@ -85,12 +94,40 @@ async function resolveAccessItem(
 
   const publicPhoto = publicPhotoSnap.data();
   const publication = publicationSnap.data();
+  const projectionVisibility = normalizeEnum(publicPhoto?.visibility);
+  const publicationVisibility = normalizeEnum(publication?.visibility);
+  const projectionModeration = normalizeEnum(publicPhoto?.moderationStatus);
+  const publicationModeration = normalizeEnum(publication?.moderationStatus);
 
+  /**
+   * A projeção pública não autoriza acesso isoladamente. Identidade, tipo,
+   * estratégia de ativo, visibilidade e moderação precisam coincidir com a
+   * publicação canônica antes da avaliação de audiência.
+   */
   if (
-    publicPhoto?.visibility !== 'PUBLIC' ||
-    publicPhoto?.moderationStatus !== 'APPROVED' ||
-    publication?.isPublished !== true
+    cleanId(publicPhoto?.id) !== photoId ||
+    cleanId(publicPhoto?.ownerUid) !== ownerUid ||
+    cleanId(publication?.photoId) !== photoId ||
+    cleanId(publication?.ownerUid) !== ownerUid ||
+    normalizeEnum(publicPhoto?.mediaType) !== 'PHOTO' ||
+    normalizeEnum(publicPhoto?.assetAccess) !== 'SIGNED_URL' ||
+    !projectionVisibility ||
+    projectionVisibility !== publicationVisibility ||
+    !projectionModeration ||
+    projectionModeration !== publicationModeration
   ) {
+    return null;
+  }
+
+  const audienceDecision = await audience.evaluate({
+    ownerUid,
+    action: 'PLAY',
+    visibility: publicationVisibility,
+    isPublished: publication?.isPublished === true,
+    moderationStatus: publicationModeration,
+  });
+
+  if (!audienceDecision.allowed) {
     return null;
   }
 
@@ -122,7 +159,9 @@ async function resolveAccessItem(
 export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<PublicPhotoAccessResponse> => {
-    if (!request.auth?.uid) {
+    const viewerUid = cleanId(request.auth?.uid);
+
+    if (!viewerUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
@@ -163,13 +202,19 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
       );
     }
 
+    const audience = await createVideoAudienceAccessEvaluator(viewerUid);
     const expiresAt = Date.now() + SIGNED_URL_TTL_MS;
     const resolutions = await Promise.all(
       [...uniqueItems.values()].map(
         async ({ ownerUid, photoId }): Promise<PublicPhotoAccessResolution> => {
           try {
             return {
-              item: await resolveAccessItem(ownerUid, photoId, expiresAt),
+              item: await resolveAccessItem(
+                audience,
+                ownerUid,
+                photoId,
+                expiresAt
+              ),
               technicalFailure: false,
             };
           } catch (error) {
