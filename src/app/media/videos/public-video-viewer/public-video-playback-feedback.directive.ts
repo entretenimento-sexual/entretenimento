@@ -45,6 +45,7 @@ const ADJACENT_PRELOAD_DELAY_MS = 280;
 const BUFFERING_FEEDBACK_DELAY_MS = 350;
 const SLOW_BUFFERING_MESSAGE_MS = 8_000;
 const BUFFERING_FAILURE_MS = 25_000;
+const HAVE_CURRENT_DATA = 2;
 const OFFLINE_PLAYBACK_MESSAGE =
   'Você está sem conexão. O vídeo será recarregado quando a internet voltar.';
 const REPEATED_ACCESS_FAILURE_MESSAGE =
@@ -343,6 +344,7 @@ export class PublicVideoPlaybackFeedbackDirective
   @HostListener('loadstart')
   onLoadStart(): void {
     this.currentPlaybackReady = false;
+    this.updateCurrentItemIndex();
     this.cancelAdjacentMetadataPreload();
     this.startBufferingFeedback('Carregando vídeo...', true);
     this.validatePoster();
@@ -378,7 +380,7 @@ export class PublicVideoPlaybackFeedbackDirective
     const video = this.elementRef.nativeElement;
 
     if (
-      video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA &&
+      video.readyState < HAVE_CURRENT_DATA &&
       !video.ended
     ) {
       return;
