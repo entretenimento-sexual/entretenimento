@@ -10,7 +10,8 @@
 @let capturingPoster = (capturingPoster$ | async) === true;
 @let selectedFileName = (selectedFileName$ | async);
 @let selectedFileSize = (selectedFileSize$ | async);
-@let canUpload = (canUpload$ | async) === true;
+@let uploadPolicy = (uploadPolicyResult$ | async);
+@let canUpload = uploadPolicy?.decision === 'ALLOW';
 
 <section class="profile-videos" aria-label="Vídeos">
   @if (isOwner$ | async) {
@@ -30,7 +31,17 @@
         <div class="profile-videos__policy-state" role="status" aria-live="polite">
           <i class="fas fa-shield-halved" aria-hidden="true"></i>
           <span>
-            Confirme o e-mail, conclua o perfil e mantenha a conta regular para liberar o envio de vídeos.
+            @if (uploadPolicy?.reason === 'AGE_REVERIFICATION_REQUIRED') {
+              Conclua a revalidação de idade antes de enviar vídeos.
+            } @else if (uploadPolicy?.reason === 'AGE_REVERIFICATION_RESTRICTED') {
+              Esta conta não pode enviar vídeos por restrição de idade.
+            } @else if (uploadPolicy?.reason === 'EMAIL_UNVERIFIED') {
+              Confirme seu e-mail antes de enviar vídeos.
+            } @else if (uploadPolicy?.reason === 'PROFILE_INCOMPLETE') {
+              Conclua seu perfil antes de enviar vídeos.
+            } @else {
+              Mantenha a conta regular para liberar o envio de vídeos.
+            }
           </span>
         </div>
       }
@@ -58,7 +69,7 @@
             </label>
 
             <p class="profile-videos__limits" id="profile-video-file-help">
-              {{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos
+              {{ videoUploadFormatLabel }} · até 500 MB · duração e compatibilidade verificadas no processamento
             </p>
 
             <div class="profile-videos__selected-file" role="status" aria-live="polite">
@@ -169,6 +180,60 @@
               </label>
             </fieldset>
 
+            <fieldset
+              class="profile-videos__safety-attestation"
+              [disabled]="isUploadActive()"
+              aria-describedby="video-safety-attestation-help"
+            >
+              <legend>Declarações obrigatórias</legend>
+              <p id="video-safety-attestation-help">
+                Confirme apenas quando todas as afirmações forem verdadeiras. O aceite fica vinculado a este envio.
+              </p>
+
+              <label>
+                <input
+                  type="checkbox"
+                  formControlName="allParticipantsAdultsAndConsenting"
+                />
+                <span>
+                  Todas as pessoas visíveis são maiores de 18 anos e consentiram com a gravação e a publicação.
+                </span>
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  formControlName="rightsAndPermissionsConfirmed"
+                />
+                <span>
+                  Tenho os direitos e as autorizações necessárias para publicar este vídeo.
+                </span>
+              </label>
+
+              <label>
+                <input
+                  type="checkbox"
+                  formControlName="prohibitedContentAcknowledged"
+                />
+                <span>
+                  O vídeo não contém menores, coerção, exploração, violência não consentida ou outro conteúdo proibido.
+                </span>
+              </label>
+
+              @if (
+                uploadPublicationForm.touched &&
+                (
+                  uploadPublicationForm.controls.allParticipantsAdultsAndConsenting.invalid ||
+                  uploadPublicationForm.controls.rightsAndPermissionsConfirmed.invalid ||
+                  uploadPublicationForm.controls.prohibitedContentAcknowledged.invalid
+                )
+              ) {
+                <p class="profile-videos__field-error" role="alert">
+                  Confirme todas as declarações para prosseguir.
+                </p>
+              }
+            </fieldset>
+
             <div class="profile-videos__settings-actions">
               <button
                 type="submit"
@@ -191,7 +256,7 @@
             Selecionar vídeo
           </label>
           <p class="profile-videos__limits" id="profile-video-file-help">
-            {{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos
+            {{ videoUploadFormatLabel }} · até 500 MB · duração e compatibilidade verificadas no processamento
           </p>
         </div>
       }
