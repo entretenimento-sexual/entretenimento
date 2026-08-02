@@ -35,6 +35,12 @@ interface RankingResponse {
   hasMore: boolean;
 }
 
+interface CanonicalPublication {
+  isPublished?: unknown;
+  visibility?: unknown;
+  moderationStatus?: unknown;
+}
+
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 16;
 const BATCH_SIZE = 24;
@@ -43,6 +49,10 @@ const MAX_SCAN_ITEMS = 120;
 function cleanId(value: unknown): string {
   const text = String(value ?? '').trim();
   return text && text.length <= 128 && !text.includes('/') ? text : '';
+}
+
+function normalizeEnum(value: unknown): string {
+  return String(value ?? '').trim().toUpperCase();
 }
 
 function numberOrZero(value: unknown): number {
@@ -163,6 +173,24 @@ function normalizeProjection(
   return { id: videoId, path: document.ref.path, data };
 }
 
+function isCanonicalProjectionPair(
+  projection: RawVideoDocument,
+  publication: CanonicalPublication
+): boolean {
+  const projectionVisibility = normalizeEnum(projection.data['visibility']);
+  const projectionModeration = normalizeEnum(
+    projection.data['moderationStatus']
+  );
+  const publicationVisibility = normalizeEnum(publication.visibility);
+  const publicationModeration = normalizeEnum(publication.moderationStatus);
+
+  return publication.isPublished === true
+    && projectionVisibility === 'PUBLIC'
+    && projectionVisibility === publicationVisibility
+    && projectionModeration === 'APPROVED'
+    && projectionModeration === publicationModeration;
+}
+
 export const listAuthorizedPublicVideos = onCall<RankingRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<RankingResponse> => {
@@ -198,6 +226,7 @@ export const listAuthorizedPublicVideos = onCall<RankingRequest>(
           }
 
           const ownerUid = cleanId(projection.data['ownerUid']);
+          const videoId = projection.id;
           let profileExists = profileCache.get(ownerUid);
 
           if (!profileExists) {
@@ -206,18 +235,32 @@ export const listAuthorizedPublicVideos = onCall<RankingRequest>(
             profileCache.set(ownerUid, profileExists);
           }
 
-          const [exists, decision] = await Promise.all([
+          const [exists, publicationSnapshot] = await Promise.all([
             profileExists,
-            audience.evaluate({
-              ownerUid,
-              action: 'LIST',
-              visibility: projection.data['visibility'],
-              isPublished: true,
-              moderationStatus: projection.data['moderationStatus'],
-            }),
+            db.doc(
+              `users/${ownerUid}/video_publications/${videoId}`
+            ).get(),
           ]);
 
-          return { doc, projection, allowed: exists && decision.allowed };
+          if (!exists || !publicationSnapshot.exists) {
+            return { doc, projection, allowed: false };
+          }
+
+          const publication = publicationSnapshot.data() as CanonicalPublication;
+
+          if (!isCanonicalProjectionPair(projection, publication)) {
+            return { doc, projection, allowed: false };
+          }
+
+          const decision = await audience.evaluate({
+            ownerUid,
+            action: 'LIST',
+            visibility: publication.visibility,
+            isPublished: publication.isPublished === true,
+            moderationStatus: publication.moderationStatus,
+          });
+
+          return { doc, projection, allowed: decision.allowed };
         }));
 
         let consumed = 0;
