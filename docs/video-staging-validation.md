@@ -9,6 +9,7 @@ Comprovar no ambiente real:
 
 ```text
 conta elegível
+  -> App Check válido
   -> reserva de quota
   -> Storage Rules
   -> registro privado
@@ -35,8 +36,17 @@ appCheck.siteKey = staging-recaptcha-v3-site-key
 apiEndpoint       = https://api.staging.seuprojeto.com
 ```
 
-A site key de App Check é bloqueante. A auditoria estática falha enquanto esse
-placeholder permanecer no `environment.staging.ts`.
+A site key de App Check é bloqueante para o build Angular de staging. A auditoria
+estática em modo de deploy falha enquanto esse placeholder permanecer no
+`environment.staging.ts`.
+
+O smoke de Node não tenta executar reCAPTCHA. Ele usa `CustomProvider` e recebe
+um token App Check efêmero emitido pelo Firebase Admin SDK para o `appId` Web de
+staging. Assim, Functions e Storage continuam sendo exercitados com App Check
+mesmo quando a aplicação obrigatória está habilitada.
+
+Esse token não substitui a configuração real do aplicativo Angular. A site key
+pública de staging ainda precisa existir antes da homologação integral da UI.
 
 O endpoint auxiliar não participa diretamente do smoke de Firebase, mas continua
 sendo uma pendência para homologar o aplicativo completo.
@@ -57,7 +67,9 @@ gcloud services enable firestore.googleapis.com `
   cloudtasks.googleapis.com `
   transcoder.googleapis.com `
   firebase.googleapis.com `
+  firebaseappcheck.googleapis.com `
   identitytoolkit.googleapis.com `
+  iamcredentials.googleapis.com `
   --project=entretenimento-staging
 ```
 
@@ -142,7 +154,8 @@ Permissões mínimas esperadas para essa identidade:
 - administrar usuários efêmeros do Firebase Auth;
 - ler e gravar documentos efêmeros de Firestore;
 - apagar objetos apenas do projeto de staging;
-- assinar custom tokens para os usuários efêmeros;
+- assinar custom tokens do Firebase Auth;
+- assinar custom tokens do App Check para o `appId` de staging;
 - ler a configuração básica do projeto.
 
 Papéis a avaliar no projeto de staging:
@@ -155,10 +168,32 @@ roles/iam.serviceAccountTokenCreator
 ```
 
 `roles/iam.serviceAccountTokenCreator` deve ser concedido de forma restrita à
-própria service account usada no smoke, somente para permitir a assinatura dos
-custom tokens.
+própria service account usada no smoke. A permissão `iam.serviceAccounts.signBlob`
+é necessária para assinar tanto o custom token de autenticação quanto o custom
+token usado pelo App Check.
+
+Não conceder `roles/firebaseappcheck.admin` apenas para executar o smoke. O fluxo
+não altera configuração, enforcement ou debug tokens do App Check.
 
 A identidade do smoke não deve receber permissão de deploy.
+
+## App Check no smoke de Node
+
+Os provedores reCAPTCHA não funcionam diretamente no runtime Node. O script usa:
+
+```text
+Firebase Admin AppCheck.createToken(appId)
+  -> Firebase Web CustomProvider
+  -> initializeAppCheck(clientApp)
+  -> Auth, Functions e Storage com X-Firebase-AppCheck
+```
+
+O token tem duração de 30 minutos e é renovado pelo provider quando necessário.
+Ele nunca é impresso nem salvo no relatório.
+
+Esse mecanismo é exclusivo do ambiente protegido de homologação. Não deve ser
+copiado para o bundle Angular, exposto ao navegador ou transformado em endpoint
+público de emissão de tokens.
 
 ## GitHub Environment
 
@@ -204,13 +239,15 @@ A auditoria verifica:
 - Node 22;
 - isolamento entre staging e produção;
 - configuração Angular e bucket;
-- App Check não-placeholder;
+- App Check não-placeholder para o build real;
 - exports do dispatcher, worker, diagnóstico e recuperação;
 - contrato MP4/M4V, MOV e WebM;
 - Storage Rules com reserva obrigatória;
 - registro definitivo com reserva;
 - TTL de despachos e DLQ;
 - índice da auditoria administrativa;
+- proteção manual e OIDC do workflow real;
+- uso de App Check customizado no smoke;
 - proteção contra credenciais temporárias do OIDC.
 
 O relatório é salvo em:
@@ -218,6 +255,16 @@ O relatório é salvo em:
 ```text
 artifacts/video-staging/readiness.json
 ```
+
+Para validar apenas o contrato do repositório no CI:
+
+```powershell
+node scripts/tests/video-staging-readiness.mjs --contract
+```
+
+Nesse modo, placeholders externos conhecidos são warnings. Erros arquiteturais,
+remoção de proteções, divergência de projetos ou quebra dos contratos continuam
+falhando o gate.
 
 ## Execução pelo GitHub Actions
 
@@ -236,15 +283,16 @@ O workflow:
 1. executa a auditoria estática;
 2. gera vídeos sintéticos de seis segundos com FFmpeg;
 3. autentica no Google Cloud por OIDC;
-4. executa o pipeline real para cada formato;
-5. consulta `getVideoProcessingOperationalStatus` com claim administrativo;
-6. apaga usuários, documentos e objetos efêmeros;
-7. publica os relatórios como artifact por 30 dias.
+4. emite tokens efêmeros de Auth e App Check sem imprimi-los;
+5. executa o pipeline real para cada formato;
+6. consulta `getVideoProcessingOperationalStatus` com claim administrativo;
+7. apaga usuários, documentos e objetos efêmeros;
+8. publica os relatórios como artifact por 30 dias.
 
 ## Execução local
 
 É necessário possuir Application Default Credentials da service account de
-smoke e arquivos de vídeo válidos.
+smoke, permissão de assinatura e arquivos de vídeo válidos.
 
 Exemplo PowerShell:
 
@@ -281,6 +329,7 @@ indicados no relatório.
 
 Cada formato precisa comprovar:
 
+- token App Check aceito por Functions e Storage;
 - reserva `ACTIVE` antes do upload;
 - upload autorizado pelas Storage Rules;
 - reserva `CONSUMED` após o registro;
@@ -294,6 +343,7 @@ Cada formato precisa comprovar:
 - despacho `COMPLETED`;
 - ausência do job bem-sucedido na DLQ;
 - provider `READY` no painel operacional;
+- amostra de latência consultada antes da limpeza;
 - limpeza dos recursos efêmeros.
 
 Falha em qualquer item reprova o lote. Não converter falhas em warnings apenas
