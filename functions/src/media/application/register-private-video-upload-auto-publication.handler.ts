@@ -8,6 +8,15 @@ import {
   AutoPublishVideoRegistrationData,
   forceVideoAutoPublicationData,
 } from './video-auto-publication.policy';
+import {
+  enqueueImmediateVideoProcessingBestEffort,
+} from './video-processing-immediate-task.handler';
+
+interface RegisteredPrivateVideoResponse {
+  ownerUid: string;
+  videoId: string;
+  [key: string]: unknown;
+}
 
 /**
  * Fronteira pública do registro de vídeos.
@@ -21,8 +30,19 @@ export const registerPrivateVideoUpload = onCall<
   AutoPublishVideoRegistrationData
 >(
   { region: FUNCTIONS_REGION },
-  async (request) => registerPrivateVideoUploadCore.run({
-    ...request,
-    data: forceVideoAutoPublicationData(request.data),
-  } as any)
+  async (request): Promise<RegisteredPrivateVideoResponse> => {
+    const response = (
+      await registerPrivateVideoUploadCore.run({
+        ...request,
+        data: forceVideoAutoPublicationData(request.data),
+      } as any)
+    ) as RegisteredPrivateVideoResponse;
+
+    await enqueueImmediateVideoProcessingBestEffort(
+      response.ownerUid,
+      response.videoId
+    );
+
+    return response;
+  }
 );
