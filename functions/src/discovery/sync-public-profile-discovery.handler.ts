@@ -3,6 +3,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { db, FieldValue } from '../firebaseApp';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
 import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
+import { normalizePublicProfileDescription } from './public-profile-description';
 import {
   buildPublicPreferenceProjection,
   publicPreferenceProjectionMatches,
@@ -27,7 +28,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
     const user = after.data() ?? {};
     const canonical = normalizeProfileDiscoveryFields(user);
     const age = normalizePublicAge(user['idade'] ?? user['age']);
-    const descricao = normalizePublicDescription(
+    const descricao = normalizePublicProfileDescription(
       user['descricao'] ?? user['description'] ?? user['bio']
     );
     const publicPreferences = buildPublicPreferenceProjection(
@@ -66,17 +67,4 @@ function normalizePublicAge(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   const age = Math.round(value);
   return age >= 18 && age <= 100 ? age : null;
-}
-
-function normalizePublicDescription(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-
-  const normalized = value
-    .replace(/\r\n?/g, '\n')
-    .replace(/[\t ]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-    .slice(0, 1000);
-
-  return normalized || null;
 }
