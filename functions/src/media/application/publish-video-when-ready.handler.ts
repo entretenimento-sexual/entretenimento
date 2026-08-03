@@ -7,12 +7,20 @@ import {
   publishVideo as publishVideoCore,
 } from './manage-video-publication.handler';
 import {
+  promotePrivateVideoReplacement,
+} from './promote-private-video-replacement.service';
+import {
   synchronizePublishedVideoSettings,
 } from './sync-published-video-settings.handler';
+import {
+  extractOwnedPrivateVideoPathForId,
+} from './video-storage-path';
 
 interface PrivateVideoDoc {
   ownerUid?: unknown;
   status?: unknown;
+  path?: unknown;
+  url?: unknown;
   processedStoragePath?: unknown;
 }
 
@@ -22,6 +30,8 @@ interface VideoPublicationDoc {
   isPublished?: unknown;
   publishWhenReady?: unknown;
   moderationStatus?: unknown;
+  sourceStoragePath?: unknown;
+  pendingSourceStoragePath?: unknown;
   autoPublishState?: unknown;
   autoPublishLeaseUntil?: unknown;
 }
@@ -34,6 +44,7 @@ interface PublishVideoResponse {
 
 type DeferredPublicationClaim =
   | 'PUBLISH'
+  | 'REPLACE'
   | 'SYNCHRONIZE'
   | 'SKIPPED';
 
@@ -57,7 +68,8 @@ function normalizeErrorMessage(error: unknown): string {
 
 async function claimDeferredPublication(
   ownerUid: string,
-  videoId: string
+  videoId: string,
+  currentSourceStoragePath: string
 ): Promise<DeferredPublicationClaim> {
   const publicationRef = db.doc(
     `users/${ownerUid}/video_publications/${videoId}`
@@ -100,29 +112,48 @@ async function claimDeferredPublication(
       return 'SKIPPED';
     }
 
+    const leaseUntil = Number(publication.autoPublishLeaseUntil ?? 0);
+    const state = String(publication.autoPublishState ?? '')
+      .trim()
+      .toUpperCase();
+    const isClaimed =
+      (state === 'PUBLISHING' || state === 'REPLACING') &&
+      Number.isFinite(leaseUntil) &&
+      leaseUntil > now;
+
+    if (isClaimed) {
+      throw new Error('A publicação automática já possui um lease ativo.');
+    }
+
     if (publication.isPublished === true) {
+      const publishedSourceStoragePath =
+        extractOwnedPrivateVideoPathForId(
+          ownerUid,
+          videoId,
+          publication.sourceStoragePath
+        );
+      const pendingSourceStoragePath =
+        extractOwnedPrivateVideoPathForId(
+          ownerUid,
+          videoId,
+          publication.pendingSourceStoragePath
+        );
+      const isReplacement =
+        pendingSourceStoragePath === currentSourceStoragePath &&
+        publishedSourceStoragePath !== currentSourceStoragePath;
+
       transaction.set(
         publicationRef,
         {
-          autoPublishState: 'SYNCHRONIZING',
+          autoPublishState: isReplacement ? 'REPLACING' : 'SYNCHRONIZING',
           autoPublishLeaseUntil: now + AUTO_PUBLISH_LEASE_MS,
           autoPublishError: null,
           updatedAt: now,
         },
         { merge: true }
       );
-      return 'SYNCHRONIZE';
-    }
 
-    const leaseUntil = Number(publication.autoPublishLeaseUntil ?? 0);
-    const isClaimed =
-      String(publication.autoPublishState ?? '').trim().toUpperCase() ===
-        'PUBLISHING' &&
-      Number.isFinite(leaseUntil) &&
-      leaseUntil > now;
-
-    if (isClaimed) {
-      throw new Error('A publicação automática já possui um lease ativo.');
+      return isReplacement ? 'REPLACE' : 'SYNCHRONIZE';
     }
 
     transaction.set(
@@ -196,8 +227,8 @@ async function publishReadyVideo(
 
 /**
  * Continua a intenção "enviar e publicar" assim que o derivado seguro fica
- * pronto. A publicação continua passando pelas mesmas validações e pela mesma
- * moderação do callable manual.
+ * pronto. Criações usam a publicação normal; substituições trocam somente os
+ * ativos do documento público existente, preservando identidade e engajamento.
  */
 export const publishVideoWhenReady = onDocumentUpdated(
   {
@@ -230,19 +261,38 @@ export const publishVideoWhenReady = onDocumentUpdated(
       return;
     }
 
-    const claim = await claimDeferredPublication(ownerUid, videoId);
+    const currentSourceStoragePath =
+      extractOwnedPrivateVideoPathForId(ownerUid, videoId, after?.path) ??
+      extractOwnedPrivateVideoPathForId(ownerUid, videoId, after?.url);
+
+    if (!currentSourceStoragePath) {
+      logger.error('[publishVideoWhenReady] Origem privada inválida.', {
+        ownerUid,
+        videoId,
+      });
+      return;
+    }
+
+    const claim = await claimDeferredPublication(
+      ownerUid,
+      videoId,
+      currentSourceStoragePath
+    );
 
     if (claim === 'SKIPPED') {
       return;
     }
 
     try {
-      const response = claim === 'PUBLISH'
-        ? await publishReadyVideo(ownerUid, videoId)
-        : {
-          videoId,
-          moderationStatus: 'EXISTING',
-        };
+      let moderationStatus = 'EXISTING';
+
+      if (claim === 'PUBLISH') {
+        const response = await publishReadyVideo(ownerUid, videoId);
+        moderationStatus = response.moderationStatus;
+      } else if (claim === 'REPLACE') {
+        await promotePrivateVideoReplacement(ownerUid, videoId);
+        moderationStatus = 'APPROVED';
+      }
 
       await synchronizePublishedVideoSettings(ownerUid, videoId);
       await completeDeferredPublication(ownerUid, videoId);
@@ -250,8 +300,8 @@ export const publishVideoWhenReady = onDocumentUpdated(
       logger.info('[publishVideoWhenReady] Publicação automática concluída.', {
         ownerUid,
         videoId,
-        resumedSynchronization: claim === 'SYNCHRONIZE',
-        moderationStatus: response.moderationStatus,
+        stage: claim,
+        moderationStatus,
       });
     } catch (error) {
       await releaseDeferredPublication(ownerUid, videoId, error);
