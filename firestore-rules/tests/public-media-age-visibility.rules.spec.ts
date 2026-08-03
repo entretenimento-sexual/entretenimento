@@ -144,10 +144,13 @@ describe('Firestore Rules / public media age visibility', () => {
     await testEnv.cleanup();
   });
 
-  it('permite mídia pública quando a projeção do perfil existe', async () => {
+  it('mantém foto pública direta e exige backend autorizado para vídeo', async () => {
     const db = viewerDb();
 
-    await assertSucceeds(
+    // SUPRESSÃO INTENCIONAL: terceiros não leem mais a projeção de vídeo
+    // diretamente. A callable valida lifecycle, bloqueio e audiência antes de
+    // devolver os metadados e, em seguida, autoriza a URL temporária.
+    await assertFails(
       getDoc(
         doc(
           db,
@@ -201,7 +204,7 @@ describe('Firestore Rules / public media age visibility', () => {
     );
   });
 
-  it('mantém consultas globais válidas e exclui projeções privadas', async () => {
+  it('nega consulta global direta de vídeos e exclui fotos privadas', async () => {
     await setMediaVisibility('PRIVATE');
     const db = viewerDb();
     const videoQuery = query(
@@ -215,16 +218,13 @@ describe('Firestore Rules / public media age visibility', () => {
       where('moderationStatus', '==', 'APPROVED')
     );
 
-    const [videos, photos] = await Promise.all([
-      assertSucceeds(getDocs(videoQuery)),
-      assertSucceeds(getDocs(photoQuery)),
-    ]);
+    await assertFails(getDocs(videoQuery));
+    const photos = await assertSucceeds(getDocs(photoQuery));
 
-    expect(videos.empty).toBe(true);
     expect(photos.empty).toBe(true);
   });
 
-  it('volta a incluir as projeções após restauração para PUBLIC', async () => {
+  it('mantém vídeo no backend autorizado após PUBLIC e restaura foto pública', async () => {
     await setMediaVisibility('PRIVATE');
     await setMediaVisibility('PUBLIC');
     const db = viewerDb();
@@ -239,12 +239,9 @@ describe('Firestore Rules / public media age visibility', () => {
       where('moderationStatus', '==', 'APPROVED')
     );
 
-    const [videos, photos] = await Promise.all([
-      assertSucceeds(getDocs(videoQuery)),
-      assertSucceeds(getDocs(photoQuery)),
-    ]);
+    await assertFails(getDocs(videoQuery));
+    const photos = await assertSucceeds(getDocs(photoQuery));
 
-    expect(videos.size).toBe(1);
     expect(photos.size).toBe(1);
   });
 });
