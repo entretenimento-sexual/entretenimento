@@ -1,15 +1,16 @@
 // functions/src/media/application/manage-photo-publication.handler.ts
 // -----------------------------------------------------------------------------
-// PHOTO PUBLICATION — PUBLISH / UNPUBLISH / COVER
+// PHOTO PUBLICATION — PUBLISH / LEGACY UNPUBLISH / COVER
 // -----------------------------------------------------------------------------
 // Segurança:
-// - somente o dono publica/despublica/define capa;
+// - somente o dono publica ou define capa;
 // - o arquivo privado nunca é usado diretamente na projeção pública;
 // - a publicação cria uma cópia física versionada em namespace isolado;
 // - a projeção pública não armazena URL permanente nem storagePath;
 // - o acesso temporário é emitido por backend após nova validação;
 // - cliente não grava projeção pública, score ou contadores;
-// - métricas públicas são recalculadas no backend.
+// - métricas públicas são recalculadas no backend;
+// - toda publicação tecnicamente válida recebe APPROVED diretamente.
 
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -25,7 +26,7 @@ import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics
 
 type PhotoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
 type CommentsPolicy = 'OFF' | 'FRIENDS' | 'SUBSCRIBERS' | 'EVERYONE';
-type ModerationStatus = 'PENDING_REVIEW' | 'APPROVED';
+type ModerationStatus = 'APPROVED';
 
 type ScoreBreakdown = {
   rankingScore: number;
@@ -81,9 +82,6 @@ interface SetCoverPhotoResponse {
 }
 
 const MAX_CAPTION_LENGTH = 800;
-const AUTO_APPROVE_PHOTOS =
-  process.env.FUNCTIONS_EMULATOR === 'true' ||
-  process.env.MEDIA_AUTO_APPROVE_PHOTOS === 'true';
 
 function cleanId(value: unknown): string {
   return String(value ?? '').trim();
@@ -174,7 +172,7 @@ function buildInitialScoreBreakdown(): ScoreBreakdown {
 }
 
 function resolveModerationStatus(): ModerationStatus {
-  return AUTO_APPROVE_PHOTOS ? 'APPROVED' : 'PENDING_REVIEW';
+  return 'APPROVED';
 }
 
 function assertOwner(requesterUid: string | null, ownerUid: string): void {
@@ -329,7 +327,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         scoreBreakdown,
         publishedAt: now,
         updatedAt: now,
-        lastModeratedAt: moderationStatus === 'APPROVED' ? now : null,
+        lastModeratedAt: now,
         sourceStoragePath,
         publishedStoragePath,
         assetVersion: now,
@@ -406,6 +404,10 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
   }
 );
 
+/**
+ * Compatibilidade administrativa e migração de registros antigos.
+ * A experiência normal do proprietário não expõe despublicação.
+ */
 export const unpublishPhoto = onCall<UnpublishPhotoRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<{ photoId: string }> => {
