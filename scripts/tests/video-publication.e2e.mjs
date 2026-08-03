@@ -1,8 +1,9 @@
 // scripts/tests/video-publication.e2e.mjs
 // -----------------------------------------------------------------------------
 // Integração isolada de vídeo:
-// upload privado -> registro -> fila -> conclusão simulada do provedor externo
-// -> metadados -> publicação -> edição -> acesso temporário -> despublicação.
+// upload privado -> registro com publicação obrigatória -> fila -> conclusão
+// simulada do provedor externo -> publicação automática -> edição -> acesso
+// temporário -> bloqueio da despublicação.
 // -----------------------------------------------------------------------------
 
 import assert from 'node:assert/strict';
@@ -112,7 +113,6 @@ async function run() {
 
   const runId = randomUUID();
   const videoId = `video-${runId}`;
-  const processingJobId = `pending_${videoId}`;
   const email = `video-e2e-${runId}@example.test`;
   const password = `Video-e2e-${runId}-Aa1!`;
   const sourceBytes = new TextEncoder().encode(`private-video-${runId}`);
@@ -195,6 +195,13 @@ async function run() {
       mimeType: 'video/mp4',
       sizeBytes: sourceBytes.byteLength,
       durationMs: 10_000,
+      title: draftTitle,
+      description: draftDescription,
+      reactionsEnabled: false,
+      commentsEnabled: true,
+      ratingsEnabled: false,
+      // O backend deve ignorar a tentativa de manter o vídeo privado.
+      publishWhenReady: false,
     });
 
     assert.equal(registrationResponse.data.videoId, videoId);
@@ -227,11 +234,13 @@ async function run() {
       'vídeo privado entrar na fila de processamento',
       async () => ({
         video: await readDocumentData(privateVideoRef),
+        publication: await readDocumentData(publicationRef),
         job: await readDocumentData(jobRef),
       }),
       (value) =>
         value.video?.status === 'queued' &&
         value.video?.processingJobId === `${ownerUid}_${videoId}` &&
+        value.publication?.publishWhenReady === true &&
         value.job?.state === 'QUEUED'
     );
 
@@ -294,50 +303,15 @@ async function run() {
         value?.processedStoragePath === processedPath
     );
 
-    const updateVideoPublicationSettings = httpsCallable(
-      clientFunctions,
-      'updateVideoPublicationSettings'
-    );
-    const draftResponse = await updateVideoPublicationSettings({
-      ownerUid,
-      videoId,
-      title: draftTitle,
-      description: draftDescription,
-      reactionsEnabled: false,
-      commentsEnabled: true,
-      ratingsEnabled: false,
-    });
-
-    assert.equal(draftResponse.data.videoId, videoId);
-    assert.equal(draftResponse.data.isPublished, false);
-    assert.equal(draftResponse.data.moderationStatus, 'PRIVATE');
-
-    const draftPublication = await readDocumentData(publicationRef);
-    assert.equal(draftPublication?.title, draftTitle);
-    assert.equal(draftPublication?.description, draftDescription);
-    assert.equal(draftPublication?.reactionsEnabled, false);
-    assert.equal(draftPublication?.commentsEnabled, true);
-    assert.equal(draftPublication?.ratingsEnabled, false);
-
-    const publishVideo = httpsCallable(clientFunctions, 'publishVideo');
-    const publicationResponse = await publishVideo({
-      ownerUid,
-      videoId,
-      visibility: 'PUBLIC',
-      orderIndex: 0,
-    });
-
-    assert.equal(publicationResponse.data.videoId, videoId);
-    assert.equal(publicationResponse.data.moderationStatus, 'APPROVED');
-
     const publishedState = await waitFor(
-      'metadados do vídeo chegarem à projeção pública',
+      'publicação automática e projeção pública',
       async () => ({
         publication: await readDocumentData(publicationRef),
         publicVideo: await readDocumentData(publicVideoRef),
       }),
       (value) =>
         value.publication?.isPublished === true &&
+        value.publication?.publishWhenReady === false &&
         value.publicVideo?.moderationStatus === 'APPROVED' &&
         value.publicVideo?.title === draftTitle &&
         value.publicVideo?.description === draftDescription
@@ -372,6 +346,10 @@ async function run() {
     assert.deepEqual(publishedVideoBytes, Buffer.from(processedBytes));
     assert.deepEqual(publishedPosterBytes, Buffer.from(posterBytes));
 
+    const updateVideoPublicationSettings = httpsCallable(
+      clientFunctions,
+      'updateVideoPublicationSettings'
+    );
     const editedResponse = await updateVideoPublicationSettings({
       ownerUid,
       videoId,
@@ -433,25 +411,39 @@ async function run() {
     );
 
     const unpublishVideo = httpsCallable(clientFunctions, 'unpublishVideo');
-    const unpublishResponse = await unpublishVideo({ ownerUid, videoId });
-    assert.equal(unpublishResponse.data.videoId, videoId);
+    await assert.rejects(
+      () => unpublishVideo({ ownerUid, videoId }),
+      (error) => {
+        assert.match(
+          String(error?.code ?? ''),
+          /failed-precondition/
+        );
+        return true;
+      }
+    );
 
-    const unpublished = await readDocumentData(publicationRef);
-    assert.equal(unpublished?.isPublished, false);
-    assert.equal(unpublished?.moderationStatus, 'PRIVATE');
-    assert.equal(await readDocumentData(publicVideoRef), null);
-    assert.equal(await readFileExists(publishedVideoFile), false);
-    assert.equal(await readFileExists(publishedPosterFile), false);
+    const publicationAfterBlockedUnpublish = await readDocumentData(
+      publicationRef
+    );
+    assert.equal(publicationAfterBlockedUnpublish?.isPublished, true);
+    assert.equal(
+      publicationAfterBlockedUnpublish?.moderationStatus,
+      'APPROVED'
+    );
+    assert.ok(await readDocumentData(publicVideoRef));
+    assert.equal(await readFileExists(publishedVideoFile), true);
+    assert.equal(await readFileExists(publishedPosterFile), true);
 
     console.log('✔ upload privado de vídeo autorizado pelas Storage Rules');
     console.log('✔ registro autenticado e fila de processamento criados');
-    console.log('✔ metadados e preferências salvos antes da publicação');
+    console.log('✔ intenção de publicação obrigatória aplicada pelo backend');
+    console.log('✔ publicação automática concluída após o processamento');
     console.log('✔ título, descrição e permissões propagados à projeção pública');
     console.log('✔ edição pós-publicação sincronizada pelo backend');
     console.log('✔ derivado processado usado na publicação, não o arquivo original');
     console.log('✔ vídeo e poster públicos validados no Storage Emulator');
     console.log('✔ URL temporária pública validada com conteúdo binário');
-    console.log('✔ despublicação removeu projeção e ativos públicos');
+    console.log('✔ despublicação bloqueada sem remover projeção ou ativos');
   } finally {
     const cleanupTasks = [];
 
