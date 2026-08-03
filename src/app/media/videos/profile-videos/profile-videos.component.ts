@@ -872,6 +872,14 @@ export class ProfileVideosComponent {
       return;
     }
 
+    if (phase === 'reserving') {
+      this.uploadPhaseSubject.next('PREPARING');
+      this.uploadStepSubject.next(
+        'Confirmando limite da conta e reservando espaço.'
+      );
+      return;
+    }
+
     if (phase === 'uploading-video') {
       this.uploadPhaseSubject.next('UPLOADING');
       this.uploadStepSubject.next('Enviando vídeo. Mantenha esta página aberta.');
@@ -890,6 +898,53 @@ export class ProfileVideosComponent {
 
   private describeUploadFailure(error: unknown): VideoUploadFailureFeedback {
     const code = this.uploadErrorCode(error);
+    const details = this.uploadErrorDetails(error);
+    const domainCode = String(details['code'] ?? '')
+      .trim()
+      .toUpperCase();
+    const domainRecovery = String(details['recovery'] ?? '').trim();
+    const errorMessage = error instanceof Error && error.message.trim()
+      ? error.message.trim()
+      : '';
+
+    if (
+      domainCode === 'VIDEO_UPLOAD_ITEM_LIMIT' ||
+      domainCode === 'VIDEO_UPLOAD_BYTE_LIMIT'
+    ) {
+      return {
+        title: 'Limite do plano atingido',
+        message: errorMessage || 'Não há capacidade disponível para outro vídeo.',
+        recovery:
+          domainRecovery ||
+          'Exclua um vídeo existente ou altere o plano antes de continuar.',
+        retryable: false,
+      };
+    }
+
+    if (
+      domainCode === 'VIDEO_UPLOAD_RESERVATION_EXPIRED' ||
+      domainCode === 'VIDEO_UPLOAD_RESERVATION_REQUIRED'
+    ) {
+      return {
+        title: 'Reserva expirada',
+        message: errorMessage || 'A autorização temporária do envio expirou.',
+        recovery:
+          domainRecovery ||
+          'Tente novamente para gerar uma nova reserva antes do upload.',
+        retryable: true,
+      };
+    }
+
+    if (domainCode === 'VIDEO_UPLOAD_RESERVATION_MISMATCH') {
+      return {
+        title: 'Arquivo divergente',
+        message: errorMessage || 'O arquivo não corresponde à reserva criada.',
+        recovery:
+          domainRecovery ||
+          'Selecione novamente o arquivo e reinicie o envio.',
+        retryable: false,
+      };
+    }
 
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       return {
@@ -946,9 +1001,7 @@ export class ProfileVideosComponent {
       };
     }
 
-    const message = error instanceof Error && error.message.trim()
-      ? error.message.trim()
-      : 'Não foi possível concluir o envio do vídeo.';
+    const message = errorMessage || 'Não foi possível concluir o envio do vídeo.';
 
     return {
       title: 'Falha no envio',
@@ -966,6 +1019,21 @@ export class ProfileVideosComponent {
     return String((error as { code?: unknown }).code ?? '')
       .trim()
       .toLowerCase();
+  }
+
+  private uploadErrorDetails(error: unknown): Record<string, unknown> {
+    if (
+      typeof error !== 'object' ||
+      error === null ||
+      !('details' in error)
+    ) {
+      return {};
+    }
+
+    const details = (error as { details?: unknown }).details;
+    return details && typeof details === 'object'
+      ? details as Record<string, unknown>
+      : {};
   }
 
   private setBusyAction(videoId: string, action: VideoBusyAction): void {
