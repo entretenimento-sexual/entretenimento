@@ -107,6 +107,25 @@ async function assertDirectDeleteDenied(storage, storagePath) {
   );
 }
 
+async function waitForValue(readValue, predicate, label, timeoutMs = 8000) {
+  const startedAt = Date.now();
+  let lastValue;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    lastValue = await readValue();
+
+    if (predicate(lastValue)) {
+      return lastValue;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  }
+
+  throw new Error(
+    `${label} não atingiu o estado esperado. Último valor: ${JSON.stringify(lastValue)}`
+  );
+}
+
 async function run() {
   const runId = randomUUID();
   const password = `Photo-${runId}-Aa1!`;
@@ -175,6 +194,7 @@ async function run() {
       client.functions,
       'deleteProfilePhoto'
     );
+    const usageRef = adminDb.doc(`media_private_draft_usage/${ownerUid}`);
 
     await adminDb.doc(`users/${ownerUid}`).set(
       { suspended: true },
@@ -274,6 +294,13 @@ async function run() {
     assert.equal(repeatedRegistration.sizeBytes, originalBytes.byteLength);
     await assertDirectDeleteDenied(client.storage, originalPath);
 
+    const usageWhileTechnicalDraft = (await usageRef.get()).data();
+    assert.equal(usageWhileTechnicalDraft.photoCount, 1);
+    assert.equal(
+      usageWhileTechnicalDraft.photoReservedBytes,
+      originalBytes.byteLength
+    );
+
     const publicationResult = (
       await publishPhoto({
         ownerUid,
@@ -326,14 +353,14 @@ async function run() {
     );
     assert.equal(publicPhotoAfterBlockedUnpublish.visibility, 'PUBLIC');
 
-    const usageAfterCreate = (
-      await adminDb.doc(`media_private_draft_usage/${ownerUid}`).get()
-    ).data();
-    assert.equal(usageAfterCreate.photoCount, 1);
-    assert.equal(
-      usageAfterCreate.photoReservedBytes,
-      originalBytes.byteLength
+    const usageAfterPublication = await waitForValue(
+      async () => (await usageRef.get()).data(),
+      (usage) =>
+        usage?.photoCount === 0 && usage?.photoReservedBytes === 0,
+      'Liberação da quota após publicação'
     );
+    assert.equal(usageAfterPublication.photoCount, 0);
+    assert.equal(usageAfterPublication.photoReservedBytes, 0);
 
     const replacementPath =
       `users/${ownerUid}/uploads/images/${photoId}-replacement.jpg`;
@@ -386,14 +413,25 @@ async function run() {
     await assertMissingObject(client.storage, originalPath);
     await assertDirectDeleteDenied(client.storage, replacementPath);
 
-    const usageAfterReplace = (
-      await adminDb.doc(`media_private_draft_usage/${ownerUid}`).get()
-    ).data();
-    assert.equal(usageAfterReplace.photoCount, 1);
-    assert.equal(
-      usageAfterReplace.photoReservedBytes,
-      replacementBytes.byteLength
+    const usageAfterReplace = await waitForValue(
+      async () => (await usageRef.get()).data(),
+      (usage) =>
+        usage?.photoCount === 0 && usage?.photoReservedBytes === 0,
+      'Liberação da quota após substituição publicada'
     );
+    assert.equal(usageAfterReplace.photoCount, 0);
+    assert.equal(usageAfterReplace.photoReservedBytes, 0);
+
+    const synchronizedPublication = await waitForValue(
+      async () => (await privatePublicationRef.get()).data(),
+      (publication) =>
+        publication?.isPublished === true &&
+        publication?.moderationStatus === 'APPROVED' &&
+        publication?.sourceStoragePath === replacementPath,
+      'Sincronização da substituição publicada'
+    );
+    assert.equal(synchronizedPublication.isPublished, true);
+    assert.equal(synchronizedPublication.moderationStatus, 'APPROVED');
 
     const cancelledPhotoId = `cancelled-${runId}`;
     const cancelledPath =
@@ -430,14 +468,14 @@ async function run() {
     assert.equal(cancellation.data.released, true);
     await assertMissingObject(client.storage, cancelledPath);
 
-    const usageAfterCancel = (
-      await adminDb.doc(`media_private_draft_usage/${ownerUid}`).get()
-    ).data();
-    assert.equal(usageAfterCancel.photoCount, 1);
-    assert.equal(
-      usageAfterCancel.photoReservedBytes,
-      replacementBytes.byteLength
+    const usageAfterCancel = await waitForValue(
+      async () => (await usageRef.get()).data(),
+      (usage) =>
+        usage?.photoCount === 0 && usage?.photoReservedBytes === 0,
+      'Liberação da quota após cancelamento'
     );
+    assert.equal(usageAfterCancel.photoCount, 0);
+    assert.equal(usageAfterCancel.photoReservedBytes, 0);
 
     const deletion = await deleteProfilePhoto({ ownerUid, photoId });
     assert.equal(deletion.data.photoId, photoId);
