@@ -315,6 +315,99 @@ async function run() {
     const repeated = await reconcile({ ownerUid, apply: true, operationId });
     assert.equal(repeated.data.applied, true, 'retry deve ser idempotente');
 
+    const orderedVideoIds = [
+      `profile-video-a-${runId}`,
+      `profile-video-b-${runId}`,
+      `profile-video-c-${runId}`,
+    ];
+
+    await Promise.all(
+      orderedVideoIds.flatMap((videoId, orderIndex) => [
+        adminDb
+          .doc(`users/${ownerUid}/video_publications/${videoId}`)
+          .set({
+            ownerUid,
+            videoId,
+            title: `Vídeo ${orderIndex + 1}`,
+            isPublished: true,
+            moderationStatus: 'APPROVED',
+            orderIndex,
+            publishedAt: now + orderIndex,
+            updatedAt: now,
+          }),
+        adminDb
+          .doc(`public_profiles/${ownerUid}/public_videos/${videoId}`)
+          .set({
+            id: videoId,
+            ownerUid,
+            mediaType: 'VIDEO',
+            visibility: 'PUBLIC',
+            moderationStatus: 'APPROVED',
+            orderIndex,
+            publishedAt: now + orderIndex,
+            updatedAt: now,
+          }),
+      ])
+    );
+
+    const reorder = httpsCallable(
+      ownerClient.functions,
+      'reorderProfileVideos'
+    );
+    const requestedOrder = [
+      orderedVideoIds[2],
+      orderedVideoIds[0],
+      orderedVideoIds[1],
+    ];
+    const reorderResult = await reorder({
+      ownerUid,
+      orderedVideoIds: requestedOrder,
+    });
+    assert.equal(reorderResult.data.updatedCount, 3);
+    assert.equal(reorderResult.data.unchanged, false);
+
+    for (const [orderIndex, videoId] of requestedOrder.entries()) {
+      const [publication, publicProjection] = await Promise.all([
+        adminDb.doc(`users/${ownerUid}/video_publications/${videoId}`).get(),
+        adminDb.doc(`public_profiles/${ownerUid}/public_videos/${videoId}`).get(),
+      ]);
+      assert.equal(publication.get('orderIndex'), orderIndex);
+      assert.equal(publicProjection.get('orderIndex'), orderIndex);
+    }
+
+    const reorderRetry = await reorder({
+      ownerUid,
+      orderedVideoIds: requestedOrder,
+    });
+    assert.equal(reorderRetry.data.updatedCount, 0);
+    assert.equal(reorderRetry.data.unchanged, true);
+
+    await assert.rejects(
+      () => reorder({
+        ownerUid,
+        orderedVideoIds: requestedOrder.slice(0, 2),
+      }),
+      (error) => {
+        assert.equal(error.code, 'functions/failed-precondition');
+        return true;
+      }
+    );
+
+    const unauthorizedReorder = httpsCallable(
+      adminClient.functions,
+      'reorderProfileVideos'
+    );
+    await assert.rejects(
+      () => unauthorizedReorder({
+        ownerUid,
+        orderedVideoIds: requestedOrder,
+      }),
+      (error) => {
+        assert.equal(error.code, 'functions/permission-denied');
+        return true;
+      }
+    );
+
     console.log('[media-draft-functions] todos os cenários passaram');
   } finally {
     if (ownerClient?.app) {
