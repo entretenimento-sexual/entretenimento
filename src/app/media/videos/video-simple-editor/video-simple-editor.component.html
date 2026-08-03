@@ -288,7 +288,7 @@
           <form
             class="video-editor__publication-form"
             [formGroup]="publicationForm"
-            (ngSubmit)="startUpload(true)"
+            (ngSubmit)="startUpload()"
           >
             <div class="video-editor__section-title">
               <div>
@@ -363,19 +363,6 @@
                 "
               >
                 {{ isUploadActive(phase) ? 'Enviando...' : 'Enviar e publicar' }}
-              </button>
-              <button
-                type="button"
-                class="app-action app-action--ghost"
-                [disabled]="
-                  !canUpload ||
-                  publicationForm.invalid ||
-                  phase === 'PREPARING_FILE' ||
-                  isUploadActive(phase)
-                "
-                (click)="startUpload(false)"
-              >
-                Salvar sem publicar
               </button>
             </div>
           </form>
