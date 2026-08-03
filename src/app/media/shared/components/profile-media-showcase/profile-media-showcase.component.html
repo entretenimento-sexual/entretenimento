@@ -50,12 +50,15 @@
               aria-labelledby="profile-public-photos-title"
             >
               <header class="profile-media-showcase__header">
-                <h2 id="profile-public-photos-title">
-                  Fotos
-                  <span aria-label="Quantidade de fotos públicas">
-                    {{ state.photosCount }}
-                  </span>
-                </h2>
+                <div>
+                  <span class="profile-media-showcase__eyebrow">Galeria</span>
+                  <h2 id="profile-public-photos-title">
+                    Fotos
+                    <span aria-label="Quantidade de fotos públicas">
+                      {{ state.photosCount }}
+                    </span>
+                  </h2>
+                </div>
 
                 <a [routerLink]="photoGalleryLink()">
                   <span>Ver todas</span>
@@ -64,7 +67,9 @@
               </header>
 
               <div
-                class="profile-media-showcase__grid"
+                class="profile-media-showcase__grid profile-media-showcase__grid--photos"
+                [class.profile-media-showcase__grid--single]="state.photosCount === 1"
+                [class.profile-media-showcase__grid--double]="state.photosCount === 2"
                 role="group"
                 [attr.aria-label]="'Fotos públicas de ' + profileName()"
               >
@@ -75,29 +80,31 @@
                 ) {
                   <button
                     type="button"
-                    class="profile-media-showcase__item"
+                    class="profile-media-showcase__item profile-media-showcase__item--photo"
                     (click)="openMedia(item, index)"
                     [disabled]="viewerOpening()"
                     [attr.aria-busy]="viewerOpening() ? 'true' : 'false'"
                     [attr.aria-label]="getMediaAriaLabel(item, index, state.photosCount)"
                   >
-                    <img
-                      [src]="item.url"
-                      [alt]="item.alt || 'Foto pública do perfil'"
-                      [attr.loading]="index === 0 ? 'eager' : 'lazy'"
-                      [attr.fetchpriority]="index === 0 ? 'high' : null"
-                      decoding="async"
-                      referrerpolicy="no-referrer"
-                    />
+                    <span class="profile-media-showcase__thumb profile-media-showcase__thumb--photo">
+                      <img
+                        [src]="item.url"
+                        [alt]="item.alt || 'Foto pública do perfil'"
+                        [attr.loading]="index === 0 ? 'eager' : 'lazy'"
+                        [attr.fetchpriority]="index === 0 ? 'high' : null"
+                        decoding="async"
+                        referrerpolicy="no-referrer"
+                      />
 
-                    @if (index === 3 && remainingCount(state.photosCount) > 0) {
-                      <span
-                        class="profile-media-showcase__remaining"
-                        aria-hidden="true"
-                      >
-                        +{{ remainingCount(state.photosCount) }}
-                      </span>
-                    }
+                      @if (index === 3 && remainingCount(state.photosCount) > 0) {
+                        <span
+                          class="profile-media-showcase__remaining"
+                          aria-hidden="true"
+                        >
+                          +{{ remainingCount(state.photosCount) }}
+                        </span>
+                      }
+                    </span>
                   </button>
                 }
               </div>
@@ -110,12 +117,15 @@
               aria-labelledby="profile-public-videos-title"
             >
               <header class="profile-media-showcase__header">
-                <h2 id="profile-public-videos-title">
-                  Vídeos
-                  <span aria-label="Quantidade de vídeos públicos">
-                    {{ state.videosCount }}
-                  </span>
-                </h2>
+                <div>
+                  <span class="profile-media-showcase__eyebrow">Publicações</span>
+                  <h2 id="profile-public-videos-title">
+                    Vídeos
+                    <span aria-label="Quantidade de vídeos públicos">
+                      {{ state.videosCount }}
+                    </span>
+                  </h2>
+                </div>
 
                 <a [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']">
                   <span>Ver todos</span>
@@ -125,6 +135,8 @@
 
               <div
                 class="profile-media-showcase__grid profile-media-showcase__grid--videos"
+                [class.profile-media-showcase__grid--single]="state.videosCount === 1"
+                [class.profile-media-showcase__grid--double]="state.videosCount === 2"
                 role="group"
                 [attr.aria-label]="'Vídeos públicos de ' + profileName()"
               >
@@ -141,40 +153,49 @@
                     [attr.aria-busy]="viewerOpening() ? 'true' : 'false'"
                     [attr.aria-label]="getMediaAriaLabel(item, index, state.videosCount)"
                   >
-                    @if (item.posterUrl) {
-                      <img
-                        [src]="item.posterUrl"
-                        [alt]="item.alt || item.title || 'Vídeo público do perfil'"
-                        [attr.loading]="index === 0 ? 'eager' : 'lazy'"
-                        [attr.fetchpriority]="index === 0 ? 'high' : null"
-                        decoding="async"
-                        referrerpolicy="no-referrer"
-                      />
-                    } @else {
+                    <span class="profile-media-showcase__thumb profile-media-showcase__thumb--video">
+                      @if (item.posterUrl) {
+                        <img
+                          [src]="item.posterUrl"
+                          [alt]="item.alt || item.title || 'Vídeo público do perfil'"
+                          [attr.loading]="index === 0 ? 'eager' : 'lazy'"
+                          [attr.fetchpriority]="index === 0 ? 'high' : null"
+                          decoding="async"
+                          referrerpolicy="no-referrer"
+                        />
+                      } @else {
+                        <span
+                          class="profile-media-showcase__video-placeholder"
+                          aria-hidden="true"
+                        >
+                          <i class="fas fa-film"></i>
+                        </span>
+                      }
+
+                      <span class="profile-media-showcase__play" aria-hidden="true">
+                        <i class="fas fa-play"></i>
+                      </span>
+
                       <span
-                        class="profile-media-showcase__video-placeholder"
+                        class="profile-media-showcase__video-badge"
                         aria-hidden="true"
                       >
-                        <i class="fas fa-film"></i>
+                        {{ formatDuration(item.durationMs) }}
                       </span>
-                    }
 
-                    <span
-                      class="profile-media-showcase__video-badge"
-                      aria-hidden="true"
-                    >
-                      <i class="fas fa-play"></i>
-                      {{ formatDuration(item.durationMs) }}
+                      @if (index === 3 && remainingCount(state.videosCount) > 0) {
+                        <span
+                          class="profile-media-showcase__remaining"
+                          aria-hidden="true"
+                        >
+                          +{{ remainingCount(state.videosCount) }}
+                        </span>
+                      }
                     </span>
 
-                    @if (index === 3 && remainingCount(state.videosCount) > 0) {
-                      <span
-                        class="profile-media-showcase__remaining"
-                        aria-hidden="true"
-                      >
-                        +{{ remainingCount(state.videosCount) }}
-                      </span>
-                    }
+                    <span class="profile-media-showcase__video-title">
+                      {{ item.title || 'Vídeo do perfil' }}
+                    </span>
                   </button>
                 }
               </div>
