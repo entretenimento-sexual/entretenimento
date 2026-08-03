@@ -1,8 +1,5 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import {
-  assertInteractionAccessInTransaction,
-} from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
@@ -10,6 +7,12 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import {
+  createVideoInteractionAccessAuthorizer,
+} from './video-interaction-access.service';
+import {
+  assertVideoInteractionCapability,
+} from './video-interaction-capability.policy';
 
 interface ToggleVideoReactionRequest {
   ownerUid?: string;
@@ -17,10 +20,6 @@ interface ToggleVideoReactionRequest {
 }
 
 interface PublicVideoDoc {
-  ownerUid?: string;
-  visibility?: string;
-  moderationStatus?: string;
-  reactionsEnabled?: boolean;
   reactionsCount?: number;
   likesCount?: number;
   commentsCount?: number;
@@ -56,46 +55,27 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
       );
     }
 
-    const videoRef = db.doc(
-      `public_profiles/${ownerUid}/public_videos/${videoId}`
-    );
-    const likeRef = videoRef.collection('likes').doc(viewerUid);
+    const authorizer = await createVideoInteractionAccessAuthorizer({
+      viewerUid,
+      ownerUid,
+      authenticatedEmailVerified:
+        request.auth?.token.email_verified === true,
+    });
 
     return db.runTransaction(async (transaction) => {
-      await assertInteractionAccessInTransaction(transaction, viewerUid);
+      const access = await authorizer.assertInTransaction(
+        transaction,
+        videoId
+      );
+      const likeRef = access.videoRef.collection('likes').doc(viewerUid);
+      const likeSnap = await transaction.get(likeRef);
+      const video = access.publicVideo as PublicVideoDoc;
 
-      const [videoSnap, likeSnap] = await Promise.all([
-        transaction.get(videoRef),
-        transaction.get(likeRef),
-      ]);
-
-      if (!videoSnap.exists) {
-        throw new HttpsError('not-found', 'Vídeo público não encontrado.');
-      }
-
-      const video = videoSnap.data() as PublicVideoDoc;
-
-      if (video.ownerUid !== ownerUid) {
-        throw new HttpsError('failed-precondition', 'Vídeo inconsistente.');
-      }
-
-      if (video.visibility !== 'PUBLIC') {
-        throw new HttpsError('failed-precondition', 'Este vídeo não está público.');
-      }
-
-      if (video.moderationStatus !== 'APPROVED') {
-        throw new HttpsError(
-          'failed-precondition',
-          'Este vídeo ainda não está aprovado para curtidas.'
-        );
-      }
-
-      if (video.reactionsEnabled !== true) {
-        throw new HttpsError(
-          'failed-precondition',
-          'Curtidas desabilitadas neste vídeo.'
-        );
-      }
+      assertVideoInteractionCapability({
+        capability: 'REACTION',
+        publicVideo: access.publicVideo,
+        publication: access.publication,
+      });
 
       const currentCount = normalizeMediaCount(
         video.reactionsCount ?? video.likesCount ?? 0
@@ -121,7 +101,7 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
         });
       }
 
-      transaction.update(videoRef, {
+      transaction.update(access.videoRef, {
         reactionsCount: nextCount,
         likesCount: nextCount,
         engagementScore: nextScore.engagementScore,
