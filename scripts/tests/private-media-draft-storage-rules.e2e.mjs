@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import { doc, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytes } from 'firebase/storage';
+import { deleteObject, ref, uploadBytes } from 'firebase/storage';
 
 const projectId = 'demo-entretenimento-media-draft-rules';
 const firestoreHost = process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:18080';
@@ -80,14 +80,16 @@ async function seedReservation({
   });
 }
 
-async function uploadAs(uid, path, bytes, contentType, reservationId, claims = {}) {
-  const context = testEnv.authenticatedContext(uid, {
+function storageAs(uid, claims = {}) {
+  return testEnv.authenticatedContext(uid, {
     email_verified: true,
     ...claims,
-  });
+  }).storage();
+}
 
+async function uploadAs(uid, path, bytes, contentType, reservationId, claims = {}) {
   return uploadBytes(
-    ref(context.storage(), path),
+    ref(storageAs(uid, claims), path),
     new Uint8Array(bytes),
     {
       contentType,
@@ -96,6 +98,10 @@ async function uploadAs(uid, path, bytes, contentType, reservationId, claims = {
         : undefined,
     }
   );
+}
+
+async function deleteAs(uid, path) {
+  return deleteObject(ref(storageAs(uid), path));
 }
 
 async function assertIneligibleAccount(
@@ -138,6 +144,7 @@ try {
   await assertSucceeds(
     uploadAs(ownerUid, photoPath, 10, 'image/jpeg', 'valid-photo')
   );
+  await assertFails(deleteAs(ownerUid, photoPath));
 
   await seedReservation({
     reservationId: 'wrong-size',
@@ -229,6 +236,8 @@ try {
   await assertSucceeds(
     uploadAs(ownerUid, posterPath, 10, 'image/jpeg', 'valid-video')
   );
+  await assertFails(deleteAs(ownerUid, videoPath));
+  await assertFails(deleteAs(ownerUid, posterPath));
 
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await updateDoc(
