@@ -7,7 +7,7 @@ import {
 } from './sidebar-config';
 
 describe('sidebar-config', () => {
-  it('deve expor fotos e vídeos na seção de mídia', () => {
+  it('deve expor fotos, vídeos e organização na seção de mídia', () => {
     const sections = buildSidebarSections({
       isSubscriber: false,
       isVip: false,
@@ -25,12 +25,17 @@ describe('sidebar-config', () => {
           id: 'media-videos',
           route: '/media/videos',
         }),
+        expect.objectContaining({
+          id: 'media-video-order',
+          route: '/media/videos/organizar',
+        }),
       ])
     );
   });
 
-  it('deve reconhecer a biblioteca de vídeos como seção de mídia', () => {
+  it('deve reconhecer biblioteca e organização como seção de mídia', () => {
     expect(resolveSidebarSectionFromUrl('/media/videos')).toBe('media');
+    expect(resolveSidebarSectionFromUrl('/media/videos/organizar')).toBe('media');
     expect(resolveSidebarSectionFromUrl('/media/perfil/u1/videos')).toBe('media');
   });
 
