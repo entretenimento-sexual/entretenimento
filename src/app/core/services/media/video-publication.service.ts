@@ -80,6 +80,7 @@ interface VideoPublicationDoc {
 export class VideoPublicationService {
   private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
+  private readonly legacyPendingReconciliationAttempted = new Set<string>();
 
   private readonly publishVideoCallable = httpsCallable<
     PublishVideoRequest,
@@ -126,11 +127,18 @@ export class VideoPublicationService {
       );
 
       return collectionData(publicationQuery, { idField: 'id' }).pipe(
-        map((items) =>
-          (items as VideoPublicationDoc[])
+        map((items) => {
+          const documents = items as VideoPublicationDoc[];
+
+          this.reconcileLegacyPendingPublications(
+            safeOwnerUid,
+            documents
+          );
+
+          return documents
             .map((item) => this.mapPublication(safeOwnerUid, item))
-            .filter((item) => !!item.videoId)
-        )
+            .filter((item) => !!item.videoId);
+        })
       );
     }).pipe(
       catchError((error: unknown) => {
@@ -269,6 +277,50 @@ export class VideoPublicationService {
     );
   }
 
+  private reconcileLegacyPendingPublications(
+    ownerUid: string,
+    documents: readonly VideoPublicationDoc[]
+  ): void {
+    for (const document of documents) {
+      const videoId = this.normalizeId(document.videoId ?? document.id);
+      const moderationStatus = this.normalizeModerationStatus(
+        document.moderationStatus
+      );
+
+      if (
+        !videoId ||
+        document.isPublished !== true ||
+        moderationStatus !== 'PENDING_REVIEW'
+      ) {
+        continue;
+      }
+
+      const reconciliationKey = `${ownerUid}:${videoId}`;
+
+      if (this.legacyPendingReconciliationAttempted.has(reconciliationKey)) {
+        continue;
+      }
+
+      this.legacyPendingReconciliationAttempted.add(reconciliationKey);
+
+      const payload: PublishVideoRequest = {
+        ownerUid,
+        videoId,
+        visibility: 'PUBLIC',
+        orderIndex: this.normalizeOrderIndex(document.orderIndex),
+      };
+
+      void this.publishVideoCallable(payload).catch((error: unknown) => {
+        this.legacyPendingReconciliationAttempted.delete(reconciliationKey);
+        this.reportError(error, {
+          op: 'reconcileLegacyPendingVideoPublication',
+          hasOwnerUid: true,
+          hasVideoId: true,
+        });
+      });
+    }
+  }
+
   private buildIdentityPayload(
     ownerUid: string,
     videoId: string
@@ -286,18 +338,24 @@ export class VideoPublicationService {
     item: VideoPublicationDoc
   ): IVideoPublicationConfig {
     const id = this.normalizeId(item.id ?? item.videoId);
+    const isPublished = item.isPublished === true;
+    const storedModerationStatus = this.normalizeModerationStatus(
+      item.moderationStatus
+    );
+    const moderationStatus =
+      isPublished && storedModerationStatus === 'PENDING_REVIEW'
+        ? 'APPROVED'
+        : storedModerationStatus;
 
     return {
       id,
       videoId: this.normalizeId(item.videoId ?? id),
       ownerUid: this.normalizeId(item.ownerUid ?? ownerUid),
-      isPublished: item.isPublished === true,
+      isPublished,
       publishWhenReady: item.publishWhenReady === true,
       visibility: this.normalizeVisibility(item.visibility),
       orderIndex: this.normalizeOrderIndex(item.orderIndex),
-      moderationStatus: this.normalizeModerationStatus(
-        item.moderationStatus
-      ),
+      moderationStatus,
       moderationReason: this.normalizeOptionalText(item.moderationReason),
       title: this.normalizeOptionalText(item.title, 120),
       description: this.normalizeOptionalText(item.description, 1000),
