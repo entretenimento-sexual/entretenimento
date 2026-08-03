@@ -3,7 +3,7 @@
 // Fluxo principal da plataforma.
 // - Não exibe título visual para anunciar que a tela é um feed.
 // - Mantém ações de publicação no topo e conteúdo real em sequência.
-// - Agrega perfis/casais, Comunidades e Locais por contrato canônico.
+// - Agrega fotos, vídeos, perfis/casais, Comunidades e Locais.
 // - Mantém UID como fonte única para rotas e carregamentos privados.
 // -----------------------------------------------------------------------------
 
@@ -15,6 +15,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { RouterModule } from '@angular/router';
 
 import { Store } from '@ngrx/store';
@@ -32,6 +33,9 @@ import {
 import { isFeatureEnabled } from 'src/app/core/guards/access-guard/feature-flag.guard';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import {
   IProfileChecklistItemVm,
@@ -40,6 +44,7 @@ import {
 } from 'src/app/core/services/user-profile/profile-completion.service';
 import { PublicPhotoCardComponent } from 'src/app/media/shared/components/public-photo-card/public-photo-card.component';
 import { PublicPhotoLightboxComponent } from 'src/app/media/shared/components/public-photo-lightbox/public-photo-lightbox.component';
+import { PublicVideoFeedCardComponent } from 'src/app/media/shared/components/public-video-feed-card/public-video-feed-card.component';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { PAGE_SIZES } from 'src/app/shared/pagination/page.constants';
 import * as P from 'src/app/store/actions/actions.interactions/friends/friends-pagination.actions';
@@ -74,12 +79,14 @@ interface IPrincipalChecklistVm extends IProfileChecklistVm {
   imports: [
     CommonModule,
     RouterModule,
+    MatDialogModule,
     ImageFallbackDirective,
     UserIntentStatusComposerComponent,
     UserIntentStatusRadarComponent,
     HotPlacesWidgetComponent,
     PublicPhotoCardComponent,
     PublicPhotoLightboxComponent,
+    PublicVideoFeedCardComponent,
   ],
 })
 export class PrincipalComponent implements OnInit {
@@ -87,6 +94,9 @@ export class PrincipalComponent implements OnInit {
   private statusComposer?: UserIntentStatusComposerComponent;
 
   private readonly store = inject<Store<AppState>>(Store as any);
+  private readonly dialog = inject(MatDialog);
+  private readonly errorNotification = inject(ErrorNotificationService);
+  private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly profileCompletion = inject(ProfileCompletionService);
   private readonly principalFeed = inject(PrincipalFeedService);
@@ -153,6 +163,7 @@ export class PrincipalComponent implements OnInit {
   readonly statusComposerVisible = signal(false);
   readonly selectedPhotoIndex = signal<number | null>(null);
   readonly selectedPhotos = signal<readonly IPublicPhotoItem[]>([]);
+  readonly openingVideoId = signal<string | null>(null);
 
   ngOnInit(): void {
     this.uid$
@@ -219,9 +230,67 @@ export class PrincipalComponent implements OnInit {
     );
   }
 
+  async openVideo(
+    selected: IPublicVideoItem,
+    videos: readonly IPublicVideoItem[]
+  ): Promise<void> {
+    if (!selected?.id || this.openingVideoId()) {
+      return;
+    }
+
+    const startIndex = videos.findIndex((video) =>
+      video.id === selected.id && video.ownerUid === selected.ownerUid
+    );
+
+    if (startIndex < 0) {
+      return;
+    }
+
+    this.openingVideoId.set(selected.id);
+
+    try {
+      const { PublicVideoViewerComponent } = await import(
+        '../../media/videos/public-video-viewer/public-video-viewer.component'
+      );
+
+      this.dialog.open(PublicVideoViewerComponent, {
+        data: {
+          ownerUid: selected.ownerUid,
+          items: [...videos],
+          startIndex,
+          source: 'latest',
+        },
+        autoFocus: false,
+        restoreFocus: true,
+        width: '100vw',
+        height: '100vh',
+        maxWidth: '100vw',
+        maxHeight: '100vh',
+        panelClass: [
+          'photo-viewer-dialog--immersive',
+          'public-video-viewer-dialog',
+        ],
+        backdropClass: 'photo-viewer-backdrop',
+      });
+    } catch (error) {
+      this.reportVideoViewerError(error, selected);
+      this.errorNotification.showError(
+        'Não foi possível abrir o vídeo neste momento.'
+      );
+    } finally {
+      if (this.openingVideoId() === selected.id) {
+        this.openingVideoId.set(null);
+      }
+    }
+  }
+
   feedItemRoute(item: PrincipalFeedItem): any[] {
     if (item.kind === 'profile-photo') {
       return ['/outro-perfil', item.photo.ownerUid];
+    }
+
+    if (item.kind === 'profile-video') {
+      return ['/media', 'video', item.video.ownerUid, item.video.id];
     }
 
     return item.kind === 'venue'
@@ -231,6 +300,7 @@ export class PrincipalComponent implements OnInit {
 
   feedItemLabel(item: PrincipalFeedItem): string {
     if (item.kind === 'profile-photo') return 'Perfil';
+    if (item.kind === 'profile-video') return 'Vídeo';
     return item.kind === 'venue' ? 'Local' : 'Comunidade';
   }
 
@@ -266,6 +336,29 @@ export class PrincipalComponent implements OnInit {
 
   trackFriend = (index: number, friend: unknown): string =>
     this.friendUid(friend) || `friend-${index}`;
+
+  private reportVideoViewerError(
+    error: unknown,
+    video: IPublicVideoItem
+  ): void {
+    try {
+      const normalized = error instanceof Error
+        ? error
+        : new Error('Falha ao abrir vídeo no feed principal.');
+
+      (normalized as any).original = error;
+      (normalized as any).context = {
+        scope: 'PrincipalComponent',
+        op: 'openVideo',
+        hasOwnerUid: !!video.ownerUid,
+        hasVideoId: !!video.id,
+      };
+      (normalized as any).skipUserNotification = true;
+      this.globalError.handleError(normalized);
+    } catch {
+      // A falha de diagnóstico não deve bloquear o restante do feed.
+    }
+  }
 
   private buildPrincipalChecklistVm(user: IUserDados): IPrincipalChecklistVm {
     const checklist = this.profileCompletion.buildChecklist(user);
