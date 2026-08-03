@@ -1,18 +1,18 @@
 // src/app/core/services/media/media-publication.service.ts
-// Serviço da camada de publicação.
+// Serviço da camada segura de publicação.
 //
-// OBJETIVO:
-// - separar publicação da biblioteca privada;
+// Objetivo:
+// - manter o staging técnico separado da projeção pública;
 // - ler configuração privada de publicação;
-// - solicitar publicação/despublicação/capa via Cloud Functions;
+// - solicitar publicação, compatibilidade legada e capa via Cloud Functions;
 // - registrar visualização pública por backend confiável;
 // - manter Observable na API pública;
 // - impedir escrita direta do cliente na projeção pública.
 //
-// Segurança:
-// - cliente não escreve public_profiles/{uid}/public_photos;
-// - cliente não atualiza score/contadores/moderação;
-// - publicação e visualização passam pelo backend.
+// Regra de produto:
+// - toda nova foto enviada segue para publicação pública;
+// - comentários e reações começam habilitados;
+// - o método de despublicação permanece apenas para compatibilidade legada.
 
 import { Injectable, inject } from '@angular/core';
 import {
@@ -70,7 +70,7 @@ interface PublishPhotoCallableRequest {
 
 interface PublishPhotoCallableResponse {
   photoId: string;
-  moderationStatus: 'PENDING_REVIEW' | 'APPROVED';
+  moderationStatus: 'APPROVED';
 }
 
 interface PhotoIdCallableRequest {
@@ -117,7 +117,9 @@ export class MediaPublicationService {
       map((items) =>
         items.reduce<Record<string, IPhotoPublicationConfig>>((acc, item) => {
           const safePhotoId = (item.photoId ?? '').trim();
-          if (!safePhotoId) return acc;
+          if (!safePhotoId) {
+            return acc;
+          }
 
           acc[safePhotoId] = {
             photoId: safePhotoId,
@@ -129,11 +131,11 @@ export class MediaPublicationService {
             isCover: !!item.isCover,
             orderIndex: item.orderIndex ?? 0,
 
-            commentsEnabled: item.commentsEnabled ?? false,
-            commentsPolicy: item.commentsPolicy ?? 'OFF',
+            commentsEnabled: item.commentsEnabled ?? true,
+            commentsPolicy: item.commentsPolicy ?? 'EVERYONE',
             commentsCount: item.commentsCount ?? 0,
 
-            reactionsEnabled: item.reactionsEnabled ?? false,
+            reactionsEnabled: item.reactionsEnabled ?? true,
             reactionsCount: item.reactionsCount ?? 0,
 
             moderationStatus: item.moderationStatus ?? 'PRIVATE',
@@ -184,11 +186,11 @@ export class MediaPublicationService {
       isCover: false,
       orderIndex: 0,
 
-      commentsEnabled: false,
-      commentsPolicy: 'OFF',
+      commentsEnabled: true,
+      commentsPolicy: 'EVERYONE',
       commentsCount: 0,
 
-      reactionsEnabled: false,
+      reactionsEnabled: true,
       reactionsCount: 0,
 
       moderationStatus: 'PRIVATE',
@@ -253,6 +255,10 @@ export class MediaPublicationService {
     );
   }
 
+  /**
+   * @deprecated Compatibilidade com rotinas administrativas e registros antigos.
+   * A experiência normal remove fotos por exclusão definitiva.
+   */
   unpublishPhoto$(ownerUid: string, privatePhotoId: string): Observable<void> {
     const safeOwnerUid = (ownerUid ?? '').trim();
     const safePhotoId = (privatePhotoId ?? '').trim();
@@ -275,7 +281,7 @@ export class MediaPublicationService {
       map(() => void 0),
       catchError((error) => {
         this.reportError(
-          'Erro ao despublicar a foto.',
+          'Erro ao executar compatibilidade de despublicação da foto.',
           error,
           {
             op: 'unpublishPhoto$',
@@ -312,7 +318,7 @@ export class MediaPublicationService {
       map(() => void 0),
       catchError((error) => {
         this.reportError(
-          'Erro ao definir foto de capa.',
+          'Erro ao definir foto principal.',
           error,
           {
             op: 'setCoverPhoto$',
@@ -401,23 +407,24 @@ export class MediaPublicationService {
       try {
         this.errorNotifier.showError(userMessage);
       } catch {
-        // noop
+        // A notificação não pode quebrar o fluxo.
       }
     }
 
     try {
-      const err = error instanceof Error ? error : new Error(userMessage);
+      const normalizedError =
+        error instanceof Error ? error : new Error(userMessage);
 
-      (err as any).original = error;
-      (err as any).context = {
+      (normalizedError as any).original = error;
+      (normalizedError as any).context = {
         scope: 'MediaPublicationService',
         ...(context ?? {}),
       };
-      (err as any).skipUserNotification = silent;
+      (normalizedError as any).skipUserNotification = silent;
 
-      this.errorHandler.handleError(err);
+      this.errorHandler.handleError(normalizedError);
     } catch {
-      // noop
+      // A telemetria não pode quebrar o fluxo.
     }
   }
 }
