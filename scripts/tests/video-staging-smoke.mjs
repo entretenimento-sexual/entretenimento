@@ -8,7 +8,7 @@
 // - usa um usuário efêmero por formato;
 // - inicializa App Check no Node com CustomProvider e token Admin efêmero;
 // - valida o painel antes de remover a telemetria do teste;
-// - limpa Auth, Firestore e Storage ao final;
+// - limpa Auth, Firestore, Storage e filas técnicas ao final;
 // - não imprime credenciais, tokens nem URLs assinadas.
 // -----------------------------------------------------------------------------
 
@@ -52,6 +52,17 @@ const DEAD_LETTER_COLLECTION = 'media_video_processing_dead_letters';
 const JOB_COLLECTION = 'media_video_processing_jobs';
 const RESERVATION_COLLECTION = 'media_private_video_upload_reservations';
 const CAPACITY_COLLECTION = 'media_private_video_upload_capacity';
+const PRIVATE_UPLOAD_CLEANUP_COLLECTION =
+  'media_private_video_upload_cleanup_jobs';
+const PROCESSING_OUTPUT_CLEANUP_COLLECTION =
+  'media_video_processing_output_cleanup_jobs';
+const PUBLISHED_ASSET_CLEANUP_COLLECTION =
+  'media_published_video_asset_cleanup_jobs';
+const OWNER_TECHNICAL_CLEANUP_COLLECTIONS = [
+  PRIVATE_UPLOAD_CLEANUP_COLLECTION,
+  PROCESSING_OUTPUT_CLEANUP_COLLECTION,
+  PUBLISHED_ASSET_CLEANUP_COLLECTION,
+];
 const TERMINAL_JOB_STATES = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED']);
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
 const DEFAULT_INTERVAL_MS = 5_000;
@@ -333,6 +344,7 @@ async function cleanupOwnerResources({ db, bucket, adminAuth, resource }) {
     dispatches: 0,
     deadLetters: 0,
     reservations: 0,
+    technicalCleanupJobs: {},
     jobDeleted: false,
     authUserDeleted: false,
   };
@@ -354,6 +366,13 @@ async function cleanupOwnerResources({ db, bucket, adminAuth, resource }) {
     db.collection(RESERVATION_COLLECTION)
       .where('ownerUid', '==', resource.ownerUid)
   );
+
+  for (const collectionName of OWNER_TECHNICAL_CLEANUP_COLLECTIONS) {
+    deleted.technicalCleanupJobs[collectionName] = await deleteQuery(
+      db.collection(collectionName).where('ownerUid', '==', resource.ownerUid)
+    );
+  }
+
   await db.collection(CAPACITY_COLLECTION).doc(resource.ownerUid).delete()
     .catch((error) => {
       if (error?.code !== 5) {
