@@ -7,7 +7,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
   EMPTY,
@@ -30,6 +30,8 @@ import {
   IVideoEditRecipeInput,
   TVideoEditAspectRatio,
 } from 'src/app/core/interfaces/media/i-video-edit-recipe';
+import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
+import { IVideoPublicationConfig } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -43,6 +45,9 @@ import {
   VideoMetadataPreparationService,
 } from 'src/app/core/services/media/video-metadata-preparation.service';
 import { VideoEditedUploadFlowService } from 'src/app/core/services/media/video-edited-upload-flow.service';
+import { VideoLibraryService } from 'src/app/core/services/media/video-library.service';
+import { VideoPublicationService } from 'src/app/core/services/media/video-publication.service';
+import { VideoReplacementUploadFlowService } from 'src/app/core/services/media/video-replacement-upload-flow.service';
 import {
   VIDEO_UPLOAD_ACCEPT,
   VIDEO_UPLOAD_FORMAT_LABEL,
@@ -57,6 +62,11 @@ interface EditorUploadFailure {
   title: string;
   message: string;
   recovery: string;
+}
+
+interface VideoReplacementTarget {
+  video: IVideoItem;
+  publication: IVideoPublicationConfig;
 }
 
 type EditorUploadPhase =
@@ -83,12 +93,16 @@ const DENY_UNKNOWN: IMediaPolicyResult = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VideoSimpleEditorComponent {
+  private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly formBuilder = inject(FormBuilder);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
   private readonly uploadFlow = inject(VideoEditedUploadFlowService);
+  private readonly replacementFlow = inject(VideoReplacementUploadFlowService);
+  private readonly videoLibrary = inject(VideoLibraryService);
+  private readonly videoPublication = inject(VideoPublicationService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
@@ -169,6 +183,7 @@ export class VideoSimpleEditorComponent {
   readonly capturingPoster$ = this.capturingPosterSubject.asObservable();
 
   private uploadSubscription: Subscription | null = null;
+  private uploadIsReplacement = false;
 
   readonly viewer$: Observable<IMediaPolicyViewerSnapshot | null | undefined> =
     this.currentUserStore.user$.pipe(
@@ -189,6 +204,58 @@ export class VideoSimpleEditorComponent {
     map((viewer) => viewer?.uid ?? ''),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  private readonly replacementVideoId$ = this.route.queryParamMap.pipe(
+    map((params) => String(params.get('videoId') ?? '').trim()),
+    map((videoId) => /^[A-Za-z0-9_-]{1,128}$/.test(videoId) ? videoId : ''),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly replacementTarget$: Observable<VideoReplacementTarget | null> =
+    combineLatest([this.ownerUid$, this.replacementVideoId$]).pipe(
+      switchMap(([ownerUid, videoId]) => {
+        if (!ownerUid || !videoId) return of(null);
+
+        return combineLatest([
+          this.videoLibrary.watchPrivateVideos$(ownerUid),
+          this.videoPublication.watchOwnVideoPublications$(ownerUid),
+        ]).pipe(
+          map(([videos, publications]) => {
+            const video = videos.find((item) => item.id === videoId) ?? null;
+            const publication = publications.find(
+              (item) => item.videoId === videoId
+            ) ?? null;
+
+            if (
+              !video ||
+              !publication ||
+              video.status !== 'ready' ||
+              !video.processedStoragePath ||
+              publication.isPublished !== true ||
+              publication.moderationStatus !== 'APPROVED'
+            ) {
+              return null;
+            }
+
+            return { video, publication };
+          })
+        );
+      }),
+      catchError((error: unknown) => {
+        this.reportError(error, { op: 'replacementTarget$' });
+        this.errorNotification.showError(
+          'Não foi possível carregar o vídeo que será substituído.'
+        );
+        return of(null);
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly isReplacement$ = this.replacementTarget$.pipe(
+    map((target) => !!target),
+    distinctUntilChanged()
   );
 
   readonly uploadPolicyResult$ = combineLatest([
@@ -234,9 +301,7 @@ export class VideoSimpleEditorComponent {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
 
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     const format = resolveVideoUploadFormat(file);
 
@@ -279,6 +344,21 @@ export class VideoSimpleEditorComponent {
       muteAudio: false,
     });
 
+    this.replacementTarget$
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe((target) => {
+        if (!target) return;
+
+        this.publicationForm.patchValue({
+          title: target.publication.title ??
+            this.defaultFileTitle(target.video.fileName ?? file.name),
+          description: target.publication.description ?? '',
+          reactionsEnabled: target.publication.reactionsEnabled !== false,
+          commentsEnabled: target.publication.commentsEnabled !== false,
+          ratingsEnabled: target.publication.ratingsEnabled !== false,
+        });
+      });
+
     this.metadataPreparation.prepare$(file).pipe(
       take(1),
       finalize(() => {
@@ -298,9 +378,7 @@ export class VideoSimpleEditorComponent {
           trimEndSeconds: Number(durationSeconds.toFixed(1)),
         });
 
-        if (metadata.posterBlob) {
-          this.setPoster(metadata.posterBlob);
-        }
+        if (metadata.posterBlob) this.setPoster(metadata.posterBlob);
 
         this.stepSubject.next(
           metadata.playbackReady
@@ -333,7 +411,9 @@ export class VideoSimpleEditorComponent {
     ).subscribe({
       next: (blob) => {
         this.setPoster(blob);
-        this.errorNotification.showSuccess('Capa atualizada com o enquadramento selecionado.');
+        this.errorNotification.showSuccess(
+          'Capa atualizada com o enquadramento selecionado.'
+        );
       },
       error: (error: unknown) => {
         this.errorNotification.showWarning(
@@ -349,7 +429,8 @@ export class VideoSimpleEditorComponent {
     const metadata = this.metadataSubject.value;
     const durationSeconds = (metadata?.durationMs ?? 0) / 1000;
     const current = this.safeSeconds(video.currentTime);
-    const currentEnd = this.editForm.controls.trimEndSeconds.value || durationSeconds;
+    const currentEnd = this.editForm.controls.trimEndSeconds.value ||
+      durationSeconds;
     const maxStart = Math.max(0, currentEnd - MIN_EDITED_DURATION_SECONDS);
 
     this.editForm.controls.trimStartSeconds.setValue(
@@ -374,6 +455,8 @@ export class VideoSimpleEditorComponent {
   }
 
   startUpload(publishWhenReady = true): void {
+    void publishWhenReady;
+
     if (this.uploadSubscription || this.publicationForm.invalid) {
       this.publicationForm.markAllAsTouched();
       return;
@@ -393,9 +476,10 @@ export class VideoSimpleEditorComponent {
       this.ownerUid$,
       this.selectedFile$,
       this.metadata$,
+      this.replacementTarget$,
     ]).pipe(
       take(1),
-      switchMap(([policy, ownerUid, file, metadata]) => {
+      switchMap(([policy, ownerUid, file, metadata, replacementTarget]) => {
         if (policy.decision !== 'ALLOW') {
           this.errorNotification.showError(
             'Confirme o e-mail, conclua o perfil e mantenha a conta regular para enviar vídeos.'
@@ -410,21 +494,53 @@ export class VideoSimpleEditorComponent {
 
         const editRecipe = this.buildEditRecipe(metadata);
         const publicationRaw = this.publicationForm.getRawValue();
+        const publication = {
+          title: publicationRaw.title.trim() || null,
+          description: publicationRaw.description.trim() || null,
+          reactionsEnabled: publicationRaw.reactionsEnabled,
+          commentsEnabled: publicationRaw.commentsEnabled,
+          ratingsEnabled: publicationRaw.ratingsEnabled,
+        };
+        this.uploadIsReplacement = !!replacementTarget;
         this.phaseSubject.next('UPLOADING');
         this.progressSubject.next(0);
-        this.stepSubject.next('Preparando o upload editado.');
+        this.stepSubject.next(
+          replacementTarget
+            ? 'Preparando a nova versão do vídeo.'
+            : 'Preparando o upload editado.'
+        );
+
+        if (replacementTarget) {
+          const currentStoragePath = String(
+            replacementTarget.video.path ?? replacementTarget.video.url ?? ''
+          ).trim();
+
+          if (!currentStoragePath) {
+            this.errorNotification.showError(
+              'A versão atual do vídeo não está disponível para substituição.'
+            );
+            return EMPTY;
+          }
+
+          return this.replacementFlow.replaceEditedVideo$({
+            ownerUid,
+            videoId: replacementTarget.video.id,
+            currentStoragePath,
+            file,
+            posterBlob: this.posterBlobSubject.value,
+            durationMs: metadata?.durationMs ?? null,
+            publication,
+            editRecipe,
+          });
+        }
 
         return this.uploadFlow.uploadEditedVideo$({
           ownerUid,
           file,
           posterBlob: this.posterBlobSubject.value,
           publication: {
-            title: publicationRaw.title.trim() || null,
-            description: publicationRaw.description.trim() || null,
-            reactionsEnabled: publicationRaw.reactionsEnabled,
-            commentsEnabled: publicationRaw.commentsEnabled,
-            ratingsEnabled: publicationRaw.ratingsEnabled,
-            publishWhenReady,
+            ...publication,
+            publishWhenReady: true,
           },
           editRecipe,
         });
@@ -464,9 +580,7 @@ export class VideoSimpleEditorComponent {
   }
 
   reset(fileInput?: HTMLInputElement): void {
-    if (this.uploadSubscription) {
-      return;
-    }
+    if (this.uploadSubscription) return;
 
     this.resetSelectionState();
     this.selectedFileSubject.next(null);
@@ -487,9 +601,7 @@ export class VideoSimpleEditorComponent {
       muteAudio: false,
     });
 
-    if (fileInput) {
-      fileInput.value = '';
-    }
+    if (fileInput) fileInput.value = '';
   }
 
   isEditingAvailable(metadata: IPreparedVideoMetadata | null): boolean {
@@ -504,7 +616,10 @@ export class VideoSimpleEditorComponent {
   }
 
   formatDuration(milliseconds: number | null | undefined): string {
-    const totalSeconds = Math.max(0, Math.floor(Number(milliseconds ?? 0) / 1000));
+    const totalSeconds = Math.max(
+      0,
+      Math.floor(Number(milliseconds ?? 0) / 1000)
+    );
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
@@ -575,9 +690,15 @@ export class VideoSimpleEditorComponent {
 
     this.phaseSubject.next('DONE');
     this.progressSubject.next(100);
-    this.stepSubject.next('Vídeo enviado e encaminhado para processamento.');
+    this.stepSubject.next(
+      this.uploadIsReplacement
+        ? 'Nova versão enviada. O vídeo público atual permanece visível durante o processamento.'
+        : 'Vídeo enviado e encaminhado para processamento.'
+    );
     this.errorNotification.showSuccess(
-      'Vídeo enviado. A edição será aplicada no processamento.'
+      this.uploadIsReplacement
+        ? 'Nova versão enviada. A troca ocorrerá automaticamente quando estiver pronta.'
+        : 'Vídeo enviado. A edição será aplicada no processamento.'
     );
   }
 

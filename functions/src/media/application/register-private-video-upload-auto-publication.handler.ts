@@ -1,0 +1,48 @@
+import { onCall } from 'firebase-functions/v2/https';
+
+import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  registerPrivateVideoUpload as registerPrivateVideoUploadCore,
+} from './register-private-video-upload-orchestrator.handler';
+import {
+  AutoPublishVideoRegistrationData,
+  forceVideoAutoPublicationData,
+} from './video-auto-publication.policy';
+import {
+  enqueueImmediateVideoProcessingBestEffort,
+} from './video-processing-immediate-task.handler';
+
+interface RegisteredPrivateVideoResponse {
+  ownerUid: string;
+  videoId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Fronteira pública do registro de vídeos.
+ *
+ * `publishWhenReady` deixou de ser uma escolha do cliente. O staging privado
+ * permanece exclusivamente técnico e todo vídeo registrado deve continuar
+ * para processamento e publicação automática quando o derivado ficar pronto.
+ * A propriedade recebida de clientes antigos é deliberadamente sobrescrita.
+ */
+export const registerPrivateVideoUpload = onCall<
+  AutoPublishVideoRegistrationData
+>(
+  { region: FUNCTIONS_REGION },
+  async (request): Promise<RegisteredPrivateVideoResponse> => {
+    const response = (
+      await registerPrivateVideoUploadCore.run({
+        ...request,
+        data: forceVideoAutoPublicationData(request.data),
+      } as any)
+    ) as RegisteredPrivateVideoResponse;
+
+    await enqueueImmediateVideoProcessingBestEffort(
+      response.ownerUid,
+      response.videoId
+    );
+
+    return response;
+  }
+);

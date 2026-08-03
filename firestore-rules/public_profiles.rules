@@ -142,6 +142,7 @@ match /public_profiles/{userId} {
   function noClientManagedFieldsOnCreate() {
     return !request.resource.data.keys().hasAny([
       "age",
+      "descricao",
       "normalizedGender",
       "normalizedOrientation",
       "interestedInGenders",
@@ -186,6 +187,7 @@ match /public_profiles/{userId} {
   function backendManagedFieldsUnchangedOnUpdate() {
     return !request.resource.data.diff(resource.data).changedKeys().hasAny([
       "age",
+      "descricao",
       "normalizedGender",
       "normalizedOrientation",
       "interestedInGenders",
@@ -239,6 +241,7 @@ match /public_profiles/{userId} {
       "gender",
       "orientation",
       "age",
+      "descricao",
       "normalizedGender",
       "normalizedOrientation",
       "interestedInGenders",
@@ -308,7 +311,8 @@ match /public_profiles/{userId} {
       && optStringSized("municipio", 1, 80)
       && optStringSized("estado", 1, 40)
       && optStringSized("gender", 1, 40)
-      && optStringSized("orientation", 1, 40);
+      && optStringSized("orientation", 1, 40)
+      && optStringSized("descricao", 0, 1000);
   }
 
   function validPublicProfileCreatePayload() {

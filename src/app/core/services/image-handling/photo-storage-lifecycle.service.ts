@@ -1,17 +1,10 @@
-import { Injectable, inject } from '@angular/core';
-import { Auth } from '@angular/fire/auth';
-import { Storage } from '@angular/fire/storage';
-import { deleteObject, ref } from 'firebase/storage';
-import { Observable, defer, from, throwError } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { Injectable } from '@angular/core';
+import { Observable, throwError } from 'rxjs';
 
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 
 @Injectable({ providedIn: 'root' })
 export class PhotoStorageLifecycleService {
-  private readonly storage = inject(Storage);
-  private readonly auth = inject(Auth);
-
   constructor(
     private readonly globalErrorHandler: GlobalErrorHandlerService
   ) {}
@@ -63,41 +56,22 @@ export class PhotoStorageLifecycleService {
     }
   }
 
+  /**
+   * @deprecated A exclusão direta de uploads privados foi bloqueada nas
+   * Storage Rules. Antes do registro, use o cancelamento da reserva; depois do
+   * registro, use `deleteProfilePhoto` pelo serviço Firestore.
+   */
   deleteOwnedPrivatePhoto$(
     ownerUid: string,
     storagePath: string
-  ): Observable<void> {
-    return defer(() => {
-      const safeOwnerUid = String(ownerUid ?? '').trim();
-      const currentUid = this.auth.currentUser?.uid?.trim() ?? '';
-      const safePath = this.extractOwnedPrivatePhotoPath(
-        safeOwnerUid,
-        storagePath
-      );
-
-      if (!safeOwnerUid || currentUid !== safeOwnerUid) {
-        throw this.createError(
-          'media/storage-owner-mismatch',
-          'A foto só pode ser manipulada pelo perfil autenticado.'
-        );
-      }
-
-      if (!safePath) {
-        throw this.createError(
-          'media/invalid-storage-path',
-          'A foto não possui um caminho privado válido.'
-        );
-      }
-
-      return from(deleteObject(ref(this.storage, safePath))).pipe(
-        map(() => void 0)
-      );
-    }).pipe(
-      catchError((error) => {
-        this.reportError(error, ownerUid, storagePath);
-        return throwError(() => error);
-      })
+  ): Observable<never> {
+    const error = this.createError(
+      'media/direct-private-photo-delete-disabled',
+      'A exclusão direta da foto privada foi desativada.'
     );
+
+    this.reportError(error, ownerUid, storagePath);
+    return throwError(() => error);
   }
 
   private normalizeOwnedPrivatePhotoPath(
@@ -139,13 +113,14 @@ export class PhotoStorageLifecycleService {
       (reportable as any).extra = {
         hasOwnerUid: !!String(ownerUid ?? '').trim(),
         hasStoragePath: !!String(storagePath ?? '').trim(),
+        deprecated: true,
       };
       (reportable as any).original = error;
       (reportable as any).skipUserNotification = true;
 
       this.globalErrorHandler.handleError(reportable);
     } catch {
-      // noop
+      // A telemetria não substitui o erro de domínio.
     }
   }
 }

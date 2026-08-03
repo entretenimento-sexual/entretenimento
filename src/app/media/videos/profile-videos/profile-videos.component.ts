@@ -1,6 +1,6 @@
 // src/app/media/videos/profile-videos/profile-videos.component.ts
 // -----------------------------------------------------------------------------
-// Biblioteca privada, upload recuperável e publicação controlada de vídeos.
+// Conteúdo do proprietário, upload recuperável e publicação automática.
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
@@ -74,7 +74,7 @@ interface VideoUploadFailureFeedback {
   retryable: boolean;
 }
 
-type VideoBusyAction = 'publish' | 'unpublish' | 'delete' | 'save';
+type VideoBusyAction = 'delete' | 'save';
 type VideoUploadUiPhase =
   | 'IDLE'
   | 'READY'
@@ -184,7 +184,6 @@ export class ProfileVideosComponent {
 
   private uploadSubscription: Subscription | null = null;
   private cancelRequestedByUser = false;
-  private uploadPublishWhenReady = true;
 
   readonly viewer$: Observable<IMediaPolicyViewerSnapshot | null | undefined> =
     this.currentUserStore.user$.pipe(
@@ -395,6 +394,8 @@ export class ProfileVideosComponent {
   }
 
   startUpload(publishWhenReady = true): void {
+    void publishWhenReady;
+
     if (this.uploadSubscription) {
       return;
     }
@@ -409,7 +410,6 @@ export class ProfileVideosComponent {
 
     this.uploadFailureSubject.next(null);
     this.cancelRequestedByUser = false;
-    this.uploadPublishWhenReady = publishWhenReady;
     let subscription: Subscription | null = null;
 
     const upload$ = combineLatest([
@@ -435,7 +435,7 @@ export class ProfileVideosComponent {
           return EMPTY;
         }
 
-        const publication = this.uploadPublicationSettings(publishWhenReady);
+        const publication = this.uploadPublicationSettings();
         this.uploadPhaseSubject.next('PREPARING');
         this.uploadProgressSubject.next(0);
         this.uploadStepSubject.next('Validando vídeo e capa.');
@@ -490,7 +490,7 @@ export class ProfileVideosComponent {
       return;
     }
 
-    this.startUpload(this.uploadPublishWhenReady);
+    this.startUpload();
   }
 
   cancelUpload(): void {
@@ -598,77 +598,15 @@ export class ProfileVideosComponent {
     ).subscribe({
       next: (result) => {
         this.editingVideoIdSubject.next(null);
-        const message =
-          result.isPublished && result.moderationStatus === 'PENDING_REVIEW'
-            ? 'Alterações salvas e enviadas para moderação.'
-            : 'Informações do vídeo salvas.';
-        this.errorNotification.showSuccess(message);
+        this.errorNotification.showSuccess(
+          result.isPublished
+            ? 'Informações atualizadas no perfil.'
+            : 'Informações do vídeo salvas.'
+        );
       },
       error: () => {
         this.errorNotification.showError(
           'Não foi possível salvar as informações do vídeo.'
-        );
-      },
-    });
-  }
-
-  publishVideo(item: ProfileVideoViewItem): void {
-    if (this.editingVideoIdSubject.value === item.video.id) {
-      this.errorNotification.showWarning(
-        'Salve ou cancele a edição antes de publicar.'
-      );
-      return;
-    }
-
-    if (!this.canPublish(item) || this.isBusy(item.video.id)) {
-      return;
-    }
-
-    this.setBusyAction(item.video.id, 'publish');
-
-    this.ownerUid$.pipe(
-      take(1),
-      switchMap((ownerUid) =>
-        this.videoPublication.publishVideo$(ownerUid, item.video.id)
-      ),
-      finalize(() => this.clearBusyAction(item.video.id)),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe({
-      next: (result) => {
-        const message = result.moderationStatus === 'APPROVED'
-          ? 'Vídeo publicado no perfil.'
-          : 'Vídeo enviado para análise antes da publicação.';
-        this.errorNotification.showSuccess(message);
-      },
-      error: () => {
-        this.errorNotification.showError(
-          'Não foi possível publicar este vídeo.'
-        );
-      },
-    });
-  }
-
-  unpublishVideo(item: ProfileVideoViewItem): void {
-    if (!item.publication?.isPublished || this.isBusy(item.video.id)) {
-      return;
-    }
-
-    this.setBusyAction(item.video.id, 'unpublish');
-
-    this.ownerUid$.pipe(
-      take(1),
-      switchMap((ownerUid) =>
-        this.videoPublication.unpublishVideo$(ownerUid, item.video.id)
-      ),
-      finalize(() => this.clearBusyAction(item.video.id)),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe({
-      next: () => {
-        this.errorNotification.showSuccess('Vídeo removido da área pública.');
-      },
-      error: () => {
-        this.errorNotification.showError(
-          'Não foi possível remover a publicação do vídeo.'
         );
       },
     });
@@ -714,7 +652,7 @@ export class ProfileVideosComponent {
     ).subscribe({
       next: (result) => {
         const message = result.cleanupPending
-          ? 'Vídeo ocultado. A limpeza física será concluída automaticamente.'
+          ? 'Vídeo retirado da plataforma. A limpeza física será concluída automaticamente.'
           : 'Vídeo excluído com segurança.';
         this.errorNotification.showSuccess(message);
       },
@@ -722,16 +660,6 @@ export class ProfileVideosComponent {
         this.errorNotification.showError('Não foi possível excluir este vídeo.');
       },
     });
-  }
-
-  canPublish(item: ProfileVideoViewItem): boolean {
-    return (
-      !item.publication?.isPublished &&
-      item.publication?.publishWhenReady !== true &&
-      item.video.status === 'ready' &&
-      !!item.video.processedStoragePath &&
-      this.isPublicPlaybackCompatible(item.video)
-    );
   }
 
   isPublicPlaybackCompatible(video: IVideoItem): boolean {
@@ -767,28 +695,25 @@ export class ProfileVideosComponent {
       return 'Falha';
     }
 
-    if (!item.publication?.isPublished && item.publication?.publishWhenReady) {
-      return item.video.status === 'ready' ? 'Publicando' : 'Preparando';
+    if (item.publication?.moderationStatus === 'REJECTED') {
+      return 'Retirado';
     }
 
     if (!item.publication?.isPublished) {
-      return 'Privado';
+      return item.video.status === 'ready' ? 'Publicando' : 'Preparando';
     }
 
     if (item.publication.moderationStatus === 'APPROVED') {
       return 'Publicado';
     }
 
-    if (item.publication.moderationStatus === 'PENDING_REVIEW') {
-      return 'Em análise';
-    }
-
     return 'Indisponível';
   }
 
   isPendingPublication(item: ProfileVideoViewItem): boolean {
-    return item.publication?.publishWhenReady === true ||
-      item.publication?.moderationStatus === 'PENDING_REVIEW';
+    return !item.publication?.isPublished &&
+      item.video.status !== 'failed' &&
+      item.publication?.moderationStatus !== 'REJECTED';
   }
 
   processingLabel(video: IVideoItem): string {
@@ -859,9 +784,9 @@ export class ProfileVideosComponent {
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
   }
 
-  private uploadPublicationSettings(
-    publishWhenReady: boolean
-  ): IVideoPublicationSettingsInput & { publishWhenReady: boolean } {
+  private uploadPublicationSettings(): IVideoPublicationSettingsInput & {
+    publishWhenReady: true;
+  } {
     const raw = this.uploadPublicationForm.getRawValue();
 
     return {
@@ -870,7 +795,7 @@ export class ProfileVideosComponent {
       reactionsEnabled: raw.reactionsEnabled,
       commentsEnabled: raw.commentsEnabled,
       ratingsEnabled: raw.ratingsEnabled,
-      publishWhenReady,
+      publishWhenReady: true,
     };
   }
 
@@ -897,9 +822,7 @@ export class ProfileVideosComponent {
     this.uploadPhaseSubject.next('DONE');
     this.uploadProgressSubject.next(100);
     this.uploadStepSubject.next(
-      this.uploadPublishWhenReady
-        ? 'Vídeo recebido. A publicação continuará automaticamente.'
-        : 'Vídeo recebido e salvo sem publicação.'
+      'Upload concluído. O vídeo está sendo preparado para publicação automática.'
     );
     this.revokePreviewUrl();
     this.revokePosterUrl();
@@ -907,9 +830,7 @@ export class ProfileVideosComponent {
     this.selectedPosterBlobSubject.next(null);
     this.previewUrlSubject.next(null);
     this.errorNotification.showSuccess(
-      this.uploadPublishWhenReady
-        ? 'Envio concluído. O vídeo seguirá para processamento e publicação.'
-        : 'Vídeo salvo sem publicação.'
+      'Upload concluído. Você pode sair desta tela enquanto o vídeo é processado.'
     );
   }
 
@@ -933,11 +854,7 @@ export class ProfileVideosComponent {
     }
 
     this.uploadPhaseSubject.next('SAVING');
-    this.uploadStepSubject.next(
-      this.uploadPublishWhenReady
-        ? 'Registrando publicação.'
-        : 'Registrando vídeo.'
-    );
+    this.uploadStepSubject.next('Registrando o vídeo para processamento.');
   }
 
   private describeUploadFailure(error: unknown): VideoUploadFailureFeedback {

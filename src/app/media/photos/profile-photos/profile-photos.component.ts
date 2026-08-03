@@ -1,58 +1,42 @@
 // src/app/media/photos/profile-photos/profile-photos.component.ts
-// Galeria privada do perfil.
+// Biblioteca publicada de fotos do perfil.
 //
-// AJUSTES DESTA VERSÃO:
-// - mantém viewer, edição e exclusão
-// - adiciona VM de publicação para badges
-// - adiciona ações de publicação / despublicação / capa discreta
-// - adiciona organização por data escolhida pelo usuário para assinantes
-// - continua tratando users/{uid}/photos como biblioteca privada
-// - não mistura estado de publicação no documento privado
+// Regra de produto:
+// - toda nova foto é publicada ao concluir o upload;
+// - o caminho privado existe somente como staging técnico;
+// - a interface permite visualizar, editar, definir principal e excluir;
+// - registros antigos sem projeção pública são reconciliados automaticamente;
+// - despublicação para armazenamento privado não é oferecida ao usuário.
 //
-// OBSERVAÇÃO IMPORTANTE:
-// - deixe publicationFeatureReady = false até as rules de:
-//   1) users/{uid}/photo_publications/{photoId}
-//   2) public_profiles/{uid}/photos/{photoId}
-//   estarem deployadas.
-// - depois do deploy correto, troque para true.
-// ============================================================================
-// ATENÇÃO — PENDÊNCIA TÉCNICA / EDITOR DE IMAGENS TERCEIRIZADO
-// ----------------------------------------------------------------------------
-// Há histórico de erro residual ligado ao software terceirizado de edição de
-// imagens (Pintura), inclusive fora do fluxo explícito de edição.
-//
-// SINTOMA OBSERVADO:
-// - erro em runtime na rota da galeria privada `/media/perfil/:id/fotos`
-// - stack com mensagens como:
-//   "Cannot read properties of undefined (reading 'width')"
-// - em ciclos anteriores também houve erro passando por
-//   `PinturaEditorComponent.initEditor` / `pqina-angular-pintura.mjs`
-//
-// IMPACTO:
-// - o problema pode aparecer mesmo sem o usuário abrir manualmente o editor
-// - isso indica acoplamento residual, carregamento indireto, bundle antecipado
-//   ou comportamento instável do editor terceirizado
-//
-// DECISÃO ATUAL DO PROJETO:
-// - NÃO bloquear a evolução da galeria privada/pública por causa deste editor
-// - tratar o editor atual como solução provisória / experimental
-// - manter a evolução da plataforma desacoplada do fornecedor final de edição
-//
-// ORIENTAÇÃO:
-// - evitar novas dependências fortes do editor atual neste componente
-// - preferir carregamento tardio (lazy import) para qualquer abertura de editor
-// - reavaliar esta integração quando a solução definitiva de edição for escolhida
-// ============================================================================
-import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+// O editor terceirizado continua carregado sob demanda para reduzir acoplamento,
+// custo inicial de bundle e risco de erro fora do fluxo explícito de edição.
+
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnInit,
+  inject,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 
-import { BehaviorSubject, EMPTY, Observable, combineLatest, from, of } from 'rxjs';
+import {
+  BehaviorSubject,
+  EMPTY,
+  Observable,
+  combineLatest,
+  from,
+  of,
+} from 'rxjs';
 import {
   catchError,
+  concatMap,
   distinctUntilChanged,
+  exhaustMap,
   finalize,
   map,
   shareReplay,
@@ -64,15 +48,21 @@ import {
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { MediaPolicyService, IMediaPolicyResult } from 'src/app/core/services/media/media-policy.service';
+import {
+  MediaPolicyService,
+  IMediaPolicyResult,
+} from 'src/app/core/services/media/media-policy.service';
 import { MediaQueryService } from 'src/app/core/services/media/media-query.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/photo-editor-session.service';
 import { IPhotoPublicationConfig } from 'src/app/core/interfaces/media/i-photo-publication-config';
-
-import { PhotoViewerComponent, IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+
+import {
+  PhotoViewerComponent,
+  IProfilePhotoItem,
+} from '../photo-viewer/photo-viewer.component';
 
 type IManageablePhotoItem = IProfilePhotoItem & {
   path?: string;
@@ -85,7 +75,6 @@ type IPhotoCardVm = IManageablePhotoItem & {
   publication: IPhotoPublicationConfig;
 };
 
-type TProfilePhotoFilterMode = 'all' | 'published' | 'private';
 type TProfilePhotoSortMode = 'newest' | 'oldest';
 
 type TPhotoDateAccessUser = {
@@ -94,7 +83,17 @@ type TPhotoDateAccessUser = {
   subscriptionStatus?: string | null;
 };
 
-const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
+interface PendingPhotoPublication {
+  readonly ownerUid: string;
+  readonly photo: IManageablePhotoItem;
+  readonly publication: IPhotoPublicationConfig;
+  readonly preserveSettings: boolean;
+}
+
+const DENY_UNKNOWN: IMediaPolicyResult = {
+  decision: 'DENY',
+  reason: 'UNKNOWN',
+};
 
 @Component({
   selector: 'app-profile-photos',
@@ -104,8 +103,8 @@ const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' }
   styleUrls: ['./profile-photos.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ProfilePhotosComponent {
-  private readonly destroyRef = inject(DestroyRef); // reservado para evolução futura
+export class ProfilePhotosComponent implements OnInit {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
@@ -119,64 +118,62 @@ export class ProfilePhotosComponent {
   private readonly mediaPublicationService = inject(MediaPublicationService);
   private readonly photoFirestoreService = inject(PhotoFirestoreService);
   private readonly photoEditorSession = inject(PhotoEditorSessionService);
-
-  // Troque para true só depois de deployar as novas rules da camada de publicação.
-  readonly publicationFeatureReady = true;
-
-  private readonly confirmDeleteIdSubject = new BehaviorSubject<string | null>(null);
-  readonly confirmDeleteId$ = this.confirmDeleteIdSubject.asObservable();
-
-  private readonly deletingPhotoIdSubject = new BehaviorSubject<string | null>(null);
-  readonly deletingPhotoId$ = this.deletingPhotoIdSubject.asObservable();
-
-  private readonly publishingPhotoIdSubject = new BehaviorSubject<string | null>(null);
-  readonly publishingPhotoId$ = this.publishingPhotoIdSubject.asObservable();
-
-  private readonly savingDisplayDateIdSubject = new BehaviorSubject<string | null>(null);
-  readonly savingDisplayDateId$ = this.savingDisplayDateIdSubject.asObservable();
-
-  private readonly filterModeSubject = new BehaviorSubject<TProfilePhotoFilterMode>('all');
-  readonly filterMode$ = this.filterModeSubject.asObservable();
-
-  private readonly sortModeSubject = new BehaviorSubject<TProfilePhotoSortMode>('newest');
-  readonly sortMode$ = this.sortModeSubject.asObservable();
-
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
-  private debug(message: string, extra?: unknown): void {
-    this.privacyDebug.log('media', `ProfilePhotos: ${message}`, extra);
-  }
+  private readonly automaticPublicationAttempts = new Set<string>();
 
-  readonly canUsePhotoDate$: Observable<boolean> = this.currentUserStore.user$.pipe(
-    map((user) => this.hasPhotoDateAccess(user)),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  private readonly confirmDeleteIdSubject =
+    new BehaviorSubject<string | null>(null);
+  readonly confirmDeleteId$ = this.confirmDeleteIdSubject.asObservable();
 
-  readonly viewerUid$: Observable<string | null> = this.currentUserStore.user$.pipe(
-    map((u) => u?.uid ?? null),
-    distinctUntilChanged(),
-    tap((uid) =>
-      this.debug('viewerUid$', {
-        hasViewerUid: !!uid,
-      })
-    ),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  private readonly deletingPhotoIdSubject =
+    new BehaviorSubject<string | null>(null);
+  readonly deletingPhotoId$ = this.deletingPhotoIdSubject.asObservable();
+
+  private readonly publishingPhotoIdSubject =
+    new BehaviorSubject<string | null>(null);
+  readonly publishingPhotoId$ = this.publishingPhotoIdSubject.asObservable();
+
+  private readonly savingDisplayDateIdSubject =
+    new BehaviorSubject<string | null>(null);
+  readonly savingDisplayDateId$ =
+    this.savingDisplayDateIdSubject.asObservable();
+
+  private readonly sortModeSubject =
+    new BehaviorSubject<TProfilePhotoSortMode>('newest');
+  readonly sortMode$ = this.sortModeSubject.asObservable();
+
+  readonly canUsePhotoDate$: Observable<boolean> =
+    this.currentUserStore.user$.pipe(
+      map((user) => this.hasPhotoDateAccess(user)),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly viewerUid$: Observable<string | null> =
+    this.currentUserStore.user$.pipe(
+      map((user) => user?.uid ?? null),
+      distinctUntilChanged(),
+      tap((uid) =>
+        this.debug('viewerUid$', {
+          hasViewerUid: !!uid,
+        })
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly ownerUid$: Observable<string> = combineLatest([
     this.route.paramMap.pipe(
-      map((p) => p.get('id')),
+      map((params) => params.get('id')),
       distinctUntilChanged()
     ),
-    this.viewerUid$
+    this.viewerUid$,
   ]).pipe(
     map(([routeId, viewerUid]) => routeId ?? viewerUid ?? ''),
     distinctUntilChanged(),
     tap((id) =>
       this.debug('ownerUid$', {
         hasOwnerUid: !!id,
-        sameAsRouteOrSession: true,
       })
     ),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -193,35 +190,53 @@ export class ProfilePhotosComponent {
 
   readonly policyResult$: Observable<IMediaPolicyResult> = combineLatest([
     this.viewerUid$,
-    this.ownerUid$
+    this.ownerUid$,
   ]).pipe(
-    switchMap(([viewer, owner]) => (owner ? this.policy.canViewProfilePhotos$(viewer, owner) : of(DENY_UNKNOWN))),
-    tap((r) => this.debug('policyResult$', r)),
+    switchMap(([viewer, owner]) =>
+      owner
+        ? this.policy.canViewProfilePhotos$(viewer, owner)
+        : of(DENY_UNKNOWN)
+    ),
+    tap((result) => this.debug('policyResult$', result)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
   readonly canView$: Observable<boolean> = this.policyResult$.pipe(
-    map((r) => r.decision === 'ALLOW'),
+    map((result) => result.decision === 'ALLOW'),
     distinctUntilChanged()
   );
 
-  readonly photos$: Observable<IManageablePhotoItem[]> = combineLatest([this.ownerUid$, this.canView$]).pipe(
+  readonly photos$: Observable<IManageablePhotoItem[]> = combineLatest([
+    this.ownerUid$,
+    this.canView$,
+  ]).pipe(
     switchMap(([ownerUid, canView]) => {
-      if (!ownerUid || !canView) return of([] as IManageablePhotoItem[]);
+      if (!ownerUid || !canView) {
+        return of([] as IManageablePhotoItem[]);
+      }
+
       return this.mediaQuery.watchProfilePhotos$(ownerUid);
     }),
     tap((items) => this.debug('photos$', { count: items.length })),
-    catchError((err) => {
-      this.errorNotifier.showError(err);
+    catchError((error) => {
+      this.reportError('Erro ao carregar as fotos.', error, {
+        op: 'photos$',
+      });
       return of([] as IManageablePhotoItem[]);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly publicationConfigs$: Observable<Record<string, IPhotoPublicationConfig>> = this.ownerUid$.pipe(
+  readonly publicationConfigs$: Observable<
+    Record<string, IPhotoPublicationConfig>
+  > = this.ownerUid$.pipe(
     switchMap((ownerUid) => {
-      if (!ownerUid) return of({});
-      return this.mediaPublicationService.getPublicationConfigsByOwner$(ownerUid);
+      if (!ownerUid) {
+        return of({});
+      }
+
+      return this.mediaPublicationService
+        .getPublicationConfigsByOwner$(ownerUid);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -230,21 +245,20 @@ export class ProfilePhotosComponent {
     this.ownerUid$,
     this.photos$,
     this.publicationConfigs$,
-    this.filterMode$,
     this.sortMode$,
   ]).pipe(
-    map(([ownerUid, photos, publicationConfigs, filterMode, sortMode]) => {
+    map(([ownerUid, photos, publicationConfigs, sortMode]) => {
       const cards = photos.map((photo) => ({
         ...photo,
         publication:
           publicationConfigs[photo.id] ??
-          this.mediaPublicationService.buildDefaultConfig(ownerUid, photo.id),
+          this.mediaPublicationService.buildDefaultConfig(
+            ownerUid,
+            photo.id
+          ),
       }));
 
-      return this.sortPhotoCards(
-        this.filterPhotoCards(cards, filterMode),
-        sortMode
-      );
+      return this.sortPhotoCards(cards, sortMode);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -260,16 +274,12 @@ export class ProfilePhotosComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  setFilterMode(mode: TProfilePhotoFilterMode): void {
-    this.filterModeSubject.next(mode);
+  ngOnInit(): void {
+    this.startAutomaticPublicationReconciliation();
   }
 
   setSortMode(mode: TProfilePhotoSortMode): void {
     this.sortModeSubject.next(mode);
-  }
-
-  getFilterModeSnapshot(): TProfilePhotoFilterMode {
-    return this.filterModeSubject.value;
   }
 
   getSortModeSnapshot(): TProfilePhotoSortMode {
@@ -325,7 +335,9 @@ export class ProfilePhotosComponent {
       return;
     }
 
-    const nextDisplayDate = rawValue ? this.parseDateInputValue(rawValue) : null;
+    const nextDisplayDate = rawValue
+      ? this.parseDateInputValue(rawValue)
+      : null;
 
     if (rawValue && nextDisplayDate === null) {
       if (input) {
@@ -335,12 +347,18 @@ export class ProfilePhotosComponent {
       return;
     }
 
-    combineLatest([this.isOwner$, this.ownerUid$, this.savingDisplayDateId$])
+    combineLatest([
+      this.isOwner$,
+      this.ownerUid$,
+      this.savingDisplayDateId$,
+    ])
       .pipe(
         take(1),
         switchMap(([isOwner, ownerUid, savingDisplayDateId]) => {
           if (!isOwner || !ownerUid?.trim()) {
-            this.errorNotifier.showError('Você não tem permissão para organizar esta foto.');
+            this.errorNotifier.showError(
+              'Você não tem permissão para organizar esta foto.'
+            );
             return EMPTY;
           }
 
@@ -349,7 +367,9 @@ export class ProfilePhotosComponent {
           }
 
           if (!item.id?.trim()) {
-            this.errorNotifier.showWarning('Metadados insuficientes para atualizar a data.');
+            this.errorNotifier.showWarning(
+              'Metadados insuficientes para atualizar a data.'
+            );
             return EMPTY;
           }
 
@@ -362,7 +382,9 @@ export class ProfilePhotosComponent {
               nextDisplayDate
             )
           ).pipe(
-            tap(() => this.errorNotifier.showSuccess('Data da foto atualizada.')),
+            tap(() =>
+              this.errorNotifier.showSuccess('Data da foto atualizada.')
+            ),
             catchError((error) => {
               if (input) {
                 input.value = this.getDisplayDateInputValue(item);
@@ -378,7 +400,9 @@ export class ProfilePhotosComponent {
               );
               return EMPTY;
             }),
-            finalize(() => this.savingDisplayDateIdSubject.next(null))
+            finalize(() =>
+              this.savingDisplayDateIdSubject.next(null)
+            )
           );
         })
       )
@@ -387,117 +411,38 @@ export class ProfilePhotosComponent {
 
   notifyPhotoDateUpgrade(event?: Event): void {
     event?.stopPropagation();
-    this.errorNotifier.showWarning('Organização por data é um recurso para assinantes.');
-  }
-
-  private filterPhotoCards(
-    items: readonly IPhotoCardVm[],
-    mode: TProfilePhotoFilterMode
-  ): IPhotoCardVm[] {
-    switch (mode) {
-      case 'published':
-        return items.filter((item) => item.publication.isPublished);
-
-      case 'private':
-        return items.filter((item) => !item.publication.isPublished);
-
-      default:
-        return [...items];
-    }
-  }
-
-  private sortPhotoCards(
-    items: readonly IPhotoCardVm[],
-    mode: TProfilePhotoSortMode
-  ): IPhotoCardVm[] {
-    return [...items].sort((a, b) => {
-      const aSortDate = this.getPhotoSortDate(a);
-      const bSortDate = this.getPhotoSortDate(b);
-
-      return mode === 'oldest'
-        ? aSortDate - bSortDate
-        : bSortDate - aSortDate;
-    });
-  }
-
-  private getPhotoSortDate(item: IPhotoCardVm): number {
-    return this.toMillis(item.displayDate) || this.toMillis(item.createdAt);
-  }
-
-  private toMillis(value: unknown): number {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-
-    if (value instanceof Date) {
-      return value.getTime();
-    }
-
-    const maybeTimestamp = value as { toMillis?: () => number } | null | undefined;
-
-    if (typeof maybeTimestamp?.toMillis === 'function') {
-      return maybeTimestamp.toMillis();
-    }
-
-    return 0;
-  }
-
-  private parseDateInputValue(value: string): number | null {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-
-    if (!match) {
-      return null;
-    }
-
-    const year = Number(match[1]);
-    const month = Number(match[2]);
-    const day = Number(match[3]);
-
-    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-      return null;
-    }
-
-    if (year < 1970 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
-      return null;
-    }
-
-    const date = new Date(year, month - 1, day, 12, 0, 0, 0);
-
-    if (
-      date.getFullYear() !== year ||
-      date.getMonth() !== month - 1 ||
-      date.getDate() !== day
-    ) {
-      return null;
-    }
-
-    return date.getTime();
-  }
-
-  private hasPhotoDateAccess(user: TPhotoDateAccessUser | null | undefined): boolean {
-    if (!user?.monthlyPayer || user.subscriptionStatus !== 'active') {
-      return false;
-    }
-
-    return ['basic', 'premium', 'vip', 'admin'].includes(String(user.role ?? '').toLowerCase());
+    this.errorNotifier.showWarning(
+      'Organização por data é um recurso para assinantes.'
+    );
   }
 
   openUpload(ownerUid: string): void {
-    this.router.navigate(['/media', 'perfil', ownerUid, 'fotos', 'upload']).catch(() => {
-      this.errorNotifier.showError('Falha ao navegar para upload.');
-    });
+    this.router
+      .navigate(['/media', 'perfil', ownerUid, 'fotos', 'upload'])
+      .catch(() => {
+        this.errorNotifier.showError('Falha ao navegar para upload.');
+      });
   }
 
   openPhoto(targetId: string): void {
-    combineLatest([this.canView$, this.ownerUid$, this.photoCards$]).pipe(
+    combineLatest([
+      this.canView$,
+      this.ownerUid$,
+      this.photoCards$,
+    ]).pipe(
       take(1),
       switchMap(([canView, ownerUid, items]) => {
         if (!canView) {
-          this.errorNotifier.showError('Você não tem permissão para ver essas fotos.');
+          this.errorNotifier.showError(
+            'Você não tem permissão para ver essas fotos.'
+          );
           return EMPTY;
         }
 
-        const startIndex = Math.max(0, items.findIndex((i) => i.id === targetId));
+        const startIndex = Math.max(
+          0,
+          items.findIndex((item) => item.id === targetId)
+        );
 
         this.dialog.open(PhotoViewerComponent, {
           data: { ownerUid, items, startIndex },
@@ -507,14 +452,20 @@ export class ProfilePhotosComponent {
           height: '100vh',
           maxWidth: '100vw',
           maxHeight: '100vh',
-          panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
+          panelClass: [
+            'photo-viewer-dialog',
+            'photo-viewer-dialog--immersive',
+          ],
           backdropClass: 'photo-viewer-backdrop',
         });
 
         return EMPTY;
       }),
-      catchError((err) => {
-        this.errorNotifier.showError(err);
+      catchError((error) => {
+        this.reportError('Erro ao abrir a foto.', error, {
+          op: 'openPhoto',
+          targetId,
+        });
         return EMPTY;
       })
     ).subscribe();
@@ -527,12 +478,16 @@ export class ProfilePhotosComponent {
       .pipe(take(1))
       .subscribe(async ([isOwner, ownerUid]) => {
         if (!isOwner) {
-          this.errorNotifier.showError('Você não tem permissão para editar esta foto.');
+          this.errorNotifier.showError(
+            'Você não tem permissão para editar esta foto.'
+          );
           return;
         }
 
         if (!item.id?.trim() || !item.path?.trim() || !item.url?.trim()) {
-          this.errorNotifier.showError('Metadados insuficientes para editar esta foto.');
+          this.errorNotifier.showError(
+            'Metadados insuficientes para editar esta foto.'
+          );
           return;
         }
 
@@ -561,13 +516,18 @@ export class ProfilePhotosComponent {
 
           const payload = await modalRef.result;
 
-          if (!payload || payload.reason !== 'updateSuccess' || !payload.photo) {
+          if (
+            !payload ||
+            payload.reason !== 'updateSuccess' ||
+            !payload.photo
+          ) {
             return;
           }
 
-          this.errorNotifier.showSuccess('Foto atualizada com sucesso.');
+          this.errorNotifier.showSuccess(
+            'Foto atualizada e publicada com sucesso.'
+          );
         } catch (error) {
-          // dismiss do modal: não tratar como erro visível
           if (error !== 'close' && error !== 'dismiss') {
             this.reportError(
               'Erro ao abrir o editor da foto.',
@@ -598,11 +558,17 @@ export class ProfilePhotosComponent {
   confirmDelete(item: IPhotoCardVm, event?: Event): void {
     event?.stopPropagation();
 
-    combineLatest([this.isOwner$, this.ownerUid$, this.deletingPhotoId$])
+    combineLatest([
+      this.isOwner$,
+      this.ownerUid$,
+      this.deletingPhotoId$,
+    ])
       .pipe(take(1))
       .subscribe(([isOwner, ownerUid, deletingPhotoId]) => {
         if (!isOwner) {
-          this.errorNotifier.showError('Você não tem permissão para excluir esta foto.');
+          this.errorNotifier.showError(
+            'Você não tem permissão para excluir esta foto.'
+          );
           return;
         }
 
@@ -611,13 +577,21 @@ export class ProfilePhotosComponent {
         }
 
         if (!item.id?.trim() || !item.path?.trim()) {
-          this.errorNotifier.showWarning('Metadados insuficientes para excluir esta foto.');
+          this.errorNotifier.showWarning(
+            'Metadados insuficientes para excluir esta foto.'
+          );
           return;
         }
 
         this.deletingPhotoIdSubject.next(item.id);
 
-        from(this.photoFirestoreService.deletePhoto(ownerUid, item.id, item.path))
+        from(
+          this.photoFirestoreService.deletePhoto(
+            ownerUid,
+            item.id,
+            item.path
+          )
+        )
           .pipe(
             finalize(() => {
               this.deletingPhotoIdSubject.next(null);
@@ -638,9 +612,259 @@ export class ProfilePhotosComponent {
             })
           )
           .subscribe(() => {
-            this.errorNotifier.showSuccess('Foto excluída com sucesso.');
+            this.errorNotifier.showSuccess(
+              'Foto excluída definitivamente.'
+            );
           });
       });
+  }
+
+  /**
+   * Compatibilidade temporária com chamadas antigas.
+   * A experiência atual não permite converter foto publicada em arquivo privado.
+   */
+  publishPhoto(item: IPhotoCardVm, event?: Event): void {
+    event?.stopPropagation();
+
+    this.canManagePhotoPublication$()
+      .pipe(
+        switchMap(({ canManage, ownerUid }) => {
+          if (!canManage) {
+            this.errorNotifier.showError(
+              'Você não tem permissão para publicar esta foto.'
+            );
+            return EMPTY;
+          }
+
+          this.publishingPhotoIdSubject.next(item.id);
+
+          return this.publishPhotoForOwner$(
+            ownerUid,
+            item,
+            item.publication,
+            item.publication.isPublished === true
+          ).pipe(
+            tap(() =>
+              this.errorNotifier.showSuccess('Foto publicada com sucesso.')
+            ),
+            catchError((error) => {
+              this.reportError(
+                'Erro ao publicar a foto.',
+                error,
+                {
+                  op: 'publishPhoto',
+                  ownerUid,
+                  photoId: item.id,
+                }
+              );
+              return EMPTY;
+            }),
+            finalize(() =>
+              this.publishingPhotoIdSubject.next(null)
+            )
+          );
+        })
+      )
+      .subscribe();
+  }
+
+  /**
+   * @deprecated A retirada da plataforma deve ocorrer por exclusão definitiva.
+   */
+  unpublishPhoto(_item: IPhotoCardVm, event?: Event): void {
+    event?.stopPropagation();
+    this.errorNotifier.showWarning(
+      'Para retirar a foto do perfil e da plataforma, use Excluir.'
+    );
+  }
+
+  setCoverPhoto(item: IPhotoCardVm, event?: Event): void {
+    event?.stopPropagation();
+
+    this.canManagePhotoPublication$()
+      .pipe(
+        switchMap(({ canManage, ownerUid }) => {
+          if (!canManage) {
+            this.errorNotifier.showError(
+              'Você não tem permissão para definir a foto principal.'
+            );
+            return EMPTY;
+          }
+
+          if (!item.id?.trim()) {
+            this.errorNotifier.showWarning(
+              'Metadados insuficientes para definir a foto principal.'
+            );
+            return EMPTY;
+          }
+
+          this.publishingPhotoIdSubject.next(item.id);
+
+          return this.mediaPublicationService
+            .setCoverPhoto$(ownerUid, item.id)
+            .pipe(
+              tap(() =>
+                this.errorNotifier.showSuccess(
+                  'Foto principal atualizada.'
+                )
+              ),
+              catchError((error) => {
+                this.reportError(
+                  'Erro ao definir a foto principal.',
+                  error,
+                  {
+                    op: 'setCoverPhoto',
+                    ownerUid,
+                    photoId: item.id,
+                  }
+                );
+                return EMPTY;
+              }),
+              finalize(() =>
+                this.publishingPhotoIdSubject.next(null)
+              )
+            );
+        })
+      )
+      .subscribe();
+  }
+
+  private startAutomaticPublicationReconciliation(): void {
+    combineLatest([
+      this.isOwner$,
+      this.ownerUid$,
+      this.photos$,
+      this.publicationConfigs$,
+    ])
+      .pipe(
+        map(([isOwner, ownerUid, photos, publicationConfigs]) => {
+          if (!isOwner || !ownerUid) {
+            return [] as PendingPhotoPublication[];
+          }
+
+          return photos
+            .filter((photo) => {
+              const publication = publicationConfigs[photo.id];
+              const status = publication?.moderationStatus;
+              const needsPublication =
+                !publication ||
+                publication.isPublished !== true ||
+                status === 'PRIVATE' ||
+                status === 'PENDING_REVIEW';
+              const attemptKey = `${ownerUid}:${photo.id}`;
+
+              return (
+                needsPublication &&
+                !this.automaticPublicationAttempts.has(attemptKey)
+              );
+            })
+            .map((photo): PendingPhotoPublication => {
+              const existingPublication = publicationConfigs[photo.id];
+
+              return {
+                ownerUid,
+                photo,
+                publication:
+                  existingPublication ??
+                  this.mediaPublicationService.buildDefaultConfig(
+                    ownerUid,
+                    photo.id
+                  ),
+                preserveSettings:
+                  existingPublication?.isPublished === true,
+              };
+            });
+        }),
+        exhaustMap((pendingItems) =>
+          from(pendingItems).pipe(
+            concatMap(({
+              ownerUid,
+              photo,
+              publication,
+              preserveSettings,
+            }) => {
+              const attemptKey = `${ownerUid}:${photo.id}`;
+
+              if (this.automaticPublicationAttempts.has(attemptKey)) {
+                return EMPTY;
+              }
+
+              this.automaticPublicationAttempts.add(attemptKey);
+              this.publishingPhotoIdSubject.next(photo.id);
+
+              return this.publishPhotoForOwner$(
+                ownerUid,
+                photo,
+                publication,
+                preserveSettings
+              ).pipe(
+                catchError((error) => {
+                  this.reportError(
+                    'Não foi possível concluir a publicação automática de uma foto.',
+                    error,
+                    {
+                      op: 'automaticPublicationReconciliation',
+                      ownerUid,
+                      photoId: photo.id,
+                    }
+                  );
+                  return EMPTY;
+                }),
+                finalize(() =>
+                  this.publishingPhotoIdSubject.next(null)
+                )
+              );
+            })
+          )
+        ),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
+  private publishPhotoForOwner$(
+    ownerUid: string,
+    item: IManageablePhotoItem,
+    publication: IPhotoPublicationConfig,
+    preserveSettings: boolean
+  ): Observable<void> {
+    if (!item.id?.trim() || !item.url?.trim()) {
+      return EMPTY;
+    }
+
+    const commentsEnabled = preserveSettings
+      ? publication.commentsEnabled ?? true
+      : true;
+    const commentsPolicy = !commentsEnabled
+      ? 'OFF'
+      : preserveSettings && publication.commentsPolicy !== 'OFF'
+        ? publication.commentsPolicy
+        : 'EVERYONE';
+    const reactionsEnabled = preserveSettings
+      ? publication.reactionsEnabled ?? true
+      : true;
+
+    return this.mediaPublicationService.publishPhoto$({
+      ownerUid,
+      photo: {
+        id: item.id,
+        ownerUid,
+        url: item.url,
+        alt: item.alt,
+        createdAt: item.createdAt ?? Date.now(),
+        path: item.path,
+        fileName: item.fileName,
+      },
+      visibility: 'PUBLIC',
+      caption: preserveSettings ? publication.caption : null,
+      isCover: preserveSettings && publication.isCover,
+      orderIndex: preserveSettings
+        ? publication.orderIndex ?? 0
+        : 0,
+      commentsEnabled,
+      commentsPolicy,
+      reactionsEnabled,
+    });
   }
 
   private canManagePhotoPublication$(): Observable<{
@@ -656,168 +880,98 @@ export class ProfilePhotosComponent {
     );
   }
 
-  publishPhoto(item: IPhotoCardVm, event?: Event): void {
-    event?.stopPropagation();
+  private sortPhotoCards(
+    items: readonly IPhotoCardVm[],
+    mode: TProfilePhotoSortMode
+  ): IPhotoCardVm[] {
+    return [...items].sort((a, b) => {
+      const aSortDate = this.getPhotoSortDate(a);
+      const bSortDate = this.getPhotoSortDate(b);
 
-    if (!this.publicationFeatureReady) {
-      this.errorNotifier.showWarning(
-        'A publicação de fotos ainda está desabilitada até a camada pública estar pronta.'
-      );
-      return;
-    }
-
-    this.canManagePhotoPublication$()
-      .pipe(
-        switchMap(({ canManage, ownerUid }) => {
-          if (!canManage) {
-            this.errorNotifier.showError('Você não tem permissão para publicar esta foto.');
-            return EMPTY;
-          }
-
-          if (!item.id?.trim() || !item.url?.trim()) {
-            this.errorNotifier.showWarning('Metadados insuficientes para publicar esta foto.');
-            return EMPTY;
-          }
-
-          this.publishingPhotoIdSubject.next(item.id);
-
-          return this.mediaPublicationService.publishPhoto$({
-            ownerUid,
-            photo: {
-              id: item.id,
-              ownerUid,
-              url: item.url,
-              alt: item.alt,
-              createdAt: item.createdAt ?? Date.now(),
-              path: item.path,
-              fileName: item.fileName,
-            },
-            visibility: 'PUBLIC',
-            isCover: !!item.publication.isCover,
-            orderIndex: item.publication.orderIndex ?? 0,
-            commentsEnabled: true,
-            commentsPolicy: 'EVERYONE',
-            reactionsEnabled: true,
-          }).pipe(
-            tap(() => {
-              this.errorNotifier.showSuccess('Foto publicada com sucesso.');
-            }),
-            catchError((error) => {
-              this.reportError(
-                'Erro ao publicar a foto.',
-                error,
-                {
-                  op: 'publishPhoto',
-                  ownerUid,
-                  photoId: item.id,
-                }
-              );
-
-              return EMPTY;
-            }),
-            finalize(() => this.publishingPhotoIdSubject.next(null))
-          );
-        })
-      )
-      .subscribe();
+      return mode === 'oldest'
+        ? aSortDate - bSortDate
+        : bSortDate - aSortDate;
+    });
   }
 
-  unpublishPhoto(item: IPhotoCardVm, event?: Event): void {
-    event?.stopPropagation();
-
-    if (!this.publicationFeatureReady) {
-      this.errorNotifier.showWarning(
-        'A publicação de fotos ainda está desabilitada até a camada pública estar pronta.'
-      );
-      return;
-    }
-
-    this.canManagePhotoPublication$()
-      .pipe(
-        switchMap(({ canManage, ownerUid }) => {
-          if (!canManage) {
-            this.errorNotifier.showError('Você não tem permissão para despublicar esta foto.');
-            return EMPTY;
-          }
-
-          if (!item.id?.trim()) {
-            this.errorNotifier.showWarning('Metadados insuficientes para despublicar esta foto.');
-            return EMPTY;
-          }
-
-          this.publishingPhotoIdSubject.next(item.id);
-
-          return this.mediaPublicationService.unpublishPhoto$(ownerUid, item.id).pipe(
-            tap(() => {
-              this.errorNotifier.showSuccess('Foto despublicada com sucesso.');
-            }),
-            catchError((error) => {
-              this.reportError(
-                'Erro ao despublicar a foto.',
-                error,
-                {
-                  op: 'unpublishPhoto',
-                  ownerUid,
-                  photoId: item.id,
-                }
-              );
-
-              return EMPTY;
-            }),
-            finalize(() => this.publishingPhotoIdSubject.next(null))
-          );
-        })
-      )
-      .subscribe();
+  private getPhotoSortDate(item: IPhotoCardVm): number {
+    return this.toMillis(item.displayDate) || this.toMillis(item.createdAt);
   }
 
-  setCoverPhoto(item: IPhotoCardVm, event?: Event): void {
-    event?.stopPropagation();
-
-    if (!this.publicationFeatureReady) {
-      this.errorNotifier.showWarning(
-        'A publicação de fotos ainda está desabilitada até a camada pública estar pronta.'
-      );
-      return;
+  private toMillis(value: unknown): number {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
     }
 
-    this.canManagePhotoPublication$()
-      .pipe(
-        switchMap(({ canManage, ownerUid }) => {
-          if (!canManage) {
-            this.errorNotifier.showError('Você não tem permissão para definir capa.');
-            return EMPTY;
-          }
+    if (value instanceof Date) {
+      return value.getTime();
+    }
 
-          if (!item.id?.trim()) {
-            this.errorNotifier.showWarning('Metadados insuficientes para definir capa.');
-            return EMPTY;
-          }
+    const maybeTimestamp = value as
+      | { toMillis?: () => number }
+      | null
+      | undefined;
 
-          this.publishingPhotoIdSubject.next(item.id);
+    if (typeof maybeTimestamp?.toMillis === 'function') {
+      return maybeTimestamp.toMillis();
+    }
 
-          return this.mediaPublicationService.setCoverPhoto$(ownerUid, item.id).pipe(
-            tap(() => {
-              this.errorNotifier.showSuccess('Foto de capa atualizada.');
-            }),
-            catchError((error) => {
-              this.reportError(
-                'Erro ao definir foto de capa.',
-                error,
-                {
-                  op: 'setCoverPhoto',
-                  ownerUid,
-                  photoId: item.id,
-                }
-              );
+    return 0;
+  }
 
-              return EMPTY;
-            }),
-            finalize(() => this.publishingPhotoIdSubject.next(null))
-          );
-        })
-      )
-      .subscribe();
+  private parseDateInputValue(value: string): number | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+    if (!match) {
+      return null;
+    }
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+
+    if (
+      !Number.isInteger(year) ||
+      !Number.isInteger(month) ||
+      !Number.isInteger(day)
+    ) {
+      return null;
+    }
+
+    if (
+      year < 1970 ||
+      year > 2100 ||
+      month < 1 ||
+      month > 12 ||
+      day < 1 ||
+      day > 31
+    ) {
+      return null;
+    }
+
+    const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return date.getTime();
+  }
+
+  private hasPhotoDateAccess(
+    user: TPhotoDateAccessUser | null | undefined
+  ): boolean {
+    if (!user?.monthlyPayer || user.subscriptionStatus !== 'active') {
+      return false;
+    }
+
+    return ['basic', 'premium', 'vip', 'admin'].includes(
+      String(user.role ?? '').toLowerCase()
+    );
   }
 
   private reportError(
@@ -828,27 +982,39 @@ export class ProfilePhotosComponent {
     try {
       this.errorNotifier.showError(userMessage);
     } catch {
-      // noop
+      // A notificação não pode interromper o fluxo de erro.
     }
 
     try {
-      const err = error instanceof Error ? error : new Error(userMessage);
-      (err as any).original = error;
-      (err as any).context = {
+      const normalizedError =
+        error instanceof Error ? error : new Error(userMessage);
+      (normalizedError as any).original = error;
+      (normalizedError as any).context = {
         scope: 'ProfilePhotosComponent',
         ...(context ?? {}),
       };
-      (err as any).skipUserNotification = true;
-      this.errorHandler.handleError(err);
+      (normalizedError as any).skipUserNotification = true;
+      this.errorHandler.handleError(normalizedError);
     } catch {
-      // noop
+      // A telemetria não pode quebrar a interface.
     }
 
     this.debug('reportError', {
       userMessage,
       op: context?.['op'] ?? 'unknown',
       hasContext: !!context,
-      errorMessage: error instanceof Error ? error.message : String(error ?? ''),
+      errorMessage:
+        error instanceof Error
+          ? error.message
+          : String(error ?? ''),
     });
+  }
+
+  private debug(message: string, extra?: unknown): void {
+    this.privacyDebug.log(
+      'media',
+      `ProfilePhotos: ${message}`,
+      extra
+    );
   }
 }

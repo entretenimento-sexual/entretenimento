@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 // Callable administrativa para preencher em public_profiles:
 // - identidade normalizada e reciprocidade;
-// - idade pública adulta;
+// - idade e descrição públicas;
 // - intenções, práticas e características autorizadas pelo proprietário.
 //
 // Não é executada automaticamente. O fluxo operacional recomendado continua:
@@ -17,6 +17,7 @@ import { FieldValue, db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
 import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
+import { normalizePublicProfileDescription } from './public-profile-description';
 import { buildPublicPreferenceProjection } from './public-preference-projection';
 
 interface BackfillPublicProfileDiscoveryRequest {
@@ -170,6 +171,9 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
             interestedInOrientations: canonical.interestedInOrientations,
             compatibilityReady: canonical.compatibilityReady,
             age: normalizePublicAge(user['idade'] ?? user['age']),
+            descricao: normalizePublicProfileDescription(
+              user['descricao'] ?? user['description'] ?? user['bio']
+            ),
             ...publicPreferences,
             discoveryNormalizedAt: FieldValue.serverTimestamp(),
             publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),

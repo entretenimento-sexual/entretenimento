@@ -3,6 +3,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { db, FieldValue } from '../firebaseApp';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
 import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
+import { normalizePublicProfileDescription } from './public-profile-description';
 import {
   buildPublicPreferenceProjection,
   publicPreferenceProjectionMatches,
@@ -27,6 +28,9 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
     const user = after.data() ?? {};
     const canonical = normalizeProfileDiscoveryFields(user);
     const age = normalizePublicAge(user['idade'] ?? user['age']);
+    const descricao = normalizePublicProfileDescription(
+      user['descricao'] ?? user['description'] ?? user['bio']
+    );
     const publicPreferences = buildPublicPreferenceProjection(
       preferenceSnapshot.exists ? (preferenceSnapshot.data() ?? {}) : null,
       { canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic') }
@@ -36,6 +40,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
     if (
       publicProfileDiscoveryProjectionMatches(currentPublic, canonical) &&
       (currentPublic['age'] ?? null) === age &&
+      (currentPublic['descricao'] ?? null) === descricao &&
       publicPreferenceProjectionMatches(currentPublic, publicPreferences)
     ) return;
 
@@ -47,6 +52,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         interestedInOrientations: canonical.interestedInOrientations,
         compatibilityReady: canonical.compatibilityReady,
         age,
+        descricao,
         ...publicPreferences,
         discoveryNormalizedAt: FieldValue.serverTimestamp(),
         publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),

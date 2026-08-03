@@ -13,12 +13,12 @@ import { OtherUserProfileViewComponent } from './other-user-profile-view.compone
 import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
-import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { FriendshipService } from '../../core/services/interactions/friendship/friendship.service';
 import { MediaPublicQueryService } from '../../core/services/media/media-public-query.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
+import { PublicProfileViewService } from '../../core/services/user-profile/public-profile-view.service';
 import { UserSocialLinksService } from '../../core/services/user-profile/user-social-links.service';
 import { DirectChatService } from '../../messaging/direct-chat/services/direct-chat.service';
 import { SocialLinksAccordionComponent } from '../../user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
@@ -56,9 +56,9 @@ describe('OtherUserProfileViewComponent', () => {
           },
         },
         {
-          provide: FirestoreUserQueryService,
+          provide: PublicProfileViewService,
           useValue: {
-            getPublicUserById$: vi.fn(() =>
+            watchProfile$: vi.fn(() =>
               of({
                 uid: targetUid,
                 nickname: 'Pessoa alvo',
@@ -66,15 +66,21 @@ describe('OtherUserProfileViewComponent', () => {
                 photoURL: 'https://example.test/profile.jpg',
                 role: 'premium',
                 lastLogin: Date.now(),
+                createdAt: new Date('2022-01-01T00:00:00Z').getTime(),
                 descricao: 'Descrição direta do perfil.',
                 isSubscriber: true,
                 isOnline: true,
                 gender: 'Mulher',
+                age: 32,
                 idade: 32,
                 orientation: 'bissexual',
                 estado: 'RJ',
                 municipio: 'Rio de Janeiro',
                 distanciaKm: 8,
+                preferenceBadgesVisible: true,
+                publicRelationshipIntents: ['dating', 'swing'],
+                publicSexualPractices: ['bdsm', 'voyeurism'],
+                publicBodyTraits: ['tattoos', 'curvy'],
                 preferences: ['Encontros', 'Casais'],
               })
             ),
@@ -198,56 +204,84 @@ describe('OtherUserProfileViewComponent', () => {
     expect(notifier.showError).not.toHaveBeenCalled();
   });
 
-  it('organiza conteúdo público em coluna principal e informações laterais', () => {
-    const content = fixture.debugElement.query(
-      By.css('.other-profile-page__content')
+  it('mantém a vitrine pública como conteúdo principal sem coluna lateral desconectada', () => {
+    const main = fixture.debugElement.query(
+      By.css('.other-profile-page__main')
     ).nativeElement as HTMLElement;
-    const main = content.querySelector(
-      '.other-profile-page__main'
-    ) as HTMLElement;
-    const sidebar = content.querySelector(
-      '.other-profile-page__sidebar'
-    ) as HTMLElement;
     const showcase = main.querySelector('app-profile-media-showcase');
 
-    expect(main).toBeTruthy();
-    expect(sidebar).toBeTruthy();
     expect(showcase).toBeTruthy();
     expect(main.getAttribute('aria-label')).toBe('Conteúdo público do perfil');
-    expect(sidebar.getAttribute('aria-label')).toBe(
-      'Informações públicas do perfil'
-    );
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__content'))
+    ).toBeNull();
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__sidebar'))
+    ).toBeNull();
   });
 
-  it('move descrição e localização para Sobre sem duplicar no hero', () => {
+  it('exibe todos os dados rápidos uma única vez no cartão principal', () => {
     const hero = fixture.debugElement.query(
       By.css('.other-profile-page__hero')
     ).nativeElement as HTMLElement;
-    const about = fixture.debugElement.query(
-      By.css('.other-profile-page__about')
-    ).nativeElement as HTMLElement;
+    const quickFacts = fixture.debugElement.queryAll(
+      By.css('.other-profile-page__quick-facts li')
+    );
 
-    expect(hero.textContent).not.toContain('Descrição direta do perfil.');
-    expect(hero.textContent).not.toContain('Rio de Janeiro, RJ');
-    expect(about.textContent).toContain('Sobre');
-    expect(about.textContent).toContain('Descrição direta do perfil.');
-    expect(about.textContent).toContain('Rio de Janeiro, RJ');
-    expect(about.textContent).toContain('8 km');
+    expect(hero.textContent).toContain('Descrição direta do perfil.');
+    expect(hero.textContent).toContain('Mulher');
+    expect(hero.textContent).toContain('32 anos');
+    expect(hero.textContent).toContain('Bissexual');
+    expect(hero.textContent).toContain('Rio de Janeiro, RJ');
+    expect(hero.textContent).toContain('8 km');
+    expect(hero.textContent).toContain('Desde 2022');
+    expect(quickFacts).toHaveLength(6);
+
+    for (const fact of quickFacts) {
+      expect(fact.attributes['aria-label']).toBeTruthy();
+      expect(fact.query(By.css('i'))).toBeTruthy();
+    }
+
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__overview'))
+    ).toBeNull();
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__info-card'))
+    ).toBeNull();
   });
 
-  it('mantém afinidades declaradas na coluna lateral sem cartões de sinais', () => {
-    const sidebar = fixture.debugElement.query(
-      By.css('.other-profile-page__sidebar')
+  it('integra preferências ao cartão principal sem títulos visuais redundantes', () => {
+    const hero = fixture.debugElement.query(
+      By.css('.other-profile-page__hero')
     ).nativeElement as HTMLElement;
-    const affinityText = fixture.debugElement.query(
-      By.css('.other-profile-page__affinities')
-    ).nativeElement.textContent as string;
+    const details = fixture.debugElement.query(
+      By.css('.other-profile-page__details')
+    );
+    const groups = fixture.debugElement.queryAll(
+      By.css('.other-profile-page__detail-group')
+    );
 
-    expect(sidebar.textContent).toContain('Afinidades');
-    expect(affinityText).toContain('Encontros');
-    expect(affinityText).toContain('Casais');
+    expect(details).toBeTruthy();
+    expect(hero.textContent).toContain('Conhecer pessoas');
+    expect(hero.textContent).toContain('Swing');
+    expect(hero.textContent).toContain('BDSM');
+    expect(hero.textContent).toContain('Voyeurismo');
+    expect(hero.textContent).toContain('Tatuagens');
+    expect(hero.textContent).toContain('Curvilíneo');
+    expect(hero.textContent).toContain('Encontros');
+    expect(hero.textContent).toContain('Casais');
+    expect(groups).toHaveLength(4);
+
+    for (const group of groups) {
+      expect(group.attributes['aria-label']).toBeTruthy();
+      expect(group.query(By.css('.other-profile-page__detail-icon i'))).toBeTruthy();
+    }
+
     expect(
-      fixture.debugElement.query(By.css('.other-profile-page__signal'))
+      fixture.debugElement.query(By.css('.other-profile-page__details h2:not(.sr-only)'))
+    ).toBeNull();
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__details h3'))
     ).toBeNull();
   });
 
@@ -265,16 +299,19 @@ describe('OtherUserProfileViewComponent', () => {
     expect(socialLinks.nativeElement.hasAttribute('hidden')).toBe(true);
   });
 
-  it('não inventa publicações nem repete segurança ou promoção de planos', () => {
+  it('não expõe dados privados nem inventa promoções de plano', () => {
     const text = fixture.nativeElement.textContent as string;
 
-    expect(text).not.toContain('Publicações recentes');
+    expect(text).not.toContain('viewer@example.test');
     expect(text).not.toContain('Dados básicos');
     expect(text).not.toContain('Interagir com segurança');
     expect(text).not.toContain('Assinantes recebem');
     expect(text).not.toContain('Em destaque');
     expect(
       fixture.debugElement.query(By.css('.other-profile-page__actions-card'))
+    ).toBeNull();
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__section-heading'))
     ).toBeNull();
   });
 });

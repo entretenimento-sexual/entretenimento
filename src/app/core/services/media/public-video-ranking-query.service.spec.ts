@@ -184,4 +184,18 @@ describe('PublicVideoRankingQueryService', () => {
       hasMore: false,
     });
   });
+
+  it('propaga o erro para superfícies agregadoras sem notificação duplicada', async () => {
+    const failure = new Error('firestore unavailable');
+    const context = createService({ gatewayError: failure });
+
+    await expect(firstValueFrom(context.service.loadPage$({
+      mode: 'latest',
+      notifyOnError: false,
+      propagateErrors: true,
+    }))).rejects.toBe(failure);
+
+    expect(context.errorNotifier.showError).not.toHaveBeenCalled();
+    expect(context.errorHandler.handleError).toHaveBeenCalledTimes(1);
+  });
 });

@@ -1,0 +1,262 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.public-video-feed-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 1.25rem;
+  background: var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 0.75rem 2rem rgb(0 0 0 / 14%));
+}
+
+.public-video-feed-card__owner {
+  padding: 0.85rem 0.95rem 0.75rem;
+}
+
+.public-video-feed-card__owner-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.public-video-feed-card__owner-link:focus-visible,
+.public-video-feed-card__preview:focus-visible {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
+}
+
+.public-video-feed-card__owner-link:focus-visible {
+  border-radius: 0.75rem;
+}
+
+.public-video-feed-card__avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 16%));
+  border-radius: 50%;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 16%,
+    var(--surface-color, #101923)
+  );
+  font-weight: 850;
+}
+
+.public-video-feed-card__avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.public-video-feed-card__identity {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.public-video-feed-card__identity strong,
+.public-video-feed-card__identity small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-video-feed-card__identity strong {
+  font-size: 0.92rem;
+}
+
+.public-video-feed-card__identity small {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  font-size: 0.76rem;
+}
+
+.public-video-feed-card__preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: #05070d;
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.public-video-feed-card__preview:focus-visible {
+  outline-offset: -3px;
+}
+
+.public-video-feed-card__preview img,
+.public-video-feed-card__placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.public-video-feed-card__preview img {
+  object-fit: cover;
+  object-position: center;
+  transition: filter 180ms ease, transform 180ms ease;
+}
+
+.public-video-feed-card__preview:hover img,
+.public-video-feed-card__preview:focus-visible img {
+  filter: brightness(1.06);
+  transform: scale(1.02);
+}
+
+.public-video-feed-card__placeholder {
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(
+      circle at 50% 42%,
+      color-mix(in oklab, var(--primary-color, #ff6b6b) 18%, transparent),
+      transparent 45%
+    ),
+    #080d14;
+  color: rgb(255 255 255 / 72%);
+  font-size: clamp(2rem, 9vw, 3.4rem);
+}
+
+.public-video-feed-card__shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 52%, rgb(0 0 0 / 58%));
+  pointer-events: none;
+}
+
+.public-video-feed-card__play {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  display: grid;
+  place-items: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  border: 1px solid rgb(255 255 255 / 32%);
+  border-radius: 50%;
+  background: rgb(0 0 0 / 52%);
+  backdrop-filter: blur(9px);
+  transform: translate(-50%, -50%);
+  transition: background-color 160ms ease, transform 160ms ease;
+  pointer-events: none;
+}
+
+.public-video-feed-card__play i {
+  transform: translateX(0.1rem);
+}
+
+.public-video-feed-card__preview:hover .public-video-feed-card__play,
+.public-video-feed-card__preview:focus-visible .public-video-feed-card__play {
+  background: var(--primary-color, #ff6b6b);
+  transform: translate(-50%, -50%) scale(1.05);
+}
+
+.public-video-feed-card__duration {
+  position: absolute;
+  right: 0.65rem;
+  bottom: 0.65rem;
+  min-height: 1.65rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 62%);
+  font-size: 0.72rem;
+  font-weight: 820;
+  line-height: 1;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+.public-video-feed-card__body {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.9rem 0.95rem 1rem;
+}
+
+.public-video-feed-card__body h2,
+.public-video-feed-card__body p {
+  margin: 0;
+}
+
+.public-video-feed-card__body h2 {
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1rem, 0.94rem + 0.25vw, 1.12rem);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.public-video-feed-card__body p {
+  display: -webkit-box;
+  overflow: hidden;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.public-video-feed-card__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.9rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, rgb(255 255 255 / 12%)) 72%,
+    transparent
+  );
+}
+
+.public-video-feed-card__metrics > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+}
+
+@media (max-width: 420px) {
+  .public-video-feed-card {
+    border-radius: 1rem;
+  }
+
+  .public-video-feed-card__owner,
+  .public-video-feed-card__body {
+    padding-inline: 0.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-video-feed-card__preview img,
+  .public-video-feed-card__play {
+    transition: none;
+  }
+}
+
+html.high-contrast .public-video-feed-card,
+html.high-contrast .public-video-feed-card__avatar,
+html.high-contrast .public-video-feed-card__play,
+html.high-contrast .public-video-feed-card__duration,
+html.high-contrast .public-video-feed-card__metrics {
+  border-color: currentColor !important;
+  box-shadow: none !important;
+}

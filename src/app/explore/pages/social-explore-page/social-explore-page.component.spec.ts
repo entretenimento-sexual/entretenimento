@@ -25,6 +25,8 @@ const EMPTY_VM = {
   mostViewedPhotos: [],
   topPhotos: [],
   latestPhotos: [],
+  featuredVideos: [],
+  featuredVideoMode: 'latest' as const,
   sections: [],
   compatibleProfiles: [
     {

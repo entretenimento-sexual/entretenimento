@@ -4,9 +4,9 @@
 // -----------------------------------------------------------------------------
 //
 // Responsabilidade:
-// - Exibir outro usuário como vitrine de descoberta.
-// - Priorizar mídia pública, identidade, afinidades e interação.
-// - Consumir somente a projeção pública moderada.
+// - Exibir outro usuário como vitrine pública completa.
+// - Priorizar identidade, dados públicos autorizados, mídias e interação.
+// - Consumir somente projeções públicas e políticas de acesso especializadas.
 // - Manter amizade, chat, erro global e debug fora da camada visual.
 
 import { CommonModule } from '@angular/common';
@@ -42,12 +42,12 @@ import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import { PublicProfileViewService } from 'src/app/core/services/user-profile/public-profile-view.service';
 import { ProfileMediaShowcaseComponent } from 'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component';
 import { SocialLinksAccordionComponent } from 'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
 import { SharedModule } from '../../shared/shared.module';
@@ -62,6 +62,52 @@ interface FriendshipInteractionState {
 }
 
 const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
+
+const RELATIONSHIP_INTENT_LABELS: Readonly<Record<string, string>> = {
+  friendship: 'Amizade',
+  casual: 'Encontros casuais',
+  dating: 'Conhecer pessoas',
+  serious: 'Relacionamento sério',
+  open_relationship: 'Relacionamento aberto',
+  polyamory: 'Poliamor',
+  swing: 'Swing',
+  fetish_exploration: 'Explorar fetiches',
+};
+
+const SEXUAL_PRACTICE_LABELS: Readonly<Record<string, string>> = {
+  vanilla: 'Sexo convencional',
+  bdsm: 'BDSM',
+  voyeurism: 'Voyeurismo',
+  exhibitionism: 'Exibicionismo',
+  swing: 'Swing',
+  menage: 'Ménage',
+  group_sex: 'Sexo em grupo',
+  roleplay: 'Fantasias e personagens',
+  tantra: 'Tantra',
+  dom_sub: 'Dominação e submissão',
+  outdoor: 'Ao ar livre',
+  fetishes: 'Fetiches',
+  edge_play: 'Práticas intensas',
+  shibari: 'Shibari',
+  cuckold: 'Cuckold',
+  pegging: 'Pegging',
+  sensory_play: 'Experiências sensoriais',
+  dirty_talk: 'Dirty talk',
+};
+
+const BODY_TRAIT_LABELS: Readonly<Record<string, string>> = {
+  athletic: 'Atlético',
+  plus_size: 'Plus size',
+  tattoos: 'Tatuagens',
+  piercings: 'Piercings',
+  beard: 'Barba',
+  long_hair: 'Cabelos longos',
+  curly_hair: 'Cabelos cacheados',
+  light_eyes: 'Olhos claros',
+  muscular: 'Musculoso',
+  slim: 'Magro',
+  curvy: 'Curvilíneo',
+};
 
 @Component({
   selector: 'app-other-user-profile-view',
@@ -95,7 +141,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   constructor(
     private readonly route: ActivatedRoute,
     private readonly router: Router,
-    private readonly firestoreUserQuery: FirestoreUserQueryService,
+    private readonly publicProfileView: PublicProfileViewService,
     private readonly authSession: AuthSessionService,
     private readonly friendshipService: FriendshipService,
     private readonly directChatService: DirectChatService,
@@ -185,15 +231,101 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     return ['/dashboard/explorar'];
   }
 
+  get profileAge(): number | null {
+    const value = this.userProfile?.idade ?? this.userProfile?.age;
+    return typeof value === 'number' && Number.isFinite(value)
+      ? Math.trunc(value)
+      : null;
+  }
+
+  get distanceLabel(): string | null {
+    const distance = this.userProfile?.distanciaKm;
+
+    if (typeof distance !== 'number' || !Number.isFinite(distance)) {
+      return null;
+    }
+
+    if (distance < 1) {
+      return 'Menos de 1 km';
+    }
+
+    return `${Math.round(distance)} km`;
+  }
+
+  get memberSinceLabel(): string | null {
+    const createdAt = this.userProfile?.createdAt;
+
+    if (typeof createdAt !== 'number' || !Number.isFinite(createdAt)) {
+      return null;
+    }
+
+    const year = new Date(createdAt).getFullYear();
+    return year >= 2000 ? `Desde ${year}` : null;
+  }
+
+  get orientationLabel(): string | null {
+    const orientation = this.userProfile?.orientation?.trim();
+    if (orientation) {
+      return this.toDisplayLabel(orientation);
+    }
+
+    const partner1 = this.userProfile?.partner1Orientation?.trim();
+    const partner2 = this.userProfile?.partner2Orientation?.trim();
+    const labels = [partner1, partner2]
+      .filter((value): value is string => !!value)
+      .map((value) => this.toDisplayLabel(value));
+
+    return labels.length > 0 ? labels.join(' / ') : null;
+  }
+
   get hasPreferenceChips(): boolean {
     return this.preferenceChips.length > 0;
   }
 
   get preferenceChips(): string[] {
-    return (this.userProfile?.preferences ?? [])
-      .map((item) => String(item ?? '').trim())
-      .filter(Boolean)
-      .slice(0, 8);
+    return this.toUniqueLabels(this.userProfile?.preferences ?? []).slice(0, 12);
+  }
+
+  get relationshipIntentChips(): string[] {
+    if (this.userProfile?.preferenceBadgesVisible !== true) {
+      return [];
+    }
+
+    return this.toMappedLabels(
+      this.userProfile.publicRelationshipIntents,
+      RELATIONSHIP_INTENT_LABELS
+    );
+  }
+
+  get sexualPracticeChips(): string[] {
+    if (this.userProfile?.preferenceBadgesVisible !== true) {
+      return [];
+    }
+
+    return this.toMappedLabels(
+      this.userProfile.publicSexualPractices,
+      SEXUAL_PRACTICE_LABELS
+    );
+  }
+
+  get bodyTraitChips(): string[] {
+    if (this.userProfile?.preferenceBadgesVisible !== true) {
+      return [];
+    }
+
+    return this.toMappedLabels(
+      this.userProfile.publicBodyTraits,
+      BODY_TRAIT_LABELS
+    );
+  }
+
+  get hasProfileDetails(): boolean {
+    return (
+      this.hasPreferenceChips ||
+      this.relationshipIntentChips.length > 0 ||
+      this.sexualPracticeChips.length > 0 ||
+      this.bodyTraitChips.length > 0
+    );
   }
 
   onProfilePhotoError(): void {
@@ -229,8 +361,8 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       hasUid: true,
     });
 
-    this.firestoreUserQuery
-      .getPublicUserById$(safeUid)
+    this.publicProfileView
+      .watchProfile$(safeUid)
       .pipe(
         catchError((error: unknown) => {
           this.reportError(
@@ -244,13 +376,11 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
           return of(null);
         }),
-        finalize(() => {
-          this.isLoading = false;
-          this.markView();
-        }),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((profile: IUserDados | null) => {
+        this.isLoading = false;
+
         if (!profile) {
           this.userProfile = null;
 
@@ -275,6 +405,13 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
           hasProfile: true,
           hasNickname: !!this.userProfile.nickname,
           hasPhoto: !!this.userProfile.photoURL,
+          hasDescription: this.hasDescription,
+          hasDistance: !!this.distanceLabel,
+          publicDetailChipCount:
+            this.preferenceChips.length +
+            this.relationshipIntentChips.length +
+            this.sexualPracticeChips.length +
+            this.bodyTraitChips.length,
         });
 
         this.markView();
@@ -519,6 +656,38 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       this.route.snapshot.paramMap.get('id');
 
     return uid?.trim() || null;
+  }
+
+  private toMappedLabels(
+    values: readonly string[] | null | undefined,
+    labels: Readonly<Record<string, string>>
+  ): string[] {
+    return this.toUniqueLabels(values).map(
+      (value) => labels[value.toLowerCase()] ?? this.toDisplayLabel(value)
+    );
+  }
+
+  private toUniqueLabels(
+    values: readonly string[] | null | undefined
+  ): string[] {
+    return Array.from(
+      new Set(
+        (values ?? [])
+          .map((value) => String(value ?? '').trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  private toDisplayLabel(value: string): string {
+    const normalized = String(value ?? '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return normalized
+      ? normalized.charAt(0).toUpperCase() + normalized.slice(1)
+      : '';
   }
 
   private markView(): void {

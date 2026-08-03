@@ -59,31 +59,60 @@
           }
         </div>
 
-        <p class="other-profile-page__meta" aria-label="Informações do perfil">
+        <ul
+          class="other-profile-page__quick-facts"
+          [attr.aria-label]="'Informações públicas de ' + displayName"
+        >
           @if (profile.gender) {
-            <span>{{ profile.gender | titlecase }}</span>
+            <li [attr.aria-label]="'Gênero: ' + (profile.gender | titlecase)">
+              <i class="fas fa-user" aria-hidden="true"></i>
+              <span>{{ profile.gender | titlecase }}</span>
+            </li>
           }
 
-          @if (profile.idade) {
-            <span>{{ profile.idade }} anos</span>
+          @if (profileAge !== null) {
+            <li [attr.aria-label]="'Idade: ' + profileAge + ' anos'">
+              <i class="fas fa-cake-candles" aria-hidden="true"></i>
+              <span>{{ profileAge }} anos</span>
+            </li>
           }
 
-          @if (profile.orientation) {
-            <span>{{ profile.orientation | titlecase }}</span>
-          } @else if (profile.partner1Orientation || profile.partner2Orientation) {
-            <span>
-              @if (profile.partner1Orientation) {
-                {{ profile.partner1Orientation | titlecase }}
-              }
-              @if (profile.partner1Orientation && profile.partner2Orientation) {
-                /
-              }
-              @if (profile.partner2Orientation) {
-                {{ profile.partner2Orientation | titlecase }}
-              }
-            </span>
+          @if (orientationLabel) {
+            <li [attr.aria-label]="'Orientação: ' + orientationLabel">
+              <i class="fas fa-compass" aria-hidden="true"></i>
+              <span>{{ orientationLabel }}</span>
+            </li>
           }
-        </p>
+
+          @if (hasLocation) {
+            <li
+              [attr.aria-label]="'Localização: ' + profile.municipio + ', ' + profile.estado"
+            >
+              <i class="fas fa-location-dot" aria-hidden="true"></i>
+              <span>{{ profile.municipio }}, {{ profile.estado }}</span>
+            </li>
+          }
+
+          @if (distanceLabel) {
+            <li [attr.aria-label]="'Distância: ' + distanceLabel + ' de você'">
+              <i class="fas fa-route" aria-hidden="true"></i>
+              <span>{{ distanceLabel }}</span>
+            </li>
+          }
+
+          @if (memberSinceLabel) {
+            <li [attr.aria-label]="'Participação: ' + memberSinceLabel">
+              <i class="fas fa-calendar-check" aria-hidden="true"></i>
+              <span>{{ memberSinceLabel }}</span>
+            </li>
+          }
+        </ul>
+
+        @if (hasDescription) {
+          <p class="other-profile-page__description">
+            {{ profile.descricao }}
+          </p>
+        }
 
         @if (friendshipInteractionState$ | async; as interactionState) {
           <div class="other-profile-page__actions" aria-label="Ações do perfil">
@@ -121,7 +150,7 @@
               [targetId]="uid || ''"
               [targetOwnerUid]="uid"
               [title]="displayName"
-              subtitle="Informe o motivo e o contexto essencial para análise da moderação."
+              subtitle="Informe o motivo e o contexto essencial para a equipe de segurança."
               label="Denunciar"
               appearance="link"
               [disabled]="!uid"
@@ -142,96 +171,120 @@
             }
           </p>
         }
+
+        @if (hasProfileDetails) {
+          <section
+            class="other-profile-page__details"
+            aria-labelledby="profile-details-heading"
+          >
+            <h2 id="profile-details-heading" class="sr-only">
+              Preferências e características públicas
+            </h2>
+
+            @if (relationshipIntentChips.length > 0) {
+              <div
+                class="other-profile-page__detail-group"
+                aria-label="O que procura"
+              >
+                <span
+                  class="other-profile-page__detail-icon"
+                  title="O que procura"
+                  aria-hidden="true"
+                >
+                  <i class="fas fa-heart"></i>
+                </span>
+                <div class="other-profile-page__chip-cloud">
+                  @for (item of relationshipIntentChips; track item) {
+                    <span class="other-profile-page__preference-chip">{{ item }}</span>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (sexualPracticeChips.length > 0) {
+              <div
+                class="other-profile-page__detail-group"
+                aria-label="Interesses"
+              >
+                <span
+                  class="other-profile-page__detail-icon"
+                  title="Interesses"
+                  aria-hidden="true"
+                >
+                  <i class="fas fa-fire"></i>
+                </span>
+                <div class="other-profile-page__chip-cloud">
+                  @for (item of sexualPracticeChips; track item) {
+                    <span class="other-profile-page__preference-chip">{{ item }}</span>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (bodyTraitChips.length > 0) {
+              <div
+                class="other-profile-page__detail-group"
+                aria-label="Características"
+              >
+                <span
+                  class="other-profile-page__detail-icon"
+                  title="Características"
+                  aria-hidden="true"
+                >
+                  <i class="fas fa-person"></i>
+                </span>
+                <div class="other-profile-page__chip-cloud">
+                  @for (item of bodyTraitChips; track item) {
+                    <span class="other-profile-page__preference-chip">{{ item }}</span>
+                  }
+                </div>
+              </div>
+            }
+
+            @if (hasPreferenceChips) {
+              <div
+                class="other-profile-page__detail-group"
+                aria-label="Afinidades"
+              >
+                <span
+                  class="other-profile-page__detail-icon"
+                  title="Afinidades"
+                  aria-hidden="true"
+                >
+                  <i class="fas fa-sparkles"></i>
+                </span>
+                <div class="other-profile-page__chip-cloud">
+                  @for (preference of preferenceChips; track preference) {
+                    <span class="other-profile-page__preference-chip">
+                      {{ preference }}
+                    </span>
+                  }
+                </div>
+              </div>
+            }
+          </section>
+        }
       </div>
     </article>
 
-    <div class="other-profile-page__content">
-      <main
-        class="other-profile-page__main"
-        aria-label="Conteúdo público do perfil"
-      >
-        <app-profile-media-showcase
-          [ownerUid]="uid || ''"
-          [profileName]="displayName"
-        />
-      </main>
+    <app-social-links-accordion
+      class="other-profile-page__social"
+      [uid]="uid"
+      [isOwner]="false"
+      [compact]="true"
+      [hideWhenEmpty]="true"
+      aria-label="Links sociais do perfil"
+    />
 
-      <aside
-        class="other-profile-page__sidebar"
-        aria-label="Informações públicas do perfil"
-      >
-        @if (
-          hasDescription ||
-          hasLocation ||
-          (profile.distanciaKm !== null && profile.distanciaKm !== undefined)
-        ) {
-          <section
-            class="other-profile-page__panel other-profile-page__about"
-            aria-labelledby="profile-about-heading"
-          >
-            <h2 id="profile-about-heading">Sobre</h2>
-
-            @if (
-              hasLocation ||
-              (profile.distanciaKm !== null && profile.distanciaKm !== undefined)
-            ) {
-              <p class="other-profile-page__location">
-                <i class="fas fa-location-dot" aria-hidden="true"></i>
-
-                @if (hasLocation) {
-                  <span>{{ profile.municipio }}, {{ profile.estado }}</span>
-                }
-
-                @if (
-                  profile.distanciaKm !== null &&
-                  profile.distanciaKm !== undefined
-                ) {
-                  @if (hasLocation) {
-                    <span aria-hidden="true">•</span>
-                  }
-                  <strong>{{ profile.distanciaKm | number:'1.0-0' }} km</strong>
-                }
-              </p>
-            }
-
-            @if (hasDescription) {
-              <p class="other-profile-page__description">
-                {{ profile.descricao }}
-              </p>
-            }
-          </section>
-        }
-
-        @if (hasPreferenceChips) {
-          <section
-            class="other-profile-page__panel other-profile-page__affinities"
-            aria-labelledby="profile-affinities-heading"
-          >
-            <h2 id="profile-affinities-heading">Afinidades</h2>
-
-            <div
-              class="other-profile-page__preference-cloud"
-              aria-label="Interesses declarados"
-            >
-              @for (preference of preferenceChips; track preference) {
-                <span class="other-profile-page__preference-chip">
-                  {{ preference }}
-                </span>
-              }
-            </div>
-          </section>
-        }
-
-        <app-social-links-accordion
-          class="other-profile-page__panel other-profile-page__social"
-          [uid]="uid"
-          [isOwner]="false"
-          [compact]="true"
-          [hideWhenEmpty]="true"
-          aria-label="Links sociais do perfil"
-        />
-      </aside>
-    </div>
+    <main
+      class="other-profile-page__main"
+      aria-label="Conteúdo público do perfil"
+    >
+      <app-profile-media-showcase
+        [ownerUid]="uid || ''"
+        [profileName]="displayName"
+      />
+    </main>
   } @else {
     <div
       class="other-profile-page__empty"

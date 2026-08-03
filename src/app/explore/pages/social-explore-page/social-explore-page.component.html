@@ -51,15 +51,56 @@
       }
     }
 
-    <nav aria-label="Outros conteúdos públicos">
+    <nav class="explore-media-navigation" aria-label="Outros conteúdos públicos">
       <a
         class="app-action app-action--ghost"
         routerLink="/media/descobrir-videos"
       >
         <i class="fas fa-play" aria-hidden="true"></i>
-        Vídeos públicos
+        Todos os vídeos
       </a>
     </nav>
+
+    @if (vm.featuredVideos.length > 0) {
+      <section
+        class="explore-video-section"
+        aria-labelledby="explore-featured-videos-title"
+      >
+        <header class="explore-video-section__header">
+          <div>
+            <span class="explore-video-section__eyebrow">
+              {{ vm.featuredVideoMode === 'top' ? 'Em destaque' : 'Agora' }}
+            </span>
+            <h2 id="explore-featured-videos-title">Vídeos para descobrir</h2>
+            <p>
+              Perfis em movimento, com acesso público e reprodução sob demanda.
+            </p>
+          </div>
+
+          <a routerLink="/media/descobrir-videos">
+            Ver todos
+            <i class="fas fa-arrow-right" aria-hidden="true"></i>
+          </a>
+        </header>
+
+        <div
+          class="explore-video-section__grid"
+          role="list"
+          aria-label="Vídeos públicos em destaque"
+        >
+          @for (
+            video of vm.featuredVideos.slice(0, 4);
+            track trackByVideoId($index, video)
+          ) {
+            <app-public-video-feed-card
+              role="listitem"
+              [video]="video"
+              (previewRequested)="openVideo(video, vm.featuredVideos)"
+            />
+          }
+        </div>
+      </section>
+    }
 
     <section class="feed-timeline" aria-labelledby="timeline-title">
       <h2 id="timeline-title" class="visually-hidden">

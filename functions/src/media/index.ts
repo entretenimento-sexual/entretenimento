@@ -35,13 +35,16 @@ export {
 
 export {
   unpublishVideo,
-} from './application/manage-video-publication.handler';
+} from './application/block-video-unpublication.handler';
 export {
   publishVideo,
 } from './application/publish-video-orchestrator.handler';
 export {
   publishVideoWhenReady,
 } from './application/publish-video-when-ready.handler';
+export {
+  reorderProfileVideos,
+} from './application/reorder-profile-videos.handler';
 
 export {
   updateVideoPublicationSettings,
@@ -55,6 +58,41 @@ export {
 } from './application/sync-video-edit-result.handler';
 
 export {
+  cleanupExpiredPrivateMediaDrafts,
+  initializePrivatePhotoDraftLifecycle,
+  initializePrivateVideoDraftLifecycle,
+  releaseDeletedPrivatePhotoDraftUsage,
+  releaseDeletedPrivateVideoDraftUsage,
+  syncPhotoDraftLifecycleFromPublication,
+  syncVideoDraftLifecycleFromPublication,
+} from './application/private-media-draft-lifecycle.handler';
+
+export {
+  getPrivateMediaDraftCapacity,
+} from './application/private-media-draft-capacity.handler';
+
+export {
+  reconcilePrivateMediaDraftUsageAdmin,
+} from './application/admin-private-media-draft-reconciliation.handler';
+
+export {
+  cancelPrivateMediaUploadReservation,
+  cleanupPrivateMediaUploadReservations,
+  reservePrivateMediaUpload,
+} from './application/private-media-upload-reservation.handler';
+export {
+  reservePrivateVideoReplacementUpload,
+} from './application/reserve-private-video-replacement-upload.handler';
+
+export {
+  registerPrivatePhotoUpload,
+} from './application/register-private-photo-upload.handler';
+export {
+  cleanupPendingPrivatePhotoAssetDeletions,
+  replacePrivatePhotoUpload,
+} from './application/replace-private-photo-upload.handler';
+
+export {
   cleanupUnpublishedVideoInteractions,
 } from './application/cleanup-unpublished-video-interactions.handler';
 
@@ -63,11 +101,18 @@ export {
 } from './application/register-private-video-upload.handler';
 export {
   registerPrivateVideoUpload,
-} from './application/register-private-video-upload-orchestrator.handler';
+} from './application/register-private-video-upload-auto-publication.handler';
+export {
+  replacePrivateVideoUpload,
+} from './application/replace-private-video-upload.handler';
 
 export {
   queuePrivateVideoProcessing,
 } from './application/queue-video-processing.handler';
+
+export {
+  submitQueuedVideoProcessingTask,
+} from './application/video-processing-immediate-task.handler';
 
 export {
   cleanupCancelledVideoProcessing,

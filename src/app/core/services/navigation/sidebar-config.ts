@@ -1,31 +1,9 @@
 // src/app/core/services/navigation/sidebar-config.ts
 // Configuração central do sidebar autenticado.
-//
-// Objetivo:
-// - centralizar seções e itens;
-// - evitar navegação hardcoded em múltiplos componentes;
-// - permitir filtragem por capacidades (assinante / vip / admin);
-// - manter tipagem forte para SidebarSectionKey;
-// - alinhar a navegação desktop com a bottom nav mobile.
-//
-// Observação:
-// - este arquivo é puro;
-// - não injeta services;
-// - não consulta Router;
-// - não consulta Firestore.
-//
-// Definições de navegação:
-// - Pessoas: perfis encontrados na descoberta;
-// - Locais: lugares físicos ou estabelecimentos reais;
-// - Comunidades: grupos permanentes de pessoas com membros, regras e mural;
-// - Salas: espaços de conversa em tempo real dentro de Conversas.
-//
-// Sala não é Comunidade. Local não é Comunidade. A infraestrutura interna pode
-// ser compartilhada, mas os destinos e rótulos apresentados são distintos.
 export type SidebarSectionKey =
   | 'dashboard'
   | 'explore'
-  | 'communities' // legado de tipagem; a composição pública usa `explore`.
+  | 'communities'
   | 'profiles'
   | 'chat'
   | 'media'
@@ -74,9 +52,7 @@ export interface SidebarGroupItemConfig
   children: SidebarLinkItemConfig[];
 }
 
-export type SidebarItemConfig =
-  | SidebarLinkItemConfig
-  | SidebarGroupItemConfig;
+export type SidebarItemConfig = SidebarLinkItemConfig | SidebarGroupItemConfig;
 
 export interface SidebarSection {
   key: SidebarSectionKey;
@@ -100,10 +76,7 @@ const SECTION_MATCHERS: ReadonlyArray<{
   key: SidebarSectionKey;
   prefixes: readonly string[];
 }> = [
-  {
-    key: 'admin',
-    prefixes: ['/admin-dashboard'],
-  },
+  { key: 'admin', prefixes: ['/admin-dashboard'] },
   {
     key: 'subscriptions',
     prefixes: [
@@ -128,22 +101,19 @@ const SECTION_MATCHERS: ReadonlyArray<{
       '/profile-list',
     ],
   },
-  {
-    key: 'chat',
-    prefixes: ['/chat', '/friends'],
-  },
-  {
-    key: 'media',
-    prefixes: ['/media'],
-  },
+  { key: 'chat', prefixes: ['/chat', '/friends'] },
+  { key: 'media', prefixes: ['/media'] },
   {
     key: 'settings',
-    prefixes: ['/perfil', '/perfil-debug', '/preferencias', '/conta', '/dashboard/seguranca'],
+    prefixes: [
+      '/perfil',
+      '/perfil-debug',
+      '/preferencias',
+      '/conta',
+      '/dashboard/seguranca',
+    ],
   },
-  {
-    key: 'dashboard',
-    prefixes: ['/dashboard'],
-  },
+  { key: 'dashboard', prefixes: ['/dashboard'] },
 ] as const;
 
 const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
@@ -230,8 +200,16 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         label: 'Vídeos',
         route: '/media/videos',
         icon: '🎬',
-        exact: false,
+        exact: true,
         ariaLabel: 'Abrir minha biblioteca de vídeos',
+      },
+      {
+        id: 'media-video-order',
+        label: 'Organizar vídeos',
+        route: '/media/videos/organizar',
+        icon: '↕️',
+        exact: true,
+        ariaLabel: 'Organizar a ordem dos vídeos no perfil',
       },
     ],
   },
@@ -331,9 +309,7 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
   },
 ] as const;
 
-export function isSidebarGroupItem(
-  item: SidebarItem
-): item is SidebarGroupItem {
+export function isSidebarGroupItem(item: SidebarItem): item is SidebarGroupItem {
   return 'kind' in item && item.kind === 'group';
 }
 
@@ -374,12 +350,7 @@ function buildVisibleItem(
       hasSidebarAccess(child, flags)
     );
 
-    return children.length > 0
-      ? {
-          ...item,
-          children,
-        }
-      : null;
+    return children.length > 0 ? { ...item, children } : null;
   }
 
   return item;
@@ -389,11 +360,7 @@ function hasSidebarAccess(
   item: SidebarAccessRequirements,
   flags: SidebarAccessFlags
 ): boolean {
-  const {
-    isSubscriber,
-    isVip,
-    isAdmin = false,
-  } = flags;
+  const { isSubscriber, isVip, isAdmin = false } = flags;
 
   if (item.requiresAdmin && !isAdmin) return false;
   if (item.requiresVip && !isVip) return false;

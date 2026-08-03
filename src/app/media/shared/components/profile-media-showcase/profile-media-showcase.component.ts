@@ -47,7 +47,7 @@ interface ProfileMediaShowcaseState {
   videosCount: number;
 }
 
-const SHOWCASE_ITEM_LIMIT = 5;
+const SHOWCASE_ITEM_LIMIT = 4;
 
 @Component({
   selector: 'app-profile-media-showcase',
@@ -182,6 +182,22 @@ export class ProfileMediaShowcaseComponent {
     items: readonly IPublicProfileMediaItem[]
   ): readonly IPublicProfileMediaItem[] {
     return items.slice(0, SHOWCASE_ITEM_LIMIT);
+  }
+
+  visiblePhotos(
+    items: readonly IPublicProfileMediaItem[]
+  ): readonly IPublicPhotoItem[] {
+    return items
+      .filter(isPublicPhotoItem)
+      .slice(0, SHOWCASE_ITEM_LIMIT);
+  }
+
+  visibleVideos(
+    items: readonly IPublicProfileMediaItem[]
+  ): readonly IPublicVideoItem[] {
+    return items
+      .filter(isPublicVideoItem)
+      .slice(0, SHOWCASE_ITEM_LIMIT);
   }
 
   remainingCount(total: number): number {

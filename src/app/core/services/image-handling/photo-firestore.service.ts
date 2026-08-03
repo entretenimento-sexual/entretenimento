@@ -29,6 +29,8 @@ export interface Photo {
   createdAt: Date;
   displayDate?: number | null;
   path?: string;
+  sizeBytes?: number | null;
+  draftExpiresAt?: number | null;
 }
 
 export interface PhotoComment {
@@ -38,8 +40,12 @@ export interface PhotoComment {
 }
 
 export type PhotoUpdateData =
-  Partial<Pick<Photo, 'url' | 'fileName' | 'createdAt' | 'displayDate' | 'path'>> &
-  Record<string, unknown>;
+  Partial<
+    Pick<
+      Photo,
+      'url' | 'fileName' | 'createdAt' | 'displayDate' | 'path' | 'sizeBytes'
+    >
+  > & Record<string, unknown>;
 
 interface DeleteProfilePhotoCallableRequest {
   ownerUid: string;
@@ -145,29 +151,40 @@ export class PhotoFirestoreService {
     }
   }
 
-  async savePhotoMetadata(
-    userId: string,
-    photo: Photo
-  ): Promise<void> {
-    const safeUserId = this.requireUserId(userId);
+  /**
+   * @deprecated O registro de upload exige reserva transacional e metadado no
+   * Storage. Use `PhotoUploadFlowService`, que delega para
+   * `PrivatePhotoUploadRegistrationService`.
+   */
+  async registerPrivatePhotoUpload(
+    _userId: string,
+    _photo: Photo
+  ): Promise<never> {
+    return this.rejectDeprecatedUploadMethod('registerPrivatePhotoUpload');
+  }
 
-    await this.executeWrite(
-      async () => {
-        await this.firestoreCtx.run(async () => {
-          const photoRef = doc(
-            this.firestore,
-            `users/${safeUserId}/photos/${photo.id}`
-          );
-          await setDoc(photoRef, photo);
-        });
-      },
-      'Erro ao salvar os metadados da foto.',
-      {
-        op: 'savePhotoMetadata',
-        userId: safeUserId,
-        photoId: photo.id,
-      }
-    );
+  /**
+   * @deprecated A substituição reservada usa copy-on-write e autoridade
+   * backend. Use `PhotoUploadFlowService.replaceProcessedPhoto$`.
+   */
+  async replacePrivatePhotoUpload(
+    _userId: string,
+    _photoId: string,
+    _currentStoragePath: string,
+    _replacement: Pick<Photo, 'url' | 'path' | 'fileName' | 'sizeBytes'>
+  ): Promise<never> {
+    return this.rejectDeprecatedUploadMethod('replacePrivatePhotoUpload');
+  }
+
+  /**
+   * @deprecated Mantido somente para detectar chamadas legadas durante a
+   * migração. O método não grava documentos e não possui fallback inseguro.
+   */
+  async savePhotoMetadata(
+    _userId: string,
+    _photo: Photo
+  ): Promise<never> {
+    return this.rejectDeprecatedUploadMethod('savePhotoMetadata');
   }
 
   async updatePhotoMetadata(
@@ -317,6 +334,25 @@ export class PhotoFirestoreService {
         photoId: safePhotoId,
       }
     );
+  }
+
+  private async rejectDeprecatedUploadMethod(
+    methodName: string
+  ): Promise<never> {
+    const error = this.normalizeHandledError(
+      new Error(
+        'O fluxo antigo de upload de fotos foi desativado. Recarregue a página e tente novamente.'
+      ),
+      'O fluxo antigo de upload de fotos foi desativado.',
+      {
+        op: methodName,
+        deprecated: true,
+        requiredFlow: 'PhotoUploadFlowService',
+      }
+    );
+
+    this.globalErrorHandler.handleError(error);
+    throw error;
   }
 
   private normalizeDisplayDate(value: number | null): number | null {

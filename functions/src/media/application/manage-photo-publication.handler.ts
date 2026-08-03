@@ -1,15 +1,17 @@
 // functions/src/media/application/manage-photo-publication.handler.ts
 // -----------------------------------------------------------------------------
-// PHOTO PUBLICATION — PUBLISH / UNPUBLISH / COVER
+// PHOTO PUBLICATION — PUBLISH / BLOCKED LEGACY UNPUBLISH / COVER
 // -----------------------------------------------------------------------------
 // Segurança:
-// - somente o dono publica/despublica/define capa;
+// - somente o dono publica ou define capa;
 // - o arquivo privado nunca é usado diretamente na projeção pública;
 // - a publicação cria uma cópia física versionada em namespace isolado;
 // - a projeção pública não armazena URL permanente nem storagePath;
 // - o acesso temporário é emitido por backend após nova validação;
 // - cliente não grava projeção pública, score ou contadores;
-// - métricas públicas são recalculadas no backend.
+// - métricas públicas são recalculadas no backend;
+// - toda publicação tecnicamente válida recebe APPROVED diretamente;
+// - despublicação para manter cópia privada é bloqueada no backend.
 
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -25,7 +27,7 @@ import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics
 
 type PhotoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
 type CommentsPolicy = 'OFF' | 'FRIENDS' | 'SUBSCRIBERS' | 'EVERYONE';
-type ModerationStatus = 'PENDING_REVIEW' | 'APPROVED';
+type ModerationStatus = 'APPROVED';
 
 type ScoreBreakdown = {
   rankingScore: number;
@@ -81,9 +83,6 @@ interface SetCoverPhotoResponse {
 }
 
 const MAX_CAPTION_LENGTH = 800;
-const AUTO_APPROVE_PHOTOS =
-  process.env.FUNCTIONS_EMULATOR === 'true' ||
-  process.env.MEDIA_AUTO_APPROVE_PHOTOS === 'true';
 
 function cleanId(value: unknown): string {
   return String(value ?? '').trim();
@@ -173,10 +172,6 @@ function buildInitialScoreBreakdown(): ScoreBreakdown {
   };
 }
 
-function resolveModerationStatus(): ModerationStatus {
-  return AUTO_APPROVE_PHOTOS ? 'APPROVED' : 'PENDING_REVIEW';
-}
-
 function assertOwner(requesterUid: string | null, ownerUid: string): void {
   if (!requesterUid) {
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
@@ -185,7 +180,7 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
   if (requesterUid !== ownerUid) {
     throw new HttpsError(
       'permission-denied',
-      'Você só pode publicar fotos do seu próprio perfil.'
+      'Você só pode gerenciar fotos do seu próprio perfil.'
     );
   }
 }
@@ -250,7 +245,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
     if (!sourceStoragePath) {
       throw new HttpsError(
         'failed-precondition',
-        'A foto não possui um arquivo privado válido para publicação.'
+        'A foto não possui um arquivo técnico válido para publicação.'
       );
     }
 
@@ -276,7 +271,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
     }
 
     const now = Date.now();
-    const moderationStatus = resolveModerationStatus();
+    const moderationStatus: ModerationStatus = 'APPROVED';
     const scoreBreakdown = buildInitialScoreBreakdown();
     const batch = db.batch();
 
@@ -329,7 +324,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         scoreBreakdown,
         publishedAt: now,
         updatedAt: now,
-        lastModeratedAt: moderationStatus === 'APPROVED' ? now : null,
+        lastModeratedAt: now,
         sourceStoragePath,
         publishedStoragePath,
         assetVersion: now,
@@ -406,6 +401,10 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
   }
 );
 
+/**
+ * @deprecated Nome preservado para clientes antigos.
+ * A plataforma não converte publicação em armazenamento privado.
+ */
 export const unpublishPhoto = onCall<UnpublishPhotoRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<{ photoId: string }> => {
@@ -419,52 +418,10 @@ export const unpublishPhoto = onCall<UnpublishPhotoRequest>(
 
     assertOwner(requesterUid, ownerUid);
 
-    const now = Date.now();
-    const batch = db.batch();
-    const publicationRef = db.doc(
-      `users/${ownerUid}/photo_publications/${photoId}`
+    throw new HttpsError(
+      'failed-precondition',
+      'Fotos enviadas permanecem publicadas. Para retirá-las da plataforma, use a exclusão definitiva.'
     );
-    const publicPhotoRef = db.doc(
-      `public_profiles/${ownerUid}/public_photos/${photoId}`
-    );
-    const publicationSnap = await publicationRef.get();
-    const publication = publicationSnap.exists
-      ? (publicationSnap.data() as PhotoPublicationDoc)
-      : null;
-
-    batch.set(
-      publicationRef,
-      {
-        ownerUid,
-        photoId,
-        isPublished: false,
-        visibility: 'PRIVATE',
-        caption: FieldValue.delete(),
-        isCover: false,
-        commentsEnabled: false,
-        commentsPolicy: 'OFF',
-        reactionsEnabled: false,
-        moderationStatus: 'PRIVATE',
-        updatedAt: now,
-        publishedStoragePath: FieldValue.delete(),
-        sourceStoragePath: FieldValue.delete(),
-        assetVersion: FieldValue.delete(),
-      },
-      { merge: true }
-    );
-
-    batch.delete(publicPhotoRef);
-    await batch.commit();
-
-    await deletePublishedPhotoAssetOrQueue({
-      ownerUid,
-      photoId,
-      storagePath: publication?.publishedStoragePath,
-      reason: 'unpublish-photo',
-    });
-    await refreshPublicProfileMediaMetrics(ownerUid);
-
-    return { photoId };
   }
 );
 
@@ -495,7 +452,7 @@ export const setCoverPhoto = onCall<SetCoverPhotoRequest>(
     if (targetPublication?.isPublished !== true) {
       throw new HttpsError(
         'failed-precondition',
-        'Somente fotos publicadas podem ser definidas como capa.'
+        'Somente fotos publicadas podem ser definidas como principal.'
       );
     }
 

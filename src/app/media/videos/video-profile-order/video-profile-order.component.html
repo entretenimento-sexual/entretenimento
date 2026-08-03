@@ -1,0 +1,98 @@
+@let busy = (busy$ | async) === true;
+@let ownerUid = (ownerUid$ | async) || '';
+
+<section class="video-order" aria-labelledby="video-order-title">
+  <header class="video-order__header">
+    <a
+      class="video-order__back"
+      routerLink="/media/videos"
+      aria-label="Voltar para a biblioteca de vídeos"
+    >
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+    </a>
+
+    <div>
+      <span>Perfil público</span>
+      <h1 id="video-order-title">Organizar vídeos</h1>
+      <p>
+        A primeira posição aparece primeiro no perfil. Use os botões para mover
+        cada vídeo; a atualização é salva para todos os dispositivos.
+      </p>
+    </div>
+
+    <a
+      class="video-order__public-link"
+      [routerLink]="['/media', 'perfil', ownerUid, 'videos-publicos']"
+    >
+      <i class="fas fa-eye" aria-hidden="true"></i>
+      Ver resultado
+    </a>
+  </header>
+
+  @if (videos$ | async; as videos) {
+    @if (videos.length > 0) {
+      <ol
+        class="video-order__list"
+        [attr.aria-busy]="busy ? 'true' : 'false'"
+      >
+        @for (
+          video of videos;
+          track trackByVideoId($index, video);
+          let index = $index
+        ) {
+          <li class="video-order__item">
+            <span class="video-order__position" aria-label="Posição">
+              {{ index + 1 }}
+            </span>
+
+            <div class="video-order__copy">
+              <strong>{{ video.title }}</strong>
+              <span>Vídeo {{ index + 1 }} de {{ videos.length }}</span>
+            </div>
+
+            <div
+              class="video-order__actions"
+              [attr.aria-label]="'Alterar posição de ' + video.title"
+            >
+              <button
+                type="button"
+                (click)="move(videos, index, -1)"
+                [disabled]="busy || index === 0"
+                [attr.aria-label]="'Mover ' + video.title + ' para cima'"
+              >
+                <i class="fas fa-arrow-up" aria-hidden="true"></i>
+                <span>Subir</span>
+              </button>
+
+              <button
+                type="button"
+                (click)="move(videos, index, 1)"
+                [disabled]="busy || index === videos.length - 1"
+                [attr.aria-label]="'Mover ' + video.title + ' para baixo'"
+              >
+                <i class="fas fa-arrow-down" aria-hidden="true"></i>
+                <span>Descer</span>
+              </button>
+            </div>
+          </li>
+        }
+      </ol>
+
+      <p class="video-order__live" aria-live="polite" aria-atomic="true">
+        @if (busy) {
+          Salvando nova ordem.
+        } @else {
+          Ordem pronta para edição.
+        }
+      </p>
+    } @else {
+      <div class="video-order__empty" role="status">
+        <i class="fas fa-film" aria-hidden="true"></i>
+        <div>
+          <strong>Nenhum vídeo publicado</strong>
+          <span>Publique vídeos antes de organizar a exibição do perfil.</span>
+        </div>
+      </div>
+    }
+  }
+</section>

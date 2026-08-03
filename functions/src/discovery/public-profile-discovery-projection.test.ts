@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   publicProfileDiscoveryProjectionMatches,
 } from './public-profile-discovery-projection';
+import { normalizePublicProfileDescription } from './public-profile-description';
 import {
   buildPublicPreferenceProjection,
   publicPreferenceProjectionMatches,
@@ -38,6 +39,22 @@ test('detecta alteração real de compatibilidade', () => {
 
 test('detecta projeção ausente para backfill', () => {
   assert.equal(publicProfileDiscoveryProjectionMatches({}, CANONICAL), false);
+});
+
+test('normaliza descrição pública mantendo parágrafos', () => {
+  assert.equal(
+    normalizePublicProfileDescription(
+      '  Primeiro   parágrafo.\r\n\r\n\r\nSegundo\tparágrafo.  '
+    ),
+    'Primeiro parágrafo.\n\nSegundo parágrafo.'
+  );
+  assert.equal(normalizePublicProfileDescription('   '), null);
+  assert.equal(normalizePublicProfileDescription(null), null);
+});
+
+test('limita descrição pública ao volume permitido', () => {
+  const normalized = normalizePublicProfileDescription('a'.repeat(1200));
+  assert.equal(normalized?.length, 1000);
 });
 
 test('não publica sinais quando o usuário desativa badges', () => {

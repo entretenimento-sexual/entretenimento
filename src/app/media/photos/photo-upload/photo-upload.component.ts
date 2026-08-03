@@ -1,5 +1,5 @@
 // src/app/media/photos/photo-upload/photo-upload.component.ts
-// Fluxo reativo de seleção, ajuste e envio de fotos do perfil.
+// Fluxo reativo de seleção, ajuste, envio e publicação direta de fotos do perfil.
 // O editor é carregado sob demanda e o foco é gerenciado antes da abertura do modal.
 
 import { CommonModule, DOCUMENT } from '@angular/common';
@@ -75,7 +75,7 @@ export class PhotoUploadComponent {
     'image/webp',
   ]);
 
-  private readonly maxFileSizeBytes = 10 * 1024 * 1024; // 10 MB
+  private readonly maxFileSizeBytes = 10 * 1024 * 1024;
 
   constructor() {
     this.destroyRef.onDestroy(() => {
@@ -261,7 +261,7 @@ export class PhotoUploadComponent {
                 return;
               }
 
-              this.debug('uploadSuccess', event.result);
+              this.debug('uploadAndPublicationSuccess', event.result);
               this.phaseSubject.next('DONE');
               this.uploadedPhotoIdSubject.next(event.result.photoId);
               this.uploadPercentSubject.next(100);
@@ -272,13 +272,13 @@ export class PhotoUploadComponent {
               }
 
               this.fileSubject.next(null);
-              this.errorNotifier.showSuccess('Upload concluído com sucesso.');
+              this.errorNotifier.showSuccess('Foto publicada com sucesso.');
             }),
             catchError((error) => {
               this.phaseSubject.next('READY');
               this.uploadPercentSubject.next(0);
               this.reportError(
-                'Erro ao enviar a imagem.',
+                'Erro ao enviar e publicar a imagem.',
                 error,
                 {
                   op: 'startUpload',
@@ -400,7 +400,7 @@ export class PhotoUploadComponent {
       }
 
       this.fileSubject.next(null);
-      this.errorNotifier.showSuccess('Foto editada e enviada com sucesso.');
+      this.errorNotifier.showSuccess('Foto editada e publicada com sucesso.');
     } catch (error) {
       if (error !== 'close' && error !== 'dismiss') {
         this.reportError(

@@ -6,7 +6,6 @@ import {
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
-  hasVideoPublicationTextChanged,
   normalizeVideoPublicationSettings,
   type VideoPublicationSettingsInput,
 } from './video-publication-settings';
@@ -31,20 +30,14 @@ interface VideoPublicationDoc extends VideoPublicationSettingsInput {
   ownerUid?: string;
   videoId?: string;
   isPublished?: boolean;
+  publishWhenReady?: boolean;
   moderationStatus?: string;
   moderationReason?: string | null;
 }
 
-const AUTO_APPROVE_VIDEOS =
-  process.env.MEDIA_AUTO_APPROVE_VIDEOS === 'true';
-
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
-}
-
-function resolveModerationStatus(): 'APPROVED' | 'PENDING_REVIEW' {
-  return AUTO_APPROVE_VIDEOS ? 'APPROVED' : 'PENDING_REVIEW';
 }
 
 export const updateVideoPublicationSettings =
@@ -89,7 +82,7 @@ export const updateVideoPublicationSettings =
           ]);
 
         if (!privateVideoSnap.exists) {
-          throw new HttpsError('not-found', 'Vídeo privado não encontrado.');
+          throw new HttpsError('not-found', 'Vídeo não encontrado.');
         }
 
         const privateVideo = privateVideoSnap.data() as PrivateVideoDoc;
@@ -110,18 +103,9 @@ export const updateVideoPublicationSettings =
           request.data,
           defaults
         );
-        const textChanged = hasVideoPublicationTextChanged(
-          defaults,
-          nextSettings
-        );
         const isPublished = currentPublication?.isPublished === true;
-        const currentModerationStatus = String(
-          currentPublication?.moderationStatus ?? 'PRIVATE'
-        ).trim().toUpperCase();
-        const moderationStatus = isPublished && textChanged
-          ? resolveModerationStatus()
-          : currentModerationStatus;
-        const moderationReason = isPublished && textChanged
+        const moderationStatus = isPublished ? 'APPROVED' : 'PRIVATE';
+        const moderationReason = isPublished
           ? null
           : currentPublication?.moderationReason ?? null;
         const now = Date.now();
@@ -132,9 +116,12 @@ export const updateVideoPublicationSettings =
             ownerUid,
             videoId,
             isPublished,
-            moderationStatus: isPublished ? moderationStatus : 'PRIVATE',
+            moderationStatus,
             ...nextSettings,
             moderationReason,
+            publishWhenReady: isPublished
+              ? false
+              : currentPublication?.publishWhenReady === true,
             updatedAt: now,
           },
           { merge: true }
@@ -154,10 +141,8 @@ export const updateVideoPublicationSettings =
               commentsEnabled: nextSettings.commentsEnabled,
               ratingsEnabled: nextSettings.ratingsEnabled,
               minimumPlaybackPlan: nextSettings.minimumPlaybackPlan,
-              moderationStatus,
-              moderationReason: textChanged
-                ? null
-                : publicVideoSnap.get('moderationReason') ?? null,
+              moderationStatus: 'APPROVED',
+              moderationReason: null,
               updatedAt: now,
             },
             { merge: true }
@@ -166,7 +151,7 @@ export const updateVideoPublicationSettings =
 
         return {
           videoId,
-          moderationStatus: isPublished ? moderationStatus : 'PRIVATE',
+          moderationStatus,
           isPublished,
         };
       });
