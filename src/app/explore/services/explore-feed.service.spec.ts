@@ -6,10 +6,12 @@ import { firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { PublicVideoRankingQueryService } from 'src/app/core/services/media/public-video-ranking-query.service';
 import { DiscoveryCardEnrichmentService } from 'src/app/dashboard/discovery/application/discovery-card-enrichment.service';
 import {
   DiscoveryFeedRequest,
@@ -49,10 +51,23 @@ describe('ExploreFeedService', () => {
     })
   );
 
+  const featuredVideo = {
+    id: 'video-1',
+    ownerUid: 'candidate-1',
+    title: 'Vídeo em destaque',
+    url: 'https://example.test/video-1.mp4',
+    posterUrl: 'https://example.test/video-1.jpg',
+    publishedAt: 1_700_000_000_000,
+  } as IPublicVideoItem;
+
   const mediaPublicQueryMock = {
     getBoostedPublicPhotos$: vi.fn(() => of([])),
     getTopPublicPhotos$: vi.fn(() => of([])),
     getLatestPublicPhotos$: vi.fn(() => of([])),
+  };
+
+  const videoRankingMock = {
+    loadPage$: vi.fn(),
   };
 
   /**
@@ -87,6 +102,16 @@ describe('ExploreFeedService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    videoRankingMock.loadPage$.mockImplementation(
+      ({ mode }: { mode: 'top' | 'latest' }) => of({
+        mode,
+        source: mode,
+        items: mode === 'top' ? [featuredVideo] : [],
+        nextCursor: null,
+        hasMore: false,
+        loadedAt: Date.now(),
+      })
+    );
 
     TestBed.configureTestingModule({
       providers: [
@@ -107,6 +132,10 @@ describe('ExploreFeedService', () => {
         {
           provide: MediaPublicQueryService,
           useValue: mediaPublicQueryMock,
+        },
+        {
+          provide: PublicVideoRankingQueryService,
+          useValue: videoRankingMock,
         },
         {
           provide: UserDiscoveryQueryService,
@@ -152,6 +181,20 @@ describe('ExploreFeedService', () => {
         mode: 'compatible',
         applyVisibility: true,
       })
+    );
+  });
+
+  it('deve incorporar vídeos em destaque ao view model', async () => {
+    const vm = await firstValueFrom(service.vm$);
+
+    expect(vm.featuredVideoMode).toBe('top');
+    expect(vm.featuredVideos).toEqual([featuredVideo]);
+    expect(vm.totalItems).toBeGreaterThanOrEqual(7);
+    expect(videoRankingMock.loadPage$).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'top', pageSize: 8 })
+    );
+    expect(videoRankingMock.loadPage$).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'latest', pageSize: 8 })
     );
   });
 
