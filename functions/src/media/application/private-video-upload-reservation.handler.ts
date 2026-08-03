@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { Timestamp, type Transaction } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -15,6 +15,9 @@ import {
   resolvePrivateVideoQuotaPlan,
   type PrivateVideoQuotaPlan,
 } from './private-video-upload-quota.policy';
+import {
+  consumePrivateVideoUploadReservationAfterRegistration,
+} from './private-video-upload-reservation-registration.service';
 import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
@@ -79,16 +82,11 @@ interface CancelPrivateVideoUploadReservationResponse {
   released: boolean;
 }
 
-export interface ConsumePrivateVideoUploadReservationInput {
-  reservationId: string;
-  ownerUid: string;
-  videoId: string;
-  videoStoragePath: string;
-  posterStoragePath: string | null;
-  videoSizeBytes: number;
-  posterSizeBytes: number;
-  mimeType: string;
-  now?: number;
+interface RegisteredPrivateVideoDocument {
+  path?: unknown;
+  url?: unknown;
+  thumbnailPath?: unknown;
+  thumbnailUrl?: unknown;
 }
 
 const RESERVATIONS_COLLECTION = 'media_private_video_upload_reservations';
@@ -143,17 +141,6 @@ function normalizePositiveInteger(value: unknown): number {
 
 function normalizeMimeType(value: unknown): string {
   return String(value ?? '').trim().toLowerCase();
-}
-
-function timestampToMillis(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.trunc(value);
-  }
-
-  const candidate = value as { toMillis?: () => number } | null | undefined;
-  return typeof candidate?.toMillis === 'function'
-    ? candidate.toMillis()
-    : 0;
 }
 
 function normalizeErrorMessage(error: unknown): string {
@@ -250,30 +237,6 @@ function quotaHttpsError(
   );
 }
 
-function reservationExpiredError(): HttpsError {
-  return new HttpsError(
-    'failed-precondition',
-    'A reserva do upload expirou ou já foi utilizada.',
-    {
-      code: 'VIDEO_UPLOAD_RESERVATION_EXPIRED',
-      retryable: true,
-      recovery: 'Inicie o envio novamente para gerar uma nova reserva.',
-    }
-  );
-}
-
-function reservationMismatchError(): HttpsError {
-  return new HttpsError(
-    'failed-precondition',
-    'A reserva não corresponde ao arquivo enviado.',
-    {
-      code: 'VIDEO_UPLOAD_RESERVATION_MISMATCH',
-      retryable: false,
-      recovery: 'Selecione novamente o arquivo e reinicie o envio.',
-    }
-  );
-}
-
 function buildReserveResponse(
   reservation: PrivateVideoUploadReservationDocument,
   usage: {
@@ -299,9 +262,53 @@ function buildReserveResponse(
   };
 }
 
+async function isReservationRegistered(
+  reservation: PrivateVideoUploadReservationDocument
+): Promise<boolean> {
+  const snapshot = await db
+    .doc(`users/${reservation.ownerUid}/videos/${reservation.videoId}`)
+    .get();
+
+  if (!snapshot.exists) {
+    return false;
+  }
+
+  const video = snapshot.data() as RegisteredPrivateVideoDocument;
+  const registeredVideoPath = extractOwnedPrivateVideoPathForId(
+    reservation.ownerUid,
+    reservation.videoId,
+    video.path ?? video.url
+  );
+  const rawPosterPath = String(
+    video.thumbnailPath ?? video.thumbnailUrl ?? ''
+  ).trim();
+  const registeredPosterPath = rawPosterPath
+    ? extractOwnedPrivateVideoPosterPath(
+      reservation.ownerUid,
+      reservation.videoId,
+      rawPosterPath
+    )
+    : null;
+
+  return registeredVideoPath === reservation.videoStoragePath &&
+    registeredPosterPath === reservation.posterStoragePath;
+}
+
 async function deleteReservedObjectsBestEffort(
   reservation: PrivateVideoUploadReservationDocument
 ): Promise<void> {
+  if (await isReservationRegistered(reservation)) {
+    logger.info(
+      '[privateVideoUploadReservation] Limpeza ignorada para vídeo registrado.',
+      {
+        reservationId: reservation.reservationId,
+        ownerUid: reservation.ownerUid,
+        videoId: reservation.videoId,
+      }
+    );
+    return;
+  }
+
   const videoPath = extractOwnedPrivateVideoPathForId(
     reservation.ownerUid,
     reservation.videoId,
@@ -408,71 +415,6 @@ export async function cancelPrivateVideoUploadReservationById(
   return true;
 }
 
-export async function consumePrivateVideoUploadReservation(
-  transaction: Transaction,
-  input: ConsumePrivateVideoUploadReservationInput
-): Promise<PrivateVideoUploadReservationDocument> {
-  const reservationId = cleanId(input.reservationId);
-
-  if (!reservationId) {
-    throw reservationExpiredError();
-  }
-
-  const reservationRef = reservationReference(reservationId);
-  const lockRef = capacityLockReference(input.ownerUid);
-  const [reservationSnapshot, lockSnapshot] = await Promise.all([
-    transaction.get(reservationRef),
-    transaction.get(lockRef),
-  ]);
-
-  if (!reservationSnapshot.exists) {
-    throw reservationExpiredError();
-  }
-
-  const reservation = reservationSnapshot.data() as
-    PrivateVideoUploadReservationDocument;
-  const now = input.now ?? Date.now();
-
-  if (
-    reservation.state !== 'ACTIVE' ||
-    reservation.expiresAt.toMillis() <= now
-  ) {
-    throw reservationExpiredError();
-  }
-
-  if (
-    reservation.ownerUid !== input.ownerUid ||
-    reservation.videoId !== input.videoId ||
-    reservation.videoStoragePath !== input.videoStoragePath ||
-    reservation.posterStoragePath !== input.posterStoragePath ||
-    reservation.videoSizeBytes !== input.videoSizeBytes ||
-    reservation.posterSizeBytes !== input.posterSizeBytes ||
-    reservation.mimeType !== input.mimeType
-  ) {
-    throw reservationMismatchError();
-  }
-
-  const cleanupAfter = now + TERMINAL_RETENTION_MS;
-
-  transaction.update(reservationRef, {
-    state: 'CONSUMED',
-    consumedAt: Timestamp.fromMillis(now),
-    updatedAt: Timestamp.fromMillis(now),
-    expiresAt: Timestamp.fromMillis(cleanupAfter),
-    cleanupAfter: Timestamp.fromMillis(cleanupAfter),
-  });
-  transaction.set(
-    lockRef,
-    {
-      generation: nextLockGeneration(lockSnapshot),
-      updatedAt: now,
-    },
-    { merge: true }
-  );
-
-  return reservation;
-}
-
 export const reservePrivateVideoUpload = onCall<ReservePrivateVideoUploadRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<ReservePrivateVideoUploadResponse> => {
@@ -570,6 +512,36 @@ export const reservePrivateVideoUpload = onCall<ReservePrivateVideoUploadRequest
         transaction.get(videosQuery),
         transaction.get(reservationsQuery),
       ]);
+      const transactionalUser = userSnapshot.exists
+        ? userSnapshot.data() as Record<string, unknown>
+        : user;
+      const plan = resolvePrivateVideoQuotaPlan(transactionalUser, now);
+      const registeredVideoIds = new Set(
+        videosSnapshot.docs.map((document) => document.id)
+      );
+      const registeredReservedBytes = videosSnapshot.docs.reduce(
+        (total, document) =>
+          total + estimateRegisteredVideoReservedBytes(document.data()),
+        0
+      );
+      const activeReservations = reservationsSnapshot.docs
+        .map((document) =>
+          document.data() as PrivateVideoUploadReservationDocument
+        )
+        .filter((reservation) =>
+          reservation.state === 'ACTIVE' &&
+          reservation.expiresAt.toMillis() > now &&
+          !registeredVideoIds.has(reservation.videoId)
+        );
+      const usage = {
+        currentItems: videosSnapshot.size + activeReservations.length,
+        currentReservedBytes:
+          registeredReservedBytes +
+          activeReservations.reduce(
+            (total, reservation) => total + reservation.reservedBytes,
+            0
+          ),
+      };
 
       if (existingSnapshot.exists) {
         const existing = existingSnapshot.data() as
@@ -585,11 +557,7 @@ export const reservePrivateVideoUpload = onCall<ReservePrivateVideoUploadRequest
             { currentItems: 0, currentReservedBytes: 0 },
             0
           ).limit;
-          return buildReserveResponse(
-            existing,
-            { currentItems: 0, currentReservedBytes: 0 },
-            limit
-          );
+          return buildReserveResponse(existing, usage, limit);
         }
 
         throw new HttpsError(
@@ -598,32 +566,6 @@ export const reservePrivateVideoUpload = onCall<ReservePrivateVideoUploadRequest
         );
       }
 
-      const transactionalUser = userSnapshot.exists
-        ? userSnapshot.data() as Record<string, unknown>
-        : user;
-      const plan = resolvePrivateVideoQuotaPlan(transactionalUser, now);
-      const registeredReservedBytes = videosSnapshot.docs.reduce(
-        (total, document) =>
-          total + estimateRegisteredVideoReservedBytes(document.data()),
-        0
-      );
-      const activeReservations = reservationsSnapshot.docs
-        .map((document) =>
-          document.data() as PrivateVideoUploadReservationDocument
-        )
-        .filter((reservation) =>
-          reservation.state === 'ACTIVE' &&
-          reservation.expiresAt.toMillis() > now
-        );
-      const usage = {
-        currentItems: videosSnapshot.size + activeReservations.length,
-        currentReservedBytes:
-          registeredReservedBytes +
-          activeReservations.reduce(
-            (total, reservation) => total + reservation.reservedBytes,
-            0
-          ),
-      };
       const decision = evaluatePrivateVideoQuota(
         plan,
         usage,
@@ -758,6 +700,19 @@ export const cleanupPrivateVideoUploadReservations = onSchedule(
       }
 
       try {
+        if (await isReservationRegistered(reservation)) {
+          await consumePrivateVideoUploadReservationAfterRegistration({
+            reservationId: reservation.reservationId,
+            ownerUid: reservation.ownerUid,
+            videoId: reservation.videoId,
+            videoStoragePath: reservation.videoStoragePath,
+            posterStoragePath: reservation.posterStoragePath,
+            videoSizeBytes: reservation.videoSizeBytes,
+            mimeType: reservation.mimeType,
+          });
+          continue;
+        }
+
         const expired = await transitionActiveReservation(
           document.id,
           reservation.ownerUid,
