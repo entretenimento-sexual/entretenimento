@@ -117,8 +117,8 @@ function dueAtForJob(
     );
   }
 
-  return normalizeTimestamp(job.cancelRequestedAt) ||
-    normalizeTimestamp(job.updatedAt) ||
+  return normalizeTimestamp(job.updatedAt) ||
+    normalizeTimestamp(job.cancelRequestedAt) ||
     normalizeTimestamp(job.createdAt) ||
     now;
 }
