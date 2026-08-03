@@ -83,6 +83,29 @@ describe('resolveVideoProcessingDispatch', () => {
     assert.equal(first?.taskId, duplicate?.taskId);
   });
 
+  it('gera nova task quando uma tentativa de cancelamento atualiza o job', () => {
+    const first = resolveVideoProcessingDispatch(
+      'owner-1_video-1',
+      job({
+        state: 'CANCEL_REQUESTED',
+        cancelRequestedAt: 70_000,
+        updatedAt: 80_000,
+      }),
+      90_000
+    );
+    const retry = resolveVideoProcessingDispatch(
+      'owner-1_video-1',
+      job({
+        state: 'CANCEL_REQUESTED',
+        cancelRequestedAt: 70_000,
+        updatedAt: 100_000,
+      }),
+      110_000
+    );
+
+    assert.notEqual(first?.taskId, retry?.taskId);
+  });
+
   it('mantém a identidade idempotente para entregas duplicadas', () => {
     const first = resolveVideoProcessingDispatch(
       'owner-1_video-1',
