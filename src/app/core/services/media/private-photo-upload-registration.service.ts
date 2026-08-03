@@ -1,6 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, throwError } from 'rxjs';
+import {
+  Observable,
+  defer,
+  from,
+  retry,
+  throwError,
+  timer,
+} from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -52,6 +59,8 @@ export interface ReplacePrivatePhotoUploadResult {
   updatedAt: number;
 }
 
+const REGISTER_RETRY_DELAY_MS = 650;
+
 @Injectable({ providedIn: 'root' })
 export class PrivatePhotoUploadRegistrationService {
   private readonly functions = inject(Functions);
@@ -68,7 +77,7 @@ export class PrivatePhotoUploadRegistrationService {
   register$(
     command: RegisterPrivatePhotoUploadCommand
   ): Observable<RegisterPrivatePhotoUploadResult> {
-    return defer(() => from(this.registerCallable(command))).pipe(
+    return this.invokeWithRetry$(() => this.registerCallable(command)).pipe(
       map((response) => response.data),
       catchError((error) => {
         const normalizedError = normalizePrivateMediaDraftOperationError(
@@ -93,7 +102,7 @@ export class PrivatePhotoUploadRegistrationService {
   replace$(
     command: ReplacePrivatePhotoUploadCommand
   ): Observable<ReplacePrivatePhotoUploadResult> {
-    return defer(() => from(this.replaceCallable(command))).pipe(
+    return this.invokeWithRetry$(() => this.replaceCallable(command)).pipe(
       map((response) => response.data),
       catchError((error) => {
         const normalizedError = normalizePrivateMediaDraftOperationError(
@@ -113,6 +122,36 @@ export class PrivatePhotoUploadRegistrationService {
         );
       })
     );
+  }
+
+  private invokeWithRetry$<T>(
+    action: () => Promise<T>
+  ): Observable<T> {
+    return defer(() => from(action())).pipe(
+      retry({
+        count: 1,
+        delay: (error) => this.isRetryableRegistrationError(error)
+          ? timer(REGISTER_RETRY_DELAY_MS)
+          : throwError(() => error),
+      })
+    );
+  }
+
+  private isRetryableRegistrationError(error: unknown): boolean {
+    if (typeof error !== 'object' || error === null || !('code' in error)) {
+      return false;
+    }
+
+    const code = String((error as { code?: unknown }).code ?? '')
+      .replace(/^functions\//, '')
+      .trim();
+
+    return [
+      'deadline-exceeded',
+      'internal',
+      'unavailable',
+      'unknown',
+    ].includes(code);
   }
 
   private handleError$<T>(
