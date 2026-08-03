@@ -5,7 +5,8 @@
 // Proteções:
 // - exige confirmação explícita do projectId;
 // - rejeita projeto sem a palavra staging;
-// - usa usuários e mídias efêmeros;
+// - usa um usuário efêmero por formato;
+// - valida o painel antes de remover a telemetria do teste;
 // - limpa Auth, Firestore e Storage ao final;
 // - não imprime credenciais, tokens nem URLs assinadas.
 // -----------------------------------------------------------------------------
@@ -45,7 +46,6 @@ const JOB_COLLECTION = 'media_video_processing_jobs';
 const RESERVATION_COLLECTION = 'media_private_video_upload_reservations';
 const CAPACITY_COLLECTION = 'media_private_video_upload_capacity';
 const TERMINAL_JOB_STATES = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED']);
-const SUCCESS_JOB_STATE = 'SUCCEEDED';
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
 const DEFAULT_INTERVAL_MS = 5_000;
 const REPORT_DIRECTORY = path.resolve(
@@ -105,10 +105,8 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function waitFor(label, readValue, predicate, options = {}) {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
-  const deadline = Date.now() + timeoutMs;
+async function waitFor(label, readValue, predicate, options) {
+  const deadline = Date.now() + options.timeoutMs;
   let lastValue = null;
 
   while (Date.now() < deadline) {
@@ -118,7 +116,7 @@ async function waitFor(label, readValue, predicate, options = {}) {
       return lastValue;
     }
 
-    await delay(intervalMs);
+    await delay(options.intervalMs);
   }
 
   throw new Error(
@@ -148,30 +146,20 @@ function parseFormats() {
     throw new Error('VIDEO_STAGING_FORMATS não contém formatos válidos.');
   }
 
-  return unique.map((format) => {
-    const configuration = FORMAT_CONFIG[format];
+  return unique.map((name) => {
+    const format = FORMAT_CONFIG[name];
 
-    if (!configuration) {
-      throw new Error(
-        `Formato desconhecido em VIDEO_STAGING_FORMATS: ${format}.`
-      );
+    if (!format) {
+      throw new Error(`Formato desconhecido: ${name}.`);
     }
 
-    const filePath = path.resolve(
-      requiredEnvironment(configuration.environmentVariable)
-    );
+    const filePath = path.resolve(requiredEnvironment(format.environmentVariable));
 
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      throw new Error(
-        `${configuration.environmentVariable} não aponta para um arquivo.`
-      );
+      throw new Error(`${format.environmentVariable} não aponta para um arquivo.`);
     }
 
-    return {
-      name: format,
-      filePath,
-      ...configuration,
-    };
+    return { name, filePath, ...format };
   });
 }
 
@@ -197,7 +185,7 @@ function buildConfiguration() {
   assert.match(
     projectId.toLowerCase(),
     /staging/,
-    'Este script aceita somente projetos explicitamente identificados como staging.'
+    'Este script aceita somente projetos identificados como staging.'
   );
   assert.notEqual(
     projectId,
@@ -207,7 +195,7 @@ function buildConfiguration() {
   assert.equal(
     storageBucket.startsWith(`${projectId}.`),
     true,
-    'O bucket deve pertencer ao projeto de staging confirmado.'
+    'O bucket deve pertencer ao projeto confirmado.'
   );
   assert.equal(
     fs.existsSync(posterPath) && fs.statSync(posterPath).isFile(),
@@ -229,10 +217,7 @@ function buildConfiguration() {
       'VIDEO_STAGING_FUNCTIONS_REGION',
       'us-central1'
     ),
-    durationMs: positiveIntegerEnvironment(
-      'VIDEO_STAGING_DURATION_MS',
-      6_000
-    ),
+    durationMs: positiveIntegerEnvironment('VIDEO_STAGING_DURATION_MS', 6_000),
     timeoutMs: positiveIntegerEnvironment(
       'VIDEO_STAGING_TIMEOUT_MS',
       DEFAULT_TIMEOUT_MS
@@ -279,9 +264,9 @@ async function createAuthenticatedClient({
     email,
     clientApp,
     clientAuth,
-    user: credential.user,
     functions: getFunctions(clientApp, functionsRegion),
     storage: getClientStorage(clientApp),
+    user: credential.user,
   };
 }
 
@@ -294,37 +279,43 @@ async function closeClient(client) {
   await deleteClientApp(client.clientApp).catch(() => undefined);
 }
 
-async function cleanupOwnerResources({ db, bucket, adminAuth, ownerUid, jobIds }) {
+async function cleanupOwnerResources({ db, bucket, adminAuth, resource }) {
   const deleted = {
     storageObjects: 0,
     dispatches: 0,
     deadLetters: 0,
     reservations: 0,
+    jobDeleted: false,
+    authUserDeleted: false,
   };
 
-  const [files] = await bucket.getFiles({ prefix: `users/${ownerUid}/` });
+  const [files] = await bucket.getFiles({ prefix: `users/${resource.ownerUid}/` });
   await Promise.all(files.map((file) => file.delete({ ignoreNotFound: true })));
   deleted.storageObjects = files.length;
 
-  for (const jobId of jobIds) {
-    deleted.dispatches += await deleteQuery(
-      db.collection(DISPATCH_COLLECTION).where('jobId', '==', jobId)
-    );
-    deleted.deadLetters += await deleteQuery(
-      db.collection(DEAD_LETTER_COLLECTION).where('jobId', '==', jobId)
-    );
-    await db.collection(JOB_COLLECTION).doc(jobId).delete().catch(() => undefined);
-  }
-
-  deleted.reservations += await deleteQuery(
-    db.collection(RESERVATION_COLLECTION).where('ownerUid', '==', ownerUid)
+  deleted.dispatches = await deleteQuery(
+    db.collection(DISPATCH_COLLECTION).where('jobId', '==', resource.jobId)
   );
-  await db.collection(CAPACITY_COLLECTION).doc(ownerUid).delete()
-    .catch(() => undefined);
-  await db.recursiveDelete(db.doc(`users/${ownerUid}`)).catch(() => undefined);
-  await db.recursiveDelete(db.doc(`public_profiles/${ownerUid}`))
-    .catch(() => undefined);
-  await adminAuth.deleteUser(ownerUid).catch(() => undefined);
+  deleted.deadLetters = await deleteQuery(
+    db.collection(DEAD_LETTER_COLLECTION).where('jobId', '==', resource.jobId)
+  );
+  await db.collection(JOB_COLLECTION).doc(resource.jobId).delete();
+  deleted.jobDeleted = true;
+
+  deleted.reservations = await deleteQuery(
+    db.collection(RESERVATION_COLLECTION)
+      .where('ownerUid', '==', resource.ownerUid)
+  );
+  await db.collection(CAPACITY_COLLECTION).doc(resource.ownerUid).delete()
+    .catch((error) => {
+      if (error?.code !== 5) {
+        throw error;
+      }
+    });
+  await db.recursiveDelete(db.doc(`users/${resource.ownerUid}`));
+  await db.recursiveDelete(db.doc(`public_profiles/${resource.ownerUid}`));
+  await adminAuth.deleteUser(resource.ownerUid);
+  deleted.authUserDeleted = true;
 
   return deleted;
 }
@@ -334,9 +325,8 @@ async function runFormat({
   configuration,
   adminAuth,
   db,
-  bucket,
   firebaseConfig,
-  report,
+  resources,
 }) {
   const formatRunId = `${format.name}-${randomUUID()}`;
   const startedAt = Date.now();
@@ -356,6 +346,7 @@ async function runFormat({
     `users/${ownerUid}/uploads/videos/${videoId}.${format.extension}`;
   const posterPath =
     `users/${ownerUid}/uploads/video-posters/${videoId}/poster.jpg`;
+  const resource = { ownerUid, videoId, jobId, format: format.name };
   const result = {
     format: format.name,
     mimeType: format.mimeType,
@@ -367,15 +358,13 @@ async function runFormat({
     terminalState: null,
     moderationStatus: null,
     dispatchStates: [],
+    cleanup: null,
   };
-  let failed = false;
+
+  resources.push({ ...resource, result });
 
   const step = (name, details = null) => {
-    result.steps.push({
-      name,
-      at: new Date().toISOString(),
-      details,
-    });
+    result.steps.push({ name, at: new Date().toISOString(), details });
     console.log(`✔ [${format.name}] ${name}`);
   };
 
@@ -406,7 +395,7 @@ async function runFormat({
       stagingSmoke: true,
       updatedAt: Date.now(),
     }, { merge: true });
-    step('Conta efêmera elegível e perfil público criados.');
+    step('Conta elegível e perfil público efêmeros criados.');
 
     const reservePrivateVideoUpload = httpsCallable(
       client.functions,
@@ -428,6 +417,7 @@ async function runFormat({
     assert.equal(reservation?.ownerUid, ownerUid);
     assert.equal(reservation?.videoId, videoId);
     assert.ok(Number(reservation?.expiresAt ?? 0) > Date.now());
+    result.reservationId = reservationId;
     step('Quota reservada antes da transferência.', {
       reservationId,
       reservedBytes: Number(reservation?.reservedBytes ?? 0),
@@ -435,10 +425,7 @@ async function runFormat({
 
     const uploadMetadata = {
       cacheControl: 'private, max-age=0, no-store, no-transform',
-      customMetadata: {
-        videoReservationId: reservationId,
-        videoId,
-      },
+      customMetadata: { videoReservationId: reservationId, videoId },
     };
     await uploadBytes(ref(client.storage, sourcePath), sourceBuffer, {
       ...uploadMetadata,
@@ -448,7 +435,7 @@ async function runFormat({
       ...uploadMetadata,
       contentType: 'image/jpeg',
     });
-    step('Vídeo e poster enviados pelas Storage Rules com reserva.');
+    step('Vídeo e poster autorizados pelas Storage Rules.');
 
     const registerPrivateVideoUpload = httpsCallable(
       client.functions,
@@ -525,10 +512,12 @@ async function runFormat({
     );
     result.terminalState = String(terminal.job.state ?? '');
 
-    if (result.terminalState !== SUCCESS_JOB_STATE) {
+    if (result.terminalState !== 'SUCCEEDED') {
       const code = String(terminal.job.lastErrorCode ?? 'PROCESSING_FAILED');
       const message = String(terminal.job.lastError ?? 'Falha sem detalhes.');
-      throw new Error(`Processamento terminou em ${result.terminalState}: ${code} - ${message}`);
+      throw new Error(
+        `Processamento terminou em ${result.terminalState}: ${code} - ${message}`
+      );
     }
     step('Google Transcoder concluiu o processamento.', {
       processingVersion: String(terminal.job.processingVersion ?? ''),
@@ -568,7 +557,7 @@ async function runFormat({
     result.moderationStatus = String(
       published.publicVideo.moderationStatus ?? ''
     );
-    step('Derivado reproduzível e publicação automática confirmados.', {
+    step('Derivado e publicação automática confirmados.', {
       processedMimeType,
       moderationStatus: result.moderationStatus,
     });
@@ -594,40 +583,116 @@ async function runFormat({
     assert.equal(deadLetterSnapshot.empty, true, 'Job bem-sucedido apareceu na DLQ.');
     step('Ausência indevida de DLQ confirmada.');
 
+    result.status = 'PASS';
     result.finishedAt = new Date().toISOString();
     result.durationMs = Date.now() - startedAt;
-    result.status = 'PASS';
     return result;
   } catch (error) {
-    failed = true;
     result.status = 'FAIL';
     result.error = safeError(error);
     result.finishedAt = new Date().toISOString();
     result.durationMs = Date.now() - startedAt;
-    throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
-      smokeResult: result,
-    });
+    throw Object.assign(
+      error instanceof Error ? error : new Error(String(error)),
+      { smokeResult: result }
+    );
   } finally {
     await closeClient(client);
+  }
+}
 
-    const shouldCleanup = configuration.cleanup &&
-      !(failed && configuration.keepOnFailure);
+async function validateOperationalPanel(observer, report) {
+  const callable = httpsCallable(
+    observer.functions,
+    'getVideoProcessingOperationalStatus'
+  );
+  const response = await callable({});
+  const status = response.data;
 
-    if (shouldCleanup) {
-      result.cleanup = await cleanupOwnerResources({
-        db,
-        bucket,
-        adminAuth,
-        ownerUid,
-        jobIds: [jobId],
-      });
-      console.log(`✔ [${format.name}] Recursos efêmeros removidos.`);
-    } else {
-      result.cleanup = { skipped: true };
-      console.warn(
-        `⚠ [${format.name}] Limpeza ignorada por configuração explícita.`
-      );
+  assert.notEqual(status?.state, 'EMULATOR');
+  assert.equal(
+    status?.provider?.status,
+    'READY',
+    `Provider não está READY: ${JSON.stringify(status?.provider ?? {})}`
+  );
+  assert.ok(Number(status?.checkedAt ?? 0) > 0);
+  assert.ok(
+    Number(status?.dispatch?.latencySampleSize ?? 0) > 0,
+    'O painel não encontrou amostra de latência antes da limpeza.'
+  );
+
+  report.operationalStatus = {
+    state: status.state,
+    providerStatus: status.provider.status,
+    activeJobs: Number(status.queue?.activeTotal ?? 0),
+    staleJobs: Number(status.queue?.staleSampledJobs ?? 0),
+    pendingDispatches: Number(status.dispatch?.pendingTotal ?? 0),
+    latencySampleSize: Number(status.dispatch?.latencySampleSize ?? 0),
+    p50LatencyMs: status.dispatch?.p50LatencyMs ?? null,
+    p95LatencyMs: status.dispatch?.p95LatencyMs ?? null,
+    recentDeadLetters: Number(status.deadLetters?.recentTotal ?? 0),
+    alertCodes: Array.isArray(status.alerts)
+      ? status.alerts.map((alert) => String(alert.code ?? ''))
+      : [],
+  };
+  console.log('✔ Painel operacional respondeu com provider READY.');
+}
+
+async function cleanupAll({
+  configuration,
+  report,
+  resources,
+  observer,
+  db,
+  bucket,
+  adminAuth,
+}) {
+  const failedRun = report.status === 'FAIL';
+  const shouldCleanupOwners = configuration.cleanup &&
+    !(failedRun && configuration.keepOnFailure);
+  const cleanupErrors = [];
+
+  if (shouldCleanupOwners) {
+    for (const resource of resources) {
+      try {
+        resource.result.cleanup = await cleanupOwnerResources({
+          db,
+          bucket,
+          adminAuth,
+          resource,
+        });
+        console.log(`✔ [${resource.format}] Recursos efêmeros removidos.`);
+      } catch (error) {
+        const normalized = safeError(error);
+        resource.result.cleanup = { status: 'FAIL', error: normalized };
+        cleanupErrors.push({ resource: resource.jobId, ...normalized });
+      }
     }
+  } else {
+    resources.forEach((resource) => {
+      resource.result.cleanup = { skipped: true };
+    });
+    console.warn('⚠ Limpeza dos usuários de mídia ignorada por configuração.');
+  }
+
+  if (observer) {
+    await closeClient(observer);
+    try {
+      await adminAuth.deleteUser(observer.uid);
+      report.observerCleanup = { authUserDeleted: true };
+    } catch (error) {
+      const normalized = safeError(error);
+      report.observerCleanup = { authUserDeleted: false, error: normalized };
+      cleanupErrors.push({ resource: observer.uid, ...normalized });
+    }
+  }
+
+  if (cleanupErrors.length > 0) {
+    report.cleanupErrors = cleanupErrors;
+    report.status = 'FAIL';
+    throw new Error(
+      `A limpeza de staging falhou para ${cleanupErrors.length} recurso(s).`
+    );
   }
 }
 
@@ -643,9 +708,9 @@ async function main() {
     startedAt: new Date(startedAt).toISOString(),
     formats: [],
     operationalStatus: null,
-    cleanup: null,
     status: 'RUNNING',
   };
+  const resources = [];
   const firebaseConfig = {
     apiKey: configuration.apiKey,
     appId: configuration.appId,
@@ -662,6 +727,7 @@ async function main() {
   const db = getAdminFirestore(adminApp);
   const bucket = getAdminStorage(adminApp).bucket(configuration.storageBucket);
   let observer = null;
+  let primaryError = null;
 
   fs.mkdirSync(REPORT_DIRECTORY, { recursive: true });
   console.log(
@@ -685,9 +751,8 @@ async function main() {
           configuration,
           adminAuth,
           db,
-          bucket,
           firebaseConfig,
-          report,
+          resources,
         });
         report.formats.push(formatResult);
       } catch (error) {
@@ -698,52 +763,37 @@ async function main() {
       }
     }
 
-    const getOperationalStatus = httpsCallable(
-      observer.functions,
-      'getVideoProcessingOperationalStatus'
-    );
-    const operationalResponse = await getOperationalStatus({});
-    const operational = operationalResponse.data;
-    assert.notEqual(operational?.state, 'EMULATOR');
-    assert.equal(
-      operational?.provider?.status,
-      'READY',
-      `Provider não está READY: ${JSON.stringify(operational?.provider ?? {})}`
-    );
-    assert.ok(Number(operational?.checkedAt ?? 0) > 0);
-    assert.ok(Number(operational?.dispatch?.latencySampleSize ?? 0) > 0);
-    report.operationalStatus = {
-      state: operational.state,
-      providerStatus: operational.provider.status,
-      activeJobs: Number(operational.queue?.activeTotal ?? 0),
-      staleJobs: Number(operational.queue?.staleSampledJobs ?? 0),
-      pendingDispatches: Number(operational.dispatch?.pendingTotal ?? 0),
-      p50LatencyMs: operational.dispatch?.p50LatencyMs ?? null,
-      p95LatencyMs: operational.dispatch?.p95LatencyMs ?? null,
-      recentDeadLetters: Number(operational.deadLetters?.recentTotal ?? 0),
-      alertCodes: Array.isArray(operational.alerts)
-        ? operational.alerts.map((alert) => String(alert.code ?? ''))
-        : [],
-    };
-    console.log('✔ Painel operacional respondeu com provider READY.');
-
+    await validateOperationalPanel(observer, report);
     report.status = 'PASS';
   } catch (error) {
+    primaryError = error;
     report.status = 'FAIL';
     report.error = safeError(error);
-    throw error;
-  } finally {
-    if (observer) {
-      await closeClient(observer);
-      await adminAuth.deleteUser(observer.uid).catch(() => undefined);
-      report.cleanup = { observerUserDeleted: true };
-    }
+  }
 
+  try {
+    await cleanupAll({
+      configuration,
+      report,
+      resources,
+      observer,
+      db,
+      bucket,
+      adminAuth,
+    });
+  } catch (cleanupError) {
+    primaryError ??= cleanupError;
+    report.error ??= safeError(cleanupError);
+  } finally {
     report.finishedAt = new Date().toISOString();
     report.durationMs = Date.now() - startedAt;
     fs.writeFileSync(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`);
     await deleteAdminApp(adminApp).catch(() => undefined);
     console.log(`[video:staging] Relatório: ${REPORT_PATH}`);
+  }
+
+  if (primaryError) {
+    throw primaryError;
   }
 }
 
