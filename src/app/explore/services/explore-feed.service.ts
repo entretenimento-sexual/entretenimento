@@ -3,7 +3,7 @@
 // Feed social da área Explorar.
 //
 // Responsabilidades:
-// - compor seções públicas de mídia;
+// - compor seções públicas de fotos e vídeos;
 // - enriquecer mídias apenas com projeções públicas dos proprietários;
 // - consumir perfis compatíveis pela Discovery V2 paginada/NgRx;
 // - não carregar integralmente public_profiles.
@@ -21,12 +21,14 @@ import {
   tap,
 } from 'rxjs/operators';
 
-import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { PublicVideoRankingQueryService } from 'src/app/core/services/media/public-video-ranking-query.service';
 import { DiscoveryCardEnrichmentService } from 'src/app/dashboard/discovery/application/discovery-card-enrichment.service';
 import {
   DiscoveryFeedRequest,
@@ -42,12 +44,15 @@ import { IExploreSection } from '../models/i-explore-section';
 
 const EXPLORE_COMPATIBLE_PAGE_SIZE = 24;
 const EXPLORE_COMPATIBLE_VISIBLE_LIMIT = 6;
+const EXPLORE_VIDEO_LIMIT = 8;
 
 export interface IExploreFeedVm {
   readonly boostedPhotos: readonly IPublicPhotoItem[];
   readonly mostViewedPhotos: readonly IPublicPhotoItem[];
   readonly topPhotos: readonly IPublicPhotoItem[];
   readonly latestPhotos: readonly IPublicPhotoItem[];
+  readonly featuredVideos: readonly IPublicVideoItem[];
+  readonly featuredVideoMode: 'top' | 'latest';
   readonly sections: readonly IExploreSection<IPublicPhotoItem>[];
   readonly compatibleProfiles: readonly PublicProfileCard[];
   readonly totalItems: number;
@@ -65,6 +70,7 @@ export class ExploreFeedService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly store = inject(Store<AppState>);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
+  private readonly videoRanking = inject(PublicVideoRankingQueryService);
   private readonly discoveryQuery = inject(UserDiscoveryQueryService);
   private readonly accessControl = inject(AccessControlService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
@@ -129,6 +135,28 @@ export class ExploreFeedService {
   private readonly publicPool$: Observable<IPublicPhotoItem[]> =
     this.mediaPublicQuery.getLatestPublicPhotos$(48).pipe(
       switchMap((photos) => this.enrichPublicPhotos$(photos)),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  private readonly topVideos$: Observable<IPublicVideoItem[]> =
+    this.videoRanking.loadPage$({
+      mode: 'top',
+      pageSize: EXPLORE_VIDEO_LIMIT,
+      cursor: null,
+      notifyOnError: false,
+    }).pipe(
+      switchMap((page) => this.enrichPublicVideos$(page.items)),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  private readonly latestVideos$: Observable<IPublicVideoItem[]> =
+    this.videoRanking.loadPage$({
+      mode: 'latest',
+      pageSize: EXPLORE_VIDEO_LIMIT,
+      cursor: null,
+      notifyOnError: false,
+    }).pipe(
+      switchMap((page) => this.enrichPublicVideos$(page.items)),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
@@ -197,9 +225,18 @@ export class ExploreFeedService {
     this.boostedPhotos$,
     this.topPhotos$,
     this.publicPool$,
+    this.topVideos$,
+    this.latestVideos$,
     this.compatibleProfiles$,
   ]).pipe(
-    map(([boostedPhotos, topPhotos, publicPool, compatibleProfiles]) => {
+    map(([
+      boostedPhotos,
+      topPhotos,
+      publicPool,
+      topVideos,
+      latestVideos,
+      compatibleProfiles,
+    ]) => {
       const latestPhotos = this.rankByPublishedAt(publicPool).slice(0, 16);
 
       const safeTopPhotos =
@@ -208,6 +245,10 @@ export class ExploreFeedService {
           : this.rankByEngagement(publicPool).slice(0, 12);
 
       const mostViewedPhotos = this.rankByViews(publicPool).slice(0, 12);
+      const featuredVideoMode = topVideos.length > 0 ? 'top' : 'latest';
+      const featuredVideos = featuredVideoMode === 'top'
+        ? topVideos
+        : latestVideos;
 
       const sections: IExploreSection<IPublicPhotoItem>[] = [
         {
@@ -260,6 +301,7 @@ export class ExploreFeedService {
 
       const totalItems =
         compatibleProfiles.length +
+        featuredVideos.length +
         visibleSections.reduce(
           (total, section) => total + section.items.length,
           0
@@ -270,6 +312,8 @@ export class ExploreFeedService {
         mostViewedPhotos,
         topPhotos: safeTopPhotos,
         latestPhotos,
+        featuredVideos,
+        featuredVideoMode,
         compatibleProfiles,
         sections: visibleSections,
         totalItems,
@@ -368,16 +412,7 @@ export class ExploreFeedService {
   private enrichPublicPhotos$(
     photos: readonly IPublicPhotoItem[]
   ): Observable<IPublicPhotoItem[]> {
-    const ownerUids = Array.from(
-      new Set(
-        (photos ?? [])
-          .map((photo) => photo.ownerUid)
-          .filter(
-            (uid): uid is string =>
-              typeof uid === 'string' && uid.trim().length > 0
-          )
-      )
-    );
+    const ownerUids = this.uniqueOwnerUids(photos);
 
     if (!ownerUids.length) {
       return of([...(photos ?? [])]);
@@ -387,16 +422,10 @@ export class ExploreFeedService {
       .getProfilesByUids$(ownerUids, { cacheTTL: 300_000 })
       .pipe(
         map((profiles) => {
-          const byUid = new Map<string, IUserDados>();
-
-          for (const profile of profiles ?? []) {
-            if (profile?.uid) {
-              byUid.set(profile.uid, profile);
-            }
-          }
+          const byUid = this.profileMap(profiles);
 
           return (photos ?? []).map((photo) =>
-            this.withOwnerProfile(
+            this.withPhotoOwnerProfile(
               photo,
               byUid.get(photo.ownerUid) ?? null
             )
@@ -405,7 +434,59 @@ export class ExploreFeedService {
       );
   }
 
-  private withOwnerProfile(
+  private enrichPublicVideos$(
+    videos: readonly IPublicVideoItem[]
+  ): Observable<IPublicVideoItem[]> {
+    const ownerUids = this.uniqueOwnerUids(videos);
+
+    if (!ownerUids.length) {
+      return of([...(videos ?? [])]);
+    }
+
+    return this.discoveryQuery
+      .getProfilesByUids$(ownerUids, { cacheTTL: 300_000 })
+      .pipe(
+        map((profiles) => {
+          const byUid = this.profileMap(profiles);
+
+          return (videos ?? []).map((video) =>
+            this.withVideoOwnerProfile(
+              video,
+              byUid.get(video.ownerUid) ?? null
+            )
+          );
+        })
+      );
+  }
+
+  private uniqueOwnerUids(
+    items: readonly Array<{ readonly ownerUid: string }>
+  ): string[] {
+    return Array.from(
+      new Set(
+        (items ?? [])
+          .map((item) => item.ownerUid)
+          .filter(
+            (uid): uid is string =>
+              typeof uid === 'string' && uid.trim().length > 0
+          )
+      )
+    );
+  }
+
+  private profileMap(profiles: readonly IUserDados[]): Map<string, IUserDados> {
+    const byUid = new Map<string, IUserDados>();
+
+    for (const profile of profiles ?? []) {
+      if (profile?.uid) {
+        byUid.set(profile.uid, profile);
+      }
+    }
+
+    return byUid;
+  }
+
+  private withPhotoOwnerProfile(
     photo: IPublicPhotoItem,
     owner: IUserDados | null
   ): IPublicPhotoItem {
@@ -421,6 +502,27 @@ export class ExploreFeedService {
       ownerOrientation: owner.orientation ?? null,
       ownerMunicipio: owner.municipio ?? null,
       ownerEstado: owner.estado ?? null,
+    };
+  }
+
+  private withVideoOwnerProfile(
+    video: IPublicVideoItem,
+    owner: IUserDados | null
+  ): IPublicVideoItem {
+    if (!owner) {
+      return video;
+    }
+
+    return {
+      ...video,
+      owner: {
+        nickname: owner.nickname ?? null,
+        photoURL: owner.photoURL ?? null,
+        gender: owner.gender ?? null,
+        orientation: owner.orientation ?? null,
+        municipio: owner.municipio ?? null,
+        estado: owner.estado ?? null,
+      },
     };
   }
 
