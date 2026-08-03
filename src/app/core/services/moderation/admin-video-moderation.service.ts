@@ -63,8 +63,33 @@ export type AdminVideoProcessingJobState =
   | 'CANCEL_REQUESTED'
   | 'CANCELLED';
 
+export type AdminVideoProcessingDispatchState =
+  | 'ENQUEUEING'
+  | 'ENQUEUED'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'EMULATOR_SKIPPED';
+
+export type AdminVideoProcessingAlertSeverity =
+  | 'INFO'
+  | 'WARNING'
+  | 'CRITICAL';
+
+export type AdminVideoProcessingAlertCode =
+  | 'PROVIDER_UNAVAILABLE'
+  | 'STALE_JOBS'
+  | 'DISPATCH_BACKLOG'
+  | 'DISPATCH_FAILURES'
+  | 'RECENT_DEAD_LETTERS'
+  | 'ACTIVE_SAMPLE_CAPPED';
+
 export type AdminVideoProcessingJobCounts = Record<
   AdminVideoProcessingJobState,
+  number
+>;
+
+export type AdminVideoProcessingDispatchCounts = Record<
+  AdminVideoProcessingDispatchState,
   number
 >;
 
@@ -89,11 +114,87 @@ export interface IAdminVideoProcessingQueueStatus {
   sampleCapped: boolean;
 }
 
+export interface IAdminVideoProcessingDispatchStatus {
+  counts: AdminVideoProcessingDispatchCounts;
+  pendingTotal: number;
+  oldestPendingAgeMs: number | null;
+  recentWindowMs: number;
+  recentTotal: number;
+  completedRecent: number;
+  failedRecent: number;
+  duplicateRecent: number;
+  latencySampleSize: number;
+  averageLatencyMs: number | null;
+  p50LatencyMs: number | null;
+  p95LatencyMs: number | null;
+  sampleCapped: boolean;
+}
+
+export interface IAdminVideoProcessingFailureCode {
+  code: string;
+  count: number;
+  lastSeenAt: number;
+}
+
+export interface IAdminVideoProcessingDeadLetterItem {
+  deadLetterId: string;
+  jobId: string;
+  ownerUid: string;
+  videoId: string;
+  processingVersion: string;
+  attempts: number;
+  providerState: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  failedAt: number;
+}
+
+export interface IAdminVideoProcessingDeadLetters {
+  total: number;
+  recentWindowMs: number;
+  recentTotal: number;
+  sampledItems: number;
+  sampleCapped: boolean;
+  failureCodes: IAdminVideoProcessingFailureCode[];
+  items: IAdminVideoProcessingDeadLetterItem[];
+}
+
+export interface IAdminVideoProcessingAuditItem {
+  logId: string;
+  adminUid: string;
+  ownerUid: string;
+  videoId: string;
+  operation: string;
+  operationId: string;
+  previousState: string | null;
+  nextState: string | null;
+  reason: string;
+  timestamp: number;
+}
+
+export interface IAdminVideoProcessingAudit {
+  items: IAdminVideoProcessingAuditItem[];
+  skippedItems: number;
+  sampleCapped: boolean;
+}
+
+export interface IAdminVideoProcessingAlert {
+  code: AdminVideoProcessingAlertCode;
+  severity: AdminVideoProcessingAlertSeverity;
+  title: string;
+  message: string;
+  value: number | null;
+}
+
 export interface IAdminVideoProcessingStatus {
   state: AdminVideoProcessingOperationalState;
   checkedAt: number;
   provider: IAdminVideoProcessingProviderStatus;
   queue: IAdminVideoProcessingQueueStatus;
+  dispatch: IAdminVideoProcessingDispatchStatus;
+  deadLetters: IAdminVideoProcessingDeadLetters;
+  audit: IAdminVideoProcessingAudit;
+  alerts: IAdminVideoProcessingAlert[];
 }
 
 const PROCESSING_JOB_STATES: AdminVideoProcessingJobState[] = [
@@ -104,6 +205,29 @@ const PROCESSING_JOB_STATES: AdminVideoProcessingJobState[] = [
   'FAILED',
   'CANCEL_REQUESTED',
   'CANCELLED',
+];
+
+const PROCESSING_DISPATCH_STATES: AdminVideoProcessingDispatchState[] = [
+  'ENQUEUEING',
+  'ENQUEUED',
+  'COMPLETED',
+  'FAILED',
+  'EMULATOR_SKIPPED',
+];
+
+const PROCESSING_ALERT_CODES: AdminVideoProcessingAlertCode[] = [
+  'PROVIDER_UNAVAILABLE',
+  'STALE_JOBS',
+  'DISPATCH_BACKLOG',
+  'DISPATCH_FAILURES',
+  'RECENT_DEAD_LETTERS',
+  'ACTIVE_SAMPLE_CAPPED',
+];
+
+const PROCESSING_ALERT_SEVERITIES: AdminVideoProcessingAlertSeverity[] = [
+  'INFO',
+  'WARNING',
+  'CRITICAL',
 ];
 
 @Injectable({ providedIn: 'root' })
@@ -280,6 +404,142 @@ export class AdminVideoModerationService {
         ),
         sampleCapped: value?.queue?.sampleCapped === true,
       },
+      dispatch: this.normalizeDispatchStatus(value?.dispatch),
+      deadLetters: this.normalizeDeadLetters(value?.deadLetters),
+      audit: this.normalizeAudit(value?.audit),
+      alerts: Array.isArray(value?.alerts)
+        ? value.alerts.map((alert) => this.normalizeAlert(alert))
+        : [],
+    };
+  }
+
+  private normalizeDispatchStatus(
+    value: IAdminVideoProcessingDispatchStatus | null | undefined
+  ): IAdminVideoProcessingDispatchStatus {
+    return {
+      counts: this.normalizeDispatchCounts(value?.counts),
+      pendingTotal: this.normalizeNonNegativeInteger(value?.pendingTotal),
+      oldestPendingAgeMs: this.normalizeOptionalPositiveInteger(
+        value?.oldestPendingAgeMs
+      ),
+      recentWindowMs: this.normalizeNonNegativeInteger(value?.recentWindowMs),
+      recentTotal: this.normalizeNonNegativeInteger(value?.recentTotal),
+      completedRecent: this.normalizeNonNegativeInteger(
+        value?.completedRecent
+      ),
+      failedRecent: this.normalizeNonNegativeInteger(value?.failedRecent),
+      duplicateRecent: this.normalizeNonNegativeInteger(
+        value?.duplicateRecent
+      ),
+      latencySampleSize: this.normalizeNonNegativeInteger(
+        value?.latencySampleSize
+      ),
+      averageLatencyMs: this.normalizeOptionalPositiveInteger(
+        value?.averageLatencyMs
+      ),
+      p50LatencyMs: this.normalizeOptionalPositiveInteger(value?.p50LatencyMs),
+      p95LatencyMs: this.normalizeOptionalPositiveInteger(value?.p95LatencyMs),
+      sampleCapped: value?.sampleCapped === true,
+    };
+  }
+
+  private normalizeDeadLetters(
+    value: IAdminVideoProcessingDeadLetters | null | undefined
+  ): IAdminVideoProcessingDeadLetters {
+    return {
+      total: this.normalizeNonNegativeInteger(value?.total),
+      recentWindowMs: this.normalizeNonNegativeInteger(value?.recentWindowMs),
+      recentTotal: this.normalizeNonNegativeInteger(value?.recentTotal),
+      sampledItems: this.normalizeNonNegativeInteger(value?.sampledItems),
+      sampleCapped: value?.sampleCapped === true,
+      failureCodes: Array.isArray(value?.failureCodes)
+        ? value.failureCodes.map((item) => ({
+            code:
+              this.normalizeOptionalText(item?.code, 120) ||
+              'UNCLASSIFIED_PROCESSING_FAILURE',
+            count: this.normalizeNonNegativeInteger(item?.count),
+            lastSeenAt: this.normalizeNonNegativeInteger(item?.lastSeenAt),
+          }))
+        : [],
+      items: Array.isArray(value?.items)
+        ? value.items
+            .map((item) => this.normalizeDeadLetterItem(item))
+            .filter((item) => !!item.ownerUid && !!item.videoId)
+        : [],
+    };
+  }
+
+  private normalizeDeadLetterItem(
+    value: IAdminVideoProcessingDeadLetterItem
+  ): IAdminVideoProcessingDeadLetterItem {
+    return {
+      deadLetterId: this.normalizeOptionalText(value?.deadLetterId, 128) || '',
+      jobId: this.normalizeJobId(value?.jobId),
+      ownerUid: this.normalizeId(value?.ownerUid),
+      videoId: this.normalizeId(value?.videoId),
+      processingVersion:
+        this.normalizeOptionalText(value?.processingVersion, 128) || '',
+      attempts: this.normalizeNonNegativeInteger(value?.attempts),
+      providerState: this.normalizeOptionalText(value?.providerState, 160),
+      errorCode: this.normalizeOptionalText(value?.errorCode, 120),
+      errorMessage: this.normalizeOptionalText(value?.errorMessage, 500),
+      failedAt: this.normalizeNonNegativeInteger(value?.failedAt),
+    };
+  }
+
+  private normalizeAudit(
+    value: IAdminVideoProcessingAudit | null | undefined
+  ): IAdminVideoProcessingAudit {
+    return {
+      items: Array.isArray(value?.items)
+        ? value.items
+            .map((item) => this.normalizeAuditItem(item))
+            .filter((item) => !!item.adminUid && !!item.videoId)
+        : [],
+      skippedItems: this.normalizeNonNegativeInteger(value?.skippedItems),
+      sampleCapped: value?.sampleCapped === true,
+    };
+  }
+
+  private normalizeAuditItem(
+    value: IAdminVideoProcessingAuditItem
+  ): IAdminVideoProcessingAuditItem {
+    return {
+      logId: this.normalizeOptionalText(value?.logId, 128) || '',
+      adminUid: this.normalizeId(value?.adminUid),
+      ownerUid: this.normalizeId(value?.ownerUid),
+      videoId: this.normalizeId(value?.videoId),
+      operation: this.normalizeOptionalText(value?.operation, 80) || '',
+      operationId: this.normalizeOptionalText(value?.operationId, 128) || '',
+      previousState: this.normalizeOptionalText(value?.previousState, 80),
+      nextState: this.normalizeOptionalText(value?.nextState, 80),
+      reason: this.normalizeOptionalText(value?.reason, 900) || '',
+      timestamp: this.normalizeNonNegativeInteger(value?.timestamp),
+    };
+  }
+
+  private normalizeAlert(
+    value: IAdminVideoProcessingAlert
+  ): IAdminVideoProcessingAlert {
+    const code = String(value?.code ?? '').trim().toUpperCase();
+    const severity = String(value?.severity ?? '').trim().toUpperCase();
+
+    return {
+      code: PROCESSING_ALERT_CODES.includes(
+        code as AdminVideoProcessingAlertCode
+      )
+        ? code as AdminVideoProcessingAlertCode
+        : 'ACTIVE_SAMPLE_CAPPED',
+      severity: PROCESSING_ALERT_SEVERITIES.includes(
+        severity as AdminVideoProcessingAlertSeverity
+      )
+        ? severity as AdminVideoProcessingAlertSeverity
+        : 'INFO',
+      title: this.normalizeOptionalText(value?.title, 160) ||
+        'Alerta operacional',
+      message: this.normalizeOptionalText(value?.message, 500) ||
+        'O processamento requer verificação administrativa.',
+      value: this.normalizeOptionalNonNegativeInteger(value?.value),
     };
   }
 
@@ -295,9 +555,26 @@ export class AdminVideoModerationService {
     return counts;
   }
 
+  private normalizeDispatchCounts(
+    value: Partial<AdminVideoProcessingDispatchCounts> | null | undefined
+  ): AdminVideoProcessingDispatchCounts {
+    const counts = {} as AdminVideoProcessingDispatchCounts;
+
+    PROCESSING_DISPATCH_STATES.forEach((state) => {
+      counts[state] = this.normalizeNonNegativeInteger(value?.[state]);
+    });
+
+    return counts;
+  }
+
   private normalizeId(value: unknown): string {
     const normalized = String(value ?? '').trim();
     return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
+  }
+
+  private normalizeJobId(value: unknown): string {
+    const normalized = String(value ?? '').trim();
+    return /^[A-Za-z0-9_-]{1,300}$/.test(normalized) ? normalized : '';
   }
 
   private normalizeOptionalText(
@@ -314,6 +591,17 @@ export class AdminVideoModerationService {
     return Number.isFinite(numberValue) && numberValue >= 0
       ? Math.trunc(numberValue)
       : 0;
+  }
+
+  private normalizeOptionalNonNegativeInteger(value: unknown): number | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) && numberValue >= 0
+      ? Math.trunc(numberValue)
+      : null;
   }
 
   private normalizeOptionalPositiveInteger(value: unknown): number | null {

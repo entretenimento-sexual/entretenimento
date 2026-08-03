@@ -169,7 +169,7 @@ export class AdminVideoProcessingRecoveryService {
     const state = this.normalizeState(value?.state);
 
     return {
-      jobId: this.normalizeId(value?.jobId),
+      jobId: this.normalizeJobId(value?.jobId),
       ownerUid: this.normalizeId(value?.ownerUid),
       videoId: this.normalizeId(value?.videoId),
       state,
@@ -222,6 +222,11 @@ export class AdminVideoProcessingRecoveryService {
   private normalizeId(value: unknown): string {
     const normalized = String(value ?? '').trim();
     return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
+  }
+
+  private normalizeJobId(value: unknown): string {
+    const normalized = String(value ?? '').trim();
+    return /^[A-Za-z0-9_-]{1,300}$/.test(normalized) ? normalized : '';
   }
 
   private normalizeOperationId(value: unknown): string {
