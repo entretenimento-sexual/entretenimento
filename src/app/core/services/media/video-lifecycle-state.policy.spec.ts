@@ -79,6 +79,26 @@ describe('video-lifecycle-state.policy', () => {
     });
   });
 
+  it('não confunde o path bruto de fallback com saída processada', () => {
+    const result = resolveVideoLifecyclePresentation(
+      {
+        ...baseVideo,
+        status: 'ready',
+        mimeType: 'video/mp4',
+        processedMimeType: 'video/mp4',
+        processedStoragePath:
+          'users/owner-1/uploads/videos/video-1-source.mp4',
+      },
+      basePublication
+    );
+
+    expect(result).toMatchObject({
+      state: 'REGISTERED',
+      label: 'Registrado',
+      tone: 'progress',
+    });
+  });
+
   it('não classifica como legado enquanto a publicação ainda não foi hidratada', () => {
     const result = resolveVideoLifecyclePresentation(readyVideo, null);
 
