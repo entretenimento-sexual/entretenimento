@@ -104,6 +104,10 @@ export class PrivateMediaDraftCapacityService {
     ReservePrivateMediaUploadRequest,
     PrivateMediaUploadReservation
   >(this.functions, 'reservePrivateMediaUpload');
+  private readonly reserveVideoReplacementCallable = httpsCallable<
+    ReservePrivateMediaUploadRequest,
+    PrivateMediaUploadReservation
+  >(this.functions, 'reservePrivateVideoReplacementUpload');
   private readonly cancelCallable = httpsCallable<
     CancelPrivateMediaUploadRequest,
     CancelPrivateMediaUploadResponse
@@ -161,8 +165,12 @@ export class PrivateMediaDraftCapacityService {
     command: PrivateMediaUploadReservationCommand
   ): Observable<PrivateMediaUploadReservation> {
     const request = this.normalizeReservationRequest(command);
+    const callable = request.kind === 'video' &&
+      request.operation === 'REPLACE'
+      ? this.reserveVideoReplacementCallable
+      : this.reserveCallable;
 
-    return defer(() => from(this.reserveCallable(request))).pipe(
+    return defer(() => from(callable(request))).pipe(
       map((response) => this.normalizeReservation(response.data)),
       catchError((error) => {
         const normalizedError = normalizePrivateMediaDraftOperationError(
@@ -263,11 +271,8 @@ export class PrivateMediaDraftCapacityService {
       throw new Error('Os dados da reserva de upload estão incompletos.');
     }
 
-    if (
-      command.operation === 'REPLACE' &&
-      (!currentStoragePath || command.kind !== 'photo')
-    ) {
-      throw new Error('A substituição precisa da foto privada atual.');
+    if (command.operation === 'REPLACE' && !currentStoragePath) {
+      throw new Error('A substituição precisa do arquivo privado atual.');
     }
 
     return {
