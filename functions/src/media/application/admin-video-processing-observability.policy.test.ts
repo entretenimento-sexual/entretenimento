@@ -57,7 +57,7 @@ describe('admin-video-processing-observability.policy', () => {
           completedAt: null,
         }),
       ],
-      counts: { ENQUEUING: 1, ENQUEUED: 1 },
+      counts: { ENQUEUEING: 1, ENQUEUED: 1 },
       checkedAt: 11_000,
     });
 
