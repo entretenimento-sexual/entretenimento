@@ -118,7 +118,7 @@ function createFixture() {
     buildDefaultConfig: vi.fn((ownerUid: string, photoId: string) =>
       buildPublicationConfig({ ownerUid, photoId })
     ),
-    publishPhoto$: vi.fn(() => of(void 0)),
+    publishPhoto$: vi.fn((_command: any) => of(void 0)),
   };
   const errorHandler = {
     handleError: vi.fn(),
@@ -188,6 +188,9 @@ describe('PhotoUploadFlowService', () => {
     expect(publication).toMatchObject({
       ownerUid: 'user-1',
       visibility: 'PUBLIC',
+      commentsEnabled: true,
+      commentsPolicy: 'EVERYONE',
+      reactionsEnabled: true,
       photo: {
         id: reservation.mediaId,
         path: reservation.sourceStoragePath,
