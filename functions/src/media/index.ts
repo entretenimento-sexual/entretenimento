@@ -80,6 +80,9 @@ export {
   cleanupPrivateMediaUploadReservations,
   reservePrivateMediaUpload,
 } from './application/private-media-upload-reservation.handler';
+export {
+  reservePrivateVideoReplacementUpload,
+} from './application/reserve-private-video-replacement-upload.handler';
 
 export {
   registerPrivatePhotoUpload,
@@ -99,6 +102,9 @@ export {
 export {
   registerPrivateVideoUpload,
 } from './application/register-private-video-upload-auto-publication.handler';
+export {
+  replacePrivateVideoUpload,
+} from './application/replace-private-video-upload.handler';
 
 export {
   queuePrivateVideoProcessing,
