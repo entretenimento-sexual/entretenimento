@@ -4,6 +4,7 @@
 //
 // Fontes atuais:
 // - últimas fotos públicas de perfis/casais;
+// - últimos vídeos públicos aprovados;
 // - descoberta de Comunidades;
 // - descoberta de Locais.
 //
@@ -27,8 +28,10 @@ import { CommunityPreviewCard } from 'src/app/community/data-access/community-pr
 import { CommunityPreviewRepository } from 'src/app/community/data-access/community-preview.repository';
 import { isFeatureEnabled } from 'src/app/core/guards/access-guard/feature-flag.guard';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { PublicVideoRankingQueryService } from 'src/app/core/services/media/public-video-ranking-query.service';
 import {
   PRINCIPAL_FEED_LOADING_STATE,
   PrincipalFeedSource,
@@ -42,12 +45,14 @@ interface FeedSourceResult<T> {
 }
 
 const PHOTO_LIMIT = 12;
+const VIDEO_LIMIT = 8;
 const SPACE_LIMIT = 4;
 const SOCIAL_SPACES_ENABLED = isFeatureEnabled('communityPreview');
 
 @Injectable({ providedIn: 'root' })
 export class PrincipalFeedService {
   private readonly mediaQuery = inject(MediaPublicQueryService);
+  private readonly videoRanking = inject(PublicVideoRankingQueryService);
   private readonly communityRepository = inject(CommunityPreviewRepository);
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly refreshSubject = new BehaviorSubject<void>(undefined);
@@ -56,23 +61,32 @@ export class PrincipalFeedService {
     switchMap(() =>
       combineLatest([
         this.loadPhotos$(),
+        this.loadVideos$(),
         this.loadSpaces$('community'),
         this.loadSpaces$('venue'),
       ]).pipe(
-        map(([photosResult, communitiesResult, venuesResult]) => {
+        map(([
+          photosResult,
+          videosResult,
+          communitiesResult,
+          venuesResult,
+        ]) => {
           const failedSources: PrincipalFeedSource[] = [];
 
           if (photosResult.failed) failedSources.push('profiles');
+          if (videosResult.failed) failedSources.push('videos');
           if (communitiesResult.failed) failedSources.push('communities');
           if (venuesResult.failed) failedSources.push('venues');
 
           const photos = photosResult.value;
+          const videos = videosResult.value;
           const items = buildPrincipalFeedItems(
             photos,
+            videos,
             communitiesResult.value,
             venuesResult.value
           );
-          const enabledSourceCount = SOCIAL_SPACES_ENABLED ? 3 : 1;
+          const enabledSourceCount = SOCIAL_SPACES_ENABLED ? 4 : 2;
           const allEnabledSourcesFailed =
             failedSources.length === enabledSourceCount;
 
@@ -84,6 +98,7 @@ export class PrincipalFeedService {
                 : 'empty',
             items,
             photos,
+            videos,
             failedSources,
           } satisfies PrincipalFeedState;
         })
@@ -102,6 +117,22 @@ export class PrincipalFeedService {
       map((value) => ({ value: value ?? [], failed: false })),
       catchError((error: unknown) => {
         this.reportSourceError('profiles', error);
+        return of({ value: [], failed: true });
+      })
+    );
+  }
+
+  private loadVideos$(): Observable<FeedSourceResult<IPublicVideoItem[]>> {
+    return this.videoRanking.loadPage$({
+      mode: 'latest',
+      pageSize: VIDEO_LIMIT,
+      cursor: null,
+      notifyOnError: false,
+      propagateErrors: true,
+    }).pipe(
+      map((page) => ({ value: [...page.items], failed: false })),
+      catchError((error: unknown) => {
+        this.reportSourceError('videos', error);
         return of({ value: [], failed: true });
       })
     );
