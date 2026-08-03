@@ -51,7 +51,7 @@
 .other-profile-page__hero {
   display: grid;
   grid-template-columns: minmax(14rem, 17.25rem) minmax(0, 1fr);
-  gap: clamp(1.2rem, 3vw, 2.25rem);
+  gap: clamp(1.25rem, 3vw, 2.5rem);
   align-items: center;
   min-width: 0;
   padding: clamp(1rem, 2.2vw, 1.5rem);
@@ -88,10 +88,10 @@
 
 .other-profile-page__identity {
   display: grid;
-  gap: 0.78rem;
-  min-width: 0;
-  max-width: 42rem;
   align-content: center;
+  gap: 0.82rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .other-profile-page__headline {
@@ -133,50 +133,43 @@
   box-shadow: 0 0 0 0.22rem color-mix(in oklab, #22c55e 15%, transparent);
 }
 
-.other-profile-page__meta,
-.other-profile-page__location,
-.other-profile-page__description {
-  margin: 0;
-}
-
-.other-profile-page__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.65rem;
-  color: color-mix(in oklab, var(--text-color, #111827) 78%, transparent);
-  font-size: 0.94rem;
-  font-weight: 740;
-  line-height: 1.35;
-}
-
-.other-profile-page__meta > span:not(:last-child)::after {
-  content: "•";
-  margin-left: 0.65rem;
-  color: color-mix(in oklab, var(--text-color, #111827) 34%, transparent);
-}
-
-.other-profile-page__location {
+.other-profile-page__quick-facts {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.38rem;
-  color: color-mix(in oklab, var(--text-color, #111827) 68%, transparent);
+  gap: 0.45rem 1rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.other-profile-page__quick-facts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+  color: color-mix(in oklab, var(--text-color, #111827) 76%, transparent);
   font-size: 0.88rem;
-  font-weight: 680;
-  line-height: 1.4;
+  font-weight: 710;
+  line-height: 1.35;
 }
 
-.other-profile-page__location i {
+.other-profile-page__quick-facts i {
+  flex: 0 0 auto;
+  width: 1rem;
   color: var(--primary-color, #ff4d57);
+  text-align: center;
 }
 
-.other-profile-page__location strong {
-  color: var(--text-color, #111827);
-  font-weight: 790;
+.other-profile-page__quick-facts span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .other-profile-page__description {
-  max-width: 60ch;
+  max-width: 66ch;
+  margin: 0;
   color: color-mix(in oklab, var(--text-color, #111827) 84%, transparent);
   font-size: 0.94rem;
   line-height: 1.58;
@@ -189,7 +182,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.65rem;
-  padding-top: 0.18rem;
+  padding-top: 0.12rem;
 }
 
 .other-profile-page__action {
@@ -235,160 +228,50 @@
   color: color-mix(in oklab, var(--text-color, #111827) 58%, transparent);
 }
 
-.other-profile-page__overview {
+.other-profile-page__details {
   display: grid;
-  gap: 1rem;
+  gap: 0.68rem;
   min-width: 0;
-  padding: clamp(1rem, 2vw, 1.25rem);
-  border: 1px solid color-mix(in oklab, var(--surface-border, #e5e7eb) 80%, transparent);
-  border-radius: 1.15rem;
-  background: color-mix(in oklab, var(--surface-color, #fff) 98%, var(--text-color, #111827) 1%);
+  margin-top: 0.12rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid color-mix(in oklab, var(--surface-border, #e5e7eb) 72%, transparent);
 }
 
-.other-profile-page__section-heading {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.8rem;
+.other-profile-page__detail-group {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.55rem;
   min-width: 0;
 }
 
-.other-profile-page__section-heading > span {
-  flex: 0 0 auto;
-  margin-top: 0.22rem;
+.other-profile-page__detail-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--primary-color, #ff4d57) 10%, transparent);
   color: var(--primary-color, #ff4d57);
-  font-size: 0.68rem;
-  font-weight: 880;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.other-profile-page__section-heading > div {
-  min-width: 0;
-}
-
-.other-profile-page__section-heading h2,
-.other-profile-page__section-heading p,
-.other-profile-page__info-card h3,
-.other-profile-page__facts,
-.other-profile-page__facts dt,
-.other-profile-page__facts dd {
-  margin: 0;
-}
-
-.other-profile-page__section-heading h2 {
-  color: var(--text-color, #111827);
-  font-size: clamp(1.2rem, 2vw, 1.5rem);
-  font-weight: 880;
-  line-height: 1.15;
-}
-
-.other-profile-page__section-heading p {
-  margin-top: 0.22rem;
-  color: color-mix(in oklab, var(--text-color, #111827) 62%, transparent);
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-
-.other-profile-page__overview-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
-  min-width: 0;
-}
-
-.other-profile-page__info-card {
-  display: grid;
-  align-content: start;
-  gap: 0.8rem;
-  min-width: 0;
-  padding: 0.95rem;
-  border: 1px solid color-mix(in oklab, var(--surface-border, #e5e7eb) 76%, transparent);
-  border-radius: 0.95rem;
-  background: color-mix(in oklab, var(--surface-color, #fff) 96%, var(--primary-color, #ff4d57) 1.5%);
-}
-
-.other-profile-page__info-card--facts {
-  grid-row: span 2;
-}
-
-.other-profile-page__info-card-heading {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--text-color, #111827);
-}
-
-.other-profile-page__info-card-heading i {
-  width: 1.2rem;
-  color: var(--primary-color, #ff4d57);
-  text-align: center;
-}
-
-.other-profile-page__info-card h3 {
-  font-size: 0.9rem;
-  font-weight: 850;
-  line-height: 1.2;
-}
-
-.other-profile-page__facts {
-  display: grid;
-  gap: 0.62rem;
-}
-
-.other-profile-page__facts > div {
-  display: grid;
-  grid-template-columns: minmax(7.5rem, 0.45fr) minmax(0, 1fr);
-  gap: 0.65rem;
-  align-items: baseline;
-  padding-bottom: 0.55rem;
-  border-bottom: 1px solid color-mix(in oklab, var(--surface-border, #e5e7eb) 60%, transparent);
-}
-
-.other-profile-page__facts > div:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.other-profile-page__facts dt {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: color-mix(in oklab, var(--text-color, #111827) 58%, transparent);
-  font-size: 0.76rem;
-  font-weight: 760;
-}
-
-.other-profile-page__facts dt i {
-  width: 1rem;
-  color: color-mix(in oklab, var(--primary-color, #ff4d57) 78%, transparent);
-  text-align: center;
-}
-
-.other-profile-page__facts dd {
-  min-width: 0;
-  color: var(--text-color, #111827);
-  font-size: 0.82rem;
-  font-weight: 760;
-  overflow-wrap: anywhere;
+  font-size: 0.78rem;
 }
 
 .other-profile-page__chip-cloud {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 0.4rem;
   min-width: 0;
 }
 
 .other-profile-page__preference-chip {
   display: inline-flex;
   align-items: center;
-  min-height: 2rem;
-  padding: 0.4rem 0.68rem;
-  border: 1px solid color-mix(in oklab, var(--surface-border, #e5e7eb) 80%, transparent);
+  min-height: 1.75rem;
+  padding: 0.34rem 0.62rem;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--surface-color, #fff) 93%, var(--primary-color, #ff4d57) 4%);
+  background: color-mix(in oklab, var(--surface-color, #fff) 90%, var(--primary-color, #ff4d57) 6%);
   color: color-mix(in oklab, var(--text-color, #111827) 78%, transparent);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 710;
   line-height: 1.15;
 }
@@ -461,20 +344,17 @@ app-profile-media-showcase {
 }
 
 :host-context(.dark-mode) .other-profile-page__hero,
-:host-context(.dark-mode) .other-profile-page__overview,
-:host-context(.dark-mode) .other-profile-page__info-card,
 :host-context(.dark-mode) .other-profile-page__back {
   background-color: color-mix(in oklab, var(--surface-color, #111827) 96%, var(--text-color, #f9fafb) 2%);
 }
 
 :host-context(.high-contrast) .other-profile-page__photo-wrap,
 :host-context(.high-contrast) .other-profile-page__hero,
-:host-context(.high-contrast) .other-profile-page__overview,
-:host-context(.high-contrast) .other-profile-page__info-card,
 :host-context(.high-contrast) .other-profile-page__action,
 :host-context(.high-contrast) .other-profile-page__preference-chip,
+:host-context(.high-contrast) .other-profile-page__detail-icon,
 :host-context(.high-contrast) .other-profile-page__back {
-  border-color: currentColor !important;
+  border: 1px solid currentColor !important;
   box-shadow: none !important;
 }
 
@@ -486,14 +366,7 @@ app-profile-media-showcase {
 @media (max-width: 860px) {
   .other-profile-page__hero {
     grid-template-columns: minmax(12rem, 15.5rem) minmax(0, 1fr);
-  }
-
-  .other-profile-page__overview-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .other-profile-page__info-card--facts {
-    grid-row: auto;
+    gap: 1.25rem;
   }
 }
 
@@ -505,7 +378,6 @@ app-profile-media-showcase {
   }
 
   .other-profile-page__topbar,
-  .other-profile-page__overview,
   .other-profile-page__social {
     margin-inline: 0.75rem;
   }
@@ -527,12 +399,16 @@ app-profile-media-showcase {
   }
 
   .other-profile-page__identity {
-    gap: 0.68rem;
+    gap: 0.72rem;
     padding: 0.9rem 0.95rem 1.05rem;
   }
 
   .other-profile-page__title {
     font-size: clamp(1.9rem, 9vw, 2.55rem);
+  }
+
+  .other-profile-page__quick-facts {
+    gap: 0.45rem 0.8rem;
   }
 
   .other-profile-page__actions {
@@ -542,35 +418,24 @@ app-profile-media-showcase {
   .other-profile-page__action {
     flex: 1 1 11rem;
   }
-
-  .other-profile-page__overview {
-    padding: 0.9rem;
-    border-radius: 0.95rem;
-  }
-
-  .other-profile-page__section-heading {
-    display: grid;
-    gap: 0.25rem;
-  }
-
-  .other-profile-page__section-heading > span {
-    margin-top: 0;
-  }
-
-  .other-profile-page__facts > div {
-    grid-template-columns: 1fr;
-    gap: 0.22rem;
-  }
 }
 
-@media (max-width: 360px) {
-  .other-profile-page__meta {
-    gap: 0.25rem 0.45rem;
-    font-size: 0.86rem;
+@media (max-width: 390px) {
+  .other-profile-page__quick-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
   }
 
-  .other-profile-page__meta > span:not(:last-child)::after {
-    margin-left: 0.45rem;
+  .other-profile-page__detail-group {
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+    gap: 0.45rem;
+  }
+
+  .other-profile-page__detail-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    font-size: 0.7rem;
   }
 }
 
