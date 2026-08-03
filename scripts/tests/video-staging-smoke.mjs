@@ -6,6 +6,7 @@
 // - exige confirmação explícita do projectId;
 // - rejeita projeto sem a palavra staging;
 // - usa um usuário efêmero por formato;
+// - inicializa App Check no Node com CustomProvider e token Admin efêmero;
 // - valida o painel antes de remover a telemetria do teste;
 // - limpa Auth, Firestore e Storage ao final;
 // - não imprime credenciais, tokens nem URLs assinadas.
@@ -20,6 +21,11 @@ import {
   deleteApp as deleteClientApp,
   initializeApp as initializeClientApp,
 } from 'firebase/app';
+import {
+  CustomProvider,
+  getToken as getClientAppCheckToken,
+  initializeAppCheck,
+} from 'firebase/app-check';
 import {
   getAuth as getClientAuth,
   signInWithCustomToken,
@@ -36,6 +42,7 @@ import {
   deleteApp as deleteAdminApp,
   initializeApp as initializeAdminApp,
 } from 'firebase-admin/app';
+import { getAppCheck as getAdminAppCheck } from 'firebase-admin/app-check';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { getStorage as getAdminStorage } from 'firebase-admin/storage';
@@ -48,6 +55,7 @@ const CAPACITY_COLLECTION = 'media_private_video_upload_capacity';
 const TERMINAL_JOB_STATES = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED']);
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
 const DEFAULT_INTERVAL_MS = 5_000;
+const APP_CHECK_TOKEN_TTL_MS = 30 * 60 * 1000;
 const REPORT_DIRECTORY = path.resolve(
   process.env.VIDEO_STAGING_REPORT_DIR || 'artifacts/video-staging'
 );
@@ -232,42 +240,82 @@ function buildConfiguration() {
   };
 }
 
+function createNodeAppCheckProvider(adminAppCheck, appId) {
+  return new CustomProvider({
+    getToken: async () => {
+      const issuedAt = Date.now();
+      const token = await adminAppCheck.createToken(appId, {
+        ttlMillis: APP_CHECK_TOKEN_TTL_MS,
+      });
+
+      return {
+        token: token.token,
+        expireTimeMillis: issuedAt + token.ttlMillis,
+      };
+    },
+  });
+}
+
 async function createAuthenticatedClient({
   adminAuth,
+  adminAppCheck,
   firebaseConfig,
   functionsRegion,
   runId,
   role,
 }) {
   const email = `video-staging-${role}-${runId}@example.test`;
-  const userRecord = await adminAuth.createUser({
-    email,
-    emailVerified: true,
-    disabled: false,
-    displayName: `Video staging ${role}`,
-  });
-  const claims = role === 'admin'
-    ? { admin: true, role: 'admin', roles: ['admin'], stagingSmoke: true }
-    : { stagingSmoke: true };
+  let userRecord = null;
+  let clientApp = null;
 
-  await adminAuth.setCustomUserClaims(userRecord.uid, claims);
-  const customToken = await adminAuth.createCustomToken(userRecord.uid, claims);
-  const clientApp = initializeClientApp(
-    firebaseConfig,
-    `video-staging-${role}-${runId}`
-  );
-  const clientAuth = getClientAuth(clientApp);
-  const credential = await signInWithCustomToken(clientAuth, customToken);
+  try {
+    userRecord = await adminAuth.createUser({
+      email,
+      emailVerified: true,
+      disabled: false,
+      displayName: `Video staging ${role}`,
+    });
+    const claims = role === 'admin'
+      ? { admin: true, role: 'admin', roles: ['admin'], stagingSmoke: true }
+      : { stagingSmoke: true };
 
-  return {
-    uid: userRecord.uid,
-    email,
-    clientApp,
-    clientAuth,
-    functions: getFunctions(clientApp, functionsRegion),
-    storage: getClientStorage(clientApp),
-    user: credential.user,
-  };
+    await adminAuth.setCustomUserClaims(userRecord.uid, claims);
+    const customToken = await adminAuth.createCustomToken(userRecord.uid, claims);
+    clientApp = initializeClientApp(
+      firebaseConfig,
+      `video-staging-${role}-${runId}`
+    );
+    const clientAppCheck = initializeAppCheck(clientApp, {
+      provider: createNodeAppCheckProvider(adminAppCheck, firebaseConfig.appId),
+      isTokenAutoRefreshEnabled: true,
+    });
+
+    await getClientAppCheckToken(clientAppCheck, true);
+
+    const clientAuth = getClientAuth(clientApp);
+    const credential = await signInWithCustomToken(clientAuth, customToken);
+
+    return {
+      uid: userRecord.uid,
+      email,
+      clientApp,
+      clientAppCheck,
+      clientAuth,
+      functions: getFunctions(clientApp, functionsRegion),
+      storage: getClientStorage(clientApp),
+      user: credential.user,
+    };
+  } catch (error) {
+    if (clientApp) {
+      await deleteClientApp(clientApp).catch(() => undefined);
+    }
+
+    if (userRecord?.uid) {
+      await adminAuth.deleteUser(userRecord.uid).catch(() => undefined);
+    }
+
+    throw error;
+  }
 }
 
 async function closeClient(client) {
@@ -324,6 +372,7 @@ async function runFormat({
   format,
   configuration,
   adminAuth,
+  adminAppCheck,
   db,
   firebaseConfig,
   resources,
@@ -334,6 +383,7 @@ async function runFormat({
   const posterBuffer = fs.readFileSync(configuration.posterPath);
   const client = await createAuthenticatedClient({
     adminAuth,
+    adminAppCheck,
     firebaseConfig,
     functionsRegion: configuration.functionsRegion,
     runId: formatRunId,
@@ -724,6 +774,7 @@ async function main() {
     storageBucket: configuration.storageBucket,
   }, `video-staging-admin-sdk-${runId}`);
   const adminAuth = getAdminAuth(adminApp);
+  const adminAppCheck = getAdminAppCheck(adminApp);
   const db = getAdminFirestore(adminApp);
   const bucket = getAdminStorage(adminApp).bucket(configuration.storageBucket);
   let observer = null;
@@ -738,6 +789,7 @@ async function main() {
   try {
     observer = await createAuthenticatedClient({
       adminAuth,
+      adminAppCheck,
       firebaseConfig,
       functionsRegion: configuration.functionsRegion,
       runId,
@@ -750,6 +802,7 @@ async function main() {
           format,
           configuration,
           adminAuth,
+          adminAppCheck,
           db,
           firebaseConfig,
           resources,
