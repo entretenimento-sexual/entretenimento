@@ -15,7 +15,7 @@ import {
 } from './video-storage-path';
 
 type VideoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
-type ModerationStatus = 'PENDING_REVIEW' | 'APPROVED';
+type ModerationStatus = 'APPROVED';
 type PublishedVideoAssets = Awaited<
   ReturnType<typeof copyPrivateVideoToPublishedAsset>
 >;
@@ -37,6 +37,7 @@ type PrivateVideoDoc = {
 
 type VideoPublicationDoc = {
   isPublished?: boolean;
+  publishWhenReady?: boolean;
   moderationStatus?: string;
   sourceStoragePath?: string;
   rejectedSourceStoragePath?: string;
@@ -61,8 +62,6 @@ interface UnpublishVideoRequest {
   videoId?: string;
 }
 
-const REQUIRE_VIDEO_PREMODERATION =
-  process.env.MEDIA_REQUIRE_VIDEO_PREMODERATION === 'true';
 const PUBLIC_VIDEO_CONTENT_TYPES = new Set(['video/mp4', 'video/webm']);
 
 function containsControlCharacter(value: string): boolean {
@@ -133,10 +132,6 @@ function normalizeOptionalPositiveInteger(value: unknown): number | null {
   }
 
   return Math.trunc(numberValue);
-}
-
-function resolveModerationStatus(): ModerationStatus {
-  return REQUIRE_VIDEO_PREMODERATION ? 'PENDING_REVIEW' : 'APPROVED';
 }
 
 function assertOwner(requesterUid: string | null, ownerUid: string): void {
@@ -263,6 +258,49 @@ async function rollbackPublishedAssets(
   ]);
 }
 
+async function approveLegacyPendingPublication(
+  ownerUid: string,
+  videoId: string,
+  publicationRef: FirebaseFirestore.DocumentReference,
+  publicVideoRef: FirebaseFirestore.DocumentReference
+): Promise<PublishVideoResponse> {
+  const now = Date.now();
+  const batch = db.batch();
+
+  batch.set(
+    publicationRef,
+    {
+      moderationStatus: 'APPROVED',
+      moderationReason: null,
+      publishWhenReady: false,
+      autoPublishState: 'COMPLETED',
+      autoPublishLeaseUntil: null,
+      autoPublishError: null,
+      lastModeratedAt: now,
+      moderatedBy: FieldValue.delete(),
+      updatedAt: now,
+    },
+    { merge: true }
+  );
+  batch.set(
+    publicVideoRef,
+    {
+      moderationStatus: 'APPROVED',
+      moderationReason: null,
+      updatedAt: now,
+    },
+    { merge: true }
+  );
+
+  await batch.commit();
+  await refreshPublicProfileMediaMetrics(ownerUid);
+
+  return {
+    videoId,
+    moderationStatus: 'APPROVED',
+  };
+}
+
 export const publishVideo = onCall<PublishVideoRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<PublishVideoResponse> => {
@@ -285,10 +323,12 @@ export const publishVideo = onCall<PublishVideoRequest>(
     const publicVideoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
-    const [privateVideoSnap, previousPublicationSnap] = await Promise.all([
-      privateVideoRef.get(),
-      publicationRef.get(),
-    ]);
+    const [privateVideoSnap, previousPublicationSnap, publicVideoSnap] =
+      await Promise.all([
+        privateVideoRef.get(),
+        publicationRef.get(),
+        publicVideoRef.get(),
+      ]);
 
     if (!privateVideoSnap.exists) {
       throw new HttpsError('not-found', 'Vídeo privado não encontrado.');
@@ -299,6 +339,21 @@ export const publishVideo = onCall<PublishVideoRequest>(
       ? (previousPublicationSnap.data() as VideoPublicationDoc)
       : null;
     assertPublishableVideo(privateVideo);
+
+    if (
+      previousPublication?.isPublished === true &&
+      String(previousPublication.moderationStatus ?? '')
+        .trim()
+        .toUpperCase() === 'PENDING_REVIEW' &&
+      publicVideoSnap.exists
+    ) {
+      return approveLegacyPendingPublication(
+        ownerUid,
+        videoId,
+        publicationRef,
+        publicVideoRef
+      );
+    }
 
     const sourceVideoStoragePath =
       extractOwnedPrivateVideoPathForId(ownerUid, videoId, privateVideo.path) ??
@@ -350,7 +405,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
     }
 
     const now = Date.now();
-    const moderationStatus = resolveModerationStatus();
+    const moderationStatus: ModerationStatus = 'APPROVED';
     const durationMs = normalizeOptionalPositiveInteger(
       privateVideo.durationMs
     );
@@ -362,6 +417,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
         ownerUid,
         videoId,
         isPublished: true,
+        publishWhenReady: false,
         visibility,
         orderIndex,
         moderationStatus,
@@ -372,7 +428,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
         score: 0,
         publishedAt: now,
         updatedAt: now,
-        lastModeratedAt: moderationStatus === 'APPROVED' ? now : null,
+        lastModeratedAt: now,
         sourceStoragePath: sourceVideoStoragePath,
         rejectedSourceStoragePath: FieldValue.delete(),
         moderatedBy: FieldValue.delete(),
