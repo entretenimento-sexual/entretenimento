@@ -113,7 +113,7 @@
           <form
             class="profile-videos__settings-form profile-videos__upload-composer"
             [formGroup]="uploadPublicationForm"
-            (ngSubmit)="startUpload(true)"
+            (ngSubmit)="startUpload()"
           >
             <label for="new-video-title">
               <span>Título</span>
@@ -272,12 +272,12 @@
         <section class="profile-videos__library" aria-labelledby="profile-video-library-title">
           <header class="profile-videos__library-header">
             <div>
-              <span class="profile-videos__eyebrow">Biblioteca</span>
+              <span class="profile-videos__eyebrow">Conteúdo</span>
               <h2 id="profile-video-library-title">
-                Seus vídeos
+                Meus vídeos
                 <span>{{ items.length }}</span>
               </h2>
-              <p>Capas, informações e ações dos vídeos exibidos no perfil.</p>
+              <p>Acompanhe o processamento, edite informações ou exclua vídeos.</p>
             </div>
             <a
               class="app-action app-action--ghost profile-videos__public-link"
@@ -362,11 +362,6 @@
                       >
                         {{ publicationLabel(item) }}
                       </span>
-                    } @else {
-                      <span class="profile-videos__profile-order">
-                        <i class="fas fa-globe" aria-hidden="true"></i>
-                        No perfil
-                      </span>
                     }
                   </div>
 
@@ -379,7 +374,7 @@
 
                   <div class="profile-videos__meta" aria-label="Informações do vídeo">
                     <span>{{ formatFileSize(item.video.sizeBytes) }}</span>
-                    <span aria-label="Posição atual na biblioteca">
+                    <span aria-label="Posição atual na lista">
                       {{ position + 1 }} de {{ items.length }}
                     </span>
                   </div>
@@ -469,19 +464,6 @@
                   }
 
                   <div class="profile-videos__actions">
-                    @if (!item.publication?.isPublished && !item.publication?.publishWhenReady) {
-                      <button
-                        type="button"
-                        class="app-action app-action--ghost"
-                        (click)="publishVideo(item)"
-                        [disabled]="!canPublish(item) || isBusy(item.video.id) || item.publication?.moderationStatus === 'REJECTED'"
-                        [attr.aria-busy]="busyActions?.get(item.video.id) === 'publish' ? 'true' : 'false'"
-                      >
-                        <i class="fas fa-globe" aria-hidden="true"></i>
-                        {{ busyActions?.get(item.video.id) === 'publish' ? 'Publicando...' : 'Publicar' }}
-                      </button>
-                    }
-
                     <button
                       type="button"
                       class="app-action app-action--ghost"
@@ -548,8 +530,8 @@
         <div class="profile-videos__empty" role="status">
           <i class="fas fa-film" aria-hidden="true"></i>
           <div>
-            <strong>Nenhum vídeo publicado</strong>
-            <span>Selecione um arquivo acima para iniciar sua biblioteca.</span>
+            <strong>Nenhum vídeo ainda</strong>
+            <span>Selecione um arquivo acima para publicar seu primeiro vídeo.</span>
           </div>
         </div>
       }
