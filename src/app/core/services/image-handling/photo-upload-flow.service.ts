@@ -1,17 +1,30 @@
 // src/app/core/services/image-handling/photo-upload-flow.service.ts
 import { Injectable } from '@angular/core';
-import { Observable, from, of, throwError } from 'rxjs';
-import { catchError, map, switchMap } from 'rxjs/operators';
+import type { UploadTask } from 'firebase/storage';
+import {
+  Observable,
+  firstValueFrom,
+  from,
+  of,
+  throwError,
+} from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 
-import { StorageService } from './storage.service';
-import { PhotoFirestoreService } from './photo-firestore.service';
-import { PhotoStorageLifecycleService } from './photo-storage-lifecycle.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import {
   PrivateMediaDraftCapacityError,
   PrivateMediaDraftCapacityService,
 } from '../media/private-media-draft-capacity.service';
+import {
+  PrivateMediaReservedUploadService,
+} from '../media/private-media-reserved-upload.service';
+import {
+  PrivatePhotoUploadRegistrationService,
+} from '../media/private-photo-upload-registration.service';
+import { PhotoFirestoreService } from './photo-firestore.service';
+import { PhotoStorageLifecycleService } from './photo-storage-lifecycle.service';
+import { StorageService } from './storage.service';
 
 export interface IPhotoUploadFlowCommand {
   userId: string;
@@ -33,6 +46,7 @@ export interface IPhotoFlowResult {
   fileName: string;
   createdAt: Date;
   sizeBytes?: number;
+  draftExpiresAt?: number | null;
 }
 
 export interface IPhotoUploadProgressEvent {
@@ -49,6 +63,20 @@ export type IPhotoUploadFlowEvent =
   | IPhotoUploadProgressEvent
   | IPhotoUploadSuccessEvent;
 
+type PhotoUploadOperation = 'CREATE' | 'REPLACE';
+
+interface ReservedPhotoFlowCommand {
+  userId: string;
+  photoId: string;
+  operation: PhotoUploadOperation;
+  file: File;
+  fileName: string;
+  requestedStoragePath: string;
+  currentStoragePath?: string | null;
+  imageStateStr?: string;
+  onProgress?: (progress: number) => void;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -58,6 +86,8 @@ export class PhotoUploadFlowService {
     private readonly photoFirestoreService: PhotoFirestoreService,
     private readonly photoStorageLifecycle: PhotoStorageLifecycleService,
     private readonly draftCapacity: PrivateMediaDraftCapacityService,
+    private readonly reservedUpload: PrivateMediaReservedUploadService,
+    private readonly photoRegistration: PrivatePhotoUploadRegistrationService,
     private readonly errorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
   ) {}
@@ -65,52 +95,18 @@ export class PhotoUploadFlowService {
   uploadProcessedPhoto$(
     command: IPhotoUploadFlowCommand
   ): Observable<IPhotoFlowResult> {
-    const safeUserId = this.normalizeRequiredString(
-      command.userId,
-      'Usuário não autenticado.'
-    );
-    const fileName = this.buildTimestampedFileName(
-      command.originalFileName
-    );
-    const file = this.buildProcessedFile(command, fileName);
-    const requestedStoragePath =
-      this.storageService.buildOwnedImageUploadPath(safeUserId, fileName);
-    const resultBase = {
-      photoId: this.createPhotoId(),
-      fileName,
-      createdAt: new Date(),
-      sizeBytes: file.size,
-    };
+    const prepared = this.prepareCreateCommand(command);
 
-    return this.draftCapacity.assertCapacity$('photo', file.size).pipe(
-      switchMap(() =>
-        this.uploadNewPhotoBinary$(
-          safeUserId,
-          file,
-          requestedStoragePath
-        )
-      ),
-      switchMap(({ displayUrl, storagePath }) => {
-        const result: IPhotoFlowResult = {
-          ...resultBase,
-          url: displayUrl,
-          path: storagePath,
-        };
-
-        return this.persistNewPhoto$(
-          safeUserId,
-          result,
-          command.imageStateStr
-        );
-      }),
+    return this.executeReservedPhotoFlow$(prepared).pipe(
       catchError((error) =>
         this.failFlow$(
           error,
           this.resolveUserMessage(error, 'Erro ao enviar a imagem.'),
           {
             op: 'uploadProcessedPhoto$',
-            userId: safeUserId,
-            fileName,
+            userId: prepared.userId,
+            photoId: prepared.photoId,
+            fileName: prepared.fileName,
           }
         )
       )
@@ -120,114 +116,18 @@ export class PhotoUploadFlowService {
   replaceProcessedPhoto$(
     command: IPhotoReplaceFlowCommand
   ): Observable<IPhotoFlowResult> {
-    const safeUserId = this.normalizeRequiredString(
-      command.userId,
-      'Usuário não autenticado.'
-    );
-    const safePhotoId = this.normalizeRequiredString(
-      command.photoId,
-      'Foto inválida para edição.'
-    );
-    const safeCurrentStoragePath = this.normalizeRequiredString(
-      command.currentStoragePath,
-      'O fluxo de edição precisa do storagePath da foto.'
-    );
-    const currentStoragePath =
-      this.photoStorageLifecycle.extractOwnedPrivatePhotoPath(
-        safeUserId,
-        safeCurrentStoragePath
-      );
+    const prepared = this.prepareReplaceCommand(command);
 
-    if (!currentStoragePath) {
-      return this.failFlow$(
-        new Error('O fluxo de edição recebeu um storagePath inválido.'),
-        'Não foi possível editar a foto selecionada.',
-        {
-          op: 'replaceProcessedPhoto$',
-          userId: safeUserId,
-          photoId: safePhotoId,
-          hasStoragePath: !!safeCurrentStoragePath,
-        }
-      );
-    }
-
-    const fileName = this.buildTimestampedFileName(
-      command.originalFileName
-    );
-    const file = this.buildProcessedFile(command, fileName);
-    const requestedStoragePath =
-      this.storageService.buildOwnedImageUploadPath(safeUserId, fileName);
-
-    /**
-     * A substituição usa copy-on-write:
-     * 1) envia um novo objeto;
-     * 2) o backend troca o caminho e ajusta a reserva de volume atomicamente;
-     * 3) remove o objeto antigo somente depois da confirmação.
-     *
-     * Isso evita sobrescrever a única cópia válida e impede que a edição burle
-     * a quota temporária do rascunho.
-     */
-    return this.uploadNewPhotoBinary$(
-      safeUserId,
-      file,
-      requestedStoragePath
-    ).pipe(
-      switchMap(({ displayUrl, storagePath }) => {
-        const result: IPhotoFlowResult = {
-          photoId: safePhotoId,
-          url: displayUrl,
-          path: storagePath,
-          fileName,
-          createdAt: new Date(),
-          sizeBytes: file.size,
-        };
-
-        return from(
-          this.photoFirestoreService.replacePrivatePhotoUpload(
-            safeUserId,
-            safePhotoId,
-            currentStoragePath,
-            {
-              url: displayUrl,
-              path: storagePath,
-              fileName,
-              sizeBytes: file.size,
-            }
-          )
-        ).pipe(
-          switchMap(() =>
-            this.saveImageStateBestEffort$(
-              safeUserId,
-              command.imageStateStr
-            )
-          ),
-          switchMap(() =>
-            this.deletePhotoObjectBestEffort$(
-              safeUserId,
-              currentStoragePath,
-              'cleanup-replaced-photo'
-            )
-          ),
-          map(() => result),
-          catchError((metadataError) =>
-            this.rollbackUploadedPhoto$(
-              safeUserId,
-              storagePath,
-              metadataError,
-              'replace-metadata-failed'
-            )
-          )
-        );
-      }),
+    return this.executeReservedPhotoFlow$(prepared).pipe(
       catchError((error) =>
         this.failFlow$(
           error,
           this.resolveUserMessage(error, 'Erro ao atualizar a imagem.'),
           {
             op: 'replaceProcessedPhoto$',
-            userId: safeUserId,
-            photoId: safePhotoId,
-            fileName,
+            userId: prepared.userId,
+            photoId: prepared.photoId,
+            fileName: prepared.fileName,
           }
         )
       )
@@ -237,126 +137,344 @@ export class PhotoUploadFlowService {
   uploadProcessedPhotoWithProgress$(
     command: IPhotoUploadFlowCommand
   ): Observable<IPhotoUploadFlowEvent> {
-    const safeUserId = this.normalizeRequiredString(
-      command.userId,
-      'Usuário não autenticado.'
-    );
-    const fileName = this.buildTimestampedFileName(
-      command.originalFileName
-    );
-    const file = this.buildProcessedFile(command, fileName);
-    const requestedStoragePath =
-      this.storageService.buildOwnedImageUploadPath(safeUserId, fileName);
-    const resultBase = {
-      photoId: this.createPhotoId(),
-      fileName,
-      createdAt: new Date(),
-      sizeBytes: file.size,
-    };
+    const prepared = this.prepareCreateCommand(command);
 
     return new Observable<IPhotoUploadFlowEvent>((observer) => {
       observer.next({ type: 'progress', progress: 0 });
 
-      const subscription = this.draftCapacity
-        .assertCapacity$('photo', file.size)
-        .pipe(
-          switchMap(() =>
-            this.uploadNewPhotoBinary$(
-              safeUserId,
-              file,
-              requestedStoragePath,
-              (progress) => {
-                observer.next({
-                  type: 'progress',
-                  progress: this.normalizeProgress(progress),
-                });
-              }
-            )
-          ),
-          switchMap(({ displayUrl, storagePath }) => {
-            const result: IPhotoFlowResult = {
-              ...resultBase,
-              url: displayUrl,
-              path: storagePath,
-            };
-
-            return this.persistNewPhoto$(
-              safeUserId,
-              result,
-              command.imageStateStr
-            );
-          }),
-          catchError((error) =>
-            this.failFlow$(
-              error,
-              this.resolveUserMessage(error, 'Erro ao enviar a imagem.'),
-              {
-                op: 'uploadProcessedPhotoWithProgress$',
-                userId: safeUserId,
-                fileName,
-              }
-            )
+      const subscription = this.executeReservedPhotoFlow$({
+        ...prepared,
+        onProgress: (progress) => {
+          observer.next({
+            type: 'progress',
+            progress: this.normalizeProgress(progress),
+          });
+        },
+      }).pipe(
+        catchError((error) =>
+          this.failFlow$(
+            error,
+            this.resolveUserMessage(error, 'Erro ao enviar a imagem.'),
+            {
+              op: 'uploadProcessedPhotoWithProgress$',
+              userId: prepared.userId,
+              photoId: prepared.photoId,
+              fileName: prepared.fileName,
+            }
           )
         )
-        .subscribe({
-          next: (result) => {
-            observer.next({ type: 'progress', progress: 100 });
-            observer.next({ type: 'success', result });
-            observer.complete();
-          },
-          error: (error) => observer.error(error),
-        });
+      ).subscribe({
+        next: (result) => {
+          observer.next({ type: 'progress', progress: 100 });
+          observer.next({ type: 'success', result });
+          observer.complete();
+        },
+        error: (error) => observer.error(error),
+      });
 
       return () => subscription.unsubscribe();
     });
   }
 
-  private uploadNewPhotoBinary$(
-    userId: string,
-    file: File,
-    requestedStoragePath: string,
-    progressCallback?: (progress: number) => void
-  ): Observable<{ displayUrl: string; storagePath: string }> {
-    return this.storageService.uploadFile(
-      file,
-      requestedStoragePath,
-      userId,
-      progressCallback
-    ).pipe(
-      switchMap((location) =>
-        this.resolveDisplayAndStorage$(userId, location)
-      )
-    );
+  private executeReservedPhotoFlow$(
+    command: ReservedPhotoFlowCommand
+  ): Observable<IPhotoFlowResult> {
+    return new Observable<IPhotoFlowResult>((observer) => {
+      let reservationId = '';
+      let activeTask: UploadTask | null = null;
+      let cancelRequested = false;
+      let registrationStarted = false;
+      let completed = false;
+      let cleanupPromise: Promise<void> | null = null;
+
+      const cancelReservation = (): Promise<void> => {
+        if (cleanupPromise) {
+          return cleanupPromise;
+        }
+
+        const activeReservationId = reservationId;
+
+        if (!activeReservationId) {
+          return Promise.resolve();
+        }
+
+        reservationId = '';
+        cleanupPromise = firstValueFrom(
+          this.draftCapacity.cancelUploadReservation$(activeReservationId)
+        ).then(() => undefined).catch((cleanupError) => {
+          this.reportSilent(cleanupError, {
+            op: 'cancelReservation',
+            userId: command.userId,
+            photoId: command.photoId,
+            operation: command.operation,
+          });
+        });
+
+        return cleanupPromise;
+      };
+
+      const assertNotCancelled = async (): Promise<void> => {
+        if (!cancelRequested) {
+          return;
+        }
+
+        await cancelReservation();
+        throw this.createError(
+          'media/photo-upload-cancelled',
+          'Upload de foto cancelado.'
+        );
+      };
+
+      const run = async (): Promise<void> => {
+        try {
+          command.onProgress?.(2);
+          const reservation = await firstValueFrom(
+            this.draftCapacity.reserveUpload$({
+              ownerUid: command.userId,
+              mediaId: command.photoId,
+              kind: 'photo',
+              operation: command.operation,
+              sourceStoragePath: command.requestedStoragePath,
+              currentStoragePath: command.currentStoragePath ?? null,
+              sourceSizeBytes: command.file.size,
+              auxiliarySizeBytes: 0,
+            })
+          );
+          reservationId = reservation.reservationId;
+          await assertNotCancelled();
+
+          command.onProgress?.(5);
+          const binary = await firstValueFrom(
+            this.reservedUpload.upload$(
+              command.requestedStoragePath,
+              command.file,
+              command.file.type,
+              reservationId,
+              (progress) => {
+                command.onProgress?.(
+                  this.mapProgress(progress, 5, 90)
+                );
+              },
+              (task) => {
+                activeTask = task;
+              }
+            )
+          );
+          activeTask = null;
+          await assertNotCancelled();
+
+          const displayUrl = await firstValueFrom(
+            this.resolveDisplayUrl$(
+              command.userId,
+              binary.storagePath,
+              binary.displayLocation
+            )
+          );
+          await assertNotCancelled();
+
+          command.onProgress?.(94);
+          registrationStarted = true;
+
+          const result = command.operation === 'CREATE'
+            ? await this.registerNewPhoto(
+              command,
+              reservationId,
+              binary.storagePath,
+              displayUrl,
+              reservation.draftExpiresAt
+            )
+            : await this.registerReplacement(
+              command,
+              reservationId,
+              binary.storagePath,
+              displayUrl
+            );
+
+          completed = true;
+          reservationId = '';
+          command.onProgress?.(98);
+
+          await firstValueFrom(
+            this.saveImageStateBestEffort$(
+              command.userId,
+              command.imageStateStr
+            )
+          );
+
+          if (!observer.closed) {
+            observer.next(result);
+            observer.complete();
+          }
+        } catch (error) {
+          activeTask = null;
+
+          if (!registrationStarted) {
+            await cancelReservation();
+          }
+
+          if (
+            cancelRequested ||
+            this.isCancellationError(error) ||
+            observer.closed
+          ) {
+            return;
+          }
+
+          observer.error(error);
+        }
+      };
+
+      void run();
+
+      return () => {
+        if (completed || registrationStarted) {
+          return;
+        }
+
+        cancelRequested = true;
+        activeTask?.cancel();
+        void cancelReservation();
+      };
+    });
   }
 
-  private persistNewPhoto$(
-    userId: string,
-    result: IPhotoFlowResult,
-    imageStateStr?: string
-  ): Observable<IPhotoFlowResult> {
-    return from(
-      this.photoFirestoreService.registerPrivatePhotoUpload(userId, {
-        id: result.photoId,
-        url: result.url,
-        path: result.path,
-        fileName: result.fileName,
-        createdAt: result.createdAt,
-        sizeBytes: result.sizeBytes ?? null,
+  private async registerNewPhoto(
+    command: ReservedPhotoFlowCommand,
+    reservationId: string,
+    storagePath: string,
+    displayUrl: string,
+    reservedDraftExpiresAt: number | null
+  ): Promise<IPhotoFlowResult> {
+    const registration = await firstValueFrom(
+      this.photoRegistration.register$({
+        ownerUid: command.userId,
+        photoId: command.photoId,
+        reservationId,
+        storagePath,
+        displayUrl,
+        fileName: command.fileName,
+        sizeBytes: command.file.size,
+        createdAt: Date.now(),
       })
-    ).pipe(
-      switchMap(() =>
-        this.saveImageStateBestEffort$(userId, imageStateStr)
-      ),
-      map(() => result),
-      catchError((metadataError) =>
-        this.rollbackUploadedPhoto$(
-          userId,
-          result.path,
-          metadataError,
-          'create-metadata-failed'
-        )
-      )
     );
+
+    return {
+      photoId: registration.photoId,
+      url: registration.displayUrl,
+      path: registration.storagePath,
+      fileName: registration.fileName,
+      createdAt: new Date(registration.createdAt),
+      sizeBytes: registration.sizeBytes,
+      draftExpiresAt:
+        registration.draftExpiresAt ?? reservedDraftExpiresAt,
+    };
+  }
+
+  private async registerReplacement(
+    command: ReservedPhotoFlowCommand,
+    reservationId: string,
+    storagePath: string,
+    displayUrl: string
+  ): Promise<IPhotoFlowResult> {
+    const currentStoragePath = this.normalizeRequiredString(
+      command.currentStoragePath,
+      'O fluxo de edição precisa da foto privada atual.'
+    );
+    const registration = await firstValueFrom(
+      this.photoRegistration.replace$({
+        ownerUid: command.userId,
+        photoId: command.photoId,
+        reservationId,
+        currentStoragePath,
+        newStoragePath: storagePath,
+        newDisplayUrl: displayUrl,
+        fileName: command.fileName,
+        sizeBytes: command.file.size,
+      })
+    );
+
+    return {
+      photoId: registration.photoId,
+      url: registration.displayUrl,
+      path: registration.storagePath,
+      fileName: registration.fileName,
+      createdAt: new Date(registration.updatedAt),
+      sizeBytes: registration.sizeBytes,
+    };
+  }
+
+  private prepareCreateCommand(
+    command: IPhotoUploadFlowCommand
+  ): ReservedPhotoFlowCommand {
+    const userId = this.normalizeRequiredString(
+      command.userId,
+      'Usuário não autenticado.'
+    );
+    const photoId = this.createPhotoId();
+    const fileName = this.buildTimestampedFileName(
+      command.originalFileName,
+      photoId
+    );
+    const file = this.buildProcessedFile(command, fileName);
+
+    return {
+      userId,
+      photoId,
+      operation: 'CREATE',
+      file,
+      fileName,
+      requestedStoragePath:
+        this.storageService.buildOwnedImageUploadPath(userId, fileName),
+      currentStoragePath: null,
+      imageStateStr: command.imageStateStr,
+    };
+  }
+
+  private prepareReplaceCommand(
+    command: IPhotoReplaceFlowCommand
+  ): ReservedPhotoFlowCommand {
+    const userId = this.normalizeRequiredString(
+      command.userId,
+      'Usuário não autenticado.'
+    );
+    const photoId = this.normalizeRequiredString(
+      command.photoId,
+      'Foto inválida para edição.'
+    );
+    const suppliedCurrentPath = this.normalizeRequiredString(
+      command.currentStoragePath,
+      'O fluxo de edição precisa do storagePath da foto.'
+    );
+    const currentStoragePath =
+      this.photoStorageLifecycle.extractOwnedPrivatePhotoPath(
+        userId,
+        suppliedCurrentPath
+      );
+
+    if (!currentStoragePath) {
+      throw this.createError(
+        'media/invalid-current-photo-path',
+        'O fluxo de edição recebeu um storagePath inválido.'
+      );
+    }
+
+    const fileName = this.buildTimestampedFileName(
+      command.originalFileName,
+      photoId
+    );
+    const file = this.buildProcessedFile(command, fileName);
+
+    return {
+      userId,
+      photoId,
+      operation: 'REPLACE',
+      file,
+      fileName,
+      requestedStoragePath:
+        this.storageService.buildOwnedImageUploadPath(userId, fileName),
+      currentStoragePath,
+      imageStateStr: command.imageStateStr,
+    };
   }
 
   private saveImageStateBestEffort$(
@@ -385,18 +503,18 @@ export class PhotoUploadFlowService {
     );
   }
 
-  private resolveDisplayAndStorage$(
+  private resolveDisplayUrl$(
     userId: string,
-    location: string
-  ): Observable<{ displayUrl: string; storagePath: string }> {
-    const safeLocation = String(location ?? '').trim();
-    const storagePath =
+    storagePath: string,
+    displayLocation: string
+  ): Observable<string> {
+    const safeStoragePath =
       this.photoStorageLifecycle.extractOwnedPrivatePhotoPath(
         userId,
-        safeLocation
+        storagePath
       );
 
-    if (!safeLocation || !storagePath) {
+    if (!safeStoragePath) {
       return throwError(() =>
         this.createError(
           'media/invalid-upload-location',
@@ -405,14 +523,13 @@ export class PhotoUploadFlowService {
       );
     }
 
-    if (this.isHttpUrl(safeLocation)) {
-      return of({
-        displayUrl: safeLocation,
-        storagePath,
-      });
+    const safeDisplayLocation = String(displayLocation ?? '').trim();
+
+    if (this.isHttpUrl(safeDisplayLocation)) {
+      return of(safeDisplayLocation);
     }
 
-    return this.storageService.getPhotoUrl(storagePath).pipe(
+    return this.storageService.getPhotoUrl(safeStoragePath).pipe(
       switchMap((resolvedUrl) => {
         const displayUrl = String(resolvedUrl ?? '').trim();
 
@@ -425,62 +542,38 @@ export class PhotoUploadFlowService {
           );
         }
 
-        return of({
-          displayUrl,
-          storagePath,
-        });
+        return of(displayUrl);
       })
     );
-  }
-
-  private rollbackUploadedPhoto$(
-    userId: string,
-    storagePath: string,
-    originalError: unknown,
-    reason: string
-  ): Observable<never> {
-    return this.deletePhotoObjectBestEffort$(
-      userId,
-      storagePath,
-      reason
-    ).pipe(
-      switchMap(() => throwError(() => originalError))
-    );
-  }
-
-  private deletePhotoObjectBestEffort$(
-    userId: string,
-    storagePath: string,
-    reason: string
-  ): Observable<void> {
-    return this.photoStorageLifecycle
-      .deleteOwnedPrivatePhoto$(userId, storagePath)
-      .pipe(
-        catchError((cleanupError) => {
-          this.reportSilent(cleanupError, {
-            op: 'deletePhotoObjectBestEffort$',
-            userId,
-            reason,
-            hasStoragePath: !!String(storagePath ?? '').trim(),
-          });
-          return of(void 0);
-        })
-      );
   }
 
   private buildProcessedFile(
     command: IPhotoUploadFlowCommand,
     fileName: string
   ): File {
-    return new File([command.processedFile], fileName, {
+    const file = new File([command.processedFile], fileName, {
       type: command.mimeType || 'image/jpeg',
       lastModified: Date.now(),
     });
+
+    if (!Number.isFinite(file.size) || file.size <= 0) {
+      throw new Error('A imagem processada está vazia ou inválida.');
+    }
+
+    return file;
   }
 
-  private buildTimestampedFileName(originalFileName: string): string {
-    const safeOriginalName = String(originalFileName ?? '').trim() || 'photo.jpg';
-    return `${Date.now()}_${safeOriginalName}`;
+  private buildTimestampedFileName(
+    originalFileName: string,
+    photoId: string
+  ): string {
+    const safeOriginalName = String(originalFileName ?? '')
+      .trim()
+      .replace(/[^A-Za-z0-9._-]+/g, '_')
+      .slice(-120) || 'photo.jpg';
+    const safePhotoId = String(photoId ?? '').trim().slice(0, 64);
+
+    return `${Date.now()}_${safePhotoId}_${safeOriginalName}`;
   }
 
   private createPhotoId(): string {
@@ -494,6 +587,15 @@ export class PhotoUploadFlowService {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
+  private mapProgress(
+    progress: number,
+    start: number,
+    end: number
+  ): number {
+    const normalized = this.normalizeProgress(progress) / 100;
+    return this.normalizeProgress(start + normalized * (end - start));
+  }
+
   private normalizeProgress(progress: number): number {
     if (!Number.isFinite(progress)) {
       return 0;
@@ -502,7 +604,10 @@ export class PhotoUploadFlowService {
     return Math.max(0, Math.min(100, Math.round(progress)));
   }
 
-  private normalizeRequiredString(value: string, message: string): string {
+  private normalizeRequiredString(
+    value: string | null | undefined,
+    message: string
+  ): string {
     const normalized = String(value ?? '').trim();
 
     if (!normalized) {
@@ -514,6 +619,16 @@ export class PhotoUploadFlowService {
 
   private isHttpUrl(value: string): boolean {
     return /^https?:\/\//i.test(String(value ?? '').trim());
+  }
+
+  private isCancellationError(error: unknown): boolean {
+    if (typeof error !== 'object' || error === null || !('code' in error)) {
+      return false;
+    }
+
+    const code = String((error as { code?: unknown }).code ?? '');
+    return code === 'storage/canceled' ||
+      code === 'media/photo-upload-cancelled';
   }
 
   private createError(code: string, message: string): Error {
@@ -553,7 +668,7 @@ export class PhotoUploadFlowService {
 
       this.errorHandler.handleError(normalizedError);
     } catch {
-      // noop
+      // A telemetria não pode substituir o fluxo principal.
     }
   }
 
