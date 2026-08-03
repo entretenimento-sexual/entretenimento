@@ -24,7 +24,6 @@
 <section class="photos-page" aria-label="Fotos do perfil">
   <header class="photos-header">
     <div class="photos-title">
-      <span class="eyebrow">Galeria</span>
       <h2>Fotos do perfil</h2>
       <p class="subtitle">
         Toda foto enviada é publicada automaticamente. Edite, escolha a principal ou exclua.
@@ -206,45 +205,34 @@
               </span>
             </button>
 
-            @if (isOwner) {
+            @if (isOwner && canUsePhotoDate) {
               <div
                 class="management-bar app-card__footer"
                 [class.management-bar--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
                 aria-label="Data da foto"
               >
-                @if (canUsePhotoDate) {
-                  <span
-                    class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
-                    aria-hidden="true"
-                    title="Data da foto"
-                  >
-                    📅
-                  </span>
+                <span
+                  class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
+                  aria-hidden="true"
+                  title="Data da foto"
+                >
+                  📅
+                </span>
 
-                  <input
-                    type="date"
-                    class="management-action management-action--neutral app-action app-action--ghost"
-                    [value]="getDisplayDateInputValue(item)"
-                    (click)="$event.stopPropagation()"
-                    (change)="updatePhotoDisplayDate(item, $event, canUsePhotoDate === true)"
-                    [disabled]="savingDisplayDateId === item.id || deletingPhotoId === item.id || publishingPhotoId === item.id"
-                    [attr.aria-label]="'Data da foto ' + (item.alt || item.id)"
-                    title="Definir data da foto"
-                  />
-                } @else {
-                  <button
-                    type="button"
-                    class="management-action management-action--neutral app-action app-action--ghost"
-                    (click)="notifyPhotoDateUpgrade($event)"
-                    [disabled]="deletingPhotoId === item.id || publishingPhotoId === item.id"
-                    aria-label="Organização por data disponível para assinantes"
-                    title="Organização por data é recurso para assinantes"
-                  >
-                    Data para assinantes
-                  </button>
-                }
+                <input
+                  type="date"
+                  class="management-action management-action--neutral app-action app-action--ghost"
+                  [value]="getDisplayDateInputValue(item)"
+                  (click)="$event.stopPropagation()"
+                  (change)="updatePhotoDisplayDate(item, $event, true)"
+                  [disabled]="savingDisplayDateId === item.id || deletingPhotoId === item.id || publishingPhotoId === item.id"
+                  [attr.aria-label]="'Data da foto ' + (item.alt || item.id)"
+                  title="Definir data da foto"
+                />
               </div>
+            }
 
+            @if (isOwner) {
               <div
                 class="management-bar app-card__footer"
                 [class.management-bar--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
