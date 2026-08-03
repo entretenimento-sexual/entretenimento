@@ -61,8 +61,8 @@ interface UnpublishVideoRequest {
   videoId?: string;
 }
 
-const AUTO_APPROVE_VIDEOS =
-  process.env.MEDIA_AUTO_APPROVE_VIDEOS === 'true';
+const REQUIRE_VIDEO_PREMODERATION =
+  process.env.MEDIA_REQUIRE_VIDEO_PREMODERATION === 'true';
 const PUBLIC_VIDEO_CONTENT_TYPES = new Set(['video/mp4', 'video/webm']);
 
 function containsControlCharacter(value: string): boolean {
@@ -136,7 +136,7 @@ function normalizeOptionalPositiveInteger(value: unknown): number | null {
 }
 
 function resolveModerationStatus(): ModerationStatus {
-  return AUTO_APPROVE_VIDEOS ? 'APPROVED' : 'PENDING_REVIEW';
+  return REQUIRE_VIDEO_PREMODERATION ? 'PENDING_REVIEW' : 'APPROVED';
 }
 
 function assertOwner(requesterUid: string | null, ownerUid: string): void {
