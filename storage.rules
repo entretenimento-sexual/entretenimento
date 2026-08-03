@@ -3,7 +3,7 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // ============================================================
-    // Helpers básicos - 14ABR2026
+    // Helpers básicos
     // ============================================================
 
     function signedIn() {
@@ -23,16 +23,88 @@ service firebase.storage {
     function isVideoCreateOrUpdate() {
       return request.resource != null
         && (
-          request.resource.contentType.matches('video/.*')
-          || request.resource.contentType == 'application/mxf'
+          request.resource.contentType == 'video/mp4'
+          || request.resource.contentType == 'video/webm'
+          || request.resource.contentType == 'video/quicktime'
         )
         && request.resource.size <= 500 * 1024 * 1024;
     }
 
+    function privateVideoUploadUser(uid) {
+      return firestore.get(
+        /databases/(default)/documents/users/$(uid)
+      ).data;
+    }
+
+    function hasOperationalVideoUploadAccount(uid) {
+      let user = privateVideoUploadUser(uid);
+      return (!('uid' in user) || user.uid == uid)
+        && 'email_verified' in request.auth.token
+        && request.auth.token.email_verified == true
+        && user.profileCompleted == true
+        && (!('accountStatus' in user) || user.accountStatus == 'active')
+        && (!('suspended' in user) || user.suspended != true)
+        && (!('interactionBlocked' in user) || user.interactionBlocked != true)
+        && (!('accountLocked' in user) || user.accountLocked != true)
+        && (!('loginAllowed' in user) || user.loginAllowed != false)
+        && (
+          !('ageReverification' in user)
+          || !(user.ageReverification is map)
+          || !('status' in user.ageReverification)
+          || (
+            user.ageReverification.status != 'REQUIRED'
+            && user.ageReverification.status != 'SUBMITTED'
+            && user.ageReverification.status != 'UNDER_REVIEW'
+            && user.ageReverification.status != 'REJECTED'
+            && user.ageReverification.status != 'EXPIRED'
+          )
+        );
+    }
+
+    function hasVideoReservationMetadata(videoId) {
+      return request.resource != null
+        && request.resource.metadata != null
+        && request.resource.metadata.videoReservationId is string
+        && request.resource.metadata.videoReservationId.size() > 0
+        && request.resource.metadata.videoReservationId.size() <= 128
+        && request.resource.metadata.videoId == videoId;
+    }
+
+    function videoUploadReservation() {
+      return firestore.get(
+        /databases/(default)/documents/media_private_video_upload_reservations/$(request.resource.metadata.videoReservationId)
+      ).data;
+    }
+
+    function hasActiveVideoReservation(uid, videoId) {
+      let reservation = videoUploadReservation();
+      return hasVideoReservationMetadata(videoId)
+        && hasOperationalVideoUploadAccount(uid)
+        && reservation.ownerUid == uid
+        && reservation.videoId == videoId
+        && reservation.state == 'ACTIVE'
+        && reservation.expiresAt > request.time;
+    }
+
+    function reservedVideoUpload(uid, videoId, objectPath) {
+      let reservation = videoUploadReservation();
+      return hasActiveVideoReservation(uid, videoId)
+        && reservation.videoStoragePath == objectPath
+        && reservation.videoSizeBytes == request.resource.size
+        && reservation.mimeType == request.resource.contentType;
+    }
+
+    function reservedVideoPosterUpload(uid, videoId, objectPath) {
+      let reservation = videoUploadReservation();
+      return hasActiveVideoReservation(uid, videoId)
+        && reservation.posterStoragePath == objectPath
+        && reservation.posterSizeBytes == request.resource.size
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size <= 10 * 1024 * 1024;
+    }
+
     // ============================================================
     // Upload bruto e privado do usuário
-    // - upload e rollback continuam sob controle do proprietário;
-    // - reprodução usa URL temporária emitida pelo backend.
     // ============================================================
 
     match /users/{uid}/uploads/images/{fileName} {
@@ -43,20 +115,28 @@ service firebase.storage {
 
     match /users/{uid}/uploads/videos/{fileName} {
       allow read: if false;
-      allow create, update: if isSelf(uid) && isVideoCreateOrUpdate();
-      allow delete: if isSelf(uid);
+      allow create: if isSelf(uid)
+        && isVideoCreateOrUpdate()
+        && reservedVideoUpload(
+          uid,
+          request.resource.metadata.videoId,
+          'users/' + uid + '/uploads/videos/' + fileName
+        );
+      allow update, delete: if false;
     }
 
-    // Poster gerado localmente para um vídeo privado específico.
-    // O namespace separado permite limpeza segura junto do vídeo sem afetar fotos.
     match /users/{uid}/uploads/video-posters/{videoId}/{fileName} {
       allow read: if false;
-      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
-      allow delete: if isSelf(uid);
+      allow create: if isSelf(uid)
+        && reservedVideoPosterUpload(
+          uid,
+          videoId,
+          'users/' + uid + '/uploads/video-posters/' + videoId + '/' + fileName
+        );
+      allow update, delete: if false;
     }
 
     // Derivados produzidos exclusivamente pelo backend.
-    // Reprodução também ocorre somente por URL temporária emitida pelo backend.
     match /users/{uid}/processed/videos/{videoId}/{allPaths=**} {
       allow read, write: if false;
     }
@@ -73,8 +153,6 @@ service firebase.storage {
 
     // ============================================================
     // Mídia publicada sensível
-    // - leitura ocorre somente por URL temporária emitida pelo backend;
-    // - clientes não acessam nem escrevem diretamente estes namespaces.
     // ============================================================
 
     match /users/{uid}/published/images/{allPaths=**} {

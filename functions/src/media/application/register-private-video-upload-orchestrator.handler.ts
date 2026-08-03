@@ -3,9 +3,17 @@ import { createHash } from 'node:crypto';
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { assertInteractionAccessData } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { auth, db, storage } from '../../firebaseApp';
+import { db, storage } from '../../firebaseApp';
+import { assertPrivateVideoUploadEligibility } from './private-video-upload-eligibility.service';
+import {
+  assertPrivateVideoUploadReservation,
+  consumePrivateVideoUploadReservationAfterRegistration,
+  type PrivateVideoReservationRegistrationInput,
+} from './private-video-upload-reservation-registration.service';
+import {
+  cancelPrivateVideoUploadReservationById,
+} from './private-video-upload-reservation.handler';
 import { ensurePrivateVideoProcessingQueued } from './queue-video-processing.handler';
 import {
   registerPrivateVideoUpload as registerPrivateVideoUploadCore,
@@ -18,8 +26,11 @@ import {
 interface RegisterPrivateVideoUploadRequest {
   ownerUid?: string;
   videoId?: string;
+  reservationId?: string;
   videoStoragePath?: string;
   posterStoragePath?: string | null;
+  sizeBytes?: number;
+  mimeType?: string;
   [key: string]: unknown;
 }
 
@@ -27,24 +38,6 @@ interface RegisteredPrivateVideoResponse {
   ownerUid: string;
   videoId: string;
   [key: string]: unknown;
-}
-
-interface PrivateMediaUploadAuthSnapshot {
-  disabled?: boolean;
-  emailVerified?: boolean;
-}
-
-interface PrivateMediaUploadAccountSnapshot {
-  uid?: unknown;
-  profileCompleted?: unknown;
-  accountLocked?: unknown;
-  loginAllowed?: unknown;
-  accountStatus?: unknown;
-  suspended?: unknown;
-  interactionBlocked?: unknown;
-  ageReverification?: {
-    status?: unknown;
-  } | null;
 }
 
 interface RegisteredVideoDocument {
@@ -88,6 +81,15 @@ function cleanId(value: unknown): string {
   return normalized;
 }
 
+function normalizePositiveInteger(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
+}
+
+function normalizeMimeType(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
 function normalizeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
     return error.message.slice(0, 500);
@@ -96,107 +98,8 @@ function normalizeErrorMessage(error: unknown): string {
   return String(error ?? 'unknown').slice(0, 500);
 }
 
-function authErrorCode(error: unknown): string {
-  if (!error || typeof error !== 'object') {
-    return '';
-  }
-
-  const candidate = error as {
-    code?: unknown;
-    errorInfo?: { code?: unknown };
-  };
-
-  return String(candidate.errorInfo?.code ?? candidate.code ?? '')
-    .trim()
-    .toLowerCase();
-}
-
 function cleanupJobId(storagePath: string): string {
   return createHash('sha256').update(storagePath).digest('hex');
-}
-
-function assertPrivateVideoUploadEligibilityData(
-  authUser: PrivateMediaUploadAuthSnapshot | null | undefined,
-  user: PrivateMediaUploadAccountSnapshot | null | undefined,
-  expectedUid: string
-): void {
-  if (!authUser || !user) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Seu perfil não está disponível para enviar vídeos.'
-    );
-  }
-
-  const documentUid = String(user.uid ?? expectedUid).trim();
-
-  if (documentUid && documentUid !== expectedUid) {
-    throw new HttpsError(
-      'permission-denied',
-      'O perfil informado não corresponde à conta autenticada.'
-    );
-  }
-
-  if (
-    authUser.disabled === true ||
-    user.accountLocked === true ||
-    user.loginAllowed === false
-  ) {
-    throw new HttpsError(
-      'permission-denied',
-      'Sua conta não está disponível para enviar vídeos.'
-    );
-  }
-
-  assertInteractionAccessData(user);
-
-  if (authUser.emailVerified !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Verifique seu e-mail antes de enviar vídeos.'
-    );
-  }
-
-  if (user.profileCompleted !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Complete seu perfil antes de enviar vídeos.'
-    );
-  }
-}
-
-async function assertPrivateVideoUploadEligibility(
-  ownerUid: string
-): Promise<void> {
-  try {
-    const [authUser, userSnapshot] = await Promise.all([
-      auth.getUser(ownerUid),
-      db.doc(`users/${ownerUid}`).get(),
-    ]);
-
-    assertPrivateVideoUploadEligibilityData(
-      {
-        disabled: authUser.disabled,
-        emailVerified: authUser.emailVerified,
-      },
-      userSnapshot.exists
-        ? userSnapshot.data() as PrivateMediaUploadAccountSnapshot
-        : null,
-      ownerUid
-    );
-  } catch (error) {
-    if (error instanceof HttpsError) {
-      throw error;
-    }
-
-    if (authErrorCode(error) === 'auth/user-not-found') {
-      throw new HttpsError(
-        'failed-precondition',
-        'Sua conta não está disponível para enviar vídeos.'
-      );
-    }
-
-    throw error;
-  }
 }
 
 async function isRegisteredAsset(
@@ -329,11 +232,53 @@ function resolveOwnedUploadAssets(
   ];
 }
 
+function buildReservationInput(
+  ownerUid: string,
+  videoId: string,
+  data: RegisterPrivateVideoUploadRequest | undefined
+): PrivateVideoReservationRegistrationInput | null {
+  const reservationId = cleanId(data?.reservationId);
+  const videoStoragePath = extractOwnedPrivateVideoPathForId(
+    ownerUid,
+    videoId,
+    data?.videoStoragePath
+  );
+  const rawPosterStoragePath = String(data?.posterStoragePath ?? '').trim();
+  const posterStoragePath = rawPosterStoragePath
+    ? extractOwnedPrivateVideoPosterPath(
+      ownerUid,
+      videoId,
+      rawPosterStoragePath
+    )
+    : null;
+  const videoSizeBytes = normalizePositiveInteger(data?.sizeBytes);
+  const mimeType = normalizeMimeType(data?.mimeType);
+
+  if (
+    !reservationId ||
+    !videoStoragePath ||
+    (rawPosterStoragePath && !posterStoragePath) ||
+    !videoSizeBytes ||
+    !mimeType
+  ) {
+    return null;
+  }
+
+  return {
+    reservationId,
+    ownerUid,
+    videoId,
+    videoStoragePath,
+    posterStoragePath,
+    videoSizeBytes,
+    mimeType,
+  };
+}
+
 /**
  * Registra o upload e só responde depois que a fila idempotente foi persistida.
  * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
- * A elegibilidade é revalidada no backend antes do registro definitivo.
- * Todo novo vídeo mantém a intenção de publicação até o derivado ficar pronto.
+ * A elegibilidade e a reserva são obrigatórias e revalidadas no backend.
  */
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
@@ -343,17 +288,67 @@ export const registerPrivateVideoUpload = onCall<
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
-    const assets = ownerUid && videoId
-      ? resolveOwnedUploadAssets(ownerUid, videoId, request.data)
-      : null;
+    const reservationId = cleanId(request.data?.reservationId);
 
-    if (requesterUid && requesterUid === ownerUid && assets) {
-      try {
-        await assertPrivateVideoUploadEligibility(ownerUid);
-      } catch (error) {
-        await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
-        throw error;
+    if (!requesterUid) {
+      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    }
+
+    if (!ownerUid || !videoId) {
+      throw new HttpsError('invalid-argument', 'Vídeo inválido.');
+    }
+
+    if (requesterUid !== ownerUid) {
+      throw new HttpsError(
+        'permission-denied',
+        'O vídeo só pode ser registrado no perfil autenticado.'
+      );
+    }
+
+    const assets = resolveOwnedUploadAssets(ownerUid, videoId, request.data);
+    const reservationInput = buildReservationInput(
+      ownerUid,
+      videoId,
+      request.data
+    );
+
+    if (!assets || !reservationInput) {
+      if (reservationId) {
+        await cancelPrivateVideoUploadReservationById(
+          reservationId,
+          ownerUid
+        );
       }
+
+      throw new HttpsError(
+        'failed-precondition',
+        'O upload não possui uma reserva válida.',
+        {
+          code: 'VIDEO_UPLOAD_RESERVATION_REQUIRED',
+          retryable: true,
+          recovery: 'Inicie o envio novamente para gerar uma nova reserva.',
+        }
+      );
+    }
+
+    try {
+      await assertPrivateVideoUploadReservation(reservationInput);
+    } catch (error) {
+      await Promise.all([
+        cancelPrivateVideoUploadReservationById(reservationId, ownerUid),
+        cleanupDeniedUploadAssets(ownerUid, videoId, assets),
+      ]);
+      throw error;
+    }
+
+    try {
+      await assertPrivateVideoUploadEligibility(ownerUid);
+    } catch (error) {
+      await Promise.all([
+        cancelPrivateVideoUploadReservationById(reservationId, ownerUid),
+        cleanupDeniedUploadAssets(ownerUid, videoId, assets),
+      ]);
+      throw error;
     }
 
     const requestWithRequiredPublication = {
@@ -368,6 +363,22 @@ export const registerPrivateVideoUpload = onCall<
         requestWithRequiredPublication as any
       )
     ) as RegisteredPrivateVideoResponse;
+
+    try {
+      await consumePrivateVideoUploadReservationAfterRegistration(
+        reservationInput
+      );
+    } catch (error) {
+      logger.warn(
+        '[registerPrivateVideoUpload] Reconciliação da reserva pendente.',
+        {
+          ownerUid: response.ownerUid,
+          videoId: response.videoId,
+          reservationId,
+          error: normalizeErrorMessage(error),
+        }
+      );
+    }
 
     await ensurePrivateVideoProcessingQueued(
       response.ownerUid,
