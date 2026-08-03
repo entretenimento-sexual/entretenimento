@@ -7,12 +7,7 @@ import {
 import { Auth } from '@angular/fire/auth';
 import { Firestore, collection, doc } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Storage } from '@angular/fire/storage';
-import {
-  deleteObject,
-  ref,
-  type UploadTask,
-} from 'firebase/storage';
+import type { UploadTask } from 'firebase/storage';
 import { Observable, firstValueFrom } from 'rxjs';
 
 import { IVideoEditRecipeInput } from 'src/app/core/interfaces/media/i-video-edit-recipe';
@@ -91,7 +86,6 @@ export class VideoEditedUploadFlowService {
   private readonly auth = inject(Auth);
   private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
-  private readonly storage = inject(Storage);
   private readonly injector = inject(Injector);
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
   private readonly draftCapacity = inject(PrivateMediaDraftCapacityService);
@@ -138,30 +132,17 @@ export class VideoEditedUploadFlowService {
       let cancelRequested = false;
       let registrationStarted = false;
       let completed = false;
-      let videoUploadStarted = false;
-      let posterUploadStarted = false;
       let cleanupChain = Promise.resolve();
 
       const scheduleCleanup = (): Promise<void> => {
         cleanupChain = cleanupChain.then(async () => {
-          const tasks: Promise<void>[] = [];
-
-          if (reservationId) {
-            tasks.push(this.cancelReservationBestEffort(reservationId));
-            reservationId = '';
+          if (!reservationId) {
+            return;
           }
 
-          if (posterUploadStarted && posterPath) {
-            tasks.push(this.deleteBinaryBestEffort(posterPath, 'poster'));
-            posterUploadStarted = false;
-          }
-
-          if (videoUploadStarted) {
-            tasks.push(this.deleteBinaryBestEffort(videoPath, 'video'));
-            videoUploadStarted = false;
-          }
-
-          await Promise.all(tasks);
+          const activeReservationId = reservationId;
+          reservationId = '';
+          await this.cancelReservationBestEffort(activeReservationId);
         });
 
         return cleanupChain;
@@ -217,7 +198,6 @@ export class VideoEditedUploadFlowService {
           assertNotCancelled();
 
           emitProgress('preparing', 6);
-          videoUploadStarted = true;
           const videoBinary = await firstValueFrom(
             this.reservedUpload.upload$(
               videoPath,
@@ -241,7 +221,6 @@ export class VideoEditedUploadFlowService {
           let uploadedPosterPath: string | null = null;
 
           if (posterBlob && posterPath) {
-            posterUploadStarted = true;
             const posterBinary = await firstValueFrom(
               this.reservedUpload.upload$(
                 posterPath,
@@ -433,22 +412,6 @@ export class VideoEditedUploadFlowService {
     ).then(() => undefined).catch(() => undefined);
   }
 
-  private deleteBinaryBestEffort(
-    storagePath: string,
-    assetKind: 'video' | 'poster'
-  ): Promise<void> {
-    return deleteObject(ref(this.storage, storagePath)).catch((error) => {
-      if (this.isObjectNotFoundError(error)) {
-        return;
-      }
-
-      this.reportError(error, {
-        op: 'rollbackEditedVideoBinary',
-        assetKind,
-      });
-    });
-  }
-
   private requireOwnedUid(ownerUid: string): string {
     const safeOwnerUid = String(ownerUid ?? '').trim();
     const authenticatedUid = this.auth.currentUser?.uid?.trim() ?? '';
@@ -572,14 +535,6 @@ export class VideoEditedUploadFlowService {
     ].includes(code);
   }
 
-  private isObjectNotFoundError(error: unknown): boolean {
-    return typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      String((error as { code?: unknown }).code ?? '') ===
-        'storage/object-not-found';
-  }
-
   private randomId(): string {
     if (
       typeof crypto !== 'undefined' &&
@@ -627,7 +582,7 @@ export class VideoEditedUploadFlowService {
       (normalized as any).skipUserNotification = true;
       this.errorHandler.handleError(normalized);
     } catch {
-      // noop
+      // A telemetria não pode substituir o erro original.
     }
   }
 }
