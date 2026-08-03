@@ -27,6 +27,9 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
     const user = after.data() ?? {};
     const canonical = normalizeProfileDiscoveryFields(user);
     const age = normalizePublicAge(user['idade'] ?? user['age']);
+    const descricao = normalizePublicDescription(
+      user['descricao'] ?? user['description'] ?? user['bio']
+    );
     const publicPreferences = buildPublicPreferenceProjection(
       preferenceSnapshot.exists ? (preferenceSnapshot.data() ?? {}) : null,
       { canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic') }
@@ -36,6 +39,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
     if (
       publicProfileDiscoveryProjectionMatches(currentPublic, canonical) &&
       (currentPublic['age'] ?? null) === age &&
+      (currentPublic['descricao'] ?? null) === descricao &&
       publicPreferenceProjectionMatches(currentPublic, publicPreferences)
     ) return;
 
@@ -47,6 +51,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
         interestedInOrientations: canonical.interestedInOrientations,
         compatibilityReady: canonical.compatibilityReady,
         age,
+        descricao,
         ...publicPreferences,
         discoveryNormalizedAt: FieldValue.serverTimestamp(),
         publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
@@ -61,4 +66,17 @@ function normalizePublicAge(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   const age = Math.round(value);
   return age >= 18 && age <= 100 ? age : null;
+}
+
+function normalizePublicDescription(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+
+  const normalized = value
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\t ]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, 1000);
+
+  return normalized || null;
 }
