@@ -13,12 +13,12 @@ import { OtherUserProfileViewComponent } from './other-user-profile-view.compone
 import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
-import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { FriendshipService } from '../../core/services/interactions/friendship/friendship.service';
 import { MediaPublicQueryService } from '../../core/services/media/media-public-query.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
+import { PublicProfileViewService } from '../../core/services/user-profile/public-profile-view.service';
 import { UserSocialLinksService } from '../../core/services/user-profile/user-social-links.service';
 import { DirectChatService } from '../../messaging/direct-chat/services/direct-chat.service';
 import { SocialLinksAccordionComponent } from '../../user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
@@ -56,9 +56,9 @@ describe('OtherUserProfileViewComponent', () => {
           },
         },
         {
-          provide: FirestoreUserQueryService,
+          provide: PublicProfileViewService,
           useValue: {
-            getPublicUserById$: vi.fn(() =>
+            watchProfile$: vi.fn(() =>
               of({
                 uid: targetUid,
                 nickname: 'Pessoa alvo',
@@ -66,15 +66,21 @@ describe('OtherUserProfileViewComponent', () => {
                 photoURL: 'https://example.test/profile.jpg',
                 role: 'premium',
                 lastLogin: Date.now(),
+                createdAt: new Date('2022-01-01T00:00:00Z').getTime(),
                 descricao: 'Descrição direta do perfil.',
                 isSubscriber: true,
                 isOnline: true,
                 gender: 'Mulher',
+                age: 32,
                 idade: 32,
                 orientation: 'bissexual',
                 estado: 'RJ',
                 municipio: 'Rio de Janeiro',
                 distanciaKm: 8,
+                preferenceBadgesVisible: true,
+                publicRelationshipIntents: ['dating', 'swing'],
+                publicSexualPractices: ['bdsm', 'voyeurism'],
+                publicBodyTraits: ['tattoos', 'curvy'],
                 preferences: ['Encontros', 'Casais'],
               })
             ),
@@ -214,33 +220,36 @@ describe('OtherUserProfileViewComponent', () => {
     ).toBeNull();
   });
 
-  it('integra descrição e localização ao hero sem cartão Sobre isolado', () => {
+  it('exibe descrição, idade, localização e distância no hero', () => {
     const hero = fixture.debugElement.query(
       By.css('.other-profile-page__hero')
     ).nativeElement as HTMLElement;
 
     expect(hero.textContent).toContain('Descrição direta do perfil.');
+    expect(hero.textContent).toContain('32 anos');
     expect(hero.textContent).toContain('Rio de Janeiro, RJ');
-    expect(hero.textContent).toContain('8 km');
-    expect(
-      fixture.debugElement.query(By.css('.other-profile-page__about'))
-    ).toBeNull();
+    expect(hero.textContent).toContain('8 km de você');
   });
 
-  it('mantém afinidades declaradas em faixa complementar sem cartões de sinais', () => {
-    const details = fixture.debugElement.query(
-      By.css('.other-profile-page__details')
+  it('organiza os dados públicos completos em grupos acessíveis', () => {
+    const overview = fixture.debugElement.query(
+      By.css('.other-profile-page__overview')
     ).nativeElement as HTMLElement;
-    const affinityText = fixture.debugElement.query(
-      By.css('.other-profile-page__preference-cloud')
-    ).nativeElement.textContent as string;
+    const cards = fixture.debugElement.queryAll(
+      By.css('.other-profile-page__info-card')
+    );
 
-    expect(details.textContent).toContain('Afinidades');
-    expect(affinityText).toContain('Encontros');
-    expect(affinityText).toContain('Casais');
-    expect(
-      fixture.debugElement.query(By.css('.other-profile-page__signal'))
-    ).toBeNull();
+    expect(overview.textContent).toContain('Informações públicas');
+    expect(overview.textContent).toContain('Na plataforma desde 2022');
+    expect(overview.textContent).toContain('Conhecer pessoas');
+    expect(overview.textContent).toContain('Swing');
+    expect(overview.textContent).toContain('BDSM');
+    expect(overview.textContent).toContain('Voyeurismo');
+    expect(overview.textContent).toContain('Tatuagens');
+    expect(overview.textContent).toContain('Curvilíneo');
+    expect(overview.textContent).toContain('Encontros');
+    expect(overview.textContent).toContain('Casais');
+    expect(cards.length).toBeGreaterThanOrEqual(4);
   });
 
   it('configura redes como superfície compacta e ocultável', () => {
@@ -257,10 +266,10 @@ describe('OtherUserProfileViewComponent', () => {
     expect(socialLinks.nativeElement.hasAttribute('hidden')).toBe(true);
   });
 
-  it('não inventa publicações nem repete segurança ou promoção de planos', () => {
+  it('não expõe dados privados nem inventa promoções de plano', () => {
     const text = fixture.nativeElement.textContent as string;
 
-    expect(text).not.toContain('Publicações recentes');
+    expect(text).not.toContain('viewer@example.test');
     expect(text).not.toContain('Dados básicos');
     expect(text).not.toContain('Interagir com segurança');
     expect(text).not.toContain('Assinantes recebem');
