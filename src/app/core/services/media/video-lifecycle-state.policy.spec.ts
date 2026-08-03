@@ -133,7 +133,6 @@ describe('video-lifecycle-state.policy', () => {
         ...basePublication,
         isPublished: true,
         publishWhenReady: false,
-        visibility: 'PUBLIC',
         moderationStatus: 'APPROVED',
       }
     );
