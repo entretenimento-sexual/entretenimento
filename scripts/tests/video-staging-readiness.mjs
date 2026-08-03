@@ -2,12 +2,18 @@
 // -----------------------------------------------------------------------------
 // Auditoria estática e segura do ambiente de homologação do pipeline de vídeos.
 // Não acessa Google Cloud, Firebase ou dados de usuários.
+//
+// Modos:
+// - padrão: prontidão de deploy, placeholders bloqueiam a execução real;
+// - --contract: valida o contrato do repositório e converte pendências externas
+//   conhecidas em warnings para permitir execução automática em pull requests.
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = process.cwd();
+const CONTRACT_ONLY = process.argv.includes('--contract');
 const REPORT_DIRECTORY = path.resolve(
   process.env.VIDEO_STAGING_REPORT_DIR || 'artifacts/video-staging'
 );
@@ -30,7 +36,9 @@ function record(status, code, message, details = null) {
   console.log(`${marker} [${code}] ${message}`);
 
   if (details) {
-    console.log(`  ${typeof details === 'string' ? details : JSON.stringify(details)}`);
+    console.log(
+      `  ${typeof details === 'string' ? details : JSON.stringify(details)}`
+    );
   }
 }
 
@@ -50,6 +58,21 @@ function warn(condition, code, successMessage, warningMessage, details = null) {
     condition ? successMessage : warningMessage,
     details
   );
+}
+
+function deployCheck(
+  condition,
+  code,
+  successMessage,
+  failureMessage,
+  details = null
+) {
+  if (CONTRACT_ONLY) {
+    warn(condition, code, successMessage, failureMessage, details);
+    return;
+  }
+
+  check(condition, code, successMessage, failureMessage, details);
 }
 
 function includesAll(text, values) {
@@ -90,7 +113,10 @@ function hasTtlOverride(fieldOverrides, collectionGroup) {
 }
 
 function run() {
-  console.log('[video:staging:readiness] Iniciando auditoria estática.');
+  const mode = CONTRACT_ONLY ? 'contract' : 'deploy-readiness';
+  console.log(
+    `[video:staging:readiness] Iniciando auditoria estática (${mode}).`
+  );
 
   const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
   check(
@@ -138,19 +164,23 @@ function run() {
     `Bucket de staging configurado: ${environmentBucket}.`,
     'O bucket de staging não pertence ao projeto esperado ou não usa appspot.com.'
   );
-  check(
-    !!appCheckSiteKey &&
-      !appCheckSiteKey.includes('staging-recaptcha-v3-site-key') &&
-      !appCheckSiteKey.toLowerCase().includes('placeholder'),
+
+  const hasRealAppCheckSiteKey = !!appCheckSiteKey &&
+    !appCheckSiteKey.includes('staging-recaptcha-v3-site-key') &&
+    !appCheckSiteKey.toLowerCase().includes('placeholder');
+  deployCheck(
+    hasRealAppCheckSiteKey,
     'APPCHECK_SITE_KEY',
     'App Check de staging possui site key não-placeholder.',
-    'App Check de staging ainda usa uma site key placeholder. Homologação real deve permanecer bloqueada.'
+    CONTRACT_ONLY
+      ? 'App Check continua placeholder; contrato válido, mas o smoke real permanece bloqueado.'
+      : 'App Check de staging ainda usa uma site key placeholder. Homologação real deve permanecer bloqueada.'
   );
   warn(
     !!apiEndpoint && !apiEndpoint.includes('seuprojeto.com'),
     'STAGING_API_ENDPOINT',
     'Endpoint auxiliar de staging não é placeholder.',
-    'O apiEndpoint de staging ainda é placeholder; não bloqueia este smoke de Firebase, mas bloqueia homologação integral do aplicativo.'
+    'O apiEndpoint de staging ainda é placeholder; não bloqueia o smoke de Firebase, mas bloqueia homologação integral do aplicativo.'
   );
 
   const packageJson = readJson('package.json');
@@ -201,7 +231,7 @@ function run() {
       "mimeType: 'video/webm'",
       "VIDEO_UPLOAD_FORMAT_LABEL = 'MP4, M4V, MOV ou WebM'",
     ]) &&
-      !includesAll(formatPolicy, ["extension: 'mkv'"]) &&
+      !formatPolicy.includes("extension: 'mkv'") &&
       !formatPolicy.includes("extension: 'avi'"),
     'FORMAT_CONTRACT',
     'Contrato Angular anuncia somente MP4/M4V, MOV e WebM.',
@@ -277,16 +307,52 @@ function run() {
     'O runbook operacional está incompleto para homologação.'
   );
 
+  const smokeScript = readText('scripts/tests/video-staging-smoke.mjs');
+  check(
+    includesAll(smokeScript, [
+      "assert.notEqual(\n    projectId,\n    'entretenimento-sexual'",
+      'VIDEO_STAGING_CONFIRM',
+      'getVideoProcessingOperationalStatus',
+      'validateOperationalPanel(observer, report)',
+      'cleanupOwnerResources',
+      "result.dispatchStates.includes('COMPLETED')",
+    ]),
+    'SMOKE_SAFETY_CONTRACT',
+    'Smoke protege produção, valida o painel antes da limpeza e exige despacho concluído.',
+    'As proteções ou os critérios essenciais do smoke foram removidos.'
+  );
+
+  const workflow = readText('.github/workflows/video-staging-smoke.yml');
+  check(
+    includesAll(workflow, [
+      'workflow_dispatch:',
+      'environment: video-staging',
+      'id-token: write',
+      'google-github-actions/auth@v3',
+      'confirm_project:',
+      'VIDEO_STAGING_CONFIRM: ${{ inputs.confirm_project }}',
+      'actions/upload-artifact@v7',
+    ]) &&
+      !workflow.includes('on:\n  push:') &&
+      !workflow.includes('on:\n  pull_request:'),
+    'MANUAL_WORKFLOW_CONTRACT',
+    'Workflow real é manual, protegido por environment e autenticado via OIDC.',
+    'O workflow real perdeu proteção manual, environment ou autenticação OIDC.'
+  );
+
   const gitignore = readText('.gitignore');
   check(
-    gitignore.includes('gha-creds-*.json'),
-    'OIDC_CREDENTIAL_IGNORE',
-    'Credenciais temporárias do auth action estão ignoradas.',
-    'Adicione gha-creds-*.json ao .gitignore antes de autenticar por OIDC.'
+    gitignore.includes('gha-creds-*.json') &&
+      gitignore.includes('/artifacts/video-staging/'),
+    'TEMPORARY_ARTIFACT_IGNORE',
+    'Credenciais OIDC e relatórios locais estão ignorados.',
+    'Credenciais temporárias ou relatórios locais podem entrar no repositório.'
   );
 
   const summary = {
     generatedAt: new Date().toISOString(),
+    mode,
+    deploymentReady: results.every((item) => item.status === 'PASS'),
     project: {
       defaultProject,
       stagingProject,
