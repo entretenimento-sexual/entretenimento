@@ -76,6 +76,11 @@ export {
 } from './application/queue-video-processing.handler';
 
 export {
+  dispatchVideoProcessingOnJobWrite,
+  processVideoProcessingTask,
+} from './application/video-processing-task.handler';
+
+export {
   cleanupCancelledVideoProcessing,
   reconcileVideoProcessing,
   submitQueuedVideoProcessing,
