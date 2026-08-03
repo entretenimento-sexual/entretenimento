@@ -3,6 +3,37 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PhotoUploadFlowService } from './photo-upload-flow.service';
 
+function buildPublicationConfig(overrides: Record<string, unknown> = {}) {
+  return {
+    photoId: 'photo-1',
+    ownerUid: 'user-1',
+    isPublished: false,
+    visibility: 'PRIVATE',
+    caption: null,
+    isCover: false,
+    orderIndex: 0,
+    commentsEnabled: true,
+    commentsPolicy: 'EVERYONE',
+    commentsCount: 0,
+    reactionsEnabled: true,
+    reactionsCount: 0,
+    moderationStatus: 'PRIVATE',
+    moderationReason: null,
+    reportsCount: 0,
+    score: 0,
+    scoreBreakdown: {
+      rankingScore: 0,
+      qualityScore: 0,
+      engagementScore: 0,
+      safetyScore: 100,
+    },
+    publishedAt: null,
+    updatedAt: Date.now(),
+    lastModeratedAt: null,
+    ...overrides,
+  };
+}
+
 function createFixture() {
   const storageService = {
     buildOwnedImageUploadPath: vi.fn(
@@ -26,7 +57,9 @@ function createFixture() {
         const marker = '/o/';
         const index = location.indexOf(marker);
         return index >= 0
-          ? decodeURIComponent(location.slice(index + marker.length).split('?')[0])
+          ? decodeURIComponent(
+            location.slice(index + marker.length).split('?')[0]
+          )
           : null;
       }
     ),
@@ -80,6 +113,13 @@ function createFixture() {
       updatedAt: Date.now(),
     })),
   };
+  const mediaPublication = {
+    getPublicationConfigsByOwner$: vi.fn(() => of({})),
+    buildDefaultConfig: vi.fn((ownerUid: string, photoId: string) =>
+      buildPublicationConfig({ ownerUid, photoId })
+    ),
+    publishPhoto$: vi.fn(() => of(void 0)),
+  };
   const errorHandler = {
     handleError: vi.fn(),
   };
@@ -93,6 +133,7 @@ function createFixture() {
     draftCapacity as any,
     reservedUpload as any,
     photoRegistration as any,
+    mediaPublication as any,
     errorHandler as any,
     errorNotifier as any
   );
@@ -105,13 +146,14 @@ function createFixture() {
     draftCapacity,
     reservedUpload,
     photoRegistration,
+    mediaPublication,
     errorHandler,
     errorNotifier,
   };
 }
 
 describe('PhotoUploadFlowService', () => {
-  it('reserva, envia e registra a criação com a mesma identidade', async () => {
+  it('reserva, envia, registra e publica a criação com a mesma identidade', async () => {
     const fixture = createFixture();
     const result = await firstValueFrom(
       fixture.service.uploadProcessedPhoto$({
@@ -126,6 +168,7 @@ describe('PhotoUploadFlowService', () => {
     const reservation = fixture.draftCapacity.reserveUpload$.mock.calls[0][0];
     const upload = fixture.reservedUpload.upload$.mock.calls[0];
     const registration = fixture.photoRegistration.register$.mock.calls[0][0];
+    const publication = fixture.mediaPublication.publishPhoto$.mock.calls[0][0];
 
     expect(reservation).toMatchObject({
       ownerUid: 'user-1',
@@ -142,6 +185,14 @@ describe('PhotoUploadFlowService', () => {
       storagePath: reservation.sourceStoragePath,
       sizeBytes: 5,
     });
+    expect(publication).toMatchObject({
+      ownerUid: 'user-1',
+      visibility: 'PUBLIC',
+      photo: {
+        id: reservation.mediaId,
+        path: reservation.sourceStoragePath,
+      },
+    });
     expect(result.photoId).toBe(reservation.mediaId);
     expect(result.path).toBe(reservation.sourceStoragePath);
     expect(fixture.photoFirestoreService.saveImageState)
@@ -156,11 +207,32 @@ describe('PhotoUploadFlowService', () => {
     ).toBeLessThan(
       fixture.photoRegistration.register$.mock.invocationCallOrder[0]
     );
+    expect(
+      fixture.photoRegistration.register$.mock.invocationCallOrder[0]
+    ).toBeLessThan(
+      fixture.mediaPublication.publishPhoto$.mock.invocationCallOrder[0]
+    );
   });
 
-  it('reserva a substituição e preserva o caminho atual no contrato', async () => {
+  it('preserva capa, ordem e interações ao publicar a substituição', async () => {
     const fixture = createFixture();
     const currentPath = 'users/user-1/uploads/images/current.jpg';
+    fixture.mediaPublication.getPublicationConfigsByOwner$.mockReturnValue(
+      of({
+        'photo-1': buildPublicationConfig({
+          photoId: 'photo-1',
+          isPublished: true,
+          visibility: 'PUBLIC',
+          isCover: true,
+          orderIndex: 3,
+          commentsEnabled: false,
+          commentsPolicy: 'OFF',
+          reactionsEnabled: false,
+          moderationStatus: 'APPROVED',
+        }),
+      })
+    );
+
     const result = await firstValueFrom(
       fixture.service.replaceProcessedPhoto$({
         userId: 'user-1',
@@ -174,6 +246,7 @@ describe('PhotoUploadFlowService', () => {
 
     const reservation = fixture.draftCapacity.reserveUpload$.mock.calls[0][0];
     const registration = fixture.photoRegistration.replace$.mock.calls[0][0];
+    const publication = fixture.mediaPublication.publishPhoto$.mock.calls[0][0];
 
     expect(reservation).toMatchObject({
       ownerUid: 'user-1',
@@ -188,6 +261,14 @@ describe('PhotoUploadFlowService', () => {
       reservationId: 'reservation-1',
       currentStoragePath: currentPath,
       newStoragePath: reservation.sourceStoragePath,
+    });
+    expect(publication).toMatchObject({
+      ownerUid: 'user-1',
+      isCover: true,
+      orderIndex: 3,
+      commentsEnabled: false,
+      commentsPolicy: 'EVERYONE',
+      reactionsEnabled: false,
     });
     expect(result.path).toBe(reservation.sourceStoragePath);
     expect(fixture.draftCapacity.cancelUploadReservation$)
@@ -222,6 +303,7 @@ describe('PhotoUploadFlowService', () => {
     expect(fixture.draftCapacity.cancelUploadReservation$)
       .toHaveBeenCalledWith('reservation-1');
     expect(fixture.photoRegistration.register$).not.toHaveBeenCalled();
+    expect(fixture.mediaPublication.publishPhoto$).not.toHaveBeenCalled();
   });
 
   it('não cancela nem apaga após o início do registro', async () => {
@@ -243,8 +325,33 @@ describe('PhotoUploadFlowService', () => {
     )).rejects.toThrow('Resposta indisponível.');
 
     expect(fixture.photoRegistration.register$).toHaveBeenCalledOnce();
+    expect(fixture.mediaPublication.publishPhoto$).not.toHaveBeenCalled();
     expect(fixture.draftCapacity.cancelUploadReservation$)
       .not.toHaveBeenCalled();
     expect(fixture.errorNotifier.showError).toHaveBeenCalledOnce();
+  });
+
+  it('não executa rollback do cliente quando a publicação falha após o registro', async () => {
+    const fixture = createFixture();
+    fixture.mediaPublication.publishPhoto$.mockReturnValue(
+      throwError(() => Object.assign(
+        new Error('Publicação temporariamente indisponível.'),
+        { code: 'functions/failed-precondition' }
+      ))
+    );
+
+    await expect(firstValueFrom(
+      fixture.service.uploadProcessedPhoto$({
+        userId: 'user-1',
+        processedFile: new Blob(['photo'], { type: 'image/jpeg' }),
+        originalFileName: 'photo.jpg',
+        mimeType: 'image/jpeg',
+      })
+    )).rejects.toThrow('Publicação temporariamente indisponível.');
+
+    expect(fixture.photoRegistration.register$).toHaveBeenCalledOnce();
+    expect(fixture.mediaPublication.publishPhoto$).toHaveBeenCalledOnce();
+    expect(fixture.draftCapacity.cancelUploadReservation$)
+      .not.toHaveBeenCalled();
   });
 });
