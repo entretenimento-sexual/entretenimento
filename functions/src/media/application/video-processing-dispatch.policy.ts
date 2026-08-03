@@ -33,7 +33,12 @@ const RECONCILIATION_INTERVAL_MS = 60_000;
 const SUBMISSION_RECOVERY_FALLBACK_MS = 5 * 60_000;
 const MAX_SCHEDULE_HORIZON_MS = 30 * 24 * 60 * 60_000;
 
-function cleanId(value: unknown): string {
+function cleanJobId(value: unknown): string {
+  const normalized = String(value ?? '').trim();
+  return /^[A-Za-z0-9_-]{1,300}$/.test(normalized) ? normalized : '';
+}
+
+function cleanProcessingVersion(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
 }
@@ -83,6 +88,15 @@ function dispatchModeForState(
   return null;
 }
 
+function stableBaseTimestamp(
+  job: Pick<VideoProcessingJob, 'updatedAt' | 'createdAt'>,
+  now: number
+): number {
+  return normalizeTimestamp(job.updatedAt) ||
+    normalizeTimestamp(job.createdAt) ||
+    now;
+}
+
 function dueAtForJob(
   job: Pick<
     VideoProcessingJob,
@@ -97,24 +111,17 @@ function dueAtForJob(
   now: number
 ): number {
   if (mode === 'SUBMIT') {
-    return normalizeTimestamp(job.nextAttemptAt) || now;
+    return normalizeTimestamp(job.nextAttemptAt) ||
+      stableBaseTimestamp(job, now);
   }
 
   if (mode === 'RECOVER_SUBMISSION') {
     return normalizeTimestamp(job.leaseUntil) ||
-      Math.max(
-        now,
-        (normalizeTimestamp(job.updatedAt) || now) +
-          SUBMISSION_RECOVERY_FALLBACK_MS
-      );
+      stableBaseTimestamp(job, now) + SUBMISSION_RECOVERY_FALLBACK_MS;
   }
 
   if (mode === 'RECONCILE') {
-    return Math.max(
-      now,
-      (normalizeTimestamp(job.updatedAt) || now) +
-        RECONCILIATION_INTERVAL_MS
-    );
+    return stableBaseTimestamp(job, now) + RECONCILIATION_INTERVAL_MS;
   }
 
   return normalizeTimestamp(job.updatedAt) ||
@@ -148,8 +155,10 @@ export function resolveVideoProcessingDispatch(
   jobValue: Partial<VideoProcessingJob> | null | undefined,
   nowValue = Date.now()
 ): VideoProcessingDispatch | null {
-  const jobId = cleanId(jobIdValue);
-  const processingVersion = cleanId(jobValue?.processingVersion);
+  const jobId = cleanJobId(jobIdValue);
+  const processingVersion = cleanProcessingVersion(
+    jobValue?.processingVersion
+  );
   const state = normalizeState(jobValue?.state);
   const now = normalizeTimestamp(nowValue) || Date.now();
 
