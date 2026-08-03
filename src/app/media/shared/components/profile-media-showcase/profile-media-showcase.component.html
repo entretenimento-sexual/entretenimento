@@ -43,10 +43,13 @@
       }
 
       @case ('ready') {
-        <div class="profile-media-showcase__sections">
+        <div
+          class="profile-media-showcase__sections"
+          [class.profile-media-showcase__sections--single-photo-with-videos]="state.photosCount === 1 && state.videosCount > 0"
+        >
           @if (state.photosCount > 0) {
             <section
-              class="profile-media-showcase__section"
+              class="profile-media-showcase__section profile-media-showcase__section--photos"
               aria-labelledby="profile-public-photos-title"
             >
               <header class="profile-media-showcase__header">
@@ -113,7 +116,7 @@
 
           @if (state.videosCount > 0) {
             <section
-              class="profile-media-showcase__section"
+              class="profile-media-showcase__section profile-media-showcase__section--videos"
               aria-labelledby="profile-public-videos-title"
             >
               <header class="profile-media-showcase__header">
