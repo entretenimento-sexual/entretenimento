@@ -5,9 +5,18 @@ import {
   registerPrivateVideoUpload as registerPrivateVideoUploadCore,
 } from './register-private-video-upload-orchestrator.handler';
 
-interface RegisterPrivateVideoUploadRequest {
+export interface RegisterPrivateVideoUploadRequest {
   publishWhenReady?: unknown;
   [key: string]: unknown;
+}
+
+export function forceVideoAutoPublicationData(
+  data: RegisterPrivateVideoUploadRequest | undefined
+): RegisterPrivateVideoUploadRequest {
+  return {
+    ...(data ?? {}),
+    publishWhenReady: true,
+  };
 }
 
 /**
@@ -24,9 +33,6 @@ export const registerPrivateVideoUpload = onCall<
   { region: FUNCTIONS_REGION },
   async (request) => registerPrivateVideoUploadCore.run({
     ...request,
-    data: {
-      ...(request.data ?? {}),
-      publishWhenReady: true,
-    },
+    data: forceVideoAutoPublicationData(request.data),
   } as any)
 );
