@@ -1,0 +1,96 @@
+<article class="public-video-feed-card app-card" aria-labelledby="feed-video-title">
+  <header class="public-video-feed-card__owner">
+    <a
+      class="public-video-feed-card__owner-link"
+      [routerLink]="['/perfil', video().ownerUid]"
+      [attr.aria-label]="'Abrir perfil de ' + ownerName()"
+    >
+      <span class="public-video-feed-card__avatar">
+        @if (video().owner?.photoURL) {
+          <img
+            [src]="video().owner?.photoURL || ''"
+            alt=""
+            width="44"
+            height="44"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
+          />
+        } @else {
+          <span aria-hidden="true">{{ ownerInitial() }}</span>
+        }
+      </span>
+
+      <span class="public-video-feed-card__identity">
+        <strong>{{ ownerName() }}</strong>
+        @if (ownerLocation(); as location) {
+          <small>{{ location }}</small>
+        } @else {
+          <small>Publicou um vídeo</small>
+        }
+      </span>
+    </a>
+  </header>
+
+  <button
+    type="button"
+    class="public-video-feed-card__preview"
+    [attr.aria-label]="openAriaLabel()"
+    (click)="openVideo()"
+  >
+    @if (hasPoster()) {
+      <img
+        [src]="video().posterUrl || ''"
+        [alt]="video().alt || videoTitle()"
+        loading="lazy"
+        decoding="async"
+        referrerpolicy="no-referrer"
+        (error)="onPosterError()"
+      />
+    } @else {
+      <span class="public-video-feed-card__placeholder" aria-hidden="true">
+        <i class="fas fa-clapperboard"></i>
+      </span>
+    }
+
+    <span class="public-video-feed-card__shade" aria-hidden="true"></span>
+    <span class="public-video-feed-card__play" aria-hidden="true">
+      <i class="fas fa-play"></i>
+    </span>
+    <span class="public-video-feed-card__duration">
+      {{ formatDuration() }}
+    </span>
+  </button>
+
+  <div class="public-video-feed-card__body">
+    <h2 id="feed-video-title">{{ videoTitle() }}</h2>
+
+    @if (video().description) {
+      <p>{{ video().description }}</p>
+    }
+
+    <footer class="public-video-feed-card__metrics" aria-label="Interações do vídeo">
+      <span>
+        <i class="fas fa-eye" aria-hidden="true"></i>
+        <span class="visually-hidden">Visualizações:</span>
+        {{ formatCount(video().viewsCount) }}
+      </span>
+
+      @if (video().reactionsEnabled) {
+        <span>
+          <i class="fas fa-heart" aria-hidden="true"></i>
+          <span class="visually-hidden">Curtidas:</span>
+          {{ formatCount(video().reactionsCount) }}
+        </span>
+      }
+
+      @if (video().commentsEnabled) {
+        <span>
+          <i class="fas fa-comment" aria-hidden="true"></i>
+          <span class="visually-hidden">Comentários:</span>
+          {{ formatCount(video().commentsCount) }}
+        </span>
+      }
+    </footer>
+  </div>
+</article>
