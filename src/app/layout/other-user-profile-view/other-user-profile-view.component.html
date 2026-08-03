@@ -59,36 +59,21 @@
           }
         </div>
 
-        <p class="other-profile-page__meta" aria-label="Informações do perfil">
+        <p class="other-profile-page__meta" aria-label="Resumo do perfil">
           @if (profile.gender) {
             <span>{{ profile.gender | titlecase }}</span>
           }
 
-          @if (profile.idade) {
-            <span>{{ profile.idade }} anos</span>
+          @if (profileAge !== null) {
+            <span>{{ profileAge }} anos</span>
           }
 
-          @if (profile.orientation) {
-            <span>{{ profile.orientation | titlecase }}</span>
-          } @else if (profile.partner1Orientation || profile.partner2Orientation) {
-            <span>
-              @if (profile.partner1Orientation) {
-                {{ profile.partner1Orientation | titlecase }}
-              }
-              @if (profile.partner1Orientation && profile.partner2Orientation) {
-                /
-              }
-              @if (profile.partner2Orientation) {
-                {{ profile.partner2Orientation | titlecase }}
-              }
-            </span>
+          @if (orientationLabel) {
+            <span>{{ orientationLabel }}</span>
           }
         </p>
 
-        @if (
-          hasLocation ||
-          (profile.distanciaKm !== null && profile.distanciaKm !== undefined)
-        ) {
+        @if (hasLocation || distanceLabel) {
           <p class="other-profile-page__location">
             <i class="fas fa-location-dot" aria-hidden="true"></i>
 
@@ -96,14 +81,11 @@
               <span>{{ profile.municipio }}, {{ profile.estado }}</span>
             }
 
-            @if (
-              profile.distanciaKm !== null &&
-              profile.distanciaKm !== undefined
-            ) {
+            @if (distanceLabel) {
               @if (hasLocation) {
                 <span aria-hidden="true">•</span>
               }
-              <strong>{{ profile.distanciaKm | number:'1.0-0' }} km</strong>
+              <strong>{{ distanceLabel }}</strong>
             }
           </p>
         }
@@ -174,24 +156,97 @@
       </div>
     </article>
 
-    @if (hasPreferenceChips) {
+    @if (hasProfileDetails) {
       <section
-        class="other-profile-page__details"
-        aria-labelledby="profile-affinities-heading"
+        class="other-profile-page__overview"
+        aria-labelledby="profile-details-heading"
       >
-        <div class="other-profile-page__details-heading">
-          <span>Sobre o perfil</span>
-          <h2 id="profile-affinities-heading">Afinidades</h2>
-        </div>
+        <header class="other-profile-page__section-heading">
+          <span>Perfil</span>
+          <div>
+            <h2 id="profile-details-heading">Informações públicas</h2>
+            <p>Dados que {{ displayName }} escolheu disponibilizar no perfil.</p>
+          </div>
+        </header>
 
-        <div
-          class="other-profile-page__preference-cloud"
-          aria-label="Interesses declarados"
-        >
-          @for (preference of preferenceChips; track preference) {
-            <span class="other-profile-page__preference-chip">
-              {{ preference }}
-            </span>
+        <div class="other-profile-page__overview-grid">
+          @if (publicFacts.length > 0) {
+            <article class="other-profile-page__info-card other-profile-page__info-card--facts">
+              <div class="other-profile-page__info-card-heading">
+                <i class="fas fa-id-card" aria-hidden="true"></i>
+                <h3>Dados do perfil</h3>
+              </div>
+
+              <dl class="other-profile-page__facts">
+                @for (fact of publicFacts; track fact.label) {
+                  <div>
+                    <dt>
+                      <i [class]="fact.icon" aria-hidden="true"></i>
+                      {{ fact.label }}
+                    </dt>
+                    <dd>{{ fact.value }}</dd>
+                  </div>
+                }
+              </dl>
+            </article>
+          }
+
+          @if (relationshipIntentChips.length > 0) {
+            <article class="other-profile-page__info-card">
+              <div class="other-profile-page__info-card-heading">
+                <i class="fas fa-heart" aria-hidden="true"></i>
+                <h3>O que procura</h3>
+              </div>
+              <div class="other-profile-page__chip-cloud" aria-label="Intenções declaradas">
+                @for (item of relationshipIntentChips; track item) {
+                  <span class="other-profile-page__preference-chip">{{ item }}</span>
+                }
+              </div>
+            </article>
+          }
+
+          @if (sexualPracticeChips.length > 0) {
+            <article class="other-profile-page__info-card">
+              <div class="other-profile-page__info-card-heading">
+                <i class="fas fa-fire" aria-hidden="true"></i>
+                <h3>Interesses</h3>
+              </div>
+              <div class="other-profile-page__chip-cloud" aria-label="Interesses declarados">
+                @for (item of sexualPracticeChips; track item) {
+                  <span class="other-profile-page__preference-chip">{{ item }}</span>
+                }
+              </div>
+            </article>
+          }
+
+          @if (bodyTraitChips.length > 0) {
+            <article class="other-profile-page__info-card">
+              <div class="other-profile-page__info-card-heading">
+                <i class="fas fa-person" aria-hidden="true"></i>
+                <h3>Características</h3>
+              </div>
+              <div class="other-profile-page__chip-cloud" aria-label="Características declaradas">
+                @for (item of bodyTraitChips; track item) {
+                  <span class="other-profile-page__preference-chip">{{ item }}</span>
+                }
+              </div>
+            </article>
+          }
+
+          @if (hasPreferenceChips) {
+            <article class="other-profile-page__info-card">
+              <div class="other-profile-page__info-card-heading">
+                <i class="fas fa-sparkles" aria-hidden="true"></i>
+                <h3>Afinidades</h3>
+              </div>
+              <div class="other-profile-page__chip-cloud" aria-label="Afinidades declaradas">
+                @for (preference of preferenceChips; track preference) {
+                  <span class="other-profile-page__preference-chip">
+                    {{ preference }}
+                  </span>
+                }
+              </div>
+            </article>
           }
         </div>
       </section>
