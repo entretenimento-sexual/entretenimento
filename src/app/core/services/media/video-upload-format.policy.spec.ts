@@ -14,7 +14,7 @@ describe('video-upload-format.policy', () => {
     ['video.mov', 'video/quicktime', 'mov', 'video/quicktime'],
     ['video.webm', 'video/webm', 'webm', 'video/webm'],
   ])(
-    'aceita %s com tipo %s e normaliza para %s',
+    'aceita %s com tipo %s, extensão %s e MIME normalizado %s',
     (name, type, extension, mimeType) => {
       expect(resolveVideoUploadFormat({ name, type })).toEqual(
         expect.objectContaining({ extension, mimeType })
