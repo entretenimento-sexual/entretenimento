@@ -5,34 +5,58 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
+  createVideoAudienceAccessEvaluator,
+  resolveCanonicalVideoAudienceTarget,
+  type VideoAudienceAccessEvaluator,
+} from './video-audience-access.policy';
+import {
   normalizeOwnedPublishedVideoPath,
   normalizeOwnedPublishedVideoPosterPath,
 } from './video-storage-path';
 
 interface PublicVideoAccessRequestItem {
-  ownerUid?: string;
-  videoId?: string;
+  readonly ownerUid?: string;
+  readonly videoId?: string;
 }
 
 interface PublicVideoAccessRequest {
-  items?: PublicVideoAccessRequestItem[];
+  readonly items?: PublicVideoAccessRequestItem[];
 }
 
 interface PublicVideoAccessResponseItem {
-  ownerUid: string;
-  videoId: string;
-  url: string;
-  posterUrl: string | null;
-  expiresAt: number;
+  readonly ownerUid: string;
+  readonly videoId: string;
+  readonly url: string;
+  readonly posterUrl: string | null;
+  readonly expiresAt: number;
 }
 
 interface PublicVideoAccessResponse {
-  items: PublicVideoAccessResponseItem[];
+  readonly items: PublicVideoAccessResponseItem[];
 }
 
 interface PublicVideoAccessResolution {
-  item: PublicVideoAccessResponseItem | null;
-  technicalFailure: boolean;
+  readonly item: PublicVideoAccessResponseItem | null;
+  readonly technicalFailure: boolean;
+}
+
+interface PublicVideoDocument {
+  readonly id?: unknown;
+  readonly ownerUid?: unknown;
+  readonly mediaType?: unknown;
+  readonly assetAccess?: unknown;
+  readonly visibility?: unknown;
+  readonly moderationStatus?: unknown;
+}
+
+interface PublicationDocument {
+  readonly ownerUid?: unknown;
+  readonly videoId?: unknown;
+  readonly isPublished?: unknown;
+  readonly visibility?: unknown;
+  readonly moderationStatus?: unknown;
+  readonly publishedStoragePath?: unknown;
+  readonly publishedPosterStoragePath?: unknown;
 }
 
 const MAX_ITEMS_PER_REQUEST = 16;
@@ -57,6 +81,7 @@ function buildRequestKey(ownerUid: string, videoId: string): string {
 }
 
 async function resolveAccessItem(
+  audience: VideoAudienceAccessEvaluator,
   ownerUid: string,
   videoId: string,
   expiresAt: number
@@ -68,7 +93,7 @@ async function resolveAccessItem(
   const publicationRef = db.doc(
     `users/${ownerUid}/video_publications/${videoId}`
   );
-  const [publicProfileSnap, publicVideoSnap, publicationSnap] =
+  const [publicProfileSnapshot, publicVideoSnapshot, publicationSnapshot] =
     await Promise.all([
       publicProfileRef.get(),
       publicVideoRef.get(),
@@ -76,28 +101,31 @@ async function resolveAccessItem(
     ]);
 
   if (
-    !publicProfileSnap.exists ||
-    !publicVideoSnap.exists ||
-    !publicationSnap.exists
+    !publicProfileSnapshot.exists ||
+    !publicVideoSnapshot.exists ||
+    !publicationSnapshot.exists
   ) {
     return null;
   }
 
-  const publicVideo = publicVideoSnap.data();
-  const publication = publicationSnap.data();
+  const publicVideo = publicVideoSnapshot.data() as PublicVideoDocument;
+  const publication = publicationSnapshot.data() as PublicationDocument;
+  const target = resolveCanonicalVideoAudienceTarget({
+    ownerUid,
+    videoId,
+    action: 'PLAY',
+    publicVideo,
+    publication,
+  });
 
-  if (
-    publicVideo?.visibility !== 'PUBLIC' ||
-    publicVideo?.moderationStatus !== 'APPROVED' ||
-    publication?.isPublished !== true
-  ) {
+  if (!target || !(await audience.evaluate(target)).allowed) {
     return null;
   }
 
   const videoStoragePath = normalizeOwnedPublishedVideoPath(
     ownerUid,
     videoId,
-    publication?.publishedStoragePath
+    publication.publishedStoragePath
   );
 
   if (!videoStoragePath) {
@@ -116,7 +144,7 @@ async function resolveAccessItem(
   const posterStoragePath = normalizeOwnedPublishedVideoPosterPath(
     ownerUid,
     videoId,
-    publication?.publishedPosterStoragePath
+    publication.publishedPosterStoragePath
   );
   let posterUrl: string | null = null;
 
@@ -144,20 +172,11 @@ async function resolveAccessItem(
 export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<PublicVideoAccessResponse> => {
-    if (!request.auth?.uid) {
+    const viewerUid = cleanId(request.auth?.uid);
+
+    if (!viewerUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
-
-    /**
-     * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
-     *
-     * Este handler é a barreira definitiva antes de emitir URL assinada.
-     * Quando FRIENDS, SUBSCRIBERS ou PREMIUM forem ativados, não basta ocultar
-     * o vídeo na interface: `request.auth.uid` deverá ser passado à política
-     * central de audiência para validar amizade, assinatura/entitlement
-     * vigente, cancelamento, bloqueios e lifecycle a cada emissão ou renovação.
-     * Compartilhar um link ou uma referência no chat nunca concede acesso.
-     */
 
     const rawItems = Array.isArray(request.data?.items)
       ? request.data.items
@@ -196,17 +215,29 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
       );
     }
 
+    // A sessão central valida o visitante uma vez e mantém caches por autor.
+    // Nenhuma URL é emitida com base apenas na projeção pública recebida.
+    const audience = await createVideoAudienceAccessEvaluator(
+      viewerUid,
+      request.auth?.token?.email_verified === true
+    );
     const expiresAt = Date.now() + SIGNED_URL_TTL_MS;
     const resolutions = await Promise.all(
       [...uniqueItems.values()].map(
         async ({ ownerUid, videoId }): Promise<PublicVideoAccessResolution> => {
           try {
             return {
-              item: await resolveAccessItem(ownerUid, videoId, expiresAt),
+              item: await resolveAccessItem(
+                audience,
+                ownerUid,
+                videoId,
+                expiresAt
+              ),
               technicalFailure: false,
             };
           } catch (error) {
             logger.warn('[getPublicVideoAccessUrls] Falha ao gerar acesso.', {
+              viewerUid,
               ownerUid,
               videoId,
               error: error instanceof Error

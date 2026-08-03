@@ -1,16 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import {
-  Firestore,
-  QueryConstraint,
-  collectionGroup,
-  documentId,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  startAfter,
-  where,
-} from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable } from 'rxjs';
 
 import {
@@ -37,101 +26,65 @@ export interface IPublicVideoRankingGatewayRequest {
   readonly cursor: IPublicVideoRankingCursor | null;
 }
 
+/**
+ * O nome da classe é mantido para preservar injeções e consumidores existentes.
+ * A leitura global direta do Firestore foi suprimida porque Rules não filtram
+ * bloqueios bilaterais. O contrato reativo agora usa a callable autorizada.
+ */
 @Injectable({ providedIn: 'root' })
 export class PublicVideoRankingFirestoreGateway {
-  private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
   private readonly firestoreCtx = inject(FirestoreContextService);
+  private readonly listAuthorizedPublicVideosCallable = httpsCallable<
+    IPublicVideoRankingGatewayRequest,
+    IPublicVideoRankingRawPage
+  >(this.functions, 'listAuthorizedPublicVideos');
 
   loadPage$(
     request: IPublicVideoRankingGatewayRequest
   ): Observable<IPublicVideoRankingRawPage> {
     return this.firestoreCtx.deferPromise$(async () => {
-      const publicVideos = collectionGroup(this.firestore, 'public_videos');
-      const constraints = this.buildConstraints(request);
-      const snapshot = await getDocs(query(publicVideos, ...constraints));
-      const hasMore = snapshot.docs.length > request.pageSize;
-      const pageDocuments = snapshot.docs.slice(0, request.pageSize);
-      const documents = pageDocuments.map((document) => ({
-        id: document.id,
-        path: document.ref.path,
-        data: document.data() as Record<string, unknown>,
-      }));
-      const lastDocument = documents.at(-1) ?? null;
-
-      return {
-        documents,
-        nextCursor: hasMore && lastDocument
-          ? this.buildCursor(request.mode, lastDocument)
-          : null,
-        hasMore,
-      };
+      const response = await this.listAuthorizedPublicVideosCallable(request);
+      return this.normalizePage(response.data, request.mode);
     });
   }
 
-  private buildConstraints(
-    request: IPublicVideoRankingGatewayRequest
-  ): QueryConstraint[] {
-    const constraints: QueryConstraint[] = [
-      where('visibility', '==', 'PUBLIC'),
-      where('moderationStatus', '==', 'APPROVED'),
-    ];
+  private normalizePage(
+    candidate: IPublicVideoRankingRawPage,
+    mode: TPublicVideoRankingMode
+  ): IPublicVideoRankingRawPage {
+    const documents = Array.isArray(candidate?.documents)
+      ? candidate.documents.flatMap((document) => {
+        const id = String(document?.id ?? '').trim();
+        const path = String(document?.path ?? '').trim();
+        const data = document?.data;
 
-    if (request.mode === 'top') {
-      constraints.push(
-        orderBy('score', 'desc'),
-        orderBy('uniqueViewersCount', 'desc'),
-        orderBy('viewsCount', 'desc'),
-        orderBy('publishedAt', 'desc'),
-        orderBy(documentId(), 'desc')
-      );
+        if (
+          !id ||
+          !path ||
+          !data ||
+          typeof data !== 'object' ||
+          Array.isArray(data)
+        ) {
+          return [];
+        }
 
-      if (request.cursor?.mode === 'top') {
-        constraints.push(startAfter(
-          request.cursor.score,
-          request.cursor.uniqueViewersCount,
-          request.cursor.viewsCount,
-          request.cursor.publishedAt,
-          request.cursor.documentPath
-        ));
-      }
-    } else {
-      constraints.push(
-        orderBy('publishedAt', 'desc'),
-        orderBy(documentId(), 'desc')
-      );
+        return [{
+          id,
+          path,
+          data: data as Record<string, unknown>,
+        }];
+      })
+      : [];
+    const cursor = candidate?.nextCursor;
+    const nextCursor = cursor?.mode === mode
+      ? cursor
+      : null;
 
-      if (request.cursor?.mode === 'latest') {
-        constraints.push(startAfter(
-          request.cursor.publishedAt,
-          request.cursor.documentPath
-        ));
-      }
-    }
-
-    constraints.push(limit(request.pageSize + 1));
-    return constraints;
-  }
-
-  private buildCursor(
-    mode: TPublicVideoRankingMode,
-    document: IPublicVideoRankingRawDocument
-  ): IPublicVideoRankingCursor {
     return {
-      mode,
-      score: this.safeNumber(document.data['score']),
-      uniqueViewersCount: this.safeNumber(
-        document.data['uniqueViewersCount']
-      ),
-      viewsCount: this.safeNumber(document.data['viewsCount']),
-      publishedAt: this.safeNumber(document.data['publishedAt']),
-      documentPath: document.path,
+      documents,
+      nextCursor,
+      hasMore: candidate?.hasMore === true && nextCursor !== null,
     };
-  }
-
-  private safeNumber(value: unknown): number {
-    const numberValue = Number(value ?? 0);
-    return Number.isFinite(numberValue) && numberValue > 0
-      ? numberValue
-      : 0;
   }
 }
