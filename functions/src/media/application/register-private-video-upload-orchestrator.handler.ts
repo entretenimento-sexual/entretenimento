@@ -395,6 +395,8 @@ async function deleteEditDraftBestEffort(
  * Registra o upload e só responde depois que a fila idempotente foi persistida.
  * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
  * A elegibilidade é revalidada no backend antes do registro definitivo.
+ * A intenção pública é obrigatória: o armazenamento privado é apenas a etapa
+ * técnica anterior ao processamento e à projeção pública.
  */
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
@@ -430,8 +432,15 @@ export const registerPrivateVideoUpload = onCall<
     }
 
     try {
+      const publicationRequest = {
+        ...request,
+        data: {
+          ...(request.data ?? {}),
+          publishWhenReady: true,
+        },
+      };
       const response = (
-        await registerPrivateVideoUploadCore.run(request as any)
+        await registerPrivateVideoUploadCore.run(publicationRequest as any)
       ) as RegisteredPrivateVideoResponse;
       registrationCompleted = true;
 
