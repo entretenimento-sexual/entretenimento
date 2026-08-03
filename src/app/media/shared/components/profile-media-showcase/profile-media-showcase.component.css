@@ -16,6 +16,11 @@
   min-width: 0;
 }
 
+.profile-media-showcase__sections--single-photo-with-videos {
+  grid-template-columns: minmax(17rem, 0.36fr) minmax(0, 1fr);
+  align-items: start;
+}
+
 .profile-media-showcase__section {
   display: grid;
   gap: 1rem;
@@ -25,6 +30,21 @@
   border-radius: 1.15rem;
   background: color-mix(in oklab, var(--surface-color, #ffffff) 98%, var(--text-color, #111827) 1%);
   box-shadow: 0 0.8rem 2.2rem color-mix(in oklab, #000 8%, transparent);
+}
+
+.profile-media-showcase__sections--single-photo-with-videos
+  .profile-media-showcase__section--photos {
+  align-self: start;
+}
+
+.profile-media-showcase__sections--single-photo-with-videos
+  .profile-media-showcase__grid--photos.profile-media-showcase__grid--single {
+  grid-template-columns: 1fr;
+}
+
+.profile-media-showcase__sections--single-photo-with-videos
+  .profile-media-showcase__grid--videos {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .profile-media-showcase__header {
@@ -324,6 +344,15 @@
 }
 
 @media (max-width: 980px) {
+  .profile-media-showcase__sections--single-photo-with-videos {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-media-showcase__sections--single-photo-with-videos
+    .profile-media-showcase__grid--videos {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .profile-media-showcase__grid,
   .profile-media-showcase__skeleton {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -346,6 +375,8 @@
     box-shadow: none;
   }
 
+  .profile-media-showcase__sections--single-photo-with-videos
+    .profile-media-showcase__grid--videos,
   .profile-media-showcase__grid,
   .profile-media-showcase__skeleton,
   .profile-media-showcase__grid--double {
@@ -366,6 +397,8 @@
 @media (max-width: 390px) {
   .profile-media-showcase__header { align-items: flex-start; }
 
+  .profile-media-showcase__sections--single-photo-with-videos
+    .profile-media-showcase__grid--videos,
   .profile-media-showcase__grid,
   .profile-media-showcase__skeleton,
   .profile-media-showcase__grid--double,
