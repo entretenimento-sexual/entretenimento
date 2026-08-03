@@ -3,8 +3,6 @@ import {
   Firestore,
   collection,
   collectionData,
-  orderBy,
-  query,
 } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, throwError } from 'rxjs';
@@ -67,12 +65,8 @@ export class VideoProfileOrderService {
         this.firestore,
         `users/${safeOwnerUid}/video_publications`
       );
-      const publicationQuery = query(
-        publicationCollection,
-        orderBy('orderIndex', 'asc')
-      );
 
-      return collectionData(publicationQuery, { idField: 'id' }).pipe(
+      return collectionData(publicationCollection, { idField: 'id' }).pipe(
         map((documents) =>
           (documents as VideoPublicationOrderDoc[])
             .filter((document) =>
