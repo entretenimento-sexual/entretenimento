@@ -1,0 +1,125 @@
+name: Video Staging Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_project:
+        description: Digite exatamente entretenimento-staging
+        required: true
+        type: string
+      formats:
+        description: Formatos separados por vírgula
+        required: true
+        default: mp4,webm,mov
+        type: string
+      cleanup:
+        description: Remover todos os dados efêmeros ao final
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: video-staging-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Real video pipeline smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: video-staging
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit staging configuration
+        run: npm run test:media:video:staging:readiness
+
+      - name: Prepare deterministic media samples
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+
+          mkdir -p artifacts/video-staging/samples
+
+          ffmpeg -hide_banner -loglevel error -y \
+            -f lavfi -i "testsrc=size=640x360:rate=24" \
+            -t 6 -c:v libx264 -pix_fmt yuv420p \
+            artifacts/video-staging/samples/sample.mp4
+
+          ffmpeg -hide_banner -loglevel error -y \
+            -f lavfi -i "testsrc=size=640x360:rate=24" \
+            -t 6 -c:v libvpx-vp9 -pix_fmt yuv420p \
+            artifacts/video-staging/samples/sample.webm
+
+          ffmpeg -hide_banner -loglevel error -y \
+            -f lavfi -i "testsrc=size=640x360:rate=24" \
+            -t 6 -c:v libx264 -pix_fmt yuv420p \
+            artifacts/video-staging/samples/sample.mov
+
+          ffmpeg -hide_banner -loglevel error -y \
+            -i artifacts/video-staging/samples/sample.mp4 \
+            -frames:v 1 -q:v 2 \
+            artifacts/video-staging/samples/poster.jpg
+
+      - name: Authenticate to Google Cloud with OIDC
+        id: google-auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ vars.FIREBASE_STAGING_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_VIDEO_STAGING_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Execute real staging smoke
+        env:
+          VIDEO_STAGING_CONFIRM: ${{ inputs.confirm_project }}
+          VIDEO_STAGING_PROJECT_ID: ${{ vars.FIREBASE_STAGING_PROJECT_ID }}
+          VIDEO_STAGING_STORAGE_BUCKET: ${{ vars.FIREBASE_STAGING_STORAGE_BUCKET }}
+          VIDEO_STAGING_AUTH_DOMAIN: ${{ vars.FIREBASE_STAGING_AUTH_DOMAIN }}
+          VIDEO_STAGING_API_KEY: ${{ secrets.FIREBASE_STAGING_API_KEY }}
+          VIDEO_STAGING_APP_ID: ${{ vars.FIREBASE_STAGING_APP_ID }}
+          VIDEO_STAGING_FUNCTIONS_REGION: us-central1
+          VIDEO_STAGING_FORMATS: ${{ inputs.formats }}
+          VIDEO_STAGING_MP4_PATH: artifacts/video-staging/samples/sample.mp4
+          VIDEO_STAGING_WEBM_PATH: artifacts/video-staging/samples/sample.webm
+          VIDEO_STAGING_MOV_PATH: artifacts/video-staging/samples/sample.mov
+          VIDEO_STAGING_POSTER_PATH: artifacts/video-staging/samples/poster.jpg
+          VIDEO_STAGING_DURATION_MS: 6000
+          VIDEO_STAGING_TIMEOUT_MS: 1200000
+          VIDEO_STAGING_INTERVAL_MS: 5000
+          VIDEO_STAGING_CLEANUP: ${{ inputs.cleanup }}
+          VIDEO_STAGING_REPORT_DIR: artifacts/video-staging
+        run: npm run test:media:video:staging:smoke
+
+      - name: Upload staging report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: video-staging-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/video-staging/readiness.json
+            artifacts/video-staging/smoke.json
+          if-no-files-found: warn
+          retention-days: 30

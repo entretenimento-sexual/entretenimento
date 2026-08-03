@@ -44,6 +44,12 @@ testem.log
 # Exportações avulsas criadas pela Firebase Emulator UI
 /firebase-export-*/
 
+# Credenciais efêmeras criadas por google-github-actions/auth
+/gha-creds-*.json
+
+# Relatórios locais de homologação
+/artifacts/video-staging/
+
 # System files
 .DS_Store
 Thumbs.db
