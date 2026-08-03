@@ -253,20 +253,40 @@ function run() {
     'Storage Rules ainda permitem formato amplo, overwrite/delete ou upload sem reserva.'
   );
 
-  const registerHandler = readText(
-    'functions/src/media/application/register-private-video-upload.handler.ts'
+  const reservationHandler = readText(
+    'functions/src/media/application/private-video-upload-reservation.handler.ts'
   );
+  const registerOrchestrator = readText(
+    'functions/src/media/application/register-private-video-upload-orchestrator.handler.ts'
+  );
+  const effectiveRegistrationExport = includesAll(mediaIndex, [
+    'registerPrivateVideoUpload,',
+    "from './application/register-private-video-upload-orchestrator.handler';",
+  ]);
+  const reservationMimeBoundary = includesAll(reservationHandler, [
+    "'video/mp4'",
+    "'video/webm'",
+    "'video/quicktime'",
+    'ALLOWED_VIDEO_TYPES.has(mimeType)',
+  ]) &&
+    !reservationHandler.includes("'video/x-matroska'") &&
+    !reservationHandler.includes("'video/x-msvideo'") &&
+    !reservationHandler.includes("'application/mxf'");
+  const registrationReservationBoundary = includesAll(registerOrchestrator, [
+    'reservationId?: string;',
+    'assertPrivateVideoUploadReservation',
+    'consumePrivateVideoUploadReservationAfterRegistration',
+    'publishWhenReady: true',
+    "from './register-private-video-upload.handler';",
+  ]);
+
   check(
-    includesAll(registerHandler, [
-      "'video/mp4'",
-      "'video/webm'",
-      "'video/quicktime'",
-      'reservationId',
-    ]) &&
-      !registerHandler.includes("'video/x-matroska'"),
+    effectiveRegistrationExport &&
+      reservationMimeBoundary &&
+      registrationReservationBoundary,
     'REGISTER_CONTRACT',
-    'Registro definitivo exige reserva e MIME compatível.',
-    'A callable de registro não está alinhada a reserva e formatos processáveis.'
+    'Callable exportada exige reserva e o boundary externo aceita somente MP4, WebM e MOV.',
+    'A callable efetiva, a reserva ou o export público divergem do contrato de registro.'
   );
 
   const indexesJson = readJson('firestore.indexes.json');
@@ -312,14 +332,18 @@ function run() {
     includesAll(smokeScript, [
       "assert.notEqual(\n    projectId,\n    'entretenimento-sexual'",
       'VIDEO_STAGING_CONFIRM',
+      'CustomProvider',
+      'initializeAppCheck',
+      'getAdminAppCheck',
+      'adminAppCheck.createToken',
       'getVideoProcessingOperationalStatus',
       'validateOperationalPanel(observer, report)',
       'cleanupOwnerResources',
       "result.dispatchStates.includes('COMPLETED')",
     ]),
     'SMOKE_SAFETY_CONTRACT',
-    'Smoke protege produção, valida o painel antes da limpeza e exige despacho concluído.',
-    'As proteções ou os critérios essenciais do smoke foram removidos.'
+    'Smoke protege produção, usa App Check, valida o painel antes da limpeza e exige despacho concluído.',
+    'As proteções, o App Check ou os critérios essenciais do smoke foram removidos.'
   );
 
   const workflow = readText('.github/workflows/video-staging-smoke.yml');
