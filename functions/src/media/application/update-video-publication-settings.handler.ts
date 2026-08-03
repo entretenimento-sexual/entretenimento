@@ -35,8 +35,8 @@ interface VideoPublicationDoc extends VideoPublicationSettingsInput {
   moderationReason?: string | null;
 }
 
-const AUTO_APPROVE_VIDEOS =
-  process.env.MEDIA_AUTO_APPROVE_VIDEOS === 'true';
+const REQUIRE_VIDEO_PREMODERATION =
+  process.env.MEDIA_REQUIRE_VIDEO_PREMODERATION === 'true';
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -44,7 +44,7 @@ function cleanId(value: unknown): string {
 }
 
 function resolveModerationStatus(): 'APPROVED' | 'PENDING_REVIEW' {
-  return AUTO_APPROVE_VIDEOS ? 'APPROVED' : 'PENDING_REVIEW';
+  return REQUIRE_VIDEO_PREMODERATION ? 'PENDING_REVIEW' : 'APPROVED';
 }
 
 export const updateVideoPublicationSettings =
