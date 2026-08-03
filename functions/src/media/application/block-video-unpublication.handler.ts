@@ -44,7 +44,9 @@ export const unpublishVideo = onCall<UnpublishVideoRequest>(
 
     throw new HttpsError(
       'failed-precondition',
-      'Vídeos publicados não podem ser mantidos como arquivos privados. Para retirar este conteúdo da plataforma, exclua o vídeo definitivamente.'
+      'Vídeos publicados não podem ser mantidos como arquivos privados. ' +
+        'Para retirar este conteúdo da plataforma, exclua o vídeo ' +
+        'definitivamente.'
     );
   }
 );
