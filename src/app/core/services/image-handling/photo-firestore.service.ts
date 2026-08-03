@@ -57,48 +57,6 @@ interface DeleteProfilePhotoCallableResponse {
   cleanupPending: boolean;
 }
 
-interface RegisterPrivatePhotoUploadRequest {
-  ownerUid: string;
-  photoId: string;
-  storagePath: string;
-  displayUrl: string;
-  fileName: string;
-  sizeBytes: number;
-  createdAt: number;
-}
-
-export interface RegisterPrivatePhotoUploadResponse {
-  photoId: string;
-  ownerUid: string;
-  storagePath: string;
-  displayUrl: string;
-  fileName: string;
-  sizeBytes: number;
-  createdAt: number;
-  draftExpiresAt: number;
-}
-
-interface ReplacePrivatePhotoUploadRequest {
-  ownerUid: string;
-  photoId: string;
-  currentStoragePath: string;
-  newStoragePath: string;
-  newDisplayUrl: string;
-  fileName: string;
-  sizeBytes: number;
-}
-
-export interface ReplacePrivatePhotoUploadResponse {
-  photoId: string;
-  ownerUid: string;
-  previousStoragePath: string;
-  storagePath: string;
-  displayUrl: string;
-  fileName: string;
-  sizeBytes: number;
-  updatedAt: number;
-}
-
 @Injectable({
   providedIn: 'root',
 })
@@ -193,108 +151,40 @@ export class PhotoFirestoreService {
     }
   }
 
+  /**
+   * @deprecated O registro de upload exige reserva transacional e metadado no
+   * Storage. Use `PhotoUploadFlowService`, que delega para
+   * `PrivatePhotoUploadRegistrationService`.
+   */
   async registerPrivatePhotoUpload(
-    userId: string,
-    photo: Photo
-  ): Promise<RegisterPrivatePhotoUploadResponse> {
-    const safeUserId = this.requireUserId(userId);
-    const safePhotoId = String(photo.id ?? '').trim();
-    const safeStoragePath = String(photo.path ?? '').trim();
-    const safeDisplayUrl = String(photo.url ?? '').trim();
-    const sizeBytes = Number(photo.sizeBytes ?? 0);
-
-    if (!safePhotoId || !safeStoragePath || !safeDisplayUrl || sizeBytes <= 0) {
-      throw this.normalizeHandledError(
-        new Error('Os dados da foto enviada estão incompletos.'),
-        'Os dados da foto enviada estão incompletos.',
-        {
-          op: 'registerPrivatePhotoUpload',
-          userId: safeUserId,
-          photoId: safePhotoId,
-        }
-      );
-    }
-
-    return this.executeCallable(
-      'registerPrivatePhotoUpload',
-      {
-        ownerUid: safeUserId,
-        photoId: safePhotoId,
-        storagePath: safeStoragePath,
-        displayUrl: safeDisplayUrl,
-        fileName: photo.fileName,
-        sizeBytes: Math.trunc(sizeBytes),
-        createdAt: photo.createdAt.getTime(),
-      } satisfies RegisterPrivatePhotoUploadRequest,
-      'Não foi possível registrar a foto enviada.',
-      {
-        op: 'registerPrivatePhotoUpload',
-        userId: safeUserId,
-        photoId: safePhotoId,
-      }
-    );
-  }
-
-  async replacePrivatePhotoUpload(
-    userId: string,
-    photoId: string,
-    currentStoragePath: string,
-    replacement: Pick<Photo, 'url' | 'path' | 'fileName' | 'sizeBytes'>
-  ): Promise<ReplacePrivatePhotoUploadResponse> {
-    const safeUserId = this.requireUserId(userId);
-    const safePhotoId = String(photoId ?? '').trim();
-    const safeCurrentStoragePath = String(currentStoragePath ?? '').trim();
-    const safeNewStoragePath = String(replacement.path ?? '').trim();
-    const safeDisplayUrl = String(replacement.url ?? '').trim();
-    const sizeBytes = Number(replacement.sizeBytes ?? 0);
-
-    if (
-      !safePhotoId ||
-      !safeCurrentStoragePath ||
-      !safeNewStoragePath ||
-      !safeDisplayUrl ||
-      sizeBytes <= 0
-    ) {
-      throw this.normalizeHandledError(
-        new Error('Os dados da substituição estão incompletos.'),
-        'Os dados da substituição estão incompletos.',
-        {
-          op: 'replacePrivatePhotoUpload',
-          userId: safeUserId,
-          photoId: safePhotoId,
-        }
-      );
-    }
-
-    return this.executeCallable(
-      'replacePrivatePhotoUpload',
-      {
-        ownerUid: safeUserId,
-        photoId: safePhotoId,
-        currentStoragePath: safeCurrentStoragePath,
-        newStoragePath: safeNewStoragePath,
-        newDisplayUrl: safeDisplayUrl,
-        fileName: replacement.fileName,
-        sizeBytes: Math.trunc(sizeBytes),
-      } satisfies ReplacePrivatePhotoUploadRequest,
-      'Não foi possível substituir a foto.',
-      {
-        op: 'replacePrivatePhotoUpload',
-        userId: safeUserId,
-        photoId: safePhotoId,
-      }
-    );
+    _userId: string,
+    _photo: Photo
+  ): Promise<never> {
+    return this.rejectDeprecatedUploadMethod('registerPrivatePhotoUpload');
   }
 
   /**
-   * Mantido apenas para compatibilidade de chamadas internas antigas.
-   * Novos uploads usam `registerPrivatePhotoUpload`, que reserva quota no backend.
+   * @deprecated A substituição reservada usa copy-on-write e autoridade
+   * backend. Use `PhotoUploadFlowService.replaceProcessedPhoto$`.
+   */
+  async replacePrivatePhotoUpload(
+    _userId: string,
+    _photoId: string,
+    _currentStoragePath: string,
+    _replacement: Pick<Photo, 'url' | 'path' | 'fileName' | 'sizeBytes'>
+  ): Promise<never> {
+    return this.rejectDeprecatedUploadMethod('replacePrivatePhotoUpload');
+  }
+
+  /**
+   * @deprecated Mantido somente para detectar chamadas legadas durante a
+   * migração. O método não grava documentos e não possui fallback inseguro.
    */
   async savePhotoMetadata(
-    userId: string,
-    photo: Photo
-  ): Promise<void> {
-    await this.registerPrivatePhotoUpload(userId, photo);
+    _userId: string,
+    _photo: Photo
+  ): Promise<never> {
+    return this.rejectDeprecatedUploadMethod('savePhotoMetadata');
   }
 
   async updatePhotoMetadata(
@@ -446,6 +336,25 @@ export class PhotoFirestoreService {
     );
   }
 
+  private async rejectDeprecatedUploadMethod(
+    methodName: string
+  ): Promise<never> {
+    const error = this.normalizeHandledError(
+      new Error(
+        'O fluxo antigo de upload de fotos foi desativado. Recarregue a página e tente novamente.'
+      ),
+      'O fluxo antigo de upload de fotos foi desativado.',
+      {
+        op: methodName,
+        deprecated: true,
+        requiredFlow: 'PhotoUploadFlowService',
+      }
+    );
+
+    this.globalErrorHandler.handleError(error);
+    throw error;
+  }
+
   private normalizeDisplayDate(value: number | null): number | null {
     if (value === null) {
       return null;
@@ -485,33 +394,6 @@ export class PhotoFirestoreService {
     }
 
     return safeUserId;
-  }
-
-  private async executeCallable<Request, Response>(
-    callableName: string,
-    payload: Request,
-    fallbackMessage: string,
-    context?: Record<string, unknown>
-  ): Promise<Response> {
-    try {
-      return await this.firestoreCtx.run(async () => {
-        const callable = httpsCallable<Request, Response>(
-          this.functions,
-          callableName
-        );
-        const response = await callable(payload);
-        return response.data;
-      });
-    } catch (error) {
-      const normalizedError = this.normalizeHandledError(
-        error,
-        fallbackMessage,
-        context
-      );
-
-      this.globalErrorHandler.handleError(normalizedError);
-      throw normalizedError;
-    }
   }
 
   private handleReadError<T>(
