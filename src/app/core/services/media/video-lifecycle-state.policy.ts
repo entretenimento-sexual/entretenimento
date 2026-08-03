@@ -27,6 +27,8 @@ export interface VideoLifecyclePresentation {
   readonly terminal: boolean;
 }
 
+const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
+
 const PRESENTATIONS: Readonly<
   Record<
     Exclude<VideoLifecycleState, 'FAILED' | 'REJECTED' | 'BLOCKED'>,
@@ -85,7 +87,14 @@ const PRESENTATIONS: Readonly<
 };
 
 export function resolveVideoLifecyclePresentation(
-  video: Pick<IVideoItem, 'status' | 'processingErrorMessage'>,
+  video: Pick<
+    IVideoItem,
+    | 'status'
+    | 'processingErrorMessage'
+    | 'processedStoragePath'
+    | 'processedMimeType'
+    | 'mimeType'
+  >,
   publication: Pick<
     IVideoPublicationConfig,
     | 'isPublished'
@@ -156,8 +165,11 @@ export function resolveVideoLifecyclePresentation(
     return PRESENTATIONS.PROCESSING;
   }
 
+  const hasProcessedPlayback = hasCompatibleProcessedPlayback(video);
+
   if (
     video.status === 'ready' &&
+    hasProcessedPlayback &&
     publication?.isPublished !== true &&
     publication?.publishWhenReady === true
   ) {
@@ -166,6 +178,7 @@ export function resolveVideoLifecyclePresentation(
 
   if (
     video.status === 'ready' &&
+    hasProcessedPlayback &&
     publication !== null &&
     publication !== undefined &&
     publication.isPublished !== true &&
@@ -175,6 +188,20 @@ export function resolveVideoLifecyclePresentation(
   }
 
   return PRESENTATIONS.REGISTERED;
+}
+
+function hasCompatibleProcessedPlayback(
+  video: Pick<
+    IVideoItem,
+    'processedStoragePath' | 'processedMimeType' | 'mimeType'
+  >
+): boolean {
+  const storagePath = String(video.processedStoragePath ?? '').trim();
+  const mimeType = String(video.processedMimeType ?? video.mimeType ?? '')
+    .trim()
+    .toLowerCase();
+
+  return !!storagePath && PUBLIC_PLAYBACK_TYPES.has(mimeType);
 }
 
 function cleanMessage(value: string | null | undefined): string {
