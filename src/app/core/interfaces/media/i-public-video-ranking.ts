@@ -19,6 +19,11 @@ export interface IPublicVideoRankingRequest {
   readonly pageSize?: number;
   readonly cursor?: IPublicVideoRankingCursor | null;
   readonly notifyOnError?: boolean;
+  /**
+   * Superfícies agregadoras usam esta opção para isolar a falha da fonte e
+   * manter diagnóstico próprio sem transformar erro em página vazia silenciosa.
+   */
+  readonly propagateErrors?: boolean;
 }
 
 export interface IPublicVideoRankingPage {
