@@ -1,6 +1,5 @@
 import { getFunctions } from 'firebase-admin/functions';
 import * as logger from 'firebase-functions/logger';
-import { requiresAPI, requiresRole } from 'firebase-functions/v2';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
@@ -20,13 +19,6 @@ export interface NormalizedImmediateVideoProcessingTaskData {
 const TASK_FUNCTION_NAME = 'submitQueuedVideoProcessingTask';
 const TASK_DISPATCH_DEADLINE_SECONDS = 9 * 60;
 
-requiresAPI(
-  'cloudtasks.googleapis.com',
-  'Dispara o processamento de vídeos imediatamente após o registro.'
-);
-requiresRole('roles/cloudtasks.enqueuer');
-requiresRole('roles/cloudfunctions.invoker');
-
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
@@ -45,6 +37,9 @@ export function normalizeImmediateVideoProcessingTaskData(
  * Adiciona o sinal de processamento ao Cloud Tasks sem transformar uma falha
  * de despacho em falha de registro. O job durável já existe no Firestore e o
  * agendamento periódico continua sendo o mecanismo de recuperação.
+ *
+ * Requisito operacional de deploy: Cloud Tasks API habilitada e a conta de
+ * serviço das Functions com permissão para enfileirar e invocar a task.
  */
 export async function enqueueImmediateVideoProcessingBestEffort(
   ownerUid: string,
