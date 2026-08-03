@@ -47,7 +47,10 @@ function normalizeOrderedVideoIds(value: unknown): string[] {
   return normalized;
 }
 
-function sameIdentitySet(left: readonly string[], right: readonly string[]): boolean {
+function sameIdentitySet(
+  left: readonly string[],
+  right: readonly string[]
+): boolean {
   if (left.length !== right.length) {
     return false;
   }
@@ -83,86 +86,100 @@ export const reorderProfileVideos = onCall<ReorderProfileVideosRequest>(
     const publicationCollection = db.collection(
       `users/${ownerUid}/video_publications`
     );
-    const publicationSnapshot = await publicationCollection.get();
-    const publishedVideoIds = publicationSnapshot.docs
-      .filter((document) => {
-        const data = document.data();
-        return data['isPublished'] === true &&
-          String(data['moderationStatus'] ?? '').trim().toUpperCase() ===
-            'APPROVED';
-      })
-      .map((document) => document.id);
 
-    if (!sameIdentitySet(orderedVideoIds, publishedVideoIds)) {
-      throw new HttpsError(
-        'failed-precondition',
-        'A biblioteca mudou. Atualize a página antes de reorganizar.'
-      );
-    }
+    return db.runTransaction<ReorderProfileVideosResponse>(
+      async (transaction) => {
+        const publicationSnapshot = await transaction.get(
+          publicationCollection
+        );
+        const publishedDocuments = publicationSnapshot.docs.filter(
+          (document) => {
+            const data = document.data();
+            return data['isPublished'] === true &&
+              String(data['moderationStatus'] ?? '')
+                .trim()
+                .toUpperCase() === 'APPROVED';
+          }
+        );
+        const publishedVideoIds = publishedDocuments.map(
+          (document) => document.id
+        );
 
-    if (orderedVideoIds.length === 0) {
-      return { updatedCount: 0, unchanged: true };
-    }
+        if (!sameIdentitySet(orderedVideoIds, publishedVideoIds)) {
+          throw new HttpsError(
+            'failed-precondition',
+            'A biblioteca mudou. Atualize a página antes de reorganizar.'
+          );
+        }
 
-    const publicRefs = orderedVideoIds.map((videoId) =>
-      db.doc(`public_profiles/${ownerUid}/public_videos/${videoId}`)
-    );
-    const publicSnapshots = await db.getAll(...publicRefs);
+        if (orderedVideoIds.length === 0) {
+          return { updatedCount: 0, unchanged: true };
+        }
 
-    if (publicSnapshots.some((snapshot) => !snapshot.exists)) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Um dos vídeos ainda não possui projeção pública.'
-      );
-    }
+        const publicRefs = orderedVideoIds.map((videoId) =>
+          db.doc(`public_profiles/${ownerUid}/public_videos/${videoId}`)
+        );
+        const publicSnapshots = await Promise.all(
+          publicRefs.map((reference) => transaction.get(reference))
+        );
 
-    const currentOrder = [...publishedVideoIds].sort((leftId, rightId) => {
-      const left = publicationSnapshot.docs.find(
-        (document) => document.id === leftId
-      )?.data();
-      const right = publicationSnapshot.docs.find(
-        (document) => document.id === rightId
-      )?.data();
-      const leftOrder = Number(left?.['orderIndex'] ?? 0);
-      const rightOrder = Number(right?.['orderIndex'] ?? 0);
+        if (publicSnapshots.some((snapshot) => !snapshot.exists)) {
+          throw new HttpsError(
+            'failed-precondition',
+            'Um dos vídeos ainda não possui projeção pública.'
+          );
+        }
 
-      if (leftOrder !== rightOrder) {
-        return leftOrder - rightOrder;
+        const publicationById = new Map(
+          publishedDocuments.map((document) => [
+            document.id,
+            document.data(),
+          ])
+        );
+        const currentOrder = [...publishedVideoIds].sort(
+          (leftId, rightId) => {
+            const left = publicationById.get(leftId);
+            const right = publicationById.get(rightId);
+            const leftOrder = Number(left?.['orderIndex'] ?? 0);
+            const rightOrder = Number(right?.['orderIndex'] ?? 0);
+
+            if (leftOrder !== rightOrder) {
+              return leftOrder - rightOrder;
+            }
+
+            const leftPublishedAt = Number(left?.['publishedAt'] ?? 0);
+            const rightPublishedAt = Number(right?.['publishedAt'] ?? 0);
+            return rightPublishedAt - leftPublishedAt;
+          }
+        );
+        const unchanged = currentOrder.every(
+          (videoId, index) => videoId === orderedVideoIds[index]
+        );
+
+        if (unchanged) {
+          return { updatedCount: 0, unchanged: true };
+        }
+
+        const now = Date.now();
+
+        orderedVideoIds.forEach((videoId, orderIndex) => {
+          transaction.set(
+            db.doc(`users/${ownerUid}/video_publications/${videoId}`),
+            { orderIndex, updatedAt: now },
+            { merge: true }
+          );
+          transaction.set(
+            db.doc(`public_profiles/${ownerUid}/public_videos/${videoId}`),
+            { orderIndex, updatedAt: now },
+            { merge: true }
+          );
+        });
+
+        return {
+          updatedCount: orderedVideoIds.length,
+          unchanged: false,
+        };
       }
-
-      const leftPublishedAt = Number(left?.['publishedAt'] ?? 0);
-      const rightPublishedAt = Number(right?.['publishedAt'] ?? 0);
-      return rightPublishedAt - leftPublishedAt;
-    });
-    const unchanged = currentOrder.every(
-      (videoId, index) => videoId === orderedVideoIds[index]
     );
-
-    if (unchanged) {
-      return { updatedCount: 0, unchanged: true };
-    }
-
-    const now = Date.now();
-    const batch = db.batch();
-
-    orderedVideoIds.forEach((videoId, orderIndex) => {
-      batch.set(
-        db.doc(`users/${ownerUid}/video_publications/${videoId}`),
-        { orderIndex, updatedAt: now },
-        { merge: true }
-      );
-      batch.set(
-        db.doc(`public_profiles/${ownerUid}/public_videos/${videoId}`),
-        { orderIndex, updatedAt: now },
-        { merge: true }
-      );
-    });
-
-    await batch.commit();
-
-    return {
-      updatedCount: orderedVideoIds.length,
-      unchanged: false,
-    };
   }
 );
