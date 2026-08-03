@@ -12,6 +12,15 @@ const baseVideo: IVideoItem = {
   createdAt: 1,
 };
 
+const readyVideo: IVideoItem = {
+  ...baseVideo,
+  status: 'ready',
+  mimeType: 'video/mp4',
+  processedMimeType: 'video/mp4',
+  processedStoragePath:
+    'users/owner-1/processed/videos/video-1/job-1/playback.mp4',
+};
+
 const basePublication: IVideoPublicationConfig = {
   id: 'video-1',
   videoId: 'video-1',
@@ -45,7 +54,7 @@ describe('video-lifecycle-state.policy', () => {
 
   it('representa publicação em andamento quando o derivado está pronto', () => {
     const result = resolveVideoLifecyclePresentation(
-      { ...baseVideo, status: 'ready' },
+      readyVideo,
       basePublication
     );
 
@@ -57,11 +66,21 @@ describe('video-lifecycle-state.policy', () => {
     });
   });
 
-  it('não classifica como legado enquanto a publicação ainda não foi hidratada', () => {
+  it('não avança para publicação sem um derivado compatível', () => {
     const result = resolveVideoLifecyclePresentation(
-      { ...baseVideo, status: 'ready' },
-      null
+      { ...baseVideo, status: 'ready', mimeType: 'video/mp4' },
+      basePublication
     );
+
+    expect(result).toMatchObject({
+      state: 'REGISTERED',
+      label: 'Registrado',
+      tone: 'progress',
+    });
+  });
+
+  it('não classifica como legado enquanto a publicação ainda não foi hidratada', () => {
+    const result = resolveVideoLifecyclePresentation(readyVideo, null);
 
     expect(result).toMatchObject({
       state: 'REGISTERED',
@@ -72,7 +91,7 @@ describe('video-lifecycle-state.policy', () => {
 
   it('prioriza moderação pendente sobre o status técnico pronto', () => {
     const result = resolveVideoLifecyclePresentation(
-      { ...baseVideo, status: 'ready' },
+      readyVideo,
       {
         ...basePublication,
         isPublished: true,
@@ -89,7 +108,7 @@ describe('video-lifecycle-state.policy', () => {
 
   it('representa publicação aprovada como estado terminal', () => {
     const result = resolveVideoLifecyclePresentation(
-      { ...baseVideo, status: 'ready' },
+      readyVideo,
       {
         ...basePublication,
         isPublished: true,
@@ -128,7 +147,7 @@ describe('video-lifecycle-state.policy', () => {
 
   it('preserva o motivo de rejeição informado pela moderação', () => {
     const result = resolveVideoLifecyclePresentation(
-      { ...baseVideo, status: 'ready' },
+      readyVideo,
       {
         ...basePublication,
         moderationStatus: 'REJECTED',
@@ -150,7 +169,7 @@ describe('video-lifecycle-state.policy', () => {
     ['HIDDEN', 'Oculto'],
   ] as const)('representa moderação %s como bloqueio', (moderationStatus, label) => {
     const result = resolveVideoLifecyclePresentation(
-      { ...baseVideo, status: 'ready' },
+      readyVideo,
       {
         ...basePublication,
         isPublished: true,
@@ -168,7 +187,7 @@ describe('video-lifecycle-state.policy', () => {
 
   it('identifica vídeo privado criado pelo fluxo legado', () => {
     const result = resolveVideoLifecyclePresentation(
-      { ...baseVideo, status: 'ready' },
+      readyVideo,
       {
         ...basePublication,
         publishWhenReady: false,
