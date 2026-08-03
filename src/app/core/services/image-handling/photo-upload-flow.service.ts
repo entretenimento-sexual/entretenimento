@@ -7,11 +7,13 @@ import {
   from,
   of,
   throwError,
+  timer,
 } from 'rxjs';
-import { catchError, switchMap } from 'rxjs/operators';
+import { catchError, retry, switchMap } from 'rxjs/operators';
 
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { MediaPublicationService } from '../media/media-publication.service';
 import {
   PrivateMediaDraftCapacityError,
   PrivateMediaDraftCapacityService,
@@ -88,6 +90,7 @@ export class PhotoUploadFlowService {
     private readonly draftCapacity: PrivateMediaDraftCapacityService,
     private readonly reservedUpload: PrivateMediaReservedUploadService,
     private readonly photoRegistration: PrivatePhotoUploadRegistrationService,
+    private readonly mediaPublication: MediaPublicationService,
     private readonly errorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
   ) {}
@@ -101,7 +104,10 @@ export class PhotoUploadFlowService {
       catchError((error) =>
         this.failFlow$(
           error,
-          this.resolveUserMessage(error, 'Erro ao enviar a imagem.'),
+          this.resolveUserMessage(
+            error,
+            'Erro ao enviar e publicar a imagem.'
+          ),
           {
             op: 'uploadProcessedPhoto$',
             userId: prepared.userId,
@@ -122,7 +128,10 @@ export class PhotoUploadFlowService {
       catchError((error) =>
         this.failFlow$(
           error,
-          this.resolveUserMessage(error, 'Erro ao atualizar a imagem.'),
+          this.resolveUserMessage(
+            error,
+            'Erro ao atualizar e publicar a imagem.'
+          ),
           {
             op: 'replaceProcessedPhoto$',
             userId: prepared.userId,
@@ -154,7 +163,10 @@ export class PhotoUploadFlowService {
         catchError((error) =>
           this.failFlow$(
             error,
-            this.resolveUserMessage(error, 'Erro ao enviar a imagem.'),
+            this.resolveUserMessage(
+              error,
+              'Erro ao enviar e publicar a imagem.'
+            ),
             {
               op: 'uploadProcessedPhotoWithProgress$',
               userId: prepared.userId,
@@ -252,7 +264,7 @@ export class PhotoUploadFlowService {
               reservationId,
               (progress) => {
                 command.onProgress?.(
-                  this.mapProgress(progress, 5, 90)
+                  this.mapProgress(progress, 5, 88)
                 );
               },
               (task) => {
@@ -272,7 +284,7 @@ export class PhotoUploadFlowService {
           );
           await assertNotCancelled();
 
-          command.onProgress?.(94);
+          command.onProgress?.(91);
           registrationStarted = true;
 
           const result = command.operation === 'CREATE'
@@ -290,9 +302,13 @@ export class PhotoUploadFlowService {
               displayUrl
             );
 
-          completed = true;
           reservationId = '';
-          command.onProgress?.(98);
+          command.onProgress?.(95);
+
+          await this.publishRegisteredPhoto(command, result);
+          command.onProgress?.(99);
+
+          completed = true;
 
           await firstValueFrom(
             this.saveImageStateBestEffort$(
@@ -401,6 +417,51 @@ export class PhotoUploadFlowService {
       createdAt: new Date(registration.updatedAt),
       sizeBytes: registration.sizeBytes,
     };
+  }
+
+  private async publishRegisteredPhoto(
+    command: ReservedPhotoFlowCommand,
+    result: IPhotoFlowResult
+  ): Promise<void> {
+    const publicationConfigs = await firstValueFrom(
+      this.mediaPublication.getPublicationConfigsByOwner$(command.userId)
+    );
+    const existingConfig = publicationConfigs[result.photoId] ??
+      this.mediaPublication.buildDefaultConfig(command.userId, result.photoId);
+
+    await firstValueFrom(
+      this.mediaPublication.publishPhoto$({
+        ownerUid: command.userId,
+        photo: {
+          id: result.photoId,
+          ownerUid: command.userId,
+          url: result.url,
+          path: result.path,
+          fileName: result.fileName,
+          createdAt: result.createdAt.getTime(),
+        },
+        visibility: 'PUBLIC',
+        caption: existingConfig.caption,
+        isCover: existingConfig.isCover,
+        orderIndex: existingConfig.orderIndex,
+        commentsEnabled: existingConfig.commentsEnabled ?? true,
+        commentsPolicy: existingConfig.commentsPolicy === 'OFF'
+          ? 'EVERYONE'
+          : existingConfig.commentsPolicy,
+        reactionsEnabled: existingConfig.reactionsEnabled ?? true,
+      }).pipe(
+        retry({
+          count: 2,
+          delay: (error, retryCount) => {
+            if (!this.isTransientPublicationError(error)) {
+              return throwError(() => error);
+            }
+
+            return timer(250 * retryCount);
+          },
+        })
+      )
+    );
   }
 
   private prepareCreateCommand(
@@ -621,12 +682,33 @@ export class PhotoUploadFlowService {
     return /^https?:\/\//i.test(String(value ?? '').trim());
   }
 
-  private isCancellationError(error: unknown): boolean {
+  private isTransientPublicationError(error: unknown): boolean {
+    const code = this.extractErrorCode(error);
+
+    return [
+      'deadline-exceeded',
+      'functions/deadline-exceeded',
+      'internal',
+      'functions/internal',
+      'unavailable',
+      'functions/unavailable',
+      'unknown',
+      'functions/unknown',
+    ].includes(code);
+  }
+
+  private extractErrorCode(error: unknown): string {
     if (typeof error !== 'object' || error === null || !('code' in error)) {
-      return false;
+      return '';
     }
 
-    const code = String((error as { code?: unknown }).code ?? '');
+    return String((error as { code?: unknown }).code ?? '')
+      .trim()
+      .toLowerCase();
+  }
+
+  private isCancellationError(error: unknown): boolean {
+    const code = this.extractErrorCode(error);
     return code === 'storage/canceled' ||
       code === 'media/photo-upload-cancelled';
   }
