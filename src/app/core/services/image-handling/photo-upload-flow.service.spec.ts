@@ -45,7 +45,14 @@ function createFixture() {
     cancelUploadReservation$: vi.fn(() => of(true)),
   };
   const reservedUpload = {
-    upload$: vi.fn((path: string) => of({
+    upload$: vi.fn((
+      path: string,
+      _data: Blob,
+      _contentType: string,
+      _reservationId: string,
+      _onProgress?: (progress: number) => void,
+      _registerTask?: (task: unknown) => void
+    ) => of({
       storagePath: path,
       displayLocation:
         `https://storage.test/o/${encodeURIComponent(path)}?token=1`,
