@@ -56,7 +56,6 @@ export {
 
 export {
   cleanupExpiredPrivateMediaDrafts,
-  getPrivateMediaDraftCapacity,
   initializePrivatePhotoDraftLifecycle,
   initializePrivateVideoDraftLifecycle,
   releaseDeletedPrivatePhotoDraftUsage,
@@ -64,6 +63,10 @@ export {
   syncPhotoDraftLifecycleFromPublication,
   syncVideoDraftLifecycleFromPublication,
 } from './application/private-media-draft-lifecycle.handler';
+
+export {
+  getPrivateMediaDraftCapacity,
+} from './application/private-media-draft-capacity.handler';
 
 export {
   reconcilePrivateMediaDraftUsageAdmin,
@@ -79,6 +82,7 @@ export {
   registerPrivatePhotoUpload,
 } from './application/register-private-photo-upload.handler';
 export {
+  cleanupPendingPrivatePhotoAssetDeletions,
   replacePrivatePhotoUpload,
 } from './application/replace-private-photo-upload.handler';
 
