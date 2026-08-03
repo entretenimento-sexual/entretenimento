@@ -38,7 +38,8 @@ service firebase.storage {
 
     function hasOperationalVideoUploadAccount(uid) {
       let user = privateVideoUploadUser(uid);
-      return user.uid == uid
+      return (!('uid' in user) || user.uid == uid)
+        && 'email_verified' in request.auth.token
         && request.auth.token.email_verified == true
         && user.profileCompleted == true
         && (!('accountStatus' in user) || user.accountStatus == 'active')
