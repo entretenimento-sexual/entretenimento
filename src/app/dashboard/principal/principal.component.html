@@ -247,6 +247,15 @@
                 </div>
               }
 
+              @case ('profile-video') {
+                <div class="feed-entry feed-entry--video" role="article">
+                  <app-public-video-feed-card
+                    [video]="item.video"
+                    (previewRequested)="openVideo(item.video, feed.videos)"
+                  />
+                </div>
+              }
+
               @case ('community') {
                 <article class="social-space-card app-card" role="article">
                   <a
