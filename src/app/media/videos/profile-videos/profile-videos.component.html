@@ -469,19 +469,7 @@
                   }
 
                   <div class="profile-videos__actions">
-                    @if (
-                      item.publication?.isPublished &&
-                      item.publication?.moderationStatus === 'APPROVED' &&
-                      isPublicPlaybackCompatible(item.video)
-                    ) {
-                      <a
-                        class="app-action app-action--ghost"
-                        [routerLink]="['/media', 'video', ownerUid, item.video.id]"
-                      >
-                        <i class="fas fa-play" aria-hidden="true"></i>
-                        Abrir
-                      </a>
-                    } @else if (!item.publication?.isPublished && !item.publication?.publishWhenReady) {
+                    @if (!item.publication?.isPublished && !item.publication?.publishWhenReady) {
                       <button
                         type="button"
                         class="app-action app-action--ghost"
