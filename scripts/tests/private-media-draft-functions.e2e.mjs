@@ -70,6 +70,28 @@ function videoReservationPayload(ownerUid, mediaId, clientRequestId) {
   };
 }
 
+function reconciliationReservation({
+  reservationId,
+  ownerUid,
+  kind,
+  operation,
+  reservedItemCount,
+  reservedUsageBytes,
+  now,
+}) {
+  return {
+    reservationId,
+    ownerUid,
+    mediaId: `${reservationId}-media`,
+    kind,
+    operation,
+    state: 'ACTIVE',
+    reservedItemCount,
+    reservedUsageBytes,
+    expiresAt: Timestamp.fromMillis(now + 60_000),
+  };
+}
+
 async function createClientApp(name, email, password) {
   const app = initializeClientApp(
     {
@@ -217,32 +239,44 @@ async function run() {
     assert.equal(usageAfterCancel.videoReservedBytes, 0);
 
     const now = Date.now();
+    const photoCreateId = `reconcile-photo-create-${runId}`;
+    const photoReplaceId = `reconcile-photo-replace-${runId}`;
+    const videoCreateId = `reconcile-video-create-${runId}`;
+
     await Promise.all([
-      adminDb.doc(`users/${ownerUid}/photos/photo-active`).set({
-        id: 'photo-active',
-        ownerUid,
-        draftReservationActive: true,
-        draftReservedBytes: 100,
-        draftExpiresAt: now + 60_000,
-      }),
-      adminDb.doc(`users/${ownerUid}/videos/video-active`).set({
-        id: 'video-active',
-        ownerUid,
-        draftReservationActive: true,
-        draftReservedBytes: 500,
-        draftExpiresAt: now + 60_000,
-      }),
-      adminDb.doc(`media_private_upload_reservations/reconcile-active-${runId}`).set({
-        reservationId: `reconcile-active-${runId}`,
-        ownerUid,
-        mediaId: `photo-pending-${runId}`,
-        kind: 'photo',
-        operation: 'CREATE',
-        state: 'ACTIVE',
-        reservedItemCount: 1,
-        reservedUsageBytes: 20,
-        expiresAt: Timestamp.fromMillis(now + 60_000),
-      }),
+      adminDb.doc(`media_private_upload_reservations/${photoCreateId}`).set(
+        reconciliationReservation({
+          reservationId: photoCreateId,
+          ownerUid,
+          kind: 'photo',
+          operation: 'CREATE',
+          reservedItemCount: 1,
+          reservedUsageBytes: 20,
+          now,
+        })
+      ),
+      adminDb.doc(`media_private_upload_reservations/${photoReplaceId}`).set(
+        reconciliationReservation({
+          reservationId: photoReplaceId,
+          ownerUid,
+          kind: 'photo',
+          operation: 'REPLACE',
+          reservedItemCount: 0,
+          reservedUsageBytes: 100,
+          now,
+        })
+      ),
+      adminDb.doc(`media_private_upload_reservations/${videoCreateId}`).set(
+        reconciliationReservation({
+          reservationId: videoCreateId,
+          ownerUid,
+          kind: 'video',
+          operation: 'CREATE',
+          reservedItemCount: 1,
+          reservedUsageBytes: 500,
+          now,
+        })
+      ),
       adminDb.doc(`media_private_draft_usage/${ownerUid}`).set({
         photoCount: 99,
         photoReservedBytes: 9_999,
@@ -260,7 +294,7 @@ async function run() {
     assert.equal(diagnosis.data.applied, false);
     assert.equal(diagnosis.data.consistent, false);
     assert.deepEqual(diagnosis.data.expected, {
-      photoCount: 2,
+      photoCount: 1,
       photoReservedBytes: 120,
       videoCount: 1,
       videoReservedBytes: 500,
@@ -273,7 +307,7 @@ async function run() {
     const repairedUsage = (
       await adminDb.doc(`media_private_draft_usage/${ownerUid}`).get()
     ).data();
-    assert.equal(repairedUsage.photoCount, 2);
+    assert.equal(repairedUsage.photoCount, 1);
     assert.equal(repairedUsage.photoReservedBytes, 120);
     assert.equal(repairedUsage.videoCount, 1);
     assert.equal(repairedUsage.videoReservedBytes, 500);
