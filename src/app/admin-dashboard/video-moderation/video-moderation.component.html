@@ -199,10 +199,10 @@
           </div>
 
           <dl class="video-moderation__dispatch-states" aria-label="Contagem por estado do despacho">
-            @for (state of ['ENQUEUEING', 'ENQUEUED', 'COMPLETED', 'FAILED', 'EMULATOR_SKIPPED']; track state) {
+            @for (state of processingDispatchStates; track state) {
               <div>
-                <dt>{{ processingDispatchStateLabel($any(state)) }}</dt>
-                <dd>{{ diagnostic.dispatch.counts[$any(state)] }}</dd>
+                <dt>{{ processingDispatchStateLabel(state) }}</dt>
+                <dd>{{ diagnostic.dispatch.counts[state] }}</dd>
               </div>
             }
           </dl>
