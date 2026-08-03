@@ -6,7 +6,7 @@ import {
   uploadBytesResumable,
   type UploadTask,
 } from 'firebase/storage';
-import { Observable, from, of } from 'rxjs';
+import { Observable, from, of, throwError } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -33,9 +33,9 @@ export class PrivateMediaReservedUploadService {
     const safeReservationId = String(reservationId ?? '').trim();
 
     if (!safePath || !safeReservationId) {
-      return new Observable((observer) => {
-        observer.error(new Error('A reserva do upload está incompleta.'));
-      });
+      return throwError(() =>
+        new Error('A reserva do upload está incompleta.')
+      );
     }
 
     return new Observable<string>((observer) => {
@@ -47,6 +47,7 @@ export class PrivateMediaReservedUploadService {
           mediaReservationId: safeReservationId,
         },
       });
+      let settled = false;
 
       registerTask?.(task);
       const unsubscribe = task.on(
@@ -57,14 +58,24 @@ export class PrivateMediaReservedUploadService {
             : 0;
           onProgress?.(this.normalizeProgress(progress));
         },
-        (error) => observer.error(error),
+        (error) => {
+          settled = true;
+          observer.error(error);
+        },
         () => {
+          settled = true;
           observer.next(safePath);
           observer.complete();
         }
       );
 
-      return () => unsubscribe();
+      return () => {
+        unsubscribe();
+
+        if (!settled) {
+          task.cancel();
+        }
+      };
     }).pipe(
       switchMap((uploadedPath) =>
         from(getDownloadURL(ref(this.storage, uploadedPath))).pipe(
@@ -83,7 +94,7 @@ export class PrivateMediaReservedUploadService {
           sizeBytes: Number(data?.size ?? 0),
           contentType,
         });
-        throw error;
+        return throwError(() => error);
       })
     );
   }
