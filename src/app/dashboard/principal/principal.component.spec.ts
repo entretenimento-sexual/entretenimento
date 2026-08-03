@@ -12,6 +12,7 @@ import { IUserDados } from '../../core/interfaces/iuser-dados';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { UserIntentStatusService } from '../../core/services/discovery/user-intent-status.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { HotPlacesService } from '../../core/services/places/hot-places.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { VenueService } from '../../core/services/venues/venue.service';
@@ -23,6 +24,7 @@ const EMPTY_FEED_STATE = {
   status: 'empty' as const,
   items: [],
   photos: [],
+  videos: [],
   failedSources: [],
 };
 
@@ -91,6 +93,10 @@ describe('PrincipalComponent', () => {
             showError: vi.fn(),
             showSuccess: vi.fn(),
           },
+        },
+        {
+          provide: GlobalErrorHandlerService,
+          useValue: { handleError: vi.fn() },
         },
         {
           provide: PrivacyDebugLoggerService,
