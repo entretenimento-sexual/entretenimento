@@ -159,7 +159,7 @@ service firebase.storage {
     // Upload bruto e privado do usuário
     // - toda criação exige reserva de quota vigente no Firestore;
     // - a conta precisa permanecer operacional e elegível;
-    // - rollback e exclusão continuam disponíveis ao proprietário;
+    // - cancelamento e exclusão são coordenados exclusivamente pelo backend;
     // - reprodução usa URL temporária emitida pelo backend.
     // ============================================================
 
@@ -172,7 +172,7 @@ service firebase.storage {
           'photo',
           'users/' + uid + '/uploads/images/' + fileName
         );
-      allow delete: if isSelf(uid);
+      allow delete: if false;
     }
 
     match /users/{uid}/uploads/videos/{fileName} {
@@ -184,7 +184,7 @@ service firebase.storage {
           'video',
           'users/' + uid + '/uploads/videos/' + fileName
         );
-      allow delete: if isSelf(uid);
+      allow delete: if false;
     }
 
     // Poster gerado localmente para um vídeo privado específico.
@@ -196,7 +196,7 @@ service firebase.storage {
           uid,
           'users/' + uid + '/uploads/video-posters/' + videoId + '/' + fileName
         );
-      allow delete: if isSelf(uid);
+      allow delete: if false;
     }
 
     // Derivados produzidos exclusivamente pelo backend.
