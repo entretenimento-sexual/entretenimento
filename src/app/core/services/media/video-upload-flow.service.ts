@@ -7,12 +7,7 @@ import {
 import { Auth } from '@angular/fire/auth';
 import { Firestore, collection, doc } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Storage } from '@angular/fire/storage';
-import {
-  deleteObject,
-  ref,
-  type UploadTask,
-} from 'firebase/storage';
+import type { UploadTask } from 'firebase/storage';
 import { Observable, firstValueFrom } from 'rxjs';
 
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
@@ -101,7 +96,6 @@ export class VideoUploadFlowService {
   private readonly auth = inject(Auth);
   private readonly firestore = inject(Firestore);
   private readonly functions = inject(Functions);
-  private readonly storage = inject(Storage);
   private readonly injector = inject(Injector);
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
   private readonly draftCapacity = inject(PrivateMediaDraftCapacityService);
@@ -150,33 +144,16 @@ export class VideoUploadFlowService {
       let registrationStarted = false;
       let completed = false;
       let cleanupChain = Promise.resolve();
-      let videoUploadStarted = false;
-      let posterUploadStarted = false;
 
       const scheduleCleanup = (): Promise<void> => {
         cleanupChain = cleanupChain.then(async () => {
-          const cleanupTasks: Promise<void>[] = [];
-
-          if (reservationId) {
-            cleanupTasks.push(this.cancelReservationBestEffort(reservationId));
-            reservationId = '';
+          if (!reservationId) {
+            return;
           }
 
-          if (posterUploadStarted && posterPath) {
-            cleanupTasks.push(
-              this.deleteBinaryBestEffort(posterPath, 'poster')
-            );
-            posterUploadStarted = false;
-          }
-
-          if (videoUploadStarted) {
-            cleanupTasks.push(
-              this.deleteBinaryBestEffort(videoPath, 'video')
-            );
-            videoUploadStarted = false;
-          }
-
-          await Promise.all(cleanupTasks);
+          const activeReservationId = reservationId;
+          reservationId = '';
+          await this.cancelReservationBestEffort(activeReservationId);
         });
 
         return cleanupChain;
@@ -218,8 +195,6 @@ export class VideoUploadFlowService {
           assertNotCancelled();
 
           observer.next({ type: 'progress', phase: 'preparing', progress: 6 });
-          videoUploadStarted = true;
-
           const videoBinary = await firstValueFrom(
             this.reservedUpload.upload$(
               videoPath,
@@ -244,7 +219,6 @@ export class VideoUploadFlowService {
           let uploadedPosterPath: string | null = null;
 
           if (posterBlob && posterPath) {
-            posterUploadStarted = true;
             const posterBinary = await firstValueFrom(
               this.reservedUpload.upload$(
                 posterPath,
@@ -327,9 +301,9 @@ export class VideoUploadFlowService {
           activeTask = null;
 
           /**
-           * Antes da callable de registro, o cliente cancela a reserva e remove
-           * objetos já transferidos. Depois que o registro começa, a Function
-           * assume a conversão ou liberação da reserva de forma idempotente.
+           * Antes da callable de registro, o cliente cancela a reserva. A
+           * Function libera a quota e remove todos os objetos reservados. Após
+           * o início do registro, a própria Function assume a idempotência.
            */
           if (!completed && !registrationStarted) {
             await scheduleCleanup();
@@ -407,28 +381,6 @@ export class VideoUploadFlowService {
     return firstValueFrom(
       this.draftCapacity.cancelUploadReservation$(reservationId)
     ).then(() => undefined).catch(() => undefined);
-  }
-
-  private deleteBinaryBestEffort(
-    storagePath: string,
-    assetKind: 'video' | 'poster'
-  ): Promise<void> {
-    return deleteObject(ref(this.storage, storagePath)).catch((error) => {
-      if (this.isObjectNotFoundError(error)) {
-        return;
-      }
-
-      this.reportCleanupError(error, assetKind);
-    });
-  }
-
-  private isObjectNotFoundError(error: unknown): boolean {
-    if (typeof error !== 'object' || error === null || !('code' in error)) {
-      return false;
-    }
-
-    return String((error as { code?: unknown }).code ?? '') ===
-      'storage/object-not-found';
   }
 
   private requireOwnedUid(ownerUid: string): string {
@@ -570,16 +522,6 @@ export class VideoUploadFlowService {
     return Math.max(0, Math.min(100, Math.round(value)));
   }
 
-  private reportCleanupError(
-    error: unknown,
-    assetKind: 'video' | 'poster'
-  ): void {
-    this.reportError(error, {
-      op: 'rollbackUploadedBinary',
-      assetKind,
-    });
-  }
-
   private reportError(
     error: unknown,
     context: Record<string, unknown>
@@ -600,7 +542,7 @@ export class VideoUploadFlowService {
 
       this.errorHandler.handleError(normalized);
     } catch {
-      // noop
+      // A telemetria não pode substituir o erro original.
     }
   }
 }
