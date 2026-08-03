@@ -28,6 +28,8 @@ export interface VideoLifecyclePresentation {
 }
 
 const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
+const PROCESSED_VIDEO_PATH_PATTERN =
+  /^users\/[A-Za-z0-9_-]{1,128}\/processed\/videos\/[A-Za-z0-9_-]{1,128}\/.+/;
 
 const PRESENTATIONS: Readonly<
   Record<
@@ -196,12 +198,17 @@ function hasCompatibleProcessedPlayback(
     'processedStoragePath' | 'processedMimeType' | 'mimeType'
   >
 ): boolean {
-  const storagePath = String(video.processedStoragePath ?? '').trim();
+  const storagePath = String(video.processedStoragePath ?? '')
+    .trim()
+    .replace(/^\/+/, '');
   const mimeType = String(video.processedMimeType ?? video.mimeType ?? '')
     .trim()
     .toLowerCase();
 
-  return !!storagePath && PUBLIC_PLAYBACK_TYPES.has(mimeType);
+  return (
+    PROCESSED_VIDEO_PATH_PATTERN.test(storagePath) &&
+    PUBLIC_PLAYBACK_TYPES.has(mimeType)
+  );
 }
 
 function cleanMessage(value: string | null | undefined): string {
