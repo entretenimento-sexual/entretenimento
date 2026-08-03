@@ -61,12 +61,6 @@ interface FriendshipInteractionState {
   liveStatus: string;
 }
 
-interface PublicProfileFact {
-  readonly label: string;
-  readonly value: string;
-  readonly icon: string;
-}
-
 const DEFAULT_PROFILE_PHOTO_URL = 'assets/imagem-padrao.webp';
 
 const RELATIONSHIP_INTENT_LABELS: Readonly<Record<string, string>> = {
@@ -252,10 +246,10 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     }
 
     if (distance < 1) {
-      return 'A menos de 1 km de você';
+      return 'Menos de 1 km';
     }
 
-    return `${Math.round(distance)} km de você`;
+    return `${Math.round(distance)} km`;
   }
 
   get memberSinceLabel(): string | null {
@@ -266,62 +260,7 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     }
 
     const year = new Date(createdAt).getFullYear();
-    return year >= 2000 ? `Na plataforma desde ${year}` : null;
-  }
-
-  get publicFacts(): PublicProfileFact[] {
-    const facts: PublicProfileFact[] = [];
-
-    if (this.userProfile?.gender?.trim()) {
-      facts.push({
-        label: 'Perfil',
-        value: this.toDisplayLabel(this.userProfile.gender),
-        icon: 'fas fa-user',
-      });
-    }
-
-    if (this.profileAge !== null) {
-      facts.push({
-        label: 'Idade',
-        value: `${this.profileAge} anos`,
-        icon: 'fas fa-cake-candles',
-      });
-    }
-
-    const orientation = this.orientationLabel;
-    if (orientation) {
-      facts.push({
-        label: 'Orientação',
-        value: orientation,
-        icon: 'fas fa-compass',
-      });
-    }
-
-    if (this.hasLocation) {
-      facts.push({
-        label: 'Localização',
-        value: `${this.userProfile?.municipio}, ${this.userProfile?.estado}`,
-        icon: 'fas fa-location-dot',
-      });
-    }
-
-    if (this.distanceLabel) {
-      facts.push({
-        label: 'Distância',
-        value: this.distanceLabel,
-        icon: 'fas fa-route',
-      });
-    }
-
-    if (this.memberSinceLabel) {
-      facts.push({
-        label: 'Participação',
-        value: this.memberSinceLabel,
-        icon: 'fas fa-calendar-check',
-      });
-    }
-
-    return facts;
+    return year >= 2000 ? `Desde ${year}` : null;
   }
 
   get orientationLabel(): string | null {
@@ -382,7 +321,6 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
   get hasProfileDetails(): boolean {
     return (
-      this.publicFacts.length > 0 ||
       this.hasPreferenceChips ||
       this.relationshipIntentChips.length > 0 ||
       this.sexualPracticeChips.length > 0 ||
@@ -469,7 +407,11 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
           hasPhoto: !!this.userProfile.photoURL,
           hasDescription: this.hasDescription,
           hasDistance: !!this.distanceLabel,
-          publicFactCount: this.publicFacts.length,
+          publicDetailChipCount:
+            this.preferenceChips.length +
+            this.relationshipIntentChips.length +
+            this.sexualPracticeChips.length +
+            this.bodyTraitChips.length,
         });
 
         this.markView();
