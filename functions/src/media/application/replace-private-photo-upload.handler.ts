@@ -1,5 +1,6 @@
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
@@ -8,6 +9,10 @@ import {
   normalizePrivateMediaDraftUsage,
   PRIVATE_MEDIA_DRAFT_USAGE_VERSION,
 } from './private-media-draft.policy';
+import {
+  deletePrivatePhotoAssetOrQueue,
+  processPendingPrivatePhotoAssetCleanupJobs,
+} from './private-photo-asset.service';
 import {
   cancelPrivateMediaUploadReservationById,
   consumePrivateMediaUploadReservation,
@@ -39,7 +44,12 @@ interface ReplacePrivatePhotoUploadResponse {
 interface PrivatePhotoDocument {
   path?: unknown;
   url?: unknown;
+  fileName?: unknown;
+  sizeBytes?: unknown;
+  updatedAt?: unknown;
   draftReservationActive?: unknown;
+  draftReservationId?: unknown;
+  lastUploadReservationId?: unknown;
   draftReservedBytes?: unknown;
 }
 
@@ -131,6 +141,24 @@ function normalizeDisplayUrl(value: unknown): string {
   }
 }
 
+function timestampToMillis(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.trunc(value);
+  }
+
+  const timestamp = value as { toMillis?: () => number } | null | undefined;
+
+  if (typeof timestamp?.toMillis === 'function') {
+    return timestamp.toMillis();
+  }
+
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value.getTime();
+  }
+
+  return Date.now();
+}
+
 function normalizeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
     return error.message.slice(0, 500);
@@ -183,14 +211,69 @@ async function readPhotoMetadata(storagePath: string): Promise<{
   return { mimeType, sizeBytes, reservationId };
 }
 
-async function deleteNewPhotoBestEffort(storagePath: string): Promise<void> {
+function buildExistingReplacementResponse(
+  ownerUid: string,
+  photoId: string,
+  reservationId: string,
+  previousStoragePath: string,
+  newStoragePath: string,
+  newDisplayUrl: string,
+  metadataSizeBytes: number,
+  photo: PrivatePhotoDocument
+): ReplacePrivatePhotoUploadResponse | null {
+  const registeredPath =
+    extractOwnedPrivatePhotoPath(ownerUid, photo.path) ??
+    extractOwnedPrivatePhotoPath(ownerUid, photo.url);
+  const registeredUrlPath = extractOwnedPrivatePhotoPath(ownerUid, photo.url);
+  const registeredReservationId = cleanId(photo.lastUploadReservationId);
+  const sizeBytes = normalizePositiveInteger(photo.sizeBytes);
+
+  if (
+    registeredPath !== newStoragePath ||
+    registeredUrlPath !== newStoragePath ||
+    registeredReservationId !== reservationId ||
+    sizeBytes !== metadataSizeBytes
+  ) {
+    return null;
+  }
+
+  return {
+    photoId,
+    ownerUid,
+    previousStoragePath,
+    storagePath: newStoragePath,
+    displayUrl: normalizeDisplayUrl(photo.url) || newDisplayUrl,
+    fileName: cleanFileName(photo.fileName),
+    sizeBytes,
+    updatedAt: timestampToMillis(photo.updatedAt),
+  };
+}
+
+async function deleteUnregisteredReplacementBestEffort(
+  ownerUid: string,
+  photoId: string,
+  newStoragePath: string
+): Promise<void> {
   try {
+    const photoSnapshot = await db
+      .doc(`users/${ownerUid}/photos/${photoId}`)
+      .get();
+    const registeredPath = photoSnapshot.exists
+      ? extractOwnedPrivatePhotoPath(ownerUid, photoSnapshot.data()?.['path'])
+      : null;
+
+    if (registeredPath === newStoragePath) {
+      return;
+    }
+
     await storage
       .bucket()
-      .file(storagePath)
+      .file(newStoragePath)
       .delete({ ignoreNotFound: true });
   } catch (error) {
     logger.error('[replacePrivatePhotoUpload] Falha ao limpar nova foto.', {
+      ownerUid,
+      photoId,
       error: normalizeErrorMessage(error),
     });
   }
@@ -292,6 +375,21 @@ export const replacePrivatePhotoUpload = onCall<
           }
 
           const photo = photoSnapshot.data() as PrivatePhotoDocument;
+          const existingResponse = buildExistingReplacementResponse(
+            ownerUid,
+            photoId,
+            requestedReservationId,
+            currentStoragePath,
+            newStoragePath,
+            newDisplayUrl,
+            metadata.sizeBytes,
+            photo
+          );
+
+          if (existingResponse) {
+            return existingResponse;
+          }
+
           const registeredCurrentPath =
             extractOwnedPrivatePhotoPath(ownerUid, photo.path) ??
             extractOwnedPrivatePhotoPath(ownerUid, photo.url);
@@ -367,6 +465,8 @@ export const replacePrivatePhotoUpload = onCall<
               fileName,
               mimeType: metadata.mimeType,
               sizeBytes: metadata.sizeBytes,
+              draftReservationId: reservation.reservationId,
+              lastUploadReservationId: reservation.reservationId,
               draftPlanAtReservation: reservation.plan,
               draftReservedBytes: reservation.draftReservedBytes,
               draftUpdatedAt: updatedAt,
@@ -395,6 +495,7 @@ export const replacePrivatePhotoUpload = onCall<
               fileName,
               mimeType: metadata.mimeType,
               sizeBytes: metadata.sizeBytes,
+              lastUploadReservationId: reservation.reservationId,
               updatedAt: FieldValue.serverTimestamp(),
             });
           }
@@ -413,13 +514,24 @@ export const replacePrivatePhotoUpload = onCall<
       );
 
       replacementCommitted = true;
+      await deletePrivatePhotoAssetOrQueue({
+        ownerUid,
+        photoId,
+        storagePath: currentStoragePath,
+        reason: 'replace-private-photo',
+      });
+
       return response;
     } catch (error) {
       if (!replacementCommitted) {
         await cancelPrivateMediaUploadReservationById(
           requestedReservationId
         );
-        await deleteNewPhotoBestEffort(newStoragePath);
+        await deleteUnregisteredReplacementBestEffort(
+          ownerUid,
+          photoId,
+          newStoragePath
+        );
       }
 
       if (error instanceof HttpsError) {
@@ -437,5 +549,17 @@ export const replacePrivatePhotoUpload = onCall<
         'Não foi possível substituir a foto.'
       );
     }
+  }
+);
+
+export const cleanupPendingPrivatePhotoAssetDeletions = onSchedule(
+  {
+    region: FUNCTIONS_REGION,
+    schedule: 'every 60 minutes',
+    timeZone: 'America/Sao_Paulo',
+    retryCount: 3,
+  },
+  async () => {
+    await processPendingPrivatePhotoAssetCleanupJobs(100);
   }
 );
