@@ -47,6 +47,8 @@ interface RegisteredPhotoDocument {
   sizeBytes?: unknown;
   createdAt?: unknown;
   draftExpiresAt?: unknown;
+  draftReservationId?: unknown;
+  lastUploadReservationId?: unknown;
 }
 
 const MAX_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
@@ -162,16 +164,21 @@ function normalizeErrorMessage(error: unknown): string {
 function buildExistingResponse(
   ownerUid: string,
   photoId: string,
+  reservationId: string,
   storagePath: string,
   displayUrl: string,
   existing: RegisteredPhotoDocument
 ): RegisterPrivatePhotoUploadResponse | null {
   const existingPath = extractOwnedPrivatePhotoPath(ownerUid, existing.path);
   const existingUrlPath = extractOwnedPrivatePhotoPath(ownerUid, existing.url);
+  const existingReservationId = cleanId(
+    existing.lastUploadReservationId ?? existing.draftReservationId
+  );
   const sizeBytes = normalizePositiveInteger(existing.sizeBytes);
 
   if (
     cleanId(existing.id ?? photoId) !== photoId ||
+    existingReservationId !== reservationId ||
     existingPath !== storagePath ||
     existingUrlPath !== storagePath ||
     !sizeBytes
@@ -312,6 +319,7 @@ export const registerPrivatePhotoUpload = onCall<
       const existing = buildExistingResponse(
         ownerUid,
         photoId,
+        requestedReservationId,
         storagePath,
         displayUrl,
         existingSnapshot.data() as RegisteredPhotoDocument
@@ -366,6 +374,7 @@ export const registerPrivatePhotoUpload = onCall<
             const existing = buildExistingResponse(
               ownerUid,
               photoId,
+              requestedReservationId,
               storagePath,
               displayUrl,
               currentPhotoSnapshot.data() as RegisteredPhotoDocument
@@ -446,6 +455,7 @@ export const registerPrivatePhotoUpload = onCall<
             draftLifecycleState: 'ACTIVE',
             draftReservationActive: true,
             draftReservationId: reservation.reservationId,
+            lastUploadReservationId: reservation.reservationId,
             draftPlanAtReservation: reservation.plan,
             draftReservedBytes: reservation.draftReservedBytes,
             draftExpiresAt,
