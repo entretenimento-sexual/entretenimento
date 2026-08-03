@@ -1,11 +1,14 @@
 import { createHash } from 'node:crypto';
 
 import * as logger from 'firebase-functions/logger';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onCall } from 'firebase-functions/v2/https';
 
-import { assertInteractionAccessData } from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { auth, db, storage } from '../../firebaseApp';
+import { db, storage } from '../../firebaseApp';
+import { assertPrivateVideoUploadEligibility } from './private-video-upload-eligibility.service';
+import {
+  cancelPrivateVideoUploadReservationById,
+} from './private-video-upload-reservation.handler';
 import { ensurePrivateVideoProcessingQueued } from './queue-video-processing.handler';
 import {
   registerPrivateVideoUpload as registerPrivateVideoUploadCore,
@@ -18,6 +21,7 @@ import {
 interface RegisterPrivateVideoUploadRequest {
   ownerUid?: string;
   videoId?: string;
+  reservationId?: string;
   videoStoragePath?: string;
   posterStoragePath?: string | null;
   [key: string]: unknown;
@@ -27,24 +31,6 @@ interface RegisteredPrivateVideoResponse {
   ownerUid: string;
   videoId: string;
   [key: string]: unknown;
-}
-
-interface PrivateMediaUploadAuthSnapshot {
-  disabled?: boolean;
-  emailVerified?: boolean;
-}
-
-interface PrivateMediaUploadAccountSnapshot {
-  uid?: unknown;
-  profileCompleted?: unknown;
-  accountLocked?: unknown;
-  loginAllowed?: unknown;
-  accountStatus?: unknown;
-  suspended?: unknown;
-  interactionBlocked?: unknown;
-  ageReverification?: {
-    status?: unknown;
-  } | null;
 }
 
 interface RegisteredVideoDocument {
@@ -96,107 +82,8 @@ function normalizeErrorMessage(error: unknown): string {
   return String(error ?? 'unknown').slice(0, 500);
 }
 
-function authErrorCode(error: unknown): string {
-  if (!error || typeof error !== 'object') {
-    return '';
-  }
-
-  const candidate = error as {
-    code?: unknown;
-    errorInfo?: { code?: unknown };
-  };
-
-  return String(candidate.errorInfo?.code ?? candidate.code ?? '')
-    .trim()
-    .toLowerCase();
-}
-
 function cleanupJobId(storagePath: string): string {
   return createHash('sha256').update(storagePath).digest('hex');
-}
-
-function assertPrivateVideoUploadEligibilityData(
-  authUser: PrivateMediaUploadAuthSnapshot | null | undefined,
-  user: PrivateMediaUploadAccountSnapshot | null | undefined,
-  expectedUid: string
-): void {
-  if (!authUser || !user) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Seu perfil não está disponível para enviar vídeos.'
-    );
-  }
-
-  const documentUid = String(user.uid ?? expectedUid).trim();
-
-  if (documentUid && documentUid !== expectedUid) {
-    throw new HttpsError(
-      'permission-denied',
-      'O perfil informado não corresponde à conta autenticada.'
-    );
-  }
-
-  if (
-    authUser.disabled === true ||
-    user.accountLocked === true ||
-    user.loginAllowed === false
-  ) {
-    throw new HttpsError(
-      'permission-denied',
-      'Sua conta não está disponível para enviar vídeos.'
-    );
-  }
-
-  assertInteractionAccessData(user);
-
-  if (authUser.emailVerified !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Verifique seu e-mail antes de enviar vídeos.'
-    );
-  }
-
-  if (user.profileCompleted !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Complete seu perfil antes de enviar vídeos.'
-    );
-  }
-}
-
-async function assertPrivateVideoUploadEligibility(
-  ownerUid: string
-): Promise<void> {
-  try {
-    const [authUser, userSnapshot] = await Promise.all([
-      auth.getUser(ownerUid),
-      db.doc(`users/${ownerUid}`).get(),
-    ]);
-
-    assertPrivateVideoUploadEligibilityData(
-      {
-        disabled: authUser.disabled,
-        emailVerified: authUser.emailVerified,
-      },
-      userSnapshot.exists
-        ? userSnapshot.data() as PrivateMediaUploadAccountSnapshot
-        : null,
-      ownerUid
-    );
-  } catch (error) {
-    if (error instanceof HttpsError) {
-      throw error;
-    }
-
-    if (authErrorCode(error) === 'auth/user-not-found') {
-      throw new HttpsError(
-        'failed-precondition',
-        'Sua conta não está disponível para enviar vídeos.'
-      );
-    }
-
-    throw error;
-  }
 }
 
 async function isRegisteredAsset(
@@ -343,6 +230,7 @@ export const registerPrivateVideoUpload = onCall<
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
+    const reservationId = cleanId(request.data?.reservationId);
     const assets = ownerUid && videoId
       ? resolveOwnedUploadAssets(ownerUid, videoId, request.data)
       : null;
@@ -351,7 +239,15 @@ export const registerPrivateVideoUpload = onCall<
       try {
         await assertPrivateVideoUploadEligibility(ownerUid);
       } catch (error) {
-        await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
+        const released = await cancelPrivateVideoUploadReservationById(
+          reservationId,
+          ownerUid
+        );
+
+        if (!released) {
+          await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
+        }
+
         throw error;
       }
     }
