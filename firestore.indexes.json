@@ -300,6 +300,18 @@
       "indexes": [
         { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
       ]
+    },
+    {
+      "collectionGroup": "media_video_processing_dispatches",
+      "fieldPath": "cleanupAfter",
+      "ttl": true,
+      "indexes": []
+    },
+    {
+      "collectionGroup": "media_video_processing_dead_letters",
+      "fieldPath": "cleanupAfter",
+      "ttl": true,
+      "indexes": []
     }
   ]
 }
