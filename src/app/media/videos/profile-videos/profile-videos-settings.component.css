@@ -1,5 +1,6 @@
 .profile-videos__description {
   display: -webkit-box;
+  min-height: 2.5rem;
   margin: 0;
   overflow: hidden;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
@@ -319,6 +320,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
   gap: 8px;
+  margin-top: auto;
 }
 
 .profile-videos__actions > .app-action {
@@ -412,6 +414,51 @@
   color: var(--error-color, #ff7a86);
 }
 
+/* Mantém todos os cards de uma mesma linha com a mesma altura e as ações
+   alinhadas no rodapé, independentemente de título ou descrição. */
+.profile-videos__grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.profile-videos__card {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+}
+
+.profile-videos__media {
+  flex: 0 0 auto;
+}
+
+.profile-videos__body {
+  display: flex;
+  min-height: 14.5rem;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-videos__title-row {
+  min-height: 2rem;
+}
+
+.profile-videos__meta {
+  min-height: 1.65rem;
+}
+
+@media (max-width: 1120px) {
+  .profile-videos__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 840px) {
+  .profile-videos__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 700px) {
   .profile-videos__settings-form {
     padding: 12px;
@@ -450,6 +497,14 @@
   .profile-videos__upload-failure .app-action {
     grid-column: 1 / -1;
     width: 100%;
+  }
+
+  .profile-videos__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-videos__body {
+    min-height: 0;
   }
 }
 
