@@ -73,6 +73,33 @@ media_video_processing_dead_letters/{deadLetterId}
 A DLQ não substitui o documento canônico do job. Ela oferece uma visão estável
 para diagnóstico, alertas e recuperação administrativa.
 
+## Retenção técnica com Firestore TTL
+
+Cada documento técnico recebe um campo `cleanupAfter` do tipo Timestamp:
+
+```text
+despachos:       7 dias após execução ou vencimento agendado
+falhas na DLQ:  30 dias após o registro da falha
+```
+
+Ativar as políticas TTL em cada ambiente:
+
+```powershell
+gcloud firestore fields ttls update cleanupAfter `
+  --collection-group=media_video_processing_dispatches `
+  --enable-ttl `
+  --project=<PROJECT_ID>
+
+gcloud firestore fields ttls update cleanupAfter `
+  --collection-group=media_video_processing_dead_letters `
+  --enable-ttl `
+  --project=<PROJECT_ID>
+```
+
+A exclusão TTL não é imediata. O Firestore normalmente remove documentos
+expirados em até 24 horas. Não criar scheduler paralelo para apagar essas duas
+coleções enquanto as políticas estiverem ativas.
+
 ## Cloud Tasks
 
 A função de fila é:
@@ -287,6 +314,7 @@ failed
 - regras de Storage aprovadas;
 - Cloud Tasks API habilitada em staging;
 - Transcoder API habilitada em staging;
+- políticas TTL `cleanupAfter` ativas nas duas coleções técnicas;
 - IAM de enqueue e invoke validado com a identidade real;
 - `processVideoProcessingTask` implantada antes de aceitar uploads;
 - task criada imediatamente após um job `QUEUED`;
@@ -303,7 +331,7 @@ failed
 - derivado reproduzível em Chrome, Firefox, Safari e Edge;
 - publicação bloqueada enquanto não houver `processedStoragePath`;
 - moderação aprovada e rejeitada testadas;
-- custos e quotas de Cloud Tasks e Transcoder acompanhados.
+- custos e quotas de Cloud Tasks, Firestore TTL e Transcoder acompanhados.
 
 ## Observação de segurança
 
