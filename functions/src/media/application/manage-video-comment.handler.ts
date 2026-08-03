@@ -7,15 +7,17 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import {
+  createVideoInteractionAccessAuthorizer,
+} from './video-interaction-access.service';
+import {
+  assertVideoInteractionCapability,
+} from './video-interaction-capability.policy';
 
 type VideoCommentStatus = 'VISIBLE' | 'HIDDEN' | 'DELETED';
 type VideoCommentModerationAction = 'HIDE' | 'RESTORE' | 'DELETE';
 
 interface PublicVideoDoc {
-  ownerUid?: string;
-  visibility?: string;
-  moderationStatus?: string;
-  commentsEnabled?: boolean;
   reactionsCount?: number;
   likesCount?: number;
   commentsCount?: number;
@@ -99,26 +101,6 @@ function resolveNickname(
   return nickname ? nickname.slice(0, 40) : fallback;
 }
 
-function assertVideoAllowsComments(video: PublicVideoDoc): void {
-  if (video.visibility !== 'PUBLIC') {
-    throw new HttpsError('failed-precondition', 'Este vídeo não está público.');
-  }
-
-  if (video.moderationStatus !== 'APPROVED') {
-    throw new HttpsError(
-      'failed-precondition',
-      'Este vídeo ainda não está aprovado para comentários.'
-    );
-  }
-
-  if (video.commentsEnabled !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Comentários desabilitados neste vídeo.'
-    );
-  }
-}
-
 export const createVideoComment = onCall<CreateVideoCommentRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<{ commentId: string }> => {
@@ -140,6 +122,12 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
       throw new HttpsError('invalid-argument', 'Comentário vazio.');
     }
 
+    const authorizer = await createVideoInteractionAccessAuthorizer({
+      viewerUid: authorUid,
+      ownerUid,
+      authenticatedEmailVerified:
+        request.auth?.token.email_verified === true,
+    });
     const videoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
@@ -148,22 +136,18 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
     const newCommentRef = commentsCollection.doc();
 
     return db.runTransaction(async (transaction) => {
-      const [videoSnap, authorProfileSnap] = await Promise.all([
-        transaction.get(videoRef),
-        transaction.get(authorProfileRef),
-      ]);
+      const access = await authorizer.assertInTransaction(
+        transaction,
+        videoId
+      );
+      const authorProfileSnap = await transaction.get(authorProfileRef);
+      const video = access.publicVideo as PublicVideoDoc;
 
-      if (!videoSnap.exists) {
-        throw new HttpsError('not-found', 'Vídeo público não encontrado.');
-      }
-
-      const video = videoSnap.data() as PublicVideoDoc;
-
-      if (video.ownerUid !== ownerUid) {
-        throw new HttpsError('failed-precondition', 'Vídeo inconsistente.');
-      }
-
-      assertVideoAllowsComments(video);
+      assertVideoInteractionCapability({
+        capability: 'COMMENT',
+        publicVideo: access.publicVideo,
+        publication: access.publication,
+      });
 
       const authorNickname = resolveNickname(
         authorProfileSnap.exists
@@ -242,7 +226,7 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
       };
 
       transaction.set(newCommentRef, comment);
-      transaction.update(videoRef, {
+      transaction.update(access.videoRef, {
         commentsCount: nextCommentsCount,
         engagementScore: nextScore.engagementScore,
         score: nextScore.score,
@@ -299,7 +283,6 @@ export const moderateVideoComment = onCall<ModerateVideoCommentRequest>(
       const comment = commentSnap.data() as VideoCommentDoc;
 
       if (
-        video.ownerUid !== ownerUid ||
         comment.ownerUid !== ownerUid ||
         comment.videoId !== videoId
       ) {
