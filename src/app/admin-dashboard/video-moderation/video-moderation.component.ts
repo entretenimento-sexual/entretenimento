@@ -29,8 +29,13 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import {
   AdminVideoModerationDecision,
   AdminVideoModerationService,
+  AdminVideoProcessingAlertSeverity,
+  AdminVideoProcessingDispatchState,
   AdminVideoProcessingJobState,
   IAdminVideoModerationItem,
+  IAdminVideoProcessingAuditItem,
+  IAdminVideoProcessingDeadLetterItem,
+  IAdminVideoProcessingFailureCode,
   IAdminVideoProcessingStatus,
 } from 'src/app/core/services/moderation/admin-video-moderation.service';
 import {
@@ -79,6 +84,7 @@ const PROCESSING_STATUS_REFRESH_INTERVAL_MS = 60 * 1000;
   styleUrls: [
     './video-moderation.component.css',
     './video-moderation-recovery.component.css',
+    './video-moderation-operations.component.css',
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -198,15 +204,16 @@ export class VideoModerationComponent {
 
   processingStateDescription(status: IAdminVideoProcessingStatus): string {
     if (status.state === 'READY') {
-      return 'A API respondeu com a identidade usada pelas Functions.';
+      return 'Provedor, fila e despachos estão dentro das janelas operacionais.';
     }
 
     if (status.state === 'EMULATOR') {
       return 'A consulta externa foi bloqueada no ambiente local por segurança.';
     }
 
-    return status.provider.errorMessage ||
-      'A API, a região ou as permissões do Transcoder precisam ser revisadas.';
+    return status.alerts[0]?.message ||
+      status.provider.errorMessage ||
+      'O pipeline de processamento precisa de verificação administrativa.';
   }
 
   processingJobStateLabel(state: AdminVideoProcessingJobState): string {
@@ -225,6 +232,49 @@ export class VideoModerationComponent {
         return 'Cancelamento pendente';
       case 'CANCELLED':
         return 'Cancelado';
+    }
+  }
+
+  processingDispatchStateLabel(
+    state: AdminVideoProcessingDispatchState
+  ): string {
+    switch (state) {
+      case 'ENQUEUEING':
+        return 'Enfileirando';
+      case 'ENQUEUED':
+        return 'Aguardando execução';
+      case 'COMPLETED':
+        return 'Executado';
+      case 'FAILED':
+        return 'Falhou';
+      case 'EMULATOR_SKIPPED':
+        return 'Ignorado no Emulator';
+    }
+  }
+
+  processingAlertSeverityLabel(
+    severity: AdminVideoProcessingAlertSeverity
+  ): string {
+    switch (severity) {
+      case 'CRITICAL':
+        return 'Crítico';
+      case 'WARNING':
+        return 'Atenção';
+      case 'INFO':
+        return 'Informativo';
+    }
+  }
+
+  recoveryOperationLabel(operation: string): string {
+    switch (String(operation ?? '').trim().toUpperCase()) {
+      case 'RETRY_FAILED':
+        return 'Reprocessamento';
+      case 'RECHECK_STALE':
+        return 'Revalidação';
+      case 'CANCEL_ACTIVE':
+        return 'Cancelamento';
+      default:
+        return 'Intervenção administrativa';
     }
   }
 
@@ -275,6 +325,53 @@ export class VideoModerationComponent {
     return remainingHours > 0
       ? `${days} d ${remainingHours} h`
       : `${days} d`;
+  }
+
+  formatLatency(valueMs: number | null): string {
+    const value = Number(valueMs ?? 0);
+
+    if (!Number.isFinite(value) || value < 0) {
+      return 'Sem amostra';
+    }
+
+    if (value === 0) {
+      return '0 ms';
+    }
+
+    if (value < 1_000) {
+      return `${Math.round(value)} ms`;
+    }
+
+    if (value < 60_000) {
+      return `${(value / 1_000).toFixed(value < 10_000 ? 1 : 0)} s`;
+    }
+
+    return this.formatAge(value);
+  }
+
+  eventDate(value: number): Date | null {
+    return Number.isFinite(value) && value > 0 ? new Date(value) : null;
+  }
+
+  trackByFailureCode(
+    _: number,
+    item: IAdminVideoProcessingFailureCode
+  ): string {
+    return item.code;
+  }
+
+  trackByDeadLetter(
+    _: number,
+    item: IAdminVideoProcessingDeadLetterItem
+  ): string {
+    return item.deadLetterId || `${item.ownerUid}:${item.videoId}`;
+  }
+
+  trackByAudit(
+    _: number,
+    item: IAdminVideoProcessingAuditItem
+  ): string {
+    return item.logId || item.operationId;
   }
 
   setRecoveryReason(
