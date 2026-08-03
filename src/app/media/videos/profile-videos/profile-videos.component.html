@@ -11,6 +11,7 @@
 @let selectedFileName = (selectedFileName$ | async);
 @let selectedFileSize = (selectedFileSize$ | async);
 @let canUpload = (canUpload$ | async) === true;
+@let lastUploadedLifecycle = (lastUploadedLifecycle$ | async);
 
 <section class="profile-videos" aria-label="Vídeos">
   @if (isOwner$ | async) {
@@ -193,7 +194,11 @@
         </div>
       }
 
-      @if (uploadPhase !== 'IDLE' && uploadPhase !== 'READY') {
+      @if (
+        uploadPhase === 'PREPARING' ||
+        uploadPhase === 'UPLOADING' ||
+        uploadPhase === 'SAVING'
+      ) {
         <div class="profile-videos__progress" aria-live="polite">
           <div class="profile-videos__progress-copy">
             <strong>{{ uploadStep }}</strong>
@@ -210,6 +215,11 @@
             <span [style.width.%]="uploadProgress"></span>
           </div>
         </div>
+      } @else if (uploadPhase === 'REGISTERED') {
+        <p class="profile-videos__upload-status" role="status" aria-live="polite">
+          <strong>{{ lastUploadedLifecycle?.label || 'Registrado' }}</strong>
+          — {{ lastUploadedLifecycle?.message || uploadStep }}
+        </p>
       } @else if (uploadPhase === 'READY') {
         <p class="profile-videos__upload-status" role="status" aria-live="polite">
           {{ uploadStep }}
@@ -238,7 +248,7 @@
       }
 
       <div class="profile-videos__upload-actions">
-        @if (uploadPhase === 'DONE') {
+        @if (uploadPhase === 'REGISTERED') {
           <button
             type="button"
             class="app-action app-action--primary"
@@ -289,11 +299,11 @@
                   <strong>{{ displayVideoTitle(item) }}</strong>
                   <span
                     class="profile-videos__publication-chip"
-                    [class.profile-videos__publication-chip--published]="item.publication?.moderationStatus === 'APPROVED'"
-                    [class.profile-videos__publication-chip--pending]="isPendingPublication(item)"
-                    [class.profile-videos__publication-chip--rejected]="item.publication?.moderationStatus === 'REJECTED' || item.video.status === 'failed'"
+                    [class.profile-videos__publication-chip--published]="item.lifecycle.tone === 'success'"
+                    [class.profile-videos__publication-chip--pending]="item.lifecycle.tone === 'progress' || item.lifecycle.tone === 'warning'"
+                    [class.profile-videos__publication-chip--rejected]="item.lifecycle.tone === 'error'"
                   >
-                    {{ publicationLabel(item) }}
+                    {{ item.lifecycle.label }}
                   </span>
                 </div>
 
@@ -372,29 +382,14 @@
                   </form>
                 }
 
-                @if (item.video.status === 'queued' || item.video.status === 'processing') {
-                  <p class="profile-videos__helper" role="status">
-                    Preparando o vídeo para publicação automática.
-                  </p>
-                } @else if (item.video.status === 'failed') {
-                  <p class="profile-videos__helper profile-videos__helper--error" role="alert">
-                    {{ item.video.processingErrorMessage || 'Não foi possível processar este arquivo. Exclua-o e envie uma nova versão.' }}
-                  </p>
-                } @else if (item.publication?.moderationStatus === 'REJECTED') {
-                  <p class="profile-videos__helper profile-videos__helper--error" role="alert">
-                    A moderação rejeitou esta versão. {{ item.publication?.moderationReason || 'Exclua o arquivo e envie uma nova versão antes de tentar publicar novamente.' }}
-                  </p>
-                } @else if (
-                  !item.publication?.isPublished &&
-                  item.publication?.publishWhenReady !== true &&
-                  item.video.status === 'ready'
-                ) {
-                  <p class="profile-videos__helper" role="status">
-                    Este vídeo foi salvo no fluxo antigo. Publique-o para concluir a migração ou exclua-o.
-                  </p>
-                } @else if (!isPublicPlaybackCompatible(item.video)) {
-                  <p class="profile-videos__helper" role="status">
-                    A versão compatível ainda não foi confirmada.
+                @if (item.lifecycle.state !== 'PUBLISHED') {
+                  <p
+                    class="profile-videos__helper"
+                    [class.profile-videos__helper--error]="item.lifecycle.tone === 'error'"
+                    [attr.role]="item.lifecycle.tone === 'error' ? 'alert' : 'status'"
+                    [attr.aria-live]="item.lifecycle.tone === 'error' ? 'assertive' : 'polite'"
+                  >
+                    {{ item.lifecycle.message }}
                   </p>
                 }
 
