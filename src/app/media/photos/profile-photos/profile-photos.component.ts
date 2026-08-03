@@ -36,6 +36,7 @@ import {
   catchError,
   concatMap,
   distinctUntilChanged,
+  exhaustMap,
   finalize,
   map,
   shareReplay,
@@ -81,6 +82,13 @@ type TPhotoDateAccessUser = {
   monthlyPayer?: boolean | null;
   subscriptionStatus?: string | null;
 };
+
+interface PendingPhotoPublication {
+  readonly ownerUid: string;
+  readonly photo: IManageablePhotoItem;
+  readonly publication: IPhotoPublicationConfig;
+  readonly preserveSettings: boolean;
+}
 
 const DENY_UNKNOWN: IMediaPolicyResult = {
   decision: 'DENY',
@@ -633,7 +641,8 @@ export class ProfilePhotosComponent implements OnInit {
           return this.publishPhotoForOwner$(
             ownerUid,
             item,
-            item.publication
+            item.publication,
+            item.publication.isPublished === true
           ).pipe(
             tap(() =>
               this.errorNotifier.showSuccess('Foto publicada com sucesso.')
@@ -730,11 +739,7 @@ export class ProfilePhotosComponent implements OnInit {
       .pipe(
         map(([isOwner, ownerUid, photos, publicationConfigs]) => {
           if (!isOwner || !ownerUid) {
-            return [] as Array<{
-              ownerUid: string;
-              photo: IManageablePhotoItem;
-              publication: IPhotoPublicationConfig;
-            }>;
+            return [] as PendingPhotoPublication[];
           }
 
           return photos
@@ -753,31 +758,45 @@ export class ProfilePhotosComponent implements OnInit {
                 !this.automaticPublicationAttempts.has(attemptKey)
               );
             })
-            .map((photo) => {
-              const attemptKey = `${ownerUid}:${photo.id}`;
-              this.automaticPublicationAttempts.add(attemptKey);
+            .map((photo): PendingPhotoPublication => {
+              const existingPublication = publicationConfigs[photo.id];
 
               return {
                 ownerUid,
                 photo,
                 publication:
-                  publicationConfigs[photo.id] ??
+                  existingPublication ??
                   this.mediaPublicationService.buildDefaultConfig(
                     ownerUid,
                     photo.id
                   ),
+                preserveSettings:
+                  existingPublication?.isPublished === true,
               };
             });
         }),
-        switchMap((pendingItems) =>
+        exhaustMap((pendingItems) =>
           from(pendingItems).pipe(
-            concatMap(({ ownerUid, photo, publication }) => {
+            concatMap(({
+              ownerUid,
+              photo,
+              publication,
+              preserveSettings,
+            }) => {
+              const attemptKey = `${ownerUid}:${photo.id}`;
+
+              if (this.automaticPublicationAttempts.has(attemptKey)) {
+                return EMPTY;
+              }
+
+              this.automaticPublicationAttempts.add(attemptKey);
               this.publishingPhotoIdSubject.next(photo.id);
 
               return this.publishPhotoForOwner$(
                 ownerUid,
                 photo,
-                publication
+                publication,
+                preserveSettings
               ).pipe(
                 catchError((error) => {
                   this.reportError(
@@ -806,11 +825,24 @@ export class ProfilePhotosComponent implements OnInit {
   private publishPhotoForOwner$(
     ownerUid: string,
     item: IManageablePhotoItem,
-    publication: IPhotoPublicationConfig
+    publication: IPhotoPublicationConfig,
+    preserveSettings: boolean
   ): Observable<void> {
     if (!item.id?.trim() || !item.url?.trim()) {
       return EMPTY;
     }
+
+    const commentsEnabled = preserveSettings
+      ? publication.commentsEnabled ?? true
+      : true;
+    const commentsPolicy = !commentsEnabled
+      ? 'OFF'
+      : preserveSettings && publication.commentsPolicy !== 'OFF'
+        ? publication.commentsPolicy
+        : 'EVERYONE';
+    const reactionsEnabled = preserveSettings
+      ? publication.reactionsEnabled ?? true
+      : true;
 
     return this.mediaPublicationService.publishPhoto$({
       ownerUid,
@@ -824,15 +856,14 @@ export class ProfilePhotosComponent implements OnInit {
         fileName: item.fileName,
       },
       visibility: 'PUBLIC',
-      caption: publication.caption,
-      isCover: publication.isCover,
-      orderIndex: publication.orderIndex ?? 0,
-      commentsEnabled: publication.commentsEnabled ?? true,
-      commentsPolicy:
-        publication.commentsPolicy === 'OFF'
-          ? 'EVERYONE'
-          : publication.commentsPolicy,
-      reactionsEnabled: publication.reactionsEnabled ?? true,
+      caption: preserveSettings ? publication.caption : null,
+      isCover: preserveSettings && publication.isCover,
+      orderIndex: preserveSettings
+        ? publication.orderIndex ?? 0
+        : 0,
+      commentsEnabled,
+      commentsPolicy,
+      reactionsEnabled,
     });
   }
 
