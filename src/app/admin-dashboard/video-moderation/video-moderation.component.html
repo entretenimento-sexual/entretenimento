@@ -15,7 +15,7 @@
       (click)="retry()"
     >
       <i class="fas fa-rotate" aria-hidden="true"></i>
-      Atualizar fila
+      Atualizar painel
     </button>
   </header>
 
@@ -27,8 +27,12 @@
     >
       <div class="video-moderation__operations-heading">
         <div>
-          <p class="video-moderation__eyebrow">Diagnóstico operacional</p>
+          <p class="video-moderation__eyebrow">Operação e observabilidade</p>
           <h3 id="video-processing-status-title">Processamento de vídeos</h3>
+          <p>
+            Saúde do provedor, jobs, Cloud Tasks, falhas terminais e intervenções
+            administrativas em uma única leitura protegida.
+          </p>
         </div>
 
         @if (processing.data; as diagnostic) {
@@ -46,7 +50,7 @@
       @if (processing.status === 'loading') {
         <div class="video-moderation__operations-message" role="status" aria-live="polite">
           <span class="video-moderation__spinner" aria-hidden="true"></span>
-          <span>Verificando API, permissões e fila de processamento...</span>
+          <span>Verificando provedor, jobs, despachos, DLQ e auditoria...</span>
         </div>
       } @else if (processing.status === 'error') {
         <div
@@ -65,44 +69,252 @@
           {{ processingStateDescription(diagnostic) }}
         </p>
 
-        <div class="video-moderation__operations-grid">
-          <article class="video-moderation__metric">
-            <span>Jobs ativos</span>
-            <strong>{{ diagnostic.queue.activeTotal }}</strong>
-            <small>
-              {{ diagnostic.queue.sampleCapped ? 'Amostra limitada a 100 jobs' : 'Contagem consolidada' }}
-            </small>
-          </article>
+        @if (diagnostic.alerts.length > 0) {
+          <div class="video-moderation__alerts" aria-label="Alertas do processamento">
+            @for (alert of diagnostic.alerts; track alert.code) {
+              <article
+                class="video-moderation__alert"
+                [class.video-moderation__alert--critical]="alert.severity === 'CRITICAL'"
+                [class.video-moderation__alert--warning]="alert.severity === 'WARNING'"
+                [class.video-moderation__alert--info]="alert.severity === 'INFO'"
+                [attr.role]="alert.severity === 'CRITICAL' ? 'alert' : 'status'"
+              >
+                <div class="video-moderation__alert-icon" aria-hidden="true">
+                  <i
+                    class="fas"
+                    [class.fa-circle-exclamation]="alert.severity === 'CRITICAL'"
+                    [class.fa-triangle-exclamation]="alert.severity === 'WARNING'"
+                    [class.fa-circle-info]="alert.severity === 'INFO'"
+                  ></i>
+                </div>
+                <div>
+                  <span>{{ processingAlertSeverityLabel(alert.severity) }}</span>
+                  <strong>{{ alert.title }}</strong>
+                  <p>{{ alert.message }}</p>
+                </div>
+              </article>
+            }
+          </div>
+        }
 
-          <article class="video-moderation__metric">
-            <span>Job ativo mais antigo</span>
-            <strong>{{ formatAge(diagnostic.queue.oldestActiveAgeMs) }}</strong>
-            <small>{{ diagnostic.queue.staleSampledJobs }} possivelmente atrasado(s)</small>
-          </article>
+        <section class="video-moderation__operations-section" aria-labelledby="video-jobs-metrics-title">
+          <div class="video-moderation__subheading">
+            <div>
+              <h4 id="video-jobs-metrics-title">Jobs do pipeline</h4>
+              <p>Estado persistido do processamento técnico de cada vídeo.</p>
+            </div>
+          </div>
 
-          <article class="video-moderation__metric">
-            <span>Fila</span>
-            <strong>{{ diagnostic.queue.counts.QUEUED }}</strong>
-            <small>{{ diagnostic.queue.counts.SUBMITTING }} em submissão</small>
-          </article>
+          <div class="video-moderation__operations-grid">
+            <article class="video-moderation__metric">
+              <span>Jobs ativos</span>
+              <strong>{{ diagnostic.queue.activeTotal }}</strong>
+              <small>
+                {{ diagnostic.queue.sampleCapped ? 'Amostra de idade limitada a 100 jobs' : 'Contagem consolidada' }}
+              </small>
+            </article>
 
-          <article class="video-moderation__metric">
-            <span>Em processamento</span>
-            <strong>{{ diagnostic.queue.counts.PROCESSING }}</strong>
-            <small>{{ diagnostic.queue.counts.CANCEL_REQUESTED }} cancelamento(s) pendente(s)</small>
-          </article>
+            <article class="video-moderation__metric">
+              <span>Job ativo mais antigo</span>
+              <strong>{{ formatAge(diagnostic.queue.oldestActiveAgeMs) }}</strong>
+              <small>{{ diagnostic.queue.staleSampledJobs }} possivelmente atrasado(s)</small>
+            </article>
 
-          <article class="video-moderation__metric">
-            <span>Concluídos</span>
-            <strong>{{ diagnostic.queue.counts.SUCCEEDED }}</strong>
-            <small>{{ diagnostic.queue.counts.FAILED }} falha(s)</small>
-          </article>
+            <article class="video-moderation__metric">
+              <span>Na fila</span>
+              <strong>{{ diagnostic.queue.counts.QUEUED }}</strong>
+              <small>{{ diagnostic.queue.counts.SUBMITTING }} confirmando submissão</small>
+            </article>
 
-          <article class="video-moderation__metric">
-            <span>Última verificação</span>
-            <strong>{{ diagnostic.checkedAt | date:'HH:mm:ss' }}</strong>
-            <small>{{ diagnostic.checkedAt | date:'dd/MM/yyyy' }}</small>
-          </article>
+            <article class="video-moderation__metric">
+              <span>Em processamento</span>
+              <strong>{{ diagnostic.queue.counts.PROCESSING }}</strong>
+              <small>{{ diagnostic.queue.counts.CANCEL_REQUESTED }} cancelamento(s) pendente(s)</small>
+            </article>
+
+            <article class="video-moderation__metric">
+              <span>Concluídos</span>
+              <strong>{{ diagnostic.queue.counts.SUCCEEDED }}</strong>
+              <small>{{ diagnostic.queue.counts.FAILED }} falha(s) no estado atual</small>
+            </article>
+
+            <article class="video-moderation__metric">
+              <span>Última verificação</span>
+              <strong>{{ diagnostic.checkedAt | date:'HH:mm:ss' }}</strong>
+              <small>{{ diagnostic.checkedAt | date:'dd/MM/yyyy' }}</small>
+            </article>
+          </div>
+        </section>
+
+        <section class="video-moderation__operations-section" aria-labelledby="video-dispatch-metrics-title">
+          <div class="video-moderation__subheading">
+            <div>
+              <h4 id="video-dispatch-metrics-title">Despachos Cloud Tasks</h4>
+              <p>Latência, backlog e entregas idempotentes das últimas 24 horas.</p>
+            </div>
+            <span class="video-moderation__sample-chip">
+              {{ diagnostic.dispatch.latencySampleSize }} amostra(s) de latência
+            </span>
+          </div>
+
+          <div class="video-moderation__operations-grid video-moderation__operations-grid--dispatch">
+            <article class="video-moderation__metric">
+              <span>Despachos pendentes</span>
+              <strong>{{ diagnostic.dispatch.pendingTotal }}</strong>
+              <small>
+                {{ diagnostic.dispatch.counts.ENQUEUEING }} enfileirando e
+                {{ diagnostic.dispatch.counts.ENQUEUED }} aguardando execução
+              </small>
+            </article>
+
+            <article class="video-moderation__metric">
+              <span>Mais antigo pendente</span>
+              <strong>{{ formatAge(diagnostic.dispatch.oldestPendingAgeMs) }}</strong>
+              <small>Janela de alerta inicia após 5 minutos</small>
+            </article>
+
+            <article class="video-moderation__metric">
+              <span>Latência média</span>
+              <strong>{{ formatLatency(diagnostic.dispatch.averageLatencyMs) }}</strong>
+              <small>Criação do despacho até conclusão da task</small>
+            </article>
+
+            <article class="video-moderation__metric">
+              <span>Percentil 95</span>
+              <strong>{{ formatLatency(diagnostic.dispatch.p95LatencyMs) }}</strong>
+              <small>95% das amostras concluíram até este tempo</small>
+            </article>
+
+            <article class="video-moderation__metric">
+              <span>Concluídos em 24 h</span>
+              <strong>{{ diagnostic.dispatch.completedRecent }}</strong>
+              <small>{{ diagnostic.dispatch.duplicateRecent }} entrega(s) duplicada(s) absorvida(s)</small>
+            </article>
+
+            <article class="video-moderation__metric">
+              <span>Falhas em 24 h</span>
+              <strong>{{ diagnostic.dispatch.failedRecent }}</strong>
+              <small>{{ diagnostic.dispatch.counts.FAILED }} falha(s) ainda persistida(s)</small>
+            </article>
+          </div>
+
+          <dl class="video-moderation__dispatch-states" aria-label="Contagem por estado do despacho">
+            @for (state of ['ENQUEUEING', 'ENQUEUED', 'COMPLETED', 'FAILED', 'EMULATOR_SKIPPED']; track state) {
+              <div>
+                <dt>{{ processingDispatchStateLabel($any(state)) }}</dt>
+                <dd>{{ diagnostic.dispatch.counts[$any(state)] }}</dd>
+              </div>
+            }
+          </dl>
+        </section>
+
+        <div class="video-moderation__operations-columns">
+          <section class="video-moderation__operations-section" aria-labelledby="video-dead-letter-title">
+            <div class="video-moderation__subheading">
+              <div>
+                <h4 id="video-dead-letter-title">Falhas terminais e DLQ</h4>
+                <p>
+                  {{ diagnostic.deadLetters.recentTotal }} falha(s) nas últimas
+                  24 horas; {{ diagnostic.deadLetters.total }} registro(s) retido(s).
+                </p>
+              </div>
+            </div>
+
+            @if (diagnostic.deadLetters.failureCodes.length > 0) {
+              <div class="video-moderation__failure-codes" aria-label="Falhas agrupadas por código">
+                @for (failure of diagnostic.deadLetters.failureCodes; track trackByFailureCode($index, failure)) {
+                  <article>
+                    <code>{{ failure.code }}</code>
+                    <strong>{{ failure.count }}</strong>
+                    @if (eventDate(failure.lastSeenAt); as date) {
+                      <small>Última: {{ date | date:'dd/MM HH:mm' }}</small>
+                    }
+                  </article>
+                }
+              </div>
+            } @else {
+              <p class="video-moderation__empty-inline" role="status">
+                Nenhum código de falha terminal na amostra atual.
+              </p>
+            }
+
+            @if (diagnostic.deadLetters.items.length > 0) {
+              <div class="video-moderation__dead-letter-list" aria-label="Falhas terminais recentes">
+                @for (item of diagnostic.deadLetters.items; track trackByDeadLetter($index, item)) {
+                  <article class="video-moderation__dead-letter-item">
+                    <div>
+                      <strong>{{ item.errorCode || 'UNCLASSIFIED_PROCESSING_FAILURE' }}</strong>
+                      <span>Vídeo {{ item.videoId }} · Perfil {{ item.ownerUid }}</span>
+                    </div>
+                    <p>{{ item.errorMessage || 'Falha terminal sem descrição adicional.' }}</p>
+                    <footer>
+                      <span>{{ item.attempts }} tentativa(s)</span>
+                      @if (eventDate(item.failedAt); as date) {
+                        <time [attr.datetime]="date.toISOString()">
+                          {{ date | date:'dd/MM/yyyy HH:mm' }}
+                        </time>
+                      }
+                    </footer>
+                  </article>
+                }
+              </div>
+            }
+          </section>
+
+          <section class="video-moderation__operations-section" aria-labelledby="video-audit-title">
+            <div class="video-moderation__subheading">
+              <div>
+                <h4 id="video-audit-title">Auditoria administrativa</h4>
+                <p>Intervenções recentes com responsável, motivo e transição de estado.</p>
+              </div>
+            </div>
+
+            @if (diagnostic.audit.items.length > 0) {
+              <ol class="video-moderation__audit-list">
+                @for (item of diagnostic.audit.items; track trackByAudit($index, item)) {
+                  <li>
+                    <div class="video-moderation__audit-marker" aria-hidden="true"></div>
+                    <article>
+                      <header>
+                        <strong>{{ recoveryOperationLabel(item.operation) }}</strong>
+                        @if (eventDate(item.timestamp); as date) {
+                          <time [attr.datetime]="date.toISOString()">
+                            {{ date | date:'dd/MM/yyyy HH:mm' }}
+                          </time>
+                        }
+                      </header>
+                      <p>{{ item.reason || 'Justificativa não informada.' }}</p>
+                      <dl>
+                        <div>
+                          <dt>Administrador</dt>
+                          <dd>{{ item.adminUid }}</dd>
+                        </div>
+                        <div>
+                          <dt>Vídeo</dt>
+                          <dd>{{ item.videoId }}</dd>
+                        </div>
+                        <div>
+                          <dt>Transição</dt>
+                          <dd>{{ item.previousState || '—' }} → {{ item.nextState || '—' }}</dd>
+                        </div>
+                      </dl>
+                    </article>
+                  </li>
+                }
+              </ol>
+            } @else {
+              <p class="video-moderation__empty-inline" role="status">
+                Nenhuma intervenção administrativa registrada na amostra atual.
+              </p>
+            }
+
+            @if (diagnostic.audit.skippedItems > 0) {
+              <p class="video-moderation__warning" role="status">
+                {{ diagnostic.audit.skippedItems }} registro(s) de auditoria
+                inconsistente(s) foram ignorados.
+              </p>
+            }
+          </section>
         </div>
 
         <dl class="video-moderation__configuration">
