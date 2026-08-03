@@ -34,6 +34,11 @@ if defined NODE_HOME (
 
 set "FUNCTIONS_DISCOVERY_TIMEOUT=60"
 set "MEDIA_EMULATOR_AUTO_PROCESS_VIDEOS=true"
+rem O ambiente local publica automaticamente videos tecnicamente validos para
+rem permitir validar o fluxo completo sem depender da fila administrativa.
+rem Esta variavel vale somente para este processo dos emuladores e nao altera
+rem a politica de moderacao configurada no ambiente de producao.
+set "MEDIA_AUTO_APPROVE_VIDEOS=true"
 
 cd /d "%PROJECT_ROOT%"
 
@@ -66,6 +71,7 @@ if errorlevel 1 (
 )
 
 echo [emu:full] Processamento local de MP4/WebM: habilitado
+echo [emu:full] Aprovacao automatica local de videos: habilitada
 echo [emu:full] Subindo auth, firestore, storage e functions...
 call npm.cmd run emu:media:start
 set "EMU_EXIT=%ERRORLEVEL%"
