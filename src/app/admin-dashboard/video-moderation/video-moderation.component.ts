@@ -95,6 +95,13 @@ export class VideoModerationComponent {
   private readonly notification = inject(ErrorNotificationService);
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
+  readonly processingDispatchStates: readonly AdminVideoProcessingDispatchState[] = [
+    'ENQUEUEING',
+    'ENQUEUED',
+    'COMPLETED',
+    'FAILED',
+    'EMULATOR_SKIPPED',
+  ];
   readonly busyVideoKey = signal<string | null>(null);
   readonly busyRecoveryKey = signal<string | null>(null);
   readonly reasonDrafts = signal<ReasonDrafts>({});
@@ -328,7 +335,11 @@ export class VideoModerationComponent {
   }
 
   formatLatency(valueMs: number | null): string {
-    const value = Number(valueMs ?? 0);
+    if (valueMs === null || valueMs === undefined) {
+      return 'Sem amostra';
+    }
+
+    const value = Number(valueMs);
 
     if (!Number.isFinite(value) || value < 0) {
       return 'Sem amostra';
