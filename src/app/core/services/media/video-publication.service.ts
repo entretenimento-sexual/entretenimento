@@ -87,11 +87,6 @@ export class VideoPublicationService {
     PublishVideoResponse
   >(this.functions, 'publishVideo');
 
-  private readonly unpublishVideoCallable = httpsCallable<
-    VideoIdentityRequest,
-    UnpublishVideoResponse
-  >(this.functions, 'unpublishVideo');
-
   private readonly deleteProfileVideoCallable = httpsCallable<
     VideoIdentityRequest,
     DeleteProfileVideoResponse
@@ -223,6 +218,10 @@ export class VideoPublicationService {
     );
   }
 
+  /**
+   * @deprecated Vídeos publicados não podem ser mantidos como arquivos
+   * privados. Use `deleteProfileVideo$` para retirar o conteúdo da plataforma.
+   */
   unpublishVideo$(
     ownerUid: string,
     videoId: string
@@ -235,18 +234,11 @@ export class VideoPublicationService {
       );
     }
 
-    return this.firestoreCtx.deferPromise$(async () => {
-      const response = await this.unpublishVideoCallable(payload);
-      return response.data;
-    }).pipe(
-      catchError((error: unknown) => {
-        this.reportError(error, {
-          op: 'unpublishVideo$',
-          hasOwnerUid: true,
-          hasVideoId: true,
-        });
-        return throwError(() => error);
-      })
+    return throwError(
+      () => new Error(
+        'Vídeos publicados não podem ser mantidos como arquivos privados. ' +
+          'Exclua o vídeo definitivamente para retirá-lo da plataforma.'
+      )
     );
   }
 
