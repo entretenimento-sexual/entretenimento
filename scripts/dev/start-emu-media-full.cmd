@@ -34,9 +34,6 @@ if defined NODE_HOME (
 
 set "FUNCTIONS_DISCOVERY_TIMEOUT=60"
 set "MEDIA_EMULATOR_AUTO_PROCESS_VIDEOS=true"
-rem Publicacao direta e o comportamento padrao. A pre-moderacao so deve ser
-rem ativada de forma operacional e excepcional.
-set "MEDIA_REQUIRE_VIDEO_PREMODERATION=false"
 
 cd /d "%PROJECT_ROOT%"
 
