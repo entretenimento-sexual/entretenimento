@@ -105,6 +105,10 @@ export {
 } from './application/queue-video-processing.handler';
 
 export {
+  submitQueuedVideoProcessingTask,
+} from './application/video-processing-immediate-task.handler';
+
+export {
   cleanupCancelledVideoProcessing,
   reconcileVideoProcessing,
   submitQueuedVideoProcessing,
