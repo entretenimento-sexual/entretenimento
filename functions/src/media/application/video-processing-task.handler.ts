@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { Timestamp } from 'firebase-admin/firestore';
 import { getFunctions } from 'firebase-admin/functions';
 import * as logger from 'firebase-functions/logger';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
@@ -37,6 +38,7 @@ interface VideoProcessingDispatchDocument
   updatedAt: number;
   enqueuedAt: number | null;
   completedAt: number | null;
+  cleanupAfter: Timestamp;
   lastError: string | null;
 }
 
@@ -55,6 +57,7 @@ interface VideoProcessingDeadLetterDocument {
   failedAt: number;
   recordedAt: number;
   updatedAt: number;
+  cleanupAfter: Timestamp;
 }
 
 const DISPATCH_COLLECTION = 'media_video_processing_dispatches';
@@ -63,15 +66,22 @@ const TASK_FUNCTION_NAME = 'processVideoProcessingTask';
 const TASK_RESOURCE_NAME =
   `locations/${FUNCTIONS_REGION}/functions/${TASK_FUNCTION_NAME}`;
 const TASK_DISPATCH_DEADLINE_SECONDS = 540;
+const DISPATCH_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const DEAD_LETTER_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_ERROR_LENGTH = 500;
 
 const taskQueue = getFunctions(adminApp).taskQueue<
   VideoProcessingDispatchPayload
 >(TASK_RESOURCE_NAME, { scope: 'current' });
 
-function cleanId(value: unknown): string {
+function cleanEntityId(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
+}
+
+function cleanJobId(value: unknown): string {
+  const normalized = String(value ?? '').trim();
+  return /^[A-Za-z0-9_-]{1,300}$/.test(normalized) ? normalized : '';
 }
 
 function normalizePositiveInteger(value: unknown): number {
@@ -124,8 +134,8 @@ function normalizePayload(
   value: VideoProcessingDispatchPayload | null | undefined
 ): VideoProcessingDispatchPayload {
   const dispatchId = String(value?.dispatchId ?? '').trim();
-  const jobId = cleanId(value?.jobId);
-  const processingVersion = cleanId(value?.processingVersion);
+  const jobId = cleanJobId(value?.jobId);
+  const processingVersion = cleanEntityId(value?.processingVersion);
   const mode = normalizeMode(value?.mode);
   const dueAt = normalizePositiveInteger(value?.dueAt);
 
@@ -158,13 +168,17 @@ function deadLetterId(jobId: string, processingVersion: string): string {
     .digest('hex');
 }
 
+function dispatchCleanupAfter(referenceTime: number): Timestamp {
+  return Timestamp.fromMillis(referenceTime + DISPATCH_RETENTION_MS);
+}
+
 async function recordDeadLetter(
   jobId: string,
   job: Partial<VideoProcessingJob>
 ): Promise<void> {
-  const ownerUid = cleanId(job.ownerUid);
-  const videoId = cleanId(job.videoId);
-  const processingVersion = cleanId(job.processingVersion);
+  const ownerUid = cleanEntityId(job.ownerUid);
+  const videoId = cleanEntityId(job.videoId);
+  const processingVersion = cleanEntityId(job.processingVersion);
 
   if (!ownerUid || !videoId || !processingVersion) {
     logger.error('[videoProcessingTask] Falha sem identidade para DLQ.', {
@@ -193,6 +207,7 @@ async function recordDeadLetter(
       now,
     recordedAt: now,
     updatedAt: now,
+    cleanupAfter: Timestamp.fromMillis(now + DEAD_LETTER_RETENTION_MS),
   };
 
   await db.collection(DEAD_LETTER_COLLECTION).doc(id).set(
@@ -238,6 +253,9 @@ async function prepareDispatchForEnqueue(
       completedAt: snapshot.exists
         ? normalizePositiveInteger(snapshot.get('completedAt')) || null
         : null,
+      cleanupAfter: dispatchCleanupAfter(
+        Math.max(now, dispatch.scheduleAt)
+      ),
       lastError: null,
     };
 
@@ -262,6 +280,7 @@ async function enqueueDispatch(
         state: 'EMULATOR_SKIPPED',
         updatedAt: now,
         completedAt: now,
+        cleanupAfter: dispatchCleanupAfter(now),
       },
       { merge: true }
     );
@@ -281,10 +300,12 @@ async function enqueueDispatch(
     );
   } catch (error) {
     if (!isTaskAlreadyExistsError(error)) {
+      const now = Date.now();
       await dispatchReference(dispatch.dispatchId).set(
         {
           state: 'FAILED',
-          updatedAt: Date.now(),
+          updatedAt: now,
+          cleanupAfter: dispatchCleanupAfter(now),
           lastError: normalizeErrorMessage(error),
         },
         { merge: true }
@@ -302,6 +323,9 @@ async function enqueueDispatch(
       taskAlreadyExisted,
       enqueuedAt: now,
       updatedAt: now,
+      cleanupAfter: dispatchCleanupAfter(
+        Math.max(now, dispatch.scheduleAt)
+      ),
       lastError: null,
     },
     { merge: true }
@@ -319,7 +343,7 @@ export const dispatchVideoProcessingOnJobWrite = onDocumentWritten(
       return;
     }
 
-    const jobId = cleanId(event.params.jobId);
+    const jobId = cleanJobId(event.params.jobId);
     const job = event.data.after.data() as Partial<VideoProcessingJob>;
 
     if (!jobId) {
@@ -378,15 +402,18 @@ export const processVideoProcessingTask = onTaskDispatched<
           state: 'COMPLETED',
           completedAt: now,
           updatedAt: now,
+          cleanupAfter: dispatchCleanupAfter(now),
           lastError: null,
         },
         { merge: true }
       );
     } catch (error) {
+      const now = Date.now();
       await dispatchRef.set(
         {
           state: 'FAILED',
-          updatedAt: Date.now(),
+          updatedAt: now,
+          cleanupAfter: dispatchCleanupAfter(now),
           lastError: normalizeErrorMessage(error),
         },
         { merge: true }
