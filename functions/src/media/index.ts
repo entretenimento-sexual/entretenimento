@@ -42,6 +42,9 @@ export {
 export {
   publishVideoWhenReady,
 } from './application/publish-video-when-ready.handler';
+export {
+  reorderProfileVideos,
+} from './application/reorder-profile-videos.handler';
 
 export {
   updateVideoPublicationSettings,
