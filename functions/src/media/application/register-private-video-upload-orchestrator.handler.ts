@@ -7,6 +7,11 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import { assertPrivateVideoUploadEligibility } from './private-video-upload-eligibility.service';
 import {
+  assertPrivateVideoUploadReservation,
+  consumePrivateVideoUploadReservationAfterRegistration,
+  type PrivateVideoReservationRegistrationInput,
+} from './private-video-upload-reservation-registration.service';
+import {
   cancelPrivateVideoUploadReservationById,
 } from './private-video-upload-reservation.handler';
 import { ensurePrivateVideoProcessingQueued } from './queue-video-processing.handler';
@@ -24,6 +29,8 @@ interface RegisterPrivateVideoUploadRequest {
   reservationId?: string;
   videoStoragePath?: string;
   posterStoragePath?: string | null;
+  sizeBytes?: number;
+  mimeType?: string;
   [key: string]: unknown;
 }
 
@@ -72,6 +79,15 @@ function cleanId(value: unknown): string {
   }
 
   return normalized;
+}
+
+function normalizePositiveInteger(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
+}
+
+function normalizeMimeType(value: unknown): string {
+  return String(value ?? '').trim().toLowerCase();
 }
 
 function normalizeErrorMessage(error: unknown): string {
@@ -216,11 +232,53 @@ function resolveOwnedUploadAssets(
   ];
 }
 
+function buildReservationInput(
+  ownerUid: string,
+  videoId: string,
+  data: RegisterPrivateVideoUploadRequest | undefined
+): PrivateVideoReservationRegistrationInput | null {
+  const reservationId = cleanId(data?.reservationId);
+  const videoStoragePath = extractOwnedPrivateVideoPathForId(
+    ownerUid,
+    videoId,
+    data?.videoStoragePath
+  );
+  const rawPosterStoragePath = String(data?.posterStoragePath ?? '').trim();
+  const posterStoragePath = rawPosterStoragePath
+    ? extractOwnedPrivateVideoPosterPath(
+      ownerUid,
+      videoId,
+      rawPosterStoragePath
+    )
+    : null;
+  const videoSizeBytes = normalizePositiveInteger(data?.sizeBytes);
+  const mimeType = normalizeMimeType(data?.mimeType);
+
+  if (
+    !reservationId ||
+    !videoStoragePath ||
+    (rawPosterStoragePath && !posterStoragePath) ||
+    !videoSizeBytes ||
+    !mimeType
+  ) {
+    return null;
+  }
+
+  return {
+    reservationId,
+    ownerUid,
+    videoId,
+    videoStoragePath,
+    posterStoragePath,
+    videoSizeBytes,
+    mimeType,
+  };
+}
+
 /**
  * Registra o upload e só responde depois que a fila idempotente foi persistida.
  * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
- * A elegibilidade é revalidada no backend antes do registro definitivo.
- * Todo novo vídeo mantém a intenção de publicação até o derivado ficar pronto.
+ * A elegibilidade e a reserva são revalidadas antes do registro definitivo.
  */
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
@@ -234,8 +292,23 @@ export const registerPrivateVideoUpload = onCall<
     const assets = ownerUid && videoId
       ? resolveOwnedUploadAssets(ownerUid, videoId, request.data)
       : null;
+    const reservationInput = ownerUid && videoId
+      ? buildReservationInput(ownerUid, videoId, request.data)
+      : null;
 
-    if (requesterUid && requesterUid === ownerUid && assets) {
+    if (
+      requesterUid &&
+      requesterUid === ownerUid &&
+      assets &&
+      reservationInput
+    ) {
+      try {
+        await assertPrivateVideoUploadReservation(reservationInput);
+      } catch (error) {
+        await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
+        throw error;
+      }
+
       try {
         await assertPrivateVideoUploadEligibility(ownerUid);
       } catch (error) {
@@ -264,6 +337,24 @@ export const registerPrivateVideoUpload = onCall<
         requestWithRequiredPublication as any
       )
     ) as RegisteredPrivateVideoResponse;
+
+    if (reservationInput) {
+      try {
+        await consumePrivateVideoUploadReservationAfterRegistration(
+          reservationInput
+        );
+      } catch (error) {
+        logger.warn(
+          '[registerPrivateVideoUpload] Reconciliação da reserva pendente.',
+          {
+            ownerUid: response.ownerUid,
+            videoId: response.videoId,
+            reservationId,
+            error: normalizeErrorMessage(error),
+          }
+        );
+      }
+    }
 
     await ensurePrivateVideoProcessingQueued(
       response.ownerUid,
