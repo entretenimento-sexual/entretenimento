@@ -198,52 +198,44 @@ describe('OtherUserProfileViewComponent', () => {
     expect(notifier.showError).not.toHaveBeenCalled();
   });
 
-  it('organiza conteúdo público em coluna principal e informações laterais', () => {
-    const content = fixture.debugElement.query(
-      By.css('.other-profile-page__content')
+  it('mantém a vitrine pública como conteúdo principal sem coluna lateral desconectada', () => {
+    const main = fixture.debugElement.query(
+      By.css('.other-profile-page__main')
     ).nativeElement as HTMLElement;
-    const main = content.querySelector(
-      '.other-profile-page__main'
-    ) as HTMLElement;
-    const sidebar = content.querySelector(
-      '.other-profile-page__sidebar'
-    ) as HTMLElement;
     const showcase = main.querySelector('app-profile-media-showcase');
 
-    expect(main).toBeTruthy();
-    expect(sidebar).toBeTruthy();
     expect(showcase).toBeTruthy();
     expect(main.getAttribute('aria-label')).toBe('Conteúdo público do perfil');
-    expect(sidebar.getAttribute('aria-label')).toBe(
-      'Informações públicas do perfil'
-    );
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__content'))
+    ).toBeNull();
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__sidebar'))
+    ).toBeNull();
   });
 
-  it('move descrição e localização para Sobre sem duplicar no hero', () => {
+  it('integra descrição e localização ao hero sem cartão Sobre isolado', () => {
     const hero = fixture.debugElement.query(
       By.css('.other-profile-page__hero')
     ).nativeElement as HTMLElement;
-    const about = fixture.debugElement.query(
-      By.css('.other-profile-page__about')
-    ).nativeElement as HTMLElement;
 
-    expect(hero.textContent).not.toContain('Descrição direta do perfil.');
-    expect(hero.textContent).not.toContain('Rio de Janeiro, RJ');
-    expect(about.textContent).toContain('Sobre');
-    expect(about.textContent).toContain('Descrição direta do perfil.');
-    expect(about.textContent).toContain('Rio de Janeiro, RJ');
-    expect(about.textContent).toContain('8 km');
+    expect(hero.textContent).toContain('Descrição direta do perfil.');
+    expect(hero.textContent).toContain('Rio de Janeiro, RJ');
+    expect(hero.textContent).toContain('8 km');
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__about'))
+    ).toBeNull();
   });
 
-  it('mantém afinidades declaradas na coluna lateral sem cartões de sinais', () => {
-    const sidebar = fixture.debugElement.query(
-      By.css('.other-profile-page__sidebar')
+  it('mantém afinidades declaradas em faixa complementar sem cartões de sinais', () => {
+    const details = fixture.debugElement.query(
+      By.css('.other-profile-page__details')
     ).nativeElement as HTMLElement;
     const affinityText = fixture.debugElement.query(
-      By.css('.other-profile-page__affinities')
+      By.css('.other-profile-page__preference-cloud')
     ).nativeElement.textContent as string;
 
-    expect(sidebar.textContent).toContain('Afinidades');
+    expect(details.textContent).toContain('Afinidades');
     expect(affinityText).toContain('Encontros');
     expect(affinityText).toContain('Casais');
     expect(
