@@ -17,6 +17,13 @@ export const MEDIA_ROUTES: Routes = [
       ),
   },
   {
+    path: 'videos/organizar',
+    loadComponent: () =>
+      import('./videos/video-profile-order/video-profile-order.component').then(
+        (m) => m.VideoProfileOrderComponent
+      ),
+  },
+  {
     path: 'videos',
     loadComponent: () =>
       import('./videos/profile-videos/profile-videos.component').then(
