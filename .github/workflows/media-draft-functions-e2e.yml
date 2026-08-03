@@ -53,6 +53,6 @@ jobs:
         run: |
           npx firebase emulators:exec \
             --config firebase.media-e2e.json \
-            --only auth,firestore,functions \
+            --only auth,firestore,functions,storage \
             --project demo-entretenimento-media-draft-functions \
             "node scripts/tests/private-media-draft-functions.e2e.mjs"
