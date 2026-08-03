@@ -245,7 +245,8 @@ export class ExploreFeedService {
           : this.rankByEngagement(publicPool).slice(0, 12);
 
       const mostViewedPhotos = this.rankByViews(publicPool).slice(0, 12);
-      const featuredVideoMode = topVideos.length > 0 ? 'top' : 'latest';
+      const featuredVideoMode: 'top' | 'latest' =
+        topVideos.length > 0 ? 'top' : 'latest';
       const featuredVideos = featuredVideoMode === 'top'
         ? topVideos
         : latestVideos;
@@ -460,7 +461,7 @@ export class ExploreFeedService {
   }
 
   private uniqueOwnerUids(
-    items: readonly Array<{ readonly ownerUid: string }>
+    items: ReadonlyArray<{ readonly ownerUid: string }>
   ): string[] {
     return Array.from(
       new Set(
