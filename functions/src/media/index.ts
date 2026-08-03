@@ -35,7 +35,7 @@ export {
 
 export {
   unpublishVideo,
-} from './application/manage-video-publication.handler';
+} from './application/block-video-unpublication.handler';
 export {
   publishVideo,
 } from './application/publish-video-orchestrator.handler';
@@ -98,7 +98,7 @@ export {
 } from './application/register-private-video-upload.handler';
 export {
   registerPrivateVideoUpload,
-} from './application/register-private-video-upload-orchestrator.handler';
+} from './application/register-private-video-upload-auto-publication.handler';
 
 export {
   queuePrivateVideoProcessing,
