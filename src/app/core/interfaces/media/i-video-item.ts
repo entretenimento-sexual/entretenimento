@@ -1,10 +1,11 @@
 // src/app/core/interfaces/media/i-video-item.ts
 // -----------------------------------------------------------------------------
-// Contratos do domínio de vídeos privados.
+// Contratos do domínio técnico de vídeos do proprietário.
 //
-// Decisão de produto:
-// - vídeo começa como biblioteca privada do usuário;
-// - publicação cria cópia física e projeção pública separadas;
+// Decisão de arquitetura:
+// - o original e os derivados permanecem em namespaces privados do usuário;
+// - o registro inicia processamento e intenção obrigatória de publicação;
+// - a projeção pública utiliza contratos e paths separados;
 // - uid continua sendo o identificador canônico do usuário;
 // - paths privados nunca entram em contratos de exibição pública.
 // -----------------------------------------------------------------------------
