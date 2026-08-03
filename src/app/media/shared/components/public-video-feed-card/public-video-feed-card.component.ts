@@ -28,6 +28,10 @@ export class PublicVideoFeedCardComponent {
     return !!this.video().posterUrl?.trim() && !this.posterFailed();
   }
 
+  titleId(): string {
+    return `feed-video-title-${this.video().ownerUid}-${this.video().id}`;
+  }
+
   ownerName(): string {
     return this.video().owner?.nickname?.trim() || 'Perfil';
   }
