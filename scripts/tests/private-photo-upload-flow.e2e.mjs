@@ -132,6 +132,11 @@ async function run() {
     });
     ownerUid = userRecord.uid;
     await adminDb.doc(`users/${ownerUid}`).set(eligibleUser(ownerUid));
+    await adminDb.doc(`public_profiles/${ownerUid}`).set({
+      uid: ownerUid,
+      nickname: `photo-owner-${runId}`,
+      accountStatus: 'active',
+    });
     client = await createClient(
       `private-photo-client-${runId}`,
       email,
@@ -157,6 +162,14 @@ async function run() {
     const replace = httpsCallable(
       client.functions,
       'replacePrivatePhotoUpload'
+    );
+    const publishPhoto = httpsCallable(
+      client.functions,
+      'publishPhoto'
+    );
+    const unpublishPhoto = httpsCallable(
+      client.functions,
+      'unpublishPhoto'
     );
     const deleteProfilePhoto = httpsCallable(
       client.functions,
@@ -260,6 +273,58 @@ async function run() {
     assert.equal(repeatedRegistration.storagePath, originalPath);
     assert.equal(repeatedRegistration.sizeBytes, originalBytes.byteLength);
     await assertDirectDeleteDenied(client.storage, originalPath);
+
+    const publicationResult = (
+      await publishPhoto({
+        ownerUid,
+        photoId,
+        visibility: 'PUBLIC',
+        caption: null,
+        isCover: false,
+        orderIndex: 0,
+        commentsEnabled: true,
+        commentsPolicy: 'EVERYONE',
+        reactionsEnabled: true,
+      })
+    ).data;
+    assert.equal(publicationResult.photoId, photoId);
+    assert.equal(publicationResult.moderationStatus, 'APPROVED');
+
+    const privatePublicationRef = adminDb.doc(
+      `users/${ownerUid}/photo_publications/${photoId}`
+    );
+    const publicPhotoRef = adminDb.doc(
+      `public_profiles/${ownerUid}/public_photos/${photoId}`
+    );
+    const privatePublication = (await privatePublicationRef.get()).data();
+    const publicPhoto = (await publicPhotoRef.get()).data();
+
+    assert.equal(privatePublication.isPublished, true);
+    assert.equal(privatePublication.visibility, 'PUBLIC');
+    assert.equal(privatePublication.moderationStatus, 'APPROVED');
+    assert.equal(publicPhoto.visibility, 'PUBLIC');
+    assert.equal(publicPhoto.moderationStatus, 'APPROVED');
+
+    await assert.rejects(
+      () => unpublishPhoto({ ownerUid, photoId }),
+      (error) => {
+        assert.equal(error.code, 'functions/failed-precondition');
+        return true;
+      }
+    );
+
+    const publicationAfterBlockedUnpublish = (
+      await privatePublicationRef.get()
+    ).data();
+    const publicPhotoAfterBlockedUnpublish = (
+      await publicPhotoRef.get()
+    ).data();
+    assert.equal(publicationAfterBlockedUnpublish.isPublished, true);
+    assert.equal(
+      publicationAfterBlockedUnpublish.moderationStatus,
+      'APPROVED'
+    );
+    assert.equal(publicPhotoAfterBlockedUnpublish.visibility, 'PUBLIC');
 
     const usageAfterCreate = (
       await adminDb.doc(`media_private_draft_usage/${ownerUid}`).get()
@@ -380,7 +445,11 @@ async function run() {
     const deletedPhoto = await adminDb
       .doc(`users/${ownerUid}/photos/${photoId}`)
       .get();
+    const deletedPublication = await privatePublicationRef.get();
+    const deletedPublicPhoto = await publicPhotoRef.get();
     assert.equal(deletedPhoto.exists, false);
+    assert.equal(deletedPublication.exists, false);
+    assert.equal(deletedPublicPhoto.exists, false);
 
     console.log('[private-photo-upload-flow] todos os cenários passaram');
   } finally {
