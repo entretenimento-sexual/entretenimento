@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
-import { IVideoPublicationConfig } from 'src/app/core/interfaces/media/i-video-publication-config';
+import type { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
+import type { IVideoPublicationConfig } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { resolveVideoLifecyclePresentation } from './video-lifecycle-state.policy';
 
 const baseVideo: IVideoItem = {
@@ -54,6 +54,19 @@ describe('video-lifecycle-state.policy', () => {
       label: 'Publicando',
       tone: 'progress',
       terminal: false,
+    });
+  });
+
+  it('não classifica como legado enquanto a publicação ainda não foi hidratada', () => {
+    const result = resolveVideoLifecyclePresentation(
+      { ...baseVideo, status: 'ready' },
+      null
+    );
+
+    expect(result).toMatchObject({
+      state: 'REGISTERED',
+      label: 'Registrado',
+      tone: 'progress',
     });
   });
 
