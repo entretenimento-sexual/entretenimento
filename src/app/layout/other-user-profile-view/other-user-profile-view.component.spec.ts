@@ -220,36 +220,69 @@ describe('OtherUserProfileViewComponent', () => {
     ).toBeNull();
   });
 
-  it('exibe descrição, idade, localização e distância no hero', () => {
+  it('exibe todos os dados rápidos uma única vez no cartão principal', () => {
     const hero = fixture.debugElement.query(
       By.css('.other-profile-page__hero')
     ).nativeElement as HTMLElement;
-
-    expect(hero.textContent).toContain('Descrição direta do perfil.');
-    expect(hero.textContent).toContain('32 anos');
-    expect(hero.textContent).toContain('Rio de Janeiro, RJ');
-    expect(hero.textContent).toContain('8 km de você');
-  });
-
-  it('organiza os dados públicos completos em grupos acessíveis', () => {
-    const overview = fixture.debugElement.query(
-      By.css('.other-profile-page__overview')
-    ).nativeElement as HTMLElement;
-    const cards = fixture.debugElement.queryAll(
-      By.css('.other-profile-page__info-card')
+    const quickFacts = fixture.debugElement.queryAll(
+      By.css('.other-profile-page__quick-facts li')
     );
 
-    expect(overview.textContent).toContain('Informações públicas');
-    expect(overview.textContent).toContain('Na plataforma desde 2022');
-    expect(overview.textContent).toContain('Conhecer pessoas');
-    expect(overview.textContent).toContain('Swing');
-    expect(overview.textContent).toContain('BDSM');
-    expect(overview.textContent).toContain('Voyeurismo');
-    expect(overview.textContent).toContain('Tatuagens');
-    expect(overview.textContent).toContain('Curvilíneo');
-    expect(overview.textContent).toContain('Encontros');
-    expect(overview.textContent).toContain('Casais');
-    expect(cards.length).toBeGreaterThanOrEqual(4);
+    expect(hero.textContent).toContain('Descrição direta do perfil.');
+    expect(hero.textContent).toContain('Mulher');
+    expect(hero.textContent).toContain('32 anos');
+    expect(hero.textContent).toContain('Bissexual');
+    expect(hero.textContent).toContain('Rio de Janeiro, RJ');
+    expect(hero.textContent).toContain('8 km');
+    expect(hero.textContent).toContain('Desde 2022');
+    expect(quickFacts).toHaveLength(6);
+
+    for (const fact of quickFacts) {
+      expect(fact.attributes['aria-label']).toBeTruthy();
+      expect(fact.query(By.css('i'))).toBeTruthy();
+    }
+
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__overview'))
+    ).toBeNull();
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__info-card'))
+    ).toBeNull();
+  });
+
+  it('integra preferências ao cartão principal sem títulos visuais redundantes', () => {
+    const hero = fixture.debugElement.query(
+      By.css('.other-profile-page__hero')
+    ).nativeElement as HTMLElement;
+    const details = fixture.debugElement.query(
+      By.css('.other-profile-page__details')
+    );
+    const groups = fixture.debugElement.queryAll(
+      By.css('.other-profile-page__detail-group')
+    );
+
+    expect(details).toBeTruthy();
+    expect(hero.textContent).toContain('Conhecer pessoas');
+    expect(hero.textContent).toContain('Swing');
+    expect(hero.textContent).toContain('BDSM');
+    expect(hero.textContent).toContain('Voyeurismo');
+    expect(hero.textContent).toContain('Tatuagens');
+    expect(hero.textContent).toContain('Curvilíneo');
+    expect(hero.textContent).toContain('Encontros');
+    expect(hero.textContent).toContain('Casais');
+    expect(groups).toHaveLength(4);
+
+    for (const group of groups) {
+      expect(group.attributes['aria-label']).toBeTruthy();
+      expect(group.query(By.css('.other-profile-page__detail-icon i'))).toBeTruthy();
+    }
+
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__details h2:not(.sr-only)'))
+    ).toBeNull();
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__details h3'))
+    ).toBeNull();
   });
 
   it('configura redes como superfície compacta e ocultável', () => {
@@ -276,6 +309,9 @@ describe('OtherUserProfileViewComponent', () => {
     expect(text).not.toContain('Em destaque');
     expect(
       fixture.debugElement.query(By.css('.other-profile-page__actions-card'))
+    ).toBeNull();
+    expect(
+      fixture.debugElement.query(By.css('.other-profile-page__section-heading'))
     ).toBeNull();
   });
 });
