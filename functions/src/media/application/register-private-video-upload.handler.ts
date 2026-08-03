@@ -73,11 +73,6 @@ const ALLOWED_VIDEO_TYPES = new Set([
   'video/mp4',
   'video/webm',
   'video/quicktime',
-  'video/x-matroska',
-  'video/x-msvideo',
-  'video/x-ms-wmv',
-  'video/mp2t',
-  'application/mxf',
 ]);
 const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
 const ALLOWED_POSTER_TYPES = new Set([
@@ -218,7 +213,7 @@ async function readRequiredVideoMetadata(storagePath: string): Promise<{
   if (!ALLOWED_VIDEO_TYPES.has(mimeType)) {
     throw new HttpsError(
       'failed-precondition',
-      'O arquivo armazenado não possui um formato de vídeo permitido.'
+      'O arquivo armazenado não possui um formato compatível com o processamento.'
     );
   }
 
