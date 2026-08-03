@@ -157,7 +157,7 @@ export class PublicProfileViewService {
       role: this.normalizeRole(raw['role']),
       lastLogin: 0,
       descricao:
-        this.firstText(raw, ['descricao', 'description', 'bio']) ?? '',
+        this.firstDescription(raw, ['descricao', 'description', 'bio']) ?? '',
       isSubscriber: false,
       gender: this.firstText(raw, ['gender', 'genero']) ?? undefined,
       age,
@@ -291,6 +291,31 @@ export class PublicProfileViewService {
       }
 
       const normalized = value.replace(/\s+/g, ' ').trim();
+      if (normalized) {
+        return normalized;
+      }
+    }
+
+    return null;
+  }
+
+  private firstDescription(
+    raw: Record<string, unknown>,
+    keys: readonly string[]
+  ): string | null {
+    for (const key of keys) {
+      const value = raw[key];
+      if (typeof value !== 'string') {
+        continue;
+      }
+
+      const normalized = value
+        .replace(/\r\n?/g, '\n')
+        .replace(/[\t ]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+        .slice(0, 1000);
+
       if (normalized) {
         return normalized;
       }
