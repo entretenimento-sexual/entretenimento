@@ -201,37 +201,67 @@ async function recordDeadLetter(
   );
 }
 
-async function persistDispatchBeforeEnqueue(
-  dispatch: VideoProcessingDispatch
-): Promise<void> {
-  const now = Date.now();
-  const document: VideoProcessingDispatchDocument = {
-    ...buildVideoProcessingDispatchPayload(dispatch),
-    state: 'ENQUEUEING',
-    scheduleAt: dispatch.scheduleAt,
-    taskId: dispatch.taskId,
-    taskAlreadyExisted: false,
-    createdAt: now,
-    updatedAt: now,
-    enqueuedAt: null,
-    completedAt: null,
-    lastError: null,
-  };
+function isTerminalDispatchState(value: unknown): boolean {
+  const state = String(value ?? '').trim().toUpperCase();
+  return state === 'ENQUEUED' ||
+    state === 'COMPLETED' ||
+    state === 'EMULATOR_SKIPPED';
+}
 
-  await dispatchReference(dispatch.dispatchId).set(document, { merge: true });
+async function prepareDispatchForEnqueue(
+  dispatch: VideoProcessingDispatch
+): Promise<boolean> {
+  const dispatchRef = dispatchReference(dispatch.dispatchId);
+  const now = Date.now();
+
+  return db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(dispatchRef);
+
+    if (snapshot.exists && isTerminalDispatchState(snapshot.get('state'))) {
+      return false;
+    }
+
+    const createdAt = snapshot.exists
+      ? normalizePositiveInteger(snapshot.get('createdAt')) || now
+      : now;
+    const document: VideoProcessingDispatchDocument = {
+      ...buildVideoProcessingDispatchPayload(dispatch),
+      state: 'ENQUEUEING',
+      scheduleAt: dispatch.scheduleAt,
+      taskId: dispatch.taskId,
+      taskAlreadyExisted: false,
+      createdAt,
+      updatedAt: now,
+      enqueuedAt: snapshot.exists
+        ? normalizePositiveInteger(snapshot.get('enqueuedAt')) || null
+        : null,
+      completedAt: snapshot.exists
+        ? normalizePositiveInteger(snapshot.get('completedAt')) || null
+        : null,
+      lastError: null,
+    };
+
+    transaction.set(dispatchRef, document, { merge: true });
+    return true;
+  });
 }
 
 async function enqueueDispatch(
   dispatch: VideoProcessingDispatch
 ): Promise<void> {
-  await persistDispatchBeforeEnqueue(dispatch);
+  const shouldEnqueue = await prepareDispatchForEnqueue(dispatch);
+
+  if (!shouldEnqueue) {
+    return;
+  }
 
   if (process.env.FUNCTIONS_EMULATOR === 'true') {
+    const now = Date.now();
     await dispatchReference(dispatch.dispatchId).set(
       {
         state: 'EMULATOR_SKIPPED',
-        updatedAt: Date.now(),
-        completedAt: Date.now(),
+        updatedAt: now,
+        completedAt: now,
       },
       { merge: true }
     );
