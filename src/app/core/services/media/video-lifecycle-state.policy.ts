@@ -1,5 +1,5 @@
-import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
-import { IVideoPublicationConfig } from 'src/app/core/interfaces/media/i-video-publication-config';
+import type { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
+import type { IVideoPublicationConfig } from 'src/app/core/interfaces/media/i-video-publication-config';
 
 export type VideoLifecycleState =
   | 'REGISTERED'
@@ -14,18 +14,17 @@ export type VideoLifecycleState =
   | 'LEGACY_PRIVATE';
 
 export type VideoLifecycleTone =
-  | 'neutral'
   | 'progress'
   | 'success'
   | 'warning'
   | 'error';
 
 export interface VideoLifecyclePresentation {
-  state: VideoLifecycleState;
-  label: string;
-  message: string;
-  tone: VideoLifecycleTone;
-  terminal: boolean;
+  readonly state: VideoLifecycleState;
+  readonly label: string;
+  readonly message: string;
+  readonly tone: VideoLifecycleTone;
+  readonly terminal: boolean;
 }
 
 const PRESENTATIONS: Readonly<
@@ -86,10 +85,7 @@ const PRESENTATIONS: Readonly<
 };
 
 export function resolveVideoLifecyclePresentation(
-  video: Pick<
-    IVideoItem,
-    'status' | 'processingStage' | 'processingErrorMessage'
-  >,
+  video: Pick<IVideoItem, 'status' | 'processingErrorMessage'>,
   publication: Pick<
     IVideoPublicationConfig,
     | 'isPublished'
@@ -170,8 +166,10 @@ export function resolveVideoLifecyclePresentation(
 
   if (
     video.status === 'ready' &&
-    publication?.isPublished !== true &&
-    publication?.publishWhenReady !== true
+    publication !== null &&
+    publication !== undefined &&
+    publication.isPublished !== true &&
+    publication.publishWhenReady !== true
   ) {
     return PRESENTATIONS.LEGACY_PRIVATE;
   }
