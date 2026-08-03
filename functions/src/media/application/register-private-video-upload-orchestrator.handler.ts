@@ -333,6 +333,7 @@ function resolveOwnedUploadAssets(
  * Registra o upload e só responde depois que a fila idempotente foi persistida.
  * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
  * A elegibilidade é revalidada no backend antes do registro definitivo.
+ * Todo novo vídeo mantém a intenção de publicação até o derivado ficar pronto.
  */
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
@@ -355,8 +356,17 @@ export const registerPrivateVideoUpload = onCall<
       }
     }
 
+    const requestWithRequiredPublication = {
+      ...request,
+      data: {
+        ...(request.data ?? {}),
+        publishWhenReady: true,
+      },
+    };
     const response = (
-      await registerPrivateVideoUploadCore.run(request as any)
+      await registerPrivateVideoUploadCore.run(
+        requestWithRequiredPublication as any
+      )
     ) as RegisteredPrivateVideoResponse;
 
     await ensurePrivateVideoProcessingQueued(
