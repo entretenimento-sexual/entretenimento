@@ -1,8 +1,5 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import {
-  assertInteractionAccessInTransaction,
-} from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
@@ -10,6 +7,12 @@ import {
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import {
+  createVideoInteractionAccessAuthorizer,
+} from './video-interaction-access.service';
+import {
+  assertVideoInteractionCapability,
+} from './video-interaction-capability.policy';
 import {
   buildNextVideoRatingAggregate,
   normalizeVideoRating,
@@ -22,10 +25,6 @@ interface RateVideoRequest {
 }
 
 interface PublicVideoDoc {
-  ownerUid?: string;
-  visibility?: string;
-  moderationStatus?: string;
-  ratingsEnabled?: boolean;
   reactionsCount?: number;
   likesCount?: number;
   commentsCount?: number;
@@ -45,26 +44,6 @@ interface VideoRatingDoc {
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
-}
-
-function assertRateableVideo(video: PublicVideoDoc): void {
-  if (video.visibility !== 'PUBLIC') {
-    throw new HttpsError('failed-precondition', 'Este vídeo não está público.');
-  }
-
-  if (video.moderationStatus !== 'APPROVED') {
-    throw new HttpsError(
-      'failed-precondition',
-      'Este vídeo ainda não está aprovado para avaliações.'
-    );
-  }
-
-  if (video.ratingsEnabled !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Avaliações desabilitadas neste vídeo.'
-    );
-  }
 }
 
 export const rateVideo = onCall<RateVideoRequest>(
@@ -93,30 +72,27 @@ export const rateVideo = onCall<RateVideoRequest>(
       );
     }
 
-    const videoRef = db.doc(
-      `public_profiles/${ownerUid}/public_videos/${videoId}`
-    );
-    const ratingRef = videoRef.collection('ratings').doc(viewerUid);
+    const authorizer = await createVideoInteractionAccessAuthorizer({
+      viewerUid,
+      ownerUid,
+      authenticatedEmailVerified:
+        request.auth?.token.email_verified === true,
+    });
 
     return db.runTransaction(async (transaction) => {
-      await assertInteractionAccessInTransaction(transaction, viewerUid);
+      const access = await authorizer.assertInTransaction(
+        transaction,
+        videoId
+      );
+      const ratingRef = access.videoRef.collection('ratings').doc(viewerUid);
+      const ratingSnap = await transaction.get(ratingRef);
+      const video = access.publicVideo as PublicVideoDoc;
 
-      const [videoSnap, ratingSnap] = await Promise.all([
-        transaction.get(videoRef),
-        transaction.get(ratingRef),
-      ]);
-
-      if (!videoSnap.exists) {
-        throw new HttpsError('not-found', 'Vídeo público não encontrado.');
-      }
-
-      const video = videoSnap.data() as PublicVideoDoc;
-
-      if (video.ownerUid !== ownerUid) {
-        throw new HttpsError('failed-precondition', 'Vídeo inconsistente.');
-      }
-
-      assertRateableVideo(video);
+      assertVideoInteractionCapability({
+        capability: 'RATING',
+        publicVideo: access.publicVideo,
+        publication: access.publication,
+      });
 
       const currentRating = ratingSnap.exists
         ? ratingSnap.data() as VideoRatingDoc
@@ -144,7 +120,7 @@ export const rateVideo = onCall<RateVideoRequest>(
         createdAt: currentRating?.createdAt ?? now,
         updatedAt: now,
       });
-      transaction.update(videoRef, {
+      transaction.update(access.videoRef, {
         ...nextAggregate,
         engagementScore: nextScore.engagementScore,
         score: nextScore.score,
