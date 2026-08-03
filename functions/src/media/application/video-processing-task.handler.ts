@@ -72,7 +72,7 @@ const MAX_ERROR_LENGTH = 500;
 
 const taskQueue = getFunctions(adminApp).taskQueue<
   VideoProcessingDispatchPayload
->(TASK_RESOURCE_NAME, { scope: 'current' });
+>(TASK_RESOURCE_NAME);
 
 function cleanEntityId(value: unknown): string {
   const normalized = String(value ?? '').trim();
