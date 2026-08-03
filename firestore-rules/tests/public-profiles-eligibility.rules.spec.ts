@@ -216,6 +216,7 @@ describe('Firestore Rules / public profile eligibility', () => {
       setDoc(doc(db, 'public_profiles', UID), {
         ...publicProfile(),
         age: 31,
+        descricao: 'Descrição que só pode ser projetada pelo backend.',
         publicRelationshipIntents: ['dating'],
         publicSexualPractices: ['bdsm'],
         publicBodyTraits: ['tattoos'],
@@ -224,10 +225,11 @@ describe('Firestore Rules / public profile eligibility', () => {
     );
   });
 
-  it('nega ao cliente alterar sinais públicos calculados pelo backend', async () => {
+  it('nega ao cliente alterar sinais e descrição calculados pelo backend', async () => {
     await seedUser();
     await seedPublicProfile({
       age: 31,
+      descricao: 'Descrição pública original.',
       publicRelationshipIntents: ['dating'],
       publicSexualPractices: ['bdsm'],
       publicBodyTraits: ['tattoos'],
@@ -238,7 +240,23 @@ describe('Firestore Rules / public profile eligibility', () => {
     await assertFails(
       updateDoc(doc(db, 'public_profiles', UID), {
         age: 32,
+        descricao: 'Descrição alterada diretamente pelo navegador.',
         publicBodyTraits: ['athletic'],
+        updatedAt: serverTimestamp(),
+      })
+    );
+  });
+
+  it('permite atualizar campo editável sem remover a descrição projetada', async () => {
+    await seedUser();
+    await seedPublicProfile({
+      descricao: 'Descrição pública original.',
+    });
+    const db = authenticatedDb();
+
+    await assertSucceeds(
+      updateDoc(doc(db, 'public_profiles', UID), {
+        municipio: 'Niterói',
         updatedAt: serverTimestamp(),
       })
     );
