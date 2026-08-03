@@ -1,9 +1,9 @@
 // scripts/tests/video-publication.e2e.mjs
 // -----------------------------------------------------------------------------
 // Integração isolada de vídeo:
-// upload privado -> registro com publicação obrigatória -> fila -> conclusão
-// simulada do provedor externo -> publicação automática -> edição -> acesso
-// temporário -> bloqueio da despublicação.
+// elegibilidade -> reserva de quota -> upload privado autorizado -> registro
+// obrigatório -> fila -> conclusão simulada -> publicação automática -> edição
+// -> acesso temporário -> bloqueio da despublicação.
 // -----------------------------------------------------------------------------
 
 import assert from 'node:assert/strict';
@@ -18,6 +18,7 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   getAuth,
+  reload,
 } from 'firebase/auth';
 import {
   connectFunctionsEmulator,
@@ -35,6 +36,7 @@ import {
   deleteApp as deleteAdminApp,
   initializeApp as initializeAdminApp,
 } from 'firebase-admin/app';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { getStorage as getAdminStorage } from 'firebase-admin/storage';
 
@@ -150,12 +152,15 @@ async function run() {
     },
     `video-e2e-admin-${runId}`
   );
+  const adminAuth = getAdminAuth(adminApp);
   const adminDb = getAdminFirestore(adminApp);
   const bucket = getAdminStorage(adminApp).bucket(STORAGE_BUCKET);
 
   let authenticatedUser = null;
   let ownerUid = '';
   let jobRef = null;
+  let reservationRef = null;
+  let capacityRef = null;
 
   try {
     const credential = await createUserWithEmailAndPassword(
@@ -166,6 +171,20 @@ async function run() {
     authenticatedUser = credential.user;
     ownerUid = credential.user.uid;
 
+    await Promise.all([
+      adminAuth.updateUser(ownerUid, { emailVerified: true }),
+      adminDb.doc(`users/${ownerUid}`).set({
+        uid: ownerUid,
+        profileCompleted: true,
+        accountStatus: 'active',
+        loginAllowed: true,
+        interactionBlocked: false,
+        updatedAt: Date.now(),
+      }),
+    ]);
+    await reload(authenticatedUser);
+    await authenticatedUser.getIdToken(true);
+
     const sourcePath =
       `users/${ownerUid}/uploads/videos/${videoId}-${runId}.mp4`;
     const posterPath =
@@ -173,13 +192,58 @@ async function run() {
     const sourceStorageRef = ref(clientStorage, sourcePath);
     const posterStorageRef = ref(clientStorage, posterPath);
 
-    await uploadBytes(sourceStorageRef, sourceBytes, {
-      contentType: 'video/mp4',
+    const reservePrivateVideoUpload = httpsCallable(
+      clientFunctions,
+      'reservePrivateVideoUpload'
+    );
+    const reservationResponse = await reservePrivateVideoUpload({
+      clientRequestId: runId,
+      ownerUid,
+      videoId,
+      videoStoragePath: sourcePath,
+      posterStoragePath: posterPath,
+      videoSizeBytes: sourceBytes.byteLength,
+      posterSizeBytes: posterBytes.byteLength,
+      mimeType: 'video/mp4',
+    });
+    const reservation = reservationResponse.data;
+    const reservationId = String(reservation.reservationId ?? '');
+    assert.ok(reservationId);
+    assert.equal(reservation.ownerUid, ownerUid);
+    assert.equal(reservation.videoId, videoId);
+    assert.equal(reservation.plan, 'free');
+    assert.ok(reservation.expiresAt > Date.now());
+    assert.equal(
+      reservation.reservedBytes,
+      sourceBytes.byteLength * 2 + posterBytes.byteLength
+    );
+
+    reservationRef = adminDb.doc(
+      `media_private_video_upload_reservations/${reservationId}`
+    );
+    capacityRef = adminDb.doc(
+      `media_private_video_upload_capacity/${ownerUid}`
+    );
+    assert.equal(
+      (await readDocumentData(reservationRef))?.state,
+      'ACTIVE'
+    );
+
+    const uploadMetadata = {
       cacheControl: 'private, max-age=0, no-store, no-transform',
+      customMetadata: {
+        videoReservationId: reservationId,
+        videoId,
+      },
+    };
+
+    await uploadBytes(sourceStorageRef, sourceBytes, {
+      ...uploadMetadata,
+      contentType: 'video/mp4',
     });
     await uploadBytes(posterStorageRef, posterBytes, {
+      ...uploadMetadata,
       contentType: 'image/jpeg',
-      cacheControl: 'private, max-age=0, no-store, no-transform',
     });
 
     const registerPrivateVideoUpload = httpsCallable(
@@ -189,6 +253,7 @@ async function run() {
     const registrationResponse = await registerPrivateVideoUpload({
       ownerUid,
       videoId,
+      reservationId,
       videoStoragePath: sourcePath,
       posterStoragePath: posterPath,
       fileName: 'video-e2e.mp4',
@@ -220,6 +285,23 @@ async function run() {
     );
     jobRef = adminDb.doc(
       `media_video_processing_jobs/${ownerUid}_${videoId}`
+    );
+
+    const consumedReservation = await waitFor(
+      'reserva ser consumida pelo registro do vídeo',
+      async () => ({
+        reservation: await readDocumentData(reservationRef),
+        video: await readDocumentData(privateVideoRef),
+      }),
+      (value) =>
+        value.reservation?.state === 'CONSUMED' &&
+        value.video?.videoReservationId === reservationId &&
+        value.video?.quotaReservedBytes === reservation.reservedBytes
+    );
+    assert.equal(consumedReservation.video.quotaPlanAtUpload, 'free');
+    assert.equal(
+      consumedReservation.video.posterSizeBytes,
+      posterBytes.byteLength
     );
 
     await publicProfileRef.set({
@@ -434,7 +516,10 @@ async function run() {
     assert.equal(await readFileExists(publishedVideoFile), true);
     assert.equal(await readFileExists(publishedPosterFile), true);
 
-    console.log('✔ upload privado de vídeo autorizado pelas Storage Rules');
+    console.log('✔ conta elegível validada antes da transferência');
+    console.log('✔ quota reservada antes do primeiro byte');
+    console.log('✔ upload privado autorizado pela reserva nas Storage Rules');
+    console.log('✔ reserva consumida e vinculada ao vídeo registrado');
     console.log('✔ registro autenticado e fila de processamento criados');
     console.log('✔ intenção de publicação obrigatória aplicada pelo backend');
     console.log('✔ publicação automática concluída após o processamento');
@@ -461,6 +546,14 @@ async function run() {
 
     if (jobRef) {
       cleanupTasks.push(jobRef.delete().catch(() => undefined));
+    }
+
+    if (reservationRef) {
+      cleanupTasks.push(reservationRef.delete().catch(() => undefined));
+    }
+
+    if (capacityRef) {
+      cleanupTasks.push(capacityRef.delete().catch(() => undefined));
     }
 
     if (authenticatedUser) {
