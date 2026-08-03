@@ -174,16 +174,6 @@
               >
                 {{ isUploadActive() ? 'Enviando...' : 'Enviar e publicar' }}
               </button>
-
-              <!-- MANUTENÇÃO: cota, retenção, expiração e elegibilidade por assinatura devem ser validadas no backend; ocultar esta ação não impede abuso de armazenamento. -->
-              <button
-                type="button"
-                class="app-action app-action--ghost"
-                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
-                (click)="startUpload(false)"
-              >
-                Salvar sem publicar
-              </button>
             </div>
           </form>
         </div>
@@ -359,7 +349,7 @@
                     </fieldset>
                     @if (item.publication?.isPublished) {
                       <p class="profile-videos__settings-note">
-                        Título e descrição passam por nova moderação.
+                        As alterações serão atualizadas no perfil após salvar.
                       </p>
                     }
                     <div class="profile-videos__settings-actions">
@@ -384,7 +374,7 @@
 
                 @if (item.video.status === 'queued' || item.video.status === 'processing') {
                   <p class="profile-videos__helper" role="status">
-                    {{ item.publication?.publishWhenReady ? 'Preparando o vídeo para publicação automática.' : 'Preparando o vídeo.' }}
+                    Preparando o vídeo para publicação automática.
                   </p>
                 } @else if (item.video.status === 'failed') {
                   <p class="profile-videos__helper profile-videos__helper--error" role="alert">
@@ -392,7 +382,11 @@
                   </p>
                 } @else if (item.publication?.moderationStatus === 'REJECTED') {
                   <p class="profile-videos__helper profile-videos__helper--error" role="alert">
-                    A moderação rejeitou esta versão. {{ item.publication?.moderationReason || 'Exclua o arquivo e envie uma nova versão antes de tentar publicar novamente.' }}
+                    A moderação retirou esta versão. {{ item.publication?.moderationReason || 'Exclua o arquivo e envie uma nova versão antes de tentar publicar novamente.' }}
+                  </p>
+                } @else if (item.publication?.moderationStatus === 'PENDING_REVIEW') {
+                  <p class="profile-videos__helper" role="status">
+                    Esta publicação foi retida para uma revisão excepcional e ainda não está visível para outros usuários.
                   </p>
                 } @else if (!isPublicPlaybackCompatible(item.video)) {
                   <p class="profile-videos__helper" role="status">
@@ -423,19 +417,7 @@
                       <span>Mais</span>
                     </summary>
                     <div class="profile-videos__more-menu">
-                      @if (item.publication?.isPublished) {
-                        <button
-                          type="button"
-                          (click)="unpublishVideo(item)"
-                          [disabled]="isBusy(item.video.id)"
-                          [attr.aria-busy]="isBusy(item.video.id) ? 'true' : 'false'"
-                        >
-                          <i class="fas fa-eye-slash" aria-hidden="true"></i>
-                          <span>
-                            {{ busyActions?.get(item.video.id) === 'unpublish' ? 'Removendo...' : 'Remover do perfil' }}
-                          </span>
-                        </button>
-                      } @else if (!item.publication?.publishWhenReady) {
+                      @if (!item.publication?.isPublished && !item.publication?.publishWhenReady) {
                         <button
                           type="button"
                           (click)="publishVideo(item)"
@@ -459,7 +441,7 @@
                       >
                         <i class="fas fa-trash" aria-hidden="true"></i>
                         <span>
-                          {{ busyActions?.get(item.video.id) === 'delete' ? 'Excluindo...' : 'Excluir' }}
+                          {{ busyActions?.get(item.video.id) === 'delete' ? 'Excluindo...' : 'Excluir definitivamente' }}
                         </span>
                       </button>
                     </div>
@@ -476,7 +458,7 @@
                     <div>
                       <strong>Excluir definitivamente?</strong>
                       <p>
-                        O original, as versões processadas e a publicação serão removidos. Esta ação não pode ser desfeita.
+                        O vídeo será removido do perfil e da plataforma, incluindo o original e todas as versões processadas. Esta ação não pode ser desfeita.
                       </p>
                     </div>
                     <div class="profile-videos__delete-confirmation-actions">
