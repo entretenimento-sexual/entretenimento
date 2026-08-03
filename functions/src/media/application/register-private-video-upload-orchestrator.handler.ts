@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import * as logger from 'firebase-functions/logger';
-import { onCall } from 'firebase-functions/v2/https';
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
@@ -278,7 +278,7 @@ function buildReservationInput(
 /**
  * Registra o upload e só responde depois que a fila idempotente foi persistida.
  * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
- * A elegibilidade e a reserva são revalidadas antes do registro definitivo.
+ * A elegibilidade e a reserva são obrigatórias e revalidadas no backend.
  */
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
@@ -289,40 +289,66 @@ export const registerPrivateVideoUpload = onCall<
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
     const reservationId = cleanId(request.data?.reservationId);
-    const assets = ownerUid && videoId
-      ? resolveOwnedUploadAssets(ownerUid, videoId, request.data)
-      : null;
-    const reservationInput = ownerUid && videoId
-      ? buildReservationInput(ownerUid, videoId, request.data)
-      : null;
 
-    if (
-      requesterUid &&
-      requesterUid === ownerUid &&
-      assets &&
-      reservationInput
-    ) {
-      try {
-        await assertPrivateVideoUploadReservation(reservationInput);
-      } catch (error) {
-        await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
-        throw error;
-      }
+    if (!requesterUid) {
+      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    }
 
-      try {
-        await assertPrivateVideoUploadEligibility(ownerUid);
-      } catch (error) {
-        const released = await cancelPrivateVideoUploadReservationById(
+    if (!ownerUid || !videoId) {
+      throw new HttpsError('invalid-argument', 'Vídeo inválido.');
+    }
+
+    if (requesterUid !== ownerUid) {
+      throw new HttpsError(
+        'permission-denied',
+        'O vídeo só pode ser registrado no perfil autenticado.'
+      );
+    }
+
+    const assets = resolveOwnedUploadAssets(ownerUid, videoId, request.data);
+    const reservationInput = buildReservationInput(
+      ownerUid,
+      videoId,
+      request.data
+    );
+
+    if (!assets || !reservationInput) {
+      if (reservationId) {
+        await cancelPrivateVideoUploadReservationById(
           reservationId,
           ownerUid
         );
-
-        if (!released) {
-          await cleanupDeniedUploadAssets(ownerUid, videoId, assets);
-        }
-
-        throw error;
       }
+
+      throw new HttpsError(
+        'failed-precondition',
+        'O upload não possui uma reserva válida.',
+        {
+          code: 'VIDEO_UPLOAD_RESERVATION_REQUIRED',
+          retryable: true,
+          recovery: 'Inicie o envio novamente para gerar uma nova reserva.',
+        }
+      );
+    }
+
+    try {
+      await assertPrivateVideoUploadReservation(reservationInput);
+    } catch (error) {
+      await Promise.all([
+        cancelPrivateVideoUploadReservationById(reservationId, ownerUid),
+        cleanupDeniedUploadAssets(ownerUid, videoId, assets),
+      ]);
+      throw error;
+    }
+
+    try {
+      await assertPrivateVideoUploadEligibility(ownerUid);
+    } catch (error) {
+      await Promise.all([
+        cancelPrivateVideoUploadReservationById(reservationId, ownerUid),
+        cleanupDeniedUploadAssets(ownerUid, videoId, assets),
+      ]);
+      throw error;
     }
 
     const requestWithRequiredPublication = {
@@ -338,22 +364,20 @@ export const registerPrivateVideoUpload = onCall<
       )
     ) as RegisteredPrivateVideoResponse;
 
-    if (reservationInput) {
-      try {
-        await consumePrivateVideoUploadReservationAfterRegistration(
-          reservationInput
-        );
-      } catch (error) {
-        logger.warn(
-          '[registerPrivateVideoUpload] Reconciliação da reserva pendente.',
-          {
-            ownerUid: response.ownerUid,
-            videoId: response.videoId,
-            reservationId,
-            error: normalizeErrorMessage(error),
-          }
-        );
-      }
+    try {
+      await consumePrivateVideoUploadReservationAfterRegistration(
+        reservationInput
+      );
+    } catch (error) {
+      logger.warn(
+        '[registerPrivateVideoUpload] Reconciliação da reserva pendente.',
+        {
+          ownerUid: response.ownerUid,
+          videoId: response.videoId,
+          reservationId,
+          error: normalizeErrorMessage(error),
+        }
+      );
     }
 
     await ensurePrivateVideoProcessingQueued(
