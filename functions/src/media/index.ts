@@ -35,7 +35,7 @@ export {
 
 export {
   unpublishVideo,
-} from './application/manage-video-publication.handler';
+} from './application/unpublish-video-disabled.handler';
 export {
   publishVideo,
 } from './application/publish-video-orchestrator.handler';
