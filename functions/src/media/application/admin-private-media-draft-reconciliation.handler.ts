@@ -95,9 +95,13 @@ function hashIdentity(value: string): string {
   return createHash('sha256').update(value).digest('hex').slice(0, 24);
 }
 
-function auditDocumentId(requesterUid: string, operationId: string): string {
+function auditDocumentId(
+  requesterUid: string,
+  ownerUid: string,
+  operationId: string
+): string {
   return createHash('sha256')
-    .update(`${requesterUid}:${operationId}`)
+    .update(`${requesterUid}:${ownerUid}:${operationId}`)
     .digest('hex');
 }
 
@@ -134,6 +138,35 @@ function ensureBoundedSource(
       'Revise o perfil e execute uma migração administrativa paginada.'
     );
   }
+}
+
+function buildAuditPayload(
+  requesterUid: string,
+  ownerUid: string,
+  operationId: string,
+  apply: boolean,
+  applied: boolean,
+  result: ReturnType<typeof reconcilePrivateMediaDraftUsage>,
+  examined: {
+    photos: number;
+    videos: number;
+    reservations: number;
+  },
+  generatedAt: number
+) {
+  return {
+    requesterHash: hashIdentity(requesterUid),
+    ownerHash: hashIdentity(ownerUid),
+    operationId,
+    apply,
+    applied,
+    consistentBefore: result.consistent,
+    current: result.current,
+    expected: result.expected,
+    delta: result.delta,
+    examined,
+    generatedAt,
+  };
 }
 
 export const reconcilePrivateMediaDraftUsageAdmin = onCall<
@@ -223,12 +256,17 @@ export const reconcilePrivateMediaDraftUsageAdmin = onCall<
     const initialUpdatedAt = normalizeTimestamp(
       usageSnapshot.data()?.['updatedAt']
     );
+    const examined = {
+      photos: photosSnapshot.size,
+      videos: videosSnapshot.size,
+      reservations: reservationsSnapshot.size,
+    };
     const auditRef = db
       .collection(AUDIT_COLLECTION)
-      .doc(auditDocumentId(requesterUid, operationId));
+      .doc(auditDocumentId(requesterUid, ownerUid, operationId));
     let applied = false;
 
-    if (apply && !result.consistent) {
+    if (apply) {
       await db.runTransaction(async (transaction) => {
         const [currentUsageSnapshot, existingAuditSnapshot] = await Promise.all([
           transaction.get(usageRef),
@@ -237,6 +275,23 @@ export const reconcilePrivateMediaDraftUsageAdmin = onCall<
 
         if (existingAuditSnapshot.exists) {
           applied = existingAuditSnapshot.data()?.['applied'] === true;
+          return;
+        }
+
+        if (result.consistent) {
+          transaction.create(
+            auditRef,
+            buildAuditPayload(
+              requesterUid,
+              ownerUid,
+              operationId,
+              true,
+              false,
+              result,
+              examined,
+              generatedAt
+            )
+          );
           return;
         }
 
@@ -265,43 +320,35 @@ export const reconcilePrivateMediaDraftUsageAdmin = onCall<
           },
           { merge: true }
         );
-        transaction.create(auditRef, {
-          requesterHash: hashIdentity(requesterUid),
-          ownerHash: hashIdentity(ownerUid),
-          operationId,
-          apply: true,
-          applied: true,
-          consistentBefore: false,
-          current: result.current,
-          expected: result.expected,
-          delta: result.delta,
-          examined: {
-            photos: photosSnapshot.size,
-            videos: videosSnapshot.size,
-            reservations: reservationsSnapshot.size,
-          },
-          generatedAt,
-        });
+        transaction.create(
+          auditRef,
+          buildAuditPayload(
+            requesterUid,
+            ownerUid,
+            operationId,
+            true,
+            true,
+            result,
+            examined,
+            generatedAt
+          )
+        );
         applied = true;
       });
     } else {
-      await auditRef.set({
-        requesterHash: hashIdentity(requesterUid),
-        ownerHash: hashIdentity(ownerUid),
-        operationId,
-        apply,
-        applied: false,
-        consistentBefore: result.consistent,
-        current: result.current,
-        expected: result.expected,
-        delta: result.delta,
-        examined: {
-          photos: photosSnapshot.size,
-          videos: videosSnapshot.size,
-          reservations: reservationsSnapshot.size,
-        },
-        generatedAt,
-      }, { merge: false });
+      await auditRef.set(
+        buildAuditPayload(
+          requesterUid,
+          ownerUid,
+          operationId,
+          false,
+          false,
+          result,
+          examined,
+          generatedAt
+        ),
+        { merge: false }
+      );
     }
 
     logger.info('[privateMediaDraftReconciliation] Execução concluída.', {
@@ -321,11 +368,7 @@ export const reconcilePrivateMediaDraftUsageAdmin = onCall<
       current: result.current,
       expected: result.expected,
       delta: result.delta,
-      examined: {
-        photos: photosSnapshot.size,
-        videos: videosSnapshot.size,
-        reservations: reservationsSnapshot.size,
-      },
+      examined,
       activeDrafts: result.activeDrafts,
       activeUploadReservations: result.activeUploadReservations,
       generatedAt,
