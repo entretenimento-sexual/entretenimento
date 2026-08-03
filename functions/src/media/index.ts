@@ -132,6 +132,11 @@ export {
 } from './application/get-public-video-access-urls.handler';
 
 export {
+  listAuthorizedProfileVideos,
+  listAuthorizedPublicVideos,
+} from './application/list-authorized-public-videos.handler';
+
+export {
   recordPhotoView,
 } from './application/record-photo-view-orchestrator.handler';
 export {
