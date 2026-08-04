@@ -140,5 +140,8 @@ export {
   recordPhotoView,
 } from './application/record-photo-view-orchestrator.handler';
 export {
+  startVideoViewSession,
+} from './application/start-video-view-session.handler';
+export {
   recordVideoView,
 } from './application/record-video-view-orchestrator.handler';
