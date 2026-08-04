@@ -29,10 +29,10 @@ O launcher existente:
 
 ## Ambiente local padrão
 
-O `angular.json` aplica o replacement:
+O servidor Angular usa esta cadeia:
 
 ```text
-development → environment.dev-emu.ts
+serve:development → build:dev-emu → environment.dev-emu.ts
 ```
 
 Por isso, os comandos abaixo usam os emuladores:
@@ -43,7 +43,7 @@ npm run start:dev
 ng serve
 ```
 
-`environment.ts` permanece como configuração-base de compilação e testes. Ele não é usado diretamente pelo servidor local porque a configuração `development` o substitui antes do build servido.
+`environment.ts` permanece como configuração-base de compilação e testes. A suíte unitária não herda as flags funcionais específicas do emulador. O isolamento é aplicado ao build servido pelo navegador, que é o ponto que poderia acessar Firebase cloud.
 
 ## Ambiente cloud explícito
 
