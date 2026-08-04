@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 
+import type { UserRecord } from 'firebase-admin/auth';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { db, FieldValue } from '../../firebaseApp';
+import { auth, db, FieldValue } from '../../firebaseApp';
 import {
   PROFILE_VIEWER_INDEX_VERSION,
   PROFILE_VIEWERS_COLLECTION,
@@ -11,10 +11,22 @@ import {
   ensurePublicProfileViewerIndex,
 } from './public-profile-media-metrics';
 import {
+  assertCanonicalVideoAudienceContext,
+  type VideoAudienceAuthContext,
+} from './video-audience-context.policy';
+import type {
+  PublicVideoAudienceDocument,
+  VideoPublicationAudienceDocument,
+} from './video-audience-access.policy';
+import {
   VideoViewPlaybackEvidenceInput,
   buildVideoViewCountDecision,
   normalizeVideoViewPlaybackEvidence,
 } from './video-view-qualification';
+import {
+  evaluateVideoViewSession,
+  type StoredVideoViewSession,
+} from './video-view-session.policy';
 
 interface RecordVideoViewRequest {
   ownerUid?: string;
@@ -32,10 +44,18 @@ interface RecordVideoViewResponse {
   retryAfterMs: number;
 }
 
+interface RelationshipDocument {
+  readonly isBlocked?: unknown;
+  readonly friendUid?: unknown;
+}
+
+type CanonicalRecord = Readonly<Record<string, unknown>>;
+
 const VIEWER_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
 
 function cleanId(value: unknown): string {
-  return String(value ?? '').trim();
+  const normalized = String(value ?? '').trim();
+  return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
 }
 
 function cleanSource(
@@ -60,25 +80,6 @@ function safeNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(0, value)
     : 0;
-}
-
-function assertPublicApprovedVideo(
-  exists: boolean,
-  data: FirebaseFirestore.DocumentData | undefined
-): void {
-  if (!exists) {
-    throw new HttpsError('not-found', 'Vídeo público não encontrado.');
-  }
-
-  if (
-    data?.visibility !== 'PUBLIC' ||
-    data?.moderationStatus !== 'APPROVED'
-  ) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Vídeo indisponível para visualização pública.'
-    );
-  }
 }
 
 function calculateViewScore(input: {
@@ -113,20 +114,70 @@ function hashPlaybackSession(input: {
     .digest('hex');
 }
 
+function hashAppId(appId: unknown): string {
+  const normalized = String(appId ?? '').trim();
+
+  if (!normalized) {
+    return process.env.FUNCTIONS_EMULATOR === 'true' ? 'emulator' : '';
+  }
+
+  return createHash('sha256').update(normalized).digest('hex');
+}
+
+function authContext(user: UserRecord): VideoAudienceAuthContext {
+  return {
+    disabled: user.disabled === true,
+    emailVerified: user.emailVerified === true,
+  };
+}
+
+async function readAuthUser(uid: string, message: string): Promise<UserRecord> {
+  try {
+    return await auth.getUser(uid);
+  } catch {
+    throw new HttpsError('not-found', message);
+  }
+}
+
+function isBlocked(data: RelationshipDocument | undefined): boolean {
+  return data?.isBlocked === true;
+}
+
+function isFriend(
+  data: RelationshipDocument | undefined,
+  documentId: string,
+  expectedUid: string
+): boolean {
+  return cleanId(data?.friendUid ?? documentId) === expectedUid;
+}
+
+function sessionFailureMessage(reason: string | null): string {
+  switch (reason) {
+  case 'expired':
+    return 'A sessão de visualização expirou.';
+  case 'not_issued':
+    return 'A sessão de visualização já foi utilizada.';
+  case 'app_mismatch':
+    return 'A sessão pertence a outra origem da aplicação.';
+  default:
+    return 'A sessão de visualização é inválida.';
+  }
+}
+
 export const recordVideoView = onCall<RecordVideoViewRequest>(
-  { region: FUNCTIONS_REGION },
   async (request): Promise<RecordVideoViewResponse> => {
-    const viewerUid = request.auth?.uid ?? null;
+    const viewerUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
     const source = cleanSource(request.data?.source);
+    const sessionId = cleanId(request.data?.evidence?.sessionId);
 
     if (!viewerUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    if (!ownerUid || !videoId) {
-      throw new HttpsError('invalid-argument', 'Vídeo inválido.');
+    if (!ownerUid || !videoId || !sessionId) {
+      throw new HttpsError('invalid-argument', 'Vídeo ou sessão inválidos.');
     }
 
     if (viewerUid === ownerUid) {
@@ -140,22 +191,61 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
       };
     }
 
+    const appIdHash = hashAppId(request.app?.appId);
+    if (!appIdHash) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Não foi possível validar a origem da aplicação.'
+      );
+    }
+
+    const viewerAuthUser = await readAuthUser(
+      viewerUid,
+      'Conta do visitante não encontrada.'
+    );
+    const ownerAuthUser = await readAuthUser(
+      ownerUid,
+      'Autor do vídeo não encontrado.'
+    );
+    const viewerAuth = authContext(viewerAuthUser);
+    const ownerAuth = authContext(ownerAuthUser);
     const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
-    const publicVideoRef = db.doc(
-      `public_profiles/${ownerUid}/public_videos/${videoId}`
+    const publicVideoRef = publicProfileRef.collection('public_videos').doc(videoId);
+    const publicationRef = db.doc(
+      `users/${ownerUid}/video_publications/${videoId}`
     );
-    const preflightVideoSnapshot = await publicVideoRef.get();
+    const sessionRef = db.doc(
+      `users/${viewerUid}/video_view_sessions/${sessionId}`
+    );
+    const [preflightVideoSnapshot, preflightSessionSnapshot] =
+      await Promise.all([publicVideoRef.get(), sessionRef.get()]);
     const preflightVideo = preflightVideoSnapshot.data();
+    const preflightSession = preflightSessionSnapshot.exists
+      ? preflightSessionSnapshot.data() as StoredVideoViewSession
+      : null;
     const now = Date.now();
+    const preflightSessionDecision = evaluateVideoViewSession({
+      session: preflightSession,
+      viewerUid,
+      ownerUid,
+      videoId,
+      appIdHash,
+      now,
+    });
 
-    assertPublicApprovedVideo(
-      preflightVideoSnapshot.exists,
-      preflightVideo
+    if (!preflightSessionDecision.allowed) {
+      throw new HttpsError(
+        'failed-precondition',
+        sessionFailureMessage(preflightSessionDecision.reason)
+      );
+    }
+
+    const preflightDurationMs = safeNumber(
+      preflightSession?.serverDurationMs ?? preflightVideo?.durationMs
     );
-
     const preflightEvidence = normalizeVideoViewPlaybackEvidence({
       evidence: request.data?.evidence,
-      serverDurationMs: safeNumber(preflightVideo?.durationMs),
+      serverDurationMs: preflightDurationMs,
       now,
     });
 
@@ -168,33 +258,130 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
 
     await ensurePublicProfileViewerIndex(ownerUid);
 
+    const viewerRef = db.doc(`users/${viewerUid}`);
+    const ownerRef = db.doc(`users/${ownerUid}`);
     const videoViewerRef = publicVideoRef.collection('views').doc(viewerUid);
     const profileViewerRef = publicProfileRef
       .collection(PROFILE_VIEWERS_COLLECTION)
       .doc(viewerUid);
 
     const outcome = await db.runTransaction(async (transaction) => {
-      const publicProfileSnap = await transaction.get(publicProfileRef);
-      const publicVideoSnap = await transaction.get(publicVideoRef);
-      const videoViewerSnap = await transaction.get(videoViewerRef);
-      const profileViewerSnap = await transaction.get(profileViewerRef);
+      const [
+        viewerSnapshot,
+        ownerSnapshot,
+        publicProfileSnap,
+        publicVideoSnap,
+        publicationSnapshot,
+        sessionSnapshot,
+        videoViewerSnap,
+        profileViewerSnap,
+      ] = await Promise.all([
+        transaction.get(viewerRef),
+        transaction.get(ownerRef),
+        transaction.get(publicProfileRef),
+        transaction.get(publicVideoRef),
+        transaction.get(publicationRef),
+        transaction.get(sessionRef),
+        transaction.get(videoViewerRef),
+        transaction.get(profileViewerRef),
+      ]);
 
       if (!publicProfileSnap.exists) {
         throw new HttpsError('not-found', 'Perfil público não encontrado.');
       }
 
-      assertPublicApprovedVideo(
-        publicVideoSnap.exists,
-        publicVideoSnap.data()
+      const viewerUser = viewerSnapshot.exists
+        ? viewerSnapshot.data() as CanonicalRecord
+        : null;
+      const ownerUser = ownerSnapshot.exists
+        ? ownerSnapshot.data() as CanonicalRecord
+        : null;
+      const publicVideo = publicVideoSnap.exists
+        ? publicVideoSnap.data() as PublicVideoAudienceDocument & CanonicalRecord
+        : null;
+      const publication = publicationSnapshot.exists
+        ? publicationSnapshot.data() as VideoPublicationAudienceDocument & CanonicalRecord
+        : null;
+      const session = sessionSnapshot.exists
+        ? sessionSnapshot.data() as StoredVideoViewSession
+        : null;
+      const sessionDecision = evaluateVideoViewSession({
+        session,
+        viewerUid,
+        ownerUid,
+        videoId,
+        appIdHash,
+        now,
+      });
+
+      if (!sessionDecision.allowed) {
+        throw new HttpsError(
+          'failed-precondition',
+          sessionFailureMessage(sessionDecision.reason)
+        );
+      }
+
+      const visibility = String(
+        publicVideo?.visibility ?? publication?.visibility ?? ''
+      ).trim().toUpperCase();
+      const [viewerBlock, ownerBlock] = await Promise.all([
+        transaction.get(viewerRef.collection('blocks').doc(ownerUid)),
+        transaction.get(ownerRef.collection('blocks').doc(viewerUid)),
+      ]);
+      const viewerBlockedOwner = isBlocked(
+        viewerBlock.data() as RelationshipDocument | undefined
       );
+      const ownerBlockedViewer = isBlocked(
+        ownerBlock.data() as RelationshipDocument | undefined
+      );
+      let bilateralFriendship = false;
+
+      if (visibility === 'FRIENDS' && !viewerBlockedOwner && !ownerBlockedViewer) {
+        const [viewerFriend, ownerFriend] = await Promise.all([
+          transaction.get(viewerRef.collection('friends').doc(ownerUid)),
+          transaction.get(ownerRef.collection('friends').doc(viewerUid)),
+        ]);
+        bilateralFriendship =
+          viewerFriend.exists &&
+          ownerFriend.exists &&
+          isFriend(
+            viewerFriend.data() as RelationshipDocument | undefined,
+            viewerFriend.id,
+            ownerUid
+          ) &&
+          isFriend(
+            ownerFriend.data() as RelationshipDocument | undefined,
+            ownerFriend.id,
+            viewerUid
+          );
+      }
+
+      assertCanonicalVideoAudienceContext({
+        viewerUid,
+        ownerUid,
+        videoId,
+        action: 'PLAY',
+        viewerUser,
+        ownerUser,
+        viewerAuth,
+        ownerAuth,
+        publicVideo,
+        publication,
+        viewerBlockedOwner,
+        ownerBlockedViewer,
+        bilateralFriendship,
+      });
 
       const publicProfile = publicProfileSnap.data() ?? {};
-      const publicVideo = publicVideoSnap.data() ?? {};
+      const videoData = publicVideoSnap.data() ?? {};
       const videoViewerData = videoViewerSnap.data() ?? {};
       const profileViewerData = profileViewerSnap.data() ?? {};
+      const serverDurationMs = safeNumber(
+        session?.serverDurationMs ?? videoData.durationMs
+      );
       const evidence = normalizeVideoViewPlaybackEvidence({
         evidence: request.data?.evidence,
-        serverDurationMs: safeNumber(publicVideo.durationMs),
+        serverDurationMs,
         now,
       });
 
@@ -202,6 +389,17 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
         throw new HttpsError(
           'failed-precondition',
           'A reprodução não é válida para contabilização.'
+        );
+      }
+
+      const requiredPlaybackMs = safeNumber(session?.requiredPlaybackMs);
+      if (
+        requiredPlaybackMs <= 0 ||
+        evidence.playbackMs < requiredPlaybackMs
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A reprodução ainda não atingiu o tempo mínimo da sessão.'
         );
       }
 
@@ -229,18 +427,18 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
       });
       const canCountView = countDecision.canCount;
 
-      const currentVideoViewsCount = safeNumber(publicVideo.viewsCount);
+      const currentVideoViewsCount = safeNumber(videoData.viewsCount);
       const currentVideoUniqueViewersCount = safeNumber(
-        publicVideo.uniqueViewersCount
+        videoData.uniqueViewersCount
       );
-      const currentVideoViewScore = safeNumber(publicVideo.viewScore);
+      const currentVideoViewScore = safeNumber(videoData.viewScore);
       const nextVideoViewsCount = canCountView
         ? currentVideoViewsCount + 1
         : currentVideoViewsCount;
       const nextVideoUniqueViewersCount = isUniqueVideoViewer
         ? currentVideoUniqueViewersCount + 1
         : currentVideoUniqueViewersCount;
-      const publishedAt = safeNumber(publicVideo.publishedAt) || now;
+      const publishedAt = safeNumber(videoData.publishedAt) || now;
       const nextVideoViewScore = canCountView
         ? calculateViewScore({
           viewsCount: nextVideoViewsCount,
@@ -307,6 +505,14 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
         isUniqueProfileViewer ||
         now - safeNumber(profileViewerData.lastViewedAt) >=
           VIEWER_TOUCH_INTERVAL_MS;
+
+      transaction.update(sessionRef, {
+        status: 'CONSUMED',
+        consumedAt: now,
+        counted: canCountView,
+        qualifiedPlaybackMs: evidence.playbackMs,
+        qualifiedDurationMs: evidence.durationMs,
+      });
 
       if (shouldTouchVideoViewer) {
         transaction.set(
