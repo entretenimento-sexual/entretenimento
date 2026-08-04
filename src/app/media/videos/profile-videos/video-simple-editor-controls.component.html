@@ -1,0 +1,151 @@
+@let metadata = (metadata$ | async);
+@let loading = (loading$ | async) === true;
+@let editorReady = (editorReady$ | async) === true;
+@let recipeError = (recipeError$ | async);
+@let capturingPoster = (capturingPoster$ | async) === true;
+
+<section
+  class="video-simple-editor"
+  aria-labelledby="video-simple-editor-title"
+  [attr.aria-busy]="loading ? 'true' : 'false'"
+>
+  <div class="video-simple-editor__heading">
+    <div>
+      <span class="video-simple-editor__eyebrow">Edição básica</span>
+      <h3 id="video-simple-editor-title">Prepare o vídeo</h3>
+    </div>
+    @if (metadata?.durationMs) {
+      <span class="video-simple-editor__duration">
+        Resultado: {{ editedDurationLabel$ | async }}
+      </span>
+    }
+  </div>
+
+  @if (previewUrl) {
+    <div
+      class="video-simple-editor__stage"
+      [class.video-simple-editor__stage--vertical]="form.controls.aspectRatio.value === 'VERTICAL_9_16'"
+      [class.video-simple-editor__stage--portrait]="form.controls.aspectRatio.value === 'PORTRAIT_4_5'"
+      [class.video-simple-editor__stage--square]="form.controls.aspectRatio.value === 'SQUARE_1_1'"
+    >
+      <video
+        #uploadPreview
+        [src]="previewUrl"
+        aria-label="Prévia local do vídeo selecionado"
+        preload="metadata"
+        controls
+        playsinline
+        muted
+      ></video>
+    </div>
+
+    @if (loading) {
+      <p class="video-simple-editor__status" role="status" aria-live="polite">
+        Lendo duração e dimensões do arquivo...
+      </p>
+    } @else if (!editorReady) {
+      <p class="video-simple-editor__status" role="status" aria-live="polite">
+        A prévia não está disponível neste navegador. O arquivo original ainda pode ser enviado e convertido no backend, sem edição local.
+      </p>
+    } @else {
+      <form class="video-simple-editor__controls" [formGroup]="form">
+        <fieldset [disabled]="disabled">
+          <legend>Corte</legend>
+
+          <div class="video-simple-editor__range-row">
+            <label for="video-trim-start">
+              <span>Início</span>
+              <output>{{ formatTime(form.controls.trimStartMs.value) }}</output>
+            </label>
+            <input
+              id="video-trim-start"
+              type="range"
+              formControlName="trimStartMs"
+              min="0"
+              step="100"
+              [max]="metadata!.durationMs! - 5000"
+              [attr.aria-valuetext]="formatTime(form.controls.trimStartMs.value)"
+            />
+          </div>
+
+          <div class="video-simple-editor__range-row">
+            <label for="video-trim-end">
+              <span>Fim</span>
+              <output>{{ formatTime(form.controls.trimEndMs.value) }}</output>
+            </label>
+            <input
+              id="video-trim-end"
+              type="range"
+              formControlName="trimEndMs"
+              min="5000"
+              step="100"
+              [max]="metadata!.durationMs!"
+              [attr.aria-valuetext]="formatTime(form.controls.trimEndMs.value)"
+            />
+          </div>
+        </fieldset>
+
+        <fieldset [disabled]="disabled">
+          <legend>Enquadramento</legend>
+          <div class="video-simple-editor__aspect-grid">
+            @for (option of aspectOptions; track option.value) {
+              <label
+                class="video-simple-editor__aspect-option"
+                [class.video-simple-editor__aspect-option--selected]="form.controls.aspectRatio.value === option.value"
+              >
+                <input
+                  type="radio"
+                  formControlName="aspectRatio"
+                  [value]="option.value"
+                />
+                <strong>{{ option.label }}</strong>
+                <small>{{ option.hint }}</small>
+              </label>
+            }
+          </div>
+        </fieldset>
+
+        <div class="video-simple-editor__toggles">
+          <label>
+            <input
+              type="checkbox"
+              formControlName="muteAudio"
+              [disabled]="disabled"
+            />
+            <span>
+              <strong>Remover áudio</strong>
+              <small>O vídeo será publicado sem faixa sonora.</small>
+            </span>
+          </label>
+        </div>
+
+        <div class="video-simple-editor__cover-tools">
+          <div>
+            <strong>Capa</strong>
+            <small>Posicione a reprodução no quadro desejado.</small>
+          </div>
+          <button
+            type="button"
+            class="app-action app-action--ghost"
+            [disabled]="disabled || capturingPoster"
+            [attr.aria-busy]="capturingPoster ? 'true' : 'false'"
+            (click)="capturePoster(uploadPreview)"
+          >
+            {{ capturingPoster ? 'Gerando...' : 'Usar quadro atual' }}
+          </button>
+        </div>
+      </form>
+    }
+  }
+
+  @if (recipeError) {
+    <p class="video-simple-editor__error" role="alert" aria-live="assertive">
+      <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+      {{ recipeError }}
+    </p>
+  }
+
+  <p class="video-simple-editor__note">
+    A edição é não destrutiva. O arquivo original permanece privado e o corte, o enquadramento e o áudio são aplicados durante o processamento.
+  </p>
+</section>
