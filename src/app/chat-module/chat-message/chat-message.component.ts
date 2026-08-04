@@ -21,12 +21,15 @@
 // SUPRESSÃO EXPLÍCITA NESTA FASE:
 // - removido o método legado deleteThisMessage();
 // - removido o uso de ChatService.deleteMessage() neste componente;
-// - removido o helper coerceToVoid$(), que só existia para o caminho legado.
+// - removido o helper coerceToVoid$(), que só existia para o caminho legado;
+// - títulos persistidos em referências antigas de vídeo deixam de ser exibidos.
 //
 // Motivo:
 // - delete físico client-side é bloqueado por rules;
 // - a exclusão correta agora é soft delete via Cloud Function;
-// - o componente deve renderizar estado e ações, não executar deleteDoc indireto.
+// - o componente deve renderizar estado e ações, não executar deleteDoc indireto;
+// - título de vídeo é metadado mutável e não deve permanecer visível depois de
+//   bloqueio, despublicação ou alteração de audiência.
 // ============================================================================
 import { Component, DestroyRef, inject, input, OnInit } from '@angular/core';
 import { combineLatest, from, of } from 'rxjs';
@@ -343,7 +346,10 @@ export class ChatMessageComponent implements OnInit {
       return null;
     }
 
-    return reference;
+    return {
+      ...reference,
+      title: 'Vídeo compartilhado',
+    };
   }
 
   private persistLocalReaction(reaction: string | null): void {
@@ -442,7 +448,7 @@ export class ChatMessageComponent implements OnInit {
     const content = this.message().deleted === true
       ? 'Mensagem apagada'
       : videoReference
-        ? `Vídeo compartilhado: ${videoReference.title}`
+        ? 'Vídeo compartilhado. O acesso será verificado ao abrir'
         : this.message().content ?? '';
     const status = this.getStatusText();
     const reactions = this.getVisibleReactions();
