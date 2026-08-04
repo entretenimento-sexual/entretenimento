@@ -9,7 +9,7 @@ interface AngularWorkspaceContract {
       architect?: {
         build?: {
           configurations?: {
-            development?: {
+            'dev-emu'?: {
               fileReplacements?: ReadonlyArray<{
                 replace?: string;
                 with?: string;
@@ -31,18 +31,18 @@ interface AngularWorkspaceContract {
 }
 
 describe('contrato do runtime local', () => {
-  it('serve development com o environment emulado', () => {
+  it('serve development pelo build emulado sem alterar o contrato dos testes', () => {
     const workspace = JSON.parse(
       readFileSync(resolve(process.cwd(), 'angular.json'), 'utf8')
     ) as AngularWorkspaceContract;
     const architect = workspace.projects?.entretenimento?.architect;
-    const developmentBuild = architect?.build?.configurations?.development;
-    const replacements = developmentBuild?.fileReplacements ?? [];
+    const emulatorBuild = architect?.build?.configurations?.['dev-emu'];
+    const replacements = emulatorBuild?.fileReplacements ?? [];
 
     expect(architect?.serve?.defaultConfiguration).toBe('development');
     expect(
       architect?.serve?.configurations?.development?.buildTarget
-    ).toBe('entretenimento:build:development');
+    ).toBe('entretenimento:build:dev-emu');
     expect(replacements).toContainEqual({
       replace: 'src/environments/environment.ts',
       with: 'src/environments/environment.dev-emu.ts',
