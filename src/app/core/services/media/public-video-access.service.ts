@@ -217,6 +217,29 @@ export class PublicVideoAccessService {
     this.accessCache.delete(this.buildCacheKey(projection));
   }
 
+  getPlaybackSessionToken(ownerUidValue: unknown, videoIdValue: unknown): string {
+    const ownerUid = String(ownerUidValue ?? '').trim();
+    const videoId = String(videoIdValue ?? '').trim();
+    const now = Date.now();
+
+    if (!ownerUid || !videoId) {
+      return '';
+    }
+
+    for (const access of this.accessCache.values()) {
+      if (
+        access.ownerUid === ownerUid &&
+        access.videoId === videoId &&
+        access.playbackSessionExpiresAt > now + CACHE_EXPIRY_SAFETY_MS &&
+        !this.isPlaybackSessionConsumed(access.playbackSessionToken)
+      ) {
+        return access.playbackSessionToken;
+      }
+    }
+
+    return '';
+  }
+
   markPlaybackSessionConsumed(tokenValue: unknown): void {
     const token = String(tokenValue ?? '').trim();
 
