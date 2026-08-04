@@ -8,7 +8,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  ViewChild,
   inject,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -36,7 +35,6 @@ import {
   take,
 } from 'rxjs/operators';
 
-import { DEFAULT_VIDEO_EDIT_RECIPE_INPUT } from 'src/app/core/interfaces/media/i-video-edit-recipe';
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import {
   IVideoPublicationConfig,
@@ -66,7 +64,10 @@ import {
   VideoUploadFlowService,
   VideoUploadProgressPhase,
 } from 'src/app/core/services/media/video-upload-flow.service';
-import { VideoSimpleEditorControlsComponent } from './video-simple-editor-controls.component';
+import {
+  IVideoSimpleEditorState,
+  VideoSimpleEditorControlsComponent,
+} from './video-simple-editor-controls.component';
 
 interface ProfileVideoViewItem {
   video: IVideoItem;
@@ -124,9 +125,6 @@ export class ProfileVideosComponent {
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly errorNotification = inject(ErrorNotificationService);
 
-  @ViewChild(VideoSimpleEditorControlsComponent)
-  private videoEditor?: VideoSimpleEditorControlsComponent;
-
   readonly videoUploadAccept = VIDEO_UPLOAD_ACCEPT;
   readonly videoUploadFormatLabel = VIDEO_UPLOAD_FORMAT_LABEL;
 
@@ -175,6 +173,18 @@ export class ProfileVideosComponent {
   private readonly selectedPosterUrlSubject =
     new BehaviorSubject<string | null>(null);
   readonly selectedPosterUrl$ = this.selectedPosterUrlSubject.asObservable();
+
+  private readonly editorStateSubject =
+    new BehaviorSubject<IVideoSimpleEditorState | null>(null);
+  readonly editorState$ = this.editorStateSubject.pipe(
+    distinctUntilChanged((previous, current) =>
+      previous?.valid === current?.valid &&
+      previous?.loading === current?.loading &&
+      previous?.error === current?.error &&
+      previous?.recipe === current?.recipe
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   private readonly uploadPhaseSubject = new BehaviorSubject<VideoUploadUiPhase>(
     'IDLE'
@@ -378,6 +388,7 @@ export class ProfileVideosComponent {
 
     this.lastUploadedVideoIdSubject.next(null);
     this.uploadFailureSubject.next(null);
+    this.editorStateSubject.next(null);
     this.revokePreviewUrl();
     this.revokePosterUrl();
     this.selectedPosterBlobSubject.next(null);
@@ -411,6 +422,14 @@ export class ProfileVideosComponent {
     );
   }
 
+  onEditorStateChange(state: IVideoSimpleEditorState): void {
+    if (this.isUploadActive()) {
+      return;
+    }
+
+    this.editorStateSubject.next(state);
+  }
+
   startUpload(): void {
     if (this.uploadSubscription) {
       return;
@@ -424,20 +443,18 @@ export class ProfileVideosComponent {
       return;
     }
 
-    let editRecipe = DEFAULT_VIDEO_EDIT_RECIPE_INPUT;
+    const editorState = this.editorStateSubject.value;
 
-    try {
-      editRecipe = this.videoEditor?.buildRecipe() ??
-        DEFAULT_VIDEO_EDIT_RECIPE_INPUT;
-    } catch (error) {
+    if (!editorState?.valid) {
       this.errorNotification.showWarning(
-        error instanceof Error
-          ? error.message
-          : 'Revise a edição antes de enviar o vídeo.'
+        editorState?.loading
+          ? 'Aguarde a leitura do vídeo antes de enviar.'
+          : editorState?.error || 'Revise a edição antes de enviar o vídeo.'
       );
       return;
     }
 
+    const editRecipe = editorState.recipe;
     this.uploadFailureSubject.next(null);
     this.cancelRequestedByUser = false;
     let subscription: Subscription | null = null;
@@ -541,6 +558,7 @@ export class ProfileVideosComponent {
 
     this.lastUploadedVideoIdSubject.next(null);
     this.uploadFailureSubject.next(null);
+    this.editorStateSubject.next(null);
     this.revokePreviewUrl();
     this.revokePosterUrl();
     this.selectedFileSubject.next(null);
@@ -851,6 +869,7 @@ export class ProfileVideosComponent {
 
     this.lastUploadedVideoIdSubject.next(event.result.id);
     this.uploadFailureSubject.next(null);
+    this.editorStateSubject.next(null);
     this.uploadPhaseSubject.next('REGISTERED');
     this.uploadProgressSubject.next(100);
     this.uploadStepSubject.next(
