@@ -28,6 +28,7 @@ interface RegisterPrivateVideoUploadRequest
   mimeType?: string;
   sizeBytes?: number;
   durationMs?: number | null;
+  editRecipe?: unknown;
   publishWhenReady?: boolean;
 }
 
@@ -598,6 +599,7 @@ export const registerPrivateVideoUpload = onCall<
           durationMs,
           thumbnailUrl: posterStoragePath,
           thumbnailPath: posterStoragePath,
+          editRecipe: request.data?.editRecipe ?? null,
           status,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
