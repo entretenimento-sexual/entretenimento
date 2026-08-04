@@ -72,6 +72,32 @@ async function expectCallableFailure(callable, payload) {
   assert.fail('A Callable aceitou uma operação que deveria ser rejeitada.');
 }
 
+function eligibleUserDocument(uid) {
+  return {
+    uid,
+    accountStatus: 'active',
+    suspended: false,
+    interactionBlocked: false,
+    accountLocked: false,
+    loginAllowed: true,
+    emailVerified: true,
+    profileCompleted: true,
+    initialAdultConsentRequired: true,
+    adultConsent: {
+      accepted: true,
+    },
+    acceptedTerms: {
+      accepted: true,
+      adultAccessAcknowledgement: true,
+    },
+    ageReverification: {
+      status: 'APPROVED',
+      result: 'ADULT',
+    },
+    updatedAt: Date.now(),
+  };
+}
+
 function createClientApp(name) {
   const app = initializeClientApp(
     {
@@ -132,6 +158,8 @@ async function run() {
     ownerUid = ownerUser.uid;
     visitorUid = visitorUser.uid;
 
+    const ownerUserRef = db.doc(`users/${ownerUid}`);
+    const visitorUserRef = db.doc(`users/${visitorUid}`);
     const privateVideoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
     const publicationRef = db.doc(
       `users/${ownerUid}/video_publications/${videoId}`
@@ -140,8 +168,25 @@ async function run() {
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
     const likeRef = publicVideoRef.collection('likes').doc(visitorUid);
+    const visitorBlocksOwnerRef = visitorUserRef
+      .collection('blocks')
+      .doc(ownerUid);
+    const ownerBlocksVisitorRef = ownerUserRef
+      .collection('blocks')
+      .doc(visitorUid);
+
+    await waitFor(
+      'seeds privados das contas',
+      async () => ({
+        owner: await readDocumentData(ownerUserRef),
+        visitor: await readDocumentData(visitorUserRef),
+      }),
+      (state) => !!state.owner && !!state.visitor
+    );
 
     await Promise.all([
+      ownerUserRef.set(eligibleUserDocument(ownerUid), { merge: true }),
+      visitorUserRef.set(eligibleUserDocument(visitorUid), { merge: true }),
       db.doc(`public_profiles/${ownerUid}`).set({
         uid: ownerUid,
         nickname: 'Autor do vídeo',
@@ -173,6 +218,7 @@ async function run() {
         id: videoId,
         ownerUid,
         mediaType: 'VIDEO',
+        assetAccess: 'SIGNED_URL',
         visibility: 'PUBLIC',
         moderationStatus: 'APPROVED',
         title: 'Vídeo social',
@@ -212,6 +258,20 @@ async function run() {
     assert.equal(finalLike.data.liked, true);
     assert.equal(finalLike.data.reactionsCount, 1);
 
+    await visitorBlocksOwnerRef.set({
+      actorUid: visitorUid,
+      uid: ownerUid,
+      isBlocked: true,
+      updatedAt: Date.now(),
+    });
+    await expectCallableFailure(toggleVideoReaction, { ownerUid, videoId });
+    assert.equal((await readDocumentData(publicVideoRef)).reactionsCount, 1);
+    assert.ok(await readDocumentData(likeRef));
+    await visitorBlocksOwnerRef.set(
+      { isBlocked: false, updatedAt: Date.now() },
+      { merge: true }
+    );
+
     const createVisitorComment = httpsCallable(
       visitorClient.functions,
       'createVideoComment'
@@ -237,9 +297,58 @@ async function run() {
     });
 
     await waitFor(
-      'comentários serem habilitados na projeção pública',
-      () => readDocumentData(publicVideoRef),
-      (video) => video?.commentsEnabled === true
+      'comentários serem habilitados nas duas fontes',
+      async () => ({
+        projection: await readDocumentData(publicVideoRef),
+        publication: await readDocumentData(publicationRef),
+      }),
+      (state) =>
+        state.projection?.commentsEnabled === true &&
+        state.publication?.commentsEnabled === true
+    );
+
+    await publicationRef.set(
+      { commentsEnabled: false, updatedAt: Date.now() },
+      { merge: true }
+    );
+    await expectCallableFailure(createVisitorComment, {
+      ownerUid,
+      videoId,
+      content: 'Divergência entre publicação e projeção.',
+    });
+    await publicationRef.set(
+      { commentsEnabled: true, updatedAt: Date.now() },
+      { merge: true }
+    );
+
+    await ownerBlocksVisitorRef.set({
+      actorUid: ownerUid,
+      uid: visitorUid,
+      isBlocked: true,
+      updatedAt: Date.now(),
+    });
+    await expectCallableFailure(createVisitorComment, {
+      ownerUid,
+      videoId,
+      content: 'Bloqueio do autor deve impedir a gravação.',
+    });
+    await ownerBlocksVisitorRef.set(
+      { isBlocked: false, updatedAt: Date.now() },
+      { merge: true }
+    );
+
+    await visitorUserRef.set(
+      { interactionBlocked: true, updatedAt: Date.now() },
+      { merge: true }
+    );
+    await expectCallableFailure(createVisitorComment, {
+      ownerUid,
+      videoId,
+      content: 'Lifecycle restrito deve impedir a gravação.',
+    });
+    await visitorUserRef.set(
+      { interactionBlocked: false, updatedAt: Date.now() },
+      { merge: true }
     );
 
     const commentResponse = await createVisitorComment({
@@ -335,7 +444,10 @@ async function run() {
     );
 
     console.log('✔ curtida única e alternância validadas no backend');
+    console.log('✔ bloqueio bilateral preservou curtida e contador existentes');
     console.log('✔ preferência do autor bloqueou comentário desabilitado');
+    console.log('✔ divergência de configuração foi bloqueada');
+    console.log('✔ lifecycle e bloqueio impediram novas gravações');
     console.log('✔ comentário e resposta do autor atualizaram contadores');
     console.log('✔ ocultação e restauração foram autorizadas ao proprietário');
     console.log('✔ despublicação removeu curtidas e comentários recursivamente');
