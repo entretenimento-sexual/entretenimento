@@ -10,6 +10,7 @@
 @let selectedPosterUrl = (selectedPosterUrl$ | async);
 @let selectedFileName = (selectedFileName$ | async);
 @let selectedFileSize = (selectedFileSize$ | async);
+@let editorState = (editorState$ | async);
 @let canUpload = (canUpload$ | async) === true;
 @let lastUploadedLifecycle = (lastUploadedLifecycle$ | async);
 
@@ -72,6 +73,7 @@
               [previewUrl]="previewUrl"
               [disabled]="isUploadActive()"
               (posterChange)="onEditorPosterChange($event)"
+              (stateChange)="onEditorStateChange($event)"
             />
 
             @if (selectedPosterUrl) {
@@ -151,7 +153,7 @@
               <button
                 type="submit"
                 class="app-action app-action--primary"
-                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
+                [disabled]="!canUpload || !editorState?.valid || uploadPublicationForm.invalid || isUploadActive()"
               >
                 {{ isUploadActive() ? 'Enviando...' : 'Enviar e publicar' }}
               </button>
