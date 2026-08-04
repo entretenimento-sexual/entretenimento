@@ -6,20 +6,23 @@ export type VideoInteractionCapabilityReason =
   | 'settings_inconsistent'
   | 'interaction_disabled';
 
-export interface VideoInteractionCapabilityDocument {
-  readonly reactionsEnabled?: unknown;
-  readonly commentsEnabled?: unknown;
-  readonly ratingsEnabled?: unknown;
-}
+export type VideoInteractionCapabilityDocument = Readonly<
+  Record<string, unknown>
+>;
 
 export interface VideoInteractionCapabilityDecision {
   readonly allowed: boolean;
   readonly reason: VideoInteractionCapabilityReason | null;
 }
 
+type VideoInteractionCapabilityField =
+  | 'reactionsEnabled'
+  | 'commentsEnabled'
+  | 'ratingsEnabled';
+
 function capabilityField(
   capability: VideoInteractionCapability
-): keyof VideoInteractionCapabilityDocument {
+): VideoInteractionCapabilityField {
   switch (capability) {
   case 'REACTION':
     return 'reactionsEnabled';
