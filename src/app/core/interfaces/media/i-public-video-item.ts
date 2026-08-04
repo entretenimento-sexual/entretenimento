@@ -89,13 +89,15 @@ export interface IPublicVideoProjection {
   readonly owner: IPublicVideoOwnerSummary | null;
 }
 
-/** URL temporária emitida pelo backend após nova validação de acesso. */
+/** URL e sessão temporárias emitidas após nova validação backend. */
 export interface IPublicVideoAccess {
   readonly ownerUid: string;
   readonly videoId: string;
   readonly url: string;
   readonly posterUrl: string | null;
   readonly expiresAt: number;
+  readonly playbackSessionToken: string;
+  readonly playbackSessionExpiresAt: number;
 }
 
 /** Item final usado pelo player público. */
@@ -103,4 +105,6 @@ export interface IPublicVideoItem extends IPublicVideoProjection {
   readonly url: string;
   readonly posterUrl: string | null;
   readonly accessExpiresAt: number;
+  readonly playbackSessionToken: string;
+  readonly playbackSessionExpiresAt: number;
 }

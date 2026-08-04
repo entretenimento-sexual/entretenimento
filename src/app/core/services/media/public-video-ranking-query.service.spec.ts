@@ -12,6 +12,8 @@ import { PublicVideoRankingQueryService } from './public-video-ranking-query.ser
 
 const PUBLISHED_AT = 1_700_000_000_000;
 const ACCESS_NOW = 1_800_000_000_000;
+const PLAYBACK_SESSION_TOKEN =
+  'playback_session_1234567890_abcdefghijk';
 
 function createPublicVideoData(): Record<string, unknown> {
   return {
@@ -59,6 +61,8 @@ function createService(options?: {
       url: 'https://example.test/video.mp4?token=temporary',
       posterUrl: null,
       expiresAt: ACCESS_NOW + 300_000,
+      playbackSessionToken: PLAYBACK_SESSION_TOKEN,
+      playbackSessionExpiresAt: ACCESS_NOW + 600_000,
     },
     ACCESS_NOW
   )!;

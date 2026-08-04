@@ -26,6 +26,8 @@ import {
 import { PublicVideoQualifiedViewDetail } from './public-video-view-qualification.directive';
 
 const NOW = 1_800_000_000_000;
+const PLAYBACK_SESSION_TOKEN =
+  'playback_session_1234567890_abcdefghijk';
 
 function createVideo(overrides: Partial<IPublicVideoItem> = {}): IPublicVideoItem {
   return {
@@ -81,6 +83,10 @@ function createVideo(overrides: Partial<IPublicVideoItem> = {}): IPublicVideoIte
     posterUrl: 'https://example.test/poster.jpg?token=temporary',
     accessExpiresAt: NOW + 300_000,
     ...overrides,
+    playbackSessionToken:
+      overrides.playbackSessionToken ?? PLAYBACK_SESSION_TOKEN,
+    playbackSessionExpiresAt:
+      overrides.playbackSessionExpiresAt ?? NOW + 600_000,
   };
 }
 
@@ -383,6 +389,9 @@ describe('PublicVideoViewerComponent', () => {
       url: 'https://example.test/video.mp4?token=renewed',
       posterUrl: 'https://example.test/poster.jpg?token=renewed',
       accessExpiresAt: NOW + 600_000,
+      playbackSessionToken:
+        'renewed_playback_session_1234567890_abcdef',
+      playbackSessionExpiresAt: NOW + 900_000,
     });
     publicVideoAccess.refreshPublicVideoUrl$.mockReturnValueOnce(of(renewed));
 

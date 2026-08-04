@@ -46,6 +46,7 @@ export class PublicVideoAccessService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly functions = inject(Functions);
   private readonly accessCache = new Map<string, IPublicVideoAccess>();
+  private readonly consumedPlaybackSessions = new Set<string>();
   private readonly inFlightRefreshes = new Map<
     string,
     Observable<IPublicVideoItem | null>
@@ -70,6 +71,7 @@ export class PublicVideoAccessService {
           this.lastSessionUid !== normalizedUid
         ) {
           this.accessCache.clear();
+          this.consumedPlaybackSessions.clear();
           this.inFlightRefreshes.clear();
         }
 
@@ -99,6 +101,7 @@ export class PublicVideoAccessService {
 
       if (
         cached &&
+        !this.isPlaybackSessionConsumed(cached.playbackSessionToken) &&
         cached.expiresAt > now + CACHE_EXPIRY_SAFETY_MS &&
         isPublicVideoAccessUsable(projection, cached, now)
       ) {
@@ -141,11 +144,11 @@ export class PublicVideoAccessService {
             );
             const projection = projectionByIdentity.get(identityKey);
 
-            if (!projection || !isPublicVideoAccessUsable(
-              projection,
-              access,
-              now
-            )) {
+            if (
+              !projection ||
+              this.isPlaybackSessionConsumed(access.playbackSessionToken) ||
+              !isPublicVideoAccessUsable(projection, access, now)
+            ) {
               continue;
             }
 
@@ -160,10 +163,6 @@ export class PublicVideoAccessService {
     );
   }
 
-  /**
-   * Renova um único item sem reutilizar a URL cacheada.
-   * Chamadas concorrentes para o mesmo vídeo compartilham a mesma requisição.
-   */
   refreshPublicVideoUrl$(
     candidate: IPublicVideoProjection
   ): Observable<IPublicVideoItem | null> {
@@ -189,7 +188,11 @@ export class PublicVideoAccessService {
           buildPublicVideoKey(item.ownerUid, item.videoId) === identityKey
         );
 
-        if (!access || !isPublicVideoAccessUsable(projection, access, now)) {
+        if (
+          !access ||
+          this.isPlaybackSessionConsumed(access.playbackSessionToken) ||
+          !isPublicVideoAccessUsable(projection, access, now)
+        ) {
           return null;
         }
 
@@ -212,6 +215,45 @@ export class PublicVideoAccessService {
     }
 
     this.accessCache.delete(this.buildCacheKey(projection));
+  }
+
+  getPlaybackSessionToken(ownerUidValue: unknown, videoIdValue: unknown): string {
+    const ownerUid = String(ownerUidValue ?? '').trim();
+    const videoId = String(videoIdValue ?? '').trim();
+    const now = Date.now();
+
+    if (!ownerUid || !videoId) {
+      return '';
+    }
+
+    for (const access of this.accessCache.values()) {
+      if (
+        access.ownerUid === ownerUid &&
+        access.videoId === videoId &&
+        access.playbackSessionExpiresAt > now + CACHE_EXPIRY_SAFETY_MS &&
+        !this.isPlaybackSessionConsumed(access.playbackSessionToken)
+      ) {
+        return access.playbackSessionToken;
+      }
+    }
+
+    return '';
+  }
+
+  markPlaybackSessionConsumed(tokenValue: unknown): void {
+    const token = String(tokenValue ?? '').trim();
+
+    if (!token) {
+      return;
+    }
+
+    this.consumedPlaybackSessions.add(token);
+
+    for (const [cacheKey, access] of this.accessCache.entries()) {
+      if (access.playbackSessionToken === token) {
+        this.accessCache.delete(cacheKey);
+      }
+    }
   }
 
   private requestAccessUrls$(
@@ -282,6 +324,11 @@ export class PublicVideoAccessService {
       projection.visibility === 'PUBLIC' &&
       projection.moderationStatus === 'APPROVED' &&
       projection.assetAccess === 'SIGNED_URL';
+  }
+
+  private isPlaybackSessionConsumed(tokenValue: unknown): boolean {
+    const token = String(tokenValue ?? '').trim();
+    return !token || this.consumedPlaybackSessions.has(token);
   }
 
   private buildCacheKey(projection: IPublicVideoProjection): string {

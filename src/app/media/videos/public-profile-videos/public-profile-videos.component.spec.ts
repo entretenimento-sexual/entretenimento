@@ -61,6 +61,8 @@ const VIDEO: IPublicVideoItem = {
   url: 'https://example.test/video.mp4',
   posterUrl: 'https://example.test/poster.webp',
   accessExpiresAt: Date.now() + 60_000,
+  playbackSessionToken: 'playback_session_1234567890_abcdefghijk',
+  playbackSessionExpiresAt: Date.now() + 10 * 60_000,
 };
 
 describe('PublicProfileVideosComponent', () => {

@@ -13,6 +13,7 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PublicVideoAccessService } from './public-video-access.service';
 
 export type TVideoViewSource =
   | 'discover'
@@ -33,6 +34,7 @@ interface RecordVideoViewRequest {
   ownerUid: string;
   videoId: string;
   source: TVideoViewSource;
+  playbackSessionToken: string;
   evidence: VideoViewPlaybackEvidence;
 }
 
@@ -45,6 +47,8 @@ interface RecordVideoViewResponse {
   retryAfterMs: number;
 }
 
+const PLAYBACK_SESSION_PATTERN = /^[A-Za-z0-9_-]{32,256}$/;
+
 @Injectable({ providedIn: 'root' })
 export class VideoViewTrackingService {
   private readonly destroyRef = inject(DestroyRef);
@@ -56,6 +60,7 @@ export class VideoViewTrackingService {
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
     private readonly authSession: AuthSessionService,
+    private readonly publicVideoAccess: PublicVideoAccessService,
     private readonly errorHandler: GlobalErrorHandlerService
   ) {
     this.authSession.uid$
@@ -82,13 +87,26 @@ export class VideoViewTrackingService {
     ownerUid: string,
     videoId: string,
     source: TVideoViewSource = 'unknown',
-    evidence?: VideoViewPlaybackEvidence
+    evidence?: VideoViewPlaybackEvidence,
+    playbackSessionTokenValue?: string
   ): Observable<void> {
     const safeOwnerUid = (ownerUid ?? '').trim();
     const safeVideoId = (videoId ?? '').trim();
     const safeEvidence = this.normalizeEvidence(evidence);
+    const playbackSessionToken = this.normalizePlaybackSessionToken(
+      playbackSessionTokenValue ||
+        this.publicVideoAccess.getPlaybackSessionToken(
+          safeOwnerUid,
+          safeVideoId
+        )
+    );
 
-    if (!safeOwnerUid || !safeVideoId || !safeEvidence) {
+    if (
+      !safeOwnerUid ||
+      !safeVideoId ||
+      !safeEvidence ||
+      !playbackSessionToken
+    ) {
       return of(void 0);
     }
 
@@ -108,18 +126,26 @@ export class VideoViewTrackingService {
       const callable = httpsCallable<
         RecordVideoViewRequest,
         RecordVideoViewResponse
-      >(this.functions, 'recordVideoView');
+      >(
+        this.functions,
+        'recordVideoView',
+        { limitedUseAppCheckTokens: true }
+      );
 
       const response = await callable({
         ownerUid: safeOwnerUid,
         videoId: safeVideoId,
         source,
+        playbackSessionToken,
         evidence: safeEvidence,
       });
 
       return response.data;
     }).pipe(
       map((response) => {
+        this.publicVideoAccess.markPlaybackSessionConsumed(
+          playbackSessionToken
+        );
         const retryAfterMs = Number(response.retryAfterMs ?? 0);
 
         if (Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
@@ -129,6 +155,9 @@ export class VideoViewTrackingService {
         return void 0;
       }),
       catchError((error: unknown) => {
+        this.publicVideoAccess.markPlaybackSessionConsumed(
+          playbackSessionToken
+        );
         this.reportError(error, {
           op: 'recordVideoView$',
           hasOwnerUid: true,
@@ -180,6 +209,11 @@ export class VideoViewTrackingService {
       durationMs: Math.round(durationMs),
       qualifiedAt: Math.round(qualifiedAt),
     };
+  }
+
+  private normalizePlaybackSessionToken(value: unknown): string {
+    const token = String(value ?? '').trim();
+    return PLAYBACK_SESSION_PATTERN.test(token) ? token : '';
   }
 
   private reportError(
