@@ -6,10 +6,11 @@
 @let uploadStep = (uploadStep$ | async) || '';
 @let uploadFailure = (uploadFailure$ | async);
 @let previewUrl = (previewUrl$ | async);
+@let selectedFile = (selectedFile$ | async);
 @let selectedPosterUrl = (selectedPosterUrl$ | async);
-@let capturingPoster = (capturingPoster$ | async) === true;
 @let selectedFileName = (selectedFileName$ | async);
 @let selectedFileSize = (selectedFileSize$ | async);
+@let editorState = (editorState$ | async);
 @let canUpload = (canUpload$ | async) === true;
 @let lastUploadedLifecycle = (lastUploadedLifecycle$ | async);
 
@@ -67,46 +68,27 @@
               </div>
             </div>
 
-            @if (previewUrl) {
-              <div class="profile-videos__preview">
-                <video
-                  #uploadPreview
-                  [src]="previewUrl"
-                  aria-label="Prévia local do vídeo selecionado"
-                  preload="metadata"
-                  controls
-                  playsinline
-                  muted
-                ></video>
-              </div>
+            <app-video-simple-editor-controls
+              [file]="selectedFile"
+              [previewUrl]="previewUrl"
+              [disabled]="isUploadActive()"
+              (posterChange)="onEditorPosterChange($event)"
+              (stateChange)="onEditorStateChange($event)"
+            />
 
-              <div class="profile-videos__cover-tools">
-                <strong>Capa</strong>
-                <button
-                  type="button"
-                  class="app-action app-action--ghost"
-                  [disabled]="capturingPoster || isUploadActive()"
-                  [attr.aria-busy]="capturingPoster ? 'true' : 'false'"
-                  (click)="capturePoster(uploadPreview)"
-                >
-                  {{ capturingPoster ? 'Gerando...' : 'Usar quadro atual' }}
-                </button>
-              </div>
-
-              @if (selectedPosterUrl) {
-                <figure class="profile-videos__selected-cover">
-                  <img
-                    [src]="selectedPosterUrl"
-                    alt="Capa escolhida para o vídeo"
-                    width="320"
-                    height="180"
-                  />
-                  <figcaption>
-                    <i class="fas fa-circle-check" aria-hidden="true"></i>
-                    Capa escolhida
-                  </figcaption>
-                </figure>
-              }
+            @if (selectedPosterUrl) {
+              <figure class="profile-videos__selected-cover">
+                <img
+                  [src]="selectedPosterUrl"
+                  alt="Capa escolhida para o vídeo"
+                  width="320"
+                  height="180"
+                />
+                <figcaption>
+                  <i class="fas fa-circle-check" aria-hidden="true"></i>
+                  Capa escolhida conforme o enquadramento
+                </figcaption>
+              </figure>
             }
           </div>
 
@@ -171,7 +153,7 @@
               <button
                 type="submit"
                 class="app-action app-action--primary"
-                [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
+                [disabled]="!canUpload || !editorState?.valid || uploadPublicationForm.invalid || isUploadActive()"
               >
                 {{ isUploadActive() ? 'Enviando...' : 'Enviar e publicar' }}
               </button>

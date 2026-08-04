@@ -53,7 +53,6 @@ import {
   VideoLifecyclePresentation,
 } from 'src/app/core/services/media/video-lifecycle-state.policy';
 import { VideoLibraryService } from 'src/app/core/services/media/video-library.service';
-import { VideoMetadataPreparationService } from 'src/app/core/services/media/video-metadata-preparation.service';
 import { VideoPublicationService } from 'src/app/core/services/media/video-publication.service';
 import {
   VIDEO_UPLOAD_ACCEPT,
@@ -65,6 +64,10 @@ import {
   VideoUploadFlowService,
   VideoUploadProgressPhase,
 } from 'src/app/core/services/media/video-upload-flow.service';
+import {
+  IVideoSimpleEditorState,
+  VideoSimpleEditorControlsComponent,
+} from './video-simple-editor-controls.component';
 
 interface ProfileVideoViewItem {
   video: IVideoItem;
@@ -98,7 +101,12 @@ const DENY_UNKNOWN: IMediaPolicyResult = {
 @Component({
   selector: 'app-profile-videos',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterModule,
+    VideoSimpleEditorControlsComponent,
+  ],
   templateUrl: './profile-videos.component.html',
   styleUrls: [
     './profile-videos.component.css',
@@ -114,7 +122,6 @@ export class ProfileVideosComponent {
   private readonly videoLibrary = inject(VideoLibraryService);
   private readonly videoPublication = inject(VideoPublicationService);
   private readonly videoUploadFlow = inject(VideoUploadFlowService);
-  private readonly metadataPreparation = inject(VideoMetadataPreparationService);
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly errorNotification = inject(ErrorNotificationService);
 
@@ -167,8 +174,17 @@ export class ProfileVideosComponent {
     new BehaviorSubject<string | null>(null);
   readonly selectedPosterUrl$ = this.selectedPosterUrlSubject.asObservable();
 
-  private readonly capturingPosterSubject = new BehaviorSubject(false);
-  readonly capturingPoster$ = this.capturingPosterSubject.asObservable();
+  private readonly editorStateSubject =
+    new BehaviorSubject<IVideoSimpleEditorState | null>(null);
+  readonly editorState$ = this.editorStateSubject.pipe(
+    distinctUntilChanged((previous, current) =>
+      previous?.valid === current?.valid &&
+      previous?.loading === current?.loading &&
+      previous?.error === current?.error &&
+      previous?.recipe === current?.recipe
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   private readonly uploadPhaseSubject = new BehaviorSubject<VideoUploadUiPhase>(
     'IDLE'
@@ -372,6 +388,7 @@ export class ProfileVideosComponent {
 
     this.lastUploadedVideoIdSubject.next(null);
     this.uploadFailureSubject.next(null);
+    this.editorStateSubject.next(null);
     this.revokePreviewUrl();
     this.revokePosterUrl();
     this.selectedPosterBlobSubject.next(null);
@@ -388,41 +405,29 @@ export class ProfileVideosComponent {
     this.uploadProgressSubject.next(0);
     this.uploadStepSubject.next(
       format.browserPreviewLikely
-        ? 'Revise a capa e as informações antes de enviar.'
+        ? 'Revise a edição, a capa e as informações antes de enviar.'
         : 'Formato aceito. A prévia pode não abrir neste navegador; o vídeo será convertido após o envio.'
     );
   }
 
-  capturePoster(video: HTMLVideoElement): void {
-    if (
-      this.capturingPosterSubject.value ||
-      this.uploadPhaseSubject.value !== 'READY' ||
-      !this.selectedFileSubject.value
-    ) {
+  onEditorPosterChange(blob: Blob | null): void {
+    if (this.isUploadActive()) {
       return;
     }
 
-    this.capturingPosterSubject.next(true);
+    this.revokePosterUrl();
+    this.selectedPosterBlobSubject.next(blob);
+    this.selectedPosterUrlSubject.next(
+      blob ? URL.createObjectURL(blob) : null
+    );
+  }
 
-    this.metadataPreparation.captureCurrentFrame$(video).pipe(
-      take(1),
-      finalize(() => this.capturingPosterSubject.next(false)),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe({
-      next: (blob) => {
-        this.revokePosterUrl();
-        this.selectedPosterBlobSubject.next(blob);
-        this.selectedPosterUrlSubject.next(URL.createObjectURL(blob));
-        this.errorNotification.showSuccess('Capa do vídeo atualizada.');
-      },
-      error: (error: unknown) => {
-        this.errorNotification.showWarning(
-          error instanceof Error
-            ? error.message
-            : 'Não foi possível escolher este quadro como capa.'
-        );
-      },
-    });
+  onEditorStateChange(state: IVideoSimpleEditorState): void {
+    if (this.isUploadActive()) {
+      return;
+    }
+
+    this.editorStateSubject.next(state);
   }
 
   startUpload(): void {
@@ -438,6 +443,18 @@ export class ProfileVideosComponent {
       return;
     }
 
+    const editorState = this.editorStateSubject.value;
+
+    if (!editorState?.valid) {
+      this.errorNotification.showWarning(
+        editorState?.loading
+          ? 'Aguarde a leitura do vídeo antes de enviar.'
+          : editorState?.error || 'Revise a edição antes de enviar o vídeo.'
+      );
+      return;
+    }
+
+    const editRecipe = editorState.recipe;
     this.uploadFailureSubject.next(null);
     this.cancelRequestedByUser = false;
     let subscription: Subscription | null = null;
@@ -468,12 +485,13 @@ export class ProfileVideosComponent {
         const publication = this.uploadPublicationSettings();
         this.uploadPhaseSubject.next('PREPARING');
         this.uploadProgressSubject.next(0);
-        this.uploadStepSubject.next('Validando vídeo e capa.');
+        this.uploadStepSubject.next('Validando vídeo, edição e capa.');
 
         return this.videoUploadFlow.uploadPrivateVideo$({
           ownerUid,
           file,
           posterBlob,
+          editRecipe,
           publication,
         });
       }),
@@ -540,6 +558,7 @@ export class ProfileVideosComponent {
 
     this.lastUploadedVideoIdSubject.next(null);
     this.uploadFailureSubject.next(null);
+    this.editorStateSubject.next(null);
     this.revokePreviewUrl();
     this.revokePosterUrl();
     this.selectedFileSubject.next(null);
@@ -850,10 +869,11 @@ export class ProfileVideosComponent {
 
     this.lastUploadedVideoIdSubject.next(event.result.id);
     this.uploadFailureSubject.next(null);
+    this.editorStateSubject.next(null);
     this.uploadPhaseSubject.next('REGISTERED');
     this.uploadProgressSubject.next(100);
     this.uploadStepSubject.next(
-      'Upload registrado. O processamento e a publicação continuam automaticamente.'
+      'Upload registrado. O processamento, a edição e a publicação continuam automaticamente.'
     );
     this.revokePreviewUrl();
     this.revokePosterUrl();
@@ -893,7 +913,9 @@ export class ProfileVideosComponent {
     }
 
     this.uploadPhaseSubject.next('SAVING');
-    this.uploadStepSubject.next('Registrando o vídeo e a intenção de publicação.');
+    this.uploadStepSubject.next(
+      'Registrando o vídeo, a edição e a intenção de publicação.'
+    );
   }
 
   private describeUploadFailure(error: unknown): VideoUploadFailureFeedback {
@@ -906,6 +928,17 @@ export class ProfileVideosComponent {
     const errorMessage = error instanceof Error && error.message.trim()
       ? error.message.trim()
       : '';
+
+    if (domainCode === 'INVALID_VIDEO_EDIT_RECIPE') {
+      return {
+        title: 'Edição inválida',
+        message: errorMessage || 'O corte ou o enquadramento não pôde ser aplicado.',
+        recovery:
+          domainRecovery ||
+          'Revise o início, o fim e a proporção antes de enviar novamente.',
+        retryable: false,
+      };
+    }
 
     if (
       domainCode === 'VIDEO_UPLOAD_ITEM_LIMIT' ||

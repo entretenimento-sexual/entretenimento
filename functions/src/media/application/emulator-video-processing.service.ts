@@ -2,6 +2,7 @@ import type { DocumentReference } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 
 import { db, getDefaultStorageBucket } from '../../firebaseApp';
+import { hasEffectiveVideoEdit } from './video-edit-recipe';
 import type { VideoProcessingJob } from './video-processing-job';
 import { extractOwnedPrivateVideoPathForId } from './video-storage-path';
 
@@ -125,15 +126,29 @@ async function markProcessingFailure(
 /**
  * Adaptação exclusiva do Firebase Emulator Suite.
  *
- * MP4 e WebM já compatíveis são copiados para o namespace processado e o job é
- * concluído como se o provedor externo tivesse retornado sucesso. MOV continua
- * exigindo transcodificação real e recebe erro explícito no ambiente local.
+ * MP4 e WebM sem edição são copiados para o namespace processado e o job é
+ * concluído como se o provedor externo tivesse retornado sucesso. MOV e qualquer
+ * receita efetiva exigem o Transcoder real e recebem erro explícito localmente.
  */
 export async function completeVideoProcessingInEmulator(
   jobRef: DocumentReference,
   job: VideoProcessingJob
 ): Promise<void> {
   if (!isEnabled()) {
+    return;
+  }
+
+  if (
+    job.editRecipe &&
+    hasEffectiveVideoEdit(job.editRecipe, job.sourceDurationMs)
+  ) {
+    await markProcessingFailure(
+      jobRef,
+      job,
+      'EMULATOR_VIDEO_EDIT_UNAVAILABLE',
+      'O Storage Emulator não aplica corte, enquadramento ou remoção de áudio.',
+      'A edição foi preservada, mas precisa ser validada em homologação com o Transcoder real.'
+    );
     return;
   }
 

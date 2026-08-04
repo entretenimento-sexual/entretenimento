@@ -15,6 +15,11 @@ import {
 } from 'firebase/storage';
 import { Observable, firstValueFrom } from 'rxjs';
 
+import {
+  DEFAULT_VIDEO_EDIT_RECIPE_INPUT,
+  IVideoEditRecipeInput,
+  TVideoEditAspectRatio,
+} from 'src/app/core/interfaces/media/i-video-edit-recipe';
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -23,7 +28,10 @@ import {
   PrivateVideoUploadReservation,
   PrivateVideoUploadReservationService,
 } from './private-video-upload-reservation.service';
-import { VideoMetadataPreparationService } from './video-metadata-preparation.service';
+import {
+  IPreparedVideoMetadata,
+  VideoMetadataPreparationService,
+} from './video-metadata-preparation.service';
 import {
   VideoUploadFormat,
   VIDEO_UPLOAD_FORMAT_LABEL,
@@ -56,6 +64,7 @@ export interface IVideoUploadCommand {
   ownerUid: string;
   file: File;
   posterBlob?: Blob | null;
+  editRecipe?: IVideoEditRecipeInput | null;
   publication: IVideoPublicationSettingsInput & {
     publishWhenReady: boolean;
   };
@@ -76,6 +85,7 @@ interface RegisterPrivateVideoUploadRequest
   mimeType: string;
   sizeBytes: number;
   durationMs: number | null;
+  editRecipe: IVideoEditRecipeInput;
   publishWhenReady: boolean;
 }
 
@@ -93,6 +103,7 @@ interface RegisterPrivateVideoUploadResponse {
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_POSTER_SIZE_BYTES = 10 * 1024 * 1024;
+const MIN_EDITED_VIDEO_DURATION_MS = 5_000;
 const REGISTER_RETRY_DELAY_MS = 650;
 
 class VideoUploadCancelledError extends Error {
@@ -193,8 +204,17 @@ export class VideoUploadFlowService {
         try {
           observer.next({ type: 'progress', phase: 'preparing', progress: 2 });
 
+          const requestedRecipe = command.editRecipe ??
+            DEFAULT_VIDEO_EDIT_RECIPE_INPUT;
           const metadata = await firstValueFrom(
-            this.metadataPreparation.prepare$(file)
+            this.metadataPreparation.prepare$(file, {
+              aspectRatio: requestedRecipe.aspectRatio,
+              preferredTimeMs: requestedRecipe.trimStartMs,
+            })
+          );
+          const editRecipe = this.normalizeEditRecipe(
+            requestedRecipe,
+            metadata
           );
           const posterBlob = selectedPosterBlob ?? metadata.posterBlob;
           posterPath = posterBlob
@@ -278,6 +298,7 @@ export class VideoUploadFlowService {
             mimeType: sourceFormat.mimeType,
             sizeBytes: file.size,
             durationMs: metadata.durationMs,
+            editRecipe,
             ...publication,
           });
 
@@ -318,6 +339,9 @@ export class VideoUploadFlowService {
             mimeType: registration.mimeType,
             sourceExtension: sourceFormat.extension,
             sizeBytes: registration.sizeBytes,
+            edited: this.hasEffectiveEdit(editRecipe, metadata.durationMs),
+            aspectRatio: editRecipe.aspectRatio,
+            muteAudio: editRecipe.muteAudio,
           });
         } catch (error) {
           activeTask = null;
@@ -460,7 +484,9 @@ export class VideoUploadFlowService {
     const format = resolveVideoUploadFormat(file);
 
     if (!format) {
-      throw new Error(`Envie um vídeo em um destes formatos: ${VIDEO_UPLOAD_FORMAT_LABEL}.`);
+      throw new Error(
+        `Envie um vídeo em um destes formatos: ${VIDEO_UPLOAD_FORMAT_LABEL}.`
+      );
     }
 
     if (!Number.isFinite(file.size) || file.size <= 0) {
@@ -492,6 +518,105 @@ export class VideoUploadFlowService {
     }
 
     return value;
+  }
+
+  private normalizeEditRecipe(
+    requested: IVideoEditRecipeInput,
+    metadata: IPreparedVideoMetadata
+  ): IVideoEditRecipeInput {
+    const durationMs = metadata.durationMs;
+    const trimStartMs = Math.max(0, Math.trunc(Number(requested.trimStartMs)));
+    const rawEnd = requested.trimEndMs;
+    const trimEndMs = rawEnd === null
+      ? null
+      : Math.trunc(Number(rawEnd));
+    const aspectRatio = this.normalizeAspectRatio(requested.aspectRatio);
+    const sourceWidthPixels = metadata.widthPixels ??
+      this.positiveInteger(requested.sourceWidthPixels);
+    const sourceHeightPixels = metadata.heightPixels ??
+      this.positiveInteger(requested.sourceHeightPixels);
+
+    if (!Number.isFinite(trimStartMs)) {
+      throw new Error('O início do corte é inválido.');
+    }
+
+    if (trimEndMs !== null && !Number.isFinite(trimEndMs)) {
+      throw new Error('O fim do corte é inválido.');
+    }
+
+    if ((trimStartMs > 0 || trimEndMs !== null) && !durationMs) {
+      throw new Error(
+        'Este navegador não conseguiu confirmar a duração para aplicar o corte.'
+      );
+    }
+
+    if (durationMs) {
+      const effectiveEnd = trimEndMs ?? durationMs;
+
+      if (
+        trimStartMs >= durationMs ||
+        effectiveEnd > durationMs ||
+        effectiveEnd <= trimStartMs
+      ) {
+        throw new Error('Revise os pontos inicial e final do corte.');
+      }
+
+      if (effectiveEnd - trimStartMs < MIN_EDITED_VIDEO_DURATION_MS) {
+        throw new Error('O vídeo editado precisa ter pelo menos 5 segundos.');
+      }
+    }
+
+    if (
+      aspectRatio !== 'ORIGINAL' &&
+      (!sourceWidthPixels || !sourceHeightPixels)
+    ) {
+      throw new Error(
+        'Este navegador não conseguiu confirmar as dimensões para alterar o enquadramento.'
+      );
+    }
+
+    return {
+      version: 1,
+      trimStartMs,
+      trimEndMs,
+      aspectRatio,
+      muteAudio: requested.muteAudio === true,
+      orientation: 'AUTO',
+      sourceWidthPixels,
+      sourceHeightPixels,
+    };
+  }
+
+  private normalizeAspectRatio(value: unknown): TVideoEditAspectRatio {
+    const normalized = String(value ?? '').trim().toUpperCase();
+
+    if (
+      normalized === 'VERTICAL_9_16' ||
+      normalized === 'PORTRAIT_4_5' ||
+      normalized === 'SQUARE_1_1'
+    ) {
+      return normalized;
+    }
+
+    return 'ORIGINAL';
+  }
+
+  private positiveInteger(value: unknown): number | null {
+    const numberValue = Number(value ?? 0);
+    return Number.isFinite(numberValue) && numberValue > 0
+      ? Math.trunc(numberValue)
+      : null;
+  }
+
+  private hasEffectiveEdit(
+    recipe: IVideoEditRecipeInput,
+    sourceDurationMs: number | null
+  ): boolean {
+    return recipe.trimStartMs > 0 ||
+      (recipe.trimEndMs !== null &&
+        (!sourceDurationMs || recipe.trimEndMs < sourceDurationMs)) ||
+      recipe.aspectRatio !== 'ORIGINAL' ||
+      recipe.muteAudio;
   }
 
   private normalizePublication(

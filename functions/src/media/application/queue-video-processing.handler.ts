@@ -6,6 +6,12 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import { completeVideoProcessingInEmulator } from './emulator-video-processing.service';
 import {
+  DEFAULT_VIDEO_EDIT_RECIPE,
+  normalizeVideoEditRecipe,
+  VideoEditRecipeValidationError,
+  type VideoEditRecipe,
+} from './video-edit-recipe';
+import {
   buildQueuedVideoProcessingJob,
   buildVideoProcessingJobId,
   VIDEO_PROCESSING_JOBS_COLLECTION,
@@ -28,6 +34,7 @@ interface PrivateVideoDocument {
   mimeType?: string;
   sizeBytes?: number;
   durationMs?: number | null;
+  editRecipe?: unknown;
   processedStoragePath?: string | null;
   processingJobId?: string | null;
   processingStage?: string;
@@ -37,6 +44,7 @@ interface PrivateVideoDocument {
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 const MIN_VIDEO_DURATION_MS = 5_000;
+const INVALID_EDIT_RECIPE_CODE = 'INVALID_VIDEO_EDIT_RECIPE';
 const ALLOWED_VIDEO_TYPES = new Set([
   'video/mp4',
   'video/webm',
@@ -89,6 +97,17 @@ function processingJobReference(
   return db
     .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
     .doc(buildVideoProcessingJobId(ownerUid, videoId));
+}
+
+function resolvePersistedEditRecipe(
+  rawRecipe: unknown,
+  sourceDurationMs: number | null
+): VideoEditRecipe {
+  if (rawRecipe === undefined || rawRecipe === null) {
+    return DEFAULT_VIDEO_EDIT_RECIPE;
+  }
+
+  return normalizeVideoEditRecipe(rawRecipe, sourceDurationMs);
 }
 
 async function requestCancellationIfPresent(
@@ -160,6 +179,50 @@ export async function ensurePrivateVideoProcessingQueued(
         return null;
       }
 
+      const sourceDurationMs = normalizePositiveInteger(video.durationMs);
+      let editRecipe: VideoEditRecipe;
+
+      try {
+        editRecipe = resolvePersistedEditRecipe(
+          video.editRecipe,
+          sourceDurationMs
+        );
+      } catch (error) {
+        const message = error instanceof VideoEditRecipeValidationError
+          ? error.message
+          : 'A receita de edição persistida não pôde ser validada.';
+        const now = Date.now();
+
+        transaction.set(
+          videoRef,
+          {
+            status: 'failed',
+            processingStage: 'failed',
+            processingErrorCode: INVALID_EDIT_RECIPE_CODE,
+            processingErrorMessage: message,
+            updatedAt: now,
+          },
+          { merge: true }
+        );
+
+        if (jobSnap.exists) {
+          transaction.set(
+            jobRef,
+            {
+              state: 'FAILED',
+              completedAt: now,
+              leaseUntil: null,
+              updatedAt: now,
+              lastErrorCode: INVALID_EDIT_RECIPE_CODE,
+              lastError: message,
+            },
+            { merge: true }
+          );
+        }
+
+        return null;
+      }
+
       if (jobSnap.exists) {
         const existingJob = jobSnap.data() as Partial<VideoProcessingJob>;
         const state = String(existingJob.state ?? '').trim().toUpperCase();
@@ -175,6 +238,7 @@ export async function ensurePrivateVideoProcessingQueued(
               processingJobId,
               status: expected.status,
               processingStage: expected.stage,
+              editRecipe,
               updatedAt: Date.now(),
             },
             { merge: true }
@@ -200,7 +264,6 @@ export async function ensurePrivateVideoProcessingQueued(
         );
       const sourceMimeType = normalizeMimeType(video.mimeType);
       const sourceSizeBytes = normalizePositiveInteger(video.sizeBytes);
-      const sourceDurationMs = normalizePositiveInteger(video.durationMs);
 
       if (
         !sourceStoragePath ||
@@ -242,6 +305,7 @@ export async function ensurePrivateVideoProcessingQueued(
         sourceMimeType,
         sourceSizeBytes,
         sourceDurationMs,
+        editRecipe,
         now,
       });
 
@@ -254,6 +318,7 @@ export async function ensurePrivateVideoProcessingQueued(
           processingStage: 'queued',
           processingErrorCode: null,
           processingErrorMessage: null,
+          editRecipe,
           updatedAt: now,
         },
         { merge: true }
