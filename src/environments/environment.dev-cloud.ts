@@ -5,6 +5,10 @@
 // Este ambiente acessa o projeto Firebase cloud `entretenimento-sexual`.
 // Não deve ser usado pelo comando local padrão e não substitui deploy de
 // Functions, Rules, índices ou demais dependências de backend.
+//
+// O identificador interno permanece `dev-real` por compatibilidade com o
+// contrato tipado já usado em telemetria e políticas de runtime. O nome
+// operacional explícito desta configuração é `dev-cloud` no angular.json.
 // -----------------------------------------------------------------------------
 
 import type { AppEnvironment } from './environment.model';
@@ -12,7 +16,7 @@ import type { AppEnvironment } from './environment.model';
 export const environment: AppEnvironment = {
   production: false,
   stage: false,
-  env: 'dev-cloud-explicit',
+  env: 'dev-real',
   useEmulators: false,
   emulators: undefined,
 
