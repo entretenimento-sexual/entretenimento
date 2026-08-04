@@ -1,3 +1,4 @@
+import { Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -106,6 +107,7 @@ async function issuePlaybackSession(params: {
     appId: params.appId,
     issuedAt: params.now,
     expiresAt,
+    cleanupAfter: Timestamp.fromMillis(expiresAt),
     consumedAt: null,
   });
 
