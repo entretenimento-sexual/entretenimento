@@ -67,9 +67,9 @@ export class VideoSimpleEditorControlsComponent {
       return;
     }
 
-    this.fileSubject.next(next);
     this.posterChange.emit(null);
     this.resetForm();
+    this.fileSubject.next(next);
   }
 
   @Input() previewUrl: string | null = null;
