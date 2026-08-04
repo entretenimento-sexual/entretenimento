@@ -94,7 +94,14 @@
               "namedChunks": false
             },
             "development": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.dev-emu.ts"
+                }
+              ],
               "optimization": false,
+              "outputHashing": "none",
               "extractLicenses": false,
               "sourceMap": true,
               "namedChunks": true
