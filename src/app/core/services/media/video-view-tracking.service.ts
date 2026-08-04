@@ -94,7 +94,11 @@ export class VideoViewTrackingService {
     const safeVideoId = (videoId ?? '').trim();
     const safeEvidence = this.normalizeEvidence(evidence);
     const playbackSessionToken = this.normalizePlaybackSessionToken(
-      playbackSessionTokenValue
+      playbackSessionTokenValue ||
+        this.publicVideoAccess.getPlaybackSessionToken(
+          safeOwnerUid,
+          safeVideoId
+        )
     );
 
     if (
@@ -151,8 +155,6 @@ export class VideoViewTrackingService {
         return void 0;
       }),
       catchError((error: unknown) => {
-        // A sessão é de uso único no backend. Mesmo com resposta perdida,
-        // ela não deve voltar ao cache nem ser reenviada.
         this.publicVideoAccess.markPlaybackSessionConsumed(
           playbackSessionToken
         );
