@@ -9,11 +9,22 @@ import {
 import {
   synchronizePublishedVideoSettings,
 } from './sync-published-video-settings.handler';
+import {
+  hasEffectiveVideoEdit,
+  normalizeVideoEditRecipe,
+  resolveEditedVideoDurationMs,
+  resolveVideoEditGeometry,
+} from './video-edit-recipe';
+import {
+  buildVideoProcessingJobId,
+  VIDEO_PROCESSING_JOBS_COLLECTION,
+} from './video-processing-job';
 
 interface PrivateVideoDoc {
   ownerUid?: unknown;
   status?: unknown;
   processedStoragePath?: unknown;
+  processingJobId?: unknown;
 }
 
 interface VideoPublicationDoc {
@@ -24,6 +35,18 @@ interface VideoPublicationDoc {
   moderationStatus?: unknown;
   autoPublishState?: unknown;
   autoPublishLeaseUntil?: unknown;
+}
+
+interface ProcessingJobDoc {
+  ownerUid?: unknown;
+  videoId?: unknown;
+  state?: unknown;
+  processingVersion?: unknown;
+  sourceDurationMs?: unknown;
+  outputDurationMs?: unknown;
+  outputWidthPixels?: unknown;
+  outputHeightPixels?: unknown;
+  editRecipe?: unknown;
 }
 
 interface PublishVideoResponse {
@@ -44,6 +67,13 @@ function cleanId(value: unknown): string {
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
 }
 
+function positiveInteger(value: unknown): number | null {
+  const numberValue = Number(value ?? 0);
+  return Number.isFinite(numberValue) && numberValue > 0
+    ? Math.trunc(numberValue)
+    : null;
+}
+
 function isReadyVideo(value: PrivateVideoDoc | null): boolean {
   return String(value?.status ?? '').trim().toLowerCase() === 'ready' &&
     !!String(value?.processedStoragePath ?? '').trim();
@@ -53,6 +83,84 @@ function normalizeErrorMessage(error: unknown): string {
   return (error instanceof Error ? error.message : String(error ?? 'unknown'))
     .trim()
     .slice(0, 500);
+}
+
+async function synchronizeProcessedEditMetadata(
+  ownerUid: string,
+  videoId: string
+): Promise<void> {
+  const jobId = buildVideoProcessingJobId(ownerUid, videoId);
+  const jobRef = db
+    .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
+    .doc(jobId);
+  const videoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
+
+  await db.runTransaction(async (transaction) => {
+    const [jobSnapshot, videoSnapshot] = await Promise.all([
+      transaction.get(jobRef),
+      transaction.get(videoRef),
+    ]);
+
+    if (!jobSnapshot.exists || !videoSnapshot.exists) {
+      return;
+    }
+
+    const job = jobSnapshot.data() as ProcessingJobDoc;
+    const video = videoSnapshot.data() as PrivateVideoDoc;
+    const state = String(job.state ?? '').trim().toUpperCase();
+    const processingVersion = cleanId(job.processingVersion);
+    const currentJobId = cleanId(video.processingJobId);
+
+    if (
+      state !== 'SUCCEEDED' ||
+      !processingVersion ||
+      cleanId(job.ownerUid) !== ownerUid ||
+      cleanId(job.videoId) !== videoId ||
+      (currentJobId && currentJobId !== jobId)
+    ) {
+      return;
+    }
+
+    const sourceDurationMs = positiveInteger(job.sourceDurationMs);
+    const editRecipe = normalizeVideoEditRecipe(
+      job.editRecipe,
+      sourceDurationMs
+    );
+    const geometry = resolveVideoEditGeometry(editRecipe);
+    const outputDurationMs =
+      positiveInteger(job.outputDurationMs) ??
+      resolveEditedVideoDurationMs(editRecipe, sourceDurationMs);
+    const outputWidthPixels =
+      positiveInteger(job.outputWidthPixels) ??
+      geometry?.outputWidthPixels ??
+      null;
+    const outputHeightPixels =
+      positiveInteger(job.outputHeightPixels) ??
+      geometry?.outputHeightPixels ??
+      null;
+    const now = Date.now();
+
+    transaction.set(
+      videoRef,
+      {
+        editRecipe,
+        edited: hasEffectiveVideoEdit(editRecipe, sourceDurationMs),
+        audioMuted: editRecipe.muteAudio,
+        orientationMode: editRecipe.orientation,
+        ...(outputDurationMs ? { durationMs: outputDurationMs } : {}),
+        ...(outputWidthPixels
+          ? { processedWidthPixels: outputWidthPixels }
+          : {}),
+        ...(outputHeightPixels
+          ? { processedHeightPixels: outputHeightPixels }
+          : {}),
+        editProcessingVersion: processingVersion,
+        editAppliedAt: now,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+  });
 }
 
 async function claimDeferredPublication(
@@ -230,6 +338,7 @@ export const publishVideoWhenReady = onDocumentUpdated(
       return;
     }
 
+    await synchronizeProcessedEditMetadata(ownerUid, videoId);
     const claim = await claimDeferredPublication(ownerUid, videoId);
 
     if (claim === 'SKIPPED') {
