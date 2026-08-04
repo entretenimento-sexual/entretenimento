@@ -72,6 +72,32 @@ async function expectCallableFailure(callable, payload) {
   assert.fail('A Callable aceitou uma operação que deveria ser rejeitada.');
 }
 
+function eligibleUserDocument(uid) {
+  return {
+    uid,
+    accountStatus: 'active',
+    suspended: false,
+    interactionBlocked: false,
+    accountLocked: false,
+    loginAllowed: true,
+    emailVerified: true,
+    profileCompleted: true,
+    initialAdultConsentRequired: true,
+    adultConsent: {
+      accepted: true,
+    },
+    acceptedTerms: {
+      accepted: true,
+      adultAccessAcknowledgement: true,
+    },
+    ageReverification: {
+      status: 'APPROVED',
+      result: 'ADULT',
+    },
+    updatedAt: Date.now(),
+  };
+}
+
 function createClientApp(name) {
   const app = initializeClientApp(
     {
@@ -143,6 +169,9 @@ async function run() {
     visitorAUid = visitorACredential.user.uid;
     visitorBUid = visitorBCredential.user.uid;
 
+    const ownerUserRef = db.doc(`users/${ownerUid}`);
+    const visitorAUserRef = db.doc(`users/${visitorAUid}`);
+    const visitorBUserRef = db.doc(`users/${visitorBUid}`);
     const publicationRef = db.doc(
       `users/${ownerUid}/video_publications/${videoId}`
     );
@@ -151,8 +180,24 @@ async function run() {
     );
     const ratingARef = publicVideoRef.collection('ratings').doc(visitorAUid);
     const ratingBRef = publicVideoRef.collection('ratings').doc(visitorBUid);
+    const ownerBlocksVisitorARef = ownerUserRef
+      .collection('blocks')
+      .doc(visitorAUid);
+
+    await waitFor(
+      'seeds privados das contas de avaliação',
+      async () => ({
+        owner: await readDocumentData(ownerUserRef),
+        visitorA: await readDocumentData(visitorAUserRef),
+        visitorB: await readDocumentData(visitorBUserRef),
+      }),
+      (state) => !!state.owner && !!state.visitorA && !!state.visitorB
+    );
 
     await Promise.all([
+      ownerUserRef.set(eligibleUserDocument(ownerUid), { merge: true }),
+      visitorAUserRef.set(eligibleUserDocument(visitorAUid), { merge: true }),
+      visitorBUserRef.set(eligibleUserDocument(visitorBUid), { merge: true }),
       db.doc(`public_profiles/${ownerUid}`).set({
         uid: ownerUid,
         nickname: 'Autor',
@@ -171,6 +216,8 @@ async function run() {
         isPublished: true,
         visibility: 'PUBLIC',
         moderationStatus: 'APPROVED',
+        reactionsEnabled: true,
+        commentsEnabled: true,
         ratingsEnabled: false,
         updatedAt: Date.now(),
       }),
@@ -178,6 +225,7 @@ async function run() {
         id: videoId,
         ownerUid,
         mediaType: 'VIDEO',
+        assetAccess: 'SIGNED_URL',
         visibility: 'PUBLIC',
         moderationStatus: 'APPROVED',
         reactionsEnabled: true,
@@ -221,6 +269,36 @@ async function run() {
       ),
     ]);
 
+    await ownerBlocksVisitorARef.set({
+      actorUid: ownerUid,
+      uid: visitorAUid,
+      isBlocked: true,
+      updatedAt: Date.now(),
+    });
+    await expectCallableFailure(rateAsVisitorA, {
+      ownerUid,
+      videoId,
+      rating: 4,
+    });
+    await ownerBlocksVisitorARef.set(
+      { isBlocked: false, updatedAt: Date.now() },
+      { merge: true }
+    );
+
+    await publicationRef.set(
+      { ratingsEnabled: false, updatedAt: Date.now() },
+      { merge: true }
+    );
+    await expectCallableFailure(rateAsVisitorA, {
+      ownerUid,
+      videoId,
+      rating: 4,
+    });
+    await publicationRef.set(
+      { ratingsEnabled: true, updatedAt: Date.now() },
+      { merge: true }
+    );
+
     const firstRating = await rateAsVisitorA({
       ownerUid,
       videoId,
@@ -238,6 +316,20 @@ async function run() {
     assert.equal(updatedRating.data.rating, 5);
     assert.equal(updatedRating.data.ratingsCount, 1);
     assert.equal(updatedRating.data.ratingAverage, 5);
+
+    await visitorBUserRef.set(
+      { interactionBlocked: true, updatedAt: Date.now() },
+      { merge: true }
+    );
+    await expectCallableFailure(rateAsVisitorB, {
+      ownerUid,
+      videoId,
+      rating: 3,
+    });
+    await visitorBUserRef.set(
+      { interactionBlocked: false, updatedAt: Date.now() },
+      { merge: true }
+    );
 
     const secondRating = await rateAsVisitorB({
       ownerUid,
@@ -300,8 +392,11 @@ async function run() {
     );
 
     console.log('✔ preferência do autor bloqueou avaliações desabilitadas');
+    console.log('✔ bloqueio bilateral impediu nova avaliação');
+    console.log('✔ divergência de configuração foi bloqueada');
     console.log('✔ primeira nota criou quantidade e média');
     console.log('✔ alteração da própria nota preservou a quantidade');
+    console.log('✔ lifecycle restrito impediu avaliação');
     console.log('✔ duas notas produziram média agregada correta');
     console.log('✔ autor e nota fracionária foram bloqueados');
     console.log('✔ despublicação removeu avaliações recursivamente');
