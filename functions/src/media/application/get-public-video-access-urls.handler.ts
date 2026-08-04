@@ -1,14 +1,19 @@
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
+import { MEDIA_ACCESS_CALLABLE_OPTIONS } from './media-app-check.options';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
   createVideoAudienceAccessEvaluator,
   resolveCanonicalVideoAudienceTarget,
   type VideoAudienceAccessEvaluator,
 } from './video-audience-access.policy';
+import {
+  VIDEO_PLAYBACK_SESSION_TTL_MS,
+  createVideoPlaybackSessionToken,
+  hashVideoPlaybackSessionToken,
+} from './video-playback-session.policy';
 import {
   normalizeOwnedPublishedVideoPath,
   normalizeOwnedPublishedVideoPosterPath,
@@ -29,6 +34,8 @@ interface PublicVideoAccessResponseItem {
   readonly url: string;
   readonly posterUrl: string | null;
   readonly expiresAt: number;
+  readonly playbackSessionToken: string;
+  readonly playbackSessionExpiresAt: number;
 }
 
 interface PublicVideoAccessResponse {
@@ -61,6 +68,7 @@ interface PublicationDocument {
 
 const MAX_ITEMS_PER_REQUEST = 16;
 const SIGNED_URL_TTL_MS = 5 * 60 * 1000;
+const PLAYBACK_SESSIONS_COLLECTION = 'media_video_playback_sessions';
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -80,11 +88,38 @@ function buildRequestKey(ownerUid: string, videoId: string): string {
   return `${ownerUid}:${videoId}`;
 }
 
+async function issuePlaybackSession(params: {
+  readonly viewerUid: string;
+  readonly ownerUid: string;
+  readonly videoId: string;
+  readonly appId: string | null;
+  readonly now: number;
+}): Promise<{ token: string; expiresAt: number }> {
+  const token = createVideoPlaybackSessionToken();
+  const tokenHash = hashVideoPlaybackSessionToken(token);
+  const expiresAt = params.now + VIDEO_PLAYBACK_SESSION_TTL_MS;
+
+  await db.collection(PLAYBACK_SESSIONS_COLLECTION).doc(tokenHash).create({
+    viewerUid: params.viewerUid,
+    ownerUid: params.ownerUid,
+    videoId: params.videoId,
+    appId: params.appId,
+    issuedAt: params.now,
+    expiresAt,
+    consumedAt: null,
+  });
+
+  return { token, expiresAt };
+}
+
 async function resolveAccessItem(
   audience: VideoAudienceAccessEvaluator,
+  viewerUid: string,
+  appId: string | null,
   ownerUid: string,
   videoId: string,
-  expiresAt: number
+  expiresAt: number,
+  now: number
 ): Promise<PublicVideoAccessResponseItem | null> {
   const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
   const publicVideoRef = db.doc(
@@ -160,17 +195,27 @@ async function resolveAccessItem(
     }
   }
 
+  const playbackSession = await issuePlaybackSession({
+    viewerUid,
+    ownerUid,
+    videoId,
+    appId,
+    now,
+  });
+
   return {
     ownerUid,
     videoId,
     url: await createTemporaryStorageReadUrl(videoStoragePath, expiresAt),
     posterUrl,
     expiresAt,
+    playbackSessionToken: playbackSession.token,
+    playbackSessionExpiresAt: playbackSession.expiresAt,
   };
 }
 
 export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
-  { region: FUNCTIONS_REGION },
+  MEDIA_ACCESS_CALLABLE_OPTIONS,
   async (request): Promise<PublicVideoAccessResponse> => {
     const viewerUid = cleanId(request.auth?.uid);
 
@@ -215,13 +260,13 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
       );
     }
 
-    // A sessão central valida o visitante uma vez e mantém caches por autor.
-    // Nenhuma URL é emitida com base apenas na projeção pública recebida.
     const audience = await createVideoAudienceAccessEvaluator(
       viewerUid,
       request.auth?.token?.email_verified === true
     );
-    const expiresAt = Date.now() + SIGNED_URL_TTL_MS;
+    const now = Date.now();
+    const expiresAt = now + SIGNED_URL_TTL_MS;
+    const appId = cleanId(request.app?.appId) || null;
     const resolutions = await Promise.all(
       [...uniqueItems.values()].map(
         async ({ ownerUid, videoId }): Promise<PublicVideoAccessResolution> => {
@@ -229,9 +274,12 @@ export const getPublicVideoAccessUrls = onCall<PublicVideoAccessRequest>(
             return {
               item: await resolveAccessItem(
                 audience,
+                viewerUid,
+                appId,
                 ownerUid,
                 videoId,
-                expiresAt
+                expiresAt,
+                now
               ),
               technicalFailure: false,
             };
