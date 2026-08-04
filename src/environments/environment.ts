@@ -1,71 +1,17 @@
 // src/environments/environment.ts
-// Dev usando recursos reais (Cloud)
-import type { AppEnvironment } from './environment.model';
+// -----------------------------------------------------------------------------
+// PADRÃO SEGURO DE DESENVOLVIMENTO LOCAL
+// -----------------------------------------------------------------------------
+// `ng serve`, `npm start` e a configuração `development` não podem apontar
+// silenciosamente para Auth, Firestore, Storage ou Functions do projeto cloud.
+//
+// O ambiente local usa a suíte Firebase Emulator. Para uma sessão completa no
+// Windows, execute `npm run dev:auth:win`, que inicia os emuladores e o Angular
+// na configuração `dev-emu`, preservando os dados locais exportados.
+//
+// Uma futura execução conectada a cloud deve usar um environment e um comando
+// explicitamente nomeados, com autorização consciente. Não reutilize este
+// arquivo para contornar Functions ainda não implantadas.
+// -----------------------------------------------------------------------------
 
-export const environment: AppEnvironment = {
-  production: false,
-  stage: false,
-  env: 'dev-real',
-  useEmulators: false,
-  emulators: undefined,
-
-  firebase: {
-    apiKey: 'AIzaSyAtk-mc6oVZOqu9u7_2KIpk570q8O8Jrl0',
-    authDomain: 'entretenimento-sexual.firebaseapp.com',
-    databaseURL: 'https://entretenimento-sexual-default-rtdb.firebaseio.com',
-    projectId: 'entretenimento-sexual',
-    storageBucket: 'entretenimento-sexual.appspot.com',
-    messagingSenderId: '668950141209',
-    appId: '1:668950141209:web:73e27794c51e493cf44d88',
-    measurementId: 'G-GWTPJVK044',
-  },
-
-  apiEndpoint: 'http://localhost:3000',
-  enableDebugTools: true,
-
-  privacyLogging: {
-    enabled: true,
-    allowSensitiveConsoleData: false,
-    allowCacheTrace: false,
-    includeStackTrace: false,
-  },
-
-  monitoring: {
-    sentry: {
-      enabled: false,
-      dsn: undefined,
-      tracesSampleRate: 0,
-    },
-  },
-
-  appCheck: {
-    enabled: false,
-    provider: 'reCaptchaV3',
-    siteKey: 'dev-recaptcha-v3-site-key',
-  },
-
-  // 🔐 Integrações externas
-  integrations: {
-    virusTotal: {
-      enabled: false,
-      // ⚠️ Só para DESENVOLVIMENTO local. Em produção NÃO exponha a chave no front.
-      apiKey: undefined,
-      useProxy: false, // direto no browser (pode falhar por CORS)
-      region: 'us-central1',
-    },
-  },
-
-  features: {
-    enforceEmailVerified: false,
-    showGuestBanner: true,
-    restrictedRoutesWhenUnverified: [
-      '/dashboard/chat',
-      '/dashboard/featured-profiles',
-    ],
-    subscriberExperiencesPreview: false,
-    communityPreview: false,
-  },
-
-  friendsPageSize: 24,
-  dashboardFriendsLimit: 12,
-};
+export { environment } from './environment.dev-emu';
