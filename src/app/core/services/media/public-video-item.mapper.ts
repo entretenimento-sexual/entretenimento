@@ -15,6 +15,7 @@ interface PublicVideoMapperInput {
 
 const SUPPORTED_PUBLIC_VIDEO_TYPES = new Set(['video/mp4', 'video/webm']);
 const ACCESS_EXPIRY_SAFETY_WINDOW_MS = 15_000;
+const PLAYBACK_SESSION_PATTERN = /^[A-Za-z0-9_-]{32,256}$/;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -143,6 +144,11 @@ function normalizePosterAccess(value: unknown): TPublicVideoPosterAccess {
     : 'NONE';
 }
 
+function normalizePlaybackSessionToken(value: unknown): string {
+  const token = String(value ?? '').trim();
+  return PLAYBACK_SESSION_PATTERN.test(token) ? token : '';
+}
+
 function normalizeOwnerSummary(
   data: Record<string, unknown>
 ): IPublicVideoOwnerSummary | null {
@@ -217,10 +223,6 @@ export function buildPublicVideoKey(ownerUid: string, videoId: string): string {
   return `${ownerUid}:${videoId}`;
 }
 
-/**
- * Converte um documento Firestore em projeção pública canônica.
- * Estados não públicos, não aprovados ou incompletos são descartados.
- */
 export function mapPublicVideoProjection(
   input: PublicVideoMapperInput
 ): IPublicVideoProjection | null {
@@ -315,13 +317,20 @@ export function isPublicVideoAccessUsable(
   access: IPublicVideoAccess | null | undefined,
   now = Date.now()
 ): access is IPublicVideoAccess {
+  const playbackSessionToken = normalizePlaybackSessionToken(
+    access?.playbackSessionToken
+  );
+
   return !!access &&
     access.ownerUid === projection.ownerUid &&
     access.videoId === projection.id &&
     isTemporaryUrl(access.url) &&
     (!access.posterUrl || isTemporaryUrl(access.posterUrl)) &&
     Number.isFinite(access.expiresAt) &&
-    access.expiresAt > now + ACCESS_EXPIRY_SAFETY_WINDOW_MS;
+    access.expiresAt > now + ACCESS_EXPIRY_SAFETY_WINDOW_MS &&
+    !!playbackSessionToken &&
+    Number.isFinite(access.playbackSessionExpiresAt) &&
+    access.playbackSessionExpiresAt > now + ACCESS_EXPIRY_SAFETY_WINDOW_MS;
 }
 
 export function hydratePublicVideoItem(
@@ -338,5 +347,9 @@ export function hydratePublicVideoItem(
     url: access.url.trim(),
     posterUrl: access.posterUrl?.trim() || null,
     accessExpiresAt: Math.floor(access.expiresAt),
+    playbackSessionToken: access.playbackSessionToken.trim(),
+    playbackSessionExpiresAt: Math.floor(
+      access.playbackSessionExpiresAt
+    ),
   };
 }
