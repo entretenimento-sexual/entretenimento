@@ -3,13 +3,13 @@ import { onCall } from 'firebase-functions/v2/https';
 import {
   assertInteractionAccess,
 } from '../../account_lifecycle/interaction-access.policy';
-import { FUNCTIONS_REGION } from '../../config/functions-region';
 import {
   recordVideoView as recordVideoViewCore,
 } from './record-video-view.handler';
+import { VIDEO_PUBLIC_CALLABLE_OPTIONS } from './video-callable-security.options';
 
 export const recordVideoView = onCall(
-  { region: FUNCTIONS_REGION },
+  VIDEO_PUBLIC_CALLABLE_OPTIONS,
   async (request) => {
     const viewerUid = String(request.auth?.uid ?? '').trim();
 
