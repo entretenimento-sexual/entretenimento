@@ -127,10 +127,7 @@ export async function synchronizePublishedVideoSettings(
           ...(processedHeightPixels ? { processedHeightPixels } : {}),
           edited: privateVideo?.edited === true,
           audioMuted: privateVideo?.audioMuted === true,
-          orientationMode:
-            String(privateVideo?.orientationMode ?? '').toUpperCase() === 'AUTO'
-              ? 'AUTO'
-              : 'AUTO',
+          orientationMode: 'AUTO',
           updatedAt: Date.now(),
         },
         { merge: true }
