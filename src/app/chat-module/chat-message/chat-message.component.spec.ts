@@ -79,7 +79,7 @@ describe('ChatMessageComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('renderiza referência de vídeo sem expor URL assinada', () => {
+  it('renderiza referência genérica sem expor título ou URL assinada', () => {
     fixture.componentRef.setInput('message', {
       senderId: 'u2',
       nickname: 'Outro',
@@ -89,7 +89,7 @@ describe('ChatMessageComponent', () => {
         kind: 'PUBLIC_VIDEO',
         ownerUid: 'owner_1',
         videoId: 'video_1',
-        title: 'Apresentação do perfil',
+        title: 'Título legado que não pode ser exibido',
       },
       timestamp: { toDate: () => new Date() },
     } as any);
@@ -100,11 +100,16 @@ describe('ChatMessageComponent', () => {
     ) as HTMLAnchorElement | null;
 
     expect(card).toBeTruthy();
-    expect(card?.textContent).toContain('Apresentação do perfil');
+    expect(card?.textContent).toContain('Vídeo compartilhado');
+    expect(card?.textContent).toContain('O acesso será verificado ao abrir.');
     expect(card?.textContent).toContain('Abrir vídeo');
+    expect(card?.textContent).not.toContain('Título legado');
     expect(fixture.nativeElement.textContent).not.toContain('signed');
-    expect(fixture.componentInstance.getAriaLabel()).toContain(
-      'Vídeo compartilhado: Apresentação do perfil'
+    expect(card?.getAttribute('aria-label')).toContain(
+      'O acesso será verificado novamente'
+    );
+    expect(fixture.componentInstance.getAriaLabel()).not.toContain(
+      'Título legado'
     );
   });
 
