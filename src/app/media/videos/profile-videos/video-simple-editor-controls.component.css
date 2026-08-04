@@ -1,0 +1,222 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.video-simple-editor {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.video-simple-editor__heading,
+.video-simple-editor__cover-tools,
+.video-simple-editor__range-row label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.video-simple-editor__heading h3 {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+}
+
+.video-simple-editor__eyebrow {
+  color: var(--color-primary, #ff6f76);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.video-simple-editor__duration {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary, #ff6f76) 14%, transparent);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.video-simple-editor__stage {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 100%;
+  min-height: 16rem;
+  border: 1px solid var(--border-color, #2d3748);
+  border-radius: 0.9rem;
+  background: #000;
+}
+
+.video-simple-editor__stage video {
+  display: block;
+  width: 100%;
+  max-height: 32rem;
+  object-fit: contain;
+}
+
+.video-simple-editor__stage--vertical video {
+  width: min(100%, 18rem);
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+}
+
+.video-simple-editor__stage--portrait video {
+  width: min(100%, 22rem);
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+}
+
+.video-simple-editor__stage--square video {
+  width: min(100%, 26rem);
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.video-simple-editor__controls {
+  display: grid;
+  gap: 1rem;
+}
+
+.video-simple-editor__controls fieldset {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.video-simple-editor__controls legend {
+  margin-bottom: 0.55rem;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.video-simple-editor__range-row {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.video-simple-editor__range-row label,
+.video-simple-editor__range-row output {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.video-simple-editor__range-row input[type='range'] {
+  width: 100%;
+  min-height: 2rem;
+  accent-color: var(--color-primary, #ff6f76);
+}
+
+.video-simple-editor__aspect-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.video-simple-editor__aspect-option {
+  position: relative;
+  display: grid;
+  gap: 0.12rem;
+  min-height: 3.7rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border-color, #2d3748);
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+
+.video-simple-editor__aspect-option input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.video-simple-editor__aspect-option--selected {
+  border-color: var(--color-primary, #ff6f76);
+  box-shadow: 0 0 0 1px var(--color-primary, #ff6f76);
+}
+
+.video-simple-editor__aspect-option strong,
+.video-simple-editor__aspect-option small {
+  pointer-events: none;
+}
+
+.video-simple-editor__aspect-option small,
+.video-simple-editor__cover-tools small,
+.video-simple-editor__note,
+.video-simple-editor__status {
+  color: var(--text-muted, #aab3c2);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.video-simple-editor__toggles label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  cursor: pointer;
+}
+
+.video-simple-editor__toggles input {
+  margin-top: 0.2rem;
+  accent-color: var(--color-primary, #ff6f76);
+}
+
+.video-simple-editor__toggles span,
+.video-simple-editor__cover-tools > div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.video-simple-editor__cover-tools {
+  align-items: flex-end;
+  padding-top: 0.25rem;
+}
+
+.video-simple-editor__error,
+.video-simple-editor__status,
+.video-simple-editor__note {
+  margin: 0;
+}
+
+.video-simple-editor__error {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--color-danger, #ff6b7a);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.video-simple-editor__note {
+  padding: 0.75rem;
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, var(--surface-muted, #111923) 82%, transparent);
+}
+
+@media (min-width: 44rem) {
+  .video-simple-editor__aspect-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 32rem) {
+  .video-simple-editor__heading,
+  .video-simple-editor__cover-tools {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .video-simple-editor__duration {
+    width: fit-content;
+  }
+
+  .video-simple-editor__cover-tools button {
+    width: 100%;
+  }
+}
