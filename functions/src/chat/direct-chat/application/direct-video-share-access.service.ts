@@ -50,8 +50,8 @@ function snapshotRecord(
     : null;
 }
 
-function isActiveBlock(snapshot: DocumentSnapshot): boolean {
-  return snapshot.exists &&
+function isActiveBlock(snapshot: DocumentSnapshot | null): boolean {
+  return !!snapshot?.exists &&
     (snapshot.data() as RelationshipDocument | undefined)?.isBlocked === true;
 }
 
@@ -69,6 +69,26 @@ function isValidFriendEdge(
 
 function visibilityOf(value: unknown): string {
   return String(value ?? '').trim().toUpperCase();
+}
+
+function throwRecipientAccessError(error: unknown): never {
+  const code = error instanceof HttpsError
+    ? error.code
+    : 'failed-precondition';
+  const originalDetails = error instanceof HttpsError &&
+    error.details &&
+    typeof error.details === 'object'
+    ? error.details as Readonly<Record<string, unknown>>
+    : {};
+
+  throw new HttpsError(
+    code,
+    'O destinatário não possui acesso a este vídeo.',
+    {
+      ...originalDetails,
+      perspective: 'recipient',
+    }
+  );
 }
 
 async function readRelationshipContext(
@@ -200,19 +220,24 @@ export async function authorizeDirectVideoShareInTransaction(params: {
     publication,
     ...actorRelationship,
   });
-  assertCanonicalVideoAudienceContext({
-    viewerUid: targetUid,
-    ownerUid,
-    videoId,
-    action: 'PLAY',
-    viewerUser: targetUser,
-    ownerUser,
-    viewerAuth: targetAuth,
-    ownerAuth,
-    publicVideo,
-    publication,
-    ...targetRelationship,
-  });
+
+  try {
+    assertCanonicalVideoAudienceContext({
+      viewerUid: targetUid,
+      ownerUid,
+      videoId,
+      action: 'PLAY',
+      viewerUser: targetUser,
+      ownerUser,
+      viewerAuth: targetAuth,
+      ownerAuth,
+      publicVideo,
+      publication,
+      ...targetRelationship,
+    });
+  } catch (error) {
+    throwRecipientAccessError(error);
+  }
 
   const storedReference = resolveStoredDirectMessagePublicVideoReference({
     requested,
