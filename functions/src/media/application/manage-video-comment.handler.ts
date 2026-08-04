@@ -18,6 +18,7 @@ type VideoCommentStatus = 'VISIBLE' | 'HIDDEN' | 'DELETED';
 type VideoCommentModerationAction = 'HIDE' | 'RESTORE' | 'DELETE';
 
 interface PublicVideoDoc {
+  ownerUid?: string;
   reactionsCount?: number;
   likesCount?: number;
   commentsCount?: number;
@@ -283,6 +284,7 @@ export const moderateVideoComment = onCall<ModerateVideoCommentRequest>(
       const comment = commentSnap.data() as VideoCommentDoc;
 
       if (
+        video.ownerUid !== ownerUid ||
         comment.ownerUid !== ownerUid ||
         comment.videoId !== videoId
       ) {
