@@ -9,6 +9,8 @@ import {
 } from './public-video-item.mapper';
 
 const NOW = 1_800_000_000_000;
+const PLAYBACK_SESSION_TOKEN =
+  'playback_session_1234567890_abcdefghijk';
 
 function createValidDocument(): Record<string, unknown> {
   return {
@@ -146,7 +148,7 @@ describe('public-video-item.mapper', () => {
     });
   });
 
-  it('hidrata somente URL temporária correspondente e ainda válida', () => {
+  it('hidrata somente URL e sessão temporárias correspondentes e válidas', () => {
     const projection = mapPublicVideoProjection({
       documentId: 'video-1',
       data: createValidDocument(),
@@ -160,6 +162,8 @@ describe('public-video-item.mapper', () => {
       url: 'http://127.0.0.1:9199/video.mp4?token=test',
       posterUrl: 'https://example.test/poster.webp?token=test',
       expiresAt: NOW + 5 * 60_000,
+      playbackSessionToken: PLAYBACK_SESSION_TOKEN,
+      playbackSessionExpiresAt: NOW + 10 * 60_000,
     };
 
     expect(isPublicVideoAccessUsable(projection!, access, NOW)).toBe(true);
@@ -168,6 +172,8 @@ describe('public-video-item.mapper', () => {
       url: access.url,
       posterUrl: access.posterUrl,
       accessExpiresAt: access.expiresAt,
+      playbackSessionToken: PLAYBACK_SESSION_TOKEN,
+      playbackSessionExpiresAt: access.playbackSessionExpiresAt,
     });
 
     expect(hydratePublicVideoItem(projection!, {
@@ -178,6 +184,16 @@ describe('public-video-item.mapper', () => {
     expect(hydratePublicVideoItem(projection!, {
       ...access,
       expiresAt: NOW + 5_000,
+    }, NOW)).toBeNull();
+
+    expect(hydratePublicVideoItem(projection!, {
+      ...access,
+      playbackSessionExpiresAt: NOW + 5_000,
+    }, NOW)).toBeNull();
+
+    expect(hydratePublicVideoItem(projection!, {
+      ...access,
+      playbackSessionToken: 'invalid',
     }, NOW)).toBeNull();
   });
 
