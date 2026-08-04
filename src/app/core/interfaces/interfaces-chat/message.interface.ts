@@ -8,17 +8,20 @@ export interface PublicVideoMessageReference {
   readonly kind: 'PUBLIC_VIDEO';
   readonly ownerUid: string;
   readonly videoId: string;
+
+  /**
+   * Campo mantido por compatibilidade de schema. Novas mensagens persistem
+   * somente o rótulo genérico "Vídeo compartilhado", e a UI também normaliza
+   * referências antigas para não expor título mutável após revogação.
+   */
   readonly title: string;
 }
 
 /**
- * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
- *
- * A referência acima nunca concede acesso ao vídeo. Quando as audiências
- * FRIENDS, SUBSCRIBERS ou PREMIUM forem ativadas, o backend deverá validar o
- * entitlement do destinatário no envio e o backend de playback deverá validar
- * novamente ao abrir. Nunca persistir URL assinada, caminho de Storage, token
- * ou snapshot financeiro dentro da mensagem.
+ * A referência acima nunca concede acesso ao vídeo. O backend valida remetente
+ * e destinatário no envio, e o backend de playback valida novamente ao abrir.
+ * Nunca persistir URL assinada, caminho de Storage, token, título mutável ou
+ * snapshot financeiro dentro da mensagem.
  */
 export interface Message {
   id?: string;

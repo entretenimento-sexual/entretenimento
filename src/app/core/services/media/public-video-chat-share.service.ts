@@ -34,11 +34,9 @@ export class PublicVideoChatShareService {
   >(this.functions, 'sendDirectVideoReference');
 
   /**
-   * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
-   *
-   * Este cliente envia somente IDs. Nunca decidir entitlement aqui e nunca
-   * anexar URL assinada. Quando SUBSCRIBERS/PREMIUM forem ativados, a callable
-   * e o playback continuarão responsáveis por revalidar o acesso do receptor.
+   * O cliente envia somente IDs. Entitlement, lifecycle, bloqueios e audiência
+   * são avaliados no backend para remetente e destinatário. A mensagem nunca
+   * recebe URL assinada, path, título mutável ou snapshot financeiro.
    */
   sendToChat$(params: {
     chatId: string;
@@ -87,13 +85,23 @@ export class PublicVideoChatShareService {
   }
 
   private resolveUserMessage(error: unknown): string {
-    const code = String(
-      (error as { code?: unknown } | null)?.code ?? ''
-    ).toLowerCase();
-    const message = String(
-      (error as { message?: unknown } | null)?.message ?? ''
+    const candidate = error as {
+      code?: unknown;
+      message?: unknown;
+      details?: {
+        perspective?: unknown;
+        reason?: unknown;
+      };
+    } | null;
+    const code = String(candidate?.code ?? '').toLowerCase();
+    const message = String(candidate?.message ?? '').toLowerCase();
+    const perspective = String(
+      candidate?.details?.perspective ?? ''
     ).toLowerCase();
 
+    if (perspective === 'recipient' || message.includes('destinatário')) {
+      return 'O destinatário não pode acessar este vídeo.';
+    }
     if (code.includes('failed-precondition')) {
       if (message.includes('conexão')) {
         return 'Vocês precisam estar conectados para compartilhar vídeos.';
@@ -104,6 +112,9 @@ export class PublicVideoChatShareService {
       return 'A conversa não permite este compartilhamento agora.';
     }
     if (code.includes('permission-denied')) {
+      if (message.includes('audiência') || message.includes('compartilhar')) {
+        return 'Você não possui acesso para compartilhar este vídeo.';
+      }
       return 'Esta conversa não está disponível.';
     }
     if (code.includes('unauthenticated')) {

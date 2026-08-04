@@ -34,13 +34,13 @@
             videoReference.ownerUid,
             videoReference.videoId
           ]"
-          [attr.aria-label]="'Abrir vídeo compartilhado: ' + videoReference.title"
+          aria-label="Abrir vídeo compartilhado. O acesso será verificado novamente."
         >
           <strong>
             <i class="fas fa-video" aria-hidden="true"></i>
             Vídeo compartilhado
           </strong>
-          <span>{{ videoReference.title }}</span>
+          <span>O acesso será verificado ao abrir.</span>
           <span>Abrir vídeo</span>
         </a>
       } @else {

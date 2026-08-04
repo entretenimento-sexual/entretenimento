@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto';
+import type { UserRecord } from 'firebase-admin/auth';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../../config/functions-region';
-import { db, FieldValue } from '../../../firebaseApp';
+import { auth, db, FieldValue } from '../../../firebaseApp';
+import type {
+  VideoAudienceAuthContext,
+} from '../../../media/application/video-audience-context.policy';
 import {
   assertMessagingAccountOperational,
 } from '../../shared/messaging-account.policy';
@@ -16,8 +20,10 @@ import {
 import type { DirectChatDocumentForSend } from '../domain/direct-message.policy';
 import {
   normalizeRequestedPublicVideoReference,
-  resolveStoredDirectMessagePublicVideoReference,
 } from '../domain/direct-message-public-video-reference.policy';
+import {
+  authorizeDirectVideoShareInTransaction,
+} from './direct-video-share-access.service';
 
 interface SendDirectVideoReferenceRequest {
   chatId?: unknown;
@@ -67,6 +73,37 @@ function assertAcceptedFriendship(actorExists: boolean, targetExists: boolean): 
   }
 }
 
+function toAudienceAuthContext(user: UserRecord): VideoAudienceAuthContext {
+  return {
+    disabled: user.disabled === true,
+    emailVerified: user.emailVerified === true,
+  };
+}
+
+async function readRequiredAuthUser(uid: string): Promise<UserRecord> {
+  try {
+    return await auth.getUser(uid);
+  } catch {
+    throw new HttpsError(
+      'failed-precondition',
+      'Uma das contas necessárias para este compartilhamento não está disponível.'
+    );
+  }
+}
+
+async function readAudienceAuthContexts(
+  actorUid: string,
+  targetUid: string,
+  ownerUid: string
+): Promise<ReadonlyMap<string, VideoAudienceAuthContext>> {
+  const uniqueUids = Array.from(new Set([actorUid, targetUid, ownerUid]));
+  const users = await Promise.all(uniqueUids.map(readRequiredAuthUser));
+
+  return new Map(
+    users.map((user) => [user.uid, toAudienceAuthContext(user)] as const)
+  );
+}
+
 export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
   { region: FUNCTIONS_REGION, invoker: 'public' },
   async (request) => {
@@ -98,6 +135,33 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
     const chatRef = db.doc(`chats/${chatId}`);
     const messageRef = chatRef.collection('messages').doc(messageId);
 
+    // O destinatário é resolvido antes da transação apenas para carregar os
+    // sinais do Firebase Auth. A conversa e o destinatário são relidos e
+    // confirmados atomicamente antes de qualquer escrita.
+    const preflightChatSnapshot = await chatRef.get();
+    const preflightChat = preflightChatSnapshot.exists
+      ? preflightChatSnapshot.data() as DirectChatDocumentForSend
+      : undefined;
+    const preflightTargetUid = resolveDirectMessageTargetUid(
+      preflightChat,
+      actorUid
+    );
+    const authContexts = await readAudienceAuthContexts(
+      actorUid,
+      preflightTargetUid,
+      requestedReference.ownerUid
+    );
+    const actorAuth = authContexts.get(actorUid);
+    const targetAuth = authContexts.get(preflightTargetUid);
+    const ownerAuth = authContexts.get(requestedReference.ownerUid);
+
+    if (!actorAuth || !targetAuth || !ownerAuth) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Não foi possível confirmar as contas deste compartilhamento.'
+      );
+    }
+
     return db.runTransaction(async (transaction) => {
       const chatSnapshot = await transaction.get(chatRef);
       const chat = chatSnapshot.exists
@@ -105,18 +169,15 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
         : undefined;
       const targetUid = resolveDirectMessageTargetUid(chat, actorUid);
 
+      if (targetUid !== preflightTargetUid) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A conversa foi alterada. Tente compartilhar novamente.'
+        );
+      }
+
       const actorRef = db.doc(`users/${actorUid}`);
       const targetRef = db.doc(`users/${targetUid}`);
-      const publicProfileRef = db.doc(
-        `public_profiles/${requestedReference.ownerUid}`
-      );
-      const publicVideoRef = publicProfileRef
-        .collection('public_videos')
-        .doc(requestedReference.videoId);
-      const publicationRef = db.doc(
-        `users/${requestedReference.ownerUid}/video_publications/${requestedReference.videoId}`
-      );
-
       const [
         actorSnapshot,
         targetSnapshot,
@@ -124,9 +185,6 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
         targetBlockSnapshot,
         actorFriendSnapshot,
         targetFriendSnapshot,
-        publicProfileSnapshot,
-        publicVideoSnapshot,
-        publicationSnapshot,
         existingMessageSnapshot,
       ] = await Promise.all([
         transaction.get(actorRef),
@@ -135,12 +193,8 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
         transaction.get(targetRef.collection('blocks').doc(actorUid)),
         transaction.get(actorRef.collection('friends').doc(targetUid)),
         transaction.get(targetRef.collection('friends').doc(actorUid)),
-        transaction.get(publicProfileRef),
-        transaction.get(publicVideoRef),
-        transaction.get(publicationRef),
         transaction.get(messageRef),
       ]);
-
       const actor = actorSnapshot.data() as MessagingUserDoc | undefined;
       const target = targetSnapshot.data() as MessagingUserDoc | undefined;
 
@@ -165,24 +219,17 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
         targetFriendSnapshot.exists
       );
 
-      const storedReference =
-        resolveStoredDirectMessagePublicVideoReference({
-          requested: requestedReference,
-          publicProfileExists: publicProfileSnapshot.exists,
-          publicVideo: publicVideoSnapshot.exists
-            ? publicVideoSnapshot.data()
-            : undefined,
-          publication: publicationSnapshot.exists
-            ? publicationSnapshot.data()
-            : undefined,
-        });
-
-      if (!storedReference) {
-        throw new HttpsError(
-          'failed-precondition',
-          'Este vídeo não está disponível para compartilhamento.'
-        );
-      }
+      const storedReference = await authorizeDirectVideoShareInTransaction({
+        transaction,
+        actorUid,
+        targetUid,
+        requested: requestedReference,
+        actorUser: actor,
+        targetUser: target,
+        actorAuth,
+        targetAuth,
+        ownerAuth,
+      });
 
       if (existingMessageSnapshot.exists) {
         const existing = existingMessageSnapshot.data() as StoredMessageDoc;
@@ -190,8 +237,10 @@ export const sendDirectVideoReference = onCall<SendDirectVideoReferenceRequest>(
           clean(existing.senderId) === actorUid &&
           clean(existing.clientRequestId) === clientRequestId &&
           existing.messageType === 'public_video' &&
-          clean(existing.publicVideoReference?.ownerUid) === storedReference.ownerUid &&
-          clean(existing.publicVideoReference?.videoId) === storedReference.videoId;
+          clean(existing.publicVideoReference?.ownerUid) ===
+            storedReference.ownerUid &&
+          clean(existing.publicVideoReference?.videoId) ===
+            storedReference.videoId;
 
         if (sameReference) {
           return { chatId, messageId, deduplicated: true };
