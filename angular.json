@@ -94,12 +94,6 @@
               "namedChunks": false
             },
             "development": {
-              "fileReplacements": [
-                {
-                  "replace": "src/environments/environment.ts",
-                  "with": "src/environments/environment.dev-emu.ts"
-                }
-              ],
               "optimization": false,
               "outputHashing": "none",
               "extractLicenses": false,
@@ -163,7 +157,7 @@
               "buildTarget": "entretenimento:build:production"
             },
             "development": {
-              "buildTarget": "entretenimento:build:development"
+              "buildTarget": "entretenimento:build:dev-emu"
             },
             "dev-cloud": {
               "buildTarget": "entretenimento:build:dev-cloud"
