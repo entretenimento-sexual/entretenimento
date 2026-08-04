@@ -19,6 +19,14 @@ import {
   registerPrivateVideoUpload as registerPrivateVideoUploadCore,
 } from './register-private-video-upload.handler';
 import {
+  hasEffectiveVideoEdit,
+  normalizeVideoEditRecipe,
+  resolveEditedVideoDurationMs,
+  resolveVideoEditGeometry,
+  VideoEditRecipeValidationError,
+  type VideoEditRecipe,
+} from './video-edit-recipe';
+import {
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
@@ -31,6 +39,8 @@ interface RegisterPrivateVideoUploadRequest {
   posterStoragePath?: string | null;
   sizeBytes?: number;
   mimeType?: string;
+  durationMs?: number | null;
+  editRecipe?: unknown;
   [key: string]: unknown;
 }
 
@@ -275,10 +285,56 @@ function buildReservationInput(
   };
 }
 
+function normalizeRequestedEditRecipe(
+  data: RegisterPrivateVideoUploadRequest | undefined
+): VideoEditRecipe {
+  try {
+    return normalizeVideoEditRecipe(data?.editRecipe, data?.durationMs);
+  } catch (error) {
+    if (error instanceof VideoEditRecipeValidationError) {
+      throw new HttpsError('invalid-argument', error.message, {
+        code: error.code,
+        retryable: false,
+        recovery: 'Revise o corte e o enquadramento antes de enviar novamente.',
+      });
+    }
+
+    throw error;
+  }
+}
+
+async function persistEditRecipe(
+  ownerUid: string,
+  videoId: string,
+  editRecipe: VideoEditRecipe,
+  sourceDurationMs: number | null
+): Promise<void> {
+  const geometry = resolveVideoEditGeometry(editRecipe);
+  const now = Date.now();
+
+  await db.doc(`users/${ownerUid}/videos/${videoId}`).set(
+    {
+      editRecipe,
+      editRequested: hasEffectiveVideoEdit(editRecipe, sourceDurationMs),
+      requestedOutputDurationMs: resolveEditedVideoDurationMs(
+        editRecipe,
+        sourceDurationMs
+      ),
+      requestedOutputWidthPixels: geometry?.outputWidthPixels ?? null,
+      requestedOutputHeightPixels: geometry?.outputHeightPixels ?? null,
+      audioMuted: editRecipe.muteAudio,
+      orientationMode: editRecipe.orientation,
+      editUpdatedAt: now,
+      updatedAt: now,
+    },
+    { merge: true }
+  );
+}
+
 /**
  * Registra o upload e só responde depois que a fila idempotente foi persistida.
  * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
- * A elegibilidade e a reserva são obrigatórias e revalidadas no backend.
+ * A elegibilidade, a reserva e a receita são revalidadas no backend.
  */
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
@@ -331,18 +387,12 @@ export const registerPrivateVideoUpload = onCall<
       );
     }
 
-    try {
-      await assertPrivateVideoUploadReservation(reservationInput);
-    } catch (error) {
-      await Promise.all([
-        cancelPrivateVideoUploadReservationById(reservationId, ownerUid),
-        cleanupDeniedUploadAssets(ownerUid, videoId, assets),
-      ]);
-      throw error;
-    }
+    let editRecipe: VideoEditRecipe;
 
     try {
+      await assertPrivateVideoUploadReservation(reservationInput);
       await assertPrivateVideoUploadEligibility(ownerUid);
+      editRecipe = normalizeRequestedEditRecipe(request.data);
     } catch (error) {
       await Promise.all([
         cancelPrivateVideoUploadReservationById(reservationId, ownerUid),
@@ -355,6 +405,7 @@ export const registerPrivateVideoUpload = onCall<
       ...request,
       data: {
         ...(request.data ?? {}),
+        editRecipe,
         publishWhenReady: true,
       },
     };
@@ -380,6 +431,12 @@ export const registerPrivateVideoUpload = onCall<
       );
     }
 
+    await persistEditRecipe(
+      response.ownerUid,
+      response.videoId,
+      editRecipe,
+      normalizePositiveInteger(request.data?.durationMs) || null
+    );
     await ensurePrivateVideoProcessingQueued(
       response.ownerUid,
       response.videoId
