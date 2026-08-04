@@ -37,6 +37,13 @@ import {
   VideoMetadataPreparationService,
 } from 'src/app/core/services/media/video-metadata-preparation.service';
 
+export interface IVideoSimpleEditorState {
+  readonly recipe: IVideoEditRecipeInput;
+  readonly valid: boolean;
+  readonly loading: boolean;
+  readonly error: string | null;
+}
+
 const MIN_EDITED_DURATION_MS = 5_000;
 
 @Component({
@@ -84,6 +91,8 @@ export class VideoSimpleEditorControlsComponent {
   }
 
   @Output() readonly posterChange = new EventEmitter<Blob | null>();
+  @Output() readonly stateChange =
+    new EventEmitter<IVideoSimpleEditorState>();
 
   readonly form = this.formBuilder.nonNullable.group({
     trimStartMs: [0],
@@ -172,9 +181,26 @@ export class VideoSimpleEditorControlsComponent {
       distinctUntilChanged(),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => this.posterChange.emit(null));
+
+    combineLatest([
+      this.fileSubject,
+      this.metadataSubject,
+      this.loadingSubject,
+      this.form.valueChanges.pipe(startWith(this.form.getRawValue())),
+    ]).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => this.emitEditorState());
   }
 
   buildRecipe(): IVideoEditRecipeInput {
+    if (!this.fileSubject.value) {
+      throw new Error('Selecione um vídeo antes de continuar.');
+    }
+
+    if (this.loadingSubject.value) {
+      throw new Error('Aguarde a leitura do vídeo antes de continuar.');
+    }
+
     const validationMessage = this.getValidationMessage();
 
     if (validationMessage) {
@@ -248,6 +274,38 @@ export class VideoSimpleEditorControlsComponent {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  private emitEditorState(): void {
+    const loading = this.loadingSubject.value;
+
+    if (!this.fileSubject.value || loading) {
+      this.stateChange.emit({
+        recipe: DEFAULT_VIDEO_EDIT_RECIPE_INPUT,
+        valid: false,
+        loading,
+        error: null,
+      });
+      return;
+    }
+
+    try {
+      this.stateChange.emit({
+        recipe: this.buildRecipe(),
+        valid: true,
+        loading: false,
+        error: null,
+      });
+    } catch (error) {
+      this.stateChange.emit({
+        recipe: DEFAULT_VIDEO_EDIT_RECIPE_INPUT,
+        valid: false,
+        loading: false,
+        error: error instanceof Error
+          ? error.message
+          : 'Revise a edição antes de continuar.',
+      });
+    }
   }
 
   private getValidationMessage(): string | null {
