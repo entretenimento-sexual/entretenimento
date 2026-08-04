@@ -25,7 +25,7 @@ describe('VideoMetadataPreparationService', () => {
     vi.restoreAllMocks();
   });
 
-  it('gera JPEG a partir do quadro atualmente exibido', async () => {
+  it('gera JPEG a partir de todo o quadro atualmente exibido', async () => {
     const video = document.createElement('video');
     Object.defineProperties(video, {
       videoWidth: { configurable: true, value: 1920 },
@@ -42,7 +42,45 @@ describe('VideoMetadataPreparationService', () => {
 
     expect(poster.type).toBe('image/jpeg');
     expect(poster.size).toBeGreaterThan(0);
-    expect(drawImage).toHaveBeenCalledWith(video, 0, 0, 1280, 720);
+    expect(drawImage).toHaveBeenCalledWith(
+      video,
+      0,
+      0,
+      1920,
+      1080,
+      0,
+      0,
+      1280,
+      720
+    );
+  });
+
+  it('recorta a capa no centro conforme a proporção escolhida', async () => {
+    const video = document.createElement('video');
+    Object.defineProperties(video, {
+      videoWidth: { configurable: true, value: 1920 },
+      videoHeight: { configurable: true, value: 1080 },
+      readyState: {
+        configurable: true,
+        value: HTMLMediaElement.HAVE_CURRENT_DATA,
+      },
+    });
+
+    await firstValueFrom(
+      service.captureCurrentFrame$(video, 'SQUARE_1_1')
+    );
+
+    expect(drawImage).toHaveBeenCalledWith(
+      video,
+      420,
+      0,
+      1080,
+      1080,
+      0,
+      0,
+      1080,
+      1080
+    );
   });
 
   it('recusa captura antes de o navegador disponibilizar um quadro', async () => {
