@@ -27,15 +27,33 @@ O launcher existente:
 5. inicia o Angular com a configuração `dev-emu`;
 6. aguarda os serviços ficarem disponíveis antes de abrir o navegador.
 
-## Ambiente padrão
+## Ambiente local padrão
 
-`src/environments/environment.ts` referencia `environment.dev-emu.ts`.
+O `angular.json` aplica o replacement:
 
-Assim, `ng serve`, `npm start` e a configuração Angular `development` não apontam para a cloud por padrão.
+```text
+development → environment.dev-emu.ts
+```
+
+Por isso, os comandos abaixo usam os emuladores:
+
+```powershell
+npm start
+npm run start:dev
+ng serve
+```
+
+`environment.ts` permanece como configuração-base de compilação e testes. Ele não é usado diretamente pelo servidor local porque a configuração `development` o substitui antes do build servido.
 
 ## Ambiente cloud explícito
 
-A configuração `dev-cloud` usa `environment.dev-cloud.ts` e deve ser tratada como operação consciente. Ela não implanta Functions, Rules, índices ou qualquer outro recurso.
+A configuração `dev-cloud` usa `environment.dev-cloud.ts` e precisa ser selecionada conscientemente:
+
+```powershell
+ng serve -c dev-cloud
+```
+
+Ela não implanta Functions, Rules, índices ou qualquer outro recurso.
 
 Não use `dev-cloud` para testar código cujo backend ainda não foi implantado. A ausência de uma callable na cloud pode aparecer no navegador como CORS porque a requisição termina antes de produzir uma resposta callable válida.
 
@@ -47,7 +65,7 @@ O desenvolvimento local não ignora os requisitos jurídicos.
 - o registro é feito pelas callables emuladas;
 - o navegador não grava aceite diretamente no Firestore;
 - a persistência local é mantida pelo export dos emuladores;
-- uma falha de infraestrutura não deve ser reinterpretada como aceite válido.
+- uma falha de infraestrutura não é reinterpretada como aceite válido.
 
 Se o usuário local ainda não aceitou a versão vigente, a tela será exibida uma vez e o aceite será persistido no ambiente emulado.
 
