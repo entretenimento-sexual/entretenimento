@@ -1,17 +1,24 @@
-import { onCall } from 'firebase-functions/v2/https';
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
   assertInteractionAccess,
 } from '../../account_lifecycle/interaction-access.policy';
-import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { MEDIA_VIEW_CALLABLE_OPTIONS } from './media-app-check.options';
 import {
   recordVideoView as recordVideoViewCore,
 } from './record-video-view.handler';
 
 export const recordVideoView = onCall(
-  { region: FUNCTIONS_REGION },
+  MEDIA_VIEW_CALLABLE_OPTIONS,
   async (request) => {
     const viewerUid = String(request.auth?.uid ?? '').trim();
+
+    if (request.app?.alreadyConsumed === true) {
+      throw new HttpsError(
+        'permission-denied',
+        'A validação de integridade desta solicitação já foi utilizada.'
+      );
+    }
 
     if (viewerUid) {
       await assertInteractionAccess(viewerUid);
