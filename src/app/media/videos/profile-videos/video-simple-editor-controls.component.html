@@ -31,11 +31,11 @@
       <video
         #uploadPreview
         [src]="previewUrl"
+        [muted]="form.controls.muteAudio.value"
         aria-label="Prévia local do vídeo selecionado"
         preload="metadata"
         controls
         playsinline
-        muted
       ></video>
     </div>
 
