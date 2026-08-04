@@ -18,6 +18,12 @@ interface VideoPublicationDoc {
 
 interface PrivateVideoDoc {
   fileName?: string;
+  durationMs?: unknown;
+  processedWidthPixels?: unknown;
+  processedHeightPixels?: unknown;
+  edited?: unknown;
+  audioMuted?: unknown;
+  orientationMode?: unknown;
 }
 
 type SynchronizationOutcome =
@@ -28,6 +34,13 @@ type SynchronizationOutcome =
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
+}
+
+function positiveInteger(value: unknown): number | null {
+  const numberValue = Number(value ?? 0);
+  return Number.isFinite(numberValue) && numberValue > 0
+    ? Math.trunc(numberValue)
+    : null;
 }
 
 /**
@@ -89,6 +102,13 @@ export async function synchronizePublishedVideoSettings(
         commentsEnabled: true,
         ratingsEnabled: true,
       });
+      const durationMs = positiveInteger(privateVideo?.durationMs);
+      const processedWidthPixels = positiveInteger(
+        privateVideo?.processedWidthPixels
+      );
+      const processedHeightPixels = positiveInteger(
+        privateVideo?.processedHeightPixels
+      );
 
       transaction.set(
         publicVideoRef,
@@ -102,6 +122,15 @@ export async function synchronizePublishedVideoSettings(
             publication.moderationStatus ?? 'PENDING_REVIEW'
           ).trim().toUpperCase(),
           moderationReason: publication.moderationReason ?? null,
+          ...(durationMs ? { durationMs } : {}),
+          ...(processedWidthPixels ? { processedWidthPixels } : {}),
+          ...(processedHeightPixels ? { processedHeightPixels } : {}),
+          edited: privateVideo?.edited === true,
+          audioMuted: privateVideo?.audioMuted === true,
+          orientationMode:
+            String(privateVideo?.orientationMode ?? '').toUpperCase() === 'AUTO'
+              ? 'AUTO'
+              : 'AUTO',
           updatedAt: Date.now(),
         },
         { merge: true }
