@@ -1,12 +1,14 @@
 // functions/src/chat/direct-chat/domain/direct-message-public-video-reference.policy.ts
 // -----------------------------------------------------------------------------
-// Referência segura de vídeo público em mensagens diretas.
+// Referência segura de vídeo em mensagens diretas.
 //
-// A mensagem persiste somente identidade e metadado público mínimo. URL
-// assinada, caminho de Storage e tokens de acesso nunca pertencem ao chat.
+// A mensagem persiste somente identidade e um rótulo genérico. URL assinada,
+// título mutável, caminho de Storage e tokens de acesso nunca pertencem ao chat.
+// O envio e o playback devem revalidar a audiência no backend.
 // -----------------------------------------------------------------------------
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+const GENERIC_VIDEO_TITLE = 'Vídeo compartilhado';
 
 export interface RequestedPublicVideoReference {
   ownerUid: string;
@@ -14,8 +16,10 @@ export interface RequestedPublicVideoReference {
 }
 
 export interface PublicVideoDocumentForDirectShare {
+  id?: unknown;
   ownerUid?: unknown;
   mediaType?: unknown;
+  assetAccess?: unknown;
   visibility?: unknown;
   moderationStatus?: unknown;
   title?: unknown;
@@ -41,24 +45,8 @@ function normalizeId(value: unknown): string {
   return SAFE_ID_PATTERN.test(normalized) ? normalized : '';
 }
 
-function replaceControlCharacters(value: string): string {
-  let sanitized = '';
-
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    sanitized += code <= 31 || code === 127 ? ' ' : value[index];
-  }
-
-  return sanitized;
-}
-
-function normalizeTitle(value: unknown): string {
-  const normalized = replaceControlCharacters(String(value ?? ''))
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 120);
-
-  return normalized || 'Vídeo compartilhado';
+function normalizeEnum(value: unknown): string {
+  return String(value ?? '').trim().toUpperCase();
 }
 
 export function normalizeRequestedPublicVideoReference(
@@ -79,40 +67,60 @@ export function normalizeRequestedPublicVideoReference(
 }
 
 /**
- * MANUTENÇÃO — RESTRIÇÃO FUTURA POR ASSINATURA/AUDIÊNCIA
- *
- * Hoje a referência direta aceita somente vídeo PUBLIC + APPROVED. Quando
- * FRIENDS, SUBSCRIBERS ou PREMIUM forem ativados, esta decisão deverá receber
- * o UID do destinatário e validar amizade/entitlement vigente. O envio da
- * referência jamais concede acesso: o playback deve revalidar a audiência
- * novamente, inclusive após cancelamento ou mudança do plano.
+ * A política central de audiência decide se o remetente pode compartilhar e se
+ * o destinatário pode reproduzir. Esta função somente persiste uma referência
+ * mínima quando ambas as decisões já foram aprovadas e os documentos canônicos
+ * permanecem coerentes.
  */
 export function resolveStoredDirectMessagePublicVideoReference(params: {
   requested: RequestedPublicVideoReference;
   publicProfileExists: boolean;
   publicVideo: PublicVideoDocumentForDirectShare | undefined;
   publication: VideoPublicationDocumentForDirectShare | undefined;
+  senderAuthorized: boolean;
+  recipientAuthorized: boolean;
 }): StoredDirectMessagePublicVideoReference | null {
-  const { requested, publicProfileExists, publicVideo, publication } = params;
+  const {
+    requested,
+    publicProfileExists,
+    publicVideo,
+    publication,
+    senderAuthorized,
+    recipientAuthorized,
+  } = params;
 
-  if (!publicProfileExists || !publicVideo || !publication) {
+  if (
+    !senderAuthorized ||
+    !recipientAuthorized ||
+    !publicProfileExists ||
+    !publicVideo ||
+    !publication
+  ) {
     return null;
   }
 
+  const videoId = normalizeId(publicVideo.id);
   const videoOwnerUid = normalizeId(publicVideo.ownerUid);
   const publicationOwnerUid = normalizeId(publication.ownerUid);
   const publicationVideoId = normalizeId(publication.videoId);
+  const projectionVisibility = normalizeEnum(publicVideo.visibility);
+  const publicationVisibility = normalizeEnum(publication.visibility);
+  const projectionModeration = normalizeEnum(publicVideo.moderationStatus);
+  const publicationModeration = normalizeEnum(publication.moderationStatus);
 
   if (
+    videoId !== requested.videoId ||
     videoOwnerUid !== requested.ownerUid ||
     publicationOwnerUid !== requested.ownerUid ||
     publicationVideoId !== requested.videoId ||
-    publicVideo.mediaType !== 'VIDEO' ||
-    publicVideo.visibility !== 'PUBLIC' ||
-    publicVideo.moderationStatus !== 'APPROVED' ||
+    normalizeEnum(publicVideo.mediaType) !== 'VIDEO' ||
+    normalizeEnum(publicVideo.assetAccess) !== 'SIGNED_URL' ||
     publication.isPublished !== true ||
-    publication.visibility !== 'PUBLIC' ||
-    publication.moderationStatus !== 'APPROVED'
+    !projectionVisibility ||
+    projectionVisibility !== publicationVisibility ||
+    projectionVisibility === 'PRIVATE' ||
+    projectionModeration !== 'APPROVED' ||
+    projectionModeration !== publicationModeration
   ) {
     return null;
   }
@@ -121,6 +129,6 @@ export function resolveStoredDirectMessagePublicVideoReference(params: {
     kind: 'PUBLIC_VIDEO',
     ownerUid: requested.ownerUid,
     videoId: requested.videoId,
-    title: normalizeTitle(publicVideo.title),
+    title: GENERIC_VIDEO_TITLE,
   };
 }
