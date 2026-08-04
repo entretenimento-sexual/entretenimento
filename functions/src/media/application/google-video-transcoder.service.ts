@@ -3,6 +3,8 @@ import { applicationDefault } from 'firebase-admin/app';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { adminApp, storage } from '../../firebaseApp';
+import { buildEditedTranscoderJobConfig } from './google-video-transcoder-edit-config';
+import { normalizeVideoEditRecipe } from './video-edit-recipe';
 import type { VideoProcessingJob } from './video-processing-job';
 
 interface GoogleTranscoderErrorStatus {
@@ -70,7 +72,9 @@ function projectId(): string {
   ).trim();
 
   if (!resolved) {
-    throw new Error('Projeto Google Cloud não identificado para transcodificação.');
+    throw new Error(
+      'Projeto Google Cloud não identificado para transcodificação.'
+    );
   }
 
   return resolved;
@@ -225,17 +229,34 @@ export async function submitGoogleVideoTranscoderJob(
 
   const parent = parentName();
   const authorization = await authorizationHeader();
+  const sourceUri = inputUri(job.sourceStoragePath);
+  const destinationUri = outputUri(job.outputPrefix);
+  const editRecipe = normalizeVideoEditRecipe(
+    job.editRecipe,
+    job.sourceDurationMs
+  );
+  const editedConfig = buildEditedTranscoderJobConfig({
+    inputUri: sourceUri,
+    outputUri: destinationUri,
+    recipe: editRecipe,
+    sourceDurationMs: job.sourceDurationMs,
+  });
   const response = await axios.post<GoogleTranscoderJobResponse>(
     `${TRANSCODER_API_BASE_URL}/${parent}/jobs`,
     {
-      inputUri: inputUri(job.sourceStoragePath),
-      outputUri: outputUri(job.outputPrefix),
-      templateId: TRANSCODER_TEMPLATE_ID,
+      ...(editedConfig
+        ? { config: editedConfig }
+        : {
+          inputUri: sourceUri,
+          outputUri: destinationUri,
+          templateId: TRANSCODER_TEMPLATE_ID,
+        }),
       ttlAfterCompletionDays: 7,
       labels: {
         source: 'entretenimento',
         media: 'profile-video',
         processing_version: processingVersion,
+        edited: editedConfig ? 'true' : 'false',
       },
     },
     {
@@ -249,7 +270,9 @@ export async function submitGoogleVideoTranscoderJob(
   const name = normalizeJobName(response.data?.name);
 
   if (!name) {
-    throw new Error('O Transcoder não retornou um identificador de job válido.');
+    throw new Error(
+      'O Transcoder não retornou um identificador de job válido.'
+    );
   }
 
   return normalizeSnapshot({
