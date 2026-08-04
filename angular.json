@@ -95,8 +95,22 @@
             },
             "development": {
               "optimization": false,
+              "outputHashing": "none",
               "extractLicenses": false,
               "sourceMap": true,
+              "namedChunks": true
+            },
+            "dev-cloud": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.dev-cloud.ts"
+                }
+              ],
+              "optimization": false,
+              "outputHashing": "none",
+              "sourceMap": true,
+              "extractLicenses": false,
               "namedChunks": true
             },
             "staging": {
@@ -143,7 +157,10 @@
               "buildTarget": "entretenimento:build:production"
             },
             "development": {
-              "buildTarget": "entretenimento:build:development"
+              "buildTarget": "entretenimento:build:dev-emu"
+            },
+            "dev-cloud": {
+              "buildTarget": "entretenimento:build:dev-cloud"
             },
             "staging": {
               "buildTarget": "entretenimento:build:staging"
@@ -198,9 +215,6 @@
       "typeSeparator": "."
     },
     "@schematics/angular:pipe": {
-      "typeSeparator": "."
-    },
-    "@schematics/angular:resolver": {
       "typeSeparator": "."
     }
   }
