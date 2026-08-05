@@ -18,6 +18,7 @@ export interface PrivateVideoReservationRegistrationInput {
   videoStoragePath: string;
   posterStoragePath: string | null;
   videoSizeBytes: number;
+  sourceDurationMs?: number | null;
   mimeType: string;
 }
 
@@ -54,6 +55,18 @@ function nextLockGeneration(snapshot: FirebaseFirestore.DocumentSnapshot): numbe
     : 1;
 }
 
+function mismatchError(): HttpsError {
+  return new HttpsError(
+    'failed-precondition',
+    'A reserva de upload não corresponde ao vídeo registrado.',
+    {
+      code: 'VIDEO_UPLOAD_RESERVATION_MISMATCH',
+      retryable: false,
+      recovery: 'Selecione novamente o arquivo e reinicie o envio.',
+    }
+  );
+}
+
 function normalizeInput(
   input: PrivateVideoReservationRegistrationInput
 ): PrivateVideoReservationRegistrationInput {
@@ -70,6 +83,7 @@ function normalizeInput(
     ? extractOwnedPrivateVideoPosterPath(ownerUid, videoId, rawPosterPath)
     : null;
   const videoSizeBytes = normalizePositiveInteger(input.videoSizeBytes);
+  const sourceDurationMs = normalizePositiveInteger(input.sourceDurationMs);
   const mimeType = normalizeMimeType(input.mimeType);
 
   if (
@@ -81,15 +95,7 @@ function normalizeInput(
     !videoSizeBytes ||
     !mimeType
   ) {
-    throw new HttpsError(
-      'failed-precondition',
-      'A reserva de upload não corresponde ao vídeo registrado.',
-      {
-        code: 'VIDEO_UPLOAD_RESERVATION_MISMATCH',
-        retryable: false,
-        recovery: 'Selecione novamente o arquivo e reinicie o envio.',
-      }
-    );
+    throw mismatchError();
   }
 
   return {
@@ -99,6 +105,7 @@ function normalizeInput(
     videoStoragePath,
     posterStoragePath,
     videoSizeBytes,
+    sourceDurationMs: sourceDurationMs || null,
     mimeType,
   };
 }
@@ -107,23 +114,23 @@ function assertReservationMatches(
   reservation: PrivateVideoUploadReservationDocument,
   input: PrivateVideoReservationRegistrationInput
 ): void {
+  const reservedDurationMs = normalizePositiveInteger(
+    reservation.sourceDurationMs
+  );
+  const registeredDurationMs = normalizePositiveInteger(
+    input.sourceDurationMs
+  );
+
   if (
     reservation.ownerUid !== input.ownerUid ||
     reservation.videoId !== input.videoId ||
     reservation.videoStoragePath !== input.videoStoragePath ||
     reservation.posterStoragePath !== input.posterStoragePath ||
     reservation.videoSizeBytes !== input.videoSizeBytes ||
-    reservation.mimeType !== input.mimeType
+    reservation.mimeType !== input.mimeType ||
+    (reservedDurationMs > 0 && reservedDurationMs !== registeredDurationMs)
   ) {
-    throw new HttpsError(
-      'failed-precondition',
-      'A reserva não corresponde ao arquivo enviado.',
-      {
-        code: 'VIDEO_UPLOAD_RESERVATION_MISMATCH',
-        retryable: false,
-        recovery: 'Selecione novamente o arquivo e reinicie o envio.',
-      }
-    );
+    throw mismatchError();
   }
 }
 
@@ -215,6 +222,9 @@ export async function consumePrivateVideoUploadReservationAfterRegistration(
         quotaPlanAtUpload: reservation.plan,
         quotaReservedBytes: reservation.reservedBytes,
         posterSizeBytes: reservation.posterSizeBytes,
+        sourceDurationMs: normalizePositiveInteger(
+          reservation.sourceDurationMs
+        ) || null,
         updatedAt: now,
       },
       { merge: true }
@@ -310,6 +320,9 @@ export const consumeVideoUploadReservationOnRegistration = onDocumentCreated(
     const videoSizeBytes = normalizePositiveInteger(
       video['sourceSizeBytes'] ?? video['sizeBytes']
     );
+    const sourceDurationMs = normalizePositiveInteger(
+      video['sourceDurationMs'] ?? video['durationMs']
+    );
     const mimeType = normalizeMimeType(
       video['sourceMimeType'] ?? video['mimeType']
     );
@@ -325,6 +338,7 @@ export const consumeVideoUploadReservationOnRegistration = onDocumentCreated(
       videoStoragePath,
       posterStoragePath,
       videoSizeBytes,
+      sourceDurationMs,
       mimeType,
     });
   }
