@@ -128,13 +128,18 @@ describe('ProfileVideosComponent', () => {
       ],
     }).compileComponents();
 
-    const matDialog = TestBed.inject(MatDialog);
-    dialogOpen = vi
-      .spyOn(matDialog, 'open')
-      .mockReturnValue(dialogRef as never);
-
     fixture = TestBed.createComponent(ProfileVideosComponent);
     component = fixture.componentInstance;
+
+    // O componente standalone pode resolver o MatDialog em um injector diferente
+    // do injector raiz do TestBed. O spy usa a referência exata já injetada.
+    const componentDialog = (
+      component as unknown as { dialog: MatDialog }
+    ).dialog;
+    dialogOpen = vi
+      .spyOn(componentDialog, 'open')
+      .mockReturnValue(dialogRef as never);
+
     fixture.detectChanges();
   });
 
