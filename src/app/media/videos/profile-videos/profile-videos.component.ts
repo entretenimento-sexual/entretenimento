@@ -4,6 +4,7 @@
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
+import { Overlay } from '@angular/cdk/overlay';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -112,6 +113,7 @@ const DENY_UNKNOWN: IMediaPolicyResult = {
 export class ProfileVideosComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
+  private readonly overlay = inject(Overlay);
   private readonly destroyRef = inject(DestroyRef);
   private readonly formBuilder = inject(FormBuilder);
   private readonly currentUserStore = inject(CurrentUserStoreService);
@@ -333,6 +335,7 @@ export class ProfileVideosComponent {
       autoFocus: 'first-tabbable',
       restoreFocus: true,
       closeOnNavigation: true,
+      scrollStrategy: this.overlay.scrollStrategies.block(),
       width: 'min(760px, 100vw)',
       height: '100dvh',
       maxWidth: '100vw',
