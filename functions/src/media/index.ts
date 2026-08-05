@@ -56,6 +56,9 @@ export {
 } from './application/cleanup-unpublished-video-interactions.handler';
 
 export {
+  getPrivateVideoUploadCapacity,
+} from './application/private-video-upload-capacity.handler';
+export {
   cancelPrivateVideoUploadReservation,
   cleanupPrivateVideoUploadReservations,
   reservePrivateVideoUpload,
