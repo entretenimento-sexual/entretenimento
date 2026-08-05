@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog } from '@angular/material/dialog';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -151,8 +152,11 @@ describe('ProfileVideosComponent', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('abre o compositor em MatDialog com foco e restauração configurados', () => {
-    queryUploadTrigger().click();
+  it('abre o compositor em MatDialog com foco e restauração configurados', async () => {
+    fixture.debugElement
+      .query(By.css('.profile-videos__upload-trigger'))
+      .triggerEventHandler('click');
+    await fixture.whenStable();
     fixture.detectChanges();
 
     expect(dialog.open).toHaveBeenCalledTimes(1);
@@ -174,6 +178,7 @@ describe('ProfileVideosComponent', () => {
 
     dialogClosedSubject.next();
     dialogClosedSubject.complete();
+    await fixture.whenStable();
     fixture.detectChanges();
 
     expect(component.uploadComposerOpen()).toBe(false);
