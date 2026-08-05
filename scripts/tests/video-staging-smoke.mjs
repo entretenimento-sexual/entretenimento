@@ -67,6 +67,10 @@ const TERMINAL_JOB_STATES = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED']);
 const DEFAULT_TIMEOUT_MS = 20 * 60 * 1000;
 const DEFAULT_INTERVAL_MS = 5_000;
 const APP_CHECK_TOKEN_TTL_MS = 30 * 60 * 1000;
+const MAX_SOURCE_BYTES = 80 * 1024 * 1024;
+const MAX_POSTER_BYTES = 5 * 1024 * 1024;
+const MIN_SOURCE_DURATION_MS = 5_000;
+const MAX_SOURCE_DURATION_MS = 60_000;
 const REPORT_DIRECTORY = path.resolve(
   process.env.VIDEO_STAGING_REPORT_DIR || 'artifacts/video-staging'
 );
@@ -439,9 +443,20 @@ async function runFormat({
 
   try {
     assert.ok(sourceBuffer.byteLength > 0, 'Arquivo de vídeo está vazio.');
-    assert.ok(sourceBuffer.byteLength <= 500 * 1024 * 1024);
+    assert.ok(
+      sourceBuffer.byteLength <= MAX_SOURCE_BYTES,
+      'Arquivo de vídeo excede 80 MiB.'
+    );
     assert.ok(posterBuffer.byteLength > 0, 'Poster está vazio.');
-    assert.ok(configuration.durationMs >= 5_000);
+    assert.ok(
+      posterBuffer.byteLength <= MAX_POSTER_BYTES,
+      'Poster excede 5 MiB.'
+    );
+    assert.ok(
+      configuration.durationMs >= MIN_SOURCE_DURATION_MS &&
+        configuration.durationMs <= MAX_SOURCE_DURATION_MS,
+      'Duração sintética deve ficar entre 5 e 60 segundos.'
+    );
 
     await db.doc(`users/${ownerUid}`).set({
       uid: ownerUid,
@@ -478,6 +493,7 @@ async function runFormat({
       posterStoragePath: posterPath,
       videoSizeBytes: sourceBuffer.byteLength,
       posterSizeBytes: posterBuffer.byteLength,
+      sourceDurationMs: configuration.durationMs,
       mimeType: format.mimeType,
     });
     const reservation = reservationResponse.data;
