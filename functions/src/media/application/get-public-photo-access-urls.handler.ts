@@ -4,10 +4,17 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import {
+  resolveCanonicalPhotoAudienceTarget,
+} from './photo-audience-access.policy';
+import {
   containsControlCharacter,
   normalizeOwnedPublishedPhotoPath,
 } from './photo-storage-path';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
+import {
+  createVideoAudienceAccessEvaluator,
+  type VideoAudienceAccessEvaluator,
+} from './video-audience-access.policy';
 
 interface PublicPhotoAccessRequestItem {
   ownerUid?: string;
@@ -57,6 +64,7 @@ function buildRequestKey(ownerUid: string, photoId: string): string {
 }
 
 async function resolveAccessItem(
+  audience: VideoAudienceAccessEvaluator,
   ownerUid: string,
   photoId: string,
   expiresAt: number
@@ -85,12 +93,15 @@ async function resolveAccessItem(
 
   const publicPhoto = publicPhotoSnap.data();
   const publication = publicationSnap.data();
+  const target = resolveCanonicalPhotoAudienceTarget({
+    ownerUid,
+    photoId,
+    action: 'PLAY',
+    publicPhoto,
+    publication,
+  });
 
-  if (
-    publicPhoto?.visibility !== 'PUBLIC' ||
-    publicPhoto?.moderationStatus !== 'APPROVED' ||
-    publication?.isPublished !== true
-  ) {
+  if (!target || !(await audience.evaluate(target)).allowed) {
     return null;
   }
 
@@ -122,7 +133,9 @@ async function resolveAccessItem(
 export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<PublicPhotoAccessResponse> => {
-    if (!request.auth?.uid) {
+    const viewerUid = cleanId(request.auth?.uid);
+
+    if (!viewerUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
@@ -163,17 +176,27 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
       );
     }
 
+    const audience = await createVideoAudienceAccessEvaluator(
+      viewerUid,
+      request.auth?.token?.email_verified === true
+    );
     const expiresAt = Date.now() + SIGNED_URL_TTL_MS;
     const resolutions = await Promise.all(
       [...uniqueItems.values()].map(
         async ({ ownerUid, photoId }): Promise<PublicPhotoAccessResolution> => {
           try {
             return {
-              item: await resolveAccessItem(ownerUid, photoId, expiresAt),
+              item: await resolveAccessItem(
+                audience,
+                ownerUid,
+                photoId,
+                expiresAt
+              ),
               technicalFailure: false,
             };
           } catch (error) {
             logger.warn('[getPublicPhotoAccessUrls] Falha ao gerar acesso.', {
+              viewerUid,
               ownerUid,
               photoId,
               error: error instanceof Error
