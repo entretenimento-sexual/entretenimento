@@ -3,6 +3,7 @@
 @let editorReady = (editorReady$ | async) === true;
 @let recipeError = (recipeError$ | async);
 @let capturingPoster = (capturingPoster$ | async) === true;
+@let timeline = (trimTimeline$ | async);
 
 <section
   class="video-simple-editor"
@@ -53,40 +54,77 @@
         [formGroup]="form"
         [attr.aria-disabled]="disabled ? 'true' : null"
       >
-        <fieldset>
-          <legend>Corte</legend>
+        <fieldset class="video-simple-editor__trim-fieldset">
+          <legend>Cortar vídeo</legend>
 
-          <div class="video-simple-editor__range-row">
-            <label for="video-trim-start">
-              <span>Início</span>
-              <output>{{ formatTime(form.controls.trimStartMs.value) }}</output>
-            </label>
-            <input
-              id="video-trim-start"
-              type="range"
-              formControlName="trimStartMs"
-              min="0"
-              step="100"
-              [max]="metadata!.durationMs! - 5000"
-              [attr.aria-valuetext]="formatTime(form.controls.trimStartMs.value)"
-            />
-          </div>
+          @if (timeline) {
+            <div
+              id="video-trim-summary"
+              class="video-simple-editor__trim-summary"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <span>
+                <small>Início</small>
+                <strong>{{ formatTime(timeline.startMs) }}</strong>
+              </span>
+              <span class="video-simple-editor__trim-summary-result">
+                <small>Resultado</small>
+                <strong>{{ formatTime(timeline.editedDurationMs) }}</strong>
+              </span>
+              <span>
+                <small>Fim</small>
+                <strong>{{ formatTime(timeline.endMs) }}</strong>
+              </span>
+            </div>
 
-          <div class="video-simple-editor__range-row">
-            <label for="video-trim-end">
-              <span>Fim</span>
-              <output>{{ formatTime(form.controls.trimEndMs.value) }}</output>
-            </label>
-            <input
-              id="video-trim-end"
-              type="range"
-              formControlName="trimEndMs"
-              min="5000"
-              step="100"
-              [max]="metadata!.durationMs!"
-              [attr.aria-valuetext]="formatTime(form.controls.trimEndMs.value)"
-            />
-          </div>
+            <div class="video-simple-editor__trim-timeline">
+              <div class="video-simple-editor__trim-track" aria-hidden="true">
+                <span
+                  class="video-simple-editor__trim-selection"
+                  [style.left.%]="timeline.startPercent"
+                  [style.right.%]="100 - timeline.endPercent"
+                ></span>
+              </div>
+
+              <label class="video-simple-editor__sr-only" for="video-trim-start">
+                Início do corte
+              </label>
+              <input
+                id="video-trim-start"
+                class="video-simple-editor__trim-range video-simple-editor__trim-range--start"
+                type="range"
+                formControlName="trimStartMs"
+                min="0"
+                step="100"
+                [max]="metadata!.durationMs! - minimumEditedDurationMs"
+                [attr.aria-valuetext]="'Início em ' + formatTime(timeline.startMs)"
+                aria-describedby="video-trim-summary video-trim-help"
+                (input)="onTrimStartInput(uploadPreview)"
+              />
+
+              <label class="video-simple-editor__sr-only" for="video-trim-end">
+                Fim do corte
+              </label>
+              <input
+                id="video-trim-end"
+                class="video-simple-editor__trim-range video-simple-editor__trim-range--end"
+                type="range"
+                formControlName="trimEndMs"
+                [min]="minimumEditedDurationMs"
+                step="100"
+                [max]="metadata!.durationMs!"
+                [attr.aria-valuetext]="'Fim em ' + formatTime(timeline.endMs)"
+                aria-describedby="video-trim-summary video-trim-help"
+                (input)="onTrimEndInput(uploadPreview)"
+              />
+            </div>
+
+            <p id="video-trim-help" class="video-simple-editor__trim-help">
+              Arraste as duas alças na mesma linha. O trecho destacado será publicado e terá no mínimo 5 segundos.
+            </p>
+          }
         </fieldset>
 
         <fieldset>
