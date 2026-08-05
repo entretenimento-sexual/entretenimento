@@ -108,4 +108,22 @@ describe('VideoSimpleEditorControlsComponent', () => {
       'Capa do vídeo atualizada.'
     );
   });
+
+  it('controla o bloqueio dos campos pelo FormGroup reativo', () => {
+    component.disabled = true;
+
+    expect(component.form.disabled).toBe(true);
+    expect(component.form.controls.trimStartMs.disabled).toBe(true);
+    expect(component.form.controls.trimEndMs.disabled).toBe(true);
+    expect(component.form.controls.aspectRatio.disabled).toBe(true);
+    expect(component.form.controls.muteAudio.disabled).toBe(true);
+
+    component.disabled = false;
+
+    expect(component.form.enabled).toBe(true);
+    expect(component.form.controls.trimStartMs.enabled).toBe(true);
+    expect(component.form.controls.trimEndMs.enabled).toBe(true);
+    expect(component.form.controls.aspectRatio.enabled).toBe(true);
+    expect(component.form.controls.muteAudio.enabled).toBe(true);
+  });
 });
