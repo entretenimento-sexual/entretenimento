@@ -27,7 +27,7 @@ service firebase.storage {
           || request.resource.contentType == 'video/webm'
           || request.resource.contentType == 'video/quicktime'
         )
-        && request.resource.size <= 500 * 1024 * 1024;
+        && request.resource.size <= 80 * 1024 * 1024;
     }
 
     function privateVideoUploadUser(uid) {
@@ -100,7 +100,7 @@ service firebase.storage {
         && reservation.posterStoragePath == objectPath
         && reservation.posterSizeBytes == request.resource.size
         && request.resource.contentType == 'image/jpeg'
-        && request.resource.size <= 10 * 1024 * 1024;
+        && request.resource.size <= 5 * 1024 * 1024;
     }
 
     // ============================================================
