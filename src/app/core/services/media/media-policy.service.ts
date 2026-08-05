@@ -1,8 +1,6 @@
 // src/app/core/services/media/media-policy.service.ts
-// Policy central de mídia privada e publicação controlada.
-// - somente o dono acessa bibliotecas privadas;
-// - upload exige e-mail verificado, perfil concluído e conta sem bloqueio;
-// - fotos e vídeos compartilham a mesma defesa em profundidade.
+// Policy reativa de mídia privada e publicação controlada.
+// A UI antecipa a decisão, enquanto Functions e Rules permanecem autoridades.
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 
@@ -27,8 +25,21 @@ export interface IMediaPolicyViewerSnapshot {
   uid?: string | null;
   emailVerified?: boolean | null;
   profileCompleted?: boolean | null;
+  accountStatus?: string | null;
+  suspended?: boolean | null;
   interactionBlocked?: boolean | null;
+  accountLocked?: boolean | null;
+  loginAllowed?: boolean | null;
+  ageReverificationStatus?: string | null;
 }
+
+const AGE_REVERIFICATION_RESTRICTED_STATES = new Set([
+  'REQUIRED',
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'REJECTED',
+  'EXPIRED',
+]);
 
 @Injectable({ providedIn: 'root' })
 export class MediaPolicyService {
@@ -56,10 +67,7 @@ export class MediaPolicyService {
     return this.canViewOwnedLibrary$(viewerUid, ownerUid);
   }
 
-  /**
-   * Compatibilidade com chamadas antigas que ainda informam apenas UID.
-   * Mantida para não quebrar componentes que só precisam validar ownership.
-   */
+  /** Compatibilidade com chamadas antigas que validam somente ownership. */
   canUploadProfilePhotos$(
     viewerUid: string | null,
     ownerUid: string
@@ -123,6 +131,23 @@ export class MediaPolicyService {
 
     if (!safeOwnerUid || safeViewerUid !== safeOwnerUid) {
       return this.deny$('NOT_OWNER');
+    }
+
+    const accountStatus = String(viewer?.accountStatus ?? 'active')
+      .trim()
+      .toLowerCase();
+    const ageStatus = String(viewer?.ageReverificationStatus ?? '')
+      .trim()
+      .toUpperCase();
+
+    if (
+      accountStatus !== 'active' ||
+      viewer?.suspended === true ||
+      viewer?.accountLocked === true ||
+      viewer?.loginAllowed === false ||
+      AGE_REVERIFICATION_RESTRICTED_STATES.has(ageStatus)
+    ) {
+      return this.deny$('BLOCKED');
     }
 
     if (viewer?.interactionBlocked === true) {
