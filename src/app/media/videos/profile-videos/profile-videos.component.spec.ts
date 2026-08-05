@@ -3,7 +3,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { BehaviorSubject, Subject, of } from 'rxjs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
@@ -44,9 +44,7 @@ describe('ProfileVideosComponent', () => {
     close: ReturnType<typeof vi.fn>;
     afterClosed: ReturnType<typeof vi.fn>;
   };
-  let dialog: {
-    open: ReturnType<typeof vi.fn>;
-  };
+  let dialogOpen: ReturnType<typeof vi.spyOn>;
 
   const queryUploadTrigger = (): HTMLButtonElement =>
     (fixture.nativeElement as HTMLElement).querySelector(
@@ -70,9 +68,6 @@ describe('ProfileVideosComponent', () => {
       }),
       afterClosed: vi.fn(() => dialogClosedSubject.asObservable()),
     };
-    dialog = {
-      open: vi.fn(() => dialogRef),
-    };
 
     await TestBed.configureTestingModule({
       imports: [ProfileVideosComponent],
@@ -82,10 +77,6 @@ describe('ProfileVideosComponent', () => {
           useValue: {
             paramMap: of(convertToParamMap({ id: OWNER_UID })),
           },
-        },
-        {
-          provide: MatDialog,
-          useValue: dialog,
         },
         {
           provide: CurrentUserStoreService,
@@ -137,9 +128,18 @@ describe('ProfileVideosComponent', () => {
       ],
     }).compileComponents();
 
+    const matDialog = TestBed.inject(MatDialog);
+    dialogOpen = vi
+      .spyOn(matDialog, 'open')
+      .mockReturnValue(dialogRef as never);
+
     fixture = TestBed.createComponent(ProfileVideosComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('prioriza a biblioteca sem renderizar o compositor de upload no topo', () => {
@@ -156,14 +156,14 @@ describe('ProfileVideosComponent', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('abre o compositor em MatDialog com foco e restauração configurados', () => {
+  it('abre e fecha o compositor em MatDialog com foco restaurável', () => {
     fixture.debugElement
       .query(By.css('.profile-videos__upload-trigger'))
       .triggerEventHandler('click');
     detectComponentChanges();
 
-    expect(dialog.open).toHaveBeenCalledTimes(1);
-    const [, config] = dialog.open.mock.calls[0];
+    expect(dialogOpen).toHaveBeenCalledTimes(1);
+    const [, config] = dialogOpen.mock.calls[0];
     expect(config).toMatchObject({
       ariaLabel: 'Adicionar vídeo ao perfil',
       autoFocus: 'first-tabbable',
@@ -179,10 +179,10 @@ describe('ProfileVideosComponent', () => {
     expect(component.uploadComposerOpen()).toBe(true);
     expect(queryUploadTrigger().getAttribute('aria-expanded')).toBe('true');
 
-    dialogClosedSubject.next();
-    dialogClosedSubject.complete();
+    component.closeUploadComposer();
     detectComponentChanges();
 
+    expect(dialogRef.close).toHaveBeenCalledTimes(1);
     expect(component.uploadComposerOpen()).toBe(false);
     expect(queryUploadTrigger().getAttribute('aria-expanded')).toBe('false');
   });
