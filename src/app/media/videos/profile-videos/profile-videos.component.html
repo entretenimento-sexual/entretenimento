@@ -326,16 +326,31 @@
           @for (item of items; track trackByVideoId($index, item)) {
             <article class="profile-videos__card">
               <div class="profile-videos__media">
-                <video
-                  [src]="item.video.url"
-                  [poster]="item.video.thumbnailUrl || null"
-                  [attr.aria-label]="displayVideoTitle(item)"
-                  preload="metadata"
-                  controls
-                  controlsList="nodownload"
-                  playsinline
-                  disablePictureInPicture
-                ></video>
+                @defer (on interaction) {
+                  <video
+                    data-playback-state="ready"
+                    [src]="item.video.url"
+                    [poster]="item.video.thumbnailUrl || null"
+                    [attr.aria-label]="displayVideoTitle(item)"
+                    preload="metadata"
+                    controls
+                    autoplay
+                    controlsList="nodownload"
+                    playsinline
+                    disablePictureInPicture
+                  ></video>
+                } @placeholder {
+                  <video
+                    data-playback-state="deferred"
+                    [poster]="item.video.thumbnailUrl || null"
+                    [attr.aria-label]="'Carregar e reproduzir ' + displayVideoTitle(item)"
+                    preload="none"
+                    controls
+                    controlsList="nodownload"
+                    playsinline
+                    disablePictureInPicture
+                  ></video>
+                }
 
                 <span
                   class="profile-videos__publication-chip"
