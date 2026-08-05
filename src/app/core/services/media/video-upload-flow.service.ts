@@ -25,6 +25,7 @@ import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import {
+  PrivateVideoUploadCapacity,
   PrivateVideoUploadReservation,
   PrivateVideoUploadReservationService,
 } from './private-video-upload-reservation.service';
@@ -101,9 +102,6 @@ interface RegisterPrivateVideoUploadResponse {
   createdAt: number;
 }
 
-const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
-const MAX_POSTER_SIZE_BYTES = 10 * 1024 * 1024;
-const MIN_EDITED_VIDEO_DURATION_MS = 5_000;
 const REGISTER_RETRY_DELAY_MS = 650;
 
 class VideoUploadCancelledError extends Error {
@@ -144,8 +142,8 @@ export class VideoUploadFlowService {
       try {
         ownerUid = this.requireOwnedUid(command.ownerUid);
         file = command.file;
-        sourceFormat = this.validateFile(file);
-        selectedPosterBlob = this.validateOptionalPoster(command.posterBlob);
+        sourceFormat = this.validateFileIdentity(file);
+        selectedPosterBlob = command.posterBlob ?? null;
       } catch (error) {
         this.reportError(error, {
           op: 'uploadPrivateVideo$.validate',
@@ -204,6 +202,13 @@ export class VideoUploadFlowService {
         try {
           observer.next({ type: 'progress', phase: 'preparing', progress: 2 });
 
+          const capacity = await firstValueFrom(
+            this.reservationService.getCapacity$()
+          );
+          this.assertCapacityAllowsUpload(capacity);
+          this.validateFileSize(file, capacity.maxSourceBytes);
+          assertNotCancelled();
+
           const requestedRecipe = command.editRecipe ??
             DEFAULT_VIDEO_EDIT_RECIPE_INPUT;
           const metadata = await firstValueFrom(
@@ -212,11 +217,16 @@ export class VideoUploadFlowService {
               preferredTimeMs: requestedRecipe.trimStartMs,
             })
           );
+          this.validateSourceDuration(metadata.durationMs, capacity);
           const editRecipe = this.normalizeEditRecipe(
             requestedRecipe,
-            metadata
+            metadata,
+            capacity
           );
-          const posterBlob = selectedPosterBlob ?? metadata.posterBlob;
+          const posterBlob = this.validateOptionalPoster(
+            selectedPosterBlob ?? metadata.posterBlob,
+            capacity.maxPosterBytes
+          );
           posterPath = posterBlob
             ? this.buildPosterPath(ownerUid, videoId)
             : null;
@@ -232,6 +242,7 @@ export class VideoUploadFlowService {
               posterStoragePath: posterPath,
               videoSizeBytes: file.size,
               posterSizeBytes: posterBlob?.size ?? 0,
+              sourceDurationMs: metadata.durationMs ?? 0,
               mimeType: sourceFormat.mimeType,
             })
           );
@@ -339,6 +350,7 @@ export class VideoUploadFlowService {
             mimeType: registration.mimeType,
             sourceExtension: sourceFormat.extension,
             sizeBytes: registration.sizeBytes,
+            durationMs: registration.durationMs,
             edited: this.hasEffectiveEdit(editRecipe, metadata.durationMs),
             aspectRatio: editRecipe.aspectRatio,
             muteAudio: editRecipe.muteAudio,
@@ -476,7 +488,23 @@ export class VideoUploadFlowService {
     return safeOwnerUid;
   }
 
-  private validateFile(file: File): VideoUploadFormat {
+  private assertCapacityAllowsUpload(
+    capacity: PrivateVideoUploadCapacity
+  ): void {
+    if (capacity.itemLimitReached) {
+      throw new Error(
+        `Seu plano permite ${capacity.maxItems} vídeo(s) e não possui vaga disponível.`
+      );
+    }
+
+    if (capacity.byteLimitReached || !capacity.canStartUpload) {
+      throw new Error(
+        'Seu plano não possui armazenamento disponível para outro vídeo.'
+      );
+    }
+  }
+
+  private validateFileIdentity(file: File): VideoUploadFormat {
     if (!file) {
       throw new Error('Selecione um vídeo antes de enviar.');
     }
@@ -493,14 +521,42 @@ export class VideoUploadFlowService {
       throw new Error('O arquivo de vídeo está vazio ou inválido.');
     }
 
-    if (file.size > MAX_VIDEO_SIZE_BYTES) {
-      throw new Error('O vídeo excede o limite de 500 MB.');
-    }
-
     return format;
   }
 
-  private validateOptionalPoster(value: Blob | null | undefined): Blob | null {
+  private validateFileSize(file: File, maxSourceBytes: number): void {
+    if (file.size > maxSourceBytes) {
+      throw new Error(
+        `O vídeo excede o limite de ${this.formatMegabytes(maxSourceBytes)}.`
+      );
+    }
+  }
+
+  private validateSourceDuration(
+    durationMs: number | null,
+    capacity: PrivateVideoUploadCapacity
+  ): void {
+    if (!durationMs) {
+      throw new Error(
+        'Este navegador não conseguiu confirmar a duração do vídeo.'
+      );
+    }
+
+    if (
+      durationMs < capacity.minDurationMs ||
+      durationMs > capacity.maxDurationMs
+    ) {
+      throw new Error(
+        `O vídeo deve ter entre ${Math.round(capacity.minDurationMs / 1000)} e ` +
+        `${Math.round(capacity.maxDurationMs / 1000)} segundos.`
+      );
+    }
+  }
+
+  private validateOptionalPoster(
+    value: Blob | null | undefined,
+    maxPosterBytes: number
+  ): Blob | null {
     if (!value) {
       return null;
     }
@@ -513,8 +569,10 @@ export class VideoUploadFlowService {
       throw new Error('A capa escolhida está vazia.');
     }
 
-    if (value.size > MAX_POSTER_SIZE_BYTES) {
-      throw new Error('A capa escolhida excede o limite de 10 MB.');
+    if (value.size > maxPosterBytes) {
+      throw new Error(
+        `A capa escolhida excede o limite de ${this.formatMegabytes(maxPosterBytes)}.`
+      );
     }
 
     return value;
@@ -522,7 +580,8 @@ export class VideoUploadFlowService {
 
   private normalizeEditRecipe(
     requested: IVideoEditRecipeInput,
-    metadata: IPreparedVideoMetadata
+    metadata: IPreparedVideoMetadata,
+    capacity: PrivateVideoUploadCapacity
   ): IVideoEditRecipeInput {
     const durationMs = metadata.durationMs;
     const trimStartMs = Math.max(0, Math.trunc(Number(requested.trimStartMs)));
@@ -561,8 +620,11 @@ export class VideoUploadFlowService {
         throw new Error('Revise os pontos inicial e final do corte.');
       }
 
-      if (effectiveEnd - trimStartMs < MIN_EDITED_VIDEO_DURATION_MS) {
-        throw new Error('O vídeo editado precisa ter pelo menos 5 segundos.');
+      if (effectiveEnd - trimStartMs < capacity.minDurationMs) {
+        throw new Error(
+          `O vídeo editado precisa ter pelo menos ` +
+          `${Math.round(capacity.minDurationMs / 1000)} segundos.`
+        );
       }
     }
 
@@ -673,6 +735,10 @@ export class VideoUploadFlowService {
 
     const safeName = withoutControlCharacters.trim().slice(0, 160);
     return safeName || 'Vídeo';
+  }
+
+  private formatMegabytes(value: number): string {
+    return `${Math.round(value / 1024 / 1024)} MB`;
   }
 
   private randomId(): string {

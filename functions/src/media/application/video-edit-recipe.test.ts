@@ -43,6 +43,13 @@ describe('video-edit-recipe', () => {
     assert.equal(recipe.muteAudio, true);
   });
 
+  it('mantém receita compatível com vídeo legado acima de um minuto', () => {
+    const recipe = normalizeVideoEditRecipe({}, 159_000);
+
+    assert.equal(hasEffectiveVideoEdit(recipe, 159_000), false);
+    assert.equal(resolveEditedVideoDurationMs(recipe, 159_000), 159_000);
+  });
+
   it('gera corte central e saída vertical sem ampliar o vídeo', () => {
     const recipe = normalizeVideoEditRecipe({
       aspectRatio: 'VERTICAL_9_16',

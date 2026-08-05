@@ -6,6 +6,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import { assertPrivateVideoUploadEligibility } from './private-video-upload-eligibility.service';
+import { getPrivateVideoProductLimit } from './private-video-upload-quota.policy';
 import {
   assertPrivateVideoUploadReservation,
   consumePrivateVideoUploadReservationAfterRegistration,
@@ -262,6 +263,7 @@ function buildReservationInput(
     )
     : null;
   const videoSizeBytes = normalizePositiveInteger(data?.sizeBytes);
+  const sourceDurationMs = normalizePositiveInteger(data?.durationMs);
   const mimeType = normalizeMimeType(data?.mimeType);
 
   if (
@@ -269,6 +271,7 @@ function buildReservationInput(
     !videoStoragePath ||
     (rawPosterStoragePath && !posterStoragePath) ||
     !videoSizeBytes ||
+    !sourceDurationMs ||
     !mimeType
   ) {
     return null;
@@ -281,8 +284,33 @@ function buildReservationInput(
     videoStoragePath,
     posterStoragePath,
     videoSizeBytes,
+    sourceDurationMs,
     mimeType,
   };
+}
+
+function assertNewUploadDuration(durationValue: unknown): number {
+  const durationMs = normalizePositiveInteger(durationValue);
+  const product = getPrivateVideoProductLimit();
+
+  if (
+    durationMs < product.minDurationMs ||
+    durationMs > product.maxDurationMs
+  ) {
+    throw new HttpsError(
+      'invalid-argument',
+      'O vídeo deve ter entre 5 e 60 segundos.',
+      {
+        code: 'VIDEO_UPLOAD_DURATION_LIMIT',
+        minDurationMs: product.minDurationMs,
+        maxDurationMs: product.maxDurationMs,
+        retryable: false,
+        recovery: 'Selecione um vídeo curto e tente novamente.',
+      }
+    );
+  }
+
+  return durationMs;
 }
 
 function normalizeRequestedEditRecipe(
@@ -388,8 +416,10 @@ export const registerPrivateVideoUpload = onCall<
     }
 
     let editRecipe: VideoEditRecipe;
+    let sourceDurationMs: number;
 
     try {
+      sourceDurationMs = assertNewUploadDuration(request.data?.durationMs);
       await assertPrivateVideoUploadReservation(reservationInput);
       await assertPrivateVideoUploadEligibility(ownerUid);
       editRecipe = normalizeRequestedEditRecipe(request.data);
@@ -405,6 +435,7 @@ export const registerPrivateVideoUpload = onCall<
       ...request,
       data: {
         ...(request.data ?? {}),
+        durationMs: sourceDurationMs,
         editRecipe,
         publishWhenReady: true,
       },
@@ -435,7 +466,7 @@ export const registerPrivateVideoUpload = onCall<
       response.ownerUid,
       response.videoId,
       editRecipe,
-      normalizePositiveInteger(request.data?.durationMs) || null
+      sourceDurationMs
     );
     await ensurePrivateVideoProcessingQueued(
       response.ownerUid,

@@ -54,6 +54,8 @@ describe('VideoSimpleEditorControlsComponent', () => {
     component = TestBed.runInInjectionContext(
       () => new VideoSimpleEditorControlsComponent()
     );
+    component.minDurationMs = 5_000;
+    component.maxDurationMs = 60_000;
     component.file = new File(['video'], 'video.mp4', {
       type: 'video/mp4',
     });
@@ -87,6 +89,21 @@ describe('VideoSimpleEditorControlsComponent', () => {
 
     expect(() => component.buildRecipe()).toThrow(
       'O vídeo editado precisa ter pelo menos 5 segundos.'
+    );
+  });
+
+  it('recusa o arquivo original acima de sessenta segundos', () => {
+    metadataPreparation.prepare$.mockReturnValue(of({
+      ...METADATA,
+      durationMs: 61_000,
+    }));
+
+    component.file = new File(['long-video'], 'long-video.mp4', {
+      type: 'video/mp4',
+    });
+
+    expect(() => component.buildRecipe()).toThrow(
+      'O vídeo original pode ter no máximo 60 segundos.'
     );
   });
 
@@ -150,6 +167,26 @@ describe('VideoSimpleEditorControlsComponent', () => {
 
     component.setActiveTrimHandle('end');
     expect(component.activeTrimHandle).toBe('end');
+  });
+
+  it('exibe somente a ferramenta selecionada no espaço de trabalho', () => {
+    expect(component.activeTool).toBe('trim');
+
+    component.setActiveTool('format');
+    expect(component.activeTool).toBe('format');
+
+    component.setActiveTool('audio');
+    expect(component.activeTool).toBe('audio');
+
+    component.setActiveTool('cover');
+    expect(component.activeTool).toBe('cover');
+  });
+
+  it('não troca a ferramenta quando o editor está bloqueado', () => {
+    component.disabled = true;
+    component.setActiveTool('cover');
+
+    expect(component.activeTool).toBe('trim');
   });
 
   it('captura a capa usando a proporção selecionada', () => {

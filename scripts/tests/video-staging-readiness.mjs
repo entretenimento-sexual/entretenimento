@@ -244,17 +244,18 @@ function run() {
       "request.resource.contentType == 'video/mp4'",
       "request.resource.contentType == 'video/webm'",
       "request.resource.contentType == 'video/quicktime'",
+      'request.resource.size <= 80 * 1024 * 1024',
       'reservedVideoUpload(',
       'allow update, delete: if false;',
     ]) &&
       !storageRules.includes("request.resource.contentType.matches('video/.*')"),
     'STORAGE_RULES',
-    'Storage Rules exigem reserva e MIME processável.',
-    'Storage Rules ainda permitem formato amplo, overwrite/delete ou upload sem reserva.'
+    'Storage Rules exigem reserva, limite reduzido e MIME processável.',
+    'Storage Rules ainda permitem formato amplo, arquivo excessivo, overwrite/delete ou upload sem reserva.'
   );
 
-  const reservationHandler = readText(
-    'functions/src/media/application/private-video-upload-reservation.handler.ts'
+  const capacityReservationHandler = readText(
+    'functions/src/media/application/private-video-upload-capacity.handler.ts'
   );
   const registerOrchestrator = readText(
     'functions/src/media/application/register-private-video-upload-orchestrator.handler.ts'
@@ -263,15 +264,23 @@ function run() {
     'registerPrivateVideoUpload,',
     "from './application/register-private-video-upload-orchestrator.handler';",
   ]);
-  const reservationMimeBoundary = includesAll(reservationHandler, [
+  const effectiveReservationExport = includesAll(mediaIndex, [
+    'getPrivateVideoUploadCapacity,',
+    'reservePrivateVideoUpload,',
+    "from './application/private-video-upload-capacity.handler';",
+  ]);
+  const reservationMimeBoundary = includesAll(capacityReservationHandler, [
     "'video/mp4'",
     "'video/webm'",
     "'video/quicktime'",
     'ALLOWED_VIDEO_TYPES.has(mimeType)',
+    'getPrivateVideoProductLimit()',
+    'sourceDurationMs',
+    'evaluatePrivateVideoQuota(',
   ]) &&
-    !reservationHandler.includes("'video/x-matroska'") &&
-    !reservationHandler.includes("'video/x-msvideo'") &&
-    !reservationHandler.includes("'application/mxf'");
+    !capacityReservationHandler.includes("'video/x-matroska'") &&
+    !capacityReservationHandler.includes("'video/x-msvideo'") &&
+    !capacityReservationHandler.includes("'application/mxf'");
   const registrationReservationBoundary = includesAll(registerOrchestrator, [
     'reservationId?: string;',
     'assertPrivateVideoUploadReservation',
@@ -282,11 +291,12 @@ function run() {
 
   check(
     effectiveRegistrationExport &&
+      effectiveReservationExport &&
       reservationMimeBoundary &&
       registrationReservationBoundary,
     'REGISTER_CONTRACT',
-    'Callable exportada exige reserva e o boundary externo aceita somente MP4, WebM e MOV.',
-    'A callable efetiva, a reserva ou o export público divergem do contrato de registro.'
+    'Callables exportadas exigem capacidade, reserva e registro canônicos para MP4, WebM e MOV.',
+    'A capacidade, a reserva, o registro ou seus exports públicos divergem do contrato efetivo.'
   );
 
   const indexesJson = readJson('firestore.indexes.json');

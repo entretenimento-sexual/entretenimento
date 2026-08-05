@@ -5,6 +5,7 @@ import {
   calculatePrivateVideoReservationBytes,
   estimateRegisteredVideoReservedBytes,
   evaluatePrivateVideoQuota,
+  getPrivateVideoProductLimit,
   getPrivateVideoQuotaLimit,
   resolvePrivateVideoQuotaPlan,
 } from './private-video-upload-quota.policy';
@@ -56,10 +57,38 @@ describe('private-video-upload-quota.policy', () => {
     );
   });
 
+  it('define vídeo social curto e arquivo conservador', () => {
+    assert.deepEqual(getPrivateVideoProductLimit(), {
+      maxSourceBytes: 80 * MIB,
+      maxPosterBytes: 5 * MIB,
+      minDurationMs: 5_000,
+      maxDurationMs: 60_000,
+    });
+  });
+
+  it('expõe limites iniciais reduzidos por plano', () => {
+    assert.deepEqual(getPrivateVideoQuotaLimit('free'), {
+      maxItems: 1,
+      maxReservedBytes: 180 * MIB,
+    });
+    assert.deepEqual(getPrivateVideoQuotaLimit('basic'), {
+      maxItems: 3,
+      maxReservedBytes: 540 * MIB,
+    });
+    assert.deepEqual(getPrivateVideoQuotaLimit('premium'), {
+      maxItems: 8,
+      maxReservedBytes: Math.trunc(1.5 * GIB),
+    });
+    assert.deepEqual(getPrivateVideoQuotaLimit('vip'), {
+      maxItems: 15,
+      maxReservedBytes: 3 * GIB,
+    });
+  });
+
   it('reserva original, margem do derivado e capa', () => {
     assert.equal(
-      calculatePrivateVideoReservationBytes(300 * MIB, 2 * MIB),
-      602 * MIB
+      calculatePrivateVideoReservationBytes(80 * MIB, 5 * MIB),
+      165 * MIB
     );
   });
 
@@ -96,25 +125,25 @@ describe('private-video-upload-quota.policy', () => {
   it('bloqueia volume acima do plano', () => {
     const decision = evaluatePrivateVideoQuota(
       'basic',
-      { currentItems: 0, currentReservedBytes: 2 * GIB - 100 },
+      { currentItems: 0, currentReservedBytes: 540 * MIB - 100 },
       200
     );
 
     assert.equal(decision.allowed, false);
     assert.equal(decision.reason, 'BYTE_LIMIT');
-    assert.equal(decision.limit.maxReservedBytes, 2 * GIB);
+    assert.equal(decision.limit.maxReservedBytes, 540 * MIB);
   });
 
   it('libera capacidade dentro dos limites', () => {
     const decision = evaluatePrivateVideoQuota(
       'vip',
-      { currentItems: 4, currentReservedBytes: 4 * GIB },
-      500 * MIB
+      { currentItems: 4, currentReservedBytes: 500 * MIB },
+      165 * MIB
     );
 
     assert.equal(decision.allowed, true);
     assert.equal(decision.reason, 'ALLOWED');
     assert.equal(decision.nextItems, 5);
-    assert.equal(getPrivateVideoQuotaLimit('vip').maxItems, 10);
+    assert.equal(getPrivateVideoQuotaLimit('vip').maxItems, 15);
   });
 });
