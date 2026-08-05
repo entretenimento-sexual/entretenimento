@@ -15,6 +15,10 @@ import { ProfileVideosComponent } from './profile-videos.component';
 
 const OWNER_UID = 'owner-1';
 
+type TestPolicyResult =
+  | { decision: 'ALLOW' }
+  | { decision: 'DENY'; reason: 'EMAIL_NOT_VERIFIED' };
+
 const VIDEO: IVideoItem = {
   id: 'video-1',
   ownerUid: OWNER_UID,
@@ -31,13 +35,11 @@ const VIDEO: IVideoItem = {
 describe('ProfileVideosComponent', () => {
   let fixture: ComponentFixture<ProfileVideosComponent>;
   let videosSubject: BehaviorSubject<IVideoItem[]>;
-  let policySubject: BehaviorSubject<
-    { decision: 'ALLOW' } | { decision: 'DENY'; reason: 'EMAIL_NOT_VERIFIED' }
-  >;
+  let policySubject: BehaviorSubject<TestPolicyResult>;
 
   beforeEach(async () => {
     videosSubject = new BehaviorSubject<IVideoItem[]>([VIDEO]);
-    policySubject = new BehaviorSubject<{ decision: 'ALLOW' }>({
+    policySubject = new BehaviorSubject<TestPolicyResult>({
       decision: 'ALLOW',
     });
 
