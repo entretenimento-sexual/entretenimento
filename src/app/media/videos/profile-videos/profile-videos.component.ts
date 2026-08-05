@@ -33,6 +33,7 @@ import {
   shareReplay,
   switchMap,
   take,
+  tap,
 } from 'rxjs/operators';
 
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
@@ -48,6 +49,10 @@ import {
   MediaPolicyDenyReason,
   MediaPolicyService,
 } from 'src/app/core/services/media/media-policy.service';
+import {
+  PrivateVideoUploadCapacity,
+  PrivateVideoUploadReservationService,
+} from 'src/app/core/services/media/private-video-upload-reservation.service';
 import {
   resolveVideoLifecyclePresentation,
   VideoLifecyclePresentation,
@@ -91,7 +96,6 @@ type VideoUploadUiPhase =
   | 'SAVING'
   | 'REGISTERED';
 
-const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
 const DENY_UNKNOWN: IMediaPolicyResult = {
   decision: 'DENY',
@@ -122,6 +126,9 @@ export class ProfileVideosComponent {
   private readonly videoLibrary = inject(VideoLibraryService);
   private readonly videoPublication = inject(VideoPublicationService);
   private readonly videoUploadFlow = inject(VideoUploadFlowService);
+  private readonly videoUploadReservation = inject(
+    PrivateVideoUploadReservationService
+  );
   private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly errorNotification = inject(ErrorNotificationService);
 
@@ -206,6 +213,16 @@ export class ProfileVideosComponent {
   private readonly lastUploadedVideoIdSubject =
     new BehaviorSubject<string | null>(null);
 
+  private readonly uploadCapacityRefreshSubject = new BehaviorSubject(0);
+  private readonly uploadCapacitySubject =
+    new BehaviorSubject<PrivateVideoUploadCapacity | null>(null);
+  private readonly uploadCapacityLoadingSubject = new BehaviorSubject(false);
+  readonly uploadCapacityLoading$ =
+    this.uploadCapacityLoadingSubject.asObservable();
+  private readonly uploadCapacityErrorSubject =
+    new BehaviorSubject<string | null>(null);
+  readonly uploadCapacityError$ = this.uploadCapacityErrorSubject.asObservable();
+
   private uploadSubscription: Subscription | null = null;
   private cancelRequestedByUser = false;
 
@@ -274,7 +291,53 @@ export class ProfileVideosComponent {
 
   readonly canUpload$ = this.uploadPolicyResult$.pipe(
     map((result) => result.decision === 'ALLOW'),
-    distinctUntilChanged()
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly uploadCapacity$: Observable<PrivateVideoUploadCapacity | null> =
+    combineLatest([
+      this.ownerUid$,
+      this.isOwner$,
+      this.canUpload$,
+      this.uploadCapacityRefreshSubject,
+    ]).pipe(
+      switchMap(([ownerUid, isOwner, canUpload]) => {
+        if (!ownerUid || !isOwner || !canUpload) {
+          this.uploadCapacitySubject.next(null);
+          this.uploadCapacityErrorSubject.next(null);
+          this.uploadCapacityLoadingSubject.next(false);
+          return of(null);
+        }
+
+        this.uploadCapacityLoadingSubject.next(true);
+        this.uploadCapacityErrorSubject.next(null);
+
+        return this.videoUploadReservation.getCapacity$().pipe(
+          tap((capacity) => this.uploadCapacitySubject.next(capacity)),
+          map((capacity) => capacity as PrivateVideoUploadCapacity | null),
+          catchError(() => {
+            this.uploadCapacitySubject.next(null);
+            this.uploadCapacityErrorSubject.next(
+              'Não foi possível consultar o limite do plano agora.'
+            );
+            return of(null);
+          }),
+          finalize(() => this.uploadCapacityLoadingSubject.next(false))
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly canSelectVideo$: Observable<boolean> = combineLatest([
+    this.canUpload$,
+    this.uploadCapacity$,
+  ]).pipe(
+    map(([canUpload, capacity]) =>
+      canUpload && capacity?.canStartUpload === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
   );
 
   readonly selectedFileName$ = this.selectedFile$.pipe(
@@ -356,11 +419,37 @@ export class ProfileVideosComponent {
     });
   }
 
+  refreshUploadCapacity(): void {
+    this.uploadCapacityRefreshSubject.next(
+      this.uploadCapacityRefreshSubject.value + 1
+    );
+  }
+
   onVideoSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
 
     if (!file) {
+      return;
+    }
+
+    const capacity = this.uploadCapacitySubject.value;
+
+    if (!capacity) {
+      this.errorNotification.showWarning(
+        'Aguarde a consulta do limite do plano antes de selecionar o vídeo.'
+      );
+      input.value = '';
+      return;
+    }
+
+    if (!capacity.canStartUpload) {
+      this.errorNotification.showError(
+        capacity.itemLimitReached
+          ? 'Seu plano não possui vaga para outro vídeo.'
+          : 'Seu plano não possui armazenamento disponível para outro vídeo.'
+      );
+      input.value = '';
       return;
     }
 
@@ -380,8 +469,10 @@ export class ProfileVideosComponent {
       return;
     }
 
-    if (file.size > MAX_VIDEO_SIZE_BYTES) {
-      this.errorNotification.showError('O vídeo excede o limite de 500 MB.');
+    if (file.size > capacity.maxSourceBytes) {
+      this.errorNotification.showError(
+        `O vídeo excede o limite de ${this.formatFileSize(capacity.maxSourceBytes)}.`
+      );
       input.value = '';
       return;
     }
@@ -432,6 +523,16 @@ export class ProfileVideosComponent {
 
   startUpload(): void {
     if (this.uploadSubscription) {
+      return;
+    }
+
+    const capacity = this.uploadCapacitySubject.value;
+
+    if (!capacity?.canStartUpload) {
+      this.errorNotification.showWarning(
+        'Atualize o limite do plano antes de iniciar o envio.'
+      );
+      this.refreshUploadCapacity();
       return;
     }
 
@@ -509,6 +610,7 @@ export class ProfileVideosComponent {
           this.uploadStepSubject.next(
             'Upload cancelado. A preparação foi mantida.'
           );
+          this.refreshUploadCapacity();
         }
       }),
       takeUntilDestroyed(this.destroyRef)
@@ -523,6 +625,7 @@ export class ProfileVideosComponent {
         this.uploadProgressSubject.next(0);
         this.uploadStepSubject.next('Envio interrompido.');
         this.errorNotification.showError(failure.message);
+        this.refreshUploadCapacity();
       },
     });
 
@@ -741,6 +844,7 @@ export class ProfileVideosComponent {
           ? 'Vídeo ocultado. A limpeza física será concluída automaticamente.'
           : 'Vídeo excluído com segurança.';
         this.errorNotification.showSuccess(message);
+        this.refreshUploadCapacity();
       },
       error: () => {
         this.errorNotification.showError('Não foi possível excluir este vídeo.');
@@ -795,6 +899,27 @@ export class ProfileVideosComponent {
     return item.video.id;
   }
 
+  planLabel(plan: PrivateVideoUploadCapacity['plan']): string {
+    switch (plan) {
+    case 'basic':
+      return 'Basic';
+    case 'premium':
+      return 'Premium';
+    case 'vip':
+      return 'VIP';
+    default:
+      return 'Free';
+    }
+  }
+
+  usagePercent(current: number, maximum: number): number {
+    if (!Number.isFinite(current) || !Number.isFinite(maximum) || maximum <= 0) {
+      return 0;
+    }
+
+    return Math.max(0, Math.min(100, Math.round((current / maximum) * 100)));
+  }
+
   formatFileSize(sizeBytes: number | null | undefined): string {
     const size = Number(sizeBytes ?? 0);
 
@@ -804,6 +929,10 @@ export class ProfileVideosComponent {
 
     if (size < 1024 * 1024) {
       return `${Math.round(size / 1024)} KB`;
+    }
+
+    if (size >= 1024 * 1024 * 1024) {
+      return `${(size / 1024 / 1024 / 1024).toFixed(1)} GB`;
     }
 
     return `${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -880,6 +1009,7 @@ export class ProfileVideosComponent {
     this.selectedFileSubject.next(null);
     this.selectedPosterBlobSubject.next(null);
     this.previewUrlSubject.next(null);
+    this.refreshUploadCapacity();
     this.errorNotification.showSuccess(
       'Upload registrado. Acompanhe abaixo o processamento e a publicação.'
     );
@@ -936,6 +1066,19 @@ export class ProfileVideosComponent {
         recovery:
           domainRecovery ||
           'Revise o início, o fim e a proporção antes de enviar novamente.',
+        retryable: false,
+      };
+    }
+
+    if (
+      domainCode === 'VIDEO_UPLOAD_SOURCE_SIZE_LIMIT' ||
+      domainCode === 'VIDEO_UPLOAD_POSTER_SIZE_LIMIT' ||
+      domainCode === 'VIDEO_UPLOAD_DURATION_LIMIT'
+    ) {
+      return {
+        title: 'Vídeo fora dos limites',
+        message: errorMessage || 'O arquivo não atende aos limites de vídeo curto.',
+        recovery: 'Selecione um vídeo menor e com duração entre 5 e 60 segundos.',
         retryable: false,
       };
     }
