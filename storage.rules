@@ -36,6 +36,32 @@ service firebase.storage {
       ).data;
     }
 
+    function hasRequiredAdultConsent(user) {
+      return !('initialAdultConsentRequired' in user)
+        || user.initialAdultConsentRequired != true
+        || (
+          'adultConsent' in user
+          && user.adultConsent is map
+          && 'accepted' in user.adultConsent
+          && user.adultConsent.accepted == true
+        );
+    }
+
+    function hasRequiredTermsAcceptance(user) {
+      return !('initialAdultConsentRequired' in user)
+        || user.initialAdultConsentRequired != true
+        || (
+          'acceptedTerms' in user
+          && user.acceptedTerms is map
+          && 'accepted' in user.acceptedTerms
+          && user.acceptedTerms.accepted == true
+          && (
+            !('adultAccessAcknowledgement' in user.acceptedTerms)
+            || user.acceptedTerms.adultAccessAcknowledgement != false
+          )
+        );
+    }
+
     function hasOperationalMediaAccount(uid) {
       let user = privateMediaUser(uid);
       return isSelf(uid)
@@ -43,6 +69,8 @@ service firebase.storage {
         && 'email_verified' in request.auth.token
         && request.auth.token.email_verified == true
         && user.profileCompleted == true
+        && hasRequiredAdultConsent(user)
+        && hasRequiredTermsAcceptance(user)
         && (!('accountStatus' in user) || user.accountStatus == 'active')
         && (!('suspended' in user) || user.suspended != true)
         && (!('interactionBlocked' in user) || user.interactionBlocked != true)
