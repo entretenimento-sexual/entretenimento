@@ -38,7 +38,6 @@ export class VideoEditRecipeValidationError extends Error {
 }
 
 export const MIN_EDITED_VIDEO_DURATION_MS = 5_000;
-export const MAX_SOURCE_VIDEO_DURATION_MS = 60_000;
 const MAX_SOURCE_DIMENSION_PIXELS = 16_384;
 
 function finiteInteger(value: unknown): number | null {
@@ -91,12 +90,6 @@ function normalizeSourceDuration(value: unknown): number | null {
   ) {
     throw new VideoEditRecipeValidationError(
       'A duração do vídeo não permite aplicar esta edição.'
-    );
-  }
-
-  if (normalized > MAX_SOURCE_VIDEO_DURATION_MS) {
-    throw new VideoEditRecipeValidationError(
-      'O vídeo original pode ter no máximo 60 segundos.'
     );
   }
 
