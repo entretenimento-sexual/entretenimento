@@ -350,6 +350,7 @@ export const cleanupPrivateVideoUploadReservations = onSchedule(
             videoStoragePath: reservation.videoStoragePath,
             posterStoragePath: reservation.posterStoragePath,
             videoSizeBytes: reservation.videoSizeBytes,
+            sourceDurationMs: reservation.sourceDurationMs ?? null,
             mimeType: reservation.mimeType,
           });
           continue;
