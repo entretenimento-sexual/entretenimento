@@ -126,6 +126,10 @@ export {
 } from './application/cleanup-published-video-assets.handler';
 
 export {
+  getPrivatePhotoAccessUrls,
+} from './application/get-private-photo-access-urls.handler';
+
+export {
   getPrivateVideoAccessUrls,
 } from './application/get-private-video-access-urls.handler';
 
