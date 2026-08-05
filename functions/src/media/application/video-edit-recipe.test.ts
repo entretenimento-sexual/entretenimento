@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 
 import {
   hasEffectiveVideoEdit,
-  MAX_SOURCE_VIDEO_DURATION_MS,
   normalizeVideoEditRecipe,
   resolveEditedVideoDurationMs,
   resolveVideoEditGeometry,
@@ -42,6 +41,13 @@ describe('video-edit-recipe', () => {
     assert.equal(resolveEditedVideoDurationMs(recipe, 30_000), 20_000);
     assert.equal(recipe.aspectRatio, 'VERTICAL_9_16');
     assert.equal(recipe.muteAudio, true);
+  });
+
+  it('mantém receita compatível com vídeo legado acima de um minuto', () => {
+    const recipe = normalizeVideoEditRecipe({}, 159_000);
+
+    assert.equal(hasEffectiveVideoEdit(recipe, 159_000), false);
+    assert.equal(resolveEditedVideoDurationMs(recipe, 159_000), 159_000);
   });
 
   it('gera corte central e saída vertical sem ampliar o vídeo', () => {
@@ -88,16 +94,6 @@ describe('video-edit-recipe', () => {
         trimEndMs: 10_000,
       }, 10_000),
       VideoEditRecipeValidationError
-    );
-  });
-
-  it('rejeita vídeo original acima de sessenta segundos', () => {
-    assert.equal(MAX_SOURCE_VIDEO_DURATION_MS, 60_000);
-    assert.throws(
-      () => normalizeVideoEditRecipe({}, 60_001),
-      (error: unknown) =>
-        error instanceof VideoEditRecipeValidationError &&
-        error.message.includes('no máximo 60 segundos')
     );
   });
 
