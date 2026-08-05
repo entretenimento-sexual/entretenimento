@@ -1,6 +1,9 @@
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  assertAccountOperationalAccess,
+} from '../../account_lifecycle/account-operational-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
@@ -147,6 +150,11 @@ export const getPrivateVideoAccessUrls = onCall<PrivateVideoAccessRequest>(
         'Você só pode acessar os vídeos do próprio perfil.'
       );
     }
+
+    await assertAccountOperationalAccess(
+      requesterUid,
+      'MEDIA_VIEW_PRIVATE'
+    );
 
     const rawVideoIds = Array.isArray(request.data?.videoIds)
       ? request.data.videoIds
