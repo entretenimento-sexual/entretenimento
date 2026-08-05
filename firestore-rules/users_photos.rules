@@ -1,13 +1,8 @@
 // ===============================================================
 // USERS / photos + imageStates + comments
-// - Fluxo atual: metadado da foto salva id, url, path, fileName, createdAt
-// - Somente o dono lê/escreve
-// - displayDate é metadado privado de organização e só pode ser alterado por assinantes
-// - Sem scraping, sem enumeração
-// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
-// uso de helpers globais
-// firestore-rules/users_photos.rules
-// 14ABR2026
+// - Biblioteca privada acessível somente para conta operacional.
+// - Exclusão permanece disponível ao próprio usuário para reduzir exposição.
+// - Criação e atualização exigem lifecycle, e-mail e perfil válidos.
 // ===============================================================
 match /users/{userId}/photos/{photoId} {
 
@@ -60,7 +55,8 @@ match /users/{userId}/photos/{photoId} {
   }
 
   function displayDateUpdateAllowed() {
-    return !request.resource.data.diff(resource.data).changedKeys().hasAny(["displayDate"])
+    return !request.resource.data.diff(resource.data)
+      .changedKeys().hasAny(["displayDate"])
       || hasPaidPhotoDateAccess();
   }
 
@@ -75,13 +71,13 @@ match /users/{userId}/photos/{photoId} {
       && optTimestamp("updatedAt");
   }
 
-  allow get, list: if isSelf(userId);
+  allow get, list: if isOperationalMediaAccount(userId);
 
-  allow create: if isSelf(userId)
+  allow create: if isOperationalMediaAccount(userId)
     && validPhotoPayload()
     && displayDateCreateAllowed();
 
-  allow update: if isSelf(userId)
+  allow update: if isOperationalMediaAccount(userId)
     && validPhotoPayload()
     && displayDateUpdateAllowed();
 
@@ -98,15 +94,13 @@ match /users/{userId}/photos/{photoId} {
         && optTimestamp("date");
     }
 
-    allow get, list: if isSelf(userId);
-    allow create: if isSelf(userId) && validCommentPayload();
+    allow get, list: if isOperationalMediaAccount(userId);
+    allow create: if isOperationalMediaAccount(userId)
+      && validCommentPayload();
     allow update, delete: if false;
   }
 }
 
-// -------------------------------------------------------------------------
-// imageStates (subcollection) — MVP: só dono
-// -------------------------------------------------------------------------
 match /users/{userId}/imageStates/{stateId} {
   function allowedKeys() {
     return request.resource.data.keys().hasOnly(["imageState", "createdAt"]);
@@ -118,8 +112,8 @@ match /users/{userId}/imageStates/{stateId} {
       && optTimestamp("createdAt");
   }
 
-  allow get, list: if isSelf(userId);
-  allow create: if isSelf(userId) && validPayload();
+  allow get, list: if isOperationalMediaAccount(userId);
+  allow create: if isOperationalMediaAccount(userId) && validPayload();
   allow update, delete: if false;
 }
 // ===============================================================
