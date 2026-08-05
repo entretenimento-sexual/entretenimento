@@ -192,6 +192,20 @@ describe('ProfileVideosComponent', () => {
     expect(queryUploadTrigger().getAttribute('aria-expanded')).toBe('false');
   });
 
+  it('adia o player e não anexa a URL antes da interação', () => {
+    const element = fixture.nativeElement as HTMLElement;
+    const deferredPlayer = element.querySelector(
+      'video[data-playback-state="deferred"]'
+    ) as HTMLVideoElement | null;
+
+    expect(deferredPlayer).toBeTruthy();
+    expect(deferredPlayer?.hasAttribute('src')).toBe(false);
+    expect(deferredPlayer?.getAttribute('preload')).toBe('none');
+    expect(
+      element.querySelector('video[data-playback-state="ready"]')
+    ).toBeNull();
+  });
+
   it('preserva a hierarquia padronizada do card com status sobre a mídia', () => {
     const element = fixture.nativeElement as HTMLElement;
     const card = element.querySelector('.profile-videos__card') as HTMLElement;
