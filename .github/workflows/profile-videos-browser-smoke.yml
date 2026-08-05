@@ -1,0 +1,170 @@
+name: Profile Videos Browser Smoke
+
+on:
+  pull_request:
+    paths:
+      - 'src/app/media/videos/profile-videos/**'
+      - 'src/app/core/services/media/video-library.service.ts'
+      - 'src/app/core/services/media/media-policy.service.ts'
+      - 'src/app/app-routing.module.ts'
+      - 'src/environments/**'
+      - 'functions/src/media/**'
+      - 'scripts/tests/profile-videos-browser-smoke.spec.mjs'
+      - 'scripts/tests/run-profile-videos-browser-smoke.mjs'
+      - 'playwright.profile-videos.config.mjs'
+      - 'firebase.json'
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/profile-videos-browser-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: profile-videos-browser-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NODE_VERSION: '22'
+  PLAYWRIGHT_VERSION: '1.61.1'
+
+jobs:
+  browser-smoke:
+    name: Chromium, Firefox and WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - name: Prepare artifacts and logs
+        run: |
+          mkdir -p logs/profile-videos-browser-smoke
+          mkdir -p artifacts/profile-videos-browser-smoke
+
+      - name: Install application dependencies
+        id: install_app
+        shell: bash
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee logs/profile-videos-browser-smoke/npm-ci.log
+
+      - name: Install Functions dependencies
+        id: install_functions
+        if: steps.install_app.outcome == 'success'
+        shell: bash
+        run: |
+          set -o pipefail
+          npm --prefix functions ci 2>&1 | tee logs/profile-videos-browser-smoke/functions-npm-ci.log
+
+      - name: Install Playwright test runner
+        id: install_playwright
+        if: steps.install_functions.outcome == 'success'
+        shell: bash
+        run: |
+          set -o pipefail
+          npm install --no-save --no-package-lock "@playwright/test@${PLAYWRIGHT_VERSION}" \
+            2>&1 | tee logs/profile-videos-browser-smoke/playwright-npm-install.log
+          npx playwright install --with-deps chromium firefox webkit \
+            2>&1 | tee logs/profile-videos-browser-smoke/playwright-browsers-install.log
+
+      - name: Build rules and Functions
+        id: prepare_emulators
+        if: steps.install_playwright.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run rules:build 2>&1 | tee logs/profile-videos-browser-smoke/rules-build.log
+          npm run rules:check 2>&1 | tee logs/profile-videos-browser-smoke/rules-check.log
+          npm run functions:build 2>&1 | tee logs/profile-videos-browser-smoke/functions-build.log
+
+      - name: Run authenticated browser smoke
+        id: browser_smoke
+        if: steps.prepare_emulators.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          FIREBASE_STORAGE_BUCKET: entretenimento-sexual.appspot.com
+          MEDIA_AUTO_APPROVE_VIDEOS: 'true'
+          MEDIA_EMULATOR_AUTO_PROCESS_VIDEOS: 'false'
+        run: |
+          set -o pipefail
+          npx firebase emulators:exec \
+            --config firebase.json \
+            --only auth,firestore,storage,functions \
+            --project entretenimento-sexual \
+            "node scripts/tests/run-profile-videos-browser-smoke.mjs" \
+            2>&1 | tee logs/profile-videos-browser-smoke/browser-smoke.log
+
+      - name: Publish browser smoke summary
+        if: always()
+        shell: bash
+        env:
+          INSTALL_APP_OUTCOME: ${{ steps.install_app.outcome }}
+          INSTALL_FUNCTIONS_OUTCOME: ${{ steps.install_functions.outcome }}
+          INSTALL_PLAYWRIGHT_OUTCOME: ${{ steps.install_playwright.outcome }}
+          PREPARE_EMULATORS_OUTCOME: ${{ steps.prepare_emulators.outcome }}
+          BROWSER_SMOKE_OUTCOME: ${{ steps.browser_smoke.outcome }}
+        run: |
+          {
+            echo '## Profile Videos Browser Smoke'
+            echo
+            echo '| Etapa | Resultado |'
+            echo '| --- | --- |'
+            echo "| npm ci | ${INSTALL_APP_OUTCOME:-skipped} |"
+            echo "| Functions npm ci | ${INSTALL_FUNCTIONS_OUTCOME:-skipped} |"
+            echo "| Playwright + browsers | ${INSTALL_PLAYWRIGHT_OUTCOME:-skipped} |"
+            echo "| Rules + Functions build | ${PREPARE_EMULATORS_OUTCOME:-skipped} |"
+            echo "| Chromium + Firefox + WebKit | ${BROWSER_SMOKE_OUTCOME:-skipped} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload screenshots, traces and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: profile-videos-browser-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/profile-videos-browser-smoke/
+            logs/profile-videos-browser-smoke/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce browser smoke result
+        if: always()
+        shell: bash
+        env:
+          INSTALL_APP_OUTCOME: ${{ steps.install_app.outcome }}
+          INSTALL_FUNCTIONS_OUTCOME: ${{ steps.install_functions.outcome }}
+          INSTALL_PLAYWRIGHT_OUTCOME: ${{ steps.install_playwright.outcome }}
+          PREPARE_EMULATORS_OUTCOME: ${{ steps.prepare_emulators.outcome }}
+          BROWSER_SMOKE_OUTCOME: ${{ steps.browser_smoke.outcome }}
+        run: |
+          if [[ "$INSTALL_APP_OUTCOME" != 'success' || \
+                "$INSTALL_FUNCTIONS_OUTCOME" != 'success' || \
+                "$INSTALL_PLAYWRIGHT_OUTCOME" != 'success' || \
+                "$PREPARE_EMULATORS_OUTCOME" != 'success' || \
+                "$BROWSER_SMOKE_OUTCOME" != 'success' ]]; then
+            echo 'O smoke browser da biblioteca de vídeos falhou. Consulte os artefatos.'
+            exit 1
+          fi

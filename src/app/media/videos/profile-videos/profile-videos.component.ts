@@ -4,11 +4,14 @@
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
+import { Overlay } from '@angular/cdk/overlay';
 import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  TemplateRef,
   inject,
+  signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -16,6 +19,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
+import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
@@ -93,7 +97,12 @@ const DENY_UNKNOWN: IMediaPolicyResult = {
 @Component({
   selector: 'app-profile-videos',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterModule,
+    MatDialogModule,
+  ],
   templateUrl: './profile-videos.component.html',
   styleUrls: [
     './profile-videos.component.css',
@@ -103,6 +112,8 @@ const DENY_UNKNOWN: IMediaPolicyResult = {
 })
 export class ProfileVideosComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly dialog = inject(MatDialog);
+  private readonly overlay = inject(Overlay);
   private readonly destroyRef = inject(DestroyRef);
   private readonly formBuilder = inject(FormBuilder);
   private readonly currentUserStore = inject(CurrentUserStoreService);
@@ -115,6 +126,9 @@ export class ProfileVideosComponent {
 
   readonly videoUploadAccept = VIDEO_UPLOAD_ACCEPT;
   readonly videoUploadFormatLabel = VIDEO_UPLOAD_FORMAT_LABEL;
+  readonly uploadComposerOpen = signal(false);
+
+  private uploadDialogRef: MatDialogRef<unknown> | null = null;
 
   private readonly busyActionsSubject = new BehaviorSubject<
     ReadonlyMap<string, VideoBusyAction>
@@ -304,10 +318,50 @@ export class ProfileVideosComponent {
 
   constructor() {
     this.destroyRef.onDestroy(() => {
+      this.uploadDialogRef?.close();
       this.uploadSubscription?.unsubscribe();
       this.revokePreviewUrl();
       this.revokePosterUrl();
     });
+  }
+
+  openUploadComposer(template: TemplateRef<unknown>): void {
+    if (this.uploadDialogRef) {
+      return;
+    }
+
+    const dialogRef = this.dialog.open(template, {
+      ariaLabel: 'Adicionar vídeo ao perfil',
+      autoFocus: 'first-tabbable',
+      restoreFocus: true,
+      closeOnNavigation: true,
+      scrollStrategy: this.overlay.scrollStrategies.block(),
+      width: 'min(760px, 100vw)',
+      height: '100dvh',
+      maxWidth: '100vw',
+      maxHeight: '100dvh',
+      position: {
+        top: '0',
+        right: '0',
+      },
+    });
+
+    this.uploadDialogRef = dialogRef;
+    this.uploadComposerOpen.set(true);
+
+    dialogRef.afterClosed().pipe(
+      take(1),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => {
+      if (this.uploadDialogRef === dialogRef) {
+        this.uploadDialogRef = null;
+      }
+      this.uploadComposerOpen.set(false);
+    });
+  }
+
+  closeUploadComposer(): void {
+    this.uploadDialogRef?.close();
   }
 
   onVideoSelected(event: Event): void {
