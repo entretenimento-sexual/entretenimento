@@ -2,7 +2,9 @@
 export { togglePhotoReaction } from './application/toggle-photo-reaction.handler';
 export { toggleVideoReaction } from './application/toggle-video-reaction.handler';
 export { rateVideo } from './application/rate-video.handler';
-export { reportVideoContent } from './application/report-video-content.handler';
+export {
+  reportVideoContent,
+} from './application/report-video-content-orchestrator.handler';
 export {
   reviewVideoContentReport,
 } from './application/review-video-content-report.handler';
@@ -19,15 +21,17 @@ export {
 } from './application/create-video-comment-orchestrator.handler';
 export {
   moderateVideoComment,
-} from './application/manage-video-comment.handler';
+} from './application/moderate-video-comment-orchestrator.handler';
 
 export {
   publishPhoto,
 } from './application/publish-photo-orchestrator.handler';
 export {
   unpublishPhoto,
-  setCoverPhoto,
 } from './application/manage-photo-publication.handler';
+export {
+  setCoverPhoto,
+} from './application/set-cover-photo-orchestrator.handler';
 
 export {
   syncPublishedPhotoOnPrivateUpdate,
@@ -41,11 +45,12 @@ export {
 } from './application/publish-video-orchestrator.handler';
 export {
   publishVideoWhenReady,
+  resumeBlockedVideoPublicationsOnAccountActivation,
 } from './application/publish-video-when-ready.handler';
 
 export {
   updateVideoPublicationSettings,
-} from './application/update-video-publication-settings.handler';
+} from './application/update-video-publication-settings-orchestrator.handler';
 
 export {
   syncPublishedVideoSettings,
@@ -123,6 +128,10 @@ export {
 } from './application/cleanup-published-video-assets.handler';
 
 export {
+  getPrivatePhotoAccessUrls,
+} from './application/get-private-photo-access-urls.handler';
+
+export {
   getPrivateVideoAccessUrls,
 } from './application/get-private-video-access-urls.handler';
 
@@ -133,6 +142,11 @@ export {
 export {
   getPublicVideoAccessUrls,
 } from './application/get-public-video-access-urls.handler';
+
+export {
+  listAuthorizedProfilePhotos,
+  listAuthorizedPublicPhotos,
+} from './application/list-authorized-public-photos.handler';
 
 export {
   listAuthorizedProfileVideos,

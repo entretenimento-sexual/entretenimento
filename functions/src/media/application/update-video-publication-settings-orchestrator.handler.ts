@@ -5,10 +5,10 @@ import {
 } from '../../account_lifecycle/account-operational-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import {
-  publishPhoto as publishPhotoCore,
-} from './manage-photo-publication.handler';
+  updateVideoPublicationSettings as updateVideoPublicationSettingsCore,
+} from './update-video-publication-settings.handler';
 
-export const publishPhoto = onCall(
+export const updateVideoPublicationSettings = onCall(
   { region: FUNCTIONS_REGION },
   async (request) => {
     const ownerUid = String(
@@ -23,6 +23,6 @@ export const publishPhoto = onCall(
       );
     }
 
-    return publishPhotoCore.run(request as any);
+    return updateVideoPublicationSettingsCore.run(request as any);
   }
 );

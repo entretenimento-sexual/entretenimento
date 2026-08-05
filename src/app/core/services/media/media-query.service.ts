@@ -1,28 +1,35 @@
 // src/app/core/services/media/media-query.service.ts
-// Query real do domínio Media (fotos).
+// Query reativa da biblioteca privada de fotos.
 //
-// AJUSTES DESTA VERSÃO:
-// - continua sem store fake
-// - continua lendo do PhotoFirestoreService
-// - agora expõe path, fileName e displayDate para gestão direta na galeria
-// - mantém stream reativa e contrato de leitura
+// Segurança:
+// - metadados continuam restritos ao proprietário operacional pelas Rules;
+// - o campo url legado não é usado como autoridade de leitura;
+// - cada item recebe URL temporária emitida pela callable após nova validação.
 
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { catchError, distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  shareReplay,
+  switchMap,
+} from 'rxjs/operators';
 
+import type { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
   Photo,
   PhotoFirestoreService,
 } from 'src/app/core/services/image-handling/photo-firestore.service';
-import type { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
+import { PrivatePhotoAccessService } from './private-photo-access.service';
 
 @Injectable({ providedIn: 'root' })
 export class MediaQueryService {
   constructor(
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly photoFirestoreService: PhotoFirestoreService
+    private readonly photoFirestoreService: PhotoFirestoreService,
+    private readonly privatePhotoAccess: PrivatePhotoAccessService
   ) {}
 
   getProfilePhotos$(ownerUid: string): Observable<IPhotoItem[]> {
@@ -36,7 +43,17 @@ export class MediaQueryService {
     }
 
     return this.photoFirestoreService.getPhotosByUser(safeOwnerUid).pipe(
-      map((items) => items.map((photo) => this.mapPhotoToMediaItem(safeOwnerUid, photo))),
+      switchMap((items) =>
+        this.privatePhotoAccess.hydratePrivatePhotoUrls$(
+          safeOwnerUid,
+          items
+        )
+      ),
+      map((items) =>
+        items.map((photo) =>
+          this.mapPhotoToMediaItem(safeOwnerUid, photo)
+        )
+      ),
       distinctUntilChanged((a, b) => this.sameItems(a, b)),
       catchError(() => {
         this.errorNotifier.showError('Erro ao carregar fotos do perfil.');

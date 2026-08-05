@@ -2,27 +2,19 @@
 // -----------------------------------------------------------------------------
 // TOGGLE PHOTO REACTION
 // -----------------------------------------------------------------------------
-//
-// Responsabilidade:
-// - receber intenção autenticada de curtir/descurtir foto pública;
-// - validar que a foto está PUBLIC + APPROVED + reactionsEnabled;
-// - gravar/remover o like do usuário;
-// - recalcular reactionsCount, engagementScore, rankingScore e score no backend.
-//
-// Segurança:
-// - cliente não escreve score;
-// - cliente não escreve contador;
-// - cliente não escreve documento público da foto;
-// - cada usuário só possui um like ativo por foto;
-// - conta com interações bloqueadas não altera reações.
+// Autorização:
+// - visitante e autor precisam estar operacionais;
+// - bloqueio bilateral e audiência são reavaliados dentro da transação;
+// - projeção pública e publicação privada precisam concordar;
+// - cliente não escreve score, contador ou documento público.
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import {
-  assertInteractionAccessInTransaction,
-} from '../../account_lifecycle/interaction-access.policy';
-import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { db } from '../../firebaseApp';
+import {
+  createPhotoInteractionAccessAuthorizer,
+} from './photo-interaction-access.service';
 
 interface TogglePhotoReactionRequest {
   ownerUid?: string;
@@ -37,9 +29,6 @@ type ScoreBreakdown = {
 };
 
 type PublicPhotoDoc = {
-  ownerUid?: string;
-  visibility?: string;
-  moderationStatus?: string;
   reactionsEnabled?: boolean;
   reactionsCount?: number;
   likesCount?: number;
@@ -50,7 +39,8 @@ type PublicPhotoDoc = {
 };
 
 function cleanId(value: unknown): string {
-  return String(value ?? '').trim();
+  const normalized = String(value ?? '').trim();
+  return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
 }
 
 function normalizeCount(value: unknown): number {
@@ -108,12 +98,10 @@ function buildNextScore(
 } {
   const currentBreakdown = photo.scoreBreakdown ?? {};
   const commentsCount = normalizeCount(photo.commentsCount ?? 0);
-
   const engagementScore = calculateEngagementScore({
     reactionsCount: nextReactionsCount,
     commentsCount,
   });
-
   const scoreBreakdown: ScoreBreakdown = {
     qualityScore: normalizeScore(currentBreakdown.qualityScore ?? 0),
     safetyScore: normalizeScore(currentBreakdown.safetyScore ?? 100),
@@ -133,23 +121,16 @@ function buildNextScore(
 export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
   { region: FUNCTIONS_REGION },
   async (request) => {
-    const viewerUid = request.auth?.uid ?? null;
-
-    if (!viewerUid) {
-      throw new HttpsError(
-        'unauthenticated',
-        'Usuário não autenticado.'
-      );
-    }
-
+    const viewerUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const photoId = cleanId(request.data?.photoId);
 
+    if (!viewerUid) {
+      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    }
+
     if (!ownerUid || !photoId) {
-      throw new HttpsError(
-        'invalid-argument',
-        'Foto inválida.'
-      );
+      throw new HttpsError('invalid-argument', 'Foto inválida.');
     }
 
     if (ownerUid === viewerUid) {
@@ -159,46 +140,22 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
       );
     }
 
-    const photoRef = db.doc(
-      `public_profiles/${ownerUid}/public_photos/${photoId}`
-    );
-
-    const likeRef = photoRef.collection('likes').doc(viewerUid);
+    const authorizer = await createPhotoInteractionAccessAuthorizer({
+      viewerUid,
+      ownerUid,
+      authenticatedEmailVerified:
+        request.auth?.token.email_verified === true,
+    });
 
     return db.runTransaction(async (transaction) => {
-      await assertInteractionAccessInTransaction(transaction, viewerUid);
-
-      const photoSnap = await transaction.get(photoRef);
-
-      if (!photoSnap.exists) {
-        throw new HttpsError(
-          'not-found',
-          'Foto pública não encontrada.'
-        );
-      }
-
-      const photo = photoSnap.data() as PublicPhotoDoc;
-
-      if (photo.ownerUid !== ownerUid) {
-        throw new HttpsError(
-          'failed-precondition',
-          'Foto inconsistente.'
-        );
-      }
-
-      if (photo.visibility !== 'PUBLIC') {
-        throw new HttpsError(
-          'failed-precondition',
-          'Esta foto não está pública.'
-        );
-      }
-
-      if (photo.moderationStatus !== 'APPROVED') {
-        throw new HttpsError(
-          'failed-precondition',
-          'Esta foto ainda não está aprovada para reações.'
-        );
-      }
+      const access = await authorizer.assertInTransaction(
+        transaction,
+        photoId
+      );
+      const photoRef = access.photoRef;
+      const likeRef = photoRef.collection('likes').doc(viewerUid);
+      const likeSnap = await transaction.get(likeRef);
+      const photo = access.publicPhoto as PublicPhotoDoc;
 
       if (photo.reactionsEnabled !== true) {
         throw new HttpsError(
@@ -207,57 +164,35 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
         );
       }
 
-      const likeSnap = await transaction.get(likeRef);
       const currentCount = normalizeCount(
         photo.reactionsCount ?? photo.likesCount ?? 0
       );
+      const nextCount = likeSnap.exists
+        ? Math.max(0, currentCount - 1)
+        : currentCount + 1;
+      const nextScore = buildNextScore(photo, nextCount);
+      const now = Date.now();
 
       if (likeSnap.exists) {
-        const nextCount = Math.max(0, currentCount - 1);
-        const nextScore = buildNextScore(photo, nextCount);
-        const now = Date.now();
-
         transaction.delete(likeRef);
-        transaction.update(photoRef, {
-          reactionsCount: nextCount,
-          likesCount: nextCount,
-
-          engagementScore: nextScore.engagementScore,
-          score: nextScore.score,
-          scoreBreakdown: nextScore.scoreBreakdown,
-
-          updatedAt: now,
+      } else {
+        transaction.set(likeRef, {
+          uid: viewerUid,
+          createdAt: now,
         });
-
-        return {
-          liked: false,
-          reactionsCount: nextCount,
-          score: nextScore.score,
-        };
       }
-
-      const now = Date.now();
-      const nextCount = currentCount + 1;
-      const nextScore = buildNextScore(photo, nextCount);
-
-      transaction.set(likeRef, {
-        uid: viewerUid,
-        createdAt: now,
-      });
 
       transaction.update(photoRef, {
         reactionsCount: nextCount,
         likesCount: nextCount,
-
         engagementScore: nextScore.engagementScore,
         score: nextScore.score,
         scoreBreakdown: nextScore.scoreBreakdown,
-
         updatedAt: now,
       });
 
       return {
-        liked: true,
+        liked: !likeSnap.exists,
         reactionsCount: nextCount,
         score: nextScore.score,
       };

@@ -1,6 +1,10 @@
 import * as logger from 'firebase-functions/logger';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { HttpsError } from 'firebase-functions/v2/https';
 
+import {
+  assertAccountOperationalAccess,
+} from '../../account_lifecycle/account-operational-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
@@ -37,6 +41,10 @@ interface VideoPublicationDoc {
   autoPublishLeaseUntil?: unknown;
 }
 
+interface AccountLifecycleDoc {
+  accountStatus?: unknown;
+}
+
 interface ProcessingJobDoc {
   ownerUid?: unknown;
   videoId?: unknown;
@@ -61,6 +69,7 @@ type DeferredPublicationClaim =
   | 'SKIPPED';
 
 const AUTO_PUBLISH_LEASE_MS = 2 * 60 * 1000;
+const RESUME_BATCH_SIZE = 20;
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -83,6 +92,28 @@ function normalizeErrorMessage(error: unknown): string {
   return (error instanceof Error ? error.message : String(error ?? 'unknown'))
     .trim()
     .slice(0, 500);
+}
+
+function policyReason(error: unknown): string {
+  if (!(error instanceof HttpsError)) {
+    return '';
+  }
+
+  const details = error.details && typeof error.details === 'object'
+    ? error.details as Readonly<Record<string, unknown>>
+    : {};
+
+  return String(details['reason'] ?? error.code ?? '')
+    .trim()
+    .toUpperCase()
+    .slice(0, 120);
+}
+
+function isOperationalPolicyDenial(error: unknown): boolean {
+  return error instanceof HttpsError && (
+    error.code === 'permission-denied' ||
+    error.code === 'failed-precondition'
+  );
 }
 
 async function synchronizeProcessedEditMetadata(
@@ -264,6 +295,31 @@ async function completeDeferredPublication(
   );
 }
 
+async function blockDeferredPublicationForAccount(
+  ownerUid: string,
+  videoId: string,
+  error: unknown
+): Promise<void> {
+  const reason = policyReason(error) || 'ACCOUNT_RESTRICTED';
+
+  await db.doc(`users/${ownerUid}/video_publications/${videoId}`).set(
+    {
+      publishWhenReady: true,
+      autoPublishState: 'BLOCKED_ACCOUNT',
+      autoPublishLeaseUntil: null,
+      autoPublishError: reason,
+      updatedAt: Date.now(),
+    },
+    { merge: true }
+  );
+
+  logger.info('[publishVideoWhenReady] Publicação retida pelo lifecycle.', {
+    ownerUid,
+    videoId,
+    reason,
+  });
+}
+
 async function releaseDeferredPublication(
   ownerUid: string,
   videoId: string,
@@ -302,10 +358,63 @@ async function publishReadyVideo(
   ) as PublishVideoResponse;
 }
 
+async function continueDeferredPublication(
+  ownerUid: string,
+  videoId: string
+): Promise<void> {
+  try {
+    await assertAccountOperationalAccess(
+      ownerUid,
+      'MEDIA_PUBLISH'
+    );
+  } catch (error) {
+    if (isOperationalPolicyDenial(error)) {
+      await blockDeferredPublicationForAccount(ownerUid, videoId, error);
+      return;
+    }
+
+    throw error;
+  }
+
+  const claim = await claimDeferredPublication(ownerUid, videoId);
+
+  if (claim === 'SKIPPED') {
+    return;
+  }
+
+  try {
+    const response = claim === 'PUBLISH'
+      ? await publishReadyVideo(ownerUid, videoId)
+      : {
+        videoId,
+        moderationStatus: 'EXISTING',
+      };
+
+    await synchronizePublishedVideoSettings(ownerUid, videoId);
+    await completeDeferredPublication(ownerUid, videoId);
+
+    logger.info('[publishVideoWhenReady] Publicação automática concluída.', {
+      ownerUid,
+      videoId,
+      resumedSynchronization: claim === 'SYNCHRONIZE',
+      moderationStatus: response.moderationStatus,
+    });
+  } catch (error) {
+    await releaseDeferredPublication(ownerUid, videoId, error);
+    logger.error('[publishVideoWhenReady] Publicação automática falhou.', {
+      ownerUid,
+      videoId,
+      stage: claim,
+      error: normalizeErrorMessage(error),
+    });
+    throw error;
+  }
+}
+
 /**
- * Continua a intenção "enviar e publicar" assim que o derivado seguro fica
- * pronto. A publicação continua passando pelas mesmas validações e pela mesma
- * moderação do callable manual.
+ * Continua a intenção "enviar e publicar" quando o derivado seguro fica pronto.
+ * A conta é revalidada antes da aquisição do lease e antes de qualquer cópia
+ * para o namespace publicado.
  */
 export const publishVideoWhenReady = onDocumentUpdated(
   {
@@ -339,38 +448,63 @@ export const publishVideoWhenReady = onDocumentUpdated(
     }
 
     await synchronizeProcessedEditMetadata(ownerUid, videoId);
-    const claim = await claimDeferredPublication(ownerUid, videoId);
-
-    if (claim === 'SKIPPED') {
-      return;
-    }
-
-    try {
-      const response = claim === 'PUBLISH'
-        ? await publishReadyVideo(ownerUid, videoId)
-        : {
-          videoId,
-          moderationStatus: 'EXISTING',
-        };
-
-      await synchronizePublishedVideoSettings(ownerUid, videoId);
-      await completeDeferredPublication(ownerUid, videoId);
-
-      logger.info('[publishVideoWhenReady] Publicação automática concluída.', {
-        ownerUid,
-        videoId,
-        resumedSynchronization: claim === 'SYNCHRONIZE',
-        moderationStatus: response.moderationStatus,
-      });
-    } catch (error) {
-      await releaseDeferredPublication(ownerUid, videoId, error);
-      logger.error('[publishVideoWhenReady] Publicação automática falhou.', {
-        ownerUid,
-        videoId,
-        stage: claim,
-        error: normalizeErrorMessage(error),
-      });
-      throw error;
-    }
+    await continueDeferredPublication(ownerUid, videoId);
   }
 );
+
+/**
+ * Retoma intenções retidas somente quando o documento canônico volta ao estado
+ * ativo. A policy completa é executada novamente, portanto reativação sem
+ * consentimento, termos, e-mail ou perfil ainda permanece bloqueada.
+ */
+export const resumeBlockedVideoPublicationsOnAccountActivation =
+  onDocumentUpdated(
+    {
+      document: 'users/{ownerUid}',
+      region: FUNCTIONS_REGION,
+      retry: true,
+    },
+    async (event) => {
+      const ownerUid = cleanId(event.params.ownerUid);
+      const before = event.data?.before.data() as AccountLifecycleDoc | undefined;
+      const after = event.data?.after.data() as AccountLifecycleDoc | undefined;
+      const beforeStatus = String(before?.accountStatus ?? '').trim().toLowerCase();
+      const afterStatus = String(after?.accountStatus ?? '').trim().toLowerCase();
+
+      if (
+        !ownerUid ||
+        afterStatus !== 'active' ||
+        beforeStatus === 'active'
+      ) {
+        return;
+      }
+
+      const blocked = await db
+        .collection(`users/${ownerUid}/video_publications`)
+        .where('publishWhenReady', '==', true)
+        .where('autoPublishState', '==', 'BLOCKED_ACCOUNT')
+        .limit(RESUME_BATCH_SIZE)
+        .get();
+
+      for (const publicationSnapshot of blocked.docs) {
+        const videoId = cleanId(publicationSnapshot.id);
+
+        if (!videoId) {
+          continue;
+        }
+
+        const videoSnapshot = await db
+          .doc(`users/${ownerUid}/videos/${videoId}`)
+          .get();
+        const video = videoSnapshot.exists
+          ? videoSnapshot.data() as PrivateVideoDoc
+          : null;
+
+        if (!isReadyVideo(video)) {
+          continue;
+        }
+
+        await continueDeferredPublication(ownerUid, videoId);
+      }
+    }
+  );

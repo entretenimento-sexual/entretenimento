@@ -30,18 +30,47 @@ service firebase.storage {
         && request.resource.size <= 80 * 1024 * 1024;
     }
 
-    function privateVideoUploadUser(uid) {
+    function privateMediaUser(uid) {
       return firestore.get(
         /databases/(default)/documents/users/$(uid)
       ).data;
     }
 
-    function hasOperationalVideoUploadAccount(uid) {
-      let user = privateVideoUploadUser(uid);
-      return (!('uid' in user) || user.uid == uid)
+    function hasRequiredAdultConsent(user) {
+      return !('initialAdultConsentRequired' in user)
+        || user.initialAdultConsentRequired != true
+        || (
+          'adultConsent' in user
+          && user.adultConsent is map
+          && 'accepted' in user.adultConsent
+          && user.adultConsent.accepted == true
+        );
+    }
+
+    function hasRequiredTermsAcceptance(user) {
+      return !('initialAdultConsentRequired' in user)
+        || user.initialAdultConsentRequired != true
+        || (
+          'acceptedTerms' in user
+          && user.acceptedTerms is map
+          && 'accepted' in user.acceptedTerms
+          && user.acceptedTerms.accepted == true
+          && (
+            !('adultAccessAcknowledgement' in user.acceptedTerms)
+            || user.acceptedTerms.adultAccessAcknowledgement != false
+          )
+        );
+    }
+
+    function hasOperationalMediaAccount(uid) {
+      let user = privateMediaUser(uid);
+      return isSelf(uid)
+        && (!('uid' in user) || user.uid == uid)
         && 'email_verified' in request.auth.token
         && request.auth.token.email_verified == true
         && user.profileCompleted == true
+        && hasRequiredAdultConsent(user)
+        && hasRequiredTermsAcceptance(user)
         && (!('accountStatus' in user) || user.accountStatus == 'active')
         && (!('suspended' in user) || user.suspended != true)
         && (!('interactionBlocked' in user) || user.interactionBlocked != true)
@@ -58,6 +87,12 @@ service firebase.storage {
             && user.ageReverification.status != 'REJECTED'
             && user.ageReverification.status != 'EXPIRED'
           )
+        )
+        && (
+          !('ageReverification' in user)
+          || !(user.ageReverification is map)
+          || !('result' in user.ageReverification)
+          || user.ageReverification.result != 'UNDERAGE'
         );
     }
 
@@ -79,7 +114,7 @@ service firebase.storage {
     function hasActiveVideoReservation(uid, videoId) {
       let reservation = videoUploadReservation();
       return hasVideoReservationMetadata(videoId)
-        && hasOperationalVideoUploadAccount(uid)
+        && hasOperationalMediaAccount(uid)
         && reservation.ownerUid == uid
         && reservation.videoId == videoId
         && reservation.state == 'ACTIVE'
@@ -108,14 +143,15 @@ service firebase.storage {
     // ============================================================
 
     match /users/{uid}/uploads/images/{fileName} {
-      allow read: if isSelf(uid);
-      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+      allow read: if hasOperationalMediaAccount(uid);
+      allow create, update: if hasOperationalMediaAccount(uid)
+        && isImageCreateOrUpdate();
       allow delete: if isSelf(uid);
     }
 
     match /users/{uid}/uploads/videos/{fileName} {
       allow read: if false;
-      allow create: if isSelf(uid)
+      allow create: if hasOperationalMediaAccount(uid)
         && isVideoCreateOrUpdate()
         && reservedVideoUpload(
           uid,
@@ -127,7 +163,7 @@ service firebase.storage {
 
     match /users/{uid}/uploads/video-posters/{videoId}/{fileName} {
       allow read: if false;
-      allow create: if isSelf(uid)
+      allow create: if hasOperationalMediaAccount(uid)
         && reservedVideoPosterUpload(
           uid,
           videoId,
@@ -147,7 +183,8 @@ service firebase.storage {
 
     match /users/{uid}/published/avatar/{fileName} {
       allow read: if signedIn();
-      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+      allow create, update: if hasOperationalMediaAccount(uid)
+        && isImageCreateOrUpdate();
       allow delete: if isSelf(uid);
     }
 

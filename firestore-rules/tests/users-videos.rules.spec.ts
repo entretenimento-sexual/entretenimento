@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 //
 // Escopo validado nesta suíte:
-// - leitura/listagem somente pelo dono;
+// - leitura/listagem somente pelo dono operacional;
 // - bloqueio para terceiros e usuário deslogado;
 // - criação, atualização e exclusão diretas negadas inclusive ao dono;
 // - metadados operacionais são autoridade exclusiva do backend.
@@ -47,7 +47,32 @@ const VIDEO_ID = 'video-001';
 let testEnv: RulesTestEnvironment;
 
 function authenticatedDb(uid: string) {
-  return testEnv.authenticatedContext(uid).firestore();
+  return testEnv.authenticatedContext(uid, {
+    email_verified: true,
+  }).firestore();
+}
+
+function operationalUser(uid: string) {
+  return {
+    uid,
+    accountStatus: 'active',
+    suspended: false,
+    interactionBlocked: false,
+    accountLocked: false,
+    loginAllowed: true,
+    emailVerified: true,
+    profileCompleted: true,
+    initialAdultConsentRequired: true,
+    adultConsent: { accepted: true },
+    acceptedTerms: {
+      accepted: true,
+      adultAccessAcknowledgement: true,
+    },
+    ageReverification: {
+      status: 'VERIFIED',
+      result: 'ADULT',
+    },
+  };
 }
 
 function validVideoPayload(
@@ -67,6 +92,17 @@ function validVideoPayload(
     createdAt: serverTimestamp(),
     ...overrides,
   };
+}
+
+async function seedUsers(): Promise<void> {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+
+    await Promise.all([
+      setDoc(doc(db, 'users', OWNER_UID), operationalUser(OWNER_UID)),
+      setDoc(doc(db, 'users', OUTSIDER_UID), operationalUser(OUTSIDER_UID)),
+    ]);
+  });
 }
 
 async function seedVideo(): Promise<void> {
@@ -109,6 +145,7 @@ describe('Firestore Rules / users videos', () => {
 
   beforeEach(async () => {
     await testEnv.clearFirestore();
+    await seedUsers();
   });
 
   afterAll(async () => {
@@ -126,7 +163,7 @@ describe('Firestore Rules / users videos', () => {
     );
   });
 
-  it('permite ao dono ler diretamente seu próprio vídeo', async () => {
+  it('permite ao dono operacional ler diretamente seu próprio vídeo', async () => {
     await seedVideo();
 
     const db = authenticatedDb(OWNER_UID);
@@ -138,7 +175,7 @@ describe('Firestore Rules / users videos', () => {
     expect(snapshot.exists()).toBe(true);
   });
 
-  it('permite ao dono listar sua biblioteca privada de vídeos', async () => {
+  it('permite ao dono operacional listar sua biblioteca privada de vídeos', async () => {
     await seedVideo();
 
     const db = authenticatedDb(OWNER_UID);

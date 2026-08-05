@@ -2,24 +2,20 @@
 // -----------------------------------------------------------------------------
 // PHOTO COMMENTS — CREATE / REPLY / MODERATE
 // -----------------------------------------------------------------------------
-//
-// Responsabilidade:
-// - criar comentário em foto pública aprovada;
-// - permitir resposta do dono da foto a um comentário;
-// - permitir moderação pelo dono da foto;
-// - permitir remoção suave pelo autor do comentário;
-// - atualizar commentsCount e score no backend.
-//
-// Segurança:
-// - cliente não edita comentário diretamente;
-// - cliente não atualiza commentsCount/score;
-// - nickname do autor é resolvido pelo backend a partir da projeção pública;
-// - resposta encadeada é limitada a 1 nível para manter UX mobile limpa.
+// Criação e resposta usam autorização transacional de audiência. Ocultar e
+// excluir permanecem disponíveis como redução de exposição; restaurar exige
+// conta operacional.
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { db } from '../../firebaseApp';
+import {
+  assertAccountOperationalAccess,
+} from '../../account_lifecycle/account-operational-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { db } from '../../firebaseApp';
+import {
+  createPhotoInteractionAccessAuthorizer,
+} from './photo-interaction-access.service';
 
 type CommentStatus = 'VISIBLE' | 'PENDING_REVIEW' | 'HIDDEN' | 'DELETED';
 
@@ -55,21 +51,16 @@ type PublicProfileDoc = {
 type PhotoCommentDoc = {
   ownerUid: string;
   photoId: string;
-
   authorUid: string;
   authorNickname: string;
-
   content: string;
   status: CommentStatus;
-
   parentCommentId: string | null;
   isOwnerReply: boolean;
   replyToAuthorUid: string | null;
   replyToAuthorNickname: string | null;
-
   likesCount: number;
   reportsCount: number;
-
   createdAt: number;
   updatedAt: number;
   deletedAt: number | null;
@@ -100,7 +91,8 @@ interface ModeratePhotoCommentResponse {
 }
 
 function cleanId(value: unknown): string {
-  return String(value ?? '').trim();
+  const normalized = String(value ?? '').trim();
+  return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
 }
 
 function cleanContent(value: unknown): string {
@@ -164,13 +156,13 @@ function buildNextScore(
   scoreBreakdown: ScoreBreakdown;
 } {
   const currentBreakdown = photo.scoreBreakdown ?? {};
-  const reactionsCount = normalizeCount(photo.reactionsCount ?? photo.likesCount ?? 0);
-
+  const reactionsCount = normalizeCount(
+    photo.reactionsCount ?? photo.likesCount ?? 0
+  );
   const engagementScore = calculateEngagementScore({
     reactionsCount,
     commentsCount: nextCommentsCount,
   });
-
   const scoreBreakdown: ScoreBreakdown = {
     qualityScore: normalizeScore(currentBreakdown.qualityScore ?? 0),
     safetyScore: normalizeScore(currentBreakdown.safetyScore ?? 100),
@@ -214,32 +206,32 @@ function assertPublicPhotoAllowsComments(photo: PublicPhotoDoc): void {
   }
 }
 
-function resolveNickname(profile: PublicProfileDoc | undefined, fallback = 'Usuário'): string {
+function resolveNickname(
+  profile: PublicProfileDoc | undefined,
+  fallback = 'Usuário'
+): string {
   const nickname =
     profile?.nickname ??
     profile?.displayName ??
     profile?.nome ??
     profile?.name ??
     fallback;
-
   const safeNickname = String(nickname ?? '').trim();
-
   return safeNickname ? safeNickname.slice(0, 40) : fallback;
 }
 
 export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<CreatePhotoCommentResponse> => {
-    const authorUid = request.auth?.uid ?? null;
-
-    if (!authorUid) {
-      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
-    }
-
+    const authorUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const photoId = cleanId(request.data?.photoId);
     const content = cleanContent(request.data?.content);
     const parentCommentId = cleanId(request.data?.parentCommentId) || null;
+
+    if (!authorUid) {
+      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    }
 
     if (!ownerUid || !photoId) {
       throw new HttpsError('invalid-argument', 'Foto inválida.');
@@ -249,37 +241,32 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
       throw new HttpsError('invalid-argument', 'Comentário vazio.');
     }
 
-    if (content.length > 500) {
-      throw new HttpsError('invalid-argument', 'Comentário muito longo.');
-    }
-
-    const photoRef = db.doc(`public_profiles/${ownerUid}/public_photos/${photoId}`);
+    const authorizer = await createPhotoInteractionAccessAuthorizer({
+      viewerUid: authorUid,
+      ownerUid,
+      authenticatedEmailVerified:
+        request.auth?.token.email_verified === true,
+    });
     const authorProfileRef = db.doc(`public_profiles/${authorUid}`);
-    const commentsCollection = photoRef.collection('comments');
-    const newCommentRef = commentsCollection.doc();
 
     return db.runTransaction(async (transaction) => {
-      const [photoSnap, authorProfileSnap] = await Promise.all([
-        transaction.get(photoRef),
-        transaction.get(authorProfileRef),
-      ]);
-
-      if (!photoSnap.exists) {
-        throw new HttpsError('not-found', 'Foto pública não encontrada.');
-      }
-
-      const photo = photoSnap.data() as PublicPhotoDoc;
-
-      if (photo.ownerUid !== ownerUid) {
-        throw new HttpsError('failed-precondition', 'Foto inconsistente.');
-      }
+      const access = await authorizer.assertInTransaction(
+        transaction,
+        photoId
+      );
+      const photoRef = access.photoRef;
+      const commentsCollection = photoRef.collection('comments');
+      const newCommentRef = commentsCollection.doc();
+      const authorProfileSnap = await transaction.get(authorProfileRef);
+      const photo = access.publicPhoto as PublicPhotoDoc;
 
       assertPublicPhotoAllowsComments(photo);
 
       const authorNickname = resolveNickname(
-        authorProfileSnap.exists ? (authorProfileSnap.data() as PublicProfileDoc) : undefined
+        authorProfileSnap.exists
+          ? authorProfileSnap.data() as PublicProfileDoc
+          : undefined
       );
-
       let replyToAuthorUid: string | null = null;
       let replyToAuthorNickname: string | null = null;
       let isOwnerReply = false;
@@ -304,18 +291,12 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
         if (
           parent.ownerUid !== ownerUid ||
           parent.photoId !== photoId ||
-          parent.status !== 'VISIBLE'
+          parent.status !== 'VISIBLE' ||
+          parent.parentCommentId
         ) {
           throw new HttpsError(
             'failed-precondition',
             'Comentário original indisponível para resposta.'
-          );
-        }
-
-        if (parent.parentCommentId) {
-          throw new HttpsError(
-            'failed-precondition',
-            'Respostas encadeadas não são permitidas.'
           );
         }
 
@@ -331,32 +312,25 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
         ? currentCommentsCount + 1
         : currentCommentsCount;
       const nextScore = buildNextScore(photo, nextCommentsCount);
-
       const commentDoc: PhotoCommentDoc = {
         ownerUid,
         photoId,
-
         authorUid,
         authorNickname,
-
         content,
         status: 'VISIBLE',
-
         parentCommentId,
         isOwnerReply,
         replyToAuthorUid,
         replyToAuthorNickname,
-
         likesCount: 0,
         reportsCount: 0,
-
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
       };
 
       transaction.set(newCommentRef, commentDoc);
-
       transaction.update(photoRef, {
         commentsCount: nextCommentsCount,
         engagementScore: nextScore.engagementScore,
@@ -365,9 +339,7 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
         updatedAt: now,
       });
 
-      return {
-        commentId: newCommentRef.id,
-      };
+      return { commentId: newCommentRef.id };
     });
   }
 );
@@ -375,17 +347,15 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
 export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<ModeratePhotoCommentResponse> => {
-    const requesterUid = request.auth?.uid ?? null;
-
-    if (!requesterUid) {
-      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
-    }
-
+    const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
     const photoId = cleanId(request.data?.photoId);
     const commentId = cleanId(request.data?.commentId);
     const action = String(request.data?.action ?? '').trim().toUpperCase();
 
+    if (!requesterUid) {
+      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    }
 
     if (!ownerUid || !photoId || !commentId) {
       throw new HttpsError('invalid-argument', 'Comentário inválido.');
@@ -395,7 +365,16 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
       throw new HttpsError('invalid-argument', 'Ação inválida.');
     }
 
-    const photoRef = db.doc(`public_profiles/${ownerUid}/public_photos/${photoId}`);
+    if (action === 'RESTORE') {
+      await assertAccountOperationalAccess(
+        requesterUid,
+        'MEDIA_MODERATE_OWN'
+      );
+    }
+
+    const photoRef = db.doc(
+      `public_profiles/${ownerUid}/public_photos/${photoId}`
+    );
     const commentRef = photoRef.collection('comments').doc(commentId);
 
     return db.runTransaction(async (transaction) => {
@@ -426,13 +405,11 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
       const isPhotoOwner = requesterUid === ownerUid;
       const isCommentAuthor = requesterUid === comment.authorUid;
 
-      if (action === 'HIDE' || action === 'RESTORE') {
-        if (!isPhotoOwner) {
-          throw new HttpsError(
-            'permission-denied',
-            'Somente o dono da foto pode moderar este comentário.'
-          );
-        }
+      if ((action === 'HIDE' || action === 'RESTORE') && !isPhotoOwner) {
+        throw new HttpsError(
+          'permission-denied',
+          'Somente o dono da foto pode moderar este comentário.'
+        );
       }
 
       if (action === 'DELETE' && !isPhotoOwner && !isCommentAuthor) {
@@ -452,7 +429,6 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
       let nextStatus: CommentStatus = comment.status;
       let nextContent = comment.content;
       let deletedAt: number | null = comment.deletedAt ?? null;
-
       const affectsPublicCommentCount = !comment.parentCommentId;
       let countDelta = 0;
 
@@ -460,7 +436,6 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
         if (affectsPublicCommentCount && comment.status === 'VISIBLE') {
           countDelta = -1;
         }
-
         nextStatus = 'HIDDEN';
       }
 
@@ -471,11 +446,9 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
             'Somente comentários ocultos podem ser restaurados.'
           );
         }
-
         if (affectsPublicCommentCount) {
           countDelta = 1;
         }
-
         nextStatus = 'VISIBLE';
       }
 
@@ -483,7 +456,6 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
         if (affectsPublicCommentCount && comment.status === 'VISIBLE') {
           countDelta = -1;
         }
-
         nextStatus = 'DELETED';
         nextContent = '';
         deletedAt = Date.now();
@@ -500,7 +472,6 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
         updatedAt: now,
         deletedAt,
       });
-
       transaction.update(photoRef, {
         commentsCount: nextCommentsCount,
         engagementScore: nextScore.engagementScore,

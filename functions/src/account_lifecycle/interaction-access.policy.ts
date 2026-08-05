@@ -1,58 +1,50 @@
 import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
-import { db } from '../firebaseApp';
+import {
+  assertAccountOperationalAccess,
+  assertAccountOperationalAccessData,
+  assertAccountOperationalAccessInTransaction,
+  type AccountOperationalUserDocument,
+} from './account-operational-access.policy';
 
-interface InteractionAccessUserDocument {
-  accountStatus?: unknown;
-  suspended?: unknown;
-  interactionBlocked?: unknown;
-  ageReverification?: {
-    status?: unknown;
-  } | null;
-}
+const INTERACTION_OPTIONS = {
+  requireVerifiedEmail: false,
+  requireCompletedProfile: false,
+  requireAdultAccess: true,
+  requireAcceptedTerms: false,
+} as const;
 
+/**
+ * Nome preservado por compatibilidade com os handlers existentes.
+ * A decisão agora delega para a policy canônica de conta operacional.
+ */
 export function assertInteractionAccessData(
-  user: InteractionAccessUserDocument | null | undefined
+  user: AccountOperationalUserDocument | null | undefined
 ): void {
   if (!user) {
     throw new HttpsError('not-found', 'Conta não encontrada.');
   }
 
-  const accountStatus = String(user.accountStatus ?? 'active')
-    .trim()
-    .toLowerCase();
-  const ageStatus = String(user.ageReverification?.status ?? '')
-    .trim()
-    .toUpperCase();
-  const ageRestricted = ageStatus === 'REQUIRED' ||
-    ageStatus === 'SUBMITTED' ||
-    ageStatus === 'UNDER_REVIEW' ||
-    ageStatus === 'EXPIRED';
+  const documentUid = String(user.uid ?? 'legacy-account').trim();
 
-  if (
-    accountStatus !== 'active' ||
-    user.suspended === true ||
-    user.interactionBlocked === true ||
-    ageRestricted
-  ) {
-    throw new HttpsError(
-      'failed-precondition',
-      ageRestricted
-        ? 'Conclua a revalidação de idade antes de realizar esta ação.'
-        : 'Esta conta não pode realizar interações no momento.'
-    );
-  }
+  assertAccountOperationalAccessData(
+    user,
+    documentUid,
+    'MEDIA_INTERACT',
+    {},
+    {
+      ...INTERACTION_OPTIONS,
+      allowMissingDocumentUid: true,
+    }
+  );
 }
 
-export async function assertInteractionAccess(
-  uid: string
-): Promise<void> {
-  const userSnapshot = await db.collection('users').doc(uid).get();
-  assertInteractionAccessData(
-    userSnapshot.exists
-      ? userSnapshot.data() as InteractionAccessUserDocument
-      : null
+export async function assertInteractionAccess(uid: string): Promise<void> {
+  await assertAccountOperationalAccess(
+    uid,
+    'MEDIA_INTERACT',
+    INTERACTION_OPTIONS
   );
 }
 
@@ -60,13 +52,11 @@ export async function assertInteractionAccessInTransaction(
   transaction: Transaction,
   uid: string
 ): Promise<void> {
-  const userSnapshot = await transaction.get(
-    db.collection('users').doc(uid)
-  );
-
-  assertInteractionAccessData(
-    userSnapshot.exists
-      ? userSnapshot.data() as InteractionAccessUserDocument
-      : null
+  await assertAccountOperationalAccessInTransaction(
+    transaction,
+    uid,
+    'MEDIA_INTERACT',
+    {},
+    INTERACTION_OPTIONS
   );
 }

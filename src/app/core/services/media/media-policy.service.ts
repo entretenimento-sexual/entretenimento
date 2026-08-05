@@ -1,10 +1,11 @@
 // src/app/core/services/media/media-policy.service.ts
-// Policy central de mídia privada e publicação controlada.
-// - somente o dono acessa bibliotecas privadas;
-// - upload exige e-mail verificado, perfil concluído e conta sem bloqueio;
-// - fotos e vídeos compartilham a mesma defesa em profundidade.
-import { Injectable } from '@angular/core';
+// Policy reativa de mídia privada e publicação controlada.
+// A UI antecipa a decisão, enquanto Functions e Rules permanecem autoridades.
+import { Injectable, inject } from '@angular/core';
 import { Observable, of } from 'rxjs';
+import { distinctUntilChanged, map } from 'rxjs/operators';
+
+import { CurrentUserStoreService } from '../autentication/auth/current-user-store.service';
 
 export type MediaPolicyDecision = 'ALLOW' | 'DENY';
 
@@ -27,11 +28,26 @@ export interface IMediaPolicyViewerSnapshot {
   uid?: string | null;
   emailVerified?: boolean | null;
   profileCompleted?: boolean | null;
+  accountStatus?: string | null;
+  suspended?: boolean | null;
   interactionBlocked?: boolean | null;
+  accountLocked?: boolean | null;
+  loginAllowed?: boolean | null;
+  ageReverificationStatus?: string | null;
 }
+
+const AGE_REVERIFICATION_RESTRICTED_STATES = new Set([
+  'REQUIRED',
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'REJECTED',
+  'EXPIRED',
+]);
 
 @Injectable({ providedIn: 'root' })
 export class MediaPolicyService {
+  private readonly currentUserStore = inject(CurrentUserStoreService);
+
   private allow$(): Observable<IMediaPolicyResult> {
     return of<IMediaPolicyResult>({ decision: 'ALLOW' });
   }
@@ -56,10 +72,7 @@ export class MediaPolicyService {
     return this.canViewOwnedLibrary$(viewerUid, ownerUid);
   }
 
-  /**
-   * Compatibilidade com chamadas antigas que ainda informam apenas UID.
-   * Mantida para não quebrar componentes que só precisam validar ownership.
-   */
+  /** Compatibilidade com chamadas antigas que validam somente ownership. */
   canUploadProfilePhotos$(
     viewerUid: string | null,
     ownerUid: string
@@ -114,29 +127,83 @@ export class MediaPolicyService {
       return this.deny$('UNKNOWN');
     }
 
+    return this.currentUserStore.user$.pipe(
+      map((currentUser): IMediaPolicyViewerSnapshot | null | undefined => {
+        if (!currentUser) {
+          return currentUser;
+        }
+
+        return {
+          uid: currentUser.uid,
+          emailVerified: currentUser.emailVerified === true,
+          profileCompleted: currentUser.profileCompleted === true,
+          accountStatus: currentUser.accountStatus ?? null,
+          suspended: currentUser.suspended === true,
+          interactionBlocked: currentUser.interactionBlocked === true,
+          accountLocked: currentUser.accountLocked === true,
+          loginAllowed: currentUser.loginAllowed,
+          ageReverificationStatus:
+            currentUser.ageReverification?.status ?? null,
+        };
+      }),
+      map((currentViewer) =>
+        this.evaluateUploadPolicy(currentViewer ?? viewer, ownerUid)
+      ),
+      distinctUntilChanged((previous, current) =>
+        previous.decision === current.decision &&
+        previous.reason === current.reason
+      )
+    );
+  }
+
+  private evaluateUploadPolicy(
+    viewer: IMediaPolicyViewerSnapshot | null | undefined,
+    ownerUid: string
+  ): IMediaPolicyResult {
+    if (viewer === undefined) {
+      return { decision: 'DENY', reason: 'UNKNOWN' };
+    }
+
     const safeViewerUid = (viewer?.uid ?? '').trim();
     const safeOwnerUid = (ownerUid ?? '').trim();
 
     if (!safeViewerUid) {
-      return this.deny$('NOT_AUTHENTICATED');
+      return { decision: 'DENY', reason: 'NOT_AUTHENTICATED' };
     }
 
     if (!safeOwnerUid || safeViewerUid !== safeOwnerUid) {
-      return this.deny$('NOT_OWNER');
+      return { decision: 'DENY', reason: 'NOT_OWNER' };
+    }
+
+    const accountStatus = String(viewer?.accountStatus ?? 'active')
+      .trim()
+      .toLowerCase();
+    const ageStatus = String(viewer?.ageReverificationStatus ?? '')
+      .trim()
+      .toUpperCase();
+
+    if (
+      accountStatus !== 'active' ||
+      viewer?.suspended === true ||
+      viewer?.accountLocked === true ||
+      viewer?.loginAllowed === false ||
+      AGE_REVERIFICATION_RESTRICTED_STATES.has(ageStatus)
+    ) {
+      return { decision: 'DENY', reason: 'BLOCKED' };
     }
 
     if (viewer?.interactionBlocked === true) {
-      return this.deny$('INTERACTION_BLOCKED');
+      return { decision: 'DENY', reason: 'INTERACTION_BLOCKED' };
     }
 
     if (viewer?.emailVerified !== true) {
-      return this.deny$('EMAIL_UNVERIFIED');
+      return { decision: 'DENY', reason: 'EMAIL_UNVERIFIED' };
     }
 
     if (viewer?.profileCompleted !== true) {
-      return this.deny$('PROFILE_INCOMPLETE');
+      return { decision: 'DENY', reason: 'PROFILE_INCOMPLETE' };
     }
 
-    return this.allow$();
+    return { decision: 'ALLOW' };
   }
 }
