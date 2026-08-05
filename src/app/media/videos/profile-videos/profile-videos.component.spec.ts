@@ -47,6 +47,11 @@ describe('ProfileVideosComponent', () => {
     open: ReturnType<typeof vi.fn>;
   };
 
+  const queryUploadTrigger = (): HTMLButtonElement =>
+    (fixture.nativeElement as HTMLElement).querySelector(
+      '.profile-videos__upload-trigger'
+    ) as HTMLButtonElement;
+
   beforeEach(async () => {
     videosSubject = new BehaviorSubject<IVideoItem[]>([VIDEO]);
     policySubject = new BehaviorSubject<TestPolicyResult>({
@@ -134,9 +139,7 @@ describe('ProfileVideosComponent', () => {
 
   it('prioriza a biblioteca sem renderizar o compositor de upload no topo', () => {
     const element = fixture.nativeElement as HTMLElement;
-    const trigger = element.querySelector(
-      '.profile-videos__upload-trigger'
-    ) as HTMLButtonElement;
+    const trigger = queryUploadTrigger();
 
     expect(element.querySelector('h1')?.textContent).toContain('Meus vídeos');
     expect(element.querySelector('.profile-videos__count')?.textContent).toContain(
@@ -149,11 +152,7 @@ describe('ProfileVideosComponent', () => {
   });
 
   it('abre o compositor em MatDialog com foco e restauração configurados', () => {
-    const trigger = (fixture.nativeElement as HTMLElement).querySelector(
-      '.profile-videos__upload-trigger'
-    ) as HTMLButtonElement;
-
-    trigger.click();
+    queryUploadTrigger().click();
     fixture.detectChanges();
 
     expect(dialog.open).toHaveBeenCalledTimes(1);
@@ -171,14 +170,14 @@ describe('ProfileVideosComponent', () => {
       },
     });
     expect(component.uploadComposerOpen()).toBe(true);
-    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(queryUploadTrigger().getAttribute('aria-expanded')).toBe('true');
 
     dialogClosedSubject.next();
     dialogClosedSubject.complete();
     fixture.detectChanges();
 
     expect(component.uploadComposerOpen()).toBe(false);
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(queryUploadTrigger().getAttribute('aria-expanded')).toBe('false');
   });
 
   it('preserva a hierarquia padronizada do card com status sobre a mídia', () => {
