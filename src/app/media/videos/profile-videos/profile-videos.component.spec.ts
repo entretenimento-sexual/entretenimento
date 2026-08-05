@@ -53,6 +53,10 @@ describe('ProfileVideosComponent', () => {
       '.profile-videos__upload-trigger'
     ) as HTMLButtonElement;
 
+  const detectComponentChanges = (): void => {
+    fixture.componentRef.changeDetectorRef.detectChanges();
+  };
+
   beforeEach(async () => {
     videosSubject = new BehaviorSubject<IVideoItem[]>([VIDEO]);
     policySubject = new BehaviorSubject<TestPolicyResult>({
@@ -152,12 +156,11 @@ describe('ProfileVideosComponent', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('abre o compositor em MatDialog com foco e restauração configurados', async () => {
+  it('abre o compositor em MatDialog com foco e restauração configurados', () => {
     fixture.debugElement
       .query(By.css('.profile-videos__upload-trigger'))
       .triggerEventHandler('click');
-    await fixture.whenStable();
-    fixture.detectChanges();
+    detectComponentChanges();
 
     expect(dialog.open).toHaveBeenCalledTimes(1);
     const [, config] = dialog.open.mock.calls[0];
@@ -178,8 +181,7 @@ describe('ProfileVideosComponent', () => {
 
     dialogClosedSubject.next();
     dialogClosedSubject.complete();
-    await fixture.whenStable();
-    fixture.detectChanges();
+    detectComponentChanges();
 
     expect(component.uploadComposerOpen()).toBe(false);
     expect(queryUploadTrigger().getAttribute('aria-expanded')).toBe('false');
