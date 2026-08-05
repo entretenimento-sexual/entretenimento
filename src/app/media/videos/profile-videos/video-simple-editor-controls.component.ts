@@ -44,6 +44,15 @@ export interface IVideoSimpleEditorState {
   readonly error: string | null;
 }
 
+interface IVideoTrimTimelineState {
+  readonly durationMs: number;
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly editedDurationMs: number;
+  readonly startPercent: number;
+  readonly endPercent: number;
+}
+
 const MIN_EDITED_DURATION_MS = 5_000;
 
 @Component({
@@ -113,9 +122,14 @@ export class VideoSimpleEditorControlsComponent {
     muteAudio: [false],
   });
 
+  readonly minimumEditedDurationMs = MIN_EDITED_DURATION_MS;
   readonly metadata$ = this.metadataSubject.asObservable();
   readonly loading$ = this.loadingSubject.asObservable();
   readonly capturingPoster$ = this.capturingPosterSubject.asObservable();
+
+  private readonly formValue$ = this.form.valueChanges.pipe(
+    startWith(this.form.getRawValue())
+  );
 
   readonly editorReady$: Observable<boolean> = this.metadata$.pipe(
     map((metadata) => !!(
@@ -130,24 +144,28 @@ export class VideoSimpleEditorControlsComponent {
 
   readonly recipeError$: Observable<string | null> = combineLatest([
     this.metadata$,
-    this.form.valueChanges.pipe(startWith(this.form.getRawValue())),
+    this.formValue$,
   ]).pipe(
     map(() => this.getValidationMessage()),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly editedDurationLabel$: Observable<string> = combineLatest([
+  readonly trimTimeline$: Observable<IVideoTrimTimelineState> = combineLatest([
     this.metadata$,
-    this.form.valueChanges.pipe(startWith(this.form.getRawValue())),
+    this.formValue$,
   ]).pipe(
-    map(([metadata]) => {
-      const durationMs = metadata?.durationMs ?? 0;
-      const raw = this.form.getRawValue();
-      const endMs = Math.min(durationMs, Number(raw.trimEndMs ?? durationMs));
-      const editedMs = Math.max(0, endMs - Number(raw.trimStartMs ?? 0));
-      return this.formatTime(editedMs);
-    }),
+    map(([metadata]) => this.buildTrimTimelineState(metadata?.durationMs ?? 0)),
+    distinctUntilChanged((previous, current) =>
+      previous.durationMs === current.durationMs &&
+      previous.startMs === current.startMs &&
+      previous.endMs === current.endMs
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly editedDurationLabel$: Observable<string> = this.trimTimeline$.pipe(
+    map((timeline) => this.formatTime(timeline.editedDurationMs)),
     distinctUntilChanged()
   );
 
@@ -198,7 +216,7 @@ export class VideoSimpleEditorControlsComponent {
       this.fileSubject,
       this.metadataSubject,
       this.loadingSubject,
-      this.form.valueChanges.pipe(startWith(this.form.getRawValue())),
+      this.formValue$,
     ]).pipe(
       takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => this.emitEditorState());
@@ -246,6 +264,58 @@ export class VideoSimpleEditorControlsComponent {
     };
   }
 
+  onTrimStartInput(video: HTMLVideoElement): void {
+    const durationMs = this.metadataSubject.value?.durationMs ?? 0;
+    if (!durationMs) {
+      return;
+    }
+
+    const requestedStartMs = this.normalizeMilliseconds(
+      this.form.controls.trimStartMs.value,
+      durationMs
+    );
+    const currentEndMs = this.normalizeMilliseconds(
+      this.form.controls.trimEndMs.value,
+      durationMs
+    );
+    const nextStartMs = Math.min(
+      requestedStartMs,
+      Math.max(0, currentEndMs - MIN_EDITED_DURATION_MS)
+    );
+
+    if (nextStartMs !== requestedStartMs) {
+      this.form.controls.trimStartMs.setValue(nextStartMs);
+    }
+
+    this.seekPreview(video, nextStartMs);
+  }
+
+  onTrimEndInput(video: HTMLVideoElement): void {
+    const durationMs = this.metadataSubject.value?.durationMs ?? 0;
+    if (!durationMs) {
+      return;
+    }
+
+    const currentStartMs = this.normalizeMilliseconds(
+      this.form.controls.trimStartMs.value,
+      durationMs
+    );
+    const requestedEndMs = this.normalizeMilliseconds(
+      this.form.controls.trimEndMs.value,
+      durationMs
+    );
+    const nextEndMs = Math.max(
+      requestedEndMs,
+      Math.min(durationMs, currentStartMs + MIN_EDITED_DURATION_MS)
+    );
+
+    if (nextEndMs !== requestedEndMs) {
+      this.form.controls.trimEndMs.setValue(nextEndMs);
+    }
+
+    this.seekPreview(video, nextEndMs);
+  }
+
   capturePoster(video: HTMLVideoElement): void {
     if (
       this.disabled ||
@@ -286,6 +356,44 @@ export class VideoSimpleEditorControlsComponent {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  private buildTrimTimelineState(durationMs: number): IVideoTrimTimelineState {
+    if (!durationMs) {
+      return {
+        durationMs: 0,
+        startMs: 0,
+        endMs: 0,
+        editedDurationMs: 0,
+        startPercent: 0,
+        endPercent: 100,
+      };
+    }
+
+    const raw = this.form.getRawValue();
+    const startMs = this.normalizeMilliseconds(raw.trimStartMs, durationMs);
+    const endMs = this.normalizeMilliseconds(raw.trimEndMs, durationMs);
+
+    return {
+      durationMs,
+      startMs,
+      endMs,
+      editedDurationMs: Math.max(0, endMs - startMs),
+      startPercent: (startMs / durationMs) * 100,
+      endPercent: (endMs / durationMs) * 100,
+    };
+  }
+
+  private normalizeMilliseconds(value: number, durationMs: number): number {
+    return Math.min(durationMs, Math.max(0, Math.trunc(Number(value))));
+  }
+
+  private seekPreview(video: HTMLVideoElement, milliseconds: number): void {
+    try {
+      video.currentTime = milliseconds / 1000;
+    } catch {
+      // Alguns navegadores recusam seek antes de concluir a leitura dos metadados.
+    }
   }
 
   private emitEditorState(): void {
