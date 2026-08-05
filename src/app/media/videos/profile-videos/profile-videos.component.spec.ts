@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, Subject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
@@ -33,15 +34,35 @@ const VIDEO: IVideoItem = {
 };
 
 describe('ProfileVideosComponent', () => {
+  let component: ProfileVideosComponent;
   let fixture: ComponentFixture<ProfileVideosComponent>;
   let videosSubject: BehaviorSubject<IVideoItem[]>;
   let policySubject: BehaviorSubject<TestPolicyResult>;
+  let dialogClosedSubject: Subject<void>;
+  let dialogRef: {
+    close: ReturnType<typeof vi.fn>;
+    afterClosed: ReturnType<typeof vi.fn>;
+  };
+  let dialog: {
+    open: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     videosSubject = new BehaviorSubject<IVideoItem[]>([VIDEO]);
     policySubject = new BehaviorSubject<TestPolicyResult>({
       decision: 'ALLOW',
     });
+    dialogClosedSubject = new Subject<void>();
+    dialogRef = {
+      close: vi.fn(() => {
+        dialogClosedSubject.next();
+        dialogClosedSubject.complete();
+      }),
+      afterClosed: vi.fn(() => dialogClosedSubject.asObservable()),
+    };
+    dialog = {
+      open: vi.fn(() => dialogRef),
+    };
 
     await TestBed.configureTestingModule({
       imports: [ProfileVideosComponent],
@@ -51,6 +72,10 @@ describe('ProfileVideosComponent', () => {
           useValue: {
             paramMap: of(convertToParamMap({ id: OWNER_UID })),
           },
+        },
+        {
+          provide: MatDialog,
+          useValue: dialog,
         },
         {
           provide: CurrentUserStoreService,
@@ -103,43 +128,57 @@ describe('ProfileVideosComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(ProfileVideosComponent);
+    component = fixture.componentInstance;
     fixture.detectChanges();
   });
 
-  it('prioriza a biblioteca e mantém o compositor de upload fechado inicialmente', () => {
+  it('prioriza a biblioteca sem renderizar o compositor de upload no topo', () => {
     const element = fixture.nativeElement as HTMLElement;
-    const disclosure = element.querySelector(
-      '.profile-videos__upload-disclosure'
-    ) as HTMLDetailsElement;
+    const trigger = element.querySelector(
+      '.profile-videos__upload-trigger'
+    ) as HTMLButtonElement;
 
     expect(element.querySelector('h1')?.textContent).toContain('Meus vídeos');
     expect(element.querySelector('.profile-videos__count')?.textContent).toContain(
       '1'
     );
-    expect(disclosure).toBeTruthy();
-    expect(disclosure.open).toBe(false);
-    expect(
-      disclosure.querySelector('.profile-videos__upload-trigger')?.textContent
-    ).toContain('Adicionar vídeo');
+    expect(element.querySelector('.profile-videos__upload')).toBeNull();
+    expect(trigger.textContent).toContain('Adicionar vídeo');
+    expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('mantém o aviso de elegibilidade dentro do fluxo de upload sem ocupar o topo', () => {
-    policySubject.next({
-      decision: 'DENY',
-      reason: 'EMAIL_NOT_VERIFIED',
-    });
+  it('abre o compositor em MatDialog com foco e restauração configurados', () => {
+    const trigger = (fixture.nativeElement as HTMLElement).querySelector(
+      '.profile-videos__upload-trigger'
+    ) as HTMLButtonElement;
+
+    trigger.click();
     fixture.detectChanges();
 
-    const element = fixture.nativeElement as HTMLElement;
-    const disclosure = element.querySelector(
-      '.profile-videos__upload-disclosure'
-    ) as HTMLDetailsElement;
-    const policyState = disclosure.querySelector(
-      '.profile-videos__policy-state'
-    );
+    expect(dialog.open).toHaveBeenCalledTimes(1);
+    const [, config] = dialog.open.mock.calls[0];
+    expect(config).toMatchObject({
+      ariaLabel: 'Adicionar vídeo ao perfil',
+      autoFocus: 'first-tabbable',
+      restoreFocus: true,
+      closeOnNavigation: true,
+      maxWidth: '100vw',
+      maxHeight: '100dvh',
+      position: {
+        top: '0',
+        right: '0',
+      },
+    });
+    expect(component.uploadComposerOpen()).toBe(true);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
 
-    expect(disclosure.open).toBe(false);
-    expect(policyState?.textContent).toContain('Confirme o e-mail');
+    dialogClosedSubject.next();
+    dialogClosedSubject.complete();
+    fixture.detectChanges();
+
+    expect(component.uploadComposerOpen()).toBe(false);
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('preserva a hierarquia padronizada do card com status sobre a mídia', () => {
@@ -166,7 +205,7 @@ describe('ProfileVideosComponent', () => {
       '.profile-videos__empty'
     ) as HTMLElement;
     const firstUploadAction = emptyState.querySelector(
-      'label[for="profile-video-file"]'
+      'button[aria-haspopup="dialog"]'
     );
 
     expect(emptyState.textContent).toContain('Sua biblioteca ainda está vazia');
