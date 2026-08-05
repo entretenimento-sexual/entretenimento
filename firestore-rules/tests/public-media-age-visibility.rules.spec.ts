@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 
 import {
   assertFails,
-  assertSucceeds,
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
@@ -23,7 +22,6 @@ import {
   beforeAll,
   beforeEach,
   describe,
-  expect,
   it,
 } from 'vitest';
 
@@ -144,12 +142,9 @@ describe('Firestore Rules / public media age visibility', () => {
     await testEnv.cleanup();
   });
 
-  it('mantém foto pública direta e exige backend autorizado para vídeo', async () => {
+  it('exige backend autorizado para metadados públicos de foto e vídeo', async () => {
     const db = viewerDb();
 
-    // SUPRESSÃO INTENCIONAL: terceiros não leem mais a projeção de vídeo
-    // diretamente. A callable valida lifecycle, bloqueio e audiência antes de
-    // devolver os metadados e, em seguida, autoriza a URL temporária.
     await assertFails(
       getDoc(
         doc(
@@ -161,7 +156,7 @@ describe('Firestore Rules / public media age visibility', () => {
         )
       )
     );
-    await assertSucceeds(
+    await assertFails(
       getDoc(
         doc(
           db,
@@ -174,7 +169,7 @@ describe('Firestore Rules / public media age visibility', () => {
     );
   });
 
-  it('bloqueia acesso direto quando o perfil pai foi ocultado', async () => {
+  it('mantém acesso direto fechado quando o perfil pai foi ocultado', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await deleteDoc(doc(context.firestore(), 'public_profiles', OWNER_UID));
     });
@@ -204,7 +199,7 @@ describe('Firestore Rules / public media age visibility', () => {
     );
   });
 
-  it('nega consulta global direta de vídeos e exclui fotos privadas', async () => {
+  it('nega consultas globais diretas mesmo quando a mídia está privada', async () => {
     await setMediaVisibility('PRIVATE');
     const db = viewerDb();
     const videoQuery = query(
@@ -219,12 +214,10 @@ describe('Firestore Rules / public media age visibility', () => {
     );
 
     await assertFails(getDocs(videoQuery));
-    const photos = await assertSucceeds(getDocs(photoQuery));
-
-    expect(photos.empty).toBe(true);
+    await assertFails(getDocs(photoQuery));
   });
 
-  it('mantém vídeo no backend autorizado após PUBLIC e restaura foto pública', async () => {
+  it('continua negando consulta global após restauração para PUBLIC', async () => {
     await setMediaVisibility('PRIVATE');
     await setMediaVisibility('PUBLIC');
     const db = viewerDb();
@@ -240,8 +233,6 @@ describe('Firestore Rules / public media age visibility', () => {
     );
 
     await assertFails(getDocs(videoQuery));
-    const photos = await assertSucceeds(getDocs(photoQuery));
-
-    expect(photos.size).toBe(1);
+    await assertFails(getDocs(photoQuery));
   });
 });
