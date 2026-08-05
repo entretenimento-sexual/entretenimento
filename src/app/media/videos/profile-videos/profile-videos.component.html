@@ -12,6 +12,10 @@
 @let selectedFileSize = (selectedFileSize$ | async);
 @let editorState = (editorState$ | async);
 @let canUpload = (canUpload$ | async) === true;
+@let canSelectVideo = (canSelectVideo$ | async) === true;
+@let uploadCapacity = (uploadCapacity$ | async);
+@let uploadCapacityLoading = (uploadCapacityLoading$ | async) === true;
+@let uploadCapacityError = (uploadCapacityError$ | async);
 @let lastUploadedLifecycle = (lastUploadedLifecycle$ | async);
 
 <section class="profile-videos" aria-label="Vídeos">
@@ -32,6 +36,103 @@
             Confirme o e-mail, conclua o perfil e mantenha a conta regular para liberar o envio de vídeos.
           </span>
         </div>
+      } @else {
+        <section
+          class="profile-videos__capacity"
+          [class.profile-videos__capacity--blocked]="uploadCapacity?.canStartUpload === false"
+          aria-labelledby="video-capacity-title"
+        >
+          @if (uploadCapacityLoading) {
+            <div class="profile-videos__capacity-state" role="status" aria-live="polite">
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Consultando o limite do seu plano...</span>
+            </div>
+          } @else if (uploadCapacityError) {
+            <div class="profile-videos__capacity-state profile-videos__capacity-state--error" role="alert">
+              <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+              <div>
+                <strong id="video-capacity-title">Limite indisponível</strong>
+                <span>{{ uploadCapacityError }}</span>
+              </div>
+              <button
+                type="button"
+                class="app-action app-action--ghost"
+                (click)="refreshUploadCapacity()"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          } @else if (uploadCapacity) {
+            <div class="profile-videos__capacity-heading">
+              <div>
+                <span class="profile-videos__capacity-plan">
+                  Plano {{ planLabel(uploadCapacity.plan) }}
+                </span>
+                <strong id="video-capacity-title">
+                  {{ uploadCapacity.currentItems }} de {{ uploadCapacity.maxItems }} vídeos utilizados
+                </strong>
+              </div>
+              <span
+                class="profile-videos__capacity-availability"
+                [class.profile-videos__capacity-availability--blocked]="!uploadCapacity.canStartUpload"
+              >
+                {{ uploadCapacity.canStartUpload ? uploadCapacity.remainingItems + ' vaga(s)' : 'Sem vaga' }}
+              </span>
+            </div>
+
+            <div
+              class="profile-videos__capacity-track"
+              role="progressbar"
+              aria-label="Uso da quantidade de vídeos do plano"
+              aria-valuemin="0"
+              [attr.aria-valuemax]="uploadCapacity.maxItems"
+              [attr.aria-valuenow]="uploadCapacity.currentItems"
+            >
+              <span
+                [style.width.%]="usagePercent(uploadCapacity.currentItems, uploadCapacity.maxItems)"
+              ></span>
+            </div>
+
+            <div class="profile-videos__capacity-rules">
+              <span>
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                Entre {{ uploadCapacity.minDurationMs / 1000 }} e {{ uploadCapacity.maxDurationMs / 1000 }} segundos
+              </span>
+              <span>
+                <i class="fas fa-file-video" aria-hidden="true"></i>
+                Até {{ formatFileSize(uploadCapacity.maxSourceBytes) }} por arquivo
+              </span>
+              <span>
+                <i class="fas fa-database" aria-hidden="true"></i>
+                {{ formatFileSize(uploadCapacity.currentReservedBytes) }} de {{ formatFileSize(uploadCapacity.maxReservedBytes) }} reservados
+              </span>
+            </div>
+
+            @if (!uploadCapacity.canStartUpload) {
+              <div class="profile-videos__capacity-warning" role="status" aria-live="polite">
+                <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+                <div>
+                  <strong>Novos envios estão bloqueados</strong>
+                  <span>
+                    @if (uploadCapacity.itemLimitReached) {
+                      Sua biblioteca já alcançou ou ultrapassou a quantidade do plano. Os vídeos atuais serão preservados.
+                    } @else {
+                      O espaço reservado do plano foi atingido. Exclua um vídeo ou altere o plano.
+                    }
+                  </span>
+                </div>
+                <div class="profile-videos__capacity-actions">
+                  <a class="app-action app-action--ghost" href="#video-library">
+                    Gerenciar vídeos
+                  </a>
+                  <a class="app-action app-action--primary" routerLink="/subscription-plan">
+                    Ver planos
+                  </a>
+                </div>
+              </div>
+            }
+          }
+        </section>
       }
 
       <input
@@ -41,62 +142,66 @@
         type="file"
         [attr.accept]="videoUploadAccept"
         aria-describedby="profile-video-file-help"
-        [disabled]="!canUpload || isUploadActive()"
+        [disabled]="!canSelectVideo || isUploadActive()"
         (change)="onVideoSelected($event)"
       />
 
       @if (selectedFileName) {
-        <div class="profile-videos__upload-layout">
-          <div class="profile-videos__picker">
-            <label
-              class="profile-videos__file-label app-action app-action--ghost"
-              for="profile-video-file"
-              [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
-            >
-              Trocar vídeo
-            </label>
-
-            <p class="profile-videos__limits" id="profile-video-file-help">
-              {{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos
-            </p>
-
-            <div class="profile-videos__selected-file" role="status" aria-live="polite">
-              <i class="fas fa-circle-check" aria-hidden="true"></i>
-              <div>
-                <strong>{{ selectedFileName }}</strong>
-                <span>{{ selectedFileSize }}</span>
-              </div>
-            </div>
-
-            <app-video-simple-editor-controls
-              [file]="selectedFile"
-              [previewUrl]="previewUrl"
-              [disabled]="isUploadActive()"
-              (posterChange)="onEditorPosterChange($event)"
-              (stateChange)="onEditorStateChange($event)"
-            />
-
-            @if (selectedPosterUrl) {
-              <figure class="profile-videos__selected-cover">
-                <img
-                  [src]="selectedPosterUrl"
-                  alt="Capa escolhida para o vídeo"
-                  width="320"
-                  height="180"
-                />
-                <figcaption>
-                  <i class="fas fa-circle-check" aria-hidden="true"></i>
-                  Capa escolhida conforme o enquadramento
-                </figcaption>
-              </figure>
-            }
-          </div>
-
-          <form
-            class="profile-videos__settings-form profile-videos__upload-composer"
-            [formGroup]="uploadPublicationForm"
-            (ngSubmit)="startUpload()"
+        <div class="profile-videos__selection-toolbar">
+          <label
+            class="profile-videos__file-label app-action app-action--ghost"
+            for="profile-video-file"
+            [class.profile-videos__file-label--disabled]="!canSelectVideo || isUploadActive()"
           >
+            Trocar vídeo
+          </label>
+
+          @if (uploadCapacity) {
+            <p class="profile-videos__limits" id="profile-video-file-help">
+              {{ videoUploadFormatLabel }} · até {{ formatFileSize(uploadCapacity.maxSourceBytes) }} · máximo de {{ uploadCapacity.maxDurationMs / 1000 }} segundos
+            </p>
+          }
+        </div>
+
+        <div class="profile-videos__selected-file" role="status" aria-live="polite">
+          <i class="fas fa-circle-check" aria-hidden="true"></i>
+          <div>
+            <strong>{{ selectedFileName }}</strong>
+            <span>{{ selectedFileSize }}</span>
+          </div>
+        </div>
+
+        <app-video-simple-editor-controls
+          [file]="selectedFile"
+          [previewUrl]="previewUrl"
+          [minDurationMs]="uploadCapacity?.minDurationMs || 0"
+          [maxDurationMs]="uploadCapacity?.maxDurationMs || 0"
+          [disabled]="isUploadActive()"
+          (posterChange)="onEditorPosterChange($event)"
+          (stateChange)="onEditorStateChange($event)"
+        />
+
+        @if (selectedPosterUrl) {
+          <figure class="profile-videos__selected-cover">
+            <img
+              [src]="selectedPosterUrl"
+              alt="Capa escolhida para o vídeo"
+              width="320"
+              height="180"
+            />
+            <figcaption>
+              <i class="fas fa-circle-check" aria-hidden="true"></i>
+              Capa escolhida conforme o enquadramento
+            </figcaption>
+          </figure>
+        }
+
+        <form
+          class="profile-videos__settings-form profile-videos__upload-composer"
+          [formGroup]="uploadPublicationForm"
+          (ngSubmit)="startUpload()"
+        >
+          <div class="profile-videos__publication-fields">
             <label for="new-video-title">
               <span>Título</span>
               <input
@@ -129,7 +234,9 @@
                 [readonly]="isUploadActive()"
               ></textarea>
             </label>
+          </div>
 
+          <div class="profile-videos__publication-options">
             <fieldset
               class="profile-videos__settings-options"
               [disabled]="isUploadActive()"
@@ -153,26 +260,32 @@
               <button
                 type="submit"
                 class="app-action app-action--primary"
-                [disabled]="!canUpload || !editorState?.valid || uploadPublicationForm.invalid || isUploadActive()"
+                [disabled]="!canUpload || !uploadCapacity?.canStartUpload || !editorState?.valid || uploadPublicationForm.invalid || isUploadActive()"
               >
                 {{ isUploadActive() ? 'Enviando...' : 'Enviar e publicar' }}
               </button>
             </div>
-          </form>
-        </div>
+          </div>
+        </form>
       } @else {
         <div class="profile-videos__upload-start">
           <label
             class="profile-videos__file-label app-action app-action--primary"
             for="profile-video-file"
-            [class.profile-videos__file-label--disabled]="!canUpload"
+            [class.profile-videos__file-label--disabled]="!canSelectVideo"
           >
             <i class="fas fa-upload" aria-hidden="true"></i>
             Selecionar vídeo
           </label>
-          <p class="profile-videos__limits" id="profile-video-file-help">
-            {{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos
-          </p>
+          @if (uploadCapacity) {
+            <p class="profile-videos__limits" id="profile-video-file-help">
+              {{ videoUploadFormatLabel }} · até {{ formatFileSize(uploadCapacity.maxSourceBytes) }} · entre {{ uploadCapacity.minDurationMs / 1000 }} e {{ uploadCapacity.maxDurationMs / 1000 }} segundos
+            </p>
+          } @else {
+            <p class="profile-videos__limits" id="profile-video-file-help">
+              Aguarde a confirmação dos limites do plano.
+            </p>
+          }
         </div>
       }
 
@@ -234,6 +347,7 @@
           <button
             type="button"
             class="app-action app-action--primary"
+            [disabled]="!uploadCapacity?.canStartUpload"
             (click)="resetSelection(videoInput)"
           >
             Enviar outro
@@ -260,7 +374,7 @@
 
     @if (viewItems$ | async; as items) {
       @if (items.length > 0) {
-        <div class="profile-videos__grid" aria-label="Meus vídeos">
+        <div id="video-library" class="profile-videos__grid" aria-label="Meus vídeos">
           @for (item of items; track trackByVideoId($index, item)) {
             <article class="profile-videos__card">
               <div class="profile-videos__media">
@@ -467,7 +581,7 @@
           }
         </div>
       } @else {
-        <p class="profile-videos__upload-status" role="status">Nenhum vídeo enviado.</p>
+        <p id="video-library" class="profile-videos__upload-status" role="status">Nenhum vídeo enviado.</p>
       }
     }
   } @else {
