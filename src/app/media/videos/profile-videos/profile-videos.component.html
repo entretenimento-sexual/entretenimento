@@ -15,6 +15,284 @@
 <section class="profile-videos" aria-label="Vídeos">
   @if (isOwner$ | async) {
     @if (viewItems$ | async; as items) {
+      <ng-template #uploadDialog>
+        <section
+          class="profile-videos__upload app-card"
+          aria-labelledby="video-upload-title"
+          [attr.aria-busy]="isUploadActive() ? 'true' : 'false'"
+        >
+          <button
+            type="button"
+            class="profile-videos__upload-close app-action app-action--ghost"
+            aria-label="Fechar envio de vídeo"
+            (click)="closeUploadComposer()"
+          >
+            <i class="fas fa-xmark" aria-hidden="true"></i>
+            <span>Fechar</span>
+          </button>
+
+          <div class="profile-videos__upload-copy">
+            <span class="profile-videos__eyebrow">Novo conteúdo</span>
+            <h2 id="video-upload-title">Adicionar vídeo</h2>
+            <p>
+              Selecione o arquivo, revise a capa e escolha como ele será publicado.
+            </p>
+          </div>
+
+          @if (!canUpload) {
+            <div class="profile-videos__policy-state" role="status" aria-live="polite">
+              <i class="fas fa-shield-halved" aria-hidden="true"></i>
+              <span>
+                Confirme o e-mail, conclua o perfil e mantenha a conta regular para liberar o envio de vídeos.
+              </span>
+            </div>
+          }
+
+          <input
+            #videoInput
+            id="profile-video-file"
+            class="profile-videos__file-input"
+            type="file"
+            [attr.accept]="videoUploadAccept"
+            aria-describedby="profile-video-file-help"
+            [disabled]="!canUpload || isUploadActive()"
+            (change)="onVideoSelected($event)"
+          />
+
+          @if (selectedFileName) {
+            <div class="profile-videos__upload-layout">
+              <div class="profile-videos__picker">
+                <label
+                  class="profile-videos__file-label app-action app-action--ghost"
+                  for="profile-video-file"
+                  [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
+                >
+                  Trocar vídeo
+                </label>
+
+                <p class="profile-videos__limits" id="profile-video-file-help">
+                  {{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos
+                </p>
+
+                <div class="profile-videos__selected-file" role="status" aria-live="polite">
+                  <i class="fas fa-circle-check" aria-hidden="true"></i>
+                  <div>
+                    <strong>{{ selectedFileName }}</strong>
+                    <span>{{ selectedFileSize }}</span>
+                  </div>
+                </div>
+
+                @if (previewUrl) {
+                  <div class="profile-videos__preview">
+                    <video
+                      #uploadPreview
+                      [src]="previewUrl"
+                      aria-label="Prévia local do vídeo selecionado"
+                      preload="metadata"
+                      controls
+                      playsinline
+                      muted
+                    ></video>
+                  </div>
+
+                  <div class="profile-videos__cover-tools">
+                    <strong>Capa</strong>
+                    <button
+                      type="button"
+                      class="app-action app-action--ghost"
+                      [disabled]="capturingPoster || isUploadActive()"
+                      [attr.aria-busy]="capturingPoster ? 'true' : 'false'"
+                      (click)="capturePoster(uploadPreview)"
+                    >
+                      {{ capturingPoster ? 'Gerando...' : 'Usar quadro atual' }}
+                    </button>
+                  </div>
+
+                  @if (selectedPosterUrl) {
+                    <figure class="profile-videos__selected-cover">
+                      <img
+                        [src]="selectedPosterUrl"
+                        alt="Capa escolhida para o vídeo"
+                        width="320"
+                        height="180"
+                      />
+                      <figcaption>
+                        <i class="fas fa-circle-check" aria-hidden="true"></i>
+                        Capa escolhida
+                      </figcaption>
+                    </figure>
+                  }
+                }
+              </div>
+
+              <form
+                class="profile-videos__settings-form profile-videos__upload-composer"
+                [formGroup]="uploadPublicationForm"
+                (ngSubmit)="startUpload(true)"
+              >
+                <label for="new-video-title">
+                  <span>Título</span>
+                  <input
+                    id="new-video-title"
+                    type="text"
+                    formControlName="title"
+                    maxlength="120"
+                    autocomplete="off"
+                    [readonly]="isUploadActive()"
+                  />
+                </label>
+
+                @if (
+                  uploadPublicationForm.controls.title.touched &&
+                  uploadPublicationForm.controls.title.invalid
+                ) {
+                  <p class="profile-videos__field-error" role="alert">
+                    Informe um título com até 120 caracteres.
+                  </p>
+                }
+
+                <label for="new-video-description">
+                  <span>Descrição</span>
+                  <textarea
+                    id="new-video-description"
+                    formControlName="description"
+                    maxlength="1000"
+                    rows="4"
+                    placeholder="Descrição opcional"
+                    [readonly]="isUploadActive()"
+                  ></textarea>
+                </label>
+
+                <fieldset
+                  class="profile-videos__settings-options"
+                  [disabled]="isUploadActive()"
+                >
+                  <legend>Interações</legend>
+                  <label>
+                    <input type="checkbox" formControlName="reactionsEnabled" />
+                    <span>Curtidas</span>
+                  </label>
+                  <label>
+                    <input type="checkbox" formControlName="commentsEnabled" />
+                    <span>Comentários</span>
+                  </label>
+                  <label>
+                    <input type="checkbox" formControlName="ratingsEnabled" />
+                    <span>Avaliações</span>
+                  </label>
+                </fieldset>
+
+                <div class="profile-videos__settings-actions">
+                  <button
+                    type="submit"
+                    class="app-action app-action--primary"
+                    [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
+                  >
+                    {{ isUploadActive() ? 'Enviando...' : 'Enviar e publicar' }}
+                  </button>
+
+                  <!-- MANUTENÇÃO: cota, retenção, expiração e elegibilidade por assinatura devem ser validadas no backend; ocultar esta ação não impede abuso de armazenamento. -->
+                  <button
+                    type="button"
+                    class="app-action app-action--ghost"
+                    [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
+                    (click)="startUpload(false)"
+                  >
+                    Salvar sem publicar
+                  </button>
+                </div>
+              </form>
+            </div>
+          } @else {
+            <div class="profile-videos__upload-start">
+              <label
+                class="profile-videos__file-label app-action app-action--primary"
+                for="profile-video-file"
+                [class.profile-videos__file-label--disabled]="!canUpload"
+              >
+                <i class="fas fa-upload" aria-hidden="true"></i>
+                Selecionar vídeo
+              </label>
+              <p class="profile-videos__limits" id="profile-video-file-help">
+                {{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos
+              </p>
+            </div>
+          }
+
+          @if (uploadPhase !== 'IDLE' && uploadPhase !== 'READY') {
+            <div class="profile-videos__progress" aria-live="polite">
+              <div class="profile-videos__progress-copy">
+                <strong>{{ uploadStep }}</strong>
+                <span>{{ uploadProgress }}%</span>
+              </div>
+              <div
+                class="profile-videos__progress-track"
+                role="progressbar"
+                aria-label="Progresso do upload do vídeo"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                [attr.aria-valuenow]="uploadProgress"
+              >
+                <span [style.width.%]="uploadProgress"></span>
+              </div>
+            </div>
+          } @else if (uploadPhase === 'READY') {
+            <p class="profile-videos__upload-status" role="status" aria-live="polite">
+              {{ uploadStep }}
+            </p>
+          }
+
+          @if (uploadFailure) {
+            <div class="profile-videos__upload-failure" role="alert" aria-live="assertive">
+              <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+              <div>
+                <strong>{{ uploadFailure.title }}</strong>
+                <span>{{ uploadFailure.message }}</span>
+                <small>{{ uploadFailure.recovery }}</small>
+              </div>
+              @if (uploadFailure.retryable) {
+                <button
+                  type="button"
+                  class="app-action app-action--primary"
+                  [disabled]="isUploadActive()"
+                  (click)="retryUpload()"
+                >
+                  Tentar novamente
+                </button>
+              }
+            </div>
+          }
+
+          <div class="profile-videos__upload-actions">
+            @if (uploadPhase === 'DONE') {
+              <button
+                type="button"
+                class="app-action app-action--primary"
+                (click)="resetSelection(videoInput)"
+              >
+                Enviar outro
+              </button>
+            } @else if (canCancelUpload()) {
+              <button
+                type="button"
+                class="app-action app-action--ghost"
+                (click)="cancelUpload()"
+              >
+                Cancelar upload
+              </button>
+            } @else if (selectedFileName && !isUploadActive()) {
+              <button
+                type="button"
+                class="app-action app-action--ghost"
+                (click)="resetSelection(videoInput)"
+              >
+                Limpar
+              </button>
+            }
+          </div>
+        </section>
+      </ng-template>
+
       <header class="profile-videos__header">
         <div class="profile-videos__header-copy">
           <span class="profile-videos__eyebrow">Biblioteca</span>
@@ -30,289 +308,16 @@
             <span>{{ items.length === 1 ? 'vídeo' : 'vídeos' }}</span>
           </span>
 
-          <details
-            class="profile-videos__upload-disclosure"
-            [open]="!!selectedFileName || uploadPhase !== 'IDLE'"
+          <button
+            type="button"
+            class="profile-videos__upload-trigger app-action app-action--ghost"
+            aria-haspopup="dialog"
+            [attr.aria-expanded]="uploadComposerOpen()"
+            (click)="openUploadComposer(uploadDialog)"
           >
-            <summary
-              class="profile-videos__upload-trigger app-action app-action--ghost"
-              [attr.aria-label]="selectedFileName || uploadPhase !== 'IDLE' ? 'Fechar envio de vídeo' : 'Adicionar vídeo'"
-            >
-              <i class="fas fa-plus" aria-hidden="true"></i>
-              <span class="profile-videos__upload-trigger-label profile-videos__upload-trigger-label--closed">
-                Adicionar vídeo
-              </span>
-              <span class="profile-videos__upload-trigger-label profile-videos__upload-trigger-label--open">
-                Fechar
-              </span>
-            </summary>
-
-            <section
-              class="profile-videos__upload app-card"
-              aria-labelledby="video-upload-title"
-              [attr.aria-busy]="isUploadActive() ? 'true' : 'false'"
-            >
-              <div class="profile-videos__upload-copy">
-                <span class="profile-videos__eyebrow">Novo conteúdo</span>
-                <h2 id="video-upload-title">Adicionar vídeo</h2>
-                <p>
-                  Selecione o arquivo, revise a capa e escolha como ele será publicado.
-                </p>
-              </div>
-
-              @if (!canUpload) {
-                <div class="profile-videos__policy-state" role="status" aria-live="polite">
-                  <i class="fas fa-shield-halved" aria-hidden="true"></i>
-                  <span>
-                    Confirme o e-mail, conclua o perfil e mantenha a conta regular para liberar o envio de vídeos.
-                  </span>
-                </div>
-              }
-
-              <input
-                #videoInput
-                id="profile-video-file"
-                class="profile-videos__file-input"
-                type="file"
-                [attr.accept]="videoUploadAccept"
-                aria-describedby="profile-video-file-help"
-                [disabled]="!canUpload || isUploadActive()"
-                (change)="onVideoSelected($event)"
-              />
-
-              @if (selectedFileName) {
-                <div class="profile-videos__upload-layout">
-                  <div class="profile-videos__picker">
-                    <label
-                      class="profile-videos__file-label app-action app-action--ghost"
-                      for="profile-video-file"
-                      [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
-                    >
-                      Trocar vídeo
-                    </label>
-
-                    <p class="profile-videos__limits" id="profile-video-file-help">
-                      {{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos
-                    </p>
-
-                    <div class="profile-videos__selected-file" role="status" aria-live="polite">
-                      <i class="fas fa-circle-check" aria-hidden="true"></i>
-                      <div>
-                        <strong>{{ selectedFileName }}</strong>
-                        <span>{{ selectedFileSize }}</span>
-                      </div>
-                    </div>
-
-                    @if (previewUrl) {
-                      <div class="profile-videos__preview">
-                        <video
-                          #uploadPreview
-                          [src]="previewUrl"
-                          aria-label="Prévia local do vídeo selecionado"
-                          preload="metadata"
-                          controls
-                          playsinline
-                          muted
-                        ></video>
-                      </div>
-
-                      <div class="profile-videos__cover-tools">
-                        <strong>Capa</strong>
-                        <button
-                          type="button"
-                          class="app-action app-action--ghost"
-                          [disabled]="capturingPoster || isUploadActive()"
-                          [attr.aria-busy]="capturingPoster ? 'true' : 'false'"
-                          (click)="capturePoster(uploadPreview)"
-                        >
-                          {{ capturingPoster ? 'Gerando...' : 'Usar quadro atual' }}
-                        </button>
-                      </div>
-
-                      @if (selectedPosterUrl) {
-                        <figure class="profile-videos__selected-cover">
-                          <img
-                            [src]="selectedPosterUrl"
-                            alt="Capa escolhida para o vídeo"
-                            width="320"
-                            height="180"
-                          />
-                          <figcaption>
-                            <i class="fas fa-circle-check" aria-hidden="true"></i>
-                            Capa escolhida
-                          </figcaption>
-                        </figure>
-                      }
-                    }
-                  </div>
-
-                  <form
-                    class="profile-videos__settings-form profile-videos__upload-composer"
-                    [formGroup]="uploadPublicationForm"
-                    (ngSubmit)="startUpload(true)"
-                  >
-                    <label for="new-video-title">
-                      <span>Título</span>
-                      <input
-                        id="new-video-title"
-                        type="text"
-                        formControlName="title"
-                        maxlength="120"
-                        autocomplete="off"
-                        [readonly]="isUploadActive()"
-                      />
-                    </label>
-
-                    @if (
-                      uploadPublicationForm.controls.title.touched &&
-                      uploadPublicationForm.controls.title.invalid
-                    ) {
-                      <p class="profile-videos__field-error" role="alert">
-                        Informe um título com até 120 caracteres.
-                      </p>
-                    }
-
-                    <label for="new-video-description">
-                      <span>Descrição</span>
-                      <textarea
-                        id="new-video-description"
-                        formControlName="description"
-                        maxlength="1000"
-                        rows="4"
-                        placeholder="Descrição opcional"
-                        [readonly]="isUploadActive()"
-                      ></textarea>
-                    </label>
-
-                    <fieldset
-                      class="profile-videos__settings-options"
-                      [disabled]="isUploadActive()"
-                    >
-                      <legend>Interações</legend>
-                      <label>
-                        <input type="checkbox" formControlName="reactionsEnabled" />
-                        <span>Curtidas</span>
-                      </label>
-                      <label>
-                        <input type="checkbox" formControlName="commentsEnabled" />
-                        <span>Comentários</span>
-                      </label>
-                      <label>
-                        <input type="checkbox" formControlName="ratingsEnabled" />
-                        <span>Avaliações</span>
-                      </label>
-                    </fieldset>
-
-                    <div class="profile-videos__settings-actions">
-                      <button
-                        type="submit"
-                        class="app-action app-action--primary"
-                        [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
-                      >
-                        {{ isUploadActive() ? 'Enviando...' : 'Enviar e publicar' }}
-                      </button>
-
-                      <!-- MANUTENÇÃO: cota, retenção, expiração e elegibilidade por assinatura devem ser validadas no backend; ocultar esta ação não impede abuso de armazenamento. -->
-                      <button
-                        type="button"
-                        class="app-action app-action--ghost"
-                        [disabled]="!canUpload || uploadPublicationForm.invalid || isUploadActive()"
-                        (click)="startUpload(false)"
-                      >
-                        Salvar sem publicar
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              } @else {
-                <div class="profile-videos__upload-start">
-                  <label
-                    class="profile-videos__file-label app-action app-action--primary"
-                    for="profile-video-file"
-                    [class.profile-videos__file-label--disabled]="!canUpload"
-                  >
-                    <i class="fas fa-upload" aria-hidden="true"></i>
-                    Selecionar vídeo
-                  </label>
-                  <p class="profile-videos__limits" id="profile-video-file-help">
-                    {{ videoUploadFormatLabel }} · até 500 MB · mínimo de 5 segundos
-                  </p>
-                </div>
-              }
-
-              @if (uploadPhase !== 'IDLE' && uploadPhase !== 'READY') {
-                <div class="profile-videos__progress" aria-live="polite">
-                  <div class="profile-videos__progress-copy">
-                    <strong>{{ uploadStep }}</strong>
-                    <span>{{ uploadProgress }}%</span>
-                  </div>
-                  <div
-                    class="profile-videos__progress-track"
-                    role="progressbar"
-                    aria-label="Progresso do upload do vídeo"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                    [attr.aria-valuenow]="uploadProgress"
-                  >
-                    <span [style.width.%]="uploadProgress"></span>
-                  </div>
-                </div>
-              } @else if (uploadPhase === 'READY') {
-                <p class="profile-videos__upload-status" role="status" aria-live="polite">
-                  {{ uploadStep }}
-                </p>
-              }
-
-              @if (uploadFailure) {
-                <div class="profile-videos__upload-failure" role="alert" aria-live="assertive">
-                  <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
-                  <div>
-                    <strong>{{ uploadFailure.title }}</strong>
-                    <span>{{ uploadFailure.message }}</span>
-                    <small>{{ uploadFailure.recovery }}</small>
-                  </div>
-                  @if (uploadFailure.retryable) {
-                    <button
-                      type="button"
-                      class="app-action app-action--primary"
-                      [disabled]="isUploadActive()"
-                      (click)="retryUpload()"
-                    >
-                      Tentar novamente
-                    </button>
-                  }
-                </div>
-              }
-
-              <div class="profile-videos__upload-actions">
-                @if (uploadPhase === 'DONE') {
-                  <button
-                    type="button"
-                    class="app-action app-action--primary"
-                    (click)="resetSelection(videoInput)"
-                  >
-                    Enviar outro
-                  </button>
-                } @else if (canCancelUpload()) {
-                  <button
-                    type="button"
-                    class="app-action app-action--ghost"
-                    (click)="cancelUpload()"
-                  >
-                    Cancelar upload
-                  </button>
-                } @else if (selectedFileName && !isUploadActive()) {
-                  <button
-                    type="button"
-                    class="app-action app-action--ghost"
-                    (click)="resetSelection(videoInput)"
-                  >
-                    Limpar
-                  </button>
-                }
-              </div>
-            </section>
-          </details>
+            <i class="fas fa-plus" aria-hidden="true"></i>
+            <span>Adicionar vídeo</span>
+          </button>
         </div>
       </header>
 
@@ -569,11 +574,20 @@
           }
         </div>
       } @else {
-        <div class="profile-videos__empty" role="status" aria-live="polite">
+        <div class="profile-videos__empty" aria-live="polite">
           <i class="fas fa-film" aria-hidden="true"></i>
           <div>
-            <strong>Você ainda não enviou vídeos.</strong>
-            <span>Use “Adicionar vídeo” para publicar o primeiro conteúdo.</span>
+            <strong>Sua biblioteca ainda está vazia.</strong>
+            <span>Adicione o primeiro vídeo quando estiver pronto para publicar.</span>
+            <button
+              type="button"
+              class="app-action app-action--ghost"
+              aria-haspopup="dialog"
+              (click)="openUploadComposer(uploadDialog)"
+            >
+              <i class="fas fa-plus" aria-hidden="true"></i>
+              Adicionar primeiro vídeo
+            </button>
           </div>
         </div>
       }
