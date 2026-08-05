@@ -14,10 +14,15 @@
     <div>
       <span class="video-simple-editor__eyebrow">Edição básica</span>
       <h3 id="video-simple-editor-title">Prepare o vídeo</h3>
+      <p>Faça ajustes rápidos antes do envio.</p>
     </div>
-    @if (metadata?.durationMs) {
-      <span class="video-simple-editor__duration">
-        Resultado: {{ editedDurationLabel$ | async }}
+    @if (timeline?.durationMs) {
+      <span
+        class="video-simple-editor__duration"
+        [attr.aria-label]="'Duração selecionada: ' + formatTime(timeline!.editedDurationMs)"
+      >
+        <i class="fas fa-scissors" aria-hidden="true"></i>
+        {{ formatTime(timeline!.editedDurationMs) }}
       </span>
     }
   </div>
@@ -42,10 +47,12 @@
 
     @if (loading) {
       <p class="video-simple-editor__status" role="status" aria-live="polite">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
         Lendo duração e dimensões do arquivo...
       </p>
     } @else if (!editorReady) {
       <p class="video-simple-editor__status" role="status" aria-live="polite">
+        <i class="fas fa-circle-info" aria-hidden="true"></i>
         A prévia não está disponível neste navegador. O arquivo original ainda pode ser enviado e convertido no backend, sem edição local.
       </p>
     } @else {
@@ -54,23 +61,39 @@
         [formGroup]="form"
         [attr.aria-disabled]="disabled ? 'true' : null"
       >
-        <fieldset class="video-simple-editor__trim-fieldset">
-          <legend>Cortar vídeo</legend>
+        <fieldset class="video-simple-editor__panel video-simple-editor__trim-fieldset">
+          <legend class="video-simple-editor__sr-only">Cortar vídeo</legend>
+
+          <div class="video-simple-editor__panel-heading">
+            <div class="video-simple-editor__panel-title">
+              <span class="video-simple-editor__step" aria-hidden="true">1</span>
+              <span>
+                <strong>Cortar vídeo</strong>
+                <small>Escolha o trecho que será publicado.</small>
+              </span>
+            </div>
+            <button
+              type="button"
+              class="video-simple-editor__reset-button"
+              [disabled]="disabled || (hasTrim$ | async) !== true"
+              (click)="resetTrim(uploadPreview)"
+            >
+              <i class="fas fa-rotate-left" aria-hidden="true"></i>
+              Usar vídeo inteiro
+            </button>
+          </div>
 
           @if (timeline) {
             <div
               id="video-trim-summary"
               class="video-simple-editor__trim-summary"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
             >
               <span>
                 <small>Início</small>
                 <strong>{{ formatTime(timeline.startMs) }}</strong>
               </span>
               <span class="video-simple-editor__trim-summary-result">
-                <small>Resultado</small>
+                <small>Trecho final</small>
                 <strong>{{ formatTime(timeline.editedDurationMs) }}</strong>
               </span>
               <span>
@@ -79,7 +102,11 @@
               </span>
             </div>
 
-            <div class="video-simple-editor__trim-timeline">
+            <div
+              class="video-simple-editor__trim-timeline"
+              [class.video-simple-editor__trim-timeline--start-active]="activeTrimHandle === 'start'"
+              [class.video-simple-editor__trim-timeline--end-active]="activeTrimHandle === 'end'"
+            >
               <div class="video-simple-editor__trim-track" aria-hidden="true">
                 <span
                   class="video-simple-editor__trim-selection"
@@ -94,6 +121,7 @@
               <input
                 id="video-trim-start"
                 class="video-simple-editor__trim-range video-simple-editor__trim-range--start"
+                [class.video-simple-editor__trim-range--active]="activeTrimHandle === 'start'"
                 type="range"
                 formControlName="trimStartMs"
                 min="0"
@@ -101,6 +129,8 @@
                 [max]="metadata!.durationMs! - minimumEditedDurationMs"
                 [attr.aria-valuetext]="'Início em ' + formatTime(timeline.startMs)"
                 aria-describedby="video-trim-summary video-trim-help"
+                (pointerdown)="setActiveTrimHandle('start')"
+                (focus)="setActiveTrimHandle('start')"
                 (input)="onTrimStartInput(uploadPreview)"
               />
 
@@ -110,6 +140,7 @@
               <input
                 id="video-trim-end"
                 class="video-simple-editor__trim-range video-simple-editor__trim-range--end"
+                [class.video-simple-editor__trim-range--active]="activeTrimHandle === 'end'"
                 type="range"
                 formControlName="trimEndMs"
                 [min]="minimumEditedDurationMs"
@@ -117,18 +148,40 @@
                 [max]="metadata!.durationMs!"
                 [attr.aria-valuetext]="'Fim em ' + formatTime(timeline.endMs)"
                 aria-describedby="video-trim-summary video-trim-help"
+                (pointerdown)="setActiveTrimHandle('end')"
+                (focus)="setActiveTrimHandle('end')"
                 (input)="onTrimEndInput(uploadPreview)"
               />
             </div>
 
-            <p id="video-trim-help" class="video-simple-editor__trim-help">
-              Arraste as duas alças na mesma linha. O trecho destacado será publicado e terá no mínimo 5 segundos.
-            </p>
+            <div class="video-simple-editor__trim-footer">
+              <p id="video-trim-help" class="video-simple-editor__trim-help">
+                Arraste as alças. O trecho destacado será publicado.
+              </p>
+              <span class="video-simple-editor__minimum-badge">Mín. 5 s</span>
+            </div>
+
+            @if (trimAnnouncement$ | async; as trimAnnouncement) {
+              <p class="video-simple-editor__sr-only" aria-live="polite" aria-atomic="true">
+                {{ trimAnnouncement }}
+              </p>
+            }
           }
         </fieldset>
 
-        <fieldset>
-          <legend>Enquadramento</legend>
+        <fieldset class="video-simple-editor__panel">
+          <legend class="video-simple-editor__sr-only">Formato do vídeo</legend>
+
+          <div class="video-simple-editor__panel-heading">
+            <div class="video-simple-editor__panel-title">
+              <span class="video-simple-editor__step" aria-hidden="true">2</span>
+              <span>
+                <strong>Formato</strong>
+                <small>Escolha como o vídeo ocupará a tela.</small>
+              </span>
+            </div>
+          </div>
+
           <div class="video-simple-editor__aspect-grid">
             @for (option of aspectOptions; track option.value) {
               <label
@@ -140,30 +193,46 @@
                   formControlName="aspectRatio"
                   [value]="option.value"
                 />
-                <strong>{{ option.label }}</strong>
-                <small>{{ option.hint }}</small>
+                <span
+                  class="video-simple-editor__aspect-preview"
+                  [attr.data-ratio]="option.value"
+                  aria-hidden="true"
+                ></span>
+                <span class="video-simple-editor__aspect-copy">
+                  <strong>{{ option.label }}</strong>
+                  <small>{{ option.hint }}</small>
+                </span>
+                <i class="fas fa-check" aria-hidden="true"></i>
               </label>
             }
           </div>
         </fieldset>
 
-        <div class="video-simple-editor__toggles">
-          <label>
-            <input
-              type="checkbox"
-              formControlName="muteAudio"
-            />
+        <div class="video-simple-editor__panel video-simple-editor__option-row">
+          <div class="video-simple-editor__panel-title">
+            <span class="video-simple-editor__step" aria-hidden="true">3</span>
             <span>
-              <strong>Remover áudio</strong>
-              <small>O vídeo será publicado sem faixa sonora.</small>
+              <strong>Áudio</strong>
+              <small>Retire o som do vídeo final.</small>
+            </span>
+          </div>
+
+          <label class="video-simple-editor__switch">
+            <span class="video-simple-editor__sr-only">Remover áudio</span>
+            <input type="checkbox" formControlName="muteAudio" />
+            <span class="video-simple-editor__switch-track" aria-hidden="true">
+              <span class="video-simple-editor__switch-thumb"></span>
             </span>
           </label>
         </div>
 
-        <div class="video-simple-editor__cover-tools">
-          <div>
-            <strong>Capa</strong>
-            <small>Posicione a reprodução no quadro desejado.</small>
+        <div class="video-simple-editor__panel video-simple-editor__cover-tools">
+          <div class="video-simple-editor__panel-title">
+            <span class="video-simple-editor__step" aria-hidden="true">4</span>
+            <span>
+              <strong>Capa do vídeo</strong>
+              <small>Pause no quadro que deverá representar o vídeo.</small>
+            </span>
           </div>
           <button
             type="button"
@@ -172,7 +241,14 @@
             [attr.aria-busy]="capturingPoster ? 'true' : 'false'"
             (click)="capturePoster(uploadPreview)"
           >
-            {{ capturingPoster ? 'Gerando...' : 'Usar quadro atual' }}
+            <i
+              class="fas"
+              [class.fa-spinner]="capturingPoster"
+              [class.fa-spin]="capturingPoster"
+              [class.fa-camera]="!capturingPoster"
+              aria-hidden="true"
+            ></i>
+            {{ capturingPoster ? 'Gerando capa...' : 'Usar quadro atual' }}
           </button>
         </div>
       </form>
@@ -187,6 +263,10 @@
   }
 
   <p class="video-simple-editor__note">
-    A edição é não destrutiva. O arquivo original permanece privado e o corte, o enquadramento e o áudio são aplicados durante o processamento.
+    <i class="fas fa-shield-halved" aria-hidden="true"></i>
+    <span>
+      <strong>Edição não destrutiva</strong>
+      Seu arquivo original permanece privado e sem alterações.
+    </span>
   </p>
 </section>

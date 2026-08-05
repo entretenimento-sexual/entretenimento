@@ -17,6 +17,7 @@ import {
   of,
 } from 'rxjs';
 import {
+  auditTime,
   catchError,
   distinctUntilChanged,
   finalize,
@@ -53,6 +54,8 @@ interface IVideoTrimTimelineState {
   readonly endPercent: number;
 }
 
+type TVideoTrimHandle = 'start' | 'end';
+
 const MIN_EDITED_DURATION_MS = 5_000;
 
 @Component({
@@ -75,6 +78,7 @@ export class VideoSimpleEditorControlsComponent {
   private readonly loadingSubject = new BehaviorSubject(false);
   private readonly capturingPosterSubject = new BehaviorSubject(false);
   private disabledValue = false;
+  private activeTrimHandleValue: TVideoTrimHandle = 'end';
 
   @Input()
   set file(value: File | null) {
@@ -111,6 +115,10 @@ export class VideoSimpleEditorControlsComponent {
     return this.disabledValue;
   }
 
+  get activeTrimHandle(): TVideoTrimHandle {
+    return this.activeTrimHandleValue;
+  }
+
   @Output() readonly posterChange = new EventEmitter<Blob | null>();
   @Output() readonly stateChange =
     new EventEmitter<IVideoSimpleEditorState>();
@@ -128,7 +136,8 @@ export class VideoSimpleEditorControlsComponent {
   readonly capturingPoster$ = this.capturingPosterSubject.asObservable();
 
   private readonly formValue$ = this.form.valueChanges.pipe(
-    startWith(this.form.getRawValue())
+    startWith(this.form.getRawValue()),
+    shareReplay({ bufferSize: 1, refCount: true })
   );
 
   readonly editorReady$: Observable<boolean> = this.metadata$.pipe(
@@ -166,6 +175,24 @@ export class VideoSimpleEditorControlsComponent {
 
   readonly editedDurationLabel$: Observable<string> = this.trimTimeline$.pipe(
     map((timeline) => this.formatTime(timeline.editedDurationMs)),
+    distinctUntilChanged()
+  );
+
+  readonly hasTrim$: Observable<boolean> = this.trimTimeline$.pipe(
+    map((timeline) =>
+      timeline.durationMs > 0 &&
+      (timeline.startMs > 0 || timeline.endMs < timeline.durationMs)
+    ),
+    distinctUntilChanged()
+  );
+
+  readonly trimAnnouncement$: Observable<string> = this.trimTimeline$.pipe(
+    auditTime(250),
+    map((timeline) =>
+      `Trecho selecionado de ${this.formatTime(timeline.startMs)} até ` +
+      `${this.formatTime(timeline.endMs)}, com ` +
+      `${this.formatTime(timeline.editedDurationMs)} de duração.`
+    ),
     distinctUntilChanged()
   );
 
@@ -264,7 +291,13 @@ export class VideoSimpleEditorControlsComponent {
     };
   }
 
+  setActiveTrimHandle(handle: TVideoTrimHandle): void {
+    this.activeTrimHandleValue = handle;
+  }
+
   onTrimStartInput(video: HTMLVideoElement): void {
+    this.setActiveTrimHandle('start');
+
     const durationMs = this.metadataSubject.value?.durationMs ?? 0;
     if (!durationMs) {
       return;
@@ -291,6 +324,8 @@ export class VideoSimpleEditorControlsComponent {
   }
 
   onTrimEndInput(video: HTMLVideoElement): void {
+    this.setActiveTrimHandle('end');
+
     const durationMs = this.metadataSubject.value?.durationMs ?? 0;
     if (!durationMs) {
       return;
@@ -314,6 +349,20 @@ export class VideoSimpleEditorControlsComponent {
     }
 
     this.seekPreview(video, nextEndMs);
+  }
+
+  resetTrim(video: HTMLVideoElement): void {
+    const durationMs = this.metadataSubject.value?.durationMs ?? 0;
+    if (!durationMs || this.disabled) {
+      return;
+    }
+
+    this.activeTrimHandleValue = 'end';
+    this.form.patchValue({
+      trimStartMs: 0,
+      trimEndMs: durationMs,
+    });
+    this.seekPreview(video, 0);
   }
 
   capturePoster(video: HTMLVideoElement): void {
@@ -390,6 +439,9 @@ export class VideoSimpleEditorControlsComponent {
 
   private seekPreview(video: HTMLVideoElement, milliseconds: number): void {
     try {
+      if (!video.paused) {
+        video.pause();
+      }
       video.currentTime = milliseconds / 1000;
     } catch {
       // Alguns navegadores recusam seek antes de concluir a leitura dos metadados.
@@ -470,6 +522,7 @@ export class VideoSimpleEditorControlsComponent {
   }
 
   private resetForm(): void {
+    this.activeTrimHandleValue = 'end';
     this.metadataSubject.next(null);
     this.form.reset({
       trimStartMs: 0,
