@@ -55,8 +55,7 @@ interface IVideoTrimTimelineState {
 }
 
 type TVideoTrimHandle = 'start' | 'end';
-
-const MIN_EDITED_DURATION_MS = 5_000;
+export type TVideoEditorTool = 'trim' | 'format' | 'audio' | 'cover';
 
 @Component({
   selector: 'app-video-simple-editor-controls',
@@ -79,6 +78,7 @@ export class VideoSimpleEditorControlsComponent {
   private readonly capturingPosterSubject = new BehaviorSubject(false);
   private disabledValue = false;
   private activeTrimHandleValue: TVideoTrimHandle = 'end';
+  private activeToolValue: TVideoEditorTool = 'trim';
 
   @Input()
   set file(value: File | null) {
@@ -93,6 +93,8 @@ export class VideoSimpleEditorControlsComponent {
   }
 
   @Input() previewUrl: string | null = null;
+  @Input() minDurationMs = 0;
+  @Input() maxDurationMs = 0;
 
   @Input()
   set disabled(value: boolean) {
@@ -119,6 +121,14 @@ export class VideoSimpleEditorControlsComponent {
     return this.activeTrimHandleValue;
   }
 
+  get activeTool(): TVideoEditorTool {
+    return this.activeToolValue;
+  }
+
+  get minimumEditedDurationMs(): number {
+    return Math.max(0, Math.trunc(this.minDurationMs));
+  }
+
   @Output() readonly posterChange = new EventEmitter<Blob | null>();
   @Output() readonly stateChange =
     new EventEmitter<IVideoSimpleEditorState>();
@@ -130,10 +140,31 @@ export class VideoSimpleEditorControlsComponent {
     muteAudio: [false],
   });
 
-  readonly minimumEditedDurationMs = MIN_EDITED_DURATION_MS;
   readonly metadata$ = this.metadataSubject.asObservable();
   readonly loading$ = this.loadingSubject.asObservable();
   readonly capturingPoster$ = this.capturingPosterSubject.asObservable();
+
+  readonly editorTools: ReadonlyArray<{
+    readonly value: TVideoEditorTool;
+    readonly label: string;
+    readonly icon: string;
+  }> = [
+    { value: 'trim', label: 'Cortar', icon: 'fa-scissors' },
+    { value: 'format', label: 'Formato', icon: 'fa-crop-simple' },
+    { value: 'audio', label: 'Áudio', icon: 'fa-volume-high' },
+    { value: 'cover', label: 'Capa', icon: 'fa-image' },
+  ];
+
+  readonly aspectOptions: ReadonlyArray<{
+    value: TVideoEditAspectRatio;
+    label: string;
+    hint: string;
+  }> = [
+    { value: 'ORIGINAL', label: 'Original', hint: 'Sem recorte' },
+    { value: 'VERTICAL_9_16', label: '9:16', hint: 'Stories e reels' },
+    { value: 'PORTRAIT_4_5', label: '4:5', hint: 'Feed vertical' },
+    { value: 'SQUARE_1_1', label: '1:1', hint: 'Quadrado' },
+  ];
 
   private readonly formValue$ = this.form.valueChanges.pipe(
     startWith(this.form.getRawValue()),
@@ -173,11 +204,6 @@ export class VideoSimpleEditorControlsComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly editedDurationLabel$: Observable<string> = this.trimTimeline$.pipe(
-    map((timeline) => this.formatTime(timeline.editedDurationMs)),
-    distinctUntilChanged()
-  );
-
   readonly hasTrim$: Observable<boolean> = this.trimTimeline$.pipe(
     map((timeline) =>
       timeline.durationMs > 0 &&
@@ -195,17 +221,6 @@ export class VideoSimpleEditorControlsComponent {
     ),
     distinctUntilChanged()
   );
-
-  readonly aspectOptions: ReadonlyArray<{
-    value: TVideoEditAspectRatio;
-    label: string;
-    hint: string;
-  }> = [
-    { value: 'ORIGINAL', label: 'Original', hint: 'Sem recorte' },
-    { value: 'VERTICAL_9_16', label: '9:16', hint: 'Stories e reels' },
-    { value: 'PORTRAIT_4_5', label: '4:5', hint: 'Feed vertical' },
-    { value: 'SQUARE_1_1', label: '1:1', hint: 'Quadrado' },
-  ];
 
   constructor() {
     this.fileSubject.pipe(
@@ -249,6 +264,14 @@ export class VideoSimpleEditorControlsComponent {
     ).subscribe(() => this.emitEditorState());
   }
 
+  setActiveTool(tool: TVideoEditorTool): void {
+    if (this.disabled) {
+      return;
+    }
+
+    this.activeToolValue = tool;
+  }
+
   buildRecipe(): IVideoEditRecipeInput {
     if (!this.fileSubject.value) {
       throw new Error('Selecione um vídeo antes de continuar.');
@@ -268,7 +291,7 @@ export class VideoSimpleEditorControlsComponent {
     const raw = this.form.getRawValue();
 
     if (!metadata?.durationMs) {
-      return DEFAULT_VIDEO_EDIT_RECIPE_INPUT;
+      throw new Error('Não foi possível confirmar a duração do vídeo.');
     }
 
     const trimStartMs = Math.max(0, Math.trunc(raw.trimStartMs));
@@ -313,7 +336,7 @@ export class VideoSimpleEditorControlsComponent {
     );
     const nextStartMs = Math.min(
       requestedStartMs,
-      Math.max(0, currentEndMs - MIN_EDITED_DURATION_MS)
+      Math.max(0, currentEndMs - this.minimumEditedDurationMs)
     );
 
     if (nextStartMs !== requestedStartMs) {
@@ -341,7 +364,7 @@ export class VideoSimpleEditorControlsComponent {
     );
     const nextEndMs = Math.max(
       requestedEndMs,
-      Math.min(durationMs, currentStartMs + MIN_EDITED_DURATION_MS)
+      Math.min(durationMs, currentStartMs + this.minimumEditedDurationMs)
     );
 
     if (nextEndMs !== requestedEndMs) {
@@ -488,20 +511,25 @@ export class VideoSimpleEditorControlsComponent {
       return null;
     }
 
+    if (!this.minimumEditedDurationMs || !this.maxDurationMs) {
+      return 'Não foi possível carregar os limites de vídeo do plano.';
+    }
+
     if (
       !metadata?.playbackReady ||
       !metadata.durationMs ||
       !metadata.widthPixels ||
       !metadata.heightPixels
     ) {
-      const hasRequestedEdit =
-        raw.trimStartMs > 0 ||
-        raw.aspectRatio !== 'ORIGINAL' ||
-        raw.muteAudio;
+      return 'Este navegador não conseguiu confirmar a duração e as dimensões do vídeo.';
+    }
 
-      return hasRequestedEdit
-        ? 'Este navegador não conseguiu preparar a prévia para aplicar a edição.'
-        : null;
+    if (metadata.durationMs > this.maxDurationMs) {
+      return `O vídeo original pode ter no máximo ${Math.round(this.maxDurationMs / 1000)} segundos.`;
+    }
+
+    if (metadata.durationMs < this.minimumEditedDurationMs) {
+      return `O vídeo precisa ter pelo menos ${Math.round(this.minimumEditedDurationMs / 1000)} segundos.`;
     }
 
     const startMs = Math.max(0, Math.trunc(Number(raw.trimStartMs)));
@@ -514,8 +542,8 @@ export class VideoSimpleEditorControlsComponent {
       return 'O fim do corte precisa ser posterior ao início.';
     }
 
-    if (endMs - startMs < MIN_EDITED_DURATION_MS) {
-      return 'O vídeo editado precisa ter pelo menos 5 segundos.';
+    if (endMs - startMs < this.minimumEditedDurationMs) {
+      return `O vídeo editado precisa ter pelo menos ${Math.round(this.minimumEditedDurationMs / 1000)} segundos.`;
     }
 
     return null;
@@ -523,6 +551,7 @@ export class VideoSimpleEditorControlsComponent {
 
   private resetForm(): void {
     this.activeTrimHandleValue = 'end';
+    this.activeToolValue = 'trim';
     this.metadataSubject.next(null);
     this.form.reset({
       trimStartMs: 0,
