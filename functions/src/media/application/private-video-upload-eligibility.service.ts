@@ -1,25 +1,17 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 
-import { assertInteractionAccessData } from '../../account_lifecycle/interaction-access.policy';
+import {
+  assertAccountOperationalAccessData,
+  type AccountOperationalAuthSnapshot,
+  type AccountOperationalUserDocument,
+} from '../../account_lifecycle/account-operational-access.policy';
 import { auth, db } from '../../firebaseApp';
 
-interface PrivateVideoUploadAuthSnapshot {
-  disabled?: boolean;
-  emailVerified?: boolean;
-}
+interface PrivateVideoUploadAuthSnapshot
+  extends AccountOperationalAuthSnapshot {}
 
-interface PrivateVideoUploadAccountSnapshot {
-  uid?: unknown;
-  profileCompleted?: unknown;
-  accountLocked?: unknown;
-  loginAllowed?: unknown;
-  accountStatus?: unknown;
-  suspended?: unknown;
-  interactionBlocked?: unknown;
-  ageReverification?: {
-    status?: unknown;
-  } | null;
-}
+interface PrivateVideoUploadAccountSnapshot
+  extends AccountOperationalUserDocument {}
 
 function authErrorCode(error: unknown): string {
   if (!error || typeof error !== 'object') {
@@ -36,6 +28,11 @@ function authErrorCode(error: unknown): string {
     .toLowerCase();
 }
 
+/**
+ * Nome preservado porque reserva, capacidade e registro já dependem desta
+ * fronteira. A decisão agora usa diretamente a capacidade MEDIA_UPLOAD, sem
+ * passar pelo alias mais permissivo de interação.
+ */
 export function assertPrivateVideoUploadEligibilityData(
   authUser: PrivateVideoUploadAuthSnapshot | null | undefined,
   user: PrivateVideoUploadAccountSnapshot | null | undefined,
@@ -48,41 +45,12 @@ export function assertPrivateVideoUploadEligibilityData(
     );
   }
 
-  const documentUid = String(user.uid ?? expectedUid).trim();
-
-  if (documentUid && documentUid !== expectedUid) {
-    throw new HttpsError(
-      'permission-denied',
-      'O perfil informado não corresponde à conta autenticada.'
-    );
-  }
-
-  if (
-    authUser.disabled === true ||
-    user.accountLocked === true ||
-    user.loginAllowed === false
-  ) {
-    throw new HttpsError(
-      'permission-denied',
-      'Sua conta não está disponível para enviar vídeos.'
-    );
-  }
-
-  assertInteractionAccessData(user);
-
-  if (authUser.emailVerified !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Verifique seu e-mail antes de enviar vídeos.'
-    );
-  }
-
-  if (user.profileCompleted !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Complete seu perfil antes de enviar vídeos.'
-    );
-  }
+  assertAccountOperationalAccessData(
+    user,
+    expectedUid,
+    'MEDIA_UPLOAD',
+    authUser
+  );
 }
 
 export async function assertPrivateVideoUploadEligibility(
