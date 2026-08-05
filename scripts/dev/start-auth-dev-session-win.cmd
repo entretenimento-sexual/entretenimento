@@ -6,6 +6,7 @@ rem ----------------------------------------------------------------------------
 rem start-auth-dev-session-win.cmd
 rem -----------------------------------------------------------------------------
 rem Abre ou reutiliza uma sessao local de desenvolvimento Auth no Windows:
+rem - reconstrói Rules e Functions antes de reutilizar qualquer sessao;
 rem - inicia uma nova sessao quando todas as portas estao livres;
 rem - reutiliza Angular + Firebase quando a sessao existente esta saudavel;
 rem - recupera processos orfaos reconhecidos do proprio ambiente;
@@ -28,6 +29,26 @@ set "ANGULAR_LOG=%PROJECT_ROOT%\.dev-logs\angular-dev.log"
 cd /d "%PROJECT_ROOT%"
 
 echo [dev:auth] Projeto: %CD%
+echo [dev:auth] Gerando Firestore Rules a partir dos modulos canônicos...
+call npm.cmd run rules:build
+if errorlevel 1 (
+  echo [dev:auth] ERRO: falha ao gerar firestore.rules.
+  exit /b 1
+)
+
+call npm.cmd run rules:check
+if errorlevel 1 (
+  echo [dev:auth] ERRO: as Firestore Rules geradas estao inconsistentes.
+  exit /b 1
+)
+
+echo [dev:auth] Compilando e validando os exports das Functions...
+call npm.cmd run functions:prepare
+if errorlevel 1 (
+  echo [dev:auth] ERRO: falha ao preparar as Functions locais.
+  exit /b 1
+)
+
 echo [dev:auth] Verificando o estado da sessao local...
 node "%PROJECT_ROOT%\scripts\dev\check-local-dev-session.mjs"
 set "SESSION_STATE=%ERRORLEVEL%"
@@ -123,7 +144,8 @@ if errorlevel 1 (
 
 :open_browser
 if "%SESSION_REUSED%"=="1" (
-  echo [dev:auth] Sessao existente reconhecida. Nenhum processo duplicado sera iniciado.
+  echo [dev:auth] Sessao existente reconhecida e artefatos locais atualizados.
+  echo [dev:auth] Nenhum processo duplicado sera iniciado.
 ) else (
   echo [dev:auth] Nova sessao local iniciada com sucesso.
 )
