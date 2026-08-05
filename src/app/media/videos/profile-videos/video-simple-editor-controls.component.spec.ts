@@ -100,6 +100,7 @@ describe('VideoSimpleEditorControlsComponent', () => {
     component.onTrimStartInput(video);
 
     expect(component.form.controls.trimStartMs.value).toBe(25_000);
+    expect(component.activeTrimHandle).toBe('start');
 
     component.form.patchValue({
       trimStartMs: 20_000,
@@ -108,6 +109,7 @@ describe('VideoSimpleEditorControlsComponent', () => {
     component.onTrimEndInput(video);
 
     expect(component.form.controls.trimEndMs.value).toBe(25_000);
+    expect(component.activeTrimHandle).toBe('end');
   });
 
   it('calcula a faixa destacada e a duração resultante', async () => {
@@ -123,6 +125,31 @@ describe('VideoSimpleEditorControlsComponent', () => {
     expect(timeline.editedDurationMs).toBe(15_000);
     expect(timeline.startPercent).toBeCloseTo(16.666, 2);
     expect(timeline.endPercent).toBeCloseTo(66.666, 2);
+  });
+
+  it('informa quando existe corte e restaura o vídeo inteiro', async () => {
+    const video = document.createElement('video');
+    component.form.patchValue({
+      trimStartMs: 5_000,
+      trimEndMs: 20_000,
+    });
+
+    expect(await firstValueFrom(component.hasTrim$)).toBe(true);
+
+    component.resetTrim(video);
+
+    expect(component.form.controls.trimStartMs.value).toBe(0);
+    expect(component.form.controls.trimEndMs.value).toBe(30_000);
+    expect(component.activeTrimHandle).toBe('end');
+    expect(component.buildRecipe().trimEndMs).toBeNull();
+  });
+
+  it('mantém a alça focada acima da outra quando elas ficam próximas', () => {
+    component.setActiveTrimHandle('start');
+    expect(component.activeTrimHandle).toBe('start');
+
+    component.setActiveTrimHandle('end');
+    expect(component.activeTrimHandle).toBe('end');
   });
 
   it('captura a capa usando a proporção selecionada', () => {
