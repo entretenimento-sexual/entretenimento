@@ -114,74 +114,11 @@
   font-weight: 740;
 }
 
-.profile-videos__upload-disclosure {
-  position: relative;
-  min-width: 0;
-}
-
-.profile-videos__upload-disclosure > summary {
-  list-style: none;
-}
-
-.profile-videos__upload-disclosure > summary::-webkit-details-marker {
-  display: none;
-}
-
 .profile-videos__upload-trigger {
   min-height: 42px;
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
-}
-
-.profile-videos__upload-trigger-label--open {
-  display: none;
-}
-
-.profile-videos__upload-disclosure[open]::before {
-  position: fixed;
-  z-index: 1000;
-  inset: 0;
-  content: '';
-  background: rgb(0 0 0 / 68%);
-  backdrop-filter: blur(4px);
-}
-
-.profile-videos__upload-disclosure[open] > .profile-videos__upload-trigger {
-  position: fixed;
-  z-index: 1003;
-  top: max(14px, env(safe-area-inset-top));
-  right: max(14px, env(safe-area-inset-right));
-  min-width: 92px;
-  border-color: color-mix(
-    in oklab,
-    var(--surface-border, rgb(255 255 255 / 12%)) 88%,
-    white 12%
-  );
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101923) 94%,
-    black 6%
-  );
-  box-shadow: 0 10px 30px rgb(0 0 0 / 32%);
-}
-
-.profile-videos__upload-disclosure[open]
-  > .profile-videos__upload-trigger
-  .profile-videos__upload-trigger-label--closed {
-  display: none;
-}
-
-.profile-videos__upload-disclosure[open]
-  > .profile-videos__upload-trigger
-  .profile-videos__upload-trigger-label--open {
-  display: inline;
-}
-
-.profile-videos__upload-disclosure[open]
-  > .profile-videos__upload-trigger
-  > i {
-  transform: rotate(45deg);
 }
 
 .profile-videos__upload {
@@ -193,7 +130,7 @@
   display: grid;
   align-content: start;
   gap: clamp(16px, 2vw, 24px);
-  width: min(760px, 94vw);
+  width: min(760px, 100vw);
   padding:
     max(76px, calc(env(safe-area-inset-top) + 62px))
     max(18px, calc(env(safe-area-inset-right) + 18px))
@@ -204,6 +141,26 @@
   border-radius: 24px 0 0 24px;
   box-shadow: -24px 0 64px rgb(0 0 0 / 38%);
   overscroll-behavior: contain;
+}
+
+.profile-videos__upload-close {
+  position: fixed;
+  z-index: 1003;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  min-width: 92px;
+  min-height: 44px;
+  border-color: color-mix(
+    in oklab,
+    var(--surface-border, rgb(255 255 255 / 12%)) 88%,
+    white 12%
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 94%,
+    black 6%
+  );
+  box-shadow: 0 10px 30px rgb(0 0 0 / 32%);
 }
 
 .profile-videos__upload h2 {
@@ -430,7 +387,8 @@
 
 .profile-videos__media video:focus-visible,
 .profile-videos__preview video:focus-visible,
-.profile-videos__upload-trigger:focus-visible {
+.profile-videos__upload-trigger:focus-visible,
+.profile-videos__upload-close:focus-visible {
   outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
   outline-offset: -3px;
 }
@@ -689,6 +647,12 @@
   line-height: 1.42;
 }
 
+.profile-videos__empty .app-action {
+  width: fit-content;
+  min-height: 42px;
+  margin-top: 7px;
+}
+
 @media (min-width: 600px) {
   .profile-videos__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -753,7 +717,7 @@
     border-radius: 50%;
   }
 
-  .profile-videos__upload-trigger-label {
+  .profile-videos__upload-trigger > span {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -763,16 +727,28 @@
     white-space: nowrap;
   }
 
-  .profile-videos__upload-disclosure[open] > .profile-videos__upload-trigger {
-    width: 44px;
-    min-width: 44px;
-  }
-
   .profile-videos__upload {
     width: 100vw;
     border: 0;
     border-radius: 0;
     box-shadow: none;
+  }
+
+  .profile-videos__upload-close {
+    min-width: 44px;
+    width: 44px;
+    padding: 0;
+    border-radius: 50%;
+  }
+
+  .profile-videos__upload-close > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .profile-videos__card,
@@ -803,6 +779,10 @@
     width: 100%;
     min-height: 46px;
   }
+
+  .profile-videos__empty .app-action {
+    width: 100%;
+  }
 }
 
 @media (max-width: 390px) {
@@ -823,7 +803,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .profile-videos__progress-track > span,
-  .profile-videos__upload-trigger > i,
   .profile-videos__media video,
   .profile-videos__preview video {
     transition: none;
