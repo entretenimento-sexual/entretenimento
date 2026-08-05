@@ -2,7 +2,9 @@
 export { togglePhotoReaction } from './application/toggle-photo-reaction.handler';
 export { toggleVideoReaction } from './application/toggle-video-reaction.handler';
 export { rateVideo } from './application/rate-video.handler';
-export { reportVideoContent } from './application/report-video-content.handler';
+export {
+  reportVideoContent,
+} from './application/report-video-content-orchestrator.handler';
 export {
   reviewVideoContentReport,
 } from './application/review-video-content-report.handler';
