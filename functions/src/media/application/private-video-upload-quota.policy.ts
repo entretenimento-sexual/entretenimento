@@ -5,6 +5,13 @@ export interface PrivateVideoQuotaLimit {
   readonly maxReservedBytes: number;
 }
 
+export interface PrivateVideoProductLimit {
+  readonly maxSourceBytes: number;
+  readonly maxPosterBytes: number;
+  readonly minDurationMs: number;
+  readonly maxDurationMs: number;
+}
+
 export interface PrivateVideoQuotaUsage {
   readonly currentItems: number;
   readonly currentReservedBytes: number;
@@ -31,22 +38,29 @@ export type PrivateVideoQuotaDecision =
 const MIB = 1024 * 1024;
 const GIB = 1024 * MIB;
 
+export const PRIVATE_VIDEO_PRODUCT_LIMIT: PrivateVideoProductLimit = {
+  maxSourceBytes: 80 * MIB,
+  maxPosterBytes: 5 * MIB,
+  minDurationMs: 5_000,
+  maxDurationMs: 60_000,
+};
+
 const LIMITS: Readonly<Record<PrivateVideoQuotaPlan, PrivateVideoQuotaLimit>> = {
   free: {
     maxItems: 1,
-    maxReservedBytes: 800 * MIB,
+    maxReservedBytes: 180 * MIB,
   },
   basic: {
-    maxItems: 2,
-    maxReservedBytes: 2 * GIB,
+    maxItems: 3,
+    maxReservedBytes: 540 * MIB,
   },
   premium: {
-    maxItems: 5,
-    maxReservedBytes: 5 * GIB,
+    maxItems: 8,
+    maxReservedBytes: Math.trunc(1.5 * GIB),
   },
   vip: {
-    maxItems: 10,
-    maxReservedBytes: 10 * GIB,
+    maxItems: 15,
+    maxReservedBytes: 3 * GIB,
   },
 };
 
@@ -122,6 +136,10 @@ export function getPrivateVideoQuotaLimit(
   plan: PrivateVideoQuotaPlan
 ): PrivateVideoQuotaLimit {
   return { ...LIMITS[plan] };
+}
+
+export function getPrivateVideoProductLimit(): PrivateVideoProductLimit {
+  return { ...PRIVATE_VIDEO_PRODUCT_LIMIT };
 }
 
 export function calculatePrivateVideoReservationBytes(
