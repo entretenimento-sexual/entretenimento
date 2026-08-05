@@ -15,6 +15,7 @@ const STORAGE_BUCKET = `${PROJECT_ID}.appspot.com`;
 const ARTIFACT_ROOT = 'artifacts/profile-videos-browser-smoke/screenshots';
 const CURRENT_TERMS_VERSION = 'v3';
 const CURRENT_LEGAL_DOCUMENT_VERSION = '2026-07-29.1';
+const USER_BOOTSTRAP_TIMEOUT_MS = 15_000;
 
 let adminApp;
 let adminAuth;
@@ -48,6 +49,32 @@ function assertSafeEmulatorEnvironment() {
   expect(authHost).toBe('127.0.0.1:9099');
   expect(firestoreHost).toBe('127.0.0.1:8080');
   expect(storageHost).toBe('http://127.0.0.1:9199');
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function waitForUserBootstrap() {
+  const userRef = adminDb.doc(`users/${ownerUid}`);
+  const deadline = Date.now() + USER_BOOTSTRAP_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const snapshot = await userRef.get();
+
+    if (snapshot.exists) {
+      // Garante que o trigger de criação encerrou antes da fixture sobrescrever
+      // somente os campos necessários ao fluxo autenticado do smoke.
+      await delay(250);
+      return;
+    }
+
+    await delay(100);
+  }
+
+  throw new Error(
+    `[profile-videos:browser-smoke] Perfil inicial não criado para ${ownerUid}.`
+  );
 }
 
 async function removeStoragePrefix(prefix) {
@@ -91,43 +118,47 @@ async function seedBrowserSmokeUser() {
     displayName: 'Perfil Smoke Vídeos',
     disabled: false,
   });
+  await waitForUserBootstrap();
 
   const now = Date.now();
 
-  await adminDb.doc(`users/${ownerUid}`).set({
-    uid: ownerUid,
-    email,
-    emailVerified: true,
-    nickname: 'Perfil Smoke Vídeos',
-    displayName: 'Perfil Smoke Vídeos',
-    profileCompleted: true,
-    interactionBlocked: false,
-    publicVisibility: 'visible',
-    accountStatus: 'active',
-    suspended: false,
-    accountLocked: false,
-    initialAdultConsentRequired: false,
-    ageReverification: {
-      status: 'VERIFIED',
-      verifiedAt: now,
+  await adminDb.doc(`users/${ownerUid}`).set(
+    {
+      uid: ownerUid,
+      email,
+      emailVerified: true,
+      nickname: 'Perfil Smoke Vídeos',
+      displayName: 'Perfil Smoke Vídeos',
+      profileCompleted: true,
+      interactionBlocked: false,
+      publicVisibility: 'visible',
+      accountStatus: 'active',
+      suspended: false,
+      accountLocked: false,
+      initialAdultConsentRequired: false,
+      ageReverification: {
+        status: 'VERIFIED',
+        verifiedAt: now,
+        updatedAt: now,
+      },
+      acceptedTerms: {
+        accepted: true,
+        date: now,
+        acceptedAt: now,
+        updatedAt: now,
+        version: CURRENT_TERMS_VERSION,
+        termsDocumentVersion: CURRENT_LEGAL_DOCUMENT_VERSION,
+        privacyNoticeVersion: CURRENT_LEGAL_DOCUMENT_VERSION,
+        acknowledgedPrivacyNotice: true,
+        acceptanceContext: 'initial',
+        previousVersion: null,
+        source: 'web',
+      },
+      createdAt: now,
       updatedAt: now,
     },
-    acceptedTerms: {
-      accepted: true,
-      date: now,
-      acceptedAt: now,
-      updatedAt: now,
-      version: CURRENT_TERMS_VERSION,
-      termsDocumentVersion: CURRENT_LEGAL_DOCUMENT_VERSION,
-      privacyNoticeVersion: CURRENT_LEGAL_DOCUMENT_VERSION,
-      acknowledgedPrivacyNotice: true,
-      acceptanceContext: 'initial',
-      previousVersion: null,
-      source: 'web',
-    },
-    createdAt: now,
-    updatedAt: now,
-  });
+    { merge: true }
+  );
 
   const transparentPng = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -205,8 +236,8 @@ function collectPageErrors(page) {
 async function loginAndOpenLibrary(page) {
   await page.goto('/login', { waitUntil: 'domcontentloaded' });
 
-  await page.getByLabel('E-mail').fill(email);
-  await page.getByLabel('Senha').fill(password);
+  await page.locator('#email').fill(email);
+  await page.locator('#password').fill(password);
 
   const submit = page.locator('form button[type="submit"]');
   await expect(submit).toBeEnabled();
