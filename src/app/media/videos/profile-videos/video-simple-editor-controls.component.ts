@@ -83,7 +83,19 @@ export class VideoSimpleEditorControlsComponent {
 
   @Input()
   set disabled(value: boolean) {
-    this.disabledValue = value === true;
+    const next = value === true;
+    if (this.disabledValue === next) {
+      return;
+    }
+
+    this.disabledValue = next;
+
+    if (next) {
+      this.form.disable({ emitEvent: false });
+      return;
+    }
+
+    this.form.enable({ emitEvent: false });
   }
 
   get disabled(): boolean {
