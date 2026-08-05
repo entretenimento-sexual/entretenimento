@@ -2,19 +2,12 @@
 //              firestore-rules/_helpers.rules
 // ===============================================================
 // Objetivo:
-// - Centralizar helpers de autenticação/claims/tipos realmente usados
-// - Evitar warnings do compiler (ex.: "k in map")
-// - Padronizar timestamps aceitando:
-//   (1) timestamp real (v is timestamp)
-//   (2) serverTimestamp() -> nas rules equivale a request.time
-// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
-//
-// Observação:
-// - Para forçar “somente serverTimestamp()” em um campo específico,
-//   use: request.resource.data.campo == request.time
+// - Centralizar helpers de autenticação, lifecycle, claims e tipos;
+// - Evitar interpretações diferentes de conta operacional entre módulos;
+// - Padronizar timestamps aceitando timestamp real ou serverTimestamp().
 // ===============================================================
-// Importante: este arquivo abre service e match /databases/... e não fecha —
-// o fechamento continua no seu _footer.rules
+// Este arquivo abre service e match /databases/... e não fecha. O fechamento
+// continua no _footer.rules.
 // ===============================================================
 
 rules_version = '2';
@@ -29,15 +22,101 @@ service cloud.firestore {
     function isSelf(userId) { return signedIn() && uid() == userId; }
 
     // ===============================================================
+    // Lifecycle operacional
+    // ===============================================================
+    function accountLifecycleIsOperational(user) {
+      return (!user.keys().hasAny(["accountStatus"])
+          || user.accountStatus == "active")
+        && (!user.keys().hasAny(["suspended"])
+          || user.suspended != true)
+        && (!user.keys().hasAny(["interactionBlocked"])
+          || user.interactionBlocked != true)
+        && (!user.keys().hasAny(["accountLocked"])
+          || user.accountLocked != true)
+        && (!user.keys().hasAny(["loginAllowed"])
+          || user.loginAllowed != false)
+        && (
+          !user.keys().hasAny(["ageReverification"])
+          || !(user.ageReverification is map)
+          || !user.ageReverification.keys().hasAny(["status"])
+          || (
+            user.ageReverification.status != "REQUIRED"
+            && user.ageReverification.status != "SUBMITTED"
+            && user.ageReverification.status != "UNDER_REVIEW"
+            && user.ageReverification.status != "REJECTED"
+            && user.ageReverification.status != "EXPIRED"
+          )
+        )
+        && (
+          !user.keys().hasAny(["ageReverification"])
+          || !(user.ageReverification is map)
+          || !user.ageReverification.keys().hasAny(["result"])
+          || user.ageReverification.result != "UNDERAGE"
+        );
+    }
+
+    function accountAdultConsentIsValid(user) {
+      return !user.keys().hasAny(["initialAdultConsentRequired"])
+        || user.initialAdultConsentRequired != true
+        || (
+          user.keys().hasAny(["adultConsent"])
+          && user.adultConsent is map
+          && user.adultConsent.keys().hasAny(["accepted"])
+          && user.adultConsent.accepted == true
+        );
+    }
+
+    function accountTermsAreValid(user) {
+      return !user.keys().hasAny(["initialAdultConsentRequired"])
+        || user.initialAdultConsentRequired != true
+        || (
+          user.keys().hasAny(["acceptedTerms"])
+          && user.acceptedTerms is map
+          && user.acceptedTerms.keys().hasAny(["accepted"])
+          && user.acceptedTerms.accepted == true
+          && (
+            !user.acceptedTerms.keys().hasAny([
+              "adultAccessAcknowledgement"
+            ])
+            || user.acceptedTerms.adultAccessAcknowledgement != false
+          )
+        );
+    }
+
+    function operationalAccountProjectionIsValid(user, userId) {
+      return (!user.keys().hasAny(["uid"]) || user.uid == userId)
+        && accountLifecycleIsOperational(user)
+        && accountAdultConsentIsValid(user)
+        && accountTermsAreValid(user);
+    }
+
+    function isOperationalAccount(userId) {
+      let userPath = /databases/$(database)/documents/users/$(userId);
+      return signedIn()
+        && exists(userPath)
+        && operationalAccountProjectionIsValid(
+          get(userPath).data,
+          userId
+        );
+    }
+
+    function isOperationalMediaAccount(userId) {
+      let userPath = /databases/$(database)/documents/users/$(userId);
+      let user = exists(userPath) ? get(userPath).data : {};
+      return isSelf(userId)
+        && exists(userPath)
+        && operationalAccountProjectionIsValid(user, userId)
+        && request.auth.token.keys().hasAny(["email_verified"])
+        && request.auth.token.email_verified == true
+        && user.keys().hasAny(["profileCompleted"])
+        && user.profileCompleted == true;
+    }
+
+    // ===============================================================
     // Assinatura
     // ===============================================================
     // Entitlements são a verdade financeira e permanecem fechados ao cliente.
     // users/{uid} contém somente uma projeção operacional, escrita pelo backend.
-    // Para autorizar, todos os campos canônicos devem concordar e a janela
-    // temporal precisa estar vigente no instante da própria requisição.
-    //
-    // A projeção é carregada uma única vez por avaliação de rank. Isso reduz o
-    // custo de expressão das Rules sem alterar a matriz Básico/Premium/VIP.
     function activeSubscriptionProjectionIsValid(user) {
       return user.keys().hasAll([
           "billingProjectionVersion",
@@ -104,18 +183,14 @@ service cloud.firestore {
     }
 
     // ===============================================================
-    // Timestamp helpers (timestamp real OU serverTimestamp() == request.time)
+    // Timestamp helpers
     // ===============================================================
-    // serverTimestamp() (sentinel) chega nas rules como "request.time"
     function isServerTime(v) { return v == request.time; }
-
-    // Aceita timestamp real ou serverTimestamp() (request.time)
     function isTs(v) { return (v is timestamp) || isServerTime(v); }
 
     // ===============================================================
-    // Claims helpers (usado em users.rules / admin_logs.rules)
+    // Claims helpers
     // ===============================================================
-    // Evita "(k in request.auth.token)" para não disparar warning
     function hasClaim(k) {
       return signedIn()
         && request.auth.token.keys().hasAny([k])
@@ -125,9 +200,8 @@ service cloud.firestore {
     function isAdmin() { return hasClaim("admin"); }
 
     // ===============================================================
-    // Optional fields helpers (campos opcionais)
+    // Optional fields helpers
     // ===============================================================
-    // Para chave dinâmica (map[k]), checar keys().hasAny([k]) antes.
     function hasReqField(k) {
       return request.resource.data.keys().hasAny([k]);
     }
@@ -149,7 +223,7 @@ service cloud.firestore {
         || request.resource.data[k] == null
         || isTs(request.resource.data[k]);
     }
-    // (os demais matches/arquivos entram abaixo via build)
+    // Os demais matches entram abaixo via build.
 // ===============================================================
 //             Fim do firestore-rules/_helpers.rules
 // ===============================================================
