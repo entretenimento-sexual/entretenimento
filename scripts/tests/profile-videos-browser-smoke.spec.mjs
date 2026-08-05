@@ -16,6 +16,8 @@ const ARTIFACT_ROOT = 'artifacts/profile-videos-browser-smoke/screenshots';
 const CURRENT_TERMS_VERSION = 'v3';
 const CURRENT_LEGAL_DOCUMENT_VERSION = '2026-07-29.1';
 const USER_BOOTSTRAP_TIMEOUT_MS = 15_000;
+const FIRESTORE_EMULATOR_WEBKIT_TRANSPORT_WARNING =
+  /^\/127\.0\.0\.1:8080\/google\.firestore\.v1\.Firestore\/(?:Listen|Write)\/channel\?.+ due to access control checks\.$/;
 
 let adminApp;
 let adminAuth;
@@ -229,7 +231,21 @@ async function cleanupBrowserSmokeUser() {
 
 function collectPageErrors(page) {
   const errors = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+
+  page.on('pageerror', (error) => {
+    const message = String(error?.message ?? '').trim();
+
+    // WebKit transforma a checagem de acesso ao canal long-polling do
+    // Firestore Emulator em pageerror, embora o canal seja reaberto e a
+    // leitura reativa continue funcionando. Somente essa assinatura exata
+    // de localhost é ignorada; qualquer erro da aplicação permanece fatal.
+    if (FIRESTORE_EMULATOR_WEBKIT_TRANSPORT_WARNING.test(message)) {
+      return;
+    }
+
+    errors.push(message);
+  });
+
   return errors;
 }
 
