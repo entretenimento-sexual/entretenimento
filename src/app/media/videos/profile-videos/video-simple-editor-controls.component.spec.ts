@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -88,6 +88,41 @@ describe('VideoSimpleEditorControlsComponent', () => {
     expect(() => component.buildRecipe()).toThrow(
       'O vídeo editado precisa ter pelo menos 5 segundos.'
     );
+  });
+
+  it('mantém cinco segundos entre as duas alças durante o arraste', () => {
+    const video = document.createElement('video');
+
+    component.form.patchValue({
+      trimStartMs: 29_000,
+      trimEndMs: 30_000,
+    });
+    component.onTrimStartInput(video);
+
+    expect(component.form.controls.trimStartMs.value).toBe(25_000);
+
+    component.form.patchValue({
+      trimStartMs: 20_000,
+      trimEndMs: 21_000,
+    });
+    component.onTrimEndInput(video);
+
+    expect(component.form.controls.trimEndMs.value).toBe(25_000);
+  });
+
+  it('calcula a faixa destacada e a duração resultante', async () => {
+    component.form.patchValue({
+      trimStartMs: 5_000,
+      trimEndMs: 20_000,
+    });
+
+    const timeline = await firstValueFrom(component.trimTimeline$);
+
+    expect(timeline.startMs).toBe(5_000);
+    expect(timeline.endMs).toBe(20_000);
+    expect(timeline.editedDurationMs).toBe(15_000);
+    expect(timeline.startPercent).toBeCloseTo(16.666, 2);
+    expect(timeline.endPercent).toBeCloseTo(66.666, 2);
   });
 
   it('captura a capa usando a proporção selecionada', () => {
