@@ -1,8 +1,8 @@
 import { onCall } from 'firebase-functions/v2/https';
 
 import {
-  assertInteractionAccess,
-} from '../../account_lifecycle/interaction-access.policy';
+  assertAccountOperationalAccess,
+} from '../../account_lifecycle/account-operational-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import {
   publishPhoto as publishPhotoCore,
@@ -17,7 +17,10 @@ export const publishPhoto = onCall(
     const requesterUid = String(request.auth?.uid ?? '').trim();
 
     if (ownerUid && requesterUid === ownerUid) {
-      await assertInteractionAccess(ownerUid);
+      await assertAccountOperationalAccess(
+        ownerUid,
+        'MEDIA_PUBLISH'
+      );
     }
 
     return publishPhotoCore.run(request as any);
