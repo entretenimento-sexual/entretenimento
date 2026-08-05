@@ -48,8 +48,12 @@
         A prévia não está disponível neste navegador. O arquivo original ainda pode ser enviado e convertido no backend, sem edição local.
       </p>
     } @else {
-      <form class="video-simple-editor__controls" [formGroup]="form">
-        <fieldset [disabled]="disabled">
+      <form
+        class="video-simple-editor__controls"
+        [formGroup]="form"
+        [attr.aria-disabled]="disabled ? 'true' : null"
+      >
+        <fieldset>
           <legend>Corte</legend>
 
           <div class="video-simple-editor__range-row">
@@ -85,7 +89,7 @@
           </div>
         </fieldset>
 
-        <fieldset [disabled]="disabled">
+        <fieldset>
           <legend>Enquadramento</legend>
           <div class="video-simple-editor__aspect-grid">
             @for (option of aspectOptions; track option.value) {
@@ -110,7 +114,6 @@
             <input
               type="checkbox"
               formControlName="muteAudio"
-              [disabled]="disabled"
             />
             <span>
               <strong>Remover áudio</strong>
