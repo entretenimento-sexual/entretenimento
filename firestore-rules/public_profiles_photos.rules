@@ -1,6 +1,9 @@
 // firestore-rules/public_profiles_photos.rules
 // ===============================================================
 // PUBLIC_PROFILES / public_photos
+// - Metadados de terceiros são servidos por callables autorizadas.
+// - Leitura direta permanece apenas para o próprio autor operacional.
+// - Comentários respeitam lifecycle, existência do perfil e bloqueio bilateral.
 // ===============================================================
 
 match /public_profiles/{userId}/public_photos/{photoId} {
@@ -25,46 +28,52 @@ match /public_profiles/{userId}/public_photos/{photoId} {
     return get(photoPath()).data;
   }
 
+  function blockPath(blockerUid, targetUid) {
+    return /databases/$(database)/documents/users/$(blockerUid)/blocks/$(targetUid);
+  }
+
+  function hasActiveBlock(blockerUid, targetUid) {
+    return exists(blockPath(blockerUid, targetUid))
+      && get(blockPath(blockerUid, targetUid)).data.isBlocked == true;
+  }
+
+  function isBlockedBetween(viewerUid, ownerUid) {
+    return viewerUid != ownerUid
+      && (
+        hasActiveBlock(viewerUid, ownerUid)
+        || hasActiveBlock(ownerUid, viewerUid)
+      );
+  }
+
   function isApprovedPublicPhotoData(data) {
     return data.visibility == "PUBLIC"
       && data.moderationStatus == "APPROVED";
   }
 
-  function isPublicReadable() {
-    return publicProfileExists()
-      && resource.data.visibility == "PUBLIC"
-      && resource.data.moderationStatus == "APPROVED";
-  }
-
-  allow get: if signedIn() && (isSelf(userId) || isPublicReadable());
-
-  allow list: if signedIn() && isPublicReadable();
+  // SUPRESSÃO INTENCIONAL DA LEITURA DIRETA PARA TERCEIROS:
+  // Firestore Rules não filtram lifecycle e bloqueio de forma segura em
+  // consultas globais. Feed e perfil usam listAuthorized*Photos.
+  allow get, list: if isOperationalMediaAccount(userId);
 
   allow create, update, delete: if false;
 
   match /likes/{viewerUid} {
-    allow get: if signedIn() && request.auth.uid == viewerUid;
+    allow get: if signedIn()
+      && request.auth.uid == viewerUid
+      && isOperationalAccount(request.auth.uid)
+      && !isBlockedBetween(request.auth.uid, userId);
     allow list: if false;
     allow create, update, delete: if false;
   }
 
   match /comments/{commentId} {
-    allow get: if signedIn()
+    allow get, list: if signedIn()
+      && isOperationalAccount(request.auth.uid)
       && (
         isSelf(userId)
         || (
           publicProfileExists()
-          && resource.data.status == "VISIBLE"
-          && photoExists()
-          && isApprovedPublicPhotoData(photoData())
-        )
-      );
-
-    allow list: if signedIn()
-      && (
-        isSelf(userId)
-        || (
-          publicProfileExists()
+          && !isBlockedBetween(request.auth.uid, userId)
           && resource.data.status == "VISIBLE"
           && photoExists()
           && isApprovedPublicPhotoData(photoData())
@@ -75,18 +84,9 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   }
 }
 
-// ------------------------------------------------------------
-// Collection group: public_photos
-// A revalidação muda a projeção para PRIVATE na mesma transação;
-// por isso a consulta global continua filtrável por visibility.
-// Leituras diretas permanecem no match específico acima, que também
-// confirma a existência do perfil público pai.
-// ------------------------------------------------------------
+// Metadados globais são servidos exclusivamente por backend autorizado.
 match /{path=**}/public_photos/{photoId} {
-  allow list: if signedIn()
-    && resource.data.visibility == "PUBLIC"
-    && resource.data.moderationStatus == "APPROVED";
-
+  allow list: if false;
   allow create, update, delete: if false;
 }
 
