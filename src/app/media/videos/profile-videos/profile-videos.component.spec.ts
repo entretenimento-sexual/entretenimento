@@ -158,7 +158,7 @@ describe('ProfileVideosComponent', () => {
     expect(element.querySelector('.profile-videos__upload')).toBeNull();
     expect(trigger.textContent).toContain('Adicionar vídeo');
     expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(trigger.hasAttribute('aria-expanded')).toBe(false);
   });
 
   it('abre e fecha o compositor em MatDialog com foco restaurável', () => {
@@ -182,14 +182,12 @@ describe('ProfileVideosComponent', () => {
       },
     });
     expect(component.uploadComposerOpen()).toBe(true);
-    expect(queryUploadTrigger().getAttribute('aria-expanded')).toBe('true');
 
     component.closeUploadComposer();
     detectComponentChanges();
 
     expect(dialogRef.close).toHaveBeenCalledTimes(1);
     expect(component.uploadComposerOpen()).toBe(false);
-    expect(queryUploadTrigger().getAttribute('aria-expanded')).toBe('false');
   });
 
   it('adia o player e não anexa a URL antes da interação', () => {
