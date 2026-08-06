@@ -106,11 +106,7 @@
             track trackByVideoId($index, item);
             let index = $index
           ) {
-            <article
-              class="video-card"
-              [class.video-card--featured]="index === 0"
-              role="listitem"
-            >
+            <article class="video-card" role="listitem">
               <button
                 type="button"
                 class="video-card__preview"
@@ -143,13 +139,6 @@
                 <span class="video-card__duration">
                   {{ formatDuration(item.durationMs) }}
                 </span>
-
-                @if (index === 0) {
-                  <span class="video-card__featured-label">
-                    <i class="fas fa-sparkles" aria-hidden="true"></i>
-                    Destaque
-                  </span>
-                }
               </button>
 
               <div class="video-card__body">
