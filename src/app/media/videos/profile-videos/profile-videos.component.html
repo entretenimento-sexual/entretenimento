@@ -11,142 +11,179 @@
 
 <section class="profile-videos" aria-label="Vídeos">
   @if (isOwner$ | async) {
-    <section
-      class="profile-videos__upload app-card"
-      aria-labelledby="video-upload-title"
-      [attr.aria-busy]="isUploadActive() ? 'true' : 'false'"
-    >
-      <div class="profile-videos__upload-copy">
-        <h2 id="video-upload-title">Enviar vídeo</h2>
-      </div>
-
-      @if (!canUpload) {
-        <div class="profile-videos__policy-state" role="status" aria-live="polite">
-          <i class="fas fa-shield-halved" aria-hidden="true"></i>
-          <span>
-            Confirme o e-mail, conclua o perfil e mantenha a conta regular para
-            liberar o envio de vídeos.
-          </span>
-        </div>
-      }
-
-      <div class="profile-videos__picker">
-        <input
-          #videoInput
-          id="profile-video-file"
-          class="profile-videos__file-input"
-          type="file"
-          accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
-          aria-describedby="profile-video-file-help"
-          [disabled]="!canUpload || isUploadActive()"
-          (change)="onVideoSelected($event)"
-        />
-
-        <label
-          class="profile-videos__file-label app-action app-action--ghost"
-          for="profile-video-file"
-          [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
-        >
-          {{ selectedFileName ? 'Trocar vídeo' : 'Selecionar vídeo' }}
-        </label>
-
-        <p class="profile-videos__limits" id="profile-video-file-help">
-          MP4, WebM ou MOV · até 500 MB · mínimo de 5 segundos.
-        </p>
-
-        @if (selectedFileName) {
-          <div class="profile-videos__selected-file" role="status" aria-live="polite">
-            <i class="fas fa-circle-check" aria-hidden="true"></i>
-            <div>
-              <strong>{{ selectedFileName }}</strong>
-              <span>{{ selectedFileSize }}</span>
-            </div>
-          </div>
-
-          <p class="profile-videos__limits">
-            O original permanece privado. Só a versão processada pode ser publicada.
-          </p>
-        }
-      </div>
-
-      @if (previewUrl) {
-        <div class="profile-videos__preview">
-          <video
-            [src]="previewUrl"
-            aria-label="Prévia local do vídeo selecionado"
-            preload="metadata"
-            controls
-            playsinline
-            muted
-          ></video>
-        </div>
-      }
-
-      @if (uploadPhase !== 'IDLE' && uploadPhase !== 'READY') {
-        <div class="profile-videos__progress" aria-live="polite">
-          <div class="profile-videos__progress-copy">
-            <strong>{{ uploadStep }}</strong>
-            <span>{{ uploadProgress }}%</span>
-          </div>
-
-          <div
-            class="profile-videos__progress-track"
-            role="progressbar"
-            aria-label="Progresso do upload do vídeo"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            [attr.aria-valuenow]="uploadProgress"
-          >
-            <span [style.width.%]="uploadProgress"></span>
-          </div>
-        </div>
-      } @else {
-        <p class="profile-videos__upload-status" role="status" aria-live="polite">
-          {{ uploadStep }}
-        </p>
-      }
-
-      <div class="profile-videos__upload-actions">
-        @if (uploadPhase === 'DONE') {
-          <button
-            type="button"
-            class="app-action app-action--primary"
-            (click)="resetSelection(videoInput)"
-          >
-            Enviar outro vídeo
-          </button>
-        } @else {
-          <button
-            type="button"
-            class="app-action app-action--primary"
-            [disabled]="!canUpload || !selectedFileName || isUploadActive()"
-            (click)="startUpload()"
-          >
-            {{ isUploadActive() ? 'Enviando...' : 'Enviar vídeo' }}
-          </button>
-
-          @if (canCancelUpload()) {
-            <button
-              type="button"
-              class="app-action app-action--ghost"
-              (click)="cancelUpload()"
-            >
-              Cancelar upload
-            </button>
-          } @else if (selectedFileName && !isUploadActive()) {
-            <button
-              type="button"
-              class="app-action app-action--ghost"
-              (click)="resetSelection(videoInput)"
-            >
-              Limpar seleção
-            </button>
-          }
-        }
-      </div>
-    </section>
-
     @if (viewItems$ | async; as items) {
+      <header class="profile-videos__header">
+        <div>
+          <span class="profile-videos__eyebrow">Biblioteca pessoal</span>
+          <h1>Meus vídeos</h1>
+          <p>
+            {{ items.length }} {{ items.length === 1 ? 'vídeo' : 'vídeos' }}.
+            Gerencie publicação, informações e processamento sem tirar o foco da galeria.
+          </p>
+        </div>
+
+        <details class="profile-videos__upload-disclosure">
+          <summary class="profile-videos__upload-summary">
+            <span class="profile-videos__upload-summary-icon" aria-hidden="true">
+              <i class="fas fa-plus"></i>
+            </span>
+            <span>
+              {{
+                isUploadActive()
+                  ? 'Acompanhar upload'
+                  : selectedFileName
+                    ? 'Continuar envio'
+                    : 'Adicionar vídeo'
+              }}
+            </span>
+            @if (isUploadActive()) {
+              <span class="profile-videos__upload-summary-progress">
+                {{ uploadProgress }}%
+              </span>
+            }
+          </summary>
+
+          <section
+            class="profile-videos__upload app-card"
+            aria-labelledby="video-upload-title"
+            [attr.aria-busy]="isUploadActive() ? 'true' : 'false'"
+          >
+            <div class="profile-videos__upload-copy">
+              <h2 id="video-upload-title">Enviar vídeo</h2>
+              <p>
+                O envio fica recolhido quando não está em uso para manter a biblioteca
+                como conteúdo principal desta página.
+              </p>
+            </div>
+
+            @if (!canUpload) {
+              <div class="profile-videos__policy-state" role="status" aria-live="polite">
+                <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                <span>
+                  Confirme o e-mail, conclua o perfil e mantenha a conta regular para
+                  liberar o envio de vídeos.
+                </span>
+              </div>
+            }
+
+            <div class="profile-videos__picker">
+              <input
+                #videoInput
+                id="profile-video-file"
+                class="profile-videos__file-input"
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+                aria-describedby="profile-video-file-help"
+                [disabled]="!canUpload || isUploadActive()"
+                (change)="onVideoSelected($event)"
+              />
+
+              <label
+                class="profile-videos__file-label app-action app-action--ghost"
+                for="profile-video-file"
+                [class.profile-videos__file-label--disabled]="!canUpload || isUploadActive()"
+              >
+                {{ selectedFileName ? 'Trocar vídeo' : 'Selecionar vídeo' }}
+              </label>
+
+              <p class="profile-videos__limits" id="profile-video-file-help">
+                MP4, WebM ou MOV · até 500 MB · mínimo de 5 segundos.
+              </p>
+
+              @if (selectedFileName) {
+                <div class="profile-videos__selected-file" role="status" aria-live="polite">
+                  <i class="fas fa-circle-check" aria-hidden="true"></i>
+                  <div>
+                    <strong>{{ selectedFileName }}</strong>
+                    <span>{{ selectedFileSize }}</span>
+                  </div>
+                </div>
+
+                <p class="profile-videos__limits">
+                  O original permanece privado. Só a versão processada pode ser publicada.
+                </p>
+              }
+            </div>
+
+            @if (previewUrl) {
+              <div class="profile-videos__preview">
+                <video
+                  [src]="previewUrl"
+                  aria-label="Prévia local do vídeo selecionado"
+                  preload="metadata"
+                  controls
+                  playsinline
+                  muted
+                ></video>
+              </div>
+            }
+
+            @if (uploadPhase !== 'IDLE' && uploadPhase !== 'READY') {
+              <div class="profile-videos__progress" aria-live="polite">
+                <div class="profile-videos__progress-copy">
+                  <strong>{{ uploadStep }}</strong>
+                  <span>{{ uploadProgress }}%</span>
+                </div>
+
+                <div
+                  class="profile-videos__progress-track"
+                  role="progressbar"
+                  aria-label="Progresso do upload do vídeo"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  [attr.aria-valuenow]="uploadProgress"
+                >
+                  <span [style.width.%]="uploadProgress"></span>
+                </div>
+              </div>
+            } @else {
+              <p class="profile-videos__upload-status" role="status" aria-live="polite">
+                {{ uploadStep }}
+              </p>
+            }
+
+            <div class="profile-videos__upload-actions">
+              @if (uploadPhase === 'DONE') {
+                <button
+                  type="button"
+                  class="app-action app-action--primary"
+                  (click)="resetSelection(videoInput)"
+                >
+                  Enviar outro vídeo
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  class="app-action app-action--primary"
+                  [disabled]="!canUpload || !selectedFileName || isUploadActive()"
+                  (click)="startUpload()"
+                >
+                  {{ isUploadActive() ? 'Enviando...' : 'Enviar vídeo' }}
+                </button>
+
+                @if (canCancelUpload()) {
+                  <button
+                    type="button"
+                    class="app-action app-action--ghost"
+                    (click)="cancelUpload()"
+                  >
+                    Cancelar upload
+                  </button>
+                } @else if (selectedFileName && !isUploadActive()) {
+                  <button
+                    type="button"
+                    class="app-action app-action--ghost"
+                    (click)="resetSelection(videoInput)"
+                  >
+                    Limpar seleção
+                  </button>
+                }
+              }
+            </div>
+          </section>
+        </details>
+      </header>
+
       @if (items.length > 0) {
         <div class="profile-videos__grid" aria-label="Meus vídeos privados">
           @for (item of items; track trackByVideoId($index, item)) {
@@ -156,7 +193,7 @@
                   [src]="item.video.url"
                   [poster]="item.video.thumbnailUrl || null"
                   [attr.aria-label]="displayVideoTitle(item)"
-                  preload="metadata"
+                  preload="none"
                   controls
                   controlsList="nodownload"
                   playsinline
@@ -178,11 +215,13 @@
                   </span>
                 </div>
 
-                @if (item.publication?.description) {
-                  <p class="profile-videos__description">
-                    {{ item.publication?.description }}
-                  </p>
-                }
+                <div class="profile-videos__description-slot">
+                  @if (item.publication?.description) {
+                    <p class="profile-videos__description">
+                      {{ item.publication?.description }}
+                    </p>
+                  }
+                </div>
 
                 <div class="profile-videos__meta" aria-label="Informações do vídeo">
                   <span>{{ formatFileSize(item.video.sizeBytes) }}</span>
@@ -385,7 +424,7 @@
         </div>
       } @else {
         <p class="profile-videos__upload-status" role="status">
-          Nenhum vídeo enviado.
+          Nenhum vídeo enviado. Use “Adicionar vídeo” quando quiser publicar o primeiro.
         </p>
       }
     }
