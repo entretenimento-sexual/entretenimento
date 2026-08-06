@@ -1,5 +1,7 @@
 .profile-videos__description {
+  display: -webkit-box;
   margin: 0;
+  overflow: hidden;
   color: color-mix(
     in oklab,
     var(--text-color, #f5f7fb) 74%,
@@ -8,6 +10,12 @@
   font-size: 0.88rem;
   line-height: 1.5;
   overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.profile-videos__description-slot {
+  min-height: 2.64rem;
 }
 
 .profile-videos__settings-form {
@@ -121,6 +129,135 @@
   flex: 1 1 120px;
 }
 
+.profile-videos__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.profile-videos__upload-disclosure {
+  min-width: 0;
+  justify-self: end;
+}
+
+.profile-videos__upload-disclosure[open] {
+  display: grid;
+  grid-column: 1 / -1;
+  width: 100%;
+  justify-self: stretch;
+}
+
+.profile-videos__upload-summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 9px 13px;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, rgb(255 255 255 / 12%)) 88%,
+    transparent
+  );
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 90%,
+    var(--text-color, #f5f7fb) 5%
+  );
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.profile-videos__upload-summary::-webkit-details-marker {
+  display: none;
+}
+
+.profile-videos__upload-summary:hover {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 54%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 10%,
+    var(--surface-color, #101923)
+  );
+}
+
+.profile-videos__upload-summary:focus-visible {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
+}
+
+.profile-videos__upload-disclosure[open] .profile-videos__upload-summary {
+  margin: 4px 0 14px auto;
+}
+
+.profile-videos__upload-summary-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 14%,
+    transparent
+  );
+  color: var(--primary-color, #ff6b6b);
+}
+
+.profile-videos__upload-disclosure[open] .profile-videos__upload-summary-icon {
+  transform: rotate(45deg);
+}
+
+.profile-videos__upload-summary-progress {
+  min-width: 42px;
+  padding: 5px 7px;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 16%,
+    transparent
+  );
+  color: var(--primary-color, #ff6b6b);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.profile-videos__upload-disclosure .profile-videos__upload {
+  width: 100%;
+  box-shadow: none;
+}
+
+.profile-videos__grid {
+  align-items: stretch;
+}
+
+.profile-videos__card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+}
+
+.profile-videos__body {
+  align-content: start;
+  height: 100%;
+}
+
+.profile-videos__actions {
+  margin-top: auto;
+}
+
 @media (max-width: 700px) {
   .profile-videos__settings-form {
     padding: 12px;
@@ -135,11 +272,39 @@
   .profile-videos__settings-options label {
     min-height: 40px;
   }
+
+  .profile-videos__header {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .profile-videos__upload-disclosure,
+  .profile-videos__upload-disclosure[open] {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .profile-videos__upload-summary,
+  .profile-videos__upload-disclosure[open] .profile-videos__upload-summary {
+    width: 100%;
+    margin: 4px 0 0;
+  }
+
+  .profile-videos__upload-disclosure[open] .profile-videos__upload-summary {
+    margin-bottom: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .profile-videos__upload-summary-icon {
+    transition: transform 160ms ease;
+  }
 }
 
 html.high-contrast .profile-videos__settings-form,
 html.high-contrast .profile-videos__settings-form input,
-html.high-contrast .profile-videos__settings-form textarea {
+html.high-contrast .profile-videos__settings-form textarea,
+html.high-contrast .profile-videos__upload-summary {
   border-color: currentColor !important;
   background: var(--background-color) !important;
   color: var(--text-color) !important;
