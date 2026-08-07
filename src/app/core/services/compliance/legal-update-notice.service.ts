@@ -12,7 +12,7 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { hasAcceptedCurrentTerms } from './terms-acceptance.service';
+import { isCurrentLegalAcceptanceSatisfied } from './terms-acceptance.service';
 
 interface EnsureCurrentLegalNoticeResponse {
   required: boolean;
@@ -34,7 +34,8 @@ export class LegalUpdateNoticeService {
 
   /**
    * Observa a conta autenticada e solicita ao backend uma notificação idempotente
-   * apenas quando a versão jurídica atual ainda não foi aceita.
+   * apenas quando a política do ambiente exige a versão jurídica vigente e ela
+   * ainda não foi aceita.
    */
   watchAndEnsure$(): Observable<void> {
     return combineLatest([
@@ -53,7 +54,7 @@ export class LegalUpdateNoticeService {
 
         return {
           ownerUid,
-          current: hasAcceptedCurrentTerms(ownerUser?.acceptedTerms),
+          current: isCurrentLegalAcceptanceSatisfied(ownerUser?.acceptedTerms),
         };
       }),
       distinctUntilChanged(

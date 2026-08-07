@@ -25,6 +25,7 @@ import {
   PLATFORM_LEGAL_MANIFEST,
   TERMS_ACCEPTANCE_VERSION,
   TermsAcceptanceService,
+  hasAcceptedCurrentTerms,
 } from 'src/app/core/services/compliance/terms-acceptance.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
@@ -70,6 +71,11 @@ export class TermsAcceptancePageComponent {
     ]).pipe(
       map(([user, queryParams]) => {
         const record = user?.acceptedTerms;
+
+        if (hasAcceptedCurrentTerms(record)) {
+          return false;
+        }
+
         const previousVersion = String(record?.version ?? '').trim();
         const routedAsUpdate =
           queryParams.get('reason') === 'material_terms_update_required';
@@ -83,6 +89,8 @@ export class TermsAcceptancePageComponent {
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
+    this.redirectRecognizedAcceptance();
   }
 
   accept(): void {
@@ -179,6 +187,25 @@ export class TermsAcceptancePageComponent {
 
   private markAcknowledgementsTouched(): void {
     this.termsConfirmation.markAsTouched();
+  }
+
+  /**
+   * Se o usuário chegou aqui por um redirecionamento de reaceite que já não é
+   * necessário, sai da rota imediatamente. Isso também corrige sessões que
+   * ficaram presas em /register/aceitar-termos antes da compatibilidade v2 ser
+   * restaurada.
+   */
+  private redirectRecognizedAcceptance(): void {
+    this.currentUser.user$
+      .pipe(
+        filter((user) => user !== undefined),
+        filter((user) => hasAcceptedCurrentTerms(user?.acceptedTerms)),
+        take(1)
+      )
+      .subscribe(() => {
+        const target = this.resolveSafeRedirectTo() ?? '/';
+        this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => undefined);
+      });
   }
 
   private resolveNextRoute(

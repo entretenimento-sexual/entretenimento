@@ -8,7 +8,7 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
-import { hasAcceptedCurrentTerms } from 'src/app/core/services/compliance/terms-acceptance.service';
+import { isCurrentLegalAcceptanceSatisfied } from 'src/app/core/services/compliance/terms-acceptance.service';
 
 import { RegisterNavigationService } from './register-navigation.service';
 import {
@@ -35,7 +35,7 @@ export class RegisterFlowFacade {
           authUser?.emailVerified === true || user?.emailVerified === true,
         userResolved: appUser !== undefined,
         userExists: user !== null,
-        termsAccepted: hasAcceptedCurrentTerms(user?.acceptedTerms),
+        termsAccepted: isCurrentLegalAcceptanceSatisfied(user?.acceptedTerms),
         profileCompleted: user?.profileCompleted === true,
         adultConsentAccepted: adultConsentAccepted === true,
         initialAdultConsentRequired:
