@@ -3,10 +3,14 @@
 // COMMUNITY FEED CONTRACTS
 // -----------------------------------------------------------------------------
 // Contratos sanitizados de leitura e publicação do mural comunitário. Texto e
-// foto pertencem à mesma timeline; respostas também são itens de primeira classe
+// mídia pertencem à mesma timeline; respostas também são itens de primeira classe
 // e carregam somente a referência segura à mensagem respondida.
+//
+// `media` é o contrato operacional atual. `image` permanece somente como leitura
+// legada para posts já persistidos antes da migração para a camada canônica.
 // -----------------------------------------------------------------------------
 
+import { normalizePublishedMediaReference } from '../media/application/published-media-reference.model';
 import type { CommunityPublicAuthor } from './community-public-author.model';
 
 export type CommunityFeedView = 'feed' | 'photos';
@@ -106,7 +110,9 @@ export interface CommunityFeedPageResponse {
 const DEFAULT_PAGE_LIMIT = 10;
 const MAX_PAGE_LIMIT = 20;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
-const PUBLISHED_PHOTO_PATH_PATTERN =
+// Compatibilidade temporária para documentos legados que persistiam
+// `image.storagePath` sem a referência canônica `media`.
+const LEGACY_PUBLISHED_PHOTO_PATH_PATTERN =
   /^users\/[A-Za-z0-9_-]{1,128}\/published\/images\/[A-Za-z0-9:_-]{1,128}\/[^/]{1,220}$/;
 
 function normalizeText(value: unknown, maxLength: number): string {
@@ -141,9 +147,9 @@ function normalizeHttpsUrl(value: unknown): string | null {
   }
 }
 
-function normalizePublishedPhotoStoragePath(value: unknown): string | null {
+function normalizeLegacyPublishedPhotoStoragePath(value: unknown): string | null {
   const normalized = normalizeText(value, 512).replace(/^\/+/, '');
-  return PUBLISHED_PHOTO_PATH_PATTERN.test(normalized) ? normalized : null;
+  return LEGACY_PUBLISHED_PHOTO_PATH_PATTERN.test(normalized) ? normalized : null;
 }
 
 function normalizeCount(value: unknown): number {
@@ -187,6 +193,51 @@ function normalizeTimestamp(value: unknown): number | null {
   return null;
 }
 
+interface ProjectionPhotoSource {
+  url: string | null;
+  storagePath: string | null;
+  alt: string;
+  valid: boolean;
+}
+
+function resolveProjectionPhotoSource(
+  source: Record<string, unknown>
+): ProjectionPhotoSource {
+  if (source['media'] != null) {
+    const media = normalizePublishedMediaReference(source['media']);
+    if (!media || media.mediaType !== 'PHOTO') {
+      return {
+        url: null,
+        storagePath: null,
+        alt: 'Foto publicada na comunidade',
+        valid: false,
+      };
+    }
+
+    return {
+      url: null,
+      storagePath: media.storagePath,
+      alt: media.alt || 'Foto publicada na comunidade',
+      valid: true,
+    };
+  }
+
+  const image = (source['image'] ?? {}) as Record<string, unknown>;
+  const imageUrl = normalizeHttpsUrl(image['url']);
+  const imageStoragePath = normalizeLegacyPublishedPhotoStoragePath(
+    image['storagePath']
+  );
+  const imageAlt = normalizeText(image['alt'], 140)
+    || 'Foto publicada na comunidade';
+
+  return {
+    url: imageUrl,
+    storagePath: imageStoragePath,
+    alt: imageAlt,
+    valid: !!imageUrl || !!imageStoragePath,
+  };
+}
+
 export function normalizeCommunityFeedPageRequest(
   raw: CommunityFeedPageRequest | null | undefined
 ): NormalizedCommunityFeedPageRequest {
@@ -227,7 +278,6 @@ export function sanitizeCommunityFeedProjection(
 ): SanitizedCommunityFeedProjection | null {
   const source = (raw ?? {}) as Record<string, unknown>;
   const author = (source['author'] ?? {}) as Record<string, unknown>;
-  const image = (source['image'] ?? {}) as Record<string, unknown>;
   const metrics = (source['metrics'] ?? {}) as Record<string, unknown>;
   const postId = normalizeSafeId(documentId);
   const kind = source['kind'];
@@ -259,18 +309,15 @@ export function sanitizeCommunityFeedProjection(
     return null;
   }
 
-  const imageUrl = normalizeHttpsUrl(image['url']);
-  const imageStoragePath = normalizePublishedPhotoStoragePath(image['storagePath']);
-  const imageAlt = normalizeText(image['alt'], 140)
-    || 'Foto publicada na comunidade';
+  const photoSource = resolveProjectionPhotoSource(source);
 
   if (kind === 'text' && text.length < 1) return null;
-  if (kind === 'photo' && !imageUrl && !imageStoragePath) return null;
+  if (kind === 'photo' && !photoSource.valid) return null;
 
   return {
     audience,
-    imageStoragePath: kind === 'photo' ? imageStoragePath : null,
-    imageAlt: kind === 'photo' ? imageAlt : null,
+    imageStoragePath: kind === 'photo' ? photoSource.storagePath : null,
+    imageAlt: kind === 'photo' ? photoSource.alt : null,
     replyToPostId,
     item: {
       postId,
@@ -284,10 +331,10 @@ export function sanitizeCommunityFeedProjection(
         state: null,
       },
       text: text || null,
-      image: imageUrl
+      image: kind === 'photo' && photoSource.url
         ? {
-          url: imageUrl,
-          alt: imageAlt,
+          url: photoSource.url,
+          alt: photoSource.alt,
         }
         : null,
       replyTo: null,
