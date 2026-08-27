@@ -6,6 +6,9 @@
 // usa esse documento como sinal incremental; conteúdo/capacidades continuam
 // vindo de callable autorizada. Tombstones permitem remover itens legados que
 // nunca haviam sido espelhados antes desta versão.
+//
+// Durante purge físico não recriamos tombstones: a projeção realtime é removida
+// e o documento canônico da Comunidade continua existindo até a limpeza terminar.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
@@ -25,12 +28,37 @@ export const syncCommunityFeedRealtime = onDocumentWritten(
     const postId = String(event.params['postId'] ?? '').trim();
     if (!communityId || !postId) return;
 
+    const realtimeRef = db
+      .collection('community_feed_realtime')
+      .doc(communityId)
+      .collection('items')
+      .doc(postId);
     const before = event.data?.before.exists
       ? event.data.before.data()
       : null;
     const after = event.data?.after.exists
       ? event.data.after.data()
       : null;
+
+    if (!after) {
+      const communitySnapshot = await db
+        .collection('communities')
+        .doc(communityId)
+        .get();
+      const status = communitySnapshot.exists
+        ? String(communitySnapshot.data()?.['status'] ?? '').trim()
+        : '';
+
+      if (!communitySnapshot.exists || status === 'scheduled_for_deletion') {
+        await realtimeRef.delete();
+        logger.debug('community_feed_realtime_purge_delete', {
+          communityId,
+          postId,
+        });
+        return;
+      }
+    }
+
     const projection = buildCommunityFeedRealtimeProjection(
       postId,
       before,
@@ -40,12 +68,7 @@ export const syncCommunityFeedRealtime = onDocumentWritten(
 
     if (!projection) return;
 
-    await db
-      .collection('community_feed_realtime')
-      .doc(communityId)
-      .collection('items')
-      .doc(postId)
-      .set(projection);
+    await realtimeRef.set(projection);
 
     logger.debug('community_feed_realtime_synced', {
       communityId,
