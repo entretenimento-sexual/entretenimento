@@ -156,10 +156,13 @@ async function cleanupPublishedPhotoAssets(communityId: string): Promise<{
           if (media.ownerUid !== actorUid) {
             throw new Error('community-purge-media-owner-mismatch');
           }
+          if (media.mediaId !== document.id) {
+            throw new Error('community-purge-media-post-mismatch');
+          }
 
           return [{
             ownerUid: media.ownerUid,
-            photoId: media.mediaId,
+            photoId: document.id,
             storagePath: media.storagePath,
           }];
         }
