@@ -12,6 +12,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
+import { normalizePublishedMediaReference } from '../media/application/published-media-reference.model';
 import {
   deletePublishedPhotoAssetOrQueue,
   stagePublishedPhotoAssetCleanup,
@@ -105,14 +106,18 @@ function stagePostPhotoCleanup(
 ): StagedPublishedPhotoAssetCleanup | null {
   if (post['kind'] !== 'photo') return null;
 
-  const image = (post['image'] ?? {}) as Record<string, unknown>;
   const ownerUid = String(post['actorUid'] ?? '').trim();
-  const storagePath = String(image['storagePath'] ?? '').trim();
+  const media = normalizePublishedMediaReference(post['media']);
+  const legacyImage = (post['image'] ?? {}) as Record<string, unknown>;
+  const photoId = media?.mediaType === 'PHOTO' ? media.mediaId : postId;
+  const storagePath = media?.mediaType === 'PHOTO'
+    ? media.storagePath
+    : String(legacyImage['storagePath'] ?? '').trim();
   if (!ownerUid || !storagePath) return null;
 
   return stagePublishedPhotoAssetCleanup(transaction, {
     ownerUid,
-    photoId: postId,
+    photoId,
     storagePath,
     reason: action === 'delete_own'
       ? 'community-feed-post-deleted-by-author'
