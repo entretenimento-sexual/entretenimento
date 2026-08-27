@@ -7,7 +7,7 @@ import {
   normalizePublishedMediaReference,
 } from './published-media-reference.model';
 
-test('constrói referência canônica de foto publicada', () => {
+test('constrói referência canônica de foto publicada com lifecycle da superfície', () => {
   const reference = buildPublishedPhotoReference({
     ownerUid: 'user-1',
     mediaId: 'photo-1',
@@ -21,6 +21,7 @@ test('constrói referência canônica de foto publicada', () => {
     mediaId: 'photo-1',
     ownerUid: 'user-1',
     assetAccess: 'SIGNED_URL',
+    assetLifecycle: 'SURFACE_OWNED',
     storagePath:
       'users/user-1/published/images/photo-1/1800000000000-version',
     alt: 'Foto no mural',
@@ -62,18 +63,33 @@ test('constrói referência canônica de vídeo publicado e poster opcional', ()
 
   assert.equal(reference.mediaType, 'VIDEO');
   assert.equal(reference.assetAccess, 'SIGNED_URL');
+  assert.equal(reference.assetLifecycle, 'SURFACE_OWNED');
   assert.equal(reference.mimeType, 'video/mp4');
   assert.equal(reference.durationMs, 12_345);
   assert.ok(reference.posterStoragePath);
 });
 
-test('normalização falha fechado para referência manipulada', () => {
+test('normalização falha fechado para acesso ou lifecycle manipulados', () => {
   assert.equal(
     normalizePublishedMediaReference({
       mediaType: 'PHOTO',
       mediaId: 'photo-1',
       ownerUid: 'user-1',
       assetAccess: 'PUBLIC_URL',
+      assetLifecycle: 'SURFACE_OWNED',
+      storagePath:
+        'users/user-1/published/images/photo-1/1800000000000-version',
+    }),
+    null
+  );
+
+  assert.equal(
+    normalizePublishedMediaReference({
+      mediaType: 'PHOTO',
+      mediaId: 'photo-1',
+      ownerUid: 'user-1',
+      assetAccess: 'SIGNED_URL',
+      assetLifecycle: 'SHARED',
       storagePath:
         'users/user-1/published/images/photo-1/1800000000000-version',
     }),
@@ -86,6 +102,7 @@ test('normalização falha fechado para referência manipulada', () => {
       mediaId: 'video-1',
       ownerUid: 'user-1',
       assetAccess: 'SIGNED_URL',
+      assetLifecycle: 'SURFACE_OWNED',
       storagePath:
         'users/user-1/published/videos/video-1/assets/1800000000000-version',
       mimeType: 'video/avi',
