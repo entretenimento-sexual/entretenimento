@@ -26,12 +26,16 @@ function normalizeSafeId(value: unknown): string {
   return SAFE_ID_PATTERN.test(normalized) ? normalized : '';
 }
 
+export function normalizeCommunityFeedViewerUid(value: unknown): string {
+  return normalizeSafeId(value);
+}
+
 export function buildCommunityFeedCacheQuery(
   viewerUidValue: unknown,
   communityIdValue: unknown,
   viewValue: unknown
 ): CommunityFeedCacheQuery | null {
-  const viewerUid = normalizeSafeId(viewerUidValue);
+  const viewerUid = normalizeCommunityFeedViewerUid(viewerUidValue);
   const communityId = normalizeSafeId(communityIdValue);
   const view: CommunityFeedView = viewValue === 'photos' ? 'photos' : 'feed';
 
