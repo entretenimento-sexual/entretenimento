@@ -2,7 +2,7 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY FEED CACHE FACADE
 // -----------------------------------------------------------------------------
-// Isola o componente dos detalhes do NgRx e vincula todo snapshot ao viewer atual.
+// Isola consumidores dos detalhes do NgRx e vincula todo snapshot ao viewer atual.
 // Firebase/callables permanecem no repository; este serviço guarda somente estado
 // serializável já autorizado e normalizado.
 // -----------------------------------------------------------------------------
@@ -34,6 +34,7 @@ import {
 export interface CommunityFeedCacheSnapshot {
   readonly query: CommunityFeedCacheQuery;
   readonly state: CommunityFeedState;
+  readonly lastLoadedAt: number;
   readonly fresh: boolean;
   readonly revalidateAfterMs: number;
 }
@@ -82,6 +83,7 @@ export class CommunityFeedCacheService {
               return {
                 query,
                 state: INITIAL_COMMUNITY_FEED_STATE,
+                lastLoadedAt: 0,
                 fresh: false,
                 revalidateAfterMs: 0,
               };
@@ -93,6 +95,7 @@ export class CommunityFeedCacheService {
             return {
               query,
               state: slice.state,
+              lastLoadedAt: slice.lastLoadedAt,
               fresh,
               revalidateAfterMs: fresh && age !== null
                 ? Math.max(0, COMMUNITY_FEED_CACHE_SOFT_TTL_MS - age)
