@@ -22,6 +22,10 @@ import {
 } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
+import {
+  SELECTABLE_PROFILE_IDENTITY_OPTIONS,
+  isSelectableProfileIdentityCode,
+} from 'src/app/core/domain/profile-identity/profile-identity.catalog';
 import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.service';
@@ -31,6 +35,13 @@ import type {
   IbgeMunicipio,
   IbgeUF,
 } from 'src/app/core/services/general/api/ibge-location.service';
+import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
+import {
+  MEDIA_IMAGE_ACCEPT,
+  MEDIA_IMAGE_FORMAT_LABEL,
+  resolveImageMaxBytes,
+  validateImageMediaFile,
+} from 'src/app/core/services/media/media-format.policy';
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
@@ -74,6 +85,10 @@ implements OnInit, UnsavedChangesAware
   public nickname = '';
   public needsNickname = false;
 
+  public readonly identityOptions = SELECTABLE_PROFILE_IDENTITY_OPTIONS;
+  public readonly avatarAccept = MEDIA_IMAGE_ACCEPT;
+  public readonly avatarFormatLabel = MEDIA_IMAGE_FORMAT_LABEL;
+  public readonly avatarMaxMegabytes = resolveImageMaxBytes('avatar') / 1024 / 1024;
   public gender = '';
   public orientation = '';
   public selectedEstado = '';
@@ -87,6 +102,7 @@ implements OnInit, UnsavedChangesAware
   public isLoading = true;
   public isSubmitting = false;
   public isUploading = false;
+  public isEditingAvatar = false;
   public progressValue = 0;
   public uploadMessage = '';
   public avatarFile: File | null = null;
@@ -106,7 +122,8 @@ implements OnInit, UnsavedChangesAware
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly errorNotification: ErrorNotificationService
+    private readonly errorNotification: ErrorNotificationService,
+    private readonly photoEditor: PhotoEditorLauncherService
   ) {}
 
   ngOnInit(): void {
@@ -123,9 +140,7 @@ implements OnInit, UnsavedChangesAware
         take(1),
         switchMap((vm) => {
           if (!vm.uid) {
-            this.router
-              .navigate(['/login'], { replaceUrl: true })
-              .catch(() => {});
+            this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {});
             return of(void 0);
           }
 
@@ -190,48 +205,42 @@ implements OnInit, UnsavedChangesAware
   private setErrorMessage(message: string): void {
     this.message = message;
     this.messageKind = 'error';
-    this.errorNotification.showError(message);
   }
 
   private setWarningMessage(message: string): void {
     this.message = message;
     this.messageKind = 'warning';
-    this.errorNotification.showWarning(message);
   }
 
   private setSuccessMessage(message: string): void {
     this.message = message;
     this.messageKind = 'success';
+    this.errorNotification.showSuccess(message);
   }
 
   private normalizeReportableError(error: unknown): ReportableError {
     if (error instanceof Error || error instanceof HttpErrorResponse) {
       return error;
     }
-
     if (typeof error === 'string' && error.trim()) {
       return new Error(error.trim());
     }
-
-    return new Error(
-      '[FinalizarCadastroComponent] Erro desconhecido.'
-    );
+    return new Error('[FinalizarCadastroComponent] Erro desconhecido.');
   }
 
   private reportError(error: unknown, message: string): void {
-    this.globalErrorHandler.handleError(
-      this.normalizeReportableError(error)
-    );
+    const reportable = this.normalizeReportableError(error);
+    (reportable as ReportableError & { skipUserNotification?: boolean })
+      .skipUserNotification = true;
+    this.globalErrorHandler.handleError(reportable);
     this.setErrorMessage(message);
   }
 
   private setUploadWarning(message: string): void {
     this.uploadMessage = message;
-    this.errorNotification.showWarning(message);
   }
 
-  private resetAvatarSelectionState(): void {
-    this.avatarFile = null;
+  private resetAvatarUploadState(): void {
     this.isUploading = false;
     this.progressValue = 0;
     this.uploadMessage = '';
@@ -248,16 +257,12 @@ implements OnInit, UnsavedChangesAware
           this.setErrorMessage(
             'Não encontramos os dados da sua conta. Tente entrar novamente.'
           );
-          this.router
-            .navigate(['/login'], { replaceUrl: true })
-            .catch(() => {});
+          this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {});
           return;
         }
 
         this.email = initialData.email;
-        this.nickname = NicknameUtils.normalizarApelido(
-          initialData.nickname
-        );
+        this.nickname = NicknameUtils.normalizarApelido(initialData.nickname);
         this.needsNickname = !this.nickname;
         this.gender = initialData.gender;
         this.orientation = initialData.orientation;
@@ -265,7 +270,6 @@ implements OnInit, UnsavedChangesAware
         this.selectedMunicipio = initialData.municipio;
 
         this.initializeDraftState(uid);
-
         if (this.selectedEstado) {
           this.loadMunicipiosForEstado(this.selectedEstado);
         }
@@ -306,11 +310,7 @@ implements OnInit, UnsavedChangesAware
     if (!this.selectedEstado) {
       this.municipios = [];
       this.selectedMunicipio = '';
-      this.checkFieldValidity(
-        'municipio',
-        this.selectedMunicipio,
-        'Município'
-      );
+      this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
       this.onDraftChange();
       return;
     }
@@ -334,7 +334,6 @@ implements OnInit, UnsavedChangesAware
     ) {
       return null;
     }
-
     return raw;
   }
 
@@ -348,9 +347,7 @@ implements OnInit, UnsavedChangesAware
         : '';
       return `/adulto/confirmar${query}`;
     }
-
     if (redirectTo) return redirectTo;
-
     if (
       vm?.uid === uid &&
       vm.nextRoute &&
@@ -358,22 +355,17 @@ implements OnInit, UnsavedChangesAware
     ) {
       return vm.nextRoute;
     }
-
     return `/perfil/${uid}`;
   }
 
   private canSubmitProfileCompletion(): boolean {
     const vm = this.latestVm;
-
     if (!vm?.uid) {
       this.setErrorMessage('Erro: UID do usuário não encontrado.');
       return false;
     }
-
     if (!vm.emailVerified) {
-      this.setWarningMessage(
-        'Confirme seu e-mail antes de finalizar o cadastro.'
-      );
+      this.setWarningMessage('Confirme seu e-mail antes de finalizar o cadastro.');
       this.router
         .navigate(['/register/welcome'], {
           replaceUrl: true,
@@ -382,24 +374,18 @@ implements OnInit, UnsavedChangesAware
         .catch(() => {});
       return false;
     }
-
     if (vm.currentStep !== 'profileCompletion') {
-      this.setWarningMessage(
-        'Esta etapa do cadastro não está disponível agora.'
-      );
+      this.setWarningMessage('Esta etapa do cadastro não está disponível agora.');
       this.router
-        .navigateByUrl(vm.nextRoute || '/register/welcome', {
-          replaceUrl: true,
-        })
+        .navigateByUrl(vm.nextRoute || '/register/welcome', { replaceUrl: true })
         .catch(() => {});
       return false;
     }
-
     return true;
   }
 
   onSubmit(): void {
-    if (this.isSubmitting) return;
+    if (this.isSubmitting || this.isEditingAvatar) return;
     if (!this.canSubmitProfileCompletion()) return;
 
     const uid = this.latestVm?.uid?.trim() || null;
@@ -407,21 +393,9 @@ implements OnInit, UnsavedChangesAware
     if (!uid || !vm) return;
 
     this.checkFieldValidity('nickname', this.nickname, 'Apelido');
-    this.checkFieldValidity(
-      'gender',
-      this.gender,
-      'Quero me cadastrar como'
-    );
-    this.checkFieldValidity(
-      'estado',
-      this.selectedEstado,
-      'Estado'
-    );
-    this.checkFieldValidity(
-      'municipio',
-      this.selectedMunicipio,
-      'Município'
-    );
+    this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
+    this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
+    this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
 
     if (
       this.isFieldInvalid('nickname') ||
@@ -429,9 +403,13 @@ implements OnInit, UnsavedChangesAware
       this.isFieldInvalid('estado') ||
       this.isFieldInvalid('municipio')
     ) {
-      this.setErrorMessage(
-        'Por favor, preencha os campos obrigatórios.'
-      );
+      this.setErrorMessage('Por favor, preencha os campos obrigatórios.');
+      return;
+    }
+
+    if (!isSelectableProfileIdentityCode(this.gender)) {
+      this.formErrors['gender'] = 'Selecione uma identificação de perfil válida.';
+      this.setErrorMessage('Revise a identificação de perfil escolhida.');
       return;
     }
 
@@ -457,26 +435,17 @@ implements OnInit, UnsavedChangesAware
         }),
         takeUntilDestroyed(this.destroyRef),
         catchError((error) => {
-          const code = String(
-            (error as { code?: unknown })?.code ?? ''
-          );
-
+          const code = String((error as { code?: unknown })?.code ?? '');
           if (code === 'nickname/in-use') {
-            this.formErrors['nickname'] =
-              'Este apelido já está em uso.';
-            this.setErrorMessage(
-              'Escolha outro apelido para continuar.'
-            );
+            this.formErrors['nickname'] = 'Este apelido já está em uso.';
+            this.setErrorMessage('Escolha outro apelido para continuar.');
             return EMPTY;
           }
-
           if (code === 'nickname/invalid') {
-            this.formErrors['nickname'] =
-              'Informe um apelido válido.';
+            this.formErrors['nickname'] = 'Informe um apelido válido.';
             this.setErrorMessage('Revise o apelido informado.');
             return EMPTY;
           }
-
           this.reportError(
             error,
             'Ocorreu um erro ao finalizar o cadastro. Tente novamente.'
@@ -487,10 +456,7 @@ implements OnInit, UnsavedChangesAware
       .subscribe({
         next: () => {
           this.setSuccessMessage('Perfil finalizado com sucesso!');
-
-          const normalizedNickname =
-            NicknameUtils.normalizarApelido(this.nickname);
-
+          const normalizedNickname = NicknameUtils.normalizarApelido(this.nickname);
           this.currentUserStore.patch({
             nickname: normalizedNickname,
             profileCompleted: true,
@@ -499,21 +465,26 @@ implements OnInit, UnsavedChangesAware
             estado: this.selectedEstado,
             municipio: this.selectedMunicipio,
           });
-
           this.localDraft.remove(this.draftKey);
           this.initialDraftSnapshot = this.currentDraftSnapshot();
           this.avatarFile = null;
-
           const target = this.getRedirectToAfterCompletion(uid);
-          this.router
-            .navigateByUrl(target, { replaceUrl: true })
-            .catch(() => {});
+          this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
         },
       });
   }
 
   private uploadAvatarAfterProfileSave$(uid: string): Observable<void> {
     if (!this.avatarFile) return of(void 0);
+
+    const validation = validateImageMediaFile(this.avatarFile, 'avatar');
+    if (!validation.valid) {
+      return new Observable<void>((subscriber) => {
+        subscriber.error(
+          new Error(validation.userMessage ?? 'A foto principal não é válida.')
+        );
+      });
+    }
 
     this.isUploading = true;
     this.progressValue = 0;
@@ -535,12 +506,9 @@ implements OnInit, UnsavedChangesAware
         tap((result) => {
           if (result.status === 'uploaded' && result.photoURL) {
             this.progressValue = 100;
-            this.currentUserStore.patch({
-              photoURL: result.photoURL,
-            });
+            this.currentUserStore.patch({ photoURL: result.photoURL });
             return;
           }
-
           if (result.status === 'avatar_patch_failed') {
             this.progressValue = 100;
             this.setUploadWarning(
@@ -548,11 +516,8 @@ implements OnInit, UnsavedChangesAware
             );
             return;
           }
-
           if (result.status === 'upload_failed') {
-            this.setUploadWarning(
-              'Perfil salvo. Não foi possível enviar a foto agora.'
-            );
+            this.setUploadWarning('Perfil salvo. Não foi possível enviar a foto agora.');
           }
         }),
         finalize(() => {
@@ -566,55 +531,74 @@ implements OnInit, UnsavedChangesAware
     const input = event.target as HTMLInputElement | null;
     const file = input?.files?.[0] ?? null;
 
-    this.resetAvatarSelectionState();
-    if (!file) {
-      this.onDraftChange();
+    this.resetAvatarUploadState();
+    if (!file || this.isEditingAvatar) {
+      if (input) input.value = '';
       return;
     }
 
-    const acceptedTypes = new Set([
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-    ]);
-
-    if (!acceptedTypes.has(file.type?.toLowerCase())) {
+    const validation = validateImageMediaFile(file, 'avatar');
+    if (!validation.valid) {
       this.setErrorMessage(
-        'Selecione uma imagem em JPG, PNG ou WebP.'
+        validation.userMessage ?? 'Selecione uma foto principal válida.'
       );
+      if (input) input.value = '';
       return;
     }
 
-    const maxSizeBytes = 10 * 1024 * 1024;
-    if (file.size > maxSizeBytes) {
-      this.setErrorMessage('A foto deve ter no máximo 10 MB.');
-      return;
-    }
-
-    this.avatarFile = file;
-    this.onDraftChange();
+    this.isEditingAvatar = true;
+    this.photoEditor
+      .editFile$(file, {
+        source: 'profile-avatar',
+        context: 'profile-avatar',
+        preset: 'avatar-square',
+      })
+      .pipe(
+        take(1),
+        tap((result) => {
+          if (!result) return;
+          const processedValidation = validateImageMediaFile(result.file, 'avatar');
+          if (!processedValidation.valid) {
+            throw new Error(
+              processedValidation.userMessage ??
+                'A imagem editada não atende à política de avatar.'
+            );
+          }
+          this.avatarFile = result.file;
+          this.message = '';
+          this.messageKind = null;
+          this.onDraftChange();
+        }),
+        catchError((error) => {
+          this.reportError(
+            error,
+            'Não foi possível preparar a foto principal. Tente novamente.'
+          );
+          return EMPTY;
+        }),
+        finalize(() => {
+          this.isEditingAvatar = false;
+          if (input) input.value = '';
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   private initializeDraftState(uid: string): void {
     this.draftKey = `profile-completion:${uid}`;
     this.initialDraftSnapshot = this.currentDraftSnapshot();
 
-    const draft = this.localDraft.load<ProfileCompletionDraft>(
-      this.draftKey
-    );
-
+    const draft = this.localDraft.load<ProfileCompletionDraft>(this.draftKey);
     if (draft) {
       if (this.needsNickname) {
-        this.nickname = NicknameUtils.normalizarApelido(
-          draft.nickname
-        );
+        this.nickname = NicknameUtils.normalizarApelido(draft.nickname);
       }
       this.gender = String(draft.gender ?? '');
       this.orientation = String(draft.orientation ?? '');
       this.selectedEstado = String(draft.estado ?? '');
       this.selectedMunicipio = String(draft.municipio ?? '');
     }
-
     this.draftReady = true;
   }
 
@@ -624,10 +608,7 @@ implements OnInit, UnsavedChangesAware
         debounceTime(500),
         filter(() => this.hasUnsavedChanges()),
         tap(() => {
-          this.localDraft.save(
-            this.draftKey,
-            this.currentDraftValue()
-          );
+          this.localDraft.save(this.draftKey, this.currentDraftValue());
         }),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -652,7 +633,6 @@ implements OnInit, UnsavedChangesAware
 
   private resolveEntryContext(): void {
     const reason = this.route.snapshot.queryParamMap.get('reason');
-
     if (reason === 'profile_incomplete') {
       this.entryReason = 'profile_incomplete';
       this.pageTitle = 'Complete seu perfil';
@@ -660,7 +640,6 @@ implements OnInit, UnsavedChangesAware
         'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
       return;
     }
-
     if (reason === 'email_unverified') {
       this.entryReason = 'email_unverified';
       this.pageTitle = 'Complete seu perfil';
@@ -668,7 +647,6 @@ implements OnInit, UnsavedChangesAware
         'Seu e-mail ainda pode estar pendente de verificação, mas esta etapa serve apenas para completar seu perfil.';
       return;
     }
-
     this.entryReason = null;
     this.pageTitle = 'Complete seu perfil';
     this.introText =
@@ -688,10 +666,17 @@ implements OnInit, UnsavedChangesAware
       const valid =
         NicknameUtils.isApelidoValido(display) &&
         NicknameUtils.isApelidoIndiceValido(display);
-
       this.formErrors[field] = valid
         ? ''
         : 'Use de 4 a 24 caracteres: letras, números, espaço, ponto, hífen ou sublinhado.';
+      this.onDraftChange();
+      return;
+    }
+
+    if (field === 'gender') {
+      this.formErrors[field] = isSelectableProfileIdentityCode(clean)
+        ? ''
+        : 'Selecione uma identificação de perfil válida.';
       this.onDraftChange();
       return;
     }

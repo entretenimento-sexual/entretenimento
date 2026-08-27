@@ -3,7 +3,7 @@ export type FileUploadKind = 'image' | 'video' | 'avatar';
 
 /**
  * Metadados seguros e serializáveis usados somente para feedback e debug.
- * Não contém conteúdo binário, UID, nome original ou path de Storage.
+ * Não contém conteúdo binário, UID, nome original, path de Storage ou URL.
  */
 export interface FileUploadContext {
   readonly uploadId: string;
@@ -17,7 +17,6 @@ export interface FileState {
   readonly progress: number;
   readonly error: string | null;
   readonly success: boolean;
-  readonly downloadUrl: string | null;
   readonly activeUpload: FileUploadContext | null;
 }
 
@@ -26,6 +25,5 @@ export const initialFileState: FileState = {
   progress: 0,
   error: null,
   success: false,
-  downloadUrl: null,
   activeUpload: null,
 };

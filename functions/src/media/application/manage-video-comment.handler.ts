@@ -3,10 +3,17 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
+  assertNoActiveBilateralBlockInTransaction,
+} from '../../friendship/application/bilateral-block-access.policy';
+import {
   buildMediaEngagementScore,
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import {
+  REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+  assertPublicMediaCallableAppCheck,
+} from './public-media-callable-security';
 
 type VideoCommentStatus = 'VISIBLE' | 'HIDDEN' | 'DELETED';
 type VideoCommentModerationAction = 'HIDE' | 'RESTORE' | 'DELETE';
@@ -148,6 +155,13 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
     const newCommentRef = commentsCollection.doc();
 
     return db.runTransaction(async (transaction) => {
+      await assertNoActiveBilateralBlockInTransaction(
+        transaction,
+        authorUid,
+        ownerUid,
+        'Vídeo público não encontrado.'
+      );
+
       const [videoSnap, authorProfileSnap] = await Promise.all([
         transaction.get(videoRef),
         transaction.get(authorProfileRef),
@@ -256,12 +270,17 @@ export const createVideoComment = onCall<CreateVideoCommentRequest>(
 );
 
 export const moderateVideoComment = onCall<ModerateVideoCommentRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+  },
   async (request): Promise<{
     status: VideoCommentStatus;
     commentsCount: number;
     score: number;
   }> => {
+    assertPublicMediaCallableAppCheck(request.app);
+
     const requesterUid = request.auth?.uid ?? null;
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);

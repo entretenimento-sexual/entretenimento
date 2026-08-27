@@ -54,6 +54,41 @@ describe('public-profile-card.mapper', () => {
     });
   });
 
+  it('deve preservar idade e sinais públicos usados pelo matching', () => {
+    const card = mapPublicProfileCard({
+      uid: 'profile-matching',
+      nickname: 'Compatível',
+      age: 34,
+      publicRelationshipIntents: ['dating', 'dating', 'serious'],
+      publicSexualPractices: ['bdsm', 'tantra'],
+      publicBodyTraits: ['athletic', 'tattoos'],
+      preferenceBadgesVisible: true,
+      publicPreferencesUpdatedAt: {
+        seconds: 1_720_000_000,
+        nanoseconds: 250_000_000,
+      },
+    });
+
+    expect(card).toMatchObject({
+      age: 34,
+      publicRelationshipIntents: ['dating', 'serious'],
+      publicSexualPractices: ['bdsm', 'tantra'],
+      publicBodyTraits: ['athletic', 'tattoos'],
+      preferenceBadgesVisible: true,
+      publicPreferencesUpdatedAt: 1_720_000_000_250,
+    });
+  });
+
+  it('deve aceitar alias legado de idade sem perder o valor público', () => {
+    const card = mapPublicProfileCard({
+      uid: 'profile-age-alias',
+      nickname: 'Idade pública',
+      idade: '29',
+    });
+
+    expect(card?.age).toBe(29);
+  });
+
   it('deve priorizar o contador único do perfil sobre o alias legado', () => {
     const card = mapPublicProfileCard({
       uid: 'profile-viewers',
@@ -74,6 +109,22 @@ describe('public-profile-card.mapper', () => {
     });
 
     expect(card?.interestedInGenders).toEqual(['man', 'woman']);
+  });
+
+  it('deve tratar 0,0 legado como localização pública ausente', () => {
+    const card = mapPublicProfileCard({
+      uid: 'profile-zero-location',
+      nickname: 'Sem posição válida',
+      latitude: 0,
+      longitude: 0,
+      geohash: '7zzzz',
+    });
+
+    expect(card).toMatchObject({
+      latitude: null,
+      longitude: null,
+      geohash: null,
+    });
   });
 
   it('deve recusar projeção sem nickname público', () => {

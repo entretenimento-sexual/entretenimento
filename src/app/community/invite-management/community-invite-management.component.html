@@ -1,0 +1,160 @@
+@if (actionState$ | async; as actionState) {
+  <section
+    class="community-invite-management"
+    aria-labelledby="community-invite-management-title"
+  >
+    <header class="community-invite-management__header">
+      <div>
+        <span>Participação</span>
+        <h2 id="community-invite-management-title">Convidar pessoas</h2>
+      </div>
+      <i class="fas fa-user-plus" aria-hidden="true"></i>
+    </header>
+
+    <form class="community-invite-management__search" (ngSubmit)="search()">
+      <label for="community-invite-nickname">Apelido exato</label>
+      <div>
+        <input
+          id="community-invite-nickname"
+          type="text"
+          [formControl]="nickname"
+          maxlength="40"
+          autocomplete="off"
+          placeholder="Ex.: joao_oficial"
+          [attr.aria-invalid]="nickname.invalid && nickname.touched"
+          aria-describedby="community-invite-nickname-help"
+        />
+        <button type="submit">
+          <i class="fas fa-magnifying-glass" aria-hidden="true"></i>
+          Localizar
+        </button>
+      </div>
+      <small id="community-invite-nickname-help">
+        A busca exige o apelido completo e não exibe listas de perfis.
+      </small>
+    </form>
+
+    @if (candidateState$ | async; as candidateState) {
+      <div class="community-invite-management__candidate" aria-live="polite">
+        @if (candidateState.status === 'loading') {
+          <div class="community-invite-management__state" role="status">
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            Localizando perfil…
+          </div>
+        } @else if (candidateState.status === 'empty') {
+          <div class="community-invite-management__state" role="status">
+            <i class="fas fa-user-slash" aria-hidden="true"></i>
+            Nenhum perfil disponível com esse apelido.
+          </div>
+        } @else if (candidateState.status === 'error') {
+          <div class="community-invite-management__state" role="alert">
+            <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+            Busca indisponível. Tente novamente.
+          </div>
+        } @else if (candidateState.status === 'ready') {
+          <article class="community-invite-candidate">
+            <span class="community-invite-candidate__avatar" aria-hidden="true">
+              @if (candidateState.candidate.avatarUrl) {
+                <img
+                  [src]="candidateState.candidate.avatarUrl"
+                  alt=""
+                  appImageFallback
+                />
+              } @else {
+                <i class="fas fa-user" aria-hidden="true"></i>
+              }
+            </span>
+            <div>
+              <strong>{{ candidateState.candidate.nickname }}</strong>
+              <span>{{ candidateStatusLabel(candidateState.candidate) }}</span>
+            </div>
+            <button
+              type="button"
+              [disabled]="candidateState.candidate.status !== 'eligible' || actionState.status === 'loading'"
+              [attr.aria-busy]="actionState.status === 'loading' && actionState.action === 'send' ? 'true' : null"
+              (click)="send(candidateState.candidate)"
+            >
+              @if (actionState.status === 'loading' && actionState.action === 'send') {
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                Enviando
+              } @else {
+                Enviar convite
+              }
+            </button>
+          </article>
+        }
+      </div>
+    }
+
+    @if (sentInvitesState$ | async; as sentState) {
+      <section
+        class="community-invite-management__pending"
+        aria-labelledby="community-pending-invites-title"
+      >
+        <header>
+          <h3 id="community-pending-invites-title">Convites pendentes</h3>
+          @if (sentState.status === 'ready') {
+            <span aria-live="polite">{{ sentState.items.length }}</span>
+          }
+        </header>
+
+        @if (sentState.status === 'loading') {
+          <div class="community-invite-management__state" role="status">
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            Carregando convites…
+          </div>
+        } @else if (sentState.status === 'error') {
+          <div class="community-invite-management__state" role="alert">
+            <span>Não foi possível carregar os convites.</span>
+            <button type="button" (click)="retrySentInvites()">
+              Tentar novamente
+            </button>
+          </div>
+        } @else if (sentState.status === 'empty') {
+          <p class="community-invite-management__empty">
+            Nenhum convite pendente nesta Comunidade.
+          </p>
+        } @else {
+          <ul>
+            @for (invite of sentState.items; track invite.inviteId) {
+              <li>
+                <span class="community-invite-candidate__avatar" aria-hidden="true">
+                  @if (invite.receiverAvatarUrl) {
+                    <img
+                      [src]="invite.receiverAvatarUrl"
+                      alt=""
+                      loading="lazy"
+                      appImageFallback
+                    />
+                  } @else {
+                    <i class="fas fa-user" aria-hidden="true"></i>
+                  }
+                </span>
+                <div>
+                  <strong>{{ invite.receiverLabel }}</strong>
+                  <span>
+                    Por {{ invite.senderLabel }} · expira
+                    {{ invite.expiresAt | date:'dd/MM, HH:mm' }}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  [disabled]="actionState.status === 'loading'"
+                  [attr.aria-label]="'Revogar convite para ' + invite.receiverLabel"
+                  [attr.aria-busy]="actionState.status === 'loading' && actionState.targetId === invite.inviteId ? 'true' : null"
+                  (click)="revoke(invite)"
+                >
+                  @if (actionState.status === 'loading' && actionState.targetId === invite.inviteId) {
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  } @else {
+                    Revogar
+                  }
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
+  </section>
+}

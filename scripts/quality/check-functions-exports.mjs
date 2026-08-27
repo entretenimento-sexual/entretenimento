@@ -5,7 +5,8 @@
 // Objetivo:
 // - impedir que um barrel TypeScript correto esconda um functions/lib obsoleto;
 // - falhar antes de iniciar emuladores ou validar produção;
-// - manter diagnóstico explícito para callables críticas de mensageria e compliance.
+// - manter diagnóstico explícito para callables críticas de mensageria, compliance
+//   e superfícies comunitárias em desenvolvimento.
 // -----------------------------------------------------------------------------
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -27,6 +28,38 @@ const requiredExports = [
   'issueSuspectedViolationNotice',
   'getMyComplianceCases',
   'submitComplianceCaseResponse',
+  'getMyBillingSnapshot',
+  'getPublicVideoAccessUrls',
+  'getRecentPublicMediaViews',
+  'createCommunity',
+  'getCommunityCreationCapability',
+  'getCommunityTagCatalog',
+  'createCommunityFeedPost',
+  'getCommunityFeedItems',
+  'createCommunityFeedComment',
+  'createCommunityFeedCommentReply',
+  'getCommunityFeedCommentsPage',
+  'getCommunityFeedCommentRepliesPage',
+  'moderateCommunityFeedComment',
+  'moderateCommunityFeedCommentReply',
+  'toggleCommunityFeedReaction',
+  'moderateCommunityFeedPost',
+  'reportCommunityFeedPost',
+  'reportCommunityFeedComment',
+  'reportCommunityFeedCommentReply',
+  'reviewCommunityFeedPostReport',
+  'reviewCommunityFeedCommentReport',
+  'reviewCommunityFeedCommentReplyReport',
+  'getCommunityTopicsPage',
+  'getCommunityTopicDetail',
+  'getCommunityTopicRepliesPage',
+  'createCommunityTopic',
+  'createCommunityTopicReply',
+  'moderateCommunityTopic',
+  'getCommunityMembersForManagement',
+  'manageCommunityMember',
+  'syncCommunityArchiveProjections',
+  'syncCommunityFeedRealtime',
 ];
 
 if (!existsSync(entryPath)) {

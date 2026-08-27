@@ -39,6 +39,17 @@ describe('UserActivityHubComponent', () => {
                 updatedAt: 2,
               },
               {
+                id: 'notification-community-1',
+                userId: 'user-1',
+                type: 'community.comment.received',
+                title: 'Novo comentário',
+                body: 'Uma publicação recebeu um comentário.',
+                route: '/dashboard/comunidades/community-1',
+                readAt: null,
+                createdAt: 4,
+                updatedAt: 4,
+              },
+              {
                 id: 'notification-connection-1',
                 userId: 'user-1',
                 type: 'social',
@@ -78,6 +89,7 @@ describe('UserActivityHubComponent', () => {
       'Mensagens',
       'Conexões',
       'Salas',
+      'Comunidades',
       'Momentos',
       'Central',
     ]);
@@ -86,6 +98,6 @@ describe('UserActivityHubComponent', () => {
     expect(connectionLink?.getAttribute('href')).toBe('/friends/requests');
     expect(roomLink?.getAttribute('href')).toBe('/chat/room-invites');
     expect(momentsLink?.getAttribute('href')).toBe('/descobrir');
-    expect(fixture.nativeElement.textContent).toContain('3');
+    expect(fixture.nativeElement.textContent).toContain('4');
   });
 });

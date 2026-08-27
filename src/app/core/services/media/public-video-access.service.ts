@@ -8,6 +8,7 @@ import {
   finalize,
   map,
   shareReplay,
+  switchMap,
 } from 'rxjs/operators';
 
 import {
@@ -18,12 +19,18 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { buildPublicMediaAccessCacheKey } from './public-media-access-cache-key';
 import {
   buildPublicVideoKey,
   hydratePublicVideoItem,
+  hydratePublicVideoPreviewItem,
   isPublicVideoAccessUsable,
+  isPublicVideoPreviewAccessUsable,
   mapPublicVideoProjection,
 } from './public-video-item.mapper';
+import { PublicVideoOwnerEnrichmentService } from './public-video-owner-enrichment.service';
+
+type TPublicVideoAccessMode = 'PREVIEW' | 'PLAYBACK';
 
 interface PublicVideoAccessRequestItem {
   ownerUid: string;
@@ -32,6 +39,7 @@ interface PublicVideoAccessRequestItem {
 
 interface PublicVideoAccessRequest {
   items: PublicVideoAccessRequestItem[];
+  mode: TPublicVideoAccessMode;
 }
 
 interface PublicVideoAccessResponse {
@@ -45,6 +53,7 @@ const CACHE_EXPIRY_SAFETY_MS = 30_000;
 export class PublicVideoAccessService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly functions = inject(Functions);
+  private readonly ownerEnrichment = inject(PublicVideoOwnerEnrichmentService);
   private readonly accessCache = new Map<string, IPublicVideoAccess>();
   private readonly inFlightRefreshes = new Map<
     string,
@@ -77,91 +86,32 @@ export class PublicVideoAccessService {
       });
   }
 
-  hydratePublicVideoUrls$(
+  /**
+   * Hidrata apenas o necessário para cards/rails/showcase.
+   * O backend não verifica nem assina o arquivo de vídeo neste modo.
+   */
+  hydratePublicVideoPreviews$(
     projections: readonly IPublicVideoProjection[]
   ): Observable<IPublicVideoItem[]> {
-    const eligible = projections.flatMap((candidate) => {
-      const projection = this.normalizeProjection(candidate);
-      return projection ? [projection] : [];
-    });
-
-    if (!eligible.length) {
-      return of([]);
-    }
-
-    const resolved = new Map<string, IPublicVideoAccess>();
-    const pending: IPublicVideoProjection[] = [];
-    const now = Date.now();
-
-    for (const projection of eligible) {
-      const cacheKey = this.buildCacheKey(projection);
-      const cached = this.accessCache.get(cacheKey);
-
-      if (
-        cached &&
-        cached.expiresAt > now + CACHE_EXPIRY_SAFETY_MS &&
-        isPublicVideoAccessUsable(projection, cached, now)
-      ) {
-        resolved.set(
-          buildPublicVideoKey(projection.ownerUid, projection.id),
-          cached
-        );
-        continue;
-      }
-
-      if (cached) {
-        this.accessCache.delete(cacheKey);
-      }
-
-      pending.push(projection);
-    }
-
-    if (!pending.length) {
-      return of(this.materializeItems(eligible, resolved, now));
-    }
-
-    const requests = this.chunkItems(pending, MAX_ITEMS_PER_REQUEST).map(
-      (chunk) => this.requestAccessUrls$(chunk)
-    );
-
-    return forkJoin(requests).pipe(
-      map((responses) => {
-        const projectionByIdentity = new Map(
-          eligible.map((projection) => [
-            buildPublicVideoKey(projection.ownerUid, projection.id),
-            projection,
-          ])
-        );
-
-        for (const response of responses) {
-          for (const access of response.items ?? []) {
-            const identityKey = buildPublicVideoKey(
-              access.ownerUid,
-              access.videoId
-            );
-            const projection = projectionByIdentity.get(identityKey);
-
-            if (!projection || !isPublicVideoAccessUsable(
-              projection,
-              access,
-              now
-            )) {
-              continue;
-            }
-
-            resolved.set(identityKey, access);
-            this.accessCache.set(this.buildCacheKey(projection), access);
-          }
-        }
-
-        return this.materializeItems(eligible, resolved, now);
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
+    return this.ownerEnrichment.enrich$(projections).pipe(
+      switchMap((enriched) => this.hydrateAccess$(enriched, 'PREVIEW'))
     );
   }
 
   /**
-   * Renova um único item sem reutilizar a URL cacheada.
+   * Hidrata acesso completo ao arquivo de vídeo.
+   * Deve ser usado somente quando playback realmente será iniciado.
+   */
+  hydratePublicVideoUrls$(
+    projections: readonly IPublicVideoProjection[]
+  ): Observable<IPublicVideoItem[]> {
+    return this.ownerEnrichment.enrich$(projections).pipe(
+      switchMap((enriched) => this.hydrateAccess$(enriched, 'PLAYBACK'))
+    );
+  }
+
+  /**
+   * Renova um único item sem reutilizar a URL de playback cacheada.
    * Chamadas concorrentes para o mesmo vídeo compartilham a mesma requisição.
    */
   refreshPublicVideoUrl$(
@@ -182,7 +132,7 @@ export class PublicVideoAccessService {
 
     this.accessCache.delete(this.buildCacheKey(projection));
 
-    const refresh$ = this.requestAccessUrls$([projection]).pipe(
+    const refresh$ = this.requestAccessUrls$([projection], 'PLAYBACK').pipe(
       map((response) => {
         const now = Date.now();
         const access = (response.items ?? []).find((item) =>
@@ -214,8 +164,95 @@ export class PublicVideoAccessService {
     this.accessCache.delete(this.buildCacheKey(projection));
   }
 
+  private hydrateAccess$(
+    projections: readonly IPublicVideoProjection[],
+    mode: TPublicVideoAccessMode
+  ): Observable<IPublicVideoItem[]> {
+    const eligible = projections.flatMap((candidate) => {
+      const projection = this.normalizeProjection(candidate);
+      return projection ? [projection] : [];
+    });
+
+    if (!eligible.length) {
+      return of([]);
+    }
+
+    const resolved = new Map<string, IPublicVideoAccess>();
+    const pending: IPublicVideoProjection[] = [];
+    const now = Date.now();
+
+    for (const projection of eligible) {
+      const cacheKey = this.buildCacheKey(projection);
+      const cached = this.accessCache.get(cacheKey);
+      const usable = mode === 'PLAYBACK'
+        ? isPublicVideoAccessUsable(projection, cached, now)
+        : isPublicVideoPreviewAccessUsable(projection, cached, now);
+
+      if (
+        cached &&
+        cached.expiresAt > now + CACHE_EXPIRY_SAFETY_MS &&
+        usable
+      ) {
+        resolved.set(
+          buildPublicVideoKey(projection.ownerUid, projection.id),
+          cached
+        );
+        continue;
+      }
+
+      if (cached) {
+        this.accessCache.delete(cacheKey);
+      }
+
+      pending.push(projection);
+    }
+
+    if (!pending.length) {
+      return of(this.materializeItems(eligible, resolved, now, mode));
+    }
+
+    const requests = this.chunkItems(pending, MAX_ITEMS_PER_REQUEST).map(
+      (chunk) => this.requestAccessUrls$(chunk, mode)
+    );
+
+    return forkJoin(requests).pipe(
+      map((responses) => {
+        const projectionByIdentity = new Map(
+          eligible.map((projection) => [
+            buildPublicVideoKey(projection.ownerUid, projection.id),
+            projection,
+          ])
+        );
+
+        for (const response of responses) {
+          for (const access of response.items ?? []) {
+            const identityKey = buildPublicVideoKey(
+              access.ownerUid,
+              access.videoId
+            );
+            const projection = projectionByIdentity.get(identityKey);
+            const usable = projection && (mode === 'PLAYBACK'
+              ? isPublicVideoAccessUsable(projection, access, now)
+              : isPublicVideoPreviewAccessUsable(projection, access, now));
+
+            if (!projection || !usable) {
+              continue;
+            }
+
+            resolved.set(identityKey, access);
+            this.accessCache.set(this.buildCacheKey(projection), access);
+          }
+        }
+
+        return this.materializeItems(eligible, resolved, now, mode);
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
   private requestAccessUrls$(
-    projections: readonly IPublicVideoProjection[]
+    projections: readonly IPublicVideoProjection[],
+    mode: TPublicVideoAccessMode
   ): Observable<PublicVideoAccessResponse> {
     return this.firestoreCtx.deferPromise$(async () => {
       const callable = httpsCallable<
@@ -223,6 +260,7 @@ export class PublicVideoAccessService {
         PublicVideoAccessResponse
       >(this.functions, 'getPublicVideoAccessUrls');
       const response = await callable({
+        mode,
         items: projections.map((projection) => ({
           ownerUid: projection.ownerUid,
           videoId: projection.id,
@@ -234,6 +272,7 @@ export class PublicVideoAccessService {
       catchError((error: unknown) => {
         this.reportError(error, {
           op: 'requestAccessUrls$',
+          mode,
           count: projections.length,
         });
 
@@ -245,14 +284,17 @@ export class PublicVideoAccessService {
   private materializeItems(
     projections: readonly IPublicVideoProjection[],
     resolved: ReadonlyMap<string, IPublicVideoAccess>,
-    now: number
+    now: number,
+    mode: TPublicVideoAccessMode
   ): IPublicVideoItem[] {
     return projections.flatMap((projection) => {
       const access = resolved.get(
         buildPublicVideoKey(projection.ownerUid, projection.id)
       );
       const item = access
-        ? hydratePublicVideoItem(projection, access, now)
+        ? mode === 'PLAYBACK'
+          ? hydratePublicVideoItem(projection, access, now)
+          : hydratePublicVideoPreviewItem(projection, access, now)
         : null;
 
       return item ? [item] : [];
@@ -285,14 +327,13 @@ export class PublicVideoAccessService {
   }
 
   private buildCacheKey(projection: IPublicVideoProjection): string {
-    const version = projection.updatedAt || projection.publishedAt;
-
-    return [
-      'public-video-access',
-      projection.ownerUid,
-      projection.id,
-      String(version),
-    ].join(':');
+    return buildPublicMediaAccessCacheKey({
+      namespace: 'public-video-access',
+      ownerUid: projection.ownerUid,
+      mediaId: projection.id,
+      assetVersion: projection.assetVersion,
+      publishedAt: projection.publishedAt,
+    });
   }
 
   private chunkItems<T>(items: readonly T[], size: number): T[][] {

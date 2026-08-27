@@ -1,0 +1,166 @@
+name: Media E2E
+
+on:
+  push:
+    paths:
+      - '.github/workflows/media-e2e.yml'
+      - 'functions/src/media/**'
+      - 'functions/src/account_lifecycle/**'
+      - 'functions/src/compliance/**'
+      - 'functions/src/firebaseApp.ts'
+      - 'functions/src/index.ts'
+      - 'src/app/media/**'
+      - 'src/app/core/services/media/**'
+      - 'src/app/core/services/moderation/**'
+      - 'src/app/store/**'
+      - 'firestore-rules/**'
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'firebase.media-e2e.json'
+      - 'scripts/tests/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'functions/package.json'
+      - 'functions/package-lock.json'
+  pull_request:
+    paths:
+      - '.github/workflows/media-e2e.yml'
+      - 'functions/src/media/**'
+      - 'functions/src/account_lifecycle/**'
+      - 'functions/src/compliance/**'
+      - 'functions/src/firebaseApp.ts'
+      - 'functions/src/index.ts'
+      - 'src/app/media/**'
+      - 'src/app/core/services/media/**'
+      - 'src/app/core/services/moderation/**'
+      - 'src/app/store/**'
+      - 'firestore-rules/**'
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'firebase.media-e2e.json'
+      - 'scripts/tests/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'functions/package.json'
+      - 'functions/package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: media-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NODE_VERSION: '22'
+
+jobs:
+  photo-e2e:
+    name: Photo publication and moderation E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - name: Prepare logs
+        run: mkdir -p logs
+
+      - name: Install application dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee logs/photo-root-install.log
+
+      - name: Install Functions dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npm --prefix functions ci 2>&1 | tee logs/photo-functions-install.log
+
+      - name: Run photo E2E
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:media:e2e 2>&1 | tee logs/photo-e2e.log
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: media-photo-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: logs/
+          if-no-files-found: error
+          retention-days: 14
+
+  video-e2e:
+    name: Video publication and moderation E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - name: Prepare logs
+        run: mkdir -p logs
+
+      - name: Install application dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee logs/video-root-install.log
+
+      - name: Install Functions dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npm --prefix functions ci 2>&1 | tee logs/video-functions-install.log
+
+      - name: Run video E2E
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:media:video:e2e 2>&1 | tee logs/video-e2e.log
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: media-video-e2e-${{ github.run_id }}-${{ github.run_attempt }}
+          path: logs/
+          if-no-files-found: error
+          retention-days: 14

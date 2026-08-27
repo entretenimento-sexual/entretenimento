@@ -6,46 +6,72 @@ import {
   buildPublicPreferenceProjection,
   publicPreferenceProjectionMatches,
 } from './public-preference-projection';
+import { isPublicProfileProjectionBlocked } from './public-profile-projection-access';
 
 export const syncPublicPreferenceProjection = onDocumentWritten(
   'users/{userId}/preferences/profile',
   async (event) => {
     const uid = String(event.params.userId ?? '').trim();
-    if (!uid) return;
+
+    if (!uid) {
+      return;
+    }
 
     const publicRef = db.collection('public_profiles').doc(uid);
     const userRef = db.collection('users').doc(uid);
-    const [publicSnapshot, userSnapshot] = await Promise.all([
-      publicRef.get(),
-      userRef.get(),
-    ]);
+    const preferenceRef = userRef.collection('preferences').doc('profile');
 
-    if (!publicSnapshot.exists) return;
+    await db.runTransaction(async (transaction) => {
+      const [publicSnapshot, userSnapshot, preferenceSnapshot] =
+        await Promise.all([
+          transaction.get(publicRef),
+          transaction.get(userRef),
+          transaction.get(preferenceRef),
+        ]);
 
-    const profile = event.data?.after.exists ? (event.data.after.data() ?? {}) : null;
-    const user = userSnapshot.exists ? (userSnapshot.data() ?? {}) : {};
-    const expected = buildPublicPreferenceProjection(profile, {
-      canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic'),
+      if (!userSnapshot.exists) {
+        if (publicSnapshot.exists) {
+          transaction.delete(publicRef);
+        }
+        return;
+      }
+
+      const user = userSnapshot.data() ?? {};
+
+      if (isPublicProfileProjectionBlocked(user)) {
+        if (publicSnapshot.exists) {
+          transaction.delete(publicRef);
+        }
+        return;
+      }
+
+      if (!publicSnapshot.exists) {
+        return;
+      }
+
+      const profile = preferenceSnapshot.exists
+        ? (preferenceSnapshot.data() ?? {})
+        : null;
+      const expected = buildPublicPreferenceProjection(profile, {
+        canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic'),
+      });
+      const current = publicSnapshot.data() ?? {};
+
+      if (publicPreferenceProjectionMatches(current, expected)) {
+        return;
+      }
+
+      transaction.set(
+        publicRef,
+        {
+          ...expected,
+          publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
     });
-    const current = publicSnapshot.data() ?? {};
 
-    if (publicPreferenceProjectionMatches(current, expected)) return;
-
-    await publicRef.set(
-      {
-        ...expected,
-        publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    console.log('[discovery] Preferências públicas sincronizadas.', {
-      uid,
-      visible: expected.preferenceBadgesVisible,
-      relationshipIntentCount: expected.publicRelationshipIntents.length,
-      sexualPracticeCount: expected.publicSexualPractices.length,
-      bodyTraitCount: expected.publicBodyTraits.length,
-    });
+    console.log('[discovery] Preferências públicas sincronizadas.', { uid });
   }
 );

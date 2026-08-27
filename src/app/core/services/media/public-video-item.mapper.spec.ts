@@ -4,7 +4,9 @@ import type { IPublicVideoAccess } from 'src/app/core/interfaces/media/i-public-
 import {
   buildPublicVideoKey,
   hydratePublicVideoItem,
+  hydratePublicVideoPreviewItem,
   isPublicVideoAccessUsable,
+  isPublicVideoPreviewAccessUsable,
   mapPublicVideoProjection,
 } from './public-video-item.mapper';
 
@@ -25,6 +27,7 @@ function createValidDocument(): Record<string, unknown> {
     durationMs: 8_500,
     createdAt: 1_700_000_000_000,
     publishedAt: 1_700_000_100_000,
+    assetVersion: 1_700_000_150_000,
     updatedAt: 1_700_000_200_000,
     lastViewedAt: 1_700_000_300_000,
     visibility: 'PUBLIC',
@@ -82,6 +85,7 @@ describe('public-video-item.mapper', () => {
       reactionsCount: 18,
       ratingAverage: 4.25,
       score: 71,
+      assetVersion: 1_700_000_150_000,
       owner: {
         nickname: 'Alex',
         photoURL: 'https://example.test/avatar.jpg',
@@ -90,6 +94,18 @@ describe('public-video-item.mapper', () => {
     });
     expect(projection).not.toHaveProperty('url');
     expect(projection).not.toHaveProperty('path');
+  });
+
+  it('usa publishedAt como assetVersion em projeção legada', () => {
+    const legacy = createValidDocument();
+    delete legacy['assetVersion'];
+
+    const projection = mapPublicVideoProjection({
+      documentId: 'video-1',
+      data: legacy,
+    });
+
+    expect(projection?.assetVersion).toBe(1_700_000_100_000);
   });
 
   it('descarta vídeo não aprovado, não público ou com dono inconsistente', () => {
@@ -144,6 +160,37 @@ describe('public-video-item.mapper', () => {
         safetyScore: 100,
       },
     });
+  });
+
+  it('hidrata preview com poster sem exigir URL de playback', () => {
+    const projection = mapPublicVideoProjection({
+      documentId: 'video-1',
+      data: createValidDocument(),
+    });
+
+    expect(projection).not.toBeNull();
+
+    const previewAccess: IPublicVideoAccess = {
+      ownerUid: 'owner-1',
+      videoId: 'video-1',
+      url: null,
+      posterUrl: 'https://example.test/poster.webp?token=preview',
+      expiresAt: NOW + 5 * 60_000,
+    };
+
+    expect(
+      isPublicVideoPreviewAccessUsable(projection!, previewAccess, NOW)
+    ).toBe(true);
+    expect(isPublicVideoAccessUsable(projection!, previewAccess, NOW)).toBe(false);
+    expect(
+      hydratePublicVideoPreviewItem(projection!, previewAccess, NOW)
+    ).toMatchObject({
+      id: 'video-1',
+      url: null,
+      posterUrl: previewAccess.posterUrl,
+      accessExpiresAt: previewAccess.expiresAt,
+    });
+    expect(hydratePublicVideoItem(projection!, previewAccess, NOW)).toBeNull();
   });
 
   it('hidrata somente URL temporária correspondente e ainda válida', () => {

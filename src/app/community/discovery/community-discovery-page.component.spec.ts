@@ -1,12 +1,15 @@
 // src/app/community/discovery/community-discovery-page.component.spec.ts
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { filter, firstValueFrom, of, take } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
+import { CommunityTagRepository } from '../data-access/community-tag.repository';
+import { CommunityDiscoveryCacheService } from './community-discovery-cache.service';
 import { CommunityDiscoveryPageComponent } from './community-discovery-page.component';
 
 function venueCard() {
@@ -24,11 +27,15 @@ function venueCard() {
       minimumRole: null,
       requiresActiveSubscription: false,
     },
+    tags: [],
   };
 }
 
 describe('CommunityDiscoveryPageComponent / Locais', () => {
   const getDiscoveryPage$ = vi.fn();
+  const getCommunityTagCatalog$ = vi.fn();
+  const readSnapshot$ = vi.fn();
+  const rememberPage = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -39,6 +46,10 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
         generatedAt: 123,
       })
     );
+    getCommunityTagCatalog$.mockReturnValue(
+      of({ items: [], generatedAt: 123 })
+    );
+    readSnapshot$.mockReturnValue(of(null));
 
     TestBed.configureTestingModule({
       imports: [CommunityDiscoveryPageComponent],
@@ -46,15 +57,33 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
         provideRouter([]),
         {
           provide: ActivatedRoute,
-          useValue: { snapshot: { data: { sourceType: 'venue' } } },
+          useValue: {
+            snapshot: {
+              data: { sourceType: 'venue' },
+              queryParamMap: convertToParamMap({}),
+            },
+            queryParamMap: of(convertToParamMap({})),
+          },
         },
         {
           provide: CommunityPreviewRepository,
           useValue: { getDiscoveryPage$ },
         },
         {
+          provide: CommunityTagRepository,
+          useValue: { getCommunityTagCatalog$ },
+        },
+        {
+          provide: CommunityDiscoveryCacheService,
+          useValue: { readSnapshot$, rememberPage },
+        },
+        {
+          provide: CommunityCreationGateService,
+          useValue: { requestCreation$: vi.fn(() => of(void 0)) },
+        },
+        {
           provide: ErrorNotificationService,
-          useValue: { showError: vi.fn() },
+          useValue: { showError: vi.fn(), showWarning: vi.fn() },
         },
         {
           provide: GlobalErrorHandlerService,
@@ -78,11 +107,14 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
     expect(component.title).toBe('Locais');
     expect(component.description).toContain('Lugar físico');
     expect(component.canCreateVenue).toBe(true);
+    expect(component.canFilterByTags).toBe(false);
     expect(getDiscoveryPage$).toHaveBeenCalledWith({
       limit: 12,
       cursor: null,
       sourceType: 'venue',
+      tagId: null,
     });
+    expect(rememberPage).toHaveBeenCalledOnce();
     expect(state.items).toHaveLength(1);
     expect(component.detailsRoute(state.items[0])).toEqual([
       '/dashboard/locais',

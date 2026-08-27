@@ -21,8 +21,18 @@ class MockFirestoreValidationService {
   checkIfNicknameExists = vi.fn().mockReturnValue(of(false));
 }
 
+const registrationResult = (verificationEmailSent = true) => ({
+  user: { uid: 'u-test' },
+  providerId: null,
+  operationType: 'signIn',
+  verificationEmailSent,
+  registrationWarnings: verificationEmailSent
+    ? []
+    : ['email-verification-failed'],
+});
+
 class MockRegisterService {
-  registerUser = vi.fn().mockReturnValue(of(void 0));
+  registerUser = vi.fn().mockReturnValue(of(registrationResult()));
 }
 
 class MockEmailVerificationService {
@@ -31,6 +41,7 @@ class MockEmailVerificationService {
 
 class MockErrorNotificationService {
   showError = vi.fn();
+  showInfo = vi.fn();
 }
 
 describe('RegisterComponent', () => {
@@ -88,11 +99,28 @@ describe('RegisterComponent', () => {
     ).toBeTruthy();
   });
 
-  it('deve exibir erro e não chamar register quando o form estiver inválido', () => {
+  it('usa o banner da página sem snackbar duplicado quando o form está inválido', () => {
     component.onSubmit();
 
-    expect(errorNotification.showError).toHaveBeenCalled();
+    expect(component.banner()?.variant).toBe('error');
+    expect(component.banner()?.title).toBe('Verifique os campos');
+    expect(errorNotification.showError).not.toHaveBeenCalled();
     expect(registerService.registerUser).not.toHaveBeenCalled();
+  });
+
+  it('anuncia erros de campo de forma acessível após submit inválido', () => {
+    component.onSubmit();
+    fixture.detectChanges();
+
+    const errors = fixture.debugElement.queryAll(By.css('.tooltip-error'));
+
+    expect(errors.length).toBeGreaterThan(0);
+    for (const error of errors) {
+      const element = error.nativeElement as HTMLElement;
+      expect(element.getAttribute('role')).toBe('alert');
+      expect(element.getAttribute('aria-live')).toBe('polite');
+      expect(element.getAttribute('aria-atomic')).toBe('true');
+    }
   });
 
   it('mantém o formulário inválido quando as senhas não coincidem', () => {
@@ -144,7 +172,44 @@ describe('RegisterComponent', () => {
 
     expect(router.navigate).toHaveBeenCalledWith(
       ['/register/welcome'],
-      { queryParams: { email: 'jd@example.com', autocheck: '1' }, replaceUrl: true }
+      {
+        queryParams: {
+          email: 'jd@example.com',
+          autocheck: '1',
+          verificationEmail: 'sent',
+        },
+        replaceUrl: true,
+      }
+    );
+  });
+
+  it('encaminha falha do envio inicial sem afirmar que o e-mail foi enviado', async () => {
+    registerService.registerUser.mockReturnValueOnce(
+      of(registrationResult(false))
+    );
+
+    component.form.patchValue({
+      apelidoPrincipal: 'falhaenvio',
+      complementoApelido: '',
+      email: 'falha@example.com',
+      password: 'Segura123',
+      confirmPassword: 'Segura123',
+      aceitarTermos: true,
+    });
+
+    component.onSubmit();
+    await fixture.whenStable();
+
+    expect(router.navigate).toHaveBeenCalledWith(
+      ['/register/welcome'],
+      {
+        queryParams: {
+          email: 'falha@example.com',
+          autocheck: '1',
+          verificationEmail: 'failed',
+        },
+        replaceUrl: true,
+      }
     );
   });
 

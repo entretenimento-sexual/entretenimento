@@ -59,6 +59,11 @@ interface AppNotificationFirestoreDocument {
   actionRequired?: unknown;
   responseDueAt?: unknown;
   policySection?: unknown;
+  communityId?: unknown;
+  postId?: unknown;
+  commentId?: unknown;
+  activityCount?: unknown;
+  moderationTarget?: unknown;
   readAt?: unknown;
   createdAt?: unknown;
   updatedAt?: unknown;
@@ -70,6 +75,14 @@ interface MarkNotificationReadPayload {
 
 interface MarkAllNotificationsReadResponse {
   updated: number;
+}
+
+interface NotificationReportableError extends Error {
+  context?: string;
+  operation?: string;
+  extra?: Record<string, unknown>;
+  original?: unknown;
+  skipUserNotification?: boolean;
 }
 
 const DEFAULT_LIMIT = 20;
@@ -231,6 +244,14 @@ export class AppNotificationService {
           : null,
       responseDueAt: this.toMillis(raw.responseDueAt),
       policySection: this.toText(raw.policySection) || null,
+      communityId: this.toText(raw.communityId) || null,
+      postId: this.toText(raw.postId) || null,
+      commentId: this.toText(raw.commentId) || null,
+      activityCount: this.toPositiveInteger(raw.activityCount),
+      moderationTarget:
+        raw.moderationTarget === 'comment' || raw.moderationTarget === 'post'
+          ? raw.moderationTarget
+          : null,
       readAt: this.toMillis(raw.readAt),
       createdAt: this.toMillis(raw.createdAt),
       updatedAt: this.toMillis(raw.updatedAt),
@@ -249,6 +270,8 @@ export class AppNotificationService {
       case 'compliance.violation.response_received':
       case 'compliance.violation.resolved':
       case 'compliance.action.taken':
+      case 'community.comment.received':
+      case 'community.content.moderated':
       case 'system':
       case 'social':
       case 'chat':
@@ -261,6 +284,11 @@ export class AppNotificationService {
 
   private toText(value: unknown): string {
     return String(value ?? '').trim();
+  }
+
+  private toPositiveInteger(value: unknown): number | null {
+    const parsed = Math.trunc(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }
 
   private toMillis(value: unknown): number | null {
@@ -296,13 +324,16 @@ export class AppNotificationService {
     }
 
     try {
-      const err = toErrorInstance(error, '[AppNotificationService] read failed');
-      (err as any).context = 'AppNotificationService';
-      (err as any).operation = operation;
-      (err as any).extra = extra;
-      (err as any).original = error;
-      (err as any).skipUserNotification = true;
-      this.globalError.handleError(err);
+      const reportable = toErrorInstance(
+        error,
+        '[AppNotificationService] read failed'
+      ) as NotificationReportableError;
+      reportable.context = 'AppNotificationService';
+      reportable.operation = operation;
+      reportable.extra = extra;
+      reportable.original = error;
+      reportable.skipUserNotification = true;
+      this.globalError.handleError(reportable);
     } catch {
       // noop
     }
@@ -314,12 +345,16 @@ export class AppNotificationService {
     extra: Record<string, unknown>
   ): void {
     try {
-      const err = toErrorInstance(error, '[AppNotificationService] write failed');
-      (err as any).context = 'AppNotificationService';
-      (err as any).operation = operation;
-      (err as any).extra = extra;
-      (err as any).original = error;
-      this.globalError.handleError(err);
+      const reportable = toErrorInstance(
+        error,
+        '[AppNotificationService] write failed'
+      ) as NotificationReportableError;
+      reportable.context = 'AppNotificationService';
+      reportable.operation = operation;
+      reportable.extra = extra;
+      reportable.original = error;
+      reportable.skipUserNotification = true;
+      this.globalError.handleError(reportable);
     } catch {
       // noop
     }

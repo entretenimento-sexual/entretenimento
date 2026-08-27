@@ -20,6 +20,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  assertNoActiveBilateralBlockInTransaction,
+} from '../../friendship/application/bilateral-block-access.policy';
 
 type CommentStatus = 'VISIBLE' | 'PENDING_REVIEW' | 'HIDDEN' | 'DELETED';
 
@@ -259,6 +262,13 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
     const newCommentRef = commentsCollection.doc();
 
     return db.runTransaction(async (transaction) => {
+      await assertNoActiveBilateralBlockInTransaction(
+        transaction,
+        authorUid,
+        ownerUid,
+        'Foto pública não encontrada.'
+      );
+
       const [photoSnap, authorProfileSnap] = await Promise.all([
         transaction.get(photoRef),
         transaction.get(authorProfileRef),

@@ -1,0 +1,246 @@
+@if (state$ | async; as state) {
+  @if (action$ | async; as action) {
+    <section
+      class="community-member-roster"
+      aria-labelledby="community-member-roster-title"
+    >
+      <header class="community-member-roster__header">
+        <div>
+          <h2 id="community-member-roster-title">Participantes</h2>
+          <p>Gerencie papéis e acesso sem alterar a propriedade da Comunidade.</p>
+        </div>
+
+        <button
+          type="button"
+          class="community-member-roster__refresh"
+          [disabled]="state.status === 'loading' || action.status === 'loading'"
+          aria-label="Atualizar participantes"
+          (click)="refresh()"
+        >
+          <i
+            class="fas {{ state.status === 'loading' ? 'fa-spinner fa-spin' : 'fa-rotate' }}"
+            aria-hidden="true"
+          ></i>
+        </button>
+      </header>
+
+      <div class="community-member-roster__status-tabs" role="group" aria-label="Tipo de vínculo">
+        <button
+          type="button"
+          [class.is-active]="selectedStatus() === 'active'"
+          [attr.aria-pressed]="selectedStatus() === 'active'"
+          (click)="selectStatus('active')"
+        >
+          Ativos
+        </button>
+        <button
+          type="button"
+          [class.is-active]="selectedStatus() === 'blocked'"
+          [attr.aria-pressed]="selectedStatus() === 'blocked'"
+          (click)="selectStatus('blocked')"
+        >
+          Bloqueados
+        </button>
+      </div>
+
+      @if (confirmation(); as pendingConfirmation) {
+        <div
+          class="community-member-roster__confirmation"
+          [class.is-role-change]="pendingConfirmation.action === 'set_role'"
+          role="alert"
+        >
+          <div>
+            <strong>{{ confirmationTitle(pendingConfirmation) }}</strong>
+            <span>{{ confirmationDescription(pendingConfirmation) }}</span>
+          </div>
+          <div>
+            <button
+              type="button"
+              class="is-cancel"
+              [disabled]="action.status === 'loading'"
+              (click)="cancelConfirmation()"
+            >
+              Cancelar
+            </button>
+
+            @if (pendingConfirmation.action === 'set_role') {
+              <button
+                type="button"
+                class="is-role-confirm"
+                [disabled]="action.status === 'loading'"
+                [attr.aria-busy]="action.status === 'loading' ? 'true' : null"
+                (click)="confirmRoleChange()"
+              >
+                @if (action.status === 'loading') {
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                }
+                Confirmar alteração
+              </button>
+            } @else {
+              <button
+                type="button"
+                class="is-confirm"
+                [disabled]="action.status === 'loading'"
+                [attr.aria-busy]="action.status === 'loading' ? 'true' : null"
+                (click)="confirmDestructiveAction()"
+              >
+                @if (action.status === 'loading') {
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                }
+                {{ pendingConfirmation.action === 'block' ? 'Bloquear' : 'Remover' }}
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      @if (state.status === 'loading') {
+        <div class="community-member-roster__state" role="status" aria-live="polite">
+          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          <span>Carregando participantes...</span>
+        </div>
+      } @else if (state.status === 'error') {
+        <div class="community-member-roster__state" role="alert">
+          <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+          <span>Participantes indisponíveis.</span>
+          <button type="button" (click)="refresh()">Tentar novamente</button>
+        </div>
+      } @else if (state.status === 'empty') {
+        <div class="community-member-roster__state" role="status">
+          <i
+            class="fas {{ selectedStatus() === 'blocked' ? 'fa-shield' : 'fa-users' }}"
+            aria-hidden="true"
+          ></i>
+          <span>
+            {{ selectedStatus() === 'blocked'
+              ? 'Nenhuma pessoa bloqueada.'
+              : 'Nenhum outro participante ativo.' }}
+          </span>
+        </div>
+      } @else {
+        <ul class="community-member-roster__list" aria-label="Participantes gerenciáveis">
+          @for (item of state.items; track item.memberId) {
+            <li class="community-member-roster__item">
+              <span class="community-member-roster__avatar" aria-hidden="true">
+                @if (item.avatarUrl) {
+                  <img [src]="item.avatarUrl" alt="" loading="lazy" appImageFallback />
+                } @else {
+                  <i class="fas fa-user" aria-hidden="true"></i>
+                }
+              </span>
+
+              <div class="community-member-roster__copy">
+                <strong>{{ item.label }}</strong>
+                @if (item.status === 'blocked') {
+                  @if (roleBeforeBlockLabel(item); as previousRole) {
+                    <span>Antes do bloqueio: {{ previousRole }}</span>
+                  } @else {
+                    <span>Papel anterior indisponível</span>
+                  }
+                } @else {
+                  <span>{{ roleLabel(item.role) }}</span>
+                }
+                <span class="community-member-roster__updated">
+                  Atualizado em {{ item.updatedAt | date: 'dd/MM/yyyy' }}
+                </span>
+              </div>
+
+              <div class="community-member-roster__controls">
+                @if (item.status === 'active') {
+                  @if (canChangeRole(item)) {
+                    <label class="community-member-roster__role-control">
+                      <span class="visually-hidden">Papel de {{ item.label }}</span>
+                      <select
+                        [value]="item.role"
+                        [disabled]="action.status === 'loading'"
+                        [attr.aria-label]="'Papel de ' + item.label"
+                        (change)="changeRole(item, $event)"
+                      >
+                        @for (role of roleOptions(item); track role) {
+                          <option [value]="role">{{ roleLabel(role) }}</option>
+                        }
+                      </select>
+                    </label>
+                  }
+
+                  @if (canRemove(item) || canBlock(item)) {
+                    <div class="community-member-roster__actions">
+                      @if (canRemove(item)) {
+                        <button
+                          type="button"
+                          class="is-remove"
+                          [disabled]="action.status === 'loading'"
+                          [attr.aria-label]="'Remover ' + item.label + ' da Comunidade'"
+                          (click)="requestDestructiveAction(item, 'remove')"
+                        >
+                          Remover
+                        </button>
+                      }
+                      @if (canBlock(item)) {
+                        <button
+                          type="button"
+                          class="is-block"
+                          [disabled]="action.status === 'loading'"
+                          [attr.aria-label]="'Bloquear ' + item.label + ' na Comunidade'"
+                          (click)="requestDestructiveAction(item, 'block')"
+                        >
+                          Bloquear
+                        </button>
+                      }
+                    </div>
+                  } @else if (item.role === 'owner') {
+                    <span class="community-member-roster__protected">
+                      Gerenciado pela transferência de propriedade
+                    </span>
+                  }
+                } @else if (canUnblock(item)) {
+                  <button
+                    type="button"
+                    class="community-member-roster__unblock"
+                    [disabled]="action.status === 'loading'"
+                    [attr.aria-busy]="
+                      action.status === 'loading'
+                      && action.memberId === item.memberId
+                      && action.action === 'unblock'
+                        ? 'true'
+                        : null
+                    "
+                    (click)="unblock(item)"
+                  >
+                    @if (
+                      action.status === 'loading'
+                      && action.memberId === item.memberId
+                      && action.action === 'unblock'
+                    ) {
+                      <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                      Desbloqueando
+                    } @else {
+                      Desbloquear
+                    }
+                  </button>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+
+        @if (state.nextCursor) {
+          <div class="community-member-roster__more">
+            <button
+              type="button"
+              [disabled]="state.loadingMore || action.status === 'loading'"
+              (click)="loadMore(state.nextCursor)"
+            >
+              @if (state.loadingMore) {
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                Carregando
+              } @else {
+                Ver mais
+              }
+            </button>
+          </div>
+        }
+      }
+    </section>
+  }
+}

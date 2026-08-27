@@ -1,15 +1,30 @@
-import { createHash } from 'node:crypto';
-
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
+import { buildMediaEngagementScore } from './media-engagement-score';
+import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
+import {
+  PUBLIC_VIDEO_PLAYBACK_SESSION_COLLECTION,
+  normalizePublicVideoPlaybackToken,
+  validatePublicVideoPlaybackSession,
+} from './public-video-playback-session';
 import {
   PROFILE_VIEWER_INDEX_VERSION,
   PROFILE_VIEWERS_COLLECTION,
   calculatePublicProfileEngagementScore,
   ensurePublicProfileViewerIndex,
 } from './public-profile-media-metrics';
+import {
+  calculateVideoViewScore,
+  normalizeVideoAudienceScore,
+} from './video-audience-score';
+import { buildVideoRetentionAggregate } from './video-retention-score';
+import {
+  VIDEO_RETENTION_TOKEN_TTL_MS,
+  createVideoRetentionToken,
+  hashVideoRetentionToken,
+} from './video-retention-token';
 import {
   VideoViewPlaybackEvidenceInput,
   buildVideoViewCountDecision,
@@ -20,6 +35,7 @@ interface RecordVideoViewRequest {
   ownerUid?: string;
   videoId?: string;
   source?: 'discover' | 'profile' | 'latest' | 'top' | 'boosted' | 'unknown';
+  playbackToken?: string;
   evidence?: VideoViewPlaybackEvidenceInput;
 }
 
@@ -30,6 +46,13 @@ interface RecordVideoViewResponse {
   counted: boolean;
   uniqueViewer: boolean;
   retryAfterMs: number;
+  retentionToken: string | null;
+  retentionTokenExpiresAt: number;
+}
+
+interface ValidatedPlaybackSession {
+  tokenHash: string;
+  issuedAt: number;
 }
 
 const VIEWER_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
@@ -62,6 +85,18 @@ function safeNumber(value: unknown): number {
     : 0;
 }
 
+function safeRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function resolveVideoVersion(
+  data: FirebaseFirestore.DocumentData | undefined
+): number {
+  return safeNumber(data?.assetVersion ?? data?.publishedAt);
+}
+
 function assertPublicApprovedVideo(
   exists: boolean,
   data: FirebaseFirestore.DocumentData | undefined
@@ -81,36 +116,40 @@ function assertPublicApprovedVideo(
   }
 }
 
-function calculateViewScore(input: {
-  viewsCount: number;
-  uniqueViewersCount: number;
-  lastViewedAt: number;
-  publishedAt: number;
-}): number {
-  const recencyBoost =
-    Math.max(0, input.lastViewedAt - input.publishedAt) / 1_000_000_000;
-
-  return Math.round(
-    input.viewsCount * 4 +
-      input.uniqueViewersCount * 6 +
-      recencyBoost
-  );
-}
-
-function hashPlaybackSession(input: {
+function assertPlaybackSession(input: {
+  sessionData: FirebaseFirestore.DocumentData | undefined;
+  playbackToken: string;
   viewerUid: string;
   ownerUid: string;
   videoId: string;
-  sessionId: string;
-}): string {
-  return createHash('sha256')
-    .update([
-      input.viewerUid,
-      input.ownerUid,
-      input.videoId,
-      input.sessionId,
-    ].join(':'))
-    .digest('hex');
+  videoVersion: number;
+  requiredPlaybackMs: number;
+  now: number;
+}): ValidatedPlaybackSession {
+  const validation = validatePublicVideoPlaybackSession({
+    data: input.sessionData,
+    playbackToken: input.playbackToken,
+    viewerUid: input.viewerUid,
+    ownerUid: input.ownerUid,
+    videoId: input.videoId,
+    videoVersion: input.videoVersion,
+    now: input.now,
+  });
+
+  if (
+    !validation.valid ||
+    validation.requiredPlaybackMs !== input.requiredPlaybackMs
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Sessão de reprodução inválida, expirada ou ainda não qualificada.'
+    );
+  }
+
+  return {
+    tokenHash: validation.tokenHash,
+    issuedAt: validation.issuedAt,
+  };
 }
 
 export const recordVideoView = onCall<RecordVideoViewRequest>(
@@ -120,6 +159,9 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
     const source = cleanSource(request.data?.source);
+    const playbackToken = normalizePublicVideoPlaybackToken(
+      request.data?.playbackToken
+    );
 
     if (!viewerUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
@@ -129,6 +171,15 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
       throw new HttpsError('invalid-argument', 'Vídeo inválido.');
     }
 
+    if (!playbackToken) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Sessão de reprodução ausente ou inválida.'
+      );
+    }
+
+    await assertPublicMediaConsumptionAccess(viewerUid);
+
     if (viewerUid === ownerUid) {
       return {
         ok: true,
@@ -137,6 +188,8 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
         counted: false,
         uniqueViewer: false,
         retryAfterMs: 0,
+        retentionToken: null,
+        retentionTokenExpiresAt: 0,
       };
     }
 
@@ -144,7 +197,14 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
     const publicVideoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
-    const preflightVideoSnapshot = await publicVideoRef.get();
+    const playbackSessionRef = publicVideoRef
+      .collection(PUBLIC_VIDEO_PLAYBACK_SESSION_COLLECTION)
+      .doc(viewerUid);
+    const [preflightVideoSnapshot, preflightPlaybackSessionSnapshot] =
+      await Promise.all([
+        publicVideoRef.get(),
+        playbackSessionRef.get(),
+      ]);
     const preflightVideo = preflightVideoSnapshot.data();
     const now = Date.now();
 
@@ -166,16 +226,31 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
       );
     }
 
+    assertPlaybackSession({
+      sessionData: preflightPlaybackSessionSnapshot.data(),
+      playbackToken,
+      viewerUid,
+      ownerUid,
+      videoId,
+      videoVersion: resolveVideoVersion(preflightVideo),
+      requiredPlaybackMs: preflightEvidence.requiredPlaybackMs,
+      now,
+    });
+
     await ensurePublicProfileViewerIndex(ownerUid);
 
     const videoViewerRef = publicVideoRef.collection('views').doc(viewerUid);
     const profileViewerRef = publicProfileRef
       .collection(PROFILE_VIEWERS_COLLECTION)
       .doc(viewerUid);
+    const retentionToken = createVideoRetentionToken();
+    const retentionTokenHash = hashVideoRetentionToken(retentionToken);
+    const retentionTokenExpiresAt = now + VIDEO_RETENTION_TOKEN_TTL_MS;
 
     const outcome = await db.runTransaction(async (transaction) => {
       const publicProfileSnap = await transaction.get(publicProfileRef);
       const publicVideoSnap = await transaction.get(publicVideoRef);
+      const playbackSessionSnap = await transaction.get(playbackSessionRef);
       const videoViewerSnap = await transaction.get(videoViewerRef);
       const profileViewerSnap = await transaction.get(profileViewerRef);
 
@@ -205,14 +280,19 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
         );
       }
 
-      const isUniqueVideoViewer = !videoViewerSnap.exists;
-      const isUniqueProfileViewer = !profileViewerSnap.exists;
-      const sessionHash = hashPlaybackSession({
+      const playbackSession = assertPlaybackSession({
+        sessionData: playbackSessionSnap.data(),
+        playbackToken,
         viewerUid,
         ownerUid,
         videoId,
-        sessionId: evidence.sessionId,
+        videoVersion: resolveVideoVersion(publicVideo),
+        requiredPlaybackMs: evidence.requiredPlaybackMs,
+        now,
       });
+      const sessionHash = playbackSession.tokenHash;
+      const isUniqueVideoViewer = !videoViewerSnap.exists;
+      const isUniqueProfileViewer = !profileViewerSnap.exists;
       const lastCountedAt = safeNumber(
         videoViewerData.lastCountedAt ?? videoViewerData.lastViewedAt
       );
@@ -240,15 +320,40 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
       const nextVideoUniqueViewersCount = isUniqueVideoViewer
         ? currentVideoUniqueViewersCount + 1
         : currentVideoUniqueViewersCount;
-      const publishedAt = safeNumber(publicVideo.publishedAt) || now;
       const nextVideoViewScore = canCountView
-        ? calculateViewScore({
+        ? calculateVideoViewScore({
           viewsCount: nextVideoViewsCount,
           uniqueViewersCount: nextVideoUniqueViewersCount,
-          lastViewedAt: now,
-          publishedAt,
         })
         : currentVideoViewScore;
+      const nextVideoAudienceScore = normalizeVideoAudienceScore(
+        nextVideoViewScore
+      );
+      const nextRetention = buildVideoRetentionAggregate({
+        currentContributorsCount: publicVideo.retentionContributorsCount,
+        currentBasisPointsTotal: publicVideo.retentionBasisPointsTotal,
+        currentCompletionViewersCount: publicVideo.completionViewersCount,
+        previousViewerBasisPoints:
+          videoViewerData.bestQualifiedPlaybackBasisPoints,
+        playbackMs: evidence.playbackMs,
+        durationMs: evidence.durationMs,
+      });
+      const shouldUpdateVideoScore = canCountView || nextRetention.improved;
+      const nextVideoRanking = shouldUpdateVideoScore
+        ? buildMediaEngagementScore({
+          reactionsCount: safeNumber(
+            publicVideo.reactionsCount ?? publicVideo.likesCount
+          ),
+          commentsCount: safeNumber(publicVideo.commentsCount),
+          ratingsCount: safeNumber(publicVideo.ratingsCount),
+          ratingAverage: safeNumber(publicVideo.ratingAverage),
+          currentBreakdown: {
+            ...safeRecord(publicVideo.scoreBreakdown),
+            audienceScore: nextVideoAudienceScore,
+            retentionScore: nextRetention.retentionScore,
+          },
+        })
+        : null;
 
       const currentProfileViewsCount = safeNumber(
         publicProfile.profileViewsCount ?? publicProfile.viewsCount
@@ -298,44 +403,45 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
         ),
       });
 
-      const shouldTouchVideoViewer =
-        canCountView ||
-        now - safeNumber(videoViewerData.lastViewedAt) >=
-          VIEWER_TOUCH_INTERVAL_MS;
       const shouldTouchProfileViewer =
         canCountView ||
         isUniqueProfileViewer ||
         now - safeNumber(profileViewerData.lastViewedAt) >=
           VIEWER_TOUCH_INTERVAL_MS;
 
-      if (shouldTouchVideoViewer) {
-        transaction.set(
-          videoViewerRef,
-          {
-            ownerUid,
-            videoId,
-            viewerUid,
-            source,
-            firstViewedAt: isUniqueVideoViewer
-              ? now
-              : videoViewerData.firstViewedAt ?? now,
-            lastViewedAt: now,
-            lastQualifiedPlaybackMs: evidence.playbackMs,
-            lastQualifiedDurationMs: evidence.durationMs,
-            ...(canCountView
-              ? {
-                lastCountedAt: now,
-                lastCountedSessionHash: sessionHash,
-                countWindowStartedAt:
-                  countDecision.nextCountWindowStartedAt,
-                countWindowCount: countDecision.nextCountWindowCount,
-                viewsCount: FieldValue.increment(1),
-              }
-              : {}),
-          },
-          { merge: true }
-        );
-      }
+      transaction.delete(playbackSessionRef);
+
+      transaction.set(
+        videoViewerRef,
+        {
+          ownerUid,
+          videoId,
+          viewerUid,
+          source,
+          firstViewedAt: isUniqueVideoViewer
+            ? now
+            : videoViewerData.firstViewedAt ?? now,
+          lastViewedAt: now,
+          lastQualifiedPlaybackMs: evidence.playbackMs,
+          lastQualifiedDurationMs: evidence.durationMs,
+          bestQualifiedPlaybackBasisPoints: nextRetention.viewerBasisPoints,
+          retentionPlaybackStartedAt: playbackSession.issuedAt,
+          retentionTokenHash,
+          retentionTokenIssuedAt: now,
+          retentionTokenExpiresAt,
+          ...(canCountView
+            ? {
+              lastCountedAt: now,
+              lastCountedSessionHash: sessionHash,
+              countWindowStartedAt:
+                countDecision.nextCountWindowStartedAt,
+              countWindowCount: countDecision.nextCountWindowCount,
+              viewsCount: FieldValue.increment(1),
+            }
+            : {}),
+        },
+        { merge: true }
+      );
 
       if (shouldTouchProfileViewer) {
         transaction.set(
@@ -362,7 +468,7 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
         );
       }
 
-      if (canCountView) {
+      if (shouldUpdateVideoScore && nextVideoRanking) {
         transaction.set(
           publicVideoRef,
           {
@@ -370,6 +476,16 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
             uniqueViewersCount: nextVideoUniqueViewersCount,
             lastViewedAt: now,
             viewScore: nextVideoViewScore,
+            audienceScore: nextVideoAudienceScore,
+            retentionContributorsCount: nextRetention.contributorsCount,
+            retentionBasisPointsTotal: nextRetention.basisPointsTotal,
+            retentionAveragePercent: nextRetention.averagePercent,
+            completionViewersCount: nextRetention.completionViewersCount,
+            completionRate: nextRetention.completionRate,
+            retentionScore: nextRetention.retentionScore,
+            engagementScore: nextVideoRanking.engagementScore,
+            score: nextVideoRanking.score,
+            scoreBreakdown: nextVideoRanking.scoreBreakdown,
           },
           { merge: true }
         );
@@ -405,6 +521,8 @@ export const recordVideoView = onCall<RecordVideoViewRequest>(
       ok: true,
       ownerUid,
       videoId,
+      retentionToken,
+      retentionTokenExpiresAt,
       ...outcome,
     };
   }

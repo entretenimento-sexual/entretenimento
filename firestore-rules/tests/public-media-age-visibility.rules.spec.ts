@@ -41,11 +41,46 @@ function viewerDb() {
   return testEnv.authenticatedContext(VIEWER_UID).firestore();
 }
 
+async function setViewerCompliance(
+  overrides: Record<string, unknown> = {}
+): Promise<void> {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    await setDoc(
+      doc(context.firestore(), 'users', VIEWER_UID),
+      {
+        uid: VIEWER_UID,
+        accountStatus: 'active',
+        suspended: false,
+        acceptedTerms: {
+          accepted: true,
+          version: 'v3',
+          acknowledgedPrivacyNotice: true,
+        },
+        initialAdultConsentRequired: false,
+        ageReverification: { status: 'NONE' },
+        ...overrides,
+      }
+    );
+  });
+}
+
 async function seedPublicMedia(): Promise<void> {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
 
     await Promise.all([
+      setDoc(doc(db, 'users', VIEWER_UID), {
+        uid: VIEWER_UID,
+        accountStatus: 'active',
+        suspended: false,
+        acceptedTerms: {
+          accepted: true,
+          version: 'v3',
+          acknowledgedPrivacyNotice: true,
+        },
+        initialAdultConsentRequired: false,
+        ageReverification: { status: 'NONE' },
+      }),
       setDoc(doc(db, 'public_profiles', OWNER_UID), {
         uid: OWNER_UID,
         nickname: 'Perfil adulto',
@@ -171,6 +206,23 @@ describe('Firestore Rules / public media age visibility', () => {
     );
   });
 
+  it('permite deep link público e bloqueia quando o vídeo deixa de ser público', async () => {
+    const db = viewerDb();
+    const videoRef = doc(
+      db,
+      'public_profiles',
+      OWNER_UID,
+      'public_videos',
+      VIDEO_ID
+    );
+
+    await assertSucceeds(getDoc(videoRef));
+
+    await setMediaVisibility('PRIVATE');
+
+    await assertFails(getDoc(videoRef));
+  });
+
   it('bloqueia acesso direto quando o perfil pai foi ocultado', async () => {
     await testEnv.withSecurityRulesDisabled(async (context) => {
       await deleteDoc(doc(context.firestore(), 'public_profiles', OWNER_UID));
@@ -246,5 +298,77 @@ describe('Firestore Rules / public media age visibility', () => {
 
     expect(videos.size).toBe(1);
     expect(photos.size).toBe(1);
+  });
+
+  it('bloqueia vídeo direto e collectionGroup durante reverificação etária', async () => {
+    await setViewerCompliance({
+      ageReverification: { status: 'REQUIRED' },
+    });
+    const db = viewerDb();
+    const videoQuery = query(
+      collectionGroup(db, 'public_videos'),
+      where('visibility', '==', 'PUBLIC'),
+      where('moderationStatus', '==', 'APPROVED')
+    );
+
+    await assertFails(
+      getDoc(
+        doc(
+          db,
+          'public_profiles',
+          OWNER_UID,
+          'public_videos',
+          VIDEO_ID
+        )
+      )
+    );
+    await assertFails(getDocs(videoQuery));
+  });
+
+  it('bloqueia vídeo quando os termos do viewer estão desatualizados', async () => {
+    await setViewerCompliance({
+      acceptedTerms: {
+        accepted: true,
+        version: 'v2',
+        acknowledgedPrivacyNotice: true,
+      },
+    });
+    const db = viewerDb();
+
+    await assertFails(
+      getDoc(
+        doc(
+          db,
+          'public_profiles',
+          OWNER_UID,
+          'public_videos',
+          VIDEO_ID
+        )
+      )
+    );
+  });
+
+  it('exige consentimento adulto vigente quando ele é obrigatório', async () => {
+    await setViewerCompliance({
+      initialAdultConsentRequired: true,
+      adultConsent: null,
+    });
+    const db = viewerDb();
+    const videoRef = doc(
+      db,
+      'public_profiles',
+      OWNER_UID,
+      'public_videos',
+      VIDEO_ID
+    );
+
+    await assertFails(getDoc(videoRef));
+
+    await setViewerCompliance({
+      initialAdultConsentRequired: true,
+      adultConsent: { accepted: true, version: 'v1' },
+    });
+
+    await assertSucceeds(getDoc(videoRef));
   });
 });

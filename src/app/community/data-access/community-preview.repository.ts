@@ -39,6 +39,7 @@ export class CommunityPreviewRepository {
           limit: request.limit ?? 12,
           cursor: request.cursor ?? null,
           sourceType: request.sourceType ?? null,
+          tagId: request.tagId ?? null,
         })
       )
     ).pipe(

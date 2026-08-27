@@ -1,0 +1,136 @@
+@let item = video();
+@let mode = variant();
+
+<article
+  class="public-video-card app-card app-card--media"
+  [class.public-video-card--feed]="mode === 'feed'"
+  [class.public-video-card--highlight]="mode === 'highlight'"
+>
+  @if (mode === 'feed') {
+    <header class="public-video-card__header">
+      <a
+        class="public-video-card__owner"
+        [routerLink]="profileLink()"
+        [attr.aria-label]="'Abrir perfil de ' + getOwnerName(item)"
+      >
+        @if (item.owner?.photoURL) {
+          <img
+            class="public-video-card__avatar"
+            [src]="item.owner?.photoURL || ''"
+            alt=""
+            width="36"
+            height="36"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
+          />
+        } @else {
+          <span
+            class="public-video-card__avatar public-video-card__avatar--fallback"
+            aria-hidden="true"
+          >
+            {{ getOwnerInitial(item) }}
+          </span>
+        }
+
+        <span class="public-video-card__identity">
+          <strong>{{ getOwnerName(item) }}</strong>
+          <time [attr.aria-label]="'Publicado ' + getPublishedLabel(item)">
+            {{ getPublishedLabel(item) }}
+          </time>
+        </span>
+      </a>
+    </header>
+  }
+
+  <button
+    type="button"
+    class="public-video-card__preview"
+    [class.public-video-card__preview--portrait]="mode === 'highlight'"
+    [appPublicVideoMetadataPreload]="item"
+    [disabled]="opening()"
+    [attr.aria-busy]="opening() ? 'true' : null"
+    [attr.aria-label]="getPreviewAriaLabel(item)"
+    (click)="onPreview()"
+  >
+    @if (posterAvailable() && item.posterUrl) {
+      <img
+        [src]="item.posterUrl"
+        [alt]="item.alt || item.title || 'Capa do vídeo'"
+        loading="lazy"
+        decoding="async"
+        referrerpolicy="no-referrer"
+        (error)="onPosterError()"
+      />
+    } @else {
+      <span class="public-video-card__placeholder" aria-hidden="true">
+        <i class="fas fa-clapperboard"></i>
+      </span>
+    }
+
+    <span class="public-video-card__shade" aria-hidden="true"></span>
+
+    <span class="public-video-card__play" aria-hidden="true">
+      @if (opening()) {
+        <i class="fas fa-circle-notch fa-spin"></i>
+      } @else {
+        <i class="fas fa-play"></i>
+      }
+    </span>
+
+    <span class="public-video-card__duration">
+      {{ formatDuration(item.durationMs) }}
+    </span>
+
+    <span class="public-video-card__views">
+      <i class="fas fa-eye" aria-hidden="true"></i>
+      {{ formatCount(item.viewsCount) }}
+    </span>
+  </button>
+
+  <div class="public-video-card__copy">
+    <strong>{{ getTitle(item) }}</strong>
+
+    @if (mode === 'highlight') {
+      <span>{{ getOwnerName(item) }}</span>
+    } @else {
+      @if (item.description) {
+        <p>{{ item.description }}</p>
+      }
+
+      <footer class="public-video-card__metrics" aria-label="Engajamento do vídeo">
+        <span class="public-video-card__views-metric" aria-label="Visualizações">
+          <i class="fas fa-eye" aria-hidden="true"></i>
+          {{ formatCount(item.viewsCount) }}
+        </span>
+
+        @if (engagementActions()) {
+          <app-public-media-engagement-actions
+            kind="video"
+            [ownerUid]="item.ownerUid"
+            [mediaId]="item.id"
+            [viewerUid]="viewerUid()"
+            [reactionsEnabled]="item.reactionsEnabled"
+            [commentsEnabled]="item.commentsEnabled"
+            [reactionsCount]="item.reactionsCount"
+            [commentsCount]="item.commentsCount"
+            (commentsRequested)="onCommentsRequested()"
+          />
+        } @else {
+          @if (item.reactionsEnabled) {
+            <span aria-label="Curtidas">
+              <i class="far fa-heart" aria-hidden="true"></i>
+              {{ formatCount(item.reactionsCount) }}
+            </span>
+          }
+          @if (item.commentsEnabled) {
+            <span aria-label="Comentários">
+              <i class="far fa-comment" aria-hidden="true"></i>
+              {{ formatCount(item.commentsCount) }}
+            </span>
+          }
+        }
+      </footer>
+    }
+  </div>
+</article>

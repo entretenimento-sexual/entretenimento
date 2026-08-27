@@ -1,12 +1,11 @@
 // src/app/community/venue-create/venue-community-create-page.component.ts
 // -----------------------------------------------------------------------------
-// CADASTRO DE LOCAL
+// CADASTRO DE ESPAÇO OFICIAL
 // -----------------------------------------------------------------------------
-// Local é um lugar físico ou estabelecimento real. O componente não apresenta
-// ao usuário a infraestrutura comunitária interna usada para feed, permissões e
-// moderação. No Emulator, o cadastrante recebe administração provisória; antes de
-// produção, a propriedade deverá passar por fluxo próprio de reivindicação e
-// verificação.
+// Espaço Oficial representa uma organização, estabelecimento, evento ou local
+// verificado. O componente não apresenta ao usuário a infraestrutura comunitária
+// interna usada para feed, permissões e moderação. A autorização de criação é
+// validada exclusivamente no backend.
 // -----------------------------------------------------------------------------
 
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
@@ -114,7 +113,9 @@ export class VenueCommunityCreatePageComponent {
 
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.notifications.showWarning('Revise os campos obrigatórios do Local.');
+      this.notifications.showWarning(
+        'Revise os campos obrigatórios do Espaço Oficial.'
+      );
       return;
     }
 
@@ -140,8 +141,8 @@ export class VenueCommunityCreatePageComponent {
         next: (result) => {
           this.notifications.showSuccess(
             result.created
-              ? 'Local cadastrado.'
-              : 'Cadastro do Local recuperado com segurança.'
+              ? 'Espaço Oficial cadastrado.'
+              : 'Cadastro do Espaço Oficial recuperado com segurança.'
           );
           void this.router.navigate([
             '/dashboard/locais',
@@ -171,8 +172,20 @@ export class VenueCommunityCreatePageComponent {
   }
 
   private reportError(error: unknown): void {
+    const reason = String(
+      (error as { details?: { reason?: unknown } } | null)?.details?.reason
+      ?? ''
+    );
+    const message = reason === 'official_space_verification_required'
+      ? 'O cadastro exige uma organização e um responsável comercial verificados.'
+      : reason === 'official_space_grant_inactive'
+        ? 'A autorização comercial está inativa. Regularize-a para criar outro Espaço Oficial.'
+        : reason === 'official_space_creation_limit_reached'
+          ? 'A organização atingiu a quantidade de Espaços Oficiais contratada.'
+          : 'Não foi possível cadastrar o Espaço Oficial agora.';
+
     try {
-      this.notifications.showError('Não foi possível cadastrar o Local agora.');
+      this.notifications.showError(message);
     } catch {
       // A observabilidade abaixo permanece ativa.
     }

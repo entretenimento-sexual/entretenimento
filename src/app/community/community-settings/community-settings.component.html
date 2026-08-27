@@ -1,0 +1,188 @@
+@if (action$ | async; as action) {
+  <section class="community-settings" aria-labelledby="community-settings-title">
+    <header class="community-settings__header">
+      <div>
+        <span>Configuração editorial</span>
+        <h2 id="community-settings-title">Dados e acesso</h2>
+      </div>
+      <i class="fas fa-sliders" aria-hidden="true"></i>
+    </header>
+
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <div class="community-settings__field">
+        <label for="community-settings-name">Nome</label>
+        <input
+          id="community-settings-name"
+          type="text"
+          formControlName="name"
+          maxlength="80"
+          autocomplete="off"
+          [attr.aria-invalid]="form.controls.name.invalid && form.controls.name.touched"
+          aria-describedby="community-settings-name-help"
+        />
+        <small id="community-settings-name-help">
+          {{ form.controls.name.value.length }}/80 caracteres
+        </small>
+      </div>
+
+      <div class="community-settings__field">
+        <label for="community-settings-description">Descrição</label>
+        <textarea
+          id="community-settings-description"
+          formControlName="description"
+          rows="3"
+          maxlength="240"
+          [attr.aria-invalid]="form.controls.description.invalid && form.controls.description.touched"
+          aria-describedby="community-settings-description-help"
+        ></textarea>
+        <small id="community-settings-description-help">
+          {{ form.controls.description.value.length }}/240 caracteres
+        </small>
+      </div>
+
+      <fieldset class="community-settings__choices">
+        <legend>Entrada na Comunidade</legend>
+        @for (option of joinPolicyOptions; track option.value) {
+          <label>
+            <input
+              type="radio"
+              formControlName="joinPolicy"
+              [value]="option.value"
+            />
+            <span>
+              <strong>{{ option.label }}</strong>
+              <small>{{ option.description }}</small>
+            </span>
+          </label>
+        }
+      </fieldset>
+
+      <label class="community-settings__switch">
+        <input type="checkbox" formControlName="membersCanInvite" />
+        <span>
+          <strong>Membros podem convidar</strong>
+          <small>
+            A gestão continua podendo enviar e revogar convites.
+          </small>
+        </span>
+      </label>
+
+      @if (capacity(); as capacityState) {
+        <fieldset class="community-settings__capacity">
+          <legend>Capacidade de membros</legend>
+          <p>
+            {{ capacityState.memberCount }} de
+            {{ memberLimitLabel(capacityState.configuredLimit) }} membros ativos.
+            @if (capacityState.restrictedByOwnerPlan) {
+              <strong role="status">
+                Novas entradas estão limitadas a
+                {{ memberLimitLabel(capacityState.effectiveLimit) }} pelo plano atual.
+              </strong>
+            }
+          </p>
+          <div>
+            @for (memberLimit of memberLimitOptions; track memberLimit) {
+              <button
+                type="button"
+                [class.is-selected]="form.controls.memberLimit.value === memberLimit"
+                [class.is-locked]="!capacityState.allowedMemberLimits.includes(memberLimit)"
+                [disabled]="viewerRole() !== 'owner'"
+                [attr.aria-pressed]="form.controls.memberLimit.value === memberLimit"
+                [attr.aria-label]="
+                  'Limite de ' + memberLimitLabel(memberLimit) + ' membros'
+                  + (!capacityState.allowedMemberLimits.includes(memberLimit)
+                    ? '. Requer plano ' + memberLimitPlanLabel(memberLimit)
+                    : '')
+                "
+                (click)="selectMemberLimit(memberLimit)"
+              >
+                @if (!capacityState.allowedMemberLimits.includes(memberLimit)) {
+                  <i class="fas fa-lock" aria-hidden="true"></i>
+                }
+                <span>{{ memberLimitLabel(memberLimit) }}</span>
+                @if (!capacityState.allowedMemberLimits.includes(memberLimit)) {
+                  <small>{{ memberLimitPlanLabel(memberLimit) }}</small>
+                }
+              </button>
+            }
+          </div>
+          <small>
+            @if (viewerRole() === 'owner') {
+              Nenhum membro será removido caso seu plano mude futuramente.
+            } @else {
+              Somente o proprietário pode alterar a capacidade.
+            }
+          </small>
+        </fieldset>
+      }
+
+      <fieldset class="community-settings__tags">
+        <legend>Interesses da Comunidade</legend>
+        <p id="community-settings-tags-help" aria-live="polite">
+          {{ form.controls.tagIds.value.length }}/{{ maxCommunityTags }} selecionados
+        </p>
+
+        @if (tagCatalogState$ | async; as catalog) {
+          @if (catalog.status === 'loading') {
+            <div class="community-settings__state" role="status">
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              Carregando interesses…
+            </div>
+          } @else if (catalog.status === 'error') {
+            <div class="community-settings__state" role="alert">
+              <span>Não foi possível carregar os interesses.</span>
+              <button type="button" (click)="retryTagCatalog()">Tentar novamente</button>
+            </div>
+          } @else {
+            @for (category of tagCategories; track category) {
+              <div class="community-settings__tag-group">
+                <h3>{{ tagCategoryLabel(category) }}</h3>
+                <div aria-describedby="community-settings-tags-help">
+                  @for (tag of tagsForCategory(catalog.items, category); track tag.id) {
+                    <button
+                      type="button"
+                      [class.is-selected]="isTagSelected(tag.id)"
+                      [attr.aria-pressed]="isTagSelected(tag.id)"
+                      (click)="toggleTag(tag.id)"
+                    >
+                      {{ tag.label }}
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          }
+        }
+      </fieldset>
+
+      <div class="community-settings__field">
+        <label for="community-settings-rules">Regras</label>
+        <textarea
+          id="community-settings-rules"
+          formControlName="rules"
+          rows="6"
+          maxlength="1200"
+          [attr.aria-invalid]="form.controls.rules.invalid && form.controls.rules.touched"
+          aria-describedby="community-settings-rules-help"
+        ></textarea>
+        <small id="community-settings-rules-help">
+          {{ form.controls.rules.value.length }}/1200 caracteres. As regras aparecem antes da participação.
+        </small>
+      </div>
+
+      <div class="community-settings__footer">
+        <span aria-live="polite">
+          @if (action.status === 'loading') { Salvando configurações… }
+        </span>
+        <button type="submit" [disabled]="action.status === 'loading'">
+          @if (action.status === 'loading') {
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          } @else {
+            <i class="fas fa-floppy-disk" aria-hidden="true"></i>
+          }
+          Salvar alterações
+        </button>
+      </div>
+    </form>
+  </section>
+}

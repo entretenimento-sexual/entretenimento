@@ -309,16 +309,35 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
       return null;
     }
 
+    const subtitle =
+      navVm.usuario.role === 'admin'
+        ? 'Conta Administrador'
+        : `Plano ${this.formatSubscriptionRoleLabel(navVm.subscriptionRole)}`;
+
     return {
       uid: navVm.uid,
       displayName: navVm.usuario.nickname?.trim() || 'Meu perfil',
       email: navVm.usuario.email?.trim() || null,
-      subtitle: navVm.usuario.role
-        ? `Conta ${String(navVm.usuario.role)}`
-        : null,
+      subtitle,
       photoURL: navVm.usuario.photoURL?.trim() || null,
       profileRoute: ['/perfil', navVm.uid],
     };
+  }
+
+  private formatSubscriptionRoleLabel(
+    role: AuthenticatedNavigationVm['subscriptionRole']
+  ): string {
+    switch (role) {
+      case 'basic':
+        return 'Básico';
+      case 'premium':
+        return 'Premium';
+      case 'vip':
+        return 'VIP';
+      case 'free':
+      default:
+        return 'Gratuito';
+    }
   }
 
   private normalizeBadgeCount(count: unknown): number {

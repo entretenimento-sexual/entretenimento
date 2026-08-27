@@ -19,6 +19,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db, FieldValue } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { isBilateralBlockActive } from './bilateral-block-access.policy';
 
 interface SendFriendRequestPayload {
   targetUid?: unknown;
@@ -135,10 +136,6 @@ function assertUserCanUseFriendship(
   }
 }
 
-function isActiveBlock(data: FirebaseFirestore.DocumentData | undefined): boolean {
-  return data?.['isBlocked'] === true;
-}
-
 export const sendFriendRequest = onCall<SendFriendRequestPayload>(
   {
     region: FUNCTIONS_REGION,
@@ -226,8 +223,10 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
       }
 
       if (
-        isActiveBlock(requesterBlockSnapshot.data()) ||
-        isActiveBlock(targetBlockSnapshot.data())
+        isBilateralBlockActive({
+          actorBlock: requesterBlockSnapshot.data(),
+          targetBlock: targetBlockSnapshot.data(),
+        })
       ) {
         throw new HttpsError(
           'permission-denied',

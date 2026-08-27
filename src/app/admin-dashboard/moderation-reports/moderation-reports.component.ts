@@ -277,6 +277,12 @@ export class ModerationReportsComponent {
         return 'Status';
       case 'venue':
         return 'Local';
+      case 'community_feed_post':
+        return 'Publicação do Mural';
+      case 'community_feed_comment':
+        return 'Comentário do Mural';
+      case 'community_feed_comment_reply':
+        return 'Resposta do Mural';
       case 'other':
         return 'Conteúdo';
       default:
@@ -380,7 +386,13 @@ export class ModerationReportsComponent {
   }
 
   private reviewTargetUserUid(report: AdminModerationReportVm): string {
-    return String(report.targetOwnerUid || report.targetId || report.reporterUid || '').trim();
+    return String(
+      report.targetOwnerUid
+      || report.targetAuthorUid
+      || report.targetId
+      || report.reporterUid
+      || ''
+    ).trim();
   }
 
   private resolveModerationNote(
@@ -492,6 +504,9 @@ export class ModerationReportsComponent {
       'room',
       'status',
       'venue',
+      'community_feed_post',
+      'community_feed_comment',
+      'community_feed_comment_reply',
       'other',
     ].includes(type) ? type : null;
   }

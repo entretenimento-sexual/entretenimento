@@ -6,7 +6,10 @@ import {
   inject,
 } from '@angular/core';
 
-import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import {
+  IPublicVideoItem,
+  IPublicVideoPlaybackItem,
+} from 'src/app/core/interfaces/media/i-public-video-item';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 export interface PublicVideoMetadataPreloadCapability {
@@ -104,10 +107,11 @@ export class PublicVideoMetadataPreloadService {
   }
 
   /**
-   * Prepara somente metadados do vídeo já autorizado.
+   * Prepara somente metadados de um vídeo cujo playback já foi autorizado.
    *
    * Segurança e métricas:
    * - não chama backend;
+   * - não promove previews para playback;
    * - não executa play();
    * - não registra visualização;
    * - não persiste URL assinada;
@@ -184,7 +188,7 @@ export class PublicVideoMetadataPreloadService {
     }, METADATA_PRELOAD_TIMEOUT_MS);
 
     try {
-      video.src = item!.url;
+      video.src = item.url;
       video.load();
       return true;
     } catch (error) {
@@ -206,7 +210,7 @@ export class PublicVideoMetadataPreloadService {
 
   private hasUsableAccess(
     item: IPublicVideoItem | null | undefined
-  ): item is IPublicVideoItem {
+  ): item is IPublicVideoPlaybackItem {
     const expiresAt = Number(item?.accessExpiresAt ?? 0);
 
     return !!item?.ownerUid?.trim() &&

@@ -2,10 +2,12 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY FEED CONTRACTS
 // -----------------------------------------------------------------------------
-// Contrato sanitizado do mural comunitário somente leitura.
-// A projeção é backend-only e nunca expõe UID, localização precisa ou metadados
-// internos de moderação.
+// Contratos sanitizados de leitura e publicação do mural comunitário. Texto e
+// foto pertencem à mesma timeline; respostas também são itens de primeira classe
+// e carregam somente a referência segura à mensagem respondida.
 // -----------------------------------------------------------------------------
+
+import type { CommunityPublicAuthor } from './community-public-author.model';
 
 export type CommunityFeedView = 'feed' | 'photos';
 export type CommunityFeedKind = 'text' | 'photo';
@@ -18,6 +20,48 @@ export interface CommunityFeedPageRequest {
   cursor?: unknown;
 }
 
+export interface CommunityFeedPostCreateRequest {
+  requestId?: unknown;
+  communityId?: unknown;
+  text?: unknown;
+  audience?: unknown;
+  imageUploadPath?: unknown;
+  replyToPostId?: unknown;
+}
+
+export interface NormalizedCommunityFeedPostCreateRequest {
+  requestId: string | null;
+  communityId: string | null;
+  text: string;
+  audience: CommunityFeedAudience;
+  imageUploadPath: string | null;
+  replyToPostId: string | null;
+}
+
+export interface CommunityFeedPostWriteResponse {
+  communityId: string;
+  postId: string;
+  created: boolean;
+  deduplicated: boolean;
+}
+
+export interface CommunityFeedItemCapabilities {
+  canDeleteOwn: boolean;
+  canModerate: boolean;
+  canReport: boolean;
+  canReact: boolean;
+  viewerReacted: boolean;
+  canViewComments: boolean;
+  canComment: boolean;
+}
+
+export interface CommunityFeedReplyReference {
+  postId: string;
+  authorLabel: string;
+  textPreview: string;
+  available: boolean;
+}
+
 export interface NormalizedCommunityFeedPageRequest {
   communityId: string | null;
   view: CommunityFeedView;
@@ -28,25 +72,29 @@ export interface NormalizedCommunityFeedPageRequest {
 export interface CommunityFeedItem {
   postId: string;
   kind: CommunityFeedKind;
-  author: {
-    label: string;
-    avatarUrl: string | null;
-  };
+  author: CommunityPublicAuthor;
   text: string | null;
   image: {
     url: string;
     alt: string;
   } | null;
+  replyTo: CommunityFeedReplyReference | null;
   metrics: {
     commentCount: number;
     reactionCount: number;
   };
+  capabilities: CommunityFeedItemCapabilities;
   publishedAt: number;
 }
 
 export interface SanitizedCommunityFeedProjection {
   audience: CommunityFeedAudience;
   item: CommunityFeedItem;
+  /** Somente backend: hidratado com URL temporária antes da resposta. */
+  imageStoragePath: string | null;
+  imageAlt: string | null;
+  /** Somente backend: a citação pública é hidratada na leitura autorizada. */
+  replyToPostId: string | null;
 }
 
 export interface CommunityFeedPageResponse {
@@ -58,10 +106,18 @@ export interface CommunityFeedPageResponse {
 const DEFAULT_PAGE_LIMIT = 10;
 const MAX_PAGE_LIMIT = 20;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const PUBLISHED_PHOTO_PATH_PATTERN =
+  /^users\/[A-Za-z0-9_-]{1,128}\/published\/images\/[A-Za-z0-9:_-]{1,128}\/[^/]{1,220}$/;
 
 function normalizeText(value: unknown, maxLength: number): string {
   return String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .split('')
+    .map((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      if (codePoint === 9 || codePoint === 10 || codePoint === 13) return ' ';
+      return codePoint >= 32 && codePoint !== 127 ? character : '';
+    })
+    .join('')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
@@ -83,6 +139,11 @@ function normalizeHttpsUrl(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+function normalizePublishedPhotoStoragePath(value: unknown): string | null {
+  const normalized = normalizeText(value, 512).replace(/^\/+/, '');
+  return PUBLISHED_PHOTO_PATH_PATTERN.test(normalized) ? normalized : null;
 }
 
 function normalizeCount(value: unknown): number {
@@ -142,6 +203,23 @@ export function normalizeCommunityFeedPageRequest(
   };
 }
 
+export function normalizeCommunityFeedPostCreateRequest(
+  raw: CommunityFeedPostCreateRequest | null | undefined
+): NormalizedCommunityFeedPostCreateRequest {
+  const imageUploadPath = normalizeText(raw?.imageUploadPath, 2_000);
+
+  return {
+    requestId: normalizeSafeId(raw?.requestId),
+    communityId: normalizeSafeId(raw?.communityId),
+    text: normalizeText(raw?.text, 1_000),
+    audience: raw?.audience === 'public_preview'
+      ? 'public_preview'
+      : 'members_only',
+    imageUploadPath: imageUploadPath || null,
+    replyToPostId: normalizeSafeId(raw?.replyToPostId),
+  };
+}
+
 export function sanitizeCommunityFeedProjection(
   documentId: string,
   raw: unknown,
@@ -160,6 +238,10 @@ export function sanitizeCommunityFeedProjection(
   const expiresAt = source['expiresAt'] == null
     ? null
     : normalizeTimestamp(source['expiresAt']);
+  const rawReplyToPostId = normalizeText(source['replyToPostId'], 128);
+  const replyToPostId = rawReplyToPostId
+    ? normalizeSafeId(rawReplyToPostId)
+    : null;
 
   if (
     !postId
@@ -172,35 +254,55 @@ export function sanitizeCommunityFeedProjection(
     || publishedAt > now + 5 * 60_000
     || (source['expiresAt'] != null && expiresAt === null)
     || (expiresAt !== null && expiresAt <= now)
+    || (rawReplyToPostId && (!replyToPostId || replyToPostId === postId))
   ) {
     return null;
   }
 
   const imageUrl = normalizeHttpsUrl(image['url']);
-  const imageAlt = normalizeText(image['alt'], 140);
+  const imageStoragePath = normalizePublishedPhotoStoragePath(image['storagePath']);
+  const imageAlt = normalizeText(image['alt'], 140)
+    || 'Foto publicada na comunidade';
 
   if (kind === 'text' && text.length < 1) return null;
-  if (kind === 'photo' && !imageUrl) return null;
+  if (kind === 'photo' && !imageUrl && !imageStoragePath) return null;
 
   return {
     audience,
+    imageStoragePath: kind === 'photo' ? imageStoragePath : null,
+    imageAlt: kind === 'photo' ? imageAlt : null,
+    replyToPostId,
     item: {
       postId,
       kind,
       author: {
         label: authorLabel,
         avatarUrl: normalizeHttpsUrl(author['avatarUrl']),
+        profileType: null,
+        profileTypeLabel: null,
+        city: null,
+        state: null,
       },
       text: text || null,
       image: imageUrl
         ? {
           url: imageUrl,
-          alt: imageAlt || 'Foto publicada na comunidade',
+          alt: imageAlt,
         }
         : null,
+      replyTo: null,
       metrics: {
         commentCount: normalizeCount(metrics['commentCount']),
         reactionCount: normalizeCount(metrics['reactionCount']),
+      },
+      capabilities: {
+        canDeleteOwn: false,
+        canModerate: false,
+        canReport: false,
+        canReact: false,
+        viewerReacted: false,
+        canViewComments: false,
+        canComment: false,
       },
       publishedAt,
     },

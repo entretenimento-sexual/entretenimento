@@ -23,6 +23,9 @@ import {
 import {
   isFunctionsEmulatorRuntime,
 } from '../security/payment-runtime.guard';
+import {
+  readPlatformSubscriptionFlowContext,
+} from '../domain/platform-subscription-flow.policy';
 
 type BillingReturnStatus =
   | 'processing'
@@ -106,6 +109,7 @@ function buildGrantedResult(params: {
   providerSessionId?: string | null;
   role?: PlatformRole | null;
   message?: string | null;
+  redirectTo?: string | null;
 }): ProcessBillingReturnResponse {
   return {
     status: 'granted',
@@ -114,7 +118,7 @@ function buildGrantedResult(params: {
     accessGranted: true,
     checkoutSessionId: params.checkoutSessionId,
     providerSessionId: params.providerSessionId ?? null,
-    redirectTo: '/conta',
+    redirectTo: params.redirectTo ?? '/conta',
     message: params.message ?? 'Acesso confirmado com sucesso.',
   };
 }
@@ -260,6 +264,10 @@ export const processBillingReturn = onCall<ProcessBillingReturnRequest>(
       );
     }
 
+    const flowContext = readPlatformSubscriptionFlowContext(
+      checkout.metadata
+    );
+
     const grantedEntitlement = await getGrantedEntitlement(checkout);
 
     if (checkout.status === 'paid' && grantedEntitlement.active) {
@@ -272,6 +280,7 @@ export const processBillingReturn = onCall<ProcessBillingReturnRequest>(
           checkout.planSnapshot?.grantedRole ??
           null,
         message: 'Pagamento já confirmado anteriormente.',
+        redirectTo: flowContext.returnUrl,
       });
     }
 
@@ -334,6 +343,7 @@ export const processBillingReturn = onCall<ProcessBillingReturnRequest>(
       checkoutSessionId: checkout.id,
       providerSessionId: checkout.providerSessionId ?? null,
       role: settlement.role ?? null,
+      redirectTo: flowContext.returnUrl,
       message: settlement.idempotent
         ? 'Assinatura local já havia sido confirmada.'
         : 'Assinatura local confirmada no ambiente de testes.',

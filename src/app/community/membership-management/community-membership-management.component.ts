@@ -30,11 +30,15 @@ import {
   CommunityMembershipReviewAction,
 } from '../data-access/community-membership.model';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
+import type { CommunityCapacityPreview } from '../data-access/community-capacity.model';
 import {
   CommunityPreviewSourceType,
   CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
+import { CommunityMemberRosterManagementComponent } from '../member-roster-management/community-member-roster-management.component';
 import { CommunityOwnershipManagementComponent } from '../ownership-management/community-ownership-management.component';
+import { CommunitySettingsComponent } from '../community-settings/community-settings.component';
+import type { CommunityEditableSettings } from '../data-access/community-settings.model';
 
 type MembershipRequestsState =
   | { status: 'loading'; items: readonly CommunityMembershipRequestItem[] }
@@ -57,7 +61,13 @@ interface MembershipReviewCommand {
 @Component({
   selector: 'app-community-membership-management',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, CommunityOwnershipManagementComponent],
+  imports: [
+    AsyncPipe,
+    DatePipe,
+    CommunityMemberRosterManagementComponent,
+    CommunityOwnershipManagementComponent,
+    CommunitySettingsComponent,
+  ],
   templateUrl: './community-membership-management.component.html',
   styleUrl: './community-membership-management.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -72,7 +82,12 @@ export class CommunityMembershipManagementComponent {
   readonly communityId = input.required<string>();
   readonly sourceType = input<CommunityPreviewSourceType>('community');
   readonly viewerRole = input<CommunityPreviewViewerRole | null>(null);
+  readonly canManageCommunitySettings = input(false);
+  readonly settings = input<CommunityEditableSettings | null>(null);
+  readonly capacity = input<CommunityCapacityPreview | null>(null);
   readonly membershipChanged = output<void>();
+  readonly ownershipChanged = output<void>();
+  readonly settingsChanged = output<void>();
 
   private readonly communityId$ = toObservable(this.communityId).pipe(
     map((communityId) => communityId.trim()),
@@ -140,9 +155,14 @@ export class CommunityMembershipManagementComponent {
             action,
           }),
           catchError((error: unknown) => {
+            const capacityReached = (
+              error as { details?: { reason?: unknown } } | null
+            )?.details?.reason === 'community_capacity_reached';
             this.reportError(
               error,
-              this.sourceType() === 'venue'
+              capacityReached
+                ? 'A capacidade atual foi atingida. A solicitação continua pendente.'
+                : this.sourceType() === 'venue'
                 ? 'Não foi possível revisar esta solicitação de acesso.'
                 : 'Não foi possível revisar esta solicitação de entrada.',
               'reviewMembership'

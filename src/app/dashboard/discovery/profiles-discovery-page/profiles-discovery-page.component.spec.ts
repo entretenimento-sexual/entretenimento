@@ -10,9 +10,11 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ProfilesDiscoveryPageComponent } from './profiles-discovery-page.component';
-import { DiscoveryPublicProfilesFacade } from '../application/discovery-public-profiles.facade';
+import type { GeoPermissionState } from 'src/app/core/interfaces/geolocation.interface';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
+import { DiscoveryPublicProfilesFacade } from '../application/discovery-public-profiles.facade';
+import { ProfilesDiscoveryPageComponent } from './profiles-discovery-page.component';
 
 import { OnlineUsersFullComponent } from '../../online/online-users-full/online-users-full.component';
 import { PublicProfilesListComponent } from '../public-profiles-list/public-profiles-list.component';
@@ -90,10 +92,25 @@ describe('ProfilesDiscoveryPageComponent', () => {
       estado: 'RJ',
       municipio: 'rio de janeiro',
     }),
+    getLoggedUserUIDSnapshot: vi.fn(() => 'u1'),
+  };
+
+  const geolocationTrackingMock = {
+    queryPermission: vi.fn(
+      async (): Promise<GeoPermissionState> => 'granted'
+    ),
+    requestPermissionOnce: vi.fn(
+      async (): Promise<GeoPermissionState> => 'granted'
+    ),
+    autoStartTracking: vi.fn(async () => void 0),
   };
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    localStorage.clear();
+    geolocationTrackingMock.queryPermission.mockResolvedValue('granted');
+    geolocationTrackingMock.requestPermissionOnce.mockResolvedValue('granted');
+    currentUserStoreMock.getLoggedUserUIDSnapshot.mockReturnValue('u1');
 
     await TestBed.configureTestingModule({
       imports: [ProfilesDiscoveryPageComponent],
@@ -106,6 +123,10 @@ describe('ProfilesDiscoveryPageComponent', () => {
         {
           provide: CurrentUserStoreService,
           useValue: currentUserStoreMock,
+        },
+        {
+          provide: GeolocationTrackingService,
+          useValue: geolocationTrackingMock,
         },
       ],
     })
@@ -131,6 +152,8 @@ describe('ProfilesDiscoveryPageComponent', () => {
 
     fixture = TestBed.createComponent(ProfilesDiscoveryPageComponent);
     component = fixture.componentInstance;
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
   });
 
@@ -187,5 +210,81 @@ describe('ProfilesDiscoveryPageComponent', () => {
     const nearbyTab = component.tabs.find((tab) => tab.id === 'nearby');
 
     expect(nearbyTab).toBeUndefined();
+  });
+
+  it('deve solicitar localização apenas após gesto explícito e iniciar tracking do UID atual', async () => {
+    component.locationPermission.set('prompt');
+    fixture.detectChanges();
+
+    const button = fixture.nativeElement.querySelector(
+      '.profiles-discovery-page__location-action'
+    ) as HTMLButtonElement;
+
+    expect(button).toBeTruthy();
+    expect(button.textContent).toContain('Ativar localização');
+
+    button.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(geolocationTrackingMock.requestPermissionOnce).toHaveBeenCalledTimes(1);
+    expect(geolocationTrackingMock.autoStartTracking).toHaveBeenCalledWith('u1');
+    expect(component.locationPermission()).toBe('granted');
+    expect(
+      fixture.nativeElement.querySelector('.profiles-discovery-page__location-action')
+    ).toBeNull();
+  });
+
+  it('deve permitir ocultar o aviso e lembrar a escolha por UID', () => {
+    component.locationPermission.set('prompt');
+    fixture.detectChanges();
+
+    const dismiss = fixture.nativeElement.querySelector(
+      '.profiles-discovery-page__location-dismiss'
+    ) as HTMLButtonElement;
+
+    expect(dismiss).toBeTruthy();
+    dismiss.click();
+    fixture.detectChanges();
+
+    expect(component.locationNoticeDismissed()).toBe(true);
+    expect(
+      localStorage.getItem('discovery:location-notice:dismissed:v1:u1')
+    ).toBe('1');
+    expect(
+      fixture.nativeElement.querySelector('.profiles-discovery-page__location-notice')
+    ).toBeNull();
+  });
+
+  it('deve restaurar a dispensa persistida sem insistir no aviso', async () => {
+    localStorage.setItem('discovery:location-notice:dismissed:v1:u1', '1');
+    geolocationTrackingMock.queryPermission.mockResolvedValue('prompt');
+    component.locationNoticeDismissed.set(false);
+
+    component.ngOnInit();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(component.locationPermission()).toBe('prompt');
+    expect(component.locationNoticeDismissed()).toBe(true);
+    expect(
+      fixture.nativeElement.querySelector('.profiles-discovery-page__location-notice')
+    ).toBeNull();
+  });
+
+  it('deve orientar no próprio discovery quando a localização estiver bloqueada', () => {
+    component.locationPermission.set('denied');
+    component.locationNoticeDismissed.set(false);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Localização bloqueada no navegador'
+    );
+    expect(
+      fixture.nativeElement.querySelector('.profiles-discovery-page__location-action')
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('.profiles-discovery-page__location-dismiss')
+    ).toBeTruthy();
   });
 });

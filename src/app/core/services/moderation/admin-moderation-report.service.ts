@@ -7,7 +7,7 @@
 // Decisões:
 // - leitura/listagem depende das Firestore Rules com claim admin;
 // - atualizações genéricas preservam o fluxo existente;
-// - decisões sobre conteúdo de vídeo passam por Callable administrativa;
+// - decisões sobre foto, vídeo e conteúdo comunitário passam por Callables;
 // - possível menoridade em perfil usa Callables específicas e auditáveis;
 // - Functions é resolvido somente quando uma decisão especializada é executada;
 // - decisões são registradas também em /admin_logs;
@@ -66,6 +66,21 @@ interface NormalizedModerationReportReviewPatch {
   resolution: string | null;
 }
 
+interface ReviewPhotoContentReportRequest {
+  reportId: string;
+  decision: ModerationReportAction;
+  resolution: string;
+}
+
+interface ReviewPhotoContentReportResponse {
+  reportId: string;
+  decision: ModerationReportAction;
+  targetType: 'photo';
+  cleanupPending: boolean;
+  evidencePreservationPending?: boolean;
+  evidenceReleasePending?: boolean;
+}
+
 interface ReviewVideoContentReportRequest {
   reportId: string;
   decision: ModerationReportAction;
@@ -77,6 +92,44 @@ interface ReviewVideoContentReportResponse {
   decision: ModerationReportAction;
   targetType: 'video' | 'video_comment' | 'video_rating';
   cleanupPending: boolean;
+  evidencePreservationPending?: boolean;
+  evidenceReleasePending?: boolean;
+}
+
+interface ReviewCommunityFeedPostReportRequest {
+  reportId: string;
+  decision: ModerationReportAction;
+  resolution: string;
+}
+
+interface ReviewCommunityFeedPostReportResponse {
+  reportId: string;
+  decision: ModerationReportAction;
+  targetType: 'community_feed_post';
+}
+
+interface ReviewCommunityFeedCommentReportRequest {
+  reportId: string;
+  decision: ModerationReportAction;
+  resolution: string;
+}
+
+interface ReviewCommunityFeedCommentReportResponse {
+  reportId: string;
+  decision: ModerationReportAction;
+  targetType: 'community_feed_comment';
+}
+
+interface ReviewCommunityFeedCommentReplyReportRequest {
+  reportId: string;
+  decision: ModerationReportAction;
+  resolution: string;
+}
+
+interface ReviewCommunityFeedCommentReplyReportResponse {
+  reportId: string;
+  decision: ModerationReportAction;
+  targetType: 'community_feed_comment_reply';
 }
 
 interface RequestProfileAgeReverificationRequest {
@@ -178,6 +231,25 @@ export class AdminModerationReportService {
     }
 
     if (
+      normalized.reportTargetType === 'photo' &&
+      (normalized.status === 'resolved' || normalized.status === 'rejected')
+    ) {
+      const decision: ModerationReportAction = normalized.status === 'resolved'
+        ? 'REMOVE'
+        : 'KEEP';
+      const resolution = normalized.resolution ??
+        (decision === 'REMOVE'
+          ? 'Foto removida após confirmação da denúncia.'
+          : 'Foto mantida após revisão da denúncia.');
+
+      return this.reviewPhotoContentReport$(
+        safeReportId,
+        decision,
+        resolution
+      );
+    }
+
+    if (
       this.isVideoContentTarget(normalized.reportTargetType) &&
       (normalized.status === 'resolved' || normalized.status === 'rejected')
     ) {
@@ -190,6 +262,61 @@ export class AdminModerationReportService {
           : 'Conteúdo mantido após revisão da denúncia.');
 
       return this.reviewVideoContentReport$(
+        safeReportId,
+        decision,
+        resolution
+      );
+    }
+
+    if (
+      normalized.reportTargetType === 'community_feed_post'
+      && (normalized.status === 'resolved' || normalized.status === 'rejected')
+    ) {
+      const decision: ModerationReportAction = normalized.status === 'resolved'
+        ? 'REMOVE'
+        : 'KEEP';
+      const resolution = normalized.resolution ??
+        (decision === 'REMOVE'
+          ? 'Publicação removida após confirmação da denúncia.'
+          : 'Publicação mantida após revisão da denúncia.');
+
+      return this.reviewCommunityFeedPostReport$(
+        safeReportId,
+        decision,
+        resolution
+      );
+    }
+
+    if (
+      normalized.reportTargetType === 'community_feed_comment'
+      && (normalized.status === 'resolved' || normalized.status === 'rejected')
+    ) {
+      const decision: ModerationReportAction = normalized.status === 'resolved'
+        ? 'REMOVE'
+        : 'KEEP';
+      const resolution = normalized.resolution ??
+        (decision === 'REMOVE'
+          ? 'Comentário removido após confirmação da denúncia.'
+          : 'Comentário mantido após revisão da denúncia.');
+      return this.reviewCommunityFeedCommentReport$(
+        safeReportId,
+        decision,
+        resolution
+      );
+    }
+
+    if (
+      normalized.reportTargetType === 'community_feed_comment_reply'
+      && (normalized.status === 'resolved' || normalized.status === 'rejected')
+    ) {
+      const decision: ModerationReportAction = normalized.status === 'resolved'
+        ? 'REMOVE'
+        : 'KEEP';
+      const resolution = normalized.resolution ??
+        (decision === 'REMOVE'
+          ? 'Resposta removida após confirmação da denúncia.'
+          : 'Resposta mantida após revisão da denúncia.');
+      return this.reviewCommunityFeedCommentReplyReport$(
         safeReportId,
         decision,
         resolution
@@ -254,6 +381,42 @@ export class AdminModerationReportService {
     );
   }
 
+  reviewPhotoContentReport$(
+    reportId: string,
+    decision: ModerationReportAction,
+    resolution: string
+  ): Observable<void> {
+    const safeReportId = String(reportId ?? '').trim();
+    const safeResolution = this.normalizeResolution(resolution);
+
+    if (
+      !safeReportId ||
+      !['KEEP', 'REMOVE'].includes(decision) ||
+      safeResolution.length < 8
+    ) {
+      return throwError(
+        () => new Error('Decisão de conteúdo de foto inválida.')
+      );
+    }
+
+    return from(
+      this.createReviewPhotoContentReportCallable()({
+        reportId: safeReportId,
+        decision,
+        resolution: safeResolution,
+      })
+    ).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(error, 'reviewPhotoContentReport', {
+          hasReportId: !!safeReportId,
+          decision,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
   reviewVideoContentReport$(
     reportId: string,
     decision: ModerationReportAction,
@@ -282,6 +445,110 @@ export class AdminModerationReportService {
       map(() => void 0),
       catchError((error) => {
         this.reportError(error, 'reviewVideoContentReport', {
+          hasReportId: !!safeReportId,
+          decision,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  reviewCommunityFeedPostReport$(
+    reportId: string,
+    decision: ModerationReportAction,
+    resolution: string
+  ): Observable<void> {
+    const safeReportId = String(reportId ?? '').trim();
+    const safeResolution = this.normalizeResolution(resolution);
+
+    if (
+      !safeReportId
+      || !['KEEP', 'REMOVE'].includes(decision)
+      || safeResolution.length < 8
+    ) {
+      return throwError(
+        () => new Error('Decisão de publicação comunitária inválida.')
+      );
+    }
+
+    return from(
+      this.createReviewCommunityFeedPostReportCallable()({
+        reportId: safeReportId,
+        decision,
+        resolution: safeResolution,
+      })
+    ).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(error, 'reviewCommunityFeedPostReport', {
+          hasReportId: !!safeReportId,
+          decision,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  reviewCommunityFeedCommentReport$(
+    reportId: string,
+    decision: ModerationReportAction,
+    resolution: string
+  ): Observable<void> {
+    const safeReportId = String(reportId ?? '').trim();
+    const safeResolution = this.normalizeResolution(resolution);
+    if (
+      !safeReportId
+      || !['KEEP', 'REMOVE'].includes(decision)
+      || safeResolution.length < 8
+    ) {
+      return throwError(
+        () => new Error('Decisão de comentário comunitário inválida.')
+      );
+    }
+    return from(
+      this.createReviewCommunityFeedCommentReportCallable()({
+        reportId: safeReportId,
+        decision,
+        resolution: safeResolution,
+      })
+    ).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(error, 'reviewCommunityFeedCommentReport', {
+          hasReportId: !!safeReportId,
+          decision,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  reviewCommunityFeedCommentReplyReport$(
+    reportId: string,
+    decision: ModerationReportAction,
+    resolution: string
+  ): Observable<void> {
+    const safeReportId = String(reportId ?? '').trim();
+    const safeResolution = this.normalizeResolution(resolution);
+    if (
+      !safeReportId
+      || !['KEEP', 'REMOVE'].includes(decision)
+      || safeResolution.length < 8
+    ) {
+      return throwError(
+        () => new Error('Decisão de resposta comunitária inválida.')
+      );
+    }
+    return from(
+      this.createReviewCommunityFeedCommentReplyReportCallable()({
+        reportId: safeReportId,
+        decision,
+        resolution: safeResolution,
+      })
+    ).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(error, 'reviewCommunityFeedCommentReplyReport', {
           hasReportId: !!safeReportId,
           decision,
         });
@@ -384,6 +651,18 @@ export class AdminModerationReportService {
     );
   }
 
+  private createReviewPhotoContentReportCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReviewPhotoContentReportRequest,
+        ReviewPhotoContentReportResponse
+      >(
+        inject(Functions),
+        'reviewPhotoContentReport'
+      )
+    );
+  }
+
   private createReviewVideoContentReportCallable() {
     return runInInjectionContext(this.environmentInjector, () =>
       httpsCallable<
@@ -392,6 +671,42 @@ export class AdminModerationReportService {
       >(
         inject(Functions),
         'reviewVideoContentReport'
+      )
+    );
+  }
+
+  private createReviewCommunityFeedPostReportCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReviewCommunityFeedPostReportRequest,
+        ReviewCommunityFeedPostReportResponse
+      >(
+        inject(Functions),
+        'reviewCommunityFeedPostReport'
+      )
+    );
+  }
+
+  private createReviewCommunityFeedCommentReportCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReviewCommunityFeedCommentReportRequest,
+        ReviewCommunityFeedCommentReportResponse
+      >(
+        inject(Functions),
+        'reviewCommunityFeedCommentReport'
+      )
+    );
+  }
+
+  private createReviewCommunityFeedCommentReplyReportCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReviewCommunityFeedCommentReplyReportRequest,
+        ReviewCommunityFeedCommentReplyReportResponse
+      >(
+        inject(Functions),
+        'reviewCommunityFeedCommentReplyReport'
       )
     );
   }
@@ -446,6 +761,10 @@ export class AdminModerationReportService {
       targetType: report.targetType,
       targetId: String(report.targetId ?? '').trim(),
       parentTargetId: String(report.parentTargetId ?? '').trim() || null,
+      grandparentTargetId:
+        String(report.grandparentTargetId ?? '').trim() || null,
+      containerTargetId:
+        String(report.containerTargetId ?? '').trim() || null,
       targetOwnerUid: String(report.targetOwnerUid ?? '').trim() || null,
       targetAuthorUid: String(report.targetAuthorUid ?? '').trim() || null,
       reason: report.reason,
@@ -534,11 +853,17 @@ export class AdminModerationReportService {
         `[AdminModerationReportService.${operation}] falhou.`
       );
 
-      (normalizedError as any).feature = 'admin_moderation_reports';
-      (normalizedError as any).operation = operation;
-      (normalizedError as any).context = context;
-      (normalizedError as any).original = error;
-      this.globalError.handleError(normalizedError);
+      const reportable = normalizedError as Error & {
+        feature?: unknown;
+        operation?: unknown;
+        context?: unknown;
+        original?: unknown;
+      };
+      reportable.feature = 'admin_moderation_reports';
+      reportable.operation = operation;
+      reportable.context = context;
+      reportable.original = error;
+      this.globalError.handleError(reportable);
     } catch {
       // noop
     }

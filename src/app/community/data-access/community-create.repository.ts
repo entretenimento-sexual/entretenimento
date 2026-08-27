@@ -8,6 +8,10 @@ import {
   CommunityCreateResult,
   normalizeCommunityCreateResult,
 } from './community-create.model';
+import {
+  CommunityCreationCapability,
+  normalizeCommunityCreationCapability,
+} from './community-capacity.model';
 
 @Injectable({ providedIn: 'root' })
 export class CommunityCreateRepository {
@@ -17,6 +21,25 @@ export class CommunityCreateRepository {
     CommunityCreateCommand,
     unknown
   >(this.functions, 'createCommunity');
+
+  private readonly getCreationCapabilityCallable = httpsCallable<
+    Record<string, never>,
+    unknown
+  >(this.functions, 'getCommunityCreationCapability');
+
+  getCreationCapability$(): Observable<CommunityCreationCapability> {
+    return defer(() => from(this.getCreationCapabilityCallable({}))).pipe(
+      map((result) => {
+        const normalized = normalizeCommunityCreationCapability(result.data);
+
+        if (!normalized) {
+          throw new Error('Resposta de permissão para criar Comunidade inválida.');
+        }
+
+        return normalized;
+      })
+    );
+  }
 
   createCommunity$(
     command: CommunityCreateCommand

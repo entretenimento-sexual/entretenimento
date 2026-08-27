@@ -27,10 +27,8 @@ import {
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
-  AdminVideoModerationDecision,
   AdminVideoModerationService,
   AdminVideoProcessingJobState,
-  IAdminVideoModerationItem,
   IAdminVideoProcessingStatus,
 } from 'src/app/core/services/moderation/admin-video-moderation.service';
 import {
@@ -39,15 +37,9 @@ import {
   IAdminVideoProcessingRecoveryJob,
 } from 'src/app/core/services/moderation/admin-video-processing-recovery.service';
 
-type VideoModerationQueueStatus = 'loading' | 'ready' | 'empty' | 'error';
-
-interface VideoModerationQueueState {
-  status: VideoModerationQueueStatus;
-  items: IAdminVideoModerationItem[];
-  skippedItems: number;
-}
-
 type VideoProcessingPanelStatus = 'loading' | 'ready' | 'error';
+type VideoRecoveryPanelStatus = 'loading' | 'ready' | 'empty' | 'error';
+type RecoveryReasonDrafts = Record<string, string>;
 
 interface VideoProcessingPanelState {
   status: VideoProcessingPanelStatus;
@@ -55,7 +47,7 @@ interface VideoProcessingPanelState {
 }
 
 interface VideoProcessingRecoveryPanelState {
-  status: VideoModerationQueueStatus;
+  status: VideoRecoveryPanelStatus;
   items: IAdminVideoProcessingRecoveryJob[];
   skippedItems: number;
   checkedAt: number;
@@ -66,9 +58,6 @@ interface PendingRecoveryConfirmation {
   action: AdminVideoProcessingRecoveryAction;
 }
 
-type ReasonDrafts = Record<string, string>;
-
-const ACCESS_REFRESH_INTERVAL_MS = 8 * 60 * 1000;
 const PROCESSING_STATUS_REFRESH_INTERVAL_MS = 60 * 1000;
 
 @Component({
@@ -89,10 +78,8 @@ export class VideoModerationComponent {
   private readonly notification = inject(ErrorNotificationService);
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
-  readonly busyVideoKey = signal<string | null>(null);
   readonly busyRecoveryKey = signal<string | null>(null);
-  readonly reasonDrafts = signal<ReasonDrafts>({});
-  readonly recoveryReasonDrafts = signal<ReasonDrafts>({});
+  readonly recoveryReasonDrafts = signal<RecoveryReasonDrafts>({});
   readonly pendingRecoveryConfirmation =
     signal<PendingRecoveryConfirmation | null>(null);
 
@@ -149,32 +136,6 @@ export class VideoModerationComponent {
           skippedItems: 0,
           checkedAt: 0,
         } as VideoProcessingRecoveryPanelState))
-      )
-    ),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  readonly state$: Observable<VideoModerationQueueState> = merge(
-    this.refreshSubject,
-    timer(ACCESS_REFRESH_INTERVAL_MS, ACCESS_REFRESH_INTERVAL_MS)
-  ).pipe(
-    switchMap(() =>
-      this.moderation.listPendingVideos$(60).pipe(
-        map(({ items, skippedItems }) => ({
-          status: items.length > 0 ? 'ready' : 'empty',
-          items,
-          skippedItems,
-        } as VideoModerationQueueState)),
-        startWith({
-          status: 'loading',
-          items: [],
-          skippedItems: 0,
-        } as VideoModerationQueueState),
-        catchError(() => of({
-          status: 'error',
-          items: [],
-          skippedItems: 0,
-        } as VideoModerationQueueState))
       )
     ),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -244,7 +205,7 @@ export class VideoModerationComponent {
   ): string {
     switch (action) {
       case 'RETRY_FAILED':
-        return 'Cria uma nova versão de processamento e preserva o original privado.';
+        return 'Cria uma nova versão de processamento e preserva a fonte protegida.';
       case 'RECHECK_STALE':
         return 'Libera o lease para que o reconciliador confirme o job sem duplicá-lo.';
       case 'CANCEL_ACTIVE':
@@ -388,141 +349,12 @@ export class VideoModerationComponent {
     return item.jobId || this.recoveryItemKey(item);
   }
 
-  setReason(item: IAdminVideoModerationItem, value: string): void {
-    const key = this.itemKey(item);
-
-    this.reasonDrafts.update((drafts) => ({
-      ...drafts,
-      [key]: String(value ?? '').slice(0, 900),
-    }));
-  }
-
-  reason(item: IAdminVideoModerationItem): string {
-    return this.reasonDrafts()[this.itemKey(item)] ?? '';
-  }
-
-  approve(item: IAdminVideoModerationItem): void {
-    this.review(item, 'APPROVE', this.reason(item));
-  }
-
-  reject(item: IAdminVideoModerationItem): void {
-    const reason = this.reason(item).trim();
-
-    if (reason.length < 8) {
-      this.notification.showWarning(
-        'Informe um motivo objetivo, com pelo menos 8 caracteres.'
-      );
-      return;
-    }
-
-    this.review(item, 'REJECT', reason);
-  }
-
-  isBusy(item: IAdminVideoModerationItem): boolean {
-    return this.busyVideoKey() === this.itemKey(item);
-  }
-
-  trackByVideo(_: number, item: IAdminVideoModerationItem): string {
-    return this.itemKey(item);
-  }
-
-  formatDuration(durationMs: number | null): string {
-    const totalSeconds = Math.max(0, Math.floor(Number(durationMs ?? 0) / 1000));
-
-    if (!totalSeconds) {
-      return 'Duração não informada';
-    }
-
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    if (hours > 0) {
-      return [hours, minutes, seconds]
-        .map((value, index) => index === 0
-          ? String(value)
-          : String(value).padStart(2, '0'))
-        .join(':');
-    }
-
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
-  }
-
-  formatFileSize(sizeBytes: number): string {
-    const size = Number(sizeBytes ?? 0);
-
-    if (!Number.isFinite(size) || size <= 0) {
-      return 'Tamanho não informado';
-    }
-
-    if (size < 1024 * 1024) {
-      return `${Math.round(size / 1024)} KB`;
-    }
-
-    return `${(size / 1024 / 1024).toFixed(1)} MB`;
-  }
-
-  publishedDate(value: number): Date | null {
-    return Number.isFinite(value) && value > 0 ? new Date(value) : null;
-  }
-
-  private review(
-    item: IAdminVideoModerationItem,
-    decision: AdminVideoModerationDecision,
-    reason: string
-  ): void {
-    const key = this.itemKey(item);
-
-    if (!key || this.busyVideoKey()) {
-      return;
-    }
-
-    this.busyVideoKey.set(key);
-
-    this.moderation.reviewVideo$({
-      ownerUid: item.ownerUid,
-      videoId: item.videoId,
-      decision,
-      reason: reason.trim() || null,
-    }).pipe(
-      finalize(() => this.busyVideoKey.set(null)),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe({
-      next: (result) => {
-        this.clearReason(item);
-        this.notification.showSuccess(
-          result.moderationStatus === 'APPROVED'
-            ? 'Vídeo aprovado e liberado no perfil.'
-            : result.cleanupPending
-              ? 'Vídeo rejeitado. A limpeza física continuará em segundo plano.'
-              : 'Vídeo rejeitado e removido da área pública.'
-        );
-        this.retry();
-      },
-      error: () => {
-        this.notification.showError(
-          'Não foi possível concluir a revisão deste vídeo.'
-        );
-      },
-    });
-  }
-
   private clearRecoveryReason(
     item: IAdminVideoProcessingRecoveryJob
   ): void {
     const key = this.recoveryItemKey(item);
 
     this.recoveryReasonDrafts.update((drafts) => {
-      const next = { ...drafts };
-      delete next[key];
-      return next;
-    });
-  }
-
-  private clearReason(item: IAdminVideoModerationItem): void {
-    const key = this.itemKey(item);
-
-    this.reasonDrafts.update((drafts) => {
       const next = { ...drafts };
       delete next[key];
       return next;
@@ -541,10 +373,6 @@ export class VideoModerationComponent {
   }
 
   private recoveryItemKey(item: IAdminVideoProcessingRecoveryJob): string {
-    return `${item.ownerUid}:${item.videoId}`;
-  }
-
-  private itemKey(item: IAdminVideoModerationItem): string {
-    return `${item.ownerUid}:${item.videoId}`;
+    return JSON.stringify([item.ownerUid, item.videoId]);
   }
 }

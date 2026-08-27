@@ -2,17 +2,27 @@
 export { togglePhotoReaction } from './application/toggle-photo-reaction.handler';
 export { toggleVideoReaction } from './application/toggle-video-reaction.handler';
 export { rateVideo } from './application/rate-video.handler';
+export { reportPhotoContent } from './application/report-photo-content.handler';
 export { reportVideoContent } from './application/report-video-content.handler';
+export {
+  reviewPhotoContentReport,
+} from './application/review-photo-content-report.handler';
 export {
   reviewVideoContentReport,
 } from './application/review-video-content-report.handler';
+export {
+  retryPendingModerationEvidencePreservation,
+} from './application/moderation-evidence-preservation.handler';
+export {
+  queueHighRiskModerationLegalReview,
+} from './application/moderation-legal-review.handler';
 
 export {
   createPhotoComment,
 } from './application/create-photo-comment-orchestrator.handler';
 export {
   moderatePhotoComment,
-} from './application/manage-photo-comment.handler';
+} from './application/moderate-photo-comment-orchestrator.handler';
 
 export {
   createVideoComment,
@@ -25,9 +35,11 @@ export {
   publishPhoto,
 } from './application/publish-photo-orchestrator.handler';
 export {
-  unpublishPhoto,
   setCoverPhoto,
 } from './application/manage-photo-publication.handler';
+export {
+  unpublishPhoto,
+} from './application/legacy-unpublish-photo.handler';
 
 export {
   syncPublishedPhotoOnPrivateUpdate,
@@ -35,7 +47,7 @@ export {
 
 export {
   unpublishVideo,
-} from './application/manage-video-publication.handler';
+} from './application/legacy-unpublish-video.handler';
 export {
   publishVideo,
 } from './application/publish-video-orchestrator.handler';
@@ -46,6 +58,9 @@ export {
 export {
   updateVideoPublicationSettings,
 } from './application/update-video-publication-settings.handler';
+export {
+  normalizeLegacyVideoModeration,
+} from './application/normalize-legacy-video-moderation.handler';
 
 export {
   syncPublishedVideoSettings,
@@ -71,6 +86,14 @@ export {
   reconcileVideoProcessing,
   submitQueuedVideoProcessing,
 } from './application/video-processing.handler';
+export {
+  cleanupVideoRotationInput,
+} from './application/cleanup-video-rotation-input.handler';
+
+export {
+  cleanupFailedVideoUploads,
+  discardFailedVideoUpload,
+} from './application/discard-failed-video-upload.handler';
 
 export {
   getVideoProcessingOperationalStatus,
@@ -81,11 +104,6 @@ export {
   listVideoProcessingRecoveryJobs,
   recoverVideoProcessingJob,
 } from './application/admin-video-processing-recovery.handler';
-
-export {
-  listVideoModerationQueue,
-  reviewVideoModeration,
-} from './application/admin-video-moderation.handler';
 
 export {
   cleanupPendingPhotoDeletions,
@@ -118,8 +136,19 @@ export {
 } from './application/get-public-video-access-urls.handler';
 
 export {
+  getRecentPublicMediaViews,
+} from './application/get-recent-public-media-views.handler';
+
+export {
+  startPublicVideoPlaybackSession,
+} from './application/start-public-video-playback-session.handler';
+
+export {
   recordPhotoView,
 } from './application/record-photo-view-orchestrator.handler';
 export {
   recordVideoView,
 } from './application/record-video-view-orchestrator.handler';
+export {
+  recordVideoRetention,
+} from './application/record-video-retention-orchestrator.handler';

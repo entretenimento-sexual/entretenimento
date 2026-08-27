@@ -4,8 +4,9 @@
 // - leitura: somente sender/receiver;
 // - criação: somente Cloud Functions/Admin SDK;
 // - resposta accepted/declined: somente Cloud Functions/Admin SDK;
-// - cliente sender pode apenas cancelar/expirar convite pending;
-// - delete legado: sender pode apagar enquanto pending.
+// - cliente sender pode cancelar/expirar somente convites legados não Community;
+// - convites de Comunidade são integralmente backend-only para preservar
+//   membership, métricas, entitlement, bloqueios e auditoria transacionais.
 // ================================================================
 match /invites/{inviteId} {
 
@@ -15,6 +16,10 @@ match /invites/{inviteId} {
 
   function isReceiver() {
     return signedIn() && resource.data.receiverId == uid();
+  }
+
+  function isCommunityInvite() {
+    return resource.data.type == "community";
   }
 
   allow get: if signedIn() && (isSender() || isReceiver());
@@ -27,17 +32,21 @@ match /invites/{inviteId} {
    * - removida a criação direta pelo sender no navegador;
    * - removidos validCreateV2/validCreateLegacyRoom, pois Rules não conseguem
    *   validar integralmente autoridade na sala, bloqueios e elegibilidade;
-   * - sendRoomInvite usa Admin SDK, request.auth.uid e transação auditada.
+   * - sendRoomInvite/sendCommunityInvite usam Admin SDK, request.auth.uid e
+   *   transações auditadas.
    */
   allow create: if false;
 
   /**
    * SUPRESSÃO EXPLÍCITA:
    * - receiver não pode aceitar/recusar por update direto;
-   * - acceptRoomInvite/declineRoomInvite usam Admin SDK e validam a operação
-   *   junto com membership, projeção do usuário e auditoria.
+   * - convites de Comunidade também não podem ser cancelados/expirados por
+   *   update direto do sender, pois revokeCommunityInvite precisa manter a
+   *   trilha de auditoria e a política comunitária coerentes;
+   * - callables usam Admin SDK e revalidam membership, entitlement e bloqueios.
    */
-  allow update: if signedIn()
+  allow update: if !isCommunityInvite()
+    && signedIn()
     && resource.data.status == "pending"
     && request.resource.data.status != resource.data.status
     && request.resource.data.diff(resource.data).changedKeys().hasOnly([
@@ -57,7 +66,11 @@ match /invites/{inviteId} {
       || isAdmin() == true
     );
 
-  allow delete: if signedIn() && isSender() && resource.data.status == "pending";
+  // Delete direto permanece somente para convites legados não Community.
+  allow delete: if !isCommunityInvite()
+    && signedIn()
+    && isSender()
+    && resource.data.status == "pending";
 }
 // ================================================================
 // FIM DE INVITES.RULES

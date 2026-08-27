@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import {
   buildExplorePersonalFeed,
   buildExplorePersonalFeedWindow,
@@ -25,6 +26,59 @@ function photo(
     orderIndex: 0,
     ...overrides,
   } as IPublicPhotoItem;
+}
+
+function video(
+  id: string,
+  ownerUid: string,
+  publishedAt: number
+): IPublicVideoItem {
+  return {
+    id,
+    ownerUid,
+    mediaType: 'VIDEO',
+    assetAccess: 'SIGNED_URL',
+    posterAccess: 'SIGNED_URL',
+    title: `Vídeo ${id}`,
+    description: null,
+    alt: `Vídeo ${id}`,
+    mimeType: 'video/mp4',
+    sizeBytes: 1_024,
+    durationMs: 12_000,
+    createdAt: publishedAt,
+    publishedAt,
+    updatedAt: publishedAt,
+    lastViewedAt: null,
+    visibility: 'PUBLIC',
+    orderIndex: 0,
+    moderationStatus: 'APPROVED',
+    moderationReason: null,
+    reactionsEnabled: true,
+    commentsEnabled: true,
+    ratingsEnabled: true,
+    viewsCount: 0,
+    uniqueViewersCount: 0,
+    reactionsCount: 0,
+    commentsCount: 0,
+    ratingsCount: 0,
+    ratingAverage: 0,
+    reportsCount: 0,
+    openReportsCount: 0,
+    confirmedReportsCount: 0,
+    viewScore: 0,
+    engagementScore: 0,
+    score: 0,
+    scoreBreakdown: {
+      rankingScore: 0,
+      qualityScore: 0,
+      engagementScore: 0,
+      safetyScore: 100,
+    },
+    owner: null,
+    url: null,
+    posterUrl: `https://example.test/${id}.webp?preview=1`,
+    accessExpiresAt: Date.now() + 60_000,
+  };
 }
 
 function status(
@@ -160,7 +214,7 @@ describe('buildExplorePersonalFeed', () => {
     expect(result.map((item) => item.id)).toEqual(['recent', 'old-boosted']);
   });
 
-  it('limita repetição por autor para preservar diversidade', () => {
+  it('prioriza diversidade antes de liberar a rodada seguinte do mesmo autor', () => {
     const result = buildExplorePersonalFeed(
       {
         personalPhotos: [],
@@ -179,7 +233,7 @@ describe('buildExplorePersonalFeed', () => {
       { maxItemsPerOwner: 2 }
     );
 
-    expect(result.map((item) => item.id)).toEqual(['a1', 'a2', 'b1']);
+    expect(result.map((item) => item.id)).toEqual(['a1', 'a2', 'b1', 'a3']);
   });
 
   it('respeita o limite total da timeline', () => {
@@ -268,6 +322,59 @@ describe('buildExploreSocialFeed', () => {
     ]);
   });
 
+  it('mistura fotos e vídeos preservando amigos antes de compatíveis', () => {
+    const result = buildExploreSocialFeed(
+      [
+        photo('friend-photo', 'friend-1', { publishedAt: 300 }),
+        photo('compatible-photo', 'compatible-1', { publishedAt: 900 }),
+      ],
+      [],
+      ['friend-1', 'friend-2'],
+      [{ uid: 'compatible-1', nickname: 'Compatível' }],
+      {
+        viewerUid: 'viewer-1',
+        videos: [
+          video('friend-video', 'friend-2', 400),
+          video('compatible-video', 'compatible-1', 1_000),
+        ],
+      }
+    );
+
+    expect(result.map((item) => item.key)).toEqual([
+      'video:friend-2:friend-video',
+      'photo:friend-1:friend-photo',
+      'video:compatible-1:compatible-video',
+      'photo:compatible-1:compatible-photo',
+    ]);
+  });
+
+  it('diversifica foto e vídeo por rodadas sem descartar o excedente do autor', () => {
+    const result = buildExploreSocialFeed(
+      [
+        photo('p1', 'friend-1', { publishedAt: 500 }),
+        photo('p2', 'friend-1', { publishedAt: 300 }),
+      ],
+      [],
+      ['friend-1'],
+      [],
+      {
+        viewerUid: 'viewer-1',
+        maxMediaPerOwner: 2,
+        videos: [
+          video('v1', 'friend-1', 600),
+          video('v2', 'friend-1', 400),
+        ],
+      }
+    );
+
+    expect(result.map((item) => item.key)).toEqual([
+      'video:friend-1:v1',
+      'photo:friend-1:p1',
+      'video:friend-1:v2',
+      'photo:friend-1:p2',
+    ]);
+  });
+
   it('exclui o próprio usuário, autores sem vínculo e status inativos', () => {
     const result = buildExploreSocialFeed(
       [],
@@ -287,7 +394,7 @@ describe('buildExploreSocialFeed', () => {
     ]);
   });
 
-  it('mantém momentos relacionados disponíveis quando não existem fotos', () => {
+  it('mantém momentos relacionados disponíveis quando não existem mídias', () => {
     const result = buildExploreSocialFeed(
       [],
       [status('friend', 'friend-1')],
@@ -302,7 +409,7 @@ describe('buildExploreSocialFeed', () => {
 });
 
 describe('buildExploreSocialFeedWindow', () => {
-  it('pagina a timeline mista sem separar fotos e momentos', () => {
+  it('pagina a timeline mista sem separar fotos, vídeos e momentos', () => {
     const items = buildExploreSocialFeed(
       [
         photo('p1', 'friend-1'),
@@ -312,13 +419,16 @@ describe('buildExploreSocialFeedWindow', () => {
       [status('s1', 'friend-1')],
       ['friend-1', 'friend-2', 'friend-3'],
       [],
-      { viewerUid: 'viewer-1' }
+      {
+        viewerUid: 'viewer-1',
+        videos: [video('v1', 'friend-2', 2)],
+      }
     );
     const result = buildExploreSocialFeedWindow(items, 2);
 
     expect(result.items).toHaveLength(2);
-    expect(result.totalItems).toBe(4);
-    expect(result.remainingItems).toBe(2);
+    expect(result.totalItems).toBe(5);
+    expect(result.remainingItems).toBe(3);
     expect(result.hasMore).toBe(true);
   });
 });

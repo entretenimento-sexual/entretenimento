@@ -15,7 +15,6 @@ describe('fileReducer', () => {
       progress: 87,
       success: true,
       error: 'erro antigo',
-      downloadUrl: 'https://example.test/old',
     };
 
     const next = fileReducer(
@@ -52,7 +51,10 @@ describe('fileReducer', () => {
     expect(next.error).toBeNull();
   });
 
-  it('uploadSuccess conclui o ciclo e limpa erro anterior', () => {
+  it('uploadSuccess conclui o ciclo sem carregar URL no estado ou action', () => {
+    const action = uploadSuccess({
+      url: 'users/u/uploads/images/media.webp',
+    });
     const next = fileReducer(
       {
         ...initialFileState,
@@ -60,23 +62,27 @@ describe('fileReducer', () => {
         progress: 54,
         error: 'transitório',
       },
-      uploadSuccess({ url: 'users/u/uploads/images/media.webp' })
+      action
     );
 
+    expect(action).toEqual({
+      type: '[File] Upload Success',
+      completed: true,
+    });
+    expect('url' in action).toBe(false);
     expect(next.uploading).toBe(false);
     expect(next.progress).toBe(100);
     expect(next.success).toBe(true);
     expect(next.error).toBeNull();
-    expect(next.downloadUrl).toBe('users/u/uploads/images/media.webp');
+    expect('downloadUrl' in next).toBe(false);
   });
 
-  it('uploadError encerra o ciclo sem preservar URL stale', () => {
+  it('uploadError encerra o ciclo preservando apenas feedback serializável', () => {
     const next = fileReducer(
       {
         ...initialFileState,
         uploading: true,
         progress: 32,
-        downloadUrl: 'https://example.test/stale',
       },
       uploadError({ error: 'Falha no upload.' })
     );
@@ -84,6 +90,6 @@ describe('fileReducer', () => {
     expect(next.uploading).toBe(false);
     expect(next.success).toBe(false);
     expect(next.error).toBe('Falha no upload.');
-    expect(next.downloadUrl).toBeNull();
+    expect('downloadUrl' in next).toBe(false);
   });
 });

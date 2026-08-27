@@ -4,15 +4,14 @@
 // Ajustes desta versão:
 // - mantém leitura somente da projeção pública;
 // - transforma a página em galeria real, não foto gigante;
-// - abre PhotoViewerComponent para reações, comentários, respostas e views;
+// - abre o viewer pela porta canônica pública;
 // - mantém Observable e tratamento centralizado de erro.
 
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
-import { Observable, of } from 'rxjs';
+import { EMPTY, Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -29,10 +28,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 
-import {
-  IProfilePhotoItem,
-  PhotoViewerComponent,
-} from '../photo-viewer/photo-viewer.component';
+import { PublicPhotoViewerLauncherService } from '../photo-viewer/public-photo-viewer-launcher.service';
 import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
 
 @Component({
@@ -41,7 +37,6 @@ import { PublicPhotoCardComponent } from '../../shared/components/public-photo-c
   imports: [
     CommonModule,
     RouterModule,
-    MatDialogModule,
     PublicPhotoCardComponent,
   ],
   templateUrl: './public-profile-photos.component.html',
@@ -50,8 +45,8 @@ import { PublicPhotoCardComponent } from '../../shared/components/public-photo-c
 })
 export class PublicProfilePhotosComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly dialog = inject(MatDialog);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
+  private readonly photoViewerLauncher = inject(PublicPhotoViewerLauncherService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
@@ -96,53 +91,42 @@ export class PublicProfilePhotosComponent {
 
   openPhoto(index: number): void {
     this.publicPhotos$
-      .pipe(take(1))
-      .subscribe((items) => {
-        if (!items.length) {
-          this.errorNotifier.showWarning('Nenhuma foto pública disponível.');
-          return;
-        }
+      .pipe(
+        take(1),
+        switchMap((items) => {
+          if (!items.length) {
+            this.errorNotifier.showWarning('Nenhuma foto pública disponível.');
+            return EMPTY;
+          }
 
-        const safeIndex = Math.max(0, Math.min(index, items.length - 1));
-        const viewerItems = items.map((item) => this.toViewerPhotoItem(item));
-        const selected = viewerItems[safeIndex];
+          const safeIndex = Math.max(0, Math.min(index, items.length - 1));
+          const selected = items[safeIndex];
 
-        this.dialog.open(PhotoViewerComponent, {
-          data: {
-            ownerUid: selected?.ownerUid ?? '',
-            items: viewerItems,
-            startIndex: safeIndex,
+          if (!selected) {
+            this.errorNotifier.showWarning('Esta foto não está mais disponível.');
+            return EMPTY;
+          }
+
+          return this.photoViewerLauncher.open$({
+            items,
+            selected,
             source: 'profile',
-          },
-          autoFocus: false,
-          restoreFocus: true,
-          width: '100vw',
-          height: '100vh',
-          maxWidth: '100vw',
-          maxHeight: '100vh',
-          panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
-          backdropClass: 'photo-viewer-backdrop',
-        });
-      });
+          });
+        }),
+        catchError((error: unknown) => {
+          this.reportError(
+            'Não foi possível abrir esta foto agora.',
+            error,
+            { op: 'openPhoto' }
+          );
+          return EMPTY;
+        })
+      )
+      .subscribe();
   }
 
   trackByPhotoId(_index: number, item: IPublicPhotoItem): string {
     return item.id;
-  }
-
-  private toViewerPhotoItem(item: IPublicPhotoItem): IProfilePhotoItem {
-    return {
-      id: item.id,
-      ownerUid: item.ownerUid,
-      url: item.url,
-      alt: item.alt,
-      createdAt: item.createdAt,
-
-      commentsEnabled: item.commentsEnabled ?? false,
-      commentsPolicy: item.commentsPolicy ?? 'OFF',
-      reactionsEnabled: item.reactionsEnabled ?? false,
-      moderationStatus: item.moderationStatus ?? 'PRIVATE',
-    };
   }
 
   private reportError(

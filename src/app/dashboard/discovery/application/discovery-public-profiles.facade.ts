@@ -1,4 +1,3 @@
-// src/app/dashboard/discovery/application/discovery-public-profiles.facade.ts
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
@@ -14,11 +13,13 @@ import {
 } from 'rxjs/operators';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import type { GeoCoordinates } from 'src/app/core/interfaces/geolocation.interface';
 import type { DiscoveryPreferenceRejectionReason } from 'src/app/core/utils/discovery/profile-type-preference-filter.util';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserPresenceQueryService } from 'src/app/core/services/data-handling/queries/user-presence.query.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
 import * as DiscoveryActions from 'src/app/store/actions/actions.discovery/discovery-feed.actions';
 import { selectDiscoveryFeedSlice } from 'src/app/store/selectors/selectors.discovery/discovery-feed.selectors';
 import type { AppState } from 'src/app/store/states/app.state';
@@ -37,6 +38,10 @@ import {
   DiscoveryCardEnrichmentService,
   type DiscoveryCardEnrichmentResult,
 } from './discovery-card-enrichment.service';
+import {
+  DiscoveryVisibleProfileLocationRepository,
+  type DiscoveryVisibleProfileLocation,
+} from '../data-access/discovery-visible-profile-location.repository';
 
 export interface DiscoveryPublicProfilesState {
   readonly profiles: readonly PublicProfileCard[];
@@ -86,6 +91,10 @@ export class DiscoveryPublicProfilesFacade {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly presenceQuery = inject(UserPresenceQueryService);
   private readonly cardEnrichment = inject(DiscoveryCardEnrichmentService);
+  private readonly geolocationTracking = inject(GeolocationTrackingService);
+  private readonly visibleLocationRepository = inject(
+    DiscoveryVisibleProfileLocationRepository
+  );
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
   /**
@@ -118,20 +127,86 @@ export class DiscoveryPublicProfilesFacade {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  /**
+   * Posição local do viewer em tempo real.
+   *
+   * O BehaviorSubject do tracking faz a descoberta recalcular as distâncias
+   * imediatamente quando o navegador entrega uma nova posição, sem depender de
+   * refresh do feed ou de outra emissão do NgRx.
+   */
+  private readonly viewerLocation$ = this.geolocationTracking.snapshot$.pipe(
+    distinctUntilChanged((a, b) => this.sameCoordinates(a, b)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  /**
+   * Overlay realtime somente dos UIDs já carregados.
+   *
+   * Mantemos ranking/paginação one-shot, mas localização pública dos cards
+   * visíveis acompanha alterações de public_profiles sem reordenar o feed.
+   */
+  private readonly liveLocationsByUid$ = this.feedSlice$.pipe(
+    map((slice) =>
+      Array.from(
+        new Set(
+          (slice.items ?? [])
+            .map((item) => this.toNullableText(item?.uid))
+            .filter((uid): uid is string => !!uid)
+        )
+      ).sort()
+    ),
+    distinctUntilChanged((a, b) => this.sameStringArray(a, b)),
+    switchMap((uids) =>
+      uids.length
+        ? this.visibleLocationRepository.watchByUids$(uids)
+        : of([] as readonly DiscoveryVisibleProfileLocation[])
+    ),
+    map(
+      (locations) =>
+        new Map<string, DiscoveryVisibleProfileLocation>(
+          locations.map((location) => [location.uid, location])
+        )
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   readonly state$: Observable<DiscoveryPublicProfilesState> = combineLatest([
     this.request$,
     this.feedSlice$,
     this.currentUserStore.user$,
     this.onlinePresenceByUid$,
+    this.viewerLocation$,
+    this.liveLocationsByUid$,
   ]).pipe(
-    map(([request, slice, currentUser, onlinePresenceByUid]) => {
+    map(([
+      request,
+      slice,
+      currentUser,
+      onlinePresenceByUid,
+      viewerLocation,
+      liveLocationsByUid,
+    ]) => {
       if (!request) return EMPTY_STATE;
 
+      /**
+       * A posição runtime pertence ao viewer e serve apenas como origem do
+       * cálculo local. A projeção pública dos cards é derivada no backend.
+       */
+      const runtimeViewerLocation =
+        viewerLocation ?? this.geolocationTracking.getLastSnapshot();
+
+      const profilesWithLiveLocations = (
+        slice.items as unknown as readonly IUserDados[]
+      ).map((profile) =>
+        this.overlayLivePublicLocation(profile, liveLocationsByUid)
+      );
+
       const result = this.cardEnrichment.buildCardsResult({
-        profiles: slice.items as unknown as readonly IUserDados[],
+        profiles: profilesWithLiveLocations,
         currentUser: currentUser ?? null,
         currentUid: request.viewerUid,
         mode: request.mode,
+        fallbackLocation: runtimeViewerLocation,
         onlinePresenceByUid,
         applyVisibility: true,
       });
@@ -190,6 +265,24 @@ export class DiscoveryPublicProfilesFacade {
     this.refresh();
   }
 
+  private overlayLivePublicLocation(
+    profile: IUserDados,
+    locationsByUid: ReadonlyMap<string, DiscoveryVisibleProfileLocation>
+  ): IUserDados {
+    const uid = this.toNullableText(profile?.uid);
+    if (!uid) return profile;
+
+    const liveLocation = locationsByUid.get(uid);
+    if (!liveLocation) return profile;
+
+    return {
+      ...profile,
+      latitude: liveLocation.latitude,
+      longitude: liveLocation.longitude,
+      geohash: liveLocation.geohash,
+    } as IUserDados;
+  }
+
   private wasFilteredByPreferences(
     result: DiscoveryCardEnrichmentResult
   ): boolean {
@@ -229,6 +322,24 @@ export class DiscoveryPublicProfilesFacade {
         return of(new Map<string, IUserDados>());
       })
     );
+  }
+
+  private sameCoordinates(
+    a: GeoCoordinates | null,
+    b: GeoCoordinates | null
+  ): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+
+    return (
+      a.latitude === b.latitude &&
+      a.longitude === b.longitude &&
+      a.accuracy === b.accuracy
+    );
+  }
+
+  private sameStringArray(a: readonly string[], b: readonly string[]): boolean {
+    return a.length === b.length && a.every((value, index) => value === b[index]);
   }
 
   private requestKey(request: DiscoveryFeedRequest | null): string {

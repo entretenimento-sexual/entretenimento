@@ -6,31 +6,107 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { RouterTestingModule } from '@angular/router/testing';
 import { MockStore, provideMockStore } from '@ngrx/store/testing';
-import { of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 
 import { IUserDados } from '../../core/interfaces/iuser-dados';
+import { IPublicPhotoItem } from '../../core/interfaces/media/i-public-photo-item';
+import { IPublicVideoItem } from '../../core/interfaces/media/i-public-video-item';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { UserIntentStatusService } from '../../core/services/discovery/user-intent-status.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { HotPlacesService } from '../../core/services/places/hot-places.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { VenueService } from '../../core/services/venues/venue.service';
+import { PublicMixedMediaViewerLauncherService } from '../../media/shared/services/public-mixed-media-viewer-launcher.service';
 import { selectCurrentUser, selectCurrentUserUid } from '../../store/selectors/selectors.user/user.selectors';
 import { PrincipalComponent } from './principal.component';
+import { PrincipalFeedItem, PrincipalFeedState } from './principal-feed.model';
 import { PrincipalFeedService } from './principal-feed.service';
 
-const EMPTY_FEED_STATE = {
-  status: 'empty' as const,
+const EMPTY_FEED_STATE: PrincipalFeedState = {
+  status: 'empty',
   items: [],
   photos: [],
+  videos: [],
   failedSources: [],
 };
+
+function createPhoto(
+  ownerUid: string,
+  id = 'shared-photo'
+): IPublicPhotoItem {
+  return {
+    id,
+    ownerUid,
+    mediaType: 'PHOTO',
+    assetAccess: 'SIGNED_URL',
+    url: `https://example.com/${ownerUid}/${id}.jpg`,
+    createdAt: 100,
+    publishedAt: 100,
+    visibility: 'PUBLIC',
+    moderationStatus: 'APPROVED',
+    orderIndex: 0,
+  } as IPublicPhotoItem;
+}
+
+function createVideo(): IPublicVideoItem {
+  return {
+    id: 'video-1',
+    ownerUid: 'owner-2',
+    mediaType: 'VIDEO',
+    assetAccess: 'SIGNED_URL',
+    posterAccess: 'SIGNED_URL',
+    title: 'Vídeo recente',
+    description: null,
+    alt: 'Vídeo recente',
+    mimeType: 'video/mp4',
+    sizeBytes: 1_024,
+    durationMs: 20_000,
+    createdAt: 200,
+    publishedAt: 200,
+    updatedAt: 200,
+    lastViewedAt: null,
+    visibility: 'PUBLIC',
+    orderIndex: 0,
+    moderationStatus: 'APPROVED',
+    moderationReason: null,
+    reactionsEnabled: true,
+    commentsEnabled: true,
+    ratingsEnabled: true,
+    viewsCount: 0,
+    uniqueViewersCount: 0,
+    reactionsCount: 0,
+    commentsCount: 0,
+    ratingsCount: 0,
+    ratingAverage: 0,
+    reportsCount: 0,
+    openReportsCount: 0,
+    confirmedReportsCount: 0,
+    viewScore: 0,
+    engagementScore: 0,
+    score: 0,
+    scoreBreakdown: {
+      rankingScore: 0,
+      qualityScore: 0,
+      engagementScore: 0,
+      safetyScore: 100,
+    },
+    owner: null,
+    url: null,
+    posterUrl: 'https://example.com/video-1.jpg',
+    accessExpiresAt: Date.now() + 300_000,
+  };
+}
 
 describe('PrincipalComponent', () => {
   let component: PrincipalComponent;
   let fixture: ComponentFixture<PrincipalComponent>;
   let store: MockStore;
+  let feedStateSubject: BehaviorSubject<PrincipalFeedState>;
 
+  const mixedViewerLauncher = {
+    open$: vi.fn(() => of(void 0)),
+  };
   const currentUser = {
     uid: 'u1',
     email: 'x@y.com',
@@ -42,6 +118,9 @@ describe('PrincipalComponent', () => {
   } as unknown as IUserDados;
 
   beforeEach(async () => {
+    vi.clearAllMocks();
+    feedStateSubject = new BehaviorSubject<PrincipalFeedState>(EMPTY_FEED_STATE);
+
     await TestBed.configureTestingModule({
       imports: [RouterTestingModule, PrincipalComponent],
       providers: [
@@ -51,9 +130,13 @@ describe('PrincipalComponent', () => {
         {
           provide: PrincipalFeedService,
           useValue: {
-            state$: of(EMPTY_FEED_STATE),
+            state$: feedStateSubject.asObservable(),
             refresh: vi.fn(),
           },
+        },
+        {
+          provide: PublicMixedMediaViewerLauncherService,
+          useValue: mixedViewerLauncher,
         },
         {
           provide: AuthSessionService,
@@ -170,5 +253,94 @@ describe('PrincipalComponent', () => {
       fixture.debugElement.query(By.css('app-hot-places-widget'))
     ).toBeTruthy();
     expect(fixture.debugElement.query(By.css('.feed-stream'))).toBeTruthy();
+  });
+
+  it('abre foto preservando a ordem mista e o contexto de continuação', () => {
+    const first = createPhoto('owner-a', 'photo-a');
+    const video = createVideo();
+    const second = createPhoto('owner-b', 'photo-b');
+    const feedItems: PrincipalFeedItem[] = [
+      {
+        id: `profile-photo:${first.ownerUid}:${first.id}`,
+        kind: 'profile-photo',
+        photo: first,
+      },
+      {
+        id: `profile-video:${video.ownerUid}:${video.id}`,
+        kind: 'profile-video',
+        video,
+      },
+      {
+        id: `profile-photo:${second.ownerUid}:${second.id}`,
+        kind: 'profile-photo',
+        photo: second,
+      },
+    ];
+    const continuationContext = {
+      connectionOwnerUids: ['friend-1'],
+      compatibleOwnerUids: ['compatible-1'],
+    };
+
+    feedStateSubject.next({
+      status: 'ready',
+      items: feedItems,
+      photos: [first, second],
+      videos: [video],
+      failedSources: [],
+      continuationContext,
+    });
+    fixture.detectChanges();
+
+    component.openPhoto(second, feedItems);
+
+    expect(mixedViewerLauncher.open$).toHaveBeenCalledWith({
+      items: [first, video, second],
+      selected: second,
+      source: 'latest',
+      continuationContext,
+    });
+  });
+
+  it('renderiza preview de vídeo e abre a mesma sequência mista', () => {
+    const photo = createPhoto('owner-a', 'photo-a');
+    const video = createVideo();
+    const continuationContext = {
+      connectionOwnerUids: ['friend-1'],
+      compatibleOwnerUids: ['compatible-1'],
+    };
+    const feedItems: PrincipalFeedItem[] = [
+      {
+        id: `profile-photo:${photo.ownerUid}:${photo.id}`,
+        kind: 'profile-photo',
+        photo,
+      },
+      {
+        id: `profile-video:${video.ownerUid}:${video.id}`,
+        kind: 'profile-video',
+        video,
+      },
+    ];
+
+    feedStateSubject.next({
+      status: 'ready',
+      items: feedItems,
+      photos: [photo],
+      videos: [video],
+      failedSources: [],
+      continuationContext,
+    });
+    fixture.detectChanges();
+
+    const videoCard = fixture.debugElement.query(By.css('app-public-video-card'));
+    expect(videoCard).toBeTruthy();
+
+    videoCard.triggerEventHandler('preview');
+
+    expect(mixedViewerLauncher.open$).toHaveBeenCalledWith({
+      items: [photo, video],
+      selected: video,
+      source: 'latest',
+      continuationContext,
+    });
   });
 });

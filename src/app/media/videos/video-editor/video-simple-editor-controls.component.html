@@ -1,0 +1,279 @@
+@let metadata = (metadata$ | async);
+@let loading = (loading$ | async) === true;
+@let editorReady = (editorReady$ | async) === true;
+@let recipeError = (recipeError$ | async);
+@let capturingPoster = (capturingPoster$ | async) === true;
+@let timeline = (trimTimeline$ | async);
+
+<section
+  class="video-simple-editor"
+  aria-label="Editor de vídeo"
+  [attr.aria-busy]="loading ? 'true' : 'false'"
+>
+  @if (previewUrl) {
+    <div class="video-simple-editor__media-column">
+      <div
+        class="video-simple-editor__stage"
+        [class.video-simple-editor__stage--vertical]="form.controls.aspectRatio.value === 'VERTICAL_9_16'"
+        [class.video-simple-editor__stage--portrait]="form.controls.aspectRatio.value === 'PORTRAIT_4_5'"
+        [class.video-simple-editor__stage--square]="form.controls.aspectRatio.value === 'SQUARE_1_1'"
+      >
+        <video
+          #uploadPreview
+          [src]="previewUrl"
+          [muted]="form.controls.muteAudio.value"
+          [style.transform]="rotationTransform()"
+          aria-label="Prévia do vídeo"
+          preload="metadata"
+          controls
+          playsinline
+          (timeupdate)="onPreviewTimeUpdate(uploadPreview)"
+          (seeked)="onPreviewTimeUpdate(uploadPreview)"
+        ></video>
+      </div>
+
+      <div class="video-simple-editor__media-footer">
+        <ng-content select="[videoEditorMediaFooter]"></ng-content>
+      </div>
+    </div>
+
+    <aside class="video-simple-editor__rail" aria-label="Edição e publicação">
+      <div class="video-simple-editor__composer-top">
+        <ng-content select="[videoEditorComposerTop]"></ng-content>
+      </div>
+
+      @if (loading) {
+        <p class="video-simple-editor__status" role="status" aria-live="polite">
+          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          Preparando vídeo...
+        </p>
+      } @else if (!editorReady) {
+        <p class="video-simple-editor__status" role="status" aria-live="polite">
+          <i class="fas fa-circle-info" aria-hidden="true"></i>
+          Prévia indisponível neste navegador.
+        </p>
+      } @else {
+        <div class="video-simple-editor__tool-tabs" aria-label="Ferramentas de edição">
+          <button
+            type="button"
+            aria-label="Cortar vídeo"
+            title="Cortar"
+            [disabled]="disabled"
+            [attr.aria-pressed]="activeTool() === 'trim'"
+            [class.video-simple-editor__tool-tab--active]="activeTool() === 'trim'"
+            (click)="selectTool('trim')"
+          >
+            <i class="fas fa-scissors" aria-hidden="true"></i>
+            <span>Cortar</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Alterar formato"
+            title="Formato"
+            [disabled]="disabled"
+            [attr.aria-pressed]="activeTool() === 'aspect'"
+            [class.video-simple-editor__tool-tab--active]="activeTool() === 'aspect'"
+            (click)="selectTool('aspect')"
+          >
+            <i class="fas fa-crop-simple" aria-hidden="true"></i>
+            <span>Formato</span>
+          </button>
+          <button
+            type="button"
+            [attr.aria-label]="'Girar vídeo 90 graus. Rotação atual ' + form.controls.rotationDegrees.value + ' graus'"
+            title="Girar 90°"
+            [disabled]="disabled"
+            (click)="rotateClockwise(uploadPreview)"
+          >
+            <i class="fas fa-rotate-right" aria-hidden="true"></i>
+            <span>Girar</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Ajustar áudio"
+            title="Áudio"
+            [disabled]="disabled"
+            [attr.aria-pressed]="activeTool() === 'audio'"
+            [class.video-simple-editor__tool-tab--active]="activeTool() === 'audio'"
+            (click)="selectTool('audio')"
+          >
+            <i class="fas fa-volume-high" aria-hidden="true"></i>
+            <span>Áudio</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Definir capa"
+            title="Capa"
+            [disabled]="disabled"
+            [attr.aria-pressed]="activeTool() === 'cover'"
+            [class.video-simple-editor__tool-tab--active]="activeTool() === 'cover'"
+            (click)="selectTool('cover')"
+          >
+            <i class="fas fa-image" aria-hidden="true"></i>
+            <span>Capa</span>
+          </button>
+        </div>
+
+        @if (timeline) {
+          <div class="video-simple-editor__tool-panel" [formGroup]="form">
+            @switch (activeTool()) {
+              @case ('trim') {
+                <section class="video-simple-editor__tool-content" aria-label="Cortar vídeo">
+                  <div class="video-simple-editor__trim-summary">
+                    <span aria-label="Trecho selecionado">
+                      {{ formatTime(timeline.startMs) }} — {{ formatTime(timeline.endMs) }}
+                    </span>
+                    <strong [attr.aria-label]="'Duração: ' + formatTime(timeline.editedDurationMs)">
+                      {{ formatTime(timeline.editedDurationMs) }}
+                    </strong>
+                    <button
+                      type="button"
+                      class="video-simple-editor__text-button"
+                      [disabled]="disabled || (hasTrim$ | async) !== true"
+                      (click)="resetTrim(uploadPreview)"
+                    >
+                      Inteiro
+                    </button>
+                  </div>
+
+                  <div
+                    class="video-simple-editor__trim-timeline"
+                    [class.video-simple-editor__trim-timeline--start-active]="activeTrimHandle === 'start'"
+                    [class.video-simple-editor__trim-timeline--end-active]="activeTrimHandle === 'end'"
+                  >
+                    <div class="video-simple-editor__trim-track" aria-hidden="true">
+                      <span
+                        class="video-simple-editor__trim-selection"
+                        [style.left.%]="timeline.startPercent"
+                        [style.right.%]="100 - timeline.endPercent"
+                      ></span>
+                    </div>
+
+                    <label class="video-simple-editor__sr-only" for="video-trim-start">
+                      Início do corte
+                    </label>
+                    <input
+                      id="video-trim-start"
+                      class="video-simple-editor__trim-range video-simple-editor__trim-range--start"
+                      [class.video-simple-editor__trim-range--active]="activeTrimHandle === 'start'"
+                      type="range"
+                      [formControl]="form.controls.trimStartMs"
+                      min="0"
+                      step="100"
+                      [max]="metadata!.durationMs! - minimumEditedDurationMs"
+                      [attr.aria-valuetext]="'Início em ' + formatTime(timeline.startMs)"
+                      (pointerdown)="setActiveTrimHandle('start')"
+                      (focus)="setActiveTrimHandle('start')"
+                      (input)="onTrimStartInput(uploadPreview)"
+                    />
+
+                    <label class="video-simple-editor__sr-only" for="video-trim-end">
+                      Fim do corte
+                    </label>
+                    <input
+                      id="video-trim-end"
+                      class="video-simple-editor__trim-range video-simple-editor__trim-range--end"
+                      [class.video-simple-editor__trim-range--active]="activeTrimHandle === 'end'"
+                      type="range"
+                      [formControl]="form.controls.trimEndMs"
+                      [min]="minimumEditedDurationMs"
+                      step="100"
+                      [max]="metadata!.durationMs!"
+                      [attr.aria-valuetext]="'Fim em ' + formatTime(timeline.endMs)"
+                      (pointerdown)="setActiveTrimHandle('end')"
+                      (focus)="setActiveTrimHandle('end')"
+                      (input)="onTrimEndInput(uploadPreview)"
+                    />
+                  </div>
+
+                  @if (trimAnnouncement$ | async; as trimAnnouncement) {
+                    <p class="video-simple-editor__sr-only" aria-live="polite" aria-atomic="true">
+                      {{ trimAnnouncement }}
+                    </p>
+                  }
+                </section>
+              }
+
+              @case ('aspect') {
+                <fieldset class="video-simple-editor__tool-content">
+                  <legend class="video-simple-editor__sr-only">Formato</legend>
+                  <div class="video-simple-editor__aspect-grid">
+                    @for (option of aspectOptions; track option.value) {
+                      <label
+                        class="video-simple-editor__aspect-option"
+                        [class.video-simple-editor__aspect-option--selected]="form.controls.aspectRatio.value === option.value"
+                      >
+                        <input
+                          type="radio"
+                          formControlName="aspectRatio"
+                          [value]="option.value"
+                        />
+                        <span class="video-simple-editor__aspect-icon" [attr.data-ratio]="option.value" aria-hidden="true"></span>
+                        <strong>{{ option.label }}</strong>
+                        <i class="fas fa-check" aria-hidden="true"></i>
+                      </label>
+                    }
+                  </div>
+                </fieldset>
+              }
+
+              @case ('audio') {
+                <section class="video-simple-editor__tool-content" aria-label="Áudio">
+                  <label class="video-simple-editor__audio-toggle">
+                    <span>
+                      <i
+                        class="fas"
+                        [class.fa-volume-xmark]="form.controls.muteAudio.value"
+                        [class.fa-volume-high]="!form.controls.muteAudio.value"
+                        aria-hidden="true"
+                      ></i>
+                      <strong>{{ form.controls.muteAudio.value ? 'Sem áudio' : 'Com áudio' }}</strong>
+                    </span>
+                    <input
+                      type="checkbox"
+                      formControlName="muteAudio"
+                      aria-label="Remover áudio"
+                    />
+                  </label>
+                </section>
+              }
+
+              @case ('cover') {
+                <section class="video-simple-editor__tool-content video-simple-editor__cover" aria-label="Capa">
+                  <span>{{ formatTime(previewTimeMs()) }}</span>
+                  <button
+                    type="button"
+                    class="app-action app-action--primary"
+                    [disabled]="disabled || capturingPoster"
+                    [attr.aria-busy]="capturingPoster ? 'true' : 'false'"
+                    (click)="capturePoster(uploadPreview)"
+                  >
+                    <i
+                      class="fas"
+                      [class.fa-spinner]="capturingPoster"
+                      [class.fa-spin]="capturingPoster"
+                      [class.fa-camera]="!capturingPoster"
+                      aria-hidden="true"
+                    ></i>
+                    {{ capturingPoster ? 'Gerando...' : 'Definir capa' }}
+                  </button>
+                </section>
+              }
+            }
+          </div>
+        }
+      }
+
+      <div class="video-simple-editor__composer-bottom">
+        <ng-content select="[videoEditorComposerBottom]"></ng-content>
+      </div>
+    </aside>
+  }
+
+  @if (recipeError) {
+    <p class="video-simple-editor__error" role="alert" aria-live="assertive">
+      <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+      {{ recipeError }}
+    </p>
+  }
+</section>

@@ -56,6 +56,15 @@ export interface FeaturesConfig {
   restrictedRoutesWhenUnverified?: string[];
 
   /**
+   * Exige que a sessão possua a versão jurídica material vigente para navegar.
+   *
+   * Produção sempre força essa política independentemente da flag. Em ambiente
+   * local a flag pode ser false para impedir que uma Function remota fora de
+   * sincronia bloqueie o desenvolvimento inteiro.
+   */
+  enforceCurrentLegalAcceptance?: boolean;
+
+  /**
    * Libera somente em ambiente controlado a primeira experiência preparada para
    * assinantes. Não substitui política de acesso, Rules ou autorização backend.
    */

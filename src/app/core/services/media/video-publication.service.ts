@@ -28,7 +28,7 @@ interface PublishVideoRequest {
 
 interface PublishVideoResponse {
   videoId: string;
-  moderationStatus: 'PENDING_REVIEW' | 'APPROVED';
+  moderationStatus: 'APPROVED';
 }
 
 interface VideoIdentityRequest {
@@ -42,14 +42,19 @@ interface UpdateVideoPublicationSettingsRequest
   videoId: string;
 }
 
+interface NormalizeLegacyVideoModerationRequest {
+  ownerUid: string;
+  videoIds: string[];
+}
+
+interface NormalizeLegacyVideoModerationResponse {
+  normalizedVideoIds: string[];
+}
+
 export interface UpdateVideoPublicationSettingsResponse {
   videoId: string;
   moderationStatus: TVideoPublicationModerationStatus;
   isPublished: boolean;
-}
-
-interface UnpublishVideoResponse {
-  videoId: string;
 }
 
 export interface DeleteProfileVideoResponse {
@@ -86,11 +91,6 @@ export class VideoPublicationService {
     PublishVideoResponse
   >(this.functions, 'publishVideo');
 
-  private readonly unpublishVideoCallable = httpsCallable<
-    VideoIdentityRequest,
-    UnpublishVideoResponse
-  >(this.functions, 'unpublishVideo');
-
   private readonly deleteProfileVideoCallable = httpsCallable<
     VideoIdentityRequest,
     DeleteProfileVideoResponse
@@ -100,6 +100,11 @@ export class VideoPublicationService {
     UpdateVideoPublicationSettingsRequest,
     UpdateVideoPublicationSettingsResponse
   >(this.functions, 'updateVideoPublicationSettings');
+
+  private readonly normalizeLegacyVideoModerationCallable = httpsCallable<
+    NormalizeLegacyVideoModerationRequest,
+    NormalizeLegacyVideoModerationResponse
+  >(this.functions, 'normalizeLegacyVideoModeration');
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
@@ -215,27 +220,35 @@ export class VideoPublicationService {
     );
   }
 
-  unpublishVideo$(
+  normalizeLegacyVideoModeration$(
     ownerUid: string,
-    videoId: string
-  ): Observable<UnpublishVideoResponse> {
-    const payload = this.buildIdentityPayload(ownerUid, videoId);
+    videoIds: readonly string[]
+  ): Observable<string[]> {
+    const safeOwnerUid = this.normalizeId(ownerUid);
+    const safeVideoIds = [...new Set(videoIds.map((videoId) =>
+      this.normalizeId(videoId)
+    ).filter(Boolean))].slice(0, 24);
 
-    if (!payload) {
-      return throwError(
-        () => new Error('Vídeo inválido para despublicação.')
-      );
+    if (!safeOwnerUid || safeVideoIds.length === 0) {
+      return of([]);
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
-      const response = await this.unpublishVideoCallable(payload);
-      return response.data;
+      const response = await this.normalizeLegacyVideoModerationCallable({
+        ownerUid: safeOwnerUid,
+        videoIds: safeVideoIds,
+      });
+      return Array.isArray(response.data?.normalizedVideoIds)
+        ? response.data.normalizedVideoIds
+            .map((videoId) => this.normalizeId(videoId))
+            .filter(Boolean)
+        : [];
     }).pipe(
       catchError((error: unknown) => {
         this.reportError(error, {
-          op: 'unpublishVideo$',
+          op: 'normalizeLegacyVideoModeration$',
           hasOwnerUid: true,
-          hasVideoId: true,
+          itemCount: safeVideoIds.length,
         });
         return throwError(() => error);
       })
@@ -338,6 +351,8 @@ export class VideoPublicationService {
       return normalized;
     }
 
+    // Compatibilidade de leitura para documentos legados. A UI não oferece
+    // nem grava este estado; novos uploads são intenção de publicação.
     return 'PRIVATE';
   }
 
@@ -356,6 +371,7 @@ export class VideoPublicationService {
       return normalized;
     }
 
+    // Apenas leitura de legado; nenhum fluxo atual produz PRIVATE.
     return 'PRIVATE';
   }
 

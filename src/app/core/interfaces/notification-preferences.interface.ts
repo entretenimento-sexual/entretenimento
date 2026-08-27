@@ -10,6 +10,7 @@ export interface INotificationPreferences {
   messages: boolean;
   connections: boolean;
   rooms: boolean;
+  communities: boolean;
   places: boolean;
   compatibleStatus: boolean;
   accountSecurity: true;
@@ -19,6 +20,7 @@ export type NotificationPreferenceEditableKey =
   | 'messages'
   | 'connections'
   | 'rooms'
+  | 'communities'
   | 'places'
   | 'compatibleStatus';
 
@@ -31,6 +33,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: INotificationPreferences = {
   messages: true,
   connections: true,
   rooms: true,
+  communities: true,
   places: true,
   compatibleStatus: false,
   accountSecurity: true,

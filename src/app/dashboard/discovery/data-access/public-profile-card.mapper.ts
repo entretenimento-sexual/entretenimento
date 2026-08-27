@@ -13,6 +13,11 @@ import { PublicProfileCard } from '../models/public-profile-card.model';
 
 type PublicProfileSource = Record<string, unknown>;
 
+interface PublicCoordinatePair {
+  latitude: number;
+  longitude: number;
+}
+
 function asRecord(value: unknown): PublicProfileSource {
   return typeof value === 'object' && value !== null
     ? (value as PublicProfileSource)
@@ -79,6 +84,33 @@ function firstCoordinate(
   }
 
   return parsed;
+}
+
+function readPublicCoordinatePair(
+  source: PublicProfileSource
+): PublicCoordinatePair | null {
+  const latitude = firstCoordinate(source, ['latitude', 'lat'], -90, 90);
+  const longitude = firstCoordinate(
+    source,
+    ['longitude', 'lng', 'lon'],
+    -180,
+    180
+  );
+
+  if (latitude === null || longitude === null) {
+    return null;
+  }
+
+  /**
+   * Alguns documentos legados usam 0,0 como sentinela de "sem localização".
+   * Tecnicamente o par existe no globo, mas não representa uma posição útil de
+   * perfil e produz distâncias falsas (por exemplo, ~5.332 km a partir do RJ).
+   */
+  if (latitude === 0 && longitude === 0) {
+    return null;
+  }
+
+  return { latitude, longitude };
 }
 
 function firstStringArray(
@@ -195,6 +227,7 @@ export function mapPublicProfileCard(
     'profileUniqueViewersCount',
     'uniqueViewersCount',
   ]);
+  const coordinates = readPublicCoordinatePair(source);
 
   return {
     uid,
@@ -216,6 +249,7 @@ export function mapPublicProfileCard(
       'orientacao',
       'orientacaoSexual',
     ]),
+    age: firstNumber(source, ['age', 'idade']),
 
     normalizedGender: firstText(source, ['normalizedGender']),
     normalizedOrientation: firstText(source, ['normalizedOrientation']),
@@ -258,18 +292,28 @@ export function mapPublicProfileCard(
       'orientacoesDeInteresse',
     ]),
 
+    publicRelationshipIntents: firstStringArray(source, [
+      'publicRelationshipIntents',
+    ]),
+    publicSexualPractices: firstStringArray(source, [
+      'publicSexualPractices',
+    ]),
+    publicBodyTraits: firstStringArray(source, ['publicBodyTraits']),
+    preferenceBadgesVisible:
+      typeof source['preferenceBadgesVisible'] === 'boolean'
+        ? source['preferenceBadgesVisible']
+        : null,
+    publicPreferencesUpdatedAt: toSerializableEpoch(
+      firstValue(source, ['publicPreferencesUpdatedAt'])
+    ),
+
     municipio: firstText(source, ['municipio', 'cidade', 'city']),
     estado: firstText(source, ['estado', 'uf', 'state']),
     role: firstText(source, ['role']) ?? 'free',
 
-    latitude: firstCoordinate(source, ['latitude', 'lat'], -90, 90),
-    longitude: firstCoordinate(
-      source,
-      ['longitude', 'lng', 'lon'],
-      -180,
-      180
-    ),
-    geohash: firstText(source, ['geohash']),
+    latitude: coordinates?.latitude ?? null,
+    longitude: coordinates?.longitude ?? null,
+    geohash: coordinates ? firstText(source, ['geohash']) : null,
 
     isOnline: source['isOnline'] === true,
     lastSeen: toSerializableEpoch(firstValue(source, ['lastSeen'])),

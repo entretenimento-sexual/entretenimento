@@ -1,5 +1,25 @@
 // src/app/media/media.routes.ts
+import { importProvidersFrom } from '@angular/core';
 import { Routes } from '@angular/router';
+import { EffectsModule } from '@ngrx/effects';
+import { StoreModule } from '@ngrx/store';
+
+import { ProfileVideoLibraryEffects } from './videos/state/profile-video-library.effects';
+import { ProfileVideoLibraryFacade } from './videos/state/profile-video-library.facade';
+import { profileVideoLibraryFeature } from './videos/state/profile-video-library.reducer';
+
+function provideProfileVideoLibrary() {
+  return [
+    importProvidersFrom(
+      StoreModule.forFeature(
+        profileVideoLibraryFeature.name,
+        profileVideoLibraryFeature.reducer
+      ),
+      EffectsModule.forFeature(ProfileVideoLibraryEffects)
+    ),
+    ProfileVideoLibraryFacade,
+  ];
+}
 
 export const MEDIA_ROUTES: Routes = [
   {
@@ -11,6 +31,7 @@ export const MEDIA_ROUTES: Routes = [
   },
   {
     path: 'videos',
+    providers: provideProfileVideoLibrary(),
     loadComponent: () =>
       import('./videos/profile-videos/profile-videos.component').then(
         (m) => m.ProfileVideosComponent
@@ -32,6 +53,7 @@ export const MEDIA_ROUTES: Routes = [
   },
   {
     path: 'perfil/:id/videos',
+    providers: provideProfileVideoLibrary(),
     loadComponent: () =>
       import('./videos/profile-videos/profile-videos.component').then(
         (m) => m.ProfileVideosComponent
@@ -56,6 +78,13 @@ export const MEDIA_ROUTES: Routes = [
     loadComponent: () =>
       import('./videos/public-profile-videos/public-profile-videos.component').then(
         (m) => m.PublicProfileVideosComponent
+      ),
+  },
+  {
+    path: 'denunciar/photo/:ownerUid/:photoId',
+    loadComponent: () =>
+      import('./videos/video-report-page/video-report-page.component').then(
+        (m) => m.VideoReportPageComponent
       ),
   },
   {

@@ -9,4 +9,9 @@ export { moderateUnsuspendAccount } from './moderateUnsuspendAccount';
 export { moderateScheduleDeletion } from './moderateScheduleDeletion';
 export { getAccountDeletionOperations } from './getAccountDeletionOperations';
 
+export {
+  auditUserPrivilegeChanges,
+  getMyAccountPrivilegeHistory,
+} from './user-privilege-audit.handler';
+
 export { purgeDeletedAccounts } from './purgeDeletedAccounts';

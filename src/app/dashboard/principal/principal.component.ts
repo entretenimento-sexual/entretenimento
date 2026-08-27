@@ -3,7 +3,7 @@
 // Fluxo principal da plataforma.
 // - Não exibe título visual para anunciar que a tela é um feed.
 // - Mantém ações de publicação no topo e conteúdo real em sequência.
-// - Agrega perfis/casais, Comunidades e Locais por contrato canônico.
+// - Agrega fotos/vídeos públicos, Comunidades e Locais por contrato canônico.
 // - Mantém UID como fonte única para rotas e carregamentos privados.
 // -----------------------------------------------------------------------------
 
@@ -22,6 +22,7 @@ import { Observable } from 'rxjs';
 import {
   distinctUntilChanged,
   filter,
+  finalize,
   map,
   shareReplay,
   switchMap,
@@ -31,7 +32,14 @@ import {
 
 import { isFeatureEnabled } from 'src/app/core/guards/access-guard/feature-flag.guard';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import {
+  EMPTY_PUBLIC_MEDIA_CONTINUATION_CONTEXT,
+  IPublicMediaContinuationContext,
+} from 'src/app/core/interfaces/media/i-public-media-continuation-context';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { IPublicProfileMediaItem } from 'src/app/core/interfaces/media/i-public-profile-media-item';
+import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import {
   IProfileChecklistItemVm,
@@ -39,7 +47,8 @@ import {
   ProfileCompletionService,
 } from 'src/app/core/services/user-profile/profile-completion.service';
 import { PublicPhotoCardComponent } from 'src/app/media/shared/components/public-photo-card/public-photo-card.component';
-import { PublicPhotoLightboxComponent } from 'src/app/media/shared/components/public-photo-lightbox/public-photo-lightbox.component';
+import { PublicVideoCardComponent } from 'src/app/media/shared/components/public-video-card/public-video-card.component';
+import { PublicMixedMediaViewerLauncherService } from 'src/app/media/shared/services/public-mixed-media-viewer-launcher.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { PAGE_SIZES } from 'src/app/shared/pagination/page.constants';
 import * as P from 'src/app/store/actions/actions.interactions/friends/friends-pagination.actions';
@@ -79,7 +88,7 @@ interface IPrincipalChecklistVm extends IProfileChecklistVm {
     UserIntentStatusRadarComponent,
     HotPlacesWidgetComponent,
     PublicPhotoCardComponent,
-    PublicPhotoLightboxComponent,
+    PublicVideoCardComponent,
   ],
 })
 export class PrincipalComponent implements OnInit {
@@ -90,6 +99,10 @@ export class PrincipalComponent implements OnInit {
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly profileCompletion = inject(ProfileCompletionService);
   private readonly principalFeed = inject(PrincipalFeedService);
+  private readonly mixedViewerLauncher = inject(PublicMixedMediaViewerLauncherService);
+  private readonly errorNotification = inject(ErrorNotificationService);
+  private mediaContinuationContext: IPublicMediaContinuationContext =
+    EMPTY_PUBLIC_MEDIA_CONTINUATION_CONTEXT;
 
   private dbg(message: string, extra?: unknown): void {
     this.privacyDebug.log('friends', `Principal: ${message}`, extra);
@@ -146,13 +159,18 @@ export class PrincipalComponent implements OnInit {
   );
 
   readonly feedState$: Observable<PrincipalFeedState> =
-    this.principalFeed.state$;
+    this.principalFeed.state$.pipe(
+      tap((state) => {
+        this.mediaContinuationContext = state.continuationContext ??
+          EMPTY_PUBLIC_MEDIA_CONTINUATION_CONTEXT;
+      })
+    );
 
   readonly expanded = signal(false);
   readonly checklistDetailsOpen = signal(false);
   readonly statusComposerVisible = signal(false);
-  readonly selectedPhotoIndex = signal<number | null>(null);
-  readonly selectedPhotos = signal<readonly IPublicPhotoItem[]>([]);
+  readonly openingPhotoKey = signal<string | null>(null);
+  readonly openingVideoKey = signal<string | null>(null);
 
   ngOnInit(): void {
     this.uid$
@@ -191,37 +209,94 @@ export class PrincipalComponent implements OnInit {
   }
 
   openPhoto(
-    photoId: string,
-    photos: readonly IPublicPhotoItem[]
+    selectedPhoto: IPublicPhotoItem,
+    feedItems: readonly PrincipalFeedItem[]
   ): void {
-    const index = photos.findIndex((photo) => photo.id === photoId);
-    if (index < 0) return;
-
-    this.selectedPhotos.set(photos);
-    this.selectedPhotoIndex.set(index);
-  }
-
-  closePhoto(): void {
-    this.selectedPhotoIndex.set(null);
-    this.selectedPhotos.set([]);
-  }
-
-  previousPhoto(): void {
-    this.selectedPhotoIndex.update((index) =>
-      index !== null && index > 0 ? index - 1 : index
+    const selectedKey = this.photoKey(selectedPhoto);
+    const mediaItems = this.extractPublicMediaItems(feedItems);
+    const selectedExists = mediaItems.some((item) =>
+      item.mediaType === 'PHOTO' && this.photoKey(item) === selectedKey
     );
+
+    if (!selectedKey || this.openingPhotoKey() !== null) {
+      return;
+    }
+
+    if (!selectedExists) {
+      this.errorNotification.showWarning(
+        'Esta foto não está mais disponível no fluxo.'
+      );
+      return;
+    }
+
+    this.openingPhotoKey.set(selectedKey);
+    this.mixedViewerLauncher.open$({
+      items: mediaItems,
+      selected: selectedPhoto,
+      source: 'latest',
+      continuationContext: this.mediaContinuationContext,
+    }).pipe(
+      take(1),
+      finalize(() => this.openingPhotoKey.set(null))
+    ).subscribe({
+      error: () => {
+        this.errorNotification.showError(
+          'Não foi possível abrir esta sequência de mídias agora.'
+        );
+      },
+    });
   }
 
-  nextPhoto(): void {
-    const lastIndex = this.selectedPhotos().length - 1;
-    this.selectedPhotoIndex.update((index) =>
-      index !== null && index < lastIndex ? index + 1 : index
+  openVideo(
+    video: IPublicVideoItem,
+    feedItems: readonly PrincipalFeedItem[]
+  ): void {
+    const selectedKey = this.videoKey(video);
+    const mediaItems = this.extractPublicMediaItems(feedItems);
+    const selectedExists = mediaItems.some((item) =>
+      item.mediaType === 'VIDEO' && this.videoKey(item) === selectedKey
     );
+
+    if (!selectedKey || this.openingVideoKey() !== null) {
+      return;
+    }
+
+    if (!selectedExists) {
+      this.errorNotification.showWarning(
+        'Este vídeo não está mais disponível no fluxo.'
+      );
+      return;
+    }
+
+    this.openingVideoKey.set(selectedKey);
+    this.mixedViewerLauncher.open$({
+      items: mediaItems,
+      selected: video,
+      source: 'latest',
+      continuationContext: this.mediaContinuationContext,
+    }).pipe(
+      take(1),
+      finalize(() => this.openingVideoKey.set(null))
+    ).subscribe({
+      error: () => {
+        this.errorNotification.showError(
+          'Não foi possível abrir esta sequência de mídias agora.'
+        );
+      },
+    });
+  }
+
+  isVideoOpening(video: IPublicVideoItem): boolean {
+    return this.openingVideoKey() === this.videoKey(video);
   }
 
   feedItemRoute(item: PrincipalFeedItem): any[] {
     if (item.kind === 'profile-photo') {
       return ['/outro-perfil', item.photo.ownerUid];
+    }
+
+    if (item.kind === 'profile-video') {
+      return ['/outro-perfil', item.video.ownerUid];
     }
 
     return item.kind === 'venue'
@@ -230,7 +305,8 @@ export class PrincipalComponent implements OnInit {
   }
 
   feedItemLabel(item: PrincipalFeedItem): string {
-    if (item.kind === 'profile-photo') return 'Perfil';
+    if (item.kind === 'profile-photo') return 'Foto';
+    if (item.kind === 'profile-video') return 'Vídeo';
     return item.kind === 'venue' ? 'Local' : 'Comunidade';
   }
 
@@ -266,6 +342,34 @@ export class PrincipalComponent implements OnInit {
 
   trackFriend = (index: number, friend: unknown): string =>
     this.friendUid(friend) || `friend-${index}`;
+
+  private extractPublicMediaItems(
+    items: readonly PrincipalFeedItem[]
+  ): IPublicProfileMediaItem[] {
+    const mediaItems: IPublicProfileMediaItem[] = [];
+
+    for (const item of items) {
+      if (item.kind === 'profile-photo') {
+        mediaItems.push(item.photo);
+      } else if (item.kind === 'profile-video') {
+        mediaItems.push(item.video);
+      }
+    }
+
+    return mediaItems;
+  }
+
+  private photoKey(photo: IPublicPhotoItem): string {
+    const ownerUid = String(photo?.ownerUid ?? '').trim();
+    const photoId = String(photo?.id ?? '').trim();
+    return ownerUid && photoId ? `${ownerUid}:${photoId}` : '';
+  }
+
+  private videoKey(video: IPublicVideoItem): string {
+    const ownerUid = String(video?.ownerUid ?? '').trim();
+    const videoId = String(video?.id ?? '').trim();
+    return ownerUid && videoId ? `${ownerUid}:${videoId}` : '';
+  }
 
   private buildPrincipalChecklistVm(user: IUserDados): IPrincipalChecklistVm {
     const checklist = this.profileCompletion.buildChecklist(user);

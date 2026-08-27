@@ -64,6 +64,10 @@ export class NotificationsPageComponent {
         return '💬';
       case 'social':
         return '🤝';
+      case 'community.comment.received':
+        return '💬';
+      case 'community.content.moderated':
+        return '🛡️';
       case 'billing':
         return '⭐';
       case 'system':

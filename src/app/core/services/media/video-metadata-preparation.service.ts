@@ -1,11 +1,24 @@
 import { Injectable } from '@angular/core';
 import { Observable, defer, from } from 'rxjs';
 
+import {
+  TVideoEditAspectRatio,
+  TVideoRotationDegrees,
+} from 'src/app/core/interfaces/media/i-video-edit-recipe';
+
 export interface IPreparedVideoMetadata {
   durationMs: number | null;
+  widthPixels: number | null;
+  heightPixels: number | null;
   posterBlob: Blob | null;
   posterMimeType: 'image/jpeg' | null;
   playbackReady: boolean;
+}
+
+export interface IVideoMetadataPreparationOptions {
+  aspectRatio?: TVideoEditAspectRatio;
+  preferredTimeMs?: number | null;
+  rotationDegrees?: TVideoRotationDegrees;
 }
 
 const METADATA_TIMEOUT_MS = 20_000;
@@ -15,15 +28,27 @@ const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
 
 @Injectable({ providedIn: 'root' })
 export class VideoMetadataPreparationService {
-  prepare$(file: File): Observable<IPreparedVideoMetadata> {
-    return defer(() => from(this.prepare(file)));
+  prepare$(
+    file: File,
+    options: IVideoMetadataPreparationOptions = {}
+  ): Observable<IPreparedVideoMetadata> {
+    return defer(() => from(this.prepare(file, options)));
   }
 
-  captureCurrentFrame$(video: HTMLVideoElement): Observable<Blob> {
-    return defer(() => from(this.captureCurrentFrame(video)));
+  captureCurrentFrame$(
+    video: HTMLVideoElement,
+    aspectRatio: TVideoEditAspectRatio = 'ORIGINAL',
+    rotationDegrees: TVideoRotationDegrees = 0
+  ): Observable<Blob> {
+    return defer(() => from(
+      this.captureCurrentFrame(video, aspectRatio, rotationDegrees)
+    ));
   }
 
-  private async prepare(file: File): Promise<IPreparedVideoMetadata> {
+  private async prepare(
+    file: File,
+    options: IVideoMetadataPreparationOptions
+  ): Promise<IPreparedVideoMetadata> {
     if (
       typeof document === 'undefined' ||
       typeof URL === 'undefined' ||
@@ -50,15 +75,21 @@ export class VideoMetadataPreparationService {
       await metadataLoaded;
 
       const durationMs = this.normalizeDuration(video.duration);
+      const widthPixels = this.normalizeDimension(video.videoWidth);
+      const heightPixels = this.normalizeDimension(video.videoHeight);
       const playbackReady =
         durationMs !== null &&
+        widthPixels !== null &&
+        heightPixels !== null &&
         PUBLIC_PLAYBACK_TYPES.has(String(file.type ?? '').toLowerCase());
       const posterBlob = playbackReady
-        ? await this.capturePosterBestEffort(video)
+        ? await this.capturePosterBestEffort(video, options)
         : null;
 
       return {
         durationMs,
+        widthPixels,
+        heightPixels,
         posterBlob,
         posterMimeType: posterBlob ? 'image/jpeg' : null,
         playbackReady,
@@ -72,7 +103,11 @@ export class VideoMetadataPreparationService {
     }
   }
 
-  private async captureCurrentFrame(video: HTMLVideoElement): Promise<Blob> {
+  private async captureCurrentFrame(
+    video: HTMLVideoElement,
+    aspectRatio: TVideoEditAspectRatio,
+    rotationDegrees: TVideoRotationDegrees
+  ): Promise<Blob> {
     if (
       typeof document === 'undefined' ||
       !video ||
@@ -80,10 +115,16 @@ export class VideoMetadataPreparationService {
       !video.videoHeight ||
       video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
     ) {
-      throw new Error('Aguarde o quadro do vídeo aparecer antes de escolher a capa.');
+      throw new Error(
+        'Aguarde o quadro do vídeo aparecer antes de escolher a capa.'
+      );
     }
 
-    const blob = await this.drawCurrentFrame(video);
+    const blob = await this.drawCurrentFrame(
+      video,
+      aspectRatio,
+      rotationDegrees
+    );
 
     if (!blob) {
       throw new Error('Não foi possível gerar a capa neste navegador.');
@@ -93,14 +134,18 @@ export class VideoMetadataPreparationService {
   }
 
   private async capturePosterBestEffort(
-    video: HTMLVideoElement
+    video: HTMLVideoElement,
+    options: IVideoMetadataPreparationOptions
   ): Promise<Blob | null> {
     try {
       if (!video.videoWidth || !video.videoHeight) {
         return null;
       }
 
-      const targetSeconds = this.resolvePosterTime(video.duration);
+      const targetSeconds = this.resolvePosterTime(
+        video.duration,
+        options.preferredTimeMs
+      );
 
       if (targetSeconds > 0) {
         const seeked = this.waitForEvent(video, 'seeked', 8_000);
@@ -110,18 +155,65 @@ export class VideoMetadataPreparationService {
         await this.waitForEvent(video, 'loadeddata', 8_000);
       }
 
-      return await this.drawCurrentFrame(video);
+      return await this.drawCurrentFrame(
+        video,
+        options.aspectRatio ?? 'ORIGINAL',
+        options.rotationDegrees ?? 0
+      );
     } catch {
       return null;
     }
   }
 
   private async drawCurrentFrame(
-    video: HTMLVideoElement
+    video: HTMLVideoElement,
+    aspectRatio: TVideoEditAspectRatio,
+    rotationDegrees: TVideoRotationDegrees
   ): Promise<Blob | null> {
-    const scale = Math.min(1, POSTER_MAX_WIDTH / video.videoWidth);
-    const width = Math.max(1, Math.round(video.videoWidth * scale));
-    const height = Math.max(1, Math.round(video.videoHeight * scale));
+    const normalizedRotation = this.normalizeRotation(rotationDegrees);
+    let source: CanvasImageSource = video;
+    let sourceWidth = video.videoWidth;
+    let sourceHeight = video.videoHeight;
+
+    if (normalizedRotation !== 0) {
+      const rotatedCanvas = document.createElement('canvas');
+      const rotatedContext = rotatedCanvas.getContext('2d');
+
+      if (!rotatedContext) {
+        return null;
+      }
+
+      const quarterTurn = normalizedRotation === 90 || normalizedRotation === 270;
+      rotatedCanvas.width = quarterTurn ? sourceHeight : sourceWidth;
+      rotatedCanvas.height = quarterTurn ? sourceWidth : sourceHeight;
+
+      rotatedContext.save();
+      if (normalizedRotation === 90) {
+        rotatedContext.translate(rotatedCanvas.width, 0);
+        rotatedContext.rotate(Math.PI / 2);
+      } else if (normalizedRotation === 180) {
+        rotatedContext.translate(rotatedCanvas.width, rotatedCanvas.height);
+        rotatedContext.rotate(Math.PI);
+      } else {
+        rotatedContext.translate(0, rotatedCanvas.height);
+        rotatedContext.rotate(-Math.PI / 2);
+      }
+      rotatedContext.drawImage(video, 0, 0, sourceWidth, sourceHeight);
+      rotatedContext.restore();
+
+      source = rotatedCanvas;
+      sourceWidth = rotatedCanvas.width;
+      sourceHeight = rotatedCanvas.height;
+    }
+
+    const crop = this.resolveSourceCrop(
+      sourceWidth,
+      sourceHeight,
+      aspectRatio
+    );
+    const scale = Math.min(1, POSTER_MAX_WIDTH / crop.width);
+    const width = Math.max(1, Math.round(crop.width * scale));
+    const height = Math.max(1, Math.round(crop.height * scale));
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
 
@@ -131,9 +223,70 @@ export class VideoMetadataPreparationService {
 
     canvas.width = width;
     canvas.height = height;
-    context.drawImage(video, 0, 0, width, height);
+    context.drawImage(
+      source,
+      crop.x,
+      crop.y,
+      crop.width,
+      crop.height,
+      0,
+      0,
+      width,
+      height
+    );
 
     return await this.canvasToBlob(canvas);
+  }
+
+  private resolveSourceCrop(
+    width: number,
+    height: number,
+    aspectRatio: TVideoEditAspectRatio
+  ): { x: number; y: number; width: number; height: number } {
+    const targetRatio = this.targetRatio(aspectRatio);
+
+    if (!targetRatio) {
+      return { x: 0, y: 0, width, height };
+    }
+
+    const sourceRatio = width / height;
+
+    if (sourceRatio > targetRatio) {
+      const cropWidth = Math.max(1, Math.round(height * targetRatio));
+      return {
+        x: Math.max(0, Math.round((width - cropWidth) / 2)),
+        y: 0,
+        width: cropWidth,
+        height,
+      };
+    }
+
+    const cropHeight = Math.max(1, Math.round(width / targetRatio));
+    return {
+      x: 0,
+      y: Math.max(0, Math.round((height - cropHeight) / 2)),
+      width,
+      height: cropHeight,
+    };
+  }
+
+  private targetRatio(aspectRatio: TVideoEditAspectRatio): number | null {
+    switch (aspectRatio) {
+    case 'VERTICAL_9_16':
+      return 9 / 16;
+    case 'PORTRAIT_4_5':
+      return 4 / 5;
+    case 'SQUARE_1_1':
+      return 1;
+    default:
+      return null;
+    }
+  }
+
+  private normalizeRotation(
+    value: TVideoRotationDegrees
+  ): TVideoRotationDegrees {
+    return value === 90 || value === 180 || value === 270 ? value : 0;
   }
 
   private waitForEvent(
@@ -190,7 +343,28 @@ export class VideoMetadataPreparationService {
     return Math.max(1, Math.round(durationSeconds * 1000));
   }
 
-  private resolvePosterTime(durationSeconds: number): number {
+  private normalizeDimension(value: number): number | null {
+    if (!Number.isFinite(value) || value <= 0) {
+      return null;
+    }
+
+    return Math.max(1, Math.round(value));
+  }
+
+  private resolvePosterTime(
+    durationSeconds: number,
+    preferredTimeMs: number | null | undefined
+  ): number {
+    const preferredSeconds = Number(preferredTimeMs ?? 0) / 1000;
+
+    if (
+      Number.isFinite(preferredSeconds) &&
+      preferredSeconds > 0 &&
+      preferredSeconds < durationSeconds
+    ) {
+      return Math.min(preferredSeconds + 0.1, durationSeconds - 0.05);
+    }
+
     if (!Number.isFinite(durationSeconds) || durationSeconds <= 0.2) {
       return 0;
     }
@@ -205,6 +379,8 @@ export class VideoMetadataPreparationService {
   private emptyResult(): IPreparedVideoMetadata {
     return {
       durationMs: null,
+      widthPixels: null,
+      heightPixels: null,
       posterBlob: null,
       posterMimeType: null,
       playbackReady: false,

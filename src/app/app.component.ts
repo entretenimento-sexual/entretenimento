@@ -5,7 +5,7 @@
 // - iniciar diagnósticos e orquestradores globais;
 // - reconciliar e acompanhar a assinatura canônica;
 // - manter a casca raiz mínima;
-// - controlar a exibição global do footer por rota.
+// - controlar a exibição do footer público por rota.
 import { Component, OnInit } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Observable } from 'rxjs';
@@ -69,11 +69,14 @@ export class AppComponent implements OnInit {
   private shouldHideFooter(url: string): boolean {
     const clean = this.normalizeUrl(url);
 
+    // O footer público/marketing não pertence às áreas de produto autenticadas.
+    // O LayoutShell fornece um footer compacto para essas telas.
     return [
       '/admin-dashboard',
       '/billing',
       '/chat',
       '/checkout',
+      '/conta',
       '/dashboard',
       '/descobrir',
       '/friends',

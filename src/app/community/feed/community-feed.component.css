@@ -8,6 +8,217 @@
   min-width: 0;
 }
 
+.community-feed__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.community-feed__composer {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--surface-border);
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 98%,
+    var(--primary-color) 2%
+  );
+}
+
+.community-feed__composer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.65rem 2.65rem;
+  align-items: end;
+  gap: 0.35rem;
+}
+
+.community-feed__composer textarea {
+  width: 100%;
+  min-height: 2.65rem;
+  max-height: 10rem;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 1.15rem;
+  background: var(--surface-color);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.community-feed__composer.is-expanded textarea {
+  min-height: 3.4rem;
+}
+
+.community-feed__photo-input {
+  display: none;
+}
+
+.community-feed__composer-tool,
+.community-feed__send,
+.community-feed__photo-preview button {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.community-feed__composer-tool,
+.community-feed__send {
+  width: 2.65rem;
+  height: 2.65rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.community-feed__composer-tool {
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 92%,
+    var(--text-color) 8%
+  );
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+}
+
+.community-feed__composer-tool:hover:not(:disabled) {
+  color: var(--primary-color);
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 90%,
+    var(--primary-color) 10%
+  );
+}
+
+.community-feed__send {
+  background: var(--primary-color);
+  color: #fff;
+}
+
+.community-feed__composer-tool:disabled,
+.community-feed__send:disabled,
+.community-feed__photo-preview button:disabled {
+  cursor: wait;
+  opacity: 0.46;
+}
+
+.community-feed__composer textarea:focus-visible,
+.community-feed__composer button:focus-visible,
+.community-feed__state button:focus-visible,
+.community-feed__more button:focus-visible,
+.community-post__menu > summary:focus-visible,
+.community-post__menu-action:focus-visible,
+.community-post__confirmation button:focus-visible,
+.community-post__confirmation textarea:focus-visible,
+.community-post__reaction:focus-visible,
+.community-post__comments-toggle:focus-visible,
+.community-post__reply-context.is-navigable:focus-visible,
+.community-feed__new-items button:focus-visible,
+.community-post__reply:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.community-feed__photo-preview {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 3.3rem minmax(0, 1fr) 2.25rem;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 0.9rem;
+  background: var(--surface-color);
+}
+
+.community-feed__photo-preview img,
+.community-feed__photo-placeholder {
+  width: 3.3rem;
+  height: 3.3rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.65rem;
+  object-fit: cover;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 88%,
+    var(--primary-color) 12%
+  );
+  color: var(--primary-color);
+}
+
+.community-feed__photo-name {
+  overflow: hidden;
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-feed__photo-preview button {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+}
+
+.community-feed__photo-preview button:hover:not(:disabled) {
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 90%,
+    var(--error-color, #b42318) 10%
+  );
+  color: var(--error-color, #b42318);
+}
+
+.community-feed__composer-help {
+  min-height: 1rem;
+  color: color-mix(in oklab, var(--text-color) 58%, transparent);
+  font-size: 0.68rem;
+  text-align: right;
+}
+
+.community-feed__composer-help .is-error {
+  color: var(--error-color, #b42318);
+}
+
+.community-feed__upload-progress {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-border) 70%,
+    transparent
+  );
+}
+
+.community-feed__upload-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary-color);
+  transition: width 120ms linear;
+}
+
+.community-feed__composer-error {
+  margin: 0;
+  color: var(--error-color, #b42318);
+  font-size: 0.73rem;
+  line-height: 1.4;
+}
+
 .community-feed__state {
   min-height: 9rem;
   display: grid;
@@ -15,12 +226,12 @@
   justify-items: center;
   gap: 0.6rem;
   padding: 1rem;
-  color: var(--text-color, #222);
+  color: var(--text-color);
   text-align: center;
 }
 
 .community-feed__state i {
-  color: var(--primary-color, #d83768);
+  color: var(--primary-color);
   font-size: 1.15rem;
 }
 
@@ -32,10 +243,10 @@
   justify-content: center;
   gap: 0.45rem;
   padding: 0.55rem 0.9rem;
-  border: 1px solid var(--surface-border, #d5d5d5);
+  border: 1px solid var(--surface-border);
   border-radius: 999px;
-  background: var(--surface-color, #fff);
-  color: var(--text-color, #222);
+  background: var(--surface-color);
+  color: var(--text-color);
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -43,17 +254,7 @@
 
 .community-feed__state button:hover,
 .community-feed__more button:hover:not(:disabled) {
-  border-color: var(--primary-color, #d83768);
-}
-
-.community-feed__state button:focus-visible,
-.community-feed__more button:focus-visible {
-  outline: 3px solid color-mix(
-    in oklab,
-    var(--primary-color, #d83768) 34%,
-    transparent
-  );
-  outline-offset: 2px;
+  border-color: var(--primary-color);
 }
 
 .community-feed__items {
@@ -65,38 +266,48 @@
 }
 
 .community-feed__items > li + li {
-  border-top: 1px solid var(--surface-border, #d5d5d5);
+  border-top: 1px solid color-mix(
+    in oklab,
+    var(--surface-border) 68%,
+    transparent
+  );
 }
 
 .community-post {
   min-width: 0;
-  padding: 0.9rem 1rem;
-  background: var(--surface-color, #fff);
+  padding: 0.82rem 1rem;
+  background: transparent;
+  scroll-margin-block-start: 6rem;
 }
 
 .community-post__header {
   min-width: 0;
   display: grid;
-  grid-template-columns: 2.4rem minmax(0, 1fr);
+  grid-template-columns: 2.55rem minmax(0, 1fr) 2.75rem;
   align-items: center;
-  gap: 0.65rem;
-  margin-bottom: 0.75rem;
+  gap: 0.62rem;
+  margin-bottom: 0.5rem;
 }
 
 .community-post__avatar {
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2.55rem;
+  height: 2.55rem;
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 1px solid var(--surface-border, #d5d5d5);
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color) 20%,
+    var(--surface-border)
+  );
   border-radius: 50%;
   background: color-mix(
     in oklab,
-    var(--surface-color, #fff) 90%,
-    var(--primary-color, #d83768) 10%
+    var(--surface-color) 90%,
+    var(--primary-color) 10%
   );
-  color: var(--primary-color, #d83768);
+  color: var(--primary-color);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--surface-color) 88%, transparent);
 }
 
 .community-post__avatar img {
@@ -105,15 +316,47 @@
   object-fit: cover;
 }
 
-.community-post__header div {
+.community-post__identity {
   min-width: 0;
   display: grid;
-  gap: 0.12rem;
+  gap: 0.24rem;
+}
+
+.community-post__identity-line {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.45rem;
+}
+
+.community-post__author-context {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.28rem;
+  color: color-mix(in oklab, var(--text-color) 58%, transparent);
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+.community-post__author-context > span {
+  min-height: 1.3rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 7%,
+    transparent
+  );
 }
 
 .community-post__header strong {
   overflow: hidden;
-  color: var(--text-color, #222);
+  color: var(--text-color);
   font-size: 0.86rem;
   line-height: 1.2;
   text-overflow: ellipsis;
@@ -121,18 +364,145 @@
 }
 
 .community-post__header time {
-  color: var(--text-color, #222);
-  font-size: 0.7rem;
-  opacity: 0.62;
+  flex: 0 0 auto;
+  color: color-mix(in oklab, var(--text-color) 52%, transparent);
+  font-size: 0.67rem;
+}
+
+.community-post__menu {
+  position: relative;
+  justify-self: end;
+  align-self: start;
+}
+
+.community-post__menu > summary {
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border-radius: 50%;
+  color: color-mix(in oklab, var(--text-color) 58%, transparent);
+  cursor: pointer;
+  list-style: none;
+}
+
+.community-post__menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.community-post__menu > summary:hover,
+.community-post__menu[open] > summary {
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 90%,
+    var(--text-color) 10%
+  );
+  color: var(--text-color);
+}
+
+.community-post__menu-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.2rem);
+  right: 0;
+  width: min(14rem, calc(100vw - 2rem));
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.35rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border) 84%,
+    transparent
+  );
+  border-radius: 0.8rem;
+  background: var(--surface-color);
+  box-shadow: 0 0.75rem 2rem color-mix(in oklab, #000 14%, transparent);
+}
+
+/* O menu do composer ocupa exatamente a coluna reservada no grid. O painel é
+   absoluto e não participa do fluxo, então abrir o + não altera largura/altura
+   da linha nem desalinha o botão de envio. */
+.community-feed__attachment-menu {
+  width: 2.65rem;
+  height: 2.65rem;
+  align-self: end;
+}
+
+.community-feed__attachment-menu > summary {
+  width: 100%;
+  height: 100%;
+}
+
+.community-post__menu-action {
+  width: 100%;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color) 82%, transparent);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.community-post__menu-action i {
+  width: 1rem;
+  color: color-mix(in oklab, var(--text-color) 58%, transparent);
+  text-align: center;
+}
+
+.community-post__menu-action:hover:not(:disabled) {
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 90%,
+    var(--text-color) 10%
+  );
+  color: var(--text-color);
+}
+
+.community-post__menu-action.is-danger {
+  color: color-mix(in oklab, var(--error-color, #b42318) 78%, var(--text-color));
+}
+
+.community-post__menu-action:disabled {
+  cursor: wait;
+  opacity: 0.45;
+}
+
+.community-post__menu-panel app-report-content-button {
+  width: 100%;
+  --primary-color: var(--text-color);
+  opacity: 0.7;
+}
+
+.community-post__menu-panel app-report-content-button:hover {
+  opacity: 1;
+}
+
+.community-post p {
+  overflow-wrap: anywhere;
+  margin: 0 0 0 3.17rem;
+  color: var(--text-color);
+  font-size: 0.9rem;
+  line-height: 1.48;
 }
 
 .community-post__media {
   overflow: hidden;
-  margin: 0 -1rem 0.75rem;
+  max-width: 34rem;
+  margin: 0.62rem 0 0 3.17rem;
+  border-radius: 0.9rem;
   background: color-mix(
     in oklab,
-    var(--surface-color, #fff) 92%,
-    var(--text-color, #222) 8%
+    var(--surface-color) 92%,
+    var(--text-color) 8%
   );
 }
 
@@ -140,39 +510,190 @@
   width: 100%;
   max-height: 34rem;
   display: block;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
+  object-fit: contain;
 }
 
-.community-post p {
-  overflow-wrap: anywhere;
-  margin: 0;
-  color: var(--text-color, #222);
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-
+/* MURAL-04: ações claras, com alvos de toque confortáveis e sem card extra. */
 .community-post__metrics {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-top: 0.75rem;
-  color: var(--text-color, #222);
-  font-size: 0.76rem;
-  opacity: 0.7;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin: 0.5rem 0 0 2.94rem;
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  font-size: 0.74rem;
 }
 
-.community-post__metrics span {
+.community-post__action {
+  min-height: 2.75rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.32rem;
+  justify-content: center;
+  gap: 0.34rem;
+  box-sizing: border-box;
+  padding: 0.45rem 0.72rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  line-height: 1;
+}
+
+button.community-post__action {
+  cursor: pointer;
+}
+
+.community-post__action i {
+  width: 1rem;
+  flex: 0 0 1rem;
+  text-align: center;
+}
+
+.community-post__action-label {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.community-post__action-count {
+  min-width: 1ch;
+  color: color-mix(in oklab, currentColor 76%, transparent);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: center;
+}
+
+.community-post__action--static {
+  cursor: default;
+  opacity: 0.82;
+}
+
+.community-post__reply {
+  font-weight: 720;
+}
+
+.community-post__reaction:hover:not(:disabled),
+.community-post__reaction.is-active,
+.community-post__comments-toggle:hover,
+.community-post__comments-toggle[aria-expanded='true'] {
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 10%,
+    transparent
+  );
+  color: var(--primary-color);
+}
+
+.community-post__reaction.is-active {
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 13%,
+    transparent
+  );
+}
+
+.community-post__reaction:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.community-post__confirmation {
+  display: grid;
+  gap: 0.48rem;
+  margin: 0.6rem 0 0 3.17rem;
+  padding: 0.75rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--error-color, #b42318) 30%,
+    var(--surface-border)
+  );
+  border-radius: 0.8rem;
+  background: color-mix(
+    in oklab,
+    var(--error-color, #b42318) 4%,
+    var(--surface-color)
+  );
+}
+
+.community-post__confirmation p,
+.community-post__confirmation label,
+.community-post__confirmation small {
+  margin: 0;
+}
+
+.community-post__confirmation label,
+.community-post__confirmation p {
+  color: var(--text-color);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.community-post__confirmation small {
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.community-post__confirmation textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 0.65rem;
+  background: var(--surface-color);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.community-post__confirmation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.community-post__confirmation-actions button {
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: var(--surface-color);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.community-post__confirmation-actions button.is-danger {
+  border-color: var(--error-color, #b42318);
+  background: var(--error-color, #b42318);
+  color: #fff;
+}
+
+.community-post__confirmation-actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.community-post__confirmation .community-post__confirmation-error {
+  color: var(--error-color, #b42318);
+  font-size: 0.72rem;
+  font-weight: 650;
 }
 
 .community-feed__more {
   display: flex;
   justify-content: center;
   padding: 0.85rem;
-  border-top: 1px solid var(--surface-border, #d5d5d5);
+  border-top: 1px solid var(--surface-border);
 }
 
 .community-feed__more button:disabled {
@@ -180,6 +701,7 @@
   opacity: 0.62;
 }
 
+/* Fotos é somente uma compilação dos itens photo da mesma timeline. */
 .community-feed--photos .community-feed__items {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.55rem;
@@ -194,23 +716,28 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   padding: 0;
-  border: 1px solid var(--surface-border, #d5d5d5);
+  border: 1px solid var(--surface-border);
   border-radius: 0.8rem;
+  background: var(--surface-color);
 }
 
 .community-feed--photos .community-post__media {
   order: -1;
+  max-width: none;
   margin: 0;
+  overflow: hidden;
+  border-radius: 0.8rem 0.8rem 0 0;
 }
 
 .community-feed--photos .community-post__media img {
   aspect-ratio: 1 / 1;
+  object-fit: cover;
 }
 
 .community-feed--photos .community-post__header {
-  grid-template-columns: 1.85rem minmax(0, 1fr);
+  grid-template-columns: 1.85rem minmax(0, 1fr) 2.75rem;
   gap: 0.45rem;
   margin: 0;
   padding: 0.55rem 0.6rem 0;
@@ -220,6 +747,17 @@
   width: 1.85rem;
   height: 1.85rem;
   font-size: 0.72rem;
+  box-shadow: none;
+}
+
+.community-feed--photos .community-post__author-context {
+  gap: 0.18rem;
+  font-size: 0.59rem;
+}
+
+.community-feed--photos .community-post__author-context > span {
+  min-height: 1.12rem;
+  padding: 0.08rem 0.28rem;
 }
 
 .community-feed--photos .community-post p {
@@ -233,9 +771,23 @@
 }
 
 .community-feed--photos .community-post__metrics {
-  margin-top: auto;
-  padding: 0.55rem 0.6rem;
-  font-size: 0.7rem;
+  gap: 0.1rem;
+  margin: auto 0 0;
+  padding: 0.45rem 0.55rem 0.55rem;
+  font-size: 0.68rem;
+}
+
+.community-feed--photos .community-post__action {
+  min-height: 2.25rem;
+  padding: 0.3rem 0.45rem;
+}
+
+.community-feed--photos .community-post__action-label {
+  display: none;
+}
+
+.community-feed--photos .community-post__confirmation {
+  margin-inline: 0.55rem;
 }
 
 @media (min-width: 42rem) {
@@ -246,13 +798,68 @@
   }
 }
 
-@media (max-width: 22rem) {
+@media (max-width: 30rem) {
+  .community-feed__composer {
+    padding-inline: 0.65rem;
+  }
+
+  .community-feed__composer-row {
+    grid-template-columns: minmax(0, 1fr) 2.5rem 2.5rem;
+  }
+
+  .community-feed__composer-tool,
+  .community-feed__send,
+  .community-feed__attachment-menu {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
   .community-post {
     padding-inline: 0.75rem;
   }
 
+  .community-post__header {
+    grid-template-columns: 2.35rem minmax(0, 1fr) 2.75rem;
+    gap: 0.52rem;
+  }
+
+  .community-post__avatar {
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+
+  .community-post__author-context {
+    font-size: 0.64rem;
+  }
+
+  .community-post p,
   .community-post__media {
-    margin-inline: -0.75rem;
+    margin-left: 0;
+  }
+
+  .community-post__media {
+    max-width: none;
+    border-radius: 0.75rem;
+  }
+
+  .community-post__metrics,
+  .community-post__confirmation {
+    margin-left: 0;
+  }
+
+  .community-post__metrics {
+    flex-wrap: nowrap;
+    gap: 0.12rem;
+  }
+
+  .community-post__action {
+    min-width: 0;
+    flex: 1 1 0;
+    padding-inline: 0.42rem;
+  }
+
+  .community-post__confirmation-actions button {
+    flex: 1;
   }
 
   .community-feed--photos .community-feed__items {
@@ -261,16 +868,282 @@
   }
 }
 
-:host-context(.high-contrast) .community-post,
-:host-context(.high-contrast) .community-feed__more,
+:host-context(.high-contrast) .community-feed__composer,
+:host-context(.high-contrast) .community-feed__composer textarea,
+:host-context(.high-contrast) .community-feed__photo-preview,
+:host-context(.high-contrast) .community-post__menu-panel,
+:host-context(.high-contrast) .community-post__confirmation,
 :host-context(.high-contrast) .community-feed--photos .community-post {
-  border-color: var(--text-color, #222);
+  border-color: var(--text-color);
   border-width: 2px;
 }
 
+:host-context(.high-contrast) .community-post__action {
+  border: 1px solid currentColor;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .community-feed__upload-progress span {
+    transition: none;
+  }
+
   .community-feed__state button,
   .community-feed__more button {
     scroll-behavior: auto;
+  }
+}
+
+/* A referência contextualiza a conversa sem disputar atenção com a mensagem atual. */
+.community-post__reply-context {
+  min-width: 0;
+  max-width: min(30rem, calc(100% - 3.17rem));
+  display: grid;
+  gap: 0.08rem;
+  margin: -0.08rem 0 0.5rem 3.17rem;
+  padding: 0.34rem 0.55rem 0.38rem 0.65rem;
+  border-inline-start: 2px solid color-mix(
+    in oklab,
+    var(--primary-color) 38%,
+    transparent
+  );
+  border-radius: 0.35rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 97%,
+    var(--primary-color) 3%
+  );
+  color: color-mix(in oklab, var(--text-color) 52%, transparent);
+  font-size: 0.66rem;
+  line-height: 1.25;
+}
+
+.community-post__reply-context strong {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.26rem;
+  color: color-mix(in oklab, var(--text-color) 64%, transparent);
+  font-size: 0.65rem;
+  font-weight: 650;
+}
+
+.community-post__reply-context strong i {
+  color: color-mix(in oklab, var(--primary-color) 62%, transparent);
+  font-size: 0.62rem;
+}
+
+.community-post__reply-context > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-post__reply-context + p {
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.community-feed--photos .community-post__reply-context {
+  max-width: none;
+  margin: 0.42rem 0.6rem 0;
+  padding: 0.28rem 0.42rem;
+}
+
+@media (max-width: 30rem) {
+  .community-post__reply-context {
+    max-width: none;
+    margin-left: 0;
+    padding-inline: 0.5rem;
+  }
+}
+
+:host-context(.high-contrast) .community-post__reply-context {
+  border-inline-start-color: var(--text-color);
+  background: var(--surface-color);
+}
+
+/* MURAL-02: a referência é navegável, e o alvo recebe feedback visual temporário. */
+.community-post__reply-context.is-navigable {
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.community-post__reply-context.is-navigable:hover {
+  border-inline-start-color: color-mix(
+    in oklab,
+    var(--primary-color) 66%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 94%,
+    var(--primary-color) 6%
+  );
+}
+
+.community-post.is-reference-target {
+  animation: community-post-reference-highlight 1.8s ease-out both;
+}
+
+@keyframes community-post-reference-highlight {
+  0%,
+  38% {
+    background: color-mix(
+      in oklab,
+      var(--surface-color) 88%,
+      var(--primary-color) 12%
+    );
+    box-shadow: inset 3px 0 0 color-mix(
+      in oklab,
+      var(--primary-color) 72%,
+      transparent
+    );
+  }
+
+  100% {
+    background: transparent;
+    box-shadow: inset 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .community-post__reply-context.is-navigable {
+    transition: none;
+  }
+
+  .community-post.is-reference-target {
+    animation: none;
+    background: color-mix(
+      in oklab,
+      var(--surface-color) 94%,
+      var(--primary-color) 6%
+    );
+    box-shadow: inset 3px 0 0 var(--primary-color);
+  }
+}
+
+:host-context(.high-contrast) .community-post.is-reference-target {
+  outline: 2px solid var(--text-color);
+  outline-offset: -2px;
+}
+
+/* MURAL-03.1: o aviso acompanha a viewport sem alterar a posição de leitura. */
+.community-feed__new-items {
+  position: fixed;
+  z-index: 210;
+  inset-inline-start: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1.25rem);
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  display: flex;
+  justify-content: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.community-feed__new-items button {
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  max-width: 100%;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color) 32%,
+    var(--surface-border)
+  );
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 96%,
+    var(--primary-color) 4%
+  );
+  color: var(--primary-color);
+  box-shadow: 0 0.45rem 1.25rem color-mix(in oklab, #000 12%, transparent);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 750;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.community-feed__new-items button:hover {
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 91%,
+    var(--primary-color) 9%
+  );
+}
+
+@media (max-width: 47.99rem) {
+  .community-feed__new-items {
+    bottom: calc(
+      env(safe-area-inset-bottom, 0px)
+      + var(--app-mobile-bottom-nav-height, 76px)
+      + 0.75rem
+    );
+  }
+}
+
+:host-context(.high-contrast) .community-feed__new-items button {
+  border: 2px solid var(--text-color);
+  background: var(--surface-color);
+  color: var(--text-color);
+  box-shadow: none;
+}
+
+/* Responder expressa intenção; abrir Conversa expressa somente leitura. */
+.community-post__reply:hover,
+.community-post__reply.is-replying {
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 8%,
+    transparent
+  );
+  color: var(--primary-color);
+}
+
+.community-post__reply.is-replying {
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 12%,
+    transparent
+  );
+}
+
+/* Desktop: usa melhor a área disponível sem reduzir os alvos de interação. */
+@media (min-width: 48rem) {
+  .community-feed__composer {
+    padding-block: 0.62rem;
+  }
+
+  .community-post {
+    padding: 0.72rem 1.1rem;
+  }
+
+  .community-post__header {
+    margin-bottom: 0.38rem;
+  }
+
+  .community-post__media {
+    max-width: 38rem;
+    margin-top: 0.52rem;
+  }
+
+  .community-post__media img {
+    max-height: 38rem;
+  }
+
+  .community-post__metrics {
+    margin-top: 0.32rem;
+  }
+
+  .community-post__reply-context {
+    margin-bottom: 0.38rem;
   }
 }

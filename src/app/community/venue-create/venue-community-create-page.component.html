@@ -10,10 +10,11 @@
     </a>
 
     <div>
-      <h1 id="venue-create-title">Cadastrar Local</h1>
+      <h1 id="venue-create-title">Cadastrar Espaço Oficial</h1>
       <p>{{ venueDefinition.description }}</p>
       <p>
-        O cadastro ficará vinculado à sua conta para administração. A propriedade deverá ser verificada antes da publicação em produção.
+        Destinado a estabelecimentos, Locais e espaços de eventos. A publicação
+        exige uma organização e um responsável comercial verificados.
       </p>
     </div>
   </header>
@@ -118,6 +119,10 @@
       <p class="venue-create__note">
         Visitantes poderão ver a prévia pública. A interação ficará reservada às pessoas autorizadas no Local.
       </p>
+      <p class="venue-create__note">
+        O Espaço Oficial comporta até 1.000 participantes ativos. Seguidores e
+        recursos de divulgação serão tratados separadamente da participação.
+      </p>
     </section>
 
     <div class="venue-create__actions">
@@ -128,7 +133,7 @@
           <span>Cadastrando</span>
         } @else {
           <i class="fas fa-plus" aria-hidden="true"></i>
-          <span>Cadastrar Local</span>
+          <span>Cadastrar Espaço Oficial</span>
         }
       </button>
     </div>

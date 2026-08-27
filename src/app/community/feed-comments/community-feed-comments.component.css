@@ -1,0 +1,584 @@
+:host {
+  display: block;
+}
+
+.feed-comments {
+  margin-top: 0.65rem;
+  padding: 0.45rem 0 0.25rem;
+  border-top: 1px solid color-mix(in oklab, currentColor 11%, transparent);
+  background: transparent;
+}
+
+.feed-comments__header,
+.feed-comment header,
+.feed-comments__composer-row,
+.feed-comment__confirmation > div {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.feed-comments__header {
+  justify-content: space-between;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0 0.55rem 0.35rem;
+}
+
+.feed-comments__header > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.22rem 0.4rem;
+}
+
+.feed-comments__header h3 {
+  margin: 0;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.82rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.feed-comments__header h3::after {
+  content: '·';
+  margin-left: 0.4rem;
+  font-weight: 400;
+}
+
+.feed-comments__header span,
+.feed-comments__composer small,
+.feed-comment time,
+.feed-comments__read-only {
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.75rem;
+}
+
+.feed-comments__close,
+.feed-comment__menu > summary,
+.feed-comments__reply-target > button {
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+}
+
+.feed-comments__close:hover,
+.feed-comment__menu > summary:hover,
+.feed-comments__reply-target > button:hover:not(:disabled) {
+  background: color-mix(in oklab, currentColor 6%, transparent);
+  color: inherit;
+}
+
+.feed-comments__state,
+.feed-comments__read-only {
+  margin: 0;
+  padding: 0.75rem 0.65rem;
+  color: var(--text-secondary, #6b7280);
+}
+
+.feed-comments__state button,
+.feed-comments__more {
+  min-height: 2.75rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.5rem 0.85rem;
+  background: color-mix(in oklab, currentColor 6%, transparent);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.feed-comments__more {
+  display: block;
+  margin: 0.15rem auto 0.55rem;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.feed-comments__list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feed-comments__list > li + li {
+  border-top: 1px solid color-mix(in oklab, currentColor 6%, transparent);
+}
+
+.feed-comment {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.35rem minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+  padding: 0.62rem 0.55rem 0.45rem;
+  scroll-margin-block: 5rem;
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.feed-comment__avatar {
+  width: 2.35rem;
+  height: 2.35rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #d83768) 20%, transparent);
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--primary-color, #d83768) 10%, transparent);
+}
+
+.feed-comment__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.feed-comment__body {
+  min-width: 0;
+}
+
+.feed-comment__surface {
+  position: relative;
+  min-width: 0;
+  padding: 0.08rem 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.feed-comment.is-recent {
+  animation: feed-comment-arrival 1.8s ease-out;
+}
+
+.feed-comment.is-highlighted {
+  background: color-mix(in oklab, var(--primary-color, #d83768) 7%, transparent);
+  box-shadow: inset 3px 0 0 color-mix(in oklab, var(--primary-color, #d83768) 55%, transparent);
+}
+
+.feed-comment header {
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.feed-comment__identity {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.feed-comment__identity-line {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.22rem 0.4rem;
+}
+
+.feed-comment__identity strong {
+  color: var(--text-color, #222);
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.feed-comment__author-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.68rem;
+  line-height: 1.2;
+}
+
+.feed-comment__author-context > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.2rem;
+  padding: 0.1rem 0.32rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #d83768) 5%, transparent);
+}
+
+.feed-comment__author-context[role='note'] {
+  margin-top: 0.28rem;
+  opacity: 0.78;
+}
+
+.feed-comment__author-context[role='note'] > span {
+  padding-inline: 0;
+  background: transparent;
+}
+
+.feed-comment__quote {
+  width: min(100%, 28rem);
+  min-width: 0;
+  display: grid;
+  gap: 0.06rem;
+  margin-top: 0.35rem;
+  padding: 0.25rem 0 0.25rem 0.55rem;
+  border: 0;
+  border-left: 2px solid color-mix(in oklab, var(--primary-color, #d83768) 60%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.feed-comment__quote strong,
+.feed-comment__quote span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-comment__quote strong {
+  color: var(--primary-color, #d83768);
+  font-size: 0.71rem;
+}
+
+.feed-comment__quote span {
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.73rem;
+}
+
+.feed-comment__quote:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.feed-comment p {
+  margin: 0.34rem 0 0;
+  color: var(--text-color, #222);
+  font-size: 0.91rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.feed-comment__actions {
+  min-height: 1.7rem;
+  display: flex;
+  align-items: center;
+  padding: 0.08rem 0 0;
+}
+
+.feed-comment__actions button {
+  min-height: 2.15rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.22rem 0.42rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.feed-comment__actions button:hover {
+  background: color-mix(in oklab, var(--primary-color, #d83768) 7%, transparent);
+  color: var(--primary-color, #d83768);
+}
+
+.feed-comment__menu {
+  position: relative;
+  margin: -0.55rem -0.7rem -0.35rem 0;
+}
+
+.feed-comment__menu > summary {
+  list-style: none;
+}
+
+.feed-comment__menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.feed-comment__menu-panel {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% - 0.2rem);
+  right: 0;
+  width: max-content;
+  min-width: 12rem;
+  max-width: min(18rem, calc(100vw - 2rem));
+  padding: 0.35rem;
+  border: 1px solid color-mix(in oklab, currentColor 12%, transparent);
+  border-radius: 0.8rem;
+  background: var(--surface-color, #fff);
+  box-shadow: 0 0.7rem 1.8rem color-mix(in oklab, #000 16%, transparent);
+}
+
+.feed-comment__menu-action {
+  width: 100%;
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 0;
+  border-radius: 0.6rem;
+  padding: 0.6rem 0.7rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.feed-comment__menu-action:hover {
+  background: color-mix(in oklab, currentColor 6%, transparent);
+}
+
+.feed-comment__menu-action.is-danger {
+  color: #b42318;
+}
+
+.feed-comment__confirmation {
+  margin-top: 0.4rem;
+  padding: 0.65rem;
+  border-left: 3px solid color-mix(in oklab, #b42318 58%, transparent);
+  border-radius: 0.55rem;
+  background: color-mix(in oklab, currentColor 4%, transparent);
+}
+
+.feed-comment__confirmation label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.feed-comment__confirmation textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid color-mix(in oklab, currentColor 18%, transparent);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.7rem;
+  background: var(--surface-color, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.feed-comment__confirmation button {
+  min-height: 2.75rem;
+  border: 0;
+  border-radius: 0.65rem;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+}
+
+.feed-comment__confirmation .is-danger {
+  background: #b42318;
+  color: #fff;
+}
+
+.feed-comments__composer {
+  margin: 0.35rem 0 0;
+  padding: 0.7rem 0.55rem 0.25rem;
+  border-top: 1px solid color-mix(in oklab, currentColor 8%, transparent);
+}
+
+.feed-comments__composer > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.feed-comments__reply-target {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.75rem;
+  gap: 0.45rem;
+  align-items: center;
+  width: min(100%, 32rem);
+  margin-bottom: 0.45rem;
+  padding: 0.35rem 0 0.35rem 0.55rem;
+  border-left: 2px solid var(--primary-color, #d83768);
+  background: transparent;
+}
+
+.feed-comments__reply-target > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.06rem;
+}
+
+.feed-comments__reply-target strong,
+.feed-comments__reply-target span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-comments__reply-target strong {
+  color: var(--primary-color, #d83768);
+  font-size: 0.73rem;
+}
+
+.feed-comments__reply-target span {
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.73rem;
+}
+
+.feed-comments__composer-row {
+  align-items: flex-end;
+}
+
+.feed-comments__composer-row textarea {
+  min-width: 0;
+  min-height: 2.75rem;
+  max-height: 9rem;
+  flex: 1 1 auto;
+  resize: vertical;
+  border: 1px solid color-mix(in oklab, currentColor 15%, transparent);
+  border-radius: 0.9rem;
+  padding: 0.62rem 0.72rem;
+  background: var(--surface-color, #fff);
+  color: inherit;
+  font: inherit;
+  line-height: 1.35;
+}
+
+.feed-comments__composer-row > button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 0.85rem;
+  padding: 0.55rem 0.8rem;
+  background: var(--primary-color, #d83768);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.feed-comments__composer > small {
+  display: block;
+  margin-top: 0.2rem;
+  text-align: right;
+}
+
+button:focus-visible,
+summary:focus-visible,
+textarea:focus-visible,
+.feed-comment__quote:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--primary-color, #d83768) 35%, transparent);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+@keyframes feed-comment-arrival {
+  0% {
+    background: color-mix(in oklab, var(--primary-color, #d83768) 12%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-comment.is-recent {
+    animation: none;
+  }
+
+  .feed-comment {
+    transition: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .feed-comments {
+    margin-inline: -0.2rem;
+  }
+
+  .feed-comments__header,
+  .feed-comment,
+  .feed-comments__composer {
+    padding-inline: 0.35rem;
+  }
+
+  .feed-comment {
+    grid-template-columns: 2.2rem minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .feed-comment__avatar {
+    width: 2.2rem;
+    height: 2.2rem;
+  }
+
+  .feed-comment__quote,
+  .feed-comments__reply-target {
+    width: 100%;
+  }
+
+  .feed-comments__composer-row {
+    align-items: stretch;
+  }
+
+  .feed-comments__composer-row > button {
+    width: 2.75rem;
+    padding-inline: 0;
+  }
+
+  .feed-comments__send-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+@media (forced-colors: active) {
+  .feed-comments,
+  .feed-comments__list > li + li,
+  .feed-comments__composer {
+    border-color: CanvasText;
+  }
+
+  .feed-comment.is-highlighted {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .feed-comment__quote,
+  .feed-comments__reply-target {
+    border-left-color: Highlight;
+  }
+}

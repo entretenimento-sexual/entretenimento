@@ -1,42 +1,18 @@
 // src/app/explore/services/explore-feed.service.spec.ts
 
 import { TestBed } from '@angular/core/testing';
-import { MockStore, provideMockStore } from '@ngrx/store/testing';
-import { firstValueFrom, of } from 'rxjs';
+import { filter, firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
-import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
-import { DiscoveryCardEnrichmentService } from 'src/app/dashboard/discovery/application/discovery-card-enrichment.service';
-import {
-  DiscoveryFeedRequest,
-  buildDiscoveryFeedQueryKey,
-} from 'src/app/dashboard/discovery/models/discovery-feed-page.model';
+import { PublicVideoRankingQueryService } from 'src/app/core/services/media/public-video-ranking-query.service';
+import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
 import { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-profile-card.model';
-import * as DiscoveryActions from 'src/app/store/actions/actions.discovery/discovery-feed.actions';
-import { emptyDiscoveryFeedSlice } from 'src/app/store/states/states.discovery/discovery-feed.state';
 
 import { ExploreFeedService } from './explore-feed.service';
 
 describe('ExploreFeedService', () => {
-  const viewerUid = 'viewer-1';
-  const request: DiscoveryFeedRequest = {
-    viewerUid,
-    mode: 'compatible',
-    pageSize: 24,
-  };
-  const queryKey = buildDiscoveryFeedQueryKey(request);
-
-  const currentUser = {
-    uid: viewerUid,
-    nickname: 'Viewer',
-    gender: 'man',
-    orientation: 'homosexual',
-  } as IUserDados;
-
   const compatibleCards: PublicProfileCard[] = Array.from(
     { length: 8 },
     (_, index) => ({
@@ -49,10 +25,25 @@ describe('ExploreFeedService', () => {
     })
   );
 
+  const videoA = {
+    id: 'video-a',
+    ownerUid: 'owner-a',
+    title: 'Vídeo A',
+  } as any;
+  const videoB = {
+    id: 'video-b',
+    ownerUid: 'owner-b',
+    title: 'Vídeo B',
+  } as any;
+
   const mediaPublicQueryMock = {
     getBoostedPublicPhotos$: vi.fn(() => of([])),
     getTopPublicPhotos$: vi.fn(() => of([])),
     getLatestPublicPhotos$: vi.fn(() => of([])),
+  };
+
+  const publicVideoRankingMock = {
+    loadPage$: vi.fn(),
   };
 
   /**
@@ -63,130 +54,123 @@ describe('ExploreFeedService', () => {
     getProfilesByUids$: vi.fn(() => of([])),
   };
 
-  const accessControlMock = {
-    authUid$: of(viewerUid),
-    canRunApp$: of(true),
+  const compatibleCandidatesMock = {
+    profiles$: of(compatibleCards),
   };
 
-  const currentUserStoreMock = {
-    user$: of(currentUser),
-  };
-
-  const cardEnrichmentMock = {
-    buildCardsResult: vi.fn(
-      ({ profiles }: { profiles: readonly PublicProfileCard[] }) => ({
-        profiles: [...profiles],
-        rejected: [],
-        debugSummary: {},
-      })
-    ),
-  };
-
-  let store: MockStore;
   let service: ExploreFeedService;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    publicVideoRankingMock.loadPage$.mockImplementation(
+      (rankingRequest: { mode: 'top' | 'latest' }) =>
+        of({
+          mode: rankingRequest.mode,
+          source: rankingRequest.mode,
+          items: rankingRequest.mode === 'top'
+            ? [videoA]
+            : [videoA, videoB],
+          nextCursor: null,
+          hasMore: false,
+          loadedAt: 1_700_000_000_000,
+        })
+    );
 
     TestBed.configureTestingModule({
       providers: [
-        provideMockStore({
-          initialState: {
-            discoveryFeeds: {
-              byQuery: {
-                [queryKey]: {
-                  ...emptyDiscoveryFeedSlice,
-                  items: compatibleCards,
-                  reachedEnd: true,
-                  lastServerSyncAt: 1_700_000_000_000,
-                },
-              },
-            },
-          },
-        }),
         {
           provide: MediaPublicQueryService,
           useValue: mediaPublicQueryMock,
+        },
+        {
+          provide: PublicVideoRankingQueryService,
+          useValue: publicVideoRankingMock,
         },
         {
           provide: UserDiscoveryQueryService,
           useValue: discoveryQueryMock,
         },
         {
-          provide: AccessControlService,
-          useValue: accessControlMock,
-        },
-        {
-          provide: CurrentUserStoreService,
-          useValue: currentUserStoreMock,
-        },
-        {
-          provide: DiscoveryCardEnrichmentService,
-          useValue: cardEnrichmentMock,
+          provide: CompatibleProfileCandidatesService,
+          useValue: compatibleCandidatesMock,
         },
       ],
     });
 
-    store = TestBed.inject(MockStore);
-    vi.spyOn(store, 'dispatch');
     service = TestBed.inject(ExploreFeedService);
   });
 
-  it('deve solicitar a primeira página do modo compatível', () => {
-    expect(store.dispatch).toHaveBeenCalledWith(
-      DiscoveryActions.loadDiscoveryFirstPage({ request })
-    );
-  });
-
-  it('deve usar o slice paginado e limitar o Explore a seis perfis', async () => {
+  it('usa o pool compartilhado e limita o Explore a seis perfis', async () => {
     const profiles = await firstValueFrom(service.compatibleProfiles$);
 
     expect(profiles).toHaveLength(6);
     expect(profiles.map((profile) => profile.uid)).toEqual(
       compatibleCards.slice(0, 6).map((profile) => profile.uid)
     );
-
-    expect(cardEnrichmentMock.buildCardsResult).toHaveBeenCalledWith(
-      expect.objectContaining({
-        currentUid: viewerUid,
-        mode: 'compatible',
-        applyVisibility: true,
-      })
-    );
   });
 
-  it('deve solicitar a próxima página quando ainda não completou seis perfis', async () => {
-    store.setState({
-      discoveryFeeds: {
-        byQuery: {
-          [queryKey]: {
-            ...emptyDiscoveryFeedSlice,
-            items: compatibleCards.slice(0, 2),
-            nextCursor: {
-              updatedAtMs: 1_699_999_999_999,
-              uid: 'candidate-2',
-            },
-            reachedEnd: false,
-            lastServerSyncAt: 1_700_000_000_000,
-          },
-        },
-      },
-    } as any);
-
-    vi.mocked(store.dispatch).mockClear();
-
-    const profiles = await firstValueFrom(service.compatibleProfiles$);
-
-    expect(profiles).toHaveLength(2);
-    expect(store.dispatch).toHaveBeenCalledWith(
-      DiscoveryActions.loadDiscoveryNextPage({ request })
-    );
-  });
-
-  it('não deve consultar todos os perfis para montar compatibilidade', async () => {
+  it('não consulta todos os perfis para montar compatibilidade', async () => {
     await firstValueFrom(service.compatibleProfiles$);
 
     expect('getAllUsers$' in discoveryQueryMock).toBe(false);
     expect(discoveryQueryMock.getProfilesByUids$).not.toHaveBeenCalled();
+  });
+
+  it('combina top e latest sem duplicar vídeos e mantém signed URL fora do NgRx', async () => {
+    const state = await firstValueFrom(
+      service.videoHighlightsState$.pipe(
+        filter((candidate) => candidate.status !== 'loading')
+      )
+    );
+
+    expect(state.status).toBe('ready');
+    expect(state.items).toEqual([videoA, videoB]);
+    expect(publicVideoRankingMock.loadPage$).toHaveBeenCalledWith({
+      mode: 'top',
+      pageSize: 4,
+      propagateErrors: true,
+    });
+    expect(publicVideoRankingMock.loadPage$).toHaveBeenCalledWith({
+      mode: 'latest',
+      pageSize: 4,
+      propagateErrors: true,
+    });
+  });
+
+  it('mantém latest disponível quando o ranking top falha', async () => {
+    publicVideoRankingMock.loadPage$.mockImplementation(
+      (rankingRequest: { mode: 'top' | 'latest' }) =>
+        rankingRequest.mode === 'top'
+          ? throwError(() => new Error('top unavailable'))
+          : of({
+            mode: 'latest',
+            source: 'latest',
+            items: [videoB],
+            nextCursor: null,
+            hasMore: false,
+            loadedAt: 1_700_000_000_000,
+          })
+    );
+
+    const state = await firstValueFrom(
+      service.videoHighlightsState$.pipe(
+        filter((candidate) => candidate.status !== 'loading')
+      )
+    );
+
+    expect(state).toEqual({
+      status: 'ready',
+      items: [videoB],
+    });
+    expect(publicVideoRankingMock.loadPage$).toHaveBeenNthCalledWith(1, {
+      mode: 'top',
+      pageSize: 4,
+      propagateErrors: true,
+    });
+    expect(publicVideoRankingMock.loadPage$).toHaveBeenNthCalledWith(2, {
+      mode: 'latest',
+      pageSize: 4,
+      propagateErrors: true,
+    });
   });
 });

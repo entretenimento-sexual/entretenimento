@@ -7,7 +7,7 @@
 // Decisões:
 // - recebe apenas identificadores mínimos do alvo;
 // - usa MatDialog para foco acessível;
-// - envia via ModerationReportService;
+// - resolve ModerationReportService somente quando o usuário realmente denuncia;
 // - feedback centralizado por ErrorNotificationService;
 // - mantém API simples para perfil, mídia e interações sociais.
 // -----------------------------------------------------------------------------
@@ -16,6 +16,7 @@ import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  Injector,
   Input,
   inject,
   signal,
@@ -45,7 +46,7 @@ import {
 export class ReportContentButtonComponent {
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
-  private readonly reportService = inject(ModerationReportService);
+  private readonly injector = inject(Injector);
   private readonly notification = inject(ErrorNotificationService);
 
   readonly submitting = signal(false);
@@ -53,6 +54,8 @@ export class ReportContentButtonComponent {
   @Input({ required: true }) targetType!: ModerationReportTargetType;
   @Input({ required: true }) targetId!: string;
   @Input() parentTargetId: string | null = null;
+  @Input() grandparentTargetId: string | null = null;
+  @Input() containerTargetId: string | null = null;
   @Input() targetOwnerUid: string | null = null;
   @Input() targetAuthorUid: string | null = null;
   @Input() label = 'Denunciar';
@@ -93,11 +96,14 @@ export class ReportContentButtonComponent {
       filter((result): result is ReportContentDialogResult => !!result),
       switchMap((result) => {
         this.submitting.set(true);
+        const reportService = this.injector.get(ModerationReportService);
 
-        return this.reportService.createReport$({
+        return reportService.createReport$({
           targetType: this.targetType,
           targetId,
           parentTargetId: this.normalizeOptionalText(this.parentTargetId),
+          grandparentTargetId: this.normalizeOptionalText(this.grandparentTargetId),
+          containerTargetId: this.normalizeOptionalText(this.containerTargetId),
           targetOwnerUid: this.normalizeOptionalText(this.targetOwnerUid),
           targetAuthorUid: this.normalizeOptionalText(this.targetAuthorUid),
           reason: result.reason,
@@ -158,6 +164,12 @@ export class ReportContentButtonComponent {
         return 'Status de Hoje';
       case 'venue':
         return 'local';
+      case 'community_feed_post':
+        return 'publicação do Mural';
+      case 'community_feed_comment':
+        return 'comentário do Mural';
+      case 'community_feed_comment_reply':
+        return 'resposta do Mural';
       case 'other':
       default:
         return 'conteúdo';

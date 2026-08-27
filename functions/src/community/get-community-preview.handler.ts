@@ -2,7 +2,7 @@
 // -----------------------------------------------------------------------------
 // GET COMMUNITY PREVIEW
 // -----------------------------------------------------------------------------
-// Retorna somente metadados comunitários sanitizados e o papel do próprio viewer.
+// Retorna somente metadados comunitários sanitizados e capacidades do viewer.
 // Publicações, mídia e listas de membros não fazem parte deste endpoint.
 // -----------------------------------------------------------------------------
 
@@ -52,9 +52,17 @@ export const getCommunityPreview = onCall<CommunityPreviewRequest>(
 
     return {
       community: context.community,
+      rules: context.rules,
+      lifecycleStatus: context.lifecycleStatus,
       viewerMode: context.viewerMode,
       viewerRole: context.viewerRole,
       canInteract: context.canInteract,
+      canManageMemberships: context.canManageMemberships,
+      canInviteCommunityMembers: context.canInviteCommunityMembers,
+      canManageCommunitySettings: context.canManageCommunitySettings,
+      capacity: context.capacity,
+      settings: context.settings,
+      canLeaveMembership: context.canLeaveMembership,
       generatedAt: Date.now(),
     };
   }

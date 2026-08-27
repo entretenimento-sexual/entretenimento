@@ -2,11 +2,13 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   OnInit,
   inject,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { combineLatest } from 'rxjs';
 import { distinctUntilChanged, map, shareReplay, tap } from 'rxjs/operators';
 
@@ -15,6 +17,13 @@ import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/
 import type { PlatformSubscriptionAccessState } from '@core/services/subscriptions/platform-subscription-access.model';
 import { IncompleteProfileSubscriptionNoticeService } from '../application/incomplete-profile-subscription-notice.service';
 import { IUserDados } from '@core/interfaces/iuser-dados';
+import { resolvePersonalCommunityCreationPolicy } from 'src/app/community/data-access/community-capacity.model';
+import {
+  isCommunityCreationSubscriptionFlow,
+  normalizeSubscriptionFlowContext,
+  SubscriptionFlowContext,
+  subscriptionFlowQueryParams,
+} from '../domain/subscription-flow-context.model';
 
 type PaidPlanKey = 'basic' | 'premium' | 'vip';
 
@@ -37,6 +46,20 @@ interface SubscriptionPlanPageVm {
   statusDescription: string;
   canGoToAccount: boolean;
   canGoToProfile: boolean;
+  flowContext: SubscriptionFlowContext;
+  communityCreationFlow: boolean;
+}
+
+function communityPlanFeatures(plan: PaidPlanKey): string[] {
+  const policy = resolvePersonalCommunityCreationPolicy(plan);
+  const ownedLabel = policy.maxOwnedCommunities === 1
+    ? 'Crie 1 Comunidade pessoal'
+    : `Crie até ${policy.maxOwnedCommunities} Comunidades pessoais`;
+
+  return [
+    ownedLabel,
+    `Até ${policy.memberLimit} membros por Comunidade`,
+  ];
 }
 
 @Component({
@@ -49,6 +72,8 @@ interface SubscriptionPlanPageVm {
 })
 export class SubscriptionPlanComponent implements OnInit {
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly subscriptionAccess = inject(
     PlatformSubscriptionAccessService
@@ -63,11 +88,28 @@ export class SubscriptionPlanComponent implements OnInit {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  readonly flowContext$ = this.route.queryParamMap.pipe(
+    map((params) =>
+      normalizeSubscriptionFlowContext({
+        minimumRole: params.get('minimumRole'),
+        returnUrl: params.get('returnUrl'),
+      })
+    ),
+    distinctUntilChanged((previous, current) =>
+      previous.minimumRole === current.minimumRole
+      && previous.returnUrl === current.returnUrl
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   readonly vm$ = combineLatest([
     this.currentUser$,
     this.subscriptionAccess.state$,
+    this.flowContext$,
   ]).pipe(
-    map(([user, access]) => this.buildVm(user, access)),
+    map(([user, access, flowContext]) =>
+      this.buildVm(user, access, flowContext)
+    ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -91,6 +133,7 @@ export class SubscriptionPlanComponent implements OnInit {
       description:
         'Uma entrada sólida para explorar a plataforma com mais liberdade e discrição.',
       features: [
+        ...communityPlanFeatures('basic'),
         'Acesso ampliado à plataforma',
         'Melhor base para descoberta e navegação',
         'Entrada ideal para quem quer começar',
@@ -104,6 +147,7 @@ export class SubscriptionPlanComponent implements OnInit {
       description:
         'Equilíbrio melhor entre recursos, visibilidade e experiência de uso.',
       features: [
+        ...communityPlanFeatures('premium'),
         'Todos os benefícios do Básico',
         'Mais destaque de conta',
         'Experiência mais completa na plataforma',
@@ -118,6 +162,7 @@ export class SubscriptionPlanComponent implements OnInit {
       description:
         'Camada superior para quem quer a experiência mais completa disponível.',
       features: [
+        ...communityPlanFeatures('vip'),
         'Todos os benefícios anteriores',
         'Maior prioridade de experiência',
         'Plano mais avançado da plataforma',
@@ -130,7 +175,8 @@ export class SubscriptionPlanComponent implements OnInit {
       .pipe(
         tap((user) => {
           this.noticeService.hydrate(user?.uid);
-        })
+        }),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
   }
@@ -143,9 +189,50 @@ export class SubscriptionPlanComponent implements OnInit {
       return;
     }
 
+    if (!this.canSelectPlan(plan, vm)) {
+      return;
+    }
+
     this.router.navigate(['/checkout'], {
-      queryParams: { plan },
+      queryParams: {
+        plan,
+        ...subscriptionFlowQueryParams(vm.flowContext),
+      },
     });
+  }
+
+  isRecommendedPlan(
+    plan: PaidPlanKey,
+    vm: SubscriptionPlanPageVm
+  ): boolean {
+    return vm.flowContext.minimumRole === plan;
+  }
+
+  planMeetsMinimum(
+    plan: PaidPlanKey,
+    vm: SubscriptionPlanPageVm
+  ): boolean {
+    const minimumRole = vm.flowContext.minimumRole;
+    return minimumRole === null
+      || this.getPlanRank(plan) >= this.getPlanRank(minimumRole);
+  }
+
+  isDowngrade(plan: PaidPlanKey, vm: SubscriptionPlanPageVm): boolean {
+    return vm.subscriptionActive
+      && vm.currentPlanKey !== null
+      && this.getPlanRank(plan) < this.getPlanRank(vm.currentPlanKey);
+  }
+
+  canSelectPlan(plan: PaidPlanKey, vm: SubscriptionPlanPageVm): boolean {
+    if (!this.planMeetsMinimum(plan, vm)) return false;
+    if (vm.subscriptionActive && vm.currentPlanKey === plan) return false;
+    return !this.isDowngrade(plan, vm);
+  }
+
+  minimumPlanLabel(vm: SubscriptionPlanPageVm): string | null {
+    return vm.flowContext.minimumRole
+      ? this.getPlanDisplayName(vm.flowContext.minimumRole)
+      : null;
   }
 
   goToAccount(): void {
@@ -160,8 +247,18 @@ export class SubscriptionPlanComponent implements OnInit {
     plan: PaidPlanKey,
     vm: SubscriptionPlanPageVm
   ): string {
+    if (!this.planMeetsMinimum(plan, vm)) {
+      return vm.communityCreationFlow
+        ? 'Não atende a esta criação'
+        : 'Não atende ao acesso solicitado';
+    }
+
     if (vm.subscriptionActive && vm.currentPlanKey === plan) {
       return 'Plano atual';
+    }
+
+    if (this.isDowngrade(plan, vm)) {
+      return 'Redução no próximo ciclo';
     }
 
     if (!vm.subscriptionActive) {
@@ -172,13 +269,13 @@ export class SubscriptionPlanComponent implements OnInit {
     const nextRank = this.getPlanRank(plan);
 
     if (nextRank > currentRank) return 'Fazer upgrade';
-    if (nextRank < currentRank) return 'Mudar para este plano';
     return 'Assinar agora';
   }
 
   private buildVm(
     user: IUserDados | null,
-    access: PlatformSubscriptionAccessState
+    access: PlatformSubscriptionAccessState,
+    flowContext: SubscriptionFlowContext
   ): SubscriptionPlanPageVm {
     const currentPlanKey = access.active ? access.role : null;
     const currentPlanLabel = currentPlanKey
@@ -200,6 +297,9 @@ export class SubscriptionPlanComponent implements OnInit {
           : 'Você ainda não possui um plano ativo reconhecido na plataforma.',
       canGoToAccount: !!user?.uid,
       canGoToProfile: !!user?.uid,
+      flowContext,
+      communityCreationFlow:
+        isCommunityCreationSubscriptionFlow(flowContext),
     };
   }
 

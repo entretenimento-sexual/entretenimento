@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   canViewerReadCommunityFeedAudience,
   canViewerReadCommunityFeedProjection,
+  resolveCommunityFeedContentAccess,
 } from './community-feed-access.policy';
 import { SanitizedCommunityFeedProjection } from './community-feed.model';
 
@@ -13,6 +14,9 @@ function projection(
 ): SanitizedCommunityFeedProjection {
   return {
     audience,
+    imageStoragePath: null,
+    imageAlt: kind === 'photo' ? 'Foto' : null,
+    replyToPostId: null,
     item: {
       postId: 'post-1',
       kind,
@@ -21,11 +25,40 @@ function projection(
       image: kind === 'photo'
         ? { url: 'https://example.com/photo.webp', alt: 'Foto' }
         : null,
+      replyTo: null,
       metrics: { commentCount: 0, reactionCount: 0 },
+      capabilities: {
+        canDeleteOwn: false,
+        canModerate: false,
+        canReport: false,
+        canReact: false,
+        viewerReacted: false,
+        canViewComments: false,
+        canComment: false,
+      },
       publishedAt: 1_800_000_000_000,
     },
   };
 }
+
+test('prévia autenticada concede leitura do conteúdo sem conceder membership', () => {
+  const contentAccess = resolveCommunityFeedContentAccess(false, true);
+
+  assert.equal(contentAccess, true);
+  assert.equal(
+    canViewerReadCommunityFeedProjection(
+      projection('members_only', 'text'),
+      'feed',
+      contentAccess
+    ),
+    true
+  );
+});
+
+test('comunidade reservada continua exigindo membership ativo', () => {
+  assert.equal(resolveCommunityFeedContentAccess(false, false), false);
+  assert.equal(resolveCommunityFeedContentAccess(true, false), true);
+});
 
 test('visitante lê publicação pública', () => {
   assert.equal(
@@ -38,7 +71,7 @@ test('visitante lê publicação pública', () => {
   );
 });
 
-test('visitante não lê publicação reservada a membros', () => {
+test('visitante sem acesso de conteúdo não lê publicação reservada a membros', () => {
   assert.equal(
     canViewerReadCommunityFeedProjection(
       projection('members_only', 'text'),
@@ -60,7 +93,7 @@ test('membro autorizado lê publicação reservada', () => {
   );
 });
 
-test('membership sem entitlement não libera publicação reservada', () => {
+test('visitante sem acesso de conteúdo não lê foto reservada', () => {
   assert.equal(
     canViewerReadCommunityFeedProjection(
       projection('members_only', 'photo'),

@@ -16,14 +16,21 @@ import {
 } from 'firebase/storage';
 import { Observable, firstValueFrom } from 'rxjs';
 
+import {
+  DEFAULT_VIDEO_EDIT_RECIPE_INPUT,
+  IVideoEditRecipeInput,
+} from 'src/app/core/interfaces/media/i-video-edit-recipe';
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { IVideoPublicationSettingsInput } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import {
+  MEDIA_VIDEO_POSTER_MAX_BYTES,
+  validateVideoMediaFile,
+} from './media-format.policy';
 import { VideoMetadataPreparationService } from './video-metadata-preparation.service';
 import {
   VideoUploadFormat,
-  VIDEO_UPLOAD_FORMAT_LABEL,
   resolveVideoUploadFormat,
 } from './video-upload-format.policy';
 
@@ -52,9 +59,8 @@ export interface IVideoUploadCommand {
   ownerUid: string;
   file: File;
   posterBlob?: Blob | null;
-  publication: IVideoPublicationSettingsInput & {
-    publishWhenReady: boolean;
-  };
+  editRecipe?: IVideoEditRecipeInput | null;
+  publication: IVideoPublicationSettingsInput;
 }
 
 interface UploadedBinary {
@@ -71,7 +77,8 @@ interface RegisterPrivateVideoUploadRequest
   mimeType: string;
   sizeBytes: number;
   durationMs: number | null;
-  publishWhenReady: boolean;
+  editRecipe: IVideoEditRecipeInput;
+  publishWhenReady: true;
 }
 
 interface RegisterPrivateVideoUploadResponse {
@@ -86,8 +93,6 @@ interface RegisterPrivateVideoUploadResponse {
   createdAt: number;
 }
 
-const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
-const MAX_POSTER_SIZE_BYTES = 10 * 1024 * 1024;
 const REGISTER_RETRY_DELAY_MS = 650;
 
 class VideoUploadCancelledError extends Error {
@@ -186,8 +191,13 @@ export class VideoUploadFlowService {
         try {
           observer.next({ type: 'progress', phase: 'preparing', progress: 2 });
 
+          const editRecipe =
+            command.editRecipe ?? DEFAULT_VIDEO_EDIT_RECIPE_INPUT;
           const metadata = await firstValueFrom(
-            this.metadataPreparation.prepare$(file)
+            this.metadataPreparation.prepare$(file, {
+              aspectRatio: editRecipe.aspectRatio,
+              preferredTimeMs: editRecipe.trimStartMs,
+            })
           );
           const posterBlob = selectedPosterBlob ?? metadata.posterBlob;
           assertNotCancelled();
@@ -252,6 +262,8 @@ export class VideoUploadFlowService {
             mimeType: sourceFormat.mimeType,
             sizeBytes: file.size,
             durationMs: metadata.durationMs,
+            editRecipe,
+            publishWhenReady: true,
             ...publication,
           });
 
@@ -285,7 +297,7 @@ export class VideoUploadFlowService {
             hasVideoId: true,
             hasPoster: !!posterBinary,
             processingQueued: true,
-            publishWhenReady: publication.publishWhenReady,
+            publicationRequested: true,
             mimeType: registration.mimeType,
             sourceExtension: sourceFormat.extension,
             sizeBytes: registration.sizeBytes,
@@ -440,22 +452,16 @@ export class VideoUploadFlowService {
   }
 
   private validateFile(file: File): VideoUploadFormat {
-    if (!file) {
-      throw new Error('Selecione um vídeo antes de enviar.');
+    const validation = validateVideoMediaFile(file);
+    if (!validation.valid) {
+      throw new Error(
+        validation.userMessage ?? 'O arquivo de vídeo não atende à política canônica.'
+      );
     }
 
     const format = resolveVideoUploadFormat(file);
-
     if (!format) {
-      throw new Error(`Envie um vídeo em um destes formatos: ${VIDEO_UPLOAD_FORMAT_LABEL}.`);
-    }
-
-    if (!Number.isFinite(file.size) || file.size <= 0) {
-      throw new Error('O arquivo de vídeo está vazio ou inválido.');
-    }
-
-    if (file.size > MAX_VIDEO_SIZE_BYTES) {
-      throw new Error('O vídeo excede o limite de 500 MB.');
+      throw new Error('O formato do vídeo não pôde ser resolvido pela política canônica.');
     }
 
     return format;
@@ -474,8 +480,13 @@ export class VideoUploadFlowService {
       throw new Error('A capa escolhida está vazia.');
     }
 
-    if (value.size > MAX_POSTER_SIZE_BYTES) {
-      throw new Error('A capa escolhida excede o limite de 10 MB.');
+    if (value.size > MEDIA_VIDEO_POSTER_MAX_BYTES) {
+      const maxMegabytes = Number(
+        (MEDIA_VIDEO_POSTER_MAX_BYTES / (1024 * 1024)).toFixed(1)
+      );
+      throw new Error(
+        `A capa escolhida excede o limite de ${maxMegabytes} MB.`
+      );
     }
 
     return value;
@@ -483,9 +494,7 @@ export class VideoUploadFlowService {
 
   private normalizePublication(
     publication: IVideoUploadCommand['publication']
-  ): RegisterPrivateVideoUploadRequest extends infer _Unused
-    ? IVideoPublicationSettingsInput & { publishWhenReady: boolean }
-    : never {
+  ): IVideoPublicationSettingsInput {
     const title = String(publication?.title ?? '')
       .replace(/\s+/g, ' ')
       .trim()
@@ -495,19 +504,12 @@ export class VideoUploadFlowService {
       .trim()
       .slice(0, 1000);
 
-    /**
-     * MANUTENÇÃO — ARMAZENAMENTO PRIVADO POR PLANO
-     * `publishWhenReady: false` não pode representar armazenamento ilimitado.
-     * Cota, retenção, expiração e entitlement devem ser validados no backend;
-     * a interface não é uma barreira de cobrança ou de capacidade.
-     */
     return {
       title: title || null,
       description: description || null,
       reactionsEnabled: publication?.reactionsEnabled !== false,
       commentsEnabled: publication?.commentsEnabled !== false,
       ratingsEnabled: publication?.ratingsEnabled !== false,
-      publishWhenReady: publication?.publishWhenReady === true,
     };
   }
 

@@ -1,7 +1,3 @@
-<!-- src\app\subscriptions\checkout\checkout.component.html -->
- <!--  O layout ideal deve ser "Dark Mode", clean, focado em dispositivos móveis e extremamente direto. 
- Imagine uma estrutura de vitrine infinita (estilo Netflix ou Instagram), 
- onde o conteúdo visual domina a tela. -->
 <!-- src/app/subscriptions/checkout/checkout.component.html -->
 <section class="checkout-page ui-container">
   @if (vm$ | async; as vm) {
@@ -11,6 +7,25 @@
         <h1>{{ plan.title }}</h1>
         <p class="checkout-description">{{ plan.description }}</p>
       </header>
+
+      @if (vm.communityCreationFlow) {
+        <section
+          class="checkout-community-context"
+          aria-labelledby="checkout-community-context-title"
+          aria-describedby="checkout-community-context-description"
+        >
+          <i class="fas fa-people-group" aria-hidden="true"></i>
+          <div>
+            <h2 id="checkout-community-context-title">
+              Próximo passo: criar sua Comunidade
+            </h2>
+            <p id="checkout-community-context-description">
+              Após a confirmação segura da assinatura, você voltará ao
+              compositor. A permissão será revalidada antes da criação.
+            </p>
+          </div>
+        </section>
+      }
 
       @if (vm.shouldShowCheckoutWarning) {
         <section
@@ -54,9 +69,12 @@
         </div>
 
         <div class="checkout-meta">
-          <p><strong>Plano:</strong> {{ plan.key }}</p>
-          <p><strong>Escopo:</strong> {{ plan.scope }}</p>
-          <p><strong>Status:</strong> {{ plan.active ? 'Ativo' : 'Inativo' }}</p>
+          <p><strong>Plano:</strong> {{ plan.title }}</p>
+          <p>
+            <strong>Cobrança:</strong>
+            {{ plan.interval === 'month' ? 'Mensal' : 'Conforme período do plano' }}
+          </p>
+          <p><strong>Ativação:</strong> após confirmação segura do pagamento</p>
         </div>
 
         <div class="checkout-actions">
@@ -64,14 +82,28 @@
             Voltar aos planos
           </button>
 
-      <button
+          <button
             type="button"
             class="btn btn-primary"
             [disabled]="isStartingCheckout"
+            [attr.aria-busy]="isStartingCheckout ? 'true' : null"
             (click)="continue(vm.shouldShowCheckoutWarning)"
-            >
+          >
             {{ isStartingCheckout ? 'Preparando pagamento...' : 'Continuar para pagamento' }}
-      </button>
+          </button>
+        </div>
+      </article>
+    } @else if (vm.planLoadFailed) {
+      <article class="checkout-card" role="alert">
+        <h1>Não foi possível carregar o plano</h1>
+        <p>
+          O plano não pôde ser consultado agora. Nenhuma contratação foi iniciada.
+        </p>
+
+        <div class="checkout-actions">
+          <button type="button" class="btn btn-primary" (click)="back()">
+            Voltar aos planos
+          </button>
         </div>
       </article>
     } @else {

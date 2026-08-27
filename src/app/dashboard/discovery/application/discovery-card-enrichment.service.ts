@@ -375,7 +375,10 @@ export class DiscoveryCardEnrichmentService {
     currentUser: IUserDados | null,
     fallbackLocation: SafeGeoCoordinates | null
   ): SafeGeoCoordinates | null {
-    return extractValidGeoCoordinates(currentUser) ?? extractValidGeoCoordinates(fallbackLocation);
+    // Quando a tela fornece uma posição de runtime, ela é mais recente que a
+    // coordenada persistida no perfil/Store e deve ser a origem do cálculo.
+    return extractValidGeoCoordinates(fallbackLocation)
+      ?? extractValidGeoCoordinates(currentUser);
   }
 
   private isInsideRadius(profile: PublicProfileCard, capKm: number): boolean {

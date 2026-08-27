@@ -7,7 +7,8 @@
 // Decisões:
 // - usa AuthSessionService.readyUid$ para aguardar Auth pronto;
 // - denúncias comuns preservam o fluxo existente em moderation_reports;
-// - denúncias de vídeo, comentário e avaliação passam por Callable validada;
+// - denúncias de foto passam por Callable validada;
+// - denúncias de vídeo, comentário, resposta e avaliação passam por Callable validada;
 // - denúncia de perfil por possível menoridade passa por Callable específica;
 // - Functions é resolvido somente quando uma Callable é necessária;
 // - não expõe leitura/listagem para usuário comum;
@@ -44,6 +45,18 @@ import { toErrorInstance } from 'src/app/core/utils/firebase-error-utils';
 
 type VideoReportTargetType = 'video' | 'video_comment' | 'video_rating';
 
+interface ReportPhotoContentRequest {
+  ownerUid: string;
+  photoId: string;
+  reason: ModerationReportReason;
+  details?: string | null;
+  route?: string | null;
+}
+
+interface ReportPhotoContentResponse {
+  reportId: string;
+}
+
 interface ReportVideoContentRequest {
   targetType: VideoReportTargetType;
   ownerUid: string;
@@ -68,6 +81,40 @@ interface ReportProfileMinorSafetyResponse {
   reportId: string;
 }
 
+interface ReportCommunityFeedPostRequest {
+  communityId: string;
+  postId: string;
+  reason: ModerationReportReason;
+  details?: string | null;
+  route?: string | null;
+}
+
+interface ReportCommunityFeedPostResponse {
+  reportId: string;
+}
+
+interface ReportCommunityFeedCommentRequest {
+  communityId: string;
+  postId: string;
+  commentId: string;
+  reason: ModerationReportReason;
+  details?: string | null;
+  route?: string | null;
+}
+
+interface ReportCommunityFeedCommentResponse {
+  reportId: string;
+}
+
+interface ReportCommunityFeedCommentReplyRequest
+extends ReportCommunityFeedCommentRequest {
+  replyId: string;
+}
+
+interface ReportCommunityFeedCommentReplyResponse {
+  reportId: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ModerationReportService {
   private readonly firestore = inject(Firestore);
@@ -83,6 +130,10 @@ export class ModerationReportService {
       return throwError(() => new Error('Denúncia inválida.'));
     }
 
+    if (normalized.targetType === 'photo') {
+      return this.createPhotoReport$(normalized);
+    }
+
     const videoTargetType = this.normalizeVideoTargetType(
       normalized.targetType
     );
@@ -95,7 +146,53 @@ export class ModerationReportService {
       return this.createProfileMinorSafetyReport$(normalized);
     }
 
+    if (normalized.targetType === 'community_feed_post') {
+      return this.createCommunityFeedPostReport$(normalized);
+    }
+
+    if (normalized.targetType === 'community_feed_comment') {
+      return this.createCommunityFeedCommentReport$(normalized);
+    }
+
+    if (normalized.targetType === 'community_feed_comment_reply') {
+      return this.createCommunityFeedCommentReplyReport$(normalized);
+    }
+
     return this.createLegacyReport$(normalized);
+  }
+
+  private createPhotoReport$(
+    input: IModerationReportCreateInput
+  ): Observable<string> {
+    const ownerUid = String(input.targetOwnerUid ?? '').trim();
+    const photoId = String(input.targetId ?? '').trim();
+
+    if (!ownerUid || !photoId) {
+      return throwError(() => new Error('Referência da foto inválida.'));
+    }
+
+    const callable = this.createReportPhotoContentCallable();
+
+    return from(
+      callable({
+        ownerUid,
+        photoId,
+        reason: input.reason,
+        details: input.details,
+        route: input.route,
+      })
+    ).pipe(
+      map((response) => response.data.reportId),
+      catchError((error) => {
+        this.reportWriteError(error, 'createPhotoReport', {
+          targetType: input.targetType,
+          targetId: photoId,
+          hasOwnerUid: !!ownerUid,
+          reason: input.reason,
+        });
+        return throwError(() => error);
+      })
+    );
   }
 
   private createVideoReport$(
@@ -169,6 +266,111 @@ export class ModerationReportService {
     );
   }
 
+  private createCommunityFeedPostReport$(
+    input: IModerationReportCreateInput
+  ): Observable<string> {
+    const communityId = String(input.parentTargetId ?? '').trim();
+    const postId = String(input.targetId ?? '').trim();
+    if (!communityId || !postId) {
+      return throwError(() => new Error('Referência da publicação inválida.'));
+    }
+
+    const callable = this.createReportCommunityFeedPostCallable();
+    return from(callable({
+      communityId,
+      postId,
+      reason: input.reason,
+      details: input.details,
+      route: input.route,
+    })).pipe(
+      map((response) => response.data.reportId),
+      catchError((error) => {
+        this.reportWriteError(error, 'createCommunityFeedPostReport', {
+          communityId,
+          postId,
+          reason: input.reason,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private createCommunityFeedCommentReport$(
+    input: IModerationReportCreateInput
+  ): Observable<string> {
+    const communityId = String(input.containerTargetId ?? '').trim();
+    const postId = String(input.parentTargetId ?? '').trim();
+    const commentId = String(input.targetId ?? '').trim();
+    if (!communityId || !postId || !commentId) {
+      return throwError(() => new Error('Referência do comentário inválida.'));
+    }
+
+    const callable = this.createReportCommunityFeedCommentCallable();
+    return from(callable({
+      communityId,
+      postId,
+      commentId,
+      reason: input.reason,
+      details: input.details,
+      route: input.route,
+    })).pipe(
+      map((response) => response.data.reportId),
+      catchError((error) => {
+        this.reportWriteError(error, 'createCommunityFeedCommentReport', {
+          communityId,
+          postId,
+          commentId,
+          reason: input.reason,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private createCommunityFeedCommentReplyReport$(
+    input: IModerationReportCreateInput
+  ): Observable<string> {
+    const communityId = String(input.containerTargetId ?? '').trim();
+    const postId = String(input.grandparentTargetId ?? '').trim();
+    const commentId = String(input.parentTargetId ?? '').trim();
+    const replyId = String(input.targetId ?? '').trim();
+    if (!communityId || !postId || !commentId || !replyId) {
+      return throwError(() => new Error('Referência da resposta inválida.'));
+    }
+
+    const callable = this.createReportCommunityFeedCommentReplyCallable();
+    return from(callable({
+      communityId,
+      postId,
+      commentId,
+      replyId,
+      reason: input.reason,
+      details: input.details,
+      route: input.route,
+    })).pipe(
+      map((response) => response.data.reportId),
+      catchError((error) => {
+        this.reportWriteError(error, 'createCommunityFeedCommentReplyReport', {
+          communityId,
+          postId,
+          commentId,
+          replyId,
+          reason: input.reason,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private createReportPhotoContentCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<ReportPhotoContentRequest, ReportPhotoContentResponse>(
+        inject(Functions),
+        'reportPhotoContent'
+      )
+    );
+  }
+
   private createReportVideoContentCallable() {
     return runInInjectionContext(this.environmentInjector, () =>
       httpsCallable<ReportVideoContentRequest, ReportVideoContentResponse>(
@@ -186,6 +388,42 @@ export class ModerationReportService {
       >(
         inject(Functions),
         'reportProfileMinorSafety'
+      )
+    );
+  }
+
+  private createReportCommunityFeedPostCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReportCommunityFeedPostRequest,
+        ReportCommunityFeedPostResponse
+      >(
+        inject(Functions),
+        'reportCommunityFeedPost'
+      )
+    );
+  }
+
+  private createReportCommunityFeedCommentCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReportCommunityFeedCommentRequest,
+        ReportCommunityFeedCommentResponse
+      >(
+        inject(Functions),
+        'reportCommunityFeedComment'
+      )
+    );
+  }
+
+  private createReportCommunityFeedCommentReplyCallable() {
+    return runInInjectionContext(this.environmentInjector, () =>
+      httpsCallable<
+        ReportCommunityFeedCommentReplyRequest,
+        ReportCommunityFeedCommentReplyResponse
+      >(
+        inject(Functions),
+        'reportCommunityFeedCommentReply'
       )
     );
   }
@@ -210,6 +448,8 @@ export class ModerationReportService {
           targetType: input.targetType,
           targetId: input.targetId,
           parentTargetId: input.parentTargetId || null,
+          grandparentTargetId: input.grandparentTargetId || null,
+          containerTargetId: input.containerTargetId || null,
           targetOwnerUid: input.targetOwnerUid || null,
           targetAuthorUid: input.targetAuthorUid || null,
           reason: input.reason,
@@ -257,6 +497,8 @@ export class ModerationReportService {
     ).trim() as ModerationReportTargetType;
     const targetId = String(input?.targetId ?? '').trim();
     const parentTargetId = String(input?.parentTargetId ?? '').trim();
+    const grandparentTargetId = String(input?.grandparentTargetId ?? '').trim();
+    const containerTargetId = String(input?.containerTargetId ?? '').trim();
     const targetOwnerUid = String(input?.targetOwnerUid ?? '').trim();
     const targetAuthorUid = String(input?.targetAuthorUid ?? '').trim();
     const reason = String(
@@ -277,6 +519,10 @@ export class ModerationReportService {
       targetType,
       targetId: targetId.slice(0, 180),
       parentTargetId: parentTargetId ? parentTargetId.slice(0, 180) : null,
+      grandparentTargetId:
+        grandparentTargetId ? grandparentTargetId.slice(0, 180) : null,
+      containerTargetId:
+        containerTargetId ? containerTargetId.slice(0, 180) : null,
       targetOwnerUid: targetOwnerUid ? targetOwnerUid.slice(0, 180) : null,
       targetAuthorUid: targetAuthorUid ? targetAuthorUid.slice(0, 180) : null,
       reason,
@@ -314,6 +560,9 @@ export class ModerationReportService {
       'room',
       'status',
       'venue',
+      'community_feed_post',
+      'community_feed_comment',
+      'community_feed_comment_reply',
       'other',
     ].includes(value);
   }
@@ -343,12 +592,18 @@ export class ModerationReportService {
         `[ModerationReportService.${operation}] escrita falhou.`
       );
 
-      (normalizedError as any).feature = 'moderation_reports';
-      (normalizedError as any).operation = operation;
-      (normalizedError as any).context = context;
-      (normalizedError as any).original = error;
+      const reportable = normalizedError as Error & {
+        feature?: unknown;
+        operation?: unknown;
+        context?: unknown;
+        original?: unknown;
+      };
+      reportable.feature = 'moderation_reports';
+      reportable.operation = operation;
+      reportable.context = context;
+      reportable.original = error;
 
-      this.globalError.handleError(normalizedError);
+      this.globalError.handleError(reportable);
     } catch {
       // noop
     }

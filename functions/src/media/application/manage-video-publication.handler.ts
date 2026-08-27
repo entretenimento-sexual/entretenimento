@@ -9,18 +9,22 @@ import {
   deletePublishedVideoAssetOrQueue,
 } from './published-video-asset.service';
 import {
+  defaultVideoPublicationModerationStatus,
+  isRestrictedVideoModerationStatus,
+} from './video-publication-moderation.policy';
+import {
   extractOwnedPrivateVideoPath,
   extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
 
 type VideoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
-type ModerationStatus = 'PENDING_REVIEW' | 'APPROVED';
+type ModerationStatus = 'APPROVED';
 type PublishedVideoAssets = Awaited<
   ReturnType<typeof copyPrivateVideoToPublishedAsset>
 >;
 
-type PrivateVideoDoc = {
+type OwnerVideoDoc = {
   id?: string;
   url?: string;
   path?: string;
@@ -56,13 +60,6 @@ interface PublishVideoResponse {
   moderationStatus: ModerationStatus;
 }
 
-interface UnpublishVideoRequest {
-  ownerUid?: string;
-  videoId?: string;
-}
-
-const AUTO_APPROVE_VIDEOS =
-  process.env.MEDIA_AUTO_APPROVE_VIDEOS === 'true';
 const PUBLIC_VIDEO_CONTENT_TYPES = new Set(['video/mp4', 'video/webm']);
 
 function containsControlCharacter(value: string): boolean {
@@ -135,10 +132,6 @@ function normalizeOptionalPositiveInteger(value: unknown): number | null {
   return Math.trunc(numberValue);
 }
 
-function resolveModerationStatus(): ModerationStatus {
-  return AUTO_APPROVE_VIDEOS ? 'APPROVED' : 'PENDING_REVIEW';
-}
-
 function assertOwner(requesterUid: string | null, ownerUid: string): void {
   if (!requesterUid) {
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
@@ -152,10 +145,10 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
   }
 }
 
-function assertPublishableVideo(privateVideo: PrivateVideoDoc): void {
-  const status = String(privateVideo.status ?? '').trim().toLowerCase();
-  const mimeType = String(privateVideo.mimeType ?? '').trim().toLowerCase();
-  const durationMs = normalizeOptionalPositiveInteger(privateVideo.durationMs);
+function assertPublishableVideo(ownerVideo: OwnerVideoDoc): void {
+  const status = String(ownerVideo.status ?? '').trim().toLowerCase();
+  const mimeType = String(ownerVideo.mimeType ?? '').trim().toLowerCase();
+  const durationMs = normalizeOptionalPositiveInteger(ownerVideo.durationMs);
 
   if (status !== 'ready') {
     throw new HttpsError(
@@ -175,6 +168,24 @@ function assertPublishableVideo(privateVideo: PrivateVideoDoc): void {
     throw new HttpsError(
       'failed-precondition',
       'A duração do vídeo não foi confirmada.'
+    );
+  }
+}
+
+function assertPublicationCanStart(
+  publication: VideoPublicationDoc | null
+): void {
+  if (publication?.isPublished === true) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Este vídeo já está publicado.'
+    );
+  }
+
+  if (isRestrictedVideoModerationStatus(publication?.moderationStatus)) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Este vídeo possui uma restrição de moderação ativa.'
     );
   }
 }
@@ -278,38 +289,39 @@ export const publishVideo = onCall<PublishVideoRequest>(
 
     const visibility = cleanVisibility(request.data?.visibility);
     const orderIndex = normalizeOrderIndex(request.data?.orderIndex);
-    const privateVideoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
+    const ownerVideoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
     const publicationRef = db.doc(
       `users/${ownerUid}/video_publications/${videoId}`
     );
     const publicVideoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
-    const [privateVideoSnap, previousPublicationSnap] = await Promise.all([
-      privateVideoRef.get(),
+    const [ownerVideoSnap, previousPublicationSnap] = await Promise.all([
+      ownerVideoRef.get(),
       publicationRef.get(),
     ]);
 
-    if (!privateVideoSnap.exists) {
-      throw new HttpsError('not-found', 'Vídeo privado não encontrado.');
+    if (!ownerVideoSnap.exists) {
+      throw new HttpsError('not-found', 'Vídeo não encontrado.');
     }
 
-    const privateVideo = privateVideoSnap.data() as PrivateVideoDoc;
+    const ownerVideo = ownerVideoSnap.data() as OwnerVideoDoc;
     const previousPublication = previousPublicationSnap.exists
       ? (previousPublicationSnap.data() as VideoPublicationDoc)
       : null;
-    assertPublishableVideo(privateVideo);
+    assertPublishableVideo(ownerVideo);
+    assertPublicationCanStart(previousPublication);
 
     const sourceVideoStoragePath =
-      extractOwnedPrivateVideoPathForId(ownerUid, videoId, privateVideo.path) ??
-      extractOwnedPrivateVideoPathForId(ownerUid, videoId, privateVideo.url) ??
-      extractOwnedPrivateVideoPath(ownerUid, privateVideo.path) ??
-      extractOwnedPrivateVideoPath(ownerUid, privateVideo.url);
+      extractOwnedPrivateVideoPathForId(ownerUid, videoId, ownerVideo.path) ??
+      extractOwnedPrivateVideoPathForId(ownerUid, videoId, ownerVideo.url) ??
+      extractOwnedPrivateVideoPath(ownerUid, ownerVideo.path) ??
+      extractOwnedPrivateVideoPath(ownerUid, ownerVideo.url);
 
     if (!sourceVideoStoragePath) {
       throw new HttpsError(
         'failed-precondition',
-        'O vídeo não possui um arquivo privado válido para publicação.'
+        'O vídeo não possui um arquivo-fonte protegido válido para publicação.'
       );
     }
 
@@ -319,12 +331,12 @@ export const publishVideo = onCall<PublishVideoRequest>(
       extractOwnedPrivateVideoPosterPath(
         ownerUid,
         videoId,
-        privateVideo.thumbnailPath
+        ownerVideo.thumbnailPath
       ) ??
       extractOwnedPrivateVideoPosterPath(
         ownerUid,
         videoId,
-        privateVideo.thumbnailUrl
+        ownerVideo.thumbnailUrl
       );
 
     let publishedAssets: PublishedVideoAssets;
@@ -350,9 +362,9 @@ export const publishVideo = onCall<PublishVideoRequest>(
     }
 
     const now = Date.now();
-    const moderationStatus = resolveModerationStatus();
+    const moderationStatus = defaultVideoPublicationModerationStatus();
     const durationMs = normalizeOptionalPositiveInteger(
-      privateVideo.durationMs
+      ownerVideo.durationMs
     );
     const batch = db.batch();
 
@@ -362,6 +374,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
         ownerUid,
         videoId,
         isPublished: true,
+        publishWhenReady: false,
         visibility,
         orderIndex,
         moderationStatus,
@@ -372,7 +385,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
         score: 0,
         publishedAt: now,
         updatedAt: now,
-        lastModeratedAt: moderationStatus === 'APPROVED' ? now : null,
+        lastModeratedAt: FieldValue.delete(),
         sourceStoragePath: sourceVideoStoragePath,
         rejectedSourceStoragePath: FieldValue.delete(),
         moderatedBy: FieldValue.delete(),
@@ -397,15 +410,16 @@ export const publishVideo = onCall<PublishVideoRequest>(
         url: FieldValue.delete(),
         posterUrl: FieldValue.delete(),
         title: String(
-          privateVideo.fileName ?? 'Vídeo do perfil'
+          ownerVideo.fileName ?? 'Vídeo do perfil'
         ).slice(0, 160),
         alt: 'Vídeo publicado no perfil',
         mimeType: publishedAssets.videoContentType,
         sizeBytes: publishedAssets.sizeBytes,
         durationMs,
-        createdAt: normalizeCreatedAt(privateVideo.createdAt),
+        createdAt: normalizeCreatedAt(ownerVideo.createdAt),
         publishedAt: now,
         updatedAt: now,
+        assetVersion: now,
         visibility,
         orderIndex,
         moderationStatus,
@@ -438,77 +452,5 @@ export const publishVideo = onCall<PublishVideoRequest>(
       videoId,
       moderationStatus,
     };
-  }
-);
-
-export const unpublishVideo = onCall<UnpublishVideoRequest>(
-  { region: FUNCTIONS_REGION },
-  async (request): Promise<{ videoId: string }> => {
-    const requesterUid = request.auth?.uid ?? null;
-    const ownerUid = cleanId(request.data?.ownerUid);
-    const videoId = cleanId(request.data?.videoId);
-
-    if (!ownerUid || !videoId) {
-      throw new HttpsError('invalid-argument', 'Vídeo inválido.');
-    }
-
-    assertOwner(requesterUid, ownerUid);
-
-    const publicationRef = db.doc(
-      `users/${ownerUid}/video_publications/${videoId}`
-    );
-    const publicVideoRef = db.doc(
-      `public_profiles/${ownerUid}/public_videos/${videoId}`
-    );
-    const publicationSnap = await publicationRef.get();
-    const publication = publicationSnap.exists
-      ? (publicationSnap.data() as VideoPublicationDoc)
-      : null;
-
-    if (publication?.moderationStatus === 'REJECTED') {
-      return { videoId };
-    }
-
-    const now = Date.now();
-    const batch = db.batch();
-
-    batch.set(
-      publicationRef,
-      {
-        ownerUid,
-        videoId,
-        isPublished: false,
-        visibility: 'PRIVATE',
-        moderationStatus: 'PRIVATE',
-        updatedAt: now,
-        sourceStoragePath: FieldValue.delete(),
-        publishedStoragePath: FieldValue.delete(),
-        publishedPosterStoragePath: FieldValue.delete(),
-        assetVersion: FieldValue.delete(),
-      },
-      { merge: true }
-    );
-    batch.delete(publicVideoRef);
-    await batch.commit();
-
-    await Promise.all([
-      deletePublishedVideoAssetOrQueue({
-        ownerUid,
-        videoId,
-        storagePath: publication?.publishedStoragePath,
-        assetKind: 'video',
-        reason: 'unpublish-video',
-      }),
-      deletePublishedVideoAssetOrQueue({
-        ownerUid,
-        videoId,
-        storagePath: publication?.publishedPosterStoragePath,
-        assetKind: 'poster',
-        reason: 'unpublish-video-poster',
-      }),
-    ]);
-    await refreshPublicProfileMediaMetrics(ownerUid);
-
-    return { videoId };
   }
 );

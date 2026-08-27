@@ -3,8 +3,12 @@
   [attr.data-tone]="tone()"
   role="dialog"
   aria-modal="true"
-  [attr.aria-labelledby]="'confirmation-dialog-title'"
-  [attr.aria-describedby]="'confirmation-dialog-message'"
+  aria-labelledby="confirmation-dialog-title"
+  [attr.aria-describedby]="
+    data.detail
+      ? 'confirmation-dialog-message confirmation-dialog-detail'
+      : 'confirmation-dialog-message'
+  "
 >
   <header class="confirmation-dialog__header">
     <div class="confirmation-dialog__icon" aria-hidden="true">
@@ -21,7 +25,7 @@
         id="confirmation-dialog-title"
         class="confirmation-dialog__title"
       >
-        {{ data.title }}
+        {{ title() }}
       </h2>
     </div>
   </header>
@@ -31,11 +35,14 @@
       id="confirmation-dialog-message"
       class="confirmation-dialog__message"
     >
-      {{ data.message }}
+      {{ message() }}
     </p>
 
     @if (data.detail) {
-      <p class="confirmation-dialog__detail">
+      <p
+        id="confirmation-dialog-detail"
+        class="confirmation-dialog__detail"
+      >
         {{ data.detail }}
       </p>
     }

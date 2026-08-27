@@ -71,8 +71,8 @@
 
 .community-ownership-management__refresh {
   flex: 0 0 auto;
-  width: 2.65rem;
-  height: 2.65rem;
+  width: var(--tap-target, 2.75rem);
+  height: var(--tap-target, 2.75rem);
   display: grid;
   place-items: center;
   border: 1px solid var(--surface-border, #d5d5d5);
@@ -174,9 +174,8 @@
 }
 
 .community-ownership-management__transfer-action,
-.community-ownership-management__danger-zone button,
-.community-ownership-management__confirmation-actions button {
-  min-height: 2.5rem;
+.community-ownership-management__danger-zone button {
+  min-height: var(--tap-target, 2.75rem);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -190,76 +189,31 @@
   cursor: pointer;
 }
 
-.community-ownership-management__transfer-action,
-.community-ownership-management__confirmation-actions .is-primary {
+.community-ownership-management__transfer-action {
   background: var(--primary-color, #d83768);
   color: var(--on-primary-color, #fff);
 }
 
 .community-ownership-management__danger-zone {
   padding: 0.9rem;
-  border: 1px solid color-mix(in oklab, #b42318 45%, transparent);
+  border: 1px solid color-mix(
+    in oklab,
+    var(--danger-color, #b42318) 45%,
+    transparent
+  );
   border-radius: 1rem;
   background: color-mix(
     in oklab,
     var(--surface-color, #fff) 94%,
-    #b42318 6%
+    var(--danger-color, #b42318) 6%
   );
 }
 
-.community-ownership-management__danger-zone button,
-.community-ownership-management__confirmation-actions .is-danger {
+.community-ownership-management__danger-zone button {
   flex: 0 0 auto;
-  border-color: #b42318;
-  background: #b42318;
+  border-color: var(--danger-color, #b42318);
+  background: var(--danger-color, #b42318);
   color: #fff;
-}
-
-.community-ownership-management__confirmation {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.85rem;
-  padding: 1rem;
-  border: 2px solid color-mix(
-    in oklab,
-    var(--primary-color, #d83768) 48%,
-    var(--surface-border, #d5d5d5)
-  );
-  border-radius: 1rem;
-  background: var(--surface-color, #fff);
-}
-
-.community-ownership-management__confirmation > i {
-  width: 2.6rem;
-  height: 2.6rem;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #fff) 82%,
-    var(--primary-color, #d83768) 18%
-  );
-  color: var(--primary-color, #d83768);
-}
-
-.community-ownership-management__confirmation > div:not(.community-ownership-management__confirmation-actions) {
-  min-width: 0;
-  display: grid;
-  gap: 0.35rem;
-}
-
-.community-ownership-management__confirmation-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.55rem;
-}
-
-.community-ownership-management__confirmation-actions .is-secondary {
-  border-color: var(--surface-border, #d5d5d5);
-  background: transparent;
-  color: var(--text-color, #222);
 }
 
 .community-ownership-management button:disabled {
@@ -300,31 +254,12 @@
   .community-ownership-management {
     padding-inline: 0.75rem;
   }
-
-  .community-ownership-management__confirmation {
-    grid-template-columns: 1fr;
-  }
-
-  .community-ownership-management__confirmation > i {
-    justify-self: start;
-  }
-
-  .community-ownership-management__confirmation-actions {
-    grid-column: 1;
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  .community-ownership-management__confirmation-actions button {
-    width: 100%;
-  }
 }
 
 :host-context(.high-contrast) .community-ownership-management__refresh,
 :host-context(.high-contrast) .community-ownership-management__transfer,
 :host-context(.high-contrast) .community-ownership-management__list li,
 :host-context(.high-contrast) .community-ownership-management__danger-zone,
-:host-context(.high-contrast) .community-ownership-management__confirmation,
 :host-context(.high-contrast) .community-ownership-management button {
   border-color: currentColor;
   border-width: 2px;

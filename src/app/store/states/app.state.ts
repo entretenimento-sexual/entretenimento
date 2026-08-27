@@ -13,6 +13,7 @@ import { nearbyProfilesReducer } from '../reducers/reducers.location/nearby-prof
 import { friendsPaginationReducer } from '../reducers/reducers.interactions/friends-pagination.reducer';
 import { friendsReducer } from '../reducers/reducers.interactions/friends.reducer';
 import { discoveryFeedReducer } from '../reducers/reducers.discovery/discovery-feed.reducer';
+import { communityDiscoveryCacheReducer } from '../reducers/reducers.discovery/community-discovery-cache.reducer';
 
 export interface AppState {
   // USER DOMAIN
@@ -32,6 +33,7 @@ export interface AppState {
 
   // DISCOVERY DOMAIN
   discoveryFeeds: ReturnType<typeof discoveryFeedReducer>;
+  communityDiscoveryCache: ReturnType<typeof communityDiscoveryCacheReducer>;
 
   // INTERACTIONS DOMAIN
   interactions_friends: ReturnType<typeof friendsReducer>;

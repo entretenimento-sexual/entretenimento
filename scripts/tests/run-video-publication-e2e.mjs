@@ -260,7 +260,6 @@ const nodeRuntime = resolveNodeRuntime(javaEnvironment);
 const emulatorEnvironment = {
   ...nodeRuntime.environment,
   FUNCTIONS_DISCOVERY_TIMEOUT: String(FUNCTIONS_DISCOVERY_TIMEOUT_SECONDS),
-  MEDIA_AUTO_APPROVE_VIDEOS: 'true',
   MEDIA_EMULATOR_AUTO_PROCESS_VIDEOS: 'false',
   FIREBASE_STORAGE_BUCKET: STORAGE_BUCKET,
 };
@@ -279,6 +278,8 @@ const child = spawn(
   [
     firebaseCli,
     'emulators:exec',
+    '--inspect-functions',
+    '19229',
     '--config',
     'firebase.media-e2e.json',
     '--only',

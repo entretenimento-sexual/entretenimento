@@ -3,6 +3,10 @@ export interface MediaScoreBreakdown {
   qualityScore: number;
   engagementScore: number;
   safetyScore: number;
+  /** Sinal opcional de audiência qualificada usado por vídeos. */
+  audienceScore?: number;
+  /** Retenção confiável agregada por viewer, usada somente por vídeos. */
+  retentionScore?: number;
 }
 
 export interface MediaEngagementInput {
@@ -63,18 +67,39 @@ export function buildMediaEngagementScore(
     Math.round(Math.log1p(weightedEngagement) * 18)
   );
   const currentBreakdown = input.currentBreakdown ?? {};
+  const hasAudienceScore =
+    currentBreakdown.audienceScore !== undefined &&
+    currentBreakdown.audienceScore !== null;
+  const hasRetentionScore =
+    currentBreakdown.retentionScore !== undefined &&
+    currentBreakdown.retentionScore !== null;
+  const audienceScore = hasAudienceScore
+    ? normalizeMediaScore(currentBreakdown.audienceScore)
+    : undefined;
+  const retentionScore = hasRetentionScore
+    ? normalizeMediaScore(currentBreakdown.retentionScore)
+    : undefined;
+  const hasVideoSignals = audienceScore !== undefined || retentionScore !== undefined;
   const scoreBreakdown: MediaScoreBreakdown = {
     qualityScore: normalizeMediaScore(currentBreakdown.qualityScore ?? 0),
     safetyScore: normalizeMediaScore(currentBreakdown.safetyScore ?? 100),
     engagementScore,
     rankingScore: 0,
+    ...(audienceScore === undefined ? {} : { audienceScore }),
+    ...(retentionScore === undefined ? {} : { retentionScore }),
   };
 
   scoreBreakdown.rankingScore = normalizeMediaScore(
     Math.round(
-      scoreBreakdown.qualityScore * 0.25 +
-      scoreBreakdown.engagementScore * 0.45 +
-      scoreBreakdown.safetyScore * 0.30
+      hasVideoSignals
+        ? scoreBreakdown.qualityScore * 0.20 +
+          scoreBreakdown.engagementScore * 0.30 +
+          (audienceScore ?? 0) * 0.10 +
+          (retentionScore ?? 0) * 0.10 +
+          scoreBreakdown.safetyScore * 0.30
+        : scoreBreakdown.qualityScore * 0.25 +
+          scoreBreakdown.engagementScore * 0.45 +
+          scoreBreakdown.safetyScore * 0.30
     )
   );
 

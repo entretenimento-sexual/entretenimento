@@ -14,16 +14,8 @@ import {
   synchronizePublishedPhotoUpdate,
 } from './sync-published-photo-on-private-update.use-case';
 
-const AUTO_APPROVE_PHOTOS =
-  process.env.FUNCTIONS_EMULATOR === 'true' ||
-  process.env.MEDIA_AUTO_APPROVE_PHOTOS === 'true';
-
 function cleanText(value: unknown): string {
   return String(value ?? '').trim();
-}
-
-function resolveModerationStatus(): 'PENDING_REVIEW' | 'APPROVED' {
-  return AUTO_APPROVE_PHOTOS ? 'APPROVED' : 'PENDING_REVIEW';
 }
 
 export const syncPublishedPhotoOnPrivateUpdate = onDocumentUpdated(
@@ -56,7 +48,7 @@ export const syncPublishedPhotoOnPrivateUpdate = onDocumentUpdated(
         after: (afterSnapshot.data() ?? {}) as PrivatePhotoDoc,
       },
       {
-        moderationStatus: resolveModerationStatus(),
+        moderationStatus: 'APPROVED',
         now: () => Date.now(),
         loadPublication: async () => {
           const snapshot = await publicationRef.get();

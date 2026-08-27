@@ -29,14 +29,23 @@ import {
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ModerationReportService } from 'src/app/core/services/moderation/moderation-report.service';
 
-interface VideoReportTarget {
-  ownerUid: string;
-  videoId: string;
-  targetType: 'video' | 'video_comment';
-  targetId: string;
-}
+type MediaReportTarget =
+  | {
+      mediaType: 'photo';
+      ownerUid: string;
+      mediaId: string;
+      targetType: 'photo';
+      targetId: string;
+    }
+  | {
+      mediaType: 'video';
+      ownerUid: string;
+      mediaId: string;
+      targetType: 'video' | 'video_comment';
+      targetId: string;
+    };
 
-interface VideoReportForm {
+interface MediaReportForm {
   reason: FormControl<ModerationReportReason | ''>;
   details: FormControl<string>;
 }
@@ -72,7 +81,7 @@ export class VideoReportPageComponent {
     { value: 'other', label: 'Outro motivo' },
   ];
 
-  readonly form = new FormGroup<VideoReportForm>({
+  readonly form = new FormGroup<MediaReportForm>({
     reason: new FormControl<ModerationReportReason | ''>('', {
       nonNullable: true,
       validators: [Validators.required],
@@ -83,18 +92,36 @@ export class VideoReportPageComponent {
     }),
   });
 
-  readonly target$: Observable<VideoReportTarget | null> = combineLatest([
+  readonly target$: Observable<MediaReportTarget | null> = combineLatest([
     this.route.paramMap,
   ]).pipe(
-    map(([params]) => {
+    map(([params]): MediaReportTarget | null => {
       const ownerUid = this.cleanId(params.get('ownerUid'));
+      const photoId = this.cleanId(params.get('photoId'));
+
+      if (ownerUid && photoId) {
+        return {
+          mediaType: 'photo',
+          ownerUid,
+          mediaId: photoId,
+          targetType: 'photo',
+          targetId: photoId,
+        };
+      }
+
       const videoId = this.cleanId(params.get('videoId'));
-      const targetType = this.cleanTargetType(params.get('targetType'));
+      const targetType = this.cleanVideoTargetType(params.get('targetType'));
       const rawTargetId = this.cleanId(params.get('targetId'));
       const targetId = targetType === 'video' ? videoId : rawTargetId;
 
       return ownerUid && videoId && targetType && targetId
-        ? { ownerUid, videoId, targetType, targetId }
+        ? {
+            mediaType: 'video',
+            ownerUid,
+            mediaId: videoId,
+            targetType,
+            targetId,
+          }
         : null;
     }),
     distinctUntilChanged((left, right) =>
@@ -130,7 +157,7 @@ export class VideoReportPageComponent {
       this.reports.createReport$({
         targetType: target.targetType,
         targetId: target.targetId,
-        parentTargetId: target.videoId,
+        parentTargetId: target.mediaType === 'video' ? target.mediaId : null,
         targetOwnerUid: target.ownerUid,
         reason,
         details: this.form.controls.details.value.trim() || null,
@@ -156,25 +183,37 @@ export class VideoReportPageComponent {
     });
   }
 
-  back(target: VideoReportTarget | null): void {
-    const ownerUid = target?.ownerUid;
-
-    if (ownerUid) {
-      void this.router.navigate(['/media/perfil', ownerUid, 'videos-publicos']);
+  back(target: MediaReportTarget | null): void {
+    if (target?.ownerUid) {
+      void this.router.navigate([
+        '/media/perfil',
+        target.ownerUid,
+        target.mediaType === 'photo' ? 'fotos-publicas' : 'videos-publicos',
+      ]);
       return;
     }
 
     void this.router.navigate(['/dashboard/principal']);
   }
 
-  targetLabel(target: VideoReportTarget): string {
+  targetLabel(target: MediaReportTarget): string {
+    if (target.targetType === 'photo') {
+      return 'foto';
+    }
+
     return target.targetType === 'video_comment'
       ? 'comentário do vídeo'
       : 'vídeo';
   }
 
-  private sourceRoute(target: VideoReportTarget): string {
-    return `/media/perfil/${target.ownerUid}/videos-publicos`;
+  backLabel(target: MediaReportTarget): string {
+    return target.mediaType === 'photo' ? 'fotos' : 'vídeos';
+  }
+
+  private sourceRoute(target: MediaReportTarget): string {
+    return target.mediaType === 'photo'
+      ? `/media/perfil/${target.ownerUid}/fotos-publicas`
+      : `/media/perfil/${target.ownerUid}/videos-publicos`;
   }
 
   private cleanId(value: unknown): string {
@@ -182,9 +221,9 @@ export class VideoReportPageComponent {
     return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
   }
 
-  private cleanTargetType(
+  private cleanVideoTargetType(
     value: unknown
-  ): VideoReportTarget['targetType'] | null {
+  ): Extract<MediaReportTarget, { mediaType: 'video' }>['targetType'] | null {
     const normalized = String(value ?? '').trim() as ModerationReportTargetType;
     return normalized === 'video' || normalized === 'video_comment'
       ? normalized

@@ -1,0 +1,350 @@
+/* src/app/account/pages/account-section.css */
+.account-section-page {
+  display: grid;
+  gap: 1rem;
+  max-width: 1100px;
+  animation: account-section-enter 170ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.account-section-header {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.account-section-header h2 {
+  margin: 0;
+  font-size: clamp(1.45rem, 2.2vw, 1.9rem);
+  line-height: 1.14;
+  color: var(--text-color);
+}
+
+.account-section-header > p:last-child {
+  margin: 0;
+  max-width: 62ch;
+  line-height: 1.5;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+}
+
+.account-context-panel {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
+  background: var(--surface-color);
+}
+
+.account-context-panel--success {
+  border-color: color-mix(in oklab, var(--success-color) 28%, var(--surface-border));
+  background: color-mix(in oklab, var(--surface-color) 96%, var(--success-color) 4%);
+}
+
+.account-context-panel--info {
+  border-color: color-mix(in oklab, var(--primary-color) 26%, var(--surface-border));
+  background: color-mix(in oklab, var(--surface-color) 96%, var(--primary-color) 4%);
+}
+
+.account-context-panel h3,
+.account-context-panel p {
+  margin: 0;
+}
+
+.account-context-panel h3 {
+  font-size: 1.05rem;
+}
+
+.account-context-panel p {
+  line-height: 1.5;
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+}
+
+.account-context-panel__actions,
+.account-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.account-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.account-overview-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+  min-height: 150px;
+  padding: 1rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--surface-color) 98%, transparent);
+  color: var(--text-color);
+  text-decoration: none;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.account-overview-card--subscription {
+  background:
+    radial-gradient(circle at top right, color-mix(in oklab, var(--primary-color) 9%, transparent), transparent 52%),
+    var(--surface-color);
+}
+
+.account-overview-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary-color) 28%, var(--surface-border));
+  background-color: var(--header-hover-bg);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--text-color) 8%, transparent);
+}
+
+.account-overview-card:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 3px;
+}
+
+.account-overview-card__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.account-overview-card__arrow {
+  color: color-mix(in oklab, var(--text-color) 46%, transparent);
+  transition: transform 160ms ease, color 160ms ease;
+}
+
+.account-overview-card:hover .account-overview-card__arrow,
+.account-overview-card:focus-visible .account-overview-card__arrow {
+  transform: translateX(3px);
+  color: var(--primary-color);
+}
+
+.account-overview-card__title {
+  font-size: 1.05rem;
+  line-height: 1.3;
+  color: var(--text-color);
+  text-wrap: balance;
+}
+
+.account-overview-card__meta {
+  line-height: 1.45;
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
+  overflow-wrap: anywhere;
+}
+
+.account-overview-card__action {
+  margin-top: auto;
+  padding-top: 0.45rem;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: color-mix(in oklab, var(--primary-color) 72%, var(--text-color));
+}
+
+.account-surface {
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
+  background: var(--surface-color);
+}
+
+.account-surface__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 1.05rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.account-surface__head h3,
+.account-surface__head p {
+  margin: 0;
+}
+
+.account-surface__head h3 {
+  font-size: 1.05rem;
+  color: var(--text-color);
+}
+
+.account-surface__head p {
+  margin-top: 0.2rem;
+  line-height: 1.42;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+}
+
+.account-fact-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--text-color) 57%, transparent);
+}
+
+.account-list {
+  display: grid;
+}
+
+.account-list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.05rem;
+  border-top: 1px solid var(--surface-border);
+}
+
+.account-list__row:first-child {
+  border-top: 0;
+}
+
+.account-list__copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.account-list__copy strong {
+  color: var(--text-color);
+  word-break: break-word;
+}
+
+.account-list__copy span,
+.account-list__copy small {
+  line-height: 1.4;
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
+}
+
+.account-plan-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.15rem;
+  align-items: end;
+  padding: clamp(1.1rem, 2.3vw, 1.5rem);
+  border: 1px solid color-mix(in oklab, var(--primary-color) 24%, var(--surface-border));
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top right, color-mix(in oklab, var(--primary-color) 10%, transparent), transparent 44%),
+    var(--surface-color);
+}
+
+.account-plan-hero__copy {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.account-plan-hero__badge {
+  width: fit-content;
+  padding: 0.3rem 0.56rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: color-mix(in oklab, var(--success-color) 13%, transparent);
+  color: color-mix(in oklab, var(--success-color) 72%, var(--text-color));
+}
+
+.account-plan-hero h3,
+.account-plan-hero p {
+  margin: 0;
+}
+
+.account-plan-hero h3 {
+  font-size: clamp(1.6rem, 2.8vw, 2.15rem);
+  line-height: 1.05;
+  color: var(--text-color);
+}
+
+.account-plan-hero p {
+  max-width: 58ch;
+  line-height: 1.45;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+}
+
+.account-support-link {
+  font-size: 0.88rem;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+}
+
+.account-support-link:hover {
+  color: var(--text-color);
+}
+
+.account-danger-surface {
+  border-color: color-mix(in oklab, var(--danger-color) 28%, var(--surface-border));
+}
+
+.account-danger-surface .account-surface__head {
+  background: color-mix(in oklab, var(--surface-color) 96%, var(--danger-color) 4%);
+}
+
+@keyframes account-section-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-section-page {
+    animation: none;
+  }
+
+  .account-overview-card,
+  .account-overview-card__arrow {
+    transition: none;
+  }
+
+  .account-overview-card:hover,
+  .account-overview-card:focus-visible {
+    transform: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .account-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-plan-hero {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .account-section-actions,
+  .account-context-panel__actions {
+    display: grid;
+  }
+
+  .account-section-actions .btn,
+  .account-context-panel__actions .btn,
+  .account-plan-hero .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .account-overview-card {
+    min-height: 138px;
+  }
+
+  .account-surface__head,
+  .account-list__row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .account-surface__head > .btn {
+    width: 100%;
+  }
+}

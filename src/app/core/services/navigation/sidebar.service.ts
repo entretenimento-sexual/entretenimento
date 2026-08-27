@@ -23,6 +23,7 @@
 // Importante:
 // - não consulta Firestore diretamente
 // - não busca dados de domínio
+// - free/basic/premium/vip vêm do PlatformSubscriptionAccessService
 // - mantém fallback seguro em caso de erro
 import { Injectable } from '@angular/core';
 import { BreakpointObserver } from '@angular/cdk/layout';
@@ -33,6 +34,7 @@ import { isFeatureEnabled } from '@core/guards/access-guard/feature-flag.guard';
 import { AuthRouteContextService } from '@core/services/autentication/auth/auth-route-context.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
 
 import {
   SidebarSection,
@@ -144,14 +146,18 @@ export class SidebarService {
    * Seções efetivamente renderizáveis no sidebar.
    *
    * Fonte:
-   * - regras puras do sidebar-config.ts
-   * - composição pública do sidebar-config.runtime.ts
-   * - capacidades derivadas pelo AccessControlService
-   * - feature flag comunitária passada explicitamente para a composição
+   * - regras puras do sidebar-config.ts;
+   * - composição pública do sidebar-config.runtime.ts;
+   * - assinatura paga validada pelo PlatformSubscriptionAccessService;
+   * - papel administrativo derivado pelo AccessControlService;
+   * - feature flag comunitária passada explicitamente para a composição.
    */
   readonly sections$: Observable<SidebarSection[]> = combineLatest([
-    this.access.isSubscriber$,
-    this.access.hasAny$(['vip']),
+    this.subscriptionAccess.isSubscriber$,
+    this.subscriptionAccess.role$.pipe(
+      map((role) => role === 'vip'),
+      distinctUntilChanged()
+    ),
     this.access.hasAny$(['admin']),
   ]).pipe(
     distinctUntilChanged(
@@ -230,6 +236,7 @@ export class SidebarService {
     private readonly breakpointObserver: BreakpointObserver,
     private readonly routeContext: AuthRouteContextService,
     private readonly access: AccessControlService,
+    private readonly subscriptionAccess: PlatformSubscriptionAccessService,
     private readonly globalErrorHandler: GlobalErrorHandlerService
   ) {}
 

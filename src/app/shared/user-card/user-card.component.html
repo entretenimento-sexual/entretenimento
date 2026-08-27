@@ -15,6 +15,7 @@
       <img
         class="user-card__photo"
         [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
+        appImageFallback
         [alt]="profile.nickname ? 'Foto de ' + profile.nickname : 'Foto do usuário'"
         loading="lazy"
         decoding="async"
@@ -76,34 +77,43 @@
           }
         </p>
 
-        @if (
-          profile.municipio ||
-          profile.estado ||
-          (showDistance() && distanciaKm() !== null)
-        ) {
+        @if (profile.municipio || profile.estado || showDistance()) {
           <p class="user-card__location">
             <i class="fas fa-location-dot" aria-hidden="true"></i>
 
             <span class="user-card__location-copy">
               @if (profile.municipio || profile.estado) {
-                <span>
+                <span
+                  class="user-card__place"
+                  [title]="(profile.municipio || '') + (profile.municipio && profile.estado ? ', ' : '') + (profile.estado || '')"
+                >
                   {{ profile.municipio }}@if (profile.municipio && profile.estado) {, }{{ profile.estado }}
                 </span>
               }
 
-              @if (showDistance() && distanciaKm() !== null) {
+              @if (showDistance()) {
                 @if (profile.municipio || profile.estado) {
-                  <span aria-hidden="true">•</span>
+                  <span class="user-card__separator" aria-hidden="true">•</span>
                 }
 
-                <strong class="user-card__distance">
-                  <span class="sr-only">Distância aproximada:</span>
-                  @if (distanciaKm()! < 1) {
-                    &lt; 1 km
-                  } @else {
-                    {{ distanciaKm() | number:'1.0-1' }} km
-                  }
-                </strong>
+                @if (distanciaKm() !== null) {
+                  <strong class="user-card__distance">
+                    <span class="sr-only">Distância aproximada:</span>
+                    @if (distanciaKm()! < 1) {
+                      &lt; 1 km
+                    } @else {
+                      {{ distanciaKm() | number:'1.0-1' }} km
+                    }
+                  </strong>
+                } @else {
+                  <span
+                    class="user-card__distance-unavailable"
+                    title="Distância não disponível"
+                  >
+                    <span aria-hidden="true">—</span>
+                    <span class="sr-only">Distância não disponível</span>
+                  </span>
+                }
               }
             </span>
           </p>
@@ -142,7 +152,7 @@
 
               <button
                 type="button"
-                class="user-card__action user-card__action--danger"
+                class="user-card__action user-card__action--danger-subtle"
                 (click)="desfazerAmizade($event)"
                 [disabled]="isEndingFriendship()"
                 [attr.aria-busy]="isEndingFriendship()"
@@ -187,7 +197,7 @@
 
               <button
                 type="button"
-                class="user-card__action user-card__action--danger"
+                class="user-card__action user-card__action--danger-subtle"
                 (click)="cancelarSolicitacaoEnviada($event)"
                 [disabled]="isCancelingOutgoingRequest()"
                 [attr.aria-busy]="isCancelingOutgoingRequest() ? 'true' : null"

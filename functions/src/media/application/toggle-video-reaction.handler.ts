@@ -6,10 +6,23 @@ import {
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
+  assertNoActiveBilateralBlockInTransaction,
+} from '../../friendship/application/bilateral-block-access.policy';
+import {
   buildMediaEngagementScore,
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import {
+  REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+  assertPublicMediaCallableAppCheck,
+} from './public-media-callable-security';
+import {
+  assertPublicMediaConsumptionAccess,
+} from './public-media-consumption-access.policy';
+import {
+  consumePublicVideoSocialInteractionQuota,
+} from './public-video-social-interaction-rate-limit.service';
 
 interface ToggleVideoReactionRequest {
   ownerUid?: string;
@@ -35,8 +48,13 @@ function cleanId(value: unknown): string {
 }
 
 export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+  },
   async (request) => {
+    assertPublicMediaCallableAppCheck(request.app);
+
     const viewerUid = request.auth?.uid ?? null;
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
@@ -56,6 +74,9 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
       );
     }
 
+    await consumePublicVideoSocialInteractionQuota('reaction', viewerUid);
+    await assertPublicMediaConsumptionAccess(viewerUid);
+
     const videoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
@@ -63,6 +84,12 @@ export const toggleVideoReaction = onCall<ToggleVideoReactionRequest>(
 
     return db.runTransaction(async (transaction) => {
       await assertInteractionAccessInTransaction(transaction, viewerUid);
+      await assertNoActiveBilateralBlockInTransaction(
+        transaction,
+        viewerUid,
+        ownerUid,
+        'Vídeo público não encontrado.'
+      );
 
       const [videoSnap, likeSnap] = await Promise.all([
         transaction.get(videoRef),

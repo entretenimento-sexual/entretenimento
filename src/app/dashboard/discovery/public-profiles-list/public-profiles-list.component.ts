@@ -122,7 +122,7 @@ export class PublicProfilesListComponent {
       ),
 
       descricao: this.toOptionalText(view.descricao),
-      idade: this.toOptionalNumber(view.idade),
+      idade: this.toOptionalNumber(profile.age ?? view.idade),
     };
 
     return userCardProfile as IUserDados;

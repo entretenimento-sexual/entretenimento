@@ -14,6 +14,7 @@ import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import { hasCommunityLifecycleHold } from './community-lifecycle.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
   CommunityOwnershipMembershipRole,
@@ -157,6 +158,18 @@ function normalizeMembershipRole(value: unknown): CommunityOwnershipMembershipRo
     : null;
 }
 
+function normalizeMemberCount(rawCommunity: unknown): number | null {
+  const community = (rawCommunity ?? {}) as Record<string, unknown>;
+  const metrics = (community['metrics'] ?? {}) as Record<string, unknown>;
+  const value = metrics['memberCount'];
+
+  return typeof value === 'number'
+    && Number.isFinite(value)
+    && value >= 0
+    ? Math.trunc(value)
+    : null;
+}
+
 function isTransferCandidateRole(
   role: CommunityOwnershipMembershipRole
 ): role is 'admin' | 'moderator' | 'member' {
@@ -186,6 +199,20 @@ function assertOwnerMembership(rawMembership: unknown): void {
     throw new HttpsError(
       'permission-denied',
       'Apenas o proprietário pode executar esta ação.'
+    );
+  }
+}
+
+function assertCommunityOwnerPointer(
+  rawCommunity: unknown,
+  actorUid: string
+): void {
+  const community = (rawCommunity ?? {}) as Record<string, unknown>;
+
+  if (normalizeSafeId(community['ownerUid']) !== actorUid) {
+    throw new HttpsError(
+      'data-loss',
+      'A propriedade da Comunidade está inconsistente e exige revisão.'
     );
   }
 }
@@ -317,6 +344,7 @@ export const getCommunityOwnershipCandidates = onCall<CommunityIdPayload>(
     );
 
     const community = communitySnapshot.data() ?? {};
+    assertCommunityOwnerPointer(community, actorUid);
     const source = (community['source'] ?? {}) as Record<string, unknown>;
     const sourceType = normalizeSourceType(source['type']);
     const status = normalizeCommunityStatus(community['status']);
@@ -476,6 +504,7 @@ export const transferCommunityOwnership =
           targetUid
         );
         const community = communitySnapshot.data() ?? {};
+        assertCommunityOwnerPointer(community, actorUid);
         const source = (community['source'] ?? {}) as Record<string, unknown>;
         const actorMembership = actorMembershipSnapshot.exists
           ? actorMembershipSnapshot.data() ?? {}
@@ -565,6 +594,7 @@ export const transferCommunityOwnership =
           action: 'community_ownership_transferred',
           communityId,
           actorUid,
+          actorRole: 'owner',
           subjectUid: targetUid,
           previousRole: normalizeMembershipRole(targetMembership['role']),
           nextRole: 'owner',
@@ -678,8 +708,6 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
       );
       const community = communitySnapshot.data() ?? {};
       const source = (community['source'] ?? {}) as Record<string, unknown>;
-      const moderation = (community['moderation'] ?? {}) as Record<string, unknown>;
-      const lifecycle = (community['lifecycle'] ?? {}) as Record<string, unknown>;
       const actorMembership = actorMembershipSnapshot.exists
         ? actorMembershipSnapshot.data() ?? {}
         : {};
@@ -699,16 +727,15 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
         return { communityId, status: 'archived', generatedAt: now };
       }
 
+      assertCommunityOwnerPointer(community, actorUid);
+
       const decision = evaluateCommunityArchive({
         sourceType: normalizeSourceType(source['type']),
         communityStatus: status,
         actorStatus: normalizeMembershipStatus(actorMembership['status']),
         actorRole: normalizeMembershipRole(actorMembership['role']),
         activeOwnerCount: ownerSnapshot.size,
-        lifecycleHold:
-          community['legalHold'] === true
-          || moderation['legalHold'] === true
-          || lifecycle['hold'] === true,
+        lifecycleHold: hasCommunityLifecycleHold(community),
       });
 
       if (
@@ -721,8 +748,11 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
       }
 
       const now = Date.now();
-
-      transaction.update(communityRef, {
+      const currentMemberCount = normalizeMemberCount(community);
+      const nextMemberCount = currentMemberCount === null
+        ? null
+        : Math.max(currentMemberCount - 1, 0);
+      const communityPatch: Record<string, unknown> = {
         status: 'archived',
         visibility: 'hidden',
         ownerUid: FieldValue.delete(),
@@ -730,10 +760,20 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
         archivedBy: actorUid,
         archiveReason: reason,
         'lifecycle.state': 'archived',
+        'lifecycle.dormantAt': null,
+        'lifecycle.archivedAt': now,
+        'lifecycle.scheduledForDeletionAt': null,
         'lifecycle.interactionBlocked': true,
+        'lifecycle.policyVersion': 1,
         'lifecycle.updatedAt': now,
         updatedAt: now,
-      });
+      };
+
+      if (nextMemberCount !== null) {
+        communityPatch['metrics.memberCount'] = nextMemberCount;
+      }
+
+      transaction.update(communityRef, communityPatch);
       transaction.set(
         actorMembershipRef,
         {
@@ -753,12 +793,14 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
         action: 'community_archived',
         communityId,
         actorUid,
+        actorRole: 'owner',
         subjectUid: actorUid,
         previousStatus: status,
         nextStatus: 'archived',
         previousRole: 'owner',
         nextRole: decision.actorNextRole,
         reason,
+        memberCount: nextMemberCount,
         createdAt: now,
         source: 'callable',
       });

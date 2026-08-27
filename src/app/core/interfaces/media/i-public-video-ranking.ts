@@ -19,6 +19,7 @@ export interface IPublicVideoRankingRequest {
   readonly pageSize?: number;
   readonly cursor?: IPublicVideoRankingCursor | null;
   readonly notifyOnError?: boolean;
+  readonly propagateErrors?: boolean;
 }
 
 export interface IPublicVideoRankingPage {

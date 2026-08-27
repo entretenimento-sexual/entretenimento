@@ -80,6 +80,19 @@
   white-space: nowrap;
 }
 
+.publication-composer__media-policy,
+.publication-composer__editing {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.publication-composer__editing {
+  color: var(--primary-color, #ff7070);
+  font-weight: 720;
+}
+
 .publication-composer__choose {
   display: flex;
   align-items: center;

@@ -16,6 +16,7 @@
 // - SEED_NOTIFY_CONNECTIONS=true|false
 // - SEED_NOTIFY_MESSAGES=true|false
 // - SEED_NOTIFY_ROOMS=true|false
+// - SEED_NOTIFY_COMMUNITIES=true|false
 // - SEED_NOTIFY_PLACES=true|false
 // - SEED_NOTIFY_LIMIT=12
 // - SEED_NOTIFY_UF=RJ
@@ -53,6 +54,7 @@ const preferencesPatch = {
   messages: parseBool(process.env.SEED_NOTIFY_MESSAGES, true),
   connections: parseBool(process.env.SEED_NOTIFY_CONNECTIONS, true),
   rooms: parseBool(process.env.SEED_NOTIFY_ROOMS, true),
+  communities: parseBool(process.env.SEED_NOTIFY_COMMUNITIES, true),
   places: parseBool(process.env.SEED_NOTIFY_PLACES, true),
   compatibleStatus: parseBool(process.env.SEED_NOTIFY_COMPATIBLE_STATUS, true),
   accountSecurity: true,

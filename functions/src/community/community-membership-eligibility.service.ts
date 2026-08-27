@@ -2,25 +2,11 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY MEMBERSHIP ELIGIBILITY
 // -----------------------------------------------------------------------------
-// Centraliza elegibilidade da conta e requisito de entitlement para entrada e
-// aprovação. Nenhum handler deve promover um membership usando apenas uma
-// validação histórica.
+// Centraliza a elegibilidade atual da conta para entrada e aprovação. Nenhum
+// handler deve promover um membership usando apenas uma validação histórica.
 // -----------------------------------------------------------------------------
 
 import { HttpsError } from 'firebase-functions/v2/https';
-
-import {
-  evaluatePlatformSubscriptionEntitlement,
-  hasMinimumPlatformRole,
-  isPlatformRole,
-} from '../payments/application/platform-subscription-entitlement.service';
-
-export type CommunityMembershipMinimumRole = 'basic' | 'premium' | 'vip';
-
-export interface CommunityMembershipRequirement {
-  minimumRole: CommunityMembershipMinimumRole;
-  requiresEntitlement: boolean;
-}
 
 function isAdultEligible(user: Record<string, unknown>): boolean {
   const idade = user['idade'];
@@ -107,41 +93,4 @@ export function assertCommunityMembershipActorEligible(
       }
     );
   }
-}
-
-export function resolveCommunityMembershipRequirement(
-  rawCommunity: unknown
-): CommunityMembershipRequirement {
-  const community = (rawCommunity ?? {}) as Record<string, unknown>;
-  const access = (community['access'] ?? {}) as Record<string, unknown>;
-  const contentAccess = (access['contentAccess'] ?? {}) as Record<
-    string,
-    unknown
-  >;
-  const minimumRole = isPlatformRole(contentAccess['minimumRole'])
-    ? contentAccess['minimumRole']
-    : 'basic';
-
-  return {
-    minimumRole,
-    requiresEntitlement:
-      contentAccess['requiresActiveSubscription'] === true
-      || isPlatformRole(contentAccess['minimumRole']),
-  };
-}
-
-export function isCommunityMembershipEntitlementAllowed(
-  rawEntitlement: unknown,
-  uid: string,
-  requirement: Readonly<CommunityMembershipRequirement>
-): boolean {
-  if (!requirement.requiresEntitlement) return true;
-
-  const entitlement = evaluatePlatformSubscriptionEntitlement(
-    rawEntitlement,
-    uid
-  );
-
-  return entitlement.active
-    && hasMinimumPlatformRole(entitlement.role, requirement.minimumRole);
 }

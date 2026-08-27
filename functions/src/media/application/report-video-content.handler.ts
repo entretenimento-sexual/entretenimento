@@ -2,30 +2,41 @@ import { createHash } from 'node:crypto';
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import {
+  assertInteractionAccess,
+} from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
+import { consumeBackendRateLimitQuota } from './backend-rate-limit.service';
+import {
+  buildMediaReportSafetyState,
+  shouldPreserveMediaEvidence,
+  shouldQuarantineMediaAfterReport,
+  type MediaReportSafetyReason,
+} from './media-report-safety';
 import {
   buildMediaEngagementScore,
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
-import { buildVideoReportSafetyState } from './video-report-safety';
+import {
+  queueModerationEvidencePreservation,
+} from './moderation-evidence-preservation.service';
+import {
+  preserveModerationTextEvidenceInTransaction,
+} from './moderation-text-evidence.service';
+import {
+  assertPublicMediaCallableAppCheck,
+  REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+} from './public-media-callable-security';
+import { assertPublicMediaConsumptionAccess } from './public-media-consumption-access.policy';
 
 export type VideoReportTargetType =
   | 'video'
   | 'video_comment'
   | 'video_rating';
 
-export type VideoReportReason =
-  | 'spam'
-  | 'fake_profile'
-  | 'harassment'
-  | 'hate_or_abuse'
-  | 'sexual_boundary'
-  | 'illegal_content'
-  | 'privacy'
-  | 'minor_safety'
-  | 'other';
+export type VideoReportReason = MediaReportSafetyReason;
 
 interface ReportVideoContentRequest {
   targetType?: VideoReportTargetType;
@@ -52,9 +63,16 @@ interface PublicVideoDocument {
   scoreBreakdown?: Partial<MediaScoreBreakdown>;
 }
 
+interface VideoPublicationDocument {
+  publishedStoragePath?: string;
+}
+
 interface VideoCommentDocument {
   authorUid?: string;
+  content?: string;
   status?: string;
+  parentCommentId?: string | null;
+  createdAt?: number;
   reportsCount?: number;
   openReportsCount?: number;
 }
@@ -64,6 +82,13 @@ interface VideoRatingDocument {
   rating?: number;
   reportsCount?: number;
   openReportsCount?: number;
+}
+
+interface ReportVideoTransactionResult {
+  publishedStoragePath: string | null;
+  quarantine: boolean;
+  evidenceRequired: boolean;
+  binaryEvidenceRequired: boolean;
 }
 
 const ALLOWED_REASONS = new Set<VideoReportReason>([
@@ -77,6 +102,12 @@ const ALLOWED_REASONS = new Set<VideoReportReason>([
   'minor_safety',
   'other',
 ]);
+const REPORT_BURST_WINDOW_MS = 60 * 1000;
+const REPORT_BURST_MAX = 12;
+const REPORT_SUSTAINED_WINDOW_MS = 10 * 60 * 1000;
+const REPORT_SUSTAINED_MAX = 48;
+const QUARANTINE_REASON =
+  'Conteúdo temporariamente indisponível durante análise de segurança.';
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -130,8 +161,13 @@ function assertPublicApprovedVideo(video: PublicVideoDocument): void {
 }
 
 export const reportVideoContent = onCall<ReportVideoContentRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+  },
   async (request) => {
+    assertPublicMediaCallableAppCheck(request.app);
+
     const reporterUid = cleanId(request.auth?.uid);
     const targetType = cleanTargetType(request.data?.targetType);
     const ownerUid = cleanId(request.data?.ownerUid);
@@ -155,8 +191,26 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
       throw new HttpsError('invalid-argument', 'Alvo da denúncia inválido.');
     }
 
+    await consumeBackendRateLimitQuota({
+      action: 'reportVideoContent',
+      subject: reporterUid,
+      cost: 1,
+      config: {
+        burstWindowMs: REPORT_BURST_WINDOW_MS,
+        burstMax: REPORT_BURST_MAX,
+        sustainedWindowMs: REPORT_SUSTAINED_WINDOW_MS,
+        sustainedMax: REPORT_SUSTAINED_MAX,
+      },
+      message: 'Muitas denúncias foram enviadas em pouco tempo.',
+    });
+    await assertInteractionAccess(reporterUid);
+    await assertPublicMediaConsumptionAccess(reporterUid);
+
     const publicVideoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
+    );
+    const publicationRef = db.doc(
+      `users/${ownerUid}/video_publications/${videoId}`
     );
     const targetRef = targetType === 'video_comment'
       ? publicVideoRef.collection('comments').doc(targetId)
@@ -172,140 +226,226 @@ export const reportVideoContent = onCall<ReportVideoContentRequest>(
     );
     const reportRef = db.collection('moderation_reports').doc(reportId);
 
-    await db.runTransaction(async (transaction) => {
-      const readRefs = targetRef
-        ? [publicVideoRef, targetRef, reportRef]
-        : [publicVideoRef, reportRef];
-      const snapshots = await Promise.all(
-        readRefs.map((reference) => transaction.get(reference))
-      );
-      const videoSnap = snapshots[0];
-      const targetSnap = targetRef ? snapshots[1] : null;
-      const reportSnap = targetRef ? snapshots[2] : snapshots[1];
-
-      if (!videoSnap.exists) {
-        throw new HttpsError('not-found', 'Vídeo público não encontrado.');
-      }
-
-      if (reportSnap.exists) {
-        throw new HttpsError(
-          'already-exists',
-          'Você já denunciou este conteúdo.'
+    const result = await db.runTransaction<ReportVideoTransactionResult>(
+      async (transaction) => {
+        const readRefs = targetRef
+          ? [publicVideoRef, targetRef, reportRef]
+          : [publicVideoRef, publicationRef, reportRef];
+        const snapshots = await Promise.all(
+          readRefs.map((reference) => transaction.get(reference))
         );
-      }
+        const videoSnap = snapshots[0];
+        const publicationSnap = targetRef ? null : snapshots[1];
+        const targetSnap = targetRef ? snapshots[1] : null;
+        const reportSnap = snapshots[2];
 
-      const video = videoSnap.data() as PublicVideoDocument;
-
-      if (video.ownerUid !== ownerUid) {
-        throw new HttpsError('failed-precondition', 'Vídeo inconsistente.');
-      }
-
-      assertPublicApprovedVideo(video);
-
-      let targetAuthorUid: string | null = ownerUid;
-      let targetReportsCount = 0;
-      let targetOpenReportsCount = 0;
-
-      if (targetType === 'video') {
-        if (reporterUid === ownerUid) {
-          throw new HttpsError(
-            'failed-precondition',
-            'Você não pode denunciar o próprio vídeo.'
-          );
-        }
-      } else if (targetType === 'video_comment') {
-        if (!targetSnap?.exists || !targetRef) {
-          throw new HttpsError('not-found', 'Comentário não encontrado.');
+        if (!videoSnap.exists) {
+          throw new HttpsError('not-found', 'Vídeo público não encontrado.');
         }
 
-        const comment = targetSnap.data() as VideoCommentDocument;
-        targetAuthorUid = cleanId(comment.authorUid);
-
-        if (comment.status !== 'VISIBLE' || !targetAuthorUid) {
+        if (reportSnap.exists) {
           throw new HttpsError(
-            'failed-precondition',
-            'Comentário indisponível para denúncia.'
+            'already-exists',
+            'Você já denunciou este conteúdo.'
           );
         }
 
-        if (reporterUid === targetAuthorUid) {
-          throw new HttpsError(
-            'failed-precondition',
-            'Você não pode denunciar o próprio comentário.'
-          );
+        const video = videoSnap.data() as PublicVideoDocument;
+
+        if (video.ownerUid !== ownerUid) {
+          throw new HttpsError('failed-precondition', 'Vídeo inconsistente.');
         }
 
-        targetReportsCount = normalizeMediaCount(comment.reportsCount);
-        targetOpenReportsCount = normalizeMediaCount(comment.openReportsCount);
-      } else {
-        if (reporterUid !== ownerUid) {
-          throw new HttpsError(
-            'permission-denied',
-            'Somente o autor do vídeo pode denunciar uma avaliação específica.'
-          );
+        assertPublicApprovedVideo(video);
+
+        let targetAuthorUid: string | null = ownerUid;
+        let targetReportsCount = 0;
+        let targetOpenReportsCount = 0;
+        let reportedComment: VideoCommentDocument | null = null;
+
+        if (targetType === 'video') {
+          if (reporterUid === ownerUid) {
+            throw new HttpsError(
+              'failed-precondition',
+              'Você não pode denunciar o próprio vídeo.'
+            );
+          }
+
+          if (!publicationSnap?.exists) {
+            throw new HttpsError(
+              'failed-precondition',
+              'A publicação deste vídeo não está disponível para moderação.'
+            );
+          }
+        } else if (targetType === 'video_comment') {
+          if (!targetSnap?.exists || !targetRef) {
+            throw new HttpsError('not-found', 'Comentário não encontrado.');
+          }
+
+          const comment = targetSnap.data() as VideoCommentDocument;
+          targetAuthorUid = cleanId(comment.authorUid);
+
+          if (comment.status !== 'VISIBLE' || !targetAuthorUid) {
+            throw new HttpsError(
+              'failed-precondition',
+              'Comentário indisponível para denúncia.'
+            );
+          }
+
+          if (reporterUid === targetAuthorUid) {
+            throw new HttpsError(
+              'failed-precondition',
+              'Você não pode denunciar o próprio comentário.'
+            );
+          }
+
+          reportedComment = comment;
+          targetReportsCount = normalizeMediaCount(comment.reportsCount);
+          targetOpenReportsCount = normalizeMediaCount(comment.openReportsCount);
+        } else {
+          if (reporterUid !== ownerUid) {
+            throw new HttpsError(
+              'permission-denied',
+              'Somente o autor do vídeo pode denunciar uma avaliação específica.'
+            );
+          }
+
+          if (!targetSnap?.exists || !targetRef) {
+            throw new HttpsError('not-found', 'Avaliação não encontrada.');
+          }
+
+          const rating = targetSnap.data() as VideoRatingDocument;
+          targetAuthorUid = cleanId(rating.uid) || targetId;
+          targetReportsCount = normalizeMediaCount(rating.reportsCount);
+          targetOpenReportsCount = normalizeMediaCount(rating.openReportsCount);
         }
 
-        if (!targetSnap?.exists || !targetRef) {
-          throw new HttpsError('not-found', 'Avaliação não encontrada.');
+        const safetyState = buildMediaReportSafetyState(video, 'OPEN');
+        const quarantine = targetType === 'video' &&
+          shouldQuarantineMediaAfterReport(reason, safetyState.openReportsCount);
+        const binaryEvidenceRequired = targetType === 'video' &&
+          shouldPreserveMediaEvidence(reason);
+        const textEvidenceRequired = targetType === 'video_comment';
+        const evidenceRequired = binaryEvidenceRequired || textEvidenceRequired;
+        const nextScore = buildMediaEngagementScore({
+          reactionsCount: normalizeMediaCount(
+            video.reactionsCount ?? video.likesCount
+          ),
+          commentsCount: normalizeMediaCount(video.commentsCount),
+          ratingsCount: normalizeMediaCount(video.ratingsCount),
+          ratingAverage: Number(video.ratingAverage ?? 0),
+          currentBreakdown: {
+            ...video.scoreBreakdown,
+            safetyScore: safetyState.safetyScore,
+          },
+        });
+        const timestamp = FieldValue.serverTimestamp();
+
+        transaction.create(reportRef, {
+          reporterUid,
+          targetType,
+          targetId,
+          parentTargetId: videoId,
+          targetOwnerUid: ownerUid,
+          targetAuthorUid,
+          reason,
+          details,
+          route,
+          status: 'open',
+          moderationAction: null,
+          contentQuarantined: quarantine,
+          evidencePreservationStatus: binaryEvidenceRequired
+            ? 'PENDING'
+            : textEvidenceRequired
+              ? 'PRESERVED'
+              : 'NOT_REQUIRED',
+          source: 'web',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+
+        if (reportedComment && targetAuthorUid) {
+          preserveModerationTextEvidenceInTransaction(transaction, {
+            reportId,
+            ownerUid,
+            parentMediaId: videoId,
+            targetId,
+            targetAuthorUid,
+            reason,
+            content: String(reportedComment.content ?? ''),
+            contentCreatedAt: reportedComment.createdAt,
+            parentTargetId: reportedComment.parentCommentId ?? null,
+          });
         }
 
-        const rating = targetSnap.data() as VideoRatingDocument;
-        targetAuthorUid = cleanId(rating.uid) || targetId;
-        targetReportsCount = normalizeMediaCount(rating.reportsCount);
-        targetOpenReportsCount = normalizeMediaCount(rating.openReportsCount);
-      }
-
-      const safetyState = buildVideoReportSafetyState(video, 'OPEN');
-      const nextScore = buildMediaEngagementScore({
-        reactionsCount: normalizeMediaCount(
-          video.reactionsCount ?? video.likesCount
-        ),
-        commentsCount: normalizeMediaCount(video.commentsCount),
-        ratingsCount: normalizeMediaCount(video.ratingsCount),
-        ratingAverage: Number(video.ratingAverage ?? 0),
-        currentBreakdown: {
-          ...video.scoreBreakdown,
+        transaction.update(publicVideoRef, {
+          reportsCount: safetyState.reportsCount,
+          openReportsCount: safetyState.openReportsCount,
+          confirmedReportsCount: safetyState.confirmedReportsCount,
           safetyScore: safetyState.safetyScore,
-        },
-      });
-      const timestamp = FieldValue.serverTimestamp();
-
-      transaction.create(reportRef, {
-        reporterUid,
-        targetType,
-        targetId,
-        parentTargetId: videoId,
-        targetOwnerUid: ownerUid,
-        targetAuthorUid,
-        reason,
-        details,
-        route,
-        status: 'open',
-        moderationAction: null,
-        source: 'web',
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
-
-      transaction.update(publicVideoRef, {
-        reportsCount: safetyState.reportsCount,
-        openReportsCount: safetyState.openReportsCount,
-        confirmedReportsCount: safetyState.confirmedReportsCount,
-        safetyScore: safetyState.safetyScore,
-        score: nextScore.score,
-        scoreBreakdown: nextScore.scoreBreakdown,
-        updatedAt: Date.now(),
-      });
-
-      if (targetRef) {
-        transaction.update(targetRef, {
-          reportsCount: targetReportsCount + 1,
-          openReportsCount: targetOpenReportsCount + 1,
+          score: nextScore.score,
+          scoreBreakdown: nextScore.scoreBreakdown,
+          ...(quarantine
+            ? {
+              moderationStatus: 'HIDDEN',
+              moderationReason: QUARANTINE_REASON,
+            }
+            : {}),
           updatedAt: Date.now(),
         });
-      }
-    });
 
-    return { reportId };
+        if (quarantine && publicationSnap?.exists) {
+          transaction.set(
+            publicationRef,
+            {
+              isPublished: true,
+              publishWhenReady: false,
+              visibility: 'PUBLIC',
+              moderationStatus: 'FLAGGED',
+              moderationReason: QUARANTINE_REASON,
+              updatedAt: Date.now(),
+            },
+            { merge: true }
+          );
+        }
+
+        if (targetRef) {
+          transaction.update(targetRef, {
+            reportsCount: targetReportsCount + 1,
+            openReportsCount: targetOpenReportsCount + 1,
+            updatedAt: Date.now(),
+          });
+        }
+
+        const publication = publicationSnap?.exists
+          ? publicationSnap.data() as VideoPublicationDocument
+          : null;
+
+        return {
+          publishedStoragePath:
+            String(publication?.publishedStoragePath ?? '').trim() || null,
+          quarantine,
+          evidenceRequired,
+          binaryEvidenceRequired,
+        };
+      }
+    );
+
+    if (result.binaryEvidenceRequired) {
+      await queueModerationEvidencePreservation({
+        reportId,
+        mediaType: 'VIDEO',
+        ownerUid,
+        mediaId: videoId,
+        reason,
+        sourceStoragePath: result.publishedStoragePath,
+      });
+    }
+
+    return {
+      reportId,
+      contentQuarantined: result.quarantine,
+      evidencePreservationRequired: result.evidenceRequired,
+    };
   }
 );

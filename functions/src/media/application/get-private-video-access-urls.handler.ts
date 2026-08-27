@@ -3,6 +3,11 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
+import {
+  normalizePrivateVideoAccessMode,
+  shouldIssuePrivateVideoPlaybackAccess,
+  type PrivateVideoAccessMode,
+} from './private-video-access-mode';
 import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 import {
   extractOwnedPrivateVideoPathForId,
@@ -13,13 +18,14 @@ import {
 interface PrivateVideoAccessRequest {
   ownerUid?: string;
   videoIds?: string[];
+  mode?: PrivateVideoAccessMode;
 }
 
 interface PrivateVideoAccessResponseItem {
   videoId: string;
-  url: string;
+  url: string | null;
   posterUrl: string | null;
-  playbackPath: string;
+  playbackPath: string | null;
   posterPath: string | null;
   expiresAt: number;
 }
@@ -51,20 +57,46 @@ function cleanId(value: unknown): string {
   return normalized;
 }
 
-async function resolveAccessItem(
+async function resolvePosterAccess(
   ownerUid: string,
   videoId: string,
+  video: PrivateVideoDocument,
   expiresAt: number
-): Promise<PrivateVideoAccessResponseItem | null> {
-  const videoSnap = await db
-    .doc(`users/${ownerUid}/videos/${videoId}`)
-    .get();
+): Promise<{ posterUrl: string | null; posterPath: string | null }> {
+  const posterPath =
+    extractOwnedPrivateVideoPosterPath(
+      ownerUid,
+      videoId,
+      video.thumbnailPath
+    ) ??
+    extractOwnedPrivateVideoPosterPath(
+      ownerUid,
+      videoId,
+      video.thumbnailUrl
+    );
 
-  if (!videoSnap.exists) {
-    return null;
+  if (!posterPath) {
+    return { posterUrl: null, posterPath: null };
   }
 
-  const video = videoSnap.data() as PrivateVideoDocument;
+  const posterFile = storage.bucket().file(posterPath);
+  const [posterExists] = await posterFile.exists();
+
+  if (!posterExists) {
+    return { posterUrl: null, posterPath };
+  }
+
+  return {
+    posterUrl: await createTemporaryStorageReadUrl(posterPath, expiresAt),
+    posterPath,
+  };
+}
+
+async function resolvePlaybackPath(
+  ownerUid: string,
+  videoId: string,
+  video: PrivateVideoDocument
+): Promise<string | null> {
   const rawPath =
     extractOwnedPrivateVideoPathForId(ownerUid, videoId, video.path) ??
     extractOwnedPrivateVideoPathForId(ownerUid, videoId, video.url);
@@ -79,30 +111,15 @@ async function resolveAccessItem(
       videoId,
       video.playbackPath
     );
-  let playbackPath = rawPath;
-
-  if (
-    String(video.status ?? '').trim().toLowerCase() === 'ready' &&
-    processedPath
-  ) {
-    playbackPath = processedPath;
-  }
+  const playbackPath =
+    String(video.status ?? '').trim().toLowerCase() === 'ready' && processedPath
+      ? processedPath
+      : rawPath;
 
   if (!playbackPath) {
     return null;
   }
 
-  const posterPath =
-    extractOwnedPrivateVideoPosterPath(
-      ownerUid,
-      videoId,
-      video.thumbnailPath
-    ) ??
-    extractOwnedPrivateVideoPosterPath(
-      ownerUid,
-      videoId,
-      video.thumbnailUrl
-    );
   const playbackFile = storage.bucket().file(playbackPath);
   const [playbackExists] = await playbackFile.exists();
 
@@ -110,23 +127,54 @@ async function resolveAccessItem(
     throw new Error('O arquivo privado do vídeo não foi encontrado.');
   }
 
-  let posterUrl: string | null = null;
+  return playbackPath;
+}
 
-  if (posterPath) {
-    const posterFile = storage.bucket().file(posterPath);
-    const [posterExists] = await posterFile.exists();
+async function resolveAccessItem(
+  ownerUid: string,
+  videoId: string,
+  expiresAt: number,
+  mode: PrivateVideoAccessMode
+): Promise<PrivateVideoAccessResponseItem | null> {
+  const videoSnap = await db
+    .doc(`users/${ownerUid}/videos/${videoId}`)
+    .get();
 
-    if (posterExists) {
-      posterUrl = await createTemporaryStorageReadUrl(posterPath, expiresAt);
-    }
+  if (!videoSnap.exists) {
+    return null;
+  }
+
+  const video = videoSnap.data() as PrivateVideoDocument;
+  const posterAccess = await resolvePosterAccess(
+    ownerUid,
+    videoId,
+    video,
+    expiresAt
+  );
+
+  if (!shouldIssuePrivateVideoPlaybackAccess(mode)) {
+    return {
+      videoId,
+      url: null,
+      posterUrl: posterAccess.posterUrl,
+      playbackPath: null,
+      posterPath: posterAccess.posterPath,
+      expiresAt,
+    };
+  }
+
+  const playbackPath = await resolvePlaybackPath(ownerUid, videoId, video);
+
+  if (!playbackPath) {
+    return null;
   }
 
   return {
     videoId,
     url: await createTemporaryStorageReadUrl(playbackPath, expiresAt),
-    posterUrl,
+    posterUrl: posterAccess.posterUrl,
     playbackPath,
-    posterPath,
+    posterPath: posterAccess.posterPath,
     expiresAt,
   };
 }
@@ -136,6 +184,7 @@ export const getPrivateVideoAccessUrls = onCall<PrivateVideoAccessRequest>(
   async (request): Promise<PrivateVideoAccessResponse> => {
     const requesterUid = cleanId(request.auth?.uid);
     const ownerUid = cleanId(request.data?.ownerUid);
+    const mode = normalizePrivateVideoAccessMode(request.data?.mode);
 
     if (!requesterUid) {
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
@@ -165,13 +214,14 @@ export const getPrivateVideoAccessUrls = onCall<PrivateVideoAccessRequest>(
       videoIds.map(async (videoId) => {
         try {
           return {
-            item: await resolveAccessItem(ownerUid, videoId, expiresAt),
+            item: await resolveAccessItem(ownerUid, videoId, expiresAt, mode),
             technicalFailure: false,
           };
         } catch (error) {
           logger.warn('[getPrivateVideoAccessUrls] Falha ao gerar acesso.', {
             ownerUid,
             videoId,
+            mode,
             error: error instanceof Error
               ? error.message
               : String(error ?? ''),
@@ -194,7 +244,9 @@ export const getPrivateVideoAccessUrls = onCall<PrivateVideoAccessRequest>(
     if (!items.length && technicalFailureCount > 0) {
       throw new HttpsError(
         'internal',
-        'Não foi possível liberar seus vídeos neste momento.'
+        mode === 'PREVIEW'
+          ? 'Não foi possível carregar as capas dos vídeos neste momento.'
+          : 'Não foi possível liberar seus vídeos neste momento.'
       );
     }
 

@@ -14,7 +14,8 @@
 .public-profiles__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(236px, 1fr));
-  align-items: start;
+  grid-auto-rows: 1fr;
+  align-items: stretch;
   gap: clamp(0.7rem, 1.2vw, 1rem);
   width: 100%;
   min-width: 0;
@@ -22,8 +23,10 @@
 
 .public-profiles__item {
   display: block;
+  align-self: stretch;
   justify-self: center;
   width: 100%;
+  height: 100%;
   max-width: 300px;
   min-width: 0;
 }
@@ -116,7 +119,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.6rem;
+  min-height: 44px;
   border: 1px solid color-mix(in oklab, var(--primary-color) 32%, var(--surface-border));
   border-radius: 0.75rem;
   background: transparent;
@@ -242,10 +245,12 @@
 @media (max-width: 470px) {
   .public-profiles__grid {
     grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
     gap: 0.8rem;
   }
 
   .public-profiles__item {
+    height: auto;
     max-width: 100%;
   }
 

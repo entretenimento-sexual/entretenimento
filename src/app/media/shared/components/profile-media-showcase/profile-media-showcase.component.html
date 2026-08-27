@@ -106,7 +106,7 @@
               (click)="openMedia(item, index)"
               [disabled]="viewerOpening()"
               [attr.aria-busy]="viewerOpening() ? 'true' : 'false'"
-              [attr.aria-label]="getMediaAriaLabel(item, index, state.items.length)"
+              [attr.aria-label]="getMediaAriaLabel(item, index, state.totalCount)"
             >
               @if (isVideo(item)) {
                 @if (item.posterUrl) {
@@ -145,12 +145,12 @@
                 />
               }
 
-              @if (index === 4 && remainingCount(state.items.length) > 0) {
+              @if (index === 4 && remainingCount(state.totalCount) > 0) {
                 <span
                   class="profile-media-showcase__remaining"
                   aria-hidden="true"
                 >
-                  +{{ remainingCount(state.items.length) }}
+                  +{{ remainingCount(state.totalCount) }}
                 </span>
               }
             </button>

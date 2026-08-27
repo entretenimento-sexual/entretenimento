@@ -26,6 +26,7 @@ const PROJECT_ID = 'demo-entretenimento-rules';
 const FIRESTORE_HOST = '127.0.0.1';
 const FIRESTORE_PORT = 8180;
 const UID = 'public-profile-user';
+const IDENTITY_CATALOG_VERSION = 1;
 
 let testEnv: RulesTestEnvironment;
 
@@ -40,6 +41,9 @@ function privateUser(
     publicVisibility: 'visible',
     interactionBlocked: false,
     loginAllowed: true,
+    gender: 'mulher',
+    declaredIdentityCode: 'mulher',
+    identityCatalogVersion: IDENTITY_CATALOG_VERSION,
     acceptedTerms: {
       accepted: true,
       version: 'v3',
@@ -57,6 +61,8 @@ function publicProfile(): Record<string, unknown> {
     nickname: 'Pessoa Segura',
     nicknameNormalized: 'pessoa_segura',
     gender: 'mulher',
+    identityCode: 'mulher',
+    identityCatalogVersion: IDENTITY_CATALOG_VERSION,
     orientation: 'bissexual',
     estado: 'RJ',
     municipio: 'Rio de Janeiro',
@@ -130,6 +136,19 @@ describe('Firestore Rules / public profile eligibility', () => {
 
     await assertSucceeds(
       setDoc(doc(db, 'public_profiles', UID), publicProfile())
+    );
+  });
+
+  it('nega projeção pública que diverge da identidade declarada', async () => {
+    await seedUser();
+    const db = authenticatedDb();
+
+    await assertFails(
+      setDoc(doc(db, 'public_profiles', UID), {
+        ...publicProfile(),
+        gender: 'homem',
+        identityCode: 'homem',
+      })
     );
   });
 

@@ -23,6 +23,10 @@ import {
   tap,
 } from 'rxjs/operators';
 
+import {
+  SELECTABLE_PROFILE_IDENTITY_OPTIONS,
+  isCoupleProfileIdentityCode,
+} from 'src/app/core/domain/profile-identity/profile-identity.catalog';
 import { UnsavedChangesAware } from 'src/app/core/guards/unsaved-changes/unsaved-changes.guard';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
@@ -30,7 +34,14 @@ import { LocalDraftService } from 'src/app/core/services/drafts/local-draft.serv
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ValidatorService } from 'src/app/core/services/general/validator.service';
+import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
+import {
+  MEDIA_IMAGE_ACCEPT,
+  MEDIA_IMAGE_FORMAT_LABEL,
+  resolveImageMaxBytes,
+  validateImageMediaFile,
+} from 'src/app/core/services/media/media-format.policy';
 import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 
 type IbgeEstado = {
@@ -42,11 +53,6 @@ type IbgeEstado = {
 type IbgeMunicipio = {
   id: number;
   nome: string;
-};
-
-type GenderOption = {
-  value: string;
-  label: string;
 };
 
 type ProfileDraft = Record<string, string>;
@@ -79,23 +85,22 @@ export class EditUserProfileComponent
   estados: IbgeEstado[] = [];
   municipios: IbgeMunicipio[] = [];
 
+  isEditingPhoto = false;
   isUploading = false;
   isSaving = false;
+
+  readonly imageAccept = MEDIA_IMAGE_ACCEPT;
+  readonly imageFormatLabel = MEDIA_IMAGE_FORMAT_LABEL;
+  readonly avatarMaxMegabytes = resolveImageMaxBytes('avatar') / 1024 / 1024;
 
   private readonly destroy$ = new Subject<void>();
   private draftReady = false;
   private draftKey = '';
 
-  readonly genderOptions: GenderOption[] = [
-    { value: 'homem', label: 'Homem' },
-    { value: 'mulher', label: 'Mulher' },
-    { value: 'casal-ele-ele', label: 'Casal (Ele/Ele)' },
-    { value: 'casal-ele-ela', label: 'Casal (Ele/Ela)' },
-    { value: 'casal-ela-ela', label: 'Casal (Ela/Ela)' },
-    { value: 'travesti', label: 'Travesti' },
-    { value: 'transexual', label: 'Transexual' },
-    { value: 'crossdressers', label: 'Crossdressers' },
-  ];
+  readonly genderOptions = SELECTABLE_PROFILE_IDENTITY_OPTIONS.map((option) => ({
+    value: option.code,
+    label: option.label,
+  }));
 
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
@@ -103,6 +108,7 @@ export class EditUserProfileComponent
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly formBuilder: FormBuilder,
+    private readonly photoEditor: PhotoEditorLauncherService,
     private readonly storageService: StorageService,
     private readonly localDraft: LocalDraftService,
     private readonly notify: ErrorNotificationService,
@@ -124,12 +130,7 @@ export class EditUserProfileComponent
     const gender = String(
       this.editForm.get('gender')?.value ?? this.userData.gender ?? ''
     );
-
-    return [
-      'casal-ele-ele',
-      'casal-ele-ela',
-      'casal-ela-ela',
-    ].includes(gender);
+    return isCoupleProfileIdentityCode(gender);
   }
 
   ngOnInit(): void {
@@ -257,32 +258,59 @@ export class EditUserProfileComponent
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
+    const file = input.files?.[0] ?? null;
+    input.value = '';
     if (file) this.uploadFile(file);
   }
 
   uploadFile(file: File): void {
-    if (!this.uid || this.isUploading) return;
+    if (!this.uid || this.isUploading || this.isEditingPhoto) return;
+
+    const validation = validateImageMediaFile(file, 'avatar');
+    if (!validation.valid) {
+      this.notify.showError(
+        validation.userMessage ?? 'A foto de perfil selecionada não é válida.'
+      );
+      return;
+    }
 
     this.progressValue = 0;
-    this.isUploading = true;
+    this.isEditingPhoto = true;
 
-    this.storageService
-      .uploadProfileAvatar(file, this.uid, (progress: number) => {
-        this.progressValue = progress;
+    this.photoEditor
+      .editFile$(file, {
+        source: 'profile-avatar',
+        context: 'profile-avatar',
+        preset: 'avatar-square',
       })
       .pipe(
-        tap((imageUrl: string) => {
-          this.userData = { ...this.userData, photoURL: imageUrl };
+        take(1),
+        switchMap((result) => {
+          if (!result) {
+            return EMPTY;
+          }
+
+          const processedValidation = validateImageMediaFile(
+            result.file,
+            'avatar'
+          );
+          if (!processedValidation.valid) {
+            this.notify.showError(
+              processedValidation.userMessage ?? 'A foto de perfil editada não é válida.'
+            );
+            return EMPTY;
+          }
+
+          return this.uploadProcessedAvatar$(result.file);
         }),
         catchError((error) =>
           this.handleError$(
             error,
-            'uploadProfileAvatar',
-            'Erro durante o upload da foto.'
+            'prepareProfileAvatar',
+            'Não foi possível preparar a foto de perfil.'
           )
         ),
-        finalize(() => (this.isUploading = false)),
+        finalize(() => (this.isEditingPhoto = false)),
         takeUntil(this.destroy$)
       )
       .subscribe();
@@ -295,9 +323,11 @@ export class EditUserProfileComponent
   onSubmit(): void {
     if (this.isSaving) return;
 
-    if (this.isUploading) {
+    if (this.isEditingPhoto || this.isUploading) {
       this.notify.showError(
-        'Aguarde o upload da foto terminar antes de salvar.'
+        this.isEditingPhoto
+          ? 'Conclua ou cancele a edição da foto antes de salvar.'
+          : 'Aguarde o upload da foto terminar antes de salvar.'
       );
       return;
     }
@@ -354,6 +384,29 @@ export class EditUserProfileComponent
             .catch(() => undefined);
         },
       });
+  }
+
+  private uploadProcessedAvatar$(file: File): Observable<string> {
+    this.progressValue = 0;
+    this.isUploading = true;
+
+    return this.storageService
+      .uploadProfileAvatar(file, this.uid, (progress: number) => {
+        this.progressValue = progress;
+      })
+      .pipe(
+        tap((imageUrl: string) => {
+          this.userData = { ...this.userData, photoURL: imageUrl };
+        }),
+        catchError((error) =>
+          this.handleError$(
+            error,
+            'uploadProfileAvatar',
+            'Erro durante o upload da foto.'
+          )
+        ),
+        finalize(() => (this.isUploading = false))
+      );
   }
 
   private initializeDraftState(): void {
@@ -418,11 +471,7 @@ export class EditUserProfileComponent
   }
 
   private syncOrientationControls(gender: string): void {
-    const isCouple = [
-      'casal-ele-ele',
-      'casal-ele-ela',
-      'casal-ela-ela',
-    ].includes(gender);
+    const isCouple = isCoupleProfileIdentityCode(gender);
 
     const orientation = this.editForm.get('orientation')!;
     const partner1 = this.editForm.get('partner1Orientation')!;

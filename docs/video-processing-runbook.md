@@ -6,18 +6,23 @@ não deve ser publicado antes da validação no ambiente de staging.
 ## Arquitetura
 
 ```text
-upload privado
+upload protegido
   -> registro backend
   -> media_video_processing_jobs
   -> Google Cloud Transcoder
   -> users/{uid}/processed/videos/{videoId}/{version}/
-  -> revisão administrativa
   -> cópia publicada controlada
 ```
 
-O original bruto permanece privado. Visitantes nunca recebem seu path ou URL.
-Somente um derivado confirmado como MP4 ou WebM pode ser copiado para o
+O arquivo-fonte bruto permanece protegido. Visitantes nunca recebem seu path ou
+URL. Somente um derivado confirmado como MP4 ou WebM pode ser copiado para o
 namespace publicado.
+
+A conclusão técnica do processamento publica o vídeo sem exigir aprovação humana
+prévia. Moderação de conteúdo é um fluxo separado e orientado por denúncias:
+denúncias válidas entram em `moderation_reports`; casos que atingem os critérios
+de segurança podem ser colocados em quarentena enquanto a moderação decide entre
+manter ou remover o conteúdo.
 
 ## Pré-requisitos do projeto Google Cloud
 
@@ -59,8 +64,8 @@ não consulta o projeto real e apresenta o estado `Emulator`.
 
 ## Diagnóstico administrativo
 
-A rota administrativa de moderação de vídeos apresenta um painel de diagnóstico
-atualizado a cada minuto. O painel consulta a callable:
+A rota administrativa de vídeos apresenta um painel de diagnóstico atualizado a
+cada minuto. O painel consulta a callable:
 
 ```text
 getVideoProcessingOperationalStatus
@@ -133,7 +138,7 @@ CANCEL_REQUESTED
 CANCELLED
 ```
 
-O documento privado apresenta ao usuário os estados reduzidos:
+O documento do vídeo apresenta ao usuário os estados reduzidos:
 
 ```text
 queued
@@ -158,10 +163,14 @@ failed
 - exclusão durante processamento testada;
 - derivado confirmado como reproduzível em Chrome, Firefox, Safari e Edge;
 - publicação bloqueada enquanto não houver `processedStoragePath`;
-- moderação aprovada e rejeitada testadas;
+- publicação automática testada sem fila de aprovação humana;
+- denúncia testada com entrada em `moderation_reports`;
+- quarentena por risco e decisões `KEEP`/`REMOVE` testadas;
 - custos e quotas do Transcoder acompanhados.
 
 ## Observação de segurança
 
-Não habilitar `MEDIA_AUTO_APPROVE_VIDEOS=true` em produção. Processamento técnico
-não substitui moderação humana de conteúdo.
+Processamento técnico e moderação são responsabilidades distintas. O vídeo que
+passa pelo processamento normal é publicado; denúncias e sinais de risco são
+tratados pelo fluxo de moderação, que pode manter, colocar em quarentena ou
+remover conteúdo conforme a decisão registrada.

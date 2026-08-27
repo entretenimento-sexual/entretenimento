@@ -22,4 +22,9 @@ describe('normalizeCommunityCreateResult', () => {
       })
     ).toBeNull();
   });
+
+  it('rejeita resposta sem identificador canônico', () => {
+    expect(normalizeCommunityCreateResult({ created: true })).toBeNull();
+    expect(normalizeCommunityCreateResult(null)).toBeNull();
+  });
 });

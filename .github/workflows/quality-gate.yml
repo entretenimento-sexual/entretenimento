@@ -118,6 +118,40 @@ jobs:
           set -o pipefail
           npm --prefix functions ci 2>&1 | tee logs/functions-install.log
 
+      - name: Audit Functions production dependencies
+        shell: bash
+        run: |
+          set -o pipefail
+          npm --prefix functions audit --omit=dev --audit-level=moderate \
+            2>&1 | tee logs/functions-audit-prod.log
+
+      - name: Report Functions development dependency audit
+        shell: bash
+        run: |
+          npm --prefix functions audit --json > logs/functions-audit-all.json || true
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(
+            fs.readFileSync('logs/functions-audit-all.json', 'utf8')
+          );
+          const counts = report.metadata?.vulnerabilities ?? {};
+          console.log(
+            'Functions all-dependencies audit:',
+            JSON.stringify(counts)
+          );
+          for (const vulnerability of Object.values(report.vulnerabilities ?? {})) {
+            console.log(JSON.stringify({
+              name: vulnerability.name,
+              severity: vulnerability.severity,
+              isDirect: vulnerability.isDirect,
+              via: (vulnerability.via ?? []).map((entry) =>
+                typeof entry === 'string' ? entry : entry.name
+              ),
+              fixAvailable: vulnerability.fixAvailable,
+            }));
+          }
+          NODE
+
       - name: Lint Functions
         shell: bash
         run: |

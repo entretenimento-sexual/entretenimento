@@ -7,6 +7,7 @@ import {
   distinctUntilChanged,
   map,
   shareReplay,
+  switchMap,
 } from 'rxjs/operators';
 
 import {
@@ -16,6 +17,8 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { buildPublicMediaAccessCacheKey } from './public-media-access-cache-key';
+import { PublicPhotoOwnerEnrichmentService } from './public-photo-owner-enrichment.service';
 
 interface PublicPhotoAccessRequestItem {
   ownerUid: string;
@@ -49,6 +52,7 @@ const CACHE_EXPIRY_SAFETY_MS = 30_000;
 export class PublicPhotoAccessService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly functions = inject(Functions);
+  private readonly ownerEnrichment = inject(PublicPhotoOwnerEnrichmentService);
   private readonly accessCache = new Map<
     string,
     PublicPhotoAccessCacheEntry
@@ -80,6 +84,14 @@ export class PublicPhotoAccessService {
   }
 
   hydratePublicPhotoUrls$(
+    projections: readonly IPublicPhotoProjection[]
+  ): Observable<IPublicPhotoItem[]> {
+    return this.ownerEnrichment.enrich$(projections).pipe(
+      switchMap((enriched) => this.hydrateAccess$(enriched))
+    );
+  }
+
+  private hydrateAccess$(
     projections: readonly IPublicPhotoProjection[]
   ): Observable<IPublicPhotoItem[]> {
     const eligible = projections.filter((projection) =>
@@ -219,15 +231,13 @@ export class PublicPhotoAccessService {
   }
 
   private buildCacheKey(projection: IPublicPhotoProjection): string {
-    const version = this.toMillis(projection.updatedAt) ||
-      this.toMillis(projection.publishedAt);
-
-    return [
-      'public-photo-access',
-      projection.ownerUid,
-      projection.id,
-      String(version),
-    ].join(':');
+    return buildPublicMediaAccessCacheKey({
+      namespace: 'public-photo-access',
+      ownerUid: projection.ownerUid,
+      mediaId: projection.id,
+      assetVersion: projection.assetVersion,
+      publishedAt: projection.publishedAt,
+    });
   }
 
   private buildIdentityKey(ownerUid: string, photoId: string): string {
@@ -246,24 +256,6 @@ export class PublicPhotoAccessService {
 
   private isHttpUrl(value: string): boolean {
     return /^https?:\/\//i.test(String(value ?? '').trim());
-  }
-
-  private toMillis(value: unknown): number {
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-
-    if (value instanceof Date) {
-      return value.getTime();
-    }
-
-    const maybeTimestamp = value as {
-      toMillis?: () => number;
-    } | null | undefined;
-
-    return typeof maybeTimestamp?.toMillis === 'function'
-      ? maybeTimestamp.toMillis()
-      : 0;
   }
 
   private reportError(

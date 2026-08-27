@@ -4,10 +4,12 @@
 // Denúncias privadas de usuários autenticados.
 //
 // Decisões:
-// - usuário autenticado pode criar denúncia própria para alvos legados;
-// - vídeo, comentário e avaliação exigem Callable com validação do alvo;
+// - usuário autenticado pode criar denúncia própria apenas para alvos legados;
+// - foto, vídeo, conteúdo comunitário e suas respostas exigem Callable com
+//   validação do alvo, rate limit e política de preservação quando aplicável;
 // - usuário comum não lê a fila de denúncias;
-// - admin pode ler/listar e atualizar status;
+// - admin pode ler/listar e assumir uma denúncia como reviewing;
+// - decisões finais KEEP/REMOVE de mídia/conteúdo comunitário passam pelo backend;
 // - cliente comum não edita nem apaga denúncia depois de enviada.
 // =========================================================================
 
@@ -18,6 +20,8 @@ match /moderation_reports/{reportId} {
       "targetType",
       "targetId",
       "parentTargetId",
+      "grandparentTargetId",
+      "containerTargetId",
       "targetOwnerUid",
       "targetAuthorUid",
       "reason",
@@ -53,15 +57,34 @@ match /moderation_reports/{reportId} {
       "room",
       "status",
       "venue",
+      "community_feed_post",
+      "community_feed_comment",
+      "community_feed_comment_reply",
       "other"
     ];
   }
 
   function isCallableOnlyTarget() {
     return request.resource.data.targetType in [
+      "photo",
       "video",
       "video_comment",
-      "video_rating"
+      "video_rating",
+      "community_feed_post",
+      "community_feed_comment",
+      "community_feed_comment_reply"
+    ];
+  }
+
+  function isExistingCallableOnlyTarget() {
+    return resource.data.targetType in [
+      "photo",
+      "video",
+      "video_comment",
+      "video_rating",
+      "community_feed_post",
+      "community_feed_comment",
+      "community_feed_comment_reply"
     ];
   }
 
@@ -88,6 +111,17 @@ match /moderation_reports/{reportId} {
     ];
   }
 
+  function validMediaAdminReviewTransition() {
+    return !isExistingCallableOnlyTarget()
+      || (
+        resource.data.status in ["open", "reviewing"]
+        && request.resource.data.status == "reviewing"
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          "moderationAction"
+        ])
+      );
+  }
+
   function validCreatePayload() {
     return signedIn()
       && allowedCreateKeys()
@@ -100,6 +134,8 @@ match /moderation_reports/{reportId} {
       && validTargetType()
       && validReason()
       && optString("parentTargetId")
+      && optString("grandparentTargetId")
+      && optString("containerTargetId")
       && optString("targetOwnerUid")
       && optString("targetAuthorUid")
       && optString("details")
@@ -113,6 +149,7 @@ match /moderation_reports/{reportId} {
     return isAdmin()
       && allowedAdminUpdateKeys()
       && validStatus()
+      && validMediaAdminReviewTransition()
       && optString("moderationAction")
       && optString("reviewedBy")
       && optTimestamp("reviewedAt")

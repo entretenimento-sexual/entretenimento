@@ -52,7 +52,11 @@ function buildPendingLegalNoticeBody(): string {
 }
 
 export const ensureCurrentLegalNotice = onCall(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    cors: true,
+    invoker: 'public',
+  },
   async (request): Promise<{
     required: boolean;
     noticeCreated: boolean;

@@ -2,7 +2,11 @@
 @if (state$ | async; as state) {
   <main class="community-preview">
     <nav class="community-preview__topbar" aria-label="Navegação do espaço">
-      <a [routerLink]="backRoute" aria-label="Voltar para a lista anterior">
+      <a
+        [routerLink]="returnRoute()"
+        [queryParams]="returnQueryParams()"
+        aria-label="Voltar para a lista anterior"
+      >
         <i class="fas fa-arrow-left" aria-hidden="true"></i>
       </a>
     </nav>
@@ -16,11 +20,18 @@
       <div class="community-preview__state" role="alert">
         <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
         <span>Espaço indisponível.</span>
+        <button class="btn btn-secondary" type="button" (click)="retryPreview()">
+          Tentar novamente
+        </button>
       </div>
     } @else if (state.preview; as preview) {
       @if (membershipAction$ | async; as membershipAction) {
         <article class="community-preview__content">
-          <div class="community-preview__cover" aria-hidden="true">
+          <div
+            class="community-preview__cover"
+            [attr.data-visual-variant]="communityVisualVariant(preview.community)"
+            aria-hidden="true"
+          >
             @if (preview.community.coverUrl) {
               <img [src]="preview.community.coverUrl" alt="" appImageFallback />
             }
@@ -28,12 +39,11 @@
 
           <header class="community-preview__identity">
             <span class="community-preview__avatar" aria-hidden="true">
+              <span class="community-preview__avatar-fallback">
+                {{ communityInitials(preview.community) }}
+              </span>
               @if (preview.community.avatarUrl) {
                 <img [src]="preview.community.avatarUrl" alt="" appImageFallback />
-              } @else {
-                <i
-                  class="fas {{ preview.community.source.type === 'venue' ? 'fa-location-dot' : 'fa-user-group' }}"
-                ></i>
               }
             </span>
 
@@ -52,8 +62,11 @@
                     ) }}
                   </span>
                 }
-                @if (accessLabel(preview.community); as access) {
-                  <span>{{ access }}</span>
+                @if (
+                  preview.viewerMode === 'visitor'
+                  && preview.community.access.join !== 'invite_only'
+                ) {
+                  <span>{{ joinLabel(preview.community) }}</span>
                 }
               </div>
 
@@ -65,56 +78,91 @@
                 preview.viewerMode === 'visitor'
                 && preview.community.access.join !== 'invite_only'
               ) {
-                <button
-                  class="community-preview__membership-action"
-                  type="button"
-                  [disabled]="membershipAction.status === 'loading'"
-                  [attr.aria-label]="membershipActionLabel(preview.community) + ' ' + preview.community.name"
-                  (click)="requestMembership(preview.community)"
-                >
-                  @if (
-                    membershipAction.status === 'loading'
-                    && membershipAction.kind === 'request'
-                  ) {
-                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                  } @else {
-                    <i
-                      class="fas {{ preview.community.access.join === 'open' ? 'fa-user-plus' : 'fa-paper-plane' }}"
-                      aria-hidden="true"
-                    ></i>
-                  }
-                  <span>{{ membershipActionLabel(preview.community) }}</span>
-                </button>
+                @if (
+                  preview.community.source.type === 'community'
+                  && preview.capacity?.acceptingNewMembers === false
+                ) {
+                  <span class="community-preview__membership-state" role="status">
+                    <i class="fas fa-users-slash" aria-hidden="true"></i>
+                    <span>Entradas pausadas</span>
+                  </span>
+                } @else {
+                  <button
+                    class="community-preview__membership-action"
+                    type="button"
+                    [disabled]="membershipAction.status === 'loading'"
+                    [attr.aria-label]="membershipActionLabel(preview.community) + ' ' + preview.community.name"
+                    [attr.aria-describedby]="
+                      preview.community.source.type === 'community'
+                      && preview.rules
+                      && activeSection() !== 'about'
+                        ? 'community-preview-rules-before-entry-copy'
+                        : null
+                    "
+                    (click)="requestMembership(preview.community)"
+                  >
+                    @if (
+                      membershipAction.status === 'loading'
+                      && membershipAction.kind === 'request'
+                    ) {
+                      <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    } @else {
+                      <i
+                        class="fas {{ preview.community.access.join === 'open' ? 'fa-user-plus' : 'fa-paper-plane' }}"
+                        aria-hidden="true"
+                      ></i>
+                    }
+                    <span>{{ membershipActionLabel(preview.community) }}</span>
+                  </button>
+                }
+              } @else if (
+                preview.viewerMode === 'visitor'
+                && preview.community.access.join === 'invite_only'
+              ) {
+                <span class="community-preview__membership-state">
+                  <i class="fas fa-lock" aria-hidden="true"></i>
+                  <span>{{ joinLabel(preview.community) }}</span>
+                </span>
               } @else if (preview.viewerMode === 'pending') {
                 <span class="community-preview__membership-state" role="status">
                   <i class="fas fa-clock" aria-hidden="true"></i>
                   <span>Solicitação enviada</span>
                 </span>
 
-                <button
-                  class="community-preview__membership-leave-action"
-                  type="button"
-                  [disabled]="membershipAction.status === 'loading'"
-                  aria-label="Cancelar solicitação"
-                  (click)="leaveMembership(preview.community, preview.viewerMode)"
-                >
-                  @if (
-                    membershipAction.status === 'loading'
-                    && membershipAction.kind === 'leave'
-                  ) {
-                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                  } @else {
-                    <i class="fas fa-xmark" aria-hidden="true"></i>
-                  }
-                  <span>Cancelar</span>
-                </button>
-              } @else if (canLeave(preview.viewerMode)) {
+                @if (preview.canLeaveMembership) {
+                  <button
+                    class="community-preview__membership-leave-action"
+                    type="button"
+                    [disabled]="membershipAction.status === 'loading'"
+                    aria-label="Cancelar solicitação"
+                    (click)="leaveMembership(
+                      preview.community,
+                      preview.viewerMode,
+                      preview.viewerRole
+                    )"
+                  >
+                    @if (
+                      membershipAction.status === 'loading'
+                      && membershipAction.kind === 'leave'
+                    ) {
+                      <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    } @else {
+                      <i class="fas fa-xmark" aria-hidden="true"></i>
+                    }
+                    <span>Cancelar</span>
+                  </button>
+                }
+              } @else if (preview.canLeaveMembership) {
                 <button
                   class="community-preview__membership-leave-action"
                   type="button"
                   [disabled]="membershipAction.status === 'loading'"
                   [attr.aria-label]="'Sair de ' + preview.community.name"
-                  (click)="leaveMembership(preview.community, preview.viewerMode)"
+                  (click)="leaveMembership(
+                    preview.community,
+                    preview.viewerMode,
+                    preview.viewerRole
+                  )"
                 >
                   @if (
                     membershipAction.status === 'loading'
@@ -136,9 +184,72 @@
             </div>
           </header>
 
+          @if (
+            preview.community.source.type === 'community'
+            && (
+              lifecycleNotice(preview.lifecycleStatus)
+              || (
+                preview.rules
+                && (
+                  preview.viewerMode === 'visitor'
+                  || preview.viewerMode === 'pending'
+                )
+                && activeSection() !== 'about'
+              )
+            )
+          ) {
+            <div class="community-preview__context">
+              @if (lifecycleNotice(preview.lifecycleStatus); as notice) {
+                <section
+                  class="community-preview__lifecycle"
+                  [attr.data-lifecycle-status]="preview.lifecycleStatus"
+                  role="status"
+                  aria-labelledby="community-preview-lifecycle-title"
+                >
+                  <i class="fas {{ notice.icon }}" aria-hidden="true"></i>
+                  <div>
+                    <h2 id="community-preview-lifecycle-title">
+                      {{ notice.title }}
+                    </h2>
+                    <p>{{ notice.message }}</p>
+                  </div>
+                </section>
+              }
+
+              @if (
+                preview.rules
+                && (
+                  preview.viewerMode === 'visitor'
+                  || preview.viewerMode === 'pending'
+                )
+                && activeSection() !== 'about'
+              ) {
+                <section
+                  class="community-preview__rules community-preview__rules--before-entry"
+                  aria-labelledby="community-preview-rules-before-entry-title"
+                >
+                  <div class="community-preview__rules-heading">
+                    <i class="fas fa-scale-balanced" aria-hidden="true"></i>
+                    <div>
+                      <span>Leia antes de participar</span>
+                      <h2 id="community-preview-rules-before-entry-title">
+                        Regras da Comunidade
+                      </h2>
+                    </div>
+                  </div>
+                  <p id="community-preview-rules-before-entry-copy">
+                    {{ preview.rules }}
+                  </p>
+                </section>
+              }
+            </div>
+          }
+
           <nav
             class="community-preview__tabs"
-            [class.has-management]="canManage(preview.viewerMode)"
+            [class.has-topics]="preview.community.source.type === 'community'"
+            [class.has-management]="preview.canManageMemberships"
+            [class.has-invites]="preview.canInviteCommunityMembers"
             [attr.aria-label]="'Conteúdo do ' + sourceLabel(preview.community)"
           >
             <button
@@ -151,6 +262,19 @@
               <i class="fas fa-comments" aria-hidden="true"></i>
               <span>{{ preview.community.source.type === 'venue' ? 'Novidades' : 'Mural' }}</span>
             </button>
+
+            @if (preview.community.source.type === 'community') {
+              <button
+                id="community-tab-topics"
+                type="button"
+                [attr.aria-pressed]="activeSection() === 'topics'"
+                [class.is-active]="activeSection() === 'topics'"
+                (click)="selectSection('topics')"
+              >
+                <i class="fas fa-list-ul" aria-hidden="true"></i>
+                <span>Discussões</span>
+              </button>
+            }
 
             <button
               id="community-tab-photos"
@@ -174,7 +298,7 @@
               <span>Sobre</span>
             </button>
 
-            @if (canManage(preview.viewerMode)) {
+            @if (preview.canManageMemberships) {
               <button
                 id="community-tab-requests"
                 type="button"
@@ -186,6 +310,19 @@
                 <span>Gestão</span>
               </button>
             }
+
+            @if (preview.canInviteCommunityMembers) {
+              <button
+                id="community-tab-invites"
+                type="button"
+                [attr.aria-pressed]="activeSection() === 'invites'"
+                [class.is-active]="activeSection() === 'invites'"
+                (click)="selectSection('invites')"
+              >
+                <i class="fas fa-user-plus" aria-hidden="true"></i>
+                <span>Convidar</span>
+              </button>
+            }
           </nav>
 
           @if (activeSection() === 'feed') {
@@ -193,7 +330,20 @@
               <app-community-feed
                 [communityId]="preview.community.communityId"
                 [sourceType]="preview.community.source.type"
+                [canInteract]="preview.canInteract"
+                [viewerRole]="preview.viewerRole"
                 view="feed"
+              />
+            </section>
+          } @else if (
+            activeSection() === 'topics'
+            && preview.community.source.type === 'community'
+          ) {
+            <section id="community-panel-topics" aria-labelledby="community-tab-topics">
+              <app-community-topics
+                [communityId]="preview.community.communityId"
+                [canInteract]="preview.canInteract"
+                [viewerRole]="preview.viewerRole"
               />
             </section>
           } @else if (activeSection() === 'photos') {
@@ -204,13 +354,31 @@
                 view="photos"
               />
             </section>
-          } @else if (activeSection() === 'requests' && canManage(preview.viewerMode)) {
+          } @else if (
+            activeSection() === 'invites'
+            && preview.canInviteCommunityMembers
+          ) {
+            <section id="community-panel-invites" aria-labelledby="community-tab-invites">
+              <app-community-invite-management
+                [communityId]="preview.community.communityId"
+                (invitesChanged)="membershipReviewed()"
+              />
+            </section>
+          } @else if (
+            activeSection() === 'requests'
+            && preview.canManageMemberships
+          ) {
             <section id="community-panel-requests" aria-labelledby="community-tab-requests">
               <app-community-membership-management
                 [communityId]="preview.community.communityId"
                 [sourceType]="preview.community.source.type"
                 [viewerRole]="preview.viewerRole"
+                [canManageCommunitySettings]="preview.canManageCommunitySettings"
+                [settings]="preview.settings"
+                [capacity]="preview.capacity"
                 (membershipChanged)="membershipReviewed()"
+                (settingsChanged)="membershipReviewed()"
+                (ownershipChanged)="selectSection('about'); membershipReviewed()"
               />
             </section>
           } @else {
@@ -225,14 +393,50 @@
                 <p>{{ preview.community.description }}</p>
               }
 
+              @if (
+                preview.community.source.type === 'community'
+                && preview.rules
+              ) {
+                <section
+                  class="community-preview__rules community-preview__rules--about"
+                  aria-labelledby="community-preview-rules-about-title"
+                >
+                  <div class="community-preview__rules-heading">
+                    <i class="fas fa-scale-balanced" aria-hidden="true"></i>
+                    <h2 id="community-preview-rules-about-title">
+                      Regras da Comunidade
+                    </h2>
+                  </div>
+                  <p>{{ preview.rules }}</p>
+                </section>
+              }
+
+              @if (preview.community.tags.length > 0) {
+                <div
+                  class="community-preview__tags"
+                  aria-label="Interesses e afinidades deste espaço"
+                >
+                  @for (tag of preview.community.tags; track tag.id) {
+                    <span class="app-chip app-chip--muted">#{{ tag.label }}</span>
+                  }
+                </div>
+              }
+
               <div
                 class="community-preview__metrics"
                 [attr.aria-label]="metricsAriaLabel(preview.community)"
               >
                 <span>
                   <i class="fas fa-users" aria-hidden="true"></i>
-                  {{ preview.community.metrics.memberCount }}
-                  {{ preview.community.source.type === 'venue' ? 'pessoas conectadas' : 'integrantes' }}
+                  @if (
+                    preview.community.source.type === 'community'
+                    && preview.capacity
+                  ) {
+                    {{ preview.capacity.memberCount }} de
+                    {{ preview.capacity.configuredLimit }} integrantes
+                  } @else {
+                    {{ preview.community.metrics.memberCount }} pessoas conectadas
+                  }
                 </span>
                 <span>
                   <i class="fas fa-message" aria-hidden="true"></i>
@@ -255,9 +459,8 @@
                     @if (
                       preview.viewerMode !== 'visitor'
                       && preview.viewerMode !== 'pending'
-                      && preview.community.access.requiresActiveSubscription
                     ) {
-                      Assinatura necessária para interagir
+                      Interações temporariamente indisponíveis
                     } @else if (preview.community.source.type === 'venue') {
                       Interação reservada às pessoas autorizadas no Local
                     } @else {
@@ -265,10 +468,13 @@
                     }
                   </span>
                 }
-                @if (accessLabel(preview.community); as access) {
-                  <span>
-                    <i class="fas fa-crown" aria-hidden="true"></i>
-                    Recursos {{ access }}
+                @if (
+                  preview.community.source.type === 'community'
+                  && preview.capacity?.acceptingNewMembers === false
+                ) {
+                  <span role="status">
+                    <i class="fas fa-users-slash" aria-hidden="true"></i>
+                    Capacidade atingida: novas entradas estão pausadas
                   </span>
                 }
               </div>

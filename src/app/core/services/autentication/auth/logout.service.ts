@@ -5,19 +5,7 @@
 // Objetivo:
 // - Centralizar logout voluntário e hard signout inevitável.
 // - Coordenar side-effects que pertencem ao encerramento da sessão:
-//   presença, signOut, limpeza de perfil runtime e navegação.
-//
-// Fonte de verdade:
-// - AuthSessionService = sessão
-// - LogoutService = execução do encerramento da sessão
-//
-// Regras do app:
-// - Logout voluntário -> /login
-// - Sessão inválida tecnicamente -> /register/welcome?reason=auth-invalid
-//
-// Observação:
-// - Firestore/negócio NÃO deve forçar signOut aqui.
-// - Este service existe para logout real, não para bloqueio de app.
+//   presença, geolocalização, signOut, limpeza de perfil runtime e navegação.
 // =============================================================================
 import {
   EnvironmentInjector,
@@ -41,6 +29,7 @@ import { PresenceService } from '@core/services/presence/presence.service';
 import { CurrentUserStoreService } from './current-user-store.service';
 import { AuthAppBlockService } from './auth-app-block.service';
 import { CacheService } from '@core/services/general/cache/cache.service';
+import { GeolocationTrackingService } from '@core/services/geolocation/geolocation-tracking.service';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
@@ -51,12 +40,13 @@ type SignOutMode = 'strict' | 'best-effort';
 
 @Injectable({ providedIn: 'root' })
 export class LogoutService {
-   private running = false;
+  private running = false;
 
   constructor(
     private readonly auth: Auth,
     private readonly router: Router,
     private readonly presence: PresenceService,
+    private readonly geolocation: GeolocationTrackingService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly appBlock: AuthAppBlockService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
@@ -68,20 +58,18 @@ export class LogoutService {
 
   /**
    * Logout voluntário:
-   * - para presença
+   * - para geolocalização e presença
    * - faz signOut estrito
-   * - limpa CurrentUserStore
+   * - limpa CurrentUserStore/cache
    * - limpa bloqueio de app
    * - navega para /login
-   *
-   * Se o signOut falhar, o fluxo falha junto.
-   * Não devemos “fingir” que saiu.
    */
   logout$(): Observable<void> {
     if (this.running) return of(void 0);
     this.running = true;
 
-    return this.stopPresenceBestEffort$().pipe(
+    return this.stopGeolocationBestEffort$().pipe(
+      switchMap(() => this.stopPresenceBestEffort$()),
       switchMap(() => this.executeSignOut$('strict')),
       switchMap(() => this.clearLocalSessionDataBestEffort$()),
       switchMap(() => this.navigateBestEffort$('/login')),
@@ -105,13 +93,11 @@ export class LogoutService {
   /**
    * Hard signout:
    * - usado quando a sessão do Auth ficou tecnicamente inválida
-   * - tenta parar presença
+   * - tenta parar geolocalização e presença
    * - faz signOut best-effort
-   * - limpa CurrentUserStore
+   * - limpa CurrentUserStore/cache
    * - limpa bloqueio de app
    * - redireciona para welcome com reason
-   *
-   * Aqui a prioridade é recuperar coerência do app.
    */
   hardSignOutToWelcome$(
     reason: TerminateReason = 'auth-invalid'
@@ -127,7 +113,8 @@ export class LogoutService {
       );
     }
 
-    return this.stopPresenceBestEffort$().pipe(
+    return this.stopGeolocationBestEffort$().pipe(
+      switchMap(() => this.stopPresenceBestEffort$()),
       switchMap(() => this.executeSignOut$('best-effort')),
       switchMap(() => this.clearLocalSessionDataBestEffort$()),
       switchMap(() => this.navigateToWelcomeBestEffort$(reason)),
@@ -153,10 +140,23 @@ export class LogoutService {
   }
 
   /**
-   * Para presença antes do signOut.
-   * Best-effort por definição:
-   * se falhar, não bloqueia o encerramento da sessão.
+   * Geolocalização pertence à sessão autenticada.
+   * Ao encerrar a sessão removemos watcher, listener de permissão e snapshot
+   * sensível para impedir reaproveitamento pela próxima conta no mesmo browser.
    */
+  private stopGeolocationBestEffort$(): Observable<void> {
+    return defer(() => {
+      this.geolocation.stopTracking({ clearCachedLocation: true });
+      return of(void 0);
+    }).pipe(
+      catchError((err) => {
+        this.reportSilent(err, { phase: 'stopGeolocationBestEffort$' });
+        return of(void 0);
+      })
+    );
+  }
+
+  /** Para presença antes do signOut sem bloquear o encerramento em caso de falha. */
   private stopPresenceBestEffort$(): Observable<void> {
     return this.presence.stop$().pipe(
       take(1),
@@ -168,15 +168,6 @@ export class LogoutService {
     );
   }
 
-  /**
-   * Executor único do signOut.
-   *
-   * strict:
-   * - falha o fluxo se o signOut falhar
-   *
-   * best-effort:
-   * - registra o erro, mas devolve void para permitir recuperação do app
-   */
   private executeSignOut$(mode: SignOutMode): Observable<void> {
     return defer(() =>
       from(
@@ -225,26 +216,16 @@ export class LogoutService {
     );
   }
 
-  /**
- * Debug seguro do encerramento de sessão.
- *
- * Canal:
- * localStorage.setItem('DEBUG_AUTH', '1');
- *
- * Logout pode revelar motivo de encerramento, rota, modo de signOut,
- * falhas de presença e erros de navegação. Por isso, não deve usar
- * console.log direto.
- */
-private dbg(message: string, extra?: unknown): void {
-  this.privacyDebug.log('auth', `LogoutService: ${message}`, extra, 'warn');
-}
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('auth', `LogoutService: ${message}`, extra, 'warn');
+  }
 
   private reportSilent(err: unknown, context: Record<string, unknown>): void {
     try {
-          this.dbg('reportSilent()', {
-            context,
-            error: err,
-          });
+      this.dbg('reportSilent()', {
+        context,
+        error: err,
+      });
 
       const error = new Error('[LogoutService] internal error');
       (error as any).silent = true;
@@ -259,31 +240,23 @@ private dbg(message: string, extra?: unknown): void {
   }
 
   /**
- * Limpeza local pós-logout.
- *
- * Mantém a regra:
- * - logout é responsabilidade do LogoutService;
- * - cache sensível não deve sobreviver à sessão;
- * - falha de limpeza não deve impedir navegação/signOut.
- */
-private clearLocalSessionDataBestEffort$(): Observable<void> {
-  return this.cache.clearSensitiveSessionCache$().pipe(
-    catchError((err) => {
-      this.reportSilent(err, {
-        phase: 'clearLocalSessionDataBestEffort$',
-      });
-
-      return of(void 0);
-    }),
-    map(() => {
-      this.appBlock.clear();
-      this.currentUserStore.clear();
-      return void 0;
-    })
-  );
+   * Limpeza local pós-logout.
+   * Cache sensível não deve sobreviver à sessão; falha de limpeza não bloqueia
+   * navegação/signOut.
+   */
+  private clearLocalSessionDataBestEffort$(): Observable<void> {
+    return this.cache.clearSensitiveSessionCache$().pipe(
+      catchError((err) => {
+        this.reportSilent(err, {
+          phase: 'clearLocalSessionDataBestEffort$',
+        });
+        return of(void 0);
+      }),
+      map(() => {
+        this.appBlock.clear();
+        this.currentUserStore.clear();
+        return void 0;
+      })
+    );
+  }
 }
-} // Linha 253, fim do logout.service.ts
-// Verificar migrações de responsabilidades para o:
-// 1 - auth-route-context.service.ts, e;
-// 2 - auth-user-document-watch.service.ts, e;
-// 3 - auth-session-monitor.service.ts.

@@ -1,8 +1,4 @@
-<!-- src\app\subscriptions\subscription-plan\subscription-plan.component.html -->
- <!--  O layout ideal deve ser "Dark Mode", clean, focado em dispositivos móveis e extremamente direto. 
- Imagine uma estrutura de vitrine infinita (estilo Netflix ou Instagram), 
- onde o conteúdo visual domina a tela. Semelhante as grandes plataformas e com a profissional -->
-<!-- src\app\subscriptions\subscription-plan\subscription-plan.component.html -->
+<!-- src/app/subscriptions/subscription-plan/subscription-plan.component.html -->
 <section class="subscription-plan-container ui-container">
   @if (vm$ | async; as vm) {
     <header class="subscription-plan-header">
@@ -41,8 +37,34 @@
       </div>
     </header>
 
+    @if (vm.communityCreationFlow) {
+      <section
+        class="subscription-plan-context"
+        aria-labelledby="subscription-plan-context-title"
+        aria-describedby="subscription-plan-context-description"
+        aria-live="polite"
+      >
+        <span class="subscription-plan-context__icon" aria-hidden="true">
+          <i class="fas fa-people-group"></i>
+        </span>
+        <div>
+          <p class="subscription-plan-context__eyebrow">Sua Comunidade</p>
+          <h2 id="subscription-plan-context-title">
+            Escolha o plano para continuar a criação
+          </h2>
+          <p id="subscription-plan-context-description">
+            @if (minimumPlanLabel(vm); as minimumPlan) {
+              {{ minimumPlan }} é o nível mínimo indicado para este passo.
+            }
+            Depois da confirmação segura da assinatura, você voltará ao
+            compositor e sua permissão será verificada novamente.
+          </p>
+        </div>
+      </section>
+    }
+
     @if (shouldShowSubscriptionWarning$ | async) {
-    <section
+      <section
         class="subscription-plan-warning"
         aria-labelledby="subscription-plan-warning-title"
         aria-describedby="subscription-plan-warning-description"
@@ -101,7 +123,7 @@
 
         <div class="subscription-plan-accordion__content">
           <p>
-            O plano atual fica bloqueado para nova contratação. Os demais podem ser usados para troca ou upgrade.
+            Upgrades entram em vigor após a confirmação do pagamento e preservam o período já pago. Reduções de plano não são aplicadas imediatamente: elas só serão oferecidas quando a plataforma puder programá-las com segurança para o próximo ciclo.
           </p>
         </div>
       </details>
@@ -112,9 +134,22 @@
         class="plan"
         *ngFor="let plan of plans"
         [class.featured-plan]="plan.featured"
+        [class.plan--recommended]="isRecommendedPlan(plan.key, vm)"
         [attr.data-current]="vm.subscriptionActive && vm.currentPlanKey === plan.key ? 'true' : 'false'"
+        [attr.data-recommended]="isRecommendedPlan(plan.key, vm) ? 'true' : 'false'"
+        [attr.aria-describedby]="isRecommendedPlan(plan.key, vm) ? 'plan-recommendation-' + plan.key : null"
       >
-        <span class="plan-badge">{{ plan.badge }}</span>
+        <div class="plan-badges">
+          <span class="plan-badge">{{ plan.badge }}</span>
+          @if (isRecommendedPlan(plan.key, vm)) {
+            <span
+              class="plan-recommendation"
+              [id]="'plan-recommendation-' + plan.key"
+            >
+              Recomendado para continuar
+            </span>
+          }
+        </div>
         <h2>{{ plan.title }}</h2>
         <p class="plan-description">{{ plan.description }}</p>
 
@@ -136,10 +171,27 @@
           </div>
         }
 
+        @if (isDowngrade(plan.key, vm)) {
+          <div class="plan-requirement-state" role="note">
+            <strong>Redução preservada para o próximo ciclo</strong>
+            <small>
+              Seu plano atual e os benefícios já pagos continuam válidos. A redução ficará disponível quando puder ser programada para a próxima renovação.
+            </small>
+          </div>
+        } @else if (!planMeetsMinimum(plan.key, vm)) {
+          <div class="plan-requirement-state">
+            <strong>Este plano não atende ao passo atual</strong>
+            <small>
+              Escolha {{ minimumPlanLabel(vm) }} ou um plano superior para
+              continuar.
+            </small>
+          </div>
+        }
+
         <button
           class="btn btn-primary"
           type="button"
-          [disabled]="vm.subscriptionActive && vm.currentPlanKey === plan.key"
+          [disabled]="!canSelectPlan(plan.key, vm)"
           [attr.aria-current]="vm.subscriptionActive && vm.currentPlanKey === plan.key ? 'true' : null"
           (click)="subscribe(plan.key, vm)"
         >

@@ -1,6 +1,10 @@
 import * as logger from 'firebase-functions/logger';
+import { HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
+import {
+  assertInteractionAccess,
+} from '../../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
@@ -38,6 +42,11 @@ type DeferredPublicationClaim =
   | 'SKIPPED';
 
 const AUTO_PUBLISH_LEASE_MS = 2 * 60 * 1000;
+const PUBLICATION_ACCESS_RESTRICTED_CODE =
+  'PUBLICATION_ACCESS_RESTRICTED';
+const PUBLICATION_ACCESS_RESTRICTED_MESSAGE =
+  'Sua conta não estava elegível para publicar este vídeo quando o ' +
+  'processamento terminou.';
 
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
@@ -53,6 +62,52 @@ function normalizeErrorMessage(error: unknown): string {
   return (error instanceof Error ? error.message : String(error ?? 'unknown'))
     .trim()
     .slice(0, 500);
+}
+
+function isPublicationAccessRestriction(error: unknown): boolean {
+  return error instanceof HttpsError &&
+    (error.code === 'failed-precondition' || error.code === 'not-found');
+}
+
+async function markPublicationAccessRestricted(
+  ownerUid: string,
+  videoId: string
+): Promise<void> {
+  await db.doc(`users/${ownerUid}/videos/${videoId}`).set(
+    {
+      status: 'failed',
+      processingStage: 'failed',
+      processingErrorCode: PUBLICATION_ACCESS_RESTRICTED_CODE,
+      processingErrorMessage: PUBLICATION_ACCESS_RESTRICTED_MESSAGE,
+      updatedAt: Date.now(),
+    },
+    { merge: true }
+  );
+}
+
+async function assertAutomaticPublicationAccess(
+  ownerUid: string,
+  videoId: string
+): Promise<boolean> {
+  try {
+    await assertInteractionAccess(ownerUid);
+    return true;
+  } catch (error) {
+    if (!isPublicationAccessRestriction(error)) {
+      throw error;
+    }
+
+    await markPublicationAccessRestricted(ownerUid, videoId);
+    logger.warn(
+      '[publishVideoWhenReady] Vídeo descartado por restrição da conta.',
+      {
+        ownerUid,
+        videoId,
+        error: normalizeErrorMessage(error),
+      }
+    );
+    return false;
+  }
 }
 
 async function claimDeferredPublication(
@@ -196,8 +251,9 @@ async function publishReadyVideo(
 
 /**
  * Continua a intenção "enviar e publicar" assim que o derivado seguro fica
- * pronto. A publicação continua passando pelas mesmas validações e pela mesma
- * moderação do callable manual.
+ * pronto. A elegibilidade da conta é revalidada imediatamente antes da
+ * publicação. Se ela mudou durante o processamento, o upload entra no fluxo
+ * canônico de falha/descarte em vez de virar conteúdo privado pendente.
  */
 export const publishVideoWhenReady = onDocumentUpdated(
   {
@@ -227,6 +283,10 @@ export const publishVideoWhenReady = onDocumentUpdated(
         ownerUid,
         videoId,
       });
+      return;
+    }
+
+    if (!(await assertAutomaticPublicationAccess(ownerUid, videoId))) {
       return;
     }
 

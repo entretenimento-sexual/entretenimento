@@ -1,10 +1,12 @@
 // scripts/tests/photo-publication.e2e.mjs
 // -----------------------------------------------------------------------------
 // Integração isolada: upload privado -> publishPhoto -> edição -> sincronização.
-// Usa somente emuladores em portas dedicadas e um projectId demo-*.
+// Em seguida executa a suíte de denúncia/quarentena de foto no mesmo conjunto
+// de emuladores iniciado por test:media:e2e.
 // -----------------------------------------------------------------------------
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
 import {
@@ -346,8 +348,33 @@ async function run() {
   }
 }
 
-run().catch((error) => {
-  console.error('✖ fluxo integrado de publicação de foto falhou');
-  console.error(error);
-  process.exitCode = 1;
-});
+function runPhotoReportsE2e() {
+  const result = spawnSync(
+    process.execPath,
+    ['scripts/tests/photo-reports.e2e.mjs'],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: 'inherit',
+      windowsHide: true,
+    }
+  );
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    throw new Error(
+      `E2E de denúncias de foto terminou com código ${result.status ?? 'desconhecido'}.`
+    );
+  }
+}
+
+run()
+  .then(() => runPhotoReportsE2e())
+  .catch((error) => {
+    console.error('✖ fluxo integrado de mídia de foto falhou');
+    console.error(error);
+    process.exitCode = 1;
+  });

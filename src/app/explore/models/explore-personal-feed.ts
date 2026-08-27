@@ -25,6 +25,7 @@ export type ExplorePersonalFeedInput = Pick<
 > & {
   readonly personalPhotos?: readonly IPublicPhotoItem[];
   readonly friendUids?: readonly string[];
+  readonly compatibleOwnerUids?: readonly string[];
 };
 
 const DEFAULT_LIMIT = 18;
@@ -40,6 +41,8 @@ const DEFAULT_VISIBLE_LIMIT = 6;
  * 3. fallback público somente quando nenhuma relação pessoal foi resolvida.
  *
  * Conteúdo impulsionado e engajamento nunca ultrapassam o vínculo pessoal.
+ * `maxItemsPerOwner` controla a diversidade de cada rodada; mídias excedentes
+ * entram nas rodadas seguintes em vez de serem descartadas definitivamente.
  */
 export function buildExplorePersonalFeed(
   vm: ExplorePersonalFeedInput,
@@ -51,11 +54,12 @@ export function buildExplorePersonalFeed(
     DEFAULT_MAX_ITEMS_PER_OWNER
   );
   const friendOwners = normalizeUidSet(vm.friendUids ?? []);
-  const compatibleOwners = normalizeUidSet(
-    (vm.compatibleProfiles ?? []).map(
+  const compatibleOwners = normalizeUidSet([
+    ...(vm.compatibleProfiles ?? []).map(
       (profile: PublicProfileCard) => profile.uid
-    )
-  );
+    ),
+    ...(vm.compatibleOwnerUids ?? []),
+  ]);
   const personalizedOwners = new Set([
     ...friendOwners,
     ...compatibleOwners,
@@ -99,22 +103,11 @@ export function buildExplorePersonalFeed(
     return buildPublicationKey(a).localeCompare(buildPublicationKey(b));
   });
 
-  const ownerCounts = new Map<string, number>();
-  const feed: IPublicPhotoItem[] = [];
-
-  for (const item of ranked) {
-    const ownerUid = String(item.ownerUid ?? '').trim() || 'unknown-owner';
-    const count = ownerCounts.get(ownerUid) ?? 0;
-
-    if (count >= maxItemsPerOwner) continue;
-
-    ownerCounts.set(ownerUid, count + 1);
-    feed.push(item);
-
-    if (feed.length >= limit) break;
-  }
-
-  return feed;
+  return diversifyByOwnerRounds(
+    ranked,
+    maxItemsPerOwner,
+    limit
+  );
 }
 
 /**
@@ -144,6 +137,45 @@ export function buildExplorePersonalFeedWindow(
     remainingItems,
     hasMore: remainingItems > 0,
   };
+}
+
+function diversifyByOwnerRounds(
+  ranked: readonly IPublicPhotoItem[],
+  maxItemsPerOwner: number,
+  limit: number
+): IPublicPhotoItem[] {
+  let remaining = [...ranked];
+  const result: IPublicPhotoItem[] = [];
+
+  while (remaining.length > 0 && result.length < limit) {
+    const ownerCounts = new Map<string, number>();
+    const deferred: IPublicPhotoItem[] = [];
+    let addedThisRound = 0;
+
+    for (const item of remaining) {
+      if (result.length >= limit) break;
+
+      const ownerUid = String(item.ownerUid ?? '').trim() || 'unknown-owner';
+      const count = ownerCounts.get(ownerUid) ?? 0;
+
+      if (count >= maxItemsPerOwner) {
+        deferred.push(item);
+        continue;
+      }
+
+      ownerCounts.set(ownerUid, count + 1);
+      result.push(item);
+      addedThisRound += 1;
+    }
+
+    if (addedThisRound === 0) {
+      break;
+    }
+
+    remaining = deferred;
+  }
+
+  return result.slice(0, limit);
 }
 
 function relationshipPriority(

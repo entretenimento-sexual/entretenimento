@@ -10,22 +10,28 @@
 // - permitir comentário quando a foto pública estiver aprovada e liberada;
 // - permitir reação simples de curtir;
 // - permitir resposta/moderação discreta pelo dono da foto;
-// - manter links de autores abrindo em nova guia, sem fechar o viewer atual.
+// - manter links de autores abrindo em nova guia, sem fechar o viewer atual;
+// - continuar filas públicas com ranking global + contexto social + novidade.
 //
 // Observação de manutenção:
 // - Este componente não deve escrever diretamente no Firestore.
 // - Visualizações passam por MediaPublicationService.
 // - Comentários e moderação passam por MediaPhotoCommentsService.
 // - Reações passam por MediaReactionsService.
+// - Continuação pública passa por PublicPhotoContinuationService.
 // - Regras reais de permissão ficam no backend/rules; o template apenas melhora UX.
 
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
+  DestroyRef,
   HostListener,
   Inject,
   inject,
+  signal,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -43,12 +49,15 @@ import {
   take,
 } from 'rxjs/operators';
 
+import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
+import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { MediaPhotoCommentsService } from 'src/app/core/services/media/media-photo-comments.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
+import { PublicPhotoContinuationService } from 'src/app/core/services/media/public-photo-continuation.service';
 
 import { IPhotoComment } from 'src/app/core/interfaces/media/i-photo-comment';
 import {
@@ -86,10 +95,15 @@ export type TPhotoViewSource =
   | 'unknown';
 
 export interface IPhotoViewerData {
+  /**
+   * Fallback legado para filas owner-scoped. Em filas públicas mistas,
+   * a identidade canônica é `current.ownerUid`.
+   */
   ownerUid: string;
   items: IProfilePhotoItem[];
   startIndex: number;
   source?: TPhotoViewSource;
+  continuationContext?: IPublicMediaContinuationContext;
 }
 
 type ViewerUserLike = {
@@ -114,6 +128,9 @@ type TPhotoCommentThread = {
   replies: IPhotoComment[];
 };
 
+const CONTINUATION_PREFETCH_REMAINING_ITEMS = 2;
+const CONTINUATION_BATCH_SIZE = 8;
+
 @Component({
   selector: 'app-photo-viewer',
   standalone: true,
@@ -126,10 +143,18 @@ export class PhotoViewerComponent {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly mediaPublication = inject(MediaPublicationService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
+  private readonly publicPhotoContinuation = inject(PublicPhotoContinuationService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly changeDetector = inject(ChangeDetectorRef);
 
   private readonly recordedViewKeys = new Set<string>();
+  private continuationExhausted = false;
+  private pendingContinuationAdvanceKey: string | null = null;
 
   index: number;
+
+  readonly loadingContinuation = signal(false);
+  readonly continuationAnnouncement = signal('');
 
   readonly commentControl = new FormControl('', {
     nonNullable: true,
@@ -141,8 +166,8 @@ export class PhotoViewerComponent {
     validators: [Validators.required, Validators.maxLength(500)],
   });
 
-  private readonly currentPhotoIdSubject = new BehaviorSubject<string>('');
-  readonly currentPhotoId$ = this.currentPhotoIdSubject.asObservable().pipe(
+  private readonly currentPhotoIdentitySubject = new BehaviorSubject<string>('');
+  readonly currentPhotoIdentity$ = this.currentPhotoIdentitySubject.asObservable().pipe(
     distinctUntilChanged()
   );
 
@@ -175,20 +200,29 @@ export class PhotoViewerComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly viewerIsOwner$: Observable<boolean> = this.viewerUid$.pipe(
-    map((uid) => !!uid && uid === this.data.ownerUid),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
   readonly viewerNickname$: Observable<string> = this.viewerUser$.pipe(
     map((user) => this.resolveViewerNickname(user)),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly currentPhoto$: Observable<IProfilePhotoItem | null> = this.currentPhotoId$.pipe(
+  readonly currentPhoto$: Observable<IProfilePhotoItem | null> = this.currentPhotoIdentity$.pipe(
     map(() => this.current),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly currentOwnerUid$: Observable<string> = this.currentPhoto$.pipe(
+    map((photo) => this.resolvePhotoOwnerUid(photo)),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly viewerIsOwner$: Observable<boolean> = combineLatest([
+    this.viewerUid$,
+    this.currentOwnerUid$,
+  ]).pipe(
+    map(([uid, ownerUid]) => !!uid && !!ownerUid && uid === ownerUid),
+    distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -210,32 +244,37 @@ export class PhotoViewerComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly likesCount$: Observable<number> = this.currentPhotoId$.pipe(
-    switchMap((photoId) => {
-      if (!photoId) {
+  readonly likesCount$: Observable<number> = this.currentPhoto$.pipe(
+    switchMap((photo) => {
+      const ownerUid = this.resolvePhotoOwnerUid(photo);
+      const photoId = String(photo?.id ?? '').trim();
+
+      if (!ownerUid || !photoId) {
         return of(0);
       }
 
-      return this.mediaReactionsService.getPhotoLikesCount$(this.data.ownerUid, photoId);
+      return this.mediaReactionsService.getPhotoLikesCount$(ownerUid, photoId);
     }),
     catchError(() => of(0)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly likedByViewer$: Observable<boolean> = this.currentPhotoId$.pipe(
-    switchMap((photoId) => {
-      if (!photoId) {
+  readonly likedByViewer$: Observable<boolean> = combineLatest([
+    this.currentPhoto$,
+    this.viewerUid$,
+  ]).pipe(
+    switchMap(([photo, viewerUid]) => {
+      const ownerUid = this.resolvePhotoOwnerUid(photo);
+      const photoId = String(photo?.id ?? '').trim();
+
+      if (!ownerUid || !photoId) {
         return of(false);
       }
 
-      return this.viewerUid$.pipe(
-        switchMap((viewerUid) =>
-          this.mediaReactionsService.isPhotoLikedByViewer$(
-            this.data.ownerUid,
-            photoId,
-            viewerUid
-          )
-        )
+      return this.mediaReactionsService.isPhotoLikedByViewer$(
+        ownerUid,
+        photoId,
+        viewerUid
       );
     }),
     catchError(() => of(false)),
@@ -254,14 +293,17 @@ export class PhotoViewerComponent {
     distinctUntilChanged()
   );
 
-  readonly comments$: Observable<IPhotoComment[]> = this.currentPhotoId$.pipe(
-    switchMap((photoId) => {
-      if (!photoId) {
+  readonly comments$: Observable<IPhotoComment[]> = this.currentPhoto$.pipe(
+    switchMap((photo) => {
+      const ownerUid = this.resolvePhotoOwnerUid(photo);
+      const photoId = String(photo?.id ?? '').trim();
+
+      if (!ownerUid || !photoId) {
         return of([] as IPhotoComment[]);
       }
 
       return this.mediaPhotoCommentsService.watchVisibleComments$(
-        this.data.ownerUid,
+        ownerUid,
         photoId
       );
     }),
@@ -284,18 +326,24 @@ export class PhotoViewerComponent {
     private readonly errorNotifier: ErrorNotificationService,
     @Inject(MAT_DIALOG_DATA) public readonly data: IPhotoViewerData
   ) {
+    // O dialog passa a possuir sua própria fila mutável. Assim a continuação
+    // não altera arrays mantidos por componentes chamadores legados.
+    this.data.items = [...(data.items ?? [])];
+
     this.index = Math.max(
       0,
-      Math.min(data.startIndex ?? 0, (data.items?.length ?? 1) - 1)
+      Math.min(data.startIndex ?? 0, (this.data.items.length || 1) - 1)
     );
 
-    this.syncCurrentPhotoId();
+    this.syncCurrentPhotoIdentity();
     this.recordCurrentPhotoView();
+    queueMicrotask(() => this.prefetchContinuationIfNeeded());
 
     this.debug('init', {
       index: this.index,
-      count: data.items?.length ?? 0,
-      hasOwnerUid: !!data.ownerUid,
+      count: this.data.items.length,
+      hasOwnerUid: !!this.currentOwnerUid,
+      continuationEnabled: this.continuationEnabled,
     });
   }
 
@@ -303,12 +351,28 @@ export class PhotoViewerComponent {
     return this.data.items?.[this.index] ?? null;
   }
 
+  get currentOwnerUid(): string {
+    return this.resolvePhotoOwnerUid(this.current);
+  }
+
   get hasPrev(): boolean {
     return this.index > 0;
   }
 
   get hasNext(): boolean {
-    return this.index < (this.data.items?.length ?? 0) - 1;
+    if (this.index < this.data.items.length - 1) {
+      return true;
+    }
+
+    return this.continuationEnabled && !this.continuationExhausted;
+  }
+
+  get waitingForContinuation(): boolean {
+    return this.loadingContinuation() && this.index >= this.data.items.length - 1;
+  }
+
+  private get continuationEnabled(): boolean {
+    return !!this.data.source;
   }
 
   @HostListener('document:keydown.arrowleft', ['$event'])
@@ -340,29 +404,30 @@ export class PhotoViewerComponent {
       return;
     }
 
-    this.index -= 1;
-    this.commentControl.setValue('');
-    this.cancelReply();
-    this.syncCurrentPhotoId();
-    this.recordCurrentPhotoView();
+    this.pendingContinuationAdvanceKey = null;
+    this.changeIndex(this.index - 1);
   }
 
   next(): void {
-    if (!this.hasNext) {
+    if (this.index < this.data.items.length - 1) {
+      this.pendingContinuationAdvanceKey = null;
+      this.changeIndex(this.index + 1);
       return;
     }
 
-    this.index += 1;
-    this.commentControl.setValue('');
-    this.cancelReply();
-    this.syncCurrentPhotoId();
-    this.recordCurrentPhotoView();
+    if (!this.continuationEnabled || this.continuationExhausted) {
+      return;
+    }
+
+    this.pendingContinuationAdvanceKey = this.photoKey(this.current);
+    this.loadContinuation();
   }
 
   toggleLike(): void {
     const current = this.current;
+    const ownerUid = this.resolvePhotoOwnerUid(current);
 
-    if (!current?.id) {
+    if (!current?.id || !ownerUid) {
       this.errorNotifier.showWarning('Nenhuma foto ativa para reagir.');
       return;
     }
@@ -384,7 +449,7 @@ export class PhotoViewerComponent {
           }
 
           return this.mediaReactionsService.toggleLikePhoto$(
-            this.data.ownerUid,
+            ownerUid,
             current.id,
             viewerUid
           );
@@ -403,6 +468,7 @@ export class PhotoViewerComponent {
     event?.stopPropagation();
 
     const current = this.current;
+    const ownerUid = this.resolvePhotoOwnerUid(current);
     const safeComment = (this.commentControl.value ?? '')
       .replace(/\s+/g, ' ')
       .trim();
@@ -410,11 +476,11 @@ export class PhotoViewerComponent {
     this.debug('submitComment clicked', {
       hasCurrentPhoto: !!current?.id,
       photoId: current?.id ?? null,
-      ownerUid: this.data.ownerUid,
+      ownerUid,
       commentLength: safeComment.length,
     });
 
-    if (!current?.id) {
+    if (!current?.id || !ownerUid) {
       this.errorNotifier.showWarning('Nenhuma foto ativa para comentar.');
       return;
     }
@@ -450,7 +516,7 @@ export class PhotoViewerComponent {
           }
 
           return this.mediaPhotoCommentsService.createComment$({
-            ownerUid: this.data.ownerUid,
+            ownerUid,
             photoId: current.id,
             authorUid: viewerUid,
             authorNickname: viewerNickname,
@@ -502,11 +568,12 @@ export class PhotoViewerComponent {
     event?.stopPropagation();
 
     const current = this.current;
+    const ownerUid = this.resolvePhotoOwnerUid(current);
     const safeReply = (this.replyControl.value ?? '')
       .replace(/\s+/g, ' ')
       .trim();
 
-    if (!current?.id || !comment?.id) {
+    if (!current?.id || !ownerUid || !comment?.id) {
       this.errorNotifier.showWarning('Comentário inválido para resposta.');
       return;
     }
@@ -538,7 +605,7 @@ export class PhotoViewerComponent {
           }
 
           return this.mediaPhotoCommentsService.replyToComment$({
-            ownerUid: this.data.ownerUid,
+            ownerUid,
             photoId: current.id,
             parentCommentId: comment.id,
             content: safeReply,
@@ -591,9 +658,133 @@ export class PhotoViewerComponent {
     return !!comment?.id && comment.id === replyingToCommentId;
   }
 
+  private changeIndex(nextIndex: number): void {
+    this.index = nextIndex;
+    this.commentControl.setValue('');
+    this.cancelReply();
+    this.syncCurrentPhotoIdentity();
+    this.recordCurrentPhotoView();
+    this.continuationAnnouncement.set('');
+    queueMicrotask(() => this.prefetchContinuationIfNeeded());
+  }
+
+  private prefetchContinuationIfNeeded(): void {
+    if (
+      !this.continuationEnabled ||
+      this.continuationExhausted ||
+      this.loadingContinuation() ||
+      !this.current
+    ) {
+      return;
+    }
+
+    const remainingItems = Math.max(
+      0,
+      this.data.items.length - this.index - 1
+    );
+
+    if (remainingItems <= CONTINUATION_PREFETCH_REMAINING_ITEMS) {
+      this.loadContinuation();
+    }
+  }
+
+  private loadContinuation(): void {
+    if (
+      !this.continuationEnabled ||
+      this.continuationExhausted ||
+      this.loadingContinuation() ||
+      !this.current
+    ) {
+      return;
+    }
+
+    this.loadingContinuation.set(true);
+
+    this.viewerUid$
+      .pipe(
+        take(1),
+        switchMap((viewerUid) =>
+          this.publicPhotoContinuation.loadContinuation$({
+            existingItems: this.data.items,
+            source: this.data.source,
+            excludeOwnerUid: viewerUid,
+            limit: CONTINUATION_BATCH_SIZE,
+            continuationContext: this.data.continuationContext,
+          })
+        ),
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.loadingContinuation.set(false);
+          this.changeDetector.markForCheck();
+        })
+      )
+      .subscribe((result) => {
+        const pendingAdvanceKey = this.pendingContinuationAdvanceKey;
+        const currentKey = this.photoKey(this.current);
+
+        if (result.exhausted) {
+          this.continuationExhausted = true;
+        }
+
+        const appendedCount = this.appendContinuationItems(result.items);
+        this.changeDetector.markForCheck();
+
+        if (
+          pendingAdvanceKey &&
+          pendingAdvanceKey === currentKey &&
+          this.index < this.data.items.length - 1
+        ) {
+          this.pendingContinuationAdvanceKey = null;
+          this.changeIndex(this.index + 1);
+          return;
+        }
+
+        if (pendingAdvanceKey && pendingAdvanceKey === currentKey) {
+          this.pendingContinuationAdvanceKey = null;
+
+          if (result.failed) {
+            this.errorNotifier.showWarning(
+              'Não foi possível carregar a próxima foto agora. Tente novamente.'
+            );
+          } else if (result.exhausted) {
+            this.continuationAnnouncement.set(
+              'Não há mais fotos públicas disponíveis para continuar.'
+            );
+          }
+        }
+
+        if (appendedCount > 0) {
+          this.prefetchContinuationIfNeeded();
+        }
+      });
+  }
+
+  private appendContinuationItems(
+    candidates: readonly IPublicPhotoItem[]
+  ): number {
+    const seen = new Set(
+      this.data.items.map((item) => this.photoKey(item))
+    );
+    let appendedCount = 0;
+
+    for (const candidate of candidates) {
+      const key = this.photoKey(candidate);
+
+      if (!key || seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      this.data.items.push(candidate);
+      appendedCount += 1;
+    }
+
+    return appendedCount;
+  }
+
   private recordCurrentPhotoView(): void {
     const current = this.current;
-    const ownerUid = (current?.ownerUid || this.data.ownerUid || '').trim();
+    const ownerUid = this.resolvePhotoOwnerUid(current);
     const photoId = (current?.id || '').trim();
     const state = this.getPhotoInteractionState(current);
 
@@ -633,8 +824,9 @@ export class PhotoViewerComponent {
     action: TCommentModerationAction
   ): void {
     const current = this.current;
+    const ownerUid = this.resolvePhotoOwnerUid(current);
 
-    if (!current?.id || !comment?.id) {
+    if (!current?.id || !ownerUid || !comment?.id) {
       this.errorNotifier.showWarning('Comentário inválido.');
       return;
     }
@@ -661,14 +853,14 @@ export class PhotoViewerComponent {
 
           if (action === 'HIDE') {
             return this.mediaPhotoCommentsService.hideComment$(
-              this.data.ownerUid,
+              ownerUid,
               current.id,
               comment.id
             );
           }
 
           return this.mediaPhotoCommentsService.deleteComment$(
-            this.data.ownerUid,
+            ownerUid,
             current.id,
             comment.id
           );
@@ -693,8 +885,18 @@ export class PhotoViewerComponent {
       });
   }
 
-  private syncCurrentPhotoId(): void {
-    this.currentPhotoIdSubject.next(this.current?.id ?? '');
+  private syncCurrentPhotoIdentity(): void {
+    this.currentPhotoIdentitySubject.next(this.photoKey(this.current));
+  }
+
+  private resolvePhotoOwnerUid(photo: IProfilePhotoItem | null | undefined): string {
+    return String(photo?.ownerUid ?? this.data.ownerUid ?? '').trim();
+  }
+
+  private photoKey(photo: IProfilePhotoItem | null | undefined): string {
+    const ownerUid = this.resolvePhotoOwnerUid(photo);
+    const photoId = String(photo?.id ?? '').trim();
+    return ownerUid && photoId ? `${ownerUid}:${photoId}` : '';
   }
 
   private getPhotoInteractionState(photo: IProfilePhotoItem | null): PhotoInteractionState {

@@ -1,26 +1,31 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CURRENT_LEGAL_ACCEPTANCE_ENFORCED,
   TERMS_ACCEPTANCE_VERSION,
   hasAcceptedCurrentTerms,
+  isCurrentTermsRecordAccepted,
 } from './terms-acceptance.service';
 
-describe('hasAcceptedCurrentTerms', () => {
-  it('nega ausência de evidência', () => {
-    expect(hasAcceptedCurrentTerms(undefined)).toBe(false);
-    expect(hasAcceptedCurrentTerms(null)).toBe(false);
+describe('política de aceite jurídico', () => {
+  it('mantém o dev-real explicitamente fora da barreira jurídica remota', () => {
+    expect(CURRENT_LEGAL_ACCEPTANCE_ENFORCED).toBe(false);
+    expect(hasAcceptedCurrentTerms(undefined)).toBe(true);
+    expect(hasAcceptedCurrentTerms(null)).toBe(true);
   });
 
-  it('nega aceite explicitamente falso', () => {
+  it('mantém a validação persistida fail-closed sem evidência', () => {
+    expect(isCurrentTermsRecordAccepted(undefined)).toBe(false);
+    expect(isCurrentTermsRecordAccepted(null)).toBe(false);
     expect(
-      hasAcceptedCurrentTerms({ accepted: false, date: Date.now() })
+      isCurrentTermsRecordAccepted({ accepted: false, date: Date.now() })
     ).toBe(false);
   });
 
-  it('aceita somente a versão atual com ciência de privacidade registrada', () => {
+  it('aceita estritamente a versão vigente com ciência de privacidade', () => {
     expect(TERMS_ACCEPTANCE_VERSION).toBe('v3');
     expect(
-      hasAcceptedCurrentTerms({
+      isCurrentTermsRecordAccepted({
         accepted: true,
         date: Date.now(),
         version: TERMS_ACCEPTANCE_VERSION,
@@ -29,9 +34,9 @@ describe('hasAcceptedCurrentTerms', () => {
     ).toBe(true);
   });
 
-  it('exige ciência explícita da Política de Privacidade', () => {
+  it('recusa v3 sem ciência explícita da Política de Privacidade', () => {
     expect(
-      hasAcceptedCurrentTerms({
+      isCurrentTermsRecordAccepted({
         accepted: true,
         date: Date.now(),
         version: TERMS_ACCEPTANCE_VERSION,
@@ -39,10 +44,10 @@ describe('hasAcceptedCurrentTerms', () => {
     ).toBe(false);
   });
 
-  it('exige novo aceite de registros v1, v2 e legados sem versão', () => {
-    for (const version of ['v1', 'v2']) {
+  it('recusa v2, v1, versões desconhecidas e registros sem versão na regra persistida', () => {
+    for (const version of ['v2', 'v1', 'versao-desconhecida']) {
       expect(
-        hasAcceptedCurrentTerms({
+        isCurrentTermsRecordAccepted({
           accepted: true,
           date: Date.now(),
           version,
@@ -52,20 +57,9 @@ describe('hasAcceptedCurrentTerms', () => {
     }
 
     expect(
-      hasAcceptedCurrentTerms({
+      isCurrentTermsRecordAccepted({
         accepted: true,
         date: Date.now(),
-        acknowledgedPrivacyNotice: true,
-      })
-    ).toBe(false);
-  });
-
-  it('nega qualquer outra versão diferente da atual', () => {
-    expect(
-      hasAcceptedCurrentTerms({
-        accepted: true,
-        date: Date.now(),
-        version: 'versao-desconhecida',
         acknowledgedPrivacyNotice: true,
       })
     ).toBe(false);

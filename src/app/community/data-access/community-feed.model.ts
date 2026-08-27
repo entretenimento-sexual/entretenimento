@@ -5,24 +5,44 @@
 // Toda resposta da callable é normalizada novamente no navegador.
 // -----------------------------------------------------------------------------
 
+import {
+  CommunityPublicAuthor,
+  normalizeCommunityPublicAuthor,
+} from './community-public-author.model';
+
 export type CommunityFeedView = 'feed' | 'photos';
 export type CommunityFeedKind = 'text' | 'photo';
+export type CommunityFeedAudience = 'public_preview' | 'members_only';
+
+export interface CommunityFeedReplyReference {
+  readonly postId: string;
+  readonly authorLabel: string;
+  readonly textPreview: string;
+  readonly available: boolean;
+}
 
 export interface CommunityFeedItem {
   postId: string;
   kind: CommunityFeedKind;
-  author: {
-    label: string;
-    avatarUrl: string | null;
-  };
+  author: CommunityPublicAuthor;
   text: string | null;
   image: {
     url: string;
     alt: string;
   } | null;
+  replyTo: CommunityFeedReplyReference | null;
   metrics: {
     commentCount: number;
     reactionCount: number;
+  };
+  capabilities: {
+    canDeleteOwn: boolean;
+    canModerate: boolean;
+    canReport: boolean;
+    canReact: boolean;
+    viewerReacted: boolean;
+    canViewComments: boolean;
+    canComment: boolean;
   };
   publishedAt: number;
 }
@@ -40,13 +60,65 @@ export interface CommunityFeedPageRequest {
   cursor?: string | null;
 }
 
+export interface CommunityFeedPostCreateRequest {
+  readonly requestId: string;
+  readonly communityId: string;
+  readonly text: string;
+  readonly audience: CommunityFeedAudience;
+  readonly imageUploadPath?: string | null;
+  readonly replyToPostId?: string | null;
+}
+
+export interface CommunityFeedPostCreateResponse {
+  readonly communityId: string;
+  readonly postId: string;
+  readonly created: boolean;
+  readonly deduplicated: boolean;
+}
+
+export type CommunityFeedPostAction = 'delete_own' | 'remove';
+
+export interface CommunityFeedPostActionRequest {
+  readonly requestId: string;
+  readonly communityId: string;
+  readonly postId: string;
+  readonly action: CommunityFeedPostAction;
+  readonly reason?: string | null;
+}
+
+export interface CommunityFeedPostActionResponse {
+  readonly communityId: string;
+  readonly postId: string;
+  readonly action: CommunityFeedPostAction;
+  readonly status: 'deleted' | 'removed';
+  readonly deduplicated: boolean;
+  readonly generatedAt: number;
+}
+
+export interface CommunityFeedReactionRequest {
+  readonly communityId: string;
+  readonly postId: string;
+}
+
+export interface CommunityFeedReactionResponse {
+  readonly communityId: string;
+  readonly postId: string;
+  readonly reacted: boolean;
+  readonly reactionCount: number;
+}
+
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const MIN_PUBLISHED_AT = Date.UTC(2000, 0, 1);
 const MAX_FUTURE_SKEW_MS = 5 * 60_000;
 
 function normalizeText(value: unknown, maxLength: number): string {
-  return String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, '')
+  return Array.from(String(value ?? ''))
+    .map((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      if (codePoint === 9 || codePoint === 10 || codePoint === 13) return ' ';
+      return codePoint >= 32 && codePoint !== 127 ? character : '';
+    })
+    .join('')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
@@ -57,13 +129,25 @@ function normalizeSafeId(value: unknown): string | null {
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
-function normalizeHttpsUrl(value: unknown): string | null {
+function isLoopbackHost(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return normalized === 'localhost'
+    || normalized === '127.0.0.1'
+    || normalized === '::1'
+    || normalized === '[::1]';
+}
+
+function normalizeMediaUrl(value: unknown): string | null {
   const normalized = normalizeText(value, 2_000);
   if (!normalized) return null;
 
   try {
     const parsed = new URL(normalized);
-    return parsed.protocol === 'https:' ? parsed.toString() : null;
+    if (parsed.protocol === 'https:') return parsed.toString();
+    if (parsed.protocol === 'http:' && isLoopbackHost(parsed.hostname)) {
+      return parsed.toString();
+    }
+    return null;
   } catch {
     return null;
   }
@@ -76,21 +160,41 @@ function normalizeCount(value: unknown): number {
     : 0;
 }
 
+function normalizeReplyReference(value: unknown): CommunityFeedReplyReference | null {
+  if (!value || typeof value !== 'object') return null;
+  const source = value as Record<string, unknown>;
+  const postId = normalizeSafeId(source['postId']);
+  if (!postId) return null;
+
+  const available = source['available'] === true;
+  const authorLabel = normalizeText(source['authorLabel'], 60)
+    || (available ? 'Participante' : 'Publicação');
+  const textPreview = normalizeText(source['textPreview'], 180)
+    || (available ? 'Publicação no Mural' : 'Conteúdo original indisponível');
+
+  return {
+    postId,
+    authorLabel,
+    textPreview,
+    available,
+  };
+}
+
 function normalizeItem(raw: unknown): CommunityFeedItem | null {
   const source = (raw ?? {}) as Record<string, unknown>;
-  const author = (source['author'] ?? {}) as Record<string, unknown>;
   const image = (source['image'] ?? {}) as Record<string, unknown>;
   const metrics = (source['metrics'] ?? {}) as Record<string, unknown>;
+  const capabilities = (source['capabilities'] ?? {}) as Record<string, unknown>;
   const postId = normalizeSafeId(source['postId']);
   const kind = source['kind'];
-  const authorLabel = normalizeText(author['label'], 60);
+  const author = normalizeCommunityPublicAuthor(source['author']);
   const text = normalizeText(source['text'], 1_000);
   const publishedAt = Number(source['publishedAt']);
 
   if (
     !postId
     || (kind !== 'text' && kind !== 'photo')
-    || authorLabel.length < 2
+    || !author
     || !Number.isFinite(publishedAt)
     || publishedAt < MIN_PUBLISHED_AT
     || publishedAt > Date.now() + MAX_FUTURE_SKEW_MS
@@ -98,7 +202,7 @@ function normalizeItem(raw: unknown): CommunityFeedItem | null {
     return null;
   }
 
-  const imageUrl = normalizeHttpsUrl(image['url']);
+  const imageUrl = normalizeMediaUrl(image['url']);
   const imageAlt = normalizeText(image['alt'], 140);
 
   if (kind === 'text' && !text) return null;
@@ -107,10 +211,7 @@ function normalizeItem(raw: unknown): CommunityFeedItem | null {
   return {
     postId,
     kind,
-    author: {
-      label: authorLabel,
-      avatarUrl: normalizeHttpsUrl(author['avatarUrl']),
-    },
+    author,
     text: text || null,
     image: imageUrl
       ? {
@@ -118,9 +219,19 @@ function normalizeItem(raw: unknown): CommunityFeedItem | null {
           alt: imageAlt || 'Foto publicada na comunidade',
         }
       : null,
+    replyTo: normalizeReplyReference(source['replyTo']),
     metrics: {
       commentCount: normalizeCount(metrics['commentCount']),
       reactionCount: normalizeCount(metrics['reactionCount']),
+    },
+    capabilities: {
+      canDeleteOwn: capabilities['canDeleteOwn'] === true,
+      canModerate: capabilities['canModerate'] === true,
+      canReport: capabilities['canReport'] === true,
+      canReact: capabilities['canReact'] === true,
+      viewerReacted: capabilities['viewerReacted'] === true,
+      canViewComments: capabilities['canViewComments'] === true,
+      canComment: capabilities['canComment'] === true,
     },
     publishedAt: Math.trunc(publishedAt),
   };
@@ -140,5 +251,80 @@ export function normalizeCommunityFeedPageResponse(
       : [],
     nextCursor: normalizeSafeId(source['nextCursor']),
     generatedAt: Number.isFinite(generatedAt) ? generatedAt : Date.now(),
+  };
+}
+
+export function normalizeCommunityFeedPostCreateResponse(
+  raw: unknown
+): CommunityFeedPostCreateResponse {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const communityId = normalizeSafeId(source['communityId']);
+  const postId = normalizeSafeId(source['postId']);
+
+  if (!communityId || !postId) {
+    throw new Error('Resposta de publicação no Mural inválida.');
+  }
+
+  return {
+    communityId,
+    postId,
+    created: source['created'] === true,
+    deduplicated: source['deduplicated'] === true,
+  };
+}
+
+export function normalizeCommunityFeedPostActionResponse(
+  raw: unknown
+): CommunityFeedPostActionResponse {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const communityId = normalizeSafeId(source['communityId']);
+  const postId = normalizeSafeId(source['postId']);
+  const action = source['action'];
+  const status = source['status'];
+  const generatedAt = Number(source['generatedAt']);
+
+  if (
+    !communityId
+    || !postId
+    || (action !== 'delete_own' && action !== 'remove')
+    || (status !== 'deleted' && status !== 'removed')
+    || !Number.isFinite(generatedAt)
+  ) {
+    throw new Error('Resposta de ação no Mural inválida.');
+  }
+
+  return {
+    communityId,
+    postId,
+    action,
+    status,
+    deduplicated: source['deduplicated'] === true,
+    generatedAt: Math.trunc(generatedAt),
+  };
+}
+
+export function normalizeCommunityFeedReactionResponse(
+  raw: unknown
+): CommunityFeedReactionResponse {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const communityId = normalizeSafeId(source['communityId']);
+  const postId = normalizeSafeId(source['postId']);
+  const reactionCount = Number(source['reactionCount']);
+
+  if (
+    !communityId
+    || !postId
+    || typeof source['reacted'] !== 'boolean'
+    || !Number.isFinite(reactionCount)
+    || reactionCount < 0
+  ) {
+    throw new Error('Resposta de reação no Mural inválida.');
+  }
+
+  return {
+    communityId,
+    postId,
+    reacted: source['reacted'] === true,
+    reactionCount: Math.min(Math.trunc(reactionCount), 1_000_000_000),
   };
 }

@@ -12,6 +12,16 @@
 // domínio `/chat/rooms`.
 // -----------------------------------------------------------------------------
 
+import {
+  CommunityCapacityPreview,
+  normalizeCommunityCapacityPreview,
+} from './community-capacity.model';
+import type { CommunityTagCategory } from './community-tag.model';
+import {
+  CommunityEditableSettings,
+  normalizeCommunityEditableSettings,
+} from './community-settings.model';
+
 export type CommunityPreviewSourceType = 'community' | 'venue';
 export type CommunityPreviewJoinPolicy = 'open' | 'approval' | 'invite_only';
 export type CommunityPreviewViewerMode =
@@ -26,6 +36,18 @@ export type CommunityPreviewViewerRole =
   | 'moderator'
   | 'member';
 export type CommunityPreviewMinimumRole = 'basic' | 'premium' | 'vip';
+export type CommunityPreviewLifecycleStatus =
+  | 'active'
+  | 'paused'
+  | 'dormant'
+  | 'archived'
+  | 'scheduled_for_deletion';
+
+export interface CommunityPreviewTag {
+  id: string;
+  label: string;
+  category: CommunityTagCategory;
+}
 
 export interface CommunityPreviewCard {
   communityId: string;
@@ -48,6 +70,9 @@ export interface CommunityPreviewCard {
     minimumRole: CommunityPreviewMinimumRole | null;
     requiresActiveSubscription: boolean;
   };
+  tags: readonly CommunityPreviewTag[];
+  /** Presente apenas nas respostas privadas de Comunidades do próprio viewer. */
+  viewerRole?: CommunityPreviewViewerRole | null;
 }
 
 export interface CommunityDiscoveryPage {
@@ -60,24 +85,53 @@ export interface CommunityDiscoveryPageRequest {
   limit?: number;
   cursor?: string | null;
   sourceType?: CommunityPreviewSourceType | null;
+  tagId?: string | null;
 }
 
 export interface CommunityPreviewResponse {
   community: CommunityPreviewCard;
+  rules: string | null;
+  lifecycleStatus: CommunityPreviewLifecycleStatus | null;
   viewerMode: CommunityPreviewViewerMode;
   viewerRole: CommunityPreviewViewerRole | null;
   canInteract: boolean;
+  canManageMemberships: boolean;
+  canInviteCommunityMembers: boolean;
+  canManageCommunitySettings: boolean;
+  capacity: CommunityCapacityPreview | null;
+  settings: CommunityEditableSettings | null;
+  canLeaveMembership: boolean;
   generatedAt: number;
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 
 function normalizeText(value: unknown, maxLength: number): string {
-  return String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, '')
+  return [...String(value ?? '')]
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code >= 32 && code !== 127;
+    })
+    .join('')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
+}
+
+function normalizeMultilineText(value: unknown, maxLength: number): string {
+  return [...String(value ?? '')]
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code >= 32 || code === 9 || code === 10 || code === 13;
+    })
+    .join('')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, maxLength)
+    .trim();
 }
 
 function normalizeSafeId(value: unknown): string | null {
@@ -118,6 +172,43 @@ function normalizeViewerRole(
     : null;
 }
 
+function normalizeLifecycleStatus(
+  value: unknown
+): CommunityPreviewLifecycleStatus | null {
+  return value === 'active'
+    || value === 'paused'
+    || value === 'dormant'
+    || value === 'archived'
+    || value === 'scheduled_for_deletion'
+    ? value
+    : null;
+}
+
+function normalizeTagCategory(value: unknown): CommunityTagCategory | null {
+  return value === 'intent' || value === 'practice' || value === 'audience'
+    ? value
+    : null;
+}
+
+function normalizeTags(raw: unknown): readonly CommunityPreviewTag[] {
+  if (!Array.isArray(raw)) return [];
+
+  const tags = new Map<string, CommunityPreviewTag>();
+
+  for (const rawTag of raw.slice(0, 12)) {
+    const source = (rawTag ?? {}) as Record<string, unknown>;
+    const id = normalizeSafeId(source['id']);
+    const label = normalizeText(source['label'], 48);
+    const category = normalizeTagCategory(source['category']);
+
+    if (!id || !label || !category) continue;
+    tags.set(id, { id, label, category });
+    if (tags.size >= 6) break;
+  }
+
+  return [...tags.values()];
+}
+
 function normalizeCard(raw: unknown): CommunityPreviewCard | null {
   const source = (raw ?? {}) as Record<string, unknown>;
   const sourceData = (source['source'] ?? {}) as Record<string, unknown>;
@@ -141,7 +232,7 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
 
   const description = normalizeText(source['description'], 240);
   const join = access['join'];
-  const minimumRole = access['minimumRole'];
+  const viewerRole = normalizeViewerRole(source['viewerRole']);
 
   return {
     communityId,
@@ -159,15 +250,11 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
     access: {
       join:
         join === 'open' || join === 'invite_only' ? join : 'approval',
-      minimumRole:
-        minimumRole === 'basic'
-        || minimumRole === 'premium'
-        || minimumRole === 'vip'
-          ? minimumRole
-          : null,
-      requiresActiveSubscription:
-        access['requiresActiveSubscription'] === true,
+      minimumRole: null,
+      requiresActiveSubscription: false,
     },
+    tags: normalizeTags(source['tags']),
+    ...(viewerRole ? { viewerRole } : {}),
   };
 }
 
@@ -196,6 +283,27 @@ export function normalizeCommunityPreviewResponse(
   const community = normalizeCard(source['community']);
   const viewerMode = source['viewerMode'];
   const generatedAt = Number(source['generatedAt']);
+  const lifecycleStatus = normalizeLifecycleStatus(source['lifecycleStatus']);
+  const canManageCommunitySettings =
+    community?.source.type === 'community'
+    && source['canManageCommunitySettings'] === true;
+  const settings = canManageCommunitySettings
+    ? normalizeCommunityEditableSettings(source['settings'])
+    : null;
+  const rawCapacity = source['capacity'];
+  const capacity = community?.source.type === 'community'
+    ? normalizeCommunityCapacityPreview(rawCapacity)
+      ?? (rawCapacity === undefined && community
+        ? {
+          configuredLimit: 25,
+          effectiveLimit: 25,
+          memberCount: community.metrics.memberCount,
+          acceptingNewMembers: community.metrics.memberCount < 25,
+          restrictedByOwnerPlan: false,
+          allowedMemberLimits: [],
+        }
+        : null)
+    : null;
 
   if (
     !community
@@ -204,15 +312,30 @@ export function normalizeCommunityPreviewResponse(
       && viewerMode !== 'member'
       && viewerMode !== 'moderator'
       && viewerMode !== 'manager')
+    || (community.source.type === 'community' && !lifecycleStatus)
+    || (canManageCommunitySettings && !settings)
+    || (community.source.type === 'community' && !capacity)
   ) {
     return null;
   }
 
   return {
     community,
+    rules: community.source.type === 'community'
+      ? normalizeMultilineText(source['rules'], 1_200) || null
+      : null,
+    lifecycleStatus: community.source.type === 'community'
+      ? lifecycleStatus
+      : null,
     viewerMode,
     viewerRole: normalizeViewerRole(source['viewerRole']),
     canInteract: source['canInteract'] === true,
+    canManageMemberships: source['canManageMemberships'] === true,
+    canInviteCommunityMembers: source['canInviteCommunityMembers'] === true,
+    canManageCommunitySettings,
+    capacity,
+    settings,
+    canLeaveMembership: source['canLeaveMembership'] === true,
     generatedAt: Number.isFinite(generatedAt) ? generatedAt : Date.now(),
   };
 }

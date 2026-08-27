@@ -20,6 +20,22 @@ export interface AccountSharedPublicationAnonymizationAdapter {
     uid: string,
     limit: number
   ): Promise<number>;
+  anonymizeCommunityFeedPostAuthorsPage(
+    uid: string,
+    limit: number
+  ): Promise<number>;
+  anonymizeCommunityFeedCommentAuthorsPage(
+    uid: string,
+    limit: number
+  ): Promise<number>;
+  anonymizeCommunityFeedPostActionActorsPage(
+    uid: string,
+    limit: number
+  ): Promise<number>;
+  deleteCommunityFeedReactionsPage(uid: string, limit: number): Promise<number>;
+  deleteCommunityFeedRequestsPage(uid: string, limit: number): Promise<number>;
+  anonymizeCommunityFeedAuditPage(uid: string, limit: number): Promise<number>;
+  deleteCommunityFeedUserState(uid: string): Promise<number>;
 }
 
 export interface ExecuteSharedPublicationAnonymizationInput {
@@ -79,7 +95,57 @@ export async function executeSharedPublicationAnonymizationDomain(
       pageSize,
       maxPages
     );
-    const results = [commentAuthors, replyTargets, reactions];
+    const communityFeedAuthors = await executePagedStep(
+      () => adapter.anonymizeCommunityFeedPostAuthorsPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const communityFeedCommentAuthors = await executePagedStep(
+      () => adapter.anonymizeCommunityFeedCommentAuthorsPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const communityFeedRequests = await executePagedStep(
+      () => adapter.deleteCommunityFeedRequestsPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const communityFeedReactions = await executePagedStep(
+      () => adapter.deleteCommunityFeedReactionsPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const communityFeedActionActors = await executePagedStep(
+      () => adapter.anonymizeCommunityFeedPostActionActorsPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const communityFeedAudit = await executePagedStep(
+      () => adapter.anonymizeCommunityFeedAuditPage(uid, pageSize),
+      pageSize,
+      maxPages
+    );
+    const communityFeedUserState = normalizeCount(
+      await adapter.deleteCommunityFeedUserState(uid),
+      1
+    );
+    const communityFeedStateResult: PagedExecutionResult = {
+      completed: true,
+      processed: communityFeedUserState,
+      pages: 1,
+    };
+    const results = [
+      commentAuthors,
+      replyTargets,
+      reactions,
+      communityFeedAuthors,
+      communityFeedCommentAuthors,
+      communityFeedRequests,
+      communityFeedReactions,
+      communityFeedActionActors,
+      communityFeedAudit,
+      communityFeedStateResult,
+    ];
     const completed = results.every((result) => result.completed);
     const processed = results.reduce(
       (total, result) => total + result.processed,
@@ -100,6 +166,14 @@ export async function executeSharedPublicationAnonymizationDomain(
         photoCommentAuthorsAnonymized: commentAuthors.processed,
         photoCommentReplyTargetsAnonymized: replyTargets.processed,
         photoReactionsDeleted: reactions.processed,
+        communityFeedPostAuthorsAnonymized: communityFeedAuthors.processed,
+        communityFeedCommentAuthorsAnonymized:
+          communityFeedCommentAuthors.processed,
+        communityFeedRequestsDeleted: communityFeedRequests.processed,
+        communityFeedReactionsDeleted: communityFeedReactions.processed,
+        communityFeedActionActorsAnonymized: communityFeedActionActors.processed,
+        communityFeedAuditAnonymized: communityFeedAudit.processed,
+        communityFeedUserStateDeleted: communityFeedUserState,
       },
     };
   } catch (error: unknown) {

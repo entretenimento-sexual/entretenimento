@@ -44,6 +44,8 @@ match /public_profiles/{userId} {
       "municipio",
       "estado",
       "gender",
+      "identityCode",
+      "identityCatalogVersion",
       "orientation",
       "role",
       "latitude",
@@ -59,6 +61,8 @@ match /public_profiles/{userId} {
         "municipio",
         "estado",
         "gender",
+        "identityCode",
+        "identityCatalogVersion",
         "orientation",
         "role",
         "createdAt",
@@ -75,6 +79,8 @@ match /public_profiles/{userId} {
       "municipio",
       "estado",
       "gender",
+      "identityCode",
+      "identityCatalogVersion",
       "orientation",
       "latitude",
       "longitude",
@@ -96,6 +102,47 @@ match /public_profiles/{userId} {
         request.resource.data[field] is string
         && request.resource.data[field].size() <= 2048
         && request.resource.data[field].matches('^https://.*')
+      );
+  }
+
+  function identityProjectionPresent() {
+    return request.resource.data.keys().hasAny([
+      "identityCode",
+      "identityCatalogVersion"
+    ]);
+  }
+
+  function identityProjectionValid() {
+    return !identityProjectionPresent()
+      || (
+        request.resource.data.keys().hasAll([
+          "identityCode",
+          "identityCatalogVersion"
+        ])
+        && requiredTextValid("identityCode", 1, 80)
+        && request.resource.data.identityCode == request.resource.data.gender
+        && request.resource.data.identityCatalogVersion is int
+        && request.resource.data.identityCatalogVersion >= 1
+      );
+  }
+
+  function identityMatchesPrivateDeclaration() {
+    let user = getAfter(privateUserPath()).data;
+    let declaredCode = user.get("declaredIdentityCode", user.get("gender", ""));
+    let catalogVersion = user.get("identityCatalogVersion", 1);
+    return request.resource.data.identityCode == declaredCode
+      && request.resource.data.gender == user.get("gender", declaredCode)
+      && request.resource.data.identityCatalogVersion == catalogVersion;
+  }
+
+  function identityChangeSafe() {
+    let changed = request.resource.data.diff(resource.data).affectedKeys();
+    let identityKeys = ["gender", "identityCode", "identityCatalogVersion"];
+    return !changed.hasAny(identityKeys)
+      || (
+        changed.hasAll(identityKeys)
+        && identityProjectionValid()
+        && identityMatchesPrivateDeclaration()
       );
   }
 
@@ -127,7 +174,8 @@ match /public_profiles/{userId} {
       && request.resource.data.nicknameNormalized.matches('^[a-z0-9._-]{3,40}$')
       && requiredTextValid("municipio", 1, 80)
       && requiredTextValid("estado", 1, 40)
-      && requiredTextValid("gender", 1, 40)
+      && requiredTextValid("gender", 1, 80)
+      && identityProjectionValid()
       && requiredTextValid("orientation", 1, 40)
       && optionalHttpsUrlValid("avatarUrl")
       && optionalHttpsUrlValid("photoURL")
@@ -147,6 +195,8 @@ match /public_profiles/{userId} {
     && privateUserEligibleAfter()
     && createKeysValid()
     && editablePayloadValid()
+    && identityProjectionPresent()
+    && identityMatchesPrivateDeclaration()
     && request.resource.data.role == "free"
     && request.resource.data.createdAt == request.time
     && request.resource.data.updatedAt == request.time;
@@ -158,6 +208,7 @@ match /public_profiles/{userId} {
       || (
         updateKeysValid()
         && editablePayloadValid()
+        && identityChangeSafe()
         && request.resource.data.updatedAt == request.time
       )
     );

@@ -43,11 +43,9 @@ watchFriends(uid: string) {
   return this.friends.watchFriends(uid);
 }
 
-  /* Blocks */
+  /* Blocks — leitura apenas; writes passam por FriendshipService/callables */
   getBlockedDoc$(owner: string, target: string) { return this.blocks.getBlockedDoc$(owner, target); }
   listBlocked(uid: string) { return this.blocks.listBlocked(uid); }
-  blockUser(owner: string, target: string, reason?: string) { return this.blocks.blockUser(owner, target, reason); }
-  unblockUser(owner: string, target: string) { return this.blocks.unblockUser(owner, target); }
 
   /* Requests */
   listInboundRequests(uid: string) { return this.reqs.listInboundRequests(uid); }

@@ -14,6 +14,7 @@ import {
 import {
   deleteDoc,
   doc,
+  getDoc,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -61,6 +62,17 @@ function blockEvent() {
   };
 }
 
+async function seedBlockWithEvent(): Promise<void> {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    const blockRef = doc(db, 'users', OWNER_UID, 'blocks', TARGET_UID);
+    const eventRef = doc(blockRef, 'events', EVENT_ID);
+
+    await setDoc(blockRef, blockState());
+    await setDoc(eventRef, blockEvent());
+  });
+}
+
 describe('Firestore Rules / user blocks', () => {
   beforeAll(async () => {
     const rules = readFileSync(
@@ -86,62 +98,52 @@ describe('Firestore Rules / user blocks', () => {
     await testEnv.cleanup();
   });
 
-  it('permite criar evento quando o estado de bloqueio existe', async () => {
+  it('permite ao proprietário ler estado e eventos criados pelo backend', async () => {
+    await seedBlockWithEvent();
     const db = authenticatedDb(OWNER_UID);
     const blockRef = doc(db, 'users', OWNER_UID, 'blocks', TARGET_UID);
     const eventRef = doc(blockRef, 'events', EVENT_ID);
 
-    await assertSucceeds(setDoc(blockRef, blockState()));
-    await assertSucceeds(setDoc(eventRef, blockEvent()));
+    await assertSucceeds(getDoc(blockRef));
+    await assertSucceeds(getDoc(eventRef));
   });
 
-  it('nega evento órfão quando o estado de bloqueio não existe', async () => {
-    const db = authenticatedDb(OWNER_UID);
-    const eventRef = doc(
-      db,
-      'users',
-      OWNER_UID,
-      'blocks',
-      TARGET_UID,
-      'events',
-      EVENT_ID
-    );
-
-    await assertFails(setDoc(eventRef, blockEvent()));
-  });
-
-  it('nega criação de evento por usuário diferente do proprietário', async () => {
-    const ownerDb = authenticatedDb(OWNER_UID);
+  it('nega leitura do bloqueio a outro usuário', async () => {
+    await seedBlockWithEvent();
     const outsiderDb = authenticatedDb(OUTSIDER_UID);
     const blockRef = doc(
-      ownerDb,
+      outsiderDb,
       'users',
       OWNER_UID,
       'blocks',
       TARGET_UID
     );
-    const eventRef = doc(
-      outsiderDb,
-      'users',
-      OWNER_UID,
-      'blocks',
-      TARGET_UID,
-      'events',
-      EVENT_ID
-    );
-
-    await assertSucceeds(setDoc(blockRef, blockState()));
-    await assertFails(setDoc(eventRef, blockEvent()));
-  });
-
-  it('mantém eventos imutáveis depois de criados', async () => {
-    const db = authenticatedDb(OWNER_UID);
-    const blockRef = doc(db, 'users', OWNER_UID, 'blocks', TARGET_UID);
     const eventRef = doc(blockRef, 'events', EVENT_ID);
 
-    await assertSucceeds(setDoc(blockRef, blockState()));
-    await assertSucceeds(setDoc(eventRef, blockEvent()));
-    await assertFails(updateDoc(eventRef, { reason: 'alterado' }));
-    await assertFails(deleteDoc(eventRef));
+    await assertFails(getDoc(blockRef));
+    await assertFails(getDoc(eventRef));
+  });
+
+  it('nega create, update e delete do estado diretamente pelo cliente', async () => {
+    const db = authenticatedDb(OWNER_UID);
+    const blockRef = doc(db, 'users', OWNER_UID, 'blocks', TARGET_UID);
+
+    await assertFails(setDoc(blockRef, blockState()));
+
+    await seedBlockWithEvent();
+    await assertFails(updateDoc(blockRef, { isBlocked: false }));
+    await assertFails(deleteDoc(blockRef));
+  });
+
+  it('nega qualquer escrita de evento diretamente pelo cliente', async () => {
+    await seedBlockWithEvent();
+    const db = authenticatedDb(OWNER_UID);
+    const blockRef = doc(db, 'users', OWNER_UID, 'blocks', TARGET_UID);
+    const existingEventRef = doc(blockRef, 'events', EVENT_ID);
+    const newEventRef = doc(blockRef, 'events', 'block-event-002');
+
+    await assertFails(setDoc(newEventRef, blockEvent()));
+    await assertFails(updateDoc(existingEventRef, { reason: 'alterado' }));
+    await assertFails(deleteDoc(existingEventRef));
   });
 });

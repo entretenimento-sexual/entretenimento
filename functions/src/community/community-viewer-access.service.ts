@@ -9,46 +9,78 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import { db } from '../firebaseApp';
+import { COMMUNITY_MEMBER_LIMIT_OPTIONS } from './community-capacity.policy';
+import { getCommunityCapacityForOwner } from './community-capacity.service';
 import {
-  getActivePlatformSubscriptionEntitlement,
-  hasMinimumPlatformRole,
-} from '../payments/application/platform-subscription-entitlement.service';
+  isCommunityMemberActivityEnabledStatus,
+  isCommunityMembershipManagementEnabledStatus,
+} from './community-lifecycle.policy';
+import { canSendCommunityInvite } from './community-invite.policy';
+import { resolveCommunityMembersCanInvite } from './community-invite.shared';
+import {
+  CommunityMembershipLeaveCommunityStatus,
+  CommunityMembershipStatus,
+  evaluateCommunityMembershipLeave,
+} from './community-membership-request.policy';
 import {
   CommunityPreviewCard,
+  CommunityPreviewLifecycleStatus,
+  CommunityPreviewResponse,
   CommunityViewerMode,
   CommunityViewerRole,
   resolveCommunityViewerMode,
   sanitizeCommunityDocument,
+  sanitizeCommunityPreviewDetails,
 } from './community-preview.model';
+import {
+  CommunityEditableSettings,
+  sanitizeCommunityEditableSettings,
+} from './community-settings.model';
+import { evaluateCommunitySettingsUpdate } from './community-settings.policy';
 
 export interface CommunityViewerContext {
   community: CommunityPreviewCard;
+  rules: string | null;
+  lifecycleStatus: CommunityPreviewLifecycleStatus | null;
   viewerMode: CommunityViewerMode;
   viewerRole: CommunityViewerRole | null;
   activeMembership: boolean;
   memberContentAccess: boolean;
+  authenticatedPreviewAccess?: boolean;
   operational: boolean;
+  memberActivityAllowed: boolean;
   canInteract: boolean;
+  canManageMemberships: boolean;
+  canInviteCommunityMembers: boolean;
+  canManageCommunitySettings: boolean;
+  capacity: CommunityPreviewResponse['capacity'];
+  settings: CommunityEditableSettings | null;
+  canLeaveMembership: boolean;
 }
 
-async function resolveMemberContentAccess(
-  uid: string,
-  community: CommunityPreviewCard,
-  activeMembership: boolean
-): Promise<boolean> {
-  if (!activeMembership) return false;
+function isManagementRole(role: CommunityViewerRole | null): boolean {
+  return role === 'owner' || role === 'admin' || role === 'moderator';
+}
 
-  const requiresEntitlement =
-    community.access.requiresActiveSubscription
-    || community.access.minimumRole !== null;
+function normalizeMembershipStatus(value: unknown): CommunityMembershipStatus | null {
+  return value === 'active'
+    || value === 'pending'
+    || value === 'blocked'
+    || value === 'left'
+    ? value
+    : null;
+}
 
-  if (!requiresEntitlement) return true;
-
-  const minimumRole = community.access.minimumRole ?? 'basic';
-  const entitlement = await getActivePlatformSubscriptionEntitlement(uid);
-
-  return entitlement.active
-    && hasMinimumPlatformRole(entitlement.role, minimumRole);
+function normalizeCommunityLeaveStatus(
+  value: unknown
+): CommunityMembershipLeaveCommunityStatus {
+  return value === 'active'
+    || value === 'paused'
+    || value === 'dormant'
+    || value === 'archived'
+    || value === 'scheduled_for_deletion'
+    ? value
+    : null;
 }
 
 export async function getCommunityViewerContext(
@@ -68,39 +100,119 @@ export async function getCommunityViewerContext(
 
   const communityRaw = communitySnapshot.data() ?? null;
   const community = sanitizeCommunityDocument(communityId, communityRaw);
-  const viewer = resolveCommunityViewerMode(
-    membershipSnapshot.exists ? membershipSnapshot.data() : null
-  );
+  const previewDetails = sanitizeCommunityPreviewDetails(communityRaw);
+  const membershipRaw = membershipSnapshot.exists
+    ? membershipSnapshot.data() ?? {}
+    : {};
+  const viewer = resolveCommunityViewerMode(membershipRaw);
   const raw = (communityRaw ?? {}) as Record<string, unknown>;
   const moderation = (raw['moderation'] ?? {}) as Record<string, unknown>;
   const access = (raw['access'] ?? {}) as Record<string, unknown>;
-  const operational =
-    raw['status'] === 'active' && moderation['state'] === 'active';
+  const moderationActive = moderation['state'] === 'active';
+  const operational = raw['status'] === 'active' && moderationActive;
+  const memberActivityAllowed =
+    moderationActive && isCommunityMemberActivityEnabledStatus(raw['status']);
   const publicPreview =
     operational
     && raw['visibility'] === 'public_preview'
     && access['preview'] === 'authenticated';
+  const linkedViewer = viewer.active || viewer.mode === 'pending';
 
-  if (viewer.blocked || !community || (!publicPreview && !viewer.active)) {
+  if (
+    viewer.blocked
+    || !community
+    || !previewDetails
+    || (!publicPreview && !linkedViewer)
+  ) {
     throw new HttpsError(
       'permission-denied',
       'Você não possui acesso a esta comunidade.'
     );
   }
 
-  const memberContentAccess = await resolveMemberContentAccess(
-    uid,
-    community,
+  const memberContentAccess = viewer.active;
+  const capacityState = community.source.type === 'community'
+    ? await getCommunityCapacityForOwner(communityRaw)
+    : null;
+
+  if (community.source.type === 'community' && !capacityState) {
+    throw new HttpsError(
+      'data-loss',
+      'A capacidade da Comunidade está inconsistente.'
+    );
+  }
+  const canManageMemberships =
     viewer.active
-  );
+    && isManagementRole(viewer.role)
+    && moderationActive
+    && isCommunityMembershipManagementEnabledStatus(raw['status']);
+  const canInviteCommunityMembers =
+    operational
+    && canSendCommunityInvite(
+      normalizeMembershipStatus(membershipRaw['status']),
+      viewer.role,
+      resolveCommunityMembersCanInvite(communityRaw)
+    );
+  const settingsDecision = evaluateCommunitySettingsUpdate({
+    sourceType: community.source.type,
+    communityStatus: typeof raw['status'] === 'string' ? raw['status'] : null,
+    moderationState:
+      typeof moderation['state'] === 'string' ? moderation['state'] : null,
+    actorStatus:
+      typeof membershipRaw['status'] === 'string'
+        ? membershipRaw['status']
+        : null,
+    actorRole: viewer.role,
+    capacityChanged: false,
+  });
+  const canManageCommunitySettings = settingsDecision.allowed;
+  const settings = canManageCommunitySettings
+    ? sanitizeCommunityEditableSettings(communityRaw)
+    : null;
+
+  if (canManageCommunitySettings && !settings) {
+    throw new HttpsError(
+      'data-loss',
+      'As configurações atuais da Comunidade estão inconsistentes.'
+    );
+  }
+  const leaveDecision = evaluateCommunityMembershipLeave({
+    communityStatus: normalizeCommunityLeaveStatus(raw['status']),
+    existingStatus: normalizeMembershipStatus(membershipRaw['status']),
+    existingRole: viewer.role,
+  });
 
   return {
     community,
+    rules: previewDetails.rules,
+    lifecycleStatus: previewDetails.lifecycleStatus,
     viewerMode: viewer.mode,
     viewerRole: viewer.role,
     activeMembership: viewer.active,
     memberContentAccess,
+    authenticatedPreviewAccess: publicPreview,
     operational,
-    canInteract: viewer.active && memberContentAccess && operational,
+    memberActivityAllowed,
+    canInteract:
+      viewer.active && memberContentAccess && memberActivityAllowed,
+    canManageMemberships,
+    canInviteCommunityMembers,
+    canManageCommunitySettings,
+    capacity: capacityState && capacityState.memberCount !== null
+      ? {
+        configuredLimit: capacityState.configuredLimit,
+        effectiveLimit: capacityState.effectiveLimit,
+        memberCount: capacityState.memberCount,
+        acceptingNewMembers: capacityState.acceptingNewMembers,
+        restrictedByOwnerPlan: capacityState.restrictedByOwnerPlan,
+        allowedMemberLimits: viewer.role === 'owner'
+          ? COMMUNITY_MEMBER_LIMIT_OPTIONS.filter(
+            (limit) => limit <= capacityState.ownerPlanLimit
+          )
+          : [],
+      }
+      : null,
+    settings,
+    canLeaveMembership: leaveDecision.allowed && !leaveDecision.idempotent,
   };
 }

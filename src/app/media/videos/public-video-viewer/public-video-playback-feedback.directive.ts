@@ -195,6 +195,8 @@ export class PublicVideoPlaybackFeedbackDirective
     { optional: true }
   );
 
+  readonly source = input<string | null>(null, { alias: 'src' });
+
   private readonly feedbackState = signal<TPublicVideoPlaybackFeedbackState>(
     'loading'
   );
@@ -210,6 +212,11 @@ export class PublicVideoPlaybackFeedbackDirective
   private preloadDirection: TAdjacentVideoNavigationDirection = 'next';
   private currentPlaybackReady = false;
   private destroyed = false;
+
+  @HostBinding('attr.src')
+  get sourceAttribute(): string | null {
+    return this.source()?.trim() || null;
+  }
 
   @HostBinding('attr.aria-busy')
   get ariaBusy(): 'true' | null {
@@ -489,7 +496,7 @@ export class PublicVideoPlaybackFeedbackDirective
     )?.classList.contains('public-video-viewer__body--panel-open') === true;
   }
 
-  private assetIdentity(value: string): string {
+  private assetIdentity(value: unknown): string {
     const normalized = String(value ?? '').trim();
 
     if (!normalized) {

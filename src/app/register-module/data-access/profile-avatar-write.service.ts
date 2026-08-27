@@ -52,6 +52,9 @@ export class ProfileAvatarWriteService {
       batch.set(
         publicProfileRef as any,
         {
+          // `avatarUrl` é o contrato público canônico. `photoURL` permanece
+          // sincronizado como alias temporário para consumidores legados.
+          avatarUrl: safePhotoURL,
           photoURL: safePhotoURL,
           updatedAt: serverTimestamp(),
         },

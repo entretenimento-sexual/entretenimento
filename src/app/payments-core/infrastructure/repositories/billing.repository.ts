@@ -15,17 +15,21 @@
 //   sessão no retorno;
 // - valores, role, provider confirmado e entitlement são decididos no backend;
 // - processBillingReturn não confirma pagamento por parâmetros da URL em cloud;
-// - getMyBillingSnapshot devolve projeção sanitizada do entitlement válido.
+// - snapshots e histórico são projeções sanitizadas; collections financeiras
+//   internas continuam inacessíveis ao navegador.
 //
 // Tratamento de erro:
-// - erros continuam sendo tratados pela facade, integrada a
+// - erros continuam sendo tratados pela facade/component chamador, integrados a
 //   ErrorNotificationService e GlobalErrorHandlerService.
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { from, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
-import { BillingPlan } from '../../domain/models/billing-plan.model';
+import {
+  BillingPlan,
+  type PlatformPlanKey,
+} from '../../domain/models/billing-plan.model';
 import {
   BillingSnapshotResult,
   ProcessBillingReturnInput,
@@ -34,6 +38,19 @@ import {
 import {
   CreateCheckoutResult,
 } from '../../domain/models/checkout-session-response.model';
+import {
+  PlatformSubscriptionHistoryPage,
+} from '../../domain/models/platform-subscription-history.model';
+
+interface PlatformCheckoutFlowContext {
+  minimumRole: PlatformPlanKey | null;
+  returnUrl: string | null;
+}
+
+interface PlatformSubscriptionHistoryRequest {
+  cursor?: string | null;
+  limit?: number | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class BillingRepository {
@@ -60,7 +77,12 @@ export class BillingRepository {
    * - deve permanecer bloqueado até existir gateway real validado.
    */
   private readonly createPlatformCheckoutSessionCallable = httpsCallable<
-    { planId: string; planKey: string },
+    {
+      planId: string;
+      planKey: string;
+      minimumRole?: PlatformPlanKey;
+      returnUrl?: string;
+    },
     CreateCheckoutResult | null
   >(this.functions, 'createPlatformCheckoutSession');
 
@@ -86,6 +108,17 @@ export class BillingRepository {
     BillingSnapshotResult | null
   >(this.functions, 'getMyBillingSnapshot');
 
+  /**
+   * Consulta a trilha sanitizada da própria assinatura.
+   *
+   * billing_audit continua privado; o backend remove IDs financeiros internos e
+   * retorna apenas a sequência de mudanças que interessa ao titular da conta.
+   */
+  private readonly getMyPlatformSubscriptionHistoryCallable = httpsCallable<
+    PlatformSubscriptionHistoryRequest,
+    PlatformSubscriptionHistoryPage | null
+  >(this.functions, 'getMyPlatformSubscriptionHistory');
+
   getPlatformPlanByKey$(
     planKey: string
   ): Observable<BillingPlan | null> {
@@ -97,13 +130,29 @@ export class BillingRepository {
   }
 
   createPlatformCheckoutSession$(
-    plan: BillingPlan
+    plan: BillingPlan,
+    flowContext: PlatformCheckoutFlowContext
   ): Observable<CreateCheckoutResult | null> {
+    const request: {
+      planId: string;
+      planKey: string;
+      minimumRole?: PlatformPlanKey;
+      returnUrl?: string;
+    } = {
+      planId: plan.id,
+      planKey: String(plan.key),
+    };
+
+    if (flowContext.minimumRole) {
+      request.minimumRole = flowContext.minimumRole;
+    }
+
+    if (flowContext.returnUrl) {
+      request.returnUrl = flowContext.returnUrl;
+    }
+
     return from(
-      this.createPlatformCheckoutSessionCallable({
-        planId: plan.id,
-        planKey: String(plan.key),
-      })
+      this.createPlatformCheckoutSessionCallable(request)
     ).pipe(
       map((result) => result.data ?? null)
     );
@@ -124,6 +173,17 @@ export class BillingRepository {
       this.getMyBillingSnapshotCallable({})
     ).pipe(
       map((result) => result.data ?? null)
+    );
+  }
+
+  getMyPlatformSubscriptionHistory$(
+    cursor: string | null = null,
+    limit = 25
+  ): Observable<PlatformSubscriptionHistoryPage> {
+    return from(
+      this.getMyPlatformSubscriptionHistoryCallable({ cursor, limit })
+    ).pipe(
+      map((result) => result.data ?? { items: [], nextCursor: null })
     );
   }
 }

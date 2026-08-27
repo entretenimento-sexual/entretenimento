@@ -1,4 +1,4 @@
-﻿// src/app/core/services/discovery/user-intent-status.service.ts
+// src/app/core/services/discovery/user-intent-status.service.ts
 // -----------------------------------------------------------------------------
 // USER INTENT STATUS SERVICE
 // -----------------------------------------------------------------------------
@@ -34,8 +34,26 @@ import {
   Functions,
   httpsCallable,
 } from '@angular/fire/functions';
-import { Observable, defer, from, of, throwError } from 'rxjs';
-import { catchError, map, switchMap } from 'rxjs/operators';
+import {
+  NEVER,
+  Observable,
+  combineLatest,
+  defer,
+  from,
+  of,
+  throwError,
+  timer,
+} from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  repeat,
+  share,
+  switchMap,
+  take,
+  takeUntil,
+} from 'rxjs/operators';
 
 import {
   IUserIntentStatus,
@@ -54,11 +72,23 @@ import {
 } from 'src/app/core/services/filtering/filters/region-filter.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import {
+  chunkUserIntentStatusOwnerUids,
+  mergeUserIntentStatusCardPages,
+  normalizeUserIntentStatusOwnerUids,
+} from './user-intent-status-owner-query.utils';
+import {
+  formatUserIntentStatusExpiresIn,
+  getEarliestUserIntentStatusExpiryAt,
+  watchSingleUserIntentStatusTime$,
+  watchUserIntentStatusTime$,
+} from './user-intent-status-time.utils';
 
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 60;
 const DEFAULT_STATUS_DURATION_HOURS = 12;
 const MAX_STATUS_DURATION_HOURS = 12;
+const STATUS_QUERY_REFRESH_GRACE_MS = 25;
 
 interface UserIntentStatusFirestoreDocument {
   id?: unknown;
@@ -136,6 +166,9 @@ export class UserIntentStatusService {
           ...(statusSnap.data() as Record<string, unknown>),
         });
       }),
+      switchMap((item) =>
+        item ? watchSingleUserIntentStatusTime$(item) : of(null)
+      ),
       catchError((error) =>
         this.handleSingleReadError(
           error,
@@ -178,42 +211,132 @@ export class UserIntentStatusService {
       return of([]);
     }
 
-    const now = Date.now();
     const resultLimit = this.normalizeLimit(options.limit);
     const venueId = String(options.includeVenueId ?? '').trim();
+    const hasOwnerFilter = Array.isArray(options.ownerUids);
+    const ownerUids = this.normalizeOwnerUids(options.ownerUids ?? []);
 
-    return this.firestoreContext.deferObservable$(() => {
-      const constraints: QueryConstraint[] = [
-        where('destination.region.uf', '==', normalizedRegion.uf),
-        where('destination.region.city', '==', normalizedRegion.city),
-        where('moderation.state', '==', 'active'),
-        where('visibility', '==', 'public_discovery'),
-        where('expiresAt', '>', now),
-        orderBy('expiresAt', 'asc'),
-        firestoreLimit(resultLimit),
-      ];
+    if (hasOwnerFilter && ownerUids.length === 0) {
+      return of([]);
+    }
 
-      if (venueId) {
-        constraints.splice(4, 0, where('destination.venueId', '==', venueId));
-      }
+    const ownerUidChunks: readonly (readonly string[] | null)[] =
+      hasOwnerFilter
+        ? chunkUserIntentStatusOwnerUids(ownerUids)
+        : [null];
 
-      const statusesRef = collection(this.firestore, 'user_intent_statuses');
-      const statusesQuery = query(statusesRef, ...constraints);
+    const chunkStreams = ownerUidChunks.map((ownerChunk, chunkIndex) =>
+      this.watchActiveStatusQuery$(
+        normalizedRegion,
+        resultLimit,
+        venueId,
+        ownerChunk,
+        chunkIndex,
+        ownerUidChunks.length
+      )
+    );
 
-      return collectionData(statusesQuery, { idField: 'id' }) as Observable<
-        UserIntentStatusFirestoreDocument[]
-      >;
+    return combineLatest(chunkStreams).pipe(
+      map((pages) => mergeUserIntentStatusCardPages(pages, resultLimit))
+    );
+  }
+
+  /**
+   * Mantém a query reativa ao Firestore e também ao relógio local.
+   *
+   * O filtro `expiresAt > now` do Firestore usa um valor fixo no instante em que
+   * a consulta é criada. Por isso, após a primeira expiração, recriamos somente
+   * este chunk com um novo `Date.now()`. Antes disso, o relógio local atualiza os
+   * rótulos e remove o item expirado sem depender de uma nova escrita remota.
+   */
+  private watchActiveStatusQuery$(
+    normalizedRegion: IUserIntentStatusRegion,
+    resultLimit: number,
+    venueId: string,
+    ownerUids: readonly string[] | null,
+    chunkIndex: number,
+    chunkCount: number
+  ): Observable<IUserIntentStatusCardVm[]> {
+    return defer(() => {
+      const queryNow = Date.now();
+      const source$ = this.firestoreContext.deferObservable$(() => {
+        const constraints: QueryConstraint[] = [
+          where('destination.region.uf', '==', normalizedRegion.uf),
+          where('destination.region.city', '==', normalizedRegion.city),
+          where('moderation.state', '==', 'active'),
+          where('visibility', '==', 'public_discovery'),
+        ];
+
+        if (venueId) {
+          constraints.push(where('destination.venueId', '==', venueId));
+        }
+
+        if (ownerUids?.length) {
+          constraints.push(where('uid', 'in', [...ownerUids]));
+        }
+
+        constraints.push(
+          where('expiresAt', '>', queryNow),
+          orderBy('expiresAt', 'asc'),
+          firestoreLimit(resultLimit)
+        );
+
+        const statusesRef = collection(this.firestore, 'user_intent_statuses');
+        const statusesQuery = query(statusesRef, ...constraints);
+
+        return collectionData(statusesQuery, { idField: 'id' }) as Observable<
+          UserIntentStatusFirestoreDocument[]
+        >;
+      }).pipe(
+        map((items) =>
+          (items ?? [])
+            .map((item) => this.toStatusCardVm(item))
+            .filter((item): item is IUserIntentStatusCardVm => !!item)
+        ),
+        share()
+      );
+
+      const refreshOnExpiry$ = source$.pipe(
+        map((items) => getEarliestUserIntentStatusExpiryAt(items)),
+        distinctUntilChanged(),
+        switchMap((expiresAt) => {
+          if (expiresAt === null) {
+            return NEVER;
+          }
+
+          return timer(
+            Math.max(
+              expiresAt - Date.now() + STATUS_QUERY_REFRESH_GRACE_MS,
+              1
+            )
+          );
+        }),
+        take(1)
+      );
+
+      return source$.pipe(
+        switchMap((items) =>
+          watchUserIntentStatusTime$(items).pipe(
+            map((liveItems) => [...liveItems])
+          )
+        ),
+        takeUntil(refreshOnExpiry$)
+      );
     }).pipe(
-      map((items) =>
-        (items ?? [])
-          .map((item) => this.toStatusCardVm(item))
-          .filter((item): item is IUserIntentStatusCardVm => !!item)
-      ),
+      repeat(),
       catchError((error) =>
         this.handleReadError<IUserIntentStatusCardVm>(
           error,
           'watchActiveStatusesForRegion',
-          { region: normalizedRegion, options }
+          {
+            region: normalizedRegion,
+            limit: resultLimit,
+            hasVenueFilter: !!venueId,
+            hasOwnerFilter: !!ownerUids,
+            ownerCount: ownerUids?.length ?? 0,
+            ownerChunkIndex: chunkIndex,
+            ownerChunkCount: chunkCount,
+          }
         )
       )
     );
@@ -317,6 +440,7 @@ export class UserIntentStatusService {
     const moderation = this.normalizeModeration(raw.moderation);
     const startsAt = this.toMillis(raw.startsAt) ?? 0;
     const expiresAt = this.toMillis(raw.expiresAt) ?? 0;
+    const now = Date.now();
 
     if (
       !id ||
@@ -324,7 +448,7 @@ export class UserIntentStatusService {
       !profile ||
       !destination ||
       moderation.state !== 'active' ||
-      expiresAt <= Date.now()
+      expiresAt <= now
     ) {
       return null;
     }
@@ -347,8 +471,8 @@ export class UserIntentStatusService {
       ...item,
       destinationLabel: this.formatDestination(item.destination),
       availabilityLabel: this.formatAvailability(item.availability),
-      expiresInLabel: this.formatExpiresIn(item.expiresAt),
-      isActive: item.moderation.state === 'active' && item.expiresAt > Date.now(),
+      expiresInLabel: formatUserIntentStatusExpiresIn(item.expiresAt, now),
+      isActive: true,
     };
   }
 
@@ -464,6 +588,10 @@ export class UserIntentStatusService {
     return Math.min(Math.max(parsed, 1), MAX_LIMIT);
   }
 
+  private normalizeOwnerUids(values: readonly string[]): string[] {
+    return normalizeUserIntentStatusOwnerUids(values);
+  }
+
   private normalizeOptionalText(value: unknown): string | null {
     const normalized = String(value ?? '').trim();
     return normalized || null;
@@ -515,17 +643,6 @@ export class UserIntentStatusService {
     default:
       return 'Disponível hoje';
     }
-  }
-
-  private formatExpiresIn(expiresAt: number): string {
-    const remainingMs = Math.max(expiresAt - Date.now(), 0);
-    const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
-
-    if (remainingHours <= 1) {
-      return 'Expira em até 1h';
-    }
-
-    return `Expira em ${remainingHours}h`;
   }
 
   private handleSingleReadError(
@@ -614,6 +731,7 @@ export class UserIntentStatusService {
       // noop
     }
   }
+
   private isPermissionDenied(error: unknown): boolean {
     const source = error as { code?: unknown; message?: unknown } | null | undefined;
     const code = String(source?.code ?? '').toLowerCase();

@@ -86,6 +86,24 @@
   gap: 14px;
 }
 
+.gallery-pagination {
+  display: flex;
+  justify-content: center;
+  padding: clamp(20px, 4vw, 32px) 0 4px;
+}
+
+.gallery-pagination .app-action {
+  width: min(100%, 360px);
+  min-height: 48px;
+  justify-content: center;
+  gap: 8px;
+}
+
+.gallery-pagination .app-action:focus-visible {
+  outline: var(--focus-ring, 2px solid currentColor);
+  outline-offset: 3px;
+}
+
 .video-card,
 .video-skeleton-card {
   min-width: 0;
@@ -424,7 +442,8 @@ html.high-contrast .video-card,
 html.high-contrast .state-card,
 html.high-contrast .video-card__play,
 html.high-contrast .video-card__duration,
-html.high-contrast .video-card__actions {
+html.high-contrast .video-card__actions,
+html.high-contrast .gallery-pagination .app-action {
   border-color: currentColor !important;
   box-shadow: none !important;
 }

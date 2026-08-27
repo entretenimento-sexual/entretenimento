@@ -27,6 +27,7 @@ import {
   tap,
 } from 'rxjs/operators';
 
+import { normalizePublicUserIdentity } from 'src/app/core/domain/public-user-identity/public-user-identity.model';
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import {
   DirectChatListItem,
@@ -292,7 +293,8 @@ export class DirectChatFacade {
    * Segurança:
    * - não consulta o documento privado /users do participante;
    * - não grava snapshot do perfil dentro do documento de chat;
-   * - mantém fallback somente de leitura para conversas legadas já existentes.
+   * - mantém fallback somente de leitura para conversas legadas já existentes;
+   * - normaliza o perfil público pelo contrato universal PublicUserIdentity.
    */
   private enrichListItemsWithPublicProfiles$(
     items: DirectChatListItem[]
@@ -319,13 +321,20 @@ export class DirectChatFacade {
           const publicProfile = participantUid
             ? publicProfiles[participantUid]
             : undefined;
+          const identity = publicProfile
+            ? normalizePublicUserIdentity({
+                ...publicProfile,
+                profileId: participantUid,
+              })
+            : null;
 
           return {
             ...item,
-            otherParticipantNickname:
-              String(publicProfile?.nickname ?? '').trim() || null,
-            otherParticipantPhotoURL:
-              String(publicProfile?.avatarUrl ?? '').trim() || null,
+            otherParticipantIdentity: identity,
+            // Aliases legados permanecem derivados da mesma identidade, evitando
+            // duas fontes de verdade durante a migração do Chat.
+            otherParticipantNickname: identity?.nickname ?? null,
+            otherParticipantPhotoURL: identity?.avatarUrl ?? null,
           };
         })
       ),
@@ -358,6 +367,7 @@ export class DirectChatFacade {
       id: (chat?.id ?? '').trim(),
       chat,
       otherParticipantUid,
+      otherParticipantIdentity: null,
       otherParticipantNickname: null,
       otherParticipantPhotoURL: null,
       unreadCount: Number((chat as any)?.unreadCount ?? 0),

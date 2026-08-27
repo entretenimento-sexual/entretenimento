@@ -3,7 +3,7 @@
 // COMMUNITY MEMBERSHIP POLICY
 // -----------------------------------------------------------------------------
 // Decide transições sem acessar Firebase. As callables continuam responsáveis
-// por autenticação, perfil, entitlement, transação, métricas e auditoria.
+// por autenticação, perfil, transação, métricas e auditoria.
 // -----------------------------------------------------------------------------
 
 export type CommunityJoinPolicy = 'open' | 'approval' | 'invite_only';
@@ -11,13 +11,19 @@ export type CommunityMembershipStatus = 'active' | 'pending' | 'blocked' | 'left
 export type CommunityMembershipTargetStatus = 'active' | 'pending';
 export type CommunityMembershipRole = 'owner' | 'admin' | 'moderator' | 'member';
 export type CommunityMembershipReviewAction = 'approve' | 'reject';
+export type CommunityMembershipLeaveCommunityStatus =
+  | 'active'
+  | 'paused'
+  | 'dormant'
+  | 'archived'
+  | 'scheduled_for_deletion'
+  | null;
 
 export type CommunityMembershipDenialReason =
   | 'community_unavailable'
   | 'invite_only'
   | 'membership_blocked'
-  | 'actor_restricted'
-  | 'subscription_required';
+  | 'actor_restricted';
 
 export type CommunityMembershipLeaveDenialReason =
   | 'membership_not_found'
@@ -37,7 +43,6 @@ export interface CommunityMembershipRequestInput {
   join: CommunityJoinPolicy;
   existingStatus: CommunityMembershipStatus | null;
   actorEligible: boolean;
-  entitlementAllowed: boolean;
 }
 
 export interface CommunityMembershipRequestDecision {
@@ -49,6 +54,7 @@ export interface CommunityMembershipRequestDecision {
 }
 
 export interface CommunityMembershipLeaveInput {
+  communityStatus: CommunityMembershipLeaveCommunityStatus;
   existingStatus: CommunityMembershipStatus | null;
   existingRole: CommunityMembershipRole | null;
 }
@@ -59,6 +65,7 @@ export interface CommunityMembershipLeaveDecision {
   denialReason: CommunityMembershipLeaveDenialReason | null;
   idempotent: boolean;
   decrementMemberCount: boolean;
+  releaseOwnership: boolean;
   auditAction:
     | 'community-membership-left'
     | 'community-membership-request-cancelled'
@@ -105,13 +112,6 @@ export function evaluateCommunityMembershipRequest(
     return denied('membership_blocked');
   }
 
-  if (
-    (input.existingStatus === 'active' || input.existingStatus === 'pending')
-    && !input.entitlementAllowed
-  ) {
-    return denied('subscription_required');
-  }
-
   if (input.existingStatus === 'active') {
     return {
       allowed: true,
@@ -144,10 +144,6 @@ export function evaluateCommunityMembershipRequest(
     return denied('actor_restricted');
   }
 
-  if (!input.entitlementAllowed) {
-    return denied('subscription_required');
-  }
-
   const targetStatus: CommunityMembershipTargetStatus =
     input.join === 'open' ? 'active' : 'pending';
 
@@ -170,6 +166,7 @@ export function evaluateCommunityMembershipLeave(
       denialReason: 'membership_blocked',
       idempotent: false,
       decrementMemberCount: false,
+      releaseOwnership: false,
       auditAction: null,
     };
   }
@@ -181,6 +178,7 @@ export function evaluateCommunityMembershipLeave(
       denialReason: null,
       idempotent: true,
       decrementMemberCount: false,
+      releaseOwnership: false,
       auditAction: null,
     };
   }
@@ -192,17 +190,25 @@ export function evaluateCommunityMembershipLeave(
       denialReason: 'membership_not_found',
       idempotent: false,
       decrementMemberCount: false,
+      releaseOwnership: false,
       auditAction: null,
     };
   }
 
-  if (input.existingStatus === 'active' && input.existingRole === 'owner') {
+  const ownerActive =
+    input.existingStatus === 'active' && input.existingRole === 'owner';
+  const terminalCommunity =
+    input.communityStatus === 'archived'
+    || input.communityStatus === 'scheduled_for_deletion';
+
+  if (ownerActive && !terminalCommunity) {
     return {
       allowed: false,
       targetStatus: null,
       denialReason: 'owner_transfer_required',
       idempotent: false,
       decrementMemberCount: false,
+      releaseOwnership: false,
       auditAction: null,
     };
   }
@@ -213,6 +219,7 @@ export function evaluateCommunityMembershipLeave(
     denialReason: null,
     idempotent: false,
     decrementMemberCount: input.existingStatus === 'active',
+    releaseOwnership: ownerActive && terminalCommunity,
     auditAction: input.existingStatus === 'active'
       ? 'community-membership-left'
       : 'community-membership-request-cancelled',

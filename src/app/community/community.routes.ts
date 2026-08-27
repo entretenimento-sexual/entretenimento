@@ -5,8 +5,8 @@
 // Comunidade é um grupo permanente de pessoas unidas por interesse, identidade,
 // região ou objetivo. Local possui rota própria e Sala permanece em /chat/rooms.
 //
-// As rotas antigas de Local são preservadas somente como redirecionamentos para
-// evitar quebra de favoritos, histórico e links já compartilhados.
+// A antiga rota de sugestão é preservada apenas como redirecionamento para a
+// criação direta, evitando quebra de favoritos e histórico sem manter dois fluxos.
 // -----------------------------------------------------------------------------
 
 import { Routes } from '@angular/router';
@@ -28,10 +28,22 @@ export const COMMUNITY_ROUTES: Routes = [
     pathMatch: 'full',
   },
   {
+    path: 'sugerir',
+    redirectTo: '/dashboard/comunidades/nova',
+    pathMatch: 'full',
+  },
+  {
     path: 'nova',
     loadComponent: () =>
       import('./community-create/community-create-page.component').then(
         (module) => module.CommunityCreatePageComponent
+      ),
+  },
+  {
+    path: 'convites',
+    loadComponent: () =>
+      import('./invites/community-invites-page.component').then(
+        (module) => module.CommunityInvitesPageComponent
       ),
   },
   {

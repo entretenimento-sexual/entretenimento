@@ -11,6 +11,18 @@
 // - Sala não é uma origem comunitária. Salas pertencem ao domínio `/chat/rooms`.
 // -----------------------------------------------------------------------------
 
+import {
+  CommunityTagCategory,
+  isCommunityTagId,
+  resolveCommunityTagDefinitions,
+} from './community-tag.catalog';
+import type { CommunityLifecycleStatus } from './community-lifecycle.policy';
+import type { CommunityEditableSettings } from './community-settings.model';
+import type {
+  CommunityEffectiveMemberLimit,
+  CommunityMemberLimit,
+} from './community-capacity.policy';
+
 export type CommunitySourceType = 'community' | 'venue';
 export type CommunityJoinPolicy = 'open' | 'approval' | 'invite_only';
 export type CommunityViewerMode =
@@ -21,11 +33,13 @@ export type CommunityViewerMode =
   | 'manager';
 export type CommunityViewerRole = 'owner' | 'admin' | 'moderator' | 'member';
 export type CommunityMinimumRole = 'basic' | 'premium' | 'vip';
+export type CommunityPreviewLifecycleStatus = CommunityLifecycleStatus;
 
 export interface CommunityDiscoveryPageRequest {
   limit?: unknown;
   cursor?: unknown;
   sourceType?: unknown;
+  tagId?: unknown;
 }
 
 export interface CommunityPreviewRequest {
@@ -44,6 +58,12 @@ export interface CommunityPreviewAccess {
   requiresActiveSubscription: boolean;
 }
 
+export interface CommunityPreviewTag {
+  id: string;
+  label: string;
+  category: CommunityTagCategory;
+}
+
 export interface CommunityPreviewCard {
   communityId: string;
   name: string;
@@ -57,6 +77,9 @@ export interface CommunityPreviewCard {
   coverUrl: string | null;
   metrics: CommunityPreviewMetrics;
   access: CommunityPreviewAccess;
+  tags: readonly CommunityPreviewTag[];
+  /** Presente apenas em projeções privadas ligadas ao membership do viewer. */
+  viewerRole?: CommunityViewerRole | null;
 }
 
 export interface CommunityDiscoveryPageResponse {
@@ -67,16 +90,40 @@ export interface CommunityDiscoveryPageResponse {
 
 export interface CommunityPreviewResponse {
   community: CommunityPreviewCard;
+  /** Regras editoriais da Comunidade; Locais não participam deste contrato. */
+  rules: string | null;
+  /** Lifecycle explícito do backend; Locais não participam deste contrato. */
+  lifecycleStatus: CommunityPreviewLifecycleStatus | null;
   viewerMode: CommunityViewerMode;
   viewerRole: CommunityViewerRole | null;
   canInteract: boolean;
+  canManageMemberships: boolean;
+  canInviteCommunityMembers: boolean;
+  canManageCommunitySettings: boolean;
+  capacity: {
+    configuredLimit: CommunityMemberLimit;
+    effectiveLimit: CommunityEffectiveMemberLimit;
+    memberCount: number;
+    acceptingNewMembers: boolean;
+    restrictedByOwnerPlan: boolean;
+    allowedMemberLimits: readonly CommunityMemberLimit[];
+  } | null;
+  /** Configurações privadas, somente quando a capability acima for verdadeira. */
+  settings: CommunityEditableSettings | null;
+  canLeaveMembership: boolean;
   generatedAt: number;
+}
+
+export interface CommunityPreviewDetails {
+  rules: string | null;
+  lifecycleStatus: CommunityPreviewLifecycleStatus | null;
 }
 
 export interface NormalizedCommunityDiscoveryPageRequest {
   limit: number;
   cursor: string | null;
   sourceType: CommunitySourceType | null;
+  tagId: string | null;
 }
 
 const DEFAULT_PAGE_LIMIT = 12;
@@ -91,9 +138,30 @@ function normalizeText(value: unknown, maxLength: number): string {
     .slice(0, maxLength);
 }
 
+function normalizeMultilineText(value: unknown, maxLength: number): string {
+  return [...String(value ?? '')]
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code >= 32 || code === 9 || code === 10 || code === 13;
+    })
+    .join('')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, maxLength)
+    .trim();
+}
+
 function normalizeSafeId(value: unknown): string | null {
   const normalized = normalizeText(value, 128);
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
+function normalizeTagId(value: unknown): string | null {
+  const normalized = normalizeText(value, 128);
+  return normalized && isCommunityTagId(normalized) ? normalized : null;
 }
 
 function normalizeHttpsUrl(value: unknown): string | null {
@@ -122,6 +190,18 @@ function normalizeSourceType(value: unknown): CommunitySourceType | null {
   return value === 'community' || value === 'venue' ? value : null;
 }
 
+function normalizeLifecycleStatus(
+  value: unknown
+): CommunityPreviewLifecycleStatus | null {
+  return value === 'active'
+    || value === 'paused'
+    || value === 'dormant'
+    || value === 'archived'
+    || value === 'scheduled_for_deletion'
+    ? value
+    : null;
+}
+
 function normalizeViewerRole(value: unknown): CommunityViewerRole | null {
   return value === 'owner'
     || value === 'admin'
@@ -147,21 +227,13 @@ function normalizeJoin(value: unknown): CommunityJoinPolicy {
   return value === 'open' || value === 'invite_only' ? value : 'approval';
 }
 
-function normalizeMinimumRole(value: unknown): CommunityMinimumRole | null {
-  return value === 'basic' || value === 'premium' || value === 'vip'
-    ? value
-    : null;
-}
-
 function normalizeAccess(raw: unknown): CommunityPreviewAccess {
   const source = (raw ?? {}) as Record<string, unknown>;
-  const contentAccess = (source['contentAccess'] ?? {}) as Record<string, unknown>;
 
   return {
     join: normalizeJoin(source['join']),
-    minimumRole: normalizeMinimumRole(contentAccess['minimumRole']),
-    requiresActiveSubscription:
-      contentAccess['requiresActiveSubscription'] === true,
+    minimumRole: null,
+    requiresActiveSubscription: false,
   };
 }
 
@@ -173,6 +245,14 @@ function normalizeMetrics(raw: unknown): CommunityPreviewMetrics {
     postCount: normalizeCount(source['postCount']),
     mediaCount: normalizeCount(source['mediaCount']),
   };
+}
+
+function normalizeTags(raw: unknown): readonly CommunityPreviewTag[] {
+  return resolveCommunityTagDefinitions(raw).map(({ id, label, category }) => ({
+    id,
+    label,
+    category,
+  }));
 }
 
 function buildPreviewCard(
@@ -206,6 +286,9 @@ function buildPreviewCard(
     coverUrl: normalizeHttpsUrl(source['coverUrl']),
     metrics: normalizeMetrics(source['metrics']),
     access: normalizeAccess(source['access']),
+    tags: communitySource.type === 'community'
+      ? normalizeTags(source['tagIds'])
+      : [],
   };
 }
 
@@ -221,6 +304,7 @@ export function normalizeCommunityDiscoveryPageRequest(
     limit,
     cursor: normalizeSafeId(raw?.cursor),
     sourceType: normalizeSourceType(raw?.sourceType),
+    tagId: normalizeTagId(raw?.tagId),
   };
 }
 
@@ -251,18 +335,52 @@ export function sanitizeCommunityDocument(
 ): CommunityPreviewCard | null {
   const source = (raw ?? {}) as Record<string, unknown>;
   const moderation = (source['moderation'] ?? {}) as Record<string, unknown>;
-  const validStatus = source['status'] === 'active' || source['status'] === 'paused';
+  const status = source['status'];
+  const validStatus = status === 'active'
+    || status === 'paused'
+    || status === 'dormant'
+    || status === 'archived'
+    || status === 'scheduled_for_deletion';
+  const terminalStatus = status === 'archived' || status === 'scheduled_for_deletion';
+  const validVisibility = source['visibility'] === 'public_preview'
+    || source['visibility'] === 'members_only'
+    || (terminalStatus && source['visibility'] === 'hidden');
 
   if (
     !validStatus
     || moderation['state'] !== 'active'
-    || (source['visibility'] !== 'public_preview'
-      && source['visibility'] !== 'members_only')
+    || !validVisibility
   ) {
     return null;
   }
 
   return buildPreviewCard(documentId, source);
+}
+
+/**
+ * Sanitiza somente os campos adicionais da página autenticada. Eles não fazem
+ * parte do card de descoberta e, portanto, não podem vazar por aquela projeção.
+ */
+export function sanitizeCommunityPreviewDetails(
+  raw: unknown
+): CommunityPreviewDetails | null {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const sourceData = (source['source'] ?? {}) as Record<string, unknown>;
+  const sourceType = normalizeSourceType(sourceData['type']);
+
+  if (!sourceType) return null;
+  if (sourceType === 'venue') {
+    return { rules: null, lifecycleStatus: null };
+  }
+
+  const lifecycleStatus = normalizeLifecycleStatus(source['status']);
+  if (!lifecycleStatus) return null;
+
+  const rules = normalizeMultilineText(source['rules'], 1_200);
+  return {
+    rules: rules || null,
+    lifecycleStatus,
+  };
 }
 
 export function resolveCommunityViewerMode(rawMembership: unknown): {

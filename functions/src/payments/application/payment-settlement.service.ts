@@ -26,10 +26,16 @@ import {
   resolvePlatformSubscriptionSettlementPeriod,
 } from './platform-subscription-entitlement.service';
 import {
+  resolvePlatformSubscriptionPlanChangePolicy,
+} from './platform-subscription-change.policy';
+import {
   PLATFORM_SUBSCRIPTION_PROJECTION_VERSION,
   buildPlatformSubscriptionUserProjection,
   resolvePublicPlatformRole,
 } from './platform-subscription-projection.service';
+import {
+  buildPlatformSubscriptionTransitionAuditRecord,
+} from './platform-subscription-audit.service';
 import {
   assertEmulatorPaymentRuntime,
 } from '../security/payment-runtime.guard';
@@ -215,6 +221,30 @@ export async function settleVerifiedPaidEvent(
       );
     }
 
+    /**
+     * A política é reavaliada no instante do settlement. Isso fecha a janela
+     * em que um checkout antigo de plano inferior é pago depois de um upgrade.
+     * Enquanto não houver downgrade agendado/reembolso seguro, a autoridade
+     * financeira falha fechada e não reduz um benefício vigente.
+     */
+    const planChangePolicy = resolvePlatformSubscriptionPlanChangePolicy({
+      currentRole: existingStatus.active ? existingStatus.role : null,
+      requestedRole: grantedRole,
+    });
+
+    if (!planChangePolicy.allowed) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Evento pago incompatível com o plano vigente; redução automática bloqueada.',
+        {
+          reason: 'downgrade_requires_next_cycle',
+          currentRole: planChangePolicy.currentRole,
+          requestedRole: planChangePolicy.requestedRole,
+          checkoutSessionId: checkout.id,
+        }
+      );
+    }
+
     const [userSnapshot, publicProfileSnap] = await Promise.all([
       tx.get(userRef),
       tx.get(publicProfileRef),
@@ -292,6 +322,19 @@ export async function settleVerifiedPaidEvent(
       updatedAt: now,
     };
 
+    const transitionAudit = buildPlatformSubscriptionTransitionAuditRecord({
+      buyerUid: checkout.buyerUid,
+      entitlementId,
+      eventId: `payment_settlement:${transactionId}`,
+      beforeData: existingEntitlement as unknown as Record<string, unknown> | null,
+      afterData: entitlementDoc as unknown as Record<string, unknown>,
+      occurredAt: now,
+      recordedAt: now,
+    });
+    const transitionAuditRef = transitionAudit
+      ? db.collection('billing_audit').doc(transitionAudit.id)
+      : null;
+
     const entitlementStatus = evaluatePlatformSubscriptionEntitlement(
       entitlementDoc,
       checkout.buyerUid,
@@ -307,6 +350,9 @@ export async function settleVerifiedPaidEvent(
     tx.create(paymentEventRef, paymentEventDoc);
     tx.set(transactionRef, transactionDoc, { merge: false });
     tx.set(entitlementRef, entitlementDoc, { merge: true });
+    if (transitionAudit && transitionAuditRef) {
+      tx.create(transitionAuditRef, transitionAudit.record);
+    }
     tx.set(
       checkoutRef,
       {
@@ -367,6 +413,11 @@ export async function settleVerifiedPaidEvent(
       verificationMode: event.verificationMode,
       amountCents: event.amountCents,
       currency: event.currency,
+      previousSubscriptionActive: existingStatus.active,
+      previousSubscriptionRole: existingStatus.role,
+      currentSubscriptionRole: grantedRole,
+      previousPlanKey: existingEntitlement?.planKey ?? null,
+      currentPlanKey: checkout.planSnapshot!.key,
       subscriptionStartsAt: startsAt,
       subscriptionEndsAt: endsAt,
       subscriptionExtensionBase: settlementPeriod.extensionBase,

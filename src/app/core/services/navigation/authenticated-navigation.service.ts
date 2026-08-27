@@ -19,7 +19,7 @@
 // - este service NÃO decide guards
 // - este service NÃO altera sessão
 // - este service NÃO faz side-effects de auth
-// - ele apenas organiza estado de navegação autenticada
+// - assinatura paga vem exclusivamente do PlatformSubscriptionAccessService
 // ============================================================================
 
 import { Injectable, inject } from '@angular/core';
@@ -36,6 +36,12 @@ import {
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import {
+  PlatformSubscriptionAccessService,
+} from 'src/app/core/services/subscriptions/platform-subscription-access.service';
+import type {
+  PlatformSubscriptionRole,
+} from 'src/app/core/services/subscriptions/platform-subscription-access.model';
 
 export type AuthenticatedNavItem = {
   id: string;
@@ -50,6 +56,8 @@ export type AuthenticatedNavigationVm = {
   ready: boolean;
   uid: string | null;
   usuario: IUserDados | null;
+  subscriptionRole: PlatformSubscriptionRole | 'free';
+  isSubscriber: boolean;
   currentUrl: string;
   viewedUid: string | null;
   isProfileRoute: boolean;
@@ -61,6 +69,7 @@ export class AuthenticatedNavigationService {
   private readonly router = inject(Router);
   private readonly session = inject(AuthSessionService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
 
   /**
    * URL atual normalizada.
@@ -78,20 +87,27 @@ export class AuthenticatedNavigationService {
    * VM compartilhado de navegação autenticada.
    *
    * Regras:
-   * - uid vem da sessão
-   * - usuario vem do CurrentUserStore, mas só é aceito se bater com o uid atual
-   * - viewedUid é derivado da rota /perfil/:uid quando aplicável
+   * - uid vem da sessão;
+   * - usuario vem do CurrentUserStore, mas só é aceito se bater com o uid atual;
+   * - free/basic/premium/vip vêm da projeção canônica validada pelo
+   *   PlatformSubscriptionAccessService;
+   * - viewedUid é derivado da rota /perfil/:uid quando aplicável.
    */
   readonly vm$: Observable<AuthenticatedNavigationVm> = combineLatest([
     this.session.ready$,
     this.session.uid$,
     this.currentUserStore.user$,
+    this.subscriptionAccess.state$,
     this.currentUrl$,
   ]).pipe(
-    map(([ready, uid, usuario, currentUrl]) => {
+    map(([ready, uid, usuario, subscriptionState, currentUrl]) => {
       const safeUid = uid?.trim() || null;
       const safeUsuario =
         safeUid && usuario?.uid === safeUid ? usuario : null;
+      const subscriptionRole: AuthenticatedNavigationVm['subscriptionRole'] =
+        subscriptionState.active && subscriptionState.role
+          ? subscriptionState.role
+          : 'free';
 
       const isProfileRoute =
         currentUrl === '/perfil' || currentUrl.startsWith('/perfil/');
@@ -108,6 +124,8 @@ export class AuthenticatedNavigationService {
         ready,
         uid: safeUid,
         usuario: safeUsuario,
+        subscriptionRole,
+        isSubscriber: subscriptionState.active,
         currentUrl,
         viewedUid,
         isProfileRoute,
@@ -117,6 +135,8 @@ export class AuthenticatedNavigationService {
     distinctUntilChanged((a, b) =>
       a.ready === b.ready &&
       a.uid === b.uid &&
+      a.subscriptionRole === b.subscriptionRole &&
+      a.isSubscriber === b.isSubscriber &&
       a.currentUrl === b.currentUrl &&
       a.viewedUid === b.viewedUid &&
       a.isProfileRoute === b.isProfileRoute &&

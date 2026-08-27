@@ -17,9 +17,10 @@ import { FirestoreUserQueryService } from '../../core/services/data-handling/fir
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { FriendshipService } from '../../core/services/interactions/friendship/friendship.service';
-import { MediaPublicQueryService } from '../../core/services/media/media-public-query.service';
+import { MediaPublicPreviewQueryService } from '../../core/services/media/media-public-preview-query.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 import { UserSocialLinksService } from '../../core/services/user-profile/user-social-links.service';
+import { PublicMixedMediaViewerLauncherService } from '../../media/shared/services/public-mixed-media-viewer-launcher.service';
 import { DirectChatService } from '../../messaging/direct-chat/services/direct-chat.service';
 import { SocialLinksAccordionComponent } from '../../user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
 
@@ -81,9 +82,20 @@ describe('OtherUserProfileViewComponent', () => {
           },
         },
         {
-          provide: MediaPublicQueryService,
+          provide: MediaPublicPreviewQueryService,
           useValue: {
-            getProfilePublicMedia$: vi.fn(() => of([])),
+            getProfilePublicMediaPreview$: vi.fn(() => of({
+              items: [],
+              photosCount: 0,
+              videosCount: 0,
+              totalCount: 0,
+            })),
+          },
+        },
+        {
+          provide: PublicMixedMediaViewerLauncherService,
+          useValue: {
+            open$: vi.fn(() => of(void 0)),
           },
         },
         {

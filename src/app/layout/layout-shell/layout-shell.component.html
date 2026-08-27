@@ -60,6 +60,10 @@
       >
         <router-outlet></router-outlet>
       </main>
+
+      <app-authenticated-footer
+        *ngIf="vm.shellMode === 'auth' && vm.showFooter"
+      ></app-authenticated-footer>
     </div>
   </div>
 

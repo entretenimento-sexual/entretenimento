@@ -5,7 +5,7 @@
 // Modal global para confirmação de ações sensíveis.
 //
 // Uso recomendado:
-// - desfazer amizade;
+// - desfazer amizade/conexão;
 // - bloquear usuário;
 // - excluir foto;
 // - cancelar convite;
@@ -64,10 +64,20 @@ export interface ConfirmationDialogData {
   styleUrls: ['./confirmation-dialog.component.css'],
 })
 export class ConfirmationDialogComponent {
-  readonly tone = computed<ConfirmationDialogTone>(() => this.data.tone ?? 'warning');
-  readonly icon = computed(() => this.data.icon ?? this.resolveDefaultIcon(this.tone()));
-  readonly confirmLabel = computed(() => this.data.confirmLabel ?? 'Confirmar');
-  readonly cancelLabel = computed(() => this.data.cancelLabel ?? 'Cancelar');
+  readonly title = computed(() => this.cleanLabel(this.data?.title, 'Confirmar ação'));
+  readonly message = computed(() => this.cleanLabel(this.data?.message, 'Deseja continuar?'));
+
+  /**
+   * Normaliza payloads legados. O antigo ConfirmacaoDialogComponent aceitava
+   * `tone: 'default'`; ao passar pelo adaptador isso deve virar warning em vez
+   * de produzir um estado visual sem accent.
+   */
+  readonly tone = computed<ConfirmationDialogTone>(() =>
+    this.resolveTone((this.data as { tone?: unknown } | null)?.tone)
+  );
+  readonly icon = computed(() => this.data?.icon ?? this.resolveDefaultIcon(this.tone()));
+  readonly confirmLabel = computed(() => this.cleanLabel(this.data?.confirmLabel, 'Confirmar'));
+  readonly cancelLabel = computed(() => this.cleanLabel(this.data?.cancelLabel, 'Cancelar'));
 
   constructor(
     private readonly ref: MatDialogRef<ConfirmationDialogComponent, boolean>,
@@ -80,6 +90,23 @@ export class ConfirmationDialogComponent {
 
   cancel(): void {
     this.ref.close(false);
+  }
+
+  private resolveTone(value: unknown): ConfirmationDialogTone {
+    switch (value) {
+      case 'danger':
+      case 'info':
+      case 'success':
+      case 'warning':
+        return value;
+      default:
+        return 'warning';
+    }
+  }
+
+  private cleanLabel(value: unknown, fallback: string): string {
+    const label = typeof value === 'string' ? value.trim() : '';
+    return label || fallback;
   }
 
   private resolveDefaultIcon(tone: ConfirmationDialogTone): string {

@@ -42,13 +42,12 @@ export const fileReducer = createReducer(
     error: null,
   })),
 
-  on(uploadSuccess, (state, { url }): FileState => ({
+  on(uploadSuccess, (state): FileState => ({
     ...state,
     uploading: false,
     progress: 100,
     success: true,
     error: null,
-    downloadUrl: url,
   })),
 
   on(uploadError, (state, { error }): FileState => ({
@@ -56,6 +55,5 @@ export const fileReducer = createReducer(
     uploading: false,
     success: false,
     error,
-    downloadUrl: null,
   }))
 );

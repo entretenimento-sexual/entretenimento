@@ -1,0 +1,353 @@
+@if (state$ | async; as state) {
+  @if (createState$ | async; as createState) {
+    @if (actionState$ | async; as actionState) {
+      <section
+        class="feed-comments"
+        [id]="'community-feed-comments-' + postId()"
+        aria-label="Conversa da publicação"
+      >
+        <header class="feed-comments__header">
+          <div>
+            <h3>Conversa</h3>
+            <span>
+              {{ state.items.length }}
+              {{ state.items.length === 1 ? 'mensagem' : 'mensagens' }}
+            </span>
+          </div>
+          <button
+            class="feed-comments__close"
+            type="button"
+            aria-label="Fechar conversa"
+            title="Fechar conversa"
+            (click)="requestClose()"
+          >
+            <i class="fas fa-xmark" aria-hidden="true"></i>
+          </button>
+        </header>
+
+        @if (state.status === 'loading') {
+          <p class="feed-comments__state" role="status">
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            Carregando conversa...
+          </p>
+        } @else if (state.status === 'error') {
+          <div class="feed-comments__state" role="alert">
+            <span>Não foi possível carregar a conversa.</span>
+            <button type="button" (click)="retry()">Tentar novamente</button>
+          </div>
+        } @else if (state.status === 'empty') {
+          <p class="feed-comments__state" role="status">
+            {{ canComment() ? 'Seja a primeira pessoa a conversar.' : 'Ainda não há mensagens.' }}
+          </p>
+        } @else {
+          @if (state.nextCursor) {
+            <button
+              class="feed-comments__more"
+              type="button"
+              [disabled]="state.loadingMore"
+              (click)="loadMore(state.nextCursor)"
+            >
+              {{ state.loadingMore ? 'Carregando...' : 'Ver mensagens anteriores' }}
+            </button>
+          }
+
+          <ul class="feed-comments__list" role="list">
+            @for (item of state.items; track item.commentId) {
+              <li>
+                <article
+                  class="feed-comment"
+                  [id]="commentDomId(item.commentId)"
+                  [class.is-recent]="recentCommentId() === item.commentId"
+                  [class.is-highlighted]="highlightedCommentId() === item.commentId"
+                >
+                  <span class="feed-comment__avatar" aria-hidden="true">
+                    @if (item.author.avatarUrl) {
+                      <img
+                        [src]="item.author.avatarUrl"
+                        alt=""
+                        loading="lazy"
+                        appImageFallback
+                      />
+                    } @else {
+                      <i class="fas fa-user"></i>
+                    }
+                  </span>
+
+                  <div class="feed-comment__body">
+                    <div class="feed-comment__surface">
+                      <header>
+                        <div class="feed-comment__identity">
+                          <div class="feed-comment__identity-line">
+                            <strong>{{ item.author.label }}</strong>
+                            <time [attr.datetime]="createdIso(item.createdAt)">
+                              {{ createdLabel(item.createdAt) }}
+                            </time>
+                          </div>
+                          @if (
+                            item.author.profileTypeLabel
+                            || item.author.city
+                            || item.author.state
+                          ) {
+                            <div
+                              class="feed-comment__author-context"
+                              [attr.aria-label]="'Informações públicas de ' + item.author.label"
+                            >
+                              @if (item.author.profileTypeLabel) {
+                                <span>{{ item.author.profileTypeLabel }}</span>
+                              }
+                              @if (item.author.city || item.author.state) {
+                                <span>
+                                  @if (item.author.city) {
+                                    {{ item.author.city }}
+                                  }
+                                  @if (item.author.city && item.author.state) {
+                                    <span aria-hidden="true">/</span>
+                                  }
+                                  @if (item.author.state) {
+                                    {{ item.author.state }}
+                                  }
+                                </span>
+                              }
+                            </div>
+                          }
+                        </div>
+
+                        @if (
+                          item.capabilities.canDeleteOwn
+                          || item.capabilities.canModerate
+                          || item.capabilities.canReport
+                        ) {
+                          <details #commentMenu class="feed-comment__menu">
+                            <summary
+                              [attr.aria-label]="'Mais ações da mensagem de ' + item.author.label"
+                              title="Mais ações"
+                            >
+                              <i class="fas fa-ellipsis" aria-hidden="true"></i>
+                            </summary>
+                            <div
+                              class="feed-comment__menu-panel"
+                              role="group"
+                              [attr.aria-label]="'Ações da mensagem de ' + item.author.label"
+                            >
+                              @if (item.capabilities.canDeleteOwn) {
+                                <button
+                                  class="feed-comment__menu-action is-danger"
+                                  type="button"
+                                  [disabled]="actionState.status === 'loading'"
+                                  (click)="commentMenu.open = false; requestAction(item, 'delete_own')"
+                                >
+                                  <i class="fas fa-trash" aria-hidden="true"></i>
+                                  <span>Excluir mensagem</span>
+                                </button>
+                              }
+                              @if (item.capabilities.canModerate) {
+                                <button
+                                  class="feed-comment__menu-action"
+                                  type="button"
+                                  [disabled]="actionState.status === 'loading'"
+                                  (click)="commentMenu.open = false; requestAction(item, 'remove')"
+                                >
+                                  <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                                  <span>Remover mensagem</span>
+                                </button>
+                              }
+                              @if (item.capabilities.canReport) {
+                                <app-report-content-button
+                                  [targetType]="'community_feed_comment'"
+                                  [targetId]="item.commentId"
+                                  [parentTargetId]="postId()"
+                                  [containerTargetId]="communityId()"
+                                  label="Denunciar mensagem"
+                                  title="mensagem da conversa"
+                                  appearance="link"
+                                  [disabled]="actionState.status === 'loading'"
+                                  (click)="commentMenu.open = false"
+                                />
+                              }
+                            </div>
+                          </details>
+                        }
+                      </header>
+
+                      @if (item.replyTo; as reference) {
+                        <button
+                          class="feed-comment__quote"
+                          type="button"
+                          [disabled]="!reference.available"
+                          [attr.aria-label]="reference.available ? 'Ir para mensagem de ' + reference.authorLabel : 'Mensagem original indisponível'"
+                          (click)="reference.available && scrollToReferencedComment(reference.commentId)"
+                        >
+                          <strong>{{ reference.authorLabel }}</strong>
+                          <span>
+                            {{ reference.available ? reference.textPreview : 'Mensagem indisponível' }}
+                          </span>
+                        </button>
+                      } @else {
+                        <div
+                          class="feed-comment__author-context"
+                          role="note"
+                          [attr.aria-label]="'Em resposta à publicação de ' + postAuthorLabel()"
+                        >
+                          <span>
+                            <i class="fas fa-reply" aria-hidden="true"></i>
+                            Em resposta à publicação de {{ postAuthorLabel() }}
+                          </span>
+                        </div>
+                      }
+
+                      <p>{{ item.text }}</p>
+                    </div>
+
+                    <div class="feed-comment__actions">
+                      @if (canComment()) {
+                        <button
+                          type="button"
+                          (click)="startReply(item)"
+                          [attr.aria-label]="'Responder à mensagem de ' + item.author.label"
+                        >
+                          <i class="fas fa-reply" aria-hidden="true"></i>
+                          Responder
+                        </button>
+                      }
+                    </div>
+
+                    @if (
+                      actionCommentId() === item.commentId
+                      && actionMode(); as selectedAction
+                    ) {
+                      <section class="feed-comment__confirmation">
+                        @if (selectedAction === 'delete_own') {
+                          <p>Excluir esta mensagem?</p>
+                        } @else {
+                          <label [for]="'comment-removal-reason-' + item.commentId">
+                            Motivo da remoção
+                          </label>
+                          <textarea
+                            [id]="'comment-removal-reason-' + item.commentId"
+                            rows="2"
+                            maxlength="240"
+                            [formControl]="removalReason"
+                          ></textarea>
+                        }
+                        <div>
+                          <button
+                            type="button"
+                            [disabled]="actionState.status === 'loading'"
+                            (click)="cancelAction()"
+                          >Cancelar</button>
+                          <button
+                            type="button"
+                            class="is-danger"
+                            [disabled]="actionState.status === 'loading' || (selectedAction === 'remove' && removalReason.invalid)"
+                            (click)="confirmAction(item)"
+                          >
+                            @if (
+                              actionState.status === 'loading'
+                              && actionState.commentId === item.commentId
+                            ) {
+                              Processando...
+                            } @else {
+                              Confirmar
+                            }
+                          </button>
+                        </div>
+                        @if (
+                          actionState.status === 'error'
+                          && actionState.commentId === item.commentId
+                        ) {
+                          <p role="status">A confirmação foi preservada. Tente novamente.</p>
+                        }
+                      </section>
+                    }
+                  </div>
+                </article>
+              </li>
+            }
+          </ul>
+        }
+
+        @if (canComment()) {
+          <form
+            class="feed-comments__composer"
+            [formGroup]="commentForm"
+            (ngSubmit)="submitComment()"
+            novalidate
+          >
+            @if (replyTarget(); as target) {
+              <div class="feed-comments__reply-target" aria-live="polite">
+                <div>
+                  <strong>Respondendo a {{ target.author.label }}</strong>
+                  <span>{{ target.text }}</span>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cancelar resposta"
+                  title="Cancelar resposta"
+                  [disabled]="createState === 'loading'"
+                  (click)="cancelReply()"
+                >
+                  <i class="fas fa-xmark" aria-hidden="true"></i>
+                </button>
+              </div>
+            } @else if (replyToPostRequested()) {
+              <div class="feed-comments__reply-target" aria-live="polite">
+                <div>
+                  <strong>Respondendo à publicação de {{ postAuthorLabel() }}</strong>
+                  <span>{{ postTextPreview() }}</span>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cancelar resposta à publicação"
+                  title="Cancelar resposta"
+                  [disabled]="createState === 'loading'"
+                  (click)="cancelPostReply()"
+                >
+                  <i class="fas fa-xmark" aria-hidden="true"></i>
+                </button>
+              </div>
+            }
+
+            <label [for]="'community-comment-' + postId()">
+              {{ replyTarget() || replyToPostRequested() ? 'Responder' : 'Mensagem' }}
+            </label>
+            <div class="feed-comments__composer-row">
+              <textarea
+                #composerTextarea
+                [id]="'community-comment-' + postId()"
+                rows="2"
+                maxlength="500"
+                enterkeyhint="send"
+                formControlName="text"
+                [placeholder]="replyTarget() || replyToPostRequested() ? 'Escreva sua resposta' : 'Contribua com a conversa'"
+                [attr.aria-invalid]="commentControl.invalid && commentControl.touched ? 'true' : null"
+                (keydown.enter)="submitCommentOnEnter($event)"
+              ></textarea>
+              <button
+                type="submit"
+                aria-label="Enviar mensagem"
+                [disabled]="commentForm.invalid || createState === 'loading'"
+                [attr.aria-busy]="createState === 'loading' ? 'true' : null"
+              >
+                @if (createState === 'loading') {
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  <span class="feed-comments__send-label">Enviando</span>
+                } @else {
+                  <i class="fas fa-paper-plane" aria-hidden="true"></i>
+                  <span class="feed-comments__send-label">Enviar</span>
+                }
+              </button>
+            </div>
+            <small>{{ commentControl.value.length }}/500 caracteres</small>
+            @if (createState === 'error') {
+              <p role="status">Seu texto e a referência da resposta foram preservados. Tente novamente.</p>
+            }
+          </form>
+        } @else {
+          <p class="feed-comments__read-only">
+            Apenas participantes ativos podem enviar mensagens.
+          </p>
+        }
+      </section>
+    }
+  }
+}

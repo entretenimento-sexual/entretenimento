@@ -1,6 +1,6 @@
 import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 
-export type ModerationStatus = 'PENDING_REVIEW' | 'APPROVED';
+export type ModerationStatus = 'APPROVED';
 
 export interface PrivatePhotoDoc {
   path?: string;
@@ -13,6 +13,8 @@ export interface PhotoPublicationDoc {
   isPublished?: boolean;
   sourceStoragePath?: string;
   publishedStoragePath?: string;
+  assetVersion?: number;
+  moderationStatus?: string;
 }
 
 export interface PublishedPhotoSyncInput {
@@ -54,7 +56,11 @@ export interface PhotoSyncDependencies {
 
 export type PublishedPhotoSyncResult =
   | {
-      status: 'ignored-no-change' | 'ignored-not-published' | 'ignored-invalid-source';
+      status:
+        | 'ignored-no-change'
+        | 'ignored-not-published'
+        | 'ignored-invalid-source'
+        | 'ignored-quarantined';
     }
   | {
       status: 'already-synchronized';
@@ -134,6 +140,17 @@ export async function synchronizePublishedPhotoUpdate(
     return { status: 'ignored-not-published' };
   }
 
+  /**
+   * Conteúdo em quarentena fica congelado até a decisão administrativa.
+   * Isso evita substituir o ativo publicado enquanto uma cópia probatória
+   * ainda pode estar sendo preservada.
+   */
+  if (
+    String(publication.moderationStatus ?? '').trim().toUpperCase() === 'FLAGGED'
+  ) {
+    return { status: 'ignored-quarantined' };
+  }
+
   const sourceStoragePath = resolveSourceStoragePath(
     input.ownerUid,
     input.after
@@ -194,9 +211,14 @@ export async function synchronizePublishedPhotoUpdate(
     publicationPatch['assetVersion'] = now;
     publicationPatch['moderationStatus'] = dependencies.moderationStatus;
     publicationPatch['moderationReason'] = null;
-    publicationPatch['lastModeratedAt'] =
-      dependencies.moderationStatus === 'APPROVED' ? now : null;
+    publicationPatch['lastModeratedAt'] = now;
 
+    /**
+     * A projeção pública precisa receber a mesma versão física. O cache de URL
+     * assinada usa este campo; alterações apenas sociais/metadados continuam
+     * mudando `updatedAt` sem invalidar o acesso ao mesmo arquivo.
+     */
+    publicPhotoPatch['assetVersion'] = now;
     publicPhotoPatch['moderationStatus'] = dependencies.moderationStatus;
     publicPhotoPatch['moderationReason'] = null;
   }

@@ -1,5 +1,4 @@
-//src\app\account\models\account-overview.model.ts
-//Comentários são sempre bem vindos
+// src/app/account/models/account-overview.model.ts
 export interface AccountOverviewVm {
   uid: string | null;
   nickname: string | null;
@@ -29,9 +28,10 @@ export interface AccountOverviewVm {
   subscriptionLabel: string;
   subscriptionActive: boolean;
   activePlanLabel: string | null;
+  subscriptionStartedAt: number | null;
+  subscriptionEndsAt: number | null;
 
   tokensBalance: number | null;
-
   quickPurchaseEnabled: boolean | null;
 
   canManageDevices: boolean;

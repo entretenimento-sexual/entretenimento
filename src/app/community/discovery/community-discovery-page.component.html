@@ -1,6 +1,36 @@
 <!-- src/app/community/discovery/community-discovery-page.component.html -->
 @if (state$ | async; as state) {
   <main class="community-discovery" aria-labelledby="community-discovery-title">
+    <header class="community-discovery__header">
+      <h1 id="community-discovery-title">{{ hubTitle }}</h1>
+
+      @if (canCreateVenue) {
+        <a
+          class="community-discovery__create"
+          routerLink="/dashboard/locais/novo"
+          aria-label="Cadastrar um novo Espaço Oficial"
+        >
+          <i class="fas fa-plus" aria-hidden="true"></i>
+          <span>Espaço Oficial</span>
+        </a>
+      } @else if (canCreateCommunity) {
+        <a
+          class="community-discovery__create"
+          href="/dashboard/comunidades/nova"
+          [attr.aria-busy]="creationGateBusy()"
+          [attr.aria-disabled]="creationGateBusy()"
+          aria-label="Criar uma nova Comunidade"
+          (click)="requestCommunityCreation($event)"
+        >
+          <i
+            class="fas {{ creationGateBusy() ? 'fa-spinner fa-spin' : 'fa-plus' }}"
+            aria-hidden="true"
+          ></i>
+          <span>Criar Comunidade</span>
+        </a>
+      }
+    </header>
+
     @if (showCommunityNavigation) {
       <nav
         class="community-discovery__scope-nav"
@@ -22,39 +52,90 @@
         >
           Minhas
         </a>
+        <a
+          routerLink="/dashboard/comunidades/convites"
+          routerLinkActive="is-active"
+          ariaCurrentWhenActive="page"
+          [routerLinkActiveOptions]="{ exact: true }"
+        >
+          Convites
+        </a>
       </nav>
+    } @else {
+      <p class="community-discovery__definition">{{ description }}</p>
     }
 
-    <header class="community-discovery__header">
-      <div>
-        <h1 id="community-discovery-title">{{ title }}</h1>
-        @if (state.status === 'ready') {
-          <span aria-live="polite">{{ state.items.length }}</span>
-        }
-      </div>
+    @if (canFilterByTags) {
+      @if (tagFilterState$ | async; as tagFilterState) {
+        <section class="community-discovery__filters" aria-label="Filtrar Comunidades por interesse">
+          @if (tagFilterState.status === 'loading') {
+            <span class="community-discovery__filter-state" role="status" aria-live="polite">
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              Carregando interesses
+            </span>
+          } @else if (tagFilterState.status === 'error') {
+            <button
+              class="community-discovery__filter-retry"
+              type="button"
+              (click)="retryTagCatalog()"
+            >
+              Tentar novamente
+            </button>
+          } @else {
+            <div class="community-discovery__filter-strip" role="group" aria-label="Interesses rápidos">
+              <button
+                class="community-discovery__filter-chip"
+                type="button"
+                [class.is-active]="selectedTagId() === null"
+                [attr.aria-pressed]="selectedTagId() === null"
+                (click)="selectTagFilter(null)"
+              >
+                Todos
+              </button>
 
-      @if (canCreateVenue) {
-        <a
-          class="community-discovery__create"
-          routerLink="/dashboard/locais/novo"
-          aria-label="Criar um novo Local"
-        >
-          <i class="fas fa-plus" aria-hidden="true"></i>
-          <span>Criar Local</span>
-        </a>
-      } @else if (canCreateCommunity) {
-        <a
-          class="community-discovery__create"
-          routerLink="/dashboard/comunidades/nova"
-          aria-label="Criar uma nova Comunidade"
-        >
-          <i class="fas fa-plus" aria-hidden="true"></i>
-          <span>Criar Comunidade</span>
-        </a>
+              @for (tag of quickFilterTags(tagFilterState.items); track tag.id) {
+                <button
+                  class="community-discovery__filter-chip"
+                  type="button"
+                  [attr.data-tag-id]="tag.id"
+                  [class.is-active]="selectedTagId() === tag.id"
+                  [attr.aria-pressed]="selectedTagId() === tag.id"
+                  (click)="selectTagFilter(tag.id)"
+                >
+                  {{ tag.label }}
+                </button>
+              }
+
+              <label class="community-discovery__filter-control">
+                <span class="visually-hidden">Mais interesses</span>
+                <select
+                  [value]="moreInterestSelectValue()"
+                  (change)="changeTagFilter($event)"
+                  aria-label="Escolher outro interesse"
+                >
+                  <option value="">Mais interesses</option>
+                  <optgroup [label]="tagCategoryLabel('intent')">
+                    @for (tag of tagsForCategory(tagFilterState.items, 'intent'); track tag.id) {
+                      <option [value]="tag.id">{{ tag.label }}</option>
+                    }
+                  </optgroup>
+                  <optgroup [label]="tagCategoryLabel('practice')">
+                    @for (tag of tagsForCategory(tagFilterState.items, 'practice'); track tag.id) {
+                      <option [value]="tag.id">{{ tag.label }}</option>
+                    }
+                  </optgroup>
+                  <optgroup [label]="tagCategoryLabel('audience')">
+                    @for (tag of tagsForCategory(tagFilterState.items, 'audience'); track tag.id) {
+                      <option [value]="tag.id">{{ tag.label }}</option>
+                    }
+                  </optgroup>
+                </select>
+              </label>
+            </div>
+          }
+        </section>
       }
-    </header>
-
-    <p class="community-discovery__definition">{{ description }}</p>
+    }
 
     @if (state.status === 'loading') {
       <div class="community-discovery__state" role="status" aria-live="polite">
@@ -68,37 +149,73 @@
         <button type="button" (click)="retry()">Tentar novamente</button>
       </div>
     } @else if (state.status === 'empty') {
-      <div class="community-discovery__state" role="status">
-        <i class="fas fa-compass" aria-hidden="true"></i>
-        <span>{{ emptyMessage }}</span>
-        @if (canCreateVenue) {
+      @if (discoveryMode === 'mine') {
+        <div class="community-discovery__state community-discovery__state--mine-empty" role="status">
+          <i class="fas fa-user-group" aria-hidden="true"></i>
+          <strong>Você ainda não participa de Comunidades</strong>
+          <p>Explore espaços que combinam com seus interesses e entre quando quiser.</p>
           <a
-            class="community-discovery__empty-create"
-            routerLink="/dashboard/locais/novo"
+            class="community-discovery__empty-explore"
+            routerLink="/dashboard/comunidades"
           >
-            Criar o primeiro Local
+            Explorar Comunidades
           </a>
-        } @else if (canCreateCommunity) {
-          <a
-            class="community-discovery__empty-create"
-            routerLink="/dashboard/comunidades/nova"
-          >
-            Criar Comunidade
-          </a>
-        }
-      </div>
+        </div>
+      } @else {
+        <div class="community-discovery__state" role="status">
+          <i class="fas fa-compass" aria-hidden="true"></i>
+          <span>{{ selectedTagId() ? 'Nenhuma Comunidade encontrada com este interesse.' : emptyMessage }}</span>
+          @if (canCreateVenue) {
+            <a
+              class="community-discovery__empty-create"
+              routerLink="/dashboard/locais/novo"
+            >
+              Cadastrar Espaço Oficial
+            </a>
+          } @else if (canCreateCommunity) {
+            <a
+              class="community-discovery__empty-create"
+              href="/dashboard/comunidades/nova"
+              [attr.aria-busy]="creationGateBusy()"
+              [attr.aria-disabled]="creationGateBusy()"
+              (click)="requestCommunityCreation($event)"
+            >
+              @if (creationGateBusy()) {
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              }
+              <span>Criar Comunidade</span>
+            </a>
+          }
+        </div>
+      }
     } @else {
       <ul class="community-discovery__grid" [attr.aria-label]="title + ' disponíveis'">
         @for (item of state.items; track item.communityId) {
           <li>
             <a
               class="community-card"
+              [class.community-card--mine]="discoveryMode === 'mine'"
               [routerLink]="detailsRoute(item)"
+              [queryParams]="{
+                retorno:
+                  item.source.type === 'venue'
+                    ? '/dashboard/locais'
+                    : discoveryMode === 'mine'
+                      ? '/dashboard/comunidades/minhas'
+                      : selectedTagId()
+                        ? '/dashboard/comunidades?interesse=' + selectedTagId()
+                        : '/dashboard/comunidades'
+              }"
               [attr.aria-label]="'Abrir ' + sourceLabel(item) + ' ' + item.name"
             >
-              <div class="community-card__media" aria-hidden="true">
+              <div
+                class="community-card__media"
+                [attr.data-visual-variant]="communityVisualVariant(item)"
+                aria-hidden="true"
+              >
                 @if (item.coverUrl) {
                   <img
+                    class="community-card__cover"
                     [src]="item.coverUrl"
                     alt=""
                     loading="lazy"
@@ -106,7 +223,13 @@
                   />
                 }
 
-                <span class="community-card__avatar">
+                <span
+                  class="community-card__identity"
+                  [class.community-card__identity--overlay]="!!item.coverUrl"
+                >
+                  <span class="community-card__initials">
+                    {{ communityInitials(item) }}
+                  </span>
                   @if (item.avatarUrl) {
                     <img
                       [src]="item.avatarUrl"
@@ -114,10 +237,6 @@
                       loading="lazy"
                       appImageFallback
                     />
-                  } @else {
-                    <i
-                      class="fas {{ item.source.type === 'venue' ? 'fa-location-dot' : 'fa-user-group' }}"
-                    ></i>
                   }
                 </span>
               </div>
@@ -125,37 +244,75 @@
               <div class="community-card__body">
                 <div class="community-card__heading">
                   <div>
-                    <span class="community-card__kind">
-                      {{ sourceLabel(item) }}
-                    </span>
+                    @if (item.source.type === 'venue') {
+                      <span class="community-card__kind">
+                        {{ sourceLabel(item) }}
+                      </span>
+                    }
+                    @if (membershipRoleLabel(item); as membershipRole) {
+                      <span class="community-card__viewer-role">
+                        <i class="fas fa-user-check" aria-hidden="true"></i>
+                        {{ membershipRole }}
+                      </span>
+                    }
                     <h2>{{ item.name }}</h2>
                   </div>
-
-                  @if (accessLabel(item); as label) {
-                    <span class="community-card__access">{{ label }}</span>
-                  }
                 </div>
 
-                @if (item.description) {
+                @if (discoveryMode === 'explore' && item.description) {
                   <p>{{ item.description }}</p>
+                }
+
+                @if (discoveryMode === 'explore' && item.tags.length > 0) {
+                  <div
+                    class="community-card__tags"
+                    aria-label="Interesses desta Comunidade"
+                  >
+                    @for (tag of item.tags.slice(0, 2); track tag.id) {
+                      <span>#{{ tag.label }}</span>
+                    }
+                    @if (item.tags.length > 2) {
+                      <span aria-label="Mais {{ item.tags.length - 2 }} interesses">
+                        +{{ item.tags.length - 2 }}
+                      </span>
+                    }
+                  </div>
                 }
 
                 <div
                   class="community-card__metrics"
+                  [class.community-card__metrics--explore]="discoveryMode === 'explore'"
+                  [class.community-card__metrics--mine]="discoveryMode === 'mine'"
+                  role="group"
                   [attr.aria-label]="'Resumo do ' + sourceLabel(item)"
                 >
-                  <span>
-                    <i class="fas fa-users" aria-hidden="true"></i>
-                    {{ item.metrics.memberCount }}
-                  </span>
-                  <span>
-                    <i class="fas fa-message" aria-hidden="true"></i>
-                    {{ item.metrics.postCount }}
-                  </span>
-                  <span>
-                    <i class="fas fa-image" aria-hidden="true"></i>
-                    {{ item.metrics.mediaCount }}
-                  </span>
+                  @if (discoveryMode === 'mine') {
+                    <span [attr.aria-label]="item.metrics.postCount + ' publicações'">
+                      <i class="fas fa-message" aria-hidden="true"></i>
+                      {{ item.metrics.postCount }}
+                    </span>
+                    <span [attr.aria-label]="item.metrics.mediaCount + ' mídias'">
+                      <i class="fas fa-image" aria-hidden="true"></i>
+                      {{ item.metrics.mediaCount }}
+                    </span>
+                    <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
+                      <i class="fas fa-users" aria-hidden="true"></i>
+                      {{ item.metrics.memberCount }}
+                    </span>
+                  } @else {
+                    <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
+                      <i class="fas fa-users" aria-hidden="true"></i>
+                      {{ item.metrics.memberCount }}
+                    </span>
+                    <span [attr.aria-label]="item.metrics.postCount + ' publicações'">
+                      <i class="fas fa-message" aria-hidden="true"></i>
+                      {{ item.metrics.postCount }}
+                    </span>
+                    <span [attr.aria-label]="item.metrics.mediaCount + ' mídias'">
+                      <i class="fas fa-image" aria-hidden="true"></i>
+                      {{ item.metrics.mediaCount }}
+                    </span>
+                  }
                 </div>
               </div>
             </a>

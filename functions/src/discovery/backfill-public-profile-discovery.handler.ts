@@ -4,8 +4,10 @@
 // -----------------------------------------------------------------------------
 // Callable administrativa para preencher em public_profiles:
 // - identidade normalizada e reciprocidade;
+// - avatar público canônico;
 // - idade pública adulta;
-// - intenções, práticas e características autorizadas pelo proprietário.
+// - intenções, práticas e características autorizadas pelo proprietário;
+// - localização pública derivada da posição privada com redução de precisão.
 //
 // Não é executada automaticamente. O fluxo operacional recomendado continua:
 // dry-run paginado -> revisão dos totais -> execução paginada após deploy.
@@ -18,6 +20,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
 import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
 import { buildPublicPreferenceProjection } from './public-preference-projection';
+import {
+  buildPublicAvatarProjection,
+  buildPublicLocationProjection,
+} from './public-profile-discovery-projection';
 
 interface BackfillPublicProfileDiscoveryRequest {
   limit?: number | null;
@@ -157,6 +163,8 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
           canPublishAdvanced: hasMinimumActiveDiscoveryPlan(user, 'basic'),
         }
       );
+      const publicLocation = buildPublicLocationProjection(user);
+      const publicAvatar = buildPublicAvatarProjection(user);
 
       updated += 1;
 
@@ -164,6 +172,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
         batch.set(
           publicProfileRef,
           {
+            ...publicAvatar,
             normalizedGender: canonical.normalizedGender,
             normalizedOrientation: canonical.normalizedOrientation,
             interestedInGenders: canonical.interestedInGenders,
@@ -171,6 +180,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
             compatibilityReady: canonical.compatibilityReady,
             age: normalizePublicAge(user['idade'] ?? user['age']),
             ...publicPreferences,
+            ...publicLocation,
             discoveryNormalizedAt: FieldValue.serverTimestamp(),
             publicPreferencesUpdatedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),

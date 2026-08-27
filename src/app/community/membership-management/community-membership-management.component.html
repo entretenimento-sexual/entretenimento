@@ -27,6 +27,16 @@
         </button>
       </header>
 
+      @if (sourceType() === 'community' && capacity()?.acceptingNewMembers === false) {
+        <div class="community-membership-management__state" role="status">
+          <i class="fas fa-users-slash" aria-hidden="true"></i>
+          <span>
+            Novas entradas estão pausadas pela capacidade atual. As solicitações
+            podem ser recusadas ou permanecer pendentes.
+          </span>
+        </div>
+      }
+
       @if (state.status === 'loading') {
         <div class="community-membership-management__state" role="status" aria-live="polite">
           <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
@@ -65,7 +75,7 @@
                 <button
                   type="button"
                   class="is-approve"
-                  [disabled]="action.status === 'loading'"
+                  [disabled]="action.status === 'loading' || capacity()?.acceptingNewMembers === false"
                   [attr.aria-label]="'Aprovar solicitação de ' + request.label"
                   (click)="review(request, 'approve')"
                 >
@@ -106,10 +116,36 @@
       }
     </section>
 
+    @if (
+      sourceType() === 'community'
+      && canManageCommunitySettings()
+      && settings()
+    ) {
+      <app-community-settings
+        [communityId]="communityId()"
+        [settings]="settings()"
+        [capacity]="capacity()"
+        [viewerRole]="viewerRole()"
+        (settingsChanged)="settingsChanged.emit()"
+      />
+    }
+
+    @if (
+      sourceType() === 'community'
+      && (viewerRole() === 'owner'
+        || viewerRole() === 'admin'
+        || viewerRole() === 'moderator')
+    ) {
+      <app-community-member-roster-management
+        [communityId]="communityId()"
+        (membershipChanged)="membershipChanged.emit()"
+      />
+    }
+
     @if (sourceType() === 'community' && viewerRole() === 'owner') {
       <app-community-ownership-management
         [communityId]="communityId()"
-        (ownershipChanged)="membershipChanged.emit()"
+        (ownershipChanged)="ownershipChanged.emit()"
       />
     }
   }

@@ -40,6 +40,17 @@ function assertValidCursor(
   }
 }
 
+function assertValidTag(
+  raw: CommunityDiscoveryPageRequest | null | undefined,
+  normalized: string | null
+): void {
+  const provided = String(raw?.tagId ?? '').trim();
+
+  if (provided && !normalized) {
+    throw new HttpsError('invalid-argument', 'Filtro de interesse inválido.');
+  }
+}
+
 export const getCommunityDiscoveryPage =
   onCall<CommunityDiscoveryPageRequest>(
     { region: FUNCTIONS_REGION },
@@ -59,15 +70,32 @@ export const getCommunityDiscoveryPage =
 
       const pageRequest = normalizeCommunityDiscoveryPageRequest(request.data);
       assertValidCursor(request.data, pageRequest.cursor);
+      assertValidTag(request.data, pageRequest.tagId);
 
+      if (pageRequest.tagId && pageRequest.sourceType === 'venue') {
+        throw new HttpsError(
+          'invalid-argument',
+          'Filtro de interesse está disponível somente para Comunidades.'
+        );
+      }
+
+      const effectiveSourceType = pageRequest.tagId
+        ? 'community'
+        : pageRequest.sourceType;
       const projection = db.collection('community_discovery_index');
       const scanLimit = pageRequest.limit * 3 + 1;
-      let pageQuery = pageRequest.sourceType
+      let pageQuery = pageRequest.tagId
         ? projection
-          .where('source.type', '==', pageRequest.sourceType)
+          .where('source.type', '==', 'community')
+          .where('tagIds', 'array-contains', pageRequest.tagId)
           .orderBy('rankScore', 'desc')
           .limit(scanLimit)
-        : projection.orderBy('rankScore', 'desc').limit(scanLimit);
+        : effectiveSourceType
+          ? projection
+            .where('source.type', '==', effectiveSourceType)
+            .orderBy('rankScore', 'desc')
+            .limit(scanLimit)
+          : projection.orderBy('rankScore', 'desc').limit(scanLimit);
 
       if (pageRequest.cursor) {
         const cursorSnapshot = await projection.doc(pageRequest.cursor).get();
@@ -79,18 +107,31 @@ export const getCommunityDiscoveryPage =
           );
         }
 
-        if (pageRequest.sourceType) {
-          const cursorSource = (cursorSnapshot.data()?.['source'] ?? {}) as Record<
-            string,
-            unknown
-          >;
+        const cursorData = cursorSnapshot.data() ?? {};
+        const cursorSource = (cursorData['source'] ?? {}) as Record<
+          string,
+          unknown
+        >;
 
-          if (cursorSource['type'] !== pageRequest.sourceType) {
-            throw new HttpsError(
-              'invalid-argument',
-              'O cursor não pertence a esta categoria.'
-            );
-          }
+        if (
+          effectiveSourceType
+          && cursorSource['type'] !== effectiveSourceType
+        ) {
+          throw new HttpsError(
+            'invalid-argument',
+            'O cursor não pertence a esta categoria.'
+          );
+        }
+
+        if (
+          pageRequest.tagId
+          && (!Array.isArray(cursorData['tagIds'])
+            || !cursorData['tagIds'].includes(pageRequest.tagId))
+        ) {
+          throw new HttpsError(
+            'invalid-argument',
+            'O cursor não pertence a este filtro de interesse.'
+          );
         }
 
         pageQuery = pageQuery.startAfter(cursorSnapshot);
@@ -111,7 +152,9 @@ export const getCommunityDiscoveryPage =
 
         if (
           item
-          && (!pageRequest.sourceType || item.source.type === pageRequest.sourceType)
+          && (!effectiveSourceType || item.source.type === effectiveSourceType)
+          && (!pageRequest.tagId
+            || item.tags.some((tag) => tag.id === pageRequest.tagId))
         ) {
           items.push(item);
         }

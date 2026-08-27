@@ -2,14 +2,16 @@
 // -----------------------------------------------------------------------------
 // FORM VALIDATION FOCUS DIRECTIVE
 // -----------------------------------------------------------------------------
-// Centraliza o feedback acessível de formulários reativos inválidos:
+// Centraliza o feedback acessível de formulários inválidos:
+// - suporta formulários reativos e template-driven explicitamente marcados;
 // - marca todos os controles como tocados;
 // - anuncia a quantidade de campos que exigem revisão;
-// - move o foco para o primeiro controle inválido;
+// - move o foco para o primeiro controle inválido na ordem visual do DOM;
 // - mantém a regra de domínio e o submit no componente consumidor.
 //
-// A diretiva é aplicada automaticamente a forms reativos nos módulos que a
-// importam. Isso evita implementações divergentes entre cadastro, perfil e chat.
+// A diretiva é aplicada automaticamente a forms reativos e a forms com o
+// atributo `ngForm` nos módulos que a importam. Isso evita implementações
+// divergentes entre cadastro, perfil e chat.
 // -----------------------------------------------------------------------------
 import {
   AfterViewInit,
@@ -26,16 +28,24 @@ import {
   FormArray,
   FormGroup,
   FormGroupDirective,
+  NgForm,
 } from '@angular/forms';
 
 @Directive({
-  selector: 'form[formGroup]',
+  selector: 'form[formGroup], form[ngForm]',
   standalone: true,
 })
 export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
   private readonly host = inject<ElementRef<HTMLFormElement>>(ElementRef);
   private readonly renderer = inject(Renderer2);
-  private readonly formGroupDirective = inject(FormGroupDirective);
+  private readonly formGroupDirective = inject(FormGroupDirective, {
+    optional: true,
+    self: true,
+  });
+  private readonly ngForm = inject(NgForm, {
+    optional: true,
+    self: true,
+  });
 
   private liveRegion: HTMLElement | null = null;
   private focusTimer: ReturnType<typeof setTimeout> | null = null;
@@ -74,7 +84,9 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
 
   @HostListener('submit')
   onNativeSubmit(): void {
-    const form = this.formGroupDirective.control;
+    const form = this.getFormControl();
+    if (!form) return;
+
     form.markAllAsTouched();
     form.updateValueAndValidity();
 
@@ -87,7 +99,9 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
   }
 
   focusFirstInvalid(message = this.formInvalidMessage): boolean {
-    const form = this.formGroupDirective.control;
+    const form = this.getFormControl();
+    if (!form) return false;
+
     form.markAllAsTouched();
     form.updateValueAndValidity();
 
@@ -102,8 +116,10 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
       : `${invalidCount} campos precisam de revisão.`;
     this.announce(`${countLabel} ${message}`);
 
-    const firstControlName = this.findFirstInvalidControlName(form);
-    this.scheduleFocus(firstControlName);
+    // A ordem de registro do FormGroup/NgForm pode divergir da ordem visual,
+    // especialmente quando controles são inseridos por @if. A navegação por
+    // erro deve seguir a ordem do DOM, que é a ordem percebida pelo usuário.
+    this.scheduleFocus(null);
     return true;
   }
 
@@ -114,6 +130,10 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
     this.announce(message);
     this.scheduleFocus(normalizedName);
     return true;
+  }
+
+  private getFormControl(): FormGroup | null {
+    return this.formGroupDirective?.control ?? this.ngForm?.form ?? null;
   }
 
   private scheduleFocus(controlName: string | null): void {
@@ -175,32 +195,6 @@ export class FormValidationFocusDirective implements AfterViewInit, OnDestroy {
   private isUnavailable(element: HTMLElement): boolean {
     const control = element as HTMLInputElement;
     return control.disabled || element.getAttribute('aria-hidden') === 'true';
-  }
-
-  private findFirstInvalidControlName(
-    control: AbstractControl,
-    currentName: string | null = null
-  ): string | null {
-    if (control.disabled || control.valid) return null;
-
-    if (control instanceof FormGroup) {
-      for (const name of Object.keys(control.controls)) {
-        const child = control.controls[name];
-        const result = this.findFirstInvalidControlName(child, name);
-        if (result) return result;
-      }
-      return currentName;
-    }
-
-    if (control instanceof FormArray) {
-      for (const child of control.controls) {
-        const result = this.findFirstInvalidControlName(child, currentName);
-        if (result) return result;
-      }
-      return currentName;
-    }
-
-    return currentName;
   }
 
   private countInvalidControls(control: AbstractControl): number {

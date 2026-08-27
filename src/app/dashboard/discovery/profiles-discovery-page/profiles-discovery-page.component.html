@@ -9,6 +9,67 @@
   </div>
 
   <main class="profiles-discovery-page__content">
+    @if (showLocationNotice()) {
+      @if (locationPermission() === 'prompt') {
+        <section class="profiles-discovery-page__location-notice" aria-labelledby="discovery-location-title">
+          <span class="profiles-discovery-page__location-icon" aria-hidden="true">
+            <i class="fas fa-location-dot"></i>
+          </span>
+          <div class="profiles-discovery-page__location-copy">
+            <strong id="discovery-location-title">Veja quem está mais perto de você</strong>
+            <span>Ative sua localização para exibir distâncias aproximadas nos perfis. Sua posição pública usa precisão reduzida.</span>
+          </div>
+          <div class="profiles-discovery-page__location-controls">
+            <button
+              type="button"
+              class="profiles-discovery-page__location-action"
+              [disabled]="requestingLocation()"
+              [attr.aria-busy]="requestingLocation() ? 'true' : null"
+              (click)="activateLocation()"
+            >
+              @if (requestingLocation()) {
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                Ativando…
+              } @else {
+                Ativar localização
+              }
+            </button>
+
+            <button
+              type="button"
+              class="profiles-discovery-page__location-dismiss"
+              aria-label="Ocultar aviso de localização"
+              title="Não mostrar novamente neste dispositivo"
+              (click)="dismissLocationNotice()"
+            >
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </div>
+        </section>
+      } @else if (locationPermission() === 'denied') {
+        <section class="profiles-discovery-page__location-notice profiles-discovery-page__location-notice--blocked" role="status">
+          <span class="profiles-discovery-page__location-icon" aria-hidden="true">
+            <i class="fas fa-location-dot"></i>
+          </span>
+          <div class="profiles-discovery-page__location-copy">
+            <strong>Localização bloqueada no navegador</strong>
+            <span>Para ver distâncias aproximadas, permita localização para este site nas configurações do navegador.</span>
+          </div>
+          <div class="profiles-discovery-page__location-controls">
+            <button
+              type="button"
+              class="profiles-discovery-page__location-dismiss"
+              aria-label="Ocultar aviso de localização"
+              title="Não mostrar novamente neste dispositivo"
+              (click)="dismissLocationNotice()"
+            >
+              <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+          </div>
+        </section>
+      }
+    }
+
     @switch (activeMode()) {
       @case ('all') {
         <app-public-profiles-list
@@ -26,27 +87,17 @@
       }
 
       @case ('online') {
-        <app-online-users-full
-          [embedded]="true"
-          [mode]="activeMode()"
-        />
+        <app-online-users-full [embedded]="true" [mode]="activeMode()" />
       }
 
       @case ('today') {
         @if (currentUser$ | async; as currentUser) {
-          <section
-            class="profiles-discovery-page__today"
-            aria-label="Pessoas disponíveis hoje"
-          >
+          <section class="profiles-discovery-page__today" aria-label="Pessoas disponíveis hoje">
             <app-user-intent-status-composer [user]="currentUser" />
             <app-user-intent-status-radar [user]="currentUser" />
           </section>
         } @else {
-          <p
-            class="profiles-discovery-page__empty"
-            role="status"
-            aria-live="polite"
-          >
+          <p class="profiles-discovery-page__empty" role="status" aria-live="polite">
             Preparando perfis disponíveis hoje...
           </p>
         }

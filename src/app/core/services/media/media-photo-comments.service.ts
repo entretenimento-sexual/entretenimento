@@ -34,6 +34,10 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { IPhotoComment, TPhotoCommentStatus } from 'src/app/core/interfaces/media/i-photo-comment';
+import {
+  resolvePublicMediaCallableUserMessage,
+  type PublicMediaCallableAction,
+} from './public-media-callable-feedback.policy';
 
 export interface ICreatePhotoCommentCommand {
   ownerUid: string;
@@ -168,7 +172,8 @@ export class MediaPhotoCommentsService {
             hasOwnerUid: !!safeOwnerUid,
             hasPhotoId: !!safePhotoId,
           },
-          false
+          false,
+          'comment'
         );
 
         return of(null);
@@ -208,7 +213,8 @@ export class MediaPhotoCommentsService {
             hasPhotoId: !!safePhotoId,
             hasParentCommentId: !!safeParentCommentId,
           },
-          false
+          false,
+          'reply'
         );
 
         return of(null);
@@ -325,7 +331,8 @@ export class MediaPhotoCommentsService {
             hasPhotoId: !!safePhotoId,
             hasCommentId: !!safeCommentId,
           },
-          false
+          false,
+          'moderation'
         );
 
         return of(null);
@@ -399,25 +406,30 @@ private commentsPath(ownerUid: string, photoId: string): string {
     userMessage: string,
     error: unknown,
     context?: Record<string, unknown>,
-    silent = false
+    silent = false,
+    action?: PublicMediaCallableAction
   ): void {
+    const safeUserMessage = action
+      ? resolvePublicMediaCallableUserMessage(error, action, userMessage)
+      : userMessage;
+
     if (!silent) {
       try {
-        this.errorNotifier.showError(userMessage);
+        this.errorNotifier.showError(safeUserMessage);
       } catch {
         // noop
       }
     }
 
     try {
-      const err = error instanceof Error ? error : new Error(userMessage);
+      const err = error instanceof Error ? error : new Error(safeUserMessage);
 
       (err as any).original = error;
       (err as any).context = {
         scope: 'MediaPhotoCommentsService',
         ...(context ?? {}),
       };
-      (err as any).skipUserNotification = silent;
+      (err as any).skipUserNotification = true;
 
       this.errorHandler.handleError(err);
     } catch {

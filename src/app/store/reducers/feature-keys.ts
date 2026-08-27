@@ -19,6 +19,7 @@ export const STORE_FEATURE = {
 
   // DISCOVERY DOMAIN
   discoveryFeeds: 'discoveryFeeds',
+  communityDiscoveryCache: 'communityDiscoveryCache',
 
   // INTERACTIONS DOMAIN
   friendsPages: 'friendsPages',

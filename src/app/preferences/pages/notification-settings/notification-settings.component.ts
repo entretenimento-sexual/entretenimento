@@ -65,6 +65,11 @@ export class NotificationSettingsComponent {
       description: 'Convites para salas e movimentações relevantes.',
     },
     {
+      key: 'communities',
+      title: 'Comunidades',
+      description: 'Novos comentários e atividades do Mural. Avisos essenciais de moderação continuam ativos.',
+    },
+    {
       key: 'places',
       title: 'Locais',
       description: 'Novos locais ou pontos relevantes para sua região.',

@@ -5,7 +5,8 @@
 // Segurança:
 // - a projeção Firestore não expõe path privado nem URL permanente;
 // - URLs temporárias são mantidas em um contrato de acesso separado;
-// - somente vídeos PUBLIC + APPROVED entram no item consumido pelo player;
+// - somente vídeos PUBLIC + APPROVED entram no item consumido pelas superfícies;
+// - cards podem carregar apenas poster; a URL de playback nasce sob demanda;
 // - métricas legadas são normalizadas antes de chegar ao cache/NgRx.
 // -----------------------------------------------------------------------------
 
@@ -57,6 +58,11 @@ export interface IPublicVideoProjection {
 
   readonly createdAt: number;
   readonly publishedAt: number;
+  /**
+   * Versão física do ativo publicado. Opcional apenas para compatibilidade com
+   * projeções legadas; consumidores devem usar `publishedAt` como fallback.
+   */
+  readonly assetVersion?: number;
   readonly updatedAt: number;
   readonly lastViewedAt: number | null;
 
@@ -89,18 +95,36 @@ export interface IPublicVideoProjection {
   readonly owner: IPublicVideoOwnerSummary | null;
 }
 
-/** URL temporária emitida pelo backend após nova validação de acesso. */
+/**
+ * Acesso temporário emitido pelo backend.
+ * Em PREVIEW, `url` é nula e somente o poster pode ser assinado.
+ * Em PLAYBACK, `url` contém a signed URL do ativo de vídeo.
+ */
 export interface IPublicVideoAccess {
   readonly ownerUid: string;
   readonly videoId: string;
-  readonly url: string;
+  readonly url: string | null;
   readonly posterUrl: string | null;
   readonly expiresAt: number;
 }
 
-/** Item final usado pelo player público. */
+/**
+ * Item usado por cards, rankings, showcase e viewer.
+ * `url === null` significa preview autorizado sem playback hidratado.
+ */
 export interface IPublicVideoItem extends IPublicVideoProjection {
-  readonly url: string;
+  readonly url: string | null;
   readonly posterUrl: string | null;
   readonly accessExpiresAt: number;
+}
+
+/** Item cujo acesso ao arquivo de vídeo está efetivamente hidratado. */
+export interface IPublicVideoPlaybackItem extends IPublicVideoItem {
+  readonly url: string;
+}
+
+export function isPublicVideoPlaybackItem(
+  item: IPublicVideoItem | null | undefined
+): item is IPublicVideoPlaybackItem {
+  return typeof item?.url === 'string' && item.url.trim().length > 0;
 }

@@ -19,6 +19,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import { evaluateOfficialSpaceCreationGrant } from './community-official-space.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
   CreateVenueCommunityRequest,
@@ -81,6 +82,9 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
       const communityRef = db.collection('communities').doc(command.communityId);
       const ownerMembershipRef = communityRef.collection('members').doc(actorUid);
       const userRef = db.collection('users').doc(actorUid);
+      const creationGrantRef = db
+        .collection('official_space_creation_grants')
+        .doc(actorUid);
       const discoveryRef = db
         .collection('community_discovery_index')
         .doc(command.communityId);
@@ -96,11 +100,13 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
       const [
         requestSnapshot,
         userSnapshot,
+        creationGrantSnapshot,
         venueSnapshot,
         communitySnapshot,
       ] = await Promise.all([
         transaction.get(requestRef),
         transaction.get(userRef),
+        transaction.get(creationGrantRef),
         transaction.get(venueRef),
         transaction.get(communityRef),
       ]);
@@ -137,6 +143,58 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         actorUid
       );
 
+      const actorUser = userSnapshot.data() ?? {};
+      const officialSpaceDecision = evaluateOfficialSpaceCreationGrant({
+        actorUid,
+        actorUserRole: actorUser['role'],
+        rawGrant: creationGrantSnapshot.exists
+          ? creationGrantSnapshot.data()
+          : null,
+      });
+
+      if (!officialSpaceDecision.allowed
+        || !officialSpaceDecision.organizationId) {
+        throw new HttpsError(
+          'permission-denied',
+          'O cadastro de Espaço Oficial exige verificação comercial ativa.',
+          {
+            reason: officialSpaceDecision.denialReason
+              === 'grant_inactive'
+              ? 'official_space_grant_inactive'
+              : 'official_space_verification_required',
+          }
+        );
+      }
+
+      if (officialSpaceDecision.maxOfficialSpaces !== null) {
+        const ownedOfficialSpacesQuery = db
+          .collection('venues')
+          .where(
+            'officialSpace.organizationId',
+            '==',
+            officialSpaceDecision.organizationId
+          )
+          .limit(officialSpaceDecision.maxOfficialSpaces + 1);
+        const ownedOfficialSpacesSnapshot = await transaction.get(
+          ownedOfficialSpacesQuery
+        );
+
+        if (
+          ownedOfficialSpacesSnapshot.size
+          >= officialSpaceDecision.maxOfficialSpaces
+        ) {
+          throw new HttpsError(
+            'resource-exhausted',
+            'A organização atingiu a quantidade de Espaços Oficiais contratada.',
+            {
+              reason: 'official_space_creation_limit_reached',
+              maxOfficialSpaces: officialSpaceDecision.maxOfficialSpaces,
+              currentOfficialSpaces: ownedOfficialSpacesSnapshot.size,
+            }
+          );
+        }
+      }
+
       if (venueSnapshot.exists || communitySnapshot.exists) {
         throw new HttpsError(
           'already-exists',
@@ -170,6 +228,13 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         region,
         addressHint: command.addressHint,
         visibility: 'public',
+        status: 'active',
+        officialSpace: {
+          organizationId: officialSpaceDecision.organizationId,
+          verificationStatus: 'verified',
+          participantLimit: officialSpaceDecision.memberLimit,
+          policyVersion: 1,
+        },
         moderation: {
           state: 'active',
           reviewedAt: now,
@@ -199,6 +264,12 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         source,
         status: 'active',
         visibility: 'public_preview',
+        ownerUid: actorUid,
+        officialSpace: {
+          organizationId: officialSpaceDecision.organizationId,
+          verificationStatus: 'verified',
+          policyVersion: 1,
+        },
         access,
         moderation: {
           state: 'active',
@@ -206,6 +277,10 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
           reviewedBy: actorUid,
         },
         metrics,
+        capacity: {
+          memberLimit: officialSpaceDecision.memberLimit,
+          policyVersion: 1,
+        },
         createdAt: now,
         updatedAt: now,
       });
@@ -220,6 +295,10 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         moderationState: 'active',
         visibility: 'public_preview',
         metrics,
+        capacity: {
+          memberLimit: officialSpaceDecision.memberLimit,
+          policyVersion: 1,
+        },
         access,
         avatarUrl: null,
         coverUrl: null,
@@ -257,6 +336,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         communityId: command.communityId,
         venueId: command.venueId,
         actorUid,
+        organizationId: officialSpaceDecision.organizationId,
         subjectUid: actorUid,
         previousStatus: null,
         nextStatus: 'active',
@@ -267,6 +347,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
 
       transaction.create(requestRef, {
         actorUid,
+        organizationId: officialSpaceDecision.organizationId,
         venueId: command.venueId,
         communityId: command.communityId,
         status: 'completed',

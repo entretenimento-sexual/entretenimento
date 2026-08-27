@@ -7,7 +7,7 @@ import { CurrentUserStoreService } from '@core/services/autentication/auth/curre
 import {
   PLATFORM_LEGAL_MANIFEST,
 } from '@core/services/compliance/platform-legal.constants';
-import { hasAcceptedCurrentTerms } from '@core/services/compliance/terms-acceptance.service';
+import { isCurrentTermsRecordAccepted } from '@core/services/compliance/terms-acceptance.service';
 
 interface LegalAcceptanceVm {
   readonly accepted: boolean;
@@ -33,7 +33,7 @@ export class LegalDocumentsComponent {
       const record = user?.acceptedTerms ?? null;
 
       return {
-        accepted: hasAcceptedCurrentTerms(record),
+        accepted: isCurrentTermsRecordAccepted(record),
         acceptedAt: record?.acceptedAt ?? record?.date ?? null,
         acceptedVersion: record?.version ?? null,
       };

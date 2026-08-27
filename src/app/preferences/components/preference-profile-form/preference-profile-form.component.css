@@ -102,7 +102,9 @@
 }
 
 .checkbox-grid {
+  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   padding-top: 14px;
 }
 
@@ -330,11 +332,16 @@
   outline-offset: 2px;
 }
 
+.form-field input[aria-invalid='true'] {
+  border-color: var(--danger-color, #ff8b8b);
+}
+
 .field-error {
   margin: -4px 0 0;
   color: var(--danger-color, #ff8b8b);
   font-size: 0.82rem;
   font-weight: 750;
+  line-height: 1.35;
 }
 
 .input-with-suffix {

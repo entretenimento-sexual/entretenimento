@@ -1,6 +1,12 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import {
+  FormControl,
+  FormGroup,
+  FormsModule,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
 import { By } from '@angular/platform-browser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -35,12 +41,47 @@ class TestHostComponent {
   submitted = false;
 }
 
+@Component({
+  standalone: true,
+  imports: [FormsModule, FormValidationFocusDirective],
+  template: `
+    <form
+      ngForm
+      #form="ngForm"
+      formInvalidMessage="Revise o perfil antes de continuar."
+    >
+      <input
+        id="template-nickname"
+        name="nickname"
+        [(ngModel)]="nickname"
+        required
+      />
+      <select
+        id="template-gender"
+        name="gender"
+        [(ngModel)]="gender"
+        required
+      >
+        <option value="">Selecione...</option>
+        <option value="homem">Homem</option>
+      </select>
+      <button type="submit">Concluir</button>
+    </form>
+  `,
+})
+class TemplateDrivenHostComponent {
+  nickname = '';
+  gender = '';
+}
+
 describe('FormValidationFocusDirective', () => {
   let fixture: ComponentFixture<TestHostComponent>;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    TestBed.configureTestingModule({ imports: [TestHostComponent] });
+    TestBed.configureTestingModule({
+      imports: [TestHostComponent, TemplateDrivenHostComponent],
+    });
     fixture = TestBed.createComponent(TestHostComponent);
     fixture.detectChanges();
   });
@@ -105,5 +146,41 @@ describe('FormValidationFocusDirective', () => {
     vi.runAllTimers();
 
     expect(focusSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('marca, anuncia e foca o primeiro campo inválido em formulário template-driven', async () => {
+    const templateFixture = TestBed.createComponent(TemplateDrivenHostComponent);
+    templateFixture.detectChanges();
+
+    // NgForm registra controles ngModel em microtask. O submit do teste deve
+    // reproduzir a interação real do usuário, que acontece após essa fase.
+    await templateFixture.whenStable();
+    templateFixture.detectChanges();
+
+    const nickname = templateFixture.debugElement
+      .query(By.css('#template-nickname'))
+      .nativeElement as HTMLInputElement;
+    const focusSpy = vi.spyOn(nickname, 'focus');
+    const scrollSpy = vi.fn();
+    Object.defineProperty(nickname, 'scrollIntoView', {
+      configurable: true,
+      value: scrollSpy,
+    });
+
+    const form = templateFixture.debugElement.query(By.css('form'));
+    form.triggerEventHandler('submit', new Event('submit'));
+    templateFixture.detectChanges();
+    vi.runAllTimers();
+
+    const summary = form.nativeElement.querySelector(
+      '[data-form-validation-summary]'
+    ) as HTMLElement;
+
+    expect(summary.textContent).toContain('2 campos precisam de revisão');
+    expect(summary.textContent).toContain('Revise o perfil antes de continuar');
+    expect(focusSpy).toHaveBeenCalledTimes(1);
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+
+    templateFixture.destroy();
   });
 });

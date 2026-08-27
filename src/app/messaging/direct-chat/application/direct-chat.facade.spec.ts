@@ -22,6 +22,19 @@ function last<T>(values: T[]): T | undefined {
   return values[values.length - 1];
 }
 
+function buildDestroyRef(): DestroyRef {
+  return {
+    destroyed: false,
+    onDestroy: () => () => undefined,
+  } as unknown as DestroyRef;
+}
+
+function buildGlobalErrorHandler(): GlobalErrorHandlerService {
+  return {
+    handleError: () => undefined,
+  } as unknown as GlobalErrorHandlerService;
+}
+
 describe('DirectChatFacade session isolation', () => {
   it('limpa dados e seleção em troca de UID e novo login', () => {
     let currentUid: string | null = 'user-a';
@@ -49,21 +62,12 @@ describe('DirectChatFacade session isolation', () => {
       getUsersPublicMap$: () => of({}),
     } as unknown as FirestoreUserQueryService;
 
-    const globalErrorHandler = {
-      handleError: () => undefined,
-    } as unknown as GlobalErrorHandlerService;
-
-    const destroyRef = {
-      destroyed: false,
-      onDestroy: () => () => undefined,
-    } as unknown as DestroyRef;
-
     const facade = new DirectChatFacade(
       directChatService,
       authSession,
       firestoreUserQuery,
-      globalErrorHandler,
-      destroyRef
+      buildGlobalErrorHandler(),
+      buildDestroyRef()
     );
 
     const chatEmissions: IChat[][] = [];
@@ -118,5 +122,72 @@ describe('DirectChatFacade session isolation', () => {
 
     chatsSubscription.unsubscribe();
     selectedSubscription.unsubscribe();
+  });
+
+  it('enriquece o chat com PublicUserIdentity e deriva aliases legados', () => {
+    const uidSubject = new BehaviorSubject<string | null>('user-a');
+    const chats = new BehaviorSubject<IChat[]>([
+      buildChat('chat-identity', ['user-a', 'peer-couple']),
+    ]);
+
+    const directChatService = {
+      getMyDirectChats$: () => chats.asObservable(),
+      ensureDirectChatIdWithUser$: () => of(null),
+    } as unknown as DirectChatService;
+
+    const authSession = {
+      uid$: uidSubject.asObservable(),
+    } as unknown as AuthSessionService;
+
+    const firestoreUserQuery = {
+      getUsersPublicMap$: () => of({
+        'peer-couple': {
+          nickname: 'casal_serale',
+          avatarUrl: 'https://example.com/casal.webp',
+          identityCode: 'casal-ele-ela',
+          identityCatalogVersion: 1,
+          identityLabel: 'texto não confiável',
+          identityShortLabel: 'texto não confiável',
+          identityDiscoveryGroup: 'couple',
+          municipio: 'Rio de Janeiro',
+          estado: 'RJ',
+          cpf: 'não deve sair',
+        },
+      }),
+    } as unknown as FirestoreUserQueryService;
+
+    const facade = new DirectChatFacade(
+      directChatService,
+      authSession,
+      firestoreUserQuery,
+      buildGlobalErrorHandler(),
+      buildDestroyRef()
+    );
+
+    const emissions: any[][] = [];
+    const subscription = facade.items$.subscribe((items) => {
+      emissions.push(items);
+    });
+
+    const item = last(emissions)?.[0];
+    expect(item?.otherParticipantIdentity).toEqual({
+      profileId: 'peer-couple',
+      nickname: 'casal_serale',
+      label: 'casal_serale',
+      avatarUrl: 'https://example.com/casal.webp',
+      identityCode: 'casal-ele-ela',
+      identityLabel: 'Casal (Ele/Ela)',
+      identityShortLabel: 'Casal',
+      discoveryGroup: 'couple',
+      city: 'Rio de Janeiro',
+      state: 'RJ',
+      profileType: 'couple',
+      profileTypeLabel: 'Casal',
+    });
+    expect(item?.otherParticipantNickname).toBe('casal_serale');
+    expect(item?.otherParticipantPhotoURL).toBe('https://example.com/casal.webp');
+    expect('cpf' in (item?.otherParticipantIdentity ?? {})).toBe(false);
+
+    subscription.unsubscribe();
   });
 });

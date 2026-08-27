@@ -12,6 +12,7 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
   // Documentos privados e domínios internos sensíveis.
   'users.rules',
   'billing.rules',
+  'backend_rate_limits.rules',
   'exclusive_connection_candidates.rules',
 
   // Discovery, presença e vitrines regionais moderadas.
@@ -44,8 +45,9 @@ export const FIRESTORE_RULE_PARTS = Object.freeze([
   'users_video_publications.rules',
   'users_blocks.rules',
 
-  // Moderação e auditoria operacional.
+  // Moderação, preservação e auditoria operacional.
   'moderation_reports.rules',
+  'moderation_evidence.rules',
 
   // Demais módulos.
   'communities.rules',

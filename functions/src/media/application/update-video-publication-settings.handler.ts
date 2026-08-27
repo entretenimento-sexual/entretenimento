@@ -6,10 +6,14 @@ import {
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
-  hasVideoPublicationTextChanged,
   normalizeVideoPublicationSettings,
   type VideoPublicationSettingsInput,
 } from './video-publication-settings';
+import {
+  isRestrictedVideoModerationStatus,
+  normalizeVideoPublicationModerationStatus,
+  resolveVideoModerationAfterOwnerEdit,
+} from './video-publication-moderation.policy';
 
 interface UpdateVideoPublicationSettingsRequest
   extends VideoPublicationSettingsInput {
@@ -35,16 +39,26 @@ interface VideoPublicationDoc extends VideoPublicationSettingsInput {
   moderationReason?: string | null;
 }
 
-const AUTO_APPROVE_VIDEOS =
-  process.env.MEDIA_AUTO_APPROVE_VIDEOS === 'true';
-
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return /^[A-Za-z0-9_-]{1,128}$/.test(normalized) ? normalized : '';
 }
 
-function resolveModerationStatus(): 'APPROVED' | 'PENDING_REVIEW' {
-  return AUTO_APPROVE_VIDEOS ? 'APPROVED' : 'PENDING_REVIEW';
+function resolvePublicModerationAfterOwnerEdit(
+  publicationStatus: unknown,
+  publicStatus: unknown
+): string {
+  if (!isRestrictedVideoModerationStatus(publicationStatus)) {
+    return 'APPROVED';
+  }
+
+  const normalizedPublicStatus = normalizeVideoPublicationModerationStatus(
+    publicStatus
+  );
+
+  return isRestrictedVideoModerationStatus(normalizedPublicStatus)
+    ? normalizedPublicStatus
+    : 'HIDDEN';
 }
 
 export const updateVideoPublicationSettings =
@@ -89,7 +103,7 @@ export const updateVideoPublicationSettings =
           ]);
 
         if (!privateVideoSnap.exists) {
-          throw new HttpsError('not-found', 'Vídeo privado não encontrado.');
+          throw new HttpsError('not-found', 'Vídeo não encontrado.');
         }
 
         const privateVideo = privateVideoSnap.data() as PrivateVideoDoc;
@@ -109,20 +123,24 @@ export const updateVideoPublicationSettings =
           request.data,
           defaults
         );
-        const textChanged = hasVideoPublicationTextChanged(
-          defaults,
-          nextSettings
-        );
         const isPublished = currentPublication?.isPublished === true;
-        const currentModerationStatus = String(
-          currentPublication?.moderationStatus ?? 'PRIVATE'
-        ).trim().toUpperCase();
-        const moderationStatus = isPublished && textChanged
-          ? resolveModerationStatus()
-          : currentModerationStatus;
-        const moderationReason = isPublished && textChanged
-          ? null
-          : currentPublication?.moderationReason ?? null;
+        const currentModerationStatus =
+          currentPublication?.moderationStatus ?? 'APPROVED';
+        const moderationStatus = resolveVideoModerationAfterOwnerEdit(
+          currentModerationStatus
+        );
+        const restricted = isRestrictedVideoModerationStatus(
+          moderationStatus
+        );
+        const moderationReason = restricted
+          ? currentPublication?.moderationReason ?? null
+          : null;
+        const publicModerationStatus = resolvePublicModerationAfterOwnerEdit(
+          moderationStatus,
+          publicVideoSnap.exists
+            ? publicVideoSnap.get('moderationStatus')
+            : null
+        );
         const now = Date.now();
 
         transaction.set(
@@ -131,7 +149,7 @@ export const updateVideoPublicationSettings =
             ownerUid,
             videoId,
             isPublished,
-            moderationStatus: isPublished ? moderationStatus : 'PRIVATE',
+            moderationStatus,
             ...nextSettings,
             moderationReason,
             updatedAt: now,
@@ -152,10 +170,10 @@ export const updateVideoPublicationSettings =
               reactionsEnabled: nextSettings.reactionsEnabled,
               commentsEnabled: nextSettings.commentsEnabled,
               ratingsEnabled: nextSettings.ratingsEnabled,
-              moderationStatus,
-              moderationReason: textChanged
-                ? null
-                : publicVideoSnap.get('moderationReason') ?? null,
+              moderationStatus: publicModerationStatus,
+              moderationReason: restricted
+                ? publicVideoSnap.get('moderationReason') ?? moderationReason
+                : null,
               updatedAt: now,
             },
             { merge: true }
@@ -164,7 +182,7 @@ export const updateVideoPublicationSettings =
 
         return {
           videoId,
-          moderationStatus: isPublished ? moderationStatus : 'PRIVATE',
+          moderationStatus,
           isPublished,
         };
       });

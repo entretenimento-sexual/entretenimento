@@ -50,6 +50,7 @@ html {
   /* Marca / Ação */
   --primary-color: #ff4f4f;
   --primary-hover: #ff3333;
+  --on-primary-color: #111418;
   --secondary-color: #444444;
 
   /* Base (CLARO mesmo) */
@@ -122,6 +123,7 @@ html.dark-mode {
   /* Marca / Ação (tom mais suave no escuro) */
   --primary-color: #ff7070;
   --primary-hover: #ff8b8b;
+  --on-primary-color: #111418;
   --secondary-color: #cccccc;
 
   /* Base (ESCURO de verdade) */
@@ -174,6 +176,7 @@ html.high-contrast:not(.dark-mode) {
 
   --primary-color: #000000;
   --primary-hover: #222222;
+  --on-primary-color: #ffffff;
   --secondary-color: #000000;
 
   --input-background: #ffffff;
@@ -204,6 +207,7 @@ html.dark-mode.high-contrast {
 
   --primary-color: #ffffff;
   --primary-hover: #e6e6e6;
+  --on-primary-color: #000000;
   --secondary-color: #ffffff;
 
   --input-background: #000000;

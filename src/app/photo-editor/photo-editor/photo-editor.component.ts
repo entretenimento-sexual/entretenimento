@@ -1,6 +1,7 @@
 // src/app/photo-editor/photo-editor/photo-editor.component.ts
-// Editor interno de imagens, baseado em Canvas e sem dependência de runtime externo.
-// Mantém os contratos existentes de criação, substituição e sessão efêmera.
+// Editor canônico de imagens da plataforma.
+// Baseado em Canvas, sem dependência de runtime externo e sem persistência.
+// Recebe uma origem, processa a imagem e devolve um resultado puro ao consumidor.
 
 import { CommonModule, DOCUMENT } from '@angular/common';
 import {
@@ -18,20 +19,25 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
-import { BehaviorSubject, Observable, firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, Observable, of } from 'rxjs';
 import { catchError, distinctUntilChanged, map } from 'rxjs/operators';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
-  IPhotoFlowResult,
-  PhotoUploadFlowService,
-} from 'src/app/core/services/image-handling/photo-upload-flow.service';
+  PhotoEditorHistoryService,
+  PhotoEditorHistorySnapshot,
+} from 'src/app/core/services/image-handling/photo-editor-history.service';
+import {
+  PhotoEditorPreset,
+  PhotoEditorProcessedResult,
+} from 'src/app/core/services/image-handling/photo-editor-result.model';
 import {
   IPhotoEditorDraft,
   PhotoEditorSessionService,
 } from 'src/app/core/services/image-handling/photo-editor-session.service';
+import { resolveImageEditorPreset } from 'src/app/core/services/media/media-format.policy';
 import {
   PhotoEditorCaptionStyle,
   PhotoEditorDateTimeFormat,
@@ -86,19 +92,24 @@ interface OriginalFileMetadata {
   mimeType: string;
 }
 
+interface ExportedPhotoEditorImage {
+  blob: Blob;
+  width: number;
+  height: number;
+}
+
 const EDITOR_SESSION_MAX_AGE_MS = 15 * 60 * 1000;
-const MAX_OUTPUT_EDGE = 2048;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.05;
 const KEYBOARD_PAN_STEP = 0.025;
 const KEYBOARD_OVERLAY_STEP = 0.01;
-const MAX_OVERLAY_HISTORY = 50;
 
 @Component({
   selector: 'app-photo-editor',
   standalone: true,
   imports: [CommonModule, FormsModule, MatProgressSpinnerModule],
+  providers: [PhotoEditorHistoryService],
   templateUrl: './photo-editor.component.html',
   styleUrls: ['./photo-editor.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -106,6 +117,7 @@ const MAX_OVERLAY_HISTORY = 50;
 export class PhotoEditorComponent implements AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly photoEditorSession = inject(PhotoEditorSessionService);
+  private readonly photoEditorHistory = inject(PhotoEditorHistoryService);
   private readonly document = inject(DOCUMENT);
   private readonly changeDetectorRef = inject(ChangeDetectorRef);
 
@@ -118,12 +130,10 @@ export class PhotoEditorComponent implements AfterViewInit {
   @ViewChild('closeButton', { static: true })
   private readonly closeButtonRef!: ElementRef<HTMLButtonElement>;
 
+  // Inputs mantidos apenas como porta direta/testável. O launcher usa sessão efêmera.
   readonly imageFile = input<File | null>(null);
   readonly storedImageUrl = input<string | null>(null);
-  readonly storedImagePath = input<string | null>(null);
   readonly storedImageState = input<string | null>(null);
-  readonly photoId = input<string | null>(null);
-  readonly isEditMode = input<boolean>(false);
 
   readonly emojiGroups: ReadonlyArray<{
     label: string;
@@ -206,10 +216,8 @@ export class PhotoEditorComponent implements AfterViewInit {
   private sourceFile: File | null = null;
   private sourceObjectUrl: string | null = null;
   private activeDraft: IPhotoEditorDraft | null = null;
-  private effectiveIsEditMode = false;
+  private isStoredSource = false;
   private effectiveStoredImageUrl: string | null = null;
-  private effectiveStoredImagePath: string | null = null;
-  private effectivePhotoId: string | null = null;
   private effectiveStoredImageState: string | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private renderFrame: number | null = null;
@@ -224,8 +232,6 @@ export class PhotoEditorComponent implements AfterViewInit {
   private previewWidth = 0;
   private previewHeight = 0;
   private focusOrigin: HTMLElement | null = null;
-  private overlayHistory: PhotoEditorOverlay[][] = [[]];
-  private overlayHistoryIndex = 0;
 
   private readonly isLoadingSubject = new BehaviorSubject<boolean>(true);
   private readonly isSavingSubject = new BehaviorSubject<boolean>(false);
@@ -239,9 +245,10 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.isEditorReadySubject.asObservable();
   readonly errorMessage$: Observable<string | null> =
     this.errorMessageSubject.asObservable();
+  readonly canUndo$: Observable<boolean> = this.photoEditorHistory.canUndo$;
+  readonly canRedo$: Observable<boolean> = this.photoEditorHistory.canRedo$;
 
   constructor(
-    private readonly photoUploadFlow: PhotoUploadFlowService,
     public readonly activeModal: NgbActiveModal,
     private readonly authSession: AuthSessionService,
     private readonly errorHandler: GlobalErrorHandlerService,
@@ -255,6 +262,7 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.resizeObserver?.disconnect();
       this.resizeObserver = null;
       this.revokeSourceObjectUrl();
+      this.photoEditorHistory.clear();
       this.photoEditorSession.clearDraft();
       this.restoreBackgroundFocus();
     });
@@ -275,11 +283,11 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   get canUndo(): boolean {
-    return this.overlayHistoryIndex > 0;
+    return this.photoEditorHistory.canUndo;
   }
 
   get canRedo(): boolean {
-    return this.overlayHistoryIndex < this.overlayHistory.length - 1;
+    return this.photoEditorHistory.canRedo;
   }
 
   get hasOverlays(): boolean {
@@ -290,7 +298,6 @@ export class PhotoEditorComponent implements AfterViewInit {
     if (!this.selectedOverlayId) {
       return null;
     }
-
     return (
       this.overlays.find((overlay) => overlay.id === this.selectedOverlayId) ??
       null
@@ -316,6 +323,27 @@ export class PhotoEditorComponent implements AfterViewInit {
     );
   }
 
+  get saveActionLabel(): string {
+    return 'Aplicar edição';
+  }
+
+  get savingActionLabel(): string {
+    return 'Aplicando...';
+  }
+
+  get activePreset(): PhotoEditorPreset {
+    return this.activeDraft?.preset ?? 'free';
+  }
+
+  get isAspectRatioLocked(): boolean {
+    return resolveImageEditorPreset(this.activePreset).lockAspectRatio;
+  }
+
+  isAspectRatioOptionDisabled(value: PhotoEditorAspectRatio): boolean {
+    const preset = resolveImageEditorPreset(this.activePreset);
+    return preset.lockAspectRatio && value !== preset.aspectRatio;
+  }
+
   get toolInstruction(): string {
     if (this.selectedOverlay) {
       return 'Arraste o elemento selecionado ou ajuste suas propriedades abaixo.';
@@ -325,7 +353,7 @@ export class PhotoEditorComponent implements AfterViewInit {
       case 'blur':
         return 'Arraste sobre o rosto, tatuagem ou outra área que precisa ser escondida.';
       case 'pixelate':
-        return 'Arraste sobre a área para aplicar pixels grandes na foto salva.';
+        return 'Arraste sobre a área para aplicar pixels grandes na foto final.';
       case 'emoji':
         return 'Escolha um emoji e clique na foto para posicionar.';
       case 'text':
@@ -344,10 +372,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   selectTool(tool: PhotoEditorTool): void {
-    if (this.isBusy()) {
-      return;
-    }
-
+    if (this.isBusy()) return;
     this.activeTool = tool;
     this.selectedOverlayId = null;
     this.cancelPointerInteraction(false);
@@ -355,20 +380,14 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   selectEmoji(emoji: string): void {
-    if (!this.emojiOptions.includes(emoji) || this.isBusy()) {
-      return;
-    }
-
+    if (!this.emojiOptions.includes(emoji) || this.isBusy()) return;
     this.selectedEmoji = emoji;
     this.activeTool = 'emoji';
     this.selectedOverlayId = null;
   }
 
   updateSelectedEmoji(emoji: string): void {
-    if (!this.emojiOptions.includes(emoji)) {
-      return;
-    }
-
+    if (!this.emojiOptions.includes(emoji)) return;
     this.updateSelectedDecoration(
       (overlay) => ({ ...overlay, value: emoji }),
       true
@@ -376,18 +395,12 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   setCaptionStyle(style: PhotoEditorCaptionStyle): void {
-    if (this.isBusy()) {
-      return;
-    }
-
+    if (this.isBusy()) return;
     this.captionStyle = this.normalizeCaptionStyle(style);
   }
 
   setCaptionFontFamily(fontFamily: PhotoEditorFontFamily): void {
-    if (this.isBusy()) {
-      return;
-    }
-
+    if (this.isBusy()) return;
     this.captionFontFamily = this.normalizeFontFamily(fontFamily);
   }
 
@@ -436,10 +449,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   addCurrentToolAtCenter(): void {
-    if (!this.isDecorationTool || this.isBusy()) {
-      return;
-    }
-
+    if (!this.isDecorationTool || this.isBusy()) return;
     this.placeDecorationAt({ x: 0.5, y: 0.5 });
   }
 
@@ -532,10 +542,7 @@ export class PhotoEditorComponent implements AfterViewInit {
 
   removeSelectedOverlay(): void {
     const selectedId = this.selectedOverlayId;
-    if (!selectedId || this.isBusy()) {
-      return;
-    }
-
+    if (!selectedId || this.isBusy()) return;
     this.selectedOverlayId = null;
     this.commitOverlays(
       this.overlays.filter((overlay) => overlay.id !== selectedId)
@@ -544,10 +551,7 @@ export class PhotoEditorComponent implements AfterViewInit {
 
   duplicateSelectedOverlay(): void {
     const selected = this.selectedOverlay;
-    if (!selected || this.isBusy()) {
-      return;
-    }
-
+    if (!selected || this.isBusy()) return;
     const duplicate = this.offsetOverlay(
       {
         ...selected,
@@ -559,22 +563,15 @@ export class PhotoEditorComponent implements AfterViewInit {
       0.035,
       0.035
     );
-
     this.selectedOverlayId = duplicate.id;
     this.commitOverlays([...this.overlays, duplicate]);
   }
 
   bringSelectedOverlayForward(): void {
     const selectedId = this.selectedOverlayId;
-    if (!selectedId || this.isBusy()) {
-      return;
-    }
-
+    if (!selectedId || this.isBusy()) return;
     const index = this.overlays.findIndex((overlay) => overlay.id === selectedId);
-    if (index < 0 || index === this.overlays.length - 1) {
-      return;
-    }
-
+    if (index < 0 || index === this.overlays.length - 1) return;
     const reordered = clonePhotoEditorOverlays(this.overlays);
     const [selected] = reordered.splice(index, 1);
     reordered.splice(index + 1, 0, selected);
@@ -583,15 +580,9 @@ export class PhotoEditorComponent implements AfterViewInit {
 
   sendSelectedOverlayBackward(): void {
     const selectedId = this.selectedOverlayId;
-    if (!selectedId || this.isBusy()) {
-      return;
-    }
-
+    if (!selectedId || this.isBusy()) return;
     const index = this.overlays.findIndex((overlay) => overlay.id === selectedId);
-    if (index <= 0) {
-      return;
-    }
-
+    if (index <= 0) return;
     const reordered = clonePhotoEditorOverlays(this.overlays);
     const [selected] = reordered.splice(index, 1);
     reordered.splice(index - 1, 0, selected);
@@ -599,116 +590,87 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   undoOverlay(): void {
-    if (!this.canUndo || this.isBusy()) {
-      return;
-    }
-
-    this.overlayHistoryIndex -= 1;
-    this.overlays = clonePhotoEditorOverlays(
-      this.overlayHistory[this.overlayHistoryIndex]
-    );
-    this.ensureSelectedOverlayExists();
-    this.scheduleRender();
+    if (!this.canUndo || this.isBusy()) return;
+    const snapshot = this.photoEditorHistory.undo();
+    if (snapshot) this.restoreHistorySnapshot(snapshot);
   }
 
   redoOverlay(): void {
-    if (!this.canRedo || this.isBusy()) {
-      return;
-    }
-
-    this.overlayHistoryIndex += 1;
-    this.overlays = clonePhotoEditorOverlays(
-      this.overlayHistory[this.overlayHistoryIndex]
-    );
-    this.ensureSelectedOverlayExists();
-    this.scheduleRender();
+    if (!this.canRedo || this.isBusy()) return;
+    const snapshot = this.photoEditorHistory.redo();
+    if (snapshot) this.restoreHistorySnapshot(snapshot);
   }
 
   clearOverlays(): void {
-    if (!this.hasOverlays || this.isBusy()) {
-      return;
-    }
-
+    if (!this.hasOverlays || this.isBusy()) return;
     this.selectedOverlayId = null;
     this.commitOverlays([]);
   }
 
   setAspectRatio(value: PhotoEditorAspectRatio): void {
-    if (this.aspectRatio === value || this.isBusy()) {
+    const preset = resolveImageEditorPreset(this.activePreset);
+    if (
+      this.aspectRatio === value ||
+      this.isBusy() ||
+      (preset.lockAspectRatio && value !== preset.aspectRatio)
+    ) {
       return;
     }
 
     this.aspectRatio = value;
     this.panX = 0;
     this.panY = 0;
-    this.scheduleRender();
+    this.commitEditorState();
   }
 
   rotateLeft(): void {
-    if (this.isBusy()) {
-      return;
-    }
-
+    if (this.isBusy()) return;
     this.rotation = this.normalizeRotation(this.rotation - 90);
     this.panX = 0;
     this.panY = 0;
-    this.scheduleRender();
+    this.commitEditorState();
   }
 
   rotateRight(): void {
-    if (this.isBusy()) {
-      return;
-    }
-
+    if (this.isBusy()) return;
     this.rotation = this.normalizeRotation(this.rotation + 90);
     this.panX = 0;
     this.panY = 0;
-    this.scheduleRender();
+    this.commitEditorState();
   }
 
   updateZoom(value: number | string): void {
-    if (this.isBusy()) {
-      return;
-    }
-
+    if (this.isBusy()) return;
     const numericValue = Number(value);
-    this.zoom = this.clamp(
+    const nextZoom = this.clamp(
       Number.isFinite(numericValue) ? numericValue : MIN_ZOOM,
       MIN_ZOOM,
       MAX_ZOOM
     );
-    this.scheduleRender();
+    if (nextZoom === this.zoom) return;
+    this.zoom = nextZoom;
+    this.commitEditorState();
   }
 
   resetEditor(): void {
-    if (this.isBusy()) {
-      return;
-    }
-
+    if (this.isBusy()) return;
     this.rotation = 0;
     this.zoom = 1;
     this.panX = 0;
     this.panY = 0;
-    this.aspectRatio = 'original';
+    this.aspectRatio = this.resolvePresetAspectRatio();
     this.activeTool = 'move';
     this.selectedOverlayId = null;
     this.overlays = [];
-    this.overlayHistory = [[]];
-    this.overlayHistoryIndex = 0;
     this.draftPrivacyRegion = null;
     this.newDateTimeMeta = createPhotoEditorDateTimeMeta();
-    this.scheduleRender();
+    this.commitEditorState();
   }
 
   onPointerDown(event: PointerEvent): void {
-    if (!this.sourceImage || this.isBusy()) {
-      return;
-    }
-
+    if (!this.sourceImage || this.isBusy()) return;
     const point = this.resolveNormalizedPointer(event);
-    if (!point) {
-      return;
-    }
+    if (!point) return;
 
     const hitOverlay = this.hitTestOverlay(point);
     if (hitOverlay) {
@@ -759,9 +721,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   onPointerMove(event: PointerEvent): void {
-    if (this.draggingPointerId !== event.pointerId || this.isBusy()) {
-      return;
-    }
+    if (this.draggingPointerId !== event.pointerId || this.isBusy()) return;
 
     const width = Math.max(1, this.previewWidth);
     const height = Math.max(1, this.previewHeight);
@@ -781,7 +741,6 @@ export class PhotoEditorComponent implements AfterViewInit {
       const deltaY = (event.clientY - this.lastPointerY) / height;
       this.lastPointerX = event.clientX;
       this.lastPointerY = event.clientY;
-
       if (deltaX || deltaY) {
         this.overlays = this.overlays.map((overlay) =>
           overlay.id === this.selectedOverlayId
@@ -791,17 +750,13 @@ export class PhotoEditorComponent implements AfterViewInit {
         this.overlayDragChanged = true;
         this.scheduleRender();
       }
-
       event.preventDefault();
       return;
     }
 
     if (this.pointerInteraction === 'privacy' && this.draftPrivacyRegion) {
       const point = this.resolveNormalizedPointer(event);
-      if (!point) {
-        return;
-      }
-
+      if (!point) return;
       this.draftPrivacyRegion = {
         ...this.draftPrivacyRegion,
         endX: point.x,
@@ -813,10 +768,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   onPointerUp(event: PointerEvent): void {
-    if (this.draggingPointerId !== event.pointerId) {
-      return;
-    }
-
+    if (this.draggingPointerId !== event.pointerId) return;
     if (this.pointerInteraction === 'privacy' && this.draftPrivacyRegion) {
       const overlay = privacyRegionFromDraft(this.draftPrivacyRegion);
       if (overlay) {
@@ -825,28 +777,25 @@ export class PhotoEditorComponent implements AfterViewInit {
       }
     } else if (this.pointerInteraction === 'overlay' && this.overlayDragChanged) {
       this.commitOverlays(this.overlays);
+    } else if (this.pointerInteraction === 'pan') {
+      this.commitEditorState();
     }
-
     this.cancelPointerInteraction(true, event.pointerId);
   }
 
   onPointerCancel(event: PointerEvent): void {
-    if (this.draggingPointerId !== event.pointerId) {
-      return;
-    }
-
+    if (this.draggingPointerId !== event.pointerId) return;
     if (this.pointerInteraction === 'overlay' && this.overlayDragSnapshot) {
       this.overlays = clonePhotoEditorOverlays(this.overlayDragSnapshot);
+    } else if (this.pointerInteraction === 'pan') {
+      const snapshot = this.photoEditorHistory.current;
+      if (snapshot) this.restoreHistorySnapshot(snapshot);
     }
-
     this.cancelPointerInteraction(true, event.pointerId);
   }
 
   onCanvasKeydown(event: KeyboardEvent): void {
-    if (this.isBusy()) {
-      return;
-    }
-
+    if (this.isBusy()) return;
     const key = event.key.toLowerCase();
 
     if ((event.ctrlKey || event.metaKey) && key === 'z') {
@@ -854,19 +803,16 @@ export class PhotoEditorComponent implements AfterViewInit {
       event.shiftKey ? this.redoOverlay() : this.undoOverlay();
       return;
     }
-
     if ((event.ctrlKey || event.metaKey) && key === 'y') {
       event.preventDefault();
       this.redoOverlay();
       return;
     }
-
     if ((event.ctrlKey || event.metaKey) && key === 'd' && this.selectedOverlay) {
       event.preventDefault();
       this.duplicateSelectedOverlay();
       return;
     }
-
     if (
       (event.key === 'Delete' || event.key === 'Backspace') &&
       this.selectedOverlay
@@ -875,7 +821,6 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.removeSelectedOverlay();
       return;
     }
-
     if (event.key === 'Escape') {
       event.preventDefault();
       if (this.selectedOverlay) {
@@ -885,7 +830,6 @@ export class PhotoEditorComponent implements AfterViewInit {
       }
       return;
     }
-
     if (event.key === 'Enter' && this.isDecorationTool && !this.selectedOverlay) {
       event.preventDefault();
       this.addCurrentToolAtCenter();
@@ -899,17 +843,10 @@ export class PhotoEditorComponent implements AfterViewInit {
         : KEYBOARD_OVERLAY_STEP;
       let deltaX = 0;
       let deltaY = 0;
-
-      if (event.key === 'ArrowLeft') {
-        deltaX = -step;
-      } else if (event.key === 'ArrowRight') {
-        deltaX = step;
-      } else if (event.key === 'ArrowUp') {
-        deltaY = -step;
-      } else if (event.key === 'ArrowDown') {
-        deltaY = step;
-      }
-
+      if (event.key === 'ArrowLeft') deltaX = -step;
+      else if (event.key === 'ArrowRight') deltaX = step;
+      else if (event.key === 'ArrowUp') deltaY = -step;
+      else if (event.key === 'ArrowDown') deltaY = step;
       event.preventDefault();
       this.commitOverlays(
         this.overlays.map((overlay) =>
@@ -921,12 +858,8 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
-    if (this.activeTool !== 'move') {
-      return;
-    }
-
+    if (this.activeTool !== 'move') return;
     let handled = true;
-
     switch (event.key) {
       case 'ArrowLeft':
         this.panX -= KEYBOARD_PAN_STEP;
@@ -951,22 +884,19 @@ export class PhotoEditorComponent implements AfterViewInit {
       default:
         handled = false;
     }
-
     if (handled) {
       event.preventDefault();
-      this.scheduleRender();
+      this.commitEditorState();
     }
   }
 
   async save(): Promise<void> {
-    if (!this.userId || !this.sourceImage || this.isBusy()) {
-      return;
-    }
+    if (!this.userId || !this.sourceImage || this.isBusy()) return;
 
     const originalMeta = this.resolveOriginalFileMetadata();
     if (!originalMeta) {
       this.reportError(
-        'Imagem de origem indisponível para envio.',
+        'Imagem de origem indisponível para edição.',
         new Error('Metadados da imagem não foram resolvidos.'),
         { op: 'save.resolveOriginalFileMetadata' }
       );
@@ -977,42 +907,37 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.errorMessageSubject.next(null);
 
     try {
-      const processedFile = await this.exportImage(originalMeta.mimeType);
+      const exported = await this.exportImage(originalMeta.mimeType);
       const imageStateStr = JSON.stringify(this.buildEditorState());
-      const result = this.effectiveIsEditMode
-        ? await this.replaceStoredPhoto(
-            processedFile,
-            imageStateStr,
-            originalMeta
-          )
-        : await this.uploadNewPhoto(
-            processedFile,
-            imageStateStr,
-            originalMeta
-          );
-
-      this.closeWithSuccess(
-        this.effectiveIsEditMode ? 'updateSuccess' : 'uploadSuccess',
-        result
+      const file = this.createProcessedFile(
+        exported.blob,
+        originalMeta.fileName,
+        exported.blob.type || originalMeta.mimeType
       );
+      const result: PhotoEditorProcessedResult = {
+        kind: 'image',
+        file,
+        imageStateStr,
+        width: exported.width,
+        height: exported.height,
+        context: this.activeDraft?.context ?? 'generic',
+        preset: this.activePreset,
+        metadataStripped: true,
+      };
+      this.closeWithProcessedResult(result);
     } catch (error) {
-      this.reportError(
-        this.effectiveIsEditMode
-          ? 'Erro ao atualizar a imagem.'
-          : 'Erro ao enviar a imagem.',
-        error,
-        { op: 'save', isEditMode: this.effectiveIsEditMode }
-      );
+      this.reportError('Erro ao aplicar a edição na imagem.', error, {
+        op: 'save',
+        source: this.activeDraft?.source ?? 'direct-input',
+        preset: this.activePreset,
+      });
     } finally {
       this.isSavingSubject.next(false);
     }
   }
 
   onClose(): void {
-    if (this.isClosingSubject.value) {
-      return;
-    }
-
+    if (this.isClosingSubject.value) return;
     this.isClosingSubject.next(true);
     this.activeModal.dismiss('close');
   }
@@ -1032,7 +957,6 @@ export class PhotoEditorComponent implements AfterViewInit {
       )
       .subscribe((uid) => {
         this.userId = uid;
-
         if (!uid) {
           this.failAndDismiss(
             'Usuário não autenticado.',
@@ -1044,7 +968,6 @@ export class PhotoEditorComponent implements AfterViewInit {
 
         const draft = this.photoEditorSession.peekDraft();
         this.activeDraft = draft;
-
         if (!this.isValidDraft(draft, uid)) {
           this.failAndDismiss(
             'A sessão do editor expirou ou não pertence a este usuário.',
@@ -1061,7 +984,6 @@ export class PhotoEditorComponent implements AfterViewInit {
 
   private async loadSourceImage(): Promise<void> {
     const source = this.resolveSource();
-
     if (!source) {
       this.failAndDismiss(
         'Nenhuma imagem disponível para edição.',
@@ -1073,7 +995,6 @@ export class PhotoEditorComponent implements AfterViewInit {
 
     this.isLoadingSubject.next(true);
     this.isEditorReadySubject.next(false);
-
     try {
       const image = await this.createImage(source);
       this.sourceImage = image;
@@ -1099,13 +1020,8 @@ export class PhotoEditorComponent implements AfterViewInit {
       directFile ??
       (this.activeDraft?.mode === 'create' ? this.activeDraft.file : null);
 
-    if (this.effectiveStoredImageUrl) {
-      return this.effectiveStoredImageUrl;
-    }
-
-    if (!this.sourceFile) {
-      return null;
-    }
+    if (this.effectiveStoredImageUrl) return this.effectiveStoredImageUrl;
+    if (!this.sourceFile) return null;
 
     this.revokeSourceObjectUrl();
     this.sourceObjectUrl = URL.createObjectURL(this.sourceFile);
@@ -1115,18 +1031,13 @@ export class PhotoEditorComponent implements AfterViewInit {
   private createImage(src: string): Promise<HTMLImageElement> {
     return new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
-
-      if (/^https?:\/\//i.test(src)) {
-        image.crossOrigin = 'anonymous';
-      }
-
+      if (/^https?:\/\//i.test(src)) image.crossOrigin = 'anonymous';
       image.decoding = 'async';
       image.onload = () => {
         if (!image.naturalWidth || !image.naturalHeight) {
           reject(new Error('Imagem carregada sem dimensões válidas.'));
           return;
         }
-
         resolve(image);
       };
       image.onerror = () => reject(new Error('Falha ao carregar a imagem.'));
@@ -1139,16 +1050,12 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.scheduleRender();
       return;
     }
-
     this.resizeObserver = new ResizeObserver(() => this.scheduleRender());
     this.resizeObserver.observe(this.editorStageRef.nativeElement);
   }
 
   private scheduleRender(): void {
-    if (!this.viewReady || !this.sourceImage || this.isClosingSubject.value) {
-      return;
-    }
-
+    if (!this.viewReady || !this.sourceImage || this.isClosingSubject.value) return;
     this.cancelScheduledRender();
     this.renderFrame = requestAnimationFrame(() => {
       this.renderFrame = null;
@@ -1167,17 +1074,13 @@ export class PhotoEditorComponent implements AfterViewInit {
     const stage = this.editorStageRef.nativeElement;
     const canvas = this.editorCanvasRef.nativeElement;
     const stageRect = stage.getBoundingClientRect();
-
-    if (stageRect.width < 80 || stageRect.height < 80) {
-      return;
-    }
+    if (stageRect.width < 80 || stageRect.height < 80) return;
 
     const ratio = this.resolveOutputAspectRatio();
     const availableWidth = Math.max(1, stageRect.width - 24);
     const availableHeight = Math.max(1, stageRect.height - 24);
     let width = availableWidth;
     let height = width / ratio;
-
     if (height > availableHeight) {
       height = availableHeight;
       width = height * ratio;
@@ -1201,7 +1104,6 @@ export class PhotoEditorComponent implements AfterViewInit {
       );
       return;
     }
-
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     this.drawImageFrame(context, this.previewWidth, this.previewHeight, true);
   }
@@ -1216,13 +1118,9 @@ export class PhotoEditorComponent implements AfterViewInit {
     baseCanvas.width = Math.max(1, Math.round(width));
     baseCanvas.height = Math.max(1, Math.round(height));
     const baseContext = baseCanvas.getContext('2d');
-
-    if (!baseContext) {
-      return;
-    }
+    if (!baseContext) return;
 
     this.drawBaseImage(baseContext, width, height, preview);
-
     context.save();
     context.clearRect(0, 0, width, height);
     context.drawImage(baseCanvas, 0, 0, width, height);
@@ -1247,13 +1145,10 @@ export class PhotoEditorComponent implements AfterViewInit {
     preview: boolean
   ): void {
     const image = this.sourceImage;
-    if (!image) {
-      return;
-    }
+    if (!image) return;
 
     context.save();
     context.clearRect(0, 0, width, height);
-
     if (preview) {
       context.fillStyle = '#080b10';
       context.fillRect(0, 0, width, height);
@@ -1292,13 +1187,17 @@ export class PhotoEditorComponent implements AfterViewInit {
     context.restore();
   }
 
-  private async exportImage(originalMimeType: string): Promise<Blob> {
+  private async exportImage(
+    originalMimeType: string
+  ): Promise<ExportedPhotoEditorImage> {
+    const preset = resolveImageEditorPreset(this.activePreset);
+    const maxOutputEdge = preset.maxOutputEdge;
     const ratio = this.resolveOutputAspectRatio();
-    let width = MAX_OUTPUT_EDGE;
+    let width: number = maxOutputEdge;
     let height = Math.round(width / ratio);
 
-    if (height > MAX_OUTPUT_EDGE) {
-      height = MAX_OUTPUT_EDGE;
+    if (height > maxOutputEdge) {
+      height = maxOutputEdge;
       width = Math.round(height * ratio);
     }
 
@@ -1306,59 +1205,53 @@ export class PhotoEditorComponent implements AfterViewInit {
     output.width = Math.max(1, width);
     output.height = Math.max(1, height);
     const context = output.getContext('2d');
-
     if (!context) {
       throw new Error('Canvas de exportação indisponível.');
     }
 
     this.drawImageFrame(context, output.width, output.height, false);
-
     const preferredMimeType = this.normalizeOutputMimeType(originalMimeType);
-    const blob = await this.canvasToBlob(output, preferredMimeType);
-
+    const blob = await this.canvasToBlob(
+      output,
+      preferredMimeType,
+      preset.lossyQuality
+    );
     if (blob) {
-      return blob;
+      return { blob, width: output.width, height: output.height };
     }
 
-    const fallback = await this.canvasToBlob(output, 'image/jpeg');
+    const fallback = await this.canvasToBlob(
+      output,
+      'image/jpeg',
+      preset.lossyQuality
+    );
     if (!fallback) {
       throw new Error('O navegador não conseguiu exportar a imagem.');
     }
-
-    return fallback;
+    return { blob: fallback, width: output.width, height: output.height };
   }
 
   private canvasToBlob(
     canvas: HTMLCanvasElement,
-    mimeType: string
+    mimeType: string,
+    lossyQuality: number
   ): Promise<Blob | null> {
     return new Promise((resolve) => {
       canvas.toBlob(
         resolve,
         mimeType,
-        mimeType === 'image/png' ? undefined : 0.88
+        mimeType === 'image/png' ? undefined : lossyQuality
       );
     });
   }
 
   private resolveOutputAspectRatio(): number {
-    if (this.aspectRatio === 'square') {
-      return 1;
-    }
-
-    if (this.aspectRatio === 'portrait') {
-      return 4 / 5;
-    }
-
-    if (this.aspectRatio === 'landscape') {
-      return 16 / 9;
-    }
+    if (this.aspectRatio === 'square') return 1;
+    if (this.aspectRatio === 'portrait') return 4 / 5;
+    if (this.aspectRatio === 'landscape') return 16 / 9;
 
     const image = this.sourceImage;
-    if (!image) {
-      return 1;
-    }
-
+    if (!image) return 1;
     const quarterTurn = Math.abs(this.rotation % 180) === 90;
     const width = quarterTurn ? image.naturalHeight : image.naturalWidth;
     const height = quarterTurn ? image.naturalWidth : image.naturalHeight;
@@ -1380,9 +1273,14 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   private applyStoredEditorState(value: string | null): void {
-    // A imagem persistida já contém as transformações e anotações achatadas.
-    // Reaplicar o estado em modo de edição duplicaria corte, texto e borrões.
-    if (!value || this.effectiveIsEditMode) {
+    // Uma fonte armazenada já é a derivada achatada publicada/privada. Reaplicar
+    // o estado duplicaria corte, texto e proteção visual.
+    if (!value || this.isStoredSource) {
+      this.rotation = 0;
+      this.zoom = 1;
+      this.panX = 0;
+      this.panY = 0;
+      this.aspectRatio = this.resolvePresetAspectRatio();
       this.resetOverlayHistory([]);
       return;
     }
@@ -1393,6 +1291,11 @@ export class PhotoEditorComponent implements AfterViewInit {
         | Partial<PhotoEditorNativeStateV2>;
 
       if (parsed.editor !== 'native-canvas') {
+        this.rotation = 0;
+        this.zoom = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.aspectRatio = this.resolvePresetAspectRatio();
         this.resetOverlayHistory([]);
         return;
       }
@@ -1401,7 +1304,9 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.zoom = this.clamp(Number(parsed.zoom ?? 1), MIN_ZOOM, MAX_ZOOM);
       this.panX = this.clamp(Number(parsed.panX ?? 0), -1, 1);
       this.panY = this.clamp(Number(parsed.panY ?? 0), -1, 1);
-      this.aspectRatio = this.normalizeAspectRatio(parsed.aspectRatio);
+      this.aspectRatio = this.isAspectRatioLocked
+        ? this.resolvePresetAspectRatio()
+        : this.normalizeAspectRatio(parsed.aspectRatio);
 
       const overlays =
         parsed.version === 2
@@ -1411,6 +1316,11 @@ export class PhotoEditorComponent implements AfterViewInit {
           : [];
       this.resetOverlayHistory(overlays);
     } catch {
+      this.rotation = 0;
+      this.zoom = 1;
+      this.panX = 0;
+      this.panY = 0;
+      this.aspectRatio = this.resolvePresetAspectRatio();
       this.resetOverlayHistory([]);
       // Estados de editores antigos ou inválidos são deliberadamente ignorados.
     }
@@ -1424,42 +1334,36 @@ export class PhotoEditorComponent implements AfterViewInit {
       : 'original';
   }
 
-  private normalizeRotation(value: number): number {
-    if (!Number.isFinite(value)) {
-      return 0;
-    }
+  private resolvePresetAspectRatio(): PhotoEditorAspectRatio {
+    return this.normalizeAspectRatio(
+      resolveImageEditorPreset(this.activePreset).aspectRatio
+    );
+  }
 
+  private normalizeRotation(value: number): number {
+    if (!Number.isFinite(value)) return 0;
     return ((Math.round(value / 90) * 90) % 360 + 360) % 360;
   }
 
   private resolveEffectiveState(draft: IPhotoEditorDraft | null): void {
-    this.effectiveIsEditMode = this.isEditMode() || draft?.mode === 'edit';
+    this.isStoredSource =
+      draft?.mode === 'edit' || !!String(this.storedImageUrl() ?? '').trim();
     this.effectiveStoredImageUrl =
       String(this.storedImageUrl() ?? '').trim() ||
       (draft?.mode === 'edit' ? draft.storedImageUrl : '') ||
-      null;
-    this.effectiveStoredImagePath =
-      String(this.storedImagePath() ?? '').trim() ||
-      (draft?.mode === 'edit' ? draft.storedImagePath : '') ||
       null;
     this.effectiveStoredImageState =
       String(this.storedImageState() ?? '').trim() ||
       (draft?.mode === 'edit' ? String(draft.storedImageState ?? '') : '') ||
       null;
-    this.effectivePhotoId =
-      String(this.photoId() ?? '').trim() ||
-      (draft?.mode === 'edit' ? draft.photoId : '') ||
-      null;
+    this.aspectRatio = this.resolvePresetAspectRatio();
   }
 
   private isValidDraft(
     draft: IPhotoEditorDraft | null,
     authenticatedUid: string
   ): boolean {
-    if (!draft) {
-      return true;
-    }
-
+    if (!draft) return true;
     const age = Date.now() - Number(draft.createdAt ?? 0);
     return (
       draft.ownerUid === authenticatedUid &&
@@ -1481,14 +1385,11 @@ export class PhotoEditorComponent implements AfterViewInit {
       this.activeDraft?.mode === 'edit'
         ? String(this.activeDraft.fileName ?? '').trim()
         : '';
-    const path = String(this.effectiveStoredImagePath ?? '').trim();
     const url = String(this.effectiveStoredImageUrl ?? '').trim();
-    const photoId = String(this.effectivePhotoId ?? '').trim();
     const fileName =
       draftFileName ||
-      this.extractFileName(path) ||
       this.extractFileName(url) ||
-      `${photoId || Date.now()}.jpg`;
+      `foto-${Date.now()}.jpg`;
 
     return {
       fileName,
@@ -1496,45 +1397,27 @@ export class PhotoEditorComponent implements AfterViewInit {
     };
   }
 
-  private async uploadNewPhoto(
-    processedFile: Blob,
-    imageStateStr: string,
-    metadata: OriginalFileMetadata
-  ): Promise<IPhotoFlowResult> {
-    return firstValueFrom(
-      this.photoUploadFlow.uploadProcessedPhoto$({
-        userId: this.userId,
-        processedFile,
-        originalFileName: metadata.fileName,
-        mimeType: processedFile.type || metadata.mimeType,
-        imageStateStr,
-      })
-    );
+  private createProcessedFile(
+    blob: Blob,
+    originalFileName: string,
+    mimeType: string
+  ): File {
+    const extension = this.extensionForMimeType(mimeType);
+    const baseName =
+      String(originalFileName || 'foto')
+        .trim()
+        .replace(/\.[^.]+$/, '') || 'foto';
+    return new File([blob], `${baseName}-editada.${extension}`, {
+      type: mimeType,
+      lastModified: Date.now(),
+    });
   }
 
-  private async replaceStoredPhoto(
-    processedFile: Blob,
-    imageStateStr: string,
-    metadata: OriginalFileMetadata
-  ): Promise<IPhotoFlowResult> {
-    const photoId = String(this.effectivePhotoId ?? '').trim();
-    const storagePath = String(this.effectiveStoredImagePath ?? '').trim();
-
-    if (!photoId || !storagePath) {
-      throw new Error('Informações incompletas para substituir a foto.');
-    }
-
-    return firstValueFrom(
-      this.photoUploadFlow.replaceProcessedPhoto$({
-        userId: this.userId,
-        photoId,
-        currentStoragePath: storagePath,
-        processedFile,
-        originalFileName: metadata.fileName,
-        mimeType: processedFile.type || metadata.mimeType,
-        imageStateStr,
-      })
-    );
+  private extensionForMimeType(mimeType: string): string {
+    const normalized = this.normalizeOutputMimeType(mimeType);
+    if (normalized === 'image/png') return 'png';
+    if (normalized === 'image/webp') return 'webp';
+    return 'jpg';
   }
 
   private placeDecorationAt(point: PhotoEditorNormalizedPoint): void {
@@ -1554,10 +1437,7 @@ export class PhotoEditorComponent implements AfterViewInit {
       };
     } else if (this.activeTool === 'text') {
       const value = this.captionText.replace(/\s+/g, ' ').trim().slice(0, 40);
-      if (!value) {
-        return;
-      }
-
+      if (!value) return;
       overlay = {
         id: createPhotoEditorOverlayId(),
         kind: 'text',
@@ -1596,10 +1476,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     commit: boolean
   ): void {
     const selectedId = this.selectedOverlayId;
-    if (!selectedId || this.isBusy()) {
-      return;
-    }
-
+    if (!selectedId || this.isBusy()) return;
     let changed = false;
     this.overlays = this.overlays.map((overlay) => {
       if (
@@ -1610,20 +1487,12 @@ export class PhotoEditorComponent implements AfterViewInit {
       ) {
         return overlay;
       }
-
       changed = true;
       return transform(overlay);
     });
-
-    if (!changed) {
-      return;
-    }
-
-    if (commit) {
-      this.commitOverlays(this.overlays);
-    } else {
-      this.scheduleRender();
-    }
+    if (!changed) return;
+    if (commit) this.commitOverlays(this.overlays);
+    else this.scheduleRender();
   }
 
   private updateSelectedPrivacy(
@@ -1631,10 +1500,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     commit: boolean
   ): void {
     const selectedId = this.selectedOverlayId;
-    if (!selectedId || this.isBusy()) {
-      return;
-    }
-
+    if (!selectedId || this.isBusy()) return;
     let changed = false;
     this.overlays = this.overlays.map((overlay) => {
       if (
@@ -1643,20 +1509,12 @@ export class PhotoEditorComponent implements AfterViewInit {
       ) {
         return overlay;
       }
-
       changed = true;
       return transform(overlay);
     });
-
-    if (!changed) {
-      return;
-    }
-
-    if (commit) {
-      this.commitOverlays(this.overlays);
-    } else {
-      this.scheduleRender();
-    }
+    if (!changed) return;
+    if (commit) this.commitOverlays(this.overlays);
+    else this.scheduleRender();
   }
 
   private updateSelectedDateTimeMeta(
@@ -1664,10 +1522,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     commit: boolean
   ): void {
     this.updateSelectedDecoration((overlay) => {
-      if (overlay.kind !== 'datetime') {
-        return overlay;
-      }
-
+      if (overlay.kind !== 'datetime') return overlay;
       const dateTimeMeta = {
         ...(overlay.dateTimeMeta ?? createPhotoEditorDateTimeMeta()),
         ...patch,
@@ -1685,10 +1540,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   ): PhotoEditorOverlay | null {
     const canvas = this.editorCanvasRef.nativeElement;
     const context = canvas.getContext('2d');
-    if (!context || !this.previewWidth || !this.previewHeight) {
-      return null;
-    }
-
+    if (!context || !this.previewWidth || !this.previewHeight) return null;
     return hitTestPhotoEditorOverlay(
       this.overlays,
       point,
@@ -1710,7 +1562,6 @@ export class PhotoEditorComponent implements AfterViewInit {
         y: this.clamp(overlay.y + deltaY, 0, 1 - overlay.height),
       };
     }
-
     return {
       ...overlay,
       x: this.clamp(overlay.x + deltaX, 0, 1),
@@ -1722,41 +1573,71 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   private commitOverlays(next: readonly PhotoEditorOverlay[]): void {
-    const normalized = normalizePhotoEditorOverlays(next);
-    const currentSnapshot = this.overlayHistory[this.overlayHistoryIndex] ?? [];
-    const nextSerialized = JSON.stringify(normalized);
-    const currentSerialized = JSON.stringify(currentSnapshot);
-
-    this.overlays = clonePhotoEditorOverlays(normalized);
-
-    if (nextSerialized === currentSerialized) {
-      this.ensureSelectedOverlayExists();
-      this.scheduleRender();
-      return;
-    }
-
-    const historyBeforeCurrent = this.overlayHistory.slice(
-      0,
-      this.overlayHistoryIndex + 1
-    );
-    historyBeforeCurrent.push(clonePhotoEditorOverlays(normalized));
-
-    if (historyBeforeCurrent.length > MAX_OVERLAY_HISTORY) {
-      historyBeforeCurrent.shift();
-    }
-
-    this.overlayHistory = historyBeforeCurrent;
-    this.overlayHistoryIndex = this.overlayHistory.length - 1;
+    this.overlays = clonePhotoEditorOverlays(normalizePhotoEditorOverlays(next));
     this.ensureSelectedOverlayExists();
-    this.scheduleRender();
+    this.commitEditorState();
   }
 
   private resetOverlayHistory(overlays: readonly PhotoEditorOverlay[]): void {
-    const normalized = normalizePhotoEditorOverlays(overlays);
-    this.overlays = clonePhotoEditorOverlays(normalized);
-    this.overlayHistory = [clonePhotoEditorOverlays(normalized)];
-    this.overlayHistoryIndex = 0;
+    this.overlays = clonePhotoEditorOverlays(normalizePhotoEditorOverlays(overlays));
     this.ensureSelectedOverlayExists();
+    this.resetEditorHistory();
+  }
+
+  private buildHistorySnapshot(): PhotoEditorHistorySnapshot {
+    return {
+      state: JSON.stringify(this.buildEditorState()),
+      selectedOverlayId: this.selectedOverlayId,
+    };
+  }
+
+  private resetEditorHistory(): void {
+    try {
+      this.photoEditorHistory.reset(this.buildHistorySnapshot());
+    } catch (error) {
+      this.reportError('Não foi possível iniciar o histórico da edição.', error, {
+        op: 'history.reset',
+      });
+    }
+    this.scheduleRender();
+  }
+
+  private commitEditorState(): void {
+    try {
+      this.photoEditorHistory.commit(this.buildHistorySnapshot());
+    } catch (error) {
+      this.reportError('Não foi possível registrar a alteração da foto.', error, {
+        op: 'history.commit',
+      });
+    }
+    this.scheduleRender();
+  }
+
+  private restoreHistorySnapshot(snapshot: PhotoEditorHistorySnapshot): void {
+    try {
+      const parsed = JSON.parse(snapshot.state) as Partial<PhotoEditorNativeStateV2>;
+      if (parsed.editor !== 'native-canvas' || parsed.version !== 2) {
+        throw new Error('Snapshot incompatível com o editor canônico atual.');
+      }
+
+      this.rotation = this.normalizeRotation(Number(parsed.rotation ?? 0));
+      this.zoom = this.clamp(Number(parsed.zoom ?? 1), MIN_ZOOM, MAX_ZOOM);
+      this.panX = this.clamp(Number(parsed.panX ?? 0), -1, 1);
+      this.panY = this.clamp(Number(parsed.panY ?? 0), -1, 1);
+      this.aspectRatio = this.isAspectRatioLocked
+        ? this.resolvePresetAspectRatio()
+        : this.normalizeAspectRatio(parsed.aspectRatio);
+      this.overlays = clonePhotoEditorOverlays(
+        normalizePhotoEditorOverlays(parsed.overlays)
+      );
+      this.selectedOverlayId = snapshot.selectedOverlayId;
+      this.ensureSelectedOverlayExists();
+      this.scheduleRender();
+    } catch (error) {
+      this.reportError('Não foi possível restaurar a alteração da foto.', error, {
+        op: 'history.restore',
+      });
+    }
   }
 
   private ensureSelectedOverlayExists(): void {
@@ -1773,11 +1654,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   ): PhotoEditorNormalizedPoint | null {
     const canvas = this.editorCanvasRef.nativeElement;
     const rect = canvas.getBoundingClientRect();
-
-    if (rect.width <= 0 || rect.height <= 0) {
-      return null;
-    }
-
+    if (rect.width <= 0 || rect.height <= 0) return null;
     return {
       x: this.clamp((event.clientX - rect.left) / rect.width, 0, 1),
       y: this.clamp((event.clientY - rect.top) / rect.height, 0, 1),
@@ -1796,7 +1673,6 @@ export class PhotoEditorComponent implements AfterViewInit {
     pointerId = this.draggingPointerId
   ): void {
     const canvas = this.editorCanvasRef.nativeElement;
-
     if (
       releaseCapture &&
       pointerId !== null &&
@@ -1804,7 +1680,6 @@ export class PhotoEditorComponent implements AfterViewInit {
     ) {
       canvas.releasePointerCapture(pointerId);
     }
-
     this.draggingPointerId = null;
     this.pointerInteraction = null;
     this.overlayDragSnapshot = null;
@@ -1813,12 +1688,9 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.scheduleRender();
   }
 
-  private closeWithSuccess(
-    reason: 'uploadSuccess' | 'updateSuccess',
-    photo: IPhotoFlowResult
-  ): void {
+  private closeWithProcessedResult(result: PhotoEditorProcessedResult): void {
     this.isClosingSubject.next(true);
-    this.activeModal.close({ reason, photo });
+    this.activeModal.close({ reason: 'processSuccess', result });
   }
 
   private failAndDismiss(
@@ -1837,13 +1709,11 @@ export class PhotoEditorComponent implements AfterViewInit {
     context?: Record<string, unknown>
   ): void {
     this.errorMessageSubject.next(userMessage);
-
     try {
       this.errorNotifier.showError(userMessage);
     } catch {
       // O erro seguirá para o handler global.
     }
-
     try {
       const normalized = error instanceof Error ? error : new Error(userMessage);
       (normalized as any).original = error;
@@ -1861,7 +1731,6 @@ export class PhotoEditorComponent implements AfterViewInit {
   private captureAndReleaseBackgroundFocus(): void {
     const activeElement = this.document.activeElement;
     this.focusOrigin = activeElement instanceof HTMLElement ? activeElement : null;
-
     if (this.focusOrigin && this.focusOrigin !== this.document.body) {
       this.focusOrigin.blur();
     }
@@ -1870,11 +1739,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   private restoreBackgroundFocus(): void {
     const origin = this.focusOrigin;
     this.focusOrigin = null;
-
-    if (!origin) {
-      return;
-    }
-
+    if (!origin) return;
     setTimeout(() => {
       if (origin.isConnected) {
         origin.focus({ preventScroll: true });
@@ -1890,10 +1755,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   private extractFileName(value: string): string {
-    if (!value) {
-      return '';
-    }
-
+    if (!value) return '';
     try {
       const parsed = new URL(value);
       return decodeURIComponent(parsed.pathname).split('/').pop() ?? '';
@@ -1904,12 +1766,8 @@ export class PhotoEditorComponent implements AfterViewInit {
 
   private guessMimeType(fileName: string): string {
     const normalized = fileName.toLowerCase();
-    if (normalized.endsWith('.png')) {
-      return 'image/png';
-    }
-    if (normalized.endsWith('.webp')) {
-      return 'image/webp';
-    }
+    if (normalized.endsWith('.png')) return 'image/png';
+    if (normalized.endsWith('.webp')) return 'image/webp';
     return 'image/jpeg';
   }
 
@@ -1955,9 +1813,7 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   private clamp(value: number, minimum: number, maximum: number): number {
-    if (!Number.isFinite(value)) {
-      return minimum;
-    }
+    if (!Number.isFinite(value)) return minimum;
     return Math.min(maximum, Math.max(minimum, value));
   }
 }

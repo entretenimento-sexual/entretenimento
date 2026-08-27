@@ -336,39 +336,32 @@
 
 .form-container .tooltip-error {
   --tt-bg: color-mix(in oklab, var(--danger-color) 16%, var(--tooltip-background));
-  position: absolute;
-  left: 0;
-  top: calc(100% + 6px);
-  z-index: 1000;
+  position: static;
+  display: block;
+  width: fit-content;
   max-width: 100%;
+  margin-top: .45rem;
   white-space: normal;
   overflow-wrap: break-word;
   padding: .5rem .75rem;
   border-radius: .5rem;
   font-size: .9rem;
+  line-height: 1.35;
   background: var(--tt-bg);
   border: 1px solid color-mix(in oklab, var(--danger-color) 50%, transparent);
   color: #fff;
   box-shadow: var(--box-shadow);
   animation: fadeIn .2s ease;
-  pointer-events: none;
 }
 
 .form-container .tooltip-error::before {
-  content: "";
-  position: absolute;
-  top: -6px;
-  left: 16px;
-  width: 0;
-  height: 0;
-  border-left: 7px solid transparent;
-  border-right: 7px solid transparent;
-  border-bottom: 7px solid var(--tt-bg);
+  content: none;
 }
 
 .form-checkbox {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
   margin: 14px 0 10px;
   color: var(--text-color);
@@ -380,6 +373,11 @@
   height: 18px;
   margin-top: 0.1rem;
   accent-color: var(--primary-color);
+}
+
+.form-checkbox .tooltip-error {
+  flex: 0 0 100%;
+  margin-left: 28px;
 }
 
 .form-checkbox a,
@@ -457,7 +455,12 @@
 
 @media (max-width: 1000px) {
   .auth-container {
-    grid-template-columns: 1fr;
+    /*
+     * O contrato global de densidade de Auth usa duas colunas com !important.
+     * Neste breakpoint, o componente precisa assumir explicitamente uma coluna
+     * para que o formulário use a largura disponível em tablet/mobile.
+     */
+    grid-template-columns: minmax(0, 1fr) !important;
     align-items: stretch;
     gap: 1.25rem;
     min-height: auto;
@@ -469,6 +472,20 @@
 }
 
 @media (max-width: 768px) {
+  /*
+   * SUPRESSÃO RESPONSIVA INTENCIONAL:
+   * no mobile, o card já apresenta o título operacional “Crie seu cadastro”.
+   * Removemos o hero redundante para evitar competição visual e sobreposição,
+   * mantendo o conteúdo completo em tablet amplo/desktop.
+   */
+  .auth-intro {
+    display: none;
+  }
+
+  .auth-container {
+    gap: 0;
+  }
+
   .field-row {
     flex-direction: column;
     align-items: stretch;
@@ -484,14 +501,6 @@
     padding: 1rem;
   }
 
-  .auth-intro {
-    padding-top: 0.5rem;
-  }
-
-  .auth-intro h1 {
-    font-size: clamp(2rem, 12vw, 3.25rem);
-  }
-
   .form-container {
     border-radius: 20px;
   }
@@ -500,15 +509,19 @@
     align-items: flex-start;
     gap: 0.75rem;
   }
+
+  .form-container .tooltip-error {
+    width: 100%;
+  }
+
+  .form-checkbox .tooltip-error {
+    margin-left: 0;
+  }
 }
 
 @media (max-width: 380px) {
   .form-container .tooltip-error {
     font-size: .88rem;
     padding: .55rem .7rem;
-  }
-
-  .form-container .tooltip-error::before {
-    left: 12px;
   }
 }

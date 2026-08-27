@@ -9,6 +9,7 @@
 // - NÃO mata portas automaticamente;
 // - detecta portas ocupadas antes de criar backup ou iniciar Firebase;
 // - cria backup automático de .emulator-data antes de iniciar;
+// - valida firebase-export-metadata.json antes de repassá-lo ao Firebase CLI;
 // - usa --export-on-exit para salvar estado ao sair com Ctrl+C;
 // - usa --import somente quando .emulator-data já tem export válido;
 // - evita sobrescrever um export antigo sem snapshot prévio;
@@ -191,12 +192,12 @@ async function assertPortsAvailable() {
 function backupExistingData() {
   if (skipBackup) {
     console.warn('[emu:safe] Backup automático ignorado por FIREBASE_EMULATOR_SKIP_BACKUP=1.');
-    return;
+    return null;
   }
 
   if (!fs.existsSync(dataPath)) {
     console.warn(`[emu:safe] ${dataDir} não existe. Nada para copiar antes do start.`);
-    return;
+    return null;
   }
 
   fs.mkdirSync(backupRootPath, { recursive: true });
@@ -208,6 +209,47 @@ function backupExistingData() {
 
   copyDirectory(dataPath, backupPath);
   console.log(`[emu:safe] Backup criado em ${path.relative(root, backupPath)}`);
+  return backupPath;
+}
+
+function validateImportMetadata(backupPath) {
+  if (!fs.existsSync(metadataPath)) {
+    return false;
+  }
+
+  let rawMetadata = '';
+  try {
+    rawMetadata = fs.readFileSync(metadataPath, 'utf8');
+  } catch (error) {
+    console.error('[emu:safe] Não foi possível ler firebase-export-metadata.json:', error);
+    process.exit(1);
+  }
+
+  if (!rawMetadata.trim()) {
+    console.error('[emu:safe] Importação abortada: firebase-export-metadata.json está vazio.');
+    if (backupPath) {
+      console.error(`[emu:safe] Snapshot preservado em ${path.relative(root, backupPath)}.`);
+    }
+    console.error('[emu:safe] Recupere um export válido antes de iniciar os emuladores.');
+    process.exit(1);
+  }
+
+  try {
+    const parsed = JSON.parse(rawMetadata);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new TypeError('metadata root must be an object');
+    }
+  } catch (error) {
+    console.error('[emu:safe] Importação abortada: firebase-export-metadata.json contém JSON inválido.');
+    if (backupPath) {
+      console.error(`[emu:safe] Snapshot preservado em ${path.relative(root, backupPath)}.`);
+    }
+    console.error(`[emu:safe] Detalhe: ${error instanceof Error ? error.message : String(error)}`);
+    console.error('[emu:safe] Recupere um export válido antes de iniciar os emuladores.');
+    process.exit(1);
+  }
+
+  return true;
 }
 
 function spawnFirebaseEmulator(args, env) {
@@ -232,7 +274,8 @@ function spawnFirebaseEmulator(args, env) {
 
 buildFirestoreRules();
 await assertPortsAvailable();
-backupExistingData();
+const backupPath = backupExistingData();
+const hasValidImportMetadata = validateImportMetadata(backupPath);
 
 const args = [
   'firebase',
@@ -245,7 +288,7 @@ const args = [
   dataDir,
 ];
 
-if (fs.existsSync(metadataPath)) {
+if (hasValidImportMetadata) {
   args.push('--import', dataDir);
   console.log(`[emu:safe] Importando dados de ${dataDir}`);
 } else {
@@ -262,11 +305,17 @@ const env = {
 };
 
 if (process.platform === 'win32') {
-  const jdkPath = 'C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot';
+  const javaHome = String(env.JAVA_HOME ?? '').trim();
+  const javaExe = javaHome
+    ? path.join(javaHome, 'bin', 'java.exe')
+    : '';
 
-  if (fs.existsSync(jdkPath)) {
-    env.JAVA_HOME = jdkPath;
-    env.PATH = `${path.join(jdkPath, 'bin')};${env.PATH ?? ''}`;
+  if (javaHome && !fs.existsSync(javaExe)) {
+    console.warn(
+      `[emu:safe] JAVA_HOME inválido ignorado: ${javaHome}. ` +
+        'O Firebase Emulator usará o Java disponível no PATH.'
+    );
+    delete env.JAVA_HOME;
   }
 }
 

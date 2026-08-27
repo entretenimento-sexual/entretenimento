@@ -27,6 +27,37 @@ describe('DiscoveryCardEnrichmentService preference pipeline', () => {
     service = TestBed.inject(DiscoveryCardEnrichmentService);
   });
 
+  it('prioriza a localização de runtime sobre coordenadas persistidas do viewer', () => {
+    const viewer = user('viewer', {
+      latitude: -10,
+      longitude: -50,
+    });
+    const target = candidate('target', {
+      latitude: -22.91,
+      longitude: -43.17,
+    });
+    const calculator = TestBed.inject(DistanceCalculationService);
+
+    service.buildCardsResult({
+      profiles: [target],
+      currentUser: viewer,
+      currentUid: viewer.uid,
+      mode: 'all',
+      fallbackLocation: {
+        latitude: -22.9,
+        longitude: -43.2,
+      },
+      applyVisibility: false,
+    });
+
+    expect(calculator.calculateDistanceInKm).toHaveBeenCalledWith(
+      -22.9,
+      -43.2,
+      -22.91,
+      -43.17
+    );
+  });
+
   it('remove candidato fora da faixa etária obrigatória', () => {
     const viewer = user('viewer', {
       discoveryPreferences: preferences({

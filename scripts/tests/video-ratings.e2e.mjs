@@ -61,6 +61,26 @@ async function readDocumentData(reference) {
   return snapshot.exists ? snapshot.data() : null;
 }
 
+function eligibleAdultAccessData() {
+  return {
+    accountStatus: 'active',
+    suspended: false,
+    acceptedTerms: {
+      accepted: true,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    },
+    initialAdultConsentRequired: true,
+    adultConsent: {
+      accepted: true,
+      version: 'v1',
+    },
+    ageReverification: {
+      status: 'NONE',
+    },
+  };
+}
+
 async function expectCallableFailure(callable, payload) {
   try {
     await callable(payload);
@@ -142,6 +162,26 @@ async function run() {
     ownerUid = ownerCredential.user.uid;
     visitorAUid = visitorACredential.user.uid;
     visitorBUid = visitorBCredential.user.uid;
+
+    const ownerUserRef = db.doc(`users/${ownerUid}`);
+    const visitorAUserRef = db.doc(`users/${visitorAUid}`);
+    const visitorBUserRef = db.doc(`users/${visitorBUid}`);
+
+    await waitFor(
+      'documentos base dos usuários de avaliação',
+      async () => ({
+        owner: await readDocumentData(ownerUserRef),
+        visitorA: await readDocumentData(visitorAUserRef),
+        visitorB: await readDocumentData(visitorBUserRef),
+      }),
+      (state) => Boolean(state.owner && state.visitorA && state.visitorB)
+    );
+
+    await Promise.all([
+      ownerUserRef.set(eligibleAdultAccessData(), { merge: true }),
+      visitorAUserRef.set(eligibleAdultAccessData(), { merge: true }),
+      visitorBUserRef.set(eligibleAdultAccessData(), { merge: true }),
+    ]);
 
     const publicationRef = db.doc(
       `users/${ownerUid}/video_publications/${videoId}`
