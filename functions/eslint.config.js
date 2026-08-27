@@ -10,6 +10,7 @@ module.exports = [
       'node_modules/**',
       // Artefatos gerados são validados pelos checks canônicos e pelo TypeScript.
       // Evita conflito entre JSON determinístico (aspas duplas) e lint estilístico.
+      'src/community/community-contract.generated.ts',
       'src/identity/profile-identity.catalog.ts',
       'src/media/media-format.generated.ts',
     ],
