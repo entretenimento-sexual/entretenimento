@@ -23,6 +23,7 @@ import {
   buildCommunityFeedCacheQuery,
   communityFeedCacheAgeMs,
   isCommunityFeedCacheHardExpired,
+  normalizeCommunityFeedViewerUid,
 } from './community-feed-cache.model';
 import {
   CommunityFeedLoadEvent,
@@ -48,8 +49,7 @@ export class CommunityFeedCacheService {
     this.session.readyUid$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((uid) => {
-        const query = buildCommunityFeedCacheQuery(uid, 'placeholder', 'feed');
-        const viewerUid = query?.viewerUid ?? null;
+        const viewerUid = normalizeCommunityFeedViewerUid(uid) || null;
         this.activeViewerUid = viewerUid;
         this.store.dispatch(
           CommunityFeedCacheActions.activateCommunityFeedViewer({ viewerUid })
