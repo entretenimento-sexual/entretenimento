@@ -238,6 +238,13 @@ jobs:
           set -o pipefail
           npm ci 2>&1 | tee logs/angular-build-install.log
 
+      - name: Validate canonical Community contracts
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/quality/build-community-contracts.mjs --check \
+            2>&1 | tee logs/community-contracts.log
+
       - name: Run safe build
         shell: bash
         run: |
