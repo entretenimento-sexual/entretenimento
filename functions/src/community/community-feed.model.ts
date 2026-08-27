@@ -200,18 +200,27 @@ interface ProjectionPhotoSource {
   valid: boolean;
 }
 
+function invalidProjectionPhotoSource(): ProjectionPhotoSource {
+  return {
+    url: null,
+    storagePath: null,
+    alt: 'Foto publicada na comunidade',
+    valid: false,
+  };
+}
+
 function resolveProjectionPhotoSource(
-  source: Record<string, unknown>
+  source: Record<string, unknown>,
+  postId: string
 ): ProjectionPhotoSource {
   if (source['media'] != null) {
     const media = normalizePublishedMediaReference(source['media']);
-    if (!media || media.mediaType !== 'PHOTO') {
-      return {
-        url: null,
-        storagePath: null,
-        alt: 'Foto publicada na comunidade',
-        valid: false,
-      };
+    if (
+      !media
+      || media.mediaType !== 'PHOTO'
+      || media.mediaId !== postId
+    ) {
+      return invalidProjectionPhotoSource();
     }
 
     return {
@@ -309,7 +318,7 @@ export function sanitizeCommunityFeedProjection(
     return null;
   }
 
-  const photoSource = resolveProjectionPhotoSource(source);
+  const photoSource = resolveProjectionPhotoSource(source, postId);
 
   if (kind === 'text' && text.length < 1) return null;
   if (kind === 'photo' && !photoSource.valid) return null;
