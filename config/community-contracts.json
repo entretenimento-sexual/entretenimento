@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "sourceTypes": ["community", "venue"],
+  "joinPolicies": ["open", "approval", "invite_only"],
+  "viewerRoles": ["owner", "admin", "moderator", "member"],
+  "viewerModes": ["visitor", "pending", "member", "moderator", "manager"],
+  "lifecycleStatuses": ["active", "paused", "dormant", "archived", "scheduled_for_deletion"]
+}

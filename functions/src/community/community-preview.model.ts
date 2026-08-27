@@ -12,28 +12,35 @@
 // -----------------------------------------------------------------------------
 
 import {
+  isCommunityJoinPolicy,
+  isCommunityLifecycleStatus,
+  isCommunitySourceType,
+  isCommunityViewerRole,
+} from './community-contract.generated';
+import type {
+  CommunityJoinPolicy as CanonicalCommunityJoinPolicy,
+  CommunityLifecycleStatus as CanonicalCommunityLifecycleStatus,
+  CommunitySourceType as CanonicalCommunitySourceType,
+  CommunityViewerMode as CanonicalCommunityViewerMode,
+  CommunityViewerRole as CanonicalCommunityViewerRole,
+} from './community-contract.generated';
+import {
   CommunityTagCategory,
   isCommunityTagId,
   resolveCommunityTagDefinitions,
 } from './community-tag.catalog';
-import type { CommunityLifecycleStatus } from './community-lifecycle.policy';
 import type { CommunityEditableSettings } from './community-settings.model';
 import type {
   CommunityEffectiveMemberLimit,
   CommunityMemberLimit,
 } from './community-capacity.policy';
 
-export type CommunitySourceType = 'community' | 'venue';
-export type CommunityJoinPolicy = 'open' | 'approval' | 'invite_only';
-export type CommunityViewerMode =
-  | 'visitor'
-  | 'pending'
-  | 'member'
-  | 'moderator'
-  | 'manager';
-export type CommunityViewerRole = 'owner' | 'admin' | 'moderator' | 'member';
+export type CommunitySourceType = CanonicalCommunitySourceType;
+export type CommunityJoinPolicy = CanonicalCommunityJoinPolicy;
+export type CommunityViewerMode = CanonicalCommunityViewerMode;
+export type CommunityViewerRole = CanonicalCommunityViewerRole;
 export type CommunityMinimumRole = 'basic' | 'premium' | 'vip';
-export type CommunityPreviewLifecycleStatus = CommunityLifecycleStatus;
+export type CommunityPreviewLifecycleStatus = CanonicalCommunityLifecycleStatus;
 
 export interface CommunityDiscoveryPageRequest {
   limit?: unknown;
@@ -187,28 +194,17 @@ function normalizeCount(value: unknown): number {
 }
 
 function normalizeSourceType(value: unknown): CommunitySourceType | null {
-  return value === 'community' || value === 'venue' ? value : null;
+  return isCommunitySourceType(value) ? value : null;
 }
 
 function normalizeLifecycleStatus(
   value: unknown
 ): CommunityPreviewLifecycleStatus | null {
-  return value === 'active'
-    || value === 'paused'
-    || value === 'dormant'
-    || value === 'archived'
-    || value === 'scheduled_for_deletion'
-    ? value
-    : null;
+  return isCommunityLifecycleStatus(value) ? value : null;
 }
 
 function normalizeViewerRole(value: unknown): CommunityViewerRole | null {
-  return value === 'owner'
-    || value === 'admin'
-    || value === 'moderator'
-    || value === 'member'
-    ? value
-    : null;
+  return isCommunityViewerRole(value) ? value : null;
 }
 
 function normalizeSource(raw: unknown): CommunityPreviewCard['source'] | null {
@@ -224,7 +220,7 @@ function normalizeSource(raw: unknown): CommunityPreviewCard['source'] | null {
 }
 
 function normalizeJoin(value: unknown): CommunityJoinPolicy {
-  return value === 'open' || value === 'invite_only' ? value : 'approval';
+  return isCommunityJoinPolicy(value) ? value : 'approval';
 }
 
 function normalizeAccess(raw: unknown): CommunityPreviewAccess {
@@ -336,11 +332,7 @@ export function sanitizeCommunityDocument(
   const source = (raw ?? {}) as Record<string, unknown>;
   const moderation = (source['moderation'] ?? {}) as Record<string, unknown>;
   const status = source['status'];
-  const validStatus = status === 'active'
-    || status === 'paused'
-    || status === 'dormant'
-    || status === 'archived'
-    || status === 'scheduled_for_deletion';
+  const validStatus = isCommunityLifecycleStatus(status);
   const terminalStatus = status === 'archived' || status === 'scheduled_for_deletion';
   const validVisibility = source['visibility'] === 'public_preview'
     || source['visibility'] === 'members_only'

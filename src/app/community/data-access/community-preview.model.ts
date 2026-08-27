@@ -13,6 +13,20 @@
 // -----------------------------------------------------------------------------
 
 import {
+  isCommunityJoinPolicy,
+  isCommunityLifecycleStatus,
+  isCommunitySourceType,
+  isCommunityViewerMode,
+  isCommunityViewerRole,
+} from './community-contract.generated';
+import type {
+  CommunityJoinPolicy,
+  CommunityLifecycleStatus,
+  CommunitySourceType,
+  CommunityViewerMode,
+  CommunityViewerRole,
+} from './community-contract.generated';
+import {
   CommunityCapacityPreview,
   normalizeCommunityCapacityPreview,
 } from './community-capacity.model';
@@ -22,26 +36,12 @@ import {
   normalizeCommunityEditableSettings,
 } from './community-settings.model';
 
-export type CommunityPreviewSourceType = 'community' | 'venue';
-export type CommunityPreviewJoinPolicy = 'open' | 'approval' | 'invite_only';
-export type CommunityPreviewViewerMode =
-  | 'visitor'
-  | 'pending'
-  | 'member'
-  | 'moderator'
-  | 'manager';
-export type CommunityPreviewViewerRole =
-  | 'owner'
-  | 'admin'
-  | 'moderator'
-  | 'member';
+export type CommunityPreviewSourceType = CommunitySourceType;
+export type CommunityPreviewJoinPolicy = CommunityJoinPolicy;
+export type CommunityPreviewViewerMode = CommunityViewerMode;
+export type CommunityPreviewViewerRole = CommunityViewerRole;
 export type CommunityPreviewMinimumRole = 'basic' | 'premium' | 'vip';
-export type CommunityPreviewLifecycleStatus =
-  | 'active'
-  | 'paused'
-  | 'dormant'
-  | 'archived'
-  | 'scheduled_for_deletion';
+export type CommunityPreviewLifecycleStatus = CommunityLifecycleStatus;
 
 export interface CommunityPreviewTag {
   id: string;
@@ -164,24 +164,13 @@ function normalizeCount(value: unknown): number {
 function normalizeViewerRole(
   value: unknown
 ): CommunityPreviewViewerRole | null {
-  return value === 'owner'
-    || value === 'admin'
-    || value === 'moderator'
-    || value === 'member'
-    ? value
-    : null;
+  return isCommunityViewerRole(value) ? value : null;
 }
 
 function normalizeLifecycleStatus(
   value: unknown
 ): CommunityPreviewLifecycleStatus | null {
-  return value === 'active'
-    || value === 'paused'
-    || value === 'dormant'
-    || value === 'archived'
-    || value === 'scheduled_for_deletion'
-    ? value
-    : null;
+  return isCommunityLifecycleStatus(value) ? value : null;
 }
 
 function normalizeTagCategory(value: unknown): CommunityTagCategory | null {
@@ -223,7 +212,7 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
   if (
     !communityId
     || !sourceId
-    || (sourceType !== 'community' && sourceType !== 'venue')
+    || !isCommunitySourceType(sourceType)
     || name.length < 2
     || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
   ) {
@@ -248,8 +237,7 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
       mediaCount: normalizeCount(metrics['mediaCount']),
     },
     access: {
-      join:
-        join === 'open' || join === 'invite_only' ? join : 'approval',
+      join: isCommunityJoinPolicy(join) ? join : 'approval',
       minimumRole: null,
       requiresActiveSubscription: false,
     },
@@ -307,11 +295,7 @@ export function normalizeCommunityPreviewResponse(
 
   if (
     !community
-    || (viewerMode !== 'visitor'
-      && viewerMode !== 'pending'
-      && viewerMode !== 'member'
-      && viewerMode !== 'moderator'
-      && viewerMode !== 'manager')
+    || !isCommunityViewerMode(viewerMode)
     || (community.source.type === 'community' && !lifecycleStatus)
     || (canManageCommunitySettings && !settings)
     || (community.source.type === 'community' && !capacity)
