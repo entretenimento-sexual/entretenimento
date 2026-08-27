@@ -20,11 +20,15 @@ let testEnv: RulesTestEnvironment;
 const PRIVATE_DOCUMENT_PATHS = [
   ['community_lifecycle_runtime', 'daily'],
   ['community_lifecycle_audit', 'audit-1'],
+  ['community_purge_runtime', 'scheduler'],
+  ['community_purge_audit', 'community-1'],
 ] as const;
 
 const PRIVATE_COLLECTIONS = [
   'community_lifecycle_runtime',
   'community_lifecycle_audit',
+  'community_purge_runtime',
+  'community_purge_audit',
 ] as const;
 
 describe('Firestore Rules / Community backend state', () => {
@@ -45,7 +49,7 @@ describe('Firestore Rules / Community backend state', () => {
     await testEnv.cleanup();
   });
 
-  it('nega leitura individual do estado operacional do lifecycle ao cliente', async () => {
+  it('nega leitura individual do estado operacional ao cliente', async () => {
     const db = testEnv.authenticatedContext(USER_UID).firestore();
 
     for (const [collectionName, documentId] of PRIVATE_DOCUMENT_PATHS) {
@@ -53,7 +57,7 @@ describe('Firestore Rules / Community backend state', () => {
     }
   });
 
-  it('nega enumeração das coleções operacionais do lifecycle', async () => {
+  it('nega enumeração das coleções operacionais', async () => {
     const db = testEnv.authenticatedContext(USER_UID).firestore();
 
     for (const collectionName of PRIVATE_COLLECTIONS) {
@@ -61,7 +65,7 @@ describe('Firestore Rules / Community backend state', () => {
     }
   });
 
-  it('nega escrita direta no estado operacional do lifecycle', async () => {
+  it('nega escrita direta no lifecycle e no purge', async () => {
     const db = testEnv.authenticatedContext(USER_UID).firestore();
 
     await assertFails(
@@ -72,6 +76,16 @@ describe('Firestore Rules / Community backend state', () => {
     await assertFails(
       setDoc(doc(db, 'community_lifecycle_audit', 'audit-1'), {
         action: 'forged',
+      })
+    );
+    await assertFails(
+      setDoc(doc(db, 'community_purge_runtime', 'scheduler'), {
+        cursor: 'forged',
+      })
+    );
+    await assertFails(
+      setDoc(doc(db, 'community_purge_audit', 'community-1'), {
+        state: 'completed',
       })
     );
   });

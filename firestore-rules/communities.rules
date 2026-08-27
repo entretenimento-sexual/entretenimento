@@ -281,3 +281,13 @@ match /community_lifecycle_runtime/{runtimeId} {
 match /community_lifecycle_audit/{auditId} {
   allow read, write: if false;
 }
+
+// Claim, cursor, retry e tombstone/auditoria do purge físico são estritamente
+// backend-only. O cliente nunca pode antecipar, cancelar ou forjar uma purga.
+match /community_purge_runtime/{runtimeId} {
+  allow read, write: if false;
+}
+
+match /community_purge_audit/{communityId} {
+  allow read, write: if false;
+}

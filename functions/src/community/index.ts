@@ -85,6 +85,7 @@ export { getCommunityPreview } from './get-community-preview.handler';
 export { requestCommunityMembership } from './request-community-membership.handler';
 export { updateCommunitySettings } from './update-community-settings.handler';
 export { runCommunityLifecycle } from './run-community-lifecycle.schedule';
+export { runCommunityPurge } from './run-community-purge.schedule';
 export {
   syncCommunityArchiveProjections,
 } from './sync-community-archive-projections.trigger';
