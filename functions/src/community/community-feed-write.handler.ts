@@ -2,9 +2,13 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY FEED WRITES
 // -----------------------------------------------------------------------------
-// Mensagens idempotentes do Mural. Texto, foto e respostas pertencem à mesma
+// Mensagens idempotentes do Mural. Texto, mídia e respostas pertencem à mesma
 // timeline. Uma resposta é uma publicação normal com `replyToPostId`; não é
 // armazenada como filha da mensagem original.
+//
+// A camada Community não define política física de mídia. Upload privado e asset
+// publicado são validados/preparados pelos serviços canônicos de Media; o Mural
+// persiste somente a referência publicada autorizável.
 // -----------------------------------------------------------------------------
 
 import * as logger from 'firebase-functions/logger';
@@ -12,6 +16,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, getDefaultStorageBucket, Timestamp } from '../firebaseApp';
+import {
+  buildPublishedPhotoReference,
+  normalizePublishedMediaReference,
+} from '../media/application/published-media-reference.model';
 import {
   copyPrivatePhotoToPublishedAsset,
   deletePublishedPhotoAssetOrQueue,
@@ -35,14 +43,6 @@ import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.po
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import { buildCommunityPublicAuthor } from './community-public-author.model';
 import { getCommunityViewerContext } from './community-viewer-access.service';
-
-const ALLOWED_COMMUNITY_IMAGE_TYPES = new Set([
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/webp',
-]);
-const MAX_COMMUNITY_IMAGE_BYTES = 10 * 1024 * 1024;
 
 interface CommunityFeedTransactionResult extends CommunityFeedPostWriteResponse {
   imageStoragePathToKeep: string | null;
@@ -103,6 +103,17 @@ function throwWriteDecision(reason: string | null): never {
   );
 }
 
+function existingPhotoStoragePath(
+  existingPost: FirebaseFirestore.DocumentData | undefined
+): string | null {
+  const media = normalizePublishedMediaReference(existingPost?.['media']);
+  if (media?.mediaType === 'PHOTO') return media.storagePath;
+
+  // Compatibilidade com posts anteriores à referência canônica.
+  const image = (existingPost?.['image'] ?? {}) as Record<string, unknown>;
+  return String(image['storagePath'] ?? '').trim() || null;
+}
+
 function existingWriteResponse(
   raw: FirebaseFirestore.DocumentData,
   actorUid: string,
@@ -121,37 +132,13 @@ function existingWriteResponse(
     return null;
   }
 
-  const image = (existingPost?.['image'] ?? {}) as Record<string, unknown>;
-  const storagePath = String(image['storagePath'] ?? '').trim();
-
   return {
     communityId,
     postId,
     created: false,
     deduplicated: true,
-    imageStoragePathToKeep: storagePath || null,
+    imageStoragePathToKeep: existingPhotoStoragePath(existingPost),
   };
-}
-
-async function validatePrivateCommunityImage(storagePath: string): Promise<void> {
-  const [metadata] = await getDefaultStorageBucket().file(storagePath).getMetadata();
-  const contentType = String(metadata.contentType ?? '').trim().toLowerCase();
-  const sizeBytes = Number(metadata.size ?? 0);
-
-  if (!ALLOWED_COMMUNITY_IMAGE_TYPES.has(contentType)) {
-    throw new HttpsError(
-      'invalid-argument',
-      'A foto deve ser JPG, PNG ou WEBP.'
-    );
-  }
-
-  if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
-    throw new HttpsError('invalid-argument', 'Não foi possível validar a foto enviada.');
-  }
-
-  if (sizeBytes > MAX_COMMUNITY_IMAGE_BYTES) {
-    throw new HttpsError('invalid-argument', 'A foto excede o limite de 10 MB.');
-  }
 }
 
 async function deletePrivateDraftQuietly(storagePath: string | null): Promise<void> {
@@ -250,7 +237,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
 
     try {
       if (privateImagePath) {
-        await validatePrivateCommunityImage(privateImagePath);
+        // O serviço canônico valida MIME, tamanho e ownership do asset publicado.
         promotedStoragePath = await copyPrivatePhotoToPublishedAsset({
           ownerUid: actorUid,
           photoId: postId,
@@ -435,11 +422,13 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
           );
           const now = Timestamp.fromMillis(nowMs);
           const kind = promotedStoragePath ? 'photo' : 'text';
-          const image = promotedStoragePath
-            ? {
+          const media = promotedStoragePath
+            ? buildPublishedPhotoReference({
+              ownerUid: actorUid,
+              mediaId: postId,
               storagePath: promotedStoragePath,
-              alt: `Foto compartilhada por ${author.label}`.slice(0, 140),
-            }
+              alt: `Foto compartilhada por ${author.label}`,
+            })
             : null;
           const projection = {
             kind,
@@ -448,7 +437,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             moderationState: 'active',
             author,
             text: command.text || null,
-            image,
+            media,
             replyToPostId: command.replyToPostId,
             metrics: {
               commentCount: 0,

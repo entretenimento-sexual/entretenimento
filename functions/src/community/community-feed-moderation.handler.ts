@@ -12,6 +12,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
+import { normalizePublishedMediaReference } from '../media/application/published-media-reference.model';
 import {
   deletePublishedPhotoAssetOrQueue,
   stagePublishedPhotoAssetCleanup,
@@ -105,10 +106,37 @@ function stagePostPhotoCleanup(
 ): StagedPublishedPhotoAssetCleanup | null {
   if (post['kind'] !== 'photo') return null;
 
-  const image = (post['image'] ?? {}) as Record<string, unknown>;
   const ownerUid = String(post['actorUid'] ?? '').trim();
-  const storagePath = String(image['storagePath'] ?? '').trim();
-  if (!ownerUid || !storagePath) return null;
+  if (!ownerUid) {
+    throw new HttpsError(
+      'data-loss',
+      'A publicação possui autoria inconsistente e exige revisão.'
+    );
+  }
+
+  let storagePath = '';
+
+  if (post['media'] != null) {
+    const media = normalizePublishedMediaReference(post['media']);
+    if (
+      !media
+      || media.mediaType !== 'PHOTO'
+      || media.ownerUid !== ownerUid
+      || media.mediaId !== postId
+    ) {
+      throw new HttpsError(
+        'data-loss',
+        'A referência de mídia da publicação está inconsistente e exige revisão.'
+      );
+    }
+    storagePath = media.storagePath;
+  } else {
+    // Compatibilidade com posts anteriores ao contrato canônico `media`.
+    const legacyImage = (post['image'] ?? {}) as Record<string, unknown>;
+    storagePath = String(legacyImage['storagePath'] ?? '').trim();
+  }
+
+  if (!storagePath) return null;
 
   return stagePublishedPhotoAssetCleanup(transaction, {
     ownerUid,

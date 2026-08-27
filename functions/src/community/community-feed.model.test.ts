@@ -178,7 +178,7 @@ test('preserva replyToPostId somente para hidratação backend da citação', ()
   );
 });
 
-test('aceita foto publicada backend-only para hidratação posterior', () => {
+test('aceita foto publicada backend-only legada para hidratação posterior', () => {
   const result = sanitizeCommunityFeedProjection(
     'post-photo',
     feedItem({
@@ -196,6 +196,54 @@ test('aceita foto publicada backend-only para hidratação posterior', () => {
     'users/u1/published/images/post-photo/1800000000000-version1'
   );
   assert.equal(result?.item.image, null);
+});
+
+test('aceita referência canônica de foto publicada sem expor o storage ao item', () => {
+  const result = sanitizeCommunityFeedProjection(
+    'post-photo-canonical',
+    feedItem({
+      image: null,
+      media: {
+        mediaType: 'PHOTO',
+        mediaId: 'post-photo-canonical',
+        ownerUid: 'u1',
+        assetAccess: 'SIGNED_URL',
+        assetLifecycle: 'SURFACE_OWNED',
+        storagePath:
+          'users/u1/published/images/post-photo-canonical/1800000000000-version1',
+        alt: 'Foto preparada pela camada canônica',
+      },
+    }),
+    NOW
+  );
+
+  assert.equal(
+    result?.imageStoragePath,
+    'users/u1/published/images/post-photo-canonical/1800000000000-version1'
+  );
+  assert.equal(result?.imageAlt, 'Foto preparada pela camada canônica');
+  assert.equal(result?.item.image, null);
+});
+
+test('falha fechado quando a referência canônica de mídia está corrompida', () => {
+  assert.equal(
+    sanitizeCommunityFeedProjection(
+      'post-photo-invalid-media',
+      feedItem({
+        media: {
+          mediaType: 'PHOTO',
+          mediaId: 'outro-post',
+          ownerUid: 'u1',
+          assetAccess: 'SIGNED_URL',
+          assetLifecycle: 'SURFACE_OWNED',
+          storagePath:
+            'users/u1/published/images/post-photo-invalid-media/1800000000000-version1',
+        },
+      }),
+      NOW
+    ),
+    null
+  );
 });
 
 test('mantém item válido quando avatar usa URL insegura', () => {

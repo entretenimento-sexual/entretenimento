@@ -14,6 +14,7 @@
 import { FieldPath } from 'firebase-admin/firestore';
 
 import { db } from '../firebaseApp';
+import { normalizePublishedMediaReference } from '../media/application/published-media-reference.model';
 import { deletePublishedPhotoAssetOrQueue } from '../media/application/published-photo-asset.service';
 
 const PAGE_SIZE = 200;
@@ -140,17 +141,39 @@ async function cleanupPublishedPhotoAssets(communityId: string): Promise<{
     const assets: PublishedCommunityPhotoAsset[] = snapshot.docs.flatMap(
       (document) => {
         const post = document.data() ?? {};
+        if (post['kind'] !== 'photo') return [];
+
+        const actorUid = cleanId(post['actorUid']);
+        if (!actorUid) {
+          throw new Error('community-purge-photo-owner-missing');
+        }
+
+        if (post['media'] != null) {
+          const media = normalizePublishedMediaReference(post['media']);
+          if (!media || media.mediaType !== 'PHOTO') {
+            throw new Error('community-purge-media-reference-invalid');
+          }
+          if (media.ownerUid !== actorUid) {
+            throw new Error('community-purge-media-owner-mismatch');
+          }
+          if (media.mediaId !== document.id) {
+            throw new Error('community-purge-media-post-mismatch');
+          }
+
+          return [{
+            ownerUid: media.ownerUid,
+            photoId: document.id,
+            storagePath: media.storagePath,
+          }];
+        }
+
+        // Compatibilidade com posts criados antes do contrato `media`.
         const image = (post['image'] ?? {}) as Record<string, unknown>;
         const storagePath = String(image['storagePath'] ?? '').trim();
         if (!storagePath) return [];
 
-        const ownerUid = cleanId(post['actorUid']);
-        if (!ownerUid) {
-          throw new Error('community-purge-photo-owner-missing');
-        }
-
         return [{
-          ownerUid,
+          ownerUid: actorUid,
           photoId: document.id,
           storagePath,
         }];
