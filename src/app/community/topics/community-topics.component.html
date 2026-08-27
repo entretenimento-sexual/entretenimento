@@ -1,0 +1,386 @@
+<!-- src/app/community/topics/community-topics.component.html -->
+<section class="community-topics" aria-label="Discussões da Comunidade">
+  <header class="community-topics__header">
+    <div>
+      <h2>Discussões</h2>
+      <p>Conversas organizadas por assunto para acompanhar e consultar depois.</p>
+    </div>
+
+    @if (canInteract()) {
+      @if (topicCreateState$ | async; as createState) {
+        <button
+          class="community-topics__new-topic"
+          type="button"
+          [disabled]="createState.status === 'loading'"
+          [attr.aria-expanded]="composerOpen()"
+          aria-controls="community-topic-composer"
+          (click)="toggleComposer()"
+        >
+          <i class="fas {{ composerOpen() ? 'fa-xmark' : 'fa-plus' }}" aria-hidden="true"></i>
+          <span>{{ composerOpen() ? 'Fechar' : 'Nova discussão' }}</span>
+        </button>
+      }
+    } @else {
+      <span class="community-topics__write-note">
+        <i class="fas fa-lock" aria-hidden="true"></i>
+        @if (viewerRole()) {
+          Sua participação atual não permite publicar
+        } @else {
+          Somente membros podem publicar
+        }
+      </span>
+    }
+  </header>
+
+  @if (canInteract() && composerOpen()) {
+    @if (topicCreateState$ | async; as createState) {
+      <form
+        id="community-topic-composer"
+        class="community-topics__composer"
+        [formGroup]="topicForm"
+        (ngSubmit)="submitTopic()"
+        novalidate
+      >
+        <div class="community-topics__field">
+          <label for="community-topic-title">Título</label>
+          <input
+            id="community-topic-title"
+            type="text"
+            maxlength="120"
+            autocomplete="off"
+            formControlName="title"
+            [attr.aria-invalid]="topicTitleInvalid() ? 'true' : null"
+            aria-describedby="community-topic-title-help"
+          />
+          <div id="community-topic-title-help" class="community-topics__field-help">
+            @if (topicTitleInvalid()) {
+              <span class="is-error" role="alert">Use um título com pelo menos 3 caracteres.</span>
+            } @else {
+              <span>Seja específico para facilitar buscas e respostas futuras.</span>
+            }
+          </div>
+        </div>
+
+        <div class="community-topics__field">
+          <label for="community-topic-body">Mensagem inicial</label>
+          <textarea
+            id="community-topic-body"
+            rows="5"
+            maxlength="5000"
+            formControlName="body"
+            [attr.aria-invalid]="topicBodyInvalid() ? 'true' : null"
+            aria-describedby="community-topic-body-help"
+          ></textarea>
+          <div id="community-topic-body-help" class="community-topics__field-help">
+            @if (topicBodyInvalid()) {
+              <span class="is-error" role="alert">Escreva a mensagem inicial da discussão.</span>
+            } @else {
+              <span>Até 5.000 caracteres.</span>
+            }
+          </div>
+        </div>
+
+        <div class="community-topics__composer-actions">
+          <button
+            class="community-topics__secondary-action"
+            type="button"
+            [disabled]="createState.status === 'loading'"
+            (click)="toggleComposer()"
+          >
+            Cancelar
+          </button>
+          <button
+            class="community-topics__primary-action"
+            type="submit"
+            [disabled]="topicForm.invalid || createState.status === 'loading'"
+          >
+            @if (createState.status === 'loading') {
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Publicando...</span>
+            } @else {
+              <i class="fas fa-paper-plane" aria-hidden="true"></i>
+              <span>Publicar discussão</span>
+            }
+          </button>
+        </div>
+
+        @if (createState.status === 'error') {
+          <p class="community-topics__write-error" role="status">
+            O rascunho foi preservado. Tente publicar novamente para reutilizar a mesma solicitação segura.
+          </p>
+        }
+      </form>
+    }
+  }
+
+  @if (state$ | async; as state) {
+    @if (state.status === 'loading') {
+      <div class="community-topics__state" role="status" aria-live="polite">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Carregando discussões...</span>
+      </div>
+    } @else if (state.status === 'error') {
+      <div class="community-topics__state" role="alert">
+        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+        <span>Não foi possível carregar as discussões.</span>
+        <button type="button" (click)="retryTopics()">Tentar novamente</button>
+      </div>
+    } @else if (state.status === 'empty') {
+      <div class="community-topics__state" role="status">
+        <i class="fas fa-comments" aria-hidden="true"></i>
+        <span>Ainda não há discussões nesta Comunidade.</span>
+      </div>
+    } @else {
+      <div class="community-topics__list" aria-label="Lista de discussões">
+        @for (topic of state.items; track topic.topicId) {
+          <button
+            class="community-topics__card"
+            type="button"
+            [class.is-selected]="selectedTopicId() === topic.topicId"
+            [attr.aria-label]="'Abrir discussão ' + topic.title"
+            [attr.aria-pressed]="selectedTopicId() === topic.topicId"
+            (click)="selectTopic(topic.topicId)"
+          >
+            <span class="community-topics__card-avatar" aria-hidden="true">
+              @if (topic.author.avatarUrl) {
+                <img [src]="topic.author.avatarUrl" alt="" appImageFallback />
+              } @else {
+                <i class="fas fa-user" aria-hidden="true"></i>
+              }
+            </span>
+
+            <span class="community-topics__card-copy">
+              <span class="community-topics__card-title-row">
+                <strong>{{ topic.title }}</strong>
+                @if (topic.status === 'locked') {
+                  <span class="community-topics__status-badge">
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    {{ statusLabel(topic.status) }}
+                  </span>
+                }
+              </span>
+
+              <span class="community-topics__excerpt">{{ topic.excerpt }}</span>
+
+              <span class="community-topics__meta">
+                <span>{{ topic.author.label }}</span>
+                <span aria-hidden="true">·</span>
+                <time [attr.datetime]="dateTimeIso(topic.lastActivityAt)">
+                  {{ dateTimeLabel(topic.lastActivityAt) }}
+                </time>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {{ topic.metrics.replyCount }}
+                  {{ topic.metrics.replyCount === 1 ? 'resposta' : 'respostas' }}
+                </span>
+              </span>
+            </span>
+
+            <i class="fas fa-chevron-right community-topics__card-chevron" aria-hidden="true"></i>
+          </button>
+        }
+      </div>
+
+      @if (state.nextCursor) {
+        <div class="community-topics__load-more">
+          <button
+            type="button"
+            [disabled]="state.loadingMore"
+            (click)="loadMoreTopics(state.nextCursor)"
+          >
+            @if (state.loadingMore) {
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Carregando...</span>
+            } @else {
+              <span>Carregar mais discussões</span>
+            }
+          </button>
+        </div>
+      }
+    }
+  }
+
+  @if (selectedTopicId()) {
+    <section class="community-topics__detail" aria-label="Discussão selecionada">
+      <div class="community-topics__detail-toolbar">
+        <button
+          class="community-topics__back"
+          type="button"
+          aria-label="Fechar discussão e voltar à lista"
+          (click)="closeTopic()"
+        >
+          <i class="fas fa-arrow-left" aria-hidden="true"></i>
+          <span>Voltar às discussões</span>
+        </button>
+      </div>
+
+      @if (detailState$ | async; as detailState) {
+        @if (detailState.status === 'loading') {
+          <div class="community-topics__state" role="status" aria-live="polite">
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            <span>Abrindo discussão...</span>
+          </div>
+        } @else if (detailState.status === 'error') {
+          <div class="community-topics__state" role="alert">
+            <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+            <span>Não foi possível abrir esta discussão.</span>
+            <button type="button" (click)="retryDetail()">Tentar novamente</button>
+          </div>
+        } @else if (detailState.detail; as detail) {
+          <article class="community-topics__topic">
+            <header>
+              <div class="community-topics__topic-title-row">
+                <h3>{{ detail.topic.title }}</h3>
+                @if (detail.topic.status === 'locked') {
+                  <span class="community-topics__status-badge">
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                    Encerrado
+                  </span>
+                }
+              </div>
+
+              <div class="community-topics__author">
+                <span class="community-topics__author-avatar" aria-hidden="true">
+                  @if (detail.topic.author.avatarUrl) {
+                    <img [src]="detail.topic.author.avatarUrl" alt="" appImageFallback />
+                  } @else {
+                    <i class="fas fa-user" aria-hidden="true"></i>
+                  }
+                </span>
+                <span>
+                  <strong>{{ detail.topic.author.label }}</strong>
+                  <time [attr.datetime]="dateTimeIso(detail.topic.createdAt)">
+                    {{ dateTimeLabel(detail.topic.createdAt) }}
+                  </time>
+                </span>
+              </div>
+            </header>
+
+            <p class="community-topics__body">{{ detail.topic.body }}</p>
+
+            <app-community-topic-moderation-controls
+              [communityId]="communityId()"
+              [topicId]="detail.topic.topicId"
+              [status]="detail.topic.status"
+              [viewerRole]="viewerRole()"
+              (moderated)="topicModerated($event)"
+            />
+
+            @if (!detail.canReply) {
+              <p class="community-topics__read-only-note" role="status">
+                <i class="fas fa-lock" aria-hidden="true"></i>
+                @if (detail.topic.status === 'locked') {
+                  Esta discussão está encerrada para novas respostas.
+                } @else {
+                  Você pode acompanhar a discussão, mas não responder neste momento.
+                }
+              </p>
+            }
+          </article>
+
+          <section class="community-topics__replies" aria-label="Respostas da discussão">
+            <h4>Respostas</h4>
+
+            @if (detail.canReply) {
+              @if (replyCreateState$ | async; as replyCreateState) {
+                <form
+                  class="community-topics__reply-composer"
+                  [formGroup]="replyForm"
+                  (ngSubmit)="submitReply(detail.canReply)"
+                  novalidate
+                >
+                  <label for="community-topic-reply">Responder</label>
+                  <textarea
+                    id="community-topic-reply"
+                    rows="3"
+                    maxlength="5000"
+                    formControlName="body"
+                    [attr.aria-invalid]="replyBodyInvalid() ? 'true' : null"
+                    aria-describedby="community-topic-reply-help"
+                  ></textarea>
+                  <div id="community-topic-reply-help" class="community-topics__field-help">
+                    @if (replyBodyInvalid()) {
+                      <span class="is-error" role="alert">Escreva uma resposta antes de enviar.</span>
+                    } @else if (replyCreateState.status === 'error') {
+                      <span class="is-error" role="status">
+                        A resposta foi preservada. Tente novamente para reutilizar a mesma solicitação.
+                      </span>
+                    } @else {
+                      <span>Até 5.000 caracteres.</span>
+                    }
+                  </div>
+                  <div class="community-topics__composer-actions">
+                    <button
+                      class="community-topics__primary-action"
+                      type="submit"
+                      [disabled]="replyForm.invalid || replyCreateState.status === 'loading'"
+                    >
+                      @if (replyCreateState.status === 'loading') {
+                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                        <span>Enviando...</span>
+                      } @else {
+                        <i class="fas fa-reply" aria-hidden="true"></i>
+                        <span>Responder</span>
+                      }
+                    </button>
+                  </div>
+                </form>
+              }
+            }
+
+            @if (repliesState$ | async; as repliesState) {
+              @if (repliesState.status === 'loading') {
+                <div class="community-topics__state is-compact" role="status" aria-live="polite">
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  <span>Carregando respostas...</span>
+                </div>
+              } @else if (repliesState.status === 'error') {
+                <div class="community-topics__state is-compact" role="alert">
+                  <span>Não foi possível carregar as respostas.</span>
+                  <button type="button" (click)="retryReplies()">Tentar novamente</button>
+                </div>
+              } @else if (repliesState.status === 'empty') {
+                <p class="community-topics__empty-replies">Nenhuma resposta ainda.</p>
+              } @else {
+                <ol class="community-topics__reply-list">
+                  @for (reply of repliesState.items; track reply.replyId) {
+                    <li class="community-topics__reply">
+                      <div class="community-topics__author">
+                        <span class="community-topics__author-avatar" aria-hidden="true">
+                          @if (reply.author.avatarUrl) {
+                            <img [src]="reply.author.avatarUrl" alt="" appImageFallback />
+                          } @else {
+                            <i class="fas fa-user" aria-hidden="true"></i>
+                          }
+                        </span>
+                        <span>
+                          <strong>{{ reply.author.label }}</strong>
+                          <time [attr.datetime]="dateTimeIso(reply.createdAt)">
+                            {{ dateTimeLabel(reply.createdAt) }}
+                          </time>
+                        </span>
+                      </div>
+                      <p>{{ reply.body }}</p>
+                    </li>
+                  }
+                </ol>
+
+                @if (repliesState.nextCursor) {
+                  <div class="community-topics__load-more">
+                    <button
+                      type="button"
+                      [disabled]="repliesState.loadingMore"
+                      (click)="loadMoreReplies(repliesState.nextCursor)"
+                    >
+                      {{ repliesState.loadingMore ? 'Carregando...' : 'Carregar mais respostas' }}
+                    </button>
+                  </div>
+                }
+              }
+            }
+          </section>
+        }
+      }
+    </section>
+  }
+</section>

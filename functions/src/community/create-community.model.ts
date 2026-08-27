@@ -8,6 +8,12 @@
 // backend.
 // -----------------------------------------------------------------------------
 
+import { normalizeNewCommunityTagIds } from './community-tag.catalog';
+import {
+  CommunityMemberLimit,
+  normalizeCommunityMemberLimit,
+} from './community-capacity.policy';
+
 export type CreateCommunityTheme =
   | 'regional'
   | 'interests'
@@ -17,7 +23,7 @@ export type CreateCommunityTheme =
   | 'other';
 
 export type CreateCommunityJoinPolicy = 'open' | 'approval';
-export type CreateCommunityAccessTier = 'all' | 'premium' | 'vip';
+export type CreateCommunityAccessTier = 'all';
 
 export interface CreateCommunityRequest {
   requestId?: unknown;
@@ -27,6 +33,8 @@ export interface CreateCommunityRequest {
   rules?: unknown;
   joinPolicy?: unknown;
   accessTier?: unknown;
+  memberLimit?: unknown;
+  tagIds?: unknown;
 }
 
 export interface NormalizedCreateCommunityRequest {
@@ -39,6 +47,8 @@ export interface NormalizedCreateCommunityRequest {
   rules: string;
   joinPolicy: CreateCommunityJoinPolicy;
   accessTier: CreateCommunityAccessTier;
+  memberLimit: CommunityMemberLimit;
+  tagIds: string[];
 }
 
 export interface CreateCommunityResponse {
@@ -111,10 +121,6 @@ function normalizeTheme(value: unknown): CreateCommunityTheme | null {
     : null;
 }
 
-function normalizeAccessTier(value: unknown): CreateCommunityAccessTier {
-  return value === 'premium' || value === 'vip' ? value : 'all';
-}
-
 export function normalizeCreateCommunityRequest(
   raw: CreateCommunityRequest | null | undefined
 ): NormalizedCreateCommunityRequest | null {
@@ -125,15 +131,23 @@ export function normalizeCreateCommunityRequest(
   const rules = normalizeMultilineText(raw?.rules, 1_200);
   const joinPolicy: CreateCommunityJoinPolicy =
     raw?.joinPolicy === 'open' ? 'open' : 'approval';
-  const accessTier = normalizeAccessTier(raw?.accessTier);
+  // `accessTier` de clientes antigos é deliberadamente ignorado: participar
+  // de Comunidades não depende do plano do membro.
+  const accessTier: CreateCommunityAccessTier = 'all';
+  const memberLimit = raw?.memberLimit === undefined
+    ? 25
+    : normalizeCommunityMemberLimit(raw.memberLimit);
+  const tagIds = normalizeNewCommunityTagIds(raw?.tagIds);
   const slug = normalizeSlug(name);
 
   if (
     !REQUEST_ID_PATTERN.test(requestId)
     || name.length < 2
     || !theme
+    || !memberLimit
     || rules.length < 10
     || slug.length < 2
+    || !tagIds
   ) {
     return null;
   }
@@ -148,5 +162,7 @@ export function normalizeCreateCommunityRequest(
     rules,
     joinPolicy,
     accessTier,
+    memberLimit,
+    tagIds,
   };
 }

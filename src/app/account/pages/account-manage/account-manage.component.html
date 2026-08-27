@@ -1,0 +1,53 @@
+<!-- src/app/account/pages/account-manage/account-manage.component.html -->
+<section class="account-section-page" aria-labelledby="account-manage-title">
+  <header class="account-section-header">
+    <h2 id="account-manage-title">Gerenciar conta</h2>
+    <p>Revise os efeitos antes de suspender ou excluir sua conta.</p>
+  </header>
+
+  <section class="account-surface account-danger-surface" aria-labelledby="account-suspension-title">
+    <div class="account-surface__head">
+      <div>
+        <h3 id="account-suspension-title">Suspender conta</h3>
+        <p>Oculta o perfil e bloqueia interações até a reativação, sem apagar seus dados.</p>
+      </div>
+
+      <button
+        class="btn btn-secondary"
+        type="button"
+        [disabled]="isLifecycleBusy()"
+        (click)="openSelfSuspendDialog()"
+      >
+        Suspender
+      </button>
+    </div>
+  </section>
+
+  <section class="account-surface account-danger-surface" aria-labelledby="account-deletion-title">
+    <div class="account-surface__head">
+      <div>
+        <h3 id="account-deletion-title">Excluir conta</h3>
+        <p>Oculta o perfil imediatamente e inicia o fluxo de exclusão com janela de reversão.</p>
+      </div>
+
+      <button
+        class="btn btn-danger"
+        type="button"
+        [disabled]="isLifecycleBusy()"
+        (click)="openSelfDeleteDialog()"
+      >
+        Solicitar exclusão
+      </button>
+    </div>
+  </section>
+
+  @if (lifecycleDialogIntent()) {
+    <app-account-lifecycle-dialog
+      [intent]="lifecycleDialogIntent()!"
+      [busy]="isLifecycleBusy()"
+      [reauthenticationMode]="lifecycleReauthenticationMode()"
+      (closed)="closeLifecycleDialog()"
+      (confirmed)="onLifecycleDialogConfirmed($event)"
+    />
+  }
+</section>

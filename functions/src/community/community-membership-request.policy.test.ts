@@ -14,8 +14,9 @@ const BASE_INPUT = Object.freeze({
   join: 'approval' as const,
   existingStatus: null,
   actorEligible: true,
-  entitlementAllowed: true,
 });
+
+const LEAVE_COMMUNITY_STATUS = 'active' as const;
 
 test('cria membership ativa para entrada aberta', () => {
   const decision = evaluateCommunityMembershipRequest({
@@ -51,22 +52,6 @@ test('mantém membership ativa ou pendente de forma idempotente', () => {
   assert.equal(active.incrementMemberCount, false);
   assert.equal(pending.idempotent, true);
   assert.equal(pending.targetStatus, 'pending');
-});
-
-test('membership existente continua exigindo entitlement vigente', () => {
-  const active = evaluateCommunityMembershipRequest({
-    ...BASE_INPUT,
-    existingStatus: 'active',
-    entitlementAllowed: false,
-  });
-  const pending = evaluateCommunityMembershipRequest({
-    ...BASE_INPUT,
-    existingStatus: 'pending',
-    entitlementAllowed: false,
-  });
-
-  assert.equal(active.denialReason, 'subscription_required');
-  assert.equal(pending.denialReason, 'subscription_required');
 });
 
 test('permite nova entrada depois de saída voluntária', () => {
@@ -116,22 +101,14 @@ test('nega comunidade indisponível, convite e ator restrito', () => {
   );
 });
 
-test('nega quando o entitlement exigido não foi confirmado', () => {
-  const decision = evaluateCommunityMembershipRequest({
-    ...BASE_INPUT,
-    entitlementAllowed: false,
-  });
-
-  assert.equal(decision.allowed, false);
-  assert.equal(decision.denialReason, 'subscription_required');
-});
-
 test('saída ativa reduz contagem e cancelamento pendente não reduz', () => {
   const active = evaluateCommunityMembershipLeave({
+    communityStatus: LEAVE_COMMUNITY_STATUS,
     existingStatus: 'active',
     existingRole: 'member',
   });
   const pending = evaluateCommunityMembershipLeave({
+    communityStatus: LEAVE_COMMUNITY_STATUS,
     existingStatus: 'pending',
     existingRole: 'member',
   });
@@ -139,21 +116,25 @@ test('saída ativa reduz contagem e cancelamento pendente não reduz', () => {
   assert.equal(active.allowed, true);
   assert.equal(active.targetStatus, 'left');
   assert.equal(active.decrementMemberCount, true);
+  assert.equal(active.releaseOwnership, false);
   assert.equal(active.auditAction, 'community-membership-left');
   assert.equal(pending.allowed, true);
   assert.equal(pending.decrementMemberCount, false);
+  assert.equal(pending.releaseOwnership, false);
   assert.equal(
     pending.auditAction,
     'community-membership-request-cancelled'
   );
 });
 
-test('saída já concluída é idempotente e owner exige transferência', () => {
+test('saída já concluída é idempotente e owner operacional exige transferência', () => {
   const left = evaluateCommunityMembershipLeave({
+    communityStatus: LEAVE_COMMUNITY_STATUS,
     existingStatus: 'left',
     existingRole: 'member',
   });
   const owner = evaluateCommunityMembershipLeave({
+    communityStatus: LEAVE_COMMUNITY_STATUS,
     existingStatus: 'active',
     existingRole: 'owner',
   });
@@ -161,11 +142,44 @@ test('saída já concluída é idempotente e owner exige transferência', () => 
   assert.equal(left.allowed, true);
   assert.equal(left.idempotent, true);
   assert.equal(owner.allowed, false);
+  assert.equal(owner.releaseOwnership, false);
   assert.equal(owner.denialReason, 'owner_transfer_required');
+});
+
+test('owner pode encerrar vínculo em estado terminal e libera propriedade', () => {
+  for (const communityStatus of [
+    'archived',
+    'scheduled_for_deletion',
+  ] as const) {
+    const decision = evaluateCommunityMembershipLeave({
+      communityStatus,
+      existingStatus: 'active',
+      existingRole: 'owner',
+    });
+
+    assert.equal(decision.allowed, true);
+    assert.equal(decision.targetStatus, 'left');
+    assert.equal(decision.decrementMemberCount, true);
+    assert.equal(decision.releaseOwnership, true);
+    assert.equal(decision.auditAction, 'community-membership-left');
+  }
+});
+
+test('owner dormente continua protegido até reativação e transferência', () => {
+  const decision = evaluateCommunityMembershipLeave({
+    communityStatus: 'dormant',
+    existingStatus: 'active',
+    existingRole: 'owner',
+  });
+
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.releaseOwnership, false);
+  assert.equal(decision.denialReason, 'owner_transfer_required');
 });
 
 test('nega saída quando o vínculo não possui papel válido', () => {
   const decision = evaluateCommunityMembershipLeave({
+    communityStatus: LEAVE_COMMUNITY_STATUS,
     existingStatus: 'active',
     existingRole: null,
   });
@@ -173,6 +187,7 @@ test('nega saída quando o vínculo não possui papel válido', () => {
   assert.equal(decision.allowed, false);
   assert.equal(decision.denialReason, 'membership_not_found');
   assert.equal(decision.decrementMemberCount, false);
+  assert.equal(decision.releaseOwnership, false);
 });
 
 test('moderador aprova pendência e incrementa membros', () => {

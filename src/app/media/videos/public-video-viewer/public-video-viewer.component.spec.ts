@@ -1,7 +1,7 @@
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import {
   afterEach,
   beforeEach,
@@ -18,6 +18,10 @@ import { MediaReactionsService } from 'src/app/core/services/media/media-reactio
 import { MediaVideoCommentsService } from 'src/app/core/services/media/media-video-comments.service';
 import { MediaVideoRatingsService } from 'src/app/core/services/media/media-video-ratings.service';
 import { PublicVideoAccessService } from 'src/app/core/services/media/public-video-access.service';
+import {
+  PublicVideoContinuationResult,
+  PublicVideoContinuationService,
+} from 'src/app/core/services/media/public-video-continuation.service';
 import { VideoViewTrackingService } from 'src/app/core/services/media/video-view-tracking.service';
 import {
   IPublicVideoViewerData,
@@ -125,13 +129,27 @@ function dispatchKey(target: EventTarget, key: string): KeyboardEvent {
 
 describe('PublicVideoViewerComponent', () => {
   let fixture: ComponentFixture<PublicVideoViewerComponent>;
+  let continuationSubject: Subject<PublicVideoContinuationResult>;
+
   const dialogRef = { close: vi.fn() };
   const videoViewTracking = {
-    recordVideoView$: vi.fn(() => of(void 0)),
+    prepareVideoViewSession$: vi.fn(() => of(void 0)),
+    recordVideoView$: vi.fn(() => of(true)),
+    recordVideoRetention$: vi.fn(() => of(true)),
   };
   const publicVideoAccess = {
+    hydratePublicVideoUrls$: vi.fn((items: readonly IPublicVideoItem[]) =>
+      of(items.map((item) => ({
+        ...item,
+        url: `https://example.test/${item.id}.mp4?token=hydrated`,
+        accessExpiresAt: NOW + 600_000,
+      })))
+    ),
     refreshPublicVideoUrl$: vi.fn((video: IPublicVideoItem) => of(video)),
     invalidatePublicVideoAccess: vi.fn(),
+  };
+  const publicVideoContinuation = {
+    loadContinuation$: vi.fn(() => continuationSubject.asObservable()),
   };
   const reactions = {
     getVideoLikesCount$: vi.fn(() => of(12)),
@@ -178,10 +196,15 @@ describe('PublicVideoViewerComponent', () => {
     ],
     startIndex: 0,
     source: 'top',
+    continuationContext: {
+      connectionOwnerUids: ['friend-1'],
+      compatibleOwnerUids: ['compatible-1'],
+    },
   };
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    continuationSubject = new Subject<PublicVideoContinuationResult>();
     vi.spyOn(HTMLMediaElement.prototype, 'pause')
       .mockImplementation(() => undefined);
     vi.spyOn(HTMLMediaElement.prototype, 'load')
@@ -201,6 +224,10 @@ describe('PublicVideoViewerComponent', () => {
         },
         { provide: VideoViewTrackingService, useValue: videoViewTracking },
         { provide: PublicVideoAccessService, useValue: publicVideoAccess },
+        {
+          provide: PublicVideoContinuationService,
+          useValue: publicVideoContinuation,
+        },
         { provide: MediaReactionsService, useValue: reactions },
         { provide: MediaVideoCommentsService, useValue: comments },
         { provide: MediaVideoRatingsService, useValue: ratings },
@@ -213,6 +240,7 @@ describe('PublicVideoViewerComponent', () => {
   });
 
   afterEach(() => {
+    continuationSubject.complete();
     fixture.destroy();
     vi.restoreAllMocks();
   });
@@ -378,6 +406,58 @@ describe('PublicVideoViewerComponent', () => {
     );
   });
 
+  it('libera nova tentativa ao revisitar o vídeo após falha transitória', () => {
+    videoViewTracking.recordVideoView$
+      .mockReturnValueOnce(of(false))
+      .mockReturnValueOnce(of(true));
+
+    const firstEvidence: PublicVideoQualifiedViewDetail = {
+      sessionId: 'session_first_1234567890',
+      playbackMs: 6_250,
+      durationMs: 25_000,
+      qualifiedAt: NOW,
+    };
+    const retryEvidence: PublicVideoQualifiedViewDetail = {
+      ...firstEvidence,
+      sessionId: 'session_retry_1234567890',
+      qualifiedAt: NOW + 1_000,
+    };
+    const video = fixture.nativeElement.querySelector('video') as HTMLVideoElement;
+
+    video.dispatchEvent(new CustomEvent<PublicVideoQualifiedViewDetail>(
+      'publicVideoQualifiedView',
+      {
+        detail: firstEvidence,
+        bubbles: true,
+        composed: true,
+      }
+    ));
+
+    expect(videoViewTracking.recordVideoView$).toHaveBeenCalledTimes(1);
+
+    fixture.componentInstance.next();
+    fixture.componentInstance.previous();
+    fixture.detectChanges();
+
+    video.dispatchEvent(new CustomEvent<PublicVideoQualifiedViewDetail>(
+      'publicVideoQualifiedView',
+      {
+        detail: retryEvidence,
+        bubbles: true,
+        composed: true,
+      }
+    ));
+
+    expect(fixture.componentInstance.current?.id).toBe('video-1');
+    expect(videoViewTracking.recordVideoView$).toHaveBeenCalledTimes(2);
+    expect(videoViewTracking.recordVideoView$).toHaveBeenLastCalledWith(
+      'owner-1',
+      'video-1',
+      'top',
+      retryEvidence
+    );
+  });
+
   it('renova a URL quando o elemento de vídeo informa erro de acesso', async () => {
     const renewed = createVideo({
       url: 'https://example.test/video.mp4?token=renewed',
@@ -407,6 +487,63 @@ describe('PublicVideoViewerComponent', () => {
     fixture.detectChanges();
 
     expect(video.getAttribute('aria-busy')).toBeNull();
+  });
+
+  it('continua além do lote inicial e hidrata playback somente ao abrir o recomendado', async () => {
+    const component = fixture.componentInstance;
+    const recommendation = createVideo({
+      id: 'video-4',
+      ownerUid: 'owner-4',
+      title: 'Vídeo recomendado',
+      alt: 'Vídeo recomendado',
+      url: null,
+      accessExpiresAt: 0,
+      orderIndex: 0,
+    });
+
+    component.next();
+    component.next();
+    expect(component.current?.id).toBe('video-3');
+
+    component.next();
+    fixture.detectChanges();
+
+    expect(component.waitingForContinuation).toBe(true);
+
+    const nextButton = fixture.nativeElement.querySelector(
+      '[aria-keyshortcuts="ArrowDown"]'
+    ) as HTMLButtonElement | null;
+    expect(nextButton).not.toBeNull();
+    expect(nextButton?.disabled).toBe(true);
+    expect(nextButton?.getAttribute('aria-busy')).toBe('true');
+    expect(nextButton?.getAttribute('aria-label')).toBe(
+      'Carregando próximo vídeo'
+    );
+    expect(publicVideoAccess.hydratePublicVideoUrls$).not.toHaveBeenCalled();
+    expect(publicVideoContinuation.loadContinuation$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'top',
+        excludeOwnerUid: 'viewer-1',
+        limit: 8,
+        continuationContext: data.continuationContext,
+      })
+    );
+
+    continuationSubject.next({
+      items: [recommendation],
+      exhausted: false,
+      failed: false,
+    });
+    continuationSubject.complete();
+    await Promise.resolve();
+    await Promise.resolve();
+    fixture.detectChanges();
+
+    expect(component.current?.id).toBe('video-4');
+    expect(publicVideoAccess.hydratePublicVideoUrls$).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'video-4', url: null }),
+    ]);
+    expect(component.current?.url).toContain('token=hydrated');
   });
 
   it('fecha o diálogo pelo controle principal sem ruído da API de mídia', () => {

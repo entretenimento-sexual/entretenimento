@@ -2,8 +2,8 @@
 // -----------------------------------------------------------------------------
 // GET COMMUNITY FEED PAGE
 // -----------------------------------------------------------------------------
-// Mural comunitário paginado e somente leitura. A projeção é backend-only e a
-// audiência é reavaliada em cada chamada.
+// Mural comunitário paginado e somente leitura. Texto e foto compartilham a
+// mesma timeline. Conteúdo sensível e capacidades são hidratados no backend.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -14,14 +14,16 @@ import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.
 import {
   canViewerReadCommunityFeedAudience,
   canViewerReadCommunityFeedProjection,
+  resolveCommunityFeedContentAccess,
 } from './community-feed-access.policy';
 import {
-  CommunityFeedItem,
   CommunityFeedPageRequest,
   CommunityFeedPageResponse,
+  SanitizedCommunityFeedProjection,
   normalizeCommunityFeedPageRequest,
   sanitizeCommunityFeedProjection,
 } from './community-feed.model';
+import { hydrateCommunityFeedItemsForViewer } from './community-feed-read.service';
 import { getCommunityViewerContext } from './community-viewer-access.service';
 
 function assertPreviewRuntime(): void {
@@ -69,6 +71,10 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
     }
 
     const context = await getCommunityViewerContext(uid, pageRequest.communityId);
+    const feedContentAccess = resolveCommunityFeedContentAccess(
+      context.memberContentAccess,
+      context.authenticatedPreviewAccess
+    );
     const feedCollection = db
       .collection('community_public_feed')
       .doc(pageRequest.communityId)
@@ -93,7 +99,7 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
         !cursorProjection
         || !canViewerReadCommunityFeedAudience(
           cursorProjection,
-          context.memberContentAccess
+          feedContentAccess
         )
       ) {
         throw new HttpsError(
@@ -106,7 +112,7 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
     }
 
     const querySnapshot = await pageQuery.get();
-    const items: CommunityFeedItem[] = [];
+    const projections: SanitizedCommunityFeedProjection[] = [];
     let lastConsumedIndex = -1;
 
     for (let index = 0; index < querySnapshot.docs.length; index += 1) {
@@ -123,15 +129,14 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
         || !canViewerReadCommunityFeedProjection(
           projection,
           pageRequest.view,
-          context.memberContentAccess
+          feedContentAccess
         )
       ) {
         continue;
       }
 
-      items.push(projection.item);
-
-      if (items.length >= pageRequest.limit) break;
+      projections.push(projection);
+      if (projections.length >= pageRequest.limit) break;
     }
 
     const lastConsumedDocument = lastConsumedIndex >= 0
@@ -142,6 +147,13 @@ export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
       && lastConsumedIndex < querySnapshot.docs.length - 1;
     const mayHaveAnotherPage =
       querySnapshot.docs.length === scanLimit || hasBufferedDocuments;
+    const items = await hydrateCommunityFeedItemsForViewer({
+      communityId: pageRequest.communityId,
+      uid,
+      projections,
+      context,
+      now,
+    });
 
     return {
       items,

@@ -10,7 +10,8 @@
 // - a auditoria e o registro da solicitação.
 //
 // O navegador nunca escolhe ownerUid, communityId, métricas ou estado de
-// moderação. Restrições Premium/VIP são revalidadas pelo entitlement canônico.
+// moderação. A criação e a capacidade são revalidadas pelo entitlement canônico
+// do proprietário; o plano dos participantes não restringe a adesão.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -19,9 +20,15 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
   evaluatePlatformSubscriptionEntitlement,
-  hasMinimumPlatformRole,
 } from '../payments/application/platform-subscription-entitlement.service';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import {
+  MAX_PERSONAL_COMMUNITIES_PER_OWNER,
+  isCommunityMemberLimitAllowed,
+  resolveCommunityCapacitySponsorRole,
+  resolveCommunityOwnerPlanLimit,
+  resolvePersonalCommunityCreationPolicy,
+} from './community-capacity.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
   CreateCommunityRequest,
@@ -97,17 +104,25 @@ export const createCommunity = onCall<CreateCommunityRequest>(
       const auditRef = db
         .collection('community_membership_audit')
         .doc(`community-create-${command.requestId}`);
+      const ownedCommunitiesQuery = db
+        .collection('communities')
+        .where('ownerUid', '==', actorUid)
+        .where('source.type', '==', 'community')
+        .where('status', 'in', ['active', 'paused', 'dormant'])
+        .limit(MAX_PERSONAL_COMMUNITIES_PER_OWNER + 1);
 
       const [
         requestSnapshot,
         userSnapshot,
         entitlementSnapshot,
         communitySnapshot,
+        ownedCommunitiesSnapshot,
       ] = await Promise.all([
         transaction.get(requestRef),
         transaction.get(userRef),
         transaction.get(entitlementRef),
         transaction.get(communityRef),
+        transaction.get(ownedCommunitiesQuery),
       ]);
 
       if (requestSnapshot.exists) {
@@ -140,6 +155,64 @@ export const createCommunity = onCall<CreateCommunityRequest>(
         actorUid
       );
 
+      const actorUser = userSnapshot.data() ?? {};
+      const entitlement = evaluatePlatformSubscriptionEntitlement(
+        entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
+        actorUid
+      );
+      const capacitySponsorRole = resolveCommunityCapacitySponsorRole(
+        entitlement.active ? entitlement.role : null,
+        actorUser['role']
+      );
+      const creationPolicy = resolvePersonalCommunityCreationPolicy(
+        capacitySponsorRole
+      );
+
+      if (!creationPolicy.canCreate) {
+        throw new HttpsError(
+          'permission-denied',
+          'Uma assinatura Basic ou superior é necessária para criar Comunidades.',
+          {
+            reason: 'community_creation_subscription_required',
+            recommendedAction: 'upgrade_subscription',
+            minimumRole: 'basic',
+          }
+        );
+      }
+
+      if (
+        creationPolicy.maxOwnedCommunities !== null
+        && ownedCommunitiesSnapshot.size
+          >= creationPolicy.maxOwnedCommunities
+      ) {
+        throw new HttpsError(
+          'resource-exhausted',
+          'Seu plano atingiu a quantidade de Comunidades próprias.',
+          {
+            reason: 'community_creation_limit_reached',
+            maxOwnedCommunities: creationPolicy.maxOwnedCommunities,
+            currentOwnedCommunities: ownedCommunitiesSnapshot.size,
+          }
+        );
+      }
+
+      if (!isCommunityMemberLimitAllowed(
+        command.memberLimit,
+        capacitySponsorRole
+      )) {
+        throw new HttpsError(
+          'permission-denied',
+          'Seu plano atual não permite a capacidade escolhida.',
+          {
+            reason: 'community_capacity_upgrade_required',
+            recommendedAction: 'upgrade_subscription',
+            allowedMemberLimit: resolveCommunityOwnerPlanLimit(
+              capacitySponsorRole
+            ),
+          }
+        );
+      }
+
       if (communitySnapshot.exists) {
         throw new HttpsError(
           'already-exists',
@@ -147,43 +220,17 @@ export const createCommunity = onCall<CreateCommunityRequest>(
         );
       }
 
-      if (command.accessTier !== 'all') {
-        const entitlement = evaluatePlatformSubscriptionEntitlement(
-          entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
-          actorUid
-        );
-
-        if (
-          !entitlement.active
-          || !hasMinimumPlatformRole(entitlement.role, command.accessTier)
-        ) {
-          throw new HttpsError(
-            'permission-denied',
-            `Seu plano atual não permite criar uma Comunidade ${command.accessTier === 'vip' ? 'VIP' : 'Premium'}.`,
-            {
-              reason: 'subscription_inactive',
-              recommendedAction: 'upgrade_subscription',
-              minimumRole: command.accessTier,
-            }
-          );
-        }
-      }
-
       const now = Date.now();
       const metrics = {
         memberCount: 1,
         postCount: 0,
         mediaCount: 0,
+        topicCount: 0,
       };
-      const contentAccess = command.accessTier === 'all'
-        ? {
-          requiresActiveSubscription: false,
-          minimumRole: null,
-        }
-        : {
-          requiresActiveSubscription: true,
-          minimumRole: command.accessTier,
-        };
+      const contentAccess = {
+        requiresActiveSubscription: false,
+        minimumRole: null,
+      };
       const access = {
         preview: 'authenticated',
         interaction: 'members_only',
@@ -194,16 +241,31 @@ export const createCommunity = onCall<CreateCommunityRequest>(
         type: 'community',
         id: command.communityId,
       };
+      const currentCreationRevision = Number.isSafeInteger(
+        actorUser['communityCreationRevision']
+      ) && Number(actorUser['communityCreationRevision']) >= 0
+        ? Number(actorUser['communityCreationRevision'])
+        : 0;
+
+      // A escrita no documento já lido do proprietário serializa criações
+      // concorrentes. Se duas abas tentarem criar ao mesmo tempo, uma transação
+      // reinicia e reavalia a consulta de quota antes de confirmar.
+      transaction.update(userRef, {
+        communityCreationRevision: currentCreationRevision + 1,
+        communityLastCreatedAt: now,
+      });
 
       transaction.create(communityRef, {
         name: command.name,
         slug: command.slug,
         theme: command.theme,
+        tagIds: command.tagIds,
         description: command.description,
         rules: command.rules,
         source,
         status: 'active',
         visibility: 'public_preview',
+        ownerUid: actorUid,
         access,
         moderation: {
           state: 'active',
@@ -212,6 +274,20 @@ export const createCommunity = onCall<CreateCommunityRequest>(
           reason: 'emulator-self-created',
         },
         metrics,
+        capacity: {
+          memberLimit: command.memberLimit,
+          policyVersion: 1,
+        },
+        lifecycle: {
+          lastMeaningfulActivityAt: now,
+          dormantAt: null,
+          archivedAt: null,
+          scheduledForDeletionAt: null,
+          interactionBlocked: false,
+          retentionHold: false,
+          policyVersion: 1,
+          updatedAt: now,
+        },
         createdBy: actorUid,
         createdAt: now,
         updatedAt: now,
@@ -221,12 +297,17 @@ export const createCommunity = onCall<CreateCommunityRequest>(
         communityId: command.communityId,
         name: command.name,
         slug: command.slug,
+        tagIds: command.tagIds,
         description: command.description,
         source,
         status: 'active',
         moderationState: 'active',
         visibility: 'public_preview',
         metrics,
+        capacity: {
+          memberLimit: command.memberLimit,
+          policyVersion: 1,
+        },
         access,
         avatarUrl: null,
         coverUrl: null,

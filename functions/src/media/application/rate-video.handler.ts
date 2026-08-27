@@ -6,10 +6,23 @@ import {
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
 import {
+  assertNoActiveBilateralBlockInTransaction,
+} from '../../friendship/application/bilateral-block-access.policy';
+import {
   buildMediaEngagementScore,
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
+import {
+  REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+  assertPublicMediaCallableAppCheck,
+} from './public-media-callable-security';
+import {
+  assertPublicMediaConsumptionAccess,
+} from './public-media-consumption-access.policy';
+import {
+  consumePublicVideoSocialInteractionQuota,
+} from './public-video-social-interaction-rate-limit.service';
 import {
   buildNextVideoRatingAggregate,
   normalizeVideoRating,
@@ -68,8 +81,13 @@ function assertRateableVideo(video: PublicVideoDoc): void {
 }
 
 export const rateVideo = onCall<RateVideoRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+  },
   async (request) => {
+    assertPublicMediaCallableAppCheck(request.app);
+
     const viewerUid = request.auth?.uid ?? null;
     const ownerUid = cleanId(request.data?.ownerUid);
     const videoId = cleanId(request.data?.videoId);
@@ -93,6 +111,9 @@ export const rateVideo = onCall<RateVideoRequest>(
       );
     }
 
+    await consumePublicVideoSocialInteractionQuota('rating', viewerUid);
+    await assertPublicMediaConsumptionAccess(viewerUid);
+
     const videoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
@@ -100,6 +121,12 @@ export const rateVideo = onCall<RateVideoRequest>(
 
     return db.runTransaction(async (transaction) => {
       await assertInteractionAccessInTransaction(transaction, viewerUid);
+      await assertNoActiveBilateralBlockInTransaction(
+        transaction,
+        viewerUid,
+        ownerUid,
+        'Vídeo público não encontrado.'
+      );
 
       const [videoSnap, ratingSnap] = await Promise.all([
         transaction.get(videoRef),

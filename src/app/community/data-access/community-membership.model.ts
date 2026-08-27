@@ -35,7 +35,7 @@ const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 
 function normalizeText(value: unknown, maxLength: number): string {
   return String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .replace(/\p{Cc}/gu, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);

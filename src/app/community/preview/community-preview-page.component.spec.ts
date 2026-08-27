@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ContentAccessNavigationService } from 'src/app/core/access/content-access-navigation.service';
@@ -8,6 +9,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
+import { CommunityPreviewResponse } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityPreviewPageComponent } from './community-preview-page.component';
 
@@ -29,33 +31,47 @@ function preview(
   };
 }
 
-function basePreview() {
+function basePreview(): CommunityPreviewResponse {
   return {
     community: {
       communityId: 'community-1',
       name: 'Local do Centro',
       slug: 'local-do-centro',
       description: 'Atualizações e fotos do Local.',
-      source: { type: 'venue' as const, id: 'venue-1' },
+      source: { type: 'venue', id: 'venue-1' },
       avatarUrl: null,
       coverUrl: null,
       metrics: { memberCount: 12, postCount: 4, mediaCount: 3 },
       access: {
-        join: 'approval' as 'open' | 'approval' | 'invite_only',
-        minimumRole: null as 'basic' | 'premium' | 'vip' | null,
+        join: 'approval',
+        minimumRole: null,
         requiresActiveSubscription: false,
       },
+      tags: [],
     },
-    viewerMode: 'visitor' as 'visitor' | 'pending' | 'member' | 'moderator' | 'manager',
-    viewerRole: null as 'owner' | 'admin' | 'moderator' | 'member' | null,
+    rules: null,
+    lifecycleStatus: null,
+    viewerMode: 'visitor',
+    viewerRole: null,
     canInteract: false,
+    canManageMemberships: false,
+    canInviteCommunityMembers: false,
+    canManageCommunitySettings: false,
+    capacity: null,
+    settings: null,
+    canLeaveMembership: false,
     generatedAt: 123,
   };
 }
 
 describe('CommunityPreviewPageComponent / Local', () => {
+  const dialogMock = { open: vi.fn() };
   const previewRepositoryMock = { getPreview$: vi.fn() };
-  const feedRepositoryMock = { getPage$: vi.fn() };
+  const feedRepositoryMock = {
+    getPage$: vi.fn(),
+    getItems$: vi.fn(),
+    watchLatestChanges$: vi.fn(),
+  };
   const membershipRepositoryMock = {
     requestMembership$: vi.fn(),
     leaveMembership$: vi.fn(),
@@ -74,6 +90,10 @@ describe('CommunityPreviewPageComponent / Local', () => {
     feedRepositoryMock.getPage$.mockReturnValue(
       of({ items: [], nextCursor: null, generatedAt: 123 })
     );
+    feedRepositoryMock.getItems$.mockReturnValue(
+      of({ items: [], nextCursor: null, generatedAt: 123 })
+    );
+    feedRepositoryMock.watchLatestChanges$.mockReturnValue(of([]));
     membershipRepositoryMock.requestMembership$.mockReturnValue(
       of({ status: 'pending', viewerMode: 'pending', canInteract: false })
     );
@@ -86,6 +106,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
     membershipRepositoryMock.reviewMembership$.mockReturnValue(
       of({ memberId: 'member-1', status: 'active', viewerMode: 'member' })
     );
+    dialogMock.open.mockReturnValue({ afterClosed: () => of(false) });
     accessNavigationMock.navigateForDecision.mockResolvedValue(true);
 
     TestBed.configureTestingModule({
@@ -99,6 +120,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
             paramMap: of(convertToParamMap({ communityId: 'community-1' })),
           },
         },
+        { provide: MatDialog, useValue: dialogMock },
         { provide: CommunityPreviewRepository, useValue: previewRepositoryMock },
         { provide: CommunityFeedRepository, useValue: feedRepositoryMock },
         { provide: CommunityMembershipRepository, useValue: membershipRepositoryMock },
@@ -203,52 +225,13 @@ describe('CommunityPreviewPageComponent / Local', () => {
     expect(previewRepositoryMock.getPreview$).toHaveBeenCalledTimes(2);
   });
 
-  it('encaminha assinatura insuficiente pelo padrão global de acesso', () => {
-    previewRepositoryMock.getPreview$.mockReturnValue(
-      of(
-        preview({
-          community: {
-            ...basePreview().community,
-            access: {
-              join: 'open',
-              minimumRole: 'premium',
-              requiresActiveSubscription: true,
-            },
-          },
-        })
-      )
-    );
-    membershipRepositoryMock.requestMembership$.mockReturnValue(
-      throwError(() => ({
-        details: {
-          reason: 'subscription_inactive',
-          recommendedAction: 'upgrade_subscription',
-          minimumRole: 'premium',
-        },
-      }))
-    );
-
-    const fixture = createFixture();
-    const action = fixture.nativeElement.querySelector(
-      '.community-preview__membership-action'
-    ) as HTMLButtonElement;
-    action.click();
-    fixture.detectChanges();
-
-    expect(accessNavigationMock.navigateForDecision).toHaveBeenCalledWith(
-      expect.objectContaining({
-        allowed: false,
-        reason: 'subscription_inactive',
-        recommendedAction: 'upgrade_subscription',
-        minimumRole: 'premium',
-      })
-    );
-    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
-  });
-
   it('mantém estado pendente e permite cancelamento pela callable', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
-      of(preview({ viewerMode: 'pending', viewerRole: 'member' }))
+      of(preview({
+        viewerMode: 'pending',
+        viewerRole: 'member',
+        canLeaveMembership: true,
+      }))
     );
 
     const fixture = createFixture();
@@ -274,8 +257,14 @@ describe('CommunityPreviewPageComponent / Local', () => {
   });
 
   it('permite sair do Local com aprovação e retorna às Novidades', () => {
+    dialogMock.open.mockReturnValue({ afterClosed: () => of(true) });
     previewRepositoryMock.getPreview$.mockReturnValue(
-      of(preview({ viewerMode: 'member', viewerRole: 'member', canInteract: true }))
+      of(preview({
+        viewerMode: 'member',
+        viewerRole: 'member',
+        canInteract: true,
+        canLeaveMembership: true,
+      }))
     );
 
     const fixture = createFixture();
@@ -305,6 +294,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
           viewerMode: 'member',
           viewerRole: 'member',
           canInteract: true,
+          canLeaveMembership: true,
           community: {
             ...basePreview().community,
             access: {
@@ -346,9 +336,14 @@ describe('CommunityPreviewPageComponent / Local', () => {
     ).toBeNull();
   });
 
-  it('carrega a fila somente quando a moderação abre Gestão', () => {
+  it('carrega a fila somente quando o backend libera Gestão', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
-      of(preview({ viewerMode: 'moderator', viewerRole: 'moderator', canInteract: true }))
+      of(preview({
+        viewerMode: 'moderator',
+        viewerRole: 'moderator',
+        canInteract: true,
+        canManageMemberships: true,
+      }))
     );
 
     const fixture = createFixture();
@@ -371,6 +366,22 @@ describe('CommunityPreviewPageComponent / Local', () => {
     );
   });
 
+  it('não inventa Gestão só porque o viewer continua moderador', () => {
+    previewRepositoryMock.getPreview$.mockReturnValue(
+      of(preview({
+        viewerMode: 'moderator',
+        viewerRole: 'moderator',
+        canInteract: true,
+        canManageMemberships: false,
+      }))
+    );
+
+    const fixture = createFixture();
+
+    expect(fixture.nativeElement.textContent).not.toContain('Gestão');
+    expect(membershipRepositoryMock.getMembershipRequests$).not.toHaveBeenCalled();
+  });
+
   it('usa Responsável para Local e Proprietário para Comunidade', () => {
     const component = TestBed.createComponent(
       CommunityPreviewPageComponent
@@ -384,21 +395,13 @@ describe('CommunityPreviewPageComponent / Local', () => {
     );
   });
 
-  it('explica assinatura vencida ao integrante sem tratá-lo como visitante', () => {
+  it('explica indisponibilidade temporária ao integrante sem tratá-lo como visitante', () => {
     previewRepositoryMock.getPreview$.mockReturnValue(
       of(
         preview({
           viewerMode: 'member',
           viewerRole: 'member',
           canInteract: false,
-          community: {
-            ...basePreview().community,
-            access: {
-              join: 'open',
-              minimumRole: 'premium',
-              requiresActiveSubscription: true,
-            },
-          },
         })
       )
     );
@@ -408,7 +411,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain(
-      'Assinatura necessária para interagir'
+      'Interações temporariamente indisponíveis'
     );
     expect(fixture.nativeElement.textContent).not.toContain(
       'Interação reservada às pessoas autorizadas no Local'

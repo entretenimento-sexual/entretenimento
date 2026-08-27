@@ -4,6 +4,7 @@
   [formGroup]="editForm"
   (ngSubmit)="onSubmit()"
   aria-label="Formulário de edição do perfil"
+  [attr.aria-busy]="isSaving || isUploading || isEditingPhoto ? 'true' : null"
 >
   <header class="profile-header" aria-label="Foto do perfil">
     <div class="profile-picture-container">
@@ -22,15 +23,22 @@
       <input
         id="photo"
         type="file"
-        accept="image/*"
+        [attr.accept]="imageAccept"
+        [disabled]="isSaving || isUploading || isEditingPhoto"
         (change)="onFileSelected($event)"
         aria-describedby="photo-help"
         class="input-file"
       />
 
       <p id="photo-help" class="help-text">
-        Use JPG ou PNG com boa nitidez.
+        {{ imageFormatLabel }}, até {{ avatarMaxMegabytes }} MB. A foto será enquadrada em 1:1 e normalizada pelo editor antes do upload.
       </p>
+
+      @if (isEditingPhoto) {
+        <p class="help-text" role="status" aria-live="polite">
+          Editor aberto. Confirme ou cancele a nova foto para continuar.
+        </p>
+      }
 
       @if (progressValue > 0 && progressValue < 100) {
         <div class="upload-progress" role="status" aria-live="polite">
@@ -212,8 +220,8 @@
     <button
       type="submit"
       class="btn btn-primary"
-      [disabled]="isSaving || isUploading"
-      [attr.aria-disabled]="isSaving || isUploading ? 'true' : 'false'"
+      [disabled]="isSaving || isUploading || isEditingPhoto"
+      [attr.aria-disabled]="isSaving || isUploading || isEditingPhoto ? 'true' : 'false'"
     >
       {{ isSaving ? 'Salvando...' : 'Salvar' }}
     </button>

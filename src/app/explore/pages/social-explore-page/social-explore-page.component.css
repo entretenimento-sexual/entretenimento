@@ -27,8 +27,8 @@
 .feed-composer__avatar {
   display: inline-grid;
   place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: var(--tap-target, 2.75rem);
+  height: var(--tap-target, 2.75rem);
   overflow: hidden;
   border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
   border-radius: 50%;
@@ -86,6 +86,131 @@
   margin-top: 0.65rem;
 }
 
+.video-highlights {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+  min-width: 0;
+}
+
+.video-highlights__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.video-highlights__header > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.video-highlights__header span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 56%, transparent);
+  font-size: 0.68rem;
+  font-weight: 740;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.video-highlights__header h2 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(0.96rem, 2.5vw, 1.08rem);
+  line-height: 1.2;
+}
+
+.video-highlights__header .video-highlights__count {
+  flex: 0 0 auto;
+  padding-bottom: 0.08rem;
+  font-size: 0.66rem;
+  font-weight: 680;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.video-highlights__rail {
+  display: flex;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.05rem 0 0.35rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+  scrollbar-width: thin;
+}
+
+.video-highlights__rail app-public-video-card,
+.video-highlight-skeleton {
+  flex: 0 0 clamp(8.6rem, 29vw, 10.2rem);
+  scroll-snap-align: start;
+}
+
+.video-highlights__rail app-public-video-card {
+  min-width: 0;
+  content-visibility: auto;
+  contain-intrinsic-size: 17rem;
+}
+
+.video-highlights__rail--loading {
+  overflow: hidden;
+}
+
+.video-highlight-skeleton {
+  aspect-ratio: 9 / 16;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 8%));
+  border-radius: 0.9rem;
+  background: linear-gradient(
+    105deg,
+    color-mix(in oklab, var(--surface-color, #101925) 94%, #fff) 15%,
+    color-mix(in oklab, var(--surface-color, #101925) 84%, #fff) 35%,
+    color-mix(in oklab, var(--surface-color, #101925) 94%, #fff) 55%
+  );
+  background-size: 200% 100%;
+  animation: video-highlight-pulse 1.25s linear infinite;
+}
+
+.video-highlights__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 10%));
+  border-radius: 0.85rem;
+  background: var(--surface-color, #101925);
+}
+
+.video-highlights__error > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.video-highlights__error strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.78rem;
+}
+
+.video-highlights__error span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.7rem;
+}
+
+.video-highlights__error button {
+  flex: 0 0 auto;
+  min-height: var(--tap-target, 2.75rem);
+  padding: 0.4rem 0.65rem;
+  border: 0;
+  background: transparent;
+  color: var(--primary-color, #ff7070);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 780;
+  cursor: pointer;
+}
+
 .feed-timeline {
   margin-top: 0.75rem;
 }
@@ -96,7 +221,8 @@
 }
 
 .feed-status-composer,
-.feed-list app-public-photo-card {
+.feed-list app-public-photo-card,
+.feed-list app-public-video-card {
   display: block;
   width: 100%;
 }
@@ -342,6 +468,7 @@
 
 .feed-composer a:focus-visible,
 .feed-composer button:focus-visible,
+.video-highlights__error button:focus-visible,
 .feed-empty a:focus-visible,
 .feed-pagination button:focus-visible {
   outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
@@ -360,6 +487,16 @@
   border: 0;
 }
 
+@keyframes video-highlight-pulse {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
 @media (max-width: 44rem) {
   .social-feed-page {
     width: 100%;
@@ -370,8 +507,15 @@
   .feed-publication-composer,
   .feed-status-composer,
   .feed-intent,
-  .feed-empty {
+  .feed-empty,
+  .video-highlights__header,
+  .video-highlights__error {
     margin-inline: 0.55rem;
+  }
+
+  .video-highlights__rail {
+    padding-inline: 0.55rem;
+    scroll-padding-inline: 0.55rem;
   }
 }
 
@@ -383,6 +527,25 @@
 
   .feed-composer__moment {
     padding-inline: 0.65rem;
+  }
+
+  .video-highlights__header {
+    align-items: start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .video-highlights__header .video-highlights__count {
+    padding: 0;
+  }
+
+  .video-highlights__error {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .video-highlights__error button {
+    align-self: start;
   }
 
   .feed-intent__header {
@@ -402,14 +565,17 @@
 @media (prefers-reduced-motion: reduce) {
   .feed-composer *,
   .feed-empty a,
-  .feed-pagination button {
+  .feed-pagination button,
+  .video-highlight-skeleton {
     transition: none;
+    animation: none;
   }
 }
 
 :host-context(html.high-contrast) .feed-composer,
 :host-context(html.high-contrast) .feed-intent,
-:host-context(html.high-contrast) .feed-empty {
+:host-context(html.high-contrast) .feed-empty,
+:host-context(html.high-contrast) .video-highlights__error {
   border-color: currentColor !important;
   background: var(--background-color) !important;
   color: var(--text-color) !important;
@@ -419,7 +585,9 @@
 :host-context(html.high-contrast) .feed-composer__moment,
 :host-context(html.high-contrast) .feed-intent__relationship,
 :host-context(html.high-contrast) .feed-pagination button,
-:host-context(html.high-contrast) .feed-empty a {
+:host-context(html.high-contrast) .feed-empty a,
+:host-context(html.high-contrast) .video-highlights__error button,
+:host-context(html.high-contrast) .video-highlights__header span {
   color: var(--text-color) !important;
   outline-color: currentColor !important;
 }

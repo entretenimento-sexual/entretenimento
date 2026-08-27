@@ -23,7 +23,7 @@
   <input
     id="upload-photo-input"
     type="file"
-    accept="image/jpeg,image/png,image/webp"
+    [attr.accept]="imageAccept"
     class="file-input"
     [appActionState]="isLoading"
     [attr.aria-describedby]="errorMessage
@@ -34,14 +34,14 @@
   />
 
   <p id="upload-photo-help" class="upload-photo-help">
-    Formatos aceitos: JPG, PNG ou WebP. Tamanho máximo:
-    {{ maxUploadMegabytes }} MB.
+    Formatos aceitos: {{ imageFormatLabel }}. Tamanho máximo:
+    {{ maxUploadMegabytes }} MB. A foto será aberta no editor antes da confirmação.
   </p>
 
   @if (isLoading) {
     <div class="loading-spinner" role="status" aria-live="polite">
       <div class="spinner" aria-hidden="true"></div>
-      <p>Preparando sua foto...</p>
+      <p>Preparando o editor...</p>
     </div>
   }
 

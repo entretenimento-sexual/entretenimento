@@ -14,6 +14,7 @@
 // - isso evita conflitos imediatos no restante da aplicação
 // ============================================================================
 
+import type { PublicUserIdentity } from 'src/app/core/domain/public-user-identity/public-user-identity.model';
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 
 export type DirectChatId = string;
@@ -53,13 +54,20 @@ export interface DirectChatListItem {
   otherParticipantUid: string | null;
 
   /**
-   * Nome do outro participante para renderização.
+   * Identidade pública sanitizada do outro participante. Este é o contrato
+   * preferencial para novas superfícies de Chat.
+   */
+  otherParticipantIdentity?: PublicUserIdentity | null;
+
+  /**
+   * Alias legado de otherParticipantIdentity.nickname.
+   * Mantido durante a migração para não quebrar componentes existentes.
    */
   otherParticipantNickname: string | null;
 
   /**
-   * Foto do outro participante.
-   * Preparado para cards/listagens mais ricas.
+   * Alias legado de otherParticipantIdentity.avatarUrl.
+   * Mantido durante a migração para não quebrar componentes existentes.
    */
   otherParticipantPhotoURL?: string | null;
 

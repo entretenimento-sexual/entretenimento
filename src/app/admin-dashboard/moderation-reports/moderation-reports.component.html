@@ -187,7 +187,7 @@
     } @else {
       <div class="moderation-reports__list" role="list" aria-label="Lista de denúncias">
         @for (report of vm.filteredReports; track trackByReportId($index, report)) {
-          @let videoContentReport = report.targetType === 'video' || report.targetType === 'video_comment' || report.targetType === 'video_rating';
+          @let mediaContentReport = report.targetType === 'photo' || report.targetType === 'video' || report.targetType === 'video_comment' || report.targetType === 'video_rating';
           @let minorProfileReport = report.targetType === 'profile' && report.reason === 'minor_safety';
           <article
             class="report-card"
@@ -215,6 +215,44 @@
                   <mat-chip color="warn" highlighted>
                     {{ agedOpenLabel }}
                   </mat-chip>
+                </mat-chip-set>
+              }
+
+              @if (report.contentQuarantined || (report.evidencePreservationStatus && report.evidencePreservationStatus !== 'NOT_REQUIRED') || report.legalReviewStatus) {
+                <mat-chip-set aria-label="Segurança, preservação e revisão jurídica da denúncia">
+                  @if (report.contentQuarantined) {
+                    <mat-chip color="warn" highlighted>Em quarentena</mat-chip>
+                  }
+
+                  @switch (report.evidencePreservationStatus) {
+                    @case ('PENDING') {
+                      <mat-chip color="warn" highlighted>Preservação pendente</mat-chip>
+                    }
+                    @case ('PRESERVED') {
+                      <mat-chip color="primary" highlighted>Evidência preservada</mat-chip>
+                    }
+                    @case ('RELEASED') {
+                      <mat-chip>Evidência liberada</mat-chip>
+                    }
+                  }
+
+                  @switch (report.legalReviewStatus) {
+                    @case ('PENDING_LEGAL_REVIEW') {
+                      <mat-chip color="warn" highlighted>Revisão jurídica pendente</mat-chip>
+                    }
+                    @case ('UNDER_LEGAL_REVIEW') {
+                      <mat-chip color="primary" highlighted>Em revisão jurídica</mat-chip>
+                    }
+                    @case ('NO_DISCLOSURE_REQUIRED') {
+                      <mat-chip>Sem encaminhamento</mat-chip>
+                    }
+                    @case ('DISCLOSURE_AUTHORIZED') {
+                      <mat-chip color="primary" highlighted>Encaminhamento autorizado</mat-chip>
+                    }
+                    @case ('CLOSED') {
+                      <mat-chip>Revisão jurídica encerrada</mat-chip>
+                    }
+                  }
                 </mat-chip-set>
               }
 
@@ -359,7 +397,7 @@
                   maxlength="900"
                   [ngModel]="resolutionDraft(report)"
                   (ngModelChange)="setResolutionDraft(report, $event)"
-                  [placeholder]="videoContentReport ? 'Justifique objetivamente por que o conteúdo será mantido ou removido.' : minorProfileReport ? 'Registre os indícios, a solicitação ou a decisão sobre a revalidação.' : 'Descreva a decisão, providência tomada ou motivo da rejeição.'"
+                  [placeholder]="mediaContentReport ? 'Justifique objetivamente por que o conteúdo será mantido ou removido.' : minorProfileReport ? 'Registre os indícios, a solicitação ou a decisão sobre a revalidação.' : 'Descreva a decisão, providência tomada ou motivo da rejeição.'"
                   [attr.aria-label]="'Nota da moderação para denúncia ' + report.id"
                 ></textarea>
                 <mat-hint align="end">{{ resolutionDraftLength(report) }}/900</mat-hint>
@@ -390,7 +428,7 @@
                   (click)="resolveReport(report)"
                   [disabled]="isBusy(report) || report.status === 'resolved'"
                 >
-                  {{ videoContentReport ? 'Remover conteúdo' : 'Resolver' }}
+                  {{ mediaContentReport ? 'Remover conteúdo' : 'Resolver' }}
                 </button>
 
                 <button
@@ -400,7 +438,7 @@
                   (click)="rejectReport(report)"
                   [disabled]="isBusy(report) || report.status === 'rejected'"
                 >
-                  {{ videoContentReport ? 'Manter conteúdo' : 'Rejeitar' }}
+                  {{ mediaContentReport ? 'Manter conteúdo' : 'Rejeitar' }}
                 </button>
               </footer>
             }

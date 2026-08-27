@@ -18,10 +18,12 @@
 // - enum SidebarState
 // - assinatura em SidebarService.isSidebarVisible$
 // - comportamento de drawer fixo/local
+// - inferência local de assinatura por `user.isSubscriber`/`user.role`
 //
 // Motivo da supressão:
 // - havia competição visual com o sidebar universal do shell global
 // - este componente deve ser contextual ao perfil, não estrutural da aplicação
+// - capacidades pagas devem vir da fonte canônica de assinatura do VM
 // ============================================================================
 import { Component, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -90,6 +92,8 @@ export class UserProfileSidebarComponent {
         viewedUid: vm.viewedUid,
         isProfileRoute: vm.isProfileRoute,
         isOwnProfileRoute: vm.isOwnProfileRoute,
+        subscriptionRole: vm.subscriptionRole,
+        isSubscriber: vm.isSubscriber,
         hasUser: !!vm.usuario,
         currentUrl: vm.currentUrl,
       })
@@ -120,6 +124,11 @@ export class UserProfileSidebarComponent {
     distinctUntilChanged()
   );
 
+  readonly isSubscriber$ = this.vm$.pipe(
+    map((vm) => vm.isSubscriber),
+    distinctUntilChanged()
+  );
+
   /**
    * Compatibilidade mantida.
    *
@@ -146,11 +155,11 @@ export class UserProfileSidebarComponent {
    * Mantido o nome do método.
    */
   createRoomIfSubscriber(): void {
-    combineLatest([this.currentUid$, this.usuario$])
+    combineLatest([this.currentUid$, this.usuario$, this.isSubscriber$])
       .pipe(
         take(1),
 
-        switchMap(([uid, user]) => {
+        switchMap(([uid, user, isSubscriber]) => {
           if (!uid) {
             this.errorNotifier.showError('Faça login para criar uma sala.');
             return EMPTY;
@@ -162,10 +171,6 @@ export class UserProfileSidebarComponent {
             );
             return EMPTY;
           }
-
-          const isSubscriber =
-            !!(user as any)?.isSubscriber ||
-            ['premium', 'vip'].includes(String((user as any)?.role ?? ''));
 
           if (!isSubscriber) {
             this.openDialog();

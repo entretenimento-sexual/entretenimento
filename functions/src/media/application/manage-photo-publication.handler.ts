@@ -9,7 +9,9 @@
 // - a projeção pública não armazena URL permanente nem storagePath;
 // - o acesso temporário é emitido por backend após nova validação;
 // - cliente não grava projeção pública, score ou contadores;
-// - métricas públicas são recalculadas no backend.
+// - métricas públicas são recalculadas no backend;
+// - publicação normal nasce APPROVED; denúncia posterior pode colocar em quarentena;
+// - republicação usa precondition para não sobrescrever FLAGGED concorrente.
 
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -25,7 +27,7 @@ import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics
 
 type PhotoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
 type CommentsPolicy = 'OFF' | 'FRIENDS' | 'SUBSCRIBERS' | 'EVERYONE';
-type ModerationStatus = 'PENDING_REVIEW' | 'APPROVED';
+type ModerationStatus = 'APPROVED';
 
 type ScoreBreakdown = {
   rankingScore: number;
@@ -47,6 +49,7 @@ type PrivatePhotoDoc = {
 type PhotoPublicationDoc = {
   isPublished?: boolean;
   publishedStoragePath?: string;
+  moderationStatus?: string;
 };
 
 interface PublishPhotoRequest {
@@ -81,9 +84,6 @@ interface SetCoverPhotoResponse {
 }
 
 const MAX_CAPTION_LENGTH = 800;
-const AUTO_APPROVE_PHOTOS =
-  process.env.FUNCTIONS_EMULATOR === 'true' ||
-  process.env.MEDIA_AUTO_APPROVE_PHOTOS === 'true';
 
 function cleanId(value: unknown): string {
   return String(value ?? '').trim();
@@ -174,7 +174,7 @@ function buildInitialScoreBreakdown(): ScoreBreakdown {
 }
 
 function resolveModerationStatus(): ModerationStatus {
-  return AUTO_APPROVE_PHOTOS ? 'APPROVED' : 'PENDING_REVIEW';
+  return 'APPROVED';
 }
 
 function assertOwner(requesterUid: string | null, ownerUid: string): void {
@@ -188,6 +188,14 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
       'Você só pode publicar fotos do seu próprio perfil.'
     );
   }
+}
+
+function isQuarantinedPublication(
+  publication: PhotoPublicationDoc | null
+): boolean {
+  return String(publication?.moderationStatus ?? '')
+    .trim()
+    .toUpperCase() === 'FLAGGED';
 }
 
 function resolvePrivatePhotoStoragePath(
@@ -236,6 +244,16 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       privatePhotoRef.get(),
       publicationRef.get(),
     ]);
+    const previousPublication = previousPublicationSnap.exists
+      ? (previousPublicationSnap.data() as PhotoPublicationDoc)
+      : null;
+
+    if (isQuarantinedPublication(previousPublication)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Esta foto está temporariamente preservada durante uma análise de segurança.'
+      );
+    }
 
     if (!privatePhotoSnap.exists) {
       throw new HttpsError('not-found', 'Foto privada não encontrada.');
@@ -287,6 +305,10 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         .get();
 
       publishedSnapshot.docs.forEach((docSnap) => {
+        if (docSnap.id === photoId) {
+          return;
+        }
+
         batch.set(
           docSnap.ref,
           {
@@ -307,35 +329,41 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       });
     }
 
-    batch.set(
-      publicationRef,
-      {
-        ownerUid,
-        photoId,
-        isPublished: true,
-        visibility,
-        caption,
-        isCover,
-        orderIndex,
-        commentsEnabled,
-        commentsPolicy,
-        commentsCount: 0,
-        reactionsEnabled,
-        reactionsCount: 0,
-        moderationStatus,
-        moderationReason: null,
-        reportsCount: 0,
-        score: 0,
-        scoreBreakdown,
-        publishedAt: now,
-        updatedAt: now,
-        lastModeratedAt: moderationStatus === 'APPROVED' ? now : null,
-        sourceStoragePath,
-        publishedStoragePath,
-        assetVersion: now,
-      },
-      { merge: true }
-    );
+    const publicationPayload = {
+      ownerUid,
+      photoId,
+      isPublished: true,
+      visibility,
+      caption,
+      isCover,
+      orderIndex,
+      commentsEnabled,
+      commentsPolicy,
+      commentsCount: 0,
+      reactionsEnabled,
+      reactionsCount: 0,
+      moderationStatus,
+      moderationReason: null,
+      reportsCount: 0,
+      score: 0,
+      scoreBreakdown,
+      publishedAt: now,
+      updatedAt: now,
+      lastModeratedAt: now,
+      sourceStoragePath,
+      publishedStoragePath,
+      assetVersion: now,
+    };
+
+    if (previousPublicationSnap.exists && previousPublicationSnap.updateTime) {
+      batch.update(
+        publicationRef,
+        publicationPayload,
+        { lastUpdateTime: previousPublicationSnap.updateTime }
+      );
+    } else {
+      batch.create(publicationRef, publicationPayload);
+    }
 
     batch.set(
       publicPhotoRef,
@@ -379,9 +407,6 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       throw error;
     }
 
-    const previousPublication = previousPublicationSnap.exists
-      ? (previousPublicationSnap.data() as PhotoPublicationDoc)
-      : null;
     const previousPublishedStoragePath =
       previousPublication?.publishedStoragePath ?? null;
 
@@ -406,6 +431,11 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
   }
 );
 
+/**
+ * Implementação histórica mantida somente dentro deste módulo por
+ * compatibilidade interna durante a migração. O export público `unpublishPhoto`
+ * é redirecionado pelo media/index.ts para um handler fail-closed.
+ */
 export const unpublishPhoto = onCall<UnpublishPhotoRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<{ photoId: string }> => {
@@ -431,6 +461,13 @@ export const unpublishPhoto = onCall<UnpublishPhotoRequest>(
     const publication = publicationSnap.exists
       ? (publicationSnap.data() as PhotoPublicationDoc)
       : null;
+
+    if (isQuarantinedPublication(publication)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Esta foto está temporariamente preservada durante uma análise de segurança.'
+      );
+    }
 
     batch.set(
       publicationRef,
@@ -490,12 +527,19 @@ export const setCoverPhoto = onCall<SetCoverPhotoRequest>(
       throw new HttpsError('not-found', 'Publicação da foto não encontrada.');
     }
 
-    const targetPublication = targetPublicationSnap.data();
+    const targetPublication = targetPublicationSnap.data() as PhotoPublicationDoc;
 
-    if (targetPublication?.isPublished !== true) {
+    if (targetPublication.isPublished !== true) {
       throw new HttpsError(
         'failed-precondition',
         'Somente fotos publicadas podem ser definidas como capa.'
+      );
+    }
+
+    if (isQuarantinedPublication(targetPublication)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Uma foto em análise de segurança não pode ser definida como capa.'
       );
     }
 

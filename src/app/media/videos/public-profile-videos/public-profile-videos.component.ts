@@ -17,19 +17,24 @@ import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import {
   BehaviorSubject,
+  EMPTY,
   Observable,
   combineLatest,
-  firstValueFrom,
+  defer,
+  from,
   of,
 } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
   filter,
+  finalize,
   map,
   shareReplay,
   startWith,
   switchMap,
+  take,
+  tap,
 } from 'rxjs/operators';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
@@ -37,6 +42,10 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import {
+  IPublicProfileVideoCursor,
+  PublicProfileVideoPaginationService,
+} from 'src/app/core/services/media/public-profile-video-pagination.service';
 import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 import { PublicVideoMetadataPreloadDirective } from '../public-video-metadata-preload.directive';
@@ -44,11 +53,15 @@ import { PublicVideoMetadataPreloadDirective } from '../public-video-metadata-pr
 interface PublicProfileVideosState {
   status: 'loading' | 'ready' | 'empty' | 'error';
   items: IPublicVideoItem[];
+  hasMore: boolean;
+  loadingMore: boolean;
 }
 
 interface ViewerUserLike {
   uid?: string | null;
 }
+
+const PUBLIC_VIDEO_GALLERY_PAGE_SIZE = 12;
 
 @Component({
   selector: 'app-public-profile-videos',
@@ -70,12 +83,21 @@ export class PublicProfileVideosComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
+  private readonly videoPagination = inject(PublicProfileVideoPaginationService);
   private readonly publicVideoShare = inject(PublicVideoShareService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
+  private readonly galleryPagesSubject = new BehaviorSubject<
+    readonly (readonly IPublicVideoItem[])[]
+  >([]);
+  private readonly galleryLoadingMoreSubject = new BehaviorSubject<boolean>(false);
   private readonly autoOpenedVideoKeys = new Set<string>();
+  private galleryOwnerUid = '';
+  private galleryCursor: IPublicProfileVideoCursor | null = null;
+  private galleryHasMore = false;
+  private galleryRevision = 0;
   private deepLinkWatcherStarted = false;
 
   readonly viewerOpening = signal(false);
@@ -106,25 +128,79 @@ export class PublicProfileVideosComponent implements OnInit {
 
   readonly state$: Observable<PublicProfileVideosState> = combineLatest([
     this.ownerUid$,
+    this.requestedVideoId$,
     this.refreshSubject,
   ]).pipe(
-    switchMap(([ownerUid]) => {
+    switchMap(([ownerUid, requestedVideoId]) => {
       if (!ownerUid) {
+        this.resetGallery('');
         return of(this.buildState('empty', []));
       }
 
-      return this.mediaPublicQuery
-        .getProfilePublicVideos$(ownerUid, { propagateErrors: true })
-        .pipe(
-          map((items) =>
-            this.buildState(items.length > 0 ? 'ready' : 'empty', items)
-          ),
-          startWith(this.buildState('loading', [])),
-          catchError((error: unknown) => {
-            this.reportError(error, ownerUid);
-            return of(this.buildState('error', []));
+      if (requestedVideoId) {
+        this.resetGallery('');
+
+        return this.mediaPublicQuery
+          .getPublicVideoById$(ownerUid, requestedVideoId, {
+            propagateErrors: true,
           })
-        );
+          .pipe(
+            map((item) =>
+              this.buildState(item ? 'ready' : 'empty', item ? [item] : [])
+            ),
+            startWith(this.buildState('loading', [])),
+            catchError((error: unknown) => {
+              this.reportError(error, ownerUid, requestedVideoId);
+              return of(this.buildState('error', []));
+            })
+          );
+      }
+
+      this.resetGallery(ownerUid);
+      const revision = this.galleryRevision;
+
+      return this.videoPagination.loadPage$(ownerUid, {
+        pageSize: PUBLIC_VIDEO_GALLERY_PAGE_SIZE,
+      }).pipe(
+        switchMap((page) => {
+          if (
+            this.galleryOwnerUid !== ownerUid ||
+            this.galleryRevision !== revision
+          ) {
+            return of(this.buildState('empty', []));
+          }
+
+          this.galleryCursor = page.nextCursor;
+          this.galleryHasMore = page.hasMore;
+          this.galleryPagesSubject.next([page.items]);
+
+          return combineLatest([
+            this.galleryPagesSubject,
+            this.galleryLoadingMoreSubject,
+          ]).pipe(
+            map(([pages, loadingMore]) => {
+              const items = this.mergeGalleryPages(pages);
+
+              return this.buildState(
+                items.length > 0 ? 'ready' : 'empty',
+                items,
+                this.galleryHasMore,
+                loadingMore
+              );
+            })
+          );
+        }),
+        startWith(this.buildState('loading', [])),
+        catchError((error: unknown) => {
+          if (
+            this.galleryOwnerUid === ownerUid &&
+            this.galleryRevision === revision
+          ) {
+            this.reportError(error, ownerUid, null);
+          }
+          return of(this.buildState('error', []));
+        })
+      );
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -138,79 +214,168 @@ export class PublicProfileVideosComponent implements OnInit {
     this.refreshSubject.next(this.refreshSubject.value + 1);
   }
 
-  async openVideo(index: number): Promise<void> {
+  loadMoreVideos(): void {
+    const ownerUid = this.galleryOwnerUid;
+    const cursor = this.galleryCursor;
+    const revision = this.galleryRevision;
+
+    if (
+      !ownerUid ||
+      !cursor ||
+      !this.galleryHasMore ||
+      this.galleryLoadingMoreSubject.value
+    ) {
+      return;
+    }
+
+    this.galleryLoadingMoreSubject.next(true);
+
+    this.videoPagination.loadPage$(ownerUid, {
+      pageSize: PUBLIC_VIDEO_GALLERY_PAGE_SIZE,
+      cursor,
+    }).pipe(
+      take(1),
+      tap((page) => {
+        if (
+          this.galleryOwnerUid !== ownerUid ||
+          this.galleryRevision !== revision
+        ) {
+          return;
+        }
+
+        this.galleryCursor = page.nextCursor;
+        this.galleryHasMore = page.hasMore;
+        this.galleryPagesSubject.next([
+          ...this.galleryPagesSubject.value,
+          page.items,
+        ]);
+      }),
+      catchError((error: unknown) => {
+        if (
+          this.galleryOwnerUid === ownerUid &&
+          this.galleryRevision === revision
+        ) {
+          this.errorNotification.showError(
+            'Não foi possível carregar mais vídeos agora.'
+          );
+          this.reportSilent(error, {
+            op: 'loadMorePublicProfileVideos',
+            hasOwnerUid: true,
+            hasCursor: true,
+          });
+        }
+
+        return EMPTY;
+      }),
+      finalize(() => {
+        if (
+          this.galleryOwnerUid === ownerUid &&
+          this.galleryRevision === revision
+        ) {
+          this.galleryLoadingMoreSubject.next(false);
+        }
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
+  }
+
+  openVideo(index: number): void {
     if (this.viewerOpening()) {
       return;
     }
 
-    const state = await firstValueFrom(this.state$);
+    this.state$.pipe(
+      take(1),
+      switchMap((state) => {
+        if (state.status !== 'ready' || !state.items.length) {
+          this.errorNotification.showWarning(
+            'Nenhum vídeo público disponível.'
+          );
+          return EMPTY;
+        }
 
-    if (state.status !== 'ready' || !state.items.length) {
-      this.errorNotification.showWarning('Nenhum vídeo público disponível.');
-      return;
-    }
+        const safeIndex = Math.max(
+          0,
+          Math.min(index, state.items.length - 1)
+        );
+        const selected = state.items[safeIndex];
 
-    const safeIndex = Math.max(0, Math.min(index, state.items.length - 1));
-    const selected = state.items[safeIndex];
+        if (!selected) {
+          return EMPTY;
+        }
 
-    if (!selected) {
-      return;
-    }
+        this.viewerOpening.set(true);
+        this.openingVideoId.set(selected.id);
 
-    this.viewerOpening.set(true);
-    this.openingVideoId.set(selected.id);
-
-    try {
-      const { PublicVideoViewerComponent } = await import(
-        '../public-video-viewer/public-video-viewer.component'
-      );
-
-      this.dialog.open(PublicVideoViewerComponent, {
-        data: {
-          ownerUid: selected.ownerUid,
-          items: state.items,
-          startIndex: safeIndex,
-          source: 'profile',
-        },
-        autoFocus: false,
-        restoreFocus: true,
-        width: '100vw',
-        height: '100vh',
-        maxWidth: '100vw',
-        maxHeight: '100vh',
-        panelClass: [
-          'photo-viewer-dialog--immersive',
-          'public-video-viewer-dialog',
-        ],
-        backdropClass: 'photo-viewer-backdrop',
-      });
-    } catch (error) {
-      this.reportViewerError(error, selected);
-      this.errorNotification.showError(
-        'Não foi possível abrir o vídeo neste momento.'
-      );
-    } finally {
-      if (this.openingVideoId() === selected.id) {
-        this.openingVideoId.set(null);
-      }
-      this.viewerOpening.set(false);
-    }
+        return from(
+          import('../public-video-viewer/public-video-viewer.component')
+        ).pipe(
+          tap(({ PublicVideoViewerComponent }) => {
+            this.dialog.open(PublicVideoViewerComponent, {
+              data: {
+                ownerUid: selected.ownerUid,
+                items: state.items,
+                startIndex: safeIndex,
+                source: 'profile',
+              },
+              autoFocus: false,
+              restoreFocus: true,
+              width: '100vw',
+              height: '100vh',
+              maxWidth: '100vw',
+              maxHeight: '100vh',
+              panelClass: [
+                'photo-viewer-dialog--immersive',
+                'public-video-viewer-dialog',
+              ],
+              backdropClass: 'photo-viewer-backdrop',
+            });
+          }),
+          catchError((error: unknown) => {
+            this.reportViewerError(error, selected);
+            this.errorNotification.showError(
+              'Não foi possível abrir o vídeo neste momento.'
+            );
+            return EMPTY;
+          }),
+          finalize(() => {
+            if (this.openingVideoId() === selected.id) {
+              this.openingVideoId.set(null);
+            }
+            this.viewerOpening.set(false);
+          })
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
-  async shareVideo(item: IPublicVideoItem): Promise<void> {
+  shareVideo(item: IPublicVideoItem): void {
     if (!item?.id || this.sharingVideoId()) {
       return;
     }
 
     this.sharingVideoId.set(item.id);
 
-    try {
-      await this.publicVideoShare.sharePublicVideo(item);
-    } finally {
-      if (this.sharingVideoId() === item.id) {
-        this.sharingVideoId.set(null);
-      }
-    }
+    defer(() => from(this.publicVideoShare.sharePublicVideo(item))).pipe(
+      catchError((error: unknown) => {
+        this.reportSilent(error, {
+          op: 'sharePublicVideo',
+          hasOwnerUid: !!item.ownerUid,
+          hasVideoId: !!item.id,
+        });
+        this.errorNotification.showError(
+          'Não foi possível compartilhar este vídeo agora.'
+        );
+        return EMPTY;
+      }),
+      finalize(() => {
+        if (this.sharingVideoId() === item.id) {
+          this.sharingVideoId.set(null);
+        }
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   trackByVideoId(_index: number, item: IPublicVideoItem): string {
@@ -347,9 +512,35 @@ export class PublicProfileVideosComponent implements OnInit {
       }
 
       queueMicrotask(() => {
-        void this.openVideo(requestedIndex);
+        this.openVideo(requestedIndex);
       });
     });
+  }
+
+  private resetGallery(ownerUid: string): void {
+    this.galleryRevision += 1;
+    this.galleryOwnerUid = ownerUid;
+    this.galleryCursor = null;
+    this.galleryHasMore = false;
+    this.galleryPagesSubject.next([]);
+    this.galleryLoadingMoreSubject.next(false);
+  }
+
+  private mergeGalleryPages(
+    pages: readonly (readonly IPublicVideoItem[])[]
+  ): IPublicVideoItem[] {
+    const unique = new Map<string, IPublicVideoItem>();
+
+    for (const item of pages.flat()) {
+      const key = this.posterKey(item);
+      if (!key || unique.has(key)) {
+        continue;
+      }
+
+      unique.set(key, item);
+    }
+
+    return [...unique.values()];
   }
 
   private posterKey(item: IPublicVideoItem): string {
@@ -361,19 +552,30 @@ export class PublicProfileVideosComponent implements OnInit {
 
   private buildState(
     status: PublicProfileVideosState['status'],
-    items: IPublicVideoItem[]
+    items: IPublicVideoItem[],
+    hasMore = false,
+    loadingMore = false
   ): PublicProfileVideosState {
-    return { status, items };
+    return { status, items, hasMore, loadingMore };
   }
 
-  private reportError(error: unknown, ownerUid: string): void {
+  private reportError(
+    error: unknown,
+    ownerUid: string,
+    requestedVideoId: string | null = null
+  ): void {
     this.errorNotification.showError(
-      'Não foi possível carregar os vídeos públicos deste perfil.'
+      requestedVideoId
+        ? 'Não foi possível carregar este vídeo público.'
+        : 'Não foi possível carregar os vídeos públicos deste perfil.'
     );
 
     this.reportSilent(error, {
-      op: 'loadPublicProfileVideos',
+      op: requestedVideoId
+        ? 'loadPublicVideoDeepLink'
+        : 'loadPublicProfileVideos',
       hasOwnerUid: !!ownerUid,
+      hasVideoId: !!requestedVideoId,
     });
   }
 

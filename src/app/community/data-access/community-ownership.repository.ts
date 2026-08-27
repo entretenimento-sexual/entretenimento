@@ -117,7 +117,7 @@ export class CommunityOwnershipRepository {
 
   private normalizeOptionalReason(reason?: string | null): string | null {
     const normalized = String(reason ?? '')
-      .replace(/[\u0000-\u001F\u007F]/g, ' ')
+      .replace(/\p{Cc}/gu, ' ')
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 240);

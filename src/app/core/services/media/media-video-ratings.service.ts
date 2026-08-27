@@ -8,6 +8,10 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import {
+  resolvePublicMediaCallableUserMessage,
+  type PublicMediaCallableAction,
+} from './public-media-callable-feedback.policy';
 
 export interface VideoRatingSummary {
   ratingsCount: number;
@@ -177,7 +181,9 @@ export class MediaVideoRatingsService {
             hasOwnerUid: !!safeOwnerUid,
             hasVideoId: !!safeVideoId,
             hasViewerUid: !!safeViewerUid,
-          }
+          },
+          false,
+          'rating'
         );
         return of(void 0);
       })
@@ -220,22 +226,27 @@ export class MediaVideoRatingsService {
     userMessage: string,
     error: unknown,
     context: Record<string, unknown>,
-    silent = false
+    silent = false,
+    action?: PublicMediaCallableAction
   ): void {
+    const safeUserMessage = action
+      ? resolvePublicMediaCallableUserMessage(error, action, userMessage)
+      : userMessage;
+
     if (!silent) {
-      this.errorNotifier.showError(userMessage);
+      this.errorNotifier.showError(safeUserMessage);
     }
 
     try {
       const normalized = error instanceof Error
         ? error
-        : new Error(userMessage);
+        : new Error(safeUserMessage);
       (normalized as any).original = error;
       (normalized as any).context = {
         scope: 'MediaVideoRatingsService',
         ...context,
       };
-      (normalized as any).skipUserNotification = silent;
+      (normalized as any).skipUserNotification = true;
       this.errorHandler.handleError(normalized);
       this.privacyDebug.log('media', 'MediaVideoRatingsService: falha', context);
     } catch {

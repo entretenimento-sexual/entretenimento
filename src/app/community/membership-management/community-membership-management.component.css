@@ -1,7 +1,8 @@
 /* src/app/community/membership-management/community-membership-management.component.css */
 :host {
-  display: block;
   min-width: 0;
+  display: grid;
+  gap: 1rem;
 }
 
 .community-membership-management {
@@ -47,8 +48,9 @@
 }
 
 .community-membership-management__refresh {
-  width: 2.65rem;
-  height: 2.65rem;
+  width: var(--tap-target, 2.75rem);
+  min-width: var(--tap-target, 2.75rem);
+  height: var(--tap-target, 2.75rem);
   display: grid;
   place-items: center;
   border: 1px solid var(--surface-border, #d5d5d5);
@@ -162,7 +164,7 @@
 }
 
 .community-membership-management__actions button {
-  min-height: 2.45rem;
+  min-height: var(--tap-target, 2.75rem);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -213,7 +215,7 @@
   }
 
   .community-membership-management__actions button {
-    width: 2.55rem;
+    width: var(--tap-target, 2.75rem);
     padding: 0;
   }
 }

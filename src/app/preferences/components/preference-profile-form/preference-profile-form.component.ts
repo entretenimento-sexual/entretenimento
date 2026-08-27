@@ -23,6 +23,7 @@ import {
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 
+import { FormValidationFocusDirective } from '../../../shared/form-validation-focus/form-validation-focus.directive';
 import type { PreferenceProfile } from '../../models/preference-profile.model';
 import type { PreferencesCapabilitySnapshot } from '../../services/preferences-capability.service';
 import { createEmptyPreferenceProfile } from '../../utils/preference-normalizers';
@@ -37,10 +38,17 @@ import {
   mapPreferenceProfileToFormValue,
 } from '../../utils/preference-profile-form.factory';
 
+type NumericPreferenceControl = 'minAge' | 'maxAge' | 'maxDistanceKm';
+
 @Component({
   selector: 'app-preference-profile-form',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule],
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    RouterModule,
+    FormValidationFocusDirective,
+  ],
   templateUrl: './preference-profile-form.component.html',
   styleUrl: './preference-profile-form.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -144,15 +152,14 @@ export class PreferenceProfileFormComponent {
   }
 
   submit(): void {
-    if (
-      !this.canEdit() ||
-      this.saving() ||
-      this.form.invalid ||
-      this.form.pristine
-    ) {
+    if (!this.canEdit() || this.saving()) return;
+
+    if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
     }
+
+    if (this.form.pristine) return;
 
     const current = this.profile() ?? createEmptyPreferenceProfile('');
     const result = mapFormValueToPreferenceProfile(
@@ -209,6 +216,24 @@ export class PreferenceProfileFormComponent {
     if (count === 0) return 'Nenhuma seleção';
     if (count === 1) return '1 selecionada';
     return `${count} selecionadas`;
+  }
+
+  numericFieldError(controlName: NumericPreferenceControl): string | null {
+    const control = this.form.get(controlName);
+    if (!control?.touched || !control.invalid) return null;
+
+    if (controlName === 'maxDistanceKm') {
+      if (control.hasError('min') || control.hasError('max')) {
+        return 'Informe uma distância entre 1 e 500 km.';
+      }
+      return 'Revise a distância informada.';
+    }
+
+    if (control.hasError('min') || control.hasError('max')) {
+      return 'Informe uma idade entre 18 e 100 anos.';
+    }
+
+    return 'Revise a idade informada.';
   }
 
   ageRangeInvalid(): boolean {

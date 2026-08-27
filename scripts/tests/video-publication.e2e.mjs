@@ -1,8 +1,9 @@
 // scripts/tests/video-publication.e2e.mjs
 // -----------------------------------------------------------------------------
 // Integração isolada de vídeo:
-// upload privado -> registro -> fila -> conclusão simulada do provedor externo
-// -> metadados -> publicação -> edição -> acesso temporário -> despublicação.
+// fonte protegida -> registro com intenção pública -> fila -> processamento
+// -> publicação automática -> edição -> acesso temporário -> exclusão total;
+// também cobre descarte automático após falha de processamento.
 // -----------------------------------------------------------------------------
 
 import assert from 'node:assert/strict';
@@ -34,6 +35,7 @@ import {
   deleteApp as deleteAdminApp,
   initializeApp as initializeAdminApp,
 } from 'firebase-admin/app';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 import { getStorage as getAdminStorage } from 'firebase-admin/storage';
 
@@ -107,21 +109,53 @@ async function downloadTemporaryUrl(url) {
   return Buffer.from(await response.arrayBuffer());
 }
 
+async function registerVideo({
+  registerCallable,
+  ownerUid,
+  videoId,
+  sourcePath,
+  posterPath,
+  sourceBytes,
+  title,
+  description,
+}) {
+  return registerCallable({
+    ownerUid,
+    videoId,
+    videoStoragePath: sourcePath,
+    posterStoragePath: posterPath,
+    fileName: `${videoId}.mp4`,
+    mimeType: 'video/mp4',
+    sizeBytes: sourceBytes.byteLength,
+    durationMs: 10_000,
+    title,
+    description,
+    reactionsEnabled: false,
+    commentsEnabled: true,
+    ratingsEnabled: false,
+    // O cliente não controla a intenção pública do upload.
+    publishWhenReady: false,
+  });
+}
+
 async function run() {
   assertSafeEnvironment();
 
   const runId = randomUUID();
   const videoId = `video-${runId}`;
-  const processingJobId = `pending_${videoId}`;
+  const failedVideoId = `video-failed-${runId}`;
   const email = `video-e2e-${runId}@example.test`;
   const password = `Video-e2e-${runId}-Aa1!`;
-  const sourceBytes = new TextEncoder().encode(`private-video-${runId}`);
-  const posterBytes = new TextEncoder().encode(`private-poster-${runId}`);
+  const sourceBytes = new TextEncoder().encode(`source-video-${runId}`);
+  const posterBytes = new TextEncoder().encode(`source-poster-${runId}`);
   const processedBytes = new TextEncoder().encode(`processed-video-${runId}`);
+  const failedSourceBytes = new TextEncoder().encode(`failed-video-${runId}`);
+  const failedPosterBytes = new TextEncoder().encode(`failed-poster-${runId}`);
   const draftTitle = 'Uma noite especial';
   const draftDescription = 'A história original desse momento.';
   const editedTitle = 'Uma noite ainda mais especial';
   const editedDescription = 'A história revisada depois da publicação.';
+  const failedReason = 'Não foi possível preparar uma versão compatível deste vídeo.';
 
   const clientApp = initializeClientApp(
     {
@@ -150,12 +184,13 @@ async function run() {
     },
     `video-e2e-admin-${runId}`
   );
+  const adminAuth = getAdminAuth(adminApp);
   const adminDb = getAdminFirestore(adminApp);
   const bucket = getAdminStorage(adminApp).bucket(STORAGE_BUCKET);
 
   let authenticatedUser = null;
   let ownerUid = '';
-  let jobRef = null;
+  const processingJobRefs = [];
 
   try {
     const credential = await createUserWithEmailAndPassword(
@@ -165,6 +200,53 @@ async function run() {
     );
     authenticatedUser = credential.user;
     ownerUid = credential.user.uid;
+
+    const ownerUserRef = adminDb.doc(`users/${ownerUid}`);
+    const recoverRegistrationSeed = httpsCallable(
+      clientFunctions,
+      'recoverRegistrationSeed'
+    );
+    const recoveryResponse = await recoverRegistrationSeed({});
+
+    assert.equal(recoveryResponse.data.ok, true);
+    assert.equal(recoveryResponse.data.uid, ownerUid);
+
+    const ownerSeed = await readDocumentData(ownerUserRef);
+    assert.notEqual(
+      ownerSeed,
+      null,
+      'O seed canônico do usuário E2E deve existir antes do fluxo de vídeo.'
+    );
+
+    await adminAuth.updateUser(ownerUid, {
+      emailVerified: true,
+      disabled: false,
+    });
+
+    await ownerUserRef.set(
+      {
+        uid: ownerUid,
+        emailVerified: true,
+        profileCompleted: true,
+        accountStatus: 'active',
+        suspended: false,
+        interactionBlocked: false,
+        accountLocked: false,
+        loginAllowed: true,
+        acceptedTerms: {
+          accepted: true,
+          version: 'v3',
+          acknowledgedPrivacyNotice: true,
+        },
+        initialAdultConsentRequired: false,
+        ageReverification: null,
+        updatedAt: Date.now(),
+      },
+      { merge: true }
+    );
+
+    await authenticatedUser.reload();
+    await authenticatedUser.getIdToken(true);
 
     const sourcePath =
       `users/${ownerUid}/uploads/videos/${videoId}-${runId}.mp4`;
@@ -186,22 +268,22 @@ async function run() {
       clientFunctions,
       'registerPrivateVideoUpload'
     );
-    const registrationResponse = await registerPrivateVideoUpload({
+    const registrationResponse = await registerVideo({
+      registerCallable: registerPrivateVideoUpload,
       ownerUid,
       videoId,
-      videoStoragePath: sourcePath,
-      posterStoragePath: posterPath,
-      fileName: 'video-e2e.mp4',
-      mimeType: 'video/mp4',
-      sizeBytes: sourceBytes.byteLength,
-      durationMs: 10_000,
+      sourcePath,
+      posterPath,
+      sourceBytes,
+      title: draftTitle,
+      description: draftDescription,
     });
 
     assert.equal(registrationResponse.data.videoId, videoId);
     assert.equal(registrationResponse.data.ownerUid, ownerUid);
     assert.equal(registrationResponse.data.status, 'ready');
 
-    const privateVideoRef = adminDb.doc(
+    const ownerVideoRef = adminDb.doc(
       `users/${ownerUid}/videos/${videoId}`
     );
     const publicationRef = adminDb.doc(
@@ -211,9 +293,21 @@ async function run() {
     const publicVideoRef = adminDb.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
-    jobRef = adminDb.doc(
+    const jobRef = adminDb.doc(
       `media_video_processing_jobs/${ownerUid}_${videoId}`
     );
+    processingJobRefs.push(jobRef);
+
+    const registeredPublication = await readDocumentData(publicationRef);
+    assert.equal(registeredPublication?.isPublished, false);
+    assert.equal(registeredPublication?.publishWhenReady, true);
+    assert.equal(registeredPublication?.visibility, 'PUBLIC');
+    assert.equal(registeredPublication?.moderationStatus, 'APPROVED');
+    assert.equal(registeredPublication?.title, draftTitle);
+    assert.equal(registeredPublication?.description, draftDescription);
+    assert.equal(registeredPublication?.reactionsEnabled, false);
+    assert.equal(registeredPublication?.commentsEnabled, true);
+    assert.equal(registeredPublication?.ratingsEnabled, false);
 
     await publicProfileRef.set({
       uid: ownerUid,
@@ -224,9 +318,9 @@ async function run() {
     assert.ok(await readDocumentData(publicProfileRef));
 
     const queuedState = await waitFor(
-      'vídeo privado entrar na fila de processamento',
+      'vídeo entrar na fila de processamento',
       async () => ({
-        video: await readDocumentData(privateVideoRef),
+        video: await readDocumentData(ownerVideoRef),
         job: await readDocumentData(jobRef),
       }),
       (value) =>
@@ -264,7 +358,7 @@ async function run() {
         },
         { merge: true }
       ),
-      privateVideoRef.set(
+      ownerVideoRef.set(
         {
           sourceMimeType: 'video/mp4',
           sourceSizeBytes: sourceBytes.byteLength,
@@ -287,57 +381,22 @@ async function run() {
     ]);
 
     await waitFor(
-      'vídeo privado ficar pronto com derivado processado',
-      () => readDocumentData(privateVideoRef),
+      'vídeo ficar pronto com derivado processado',
+      () => readDocumentData(ownerVideoRef),
       (value) =>
         value?.status === 'ready' &&
         value?.processedStoragePath === processedPath
     );
 
-    const updateVideoPublicationSettings = httpsCallable(
-      clientFunctions,
-      'updateVideoPublicationSettings'
-    );
-    const draftResponse = await updateVideoPublicationSettings({
-      ownerUid,
-      videoId,
-      title: draftTitle,
-      description: draftDescription,
-      reactionsEnabled: false,
-      commentsEnabled: true,
-      ratingsEnabled: false,
-    });
-
-    assert.equal(draftResponse.data.videoId, videoId);
-    assert.equal(draftResponse.data.isPublished, false);
-    assert.equal(draftResponse.data.moderationStatus, 'PRIVATE');
-
-    const draftPublication = await readDocumentData(publicationRef);
-    assert.equal(draftPublication?.title, draftTitle);
-    assert.equal(draftPublication?.description, draftDescription);
-    assert.equal(draftPublication?.reactionsEnabled, false);
-    assert.equal(draftPublication?.commentsEnabled, true);
-    assert.equal(draftPublication?.ratingsEnabled, false);
-
-    const publishVideo = httpsCallable(clientFunctions, 'publishVideo');
-    const publicationResponse = await publishVideo({
-      ownerUid,
-      videoId,
-      visibility: 'PUBLIC',
-      orderIndex: 0,
-    });
-
-    assert.equal(publicationResponse.data.videoId, videoId);
-    assert.equal(publicationResponse.data.moderationStatus, 'APPROVED');
-
     const publishedState = await waitFor(
-      'metadados do vídeo chegarem à projeção pública',
+      'upload ser publicado automaticamente após o processamento',
       async () => ({
         publication: await readDocumentData(publicationRef),
         publicVideo: await readDocumentData(publicVideoRef),
       }),
       (value) =>
         value.publication?.isPublished === true &&
+        value.publication?.autoPublishState === 'COMPLETED' &&
         value.publicVideo?.moderationStatus === 'APPROVED' &&
         value.publicVideo?.title === draftTitle &&
         value.publicVideo?.description === draftDescription
@@ -345,6 +404,8 @@ async function run() {
     const publication = publishedState.publication;
     const publicVideo = publishedState.publicVideo;
 
+    assert.equal(publication.publishWhenReady, false);
+    assert.equal(publication.visibility, 'PUBLIC');
     assert.equal(publication.moderationStatus, 'APPROVED');
     assert.equal(publication.reactionsEnabled, false);
     assert.equal(publication.commentsEnabled, true);
@@ -372,6 +433,10 @@ async function run() {
     assert.deepEqual(publishedVideoBytes, Buffer.from(processedBytes));
     assert.deepEqual(publishedPosterBytes, Buffer.from(posterBytes));
 
+    const updateVideoPublicationSettings = httpsCallable(
+      clientFunctions,
+      'updateVideoPublicationSettings'
+    );
     const editedResponse = await updateVideoPublicationSettings({
       ownerUid,
       videoId,
@@ -433,25 +498,148 @@ async function run() {
     );
 
     const unpublishVideo = httpsCallable(clientFunctions, 'unpublishVideo');
-    const unpublishResponse = await unpublishVideo({ ownerUid, videoId });
-    assert.equal(unpublishResponse.data.videoId, videoId);
+    await assert.rejects(
+      () => unpublishVideo({ ownerUid, videoId }),
+      (error) => {
+        assert.equal(error?.code, 'functions/failed-precondition');
+        return true;
+      }
+    );
 
-    const unpublished = await readDocumentData(publicationRef);
-    assert.equal(unpublished?.isPublished, false);
-    assert.equal(unpublished?.moderationStatus, 'PRIVATE');
-    assert.equal(await readDocumentData(publicVideoRef), null);
+    const stillPublished = await readDocumentData(publicationRef);
+    assert.equal(stillPublished?.isPublished, true);
+    assert.equal(stillPublished?.visibility, 'PUBLIC');
+    assert.equal(stillPublished?.moderationStatus, 'APPROVED');
+    assert.ok(await readDocumentData(publicVideoRef));
+    assert.equal(await readFileExists(publishedVideoFile), true);
+    assert.equal(await readFileExists(publishedPosterFile), true);
+
+    const deleteProfileVideo = httpsCallable(
+      clientFunctions,
+      'deleteProfileVideo'
+    );
+    const deletionResponse = await deleteProfileVideo({ ownerUid, videoId });
+    assert.equal(deletionResponse.data.videoId, videoId);
+
+    await waitFor(
+      'exclusão total remover documentos do produto',
+      async () => ({
+        video: await readDocumentData(ownerVideoRef),
+        publication: await readDocumentData(publicationRef),
+        publicVideo: await readDocumentData(publicVideoRef),
+      }),
+      (value) =>
+        value.video === null &&
+        value.publication === null &&
+        value.publicVideo === null
+    );
+
+    assert.equal(await readFileExists(bucket.file(sourcePath)), false);
+    assert.equal(await readFileExists(bucket.file(posterPath)), false);
+    assert.equal(await readFileExists(bucket.file(processedPath)), false);
     assert.equal(await readFileExists(publishedVideoFile), false);
     assert.equal(await readFileExists(publishedPosterFile), false);
 
-    console.log('✔ upload privado de vídeo autorizado pelas Storage Rules');
-    console.log('✔ registro autenticado e fila de processamento criados');
-    console.log('✔ metadados e preferências salvos antes da publicação');
+    const failedSourcePath =
+      `users/${ownerUid}/uploads/videos/${failedVideoId}-${runId}.mp4`;
+    const failedPosterPath =
+      `users/${ownerUid}/uploads/video-posters/${failedVideoId}/poster-${runId}.jpg`;
+
+    await uploadBytes(ref(clientStorage, failedSourcePath), failedSourceBytes, {
+      contentType: 'video/mp4',
+      cacheControl: 'private, max-age=0, no-store, no-transform',
+    });
+    await uploadBytes(ref(clientStorage, failedPosterPath), failedPosterBytes, {
+      contentType: 'image/jpeg',
+      cacheControl: 'private, max-age=0, no-store, no-transform',
+    });
+
+    await registerVideo({
+      registerCallable: registerPrivateVideoUpload,
+      ownerUid,
+      videoId: failedVideoId,
+      sourcePath: failedSourcePath,
+      posterPath: failedPosterPath,
+      sourceBytes: failedSourceBytes,
+      title: 'Vídeo que falhará',
+      description: 'Cenário de descarte automático.',
+    });
+
+    const failedOwnerVideoRef = adminDb.doc(
+      `users/${ownerUid}/videos/${failedVideoId}`
+    );
+    const failedPublicationRef = adminDb.doc(
+      `users/${ownerUid}/video_publications/${failedVideoId}`
+    );
+    const failedPublicVideoRef = adminDb.doc(
+      `public_profiles/${ownerUid}/public_videos/${failedVideoId}`
+    );
+    const failedJobRef = adminDb.doc(
+      `media_video_processing_jobs/${ownerUid}_${failedVideoId}`
+    );
+    processingJobRefs.push(failedJobRef);
+
+    await waitFor(
+      'segundo vídeo entrar na fila',
+      async () => ({
+        video: await readDocumentData(failedOwnerVideoRef),
+        job: await readDocumentData(failedJobRef),
+      }),
+      (value) =>
+        value.video?.status === 'queued' && value.job?.state === 'QUEUED'
+    );
+
+    await failedOwnerVideoRef.set(
+      {
+        status: 'failed',
+        processingStage: 'failed',
+        processingErrorCode: 'E2E_INCOMPATIBLE',
+        processingErrorMessage: failedReason,
+        updatedAt: Date.now(),
+      },
+      { merge: true }
+    );
+
+    await waitFor(
+      'falha descartar upload e publicação automaticamente',
+      async () => ({
+        video: await readDocumentData(failedOwnerVideoRef),
+        publication: await readDocumentData(failedPublicationRef),
+        publicVideo: await readDocumentData(failedPublicVideoRef),
+      }),
+      (value) =>
+        value.video === null &&
+        value.publication === null &&
+        value.publicVideo === null
+    );
+
+    assert.equal(await readFileExists(bucket.file(failedSourcePath)), false);
+    assert.equal(await readFileExists(bucket.file(failedPosterPath)), false);
+
+    const notificationSnapshot = await adminDb
+      .collection('notifications')
+      .where('userId', '==', ownerUid)
+      .get();
+    const failureNotification = notificationSnapshot.docs
+      .map((document) => document.data())
+      .find((notification) => notification.type === 'video.processing_failed');
+
+    assert.ok(failureNotification);
+    assert.equal(failureNotification.title, 'Vídeo descartado');
+    assert.match(String(failureNotification.body ?? ''), /versão compatível/i);
+    assert.match(String(failureNotification.body ?? ''), /removido da plataforma/i);
+
+    console.log('✔ arquivo-fonte protegido pelas Storage Rules');
+    console.log('✔ registro nasceu com intenção PUBLIC + PENDING_REVIEW');
+    console.log('✔ fila de processamento criada e publicação automática concluída');
     console.log('✔ título, descrição e permissões propagados à projeção pública');
     console.log('✔ edição pós-publicação sincronizada pelo backend');
     console.log('✔ derivado processado usado na publicação, não o arquivo original');
     console.log('✔ vídeo e poster públicos validados no Storage Emulator');
     console.log('✔ URL temporária pública validada com conteúdo binário');
-    console.log('✔ despublicação removeu projeção e ativos públicos');
+    console.log('✔ despublicação legada bloqueada sem criar estado privado');
+    console.log('✔ lixeira removeu documentos, interações e todos os ativos');
+    console.log('✔ falha de processamento gerou feedback e descarte automático');
   } finally {
     const cleanupTasks = [];
 
@@ -467,8 +655,8 @@ async function run() {
       );
     }
 
-    if (jobRef) {
-      cleanupTasks.push(jobRef.delete().catch(() => undefined));
+    for (const processingJobRef of processingJobRefs) {
+      cleanupTasks.push(processingJobRef.delete().catch(() => undefined));
     }
 
     if (authenticatedUser) {

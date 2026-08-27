@@ -7,6 +7,7 @@
 // -----------------------------------------------------------------------------
 import { createHash } from 'node:crypto';
 
+import { resolveCommunityMemberCountDelta } from '../community/community-member-count.policy';
 import { db, FieldValue } from '../firebaseApp';
 import type {
   AccountBlockReferenceSummary,
@@ -595,19 +596,25 @@ export class FirestoreAccountDataDeletionAdapter implements AccountDataDeletionA
       transaction.delete(userIndexRef);
 
       if (status === 'active' && communitySnapshot.exists) {
-        const nextCount = this.nextCommunityMemberCount(
-          communitySnapshot.data()
+        const community = communitySnapshot.data() ?? {};
+        const metrics = (community['metrics'] ?? {}) as Record<string, unknown>;
+        const nextCount = resolveCommunityMemberCountDelta(
+          metrics['memberCount'],
+          -1
         );
-        transaction.update(communityRef, {
-          'metrics.memberCount': nextCount,
-          updatedAt: now,
-        });
 
-        if (discoverySnapshot.exists) {
-          transaction.update(discoveryRef, {
+        if (nextCount !== null) {
+          transaction.update(communityRef, {
             'metrics.memberCount': nextCount,
             updatedAt: now,
           });
+
+          if (discoverySnapshot.exists) {
+            transaction.update(discoveryRef, {
+              'metrics.memberCount': nextCount,
+              updatedAt: now,
+            });
+          }
         }
       }
 
@@ -663,14 +670,6 @@ export class FirestoreAccountDataDeletionAdapter implements AccountDataDeletionA
     }
 
     return segments[1]!;
-  }
-
-  private nextCommunityMemberCount(
-    rawCommunity: FirebaseFirestore.DocumentData | undefined
-  ): number {
-    const metrics = (rawCommunity?.['metrics'] ?? {}) as Record<string, unknown>;
-    const current = Math.trunc(Number(metrics['memberCount']));
-    return Number.isFinite(current) ? Math.max(current - 1, 0) : 0;
   }
 
   private deletedUserKey(uid: string): string {

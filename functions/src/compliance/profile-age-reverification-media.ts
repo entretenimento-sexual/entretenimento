@@ -8,18 +8,31 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { db, FieldValue } from '../firebaseApp';
 
 const MAX_TRANSACTIONAL_MEDIA_DOCUMENTS = 420;
+const AGE_REVERIFICATION_VIDEO_REASON =
+  'Conteúdo temporariamente indisponível durante reverificação etária.';
+
+type MediaEntryKind =
+  | 'PHOTO_PUBLIC'
+  | 'VIDEO_PUBLIC'
+  | 'PHOTO_PUBLICATION'
+  | 'VIDEO_PUBLICATION';
 
 interface MediaVisibilityDocument {
   visibility?: unknown;
   isPublished?: unknown;
+  moderationStatus?: unknown;
+  moderationReason?: unknown;
   ageReverificationHidden?: unknown;
   ageReverificationCaseId?: unknown;
   ageReverificationPreviousVisibility?: unknown;
+  ageReverificationPreviousModerationStatus?: unknown;
+  ageReverificationPreviousModerationReason?: unknown;
 }
 
 interface MediaVisibilityEntry {
   readonly document: DocumentSnapshot;
   readonly fallbackVisibility: 'PUBLIC' | 'PRIVATE';
+  readonly kind: MediaEntryKind;
 }
 
 export interface ProfileMediaVisibilitySnapshots {
@@ -94,6 +107,38 @@ export function hideProfileMediaVisibility(
       continue;
     }
 
+    if (isVideoEntry(entry.kind)) {
+      const currentModerationStatus = normalizeVideoModerationStatus(
+        data.moderationStatus,
+        entry.kind === 'VIDEO_PUBLIC' ? 'APPROVED' : 'PENDING_REVIEW'
+      );
+      const currentModerationReason = normalizeOptionalText(
+        data.moderationReason
+      );
+
+      transaction.set(
+        entry.document.ref,
+        {
+          // A restrição etária é uma quarentena de compliance, não um estado
+          // de produto "vídeo privado". A visibilidade original é preservada
+          // e o bloqueio ocorre pela moderação, que já é fail-closed no acesso.
+          visibility: currentVisibility,
+          moderationStatus:
+            entry.kind === 'VIDEO_PUBLIC' ? 'HIDDEN' : 'FLAGGED',
+          moderationReason: AGE_REVERIFICATION_VIDEO_REASON,
+          ageReverificationHidden: true,
+          ageReverificationCaseId: caseId,
+          ageReverificationPreviousVisibility: currentVisibility,
+          ageReverificationPreviousModerationStatus: currentModerationStatus,
+          ageReverificationPreviousModerationReason: currentModerationReason,
+          ageReverificationHiddenAt: hiddenAt,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      continue;
+    }
+
     transaction.set(
       entry.document.ref,
       {
@@ -124,13 +169,41 @@ export function restoreProfileMediaVisibility(
       continue;
     }
 
+    const restoredVisibility = normalizeVisibility(
+      data.ageReverificationPreviousVisibility,
+      entry.fallbackVisibility
+    );
+
+    if (isVideoEntry(entry.kind)) {
+      transaction.set(
+        entry.document.ref,
+        {
+          visibility: restoredVisibility,
+          moderationStatus: normalizeVideoModerationStatus(
+            data.ageReverificationPreviousModerationStatus,
+            entry.kind === 'VIDEO_PUBLIC' ? 'APPROVED' : 'PENDING_REVIEW'
+          ),
+          moderationReason: normalizeOptionalText(
+            data.ageReverificationPreviousModerationReason
+          ),
+          ageReverificationHidden: FieldValue.delete(),
+          ageReverificationCaseId: FieldValue.delete(),
+          ageReverificationPreviousVisibility: FieldValue.delete(),
+          ageReverificationPreviousModerationStatus: FieldValue.delete(),
+          ageReverificationPreviousModerationReason: FieldValue.delete(),
+          ageReverificationHiddenAt: FieldValue.delete(),
+          ageReverificationRestoredAt: restoredAt,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      continue;
+    }
+
     transaction.set(
       entry.document.ref,
       {
-        visibility: normalizeVisibility(
-          data.ageReverificationPreviousVisibility,
-          entry.fallbackVisibility
-        ),
+        visibility: restoredVisibility,
         ageReverificationHidden: FieldValue.delete(),
         ageReverificationCaseId: FieldValue.delete(),
         ageReverificationPreviousVisibility: FieldValue.delete(),
@@ -146,32 +219,45 @@ export function restoreProfileMediaVisibility(
 function visibilityEntries(
   snapshots: ProfileMediaQueries
 ): readonly MediaVisibilityEntry[] {
-  const publicationEntries = [
-    ...snapshots.photoPublications.docs,
-    ...snapshots.videoPublications.docs,
-  ]
-    .filter((document) => {
-      const data = document.data() as MediaVisibilityDocument;
-
-      return data.isPublished === true ||
-        data.ageReverificationHidden === true;
-    })
+  const photoPublicationEntries = snapshots.photoPublications.docs
+    .filter(isPublishedOrAgeHidden)
     .map((document) => ({
       document,
       fallbackVisibility: 'PRIVATE' as const,
+      kind: 'PHOTO_PUBLICATION' as const,
+    }));
+  const videoPublicationEntries = snapshots.videoPublications.docs
+    .filter(isPublishedOrAgeHidden)
+    .map((document) => ({
+      document,
+      fallbackVisibility: 'PUBLIC' as const,
+      kind: 'VIDEO_PUBLICATION' as const,
     }));
 
   return [
     ...snapshots.publicPhotos.docs.map((document) => ({
       document,
       fallbackVisibility: 'PUBLIC' as const,
+      kind: 'PHOTO_PUBLIC' as const,
     })),
     ...snapshots.publicVideos.docs.map((document) => ({
       document,
       fallbackVisibility: 'PUBLIC' as const,
+      kind: 'VIDEO_PUBLIC' as const,
     })),
-    ...publicationEntries,
+    ...photoPublicationEntries,
+    ...videoPublicationEntries,
   ];
+}
+
+function isPublishedOrAgeHidden(document: DocumentSnapshot): boolean {
+  const data = document.data() as MediaVisibilityDocument;
+
+  return data.isPublished === true || data.ageReverificationHidden === true;
+}
+
+function isVideoEntry(kind: MediaEntryKind): boolean {
+  return kind === 'VIDEO_PUBLIC' || kind === 'VIDEO_PUBLICATION';
 }
 
 function normalizeVisibility(
@@ -189,4 +275,26 @@ function normalizeVisibility(
   ].includes(visibility)
     ? visibility
     : fallback;
+}
+
+function normalizeVideoModerationStatus(
+  value: unknown,
+  fallback: 'APPROVED' | 'PENDING_REVIEW'
+): string {
+  const status = String(value ?? '').trim().toUpperCase();
+
+  return [
+    'PENDING_REVIEW',
+    'APPROVED',
+    'REJECTED',
+    'FLAGGED',
+    'HIDDEN',
+  ].includes(status)
+    ? status
+    : fallback;
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
+  return normalized || null;
 }

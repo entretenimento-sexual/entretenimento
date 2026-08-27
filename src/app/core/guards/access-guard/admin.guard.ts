@@ -48,8 +48,22 @@ function isAdmin$() {
   );
 }
 
-export const adminCanMatch: CanMatchFn = () =>
-  isAdmin$().pipe(map((ok) => ok ? true : inject(Router).createUrlTree(['/dashboard'])));
+export const adminCanMatch: CanMatchFn = () => {
+  const router = inject(Router);
 
-export const adminCanActivateChild: CanActivateChildFn = () =>
-  isAdmin$().pipe(map((ok) => ok ? true : inject(Router).createUrlTree(['/dashboard'])));
+  return isAdmin$().pipe(
+    map((ok) =>
+      ok ? true : router.createUrlTree(['/dashboard'])
+    )
+  );
+};
+
+export const adminCanActivateChild: CanActivateChildFn = () => {
+  const router = inject(Router);
+
+  return isAdmin$().pipe(
+    map((ok) =>
+      ok ? true : router.createUrlTree(['/dashboard'])
+    )
+  );
+};

@@ -1,0 +1,92 @@
+<main class="subscription-history-page app-page" aria-label="Histórico de privilégios da conta">
+  <section class="subscription-history-shell ui-container">
+    <header class="subscription-history-header">
+      <a
+        class="subscription-history-back"
+        routerLink="/conta/seguranca"
+        aria-label="Voltar para Segurança da minha conta"
+      >
+        <span aria-hidden="true">←</span>
+        Segurança
+      </a>
+
+      <div class="subscription-history-header__copy">
+        <h1>Histórico de privilégios</h1>
+        <p>
+          Concessões e revogações administrativas da conta. O histórico é somente
+          leitura e permanece separado da sua assinatura.
+        </p>
+      </div>
+    </header>
+
+    @if (state$ | async; as state) {
+      @if (state.status === 'loading') {
+        <section class="subscription-history-state" role="status" aria-live="polite">
+          <span class="subscription-history-state__spinner" aria-hidden="true"></span>
+          <p>Carregando histórico de privilégios...</p>
+        </section>
+      } @else if (state.status === 'error') {
+        <section class="subscription-history-state" role="alert">
+          <h2>Não foi possível carregar o histórico</h2>
+          <p>Os registros não foram alterados. Tente consultar novamente.</p>
+          <button type="button" class="btn btn-secondary" (click)="retry()">
+            Tentar novamente
+          </button>
+        </section>
+      } @else if (state.items.length === 0) {
+        <section class="subscription-history-state" role="status">
+          <h2>Nenhuma alteração de privilégio registrada</h2>
+          <p>
+            Isso é esperado para contas que nunca receberam acesso administrativo.
+          </p>
+        </section>
+      } @else {
+        <section
+          class="subscription-history-timeline"
+          aria-label="Alterações de privilégio registradas"
+        >
+          @for (item of state.items; track item.id) {
+            <article class="subscription-history-event">
+              <div class="subscription-history-event__marker" aria-hidden="true"></div>
+
+              <div class="subscription-history-event__body">
+                <div class="subscription-history-event__head">
+                  <div>
+                    <p class="subscription-history-event__source">
+                      Segurança da conta
+                    </p>
+                    <h2>{{ eventTitle(item) }}</h2>
+                  </div>
+
+                  <time [attr.datetime]="item.occurredAt | date:'yyyy-MM-ddTHH:mm:ssXXX'">
+                    {{ item.occurredAt | date:'dd/MM/yyyy HH:mm' }}
+                  </time>
+                </div>
+
+                <p class="subscription-history-event__description">
+                  {{ eventDescription(item) }}
+                </p>
+              </div>
+            </article>
+          }
+        </section>
+
+        @if (state.nextCursor) {
+          <div class="subscription-history-more" aria-live="polite">
+            @if (state.loadMoreError) {
+              <p>Não foi possível carregar os registros mais antigos.</p>
+            }
+            <button
+              type="button"
+              class="btn btn-secondary"
+              [disabled]="state.loadingMore"
+              (click)="loadMore()"
+            >
+              {{ state.loadingMore ? 'Carregando...' : 'Carregar registros mais antigos' }}
+            </button>
+          </div>
+        }
+      }
+    }
+  </section>
+</main>

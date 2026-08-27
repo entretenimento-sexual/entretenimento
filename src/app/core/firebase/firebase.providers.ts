@@ -129,8 +129,6 @@ function provideApplicationFirestore(): EnvironmentProviders {
   return provideFirestore(() => {
     const app = getApp();
     const firestoreSettings = {
-      experimentalForceLongPolling: true,
-      useFetchStreams: false,
       ignoreUndefinedProperties: true,
     } as Parameters<typeof initializeFirestore>[1];
 

@@ -1,0 +1,171 @@
+:host {
+  display: block;
+}
+
+.topic-moderation {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+}
+
+.topic-moderation__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.topic-moderation__header > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.topic-moderation__header strong,
+.topic-moderation__removal-copy strong,
+.topic-moderation__field label {
+  font-weight: 700;
+}
+
+.topic-moderation__header span,
+.topic-moderation__removal-copy span,
+.topic-moderation__help,
+.topic-moderation__retry {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  opacity: 0.8;
+}
+
+.topic-moderation__actions,
+.topic-moderation__removal-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.topic-moderation__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.75rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.topic-moderation__button:hover:not(:disabled),
+.topic-moderation__button:focus-visible {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.topic-moderation__button:focus-visible,
+.topic-moderation__field textarea:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}
+
+.topic-moderation__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.topic-moderation__button.is-danger {
+  border-color: color-mix(in srgb, #b42318 50%, transparent);
+  color: #b42318;
+}
+
+.topic-moderation__button.is-danger.is-filled {
+  background: #b42318;
+  color: #fff;
+}
+
+.topic-moderation__button.is-danger.is-filled:hover:not(:disabled),
+.topic-moderation__button.is-danger.is-filled:focus-visible {
+  background: #8f1b13;
+}
+
+.topic-moderation__removal {
+  display: grid;
+  gap: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.topic-moderation__removal-copy,
+.topic-moderation__field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.topic-moderation__field textarea {
+  width: 100%;
+  min-height: 6rem;
+  resize: vertical;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 0.75rem;
+  background: inherit;
+  color: inherit;
+  font: inherit;
+  line-height: 1.45;
+  box-sizing: border-box;
+}
+
+.topic-moderation__help .is-error,
+.topic-moderation__retry {
+  color: #b42318;
+  opacity: 1;
+}
+
+.topic-moderation__retry {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .topic-moderation__header,
+  .topic-moderation__actions,
+  .topic-moderation__removal-actions {
+    align-items: stretch;
+  }
+
+  .topic-moderation__actions,
+  .topic-moderation__removal-actions {
+    width: 100%;
+  }
+
+  .topic-moderation__button {
+    flex: 1 1 9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topic-moderation__button {
+    scroll-behavior: auto;
+  }
+}
+
+@media (forced-colors: active) {
+  .topic-moderation,
+  .topic-moderation__button,
+  .topic-moderation__field textarea {
+    border-color: CanvasText;
+  }
+
+  .topic-moderation__button.is-danger,
+  .topic-moderation__help .is-error,
+  .topic-moderation__retry {
+    color: CanvasText;
+  }
+}

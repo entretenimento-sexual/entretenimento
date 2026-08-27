@@ -1,12 +1,30 @@
 // src/app/core/services/usuario.service.ts
-// Serviço para gerenciar operações relacionadas ao usuário.
+// Serviço legado para operações editáveis do usuário.
 // - Este service está com ideia de ser descontinuado (ok), mas enquanto existir,
-//   deve manter compat com Effects/fluxos antigos.
+//   deve manter compat com fluxos antigos ainda válidos.
 // - Escritas sempre via FirestoreWriteService (context + erro centralizado).
+//
+// SUPRESSÃO EXPLÍCITA:
+// - updateUserRole() foi removido.
+//
+// Motivo:
+// - free/basic/premium/vip pertencem ao entitlement de assinatura e não podem
+//   possuir um caminho de escrita pelo cliente;
+// - as Rules já bloqueavam a operação;
+// - a projeção de role/tier é responsabilidade exclusiva do backend financeiro.
 import { Injectable } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
+import {
+  PROFILE_IDENTITY_CATALOG_VERSION,
+  isSelectableProfileIdentityCode,
+} from '../../domain/profile-identity/profile-identity.catalog';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
+
+type EditableUserPatch = Partial<IUserDados> & {
+  declaredIdentityCode?: string;
+  identityCatalogVersion?: number;
+};
 
 @Injectable({ providedIn: 'root' })
 export class UsuarioService {
@@ -21,16 +39,31 @@ export class UsuarioService {
   atualizarUsuario(uid: string, dados: Partial<IUserDados>): Observable<void> {
     const safeUid = (uid ?? '').trim();
     if (!safeUid) {
-      // ✅ não dar throw síncrono (mantém tudo no fluxo Rx)
+      // não dar throw síncrono (mantém tudo no fluxo Rx)
       return throwError(() => new Error('UID inválido em atualizarUsuario().'));
     }
 
-    // ✅ whitelist de campos que o usuário pode editar
-    const patch: Partial<IUserDados> = {
+    const gender = dados.gender == null
+      ? undefined
+      : String(dados.gender).trim().toLowerCase();
+    if (gender !== undefined && !isSelectableProfileIdentityCode(gender)) {
+      const error = new Error('A identificação de perfil informada é inválida.') as Error & {
+        code?: string;
+      };
+      error.code = 'profile/invalid-gender';
+      return throwError(() => error);
+    }
+
+    // whitelist de campos que o usuário pode editar
+    const patch: EditableUserPatch = {
       nickname: dados.nickname ?? undefined,
       estado: dados.estado ?? undefined,
       municipio: dados.municipio ?? undefined,
-      gender: dados.gender ?? undefined,
+      gender,
+      declaredIdentityCode: gender,
+      identityCatalogVersion: gender === undefined
+        ? undefined
+        : PROFILE_IDENTITY_CATALOG_VERSION,
       orientation: dados.orientation ?? undefined,
       partner1Orientation: dados.partner1Orientation ?? undefined,
       partner2Orientation: dados.partner2Orientation ?? undefined,
@@ -53,38 +86,7 @@ export class UsuarioService {
       silent: false,
     });
   }
-
-  /**
-   * ✅ COMPAT com NgRx Effects existentes.
-   *
-   * Atualiza role no doc users/{uid}.
-   * IMPORTANTE: com suas rules atuais, isso tende a dar permission-denied.
-   * (role está bloqueado tanto para self quanto para admin).
-   */
-  updateUserRole(uid: string, newRole: string): Observable<void> {
-    const safeUid = (uid ?? '').trim();
-    const safeRole = (newRole ?? '').trim();
-
-    if (!safeUid) {
-      return throwError(() => new Error('UID inválido em updateUserRole().'));
-    }
-    if (!safeRole) {
-      return throwError(() => new Error('newRole inválido em updateUserRole().'));
-    }
-
-    // (Opcional) hardening: restringe valores aceitos
-    // Se você quiser manter totalmente livre, remova este bloco.
-    const allowed = new Set<IUserDados['role']>(['visitante', 'free', 'basic', 'premium', 'vip']);
-    if (!allowed.has(safeRole as any)) {
-      return throwError(() => new Error(`Role inválida: ${safeRole}`));
-    }
-
-    return this.write.updateDocument('users', safeUid, { role: safeRole } as any, {
-      context: 'UsuarioService.updateUserRole',
-      silent: false,
-    });
-  }
-} //Linha 87, fim UsuarioService
+} // fim UsuarioService
 // Não esquecer comentários explicativos sobre o propósito do serviço, decisões de design e relação com outros serviços (ex: UserProfileService, PresenceService etc).
 // *** ATENÇÃO *** Estou com ideia de descontinuar esse service
 /* O que ele não deveria fazer
@@ -92,12 +94,5 @@ export class UsuarioService {
 ❌ Query de online users → isso é UserPresenceQueryService.
 ❌ Gerenciar vínculos de chat(roomIds) → isso é chat - domain.
 ❌ Depender do EmailVerificationService para update genérico → acoplamento perigoso.
-*/
-/*
-Atenção importante (produto / rules): com as regras que você colou (users.rules),
-ninguém consegue alterar role (nem self, nem admin), porque:
-- self é bloqueado por selfChangingSensitiveKeys() (inclui "role")
-- admin é limitado por adminModerationOnly() (não inclui "role")
-Então: isso vai compilar, mas vai dar permission-denied em runtime até você decidir a política
-(ex.: role via backend/claims, ou liberar role para admin em rules, etc.).
+❌ Alterar role/tier/isSubscriber → isso é projeção do entitlement no backend.
 */

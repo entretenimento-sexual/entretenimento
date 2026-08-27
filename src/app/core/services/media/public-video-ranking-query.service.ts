@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
 import {
@@ -46,7 +46,7 @@ export class PublicVideoRankingQueryService {
         }),
       })),
       switchMap(({ rawPage, projections }) =>
-        this.publicVideoAccess.hydratePublicVideoUrls$(projections).pipe(
+        this.publicVideoAccess.hydratePublicVideoPreviews$(projections).pipe(
           map((items): IPublicVideoRankingPage => ({
             mode,
             source: mode === 'top' ? 'top' : 'latest',
@@ -59,7 +59,10 @@ export class PublicVideoRankingQueryService {
       ),
       catchError((error: unknown) => {
         this.reportError(error, mode, pageSize, request.notifyOnError === true);
-        return of(this.emptyPage(mode));
+
+        return request.propagateErrors === true
+          ? throwError(() => error)
+          : of(this.emptyPage(mode));
       })
     );
   }

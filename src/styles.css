@@ -1,3 +1,5 @@
+@import '@pqina/pintura/pintura.css';
+
 /* src/styles.css */
 .photo-viewer-backdrop {
   background: rgb(0 0 0 / 88%);

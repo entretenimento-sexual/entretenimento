@@ -20,7 +20,10 @@
       <div class="gallery-summary" aria-live="polite" aria-atomic="true">
         @if (state.status === 'ready') {
           <strong>{{ state.items.length }}</strong>
-          <span>{{ state.items.length === 1 ? 'vídeo' : 'vídeos' }}</span>
+          <span>
+            {{ state.items.length === 1 ? 'vídeo' : 'vídeos' }}
+            {{ state.hasMore ? 'carregados' : '' }}
+          </span>
         } @else if (state.status === 'loading') {
           <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
           <span>Carregando</span>
@@ -180,6 +183,34 @@
             </article>
           }
         </div>
+
+        @if (state.hasMore) {
+          <div class="gallery-pagination">
+            <button
+              type="button"
+              class="app-action app-action--ghost"
+              (click)="loadMoreVideos()"
+              [disabled]="state.loadingMore"
+              [attr.aria-busy]="state.loadingMore ? 'true' : null"
+              aria-label="Carregar mais vídeos públicos"
+            >
+              @if (state.loadingMore) {
+                <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
+                <span>Carregando mais</span>
+              } @else {
+                <span>Carregar mais vídeos</span>
+              }
+            </button>
+
+            <p class="visually-hidden" aria-live="polite" aria-atomic="true">
+              @if (state.loadingMore) {
+                Carregando a próxima página de vídeos.
+              } @else {
+                {{ state.items.length }} vídeos carregados.
+              }
+            </p>
+          </div>
+        }
       }
     }
   </section>

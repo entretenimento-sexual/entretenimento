@@ -43,6 +43,7 @@ type ActivityKind =
   | 'messages'
   | 'connections'
   | 'rooms'
+  | 'communities'
   | 'places'
   | 'status'
   | 'central';
@@ -85,6 +86,15 @@ export class UserActivityHubComponent {
       icon: '✉️',
       route: '/chat/room-invites',
       priority: 80,
+    },
+    {
+      id: 'communities',
+      label: 'Comunidades',
+      description: 'Comentários e avisos relevantes do Mural',
+      count: 0,
+      icon: '👥',
+      route: '/dashboard/comunidades',
+      priority: 70,
     },
     {
       id: 'status',
@@ -152,6 +162,10 @@ export class UserActivityHubComponent {
       return 'connections';
     }
 
+    if (this.isCommunityActivity(item, route)) {
+      return 'communities';
+    }
+
     if (this.isPlaceActivity(route, searchable)) {
       return 'places';
     }
@@ -214,6 +228,12 @@ export class UserActivityHubComponent {
       searchable.includes('estabelecimento');
   }
 
+  private isCommunityActivity(item: IAppNotification, route: string): boolean {
+    return item.type === 'community.comment.received'
+      || item.type === 'community.content.moderated'
+      || route.startsWith('/dashboard/comunidades');
+  }
+
   private isStatusActivity(item: IAppNotification, searchable: string): boolean {
     return item.type === 'user_intent_status.published' ||
       searchable.includes('status') ||
@@ -230,6 +250,9 @@ export class UserActivityHubComponent {
         return '/subscription-plan';
       case 'user_intent_status.published':
         return '/descobrir';
+      case 'community.comment.received':
+      case 'community.content.moderated':
+        return '/dashboard/comunidades';
       case 'social':
       case 'system':
       default:

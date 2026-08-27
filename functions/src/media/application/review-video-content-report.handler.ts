@@ -3,13 +3,24 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue } from '../../firebaseApp';
+import { deleteProfileVideoResources } from './delete-profile-video.handler';
+import {
+  shouldPreserveMediaEvidence,
+  type MediaReportSafetyReason,
+} from './media-report-safety';
 import {
   buildMediaEngagementScore,
   normalizeMediaCount,
   type MediaScoreBreakdown,
 } from './media-engagement-score';
-import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
-import { deletePublishedVideoAssetOrQueue } from './published-video-asset.service';
+import {
+  queueModerationEvidencePreservation,
+  releaseModerationEvidence,
+} from './moderation-evidence-preservation.service';
+import {
+  assertPublicMediaCallableAppCheck,
+  REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+} from './public-media-callable-security';
 import {
   buildVideoRatingAggregateAfterRemoval,
   normalizeVideoRating,
@@ -38,6 +49,8 @@ interface ModerationReportDocument {
   reason?: string;
   status?: string;
   moderationAction?: string | null;
+  contentQuarantined?: boolean;
+  evidencePreservationStatus?: string;
 }
 
 interface PublicVideoDocument {
@@ -54,6 +67,10 @@ interface PublicVideoDocument {
   openReportsCount?: number;
   confirmedReportsCount?: number;
   scoreBreakdown?: Partial<MediaScoreBreakdown>;
+}
+
+interface VideoPublicationDocument {
+  publishedStoragePath?: string;
 }
 
 interface VideoCommentDocument {
@@ -74,17 +91,16 @@ interface VideoRatingDocument {
   confirmedReportsCount?: number;
 }
 
-interface VideoPublicationDocument {
-  sourceStoragePath?: string;
-  publishedStoragePath?: string;
-  publishedPosterStoragePath?: string;
-}
-
 interface TransactionResult {
   ownerUid: string;
   videoId: string;
   targetType: VideoReportTargetType;
-  publication: VideoPublicationDocument | null;
+  contentAvailableAtReview: boolean;
+  reason: MediaReportSafetyReason | null;
+  evidenceRequired: boolean;
+  binaryEvidenceRequired: boolean;
+  evidencePreservationStatus: string;
+  publishedStoragePath: string | null;
 }
 
 function cleanId(value: unknown): string {
@@ -111,6 +127,24 @@ function cleanDecision(value: unknown): VideoContentReportDecision | null {
 
 function cleanResolution(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 900);
+}
+
+function cleanReason(value: unknown): MediaReportSafetyReason | null {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  return [
+    'spam',
+    'fake_profile',
+    'harassment',
+    'hate_or_abuse',
+    'sexual_boundary',
+    'illegal_content',
+    'privacy',
+    'minor_safety',
+    'other',
+  ].includes(normalized)
+    ? normalized as MediaReportSafetyReason
+    : null;
 }
 
 function assertAdmin(requestAuth: unknown): string {
@@ -193,22 +227,16 @@ function scorePatch(
   };
 }
 
-async function refreshMetricsBestEffort(ownerUid: string): Promise<void> {
-  try {
-    await refreshPublicProfileMediaMetrics(ownerUid);
-  } catch (error) {
-    logger.warn('[reviewVideoContentReport] Falha ao atualizar métricas.', {
-      ownerUid,
-      error: error instanceof Error ? error.message : String(error ?? ''),
-    });
-  }
-}
-
 export const reviewVideoContentReport = onCall<
   ReviewVideoContentReportRequest
 >(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+  },
   async (request) => {
+    assertPublicMediaCallableAppCheck(request.app);
+
     const adminUid = assertAdmin(request.auth);
     const reportId = cleanId(request.data?.reportId);
     const decision = cleanDecision(request.data?.decision);
@@ -242,6 +270,7 @@ export const reviewVideoContentReport = onCall<
         const videoId = cleanId(report.parentTargetId);
         const targetId = cleanId(report.targetId);
         const status = String(report.status ?? '').trim().toLowerCase();
+        const reason = cleanReason(report.reason);
 
         if (!targetType || !ownerUid || !videoId || !targetId) {
           throw new HttpsError(
@@ -277,21 +306,58 @@ export const reviewVideoContentReport = onCall<
         const videoSnap = snapshots[0];
         const publicationSnap = snapshots[1];
         const targetSnap = targetRef ? snapshots[2] : null;
+        const contentAvailableAtReview = videoSnap.exists;
 
-        if (!videoSnap.exists) {
+        if (!videoSnap.exists && targetType !== 'video') {
           throw new HttpsError('not-found', 'Vídeo denunciado não encontrado.');
         }
 
-        const video = videoSnap.data() as PublicVideoDocument;
+        const video = videoSnap.exists
+          ? videoSnap.data() as PublicVideoDocument
+          : null;
+        const publication = publicationSnap.exists
+          ? publicationSnap.data() as VideoPublicationDocument
+          : null;
         const event: VideoReportCounterEvent = decision === 'KEEP'
           ? 'KEEP'
           : 'REMOVE';
         const now = Date.now();
-        let publication: VideoPublicationDocument | null = publicationSnap.exists
-          ? publicationSnap.data() as VideoPublicationDocument
-          : null;
 
-        if (decision === 'KEEP') {
+        if (decision === 'KEEP' && targetType === 'video') {
+          if (video) {
+            transaction.update(videoRef, {
+              ...scorePatch(video, event),
+              ...(report.contentQuarantined === true
+                ? {
+                  moderationStatus: 'APPROVED',
+                  moderationReason: null,
+                }
+                : {}),
+              updatedAt: now,
+            });
+          }
+
+          if (report.contentQuarantined === true && publicationSnap.exists) {
+            transaction.set(
+              publicationRef,
+              {
+                isPublished: true,
+                publishWhenReady: false,
+                visibility: 'PUBLIC',
+                moderationStatus: 'APPROVED',
+                moderationReason: null,
+                lastModeratedAt: FieldValue.serverTimestamp(),
+                moderatedBy: adminUid,
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+        } else if (decision === 'KEEP') {
+          if (!video) {
+            throw new HttpsError('not-found', 'Vídeo denunciado não encontrado.');
+          }
+
           transaction.update(videoRef, {
             ...scorePatch(video, event),
             updatedAt: now,
@@ -307,33 +373,33 @@ export const reviewVideoContentReport = onCall<
             });
           }
         } else if (targetType === 'video') {
-          if (!publicationSnap.exists) {
-            throw new HttpsError(
-              'not-found',
-              'Publicação denunciada não encontrada.'
-            );
+          if (video) {
+            transaction.update(videoRef, {
+              ...scorePatch(video, event),
+              moderationStatus: 'HIDDEN',
+              moderationReason: resolution,
+              updatedAt: now,
+            });
           }
 
-          transaction.set(
-            publicationRef,
-            {
-              isPublished: false,
-              visibility: 'PRIVATE',
-              moderationStatus: 'REJECTED',
-              moderationReason: resolution,
-              rejectedSourceStoragePath: publication?.sourceStoragePath ?? null,
-              lastModeratedAt: FieldValue.serverTimestamp(),
-              moderatedBy: adminUid,
-              publishedStoragePath: FieldValue.delete(),
-              publishedPosterStoragePath: FieldValue.delete(),
-              assetVersion: FieldValue.delete(),
-              updatedAt: FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
-          transaction.delete(videoRef);
+          if (publicationSnap.exists) {
+            transaction.set(
+              publicationRef,
+              {
+                isPublished: true,
+                publishWhenReady: false,
+                visibility: 'PUBLIC',
+                moderationStatus: 'FLAGGED',
+                moderationReason: resolution,
+                lastModeratedAt: FieldValue.serverTimestamp(),
+                moderatedBy: adminUid,
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
         } else if (targetType === 'video_comment') {
-          if (!targetRef || !targetSnap?.exists) {
+          if (!video || !targetRef || !targetSnap?.exists) {
             throw new HttpsError('not-found', 'Comentário denunciado não encontrado.');
           }
 
@@ -358,7 +424,7 @@ export const reviewVideoContentReport = onCall<
             updatedAt: now,
           });
         } else {
-          if (!targetRef || !targetSnap?.exists) {
+          if (!video || !targetRef || !targetSnap?.exists) {
             throw new HttpsError('not-found', 'Avaliação denunciada não encontrada.');
           }
 
@@ -393,6 +459,15 @@ export const reviewVideoContentReport = onCall<
 
         const timestamp = FieldValue.serverTimestamp();
         const reportStatus = decision === 'KEEP' ? 'rejected' : 'resolved';
+        const evidencePreservationStatus = String(
+          report.evidencePreservationStatus ?? 'NOT_REQUIRED'
+        ).trim().toUpperCase();
+        const binaryEvidenceRequired = targetType === 'video' &&
+          !!reason &&
+          shouldPreserveMediaEvidence(reason);
+        const evidenceRequired = binaryEvidenceRequired ||
+          evidencePreservationStatus === 'PENDING' ||
+          evidencePreservationStatus === 'PRESERVED';
 
         transaction.update(reportRef, {
           status: reportStatus,
@@ -414,50 +489,101 @@ export const reviewVideoContentReport = onCall<
             targetType,
             moderationAction: decision,
             resolution,
+            contentQuarantined: report.contentQuarantined === true,
+            contentAvailableAtReview,
+            evidenceRequired,
+            evidencePreservationStatus,
           },
           timestamp,
         });
 
-        return { ownerUid, videoId, targetType, publication };
+        return {
+          ownerUid,
+          videoId,
+          targetType,
+          contentAvailableAtReview,
+          reason,
+          evidenceRequired,
+          binaryEvidenceRequired,
+          evidencePreservationStatus,
+          publishedStoragePath:
+            String(publication?.publishedStoragePath ?? '').trim() || null,
+        };
       }
     );
 
     let cleanupPending = false;
+    let evidenceReleasePending = false;
+    let evidencePreservationPending = false;
+
+    if (decision === 'KEEP' && result.evidenceRequired) {
+      try {
+        await releaseModerationEvidence(reportId, 'REPORT_REJECTED');
+      } catch (error) {
+        evidenceReleasePending = true;
+        logger.error('[reviewVideoContentReport] Liberação de evidência pendente.', {
+          reportId,
+          ownerUid: result.ownerUid,
+          videoId: result.videoId,
+          error: error instanceof Error
+            ? error.message.slice(0, 500)
+            : String(error ?? '').slice(0, 500),
+        });
+      }
+    }
 
     if (decision === 'REMOVE' && result.targetType === 'video') {
-      const videoPath = result.publication?.publishedStoragePath;
-      const posterPath = result.publication?.publishedPosterStoragePath;
-      const cleanupResults = await Promise.all([
-        deletePublishedVideoAssetOrQueue({
-          ownerUid: result.ownerUid,
-          videoId: result.videoId,
-          storagePath: videoPath,
-          assetKind: 'video',
-          reason: 'reported-video-removed',
-        }),
-        deletePublishedVideoAssetOrQueue({
-          ownerUid: result.ownerUid,
-          videoId: result.videoId,
-          storagePath: posterPath,
-          assetKind: 'poster',
-          reason: 'reported-video-poster-removed',
-        }),
-      ]);
-      cleanupPending = cleanupResults.some((deleted) => !deleted);
+      let evidenceReady = !result.binaryEvidenceRequired ||
+        result.evidencePreservationStatus === 'PRESERVED';
 
-      await db.recursiveDelete(
-        db.doc(
-          `public_profiles/${result.ownerUid}/public_videos/${result.videoId}`
-        )
-      );
-      await refreshMetricsBestEffort(result.ownerUid);
+      if (
+        result.binaryEvidenceRequired &&
+        !evidenceReady &&
+        result.reason
+      ) {
+        const preservation = await queueModerationEvidencePreservation({
+          reportId,
+          mediaType: 'VIDEO',
+          ownerUid: result.ownerUid,
+          mediaId: result.videoId,
+          reason: result.reason,
+          sourceStoragePath: result.publishedStoragePath,
+        });
+        evidenceReady = preservation.preserved;
+        evidencePreservationPending = !preservation.preserved;
+      }
+
+      if (evidenceReady) {
+        try {
+          const deletion = await deleteProfileVideoResources(
+            result.ownerUid,
+            result.videoId,
+            { allowQuarantined: true }
+          );
+          cleanupPending = deletion.cleanupPending;
+        } catch (error) {
+          cleanupPending = true;
+          logger.error('[reviewVideoContentReport] Exclusão total pendente.', {
+            ownerUid: result.ownerUid,
+            videoId: result.videoId,
+            error: error instanceof Error
+              ? error.message.slice(0, 500)
+              : String(error ?? '').slice(0, 500),
+          });
+        }
+      } else {
+        cleanupPending = true;
+      }
     }
 
     return {
       reportId,
       decision,
       targetType: result.targetType,
+      contentAvailableAtReview: result.contentAvailableAtReview,
       cleanupPending,
+      evidencePreservationPending,
+      evidenceReleasePending,
     };
   }
 );

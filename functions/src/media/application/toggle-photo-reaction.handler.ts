@@ -23,6 +23,19 @@ import {
 } from '../../account_lifecycle/interaction-access.policy';
 import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  assertNoActiveBilateralBlockInTransaction,
+} from '../../friendship/application/bilateral-block-access.policy';
+import {
+  REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+  assertPublicMediaCallableAppCheck,
+} from './public-media-callable-security';
+import {
+  assertPublicMediaConsumptionAccess,
+} from './public-media-consumption-access.policy';
+import {
+  consumePublicPhotoSocialInteractionQuota,
+} from './public-photo-social-interaction-rate-limit.service';
 
 interface TogglePhotoReactionRequest {
   ownerUid?: string;
@@ -131,8 +144,13 @@ function buildNextScore(
 }
 
 export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_PUBLIC_MEDIA_APP_CHECK,
+  },
   async (request) => {
+    assertPublicMediaCallableAppCheck(request.app);
+
     const viewerUid = request.auth?.uid ?? null;
 
     if (!viewerUid) {
@@ -159,6 +177,9 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
       );
     }
 
+    await consumePublicPhotoSocialInteractionQuota('reaction', viewerUid);
+    await assertPublicMediaConsumptionAccess(viewerUid);
+
     const photoRef = db.doc(
       `public_profiles/${ownerUid}/public_photos/${photoId}`
     );
@@ -167,6 +188,12 @@ export const togglePhotoReaction = onCall<TogglePhotoReactionRequest>(
 
     return db.runTransaction(async (transaction) => {
       await assertInteractionAccessInTransaction(transaction, viewerUid);
+      await assertNoActiveBilateralBlockInTransaction(
+        transaction,
+        viewerUid,
+        ownerUid,
+        'Foto pública não encontrada.'
+      );
 
       const photoSnap = await transaction.get(photoRef);
 

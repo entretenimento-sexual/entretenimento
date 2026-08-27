@@ -1,0 +1,115 @@
+@if (canModerate()) {
+  @if (moderationState$ | async; as moderationState) {
+    <section class="topic-moderation" aria-label="Moderação da discussão">
+      <div class="topic-moderation__header">
+        <div>
+          <strong>Moderação</strong>
+          <span>Gerencie a discussão sem alterar o conteúdo original.</span>
+        </div>
+
+        <div class="topic-moderation__actions">
+          <button
+            type="button"
+            class="topic-moderation__button"
+            [disabled]="moderationState.status === 'loading'"
+            (click)="submitStatusAction()"
+          >
+            @if (moderationState.status === 'loading') {
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            } @else if (status() === 'locked') {
+              <i class="fas fa-lock-open" aria-hidden="true"></i>
+            } @else {
+              <i class="fas fa-lock" aria-hidden="true"></i>
+            }
+            <span>{{ status() === 'locked' ? 'Reabrir' : 'Encerrar' }}</span>
+          </button>
+
+          <button
+            type="button"
+            class="topic-moderation__button is-danger"
+            [disabled]="moderationState.status === 'loading'"
+            [attr.aria-expanded]="removeConfirmationOpen()"
+            aria-controls="topic-removal-confirmation"
+            (click)="openRemoveConfirmation()"
+          >
+            <i class="fas fa-trash-can" aria-hidden="true"></i>
+            <span>Remover</span>
+          </button>
+        </div>
+      </div>
+
+      @if (removeConfirmationOpen()) {
+        <form
+          id="topic-removal-confirmation"
+          class="topic-moderation__removal"
+          [formGroup]="removeForm"
+          (ngSubmit)="submitRemoval()"
+          novalidate
+        >
+          <div class="topic-moderation__removal-copy">
+            <strong>Remover esta discussão?</strong>
+            <span>
+              Ela deixará de aparecer para os participantes. Informe o motivo para a trilha de auditoria.
+            </span>
+          </div>
+
+          <div class="topic-moderation__field">
+            <label for="community-topic-removal-reason">Motivo da remoção</label>
+            <textarea
+              id="community-topic-removal-reason"
+              rows="3"
+              minlength="3"
+              maxlength="240"
+              formControlName="reason"
+              [attr.aria-invalid]="removalReasonInvalid() ? 'true' : null"
+              aria-describedby="community-topic-removal-help"
+            ></textarea>
+            <div id="community-topic-removal-help" class="topic-moderation__help">
+              @if (removalReasonInvalid()) {
+                <span class="is-error" role="alert">
+                  Informe um motivo entre 3 e 240 caracteres.
+                </span>
+              } @else {
+                <span>O motivo será registrado para fins de moderação.</span>
+              }
+            </div>
+          </div>
+
+          <div class="topic-moderation__removal-actions">
+            <button
+              type="button"
+              class="topic-moderation__button"
+              [disabled]="moderationState.status === 'loading'"
+              (click)="cancelRemove()"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              class="topic-moderation__button is-danger is-filled"
+              [disabled]="removeForm.invalid || moderationState.status === 'loading'"
+            >
+              @if (moderationState.status === 'loading') {
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                <span>Removendo...</span>
+              } @else {
+                <i class="fas fa-trash-can" aria-hidden="true"></i>
+                <span>Confirmar remoção</span>
+              }
+            </button>
+          </div>
+
+          @if (moderationState.status === 'error') {
+            <p class="topic-moderation__retry" role="status">
+              A ação não foi concluída. O motivo foi preservado para uma nova tentativa segura.
+            </p>
+          }
+        </form>
+      } @else if (moderationState.status === 'error') {
+        <p class="topic-moderation__retry" role="status">
+          A ação não foi concluída. Tente novamente para reutilizar a mesma solicitação segura.
+        </p>
+      }
+    </section>
+  }
+}

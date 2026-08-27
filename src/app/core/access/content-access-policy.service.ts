@@ -4,10 +4,14 @@
 // -----------------------------------------------------------------------------
 // Avaliação reativa e determinística de acesso. O resultado orienta a UI, mas a
 // autorização definitiva de dados e pagamentos continua no backend e nas Rules.
+//
+// A API pura `evaluateContentAccessPolicy` é preservada para chamadas/testes
+// determinísticos. No runtime Angular, capacidades pagas são projetadas somente
+// a partir de PlatformSubscriptionAccessService antes da avaliação.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { combineLatest, Observable } from 'rxjs';
 import { distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
 
 import {
@@ -15,6 +19,8 @@ import {
   UserTierRole,
 } from '../interfaces/iuser-dados';
 import { CurrentUserStoreService } from '../services/autentication/auth/current-user-store.service';
+import { PlatformSubscriptionAccessService } from '../services/subscriptions/platform-subscription-access.service';
+import type { PlatformSubscriptionAccessState } from '../services/subscriptions/platform-subscription-access.model';
 import {
   ContentAccessDecision,
   ContentAccessDenialReason,
@@ -272,10 +278,19 @@ export function areContentAccessDecisionsEqual(
 @Injectable({ providedIn: 'root' })
 export class ContentAccessPolicyService {
   private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
 
   evaluate$(policy: ContentAccessPolicy): Observable<ContentAccessDecision> {
-    return this.currentUserStore.user$.pipe(
-      map((user) => evaluateContentAccessPolicy(user ?? null, policy)),
+    return combineLatest([
+      this.currentUserStore.user$,
+      this.subscriptionAccess.state$,
+    ]).pipe(
+      map(([user, subscriptionState]) =>
+        evaluateContentAccessPolicy(
+          this.withCanonicalSubscription(user ?? null, subscriptionState),
+          policy
+        )
+      ),
       distinctUntilChanged(areContentAccessDecisionsEqual),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -286,5 +301,45 @@ export class ContentAccessPolicyService {
       map((decision) => decision.allowed),
       distinctUntilChanged()
     );
+  }
+
+  /**
+   * Projeção efêmera somente para a policy pura.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - `role`, `tier`, `isSubscriber`, `monthlyPayer` e datas de assinatura do
+   *   CurrentUserStore não são mais usados como fonte independente no runtime.
+   *
+   * Nenhuma escrita é feita em Firestore/NgRx; o objeto existe apenas durante a
+   * avaliação para manter a API pura e os consumidores legados compatíveis.
+   */
+  private withCanonicalSubscription(
+    user: IUserDados | null,
+    state: PlatformSubscriptionAccessState
+  ): IUserDados | null {
+    if (!user) return null;
+
+    if (user.role === 'admin') {
+      return {
+        ...user,
+        role: 'admin',
+        tier: 'admin',
+      };
+    }
+
+    const role = state.active && state.role ? state.role : 'free';
+
+    return {
+      ...user,
+      role,
+      tier: role,
+      isSubscriber: state.active,
+      monthlyPayer: state.active,
+      subscriptionStatus: state.active ? 'active' : 'inactive',
+      subscriptionScope: state.active ? 'platform_subscription' : null,
+      subscriptionStartedAt: state.startsAt,
+      subscriptionEndsAt: state.endsAt,
+      subscriptionExpires: state.endsAt,
+    };
   }
 }

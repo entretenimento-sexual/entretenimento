@@ -154,7 +154,7 @@
             getError('apelidoPrincipal')
             && (submitted() || nicknameFeedbackArmed())
             && !nicknameChecking()
-          " id="apelidoTooltip" class="tooltip-error">
+          " id="apelidoTooltip" class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
           {{ getError('apelidoPrincipal') }}
         </div>
       </div>
@@ -177,7 +177,7 @@
           }" />
 
         <div *ngIf="getError('complementoApelido') && (submitted() || form.get('complementoApelido')?.touched)"
-          id="complementoTooltip" class="tooltip-error">
+          id="complementoTooltip" class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
           {{ getError('complementoApelido') }}
         </div>
       </div>
@@ -199,7 +199,7 @@
           }" />
 
         <div *ngIf="getError('email') && (submitted() || form.get('email')?.touched)" id="emailTooltip"
-          class="tooltip-error">
+          class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
           {{ getError('email') }}
         </div>
       </div>
@@ -246,7 +246,7 @@
         </small>
 
         <div *ngIf="getError('password') && (submitted() || form.get('password')?.touched)" id="passwordTooltip"
-          class="tooltip-error">
+          class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
           {{ getError('password') }}
         </div>
       </div>
@@ -295,7 +295,7 @@
         </div>
 
         <div *ngIf="getError('confirmPassword') && (submitted() || form.get('confirmPassword')?.touched)"
-          id="confirmPasswordTooltip" class="tooltip-error" aria-live="polite">
+          id="confirmPasswordTooltip" class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
           {{ getError('confirmPassword') }}
         </div>
       </div>
@@ -318,7 +318,7 @@
         </label>
 
         <div *ngIf="getError('aceitarTermos') && (submitted() || form.get('aceitarTermos')?.touched)" id="termosTooltip"
-          class="tooltip-error">
+          class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
           {{ getError('aceitarTermos') }}
         </div>
       </div>

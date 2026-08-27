@@ -32,6 +32,8 @@ const FIRESTORE_PORT = 18080;
 const FUNCTIONS_PORT = 15001;
 const WAIT_TIMEOUT_MS = 20_000;
 const WAIT_INTERVAL_MS = 150;
+const CURRENT_TERMS_VERSION = 'v3';
+const CURRENT_ADULT_CONSENT_VERSION = 'v1';
 
 process.env.GCLOUD_PROJECT = PROJECT_ID;
 process.env.GCP_PROJECT = PROJECT_ID;
@@ -115,12 +117,13 @@ function registeredUser(uid, nickname) {
     registrationCompletedAt: Date.now(),
     acceptedTerms: {
       accepted: true,
-      version: 'v1',
+      version: CURRENT_TERMS_VERSION,
+      acknowledgedPrivacyNotice: true,
       acceptedAt: Date.now(),
     },
     adultConsent: {
       accepted: true,
-      version: 'v1',
+      version: CURRENT_ADULT_CONSENT_VERSION,
       acceptedAt: Date.now(),
     },
     createdAt: Date.now(),
@@ -181,7 +184,7 @@ async function run() {
     const targetUid = targetCredential.user.uid;
     const reporterUid = reporterCredential.user.uid;
     const moderatorUid = moderatorCredential.user.uid;
-    const nickname = `age-media-${runId}`;
+    const nickname = `age-media-${runId.slice(0, 24)}`;
     const videoId = `video-${runId}`;
     const photoId = `photo-${runId}`;
     const targetUserRef = db.doc(`users/${targetUid}`);
@@ -215,11 +218,11 @@ async function run() {
         { merge: true }
       ),
       db.doc(`users/${reporterUid}`).set(
-        registeredUser(reporterUid, `reporter-${runId}`),
+        registeredUser(reporterUid, `reporter-${runId.slice(0, 20)}`),
         { merge: true }
       ),
       db.doc(`users/${moderatorUid}`).set(
-        registeredUser(moderatorUid, `admin-${runId}`),
+        registeredUser(moderatorUid, `admin-${runId.slice(0, 20)}`),
         { merge: true }
       ),
       publicProfileRef.set({
@@ -269,6 +272,8 @@ async function run() {
         ownerUid: targetUid,
         isPublished: true,
         visibility: 'PUBLIC',
+        moderationStatus: 'APPROVED',
+        moderationReason: null,
         publishedStoragePath: `public/videos/${targetUid}/${videoId}/video.mp4`,
       }),
       photoPublicationRef.set({
@@ -366,7 +371,7 @@ async function run() {
     });
 
     const hiddenMedia = await waitFor(
-      'mídia pública e publicações ficarem privadas',
+      'mídia ficar indisponível durante a reverificação',
       async () => ({
         video: await readData(publicVideoRef),
         photo: await readData(publicPhotoRef),
@@ -375,11 +380,13 @@ async function run() {
         profile: await readData(publicProfileRef),
       }),
       (state) =>
-        state.video?.visibility === 'PRIVATE' &&
+        state.video?.visibility === 'PUBLIC' &&
+        state.video?.moderationStatus === 'HIDDEN' &&
         state.video?.ageReverificationHidden === true &&
         state.photo?.visibility === 'PRIVATE' &&
         state.photo?.ageReverificationHidden === true &&
-        state.videoPublication?.visibility === 'PRIVATE' &&
+        state.videoPublication?.visibility === 'PUBLIC' &&
+        state.videoPublication?.moderationStatus === 'FLAGGED' &&
         state.videoPublication?.ageReverificationHidden === true &&
         state.photoPublication?.visibility === 'PRIVATE' &&
         state.photoPublication?.ageReverificationHidden === true &&
@@ -400,6 +407,14 @@ async function run() {
     assert.equal(
       hiddenMedia.video.ageReverificationPreviousVisibility,
       'PUBLIC'
+    );
+    assert.equal(
+      hiddenMedia.video.ageReverificationPreviousModerationStatus,
+      'APPROVED'
+    );
+    assert.equal(
+      hiddenMedia.videoPublication.ageReverificationPreviousModerationStatus,
+      'APPROVED'
     );
     assert.equal(
       hiddenMedia.photo.ageReverificationPreviousVisibility,
@@ -446,10 +461,12 @@ async function run() {
       }),
       (state) =>
         state.video?.visibility === 'PUBLIC' &&
+        state.video?.moderationStatus === 'APPROVED' &&
         state.video?.ageReverificationHidden !== true &&
         state.photo?.visibility === 'PUBLIC' &&
         state.photo?.ageReverificationHidden !== true &&
         state.videoPublication?.visibility === 'PUBLIC' &&
+        state.videoPublication?.moderationStatus === 'APPROVED' &&
         state.videoPublication?.ageReverificationHidden !== true &&
         state.photoPublication?.visibility === 'PUBLIC' &&
         state.photoPublication?.ageReverificationHidden !== true &&
@@ -464,11 +481,12 @@ async function run() {
     assert.equal(restoredState.profile.coverVideoId, 'cover-before-review');
     assert.equal(restoredState.nicknameIndex.createdAt, 123456);
 
-    console.log('✔ projeções e publicações foram ocultadas na mesma decisão');
+    console.log('✔ vídeos foram colocados em quarentena sem estado privado');
+    console.log('✔ fotos permaneceram ocultas pela política existente');
     console.log('✔ chamadas manuais de publicação e interação foram bloqueadas');
     console.log('✔ Callables de URL recusaram mídia durante a revalidação');
     console.log('✔ perfil enriquecido, índice e visibilidade foram restaurados');
-    console.log('✔ backups privados foram removidos ao encerrar o caso');
+    console.log('✔ backups de compliance foram removidos ao encerrar o caso');
   } finally {
     await Promise.allSettled(
       authenticatedUsers.map((user) => deleteUser(user).catch(() => undefined))

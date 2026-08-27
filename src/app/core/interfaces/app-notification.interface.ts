@@ -7,6 +7,8 @@ export type AppNotificationType =
   | 'compliance.violation.response_received'
   | 'compliance.violation.resolved'
   | 'compliance.action.taken'
+  | 'community.comment.received'
+  | 'community.content.moderated'
   | 'system'
   | 'social'
   | 'chat'
@@ -24,6 +26,11 @@ export interface IAppNotification {
   actionRequired?: boolean | null;
   responseDueAt?: number | null;
   policySection?: string | null;
+  communityId?: string | null;
+  postId?: string | null;
+  commentId?: string | null;
+  activityCount?: number | null;
+  moderationTarget?: 'comment' | 'post' | null;
   readAt: number | null;
   createdAt: number | null;
   updatedAt: number | null;

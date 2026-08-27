@@ -6,9 +6,9 @@ import {
   inject,
   input,
   output,
-  signal,
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
+import { MatDialog } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import {
   catchError,
@@ -23,12 +23,17 @@ import {
   startWith,
   Subject,
   switchMap,
+  take,
   tap,
 } from 'rxjs';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ActionStateDirective } from 'src/app/shared/action-state/action-state.directive';
+import {
+  ConfirmationDialogComponent,
+  ConfirmationDialogData,
+} from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 import {
   CommunityOwnershipCandidate,
   CommunityOwnershipCandidateRole,
@@ -48,10 +53,6 @@ type OwnershipActionState =
       targetUid: string | null;
     };
 
-type OwnershipConfirmation =
-  | { kind: 'transfer'; candidate: CommunityOwnershipCandidate }
-  | { kind: 'archive'; candidate: null };
-
 interface OwnershipCommand {
   kind: 'transfer' | 'archive';
   candidate: CommunityOwnershipCandidate | null;
@@ -67,6 +68,7 @@ interface OwnershipCommand {
 })
 export class CommunityOwnershipManagementComponent {
   private readonly repository = inject(CommunityOwnershipRepository);
+  private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
@@ -76,7 +78,6 @@ export class CommunityOwnershipManagementComponent {
   readonly communityId = input.required<string>();
   readonly ownershipChanged = output<void>();
   readonly communityArchived = output<void>();
-  readonly confirmation = signal<OwnershipConfirmation | null>(null);
 
   private readonly communityId$ = toObservable(this.communityId).pipe(
     map((communityId) => communityId.trim()),
@@ -126,8 +127,6 @@ export class CommunityOwnershipManagementComponent {
 
       return operation$.pipe(
         tap(() => {
-          this.confirmation.set(null);
-
           if (command.kind === 'transfer' && command.candidate) {
             this.errorNotifier.showSuccess(
               `A propriedade foi transferida para ${command.candidate.label}.`
@@ -184,25 +183,43 @@ export class CommunityOwnershipManagementComponent {
   }
 
   requestTransfer(candidate: CommunityOwnershipCandidate): void {
-    this.confirmation.set({ kind: 'transfer', candidate });
+    const data: ConfirmationDialogData = {
+      eyebrow: 'Ação de proprietário',
+      title: `Transferir propriedade para ${candidate.label}?`,
+      message: 'Você deixará de ser o proprietário desta Comunidade.',
+      detail:
+        `${candidate.label} passará a controlar a Comunidade e você continuará `
+        + 'como Membro. A capacidade passará a seguir o plano do novo '
+        + 'proprietário; se o teto diminuir, ninguém será removido, mas novas '
+        + 'entradas poderão ser pausadas. Esta ação exige autenticação recente.',
+      confirmLabel: 'Transferir propriedade',
+      cancelLabel: 'Cancelar',
+      icon: 'swap_horiz',
+      tone: 'warning',
+    };
+
+    this.openConfirmation(data, {
+      kind: 'transfer',
+      candidate,
+    });
   }
 
   requestArchive(): void {
-    this.confirmation.set({ kind: 'archive', candidate: null });
-  }
+    const data: ConfirmationDialogData = {
+      eyebrow: 'Zona de risco',
+      title: 'Arquivar esta Comunidade?',
+      message:
+        'A Comunidade sairá da descoberta e novas interações serão bloqueadas.',
+      detail:
+        'O histórico e a auditoria serão preservados. A restauração não está '
+        + 'disponível pela plataforma neste momento.',
+      confirmLabel: 'Arquivar Comunidade',
+      cancelLabel: 'Cancelar',
+      icon: 'archive',
+      tone: 'danger',
+    };
 
-  cancelConfirmation(): void {
-    this.confirmation.set(null);
-  }
-
-  confirmAction(): void {
-    const confirmation = this.confirmation();
-    if (!confirmation) return;
-
-    this.commands$.next({
-      kind: confirmation.kind,
-      candidate: confirmation.candidate,
-    });
+    this.openConfirmation(data, { kind: 'archive', candidate: null });
   }
 
   roleLabel(role: CommunityOwnershipCandidateRole): string {
@@ -211,30 +228,29 @@ export class CommunityOwnershipManagementComponent {
     return 'Membro';
   }
 
-  confirmationTitle(confirmation: OwnershipConfirmation): string {
-    return confirmation.kind === 'transfer'
-      ? 'Confirmar transferência'
-      : 'Confirmar arquivamento';
-  }
+  private openConfirmation(
+    data: ConfirmationDialogData,
+    command: OwnershipCommand
+  ): void {
+    const ref = this.dialog.open<
+      ConfirmationDialogComponent,
+      ConfirmationDialogData,
+      boolean
+    >(ConfirmationDialogComponent, {
+      panelClass: 'confirmation-dialog-panel',
+      width: 'min(94vw, 480px)',
+      maxWidth: '94vw',
+      autoFocus: false,
+      restoreFocus: true,
+      data,
+    });
 
-  confirmationDescription(confirmation: OwnershipConfirmation): string {
-    if (confirmation.kind === 'transfer' && confirmation.candidate) {
-      return `Você deixará de ser o proprietário. ${confirmation.candidate.label} passará a controlar a Comunidade.`;
-    }
-
-    return 'A Comunidade sairá da descoberta, ficará sem interação e será preservada apenas para histórico e auditoria.';
-  }
-
-  confirmationActionLabel(confirmation: OwnershipConfirmation): string {
-    return confirmation.kind === 'transfer'
-      ? 'Transferir propriedade'
-      : 'Arquivar Comunidade';
-  }
-
-  confirmationBusyLabel(confirmation: OwnershipConfirmation): string {
-    return confirmation.kind === 'transfer'
-      ? 'Transferindo propriedade...'
-      : 'Arquivando Comunidade...';
+    ref.afterClosed()
+      .pipe(take(1))
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.commands$.next(command);
+      });
   }
 
   private reportError(error: unknown, fallback: string, op: string): void {
@@ -283,9 +299,9 @@ export class CommunityOwnershipManagementComponent {
     }
 
     if (
-      typeof source.message === 'string' &&
-      source.message.trim() &&
-      !source.message.toLowerCase().includes('internal')
+      typeof source.message === 'string'
+      && source.message.trim()
+      && !source.message.toLowerCase().includes('internal')
     ) {
       return source.message;
     }

@@ -9,16 +9,50 @@ import {
   inject,
 } from '@angular/core';
 
+import { VideoViewTrackingService } from 'src/app/core/services/media/video-view-tracking.service';
+
 export const PUBLIC_VIDEO_VIEW_MIN_PLAYBACK_MS = 3_000;
 export const PUBLIC_VIDEO_VIEW_MAX_PLAYBACK_MS = 10_000;
 export const PUBLIC_VIDEO_VIEW_PLAYBACK_RATIO = 0.25;
 export const PUBLIC_VIDEO_VIEW_SHORT_VIDEO_RATIO = 0.8;
+export const PUBLIC_VIDEO_RETENTION_MILESTONES_BASIS_POINTS = [
+  5_000,
+  7_500,
+  9_000,
+  10_000,
+] as const;
 
 export interface PublicVideoQualifiedViewDetail {
   sessionId: string;
   playbackMs: number;
   durationMs: number;
   qualifiedAt: number;
+}
+
+export interface PublicVideoViewIdentity {
+  ownerUid: string;
+  videoId: string;
+}
+
+export function parsePublicVideoViewIdentity(
+  identity: string
+): PublicVideoViewIdentity | null {
+  const normalizedIdentity = String(identity ?? '').trim();
+  const separatorIndex = normalizedIdentity.lastIndexOf(':');
+
+  if (
+    separatorIndex <= 0 ||
+    separatorIndex >= normalizedIdentity.length - 1
+  ) {
+    return null;
+  }
+
+  const ownerUid = normalizedIdentity.slice(0, separatorIndex).trim();
+  const videoId = normalizedIdentity.slice(separatorIndex + 1).trim();
+
+  return ownerUid && videoId
+    ? { ownerUid, videoId }
+    : null;
 }
 
 export function calculatePublicVideoQualifiedPlaybackMs(
@@ -48,6 +82,38 @@ export function calculatePublicVideoQualifiedPlaybackMs(
   );
 }
 
+export function resolvePublicVideoRetentionMilestoneBasisPoints(
+  playbackMs: number,
+  durationMs: number,
+  lastMilestoneBasisPoints: number
+): number | null {
+  const safePlaybackMs = Number(playbackMs);
+  const safeDurationMs = Number(durationMs);
+  const safeLastMilestone = Number.isFinite(lastMilestoneBasisPoints)
+    ? Math.max(0, Math.floor(lastMilestoneBasisPoints))
+    : 0;
+
+  if (
+    !Number.isFinite(safePlaybackMs) ||
+    safePlaybackMs <= 0 ||
+    !Number.isFinite(safeDurationMs) ||
+    safeDurationMs <= 0
+  ) {
+    return null;
+  }
+
+  const basisPoints = Math.min(
+    10_000,
+    Math.floor((safePlaybackMs / safeDurationMs) * 10_000)
+  );
+
+  return [...PUBLIC_VIDEO_RETENTION_MILESTONES_BASIS_POINTS]
+    .reverse()
+    .find((milestone) =>
+      basisPoints >= milestone && milestone > safeLastMilestone
+    ) ?? null;
+}
+
 @Directive({
   selector: 'video.public-video-viewer__video',
   standalone: true,
@@ -58,6 +124,7 @@ export class PublicVideoViewQualificationDirective
   private readonly document = inject(DOCUMENT);
   private readonly ngZone = inject(NgZone);
   private readonly platformId = inject(PLATFORM_ID);
+  private readonly videoViewTracking = inject(VideoViewTrackingService);
 
   private readonly cleanupListeners: Array<() => void> = [];
   private identity = '';
@@ -67,6 +134,8 @@ export class PublicVideoViewQualificationDirective
   private activeStartedAt: number | null = null;
   private lastMediaTimeMs = 0;
   private emitted = false;
+  private lastRetentionMilestoneBasisPoints = 0;
+  private serverSessionPrepared = false;
 
   ngAfterViewInit(): void {
     if (!isPlatformBrowser(this.platformId)) {
@@ -113,6 +182,8 @@ export class PublicVideoViewQualificationDirective
     this.activeWallMs = 0;
     this.lastMediaTimeMs = this.currentMediaTimeMs();
     this.emitted = false;
+    this.lastRetentionMilestoneBasisPoints = 0;
+    this.serverSessionPrepared = false;
 
     const video = this.elementRef.nativeElement;
     if (!video.paused && !video.seeking) {
@@ -127,6 +198,10 @@ export class PublicVideoViewQualificationDirective
   private onTimeUpdate(): void {
     this.captureMediaProgress();
     this.evaluateQualification();
+
+    if (this.emitted) {
+      this.evaluateRetentionProgress();
+    }
   }
 
   private onSeeked(): void {
@@ -142,6 +217,10 @@ export class PublicVideoViewQualificationDirective
     this.captureMediaProgress();
     this.stopActivePlayback(false);
     this.evaluateQualification();
+
+    if (this.emitted) {
+      this.evaluateRetentionProgress();
+    }
   }
 
   private onVisibilityChange(): void {
@@ -159,15 +238,32 @@ export class PublicVideoViewQualificationDirective
   private startActivePlayback(): void {
     if (
       !this.identity ||
-      this.emitted ||
       this.document.visibilityState === 'hidden' ||
       this.activeStartedAt !== null
     ) {
       return;
     }
 
+    this.prepareServerPlaybackSession();
     this.lastMediaTimeMs = this.currentMediaTimeMs();
     this.activeStartedAt = this.now();
+  }
+
+  private prepareServerPlaybackSession(): void {
+    if (this.serverSessionPrepared) {
+      return;
+    }
+
+    const identity = parsePublicVideoViewIdentity(this.identity);
+
+    if (!identity) {
+      return;
+    }
+
+    this.serverSessionPrepared = true;
+    this.videoViewTracking
+      .prepareVideoViewSession$(identity.ownerUid, identity.videoId)
+      .subscribe();
   }
 
   private stopActivePlayback(captureMediaProgress: boolean): void {
@@ -184,7 +280,7 @@ export class PublicVideoViewQualificationDirective
   }
 
   private captureMediaProgress(): void {
-    if (this.activeStartedAt === null || this.emitted) {
+    if (this.activeStartedAt === null) {
       return;
     }
 
@@ -203,9 +299,63 @@ export class PublicVideoViewQualificationDirective
       return;
     }
 
-    const durationMs = this.currentDurationMs();
-    if (durationMs <= 0) {
+    const progress = this.currentQualifiedProgress();
+
+    if (!progress) {
       return;
+    }
+
+    const requiredPlaybackMs =
+      calculatePublicVideoQualifiedPlaybackMs(progress.durationMs);
+
+    if (progress.playbackMs < requiredPlaybackMs) {
+      return;
+    }
+
+    this.emitted = true;
+    this.dispatchQualifiedView(progress);
+  }
+
+  private evaluateRetentionProgress(): void {
+    if (!this.emitted || !this.identity || !this.sessionId) {
+      return;
+    }
+
+    const progress = this.currentQualifiedProgress();
+
+    if (!progress) {
+      return;
+    }
+
+    const crossedMilestone = resolvePublicVideoRetentionMilestoneBasisPoints(
+      progress.playbackMs,
+      progress.durationMs,
+      this.lastRetentionMilestoneBasisPoints
+    );
+
+    if (!crossedMilestone) {
+      return;
+    }
+
+    const identity = parsePublicVideoViewIdentity(this.identity);
+
+    if (!identity) {
+      return;
+    }
+
+    this.lastRetentionMilestoneBasisPoints = crossedMilestone;
+    this.videoViewTracking.recordVideoRetention$(
+      identity.ownerUid,
+      identity.videoId,
+      progress
+    ).subscribe();
+  }
+
+  private currentQualifiedProgress(): PublicVideoQualifiedViewDetail | null {
+    const durationMs = this.currentDurationMs();
+
+    if (durationMs <= 0) {
+      return null;
     }
 
     const activeWallMs = this.activeWallMs + (
@@ -213,24 +363,19 @@ export class PublicVideoViewQualificationDirective
         ? 0
         : Math.max(0, this.now() - this.activeStartedAt)
     );
-    const qualifiedPlaybackMs = Math.floor(
+    const playbackMs = Math.floor(
       Math.min(this.mediaPlaybackMs, activeWallMs)
     );
-    const requiredPlaybackMs =
-      calculatePublicVideoQualifiedPlaybackMs(durationMs);
 
-    if (qualifiedPlaybackMs < requiredPlaybackMs) {
-      return;
-    }
-
-    this.emitted = true;
-    const detail: PublicVideoQualifiedViewDetail = {
+    return {
       sessionId: this.sessionId,
-      playbackMs: qualifiedPlaybackMs,
+      playbackMs,
       durationMs,
       qualifiedAt: Date.now(),
     };
+  }
 
+  private dispatchQualifiedView(detail: PublicVideoQualifiedViewDetail): void {
     this.elementRef.nativeElement.dispatchEvent(
       new CustomEvent<PublicVideoQualifiedViewDetail>(
         'publicVideoQualifiedView',

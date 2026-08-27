@@ -20,7 +20,6 @@ interface HarnessOptions {
   copyResult?: string;
   copyError?: Error;
   now?: number;
-  moderationStatus?: 'PENDING_REVIEW' | 'APPROVED';
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -47,10 +46,11 @@ function createHarness(options: HarnessOptions = {}) {
       isPublished: true,
       sourceStoragePath: OLD_PRIVATE_PATH,
       publishedStoragePath: OLD_PUBLIC_PATH,
+      moderationStatus: 'APPROVED',
     };
 
   const dependencies: PhotoSyncDependencies = {
-    moderationStatus: options.moderationStatus ?? 'APPROVED',
+    moderationStatus: 'APPROVED',
     now: () => options.now ?? 123456,
     loadPublication: async () => publication,
     copyPublishedAsset: async (command) => {
@@ -136,6 +136,7 @@ describe('synchronizePublishedPhotoUpdate', () => {
     assert.deepEqual(harness.commitCalls[0].publicPhotoPatch, {
       alt: 'Foto do perfil',
       updatedAt: 123456,
+      assetVersion: 123456,
       moderationStatus: 'APPROVED',
       moderationReason: null,
     });
@@ -202,6 +203,8 @@ describe('synchronizePublishedPhotoUpdate', () => {
         isPublished: true,
         sourceStoragePath: NEW_PRIVATE_PATH,
         publishedStoragePath: NEW_PUBLIC_PATH,
+        assetVersion: 123456,
+        moderationStatus: 'APPROVED',
       },
     });
 
@@ -228,6 +231,39 @@ describe('synchronizePublishedPhotoUpdate', () => {
       copiedAsset: false,
       moderationStatus: 'APPROVED',
     });
+    assert.equal(harness.copyCalls.length, 0);
+    assert.equal(harness.commitCalls.length, 0);
+    assert.equal(harness.deleteCalls.length, 0);
+    assert.equal(harness.metricCalls.length, 0);
+  });
+
+  it('não substitui mídia publicada enquanto a foto está em quarentena', async () => {
+    const harness = createHarness({
+      publication: {
+        isPublished: true,
+        sourceStoragePath: OLD_PRIVATE_PATH,
+        publishedStoragePath: OLD_PUBLIC_PATH,
+        moderationStatus: 'FLAGGED',
+      },
+    });
+
+    const result = await synchronizePublishedPhotoUpdate(
+      {
+        ownerUid: OWNER_UID,
+        photoId: PHOTO_ID,
+        before: {
+          path: OLD_PRIVATE_PATH,
+          fileName: 'foto.jpg',
+        },
+        after: {
+          path: NEW_PRIVATE_PATH,
+          fileName: 'foto-editada.jpg',
+        },
+      },
+      harness.dependencies
+    );
+
+    assert.deepEqual(result, { status: 'ignored-quarantined' });
     assert.equal(harness.copyCalls.length, 0);
     assert.equal(harness.commitCalls.length, 0);
     assert.equal(harness.deleteCalls.length, 0);

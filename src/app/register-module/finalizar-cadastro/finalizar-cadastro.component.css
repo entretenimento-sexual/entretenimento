@@ -22,9 +22,7 @@
 ---------------------------------------------------------------------------- */
 .auth-container {
   min-height: 100svh;
-  /* fallback mobile mais estável */
   min-height: 100dvh;
-  /* browsers modernos */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -38,7 +36,6 @@
 
 /* ----------------------------------------------------------------------------
    2) Card do formulário (superfície)
-   - Usa surface tokens para diferenciar do fundo em light/dark.
 ---------------------------------------------------------------------------- */
 .form-container {
   width: min(100%, 560px);
@@ -51,10 +48,8 @@
 
   padding: clamp(18px, 3vw, 28px);
   text-align: left;
-  /* leitura melhor; headings podem ser centralizados */
 }
 
-/* Tipografia do topo */
 .form-container h1 {
   margin: 0 0 var(--space-2, 12px);
   font-size: clamp(1.2rem, 1rem + 0.8vw, 1.65rem);
@@ -76,21 +71,24 @@
   text-align: center;
 }
 
-/* Separação visual leve entre blocos (opcional) */
 .form-container>form {
   margin-top: var(--space-3, 16px);
 }
 
 /* ----------------------------------------------------------------------------
    3) Form (grid com gap)
-   - Remove a dependência de margin-bottom nos inputs para não duplicar espaço.
 ---------------------------------------------------------------------------- */
 form {
   display: grid;
   gap: var(--space-2, 12px);
 }
 
-/* Labels com boa legibilidade e respiro */
+.form-field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
 label {
   display: block;
   font-weight: 600;
@@ -107,7 +105,6 @@ select,
 input[type="file"] {
   width: 100%;
   min-height: var(--tap-target, 44px);
-  /* alvo de toque */
   padding: 10px 12px;
 
   border: 1px solid color-mix(in oklab, var(--text-color) 18%, transparent);
@@ -118,14 +115,11 @@ input[type="file"] {
 
   background: var(--input-background);
   color: var(--text-color);
-
-  /* remove margens antigas para o gap do form controlar tudo */
   margin: 0;
 
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Foco: mantém seu padrão, mas deixa consistente com tokens */
 select:focus,
 .input-field:focus,
 input[type="file"]:focus {
@@ -134,7 +128,6 @@ input[type="file"]:focus {
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary-color) 30%, transparent);
 }
 
-/* Estados inválidos: aproveita ngModel/ngForm (ng-touched) */
 .input-field.ng-invalid.ng-touched,
 select.ng-invalid.ng-touched {
   border-color: var(--danger-color);
@@ -142,9 +135,7 @@ select.ng-invalid.ng-touched {
 }
 
 /* ----------------------------------------------------------------------------
-   5) Mensagens (corrige seu ngClass atual no <p class="alert">)
-   - Seu template aplica "alert" + "error-message" / "success-message"
-   - Então damos aparência de alerta de verdade aqui.
+   5) Mensagens
 ---------------------------------------------------------------------------- */
 .alert {
   border-radius: var(--radius-md, 8px);
@@ -154,7 +145,6 @@ select.ng-invalid.ng-touched {
   line-height: 1.25;
 }
 
-/* Quando o <p class="alert"> receber error-message/success-message via ngClass */
 .alert.error-message {
   background: var(--danger-color);
   color: #fff;
@@ -167,12 +157,10 @@ select.ng-invalid.ng-touched {
   border: 1px solid color-mix(in oklab, #fff 20%, transparent);
 }
 
-/* Upload message já usa .alert.alert-warning (global), mas garantimos espaçamento */
 .alert.alert-warning {
   margin-top: var(--space-2, 12px);
 }
 
-/* Erro de campo (abaixo do campo) */
 form .error-message {
   margin-top: -6px;
   margin-bottom: 6px;
@@ -181,7 +169,6 @@ form .error-message {
   font-weight: 600;
   color: var(--danger-color);
 
-  /* “pill” sutil sem poluir */
   background: color-mix(in oklab, var(--danger-color) 10%, transparent);
   border: 1px solid color-mix(in oklab, var(--danger-color) 20%, transparent);
   border-radius: 10px;
@@ -222,7 +209,6 @@ form .error-message {
   transform: translateY(0);
 }
 
-/* Disabled: sem “pular” visualmente */
 .btn-submit[disabled] {
   opacity: 0.7;
   cursor: not-allowed;
@@ -230,7 +216,7 @@ form .error-message {
 }
 
 /* ----------------------------------------------------------------------------
-   7) Progress bar (visual clean)
+   7) Progress bar
 ---------------------------------------------------------------------------- */
 .progress-custom {
   width: 100%;
@@ -257,76 +243,48 @@ form .error-message {
 }
 
 /* ----------------------------------------------------------------------------
-   Tooltip de erro (sobreposto) – não altera layout
-   - Usa sua classe global .tooltip-error, mas define posicionamento ideal aqui.
+   8) Erros de campo em fluxo normal
+   - Reservam espaço real no layout e não cobrem o campo seguinte no mobile.
 ---------------------------------------------------------------------------- */
-.form-field {
-  position: relative;
-  /* âncora do tooltip */
-}
-
-/* Indicador de obrigatório */
 .req {
   color: var(--danger-color);
   font-weight: 800;
   margin-left: 4px;
 }
 
-/* Hint discreto (texto auxiliar) */
 .field-hint {
-  margin: 6px 0 0;
+  margin: 0;
   font-size: 0.9rem;
-  line-height: 1.25;
+  line-height: 1.3;
   color: color-mix(in oklab, var(--text-color) 70%, transparent);
 }
 
-/* Tooltip: abaixo do campo, com seta, e wrap no mobile */
 .form-field .tooltip-error {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 6px);
-
-  z-index: 50;
-  white-space: normal;
-  /* quebra linha */
+  position: static;
+  display: block;
+  width: 100%;
   max-width: 100%;
+  margin: 0;
+  padding: 7px 9px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 
-  padding: 8px 10px;
-  border-radius: 10px;
-
-  /* mantém seu token global de tooltip */
-  background: var(--tooltip-background);
-  color: #fff;
-
-  border: 1px solid color-mix(in oklab, #fff 18%, transparent);
-  box-shadow: var(--box-shadow);
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--danger-color) 10%, var(--surface-color));
+  color: var(--danger-color);
+  border: 1px solid color-mix(in oklab, var(--danger-color) 24%, transparent);
+  box-shadow: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
-/* Setinha do tooltip */
 .form-field .tooltip-error::before {
-  content: "";
-  position: absolute;
-  top: -6px;
-  left: 14px;
-
-  width: 0;
-  height: 0;
-
-  border-left: 7px solid transparent;
-  border-right: 7px solid transparent;
-  border-bottom: 7px solid var(--tooltip-background);
-}
-
-/* Em telas pequenas, evita tooltip “tampando” demais o form */
-@media (max-width: 420px) {
-  .form-field .tooltip-error {
-    font-size: 0.9rem;
-  }
+  content: none;
 }
 
 /* ----------------------------------------------------------------------------
-   8) Ajustes de responsividade real (inclui 350px)
+   9) Ajustes de responsividade real (inclui 350px)
 ---------------------------------------------------------------------------- */
 @media (max-width: 520px) {
   .auth-container {
@@ -357,14 +315,14 @@ form .error-message {
     font-size: 0.95rem;
   }
 
-  form .error-message {
+  form .error-message,
+  .form-field .tooltip-error {
     font-size: 0.85rem;
-    padding: 6px 8px;
   }
 }
 
 /* ----------------------------------------------------------------------------
-   9) Preferência do usuário (movimento reduzido)
+   10) Preferência do usuário (movimento reduzido)
 ---------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
 

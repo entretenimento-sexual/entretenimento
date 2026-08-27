@@ -5,7 +5,7 @@ import {
   ParamMap,
   convertToParamMap,
 } from '@angular/router';
-import { BehaviorSubject, of } from 'rxjs';
+import { BehaviorSubject, Subject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
@@ -13,6 +13,10 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import {
+  IPublicProfileVideoCursor,
+  PublicProfileVideoPaginationService,
+} from 'src/app/core/services/media/public-profile-video-pagination.service';
 import { PublicVideoShareService } from 'src/app/core/services/media/public-video-share.service';
 import { PublicProfileVideosComponent } from './public-profile-videos.component';
 
@@ -63,9 +67,31 @@ const VIDEO: IPublicVideoItem = {
   accessExpiresAt: Date.now() + 60_000,
 };
 
+const VIDEO_2: IPublicVideoItem = {
+  ...VIDEO,
+  id: 'video-2',
+  title: 'Segundo vídeo',
+  url: 'https://example.test/video-2.mp4',
+  posterUrl: 'https://example.test/poster-2.webp',
+  orderIndex: 1,
+};
+
+const NEXT_CURSOR: IPublicProfileVideoCursor = {
+  orderIndex: 0,
+  publishedAt: 1,
+  documentId: VIDEO.id,
+};
+
 describe('PublicProfileVideosComponent', () => {
   let component: PublicProfileVideosComponent;
   let routeParamMapSubject: BehaviorSubject<ParamMap>;
+  let mediaPublicQuery: {
+    getProfilePublicVideos$: ReturnType<typeof vi.fn>;
+    getPublicVideoById$: ReturnType<typeof vi.fn>;
+  };
+  let videoPagination: {
+    loadPage$: ReturnType<typeof vi.fn>;
+  };
   let errorNotification: {
     showError: ReturnType<typeof vi.fn>;
     showWarning: ReturnType<typeof vi.fn>;
@@ -79,6 +105,31 @@ describe('PublicProfileVideosComponent', () => {
     routeParamMapSubject = new BehaviorSubject<ParamMap>(
       convertToParamMap({ id: VIDEO.ownerUid })
     );
+    mediaPublicQuery = {
+      getProfilePublicVideos$: vi.fn(() => of([VIDEO])),
+      getPublicVideoById$: vi.fn(
+        (_ownerUid: string, videoId: string) =>
+          of(videoId === VIDEO.id ? VIDEO : null)
+      ),
+    };
+    videoPagination = {
+      loadPage$: vi.fn(
+        (
+          _ownerUid: string,
+          options: { cursor?: IPublicProfileVideoCursor | null }
+        ) => options.cursor
+          ? of({
+            items: [VIDEO_2],
+            nextCursor: null,
+            hasMore: false,
+          })
+          : of({
+            items: [VIDEO],
+            nextCursor: NEXT_CURSOR,
+            hasMore: true,
+          })
+      ),
+    };
     errorNotification = {
       showError: vi.fn(),
       showWarning: vi.fn(),
@@ -106,9 +157,11 @@ describe('PublicProfileVideosComponent', () => {
         },
         {
           provide: MediaPublicQueryService,
-          useValue: {
-            getProfilePublicVideos$: vi.fn(() => of([VIDEO])),
-          },
+          useValue: mediaPublicQuery,
+        },
+        {
+          provide: PublicProfileVideoPaginationService,
+          useValue: videoPagination,
         },
         {
           provide: PublicVideoShareService,
@@ -167,16 +220,92 @@ describe('PublicProfileVideosComponent', () => {
       return 'copied';
     });
 
-    await component.shareVideo(VIDEO);
+    component.shareVideo(VIDEO);
 
     expect(publicVideoShare.sharePublicVideo).toHaveBeenCalledWith(VIDEO);
+    expect(component.isVideoSharing(VIDEO)).toBe(true);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
     expect(component.isVideoSharing(VIDEO)).toBe(false);
   });
 
-  it('abre automaticamente o vídeo solicitado pela rota canônica', async () => {
-    const openVideo = vi.spyOn(component, 'openVideo').mockResolvedValue();
-    component.ngOnInit();
+  it('carrega a galeria em páginas e não usa a leitura completa legada', () => {
+    const states: Array<{
+      status: string;
+      items: IPublicVideoItem[];
+      hasMore: boolean;
+      loadingMore: boolean;
+    }> = [];
+    const subscription = component.state$.subscribe((state) => states.push(state));
 
+    expect(videoPagination.loadPage$).toHaveBeenCalledWith(
+      VIDEO.ownerUid,
+      { pageSize: 12 }
+    );
+    expect(mediaPublicQuery.getProfilePublicVideos$).not.toHaveBeenCalled();
+    expect(states.at(-1)).toMatchObject({
+      status: 'ready',
+      items: [VIDEO],
+      hasMore: true,
+      loadingMore: false,
+    });
+
+    component.loadMoreVideos();
+
+    expect(videoPagination.loadPage$).toHaveBeenLastCalledWith(
+      VIDEO.ownerUid,
+      {
+        pageSize: 12,
+        cursor: NEXT_CURSOR,
+      }
+    );
+    expect(states.at(-1)).toMatchObject({
+      status: 'ready',
+      items: [VIDEO, VIDEO_2],
+      hasMore: false,
+      loadingMore: false,
+    });
+
+    subscription.unsubscribe();
+  });
+
+  it('descarta página antiga quando retry reinicia a mesma galeria', () => {
+    let latestState: {
+      items: IPublicVideoItem[];
+      hasMore: boolean;
+    } | null = null;
+    const subscription = component.state$.subscribe((state) => {
+      latestState = state;
+    });
+    const stalePage$ = new Subject<{
+      items: IPublicVideoItem[];
+      nextCursor: null;
+      hasMore: false;
+    }>();
+
+    videoPagination.loadPage$.mockImplementationOnce(() => stalePage$);
+    component.loadMoreVideos();
+
+    component.retry();
+    stalePage$.next({
+      items: [VIDEO_2],
+      nextCursor: null,
+      hasMore: false,
+    });
+
+    expect(latestState).toMatchObject({
+      items: [VIDEO],
+      hasMore: true,
+    });
+    subscription.unsubscribe();
+  });
+
+  it('abre automaticamente o vídeo solicitado pela rota canônica', async () => {
+    const openVideo = vi
+      .spyOn(component, 'openVideo')
+      .mockImplementation(() => undefined);
     routeParamMapSubject.next(
       convertToParamMap({
         ownerUid: VIDEO.ownerUid,
@@ -184,16 +313,23 @@ describe('PublicProfileVideosComponent', () => {
       })
     );
 
+    component.ngOnInit();
+
     await Promise.resolve();
     await Promise.resolve();
 
+    expect(mediaPublicQuery.getPublicVideoById$).toHaveBeenCalledWith(
+      VIDEO.ownerUid,
+      VIDEO.id,
+      { propagateErrors: true }
+    );
+    expect(videoPagination.loadPage$).not.toHaveBeenCalled();
+    expect(mediaPublicQuery.getProfilePublicVideos$).not.toHaveBeenCalled();
     expect(openVideo).toHaveBeenCalledTimes(1);
     expect(openVideo).toHaveBeenCalledWith(0);
   });
 
   it('informa quando um link direto aponta para vídeo indisponível', async () => {
-    component.ngOnInit();
-
     routeParamMapSubject.next(
       convertToParamMap({
         ownerUid: VIDEO.ownerUid,
@@ -201,8 +337,17 @@ describe('PublicProfileVideosComponent', () => {
       })
     );
 
+    component.ngOnInit();
+
     await Promise.resolve();
 
+    expect(mediaPublicQuery.getPublicVideoById$).toHaveBeenCalledWith(
+      VIDEO.ownerUid,
+      'video-removido',
+      { propagateErrors: true }
+    );
+    expect(videoPagination.loadPage$).not.toHaveBeenCalled();
+    expect(mediaPublicQuery.getProfilePublicVideos$).not.toHaveBeenCalled();
     expect(errorNotification.showWarning).toHaveBeenCalledWith(
       'Este vídeo não está mais disponível para visitantes.'
     );

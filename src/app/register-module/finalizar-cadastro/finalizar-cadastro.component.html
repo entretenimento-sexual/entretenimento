@@ -15,13 +15,13 @@
     <p>{{ introText }}</p>
 
     @if (hasUnsavedChanges()) {
-      <p class="alert alert-info" role="status" aria-live="polite">
+      <p class="alert alert-info" role="status" aria-live="polite" aria-atomic="true">
         Rascunho salvo neste dispositivo. Ele expira automaticamente em 24 horas.
       </p>
     }
 
     @if (isSubmitting) {
-      <div class="alert alert-secondary" role="status" aria-live="polite">
+      <div class="alert alert-secondary" role="status" aria-live="polite" aria-atomic="true">
         Salvando seus dados...
       </div>
     }
@@ -37,12 +37,20 @@
         }"
         [attr.role]="messageKind === 'error' || messageKind === 'warning' ? 'alert' : 'status'"
         [attr.aria-live]="messageKind === 'error' || messageKind === 'warning' ? 'assertive' : 'polite'"
+        aria-atomic="true"
       >
         {{ message }}
       </p>
     }
 
-    <form (ngSubmit)="onSubmit()" #form="ngForm" novalidate>
+    <form
+      ngForm
+      #form="ngForm"
+      formInvalidMessage="Revise os campos obrigatórios do perfil antes de continuar."
+      (ngSubmit)="onSubmit()"
+      novalidate
+      [attr.aria-busy]="isSubmitting || isUploading || isEditingAvatar"
+    >
       @if (needsNickname) {
         <div class="form-field">
           <label for="nickname">
@@ -73,7 +81,7 @@
           </p>
 
           @if (isFieldInvalid('nickname')) {
-            <div class="tooltip-error" id="nickname-err" role="alert" aria-live="polite">
+            <div class="tooltip-error" id="nickname-err" role="alert" aria-live="polite" aria-atomic="true">
               {{ formErrors['nickname'] }}
             </div>
           }
@@ -99,18 +107,13 @@
           [attr.aria-describedby]="isFieldInvalid('gender') ? 'gender-err' : null"
         >
           <option value="" disabled>Selecione...</option>
-          <option value="homem">Homem</option>
-          <option value="mulher">Mulher</option>
-          <option value="casal-ele-ele">Casal (Ele/Ele)</option>
-          <option value="casal-ele-ela">Casal (Ele/Ela)</option>
-          <option value="casal-ela-ela">Casal (Ela/Ela)</option>
-          <option value="travesti">Travesti</option>
-          <option value="transexual">Transexual</option>
-          <option value="crossdressers">Crossdressers</option>
+          @for (identityOption of identityOptions; track identityOption.code) {
+            <option [value]="identityOption.code">{{ identityOption.label }}</option>
+          }
         </select>
 
         @if (isFieldInvalid('gender')) {
-          <div class="tooltip-error" id="gender-err" role="alert" aria-live="polite">
+          <div class="tooltip-error" id="gender-err" role="alert" aria-live="polite" aria-atomic="true">
             {{ formErrors['gender'] }}
           </div>
         }
@@ -160,7 +163,7 @@
         </select>
 
         @if (isFieldInvalid('estado')) {
-          <div class="tooltip-error" id="estado-err" role="alert" aria-live="polite">
+          <div class="tooltip-error" id="estado-err" role="alert" aria-live="polite" aria-atomic="true">
             {{ formErrors['estado'] }}
           </div>
         }
@@ -191,7 +194,7 @@
         </select>
 
         @if (isFieldInvalid('municipio')) {
-          <div class="tooltip-error" id="municipio-err" role="alert" aria-live="polite">
+          <div class="tooltip-error" id="municipio-err" role="alert" aria-live="polite" aria-atomic="true">
             {{ formErrors['municipio'] }}
           </div>
         }
@@ -205,14 +208,22 @@
           type="file"
           (change)="uploadFile($event)"
           class="input-field"
-          accept="image/jpeg,image/png,image/webp"
-          [disabled]="isSubmitting"
-          aria-describedby="avatar-hint"
+          [attr.accept]="avatarAccept"
+          [disabled]="isSubmitting || isEditingAvatar"
+          aria-describedby="avatar-hint avatar-status"
         />
 
         <p class="field-hint" id="avatar-hint">
-          JPG, PNG ou WEBP, com até 10 MB. O arquivo não é incluído no rascunho local.
+          {{ avatarFormatLabel }}, com até {{ avatarMaxMegabytes }} MB. Antes do envio, a foto será aberta no editor e enquadrada em formato quadrado.
         </p>
+
+        <div id="avatar-status" aria-live="polite" aria-atomic="true">
+          @if (isEditingAvatar) {
+            <p class="field-hint">Preparando o editor da foto principal...</p>
+          } @else if (avatarFile) {
+            <p class="field-hint">Foto principal editada e pronta: {{ avatarFile.name }}</p>
+          }
+        </div>
       </div>
 
       @if (isUploading) {
@@ -232,7 +243,7 @@
 
       <button
         type="submit"
-        [disabled]="isSubmitting || isLoading"
+        [disabled]="isSubmitting || isLoading || isEditingAvatar"
         class="btn-submit"
       >
         {{ isSubmitting ? 'Concluindo…' : 'Concluir cadastro' }}
@@ -244,6 +255,7 @@
         class="alert alert-warning"
         role="alert"
         aria-live="polite"
+        aria-atomic="true"
         style="margin-top: var(--space-2, 12px);"
       >
         {{ uploadMessage }}

@@ -2,6 +2,7 @@ import type {
   IPublicVideoAccess,
   IPublicVideoItem,
   IPublicVideoOwnerSummary,
+  IPublicVideoPlaybackItem,
   IPublicVideoProjection,
   IPublicVideoScoreBreakdown,
   TPublicVideoPosterAccess,
@@ -146,18 +147,25 @@ function normalizePosterAccess(value: unknown): TPublicVideoPosterAccess {
 function normalizeOwnerSummary(
   data: Record<string, unknown>
 ): IPublicVideoOwnerSummary | null {
-  const nickname = normalizeText(
-    data['ownerNickname'] ?? data['nickname'],
-    40
-  );
-  const photoURL = normalizeText(
-    data['ownerPhotoURL'] ?? data['photoURL'],
-    2048
-  );
-  const gender = normalizeText(data['ownerGender'], 40);
-  const orientation = normalizeText(data['ownerOrientation'], 40);
-  const municipio = normalizeText(data['ownerMunicipio'], 120);
-  const estado = normalizeText(data['ownerEstado'], 80);
+  const nestedOwner = asRecord(data['owner']);
+  const nickname =
+    normalizeText(nestedOwner['nickname'], 40) ??
+    normalizeText(data['ownerNickname'] ?? data['nickname'], 40);
+  const photoURL =
+    normalizeText(nestedOwner['photoURL'], 2048) ??
+    normalizeText(data['ownerPhotoURL'] ?? data['photoURL'], 2048);
+  const gender =
+    normalizeText(nestedOwner['gender'], 40) ??
+    normalizeText(data['ownerGender'], 40);
+  const orientation =
+    normalizeText(nestedOwner['orientation'], 40) ??
+    normalizeText(data['ownerOrientation'], 40);
+  const municipio =
+    normalizeText(nestedOwner['municipio'], 120) ??
+    normalizeText(data['ownerMunicipio'], 120);
+  const estado =
+    normalizeText(nestedOwner['estado'], 80) ??
+    normalizeText(data['ownerEstado'], 80);
   const hasOwnerData = !!(
     nickname ||
     photoURL ||
@@ -254,6 +262,7 @@ export function mapPublicVideoProjection(
   }
 
   const createdAt = normalizeDateMs(data['createdAt']) ?? publishedAt;
+  const assetVersion = normalizeDateMs(data['assetVersion']) ?? publishedAt;
   const updatedAt = normalizeDateMs(data['updatedAt']) ?? publishedAt;
   const lastViewedAt = normalizeDateMs(data['lastViewedAt']);
   const reactionsCount = normalizeCount(
@@ -280,6 +289,7 @@ export function mapPublicVideoProjection(
     durationMs,
     createdAt,
     publishedAt,
+    assetVersion,
     updatedAt,
     lastViewedAt,
     visibility: 'PUBLIC',
@@ -310,7 +320,7 @@ export function mapPublicVideoProjection(
   };
 }
 
-export function isPublicVideoAccessUsable(
+export function isPublicVideoPreviewAccessUsable(
   projection: IPublicVideoProjection,
   access: IPublicVideoAccess | null | undefined,
   now = Date.now()
@@ -318,17 +328,43 @@ export function isPublicVideoAccessUsable(
   return !!access &&
     access.ownerUid === projection.ownerUid &&
     access.videoId === projection.id &&
-    isTemporaryUrl(access.url) &&
+    (!access.url || isTemporaryUrl(access.url)) &&
     (!access.posterUrl || isTemporaryUrl(access.posterUrl)) &&
     Number.isFinite(access.expiresAt) &&
     access.expiresAt > now + ACCESS_EXPIRY_SAFETY_WINDOW_MS;
+}
+
+export function isPublicVideoAccessUsable(
+  projection: IPublicVideoProjection,
+  access: IPublicVideoAccess | null | undefined,
+  now = Date.now()
+): access is IPublicVideoAccess & { readonly url: string } {
+  return isPublicVideoPreviewAccessUsable(projection, access, now) &&
+    isTemporaryUrl(access.url);
+}
+
+export function hydratePublicVideoPreviewItem(
+  projection: IPublicVideoProjection,
+  access: IPublicVideoAccess,
+  now = Date.now()
+): IPublicVideoItem | null {
+  if (!isPublicVideoPreviewAccessUsable(projection, access, now)) {
+    return null;
+  }
+
+  return {
+    ...projection,
+    url: null,
+    posterUrl: access.posterUrl?.trim() || null,
+    accessExpiresAt: Math.floor(access.expiresAt),
+  };
 }
 
 export function hydratePublicVideoItem(
   projection: IPublicVideoProjection,
   access: IPublicVideoAccess,
   now = Date.now()
-): IPublicVideoItem | null {
+): IPublicVideoPlaybackItem | null {
   if (!isPublicVideoAccessUsable(projection, access, now)) {
     return null;
   }

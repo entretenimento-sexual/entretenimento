@@ -36,10 +36,16 @@ import { environment } from 'src/environments/environment';
 import { CacheService } from '../../general/cache/cache.service';
 import { NicknameUtils } from '@core/utils/nickname-utils';
 
+export type RegisterUserCredential = UserCredential & {
+  verificationEmailSent: boolean;
+  registrationWarnings: readonly string[];
+};
+
 type SignupContext = {
   cred: UserCredential;
   warns: string[];
   traceId: string;
+  verificationEmailSent: boolean;
 };
 
 @Injectable({ providedIn: 'root' })
@@ -60,7 +66,10 @@ export class RegisterService {
     private readonly auth: Auth
   ) { }
 
-  registerUser(userData: IUserRegistrationData, password: string): Observable<UserCredential> {
+  registerUser(
+    userData: IUserRegistrationData,
+    password: string
+  ): Observable<RegisterUserCredential> {
     const traceId = this.makeTraceId();
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -102,7 +111,12 @@ export class RegisterService {
           })
           .pipe(
             tap(() => this.devDebug(traceId, 'persist:bootstrap:ok', { uid: cred.user.uid })),
-            map((): SignupContext => ({ cred, warns: [], traceId })),
+            map((): SignupContext => ({
+              cred,
+              warns: [],
+              traceId,
+              verificationEmailSent: false,
+            })),
             catchError((err) =>
               this.deleteUserOnFailure(cred.user.uid).pipe(
                 catchError((delErr) => {
@@ -157,11 +171,18 @@ export class RegisterService {
       switchMap((ctx2) =>
         this.emailVerificationService.sendEmailVerification(ctx2.cred.user).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
+          tap(() => {
+            ctx2.verificationEmailSent = true;
+            this.devDebug(ctx2.traceId, 'verification-email:sent', {
+              uid: ctx2.cred.user.uid,
+            });
+          }),
           catchError((err) => {
             this.safeHandle('[RegisterService] Falha ao enviar e-mail de verificação (warn).', err, {
               traceId: ctx2.traceId,
               uid: ctx2.cred.user.uid,
             });
+            ctx2.verificationEmailSent = false;
             ctx2.warns.push('email-verification-failed');
             return of(void 0);
           }),
@@ -193,10 +214,17 @@ export class RegisterService {
           this.devWarn(ctx2.traceId, 'registerUser:warns', { warns: ctx2.warns });
         }
 
-        this.devDebug(ctx2.traceId, 'registerUser:done', { uid: user.uid });
+        this.devDebug(ctx2.traceId, 'registerUser:done', {
+          uid: user.uid,
+          verificationEmailSent: ctx2.verificationEmailSent,
+        });
       }),
 
-      map((ctx2) => ctx2.cred),
+      map((ctx2): RegisterUserCredential => ({
+        ...ctx2.cred,
+        verificationEmailSent: ctx2.verificationEmailSent,
+        registrationWarnings: [...ctx2.warns],
+      })),
 
       catchError((err) => this.handleRegisterError(err, 'Registro', traceId))
     );

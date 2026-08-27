@@ -7,12 +7,7 @@
 // - consumir a CheckoutFacade
 // - reagir às ações do usuário (continuar / voltar)
 // - redirecionar para a URL retornada pela sessão de checkout
-//
-// Observação arquitetural:
-// - a CheckoutFacade é provida no escopo do componente
-//   para ficar alinhada à ActivatedRoute atual.
-// - o aviso de perfil incompleto atua apenas na camada de UX,
-//   sem interferir na lógica de checkout/billing.
+// - distinguir indisponibilidade de falha já notificada pela facade
 // ============================================================
 import {
   ChangeDetectionStrategy,
@@ -38,6 +33,7 @@ import { CheckoutFacade } from 'src/app/payments-core/application/checkout.facad
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { IncompleteProfileSubscriptionNoticeService } from '../application/incomplete-profile-subscription-notice.service';
+import { isCommunityCreationSubscriptionFlow } from '../domain/subscription-flow-context.model';
 
 @Component({
   selector: 'app-checkout',
@@ -59,6 +55,7 @@ export class CheckoutComponent implements OnInit {
 
   readonly facade = inject(CheckoutFacade);
   readonly plan$ = this.facade.plan$;
+  readonly flowContext$ = this.facade.flowContext$;
 
   readonly currentUser$ = this.currentUserStore.user$.pipe(
     map((user) => user ?? null),
@@ -73,11 +70,22 @@ export class CheckoutComponent implements OnInit {
 
   readonly vm$ = combineLatest([
     this.plan$,
+    this.facade.planLoadFailed$,
     this.shouldShowCheckoutWarning$,
+    this.flowContext$,
   ]).pipe(
-    map(([plan, shouldShowCheckoutWarning]) => ({
+    map(([
       plan,
+      planLoadFailed,
       shouldShowCheckoutWarning,
+      flowContext,
+    ]) => ({
+      plan,
+      planLoadFailed,
+      shouldShowCheckoutWarning,
+      flowContext,
+      communityCreationFlow:
+        isCommunityCreationSubscriptionFlow(flowContext),
     })),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -99,51 +107,62 @@ export class CheckoutComponent implements OnInit {
       .subscribe();
   }
 
-continue(shouldShowCheckoutWarning: boolean): void {
-  this.debug('continue() acionado', { shouldShowCheckoutWarning });
+  continue(shouldShowCheckoutWarning: boolean): void {
+    this.debug('continue() acionado', { shouldShowCheckoutWarning });
 
-  if (this.isStartingCheckout) {
-    return;
-  }
+    if (this.isStartingCheckout) {
+      return;
+    }
 
-  if (shouldShowCheckoutWarning && !this.checkoutAcknowledged) {
-    this.errorNotifier.showWarning(
-      'Antes de continuar, confirme que entendeu as limitações de um perfil incompleto.'
-    );
-    return;
-  }
+    if (shouldShowCheckoutWarning && !this.checkoutAcknowledged) {
+      this.errorNotifier.showWarning(
+        'Antes de continuar, confirme que entendeu as limitações de um perfil incompleto.'
+      );
+      return;
+    }
 
-  this.isStartingCheckout = true;
+    this.isStartingCheckout = true;
 
-  this.facade
-    .startCheckout$()
-    .pipe(take(1))
-    .subscribe({
-      next: (checkoutUrl) => {
-        if (!checkoutUrl) {
+    this.facade
+      .startCheckout$()
+      .pipe(take(1))
+      .subscribe({
+        next: (result) => {
+          if (result.status === 'error') {
+            // A facade já apresentou uma única mensagem segura ao usuário.
+            this.isStartingCheckout = false;
+            return;
+          }
+
+          if (result.status === 'unavailable') {
+            this.isStartingCheckout = false;
+            this.errorNotifier.showWarning(
+              'Checkout indisponível para este plano neste momento.'
+            );
+            return;
+          }
+
+          this.debug('redirecionando para checkout', {
+            checkoutUrl: result.checkoutUrl,
+          });
+          window.location.assign(result.checkoutUrl);
+        },
+        error: () => {
           this.isStartingCheckout = false;
-          this.errorNotifier.showError(
-            'Checkout ainda não disponível para este plano.'
-          );
-          return;
-        }
-
-        this.debug('redirecionando para checkout', { checkoutUrl });
-        window.location.assign(checkoutUrl);
-      },
-      error: () => {
-        this.isStartingCheckout = false;
-      },
-    });
-}
+        },
+      });
+  }
 
   back(): void {
     this.debug('back() acionado');
 
-    this.facade.goBackToPlans().catch((error) => {
-      this.debug('falha ao navegar para os planos', error);
-      this.errorNotifier.showError('Falha ao voltar para os planos.');
-    });
+    this.facade
+      .goBackToPlans()
+      .pipe(
+        take(1),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   onAcknowledgementChange(event: Event): void {

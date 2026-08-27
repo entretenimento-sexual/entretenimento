@@ -28,11 +28,6 @@ export const selectFileSuccess = createSelector(
   (state) => state.success
 );
 
-export const selectFileDownloadUrl = createSelector(
-  selectFileState,
-  (state) => state.downloadUrl
-);
-
 export const selectActiveFileUpload = createSelector(
   selectFileState,
   (state) => state.activeUpload

@@ -7,9 +7,11 @@
 // Observação:
 // - o documento de denúncia é privado;
 // - criação vem do usuário autenticado;
-// - denúncias de vídeo são validadas por Callable no backend;
+// - denúncias de foto e vídeo são validadas por Callable no backend;
 // - denúncia de perfil por possível menoridade também passa por Callable;
-// - leitura/administração deve ficar restrita à moderação/admin.
+// - leitura/administração deve ficar restrita à moderação/admin;
+// - evidência preservada nunca é transportada por este contrato; apenas status;
+// - revisão jurídico/compliance é sinalizada, mas o caso backend-only não é exposto.
 // -----------------------------------------------------------------------------
 
 import { FieldValue, Timestamp } from 'firebase/firestore';
@@ -24,6 +26,9 @@ export type ModerationReportTargetType =
   | 'room'
   | 'status'
   | 'venue'
+  | 'community_feed_post'
+  | 'community_feed_comment'
+  | 'community_feed_comment_reply'
   | 'other';
 
 export type ModerationReportReason =
@@ -45,6 +50,19 @@ export type ModerationReportStatus =
 
 export type ModerationReportAction = 'KEEP' | 'REMOVE';
 
+export type ModerationEvidencePreservationStatus =
+  | 'NOT_REQUIRED'
+  | 'PENDING'
+  | 'PRESERVED'
+  | 'RELEASED';
+
+export type ModerationLegalReviewStatus =
+  | 'PENDING_LEGAL_REVIEW'
+  | 'UNDER_LEGAL_REVIEW'
+  | 'NO_DISCLOSURE_REQUIRED'
+  | 'DISCLOSURE_AUTHORIZED'
+  | 'CLOSED';
+
 export type ModerationAgeReverificationStatus =
   | 'REQUIRED'
   | 'SUBMITTED'
@@ -57,6 +75,8 @@ export interface IModerationReportCreateInput {
   targetType: ModerationReportTargetType;
   targetId: string;
   parentTargetId?: string | null;
+  grandparentTargetId?: string | null;
+  containerTargetId?: string | null;
   targetOwnerUid?: string | null;
   targetAuthorUid?: string | null;
   reason: ModerationReportReason;
@@ -69,6 +89,8 @@ export interface IModerationReportDocument {
   targetType: ModerationReportTargetType;
   targetId: string;
   parentTargetId?: string | null;
+  grandparentTargetId?: string | null;
+  containerTargetId?: string | null;
   targetOwnerUid?: string | null;
   targetAuthorUid?: string | null;
   reason: ModerationReportReason;
@@ -76,6 +98,9 @@ export interface IModerationReportDocument {
   route?: string | null;
   status: ModerationReportStatus;
   moderationAction?: ModerationReportAction | null;
+  contentQuarantined?: boolean;
+  evidencePreservationStatus?: ModerationEvidencePreservationStatus | null;
+  legalReviewStatus?: ModerationLegalReviewStatus | null;
   ageReverificationCaseId?: string | null;
   ageReverificationStatus?: ModerationAgeReverificationStatus | null;
   ageReverificationSubmittedAt?: Timestamp | FieldValue | null;

@@ -3,6 +3,8 @@
 // COMMUNITY CREATION - CLIENT CONTRACTS
 // -----------------------------------------------------------------------------
 
+import type { CommunityMemberLimit } from './community-capacity.model';
+
 export type CommunityCreateTheme =
   | 'regional'
   | 'interests'
@@ -12,7 +14,8 @@ export type CommunityCreateTheme =
   | 'other';
 
 export type CommunityCreateJoinPolicy = 'open' | 'approval';
-export type CommunityCreateAccessTier = 'all' | 'premium' | 'vip';
+
+export type CommunityCreateMemberLimit = CommunityMemberLimit;
 
 export interface CommunityCreateCommand {
   requestId: string;
@@ -21,7 +24,8 @@ export interface CommunityCreateCommand {
   description: string | null;
   rules: string;
   joinPolicy: CommunityCreateJoinPolicy;
-  accessTier: CommunityCreateAccessTier;
+  memberLimit: CommunityCreateMemberLimit;
+  tagIds: readonly string[];
 }
 
 export interface CommunityCreateResult {

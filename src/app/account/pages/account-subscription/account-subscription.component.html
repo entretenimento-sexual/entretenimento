@@ -1,0 +1,60 @@
+<!-- src/app/account/pages/account-subscription/account-subscription.component.html -->
+<section class="account-section-page" aria-labelledby="account-subscription-title">
+  @if (vm$ | async; as vm) {
+    @if (vm) {
+      <header class="account-section-header">
+        <h2 id="account-subscription-title">Assinatura</h2>
+      </header>
+
+      <section class="account-plan-hero" aria-labelledby="account-current-plan-title">
+        <div class="account-plan-hero__copy">
+          @if (vm.subscriptionActive) {
+            <span class="account-plan-hero__badge">Ativa</span>
+            <h3 id="account-current-plan-title">{{ vm.activePlanLabel }}</h3>
+            <p>
+              @if (vm.subscriptionEndsAt) {
+                Válida até {{ vm.subscriptionEndsAt | date:'dd/MM/yyyy' }}.
+              } @else {
+                Assinatura ativa.
+              }
+            </p>
+          } @else {
+            <span class="account-plan-hero__badge">Gratuita</span>
+            <h3 id="account-current-plan-title">Plano gratuito</h3>
+          }
+        </div>
+
+        <a class="btn btn-primary" routerLink="/subscription-plan">
+          {{ vm.subscriptionActive ? 'Ver planos e opções' : 'Conhecer planos' }}
+        </a>
+      </section>
+
+      <section class="account-surface" aria-labelledby="account-subscription-history-title">
+        <div class="account-list">
+          <div class="account-list__row">
+            <div class="account-list__copy">
+              <strong id="account-subscription-history-title">Histórico da assinatura</strong>
+              <small>Mudanças de plano e vigência · somente leitura.</small>
+            </div>
+
+            <a
+              class="account-support-link"
+              routerLink="/conta/assinatura/historico"
+              aria-label="Ver histórico somente leitura da assinatura"
+            >
+              Ver histórico
+            </a>
+          </div>
+        </div>
+      </section>
+    } @else {
+      <section class="account-context-panel" role="alert">
+        <p>Não foi possível carregar sua assinatura agora.</p>
+      </section>
+    }
+  } @else {
+    <section class="account-context-panel" role="status" aria-live="polite">
+      <p>Carregando assinatura...</p>
+    </section>
+  }
+</section>

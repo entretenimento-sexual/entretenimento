@@ -141,25 +141,40 @@
 
   @if (
     mode === 'feed' &&
-    ((item.reactionsCount ?? item.likesCount ?? 0) > 0 ||
+    (engagementActions() ||
+      (item.reactionsCount ?? item.likesCount ?? 0) > 0 ||
       (item.commentsCount ?? 0) > 0)
   ) {
     <footer class="feed-card-footer" aria-label="Engajamento da publicação">
-      <span class="feed-card-footer__metrics">
-        @if ((item.reactionsCount ?? item.likesCount ?? 0) > 0) {
-          <span aria-label="Curtidas">
-            <span aria-hidden="true">♡</span>
-            {{ item.reactionsCount ?? item.likesCount ?? 0 }}
-          </span>
-        }
+      @if (engagementActions()) {
+        <app-public-media-engagement-actions
+          kind="photo"
+          [ownerUid]="item.ownerUid"
+          [mediaId]="item.id"
+          [viewerUid]="viewerUid()"
+          [reactionsEnabled]="item.reactionsEnabled !== false"
+          [commentsEnabled]="item.commentsEnabled !== false"
+          [reactionsCount]="item.reactionsCount ?? item.likesCount ?? 0"
+          [commentsCount]="item.commentsCount ?? 0"
+          (commentsRequested)="onCommentsRequested()"
+        />
+      } @else {
+        <span class="feed-card-footer__metrics">
+          @if ((item.reactionsCount ?? item.likesCount ?? 0) > 0) {
+            <span aria-label="Curtidas">
+              <span aria-hidden="true">♡</span>
+              {{ item.reactionsCount ?? item.likesCount ?? 0 }}
+            </span>
+          }
 
-        @if ((item.commentsCount ?? 0) > 0) {
-          <span aria-label="Comentários">
-            <span aria-hidden="true">○</span>
-            {{ item.commentsCount ?? 0 }}
-          </span>
-        }
-      </span>
+          @if ((item.commentsCount ?? 0) > 0) {
+            <span aria-label="Comentários">
+              <span aria-hidden="true">○</span>
+              {{ item.commentsCount ?? 0 }}
+            </span>
+          }
+        </span>
+      }
     </footer>
   }
 

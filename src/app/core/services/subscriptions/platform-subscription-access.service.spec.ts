@@ -5,16 +5,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IUserDados } from '../../interfaces/iuser-dados';
 import { CurrentUserStoreService } from '../autentication/auth/current-user-store.service';
 import { PlatformSubscriptionAccessService } from './platform-subscription-access.service';
+import type { PlatformSubscriptionRole } from './platform-subscription-access.model';
 
 const NOW = 1_800_000_000_000;
 
-function createUser(endsAt: number): IUserDados {
+function createUser(
+  endsAt: number,
+  role: PlatformSubscriptionRole = 'premium'
+): IUserDados {
   return {
     uid: 'user-1',
     email: 'user@example.com',
     photoURL: null,
-    role: 'premium',
-    tier: 'premium',
+    role,
+    tier: role,
     lastLogin: NOW,
     descricao: '',
     billingProjectionVersion: 1,
@@ -24,6 +28,20 @@ function createUser(endsAt: number): IUserDados {
     subscriptionScope: 'platform_subscription',
     subscriptionStartedAt: NOW - 60_000,
     subscriptionEndsAt: endsAt,
+  };
+}
+
+function createFreeUser(): IUserDados {
+  return {
+    ...createUser(NOW + 60_000, 'basic'),
+    role: 'free',
+    tier: 'free',
+    isSubscriber: false,
+    monthlyPayer: false,
+    subscriptionStatus: 'inactive',
+    subscriptionScope: null,
+    subscriptionStartedAt: null,
+    subscriptionEndsAt: null,
   };
 }
 
@@ -106,5 +124,26 @@ describe('PlatformSubscriptionAccessService', () => {
 
     expect(states).toEqual([true, false]);
     subscription.unsubscribe();
+  });
+
+  it('propaga free -> basic -> premium -> vip sem reload', () => {
+    userSubject.next(createFreeUser());
+
+    const roles: Array<PlatformSubscriptionRole | null> = [];
+    const subscribers: boolean[] = [];
+    const roleSubscription = service.role$.subscribe((role) => roles.push(role));
+    const subscriberSubscription = service.isSubscriber$.subscribe((active) => {
+      subscribers.push(active);
+    });
+
+    userSubject.next(createUser(NOW + 60_000, 'basic'));
+    userSubject.next(createUser(NOW + 60_000, 'premium'));
+    userSubject.next(createUser(NOW + 60_000, 'vip'));
+
+    expect(roles).toEqual([null, 'basic', 'premium', 'vip']);
+    expect(subscribers).toEqual([false, true]);
+
+    roleSubscription.unsubscribe();
+    subscriberSubscription.unsubscribe();
   });
 });

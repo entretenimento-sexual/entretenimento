@@ -8,11 +8,14 @@
 // - preservar uid como fonte canônica do header
 // - manter toggle da sidebar, responsividade e debug útil
 // - exibir contador reativo de notificações sem escrita direta no cliente
+// - consumir o estado canônico de assinatura para qualquer decisão free/paga
 //
 // Supressões explícitas desta versão:
 // 1) canShowLinksInteraction
 // 2) TODO sobre canShowLinksInteraction$
 // 3) logs ligados a esse estado
+// 4) fallback artificial de role `basic` durante hidratação; a assinatura agora
+//    é derivada exclusivamente do PlatformSubscriptionAccessService.
 import {
   Component,
   DestroyRef,
@@ -50,6 +53,7 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
+import { PlatformSubscriptionAccessService } from 'src/app/core/services/subscriptions/platform-subscription-access.service';
 
 import { Auth, user as afUser } from '@angular/fire/auth';
 import type { User } from 'firebase/auth';
@@ -109,6 +113,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private readonly sidebarService = inject(SidebarService);
   private readonly session = inject(AuthSessionService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
   private readonly notify = inject(ErrorNotificationService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly logoutService = inject(LogoutService);
@@ -271,8 +276,20 @@ export class NavbarComponent implements OnInit, OnDestroy {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    const vm$ = combineLatest([ready$, uid$, isAuthenticated$, appUser$, authUser$]).pipe(
-      map(([ready, uid, isAuth, appUser, authUser]) => {
+    const subscriptionIsFree$ = this.subscriptionAccess.isFree$.pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+    const vm$ = combineLatest([
+      ready$,
+      uid$,
+      isAuthenticated$,
+      appUser$,
+      authUser$,
+      subscriptionIsFree$,
+    ]).pipe(
+      map(([ready, uid, isAuth, appUser, authUser, subscriptionIsFree]) => {
         const safeUid = uid ?? '';
 
         const fallbackNickname =
@@ -283,9 +300,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
         const nickname = appUser?.nickname ?? fallbackNickname ?? '';
         const photoURL = (appUser as any)?.photoURL ?? fallbackPhoto ?? '';
-
-        const role = (appUser as any)?.role ?? (isAuth ? 'basic' : 'visitante');
-        const isFree = !isAuth || role === 'free';
+        const isFree = !isAuth || subscriptionIsFree;
 
         return {
           ready,

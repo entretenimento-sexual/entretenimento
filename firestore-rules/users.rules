@@ -136,6 +136,36 @@ match /users/{userId} {
       || request.resource.data.emailVerified == authEmailVerified();
   }
 
+  function declaredIdentityValid(data) {
+    return data.keys().hasAll([
+        "gender",
+        "declaredIdentityCode",
+        "identityCatalogVersion"
+      ])
+      && data.gender is string
+      && data.gender.size() >= 1
+      && data.gender.size() <= 80
+      && data.declaredIdentityCode is string
+      && data.declaredIdentityCode == data.gender
+      && data.declaredIdentityCode.size() >= 1
+      && data.declaredIdentityCode.size() <= 80
+      && data.identityCatalogVersion is int
+      && data.identityCatalogVersion >= 1;
+  }
+
+  function identityUpdateSafe(changedKeys) {
+    let identityKeys = [
+      "gender",
+      "declaredIdentityCode",
+      "identityCatalogVersion"
+    ];
+    return !changedKeys.hasAny(identityKeys)
+      || (
+        changedKeys.hasAll(identityKeys)
+        && declaredIdentityValid(request.resource.data)
+      );
+  }
+
   function selfChangingSensitiveKeys(changedKeys) {
     return changedKeys.hasAny([
       "adultConsent",
@@ -331,12 +361,16 @@ match /users/{userId} {
         "profileCompleted",
         "publicVisibility",
         "interactionBlocked",
-        "registrationCompletedAt"
+        "registrationCompletedAt",
+        "declaredIdentityCode",
+        "identityCatalogVersion"
       ])
       && changedKeys.hasOnly([
         "nickname",
         "nicknameHistory",
         "gender",
+        "declaredIdentityCode",
+        "identityCatalogVersion",
         "orientation",
         "estado",
         "municipio",
@@ -347,6 +381,7 @@ match /users/{userId} {
         "updatedAt",
         "updatedAtMs"
       ])
+      && declaredIdentityValid(data)
       && current.get("profileCompleted", false) != true
       && data.profileCompleted == true
       && current.get("accountStatus", "active") == "active"
@@ -370,6 +405,7 @@ match /users/{userId} {
         "interactionBlocked"
       ])
       && !selfChangingSensitiveKeys(changedKeys)
+      && identityUpdateSafe(changedKeys)
       && emailVerifiedSafeOnUpdate(changedKeys);
   }
 

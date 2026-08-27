@@ -242,7 +242,18 @@
                   <app-public-photo-card
                     [photo]="item.photo"
                     variant="feed"
-                    (preview)="openPhoto(item.photo.id, feed.photos)"
+                    (preview)="openPhoto(item.photo, feed.items)"
+                  />
+                </div>
+              }
+
+              @case ('profile-video') {
+                <div class="feed-entry" role="article">
+                  <app-public-video-card
+                    [video]="item.video"
+                    variant="feed"
+                    [opening]="isVideoOpening(item.video)"
+                    (preview)="openVideo(item.video, feed.items)"
                   />
                 </div>
               }
@@ -362,17 +373,6 @@
           }
         }
       </section>
-
-      @if (selectedPhotoIndex() !== null) {
-        <app-public-photo-lightbox
-          [items]="selectedPhotos()"
-          [activeIndex]="selectedPhotoIndex() ?? 0"
-          title="Publicação"
-          (closed)="closePhoto()"
-          (prevRequested)="previousPhoto()"
-          (nextRequested)="nextPhoto()"
-        />
-      }
     }
   </div>
 </section>

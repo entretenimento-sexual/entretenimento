@@ -20,6 +20,8 @@ export interface BillingReturnQuery {
   billing: string | null;
   scope: string | null;
   checkoutSessionId: string | null;
+  minimumRole: BillingGrantedRole | null;
+  returnUrl: string | null;
 }
 
 export interface ProcessBillingReturnInput {

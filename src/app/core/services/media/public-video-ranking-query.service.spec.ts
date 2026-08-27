@@ -5,7 +5,7 @@ import type {
   IPublicVideoRankingCursor,
 } from 'src/app/core/interfaces/media/i-public-video-ranking';
 import {
-  hydratePublicVideoItem,
+  hydratePublicVideoPreviewItem,
   mapPublicVideoProjection,
 } from './public-video-item.mapper';
 import { PublicVideoRankingQueryService } from './public-video-ranking-query.service';
@@ -19,7 +19,7 @@ function createPublicVideoData(): Record<string, unknown> {
     ownerUid: 'owner-1',
     mediaType: 'VIDEO',
     assetAccess: 'SIGNED_URL',
-    posterAccess: 'NONE',
+    posterAccess: 'SIGNED_URL',
     title: 'Vídeo público',
     mimeType: 'video/mp4',
     sizeBytes: 2_048,
@@ -51,13 +51,13 @@ function createService(options?: {
     documentId: 'video-1',
     data: createPublicVideoData(),
   })!;
-  const item = hydratePublicVideoItem(
+  const item = hydratePublicVideoPreviewItem(
     projection,
     {
       ownerUid: 'owner-1',
       videoId: 'video-1',
-      url: 'https://example.test/video.mp4?token=temporary',
-      posterUrl: null,
+      url: null,
+      posterUrl: 'https://example.test/poster.webp?token=temporary',
       expiresAt: ACCESS_NOW + 300_000,
     },
     ACCESS_NOW
@@ -85,7 +85,7 @@ function createService(options?: {
       })),
   };
   const publicVideoAccess = {
-    hydratePublicVideoUrls$: vi.fn(() => of([item])),
+    hydratePublicVideoPreviews$: vi.fn(() => of([item])),
   };
   const errorNotifier = {
     showError: vi.fn(),
@@ -112,7 +112,7 @@ function createService(options?: {
 }
 
 describe('PublicVideoRankingQueryService', () => {
-  it('carrega página top, normaliza o limite e preserva o cursor', async () => {
+  it('carrega página top, normaliza o limite e preserva o cursor sem playback', async () => {
     const context = createService();
 
     const page = await firstValueFrom(context.service.loadPage$({
@@ -125,7 +125,7 @@ describe('PublicVideoRankingQueryService', () => {
       pageSize: 16,
       cursor: null,
     });
-    expect(context.publicVideoAccess.hydratePublicVideoUrls$)
+    expect(context.publicVideoAccess.hydratePublicVideoPreviews$)
       .toHaveBeenCalledTimes(1);
     expect(page).toMatchObject({
       mode: 'top',
@@ -134,6 +134,8 @@ describe('PublicVideoRankingQueryService', () => {
       nextCursor: context.nextCursor,
       hasMore: true,
     });
+    expect(page.items[0]?.url).toBeNull();
+    expect(page.items[0]?.posterUrl).toContain('poster.webp');
   });
 
   it('ignora cursor de outro modo e descarta projeção inválida', async () => {
@@ -159,7 +161,7 @@ describe('PublicVideoRankingQueryService', () => {
       pageSize: 12,
       cursor: null,
     });
-    expect(context.publicVideoAccess.hydratePublicVideoUrls$)
+    expect(context.publicVideoAccess.hydratePublicVideoPreviews$)
       .toHaveBeenCalledWith([]);
   });
 
@@ -183,5 +185,20 @@ describe('PublicVideoRankingQueryService', () => {
       nextCursor: null,
       hasMore: false,
     });
+  });
+
+  it('propaga o erro após centralizar diagnóstico quando solicitado', async () => {
+    const failure = new Error('firestore unavailable');
+    const context = createService({ gatewayError: failure });
+
+    await expect(
+      firstValueFrom(context.service.loadPage$({
+        mode: 'latest',
+        propagateErrors: true,
+      }))
+    ).rejects.toBe(failure);
+
+    expect(context.errorNotifier.showError).not.toHaveBeenCalled();
+    expect(context.errorHandler.handleError).toHaveBeenCalledTimes(1);
   });
 });

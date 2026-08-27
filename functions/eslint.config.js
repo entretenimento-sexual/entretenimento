@@ -5,7 +5,14 @@ const tsPlugin = require('@typescript-eslint/eslint-plugin');
 module.exports = [
   {
     files: ['src/**/*.ts'],
-    ignores: ['lib/**', 'node_modules/**'],
+    ignores: [
+      'lib/**',
+      'node_modules/**',
+      // Artefatos gerados são validados pelos checks canônicos e pelo TypeScript.
+      // Evita conflito entre JSON determinístico (aspas duplas) e lint estilístico.
+      'src/identity/profile-identity.catalog.ts',
+      'src/media/media-format.generated.ts',
+    ],
     languageOptions: {
       parser: require('@typescript-eslint/parser'),
       parserOptions: {
@@ -62,8 +69,13 @@ module.exports = [
     files: [
       'src/account_lifecycle/_shared.ts',
       'src/community/community-feed.model.ts',
+      'src/community/community-member-management.handler.ts',
       'src/community/community-membership-management.handler.ts',
       'src/community/community-preview.model.ts',
+      'src/community/community-topic-detail.model.ts',
+      'src/community/community-topic-moderation.model.ts',
+      'src/community/community-topic-write.handler.ts',
+      'src/community/community-topic.model.ts',
       'src/community/community-user-index.projection.ts',
     ],
     rules: {

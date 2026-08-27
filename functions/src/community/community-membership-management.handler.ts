@@ -12,11 +12,16 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  assertCommunityAcceptingNewMembers,
+  getCommunityCapacityForOwnerInTransaction,
+} from './community-capacity.service';
+import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
+import { buildCommunityMembershipReviewAudit } from './community-membership-audit.model';
+import {
   assertCommunityMembershipActorEligible,
-  isCommunityMembershipEntitlementAllowed,
-  resolveCommunityMembershipRequirement,
 } from './community-membership-eligibility.service';
 import {
+  CommunityMembershipLeaveCommunityStatus,
   CommunityMembershipReviewAction,
   CommunityMembershipRole,
   CommunityMembershipStatus,
@@ -116,6 +121,18 @@ function normalizeMembershipRole(value: unknown): CommunityMembershipRole | null
     : null;
 }
 
+function normalizeCommunityLeaveStatus(
+  value: unknown
+): CommunityMembershipLeaveCommunityStatus {
+  return value === 'active'
+    || value === 'paused'
+    || value === 'dormant'
+    || value === 'archived'
+    || value === 'scheduled_for_deletion'
+    ? value
+    : null;
+}
+
 function normalizeReviewAction(
   value: unknown
 ): CommunityMembershipReviewAction | null {
@@ -176,11 +193,14 @@ function normalizeTimestamp(value: unknown): number | null {
   return null;
 }
 
-function normalizeMemberCount(rawCommunity: unknown): number {
+function resolveMemberCountDelta(
+  rawCommunity: unknown,
+  delta: -1 | 1
+): number | null {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const metrics = (community['metrics'] ?? {}) as Record<string, unknown>;
-  const parsed = Math.trunc(Number(metrics['memberCount']));
-  return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
+
+  return resolveCommunityMemberCountDelta(metrics['memberCount'], delta);
 }
 
 function assertCommunityManageable(rawCommunity: unknown): void {
@@ -266,20 +286,6 @@ function throwReviewDecisionError(reason: string | null): never {
   throw new HttpsError(
     'failed-precondition',
     'A solicitação já foi processada ou não está pendente.'
-  );
-}
-
-function throwSubscriptionRequired(
-  minimumRole: 'basic' | 'premium' | 'vip'
-): never {
-  throw new HttpsError(
-    'permission-denied',
-    'Assinatura compatível necessária.',
-    {
-      reason: 'subscription_inactive',
-      recommendedAction: 'upgrade_subscription',
-      minimumRole,
-    }
   );
 }
 
@@ -407,12 +413,15 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
         throw new HttpsError('not-found', 'Comunidade não encontrada.');
       }
 
+      const community = communitySnapshot.data() ?? {};
       const membership = membershipSnapshot.exists
         ? membershipSnapshot.data()
         : null;
+      const existingRole = normalizeMembershipRole(membership?.['role']);
       const decision = evaluateCommunityMembershipLeave({
+        communityStatus: normalizeCommunityLeaveStatus(community['status']),
         existingStatus: normalizeMembershipStatus(membership?.['status']),
-        existingRole: normalizeMembershipRole(membership?.['role']),
+        existingRole,
       });
 
       if (!decision.allowed || !decision.targetStatus) {
@@ -421,34 +430,51 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
 
       if (!decision.idempotent) {
         const now = FieldValue.serverTimestamp();
+        const membershipPatch: Record<string, unknown> = {
+          status: 'left',
+          leftAt: now,
+          updatedAt: now,
+          source: 'callable',
+        };
 
-        transaction.set(
-          membershipRef,
-          {
-            status: 'left',
-            leftAt: now,
-            updatedAt: now,
-            source: 'callable',
-          },
-          { merge: true }
-        );
+        if (decision.releaseOwnership) {
+          membershipPatch['role'] = 'member';
+          membershipPatch['ownershipReleasedAt'] = now;
+          membershipPatch['ownershipReleaseReason'] = 'terminal-community-leave';
+        }
+
+        transaction.set(membershipRef, membershipPatch, { merge: true });
+
+        const communityPatch: Record<string, unknown> = {};
+        let nextMemberCount: number | null = null;
 
         if (decision.decrementMemberCount) {
-          const nextMemberCount = Math.max(
-            normalizeMemberCount(communitySnapshot.data()) - 1,
-            0
-          );
-          transaction.update(communityRef, {
+          nextMemberCount = resolveMemberCountDelta(community, -1);
+          if (nextMemberCount !== null) {
+            communityPatch['metrics.memberCount'] = nextMemberCount;
+          }
+        }
+
+        const ownerPointerReleased =
+          decision.releaseOwnership
+          && normalizeSafeId(community['ownerUid']) === uid;
+
+        if (ownerPointerReleased) {
+          communityPatch['ownerUid'] = FieldValue.delete();
+          communityPatch['ownershipReleasedAt'] = now;
+          communityPatch['ownershipReleasedBy'] = uid;
+        }
+
+        if (Object.keys(communityPatch).length > 0) {
+          communityPatch['updatedAt'] = now;
+          transaction.update(communityRef, communityPatch);
+        }
+
+        if (discoverySnapshot.exists && nextMemberCount !== null) {
+          transaction.update(discoveryRef, {
             'metrics.memberCount': nextMemberCount,
             updatedAt: now,
           });
-
-          if (discoverySnapshot.exists) {
-            transaction.update(discoveryRef, {
-              'metrics.memberCount': nextMemberCount,
-              updatedAt: now,
-            });
-          }
         }
 
         transaction.set(auditRef, {
@@ -456,7 +482,11 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
           communityId,
           actorUid: uid,
           subjectUid: uid,
+          previousRole: existingRole,
+          role: decision.releaseOwnership ? 'member' : existingRole,
           status: 'left',
+          ownershipReleased: decision.releaseOwnership,
+          ownerPointerReleased,
           createdAt: now,
           source: 'callable',
         });
@@ -549,22 +579,14 @@ export const reviewCommunityMembership =
             memberId
           );
 
-          const requirement = resolveCommunityMembershipRequirement(community);
-          if (requirement.requiresEntitlement) {
-            const entitlementRef = db
-              .collection('entitlements')
-              .doc(`platform_subscription_${memberId}`);
-            const entitlementSnapshot = await transaction.get(entitlementRef);
-            const entitlementAllowed = isCommunityMembershipEntitlementAllowed(
-              entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
-              memberId,
-              requirement
-            );
+        }
 
-            if (!entitlementAllowed) {
-              throwSubscriptionRequired(requirement.minimumRole);
-            }
-          }
+        if (decision.incrementMemberCount) {
+          const capacity = await getCommunityCapacityForOwnerInTransaction(
+            transaction,
+            community
+          );
+          assertCommunityAcceptingNewMembers(capacity);
         }
 
         if (!decision.idempotent) {
@@ -588,29 +610,37 @@ export const reviewCommunityMembership =
           );
 
           if (decision.incrementMemberCount) {
-            const nextMemberCount = normalizeMemberCount(community) + 1;
-            transaction.update(communityRef, {
-              'metrics.memberCount': nextMemberCount,
-              updatedAt: now,
-            });
+            const nextMemberCount = resolveMemberCountDelta(community, 1);
 
-            if (discoverySnapshot.exists) {
-              transaction.update(discoveryRef, {
+            if (nextMemberCount !== null) {
+              transaction.update(communityRef, {
                 'metrics.memberCount': nextMemberCount,
                 updatedAt: now,
               });
+
+              if (discoverySnapshot.exists) {
+                transaction.update(discoveryRef, {
+                  'metrics.memberCount': nextMemberCount,
+                  updatedAt: now,
+                });
+              }
             }
           }
 
-          transaction.set(auditRef, {
-            action: decision.auditAction,
-            communityId,
-            actorUid,
-            subjectUid: memberId,
-            status: decision.targetStatus,
-            createdAt: now,
-            source: 'callable',
-          });
+          transaction.set(
+            auditRef,
+            buildCommunityMembershipReviewAudit(
+              {
+                action: decision.auditAction,
+                communityId,
+                actorUid,
+                actorRole: actor.role,
+                subjectUid: memberId,
+                status: decision.targetStatus,
+              },
+              now
+            )
+          );
         }
 
         return {

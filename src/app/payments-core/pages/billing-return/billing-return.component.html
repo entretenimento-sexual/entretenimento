@@ -1,11 +1,14 @@
-<!-- src\app\payments-core\pages\billing-return\billing-return.component.html -->
- <main class="billing-return-page app-page" aria-label="Processamento do pagamento">
+<!-- src/app/payments-core/pages/billing-return/billing-return.component.html -->
+<main class="billing-return-page app-page" aria-label="Processamento do pagamento">
   <section class="billing-return-shell ui-container">
     @if (vm$ | async; as vm) {
       <article
         class="billing-return-card"
         [attr.data-status]="vm.status"
         [attr.aria-busy]="vm.busy ? 'true' : 'false'"
+        [attr.role]="vm.status === 'failed' ? 'alert' : 'status'"
+        [attr.aria-live]="vm.status === 'failed' ? 'assertive' : 'polite'"
+        aria-atomic="true"
       >
         <div class="billing-return-card__icon" aria-hidden="true">
           @if (vm.status === 'granted') {
@@ -31,7 +34,7 @@
 
         @if (vm.busy) {
           <div class="billing-return-card__progress">
-            <span class="spinner"></span>
+            <span class="spinner" aria-hidden="true"></span>
             <span>Processando…</span>
           </div>
         }

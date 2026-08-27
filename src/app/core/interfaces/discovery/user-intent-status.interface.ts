@@ -100,4 +100,10 @@ export interface IUserIntentStatusCardVm extends IUserIntentStatus {
 export interface IUserIntentStatusQueryOptions {
   limit?: number;
   includeVenueId?: string | null;
+  /**
+   * Restringe a consulta pública aos autores já elegíveis para a superfície.
+   * Quando informado como lista vazia, a consulta retorna vazio sem acessar
+   * Firestore. A política de visibilidade continua sendo aplicada pelas Rules.
+   */
+  ownerUids?: readonly string[] | null;
 }

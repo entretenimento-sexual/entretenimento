@@ -11,6 +11,7 @@ import { RouterModule } from '@angular/router';
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
+import { PublicMediaEngagementActionsComponent } from '../public-media-engagement-actions/public-media-engagement-actions.component';
 
 export type TPublicPhotoCardVariant =
   | 'profile'
@@ -22,7 +23,12 @@ export type TPublicPhotoCardVariant =
 @Component({
   selector: 'app-public-photo-card',
   standalone: true,
-  imports: [CommonModule, RouterModule, ImageFallbackDirective],
+  imports: [
+    CommonModule,
+    RouterModule,
+    ImageFallbackDirective,
+    PublicMediaEngagementActionsComponent,
+  ],
   templateUrl: './public-photo-card.component.html',
   styleUrls: [
     './public-photo-card.component.css',
@@ -33,8 +39,11 @@ export type TPublicPhotoCardVariant =
 export class PublicPhotoCardComponent {
   readonly photo = input.required<IPublicPhotoItem>();
   readonly variant = input<TPublicPhotoCardVariant>('profile');
+  readonly viewerUid = input<string | null>(null);
+  readonly engagementActions = input(false);
 
   readonly preview = output<void>();
+  readonly commentsRequested = output<void>();
 
   readonly profileLink = computed(() => [
     '/outro-perfil',
@@ -43,6 +52,10 @@ export class PublicPhotoCardComponent {
 
   onPreview(): void {
     this.preview.emit();
+  }
+
+  onCommentsRequested(): void {
+    this.commentsRequested.emit();
   }
 
   getOwnerName(item: IPublicPhotoItem): string {

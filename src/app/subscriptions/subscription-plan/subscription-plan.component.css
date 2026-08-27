@@ -112,6 +112,64 @@
   box-shadow: var(--box-shadow);
 }
 
+.subscription-plan-context {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 1rem;
+  padding: 1.15rem 1.2rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 34%, var(--surface-border));
+  border-radius: 24px;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--primary-color) 12%, transparent),
+      color-mix(in oklab, var(--surface-color) 98%, transparent)
+    );
+  box-shadow: var(--box-shadow);
+}
+
+.subscription-plan-context__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--text-color);
+  background: color-mix(in oklab, var(--primary-color) 20%, transparent);
+}
+
+.subscription-plan-context > div {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.subscription-plan-context__eyebrow,
+.subscription-plan-context h2,
+.subscription-plan-context p {
+  margin: 0;
+}
+
+.subscription-plan-context__eyebrow {
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.subscription-plan-context h2 {
+  color: var(--text-color);
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
+.subscription-plan-context p:last-child {
+  max-width: 70ch;
+  color: color-mix(in oklab, var(--text-color) 78%, transparent);
+  line-height: 1.5;
+}
+
 .subscription-plan-warning h2,
 .subscription-plan-warning p {
   margin: 0;
@@ -251,6 +309,20 @@
     );
 }
 
+.plan.plan--recommended {
+  border-color: color-mix(in oklab, var(--primary-color) 62%, var(--surface-border));
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--primary-color) 18%, transparent),
+    var(--box-shadow);
+}
+
+.plan-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .plan-badge {
   display: inline-flex;
   align-items: center;
@@ -269,6 +341,19 @@
 .plan[data-current='true'] .plan-badge {
   background: color-mix(in oklab, var(--success-color) 14%, transparent);
   border-color: color-mix(in oklab, var(--success-color) 24%, var(--surface-border));
+}
+
+.plan-recommendation {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0.35rem 0.72rem;
+  border-radius: 999px;
+  color: var(--text-color);
+  background: color-mix(in oklab, var(--primary-color) 20%, transparent);
+  border: 1px solid color-mix(in oklab, var(--primary-color) 40%, var(--surface-border));
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .plan h2 {
@@ -322,8 +407,19 @@
   background: color-mix(in oklab, var(--success-color) 8%, transparent);
 }
 
+.plan-requirement-state {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in oklab, var(--warning-color, #f5a623) 28%, var(--surface-border));
+  background: color-mix(in oklab, var(--warning-color, #f5a623) 8%, transparent);
+}
+
 .plan-current-state strong,
-.plan-current-state small {
+.plan-current-state small,
+.plan-requirement-state strong,
+.plan-requirement-state small {
   color: var(--text-color);
 }
 
@@ -358,6 +454,7 @@
   }
 
   .subscription-plan-header,
+  .subscription-plan-context,
   .subscription-plan-warning,
   .subscription-plan-accordion,
   .plan,
@@ -373,6 +470,10 @@
   .subscription-plan-header__actions .btn,
   .subscription-plan-accordion__content .btn {
     width: 100%;
+  }
+
+  .subscription-plan-context {
+    grid-template-columns: 1fr;
   }
 }
 

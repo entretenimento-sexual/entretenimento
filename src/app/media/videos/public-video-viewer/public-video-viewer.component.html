@@ -72,8 +72,10 @@
         <header class="public-video-viewer__header">
           <a
             class="public-video-viewer__owner"
-            [routerLink]="['/perfil', video.ownerUid]"
-            [attr.aria-label]="'Abrir perfil de ' + (video.owner?.nickname || 'usuário')"
+            [routerLink]="viewerIsOwner ? ['/perfil'] : ['/outro-perfil', video.ownerUid]"
+            [attr.aria-label]="viewerIsOwner
+              ? 'Abrir seu perfil'
+              : 'Abrir perfil de ' + (video.owner?.nickname || 'usuário')"
           >
             @if (video.owner?.photoURL) {
               <img
@@ -133,8 +135,9 @@
             type="button"
             class="public-video-viewer__navigation-button"
             (click)="next()"
-            [disabled]="!hasNext"
-            aria-label="Abrir próximo vídeo"
+            [disabled]="!hasNext || waitingForContinuation"
+            [attr.aria-label]="waitingForContinuation ? 'Carregando próximo vídeo' : 'Abrir próximo vídeo'"
+            [attr.aria-busy]="waitingForContinuation ? 'true' : null"
             aria-keyshortcuts="ArrowDown"
           >
             <i class="fas fa-chevron-down" aria-hidden="true"></i>
@@ -224,7 +227,47 @@
             <p>{{ video.description }}</p>
           }
 
-          <div class="public-video-viewer__metadata-stats" aria-label="Visualizações do vídeo">
+          <div
+            class="public-video-viewer__metadata-stats"
+            aria-label="Contexto e visualizações do vídeo"
+          >
+            @if (data.source === 'profile') {
+              <small aria-label="Motivo desta mídia no seu fluxo: Do perfil.">
+                <i class="fas fa-user" aria-hidden="true"></i>
+                Do perfil
+              </small>
+            } @else if (data.continuationContext?.connectionOwnerUids?.includes(video.ownerUid)) {
+              <small aria-label="Motivo desta mídia no seu fluxo: Da sua rede.">
+                <i class="fas fa-user-group" aria-hidden="true"></i>
+                Da sua rede
+              </small>
+            } @else if (data.continuationContext?.compatibleOwnerUids?.includes(video.ownerUid)) {
+              <small aria-label="Motivo desta mídia no seu fluxo: Sugestão para você.">
+                <i class="fas fa-compass" aria-hidden="true"></i>
+                Sugestão para você
+              </small>
+            } @else if (data.source === 'latest') {
+              <small aria-label="Motivo desta mídia no seu fluxo: Recente.">
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                Recente
+              </small>
+            } @else if (data.source === 'top') {
+              <small aria-label="Motivo desta mídia no seu fluxo: Em alta.">
+                <i class="fas fa-arrow-trend-up" aria-hidden="true"></i>
+                Em alta
+              </small>
+            } @else if (data.source === 'boosted') {
+              <small aria-label="Motivo desta mídia no seu fluxo: Em destaque.">
+                <i class="fas fa-bolt" aria-hidden="true"></i>
+                Em destaque
+              </small>
+            } @else if (data.source === 'discover') {
+              <small aria-label="Motivo desta mídia no seu fluxo: Descoberta.">
+                <i class="fas fa-compass" aria-hidden="true"></i>
+                Descoberta
+              </small>
+            }
+
             <span>
               <i class="fas fa-eye" aria-hidden="true"></i>
               {{ video.viewsCount }} visualizações

@@ -2,9 +2,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
-import { TERMS_ACCEPTANCE_VERSION } from './platform-legal.constants';
-
-const ADULT_CONSENT_VERSION = 'v1';
+import {
+  ADULT_CONSENT_VERSION,
+  TERMS_ACCEPTANCE_VERSION,
+} from './platform-legal.constants';
 
 function hasAcceptedCurrentTerms(value: unknown): boolean {
   if (!value || typeof value !== 'object') {

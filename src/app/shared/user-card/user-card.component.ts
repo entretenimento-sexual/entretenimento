@@ -10,6 +10,7 @@ import { take } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 
 import { AppState } from 'src/app/store/states/app.state';
 import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.selectors';
@@ -73,7 +74,7 @@ interface UserCardRelationshipVm {
   templateUrl: './user-card.component.html',
   styleUrls: ['./user-card.component.css'],
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, ImageFallbackDirective],
 })
 export class UserCardComponent {
   readonly user = input.required<IUserDados | null>();

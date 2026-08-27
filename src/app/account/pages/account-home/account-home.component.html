@@ -1,240 +1,135 @@
 <!-- src/app/account/pages/account-home/account-home.component.html -->
-<main class="account-home-page app-page" aria-label="Minha conta">
-  <section class="account-home-shell ui-container">
-    @if (vm$ | async; as vm) {
-      @if (vm) {
-        <header class="account-hero account-hero--compact">
-          <h1>Conta</h1>
-
-          <nav class="account-hero__actions" aria-label="Ações da conta">
-            <a class="btn btn-secondary" routerLink="/perfil">Perfil</a>
-            <a class="btn btn-primary" routerLink="/subscription-plan">Planos</a>
-          </nav>
-        </header>
-
-        @if (currentUser$ | async; as currentUser) {
-          @if (shouldShowPostPaymentNotice$ | async) {
-            <section
-              class="account-context-panel account-context-panel--success account-context-panel--compact"
-              aria-labelledby="account-post-payment-title"
-            >
-              <div class="account-context-panel__content">
-                <h2 id="account-post-payment-title">Plano confirmado</h2>
-                <p>Conclua o perfil para liberar todos os recursos sociais do plano.</p>
-              </div>
-
-              <div class="account-context-panel__actions">
-                <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
-                  Completar perfil
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  (click)="onDismissPostPaymentNotice(currentUser)"
-                >
-                  Agora não
-                </button>
-              </div>
-            </section>
-          } @else if (shouldShowIncompleteProfileBanner$ | async) {
-            <section
-              class="account-context-panel account-context-panel--info account-context-panel--compact"
-              aria-labelledby="account-incomplete-profile-banner-title"
-            >
-              <div class="account-context-panel__content">
-                <h2 id="account-incomplete-profile-banner-title">Perfil incompleto</h2>
-                <p>Algumas interações permanecem limitadas até a conclusão do perfil.</p>
-              </div>
-
-              <div class="account-context-panel__actions">
-                <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
-                  Finalizar perfil
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  (click)="onSnoozeIncompleteProfileBanner(currentUser)"
-                >
-                  Lembrar depois
-                </button>
-              </div>
-            </section>
-          }
-        }
-
-        <nav class="account-nav" aria-label="Seções da conta">
-          <a class="account-nav__link" href="#conta">Conta</a>
-          <a class="account-nav__link" href="#seguranca">Segurança</a>
-          <a class="account-nav__link" href="#assinatura">Assinatura</a>
-          <a class="account-nav__link account-nav__link--danger" href="#gerenciar">
-            Gerenciar
-          </a>
-        </nav>
-
-        <section id="conta" class="account-card account-card--clean">
-          <div class="account-section-head">
-            <h2>Dados principais</h2>
-            <a class="btn btn-secondary" routerLink="/perfil">Editar perfil</a>
-          </div>
-
-          <div class="account-grid account-grid--clean">
-            <article class="account-item">
-              <span class="label">Apelido</span>
-              <strong class="value">{{ vm.nickname || 'Não definido' }}</strong>
-            </article>
-
-            <article class="account-item">
-              <span class="label">Usuário desde</span>
-              <strong class="value">
-                {{ vm.memberSince ? (vm.memberSince | date:'longDate') : 'Não disponível' }}
-              </strong>
-            </article>
-
-            <article class="account-item">
-              <span class="label">Último acesso</span>
-              <strong class="value">
-                {{ vm.lastLoginAt ? (vm.lastLoginAt | date:'dd/MM/yyyy HH:mm') : 'Não disponível' }}
-              </strong>
-            </article>
-
-            <article class="account-item">
-              <span class="label">Localização</span>
-              <strong class="value">{{ vm.locationLabel }}</strong>
-            </article>
-
-            <article class="account-item">
-              <span class="label">Idioma</span>
-              <strong class="value">{{ vm.localeLabel }}</strong>
-            </article>
-          </div>
-        </section>
-
-        <section id="seguranca" class="account-card account-card--clean">
-          <div class="account-section-head">
-            <h2>Segurança</h2>
-          </div>
-
-          <div class="account-grid account-grid--clean">
-            <article class="account-item account-item--highlight">
-              <span class="label">E-mail</span>
-              <strong class="value">{{ vm.email || 'Não informado' }}</strong>
-              <small class="support">{{ vm.emailStatusLabel }}</small>
-
-              @if (!vm.emailVerified) {
-                <div class="actions">
-                  <a class="btn btn-primary" routerLink="/register/welcome">
-                    Confirmar e-mail
-                  </a>
-                </div>
-              }
-            </article>
-
-            <article class="account-item">
-              <span class="label">Google</span>
-              <strong class="value">
-                {{ vm.googleLinked ? 'Vinculado' : 'Não vinculado' }}
-              </strong>
-            </article>
-
-            <article class="account-item">
-              <span class="label">Senha</span>
-              <strong class="value">
-                {{ vm.passwordConfigured ? 'Configurada' : 'Não confirmada' }}
-              </strong>
-            </article>
-          </div>
-        </section>
-
-        <section id="assinatura" class="account-card account-card--clean">
-          <div class="account-section-head">
-            <h2>Assinatura</h2>
-            <a class="btn btn-secondary" routerLink="/subscription-plan">Gerenciar</a>
-          </div>
-
-          <div class="account-grid account-grid--clean">
-            <article class="account-item account-item--highlight">
-              <span class="label">Plano atual</span>
-              <strong class="value">
-                {{ vm.activePlanLabel || 'Nenhum plano ativo' }}
-              </strong>
-            </article>
-
-            <article class="account-item">
-              <span class="label">Status</span>
-              <strong class="value">{{ vm.subscriptionLabel }}</strong>
-            </article>
-
-            @if (vm.tokensBalance !== null) {
-              <article class="account-item">
-                <span class="label">Tokens</span>
-                <strong class="value">{{ vm.tokensBalance }}</strong>
-              </article>
-            }
-          </div>
-        </section>
-
-        <details id="gerenciar" class="account-danger-fold">
-          <summary class="account-danger-fold__summary">
-            <strong>Gerenciar conta</strong>
-          </summary>
-
-          <div class="account-danger-fold__content">
-            <div class="account-grid">
-              <article class="account-item account-item--danger">
-                <span class="label">Suspender conta</span>
-                <p class="hint">
-                  O perfil ficará invisível e as interações serão bloqueadas até a reativação.
-                </p>
-                <div class="actions">
-                  <button
-                    class="btn btn-secondary"
-                    type="button"
-                    [disabled]="isLifecycleBusy()"
-                    (click)="openSelfSuspendDialog()"
-                  >
-                    Suspender conta
-                  </button>
-                </div>
-              </article>
-
-              <article class="account-item account-item--danger">
-                <span class="label">Solicitar exclusão</span>
-                <p class="hint">
-                  O perfil será ocultado imediatamente. A solicitação pode ser cancelada por 24 horas.
-                </p>
-                <div class="actions">
-                  <button
-                    class="btn btn-danger"
-                    type="button"
-                    [disabled]="isLifecycleBusy()"
-                    (click)="openSelfDeleteDialog()"
-                  >
-                    Solicitar exclusão
-                  </button>
-                </div>
-              </article>
+<section class="account-section-page" aria-label="Visão geral da conta">
+  @if (vm$ | async; as vm) {
+    @if (vm) {
+      @if (currentUser$ | async; as currentUser) {
+        @if (shouldShowPostPaymentNotice$ | async) {
+          <section
+            class="account-context-panel account-context-panel--success"
+            aria-labelledby="account-post-payment-title"
+          >
+            <div>
+              <h3 id="account-post-payment-title">Plano confirmado</h3>
+              <p>Conclua o perfil para liberar os recursos sociais disponíveis para sua conta.</p>
             </div>
-          </div>
-        </details>
 
-        @if (lifecycleDialogIntent()) {
-          <app-account-lifecycle-dialog
-            [intent]="lifecycleDialogIntent()!"
-            [busy]="isLifecycleBusy()"
-            [reauthenticationMode]="lifecycleReauthenticationMode()"
-            (closed)="closeLifecycleDialog()"
-            (confirmed)="onLifecycleDialogConfirmed($event)"
-          />
+            <div class="account-context-panel__actions">
+              <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
+                Completar perfil
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="onDismissPostPaymentNotice(currentUser)"
+              >
+                Agora não
+              </button>
+            </div>
+          </section>
+        } @else if (shouldShowIncompleteProfileBanner$ | async) {
+          <section
+            class="account-context-panel account-context-panel--info"
+            aria-labelledby="account-incomplete-profile-title"
+          >
+            <div>
+              <h3 id="account-incomplete-profile-title">Perfil incompleto</h3>
+              <p>Algumas interações permanecem limitadas até a conclusão do perfil.</p>
+            </div>
+
+            <div class="account-context-panel__actions">
+              <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
+                Finalizar perfil
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="onSnoozeIncompleteProfileBanner(currentUser)"
+              >
+                Lembrar depois
+              </button>
+            </div>
+          </section>
         }
-      } @else {
-        <section class="account-card" role="alert">
-          <p>Você precisa estar autenticado para acessar sua conta.</p>
-        </section>
       }
+
+      <div class="account-overview-grid" aria-label="Resumo e atalhos da conta">
+        <a class="account-overview-card" routerLink="/perfil">
+          <span class="account-overview-card__topline">
+            <span class="account-fact-label">Perfil</span>
+            <span class="account-overview-card__arrow" aria-hidden="true">→</span>
+          </span>
+          <strong class="account-overview-card__title">
+            {{ vm.nickname || 'Meu perfil' }}
+          </strong>
+          <span class="account-overview-card__meta">
+            {{ vm.locationLabel }} · {{ vm.localeLabel }}
+          </span>
+          <span class="account-overview-card__action">Ver perfil</span>
+        </a>
+
+        <a
+          class="account-overview-card account-overview-card--subscription"
+          routerLink="/conta/assinatura"
+        >
+          <span class="account-overview-card__topline">
+            <span class="account-fact-label">Assinatura</span>
+            <span class="account-overview-card__arrow" aria-hidden="true">→</span>
+          </span>
+          <strong class="account-overview-card__title">
+            {{ vm.activePlanLabel ? 'Plano ' + vm.activePlanLabel : 'Plano gratuito' }}
+          </strong>
+          <span class="account-overview-card__meta">
+            @if (vm.subscriptionActive && vm.subscriptionEndsAt) {
+              Ativa até {{ vm.subscriptionEndsAt | date:'dd/MM/yyyy' }}
+            } @else {
+              {{ vm.subscriptionLabel }}
+            }
+          </span>
+          <span class="account-overview-card__action">Gerenciar assinatura</span>
+        </a>
+
+        <a class="account-overview-card" routerLink="/conta/seguranca">
+          <span class="account-overview-card__topline">
+            <span class="account-fact-label">Segurança</span>
+            <span class="account-overview-card__arrow" aria-hidden="true">→</span>
+          </span>
+          <strong class="account-overview-card__title">{{ vm.emailStatusLabel }}</strong>
+          <span class="account-overview-card__meta">
+            {{ vm.email || 'E-mail não informado' }}
+          </span>
+          <span class="account-overview-card__action">Revisar segurança</span>
+        </a>
+
+        <a class="account-overview-card" routerLink="/conta/gerenciar">
+          <span class="account-overview-card__topline">
+            <span class="account-fact-label">Conta</span>
+            <span class="account-overview-card__arrow" aria-hidden="true">→</span>
+          </span>
+          <strong class="account-overview-card__title">
+            @if (vm.memberSince) {
+              Desde {{ vm.memberSince | date:'dd/MM/yyyy' }}
+            } @else {
+              Dados da conta
+            }
+          </strong>
+          <span class="account-overview-card__meta">
+            @if (vm.lastLoginAt) {
+              Último acesso {{ vm.lastLoginAt | date:'dd/MM/yyyy HH:mm' }}
+            } @else {
+              Último acesso não disponível
+            }
+          </span>
+          <span class="account-overview-card__action">Gerenciar conta</span>
+        </a>
+      </div>
     } @else {
-      <section class="account-card" role="status" aria-live="polite">
-        <p>Carregando conta...</p>
+      <section class="account-context-panel" role="alert">
+        <p>Você precisa estar autenticado para acessar sua conta.</p>
       </section>
     }
-  </section>
-</main>
+  } @else {
+    <section class="account-context-panel" role="status" aria-live="polite">
+      <p>Carregando conta...</p>
+    </section>
+  }
+</section>

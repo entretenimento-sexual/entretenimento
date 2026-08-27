@@ -3,33 +3,67 @@ import { AsyncPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   inject,
+  signal,
 } from '@angular/core';
-import { ActivatedRoute, RouterLink, RouterLinkActive } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  ActivatedRoute,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+} from '@angular/router';
 import {
   catchError,
-  exhaustMap,
+  concat,
+  distinctUntilChanged,
+  finalize,
   map,
+  Observable,
   of,
   scan,
   shareReplay,
   startWith,
   Subject,
+  switchMap,
+  tap,
 } from 'rxjs';
 
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
+import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
 import {
   CommunityDiscoveryPage,
   CommunityPreviewCard,
   CommunityPreviewSourceType,
+  CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
+import {
+  CommunityTagCategory,
+  CommunityTagDefinition,
+  normalizeCommunityTagId,
+} from '../data-access/community-tag.model';
+import { CommunityTagRepository } from '../data-access/community-tag.repository';
+import {
+  communityInitials as buildCommunityInitials,
+  communityVisualVariant as resolveCommunityVisualVariant,
+} from '../presentation/community-visual-identity';
+import {
+  CommunityDiscoveryCacheContext,
+  CommunityDiscoveryMode,
+  DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+} from './community-discovery-cache.model';
+import { CommunityDiscoveryCacheService } from './community-discovery-cache.service';
 
 type CommunityDiscoveryStatus = 'loading' | 'ready' | 'empty' | 'error';
-type CommunityDiscoveryMode = 'explore' | 'mine';
+type CommunityTagFilterState =
+  | { status: 'loading'; items: readonly CommunityTagDefinition[] }
+  | { status: 'ready'; items: readonly CommunityTagDefinition[] }
+  | { status: 'error'; items: readonly CommunityTagDefinition[] };
 
 interface CommunityDiscoveryState {
   status: CommunityDiscoveryStatus;
@@ -41,6 +75,7 @@ interface CommunityDiscoveryState {
 interface LoadRequest {
   cursor: string | null;
   append: boolean;
+  tagId: string | null;
 }
 
 type LoadEvent =
@@ -54,6 +89,22 @@ const INITIAL_STATE: CommunityDiscoveryState = Object.freeze({
   nextCursor: null,
   loadingMore: false,
 });
+
+/**
+ * Os IDs apenas definem prioridade visual dos atalhos. Rótulos e existência
+ * continuam vindo exclusivamente do catálogo autoritativo das Functions.
+ */
+const COMMUNITY_QUICK_FILTER_TAG_IDS = Object.freeze([
+  'intent:friendship',
+  'intent:casual',
+  'intent:dating',
+  'intent:swing',
+  'practice:bdsm',
+  'practice:fetishes',
+] as const);
+const COMMUNITY_QUICK_FILTER_TAG_ID_SET = new Set<string>(
+  COMMUNITY_QUICK_FILTER_TAG_IDS
+);
 
 function mergeCards(
   current: readonly CommunityPreviewCard[],
@@ -78,14 +129,21 @@ function reduceState(
   }
 
   if (event.type === 'error') {
-    return event.request.append && state.items.length > 0
-      ? { ...state, loadingMore: false }
-      : {
-          status: 'error',
-          items: [],
-          nextCursor: null,
-          loadingMore: false,
-        };
+    /**
+     * Um refresh stale-while-revalidate nunca derruba conteúdo já restaurado do
+     * cache. O diagnóstico e o feedback de erro permanecem ativos, mas o usuário
+     * conserva a lista e a posição de navegação que já possuía.
+     */
+    if (state.items.length > 0) {
+      return { ...state, loadingMore: false };
+    }
+
+    return {
+      status: 'error',
+      items: [],
+      nextCursor: null,
+      loadingMore: false,
+    };
   }
 
   const items = event.request.append
@@ -115,10 +173,16 @@ function reduceState(
 })
 export class CommunityDiscoveryPageComponent {
   private readonly repository = inject(CommunityPreviewRepository);
+  private readonly tagRepository = inject(CommunityTagRepository);
+  private readonly creationGate = inject(CommunityCreationGateService);
+  private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly loadRequests$ = new Subject<LoadRequest>();
+  private readonly tagCatalogReload$ = new Subject<void>();
 
   readonly sourceType: CommunityPreviewSourceType =
     this.route.snapshot.data['sourceType'] === 'venue' ? 'venue' : 'community';
@@ -131,6 +195,9 @@ export class CommunityDiscoveryPageComponent {
   readonly title = this.discoveryMode === 'mine'
     ? 'Minhas comunidades'
     : this.definition.pluralLabel;
+  readonly hubTitle = this.sourceType === 'community'
+    ? 'Comunidades'
+    : this.title;
   readonly description = this.discoveryMode === 'mine'
     ? 'Comunidades das quais você participa ou administra.'
     : this.definition.description;
@@ -138,62 +205,178 @@ export class CommunityDiscoveryPageComponent {
     ? 'Nenhum Local disponível.'
     : this.discoveryMode === 'mine'
       ? 'Você ainda não participa de nenhuma Comunidade.'
-      : 'Nenhuma Comunidade disponível.';
+      : 'Ainda não há Comunidades por aqui.';
   readonly canCreateVenue = this.sourceType === 'venue';
   readonly canCreateCommunity = this.sourceType === 'community';
   readonly showCommunityNavigation = this.sourceType === 'community';
+  readonly canFilterByTags =
+    this.sourceType === 'community' && this.discoveryMode === 'explore';
+
+  private readonly initialTagId = this.canFilterByTags
+    ? normalizeCommunityTagId(
+        this.route.snapshot.queryParamMap?.get('interesse')
+      )
+    : null;
+
+  readonly selectedTagId = signal<string | null>(this.initialTagId);
+  readonly creationGateBusy = signal(false);
+
+  readonly tagFilterState$: Observable<CommunityTagFilterState> =
+    this.tagCatalogReload$.pipe(
+      startWith(undefined),
+      switchMap(() => {
+        if (!this.canFilterByTags) {
+          return of<CommunityTagFilterState>({ status: 'ready', items: [] });
+        }
+
+        return this.tagRepository.getCommunityTagCatalog$().pipe(
+          map((catalog): CommunityTagFilterState => ({
+            status: 'ready',
+            items: catalog.items,
+          })),
+          catchError((error: unknown) => {
+            this.reportTagCatalogError(error);
+            return of<CommunityTagFilterState>({ status: 'error', items: [] });
+          }),
+          startWith<CommunityTagFilterState>({ status: 'loading', items: [] })
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly state$ = this.loadRequests$.pipe(
-    startWith<LoadRequest>({ cursor: null, append: false }),
-    exhaustMap((request) => {
-      const page$ = this.discoveryMode === 'mine'
-        ? this.repository.getMyCommunitiesPage$({
-            limit: 12,
-            cursor: request.cursor,
-            sourceType: 'community',
-          })
-        : this.repository.getDiscoveryPage$({
-            limit: 12,
-            cursor: request.cursor,
-            sourceType: this.sourceType,
-          });
-
-      return page$.pipe(
-        map(
-          (page): LoadEvent => ({
-            type: 'success',
-            request,
-            page,
-          })
-        ),
+    startWith<LoadRequest>({
+      cursor: null,
+      append: false,
+      tagId: this.initialTagId,
+    }),
+    switchMap((request) =>
+      this.resolveLoadEvents$(request).pipe(
         startWith<LoadEvent>({ type: 'loading', request }),
         catchError((error: unknown) => {
           this.reportError(error);
           return of<LoadEvent>({ type: 'error', request });
         })
-      );
-    }),
+      )
+    ),
     scan(reduceState, INITIAL_STATE),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  constructor() {
+    /**
+     * A URL passa a ser parte do estado navegável da descoberta. Voltar/avançar
+     * no navegador reaplica o interesse sem depender de estado imperativo local.
+     */
+    this.route.queryParamMap
+      .pipe(
+        map((params) =>
+          this.canFilterByTags
+            ? normalizeCommunityTagId(params.get('interesse'))
+            : null
+        ),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((tagId) => this.applyTagFilter(tagId, false));
+  }
+
+  requestCommunityCreation(event?: Event): void {
+    event?.preventDefault();
+    if (!this.canCreateCommunity || this.creationGateBusy()) return;
+
+    this.creationGateBusy.set(true);
+    this.creationGate.requestCreation$().pipe(
+      finalize(() => this.creationGateBusy.set(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
+  }
+
   loadMore(cursor: string | null): void {
-    if (cursor) this.loadRequests$.next({ cursor, append: true });
+    if (!cursor) return;
+
+    this.loadRequests$.next({
+      cursor,
+      append: true,
+      tagId: this.selectedTagId(),
+    });
   }
 
   retry(): void {
-    this.loadRequests$.next({ cursor: null, append: false });
+    this.loadRequests$.next({
+      cursor: null,
+      append: false,
+      tagId: this.selectedTagId(),
+    });
+  }
+
+  retryTagCatalog(): void {
+    this.tagCatalogReload$.next();
+  }
+
+  selectTagFilter(tagId: string | null): void {
+    this.applyTagFilter(normalizeCommunityTagId(tagId), true);
+  }
+
+  changeTagFilter(event: Event): void {
+    const target = event.target;
+    const rawValue = target instanceof HTMLSelectElement ? target.value : '';
+    this.applyTagFilter(normalizeCommunityTagId(rawValue), true);
+  }
+
+  quickFilterTags(
+    items: readonly CommunityTagDefinition[]
+  ): readonly CommunityTagDefinition[] {
+    const catalog = new Map(items.map((tag) => [tag.id, tag] as const));
+
+    return COMMUNITY_QUICK_FILTER_TAG_IDS
+      .map((id) => catalog.get(id) ?? null)
+      .filter((tag): tag is CommunityTagDefinition => tag !== null);
+  }
+
+  moreInterestSelectValue(): string {
+    const selected = this.selectedTagId();
+    return selected && !COMMUNITY_QUICK_FILTER_TAG_ID_SET.has(selected)
+      ? selected
+      : '';
+  }
+
+  tagsForCategory(
+    items: readonly CommunityTagDefinition[],
+    category: CommunityTagCategory
+  ): readonly CommunityTagDefinition[] {
+    return items.filter((tag) => tag.category === category);
+  }
+
+  tagCategoryLabel(category: CommunityTagCategory): string {
+    if (category === 'intent') return 'Objetivos';
+    if (category === 'practice') return 'Interesses';
+    return 'Público e afinidades';
   }
 
   sourceLabel(item: CommunityPreviewCard): string {
     return getSocialSpaceDefinition(item.source.type).label;
   }
 
-  accessLabel(item: CommunityPreviewCard): string | null {
-    if (!item.access.requiresActiveSubscription) return null;
+  communityInitials(item: CommunityPreviewCard): string {
+    return buildCommunityInitials(item);
+  }
 
-    const role = item.access.minimumRole;
-    return role === 'vip' ? 'VIP' : role === 'premium' ? 'Premium' : 'Assinantes';
+  communityVisualVariant(item: CommunityPreviewCard): number {
+    return resolveCommunityVisualVariant(item);
+  }
+
+  membershipRoleLabel(item: CommunityPreviewCard): string | null {
+    if (this.discoveryMode !== 'mine' || !item.viewerRole) return null;
+
+    const labels: Record<CommunityPreviewViewerRole, string> = {
+      owner: 'Proprietário',
+      admin: 'Administração',
+      moderator: 'Moderação',
+      member: 'Membro',
+    };
+
+    return labels[item.viewerRole];
   }
 
   detailsRoute(item: CommunityPreviewCard): readonly string[] {
@@ -206,6 +389,100 @@ export class CommunityDiscoveryPageComponent {
       : ['/dashboard/comunidades', item.communityId];
   }
 
+  private resolveLoadEvents$(request: LoadRequest): Observable<LoadEvent> {
+    const context = this.cacheContext(request.tagId);
+
+    if (request.append) {
+      return this.fetchPageEvent$(request, context);
+    }
+
+    return this.discoveryCache.readSnapshot$(context).pipe(
+      switchMap((snapshot) => {
+        if (!snapshot) {
+          return this.fetchPageEvent$(request, context);
+        }
+
+        const cached$ = of<LoadEvent>({
+          type: 'success',
+          request,
+          page: snapshot.page,
+        });
+
+        return snapshot.fresh
+          ? cached$
+          : concat(cached$, this.fetchPageEvent$(request, context));
+      })
+    );
+  }
+
+  private fetchPageEvent$(
+    request: LoadRequest,
+    context: CommunityDiscoveryCacheContext
+  ): Observable<LoadEvent> {
+    const page$ = this.discoveryMode === 'mine'
+      ? this.repository.getMyCommunitiesPage$({
+          limit: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+          cursor: request.cursor,
+          sourceType: 'community',
+        })
+      : this.repository.getDiscoveryPage$({
+          limit: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+          cursor: request.cursor,
+          sourceType: this.sourceType,
+          tagId: this.canFilterByTags ? request.tagId : null,
+        });
+
+    return page$.pipe(
+      tap((page) =>
+        this.discoveryCache.rememberPage(context, page, request.append)
+      ),
+      map(
+        (page): LoadEvent => ({
+          type: 'success',
+          request,
+          page,
+        })
+      )
+    );
+  }
+
+  private cacheContext(tagId: string | null): CommunityDiscoveryCacheContext {
+    return {
+      sourceType: this.sourceType,
+      discoveryMode: this.discoveryMode,
+      tagId: this.canFilterByTags ? tagId : null,
+      pageSize: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+    };
+  }
+
+  private applyTagFilter(tagId: string | null, syncUrl: boolean): void {
+    if (!this.canFilterByTags || tagId === this.selectedTagId()) return;
+
+    this.selectedTagId.set(tagId);
+    this.loadRequests$.next({ cursor: null, append: false, tagId });
+
+    if (!syncUrl) return;
+
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { interesse: tagId },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
+
+  private reportTagCatalogError(error: unknown): void {
+    try {
+      this.errorNotifier.showWarning(
+        'Os filtros por interesse não puderam ser carregados agora.'
+      );
+    } catch {
+      // O diagnóstico centralizado abaixo permanece ativo.
+    }
+
+    this.reportTechnicalError(error, 'getCommunityTagCatalog');
+  }
+
   private reportError(error: unknown): void {
     try {
       this.errorNotifier.showError(
@@ -215,6 +492,10 @@ export class CommunityDiscoveryPageComponent {
       // A observabilidade abaixo permanece ativa.
     }
 
+    this.reportTechnicalError(error, 'loadPage');
+  }
+
+  private reportTechnicalError(error: unknown, op: string): void {
     try {
       const normalized = error instanceof Error ? error : new Error(String(error));
       const contextual = normalized as Error & {
@@ -223,9 +504,10 @@ export class CommunityDiscoveryPageComponent {
       };
       contextual.context = {
         scope: 'CommunityDiscoveryPageComponent',
-        op: 'loadPage',
+        op,
         sourceType: this.sourceType,
         discoveryMode: this.discoveryMode,
+        tagId: this.selectedTagId(),
       };
       contextual.skipUserNotification = true;
       this.globalError.handleError(contextual);

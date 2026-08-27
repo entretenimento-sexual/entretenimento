@@ -19,15 +19,28 @@ import { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
+import type {
+  PhotoEditorContext,
+  PhotoEditorPreset,
+} from 'src/app/core/services/image-handling/photo-editor-result.model';
 import {
   IPhotoUploadSuccessEvent,
   PhotoUploadFlowService,
 } from 'src/app/core/services/image-handling/photo-upload-flow.service';
+import {
+  MEDIA_IMAGE_ACCEPT,
+  MEDIA_IMAGE_FORMAT_LABEL,
+  resolveImageMaxBytes,
+  validateImageMediaFile,
+  type ImageMediaContext,
+} from 'src/app/core/services/media/media-format.policy';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 
 const MAX_CAPTION_LENGTH = 800;
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const EXPLORE_IMAGE_MEDIA_CONTEXT: ImageMediaContext = 'default';
+const EXPLORE_EDITOR_CONTEXT: PhotoEditorContext = 'social-feed';
+const EXPLORE_EDITOR_PRESET: PhotoEditorPreset = 'social-feed';
 
 @Component({
   selector: 'app-feed-publication-composer',
@@ -42,6 +55,7 @@ export class FeedPublicationComposerComponent {
   private fileInput?: ElementRef<HTMLInputElement>;
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly photoEditor = inject(PhotoEditorLauncherService);
   private readonly uploadFlow = inject(PhotoUploadFlowService);
   private readonly publication = inject(MediaPublicationService);
   private readonly notifications = inject(ErrorNotificationService);
@@ -57,18 +71,24 @@ export class FeedPublicationComposerComponent {
   });
 
   readonly selectedFile = signal<File | null>(null);
+  readonly selectedImageState = signal<string | null>(null);
   readonly previewUrl = signal<string | null>(null);
+  readonly editingPhoto = signal(false);
   readonly publishing = signal(false);
   readonly progress = signal(0);
 
   readonly maxCaptionLength = MAX_CAPTION_LENGTH;
+  readonly imageAccept = MEDIA_IMAGE_ACCEPT;
+  readonly imageFormatLabel = MEDIA_IMAGE_FORMAT_LABEL;
+  readonly imageMaxMegabytes =
+    resolveImageMaxBytes(EXPLORE_IMAGE_MEDIA_CONTEXT) / 1024 / 1024;
 
   constructor() {
     this.destroyRef.onDestroy(() => this.revokePreviewUrl());
   }
 
   openFilePicker(): void {
-    if (!this.publishing()) {
+    if (!this.publishing() && !this.editingPhoto()) {
       this.fileInput?.nativeElement.click();
     }
   }
@@ -77,31 +97,81 @@ export class FeedPublicationComposerComponent {
     const inputElement = event.target as HTMLInputElement | null;
     const file = inputElement?.files?.[0] ?? null;
 
-    if (!file) return;
+    if (!file || this.publishing() || this.editingPhoto()) {
+      return;
+    }
 
-    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-      this.notifications.showWarning('Envie uma imagem JPG, PNG ou WEBP.');
+    const validation = validateImageMediaFile(file, EXPLORE_IMAGE_MEDIA_CONTEXT);
+    if (!validation.valid) {
+      this.notifications.showWarning(
+        validation.userMessage ?? 'A imagem selecionada não é válida.'
+      );
       if (inputElement) inputElement.value = '';
       return;
     }
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      this.notifications.showWarning('A imagem deve ter no máximo 10 MB.');
-      if (inputElement) inputElement.value = '';
-      return;
-    }
+    this.editingPhoto.set(true);
 
-    this.revokePreviewUrl();
-    this.selectedFile.set(file);
-    this.previewUrl.set(URL.createObjectURL(file));
-    this.progress.set(0);
+    this.photoEditor
+      .editFile$(file, {
+        source: 'explore-publication',
+        context: EXPLORE_EDITOR_CONTEXT,
+        preset: EXPLORE_EDITOR_PRESET,
+      })
+      .pipe(
+        take(1),
+        catchError((error: unknown) => {
+          this.notifications.showError(
+            'Não foi possível abrir o editor para esta foto.'
+          );
+          this.reportTechnicalError(error, 'editImage', {
+            mimeType: file.type,
+            size: file.size,
+          });
+          return EMPTY;
+        }),
+        finalize(() => {
+          this.editingPhoto.set(false);
+          if (inputElement) inputElement.value = '';
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe((result) => {
+        if (!result) {
+          return;
+        }
+
+        const processedValidation = validateImageMediaFile(
+          result.file,
+          EXPLORE_IMAGE_MEDIA_CONTEXT
+        );
+        if (!processedValidation.valid) {
+          this.notifications.showError(
+            processedValidation.userMessage ?? 'A imagem editada não é válida.'
+          );
+          this.reportTechnicalError(
+            new Error(
+              'O editor canônico devolveu uma imagem fora da política social-feed.'
+            ),
+            'validateEditedImage',
+            {
+              mimeType: result.file.type,
+              size: result.file.size,
+            }
+          );
+          return;
+        }
+
+        this.applySelectedPhoto(result.file, result.imageStateStr);
+      });
   }
 
   removeSelectedPhoto(): void {
-    if (this.publishing()) return;
+    if (this.publishing() || this.editingPhoto()) return;
 
     this.revokePreviewUrl();
     this.selectedFile.set(null);
+    this.selectedImageState.set(null);
     this.progress.set(0);
 
     if (this.fileInput) {
@@ -110,10 +180,11 @@ export class FeedPublicationComposerComponent {
   }
 
   publish(): void {
-    if (this.publishing()) return;
+    if (this.publishing() || this.editingPhoto()) return;
 
     const currentUser = this.user();
     const file = this.selectedFile();
+    const imageStateStr = this.selectedImageState();
     const ownerUid = String(currentUser?.uid ?? '').trim();
 
     this.captionControl.markAsTouched();
@@ -146,25 +217,27 @@ export class FeedPublicationComposerComponent {
         processedFile: file,
         originalFileName: file.name,
         mimeType: file.type,
+        imageStateStr: imageStateStr ?? undefined,
       })
       .pipe(
-        tap((event) => {
-          if (event.type === 'progress') {
-            this.progress.set(event.progress);
+        tap((uploadEvent) => {
+          if (uploadEvent.type === 'progress') {
+            this.progress.set(uploadEvent.progress);
           }
         }),
         filter(
-          (event): event is IPhotoUploadSuccessEvent => event.type === 'success'
+          (uploadEvent): uploadEvent is IPhotoUploadSuccessEvent =>
+            uploadEvent.type === 'success'
         ),
         take(1),
-        switchMap((event) => {
+        switchMap((uploadEvent) => {
           const photo: IPhotoItem = {
-            id: event.result.photoId,
+            id: uploadEvent.result.photoId,
             ownerUid,
-            url: event.result.url,
-            path: event.result.path,
-            fileName: event.result.fileName,
-            createdAt: event.result.createdAt.getTime(),
+            url: uploadEvent.result.url,
+            path: uploadEvent.result.path,
+            fileName: uploadEvent.result.fileName,
+            createdAt: uploadEvent.result.createdAt.getTime(),
             alt: caption || 'Foto publicada no perfil',
           };
 
@@ -179,7 +252,10 @@ export class FeedPublicationComposerComponent {
           });
         }),
         catchError((error: unknown) => {
-          this.reportError(error);
+          this.notifications.showError(
+            'A foto foi preservada na sua biblioteca, mas não pôde ser publicada agora.'
+          );
+          this.reportTechnicalError(error, 'publish');
           return EMPTY;
         }),
         finalize(() => this.publishing.set(false)),
@@ -193,14 +269,23 @@ export class FeedPublicationComposerComponent {
   }
 
   cancel(): void {
-    if (this.publishing()) return;
+    if (this.publishing() || this.editingPhoto()) return;
     this.reset();
     this.closed.emit();
+  }
+
+  private applySelectedPhoto(file: File, imageStateStr: string): void {
+    this.revokePreviewUrl();
+    this.selectedFile.set(file);
+    this.selectedImageState.set(imageStateStr);
+    this.previewUrl.set(URL.createObjectURL(file));
+    this.progress.set(0);
   }
 
   private reset(): void {
     this.revokePreviewUrl();
     this.selectedFile.set(null);
+    this.selectedImageState.set(null);
     this.captionControl.reset('');
     this.progress.set(0);
 
@@ -229,16 +314,16 @@ export class FeedPublicationComposerComponent {
     this.previewUrl.set(null);
   }
 
-  private reportError(error: unknown): void {
-    this.notifications.showError(
-      'A foto foi preservada na sua biblioteca, mas não pôde ser publicada agora.'
-    );
-
+  private reportTechnicalError(
+    error: unknown,
+    op: 'editImage' | 'validateEditedImage' | 'publish',
+    context?: Record<string, unknown>
+  ): void {
     try {
       const normalized =
         error instanceof Error
           ? error
-          : new Error('Falha ao criar publicação persistente.');
+          : new Error('Falha no fluxo de publicação de foto do Explorar.');
       const contextual = normalized as Error & {
         context?: Record<string, unknown>;
         original?: unknown;
@@ -248,12 +333,13 @@ export class FeedPublicationComposerComponent {
       contextual.original = error;
       contextual.context = {
         scope: 'FeedPublicationComposerComponent',
-        op: 'publish',
+        op,
+        ...(context ?? {}),
       };
       contextual.skipUserNotification = true;
       this.globalError.handleError(contextual);
     } catch {
-      // O feedback visual já foi emitido.
+      // O feedback visual já foi emitido pelo ErrorNotificationService.
     }
   }
 }

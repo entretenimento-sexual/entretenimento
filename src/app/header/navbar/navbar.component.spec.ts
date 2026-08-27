@@ -19,6 +19,7 @@ import { ErrorNotificationService } from '../../core/services/error-handler/erro
 import { SidebarService } from '../../core/services/navigation/sidebar.service';
 import { AppNotificationService } from '../../core/services/notifications/app-notification.service';
 import { LogoutService } from '../../core/services/autentication/auth/logout.service';
+import { PlatformSubscriptionAccessService } from '../../core/services/subscriptions/platform-subscription-access.service';
 
 @Component({ standalone: true, template: '' })
 class DummyRouteComponent {}
@@ -53,6 +54,11 @@ class MockCurrentUserStoreService {
   user$ = new BehaviorSubject<any | null | undefined>(undefined);
 }
 
+class MockPlatformSubscriptionAccessService {
+  readonly isFreeSubject = new BehaviorSubject<boolean>(true);
+  readonly isFree$ = this.isFreeSubject.asObservable();
+}
+
 class MockErrorNotificationService {
   showSuccess = vi.fn();
   showError = vi.fn();
@@ -69,6 +75,7 @@ describe('NavbarComponent', () => {
 
   let session: MockAuthSessionService;
   let currentUserStore: MockCurrentUserStoreService;
+  let subscriptionAccess: MockPlatformSubscriptionAccessService;
   let sidebar: MockSidebarService;
   let notify: MockErrorNotificationService;
   let logout: MockLogoutService;
@@ -96,6 +103,10 @@ describe('NavbarComponent', () => {
         { provide: SidebarService, useClass: MockSidebarService },
         { provide: AuthSessionService, useClass: MockAuthSessionService },
         { provide: CurrentUserStoreService, useClass: MockCurrentUserStoreService },
+        {
+          provide: PlatformSubscriptionAccessService,
+          useClass: MockPlatformSubscriptionAccessService,
+        },
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },
         { provide: LogoutService, useClass: MockLogoutService },
         {
@@ -119,6 +130,9 @@ describe('NavbarComponent', () => {
     currentUserStore = TestBed.inject(
       CurrentUserStoreService
     ) as unknown as MockCurrentUserStoreService;
+    subscriptionAccess = TestBed.inject(
+      PlatformSubscriptionAccessService
+    ) as unknown as MockPlatformSubscriptionAccessService;
     sidebar = TestBed.inject(SidebarService) as unknown as MockSidebarService;
     notify = TestBed.inject(ErrorNotificationService) as unknown as MockErrorNotificationService;
     logout = TestBed.inject(LogoutService) as unknown as MockLogoutService;
@@ -195,5 +209,23 @@ describe('NavbarComponent', () => {
     expect(accountMenu.textContent).toContain('Sair');
     expect(desktopMenu.textContent).not.toContain('Principal');
     expect(fixture.debugElement.queryAll(By.css('.appearance-toggle'))).toHaveLength(2);
+  });
+
+  it('atualiza isFree pela fonte canônica sem depender de role local', () => {
+    currentUserStore.user$.next({
+      uid: 'uid-123',
+      nickname: 'Alex',
+      photoURL: null,
+      role: 'free',
+    });
+    session.setUid('uid-123');
+    fixture.detectChanges();
+
+    expect(component.isFree).toBe(true);
+
+    subscriptionAccess.isFreeSubject.next(false);
+    fixture.detectChanges();
+
+    expect(component.isFree).toBe(false);
   });
 });

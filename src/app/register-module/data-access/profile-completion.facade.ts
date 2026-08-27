@@ -30,6 +30,7 @@ import { ProfileCompletionWriteService } from './profile-completion-write.servic
 
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
+import { validateImageMediaFile } from 'src/app/core/services/media/media-format.policy';
 import {
   IBGELocationService,
   IbgeMunicipio,
@@ -142,6 +143,11 @@ export class ProfileCompletionFacade {
 
     if (!uid || !file) {
       return of({ status: 'skipped' });
+    }
+
+    const validation = validateImageMediaFile(file, 'avatar');
+    if (!validation.valid) {
+      return of({ status: 'upload_failed' });
     }
 
     return this.storageService

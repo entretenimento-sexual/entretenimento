@@ -1,0 +1,310 @@
+@if (createState$ | async; as createState) {
+  @if (actionState$ | async; as actionState) {
+    <section
+      class="comment-replies"
+      [attr.aria-label]="'Respostas ao comentário de ' + parentAuthorLabel()"
+    >
+      @if (displayReplyCount() > 0 || canReply()) {
+        <div class="comment-replies__actions">
+          @if (displayReplyCount() > 0) {
+            <button
+              type="button"
+              class="comment-replies__action"
+              [attr.aria-expanded]="expanded()"
+              [attr.aria-controls]="'comment-replies-list-' + commentId()"
+              (click)="toggleReplies()"
+            >
+              <i class="fas fa-reply-all" aria-hidden="true"></i>
+              @if (expanded()) {
+                Ocultar respostas
+              } @else {
+                {{ displayReplyCount() }}
+                {{ displayReplyCount() === 1 ? 'resposta' : 'respostas' }}
+              }
+            </button>
+          }
+
+          @if (canReply()) {
+            <button
+              type="button"
+              class="comment-replies__action"
+              [attr.aria-expanded]="composerOpen()"
+              [attr.aria-controls]="'comment-reply-composer-' + commentId()"
+              (click)="openComposer()"
+            >
+              <i class="fas fa-reply" aria-hidden="true"></i>
+              Responder
+            </button>
+          }
+        </div>
+      }
+
+      @if (composerOpen()) {
+        <form
+          class="comment-replies__composer"
+          [id]="'comment-reply-composer-' + commentId()"
+          [formGroup]="replyForm"
+          (ngSubmit)="submitReply()"
+          novalidate
+        >
+          <label [for]="'comment-reply-' + commentId()">
+            Responder a {{ parentAuthorLabel() }}
+          </label>
+          <textarea
+            [id]="'comment-reply-' + commentId()"
+            rows="2"
+            maxlength="500"
+            enterkeyhint="send"
+            formControlName="text"
+            placeholder="Escreva sua resposta"
+            [attr.aria-invalid]="replyControl.invalid && replyControl.touched ? 'true' : null"
+            [attr.aria-describedby]="'comment-reply-count-' + commentId()"
+            (keydown.enter)="submitReplyOnEnter($event)"
+          ></textarea>
+          <div class="comment-replies__composer-footer">
+            <small [id]="'comment-reply-count-' + commentId()">
+              {{ replyControl.value.length }}/500 caracteres
+            </small>
+            <div>
+              <button
+                type="button"
+                class="is-secondary"
+                [disabled]="createState === 'loading'"
+                (click)="cancelComposer()"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                class="is-primary"
+                [disabled]="replyForm.invalid || createState === 'loading'"
+                [attr.aria-busy]="createState === 'loading' ? 'true' : null"
+              >
+                @if (createState === 'loading') {
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  Enviando
+                } @else {
+                  Responder
+                }
+              </button>
+            </div>
+          </div>
+          @if (createState === 'error') {
+            <p class="comment-replies__feedback" role="status">
+              Seu texto foi preservado. Tente novamente.
+            </p>
+          }
+        </form>
+      }
+
+      @if (expanded()) {
+        @if (state$ | async; as state) {
+          <div
+            class="comment-replies__content"
+            [id]="'comment-replies-list-' + commentId()"
+          >
+            @if (state.status === 'loading') {
+              <p class="comment-replies__state" role="status">
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                Carregando respostas...
+              </p>
+            } @else if (state.status === 'error') {
+              <div class="comment-replies__state" role="alert">
+                <span>Não foi possível carregar as respostas.</span>
+                <button type="button" (click)="retry()">Tentar novamente</button>
+              </div>
+            } @else if (state.status === 'empty') {
+              <p class="comment-replies__state" role="status">
+                Ainda não há respostas disponíveis.
+              </p>
+            } @else if (state.status === 'ready') {
+              <ul class="comment-replies__list" role="list">
+                @for (reply of state.items; track reply.replyId) {
+                  <li>
+                    <article
+                      class="comment-reply"
+                      [class.is-recent]="recentReplyId() === reply.replyId"
+                    >
+                      <span class="comment-reply__avatar" aria-hidden="true">
+                        @if (reply.author.avatarUrl) {
+                          <img
+                            [src]="reply.author.avatarUrl"
+                            alt=""
+                            loading="lazy"
+                            appImageFallback
+                          />
+                        } @else {
+                          <i class="fas fa-user"></i>
+                        }
+                      </span>
+
+                      <div class="comment-reply__content-shell">
+                        <div class="comment-reply__body">
+                          <header>
+                            <div class="comment-reply__identity">
+                              <div class="comment-reply__identity-line">
+                                <strong>{{ reply.author.label }}</strong>
+                                <time [attr.datetime]="createdIso(reply.createdAt)">
+                                  {{ createdLabel(reply.createdAt) }}
+                                </time>
+                              </div>
+                              @if (
+                                reply.author.profileTypeLabel
+                                || reply.author.city
+                                || reply.author.state
+                              ) {
+                                <div
+                                  class="comment-reply__author-context"
+                                  [attr.aria-label]="'Informações públicas de ' + reply.author.label"
+                                >
+                                  @if (reply.author.profileTypeLabel) {
+                                    <span>{{ reply.author.profileTypeLabel }}</span>
+                                  }
+                                  @if (reply.author.city || reply.author.state) {
+                                    <span>
+                                      @if (reply.author.city) {
+                                        {{ reply.author.city }}
+                                      }
+                                      @if (reply.author.city && reply.author.state) {
+                                        <span aria-hidden="true">/</span>
+                                      }
+                                      @if (reply.author.state) {
+                                        {{ reply.author.state }}
+                                      }
+                                    </span>
+                                  }
+                                </div>
+                              }
+                            </div>
+
+                            @if (
+                              reply.capabilities.canDeleteOwn
+                              || reply.capabilities.canModerate
+                              || reply.capabilities.canReport
+                            ) {
+                              <details #replyMenu class="comment-reply__menu">
+                                <summary
+                                  [attr.aria-label]="'Mais ações da resposta de ' + reply.author.label"
+                                  title="Mais ações"
+                                >
+                                  <i class="fas fa-ellipsis" aria-hidden="true"></i>
+                                </summary>
+                                <div
+                                  class="comment-reply__menu-panel"
+                                  role="group"
+                                  [attr.aria-label]="'Ações da resposta de ' + reply.author.label"
+                                >
+                                  @if (reply.capabilities.canDeleteOwn) {
+                                    <button
+                                      type="button"
+                                      class="comment-reply__menu-action is-danger"
+                                      [disabled]="actionState.status === 'loading'"
+                                      (click)="replyMenu.open = false; requestAction(reply, 'delete_own')"
+                                    >
+                                      <i class="fas fa-trash" aria-hidden="true"></i>
+                                      <span>Excluir resposta</span>
+                                    </button>
+                                  }
+                                  @if (reply.capabilities.canModerate) {
+                                    <button
+                                      type="button"
+                                      class="comment-reply__menu-action"
+                                      [disabled]="actionState.status === 'loading'"
+                                      (click)="replyMenu.open = false; requestAction(reply, 'remove')"
+                                    >
+                                      <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                                      <span>Remover resposta</span>
+                                    </button>
+                                  }
+                                  @if (reply.capabilities.canReport) {
+                                    <app-report-content-button
+                                      [targetType]="'community_feed_comment_reply'"
+                                      [targetId]="reply.replyId"
+                                      [parentTargetId]="commentId()"
+                                      [grandparentTargetId]="postId()"
+                                      [containerTargetId]="communityId()"
+                                      label="Denunciar resposta"
+                                      title="resposta do Mural"
+                                      appearance="link"
+                                      [disabled]="actionState.status === 'loading'"
+                                      (click)="replyMenu.open = false"
+                                    />
+                                  }
+                                </div>
+                              </details>
+                            }
+                          </header>
+                          <p>{{ reply.text }}</p>
+                        </div>
+
+                        @if (
+                          actionReplyId() === reply.replyId
+                          && actionMode(); as selectedAction
+                        ) {
+                          <section class="comment-reply__confirmation">
+                            @if (selectedAction === 'delete_own') {
+                              <p>Excluir esta resposta?</p>
+                            } @else {
+                              <label [for]="'reply-removal-reason-' + reply.replyId">
+                                Motivo da remoção
+                              </label>
+                              <textarea
+                                [id]="'reply-removal-reason-' + reply.replyId"
+                                rows="2"
+                                maxlength="240"
+                                [formControl]="removalReason"
+                              ></textarea>
+                            }
+                            <div>
+                              <button
+                                type="button"
+                                [disabled]="actionState.status === 'loading'"
+                                (click)="cancelAction()"
+                              >Cancelar</button>
+                              <button
+                                type="button"
+                                class="is-danger"
+                                [disabled]="actionState.status === 'loading' || (selectedAction === 'remove' && removalReason.invalid)"
+                                (click)="confirmAction(reply)"
+                              >
+                                @if (
+                                  actionState.status === 'loading'
+                                  && actionState.replyId === reply.replyId
+                                ) {
+                                  Processando...
+                                } @else {
+                                  Confirmar
+                                }
+                              </button>
+                            </div>
+                            @if (
+                              actionState.status === 'error'
+                              && actionState.replyId === reply.replyId
+                            ) {
+                              <p role="status">A confirmação foi preservada. Tente novamente.</p>
+                            }
+                          </section>
+                        }
+                      </div>
+                    </article>
+                  </li>
+                }
+              </ul>
+
+              @if (state.nextCursor) {
+                <button
+                  class="comment-replies__more"
+                  type="button"
+                  [disabled]="state.loadingMore"
+                  (click)="loadMore(state.nextCursor)"
+                >
+                  {{ state.loadingMore ? 'Carregando...' : 'Ver mais respostas' }}
+                </button>
+              }
+            }
+          </div>
+        }
+      }
+    </section>
+  }
+}

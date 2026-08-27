@@ -13,6 +13,7 @@ import {
 import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
 
+import { resolveProfileIdentityDiscoveryGroup } from '../../domain/profile-identity/profile-identity.catalog';
 import type { IUserDados } from '../../interfaces/iuser-dados';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 
@@ -64,6 +65,12 @@ export class PublicProfileDiscoveryService {
   }
 
   private toUserDadosFromPublicProfile(raw: Record<string, unknown>): IUserDados {
+    const identityCode = this.text(raw['identityCode'] ?? raw['gender']);
+    const identityDiscoveryGroup = this.text(raw['identityDiscoveryGroup'])
+      ?? resolveProfileIdentityDiscoveryGroup(identityCode);
+    const normalizedGender = this.text(raw['normalizedGender'])
+      ?? identityDiscoveryGroup;
+
     return {
       ...(raw as unknown as IUserDados),
       uid: String(raw['uid'] ?? '').trim(),
@@ -71,10 +78,15 @@ export class PublicProfileDiscoveryService {
       nicknameNormalized: this.text(raw['nicknameNormalized']),
       photoURL: this.text(raw['photoURL'] ?? raw['avatarUrl']),
       role: (this.text(raw['role']) ?? 'free') as IUserDados['role'],
-      gender: this.text(raw['gender']) ?? undefined,
+      gender: identityCode ?? undefined,
+      identityCode,
+      identityCatalogVersion: this.number(raw['identityCatalogVersion']),
+      identityLabel: this.text(raw['identityLabel']),
+      identityShortLabel: this.text(raw['identityShortLabel']),
+      identityDiscoveryGroup,
       orientation: this.text(raw['orientation']) ?? undefined,
       age: this.number(raw['age']),
-      normalizedGender: this.text(raw['normalizedGender']),
+      normalizedGender,
       normalizedOrientation: this.text(raw['normalizedOrientation']),
       compatibilityReady: this.boolean(raw['compatibilityReady']),
       interestedInGenders: this.stringArray(raw['interestedInGenders']),

@@ -5,8 +5,9 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
+import { By } from '@angular/platform-browser';
 
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import {
   afterEach,
   beforeEach,
@@ -21,6 +22,8 @@ import { FinalizarCadastroComponent } from './finalizar-cadastro.component';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
+import { PhotoEditorLauncherService } from '../../core/services/image-handling/photo-editor-launcher.service';
+import { FormValidationFocusDirective } from '../../shared/form-validation-focus/form-validation-focus.directive';
 
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
@@ -48,6 +51,7 @@ describe('FinalizarCadastroComponent', () => {
   let registerFlowFacadeMock: { vm$: Observable<RegisterFlowVm> };
   let profileCompletionFacadeMock: ProfileCompletionFacadeMock;
   let currentUserStoreMock: CurrentUserStoreMock;
+  let photoEditorMock: { editFile$: MockFn };
   let globalErrorHandlerMock: { handleError: MockFn };
   let errorNotificationMock: {
     showError: MockFn;
@@ -112,6 +116,10 @@ describe('FinalizarCadastroComponent', () => {
       patch: vi.fn(),
     };
 
+    photoEditorMock = {
+      editFile$: vi.fn(() => of(null)),
+    };
+
     globalErrorHandlerMock = {
       handleError: vi.fn(),
     };
@@ -129,6 +137,7 @@ describe('FinalizarCadastroComponent', () => {
         RouterTestingModule,
         FormsModule,
         CommonModule,
+        FormValidationFocusDirective,
       ],
       providers: [
         {
@@ -142,6 +151,10 @@ describe('FinalizarCadastroComponent', () => {
         {
           provide: CurrentUserStoreService,
           useValue: currentUserStoreMock,
+        },
+        {
+          provide: PhotoEditorLauncherService,
+          useValue: photoEditorMock,
         },
         {
           provide: GlobalErrorHandlerService,
@@ -208,11 +221,85 @@ describe('FinalizarCadastroComponent', () => {
       municipio: 'Rio de Janeiro',
     });
 
+    expect(errorNotificationMock.showSuccess).toHaveBeenCalledWith(
+      'Perfil finalizado com sucesso!'
+    );
     expect(router.navigateByUrl).toHaveBeenCalledWith(
       '/adulto/confirmar',
       { replaceUrl: true }
     );
     expect(component.hasUnsavedChanges()).toBe(false);
+  });
+
+  it('abre o editor canônico com preset quadrado antes de guardar o avatar', () => {
+    const source = new File(['source'], 'avatar.jpeg', { type: 'image/jpeg' });
+    const edited = new File(['edited'], 'avatar-editada.jpg', {
+      type: 'image/jpeg',
+    });
+    photoEditorMock.editFile$.mockReturnValueOnce(of({
+      kind: 'image',
+      file: edited,
+      imageStateStr: '{"version":2}',
+      width: 1024,
+      height: 1024,
+      context: 'profile-avatar',
+      preset: 'avatar-square',
+      metadataStripped: true,
+    }));
+
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [source],
+    });
+
+    component.uploadFile({ target: input } as unknown as Event);
+
+    expect(photoEditorMock.editFile$).toHaveBeenCalledWith(source, {
+      source: 'profile-avatar',
+      context: 'profile-avatar',
+      preset: 'avatar-square',
+    });
+    expect(component.avatarFile).toBe(edited);
+    expect(component.avatarMaxMegabytes).toBe(8);
+    expect(component.isEditingAvatar).toBe(false);
+  });
+
+  it('preserva o avatar anterior se o usuário cancelar a nova edição', () => {
+    const current = new File(['current'], 'avatar-atual.jpg', {
+      type: 'image/jpeg',
+    });
+    component.avatarFile = current;
+    photoEditorMock.editFile$.mockReturnValueOnce(of(null));
+
+    const next = new File(['next'], 'avatar-novo.jpg', { type: 'image/jpeg' });
+    const input = document.createElement('input');
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [next],
+    });
+
+    component.uploadFile({ target: input } as unknown as Event);
+
+    expect(component.avatarFile).toBe(current);
+  });
+
+  it('mantém erro técnico no handler global e um único feedback contextual na página', () => {
+    profileCompletionFacadeMock.saveProfileCompletion$.mockReturnValueOnce(
+      throwError(() => new Error('write-failed'))
+    );
+
+    component.onSubmit();
+
+    expect(globalErrorHandlerMock.handleError).toHaveBeenCalledTimes(1);
+    const [reportedError] = globalErrorHandlerMock.handleError.mock.calls[0];
+    expect(reportedError).toBeInstanceOf(Error);
+    expect(reportedError.skipUserNotification).toBe(true);
+    expect(component.messageKind).toBe('error');
+    expect(component.message).toContain(
+      'Ocorreu um erro ao finalizar o cadastro'
+    );
+    expect(errorNotificationMock.showError).not.toHaveBeenCalled();
   });
 
   it('identifica e descarta alterações do onboarding', () => {
@@ -223,5 +310,78 @@ describe('FinalizarCadastroComponent', () => {
 
     component.discardUnsavedChanges();
     expect(component.hasUnsavedChanges()).toBe(false);
+  });
+
+  it('renderiza erros obrigatórios como alertas inline acessíveis', () => {
+    component.gender = '';
+    component.selectedEstado = '';
+    component.selectedMunicipio = '';
+
+    component.onSubmit();
+    fixture.detectChanges();
+
+    const errors = Array.from(
+      fixture.nativeElement.querySelectorAll(
+        '.form-field .tooltip-error'
+      ) as NodeListOf<HTMLElement>
+    );
+
+    expect(errors).toHaveLength(3);
+    for (const error of errors) {
+      expect(error.getAttribute('role')).toBe('alert');
+      expect(error.getAttribute('aria-live')).toBe('polite');
+      expect(error.getAttribute('aria-atomic')).toBe('true');
+    }
+  });
+
+  it('conecta o ngForm ao contrato compartilhado de foco de validação', () => {
+    const formDebug = fixture.debugElement.query(
+      By.directive(FormValidationFocusDirective)
+    );
+
+    expect(formDebug).toBeTruthy();
+    expect(
+      formDebug.injector.get(FormValidationFocusDirective)
+    ).toBeInstanceOf(FormValidationFocusDirective);
+  });
+
+  it('move o foco para o primeiro campo inválido ao submeter o perfil incompleto', async () => {
+    component.needsNickname = true;
+    component.nickname = '';
+    component.gender = '';
+    component.selectedEstado = '';
+    component.selectedMunicipio = '';
+    fixture.detectChanges();
+
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const nickname = fixture.nativeElement.querySelector(
+      '#nickname'
+    ) as HTMLInputElement;
+    const focusSpy = vi.spyOn(nickname, 'focus');
+    const scrollSpy = vi.fn();
+    Object.defineProperty(nickname, 'scrollIntoView', {
+      configurable: true,
+      value: scrollSpy,
+    });
+
+    const formDebug = fixture.debugElement.query(By.css('form'));
+    formDebug.triggerEventHandler('submit', new Event('submit'));
+    fixture.detectChanges();
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(focusSpy).toHaveBeenCalledTimes(1);
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+    expect(component.formErrors['nickname']).toBeTruthy();
+  });
+
+  it('expõe estado ocupado do formulário durante salvamento, upload ou edição de avatar', () => {
+    component.isEditingAvatar = true;
+    fixture.detectChanges();
+
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    expect(form.getAttribute('aria-busy')).toBe('true');
   });
 });

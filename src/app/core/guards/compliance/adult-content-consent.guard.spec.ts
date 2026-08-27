@@ -6,7 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthSessionService } from '../../services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../services/autentication/auth/current-user-store.service';
 import { AdultConsentService } from '../../services/compliance/adult-consent.service';
-import { TERMS_ACCEPTANCE_VERSION } from '../../services/compliance/terms-acceptance.service';
+import {
+  CURRENT_LEGAL_ACCEPTANCE_ENFORCED,
+  TERMS_ACCEPTANCE_VERSION,
+} from '../../services/compliance/terms-acceptance.service';
 import { adultContentConsentGuard } from './adult-content-consent.guard';
 
 describe('adultContentConsentGuard / documentos legais e controles essenciais', () => {
@@ -64,15 +67,13 @@ describe('adultContentConsentGuard / documentos legais e controles essenciais', 
     expect(result).toBe(true);
   });
 
-  it('exige reaceite material antes do conteúdo adulto em sessão já aberta', async () => {
+  it('não bloqueia o dev-real por aceite jurídico remoto indisponível', async () => {
+    expect(CURRENT_LEGAL_ACCEPTANCE_ENFORCED).toBe(false);
+
     userSubject.next({
       uid: 'user-1',
       initialAdultConsentRequired: false,
-      acceptedTerms: {
-        accepted: true,
-        version: 'v2',
-        acknowledgedPrivacyNotice: true,
-      },
+      acceptedTerms: null,
     });
 
     const result = TestBed.runInInjectionContext(() =>
@@ -82,20 +83,11 @@ describe('adultContentConsentGuard / documentos legais e controles essenciais', 
       )
     );
 
-    await firstValueFrom(result as never);
-
-    expect(createUrlTree).toHaveBeenCalledWith(
-      ['/register/aceitar-termos'],
-      {
-        queryParams: {
-          reason: 'material_terms_update_required',
-          redirectTo: '/dashboard/principal',
-        },
-      }
-    );
+    await expect(firstValueFrom(result as never)).resolves.toBe(true);
+    expect(createUrlTree).not.toHaveBeenCalled();
   });
 
-  it('verifica consentimento adulto somente depois dos termos atuais', async () => {
+  it('verifica consentimento adulto depois da política jurídica do ambiente', async () => {
     const result = TestBed.runInInjectionContext(() =>
       adultContentConsentGuard(
         {} as never,
@@ -130,7 +122,7 @@ describe('adultContentConsentGuard / documentos legais e controles essenciais', 
     expect(createUrlTree).not.toHaveBeenCalled();
   });
 
-  it('não aplica o bypass a uma rota apenas parecida', async () => {
+  it('não aplica o bypass de rota essencial a uma rota apenas parecida', async () => {
     const result = TestBed.runInInjectionContext(() =>
       adultContentConsentGuard(
         {} as never,

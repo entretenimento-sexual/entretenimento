@@ -4,6 +4,10 @@ import { logger } from 'firebase-functions';
 
 import { db, getDefaultStorageBucket } from '../../firebaseApp';
 import {
+  IMAGE_INPUT_MIME_TYPES,
+  IMAGE_MAX_BYTES,
+} from '../media-format.generated';
+import {
   buildPublishedPhotoPath,
   normalizeOwnedPublishedPhotoPath,
 } from './photo-storage-path';
@@ -25,15 +29,22 @@ interface CopyPublishedPhotoAssetCommand {
   sourceStoragePath: string;
 }
 
-interface DeletePublishedPhotoAssetCommand {
+export interface DeletePublishedPhotoAssetCommand {
   ownerUid: string;
   photoId: string;
   storagePath: string | null | undefined;
   reason: string;
 }
 
+export interface StagedPublishedPhotoAssetCleanup {
+  ownerUid: string;
+  photoId: string;
+  storagePath: string;
+  reason: string;
+}
+
 const CLEANUP_COLLECTION = 'media_published_asset_cleanup_jobs';
-const MAX_PUBLISHED_IMAGE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_IMAGE_CONTENT_TYPES = new Set<string>(IMAGE_INPUT_MIME_TYPES);
 
 function normalizeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
@@ -70,6 +81,42 @@ async function enqueuePublishedPhotoAssetCleanup(
     .set(job, { merge: true });
 }
 
+export function stagePublishedPhotoAssetCleanup(
+  transaction: FirebaseFirestore.Transaction,
+  command: DeletePublishedPhotoAssetCommand
+): StagedPublishedPhotoAssetCleanup | null {
+  const storagePath = normalizeOwnedPublishedPhotoPath(
+    command.ownerUid,
+    command.photoId,
+    command.storagePath
+  );
+
+  if (!storagePath) return null;
+
+  const now = Date.now();
+  transaction.set(
+    db.collection(CLEANUP_COLLECTION).doc(buildCleanupJobId(storagePath)),
+    {
+      ownerUid: command.ownerUid,
+      photoId: command.photoId,
+      storagePath,
+      reason: command.reason,
+      createdAt: now,
+      updatedAt: now,
+      attempts: 0,
+      lastError: null,
+    },
+    { merge: true }
+  );
+
+  return {
+    ownerUid: command.ownerUid,
+    photoId: command.photoId,
+    storagePath,
+    reason: command.reason,
+  };
+}
+
 export async function copyPrivatePhotoToPublishedAsset(
   command: CopyPublishedPhotoAssetCommand
 ): Promise<string> {
@@ -90,18 +137,18 @@ export async function copyPrivatePhotoToPublishedAsset(
   }
 
   const [sourceMetadata] = await sourceFile.getMetadata();
-  const contentType = String(sourceMetadata.contentType ?? '').toLowerCase();
+  const contentType = String(sourceMetadata.contentType ?? '').trim().toLowerCase();
   const sizeBytes = Number(sourceMetadata.size ?? 0);
 
-  if (!contentType.startsWith('image/')) {
-    throw new Error('O arquivo privado não é uma imagem válida.');
+  if (!ALLOWED_IMAGE_CONTENT_TYPES.has(contentType)) {
+    throw new Error('O arquivo privado não possui um formato de imagem suportado.');
   }
 
   if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
     throw new Error('Não foi possível validar o tamanho da imagem privada.');
   }
 
-  if (sizeBytes > MAX_PUBLISHED_IMAGE_BYTES) {
+  if (sizeBytes > IMAGE_MAX_BYTES) {
     throw new Error('A imagem privada excede o limite permitido para publicação.');
   }
 

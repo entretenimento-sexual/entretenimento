@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, throwError } from 'rxjs';
+import { Observable, defer, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, take, timeout } from 'rxjs/operators';
 
 import {
@@ -9,6 +9,7 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { environment } from 'src/environments/environment';
 import {
   PLATFORM_LEGAL_MANIFEST,
   PRIVACY_NOTICE_VERSION,
@@ -22,6 +23,18 @@ export {
   TERMS_ACCEPTANCE_VERSION,
   TERMS_DOCUMENT_VERSION,
 } from './platform-legal.constants';
+
+/**
+ * Política de execução do aceite jurídico.
+ *
+ * Produção é sempre fail-closed. O único bypass permitido é o ambiente local
+ * explicitamente configurado com `enforceCurrentLegalAcceptance: false`.
+ * Isso impede que uma Function remota fora de sincronia interrompa todo o
+ * desenvolvimento local, sem alterar qualquer registro jurídico no Firestore.
+ */
+export const CURRENT_LEGAL_ACCEPTANCE_ENFORCED =
+  environment.production ||
+  environment.features?.enforceCurrentLegalAcceptance !== false;
 
 interface AcceptPlatformTermsPayload {
   acceptedTerms: true;
@@ -44,21 +57,12 @@ export interface AcceptedPlatformTermsResult {
 }
 
 /**
- * Termos são fail-closed:
- * - ausência de registro exige aceite;
- * - accepted=false exige aceite;
- * - a versão registrada deve coincidir com a versão material atual;
- * - registros legados sem versão não satisfazem a versão v3.
+ * Validação estrita do registro jurídico persistido.
  *
- * A ciência da Política de Privacidade é registrada no mesmo ato contratual,
- * sem ser convertida em consentimento genérico para tratamento de dados.
- *
- * SUPRESSÃO EXPLÍCITA:
- * `adultAccessAcknowledgement` deixou de ser coletado neste fluxo. A declaração
- * e a verificação de maioridade pertencem ao domínio separado de acesso adulto,
- * evitando pedir duas vezes a mesma confirmação ao usuário.
+ * Não considera bypass de ambiente. Deve ser usada para status jurídico,
+ * auditoria e qualquer UI que precise refletir exatamente o que está gravado.
  */
-export function hasAcceptedCurrentTerms(
+export function isCurrentTermsRecordAccepted(
   record: IUserTermsAcceptance | null | undefined
 ): boolean {
   if (record == null || record.accepted !== true) {
@@ -72,6 +76,30 @@ export function hasAcceptedCurrentTerms(
   }
 
   return record.acknowledgedPrivacyNotice === true;
+}
+
+/**
+ * API histórica de gating da aplicação.
+ *
+ * SUPRESSÃO EXPLÍCITA EM DESENVOLVIMENTO:
+ * quando `CURRENT_LEGAL_ACCEPTANCE_ENFORCED === false`, somente a barreira de
+ * navegação e as chamadas automáticas de reaceite são suprimidas. Nenhum dado
+ * jurídico persistido é criado ou alterado por essa decisão de ambiente.
+ */
+export function hasAcceptedCurrentTerms(
+  record: IUserTermsAcceptance | null | undefined
+): boolean {
+  return !CURRENT_LEGAL_ACCEPTANCE_ENFORCED || isCurrentTermsRecordAccepted(record);
+}
+
+/**
+ * Alias semântico para consumidores que deixam explícito tratar-se de política
+ * de acesso, e não de validação do registro persistido.
+ */
+export function isCurrentLegalAcceptanceSatisfied(
+  record: IUserTermsAcceptance | null | undefined
+): boolean {
+  return hasAcceptedCurrentTerms(record);
 }
 
 @Injectable({ providedIn: 'root' })
@@ -107,6 +135,34 @@ export class TermsAcceptanceService {
 
     if (!safeUid) {
       return throwError(() => new Error('UID inválido.'));
+    }
+
+    /**
+     * Em desenvolvimento local o aceite jurídico está deliberadamente fora do
+     * caminho crítico. Não chamamos Cloud Functions e, principalmente, não
+     * simulamos persistência no Firestore. O registro abaixo existe apenas para
+     * satisfazer o contrato de retorno do fluxo local.
+     */
+    if (!CURRENT_LEGAL_ACCEPTANCE_ENFORCED) {
+      const now = Date.now();
+      const record: IUserTermsAcceptance = {
+        accepted: true,
+        date: now,
+        version: TERMS_ACCEPTANCE_VERSION,
+        termsDocumentVersion: TERMS_DOCUMENT_VERSION,
+        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+        acknowledgedPrivacyNotice: true,
+        acceptanceContext: 'initial',
+        previousVersion: null,
+        acceptedAt: now,
+        updatedAt: now,
+        source: 'web',
+      };
+
+      return of({
+        uid: safeUid,
+        record,
+      });
     }
 
     const payload: AcceptPlatformTermsPayload = {

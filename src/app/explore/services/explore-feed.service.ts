@@ -5,114 +5,71 @@
 // Responsabilidades:
 // - compor seções públicas de mídia;
 // - enriquecer mídias apenas com projeções públicas dos proprietários;
-// - consumir perfis compatíveis pela Discovery V2 paginada/NgRx;
-// - não carregar integralmente public_profiles.
+// - consumir o pool compatível compartilhado da Discovery V2/NgRx;
+// - não carregar integralmente public_profiles;
+// - manter URLs assinadas de vídeo fora do NgRx e limitadas ao cache em memória.
 // -----------------------------------------------------------------------------
 
-import { DestroyRef, Injectable, inject } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Store } from '@ngrx/store';
-import { combineLatest, Observable, of } from 'rxjs';
+import { Injectable, inject } from '@angular/core';
+import { BehaviorSubject, combineLatest, Observable, of } from 'rxjs';
 import {
-  distinctUntilChanged,
+  catchError,
   map,
   shareReplay,
+  startWith,
   switchMap,
-  tap,
 } from 'rxjs/operators';
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import {
+  IPublicVideoRankingPage,
+  TPublicVideoRankingMode,
+} from 'src/app/core/interfaces/media/i-public-video-ranking';
+import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
-import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
-import { DiscoveryCardEnrichmentService } from 'src/app/dashboard/discovery/application/discovery-card-enrichment.service';
-import {
-  DiscoveryFeedRequest,
-  buildDiscoveryFeedQueryKey,
-} from 'src/app/dashboard/discovery/models/discovery-feed-page.model';
+import { PublicVideoRankingQueryService } from 'src/app/core/services/media/public-video-ranking-query.service';
+import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
 import { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-profile-card.model';
-import * as DiscoveryActions from 'src/app/store/actions/actions.discovery/discovery-feed.actions';
-import { selectDiscoveryFeedSlice } from 'src/app/store/selectors/selectors.discovery/discovery-feed.selectors';
-import { AppState } from 'src/app/store/states/app.state';
-import { emptyDiscoveryFeedSlice } from 'src/app/store/states/states.discovery/discovery-feed.state';
 
 import { IExploreSection } from '../models/i-explore-section';
 
-const EXPLORE_COMPATIBLE_PAGE_SIZE = 24;
 const EXPLORE_COMPATIBLE_VISIBLE_LIMIT = 6;
+const EXPLORE_VIDEO_RANKING_PAGE_SIZE = 4;
+const EXPLORE_VIDEO_VISIBLE_LIMIT = 6;
+
+export type TExploreVideoHighlightsStatus =
+  | 'loading'
+  | 'ready'
+  | 'empty'
+  | 'error';
+
+export interface IExploreVideoHighlightsState {
+  readonly status: TExploreVideoHighlightsStatus;
+  readonly items: readonly IPublicVideoItem[];
+}
 
 export interface IExploreFeedVm {
   readonly boostedPhotos: readonly IPublicPhotoItem[];
   readonly mostViewedPhotos: readonly IPublicPhotoItem[];
   readonly topPhotos: readonly IPublicPhotoItem[];
   readonly latestPhotos: readonly IPublicPhotoItem[];
+  readonly videoHighlights: readonly IPublicVideoItem[];
+  readonly videoHighlightsStatus: TExploreVideoHighlightsStatus;
   readonly sections: readonly IExploreSection<IPublicPhotoItem>[];
   readonly compatibleProfiles: readonly PublicProfileCard[];
   readonly totalItems: number;
   readonly hasAnyContent: boolean;
 }
 
-interface CompatibleProfilesProjection {
-  readonly request: DiscoveryFeedRequest | null;
-  readonly profiles: readonly PublicProfileCard[];
-  readonly shouldLoadMore: boolean;
-}
-
 @Injectable({ providedIn: 'root' })
 export class ExploreFeedService {
-  private readonly destroyRef = inject(DestroyRef);
-  private readonly store = inject(Store<AppState>);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
+  private readonly publicVideoRanking = inject(PublicVideoRankingQueryService);
   private readonly discoveryQuery = inject(UserDiscoveryQueryService);
-  private readonly accessControl = inject(AccessControlService);
-  private readonly currentUserStore = inject(CurrentUserStoreService);
-  private readonly cardEnrichment = inject(DiscoveryCardEnrichmentService);
-
-  /**
-   * Consulta independente do modo "Todos".
-   *
-   * A chave inclui viewer, modo e tamanho, portanto as duas superfícies podem
-   * compartilhar o mesmo slice NgRx sem misturar páginas ou cache.
-   */
-  private readonly compatibleRequest$: Observable<DiscoveryFeedRequest | null> =
-    combineLatest([
-      this.accessControl.authUid$,
-      this.accessControl.canRunApp$,
-    ]).pipe(
-      map(([uid, canRunApp]) => {
-        const viewerUid = this.toNullableText(uid);
-
-        if (!viewerUid || !canRunApp) {
-          return null;
-        }
-
-        return {
-          viewerUid,
-          mode: 'compatible' as const,
-          pageSize: EXPLORE_COMPATIBLE_PAGE_SIZE,
-        };
-      }),
-      distinctUntilChanged(
-        (previous, current) =>
-          this.requestKey(previous) === this.requestKey(current)
-      ),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-  private readonly compatibleFeedSlice$ = this.compatibleRequest$.pipe(
-    switchMap((request) => {
-      if (!request) {
-        return of(emptyDiscoveryFeedSlice);
-      }
-
-      return this.store.select(
-        selectDiscoveryFeedSlice(buildDiscoveryFeedQueryKey(request))
-      );
-    }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  private readonly compatibleCandidates = inject(CompatibleProfileCandidatesService);
+  private readonly videoHighlightsRefreshSubject = new BehaviorSubject<number>(0);
 
   readonly boostedPhotos$: Observable<IPublicPhotoItem[]> =
     this.mediaPublicQuery.getBoostedPublicPhotos$(8).pipe(
@@ -133,73 +90,61 @@ export class ExploreFeedService {
     );
 
   /**
-   * O Explore mostra no máximo seis perfis.
+   * Destaques de vídeo permanecem deliberadamente fora do NgRx porque contêm
+   * URLs assinadas de curta duração. O ranking "top" é hidratado antes de
+   * "latest" para que vídeos repetidos reutilizem o acesso temporário que já
+   * está no cache em memória do PublicVideoAccessService.
    *
-   * Caso a página atual tenha poucos candidatos aceitos após compatibilidade
-   * mútua e visibilidade, solicita a próxima página pelo mesmo fluxo NgRx até:
-   * - completar seis cards; ou
-   * - alcançar o fim da consulta.
+   * Cada fonte falha isoladamente: uma indisponibilidade parcial não remove os
+   * vídeos obtidos pela outra consulta. O estado vira "error" apenas quando as
+   * duas fontes falham.
    */
-  readonly compatibleProfiles$: Observable<PublicProfileCard[]> = combineLatest([
-    this.compatibleRequest$,
-    this.compatibleFeedSlice$,
-    this.currentUserStore.user$,
-  ]).pipe(
-    map(([request, slice, currentUser]): CompatibleProfilesProjection => {
-      if (!request || !currentUser?.uid) {
-        return {
-          request,
-          profiles: [],
-          shouldLoadMore: false,
-        };
-      }
+  readonly videoHighlightsState$: Observable<IExploreVideoHighlightsState> =
+    this.videoHighlightsRefreshSubject.pipe(
+      switchMap(() =>
+        this.loadVideoRankingPage$('top').pipe(
+          switchMap((topPage) =>
+            this.loadVideoRankingPage$('latest').pipe(
+              map((latestPage) =>
+                this.buildVideoHighlightsState(topPage, latestPage)
+              )
+            )
+          ),
+          startWith<IExploreVideoHighlightsState>({
+            status: 'loading',
+            items: [],
+          })
+        )
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
-      const sourceProfiles = slice.items as unknown as readonly IUserDados[];
-      const result = this.cardEnrichment.buildCardsResult({
-        profiles: sourceProfiles,
-        currentUser,
-        currentUid: request.viewerUid,
-        mode: request.mode,
-        applyVisibility: true,
-      });
-      const profiles = result.profiles.slice(
-        0,
-        EXPLORE_COMPATIBLE_VISIBLE_LIMIT
-      );
-
-      return {
-        request,
-        profiles,
-        shouldLoadMore:
-          profiles.length < EXPLORE_COMPATIBLE_VISIBLE_LIMIT &&
-          slice.items.length > 0 &&
-          slice.nextCursor !== null &&
-          !slice.reachedEnd &&
-          !slice.loadingInitial &&
-          !slice.loadingMore &&
-          !slice.refreshing,
-      };
-    }),
-    tap(({ request, shouldLoadMore }) => {
-      if (!request || !shouldLoadMore) {
-        return;
-      }
-
-      this.store.dispatch(
-        DiscoveryActions.loadDiscoveryNextPage({ request })
-      );
-    }),
-    map(({ profiles }) => [...profiles]),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  /**
+   * O pool compatível é compartilhado com outras superfícies. O Explore mantém
+   * sua decisão visual histórica de mostrar no máximo seis perfis.
+   */
+  readonly compatibleProfiles$: Observable<PublicProfileCard[]> =
+    this.compatibleCandidates.profiles$.pipe(
+      map((profiles) => [
+        ...profiles.slice(0, EXPLORE_COMPATIBLE_VISIBLE_LIMIT),
+      ]),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly vm$: Observable<IExploreFeedVm> = combineLatest([
     this.boostedPhotos$,
     this.topPhotos$,
     this.publicPool$,
+    this.videoHighlightsState$,
     this.compatibleProfiles$,
   ]).pipe(
-    map(([boostedPhotos, topPhotos, publicPool, compatibleProfiles]) => {
+    map(([
+      boostedPhotos,
+      topPhotos,
+      publicPool,
+      videoHighlightsState,
+      compatibleProfiles,
+    ]) => {
       const latestPhotos = this.rankByPublishedAt(publicPool).slice(0, 16);
 
       const safeTopPhotos =
@@ -260,6 +205,7 @@ export class ExploreFeedService {
 
       const totalItems =
         compatibleProfiles.length +
+        videoHighlightsState.items.length +
         visibleSections.reduce(
           (total, section) => total + section.items.length,
           0
@@ -270,6 +216,8 @@ export class ExploreFeedService {
         mostViewedPhotos,
         topPhotos: safeTopPhotos,
         latestPhotos,
+        videoHighlights: videoHighlightsState.items,
+        videoHighlightsStatus: videoHighlightsState.status,
         compatibleProfiles,
         sections: visibleSections,
         totalItems,
@@ -279,18 +227,71 @@ export class ExploreFeedService {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  constructor() {
-    this.compatibleRequest$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((request) => {
-        if (!request) {
-          return;
+  retryVideoHighlights(): void {
+    this.videoHighlightsRefreshSubject.next(
+      this.videoHighlightsRefreshSubject.value + 1
+    );
+  }
+
+  private loadVideoRankingPage$(
+    mode: TPublicVideoRankingMode
+  ): Observable<IPublicVideoRankingPage | null> {
+    return this.publicVideoRanking.loadPage$({
+      mode,
+      pageSize: EXPLORE_VIDEO_RANKING_PAGE_SIZE,
+      propagateErrors: true,
+    }).pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  private buildVideoHighlightsState(
+    topPage: IPublicVideoRankingPage | null,
+    latestPage: IPublicVideoRankingPage | null
+  ): IExploreVideoHighlightsState {
+    const items = this.mergeVideoHighlights(
+      topPage?.items ?? [],
+      latestPage?.items ?? [],
+      EXPLORE_VIDEO_VISIBLE_LIMIT
+    );
+
+    if (items.length > 0) {
+      return { status: 'ready', items };
+    }
+
+    if (!topPage && !latestPage) {
+      return { status: 'error', items: [] };
+    }
+
+    return { status: 'empty', items: [] };
+  }
+
+  private mergeVideoHighlights(
+    topItems: readonly IPublicVideoItem[],
+    latestItems: readonly IPublicVideoItem[],
+    limit: number
+  ): IPublicVideoItem[] {
+    const result: IPublicVideoItem[] = [];
+    const seen = new Set<string>();
+    const maxLength = Math.max(topItems.length, latestItems.length);
+
+    for (let index = 0; index < maxLength && result.length < limit; index += 1) {
+      for (const item of [topItems[index], latestItems[index]]) {
+        if (!item || result.length >= limit) {
+          continue;
         }
 
-        this.store.dispatch(
-          DiscoveryActions.loadDiscoveryFirstPage({ request })
-        );
-      });
+        const key = `${item.ownerUid}:${item.id}`;
+        if (!item.ownerUid || !item.id || seen.has(key)) {
+          continue;
+        }
+
+        seen.add(key);
+        result.push(item);
+      }
+    }
+
+    return result;
   }
 
   private rankByPublishedAt(
@@ -422,19 +423,6 @@ export class ExploreFeedService {
       ownerMunicipio: owner.municipio ?? null,
       ownerEstado: owner.estado ?? null,
     };
-  }
-
-  private requestKey(request: DiscoveryFeedRequest | null): string {
-    return request ? buildDiscoveryFeedQueryKey(request) : 'none';
-  }
-
-  private toNullableText(value: unknown): string | null {
-    if (typeof value !== 'string') {
-      return null;
-    }
-
-    const text = value.trim();
-    return text.length ? text : null;
   }
 
   private toNumber(value: unknown): number {

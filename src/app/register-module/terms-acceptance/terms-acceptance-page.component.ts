@@ -6,7 +6,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { EMPTY, Observable, combineLatest, of } from 'rxjs';
+import { EMPTY, Observable, combineLatest, from, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -25,7 +25,9 @@ import {
   PLATFORM_LEGAL_MANIFEST,
   TERMS_ACCEPTANCE_VERSION,
   TermsAcceptanceService,
+  hasAcceptedCurrentTerms,
 } from 'src/app/core/services/compliance/terms-acceptance.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
@@ -62,6 +64,7 @@ export class TermsAcceptancePageComponent {
     private readonly registerFlow: RegisterFlowFacade,
     private readonly currentUser: CurrentUserStoreService,
     private readonly logout: LogoutService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
   ) {
     this.isMaterialUpdate$ = combineLatest([
@@ -70,6 +73,11 @@ export class TermsAcceptancePageComponent {
     ]).pipe(
       map(([user, queryParams]) => {
         const record = user?.acceptedTerms;
+
+        if (hasAcceptedCurrentTerms(record)) {
+          return false;
+        }
+
         const previousVersion = String(record?.version ?? '').trim();
         const routedAsUpdate =
           queryParams.get('reason') === 'material_terms_update_required';
@@ -83,6 +91,8 @@ export class TermsAcceptancePageComponent {
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
+    this.redirectRecognizedAcceptance();
   }
 
   accept(): void {
@@ -124,22 +134,12 @@ export class TermsAcceptancePageComponent {
           );
           return EMPTY;
         }),
+        switchMap((target) => from(this.navigateAfterAcceptance(target))),
         finalize(() => {
           this.isSaving.set(false);
         })
       )
-      .subscribe((target) => {
-        this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {
-          this.router
-            .navigate(['/register/finalizar-cadastro'], {
-              replaceUrl: true,
-              queryParams: {
-                reason: 'profile_incomplete',
-              },
-            })
-            .catch(() => undefined);
-        });
-      });
+      .subscribe();
   }
 
   decline(): void {
@@ -179,6 +179,138 @@ export class TermsAcceptancePageComponent {
 
   private markAcknowledgementsTouched(): void {
     this.termsConfirmation.markAsTouched();
+  }
+
+  private async navigateAfterAcceptance(target: string): Promise<void> {
+    let primaryError: unknown = null;
+
+    try {
+      const navigated = await this.router.navigateByUrl(target, {
+        replaceUrl: true,
+      });
+
+      if (navigated) {
+        return;
+      }
+
+      primaryError = new Error(
+        `[TermsAcceptancePageComponent] Router recusou a navegação para ${target}.`
+      );
+    } catch (error) {
+      primaryError = error;
+    }
+
+    try {
+      const fallbackNavigated = await this.navigateToProfileCompletionFallback();
+
+      if (fallbackNavigated) {
+        return;
+      }
+
+      this.reportNavigationFailure(
+        primaryError,
+        new Error(
+          '[TermsAcceptancePageComponent] Router recusou a navegação de fallback.'
+        ),
+        target
+      );
+    } catch (fallbackError) {
+      this.reportNavigationFailure(primaryError, fallbackError, target);
+    }
+  }
+
+  private navigateToProfileCompletionFallback(): Promise<boolean> {
+    return this.router.navigate(['/register/finalizar-cadastro'], {
+      replaceUrl: true,
+      queryParams: {
+        reason: 'profile_incomplete',
+      },
+    });
+  }
+
+  private reportNavigationFailure(
+    primaryError: unknown,
+    fallbackError: unknown,
+    target: string
+  ): void {
+    try {
+      const reportable = new Error(
+        '[TermsAcceptancePageComponent] Falha ao avançar após registrar o aceite.'
+      );
+
+      (reportable as any).context = 'TermsAcceptancePageComponent.navigateAfterAcceptance';
+      (reportable as any).target = target;
+      (reportable as any).primaryError = primaryError;
+      (reportable as any).fallbackError = fallbackError;
+      (reportable as any).skipUserNotification = true;
+
+      this.globalErrorHandler.handleError(reportable);
+    } catch {
+      // O diagnóstico não pode bloquear a recuperação do fluxo jurídico.
+    }
+
+    this.errorNotifier.showError(
+      'Seu aceite foi registrado, mas não foi possível avançar. Recarregue a página e tente novamente.'
+    );
+  }
+
+  /**
+   * Se o usuário chegou aqui por um redirecionamento de reaceite que já não é
+   * necessário, sai da rota imediatamente. Isso também corrige sessões que
+   * ficaram presas em /register/aceitar-termos antes da compatibilidade v2 ser
+   * restaurada.
+   */
+  private redirectRecognizedAcceptance(): void {
+    this.currentUser.user$
+      .pipe(
+        filter((user) => user !== undefined),
+        filter((user) => hasAcceptedCurrentTerms(user?.acceptedTerms)),
+        take(1)
+      )
+      .subscribe(() => {
+        const target = this.resolveSafeRedirectTo() ?? '/';
+
+        this.router.navigateByUrl(target, { replaceUrl: true })
+          .then((navigated) => {
+            if (!navigated) {
+              this.reportRecognizedAcceptanceNavigationFailure(
+                new Error(
+                  `[TermsAcceptancePageComponent] Router recusou a saída para ${target}.`
+                ),
+                target
+              );
+            }
+          })
+          .catch((error) => {
+            this.reportRecognizedAcceptanceNavigationFailure(error, target);
+          });
+      });
+  }
+
+  private reportRecognizedAcceptanceNavigationFailure(
+    error: unknown,
+    target: string
+  ): void {
+    try {
+      const reportable = error instanceof Error
+        ? error
+        : new Error(
+            '[TermsAcceptancePageComponent] Falha ao sair da rota de termos já aceitos.'
+          );
+
+      (reportable as any).context = 'TermsAcceptancePageComponent.redirectRecognizedAcceptance';
+      (reportable as any).target = target;
+      (reportable as any).original = error;
+      (reportable as any).skipUserNotification = true;
+
+      this.globalErrorHandler.handleError(reportable);
+    } catch {
+      // O diagnóstico não deve quebrar uma sessão cujo aceite já é válido.
+    }
+
+    this.errorNotifier.showError(
+      'Seu aceite já está válido, mas não foi possível continuar. Recarregue a página e tente novamente.'
+    );
   }
 
   private resolveNextRoute(

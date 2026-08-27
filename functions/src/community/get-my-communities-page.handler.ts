@@ -17,6 +17,7 @@ import {
   CommunityDiscoveryPageResponse,
   CommunityPreviewCard,
   normalizeCommunityDiscoveryPageRequest,
+  resolveCommunityViewerMode,
   sanitizeCommunityDocument,
 } from './community-preview.model';
 
@@ -46,17 +47,6 @@ function assertAuthenticatedUid(
   }
 
   return uid;
-}
-
-function isActiveCommunityMembership(raw: unknown): boolean {
-  const membership = (raw ?? {}) as Record<string, unknown>;
-  const role = membership['role'];
-
-  return membership['status'] === 'active'
-    && (role === 'owner'
-      || role === 'admin'
-      || role === 'moderator'
-      || role === 'member');
 }
 
 export const getMyCommunitiesPage = onCall<CommunityDiscoveryPageRequest>(
@@ -111,10 +101,15 @@ export const getMyCommunitiesPage = onCall<CommunityDiscoveryPageRequest>(
           membershipRef.get(),
         ]);
 
+        const membership = membershipSnapshot.exists
+          ? resolveCommunityViewerMode(membershipSnapshot.data())
+          : null;
+
         if (
           !communitySnapshot.exists
           || !membershipSnapshot.exists
-          || !isActiveCommunityMembership(membershipSnapshot.data())
+          || !membership?.active
+          || !membership.role
           || communitySnapshot.data()?.['status'] !== 'active'
         ) {
           return null;
@@ -125,7 +120,9 @@ export const getMyCommunitiesPage = onCall<CommunityDiscoveryPageRequest>(
           communitySnapshot.data()
         );
 
-        return card?.source.type === 'community' ? card : null;
+        return card?.source.type === 'community'
+          ? { ...card, viewerRole: membership.role }
+          : null;
       })
     );
 

@@ -8,7 +8,6 @@ import {
   signal,
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
@@ -31,12 +30,14 @@ import {
   isPublicPhotoItem,
   isPublicVideoItem,
 } from 'src/app/core/interfaces/media/i-public-profile-media-item';
-import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
-import type { IProfilePhotoItem } from '../../../photos/photo-viewer/photo-viewer.component';
+import {
+  IPublicProfileMediaPreview,
+  MediaPublicPreviewQueryService,
+} from 'src/app/core/services/media/media-public-preview-query.service';
+import { PublicMixedMediaViewerLauncherService } from '../../services/public-mixed-media-viewer-launcher.service';
 
 type ProfileMediaShowcaseStatus = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -45,6 +46,7 @@ interface ProfileMediaShowcaseState {
   items: IPublicProfileMediaItem[];
   photosCount: number;
   videosCount: number;
+  totalCount: number;
 }
 
 const SHOWCASE_ITEM_LIMIT = 5;
@@ -52,7 +54,7 @@ const SHOWCASE_ITEM_LIMIT = 5;
 @Component({
   selector: 'app-profile-media-showcase',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatDialogModule],
+  imports: [CommonModule, RouterModule],
   templateUrl: './profile-media-showcase.component.html',
   styleUrls: [
     './profile-media-showcase.component.css',
@@ -61,8 +63,8 @@ const SHOWCASE_ITEM_LIMIT = 5;
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfileMediaShowcaseComponent {
-  private readonly dialog = inject(MatDialog);
-  private readonly mediaPublicQuery = inject(MediaPublicQueryService);
+  private readonly mediaPublicPreview = inject(MediaPublicPreviewQueryService);
+  private readonly mixedViewerLauncher = inject(PublicMixedMediaViewerLauncherService);
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
@@ -89,23 +91,25 @@ export class ProfileMediaShowcaseComponent {
   ]).pipe(
     switchMap(([ownerUid]) => {
       if (!ownerUid) {
-        return of(this.buildState('empty', []));
+        return of(this.buildState('empty'));
       }
 
-      return this.mediaPublicQuery.getProfilePublicMedia$(ownerUid, {
-        propagateErrors: true,
-      }).pipe(
-        map((items) => this.buildState(
-          items.length > 0 ? 'ready' : 'empty',
-          items
+      return this.mediaPublicPreview.getProfilePublicMediaPreview$(
+        ownerUid,
+        SHOWCASE_ITEM_LIMIT,
+        { propagateErrors: true }
+      ).pipe(
+        map((preview) => this.buildState(
+          preview.items.length > 0 ? 'ready' : 'empty',
+          preview
         )),
-        startWith(this.buildState('loading', [])),
+        startWith(this.buildState('loading')),
         catchError(() => {
           this.errorNotification.showError(
             'Não foi possível carregar as mídias deste perfil agora.'
           );
 
-          return of(this.buildState('error', []));
+          return of(this.buildState('error'));
         })
       );
     }),
@@ -129,13 +133,15 @@ export class ProfileMediaShowcaseComponent {
 
     this.viewerOpening.set(true);
 
-    let items: IPublicProfileMediaItem[];
+    let preview: IPublicProfileMediaPreview;
 
     try {
-      items = await firstValueFrom(
-        this.mediaPublicQuery.getProfilePublicMedia$(ownerUid, {
-          propagateErrors: true,
-        })
+      preview = await firstValueFrom(
+        this.mediaPublicPreview.getProfilePublicMediaPreview$(
+          ownerUid,
+          SHOWCASE_ITEM_LIMIT,
+          { propagateErrors: true }
+        )
       );
     } catch {
       this.errorNotification.showError(
@@ -145,14 +151,21 @@ export class ProfileMediaShowcaseComponent {
       return;
     }
 
+    const items = [...preview.items];
     const selectedIdentity = this.buildMediaIdentity(item);
     const refreshedIndex = items.findIndex(
       (candidate) => this.buildMediaIdentity(candidate) === selectedIdentity
     );
-    const safeIndex = refreshedIndex >= 0
-      ? refreshedIndex
-      : Math.max(0, Math.min(fallbackIndex, items.length - 1));
-    const refreshedItem = items[safeIndex] ?? null;
+    const safeFallbackIndex = Math.max(
+      0,
+      Math.min(fallbackIndex, Math.max(0, items.length - 1))
+    );
+    const fallbackItem = items[safeFallbackIndex] ?? null;
+    const refreshedItem = refreshedIndex >= 0
+      ? items[refreshedIndex]
+      : fallbackItem && this.buildMediaIdentity(fallbackItem) === selectedIdentity
+        ? fallbackItem
+        : null;
 
     if (!refreshedItem) {
       this.errorNotification.showWarning(
@@ -163,11 +176,11 @@ export class ProfileMediaShowcaseComponent {
     }
 
     try {
-      if (isPublicVideoItem(refreshedItem)) {
-        await this.openVideoViewer(items, refreshedItem, ownerUid);
-      } else {
-        await this.openPhotoViewer(items, refreshedItem, ownerUid);
-      }
+      await firstValueFrom(this.mixedViewerLauncher.open$({
+        items,
+        selected: refreshedItem,
+        source: 'profile',
+      }));
     } catch (error) {
       this.reportViewerError(error, ownerUid, refreshedItem);
       this.errorNotification.showError(
@@ -240,94 +253,14 @@ export class ProfileMediaShowcaseComponent {
 
   private buildState(
     status: ProfileMediaShowcaseStatus,
-    items: IPublicProfileMediaItem[]
+    preview: IPublicProfileMediaPreview | null = null
   ): ProfileMediaShowcaseState {
     return {
       status,
-      items,
-      photosCount: items.filter(isPublicPhotoItem).length,
-      videosCount: items.filter(isPublicVideoItem).length,
-    };
-  }
-
-  private async openPhotoViewer(
-    items: IPublicProfileMediaItem[],
-    selected: IPublicPhotoItem,
-    ownerUid: string
-  ): Promise<void> {
-    const photoItems = items.filter(isPublicPhotoItem);
-    const startIndex = Math.max(
-      0,
-      photoItems.findIndex((item) => item.id === selected.id)
-    );
-    const viewerItems = photoItems.map((item) => this.toViewerPhotoItem(item));
-    const { PhotoViewerComponent } = await import(
-      '../../../photos/photo-viewer/photo-viewer.component'
-    );
-
-    this.dialog.open(PhotoViewerComponent, {
-      data: {
-        ownerUid,
-        items: viewerItems,
-        startIndex,
-        source: 'profile',
-      },
-      autoFocus: false,
-      restoreFocus: true,
-      width: '100vw',
-      height: '100vh',
-      maxWidth: '100vw',
-      maxHeight: '100vh',
-      panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
-      backdropClass: 'photo-viewer-backdrop',
-    });
-  }
-
-  private async openVideoViewer(
-    items: IPublicProfileMediaItem[],
-    selected: IPublicVideoItem,
-    ownerUid: string
-  ): Promise<void> {
-    const videoItems = items.filter(isPublicVideoItem);
-    const startIndex = Math.max(
-      0,
-      videoItems.findIndex((item) => item.id === selected.id)
-    );
-    const { PublicVideoViewerComponent } = await import(
-      '../../../videos/public-video-viewer/public-video-viewer.component'
-    );
-
-    this.dialog.open(PublicVideoViewerComponent, {
-      data: {
-        ownerUid,
-        items: videoItems,
-        startIndex,
-      },
-      autoFocus: false,
-      restoreFocus: true,
-      width: '100vw',
-      height: '100vh',
-      maxWidth: '100vw',
-      maxHeight: '100vh',
-      panelClass: [
-        'photo-viewer-dialog--immersive',
-        'public-video-viewer-dialog',
-      ],
-      backdropClass: 'photo-viewer-backdrop',
-    });
-  }
-
-  private toViewerPhotoItem(item: IPublicPhotoItem): IProfilePhotoItem {
-    return {
-      id: item.id,
-      ownerUid: item.ownerUid,
-      url: item.url,
-      alt: item.alt,
-      createdAt: item.createdAt,
-      commentsEnabled: item.commentsEnabled ?? false,
-      commentsPolicy: item.commentsPolicy ?? 'OFF',
-      reactionsEnabled: item.reactionsEnabled ?? false,
-      moderationStatus: item.moderationStatus ?? 'PRIVATE',
+      items: [...(preview?.items ?? [])],
+      photosCount: preview?.photosCount ?? 0,
+      videosCount: preview?.videosCount ?? 0,
+      totalCount: preview?.totalCount ?? 0,
     };
   }
 

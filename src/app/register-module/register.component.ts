@@ -517,7 +517,7 @@ export class RegisterComponent {
     this.form.updateValueAndValidity();
 
     if (this.nicknameChecking()) {
-      this.errorNotification.showError(
+      this.errorNotification.showInfo(
         'Aguarde a validação do apelido terminar.'
       );
       return;
@@ -529,7 +529,6 @@ export class RegisterComponent {
         'Verifique os campos',
         'Há campos obrigatórios ou inválidos. Corrija e tente novamente.'
       );
-      this.errorNotification.showError('Verifique os campos preenchidos.');
       return;
     }
 
@@ -568,7 +567,7 @@ export class RegisterComponent {
         finalize(() => this.isLoading.set(false))
       )
       .subscribe({
-        next: async () => {
+        next: async (result) => {
           try {
             await this.waitForAuthUserOnce(8000);
           } catch (e) {
@@ -585,7 +584,13 @@ export class RegisterComponent {
           this.creatingMsg.set('Tudo pronto! Redirecionando…');
           this.router
             .navigate(['/register/welcome'], {
-              queryParams: { email, autocheck: '1' },
+              queryParams: {
+                email,
+                autocheck: '1',
+                verificationEmail: result.verificationEmailSent
+                  ? 'sent'
+                  : 'failed',
+              },
               replaceUrl: true,
             })
             .finally(() => this.creating.set(false));
@@ -607,9 +612,6 @@ export class RegisterComponent {
               'Não foi possível preparar o redirecionamento. Procure o suporte.',
               err
             );
-            this.errorNotification.showError(
-              'Não foi possível enviar o e-mail de verificação.'
-            );
             return;
           }
 
@@ -627,9 +629,6 @@ export class RegisterComponent {
               'Não foi possível validar o apelido',
               'Tente novamente em instantes antes de concluir o cadastro.',
               err
-            );
-            this.errorNotification.showError(
-              'Não foi possível validar o apelido agora.'
             );
             return;
           }
@@ -650,15 +649,6 @@ export class RegisterComponent {
           ) {
             this.setApelidoEmUsoError();
             this.nicknameCheckState.set('taken');
-            this.setBanner(
-              'error',
-              'Apelido em uso',
-              'Escolha outro apelido para continuar.',
-              err
-            );
-            this.errorNotification.showError(
-              'Apelido em uso. Escolha outro.'
-            );
             setTimeout(() =>
               document.getElementById('apelidoPrincipal')?.focus()
             );
@@ -671,9 +661,6 @@ export class RegisterComponent {
             'Tente novamente. Se o problema continuar, procure o suporte.',
             err
           );
-          this.errorNotification.showError(
-            'Não foi possível concluir o cadastro. Tente novamente.'
-          );
         },
       });
   }
@@ -685,6 +672,6 @@ Fluxo de registro:
 2. Enquanto digita o apelido, após 3s de inatividade ou no blur, checa disponibilidade em modo soft.
 3. No submit, valida complexidade e igualdade das senhas e faz checagem estrita do apelido.
 4. Apenas a senha principal segue para o Firebase Auth; a confirmação permanece somente no formulário.
-5. Se tudo estiver válido, cria a conta, registra o aceite auditável e espera a sessão aparecer.
+5. Se tudo estiver válido, cria a conta, registra o aceite auditável, preserva o resultado do envio de verificação e espera a sessão aparecer.
 6. Se a auditoria de termos falhar temporariamente, o fluxo canônico solicitará o aceite novamente depois.
 */

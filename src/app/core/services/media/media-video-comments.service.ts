@@ -19,6 +19,10 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import {
+  resolvePublicMediaCallableUserMessage,
+  type PublicMediaCallableAction,
+} from './public-media-callable-feedback.policy';
 
 export interface CreateVideoCommentCommand {
   ownerUid: string;
@@ -140,9 +144,7 @@ export class MediaVideoCommentsService {
     });
   }
 
-  replyToComment$(
-    command: ReplyToVideoCommentCommand
-  ): Observable<string | null> {
+  replyToComment$(command: ReplyToVideoCommentCommand): Observable<string | null> {
     return this.createOrReplyComment$({
       ownerUid: command.ownerUid,
       videoId: command.videoId,
@@ -151,33 +153,19 @@ export class MediaVideoCommentsService {
     });
   }
 
-  hideComment$(
-    ownerUid: string,
-    videoId: string,
-    commentId: string
-  ): Observable<TVideoCommentStatus | null> {
+  hideComment$(ownerUid: string, videoId: string, commentId: string): Observable<TVideoCommentStatus | null> {
     return this.moderateComment$(ownerUid, videoId, commentId, 'HIDE');
   }
 
-  restoreComment$(
-    ownerUid: string,
-    videoId: string,
-    commentId: string
-  ): Observable<TVideoCommentStatus | null> {
+  restoreComment$(ownerUid: string, videoId: string, commentId: string): Observable<TVideoCommentStatus | null> {
     return this.moderateComment$(ownerUid, videoId, commentId, 'RESTORE');
   }
 
-  deleteComment$(
-    ownerUid: string,
-    videoId: string,
-    commentId: string
-  ): Observable<TVideoCommentStatus | null> {
+  deleteComment$(ownerUid: string, videoId: string, commentId: string): Observable<TVideoCommentStatus | null> {
     return this.moderateComment$(ownerUid, videoId, commentId, 'DELETE');
   }
 
-  private createOrReplyComment$(
-    command: CreateVideoCommentRequest
-  ): Observable<string | null> {
+  private createOrReplyComment$(command: CreateVideoCommentRequest): Observable<string | null> {
     const ownerUid = this.cleanId(command.ownerUid);
     const videoId = this.cleanId(command.videoId);
     const parentCommentId = this.cleanId(command.parentCommentId) || null;
@@ -198,6 +186,9 @@ export class MediaVideoCommentsService {
       return response.data.commentId ?? null;
     }).pipe(
       catchError((error) => {
+        const action: PublicMediaCallableAction = parentCommentId
+          ? 'reply'
+          : 'comment';
         this.reportError(
           parentCommentId
             ? 'Erro ao responder comentário.'
@@ -208,7 +199,9 @@ export class MediaVideoCommentsService {
             isReply: !!parentCommentId,
             hasOwnerUid: !!ownerUid,
             hasVideoId: !!videoId,
-          }
+          },
+          false,
+          action
         );
         return of(null);
       })
@@ -253,7 +246,9 @@ export class MediaVideoCommentsService {
             hasOwnerUid: !!ownerUid,
             hasVideoId: !!videoId,
             hasCommentId: !!commentId,
-          }
+          },
+          false,
+          'moderation'
         );
         return of(null);
       })
@@ -305,22 +300,27 @@ export class MediaVideoCommentsService {
     userMessage: string,
     error: unknown,
     context: Record<string, unknown>,
-    silent = false
+    silent = false,
+    action?: PublicMediaCallableAction
   ): void {
+    const safeUserMessage = action
+      ? resolvePublicMediaCallableUserMessage(error, action, userMessage)
+      : userMessage;
+
     if (!silent) {
-      this.errorNotifier.showError(userMessage);
+      this.errorNotifier.showError(safeUserMessage);
     }
 
     try {
       const normalized = error instanceof Error
         ? error
-        : new Error(userMessage);
+        : new Error(safeUserMessage);
       (normalized as any).original = error;
       (normalized as any).context = {
         scope: 'MediaVideoCommentsService',
         ...context,
       };
-      (normalized as any).skipUserNotification = silent;
+      (normalized as any).skipUserNotification = true;
       this.errorHandler.handleError(normalized);
       this.privacyDebug.log('media', 'MediaVideoCommentsService: falha', context);
     } catch {

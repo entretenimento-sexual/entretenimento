@@ -23,6 +23,9 @@ import {
 } from 'firebase-admin/app';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage as getAdminStorage } from 'firebase-admin/storage';
+
+import { seedPublicMediaCompliance } from './media-e2e-compliance-fixture.mjs';
 
 const PROJECT_ID = 'demo-entretenimento-media-e2e';
 const STORAGE_BUCKET = `${PROJECT_ID}.appspot.com`;
@@ -60,6 +63,11 @@ async function waitFor(label, readValue, predicate) {
 async function readDocumentData(reference) {
   const snapshot = await reference.get();
   return snapshot.exists ? snapshot.data() : null;
+}
+
+async function fileExists(file) {
+  const [exists] = await file.exists();
+  return exists;
 }
 
 async function expectCallableFailure(callable, payload) {
@@ -100,6 +108,7 @@ async function run() {
   const runId = randomUUID();
   const videoId = `reports-video-${runId}`;
   const commentId = `reported-comment-${runId}`;
+  const assetVersion = `e2e-${runId}`;
   const ownerClient = createClientApp(`video-reports-owner-${runId}`);
   const visitorAClient = createClientApp(`video-reports-a-${runId}`);
   const visitorBClient = createClientApp(`video-reports-b-${runId}`);
@@ -114,11 +123,14 @@ async function run() {
   );
   const db = getFirestore(adminApp);
   const adminAuth = getAdminAuth(adminApp);
+  const bucket = getAdminStorage(adminApp).bucket();
   const users = [];
   let ownerUid = '';
   let visitorAUid = '';
   let visitorBUid = '';
   let moderatorUid = '';
+  let publishedStoragePath = '';
+  let evidenceStoragePath = '';
 
   try {
     const credentials = await Promise.all([
@@ -148,8 +160,13 @@ async function run() {
     visitorAUid = credentials[1].user.uid;
     visitorBUid = credentials[2].user.uid;
     moderatorUid = credentials[3].user.uid;
+    publishedStoragePath =
+      `users/${ownerUid}/published/videos/${videoId}/assets/${assetVersion}`;
 
-    await adminAuth.setCustomUserClaims(moderatorUid, { admin: true });
+    await Promise.all([
+      adminAuth.setCustomUserClaims(moderatorUid, { admin: true }),
+      seedPublicMediaCompliance(db, [ownerUid, visitorAUid, visitorBUid]),
+    ]);
     await credentials[3].user.getIdToken(true);
 
     const publicationRef = db.doc(
@@ -160,6 +177,14 @@ async function run() {
     );
     const commentRef = publicVideoRef.collection('comments').doc(commentId);
     const ratingRef = publicVideoRef.collection('ratings').doc(visitorAUid);
+
+    await bucket.file(publishedStoragePath).save(
+      Buffer.from(`video-evidence-${runId}`, 'utf8'),
+      {
+        contentType: 'video/mp4',
+        resumable: false,
+      }
+    );
 
     await Promise.all([
       db.doc(`public_profiles/${ownerUid}`).set({
@@ -178,8 +203,10 @@ async function run() {
         ownerUid,
         videoId,
         isPublished: true,
+        publishWhenReady: false,
         visibility: 'PUBLIC',
         moderationStatus: 'APPROVED',
+        publishedStoragePath,
         updatedAt: Date.now(),
       }),
       publicVideoRef.set({
@@ -307,6 +334,16 @@ async function run() {
       reason: 'harassment',
       details: 'Comentário incompatível com as regras da plataforma.',
     });
+    const commentEvidenceRef = db.doc(
+      `moderation_evidence/${commentReport.data.reportId}`
+    );
+    const commentEvidence = await readDocumentData(commentEvidenceRef);
+
+    assert.equal(commentEvidence?.evidenceType, 'TEXT_SNAPSHOT');
+    assert.equal(commentEvidence?.mediaType, 'VIDEO_COMMENT');
+    assert.equal(commentEvidence?.targetId, commentId);
+    assert.equal(commentEvidence?.textSnapshot, 'Comentário denunciável.');
+
     await reviewAsAdmin({
       reportId: commentReport.data.reportId,
       decision: 'REMOVE',
@@ -318,12 +355,14 @@ async function run() {
       async () => ({
         comment: await readDocumentData(commentRef),
         video: await readDocumentData(publicVideoRef),
+        evidence: await readDocumentData(commentEvidenceRef),
       }),
       (state) =>
         state.comment?.status === 'DELETED' &&
         state.comment?.content === '' &&
         state.video?.commentsCount === 0 &&
-        state.video?.confirmedReportsCount === 1
+        state.video?.confirmedReportsCount === 1 &&
+        state.evidence?.textSnapshot === 'Comentário denunciável.'
     );
 
     const ratingReport = await reportAsOwner({
@@ -359,36 +398,77 @@ async function run() {
       ownerUid,
       videoId,
       reason: 'illegal_content',
-      details: 'Segunda denúncia usada para validar remoção do vídeo.',
+      details: 'Denúncia grave usada para validar quarentena e remoção total.',
     });
+    const reportId = videoReportB.data.reportId;
+    const videoReportBRef = db.doc(`moderation_reports/${reportId}`);
+    const binaryEvidenceRef = db.doc(`moderation_evidence/${reportId}`);
+    const legalReviewRef = db.doc(`moderation_legal_review_cases/${reportId}`);
+    evidenceStoragePath = `system/moderation-evidence/${reportId}/video`;
+
+    const quarantinedState = await waitFor(
+      'denúncia grave retirar o vídeo e preservar evidência',
+      async () => ({
+        video: await readDocumentData(publicVideoRef),
+        publication: await readDocumentData(publicationRef),
+        report: await readDocumentData(videoReportBRef),
+        evidence: await readDocumentData(binaryEvidenceRef),
+        evidenceFileExists: await fileExists(bucket.file(evidenceStoragePath)),
+      }),
+      (state) =>
+        state.video?.moderationStatus === 'HIDDEN' &&
+        state.publication?.visibility === 'PUBLIC' &&
+        state.publication?.moderationStatus === 'FLAGGED' &&
+        state.report?.contentQuarantined === true &&
+        state.report?.evidencePreservationStatus === 'PRESERVED' &&
+        state.evidence?.retentionStatus === 'LEGAL_REVIEW_REQUIRED' &&
+        state.evidence?.storagePath === evidenceStoragePath &&
+        state.evidenceFileExists === true
+    );
+    assert.equal(quarantinedState.publication.isPublished, true);
+
+    await expectCallableFailure(
+      httpsCallable(ownerClient.functions, 'deleteProfileVideo'),
+      { ownerUid, videoId }
+    );
+
     await reviewAsAdmin({
-      reportId: videoReportB.data.reportId,
+      reportId,
       decision: 'REMOVE',
       resolution: 'Vídeo removido após confirmação da violação denunciada.',
     });
 
     await waitFor(
-      'vídeo denunciado sair da publicação',
+      'vídeo confirmado ser excluído e abrir revisão jurídica',
       async () => ({
         video: await readDocumentData(publicVideoRef),
         publication: await readDocumentData(publicationRef),
-        report: await readDocumentData(
-          db.doc(`moderation_reports/${videoReportB.data.reportId}`)
-        ),
+        report: await readDocumentData(videoReportBRef),
+        evidence: await readDocumentData(binaryEvidenceRef),
+        evidenceFileExists: await fileExists(bucket.file(evidenceStoragePath)),
+        legalReview: await readDocumentData(legalReviewRef),
       }),
       (state) =>
         state.video === null &&
-        state.publication?.isPublished === false &&
-        state.publication?.moderationStatus === 'REJECTED' &&
+        state.publication === null &&
         state.report?.status === 'resolved' &&
-        state.report?.moderationAction === 'REMOVE'
+        state.report?.moderationAction === 'REMOVE' &&
+        state.report?.legalReviewStatus === 'PENDING_LEGAL_REVIEW' &&
+        state.evidence?.retentionStatus === 'LEGAL_REVIEW_REQUIRED' &&
+        state.evidenceFileExists === true &&
+        state.legalReview?.status === 'PENDING_LEGAL_REVIEW' &&
+        state.legalReview?.authorityDisclosureStatus === 'NOT_EVALUATED' &&
+        state.legalReview?.automaticDisclosure === false
     );
 
     console.log('✔ denúncia duplicada e decisão por usuário comum foram bloqueadas');
-    console.log('✔ conteúdo mantido restaurou o score de segurança');
-    console.log('✔ comentário denunciado foi removido e recontado');
+    console.log('✔ denúncia comum isolada não retirou conteúdo legítimo');
+    console.log('✔ comentário denunciado foi removido com snapshot preservado');
     console.log('✔ avaliação denunciada foi removida e reagrupada');
-    console.log('✔ vídeo confirmado foi retirado da publicação');
+    console.log('✔ denúncia grave colocou o vídeo em quarentena e preservou o ativo');
+    console.log('✔ proprietário não removeu conteúdo FLAGGED durante a análise');
+    console.log('✔ REMOVE excluiu o produto sem destruir evidência preservada');
+    console.log('✔ caso grave confirmado abriu revisão jurídica sem disclosure automático');
   } finally {
     const cleanupTasks = [];
 
@@ -405,6 +485,17 @@ async function run() {
 
     for (const user of users) {
       cleanupTasks.push(deleteUser(user).catch(() => undefined));
+    }
+
+    if (publishedStoragePath) {
+      cleanupTasks.push(
+        bucket.file(publishedStoragePath).delete({ ignoreNotFound: true })
+      );
+    }
+    if (evidenceStoragePath) {
+      cleanupTasks.push(
+        bucket.file(evidenceStoragePath).delete({ ignoreNotFound: true })
+      );
     }
 
     await Promise.all(cleanupTasks);

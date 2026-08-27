@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "options": [
+    {
+      "code": "homem",
+      "label": "Homem",
+      "shortLabel": "Homem",
+      "discoveryGroup": "man",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 10
+    },
+    {
+      "code": "mulher",
+      "label": "Mulher",
+      "shortLabel": "Mulher",
+      "discoveryGroup": "woman",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 20
+    },
+    {
+      "code": "casal-ele-ele",
+      "label": "Casal (Ele/Ele)",
+      "shortLabel": "Casal",
+      "discoveryGroup": "couple",
+      "couple": true,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 30
+    },
+    {
+      "code": "casal-ele-ela",
+      "label": "Casal (Ele/Ela)",
+      "shortLabel": "Casal",
+      "discoveryGroup": "couple",
+      "couple": true,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 40
+    },
+    {
+      "code": "casal-ela-ela",
+      "label": "Casal (Ela/Ela)",
+      "shortLabel": "Casal",
+      "discoveryGroup": "couple",
+      "couple": true,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 50
+    },
+    {
+      "code": "travesti",
+      "label": "Travesti",
+      "shortLabel": "Travesti",
+      "discoveryGroup": "travesti",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 60
+    },
+    {
+      "code": "transexual",
+      "label": "Pessoa trans",
+      "shortLabel": "Pessoa trans",
+      "discoveryGroup": "transgender",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 70
+    },
+    {
+      "code": "crossdressers",
+      "label": "Crossdresser",
+      "shortLabel": "Crossdresser",
+      "discoveryGroup": "crossdresser",
+      "couple": false,
+      "enabled": true,
+      "selectable": true,
+      "sortOrder": 80
+    }
+  ]
+}

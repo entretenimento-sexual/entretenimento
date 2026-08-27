@@ -11,7 +11,7 @@ import {
   VIDEO_PROCESSING_JOBS_COLLECTION,
 } from './video-processing-job';
 import {
-  extractOwnedPrivateVideoPath,
+  extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
   normalizeOwnedProcessedVideoPrefix,
 } from './video-storage-path';
@@ -21,15 +21,19 @@ interface DeleteProfileVideoRequest {
   videoId?: string;
 }
 
-interface DeleteProfileVideoResponse {
+export interface DeleteProfileVideoResponse {
   videoId: string;
   cleanupPending: boolean;
+}
+
+export interface DeleteProfileVideoResourcesOptions {
+  allowQuarantined?: boolean;
 }
 
 interface VideoDeletionJob {
   ownerUid: string;
   videoId: string;
-  privateVideoStoragePath: string;
+  privateVideoStoragePath: string | null;
   privatePosterStoragePath: string | null;
   processedOutputPrefix: string | null;
   publishedVideoStoragePath: string | null;
@@ -52,9 +56,12 @@ interface PrivateVideoDoc {
 interface VideoPublicationDoc {
   publishedStoragePath?: string;
   publishedPosterStoragePath?: string;
+  moderationStatus?: string;
 }
 
 interface VideoProcessingJobDoc {
+  sourceStoragePath?: string;
+  sourcePosterStoragePath?: string | null;
   outputPrefix?: string;
   state?: string;
 }
@@ -102,6 +109,14 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
   }
 }
 
+function isQuarantinedPublication(
+  publication: VideoPublicationDoc | null
+): boolean {
+  return String(publication?.moderationStatus ?? '')
+    .trim()
+    .toUpperCase() === 'FLAGGED';
+}
+
 function buildDeletionJobId(ownerUid: string, videoId: string): string {
   return `${ownerUid}_${videoId}`;
 }
@@ -112,6 +127,30 @@ function normalizeErrorMessage(error: unknown): string {
   }
 
   return String(error ?? 'unknown').slice(0, 500);
+}
+
+function privateVideoPrefix(ownerUid: string, videoId: string): string {
+  return `users/${ownerUid}/uploads/videos/${videoId}-`;
+}
+
+function privatePosterPrefix(ownerUid: string, videoId: string): string {
+  return `users/${ownerUid}/uploads/video-posters/${videoId}/`;
+}
+
+function processedVideoPrefix(ownerUid: string, videoId: string): string {
+  return `users/${ownerUid}/processed/videos/${videoId}/`;
+}
+
+function publishedVideoPrefix(ownerUid: string, videoId: string): string {
+  return `users/${ownerUid}/published/videos/${videoId}/`;
+}
+
+async function deleteFilesByPrefix(prefix: string): Promise<void> {
+  const [files] = await storage.bucket().getFiles({ prefix });
+
+  await Promise.all(
+    files.map((file) => file.delete({ ignoreNotFound: true }))
+  );
 }
 
 async function refreshMetricsBestEffort(ownerUid: string): Promise<void> {
@@ -156,35 +195,39 @@ async function cleanupPublishedAssets(
 
 async function deletePrivateAssets(job: VideoDeletionJob): Promise<void> {
   const bucket = storage.bucket();
-  const deleteTasks: Promise<unknown>[] = [
-    bucket
-      .file(job.privateVideoStoragePath)
-      .delete({ ignoreNotFound: true }),
-  ];
+  const exactDeleteTasks: Promise<unknown>[] = [];
+
+  if (job.privateVideoStoragePath) {
+    exactDeleteTasks.push(
+      bucket
+        .file(job.privateVideoStoragePath)
+        .delete({ ignoreNotFound: true })
+    );
+  }
 
   if (job.privatePosterStoragePath) {
-    deleteTasks.push(
+    exactDeleteTasks.push(
       bucket
         .file(job.privatePosterStoragePath)
         .delete({ ignoreNotFound: true })
     );
   }
 
-  await Promise.all(deleteTasks);
+  await Promise.all([
+    ...exactDeleteTasks,
+    deleteFilesByPrefix(privateVideoPrefix(job.ownerUid, job.videoId)),
+    deleteFilesByPrefix(privatePosterPrefix(job.ownerUid, job.videoId)),
+  ]);
 }
 
 async function deleteProcessedAssets(job: VideoDeletionJob): Promise<void> {
-  if (!job.processedOutputPrefix) {
-    return;
-  }
+  await deleteFilesByPrefix(processedVideoPrefix(job.ownerUid, job.videoId));
+}
 
-  const [files] = await storage.bucket().getFiles({
-    prefix: job.processedOutputPrefix,
-  });
-
-  await Promise.all(
-    files.map((file) => file.delete({ ignoreNotFound: true }))
-  );
+async function deletePublishedAssetsByPrefix(
+  job: VideoDeletionJob
+): Promise<void> {
+  await deleteFilesByPrefix(publishedVideoPrefix(job.ownerUid, job.videoId));
 }
 
 async function executeDeletionJob(
@@ -202,6 +245,7 @@ async function executeDeletionJob(
   await Promise.all([
     deletePrivateAssets(job),
     deleteProcessedAssets(job),
+    deletePublishedAssetsByPrefix(job),
   ]);
   const publishedAssetsDeleted = await cleanupPublishedAssets(job);
 
@@ -257,13 +301,177 @@ function requestProcessingCancellation(
       cancelRequestedAt: now,
       leaseUntil: null,
       updatedAt: now,
-      lastErrorCode: 'PRIVATE_VIDEO_DELETED',
-      lastError: 'O vídeo privado foi excluído pelo proprietário.',
+      lastErrorCode: 'VIDEO_DELETED',
+      lastError: 'O vídeo foi excluído da plataforma.',
     },
     { merge: true }
   );
 
   return true;
+}
+
+/**
+ * Exclusão canônica de um vídeo do produto.
+ *
+ * Remove metadados privados, projeção pública, interações, fonte, capa,
+ * derivados e ativos publicados. Jobs técnicos só sobrevivem enquanto forem
+ * necessários para cancelar/terminar a limpeza física e depois são removidos.
+ * Evidências de moderação ficam fora deste agregado e seguem sua própria
+ * política de retenção/pseudonimização.
+ *
+ * `allowQuarantined` é reservado à moderação depois da preservação probatória.
+ * A exclusão do proprietário permanece fail-closed enquanto FLAGGED.
+ */
+export async function deleteProfileVideoResources(
+  ownerUidValue: unknown,
+  videoIdValue: unknown,
+  options: DeleteProfileVideoResourcesOptions = {}
+): Promise<DeleteProfileVideoResponse> {
+  const ownerUid = cleanId(ownerUidValue);
+  const videoId = cleanId(videoIdValue);
+
+  if (!ownerUid || !videoId) {
+    throw new HttpsError('invalid-argument', 'Vídeo inválido.');
+  }
+
+  const privateVideoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
+  const publicationRef = db.doc(
+    `users/${ownerUid}/video_publications/${videoId}`
+  );
+  const publicVideoRef = db.doc(
+    `public_profiles/${ownerUid}/public_videos/${videoId}`
+  );
+  const processingJobRef = db
+    .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
+    .doc(buildVideoProcessingJobId(ownerUid, videoId));
+  const [privateVideoSnap, publicationSnap, processingJobSnap] =
+    await Promise.all([
+      privateVideoRef.get(),
+      publicationRef.get(),
+      processingJobRef.get(),
+    ]);
+  const privateVideo = privateVideoSnap.exists
+    ? (privateVideoSnap.data() as PrivateVideoDoc)
+    : null;
+  const publication = publicationSnap.exists
+    ? (publicationSnap.data() as VideoPublicationDoc)
+    : null;
+  const processingJob = processingJobSnap.exists
+    ? (processingJobSnap.data() as VideoProcessingJobDoc)
+    : null;
+
+  if (isQuarantinedPublication(publication) && options.allowQuarantined !== true) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Este vídeo está temporariamente preservado durante uma análise de segurança.'
+    );
+  }
+
+  const now = Date.now();
+  const privateVideoStoragePath =
+    extractOwnedPrivateVideoPathForId(
+      ownerUid,
+      videoId,
+      privateVideo?.path
+    ) ??
+    extractOwnedPrivateVideoPathForId(
+      ownerUid,
+      videoId,
+      privateVideo?.url
+    ) ??
+    extractOwnedPrivateVideoPathForId(
+      ownerUid,
+      videoId,
+      processingJob?.sourceStoragePath
+    );
+  const privatePosterStoragePath =
+    extractOwnedPrivateVideoPosterPath(
+      ownerUid,
+      videoId,
+      privateVideo?.thumbnailPath
+    ) ??
+    extractOwnedPrivateVideoPosterPath(
+      ownerUid,
+      videoId,
+      privateVideo?.thumbnailUrl
+    ) ??
+    extractOwnedPrivateVideoPosterPath(
+      ownerUid,
+      videoId,
+      processingJob?.sourcePosterStoragePath
+    );
+  const processedOutputPrefix =
+    normalizeOwnedProcessedVideoPrefix(
+      ownerUid,
+      videoId,
+      privateVideo?.processedOutputPrefix
+    ) ??
+    normalizeOwnedProcessedVideoPrefix(
+      ownerUid,
+      videoId,
+      processingJob?.outputPrefix
+    );
+  const jobId = buildDeletionJobId(ownerUid, videoId);
+  const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
+  const removalBatch = db.batch();
+  const processingCleanupPending = requestProcessingCancellation(
+    removalBatch,
+    processingJobRef,
+    processingJob,
+    now
+  );
+  const job: VideoDeletionJob = {
+    ownerUid,
+    videoId,
+    privateVideoStoragePath,
+    privatePosterStoragePath,
+    processedOutputPrefix,
+    publishedVideoStoragePath:
+      publication?.publishedStoragePath ?? null,
+    publishedPosterStoragePath:
+      publication?.publishedPosterStoragePath ?? null,
+    processingCleanupPending,
+    createdAt: now,
+    updatedAt: now,
+    attempts: 0,
+    lastError: null,
+  };
+
+  removalBatch.set(jobRef, job);
+  if (publicationSnap.exists && publicationSnap.updateTime) {
+    removalBatch.delete(publicationRef, {
+      lastUpdateTime: publicationSnap.updateTime,
+    });
+  } else {
+    removalBatch.delete(publicationRef);
+  }
+  removalBatch.delete(publicVideoRef);
+  await removalBatch.commit();
+  await refreshMetricsBestEffort(ownerUid);
+
+  try {
+    const publishedAssetsDeleted = await executeDeletionJob(jobId, job);
+
+    return {
+      videoId,
+      cleanupPending:
+        !publishedAssetsDeleted || processingCleanupPending,
+    };
+  } catch (error) {
+    await recordDeletionAttemptFailure(jobId, error);
+
+    logger.error('[deleteProfileVideo] Limpeza física pendente.', {
+      ownerUid,
+      videoId,
+      jobId,
+      error: normalizeErrorMessage(error),
+    });
+
+    return {
+      videoId,
+      cleanupPending: true,
+    };
+  }
 }
 
 export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
@@ -278,150 +486,7 @@ export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
     }
 
     assertOwner(requesterUid, ownerUid);
-
-    const privateVideoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
-    const publicationRef = db.doc(
-      `users/${ownerUid}/video_publications/${videoId}`
-    );
-    const publicVideoRef = db.doc(
-      `public_profiles/${ownerUid}/public_videos/${videoId}`
-    );
-    const processingJobRef = db
-      .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
-      .doc(buildVideoProcessingJobId(ownerUid, videoId));
-    const [privateVideoSnap, publicationSnap, processingJobSnap] =
-      await Promise.all([
-        privateVideoRef.get(),
-        publicationRef.get(),
-        processingJobRef.get(),
-      ]);
-    const publication = publicationSnap.exists
-      ? (publicationSnap.data() as VideoPublicationDoc)
-      : null;
-    const processingJob = processingJobSnap.exists
-      ? (processingJobSnap.data() as VideoProcessingJobDoc)
-      : null;
-    const now = Date.now();
-
-    if (!privateVideoSnap.exists) {
-      const cleanupBatch = db.batch();
-      cleanupBatch.delete(publicationRef);
-      cleanupBatch.delete(publicVideoRef);
-      const processingCleanupPending = requestProcessingCancellation(
-        cleanupBatch,
-        processingJobRef,
-        processingJob,
-        now
-      );
-      await cleanupBatch.commit();
-      await refreshMetricsBestEffort(ownerUid);
-
-      const publishedAssetsDeleted = await cleanupPublishedAssets({
-        ownerUid,
-        videoId,
-        publishedVideoStoragePath:
-          publication?.publishedStoragePath ?? null,
-        publishedPosterStoragePath:
-          publication?.publishedPosterStoragePath ?? null,
-      });
-      await db.recursiveDelete(publicVideoRef);
-
-      return {
-        videoId,
-        cleanupPending:
-          !publishedAssetsDeleted || processingCleanupPending,
-      };
-    }
-
-    const privateVideo = privateVideoSnap.data() as PrivateVideoDoc;
-    const privateVideoStoragePath =
-      extractOwnedPrivateVideoPath(ownerUid, privateVideo.path) ??
-      extractOwnedPrivateVideoPath(ownerUid, privateVideo.url);
-
-    if (!privateVideoStoragePath) {
-      throw new HttpsError(
-        'failed-precondition',
-        'O vídeo não possui um caminho privado válido para exclusão.'
-      );
-    }
-
-    const privatePosterStoragePath =
-      extractOwnedPrivateVideoPosterPath(
-        ownerUid,
-        videoId,
-        privateVideo.thumbnailPath
-      ) ??
-      extractOwnedPrivateVideoPosterPath(
-        ownerUid,
-        videoId,
-        privateVideo.thumbnailUrl
-      );
-    const processedOutputPrefix =
-      normalizeOwnedProcessedVideoPrefix(
-        ownerUid,
-        videoId,
-        privateVideo.processedOutputPrefix
-      ) ??
-      normalizeOwnedProcessedVideoPrefix(
-        ownerUid,
-        videoId,
-        processingJob?.outputPrefix
-      );
-    const jobId = buildDeletionJobId(ownerUid, videoId);
-    const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
-    const hideBatch = db.batch();
-    const processingCleanupPending = requestProcessingCancellation(
-      hideBatch,
-      processingJobRef,
-      processingJob,
-      now
-    );
-    const job: VideoDeletionJob = {
-      ownerUid,
-      videoId,
-      privateVideoStoragePath,
-      privatePosterStoragePath,
-      processedOutputPrefix,
-      publishedVideoStoragePath:
-        publication?.publishedStoragePath ?? null,
-      publishedPosterStoragePath:
-        publication?.publishedPosterStoragePath ?? null,
-      processingCleanupPending,
-      createdAt: now,
-      updatedAt: now,
-      attempts: 0,
-      lastError: null,
-    };
-
-    hideBatch.set(jobRef, job);
-    hideBatch.delete(publicationRef);
-    hideBatch.delete(publicVideoRef);
-    await hideBatch.commit();
-    await refreshMetricsBestEffort(ownerUid);
-
-    try {
-      const publishedAssetsDeleted = await executeDeletionJob(jobId, job);
-
-      return {
-        videoId,
-        cleanupPending:
-          !publishedAssetsDeleted || processingCleanupPending,
-      };
-    } catch (error) {
-      await recordDeletionAttemptFailure(jobId, error);
-
-      logger.error('[deleteProfileVideo] Limpeza física pendente.', {
-        ownerUid,
-        videoId,
-        jobId,
-        error: normalizeErrorMessage(error),
-      });
-
-      return {
-        videoId,
-        cleanupPending: true,
-      };
-    }
+    return deleteProfileVideoResources(ownerUid, videoId);
   }
 );
 
@@ -442,10 +507,21 @@ export const cleanupPendingVideoDeletions = onSchedule(
       const job = jobDoc.data() as VideoDeletionJob;
       const ownerUid = cleanId(job.ownerUid);
       const videoId = cleanId(job.videoId);
-      const privateVideoStoragePath = extractOwnedPrivateVideoPath(
-        ownerUid,
-        job.privateVideoStoragePath
-      );
+
+      if (!ownerUid || !videoId) {
+        logger.error('[cleanupPendingVideoDeletions] Job inválido.', {
+          jobId: jobDoc.id,
+        });
+        continue;
+      }
+
+      const privateVideoStoragePath = job.privateVideoStoragePath
+        ? extractOwnedPrivateVideoPathForId(
+          ownerUid,
+          videoId,
+          job.privateVideoStoragePath
+        )
+        : null;
       const privatePosterStoragePath = job.privatePosterStoragePath
         ? extractOwnedPrivateVideoPosterPath(
           ownerUid,
@@ -461,17 +537,11 @@ export const cleanupPendingVideoDeletions = onSchedule(
         )
         : null;
 
-      if (
-        !ownerUid ||
-        !videoId ||
-        !privateVideoStoragePath ||
-        (job.privatePosterStoragePath && !privatePosterStoragePath) ||
-        (job.processedOutputPrefix && !processedOutputPrefix)
-      ) {
-        logger.error('[cleanupPendingVideoDeletions] Job inválido.', {
-          jobId: jobDoc.id,
-        });
-        continue;
+      if (job.privateVideoStoragePath && !privateVideoStoragePath) {
+        logger.warn(
+          '[cleanupPendingVideoDeletions] Path privado inválido; usando prefixo canônico.',
+          { jobId: jobDoc.id, ownerUid, videoId }
+        );
       }
 
       try {

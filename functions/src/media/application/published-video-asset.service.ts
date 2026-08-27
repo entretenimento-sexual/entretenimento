@@ -4,6 +4,12 @@ import { logger } from 'firebase-functions';
 
 import { db, storage } from '../../firebaseApp';
 import {
+  IMAGE_INPUT_MIME_TYPES,
+  VIDEO_MAX_BYTES,
+  VIDEO_POSTER_IMAGE_MAX_BYTES,
+  VIDEO_PUBLIC_PLAYBACK_MIME_TYPES,
+} from '../media-format.generated';
+import {
   buildPublishedVideoPath,
   buildPublishedVideoPosterPath,
   normalizeOwnedProcessedVideoPath,
@@ -54,18 +60,10 @@ interface DeletePublishedVideoAssetCommand {
 }
 
 const CLEANUP_COLLECTION = 'media_published_video_asset_cleanup_jobs';
-const MAX_PUBLISHED_VIDEO_BYTES = 500 * 1024 * 1024;
-const MAX_PUBLISHED_POSTER_BYTES = 10 * 1024 * 1024;
-const ALLOWED_VIDEO_CONTENT_TYPES = new Set([
-  'video/mp4',
-  'video/webm',
-]);
-const ALLOWED_POSTER_CONTENT_TYPES = new Set([
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/webp',
-]);
+const ALLOWED_VIDEO_CONTENT_TYPES = new Set<string>(
+  VIDEO_PUBLIC_PLAYBACK_MIME_TYPES
+);
+const ALLOWED_POSTER_CONTENT_TYPES = new Set<string>(IMAGE_INPUT_MIME_TYPES);
 
 function normalizeErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
@@ -195,13 +193,13 @@ async function copyPosterIfAvailable(
   const [posterMetadata] = await sourcePoster.getMetadata();
   const posterContentType = String(
     posterMetadata.contentType ?? ''
-  ).toLowerCase();
+  ).trim().toLowerCase();
 
   if (!ALLOWED_POSTER_CONTENT_TYPES.has(posterContentType)) {
     throw new Error('O poster privado não é uma imagem suportada.');
   }
 
-  resolveValidatedSize(posterMetadata.size, MAX_PUBLISHED_POSTER_BYTES);
+  resolveValidatedSize(posterMetadata.size, VIDEO_POSTER_IMAGE_MAX_BYTES);
 
   const destinationPath = buildPublishedVideoPosterPath(
     command.ownerUid,
@@ -244,7 +242,9 @@ export async function copyPrivateVideoToPublishedAsset(
   }
 
   const [videoMetadata] = await sourceVideo.getMetadata();
-  const videoContentType = String(videoMetadata.contentType ?? '').toLowerCase();
+  const videoContentType = String(videoMetadata.contentType ?? '')
+    .trim()
+    .toLowerCase();
 
   if (!ALLOWED_VIDEO_CONTENT_TYPES.has(videoContentType)) {
     throw new Error(
@@ -254,7 +254,7 @@ export async function copyPrivateVideoToPublishedAsset(
 
   const sizeBytes = resolveValidatedSize(
     videoMetadata.size,
-    MAX_PUBLISHED_VIDEO_BYTES
+    VIDEO_MAX_BYTES
   );
   const assetVersion = `${Date.now()}-${randomUUID()}`;
   const videoStoragePath = buildPublishedVideoPath(

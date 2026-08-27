@@ -56,6 +56,12 @@ import {
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import {
+  normalizeSubscriptionFlowContext,
+  normalizeSubscriptionReturnUrl,
+  resolveConfirmedSubscriptionReturnUrl,
+  subscriptionFlowQueryParams,
+} from 'src/app/subscriptions/domain/subscription-flow-context.model';
 
 @Injectable()
 export class BillingReturnFacade {
@@ -90,8 +96,22 @@ export class BillingReturnFacade {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  retry(): Promise<boolean> {
-    return this.router.navigate(['/subscription-plan']);
+  retry(): Observable<boolean> {
+    return this.query$.pipe(
+      take(1),
+      switchMap((query) => from(
+        this.router.navigate(['/subscription-plan'], {
+          queryParams: subscriptionFlowQueryParams({
+            minimumRole: query.minimumRole,
+            returnUrl: normalizeSubscriptionReturnUrl(query.returnUrl),
+          }),
+        })
+      )),
+      catchError((error: unknown) => {
+        this.handleError(error, 'Não foi possível voltar aos planos.');
+        return of(false);
+      })
+    );
   }
 
   private processQuery$(
@@ -183,7 +203,9 @@ export class BillingReturnFacade {
                 role: result?.role ?? null,
               })
             ),
-            switchMap((result) => this.handleProcessingResult$(result)),
+            switchMap((result) =>
+              this.handleProcessingResult$(result, query.returnUrl)
+            ),
             catchError((error: unknown) => {
               this.handleError(
                 error,
@@ -216,7 +238,8 @@ export class BillingReturnFacade {
   }
 
   private handleProcessingResult$(
-    result: ProcessBillingReturnResult | null
+    result: ProcessBillingReturnResult | null,
+    requestedReturnUrl: string | null
   ): Observable<BillingReturnVm> {
     if (!result) {
       return of(
@@ -267,7 +290,7 @@ export class BillingReturnFacade {
       result.accessGranted === true &&
       this.isBillingGrantedRole(result.role)
     ) {
-      return this.finishGrantedFlow$(result);
+      return this.finishGrantedFlow$(result, requestedReturnUrl);
     }
 
     /**
@@ -276,10 +299,12 @@ export class BillingReturnFacade {
      *
      * No Emulator, também cobre eventual resposta intermediária.
      */
-    return this.pollBillingSnapshotAndFinish$();
+    return this.pollBillingSnapshotAndFinish$(requestedReturnUrl);
   }
 
-  private pollBillingSnapshotAndFinish$(): Observable<BillingReturnVm> {
+  private pollBillingSnapshotAndFinish$(
+    requestedReturnUrl: string | null
+  ): Observable<BillingReturnVm> {
     const processingVm = this.buildVm({
       status: 'processing',
       title: 'Pagamento em processamento',
@@ -319,7 +344,7 @@ export class BillingReturnFacade {
       ),
       take(1),
       switchMap((snapshot) =>
-        this.navigateAfterGranted$().pipe(
+        this.navigateAfterGranted$(null, requestedReturnUrl).pipe(
           map(() =>
             this.buildVm({
               status: 'granted',
@@ -358,9 +383,13 @@ export class BillingReturnFacade {
   }
 
   private finishGrantedFlow$(
-    result: ProcessBillingReturnResult
+    result: ProcessBillingReturnResult,
+    requestedReturnUrl: string | null
   ): Observable<BillingReturnVm> {
-    return this.navigateAfterGranted$(result.redirectTo ?? null).pipe(
+    return this.navigateAfterGranted$(
+      result.redirectTo ?? null,
+      requestedReturnUrl
+    ).pipe(
       map(() =>
         this.buildVm({
           status: 'granted',
@@ -377,9 +406,13 @@ export class BillingReturnFacade {
   }
 
   private navigateAfterGranted$(
-    redirectTo?: string | null
+    authoritativeReturnUrl: string | null,
+    requestedReturnUrl: string | null
   ): Observable<boolean> {
-    const target = redirectTo?.trim() || '/conta';
+    const target = resolveConfirmedSubscriptionReturnUrl(
+      authoritativeReturnUrl,
+      requestedReturnUrl
+    );
 
     return from(
       this.router.navigateByUrl(target, {
@@ -416,14 +449,29 @@ export class BillingReturnFacade {
       params.set('checkoutSessionId', query.checkoutSessionId);
     }
 
+    if (query.minimumRole) {
+      params.set('minimumRole', query.minimumRole);
+    }
+
+    if (query.returnUrl) {
+      params.set('returnUrl', query.returnUrl);
+    }
+
     return `/billing/return?${params.toString()}`;
   }
 
   private mapQuery(params: ParamMap): BillingReturnQuery {
+    const flowContext = normalizeSubscriptionFlowContext({
+      minimumRole: params.get('minimumRole'),
+      returnUrl: params.get('returnUrl'),
+    });
+
     return {
       billing: params.get('billing'),
       scope: params.get('scope'),
       checkoutSessionId: params.get('checkoutSessionId'),
+      minimumRole: flowContext.minimumRole,
+      returnUrl: flowContext.returnUrl,
     };
   }
 
@@ -479,7 +527,9 @@ export class BillingReturnFacade {
     return (
       previous.billing === current.billing &&
       previous.scope === current.scope &&
-      previous.checkoutSessionId === current.checkoutSessionId
+      previous.checkoutSessionId === current.checkoutSessionId &&
+      previous.minimumRole === current.minimumRole &&
+      previous.returnUrl === current.returnUrl
     );
   }
 

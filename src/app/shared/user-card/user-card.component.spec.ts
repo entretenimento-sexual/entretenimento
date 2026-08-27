@@ -75,6 +75,18 @@ describe('UserCardComponent', () => {
     expect(fixture.debugElement.query(By.css('.user-card__presence'))).toBeNull();
   });
 
+  it('usa a imagem padrão quando a URL do perfil falha ao carregar', () => {
+    const image = fixture.debugElement.query(
+      By.css('.user-card__photo')
+    ).nativeElement as HTMLImageElement;
+
+    image.dispatchEvent(new Event('error'));
+    fixture.detectChanges();
+
+    expect(image.getAttribute('data-image-fallback')).toBe('applied');
+    expect(image.src).toContain('/assets/imagem-padrao.webp');
+  });
+
   it('exibe presença visual somente quando o perfil está online', () => {
     fixture.componentRef.setInput('user', {
       ...baseProfile,
@@ -105,6 +117,30 @@ describe('UserCardComponent', () => {
     expect(metadata.textContent).toContain('Bissexual');
     expect(location.textContent).toContain('Niterói');
     expect(location.textContent).toMatch(/4[,.]2 km/);
+    expect(
+      fixture.debugElement.query(By.css('.user-card__distance-unavailable'))
+    ).toBeNull();
+  });
+
+  it('usa marcador compacto e acessível quando a distância não pode ser calculada', () => {
+    fixture.componentRef.setInput('distanciaKm', null);
+    fixture.detectChanges();
+
+    const location = fixture.debugElement.query(
+      By.css('.user-card__location')
+    ).nativeElement as HTMLElement;
+    const unavailableDebug = fixture.debugElement.query(
+      By.css('.user-card__distance-unavailable')
+    );
+    const unavailable = unavailableDebug.nativeElement as HTMLElement;
+    const accessibleText = unavailableDebug.query(By.css('.sr-only'))
+      .nativeElement as HTMLElement;
+
+    expect(location.textContent).toContain('Niterói');
+    expect(unavailable.textContent).toContain('—');
+    expect(unavailable.getAttribute('title')).toBe('Distância não disponível');
+    expect(accessibleText.textContent).toContain('Distância não disponível');
+    expect(unavailable.textContent).not.toContain('Distância indisponível');
   });
 
   it('não repete a navegação do perfil entre as ações', () => {

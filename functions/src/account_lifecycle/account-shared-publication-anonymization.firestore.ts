@@ -105,6 +105,362 @@ implements AccountSharedPublicationAnonymizationAdapter
 
     return snapshot.size;
   }
+
+  async anonymizeCommunityFeedPostAuthorsPage(
+    uid: string,
+    limit: number
+  ): Promise<number> {
+    const safeUid = requireUid(uid);
+    const snapshot = await db
+      .collection('community_feed_user_posts')
+      .doc(safeUid)
+      .collection('items')
+      .limit(limit)
+      .get();
+
+    for (const pointerSnapshot of snapshot.docs) {
+      await anonymizeCommunityFeedPostAuthor(safeUid, pointerSnapshot);
+    }
+
+    return snapshot.size;
+  }
+
+  async anonymizeCommunityFeedCommentAuthorsPage(
+    uid: string,
+    limit: number
+  ): Promise<number> {
+    const safeUid = requireUid(uid);
+    const snapshot = await db
+      .collection('community_feed_user_comments')
+      .doc(safeUid)
+      .collection('items')
+      .limit(limit)
+      .get();
+
+    for (const pointerSnapshot of snapshot.docs) {
+      await anonymizeCommunityFeedCommentAuthor(safeUid, pointerSnapshot);
+    }
+
+    return snapshot.size;
+  }
+
+  async anonymizeCommunityFeedPostActionActorsPage(
+    uid: string,
+    limit: number
+  ): Promise<number> {
+    const safeUid = requireUid(uid);
+    const snapshot = await db
+      .collection('community_feed_user_actions')
+      .doc(safeUid)
+      .collection('items')
+      .limit(limit)
+      .get();
+
+    for (const pointerSnapshot of snapshot.docs) {
+      await anonymizeCommunityFeedPostActionActor(safeUid, pointerSnapshot);
+    }
+
+    return snapshot.size;
+  }
+
+  async deleteCommunityFeedReactionsPage(
+    uid: string,
+    limit: number
+  ): Promise<number> {
+    const safeUid = requireUid(uid);
+    const snapshot = await db
+      .collection('community_feed_user_reactions')
+      .doc(safeUid)
+      .collection('items')
+      .limit(limit)
+      .get();
+
+    for (const pointerSnapshot of snapshot.docs) {
+      await deleteCommunityFeedReaction(safeUid, pointerSnapshot);
+    }
+
+    return snapshot.size;
+  }
+
+  async deleteCommunityFeedRequestsPage(
+    uid: string,
+    limit: number
+  ): Promise<number> {
+    const safeUid = requireUid(uid);
+    const snapshot = await db
+      .collection('community_feed_requests')
+      .where('actorUid', '==', safeUid)
+      .limit(limit)
+      .get();
+    const batch = db.batch();
+    snapshot.docs.forEach((document) => batch.delete(document.ref));
+    if (!snapshot.empty) await batch.commit();
+    return snapshot.size;
+  }
+
+  async anonymizeCommunityFeedAuditPage(
+    uid: string,
+    limit: number
+  ): Promise<number> {
+    const safeUid = requireUid(uid);
+    const snapshot = await db
+      .collection('community_feed_audit')
+      .where('actorUid', '==', safeUid)
+      .limit(limit)
+      .get();
+    const batch = db.batch();
+    const actorReference = deletedUserReference(safeUid);
+
+    snapshot.docs.forEach((document) => {
+      batch.update(document.ref, {
+        actorUid: actorReference,
+        actorIdentityState: 'pseudonymized_after_account_deletion',
+        identityUpdatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+    if (!snapshot.empty) await batch.commit();
+    return snapshot.size;
+  }
+
+  async deleteCommunityFeedUserState(uid: string): Promise<number> {
+    const safeUid = requireUid(uid);
+    const stateRef = db.collection('community_feed_user_state').doc(safeUid);
+    const snapshot = await stateRef.get();
+    if (!snapshot.exists) return 0;
+    await stateRef.delete();
+    return 1;
+  }
+}
+
+async function anonymizeCommunityFeedPostAuthor(
+  uid: string,
+  pointerSnapshot: FirebaseFirestore.QueryDocumentSnapshot
+): Promise<void> {
+  const pointer = pointerSnapshot.data() as {
+    actorUid?: unknown;
+    communityId?: unknown;
+    postId?: unknown;
+  };
+  const communityId = normalizeId(pointer.communityId);
+  const postId = normalizeId(pointer.postId);
+
+  if (normalizeId(pointer.actorUid) !== uid || !communityId || !postId) {
+    throw new Error('inconsistent-community-feed-user-pointer');
+  }
+
+  const postRef = db
+    .collection('community_feed_posts')
+    .doc(communityId)
+    .collection('items')
+    .doc(postId);
+  const projectionRef = db
+    .collection('community_public_feed')
+    .doc(communityId)
+    .collection('items')
+    .doc(postId);
+  const actorReference = deletedUserReference(uid);
+
+  await db.runTransaction(async (transaction) => {
+    const [currentPointer, postSnapshot, projectionSnapshot] = await Promise.all([
+      transaction.get(pointerSnapshot.ref),
+      transaction.get(postRef),
+      transaction.get(projectionRef),
+    ]);
+
+    if (!currentPointer.exists) return;
+    if (!postSnapshot.exists) {
+      transaction.delete(pointerSnapshot.ref);
+      return;
+    }
+
+    const post = postSnapshot.data() ?? {};
+    if (normalizeId(post['actorUid']) !== uid) {
+      throw new Error('inconsistent-community-feed-post-author');
+    }
+
+    const authorPatch = {
+      label: DELETED_USER_LABEL,
+      avatarUrl: null,
+    };
+    transaction.update(postRef, {
+      actorUid: actorReference,
+      author: authorPatch,
+      authorIdentityState: 'pseudonymized_after_account_deletion',
+      identityUpdatedAt: FieldValue.serverTimestamp(),
+    });
+    if (projectionSnapshot.exists) {
+      transaction.update(projectionRef, {
+        author: authorPatch,
+        authorIdentityState: 'pseudonymized_after_account_deletion',
+        identityUpdatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    transaction.delete(pointerSnapshot.ref);
+  });
+}
+
+async function anonymizeCommunityFeedPostActionActor(
+  uid: string,
+  pointerSnapshot: FirebaseFirestore.QueryDocumentSnapshot
+): Promise<void> {
+  const pointer = pointerSnapshot.data() as {
+    actorUid?: unknown;
+    communityId?: unknown;
+    postId?: unknown;
+  };
+  const communityId = normalizeId(pointer.communityId);
+  const postId = normalizeId(pointer.postId);
+
+  if (normalizeId(pointer.actorUid) !== uid || !communityId || !postId) {
+    throw new Error('inconsistent-community-feed-action-pointer');
+  }
+
+  const postRef = db
+    .collection('community_feed_posts')
+    .doc(communityId)
+    .collection('items')
+    .doc(postId);
+  const actorReference = deletedUserReference(uid);
+
+  await db.runTransaction(async (transaction) => {
+    const [currentPointer, postSnapshot] = await Promise.all([
+      transaction.get(pointerSnapshot.ref),
+      transaction.get(postRef),
+    ]);
+
+    if (!currentPointer.exists) return;
+    if (postSnapshot.exists) {
+      const post = postSnapshot.data() ?? {};
+      if (normalizeId(post['actionedBy']) !== uid) {
+        throw new Error('inconsistent-community-feed-post-action-actor');
+      }
+      transaction.update(postRef, {
+        actionedBy: actorReference,
+        actionActorIdentityState: 'pseudonymized_after_account_deletion',
+        identityUpdatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    transaction.delete(pointerSnapshot.ref);
+  });
+}
+
+async function anonymizeCommunityFeedCommentAuthor(
+  uid: string,
+  pointerSnapshot: FirebaseFirestore.QueryDocumentSnapshot
+): Promise<void> {
+  const pointer = pointerSnapshot.data() as {
+    actorUid?: unknown;
+    communityId?: unknown;
+    postId?: unknown;
+    commentId?: unknown;
+  };
+  const communityId = normalizeId(pointer.communityId);
+  const postId = normalizeId(pointer.postId);
+  const commentId = normalizeId(pointer.commentId);
+  if (
+    normalizeId(pointer.actorUid) !== uid
+    || !communityId
+    || !postId
+    || !commentId
+  ) {
+    throw new Error('inconsistent-community-feed-comment-pointer');
+  }
+
+  const commentRef = db
+    .collection('community_feed_posts')
+    .doc(communityId)
+    .collection('items')
+    .doc(postId)
+    .collection('comments')
+    .doc(commentId);
+  const actorReference = deletedUserReference(uid);
+
+  await db.runTransaction(async (transaction) => {
+    const [currentPointer, commentSnapshot] = await Promise.all([
+      transaction.get(pointerSnapshot.ref),
+      transaction.get(commentRef),
+    ]);
+    if (!currentPointer.exists) return;
+    if (commentSnapshot.exists) {
+      const comment = commentSnapshot.data() ?? {};
+      if (normalizeId(comment['actorUid']) !== uid) {
+        throw new Error('inconsistent-community-feed-comment-author');
+      }
+      transaction.update(commentRef, {
+        actorUid: actorReference,
+        author: {
+          label: DELETED_USER_LABEL,
+          avatarUrl: null,
+        },
+        authorIdentityState: 'pseudonymized_after_account_deletion',
+        identityUpdatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    transaction.delete(pointerSnapshot.ref);
+  });
+}
+
+async function deleteCommunityFeedReaction(
+  uid: string,
+  pointerSnapshot: FirebaseFirestore.QueryDocumentSnapshot
+): Promise<void> {
+  const pointer = pointerSnapshot.data() as {
+    actorUid?: unknown;
+    communityId?: unknown;
+    postId?: unknown;
+  };
+  const communityId = normalizeId(pointer.communityId);
+  const postId = normalizeId(pointer.postId);
+  if (normalizeId(pointer.actorUid) !== uid || !communityId || !postId) {
+    throw new Error('inconsistent-community-feed-reaction-pointer');
+  }
+
+  const postRef = db
+    .collection('community_feed_posts')
+    .doc(communityId)
+    .collection('items')
+    .doc(postId);
+  const projectionRef = db
+    .collection('community_public_feed')
+    .doc(communityId)
+    .collection('items')
+    .doc(postId);
+  const reactionRef = postRef.collection('reactions').doc(uid);
+
+  await db.runTransaction(async (transaction) => {
+    const [currentPointer, postSnapshot, projectionSnapshot, reactionSnapshot] =
+      await Promise.all([
+        transaction.get(pointerSnapshot.ref),
+        transaction.get(postRef),
+        transaction.get(projectionRef),
+        transaction.get(reactionRef),
+      ]);
+
+    if (!currentPointer.exists) return;
+    if (reactionSnapshot.exists) {
+      const reaction = reactionSnapshot.data() ?? {};
+      if (normalizeId(reaction['actorUid']) !== uid) {
+        throw new Error('inconsistent-community-feed-reaction-actor');
+      }
+      transaction.delete(reactionRef);
+
+      if (postSnapshot.exists) {
+        const post = postSnapshot.data() ?? {};
+        const metrics = (post['metrics'] ?? {}) as Record<string, unknown>;
+        const nextCount = Math.max(
+          0,
+          normalizeMediaCount(metrics['reactionCount']) - 1
+        );
+        transaction.update(postRef, { 'metrics.reactionCount': nextCount });
+        if (projectionSnapshot.exists) {
+          transaction.update(projectionRef, {
+            'metrics.reactionCount': nextCount,
+          });
+        }
+      }
+    }
+    transaction.delete(pointerSnapshot.ref);
+  });
 }
 
 async function anonymizeCommentAuthor(

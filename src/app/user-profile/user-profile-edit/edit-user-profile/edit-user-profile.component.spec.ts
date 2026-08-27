@@ -17,6 +17,7 @@ import { EditUserProfileComponent } from './edit-user-profile.component';
 import { FirestoreUserQueryService } from '../../../core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
+import { PhotoEditorLauncherService } from '../../../core/services/image-handling/photo-editor-launcher.service';
 import { StorageService } from '../../../core/services/image-handling/storage.service';
 import { UsuarioService } from '../../../core/services/user-profile/usuario.service';
 
@@ -26,6 +27,8 @@ describe('EditUserProfileComponent', () => {
   let usuarioServiceMock: {
     atualizarUsuario: ReturnType<typeof vi.fn>;
   };
+  let editFileMock: ReturnType<typeof vi.fn>;
+  let uploadProfileAvatarMock: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     localStorage.clear();
@@ -41,6 +44,8 @@ describe('EditUserProfileComponent', () => {
     usuarioServiceMock = {
       atualizarUsuario: vi.fn(() => of(void 0)),
     };
+    editFileMock = vi.fn();
+    uploadProfileAvatarMock = vi.fn(() => of('avatar-url'));
 
     TestBed.configureTestingModule({
       declarations: [EditUserProfileComponent],
@@ -80,9 +85,13 @@ describe('EditUserProfileComponent', () => {
           useValue: usuarioServiceMock,
         },
         {
+          provide: PhotoEditorLauncherService,
+          useValue: { editFile$: editFileMock },
+        },
+        {
           provide: StorageService,
           useValue: {
-            uploadProfileAvatar: vi.fn(() => of('avatar-url')),
+            uploadProfileAvatar: uploadProfileAvatarMock,
           },
         },
         {
@@ -139,6 +148,39 @@ describe('EditUserProfileComponent', () => {
       expect.objectContaining({ descricao: 'Descrição salva' })
     );
     expect(component.hasUnsavedChanges()).toBe(false);
+  });
+
+  it('edita o avatar com preset canônico antes de enviar ao Storage', () => {
+    const source = new File(['original'], 'avatar.jpg', { type: 'image/jpeg' });
+    const edited = new File(['editado'], 'avatar-editado.jpg', {
+      type: 'image/jpeg',
+    });
+    editFileMock.mockReturnValue(of({
+      kind: 'image',
+      file: edited,
+      imageStateStr: '{"editor":"native-canvas"}',
+      width: 1024,
+      height: 1024,
+      context: 'profile-avatar',
+      preset: 'avatar-square',
+      metadataStripped: true,
+    }));
+
+    component.uploadFile(source);
+
+    expect(editFileMock).toHaveBeenCalledWith(source, {
+      source: 'profile-avatar',
+      context: 'profile-avatar',
+      preset: 'avatar-square',
+    });
+    expect(uploadProfileAvatarMock).toHaveBeenCalledWith(
+      edited,
+      'u1',
+      expect.any(Function)
+    );
+    expect(component.userData.photoURL).toBe('avatar-url');
+    expect(component.isEditingPhoto).toBe(false);
+    expect(component.isUploading).toBe(false);
   });
 
   it('não mantém controles ou seção duplicada de redes sociais', () => {

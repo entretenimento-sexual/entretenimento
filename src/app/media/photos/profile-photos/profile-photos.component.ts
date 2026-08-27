@@ -1,53 +1,25 @@
 // src/app/media/photos/profile-photos/profile-photos.component.ts
 // Galeria privada do perfil.
 //
-// AJUSTES DESTA VERSÃO:
-// - mantém viewer, edição e exclusão
-// - adiciona VM de publicação para badges
-// - adiciona ações de publicação / despublicação / capa discreta
-// - adiciona organização por data escolhida pelo usuário para assinantes
-// - continua tratando users/{uid}/photos como biblioteca privada
-// - não mistura estado de publicação no documento privado
+// Responsabilidades:
+// - observar biblioteca privada e configurações de publicação;
+// - permitir edição, exclusão, publicação, despublicação e capa;
+// - manter a edição visual desacoplada da persistência: o editor devolve um
+//   arquivo processado e este componente executa a substituição da foto.
 //
-// OBSERVAÇÃO IMPORTANTE:
-// - deixe publicationFeatureReady = false até as rules de:
-//   1) users/{uid}/photo_publications/{photoId}
-//   2) public_profiles/{uid}/photos/{photoId}
-//   estarem deployadas.
-// - depois do deploy correto, troque para true.
-// ============================================================================
-// ATENÇÃO — PENDÊNCIA TÉCNICA / EDITOR DE IMAGENS TERCEIRIZADO
-// ----------------------------------------------------------------------------
-// Há histórico de erro residual ligado ao software terceirizado de edição de
-// imagens (Pintura), inclusive fora do fluxo explícito de edição.
-//
-// SINTOMA OBSERVADO:
-// - erro em runtime na rota da galeria privada `/media/perfil/:id/fotos`
-// - stack com mensagens como:
-//   "Cannot read properties of undefined (reading 'width')"
-// - em ciclos anteriores também houve erro passando por
-//   `PinturaEditorComponent.initEditor` / `pqina-angular-pintura.mjs`
-//
-// IMPACTO:
-// - o problema pode aparecer mesmo sem o usuário abrir manualmente o editor
-// - isso indica acoplamento residual, carregamento indireto, bundle antecipado
-//   ou comportamento instável do editor terceirizado
-//
-// DECISÃO ATUAL DO PROJETO:
-// - NÃO bloquear a evolução da galeria privada/pública por causa deste editor
-// - tratar o editor atual como solução provisória / experimental
-// - manter a evolução da plataforma desacoplada do fornecedor final de edição
-//
-// ORIENTAÇÃO:
-// - evitar novas dependências fortes do editor atual neste componente
-// - preferir carregamento tardio (lazy import) para qualquer abertura de editor
-// - reavaliar esta integração quando a solução definitiva de edição for escolhida
-// ============================================================================
-import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
+// users/{uid}/photos continua sendo a biblioteca privada. Estado de publicação
+// permanece em sua camada própria e não é misturado no documento privado.
+
 import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  inject,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 
 import { BehaviorSubject, EMPTY, Observable, combineLatest, from, of } from 'rxjs';
 import {
@@ -61,18 +33,19 @@ import {
   tap,
 } from 'rxjs/operators';
 
+import { IPhotoPublicationConfig } from 'src/app/core/interfaces/media/i-photo-publication-config';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { MediaPolicyService, IMediaPolicyResult } from 'src/app/core/services/media/media-policy.service';
-import { MediaQueryService } from 'src/app/core/services/media/media-query.service';
-import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
+import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
-import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/photo-editor-session.service';
-import { IPhotoPublicationConfig } from 'src/app/core/interfaces/media/i-photo-publication-config';
+import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/photo-upload-flow.service';
+import { MediaPolicyService, IMediaPolicyResult } from 'src/app/core/services/media/media-policy.service';
+import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
+import { MediaQueryService } from 'src/app/core/services/media/media-query.service';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 import { PhotoViewerComponent, IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
-import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 type IManageablePhotoItem = IProfilePhotoItem & {
   path?: string;
@@ -105,11 +78,10 @@ const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' }
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfilePhotosComponent {
-  private readonly destroyRef = inject(DestroyRef); // reservado para evolução futura
+  private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
-  private readonly modal = inject(NgbModal);
 
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly policy = inject(MediaPolicyService);
@@ -118,7 +90,9 @@ export class ProfilePhotosComponent {
   private readonly mediaQuery = inject(MediaQueryService);
   private readonly mediaPublicationService = inject(MediaPublicationService);
   private readonly photoFirestoreService = inject(PhotoFirestoreService);
-  private readonly photoEditorSession = inject(PhotoEditorSessionService);
+  private readonly photoEditor = inject(PhotoEditorLauncherService);
+  private readonly photoUploadFlow = inject(PhotoUploadFlowService);
+  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   // Troque para true só depois de deployar as novas rules da camada de publicação.
   readonly publicationFeatureReady = true;
@@ -140,8 +114,6 @@ export class ProfilePhotosComponent {
 
   private readonly sortModeSubject = new BehaviorSubject<TProfilePhotoSortMode>('newest');
   readonly sortMode$ = this.sortModeSubject.asObservable();
-
-  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   private debug(message: string, extra?: unknown): void {
     this.privacyDebug.log('media', `ProfilePhotos: ${message}`, extra);
@@ -169,7 +141,7 @@ export class ProfilePhotosComponent {
       map((p) => p.get('id')),
       distinctUntilChanged()
     ),
-    this.viewerUid$
+    this.viewerUid$,
   ]).pipe(
     map(([routeId, viewerUid]) => routeId ?? viewerUid ?? ''),
     distinctUntilChanged(),
@@ -193,9 +165,11 @@ export class ProfilePhotosComponent {
 
   readonly policyResult$: Observable<IMediaPolicyResult> = combineLatest([
     this.viewerUid$,
-    this.ownerUid$
+    this.ownerUid$,
   ]).pipe(
-    switchMap(([viewer, owner]) => (owner ? this.policy.canViewProfilePhotos$(viewer, owner) : of(DENY_UNKNOWN))),
+    switchMap(([viewer, owner]) =>
+      owner ? this.policy.canViewProfilePhotos$(viewer, owner) : of(DENY_UNKNOWN)
+    ),
     tap((r) => this.debug('policyResult$', r)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -205,7 +179,10 @@ export class ProfilePhotosComponent {
     distinctUntilChanged()
   );
 
-  readonly photos$: Observable<IManageablePhotoItem[]> = combineLatest([this.ownerUid$, this.canView$]).pipe(
+  readonly photos$: Observable<IManageablePhotoItem[]> = combineLatest([
+    this.ownerUid$,
+    this.canView$,
+  ]).pipe(
     switchMap(([ownerUid, canView]) => {
       if (!ownerUid || !canView) return of([] as IManageablePhotoItem[]);
       return this.mediaQuery.watchProfilePhotos$(ownerUid);
@@ -218,13 +195,14 @@ export class ProfilePhotosComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly publicationConfigs$: Observable<Record<string, IPhotoPublicationConfig>> = this.ownerUid$.pipe(
-    switchMap((ownerUid) => {
-      if (!ownerUid) return of({});
-      return this.mediaPublicationService.getPublicationConfigsByOwner$(ownerUid);
-    }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly publicationConfigs$: Observable<Record<string, IPhotoPublicationConfig>> =
+    this.ownerUid$.pipe(
+      switchMap((ownerUid) => {
+        if (!ownerUid) return of({});
+        return this.mediaPublicationService.getPublicationConfigsByOwner$(ownerUid);
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   readonly photoCards$: Observable<IPhotoCardVm[]> = combineLatest([
     this.ownerUid$,
@@ -397,10 +375,8 @@ export class ProfilePhotosComponent {
     switch (mode) {
       case 'published':
         return items.filter((item) => item.publication.isPublished);
-
       case 'private':
         return items.filter((item) => !item.publication.isPublished);
-
       default:
         return [...items];
     }
@@ -479,7 +455,9 @@ export class ProfilePhotosComponent {
       return false;
     }
 
-    return ['basic', 'premium', 'vip', 'admin'].includes(String(user.role ?? '').toLowerCase());
+    return ['basic', 'premium', 'vip', 'admin'].includes(
+      String(user.role ?? '').toLowerCase()
+    );
   }
 
   openUpload(ownerUid: string): void {
@@ -489,100 +467,102 @@ export class ProfilePhotosComponent {
   }
 
   openPhoto(targetId: string): void {
-    combineLatest([this.canView$, this.ownerUid$, this.photoCards$]).pipe(
-      take(1),
-      switchMap(([canView, ownerUid, items]) => {
-        if (!canView) {
-          this.errorNotifier.showError('Você não tem permissão para ver essas fotos.');
+    combineLatest([this.canView$, this.ownerUid$, this.photoCards$])
+      .pipe(
+        take(1),
+        switchMap(([canView, ownerUid, items]) => {
+          if (!canView) {
+            this.errorNotifier.showError('Você não tem permissão para ver essas fotos.');
+            return EMPTY;
+          }
+
+          const startIndex = Math.max(
+            0,
+            items.findIndex((i) => i.id === targetId)
+          );
+
+          this.dialog.open(PhotoViewerComponent, {
+            data: { ownerUid, items, startIndex },
+            autoFocus: false,
+            restoreFocus: true,
+            width: '100vw',
+            height: '100vh',
+            maxWidth: '100vw',
+            maxHeight: '100vh',
+            panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
+            backdropClass: 'photo-viewer-backdrop',
+          });
+
           return EMPTY;
-        }
-
-        const startIndex = Math.max(0, items.findIndex((i) => i.id === targetId));
-
-        this.dialog.open(PhotoViewerComponent, {
-          data: { ownerUid, items, startIndex },
-          autoFocus: false,
-          restoreFocus: true,
-          width: '100vw',
-          height: '100vh',
-          maxWidth: '100vw',
-          maxHeight: '100vh',
-          panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
-          backdropClass: 'photo-viewer-backdrop',
-        });
-
-        return EMPTY;
-      }),
-      catchError((err) => {
-        this.errorNotifier.showError(err);
-        return EMPTY;
-      })
-    ).subscribe();
+        }),
+        catchError((err) => {
+          this.errorNotifier.showError(err);
+          return EMPTY;
+        })
+      )
+      .subscribe();
   }
 
   editPhoto(item: IPhotoCardVm, event?: Event): void {
     event?.stopPropagation();
 
     combineLatest([this.isOwner$, this.ownerUid$])
-      .pipe(take(1))
-      .subscribe(async ([isOwner, ownerUid]) => {
-        if (!isOwner) {
-          this.errorNotifier.showError('Você não tem permissão para editar esta foto.');
-          return;
-        }
-
-        if (!item.id?.trim() || !item.path?.trim() || !item.url?.trim()) {
-          this.errorNotifier.showError('Metadados insuficientes para editar esta foto.');
-          return;
-        }
-
-        this.photoEditorSession.setEditDraft({
-          ownerUid,
-          photoId: item.id,
-          storedImageUrl: item.url,
-          storedImagePath: item.path,
-          storedImageState: null,
-          fileName: item.fileName ?? item.alt ?? null,
-        });
-
-        try {
-          const { PhotoEditorComponent } = await import(
-            'src/app/photo-editor/photo-editor/photo-editor.component'
-          );
-
-          const modalRef = this.modal.open(PhotoEditorComponent, {
-            size: 'xl',
-            centered: true,
-            backdrop: 'static',
-            keyboard: false,
-            scrollable: true,
-            windowClass: 'photo-editor-modal-window',
-          });
-
-          const payload = await modalRef.result;
-
-          if (!payload || payload.reason !== 'updateSuccess' || !payload.photo) {
-            return;
+      .pipe(
+        take(1),
+        switchMap(([isOwner, ownerUid]) => {
+          if (!isOwner) {
+            this.errorNotifier.showError('Você não tem permissão para editar esta foto.');
+            return EMPTY;
           }
 
-          this.errorNotifier.showSuccess('Foto atualizada com sucesso.');
-        } catch (error) {
-          // dismiss do modal: não tratar como erro visível
-          if (error !== 'close' && error !== 'dismiss') {
-            this.reportError(
-              'Erro ao abrir o editor da foto.',
-              error,
-              {
-                op: 'editPhoto',
-                ownerUid,
-                photoId: item.id,
+          const photoId = String(item.id ?? '').trim();
+          const currentStoragePath = String(item.path ?? '').trim();
+          const storedImageUrl = String(item.url ?? '').trim();
+
+          if (!photoId || !currentStoragePath || !storedImageUrl) {
+            this.errorNotifier.showError('Metadados insuficientes para editar esta foto.');
+            return EMPTY;
+          }
+
+          return this.photoEditor.editStoredPhoto$({
+            ownerUid,
+            storedImageUrl,
+            storedImageState: null,
+            fileName: item.fileName ?? item.alt ?? null,
+          }).pipe(
+            switchMap((result) => {
+              if (!result) {
+                return EMPTY;
               }
-            );
-          }
-        } finally {
-          this.photoEditorSession.clearDraft();
-        }
-      });
+
+              return this.photoUploadFlow.replaceProcessedPhoto$({
+                userId: ownerUid,
+                photoId,
+                currentStoragePath,
+                processedFile: result.file,
+                originalFileName: result.file.name,
+                mimeType: result.file.type,
+                imageStateStr: result.imageStateStr,
+              });
+            }),
+            tap(() => this.errorNotifier.showSuccess('Foto atualizada com sucesso.')),
+            catchError((error) => {
+              this.reportError(
+                'Erro ao atualizar a foto.',
+                error,
+                {
+                  op: 'editPhoto',
+                  ownerUid,
+                  photoId,
+                }
+              );
+              return EMPTY;
+            })
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   requestDelete(item: IPhotoCardVm, event?: Event): void {
@@ -712,7 +692,6 @@ export class ProfilePhotosComponent {
                   photoId: item.id,
                 }
               );
-
               return EMPTY;
             }),
             finalize(() => this.publishingPhotoIdSubject.next(null))
@@ -761,7 +740,6 @@ export class ProfilePhotosComponent {
                   photoId: item.id,
                 }
               );
-
               return EMPTY;
             }),
             finalize(() => this.publishingPhotoIdSubject.next(null))
@@ -810,7 +788,6 @@ export class ProfilePhotosComponent {
                   photoId: item.id,
                 }
               );
-
               return EMPTY;
             }),
             finalize(() => this.publishingPhotoIdSubject.next(null))

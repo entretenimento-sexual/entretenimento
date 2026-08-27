@@ -8,4 +8,8 @@ export class ExploreFeedFacade {
   private readonly exploreFeed = inject(ExploreFeedService);
 
   readonly vm$ = this.exploreFeed.vm$;
+
+  retryVideoHighlights(): void {
+    this.exploreFeed.retryVideoHighlights();
+  }
 }

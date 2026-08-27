@@ -3,22 +3,47 @@
 // Contrato canônico do fluxo principal.
 //
 // Decisão:
-// - mídia pública representa atualização cronológica de perfil/casal;
+// - mídia pública (foto + vídeo) representa atualização cronológica de perfil;
+// - vídeo chega apenas como preview autorizado; playback nasce no viewer;
+// - conexões e compatíveis recebem prioridade privada e limitada;
+// - mídia vista recentemente é adiada, nunca removida;
+// - a parcela global continua dominante e nenhum score público é alterado;
 // - Comunidades e Locais entram como descoberta contextual;
 // - itens de descoberta não recebem timestamp artificial;
 // - a intercalação é pura e determinística para facilitar cache e testes.
 // -----------------------------------------------------------------------------
 
 import type { CommunityPreviewCard } from 'src/app/community/data-access/community-preview.model';
+import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
+import {
+  IPublicProfileMediaItem,
+  isPublicVideoItem,
+} from 'src/app/core/interfaces/media/i-public-profile-media-item';
 import type { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import type { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import { composePublicProfileMediaPriority } from 'src/app/core/utils/media/public-profile-media-priority';
 
-export type PrincipalFeedSource = 'profiles' | 'communities' | 'venues';
+export type PrincipalFeedSource =
+  | 'photos'
+  | 'videos'
+  | 'connections'
+  | 'compatibility'
+  | 'personalizedPhotos'
+  | 'personalizedVideos'
+  | 'recentViews'
+  | 'communities'
+  | 'venues';
 
 export type PrincipalFeedItem =
   | {
       readonly id: string;
       readonly kind: 'profile-photo';
       readonly photo: IPublicPhotoItem;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'profile-video';
+      readonly video: IPublicVideoItem;
     }
   | {
       readonly id: string;
@@ -32,30 +57,53 @@ export interface PrincipalFeedState {
   readonly status: PrincipalFeedStatus;
   readonly items: readonly PrincipalFeedItem[];
   readonly photos: readonly IPublicPhotoItem[];
+  readonly videos: readonly IPublicVideoItem[];
   readonly failedSources: readonly PrincipalFeedSource[];
+  readonly continuationContext?: IPublicMediaContinuationContext;
 }
 
 export const PRINCIPAL_FEED_LOADING_STATE: PrincipalFeedState = Object.freeze({
   status: 'loading',
   items: [],
   photos: [],
+  videos: [],
   failedSources: [],
 });
 
-function uniquePhotos(items: readonly IPublicPhotoItem[]): IPublicPhotoItem[] {
-  const unique = new Map<string, IPublicPhotoItem>();
+function buildProfileMediaItems(
+  photos: readonly IPublicPhotoItem[],
+  videos: readonly IPublicVideoItem[],
+  connectionOwnerUids: readonly string[] = [],
+  compatibleOwnerUids: readonly string[] = [],
+  recentViewedKeys: readonly string[] = []
+): PrincipalFeedItem[] {
+  const orderedMedia = composePublicProfileMediaPriority(
+    [
+      ...(photos as readonly IPublicProfileMediaItem[]),
+      ...(videos as readonly IPublicProfileMediaItem[]),
+    ],
+    {
+      connectionOwnerUids,
+      compatibleOwnerUids,
+      recentViewedKeys,
+    }
+  );
 
-  for (const item of items) {
-    const id = String(item?.id ?? '').trim();
-    const ownerUid = String(item?.ownerUid ?? '').trim();
-    const url = String(item?.url ?? '').trim();
+  return orderedMedia.map((item): PrincipalFeedItem => {
+    if (isPublicVideoItem(item)) {
+      return {
+        id: `profile-video:${item.ownerUid}:${item.id}`,
+        kind: 'profile-video',
+        video: item,
+      };
+    }
 
-    if (!id || !ownerUid || !url) continue;
-    unique.set(id, item);
-  }
-
-  return [...unique.values()]
-    .sort((left, right) => Number(right.publishedAt ?? 0) - Number(left.publishedAt ?? 0));
+    return {
+      id: `profile-photo:${item.ownerUid}:${item.id}`,
+      kind: 'profile-photo',
+      photo: item,
+    };
+  });
 }
 
 function uniqueSpaces(
@@ -98,25 +146,31 @@ function interleaveDiscovery(
 }
 
 /**
- * Insere uma descoberta a cada duas atualizações de perfil.
+ * Insere uma descoberta a cada duas atualizações de mídia do perfil.
  *
- * Quando não há mídia pública, Comunidades e Locais continuam aparecendo.
- * Quando não há descoberta, o fluxo permanece exclusivamente cronológico.
+ * A personalização e a novidade são aplicadas somente à ordem relativa da
+ * mídia antes da intercalação de Comunidades/Locais.
  */
 export function buildPrincipalFeedItems(
   photos: readonly IPublicPhotoItem[],
+  videos: readonly IPublicVideoItem[],
   communities: readonly CommunityPreviewCard[],
   venues: readonly CommunityPreviewCard[],
-  maxItems = 24
+  maxItems = 24,
+  connectionOwnerUids: readonly string[] = [],
+  compatibleOwnerUids: readonly string[] = [],
+  recentViewedKeys: readonly string[] = []
 ): PrincipalFeedItem[] {
   const safeMaxItems = Number.isFinite(maxItems)
     ? Math.min(Math.max(Math.trunc(maxItems), 1), 60)
     : 24;
-  const profileItems: PrincipalFeedItem[] = uniquePhotos(photos).map((photo) => ({
-    id: `profile-photo:${photo.id}`,
-    kind: 'profile-photo',
-    photo,
-  }));
+  const profileItems = buildProfileMediaItems(
+    photos,
+    videos,
+    connectionOwnerUids,
+    compatibleOwnerUids,
+    recentViewedKeys
+  );
   const discoveryItems = interleaveDiscovery(communities, venues);
   const result: PrincipalFeedItem[] = [];
   let discoveryIndex = 0;

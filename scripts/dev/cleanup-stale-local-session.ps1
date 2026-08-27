@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [string]$ProjectRoot = '',
-  [int[]]$Ports = @(4000, 4200, 4400, 4500, 5001, 8080, 9099, 9199),
+  [int[]]$Ports = @(4000, 4200, 4400, 4500, 5001, 8080, 8087, 9000, 9099, 9150, 9199),
   [int]$WaitSeconds = 15
 )
 
@@ -15,6 +15,7 @@ if (-not $ProjectRoot) {
 
 function Write-Step {
   param([Parameter(Mandatory = $true)][string]$Message)
+
   Write-Host "[dev:cleanup] $Message"
 }
 
@@ -221,6 +222,43 @@ if ($unknownProcesses.Count -gt 0) {
   }
 
   exit 2
+}
+
+# Antes de qualquer Stop-Process -Force, salva o estado dos emuladores que
+# carregam dados. Se o Hub ou o export estiverem quebrados, falha fechado e
+# preserva os processos vivos para permitir recuperação manual.
+$statefulEmulatorPorts = @(9099, 8080, 5001, 8087, 9000, 9199)
+$openStatefulEmulatorPorts = @(
+  $statefulEmulatorPorts | Where-Object { Test-PortOpen -Port $_ }
+)
+
+if ($openStatefulEmulatorPorts.Count -gt 0) {
+  if (-not (Test-PortOpen -Port 4400)) {
+    Write-Host '[dev:cleanup] Emulator Hub 4400 indisponível enquanto há emuladores com estado ativos.' -ForegroundColor Yellow
+    Write-Host "[dev:cleanup] Portas com estado: $($openStatefulEmulatorPorts -join ', ')." -ForegroundColor Yellow
+    Write-Host '[dev:cleanup] Limpeza abortada para não perder dados não exportados.' -ForegroundColor Yellow
+    exit 4
+  }
+
+  $saveScript = Join-Path $ProjectRoot 'scripts\dev\save-emulator-data.mjs'
+
+  if (-not (Test-Path -LiteralPath $saveScript)) {
+    Write-Host "[dev:cleanup] Script de checkpoint não encontrado: $saveScript" -ForegroundColor Yellow
+    Write-Host '[dev:cleanup] Nenhum processo será encerrado.' -ForegroundColor Yellow
+    exit 4
+  }
+
+  Write-Step 'Salvando checkpoint do Firebase Emulator antes da limpeza forçada...'
+  & node $saveScript --require-running
+  $saveExitCode = $LASTEXITCODE
+
+  if ($saveExitCode -ne 0) {
+    Write-Host "[dev:cleanup] Checkpoint falhou com código $saveExitCode." -ForegroundColor Yellow
+    Write-Host '[dev:cleanup] Nenhum processo será encerrado automaticamente.' -ForegroundColor Yellow
+    exit 4
+  }
+
+  Write-Step 'Checkpoint confirmado. A limpeza forçada agora pode prosseguir com segurança.'
 }
 
 $orderedProcesses = @(

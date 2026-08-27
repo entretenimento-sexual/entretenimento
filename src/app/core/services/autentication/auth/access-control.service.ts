@@ -16,10 +16,14 @@
 // - Completar perfil NÃO deve depender de e-mail verificado.
 // - Verificar e-mail NÃO deve marcar perfil como completo.
 // - Um usuário com profileCompleted=true e emailVerified=false é um estado válido.
+// - free/basic/premium/vip são capacidades de assinatura e vêm exclusivamente
+//   do PlatformSubscriptionAccessService.
+// - admin permanece papel administrativo separado da assinatura.
 //
 // Fontes:
 // - AuthSessionService: sessão / uid / ready / emailVerified
 // - CurrentUserStoreService: perfil runtime do app
+// - PlatformSubscriptionAccessService: assinatura canônica no Angular
 // - AuthAppBlockService: bloqueio explícito do app
 // - AuthRouteContextService: contexto canônico de rota/auth-flow
 
@@ -46,6 +50,7 @@ import { AuthRouteContextService } from './auth-route-context.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
+import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/platform-subscription-access.service';
 
 export type UserRole = IUserDados['role'];
 
@@ -71,12 +76,14 @@ const ROLE_RANK: Record<string, number> = {
   basic: 2,
   premium: 3,
   vip: 4,
+  admin: 5,
 };
 
 @Injectable({ providedIn: 'root' })
 export class AccessControlService {
   private readonly session = inject(AuthSessionService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
   private readonly appBlock = inject(AuthAppBlockService);
   private readonly routeContext = inject(AuthRouteContextService);
 
@@ -153,12 +160,6 @@ export class AccessControlService {
 
   private isLifecycleBlockedStatus(status: LifecycleAccountStatus): boolean {
     return status !== 'active';
-  }
-
-  private normalizeSubscriptionStatus(user: IUserDados | null | undefined): string {
-    return String((user as any)?.subscriptionStatus ?? '')
-      .trim()
-      .toLowerCase();
   }
 
   private handleStreamError<T>(
@@ -764,8 +765,20 @@ export class AccessControlService {
   // Roles
   // ---------------------------------------------------------------------------
 
-  private readonly role$: Observable<UserRole> = this.appUser$.pipe(
-    map((user) => this.safeRole((user as any)?.role ?? 'visitante')),
+  private readonly role$: Observable<UserRole> = combineLatest([
+    this.appUser$,
+    this.subscriptionAccess.state$,
+  ]).pipe(
+    map(([user, subscriptionState]) => {
+      if (!user) return 'visitante' as UserRole;
+      if (user.role === 'admin') return 'admin' as UserRole;
+
+      return this.safeRole(
+        subscriptionState.active && subscriptionState.role
+          ? subscriptionState.role
+          : 'free'
+      );
+    }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('role$', 'visitante' as UserRole))
@@ -795,36 +808,18 @@ export class AccessControlService {
 
   readonly isFree$: Observable<boolean> = combineLatest([
     this.isAuthenticated$,
-    this.appUser$,
+    this.subscriptionAccess.isFree$,
   ]).pipe(
-    map(([isAuth, user]) => {
-      if (!isAuth) return true;
-
-      const subscriptionStatus = this.normalizeSubscriptionStatus(
-        user as IUserDados | null
-      );
-      const isSubscriber = (user as any)?.isSubscriber === true;
-
-      return !(isSubscriber || subscriptionStatus === 'active');
-    }),
+    map(([isAuth, subscriptionIsFree]) => !isAuth || subscriptionIsFree),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('isFree$', true))
   );
 
-  readonly isSubscriber$: Observable<boolean> = this.appUser$.pipe(
-    map((user) => {
-      const subscriptionStatus = this.normalizeSubscriptionStatus(
-        user as IUserDados | null
-      );
-
-      return (
-        (user as any)?.isSubscriber === true ||
-        subscriptionStatus === 'active'
-      );
-    }),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(this.handleStreamError('isSubscriber$', false))
-  );
+  readonly isSubscriber$: Observable<boolean> =
+    this.subscriptionAccess.isSubscriber$.pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('isSubscriber$', false))
+    );
 }

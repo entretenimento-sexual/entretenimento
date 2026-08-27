@@ -32,6 +32,16 @@ describe('PublicProfilesListComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  it('preserva a idade pública ao adaptar o card compartilhado', () => {
+    const adapted = component.toUserCardProfile({
+      uid: 'profile-age',
+      nickname: 'Pessoa',
+      age: 34,
+    });
+
+    expect(adapted.idade).toBe(34);
+  });
+
   it('mantém o estado vazio curto e sem painel duplicado', () => {
     const empty = fixture.debugElement.query(
       By.css('.public-profiles__empty')

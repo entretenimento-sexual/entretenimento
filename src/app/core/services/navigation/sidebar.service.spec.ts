@@ -13,8 +13,11 @@ describe('SidebarService groups', () => {
       currentUrl$: of('/dashboard/principal'),
     };
     const access = {
-      isSubscriber$: of(false),
       hasAny$: vi.fn(() => of(false)),
+    };
+    const subscriptionAccess = {
+      isSubscriber$: of(false),
+      role$: of(null),
     };
     const globalErrorHandler = {
       handleError: vi.fn(),
@@ -24,6 +27,7 @@ describe('SidebarService groups', () => {
       breakpointObserver as any,
       routeContext as any,
       access as any,
+      subscriptionAccess as any,
       globalErrorHandler as any
     );
   }

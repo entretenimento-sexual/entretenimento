@@ -9,20 +9,13 @@ import {
 import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
+import {
+  PROFILE_IDENTITY_CATALOG_VERSION,
+  isSelectableProfileIdentityCode,
+} from 'src/app/core/domain/profile-identity/profile-identity.catalog';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
-
-const ALLOWED_GENDERS = new Set([
-  'homem',
-  'mulher',
-  'casal-ele-ele',
-  'casal-ele-ela',
-  'casal-ela-ela',
-  'travesti',
-  'transexual',
-  'crossdressers',
-]);
 
 const ALLOWED_ORIENTATIONS = new Set([
   'bissexual',
@@ -153,6 +146,8 @@ export class ProfileCompletionWriteService {
             uid,
             nickname,
             gender,
+            declaredIdentityCode: gender,
+            identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
             orientation,
             estado,
             municipio,
@@ -180,6 +175,8 @@ export class ProfileCompletionWriteService {
             nickname,
             nicknameNormalized,
             gender,
+            identityCode: gender,
+            identityCatalogVersion: PROFILE_IDENTITY_CATALOG_VERSION,
             orientation: orientation || null,
             estado,
             municipio,
@@ -273,7 +270,7 @@ export class ProfileCompletionWriteService {
     estado: string;
     municipio: string;
   }): Error | null {
-    if (!ALLOWED_GENDERS.has(input.gender)) {
+    if (!isSelectableProfileIdentityCode(input.gender)) {
       return this.createError(
         'profile/invalid-gender',
         'A identificação de perfil informada é inválida.'

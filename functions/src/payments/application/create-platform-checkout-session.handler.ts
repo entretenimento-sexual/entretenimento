@@ -6,6 +6,7 @@
 // Responsabilidade:
 // - receber a intenção autenticada de assinatura da plataforma;
 // - validar o plano exclusivamente pelo catálogo backend;
+// - validar a mudança contra a assinatura canônica vigente;
 // - criar snapshot imutável do preço/benefício selecionado;
 // - abrir checkout simulado somente no Functions Emulator;
 // - persistir checkout_sessions sem conceder acesso.
@@ -13,6 +14,7 @@
 // Segurança:
 // - o frontend nunca informa valor financeiro confiável;
 // - o frontend nunca define role concedida;
+// - downgrade é bloqueado no backend até existir agendamento de próximo ciclo;
 // - o checkout não confirma pagamento;
 // - em cloud, esta function falha até existir provider real validado;
 // - o provider local não se apresenta como Asaas real.
@@ -21,6 +23,7 @@
 // - selecionar provider real por configuração segura;
 // - exigir App Check;
 // - aplicar idempotency key por tentativa de criação;
+// - implementar downgrade agendado no ciclo seguinte;
 // - permitir ciclos anuais, promoções e novos escopos financeiros.
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -36,6 +39,12 @@ import {
   createBillingPlanSnapshot,
   requirePlatformPlanByKey,
 } from './billing-plan-catalog.service';
+import {
+  evaluatePlatformSubscriptionEntitlement,
+} from './platform-subscription-entitlement.service';
+import {
+  resolvePlatformSubscriptionPlanChangePolicy,
+} from './platform-subscription-change.policy';
 
 import {
   EmulatorPaymentProvider,
@@ -45,33 +54,17 @@ import {
   assertEmulatorPaymentRuntime,
   requireSafeEmulatorAppBaseUrl,
 } from '../security/payment-runtime.guard';
+import {
+  buildPlatformSubscriptionProviderReturnUrl,
+  normalizePlatformSubscriptionFlowContext,
+  platformSubscriptionFlowMetadata,
+} from '../domain/platform-subscription-flow.policy';
 
 interface CreatePlatformCheckoutSessionRequest {
   planId?: string;
   planKey?: string;
-}
-
-function buildReturnUrl(params: {
-  appBaseUrl: string;
-  billing: 'success' | 'cancel';
-  checkoutSessionId: string;
-}): string {
-  const url = new URL('/billing/return', params.appBaseUrl);
-
-  url.searchParams.set('billing', params.billing);
-  url.searchParams.set('scope', 'platform_subscription');
-  url.searchParams.set('checkoutSessionId', params.checkoutSessionId);
-
-  /**
-   * Não adicionamos mockProvider na URL.
-   *
-   * Motivo:
-   * - query string pertence ao navegador;
-   * - o provider verdadeiro já está persistido no checkout_sessions;
-   * - nenhuma informação financeira deve ser confiada com base no retorno
-   *   manipulado pelo cliente.
-   */
-  return url.toString();
+  minimumRole?: string;
+  returnUrl?: string;
 }
 
 export const createPlatformCheckoutSession =
@@ -107,6 +100,38 @@ export const createPlatformCheckoutSession =
 
       const now = Date.now();
       const planSnapshot = createBillingPlanSnapshot(plan, now);
+      const entitlementRef = db
+        .collection('entitlements')
+        .doc(`platform_subscription_${buyerUid}`);
+      const entitlementSnapshot = await entitlementRef.get();
+      const currentSubscription = evaluatePlatformSubscriptionEntitlement(
+        entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
+        buyerUid,
+        now
+      );
+      const planChangePolicy = resolvePlatformSubscriptionPlanChangePolicy({
+        currentRole: currentSubscription.active
+          ? currentSubscription.role
+          : null,
+        requestedRole: planSnapshot.grantedRole,
+      });
+
+      if (!planChangePolicy.allowed) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A redução de plano precisa ser programada para o próximo ciclo e ainda não está disponível.',
+          {
+            reason: 'downgrade_requires_next_cycle',
+            currentRole: planChangePolicy.currentRole,
+            requestedRole: planChangePolicy.requestedRole,
+          }
+        );
+      }
+
+      const flowContext = normalizePlatformSubscriptionFlowContext({
+        minimumRole: request.data?.minimumRole,
+        returnUrl: request.data?.returnUrl,
+      });
 
       const appBaseUrl = requireSafeEmulatorAppBaseUrl(
         process.env.APP_BASE_URL
@@ -149,6 +174,8 @@ export const createPlatformCheckoutSession =
         metadata: {
           runtime: 'emulator',
           catalogVersion: planSnapshot.catalogVersion,
+          planChangeKind: planChangePolicy.kind,
+          ...platformSubscriptionFlowMetadata(flowContext),
         },
       };
 
@@ -171,21 +198,24 @@ export const createPlatformCheckoutSession =
           amountCents: planSnapshot.amountCents,
           currency: planSnapshot.currency,
 
-          successUrl: buildReturnUrl({
+          successUrl: buildPlatformSubscriptionProviderReturnUrl({
             appBaseUrl,
             billing: 'success',
             checkoutSessionId: checkoutRef.id,
+            flowContext,
           }),
 
-          cancelUrl: buildReturnUrl({
+          cancelUrl: buildPlatformSubscriptionProviderReturnUrl({
             appBaseUrl,
             billing: 'cancel',
             checkoutSessionId: checkoutRef.id,
+            flowContext,
           }),
 
           metadata: {
             runtime: 'emulator',
             catalogVersion: planSnapshot.catalogVersion,
+            planChangeKind: planChangePolicy.kind,
           },
         });
 

@@ -7,6 +7,13 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
 import {
+  IMAGE_INPUT_MIME_TYPES,
+  VIDEO_INPUT_MIME_TYPES,
+  VIDEO_MAX_BYTES,
+  VIDEO_POSTER_IMAGE_MAX_BYTES,
+  VIDEO_PUBLIC_PLAYBACK_MIME_TYPES,
+} from '../media-format.generated';
+import {
   normalizeVideoPublicationSettings,
   type VideoPublicationSettingsInput,
 } from './video-publication-settings';
@@ -28,7 +35,7 @@ interface RegisterPrivateVideoUploadRequest
   mimeType?: string;
   sizeBytes?: number;
   durationMs?: number | null;
-  publishWhenReady?: boolean;
+  editRecipe?: unknown;
 }
 
 interface RegisterPrivateVideoUploadResponse {
@@ -65,27 +72,11 @@ interface PrivateUploadCleanupJob {
   lastError: string | null;
 }
 
-const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
-const MAX_POSTER_SIZE_BYTES = 10 * 1024 * 1024;
 const CLEANUP_COLLECTION = 'media_private_video_upload_cleanup_jobs';
 const CLEANUP_BATCH_SIZE = 50;
-const ALLOWED_VIDEO_TYPES = new Set([
-  'video/mp4',
-  'video/webm',
-  'video/quicktime',
-  'video/x-matroska',
-  'video/x-msvideo',
-  'video/x-ms-wmv',
-  'video/mp2t',
-  'application/mxf',
-]);
-const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
-const ALLOWED_POSTER_TYPES = new Set([
-  'image/jpeg',
-  'image/jpg',
-  'image/png',
-  'image/webp',
-]);
+const ALLOWED_VIDEO_TYPES = new Set<string>(VIDEO_INPUT_MIME_TYPES);
+const PUBLIC_PLAYBACK_TYPES = new Set<string>(VIDEO_PUBLIC_PLAYBACK_MIME_TYPES);
+const ALLOWED_POSTER_TYPES = new Set<string>(IMAGE_INPUT_MIME_TYPES);
 
 function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -222,7 +213,7 @@ async function readRequiredVideoMetadata(storagePath: string): Promise<{
     );
   }
 
-  if (!sizeBytes || sizeBytes > MAX_VIDEO_SIZE_BYTES) {
+  if (!sizeBytes || sizeBytes > VIDEO_MAX_BYTES) {
     throw new HttpsError(
       'failed-precondition',
       'O arquivo armazenado excede o limite permitido ou está vazio.'
@@ -258,7 +249,7 @@ async function validateOptionalPoster(storagePath: string | null): Promise<void>
     );
   }
 
-  if (!sizeBytes || sizeBytes > MAX_POSTER_SIZE_BYTES) {
+  if (!sizeBytes || sizeBytes > VIDEO_POSTER_IMAGE_MAX_BYTES) {
     throw new HttpsError(
       'failed-precondition',
       'A imagem de capa excede o limite permitido ou está vazia.'
@@ -478,7 +469,7 @@ export const registerPrivateVideoUpload = onCall<
     if (!videoStoragePath) {
       throw new HttpsError(
         'invalid-argument',
-        'O caminho privado do vídeo não pertence ao upload informado.'
+        'O caminho protegido do vídeo não pertence ao upload informado.'
       );
     }
 
@@ -572,14 +563,6 @@ export const registerPrivateVideoUpload = onCall<
           ratingsEnabled: true,
         }
       );
-      const publishWhenReady = request.data?.publishWhenReady === true;
-
-      /**
-       * MANUTENÇÃO — ARMAZENAMENTO PRIVADO POR PLANO
-       * `publishWhenReady: false` não concede armazenamento ilimitado. Antes da
-       * abertura comercial, esta callable deve validar quota, retenção, expiração
-       * e entitlement no backend. A interface não é barreira de capacidade.
-       */
       const videoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
       const publicationRef = db.doc(
         `users/${ownerUid}/video_publications/${videoId}`
@@ -598,6 +581,7 @@ export const registerPrivateVideoUpload = onCall<
           durationMs,
           thumbnailUrl: posterStoragePath,
           thumbnailPath: posterStoragePath,
+          editRecipe: request.data?.editRecipe ?? null,
           status,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
@@ -606,10 +590,10 @@ export const registerPrivateVideoUpload = onCall<
           ownerUid,
           videoId,
           isPublished: false,
-          publishWhenReady,
-          visibility: 'PRIVATE',
+          publishWhenReady: true,
+          visibility: 'PUBLIC',
           orderIndex: 0,
-          moderationStatus: 'PRIVATE',
+          moderationStatus: 'APPROVED',
           moderationReason: null,
           ...publicationSettings,
           createdAt,

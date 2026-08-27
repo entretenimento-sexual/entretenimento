@@ -1,0 +1,49 @@
+<main class="account-page app-page" aria-label="Minha conta">
+  <section class="account-shell ui-container">
+    <header class="account-shell__header">
+      <h1>Minha conta</h1>
+    </header>
+
+    <nav class="account-shell__nav" aria-label="Seções da conta">
+      <a
+        routerLink="/conta"
+        routerLinkActive="is-active"
+        ariaCurrentWhenActive="page"
+        [routerLinkActiveOptions]="{ exact: true }"
+      >
+        <strong>Visão geral</strong>
+      </a>
+
+      <a
+        routerLink="/conta/seguranca"
+        routerLinkActive="is-active"
+        ariaCurrentWhenActive="page"
+      >
+        <strong>Segurança</strong>
+      </a>
+
+      <a
+        routerLink="/conta/assinatura"
+        routerLinkActive="is-active"
+        ariaCurrentWhenActive="page"
+      >
+        <strong>Assinatura</strong>
+      </a>
+
+      <span class="account-shell__nav-separator" aria-hidden="true"></span>
+
+      <a
+        class="account-shell__nav-danger"
+        routerLink="/conta/gerenciar"
+        routerLinkActive="is-active"
+        ariaCurrentWhenActive="page"
+      >
+        <strong>Gerenciar conta</strong>
+      </a>
+    </nav>
+
+    <section class="account-shell__content" aria-label="Conteúdo da conta">
+      <router-outlet />
+    </section>
+  </section>
+</main>

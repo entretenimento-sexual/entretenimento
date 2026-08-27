@@ -16,6 +16,10 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import {
+  resolvePublicMediaCallableUserMessage,
+  type PublicMediaCallableAction,
+} from './public-media-callable-feedback.policy';
 
 interface ToggleReactionRequest {
   ownerUid: string;
@@ -27,6 +31,12 @@ interface ToggleReactionResponse {
   liked: boolean;
   reactionsCount: number;
   score: number;
+}
+
+export interface IPublicMediaReactionState {
+  readonly liked: boolean;
+  readonly reactionsCount: number;
+  readonly score: number;
 }
 
 interface PublicReactionProjection {
@@ -80,20 +90,50 @@ export class MediaReactionsService {
     return this.isLikedByViewer$('video', ownerUid, videoId, viewerUid);
   }
 
+  /**
+   * Mantém o contrato legado dos consumidores existentes.
+   * Superfícies que precisam atualizar o card imediatamente podem usar
+   * `toggleLikePhotoWithState$` para receber o estado canônico do backend.
+   */
   toggleLikePhoto$(
     ownerUid: string,
     photoId: string,
     viewerUid: string | null
   ): Observable<void> {
-    return this.toggleLike$('photo', ownerUid, photoId, viewerUid);
+    return this.toggleLikePhotoWithState$(ownerUid, photoId, viewerUid).pipe(
+      map(() => void 0)
+    );
   }
 
+  /**
+   * Mantém o contrato legado dos consumidores existentes.
+   * Superfícies que precisam atualizar o card imediatamente podem usar
+   * `toggleLikeVideoWithState$` para receber o estado canônico do backend.
+   */
   toggleLikeVideo$(
     ownerUid: string,
     videoId: string,
     viewerUid: string | null
   ): Observable<void> {
-    return this.toggleLike$('video', ownerUid, videoId, viewerUid);
+    return this.toggleLikeVideoWithState$(ownerUid, videoId, viewerUid).pipe(
+      map(() => void 0)
+    );
+  }
+
+  toggleLikePhotoWithState$(
+    ownerUid: string,
+    photoId: string,
+    viewerUid: string | null
+  ): Observable<IPublicMediaReactionState | null> {
+    return this.toggleLikeWithState$('photo', ownerUid, photoId, viewerUid);
+  }
+
+  toggleLikeVideoWithState$(
+    ownerUid: string,
+    videoId: string,
+    viewerUid: string | null
+  ): Observable<IPublicMediaReactionState | null> {
+    return this.toggleLikeWithState$('video', ownerUid, videoId, viewerUid);
   }
 
   private getLikesCount$(
@@ -182,18 +222,18 @@ export class MediaReactionsService {
     );
   }
 
-  private toggleLike$(
+  private toggleLikeWithState$(
     kind: PublicMediaKind,
     ownerUid: string,
     mediaId: string,
     viewerUid: string | null
-  ): Observable<void> {
+  ): Observable<IPublicMediaReactionState | null> {
     const safeOwnerUid = this.cleanId(ownerUid);
     const safeMediaId = this.cleanId(mediaId);
     const safeViewerUid = this.cleanId(viewerUid);
 
     if (!safeOwnerUid || !safeMediaId || !safeViewerUid) {
-      return of(void 0);
+      return of(null);
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
@@ -207,22 +247,24 @@ export class MediaReactionsService {
           : { videoId: safeMediaId }),
       };
 
-      await callable(payload);
+      const response = await callable(payload);
+      return this.normalizeReactionState(response.data);
     }).pipe(
-      map(() => void 0),
       catchError((error) => {
         this.reportError(
           `Erro ao atualizar curtida do ${this.kindLabel(kind)}.`,
           error,
           {
-            op: 'toggleLike$',
+            op: 'toggleLikeWithState$',
             kind,
             hasOwnerUid: !!safeOwnerUid,
             hasMediaId: !!safeMediaId,
             hasViewerUid: !!safeViewerUid,
-          }
+          },
+          false,
+          'reaction'
         );
-        return of(void 0);
+        return of(null);
       })
     );
   }
@@ -250,26 +292,43 @@ export class MediaReactionsService {
     return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
   }
 
+  private normalizeReactionState(
+    value: ToggleReactionResponse | null | undefined
+  ): IPublicMediaReactionState {
+    const score = Number(value?.score ?? 0);
+
+    return {
+      liked: value?.liked === true,
+      reactionsCount: this.normalizeCount(value?.reactionsCount),
+      score: Number.isFinite(score) ? score : 0,
+    };
+  }
+
   private reportError(
     userMessage: string,
     error: unknown,
     context?: Record<string, unknown>,
-    silent = false
+    silent = false,
+    action?: PublicMediaCallableAction
   ): void {
+    const safeUserMessage = action
+      ? resolvePublicMediaCallableUserMessage(error, action, userMessage)
+      : userMessage;
+
     if (!silent) {
-      this.errorNotifier.showError(userMessage);
+      this.errorNotifier.showError(safeUserMessage);
     }
 
     try {
       const normalized = error instanceof Error
         ? error
-        : new Error(userMessage);
+        : new Error(safeUserMessage);
       (normalized as any).original = error;
       (normalized as any).context = {
         scope: 'MediaReactionsService',
         ...(context ?? {}),
       };
-      (normalized as any).skipUserNotification = silent;
+      (normalized as any).skipUserNotification = true;
       this.errorHandler.handleError(normalized);
       this.privacyDebug.log('media', 'MediaReactionsService: falha', context);
     } catch {

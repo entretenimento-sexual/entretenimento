@@ -1,0 +1,9 @@
+// firestore-rules/backend_rate_limits.rules
+// =========================================================================
+// CONTADORES INTERNOS DE RATE LIMIT
+// =========================================================================
+// Escritos exclusivamente por Cloud Functions via Admin SDK. O cliente não
+// precisa conhecer contagens, janelas ou estado de proteção antiabuso.
+match /backend_rate_limits/{rateLimitId} {
+  allow read, write: if false;
+}

@@ -11,11 +11,13 @@
 //    - aceitar solicitação;
 //    - cancelar solicitação enviada;
 //    - recusar solicitação recebida;
-//    - desfazer amizade.
+//    - desfazer amizade;
+//    - bloquear/desbloquear perfil.
 //
 // 2. O cliente Angular não é autoridade:
 //    - ele não cria amizade diretamente;
 //    - ele não altera status de solicitação diretamente;
+//    - ele não grava estado/evento de bloqueio diretamente;
 //    - ele não decide se pode conversar;
 //    - ele apenas solicita ações ao backend.
 //
@@ -102,6 +104,22 @@ interface EndFriendshipCallableResponse {
   status: 'ended';
 }
 
+interface BlockUserCallablePayload {
+  targetUid: string;
+  reason?: string;
+}
+
+interface UnblockUserCallablePayload {
+  targetUid: string;
+}
+
+interface ManageUserBlockCallableResponse {
+  actorUid: string;
+  targetUid: string;
+  status: 'blocked' | 'unblocked';
+  changed: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class FriendshipService {
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
@@ -133,9 +151,19 @@ export class FriendshipService {
     EndFriendshipCallableResponse
   >(this.functions, 'endFriendship');
 
-private dbg(msg: string, extra?: unknown): void {
-  this.privacyDebug.log('friends', msg, extra);
-}
+  private readonly blockUserCallable = httpsCallable<
+    BlockUserCallablePayload,
+    ManageUserBlockCallableResponse
+  >(this.functions, 'blockUser');
+
+  private readonly unblockUserCallable = httpsCallable<
+    UnblockUserCallablePayload,
+    ManageUserBlockCallableResponse
+  >(this.functions, 'unblockUser');
+
+  private dbg(msg: string, extra?: unknown): void {
+    this.privacyDebug.log('friends', msg, extra);
+  }
 
   /* ==========================================================================
    * Solicitações de amizade
@@ -252,7 +280,7 @@ private dbg(msg: string, extra?: unknown): void {
    * - substitui o antigo updateDoc client-side;
    * - somente o destinatário real pode recusar;
    * - recusar não equivale a bloquear;
-   * - bloqueio deve continuar sendo uma ação separada.
+   * - bloqueio continua sendo uma ação separada.
    */
   declineRequest(requestId: string): Observable<void> {
     const safeRequestId = String(requestId ?? '').trim();
@@ -276,33 +304,22 @@ private dbg(msg: string, extra?: unknown): void {
     ).pipe(map(() => void 0));
   }
 
-  /**
-   * Solicitações enviadas pendentes.
-   *
-   * Leitura continua pelo Firestore porque as Rules permitem somente envolvidos.
-   * Escrita social sensível é que migrou para Functions.
-   */
+  /** Solicitações enviadas pendentes. */
   listOutboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
     return this.repo.listOutboundRequests(uid);
   }
 
-  /**
-   * Solicitações recebidas pendentes.
-   */
+  /** Solicitações recebidas pendentes. */
   listInboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
     return this.repo.listInboundRequests(uid);
   }
 
-  /**
-   * Realtime de solicitações recebidas.
-   */
+  /** Realtime de solicitações recebidas. */
   watchInboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
     return this.repo.watchInboundRequests(uid);
   }
 
-  /**
-   * Realtime de solicitações enviadas.
-   */
+  /** Realtime de solicitações enviadas. */
   watchOutboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
     return this.repo.watchOutboundRequests(uid);
   }
@@ -311,23 +328,14 @@ private dbg(msg: string, extra?: unknown): void {
    * Amigos
    * ========================================================================== */
 
-  /**
-   * Lista amigos do usuário.
-   */
   listFriends(uid: string): Observable<Friend[]> {
     return this.repo.listFriends(uid);
   }
 
-  /**
-   * Observa amigos do usuário em tempo real.
-   */
   watchFriends(uid: string): Observable<Friend[]> {
     return this.repo.watchFriends(uid);
   }
 
-  /**
-   * Lista paginada de amigos.
-   */
   listFriendsPage(uid: string, pageSize = 24, after: number | null = null) {
     return this.repo.listFriendsPage(uid, pageSize, after);
   }
@@ -365,20 +373,71 @@ private dbg(msg: string, extra?: unknown): void {
 
   /* ==========================================================================
    * Bloqueios e busca
-   * ==========================================================================
-   * Estes fluxos ainda permanecem no repo.
-   * Em uma etapa futura, bloqueio/desbloqueio também deve migrar para callable,
-   * porque bloqueio é uma ação de segurança e privacidade forte.
-   */
+   * ========================================================================== */
 
-  blockUser(ownerUid: string, targetUid: string, reason?: string): Observable<void> {
-    this.dbg('blockUser', { ownerUid, targetUid });
-    return this.repo.blockUser(ownerUid, targetUid, reason);
+  /**
+   * Bloqueia via Cloud Function.
+   *
+   * `ownerUid` permanece somente por compatibilidade com chamadas existentes.
+   * A Function ignora qualquer identidade fornecida pelo cliente e usa
+   * exclusivamente `request.auth.uid` como ator do bloqueio.
+   */
+  blockUser(
+    ownerUid: string,
+    targetUid: string,
+    reason?: string
+  ): Observable<void> {
+    const safeTargetUid = String(targetUid ?? '').trim();
+    const safeReason = String(reason ?? '').trim();
+
+    if (!safeTargetUid) {
+      return defer(() => {
+        throw new Error('[FRIENDSHIP] targetUid inválido para bloqueio');
+      });
+    }
+
+    this.dbg('blockUser: callable', {
+      ownerUid,
+      targetUid: safeTargetUid,
+      hasReason: !!safeReason,
+    });
+
+    return defer(() =>
+      from(
+        this.blockUserCallable({
+          targetUid: safeTargetUid,
+          ...(safeReason ? { reason: safeReason } : {}),
+        })
+      )
+    ).pipe(map(() => void 0));
   }
 
+  /**
+   * Desbloqueia via Cloud Function.
+   *
+   * Mantém a assinatura histórica, porém `ownerUid` não concede autoridade.
+   */
   unblockUser(ownerUid: string, targetUid: string): Observable<void> {
-    this.dbg('unblockUser', { ownerUid, targetUid });
-    return this.repo.unblockUser(ownerUid, targetUid);
+    const safeTargetUid = String(targetUid ?? '').trim();
+
+    if (!safeTargetUid) {
+      return defer(() => {
+        throw new Error('[FRIENDSHIP] targetUid inválido para desbloqueio');
+      });
+    }
+
+    this.dbg('unblockUser: callable', {
+      ownerUid,
+      targetUid: safeTargetUid,
+    });
+
+    return defer(() =>
+      from(
+        this.unblockUserCallable({
+          targetUid: safeTargetUid,
+        })
+      )
+    ).pipe(map(() => void 0));
   }
 
   listBlocked(uid: string): Observable<BlockedUserActive[]> {

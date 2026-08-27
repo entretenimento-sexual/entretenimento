@@ -12,9 +12,109 @@
     <div>
       <h1 id="community-create-title">Criar Comunidade</h1>
       <p>{{ communityDefinition.description }}</p>
-      <p>Você será o Proprietário desta Comunidade.</p>
+      <p>Você será o proprietário desta Comunidade e poderá definir a equipe de gestão depois.</p>
     </div>
   </header>
+
+  @if (creationState$ | async; as creationState) {
+    @if (creationState.status === 'loading') {
+      <section
+        class="community-create__gate"
+        role="status"
+        aria-live="polite"
+      >
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <div>
+          <h2>Preparando sua experiência</h2>
+          <p>Estamos verificando as possibilidades do seu perfil.</p>
+        </div>
+      </section>
+    } @else if (creationState.status === 'error') {
+      <section class="community-create__gate" role="alert">
+        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+        <div>
+          <h2>Não foi possível abrir o compositor</h2>
+          <p>Sua participação nas Comunidades continua disponível normalmente.</p>
+          <button type="button" (click)="retryCreationCapability()">
+            Tentar novamente
+          </button>
+        </div>
+      </section>
+    } @else if (!creationState.capability.canCreate) {
+      <section
+        class="community-create__gate community-create__gate--upgrade"
+        aria-labelledby="community-create-gate-title"
+      >
+        <i
+          class="fas {{ creationState.capability.reason === 'limit_reached' ? 'fa-people-roof' : 'fa-compass' }}"
+          aria-hidden="true"
+        ></i>
+        <div>
+          @if (creationState.capability.reason === 'limit_reached') {
+            <span>Limite do {{ creationPlanLabel(creationState.capability) }}</span>
+            <h2 id="community-create-gate-title">Suas Comunidades já estão completas</h2>
+            <p>
+              Você administra
+              {{ creationState.capability.currentOwnedCommunities }}
+              {{ creationState.capability.currentOwnedCommunities === 1 ? 'Comunidade' : 'Comunidades' }}.
+              Elas continuam funcionando normalmente.
+            </p>
+            <a routerLink="/dashboard/comunidades/minhas">
+              Gerenciar minhas Comunidades
+            </a>
+          } @else {
+            <span>Seu perfil é Gratuito</span>
+            <h2 id="community-create-gate-title">Pertencer continua gratuito</h2>
+            <p>
+              Você pode explorar, solicitar entrada, aceitar convites, conversar
+              e participar das Comunidades. O plano Basic acrescenta a criação e
+              a administração da sua própria Comunidade.
+            </p>
+            <div class="community-create__gate-actions">
+              <a
+                class="community-create__upgrade"
+                routerLink="/subscription-plan"
+                [queryParams]="{
+                  minimumRole: 'basic',
+                  returnUrl: communityCreateReturnUrl
+                }"
+              >
+                <i class="fas fa-crown" aria-hidden="true"></i>
+                Conhecer o plano Basic
+              </a>
+              <a routerLink="/dashboard/comunidades">Explorar Comunidades</a>
+            </div>
+          }
+        </div>
+      </section>
+    } @else {
+  @if (preview$ | async; as preview) {
+    <section
+      class="community-create__preview"
+      aria-labelledby="community-create-preview-title"
+      aria-live="polite"
+    >
+      <span class="community-create__preview-avatar" aria-hidden="true">
+        {{ preview.initials }}
+      </span>
+      <div class="community-create__preview-copy">
+        <span>Prévia da sua Comunidade</span>
+        <h2 id="community-create-preview-title">{{ preview.name }}</h2>
+        <div>
+          <span>{{ preview.theme }}</span>
+          <span>{{ preview.join }}</span>
+          <span>Até {{ memberLimitLabel(preview.memberLimit) }}</span>
+          @if (preview.tagCount > 0) {
+            <span>{{ preview.tagCount }} afinidades</span>
+          }
+        </div>
+      </div>
+      <span class="community-create__preview-access">
+        <i class="fas fa-universal-access" aria-hidden="true"></i>
+        Participação aberta a perfis elegíveis
+      </span>
+    </section>
+  }
 
   <form
     class="community-create__form"
@@ -22,7 +122,10 @@
     (ngSubmit)="submit()"
     novalidate
   >
-    <section aria-labelledby="community-create-identity-title">
+    <section
+      class="community-create__section community-create__section--identity"
+      aria-labelledby="community-create-identity-title"
+    >
       <h2 id="community-create-identity-title">Identidade</h2>
 
       <label>
@@ -36,14 +139,28 @@
         />
       </label>
 
-      <label>
-        <span>Tema principal</span>
-        <select formControlName="theme">
+      <fieldset class="community-create__choice-fieldset">
+        <legend>Que tipo de encontro você quer criar?</legend>
+        <div class="community-create__choice-grid community-create__choice-grid--theme">
           @for (option of themeOptions; track option.value) {
-            <option [value]="option.value">{{ option.label }}</option>
+            <label
+              class="community-create__choice"
+              [class.is-selected]="form.controls.theme.value === option.value"
+            >
+              <input
+                type="radio"
+                formControlName="theme"
+                [value]="option.value"
+              />
+              <i class="fas {{ option.icon }}" aria-hidden="true"></i>
+              <span>
+                <strong>{{ option.label }}</strong>
+                <small>{{ option.description }}</small>
+              </span>
+            </label>
           }
-        </select>
-      </label>
+        </div>
+      </fieldset>
 
       <label>
         <span>Descrição</span>
@@ -51,12 +168,201 @@
           formControlName="description"
           maxlength="240"
           rows="3"
-          placeholder="Qual é o propósito deste grupo?"
+          placeholder="Qual é o propósito desta Comunidade?"
         ></textarea>
       </label>
     </section>
 
-    <section aria-labelledby="community-create-rules-title">
+    <section
+      class="community-create__section community-create__section--access"
+      aria-labelledby="community-create-access-title"
+    >
+      <h2 id="community-create-access-title">Entrada e acesso</h2>
+
+      <fieldset class="community-create__choice-fieldset">
+        <legend>Como as pessoas chegam?</legend>
+        <div class="community-create__choice-grid">
+          @for (option of joinPolicyOptions; track option.value) {
+            <label
+              class="community-create__choice"
+              [class.is-selected]="form.controls.joinPolicy.value === option.value"
+            >
+              <input
+                type="radio"
+                formControlName="joinPolicy"
+                [value]="option.value"
+              />
+              <i class="fas {{ option.icon }}" aria-hidden="true"></i>
+              <span>
+                <strong>{{ option.label }}</strong>
+                <small>{{ option.description }}</small>
+              </span>
+            </label>
+          }
+        </div>
+      </fieldset>
+
+      @if (creationState.capability; as capability) {
+        <fieldset
+          class="community-create__capacity"
+          aria-describedby="community-create-capacity-help"
+        >
+          <legend>Qual o tamanho que você imagina?</legend>
+          <p id="community-create-capacity-help" class="community-create__note">
+              Seu {{ creationPlanLabel(capability) }} permite até
+              {{ memberLimitLabel(capability.memberLimit) }} membros ativos e
+              @if (capability.maxOwnedCommunities; as maximum) {
+                {{ maximum }}
+                {{ maximum === 1 ? 'Comunidade própria' : 'Comunidades próprias' }}.
+              } @else {
+                não possui limite operacional de Comunidades próprias.
+              }
+              Você poderá ajustar esses números depois.
+          </p>
+          <div class="community-create__capacity-options">
+            @for (memberLimit of memberLimitOptions; track memberLimit) {
+              <button
+                type="button"
+                [class.is-selected]="isMemberLimitSelected(memberLimit)"
+                [class.is-locked]="!capability.allowedMemberLimits.includes(memberLimit)"
+                [attr.aria-pressed]="isMemberLimitSelected(memberLimit)"
+                [attr.aria-label]="
+                  'Até ' + memberLimitLabel(memberLimit) + ' membros. '
+                  + memberLimitDescription(memberLimit)
+                  + (!capability.allowedMemberLimits.includes(memberLimit)
+                    ? ' Requer plano ' + memberLimitPlanLabel(memberLimit) + '.'
+                    : '')
+                "
+                (click)="selectMemberLimit(memberLimit, capability.allowedMemberLimits)"
+              >
+                <span>
+                  <i
+                    class="fas {{ capability.allowedMemberLimits.includes(memberLimit) ? 'fa-people-group' : 'fa-lock' }}"
+                    aria-hidden="true"
+                  ></i>
+                  <strong>{{ memberLimitLabel(memberLimit) }}</strong>
+                </span>
+                <small>{{ memberLimitDescription(memberLimit) }}</small>
+                @if (!capability.allowedMemberLimits.includes(memberLimit)) {
+                  <em>{{ memberLimitPlanLabel(memberLimit) }}</em>
+                }
+              </button>
+            }
+          </div>
+        </fieldset>
+      }
+
+      <p class="community-create__note">
+        Visitantes autenticados verão apenas a prévia permitida. Publicações e interações ficam restritas aos membros autorizados.
+      </p>
+      <p class="community-create__note">
+        O plano de cada participante não restringe a entrada. A capacidade
+        escolhida e as demais regras são confirmadas com segurança pelo backend.
+      </p>
+    </section>
+
+    <section
+      class="community-create__section community-create__section--tags"
+      [class.is-invalid]="form.controls.tagIds.invalid && form.controls.tagIds.touched"
+      aria-labelledby="community-create-tags-title"
+      aria-describedby="community-create-tags-help"
+    >
+      <div class="community-create__section-heading">
+        <div>
+          <h2 id="community-create-tags-title">Interesses e afinidades</h2>
+          <p id="community-create-tags-help" class="community-create__note">
+            Escolha de 1 a {{ maxCommunityTags }} tags. Elas serão usadas para busca e recomendações de Comunidades.
+          </p>
+        </div>
+        <span class="community-create__tag-count" aria-live="polite">
+          {{ form.controls.tagIds.value.length }}/{{ maxCommunityTags }}
+        </span>
+      </div>
+
+      @if (tagCatalogState$ | async; as tagState) {
+        @if (tagState.status === 'loading') {
+          <div class="community-create__tag-state" role="status" aria-live="polite">
+            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+            <span>Carregando interesses...</span>
+          </div>
+        } @else if (tagState.status === 'error') {
+          <div class="community-create__tag-state" role="alert">
+            <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+            <span>Os interesses não puderam ser carregados agora.</span>
+            <button type="button" (click)="retryTagCatalog()">
+              Tentar novamente
+            </button>
+          </div>
+        } @else {
+          <div class="community-create__tag-groups">
+            <div class="community-create__tag-group">
+              <h3>{{ tagCategoryLabel('intent') }}</h3>
+              <div class="community-create__tags">
+                @for (tag of tagsForCategory(tagState.items, 'intent'); track tag.id) {
+                  <button
+                    type="button"
+                    class="community-create__tag"
+                    [class.is-selected]="isTagSelected(tag.id)"
+                    [attr.aria-pressed]="isTagSelected(tag.id)"
+                    [disabled]="submitting()"
+                    (click)="toggleTag(tag.id)"
+                  >
+                    <span aria-hidden="true">#</span>{{ tag.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="community-create__tag-group">
+              <h3>{{ tagCategoryLabel('practice') }}</h3>
+              <div class="community-create__tags">
+                @for (tag of tagsForCategory(tagState.items, 'practice'); track tag.id) {
+                  <button
+                    type="button"
+                    class="community-create__tag"
+                    [class.is-selected]="isTagSelected(tag.id)"
+                    [attr.aria-pressed]="isTagSelected(tag.id)"
+                    [disabled]="submitting()"
+                    (click)="toggleTag(tag.id)"
+                  >
+                    <span aria-hidden="true">#</span>{{ tag.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <div class="community-create__tag-group">
+              <h3>{{ tagCategoryLabel('audience') }}</h3>
+              <div class="community-create__tags">
+                @for (tag of tagsForCategory(tagState.items, 'audience'); track tag.id) {
+                  <button
+                    type="button"
+                    class="community-create__tag"
+                    [class.is-selected]="isTagSelected(tag.id)"
+                    [attr.aria-pressed]="isTagSelected(tag.id)"
+                    [disabled]="submitting()"
+                    (click)="toggleTag(tag.id)"
+                  >
+                    <span aria-hidden="true">#</span>{{ tag.label }}
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      }
+
+      @if (form.controls.tagIds.invalid && form.controls.tagIds.touched) {
+        <p class="community-create__validation" role="alert">
+          Selecione pelo menos um interesse e no máximo {{ maxCommunityTags }}.
+        </p>
+      }
+    </section>
+
+    <section
+      class="community-create__section community-create__section--rules"
+      aria-labelledby="community-create-rules-title"
+    >
       <h2 id="community-create-rules-title">Regras</h2>
 
       <label>
@@ -64,42 +370,14 @@
         <textarea
           formControlName="rules"
           maxlength="1200"
-          rows="6"
+          rows="4"
           placeholder="Descreva as regras essenciais da Comunidade."
           aria-describedby="community-create-rules-help"
         ></textarea>
       </label>
 
       <p id="community-create-rules-help" class="community-create__note">
-        As regras ficam registradas para orientar a participação, a gestão e a moderação.
-      </p>
-    </section>
-
-    <section aria-labelledby="community-create-access-title">
-      <h2 id="community-create-access-title">Entrada e acesso</h2>
-
-      <label>
-        <span>Como novos membros entram</span>
-        <select formControlName="joinPolicy">
-          <option value="approval">Aprovação da gestão</option>
-          <option value="open">Entrada imediata</option>
-        </select>
-      </label>
-
-      <label>
-        <span>Quem pode participar</span>
-        <select formControlName="accessTier">
-          <option value="all">Todos os perfis elegíveis</option>
-          <option value="premium">Assinantes Premium ou VIP</option>
-          <option value="vip">Somente assinantes VIP</option>
-        </select>
-      </label>
-
-      <p class="community-create__note">
-        Visitantes autenticados verão apenas a prévia pública. Publicações e interações ficarão restritas aos membros autorizados.
-      </p>
-      <p class="community-create__note">
-        Uma restrição Premium ou VIP só será aceita quando seu próprio plano for compatível.
+        As regras ficam registradas para orientar participação, gestão e moderação.
       </p>
     </section>
 
@@ -116,4 +394,6 @@
       </button>
     </div>
   </form>
+    }
+  }
 </main>

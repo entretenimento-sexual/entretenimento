@@ -219,6 +219,12 @@ export class ReportContentDialogComponent {
         return 'Status de Hoje';
       case 'venue':
         return 'local';
+      case 'community_feed_post':
+        return 'publicação do Mural';
+      case 'community_feed_comment':
+        return 'comentário do Mural';
+      case 'community_feed_comment_reply':
+        return 'resposta do Mural';
       case 'other':
       default:
         return 'conteúdo';

@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildPublicAvatarProjection,
+  buildPublicLocationProjection,
+  publicAvatarProjectionMatches,
+  publicLocationProjectionMatches,
   publicProfileDiscoveryProjectionMatches,
 } from './public-profile-discovery-projection';
 import {
@@ -38,6 +42,122 @@ test('detecta alteração real de compatibilidade', () => {
 
 test('detecta projeção ausente para backfill', () => {
   assert.equal(publicProfileDiscoveryProjectionMatches({}, CANONICAL), false);
+});
+
+test('projeta photoURL legado como avatar público canônico', () => {
+  const projection = buildPublicAvatarProjection({
+    photoURL: 'https://cdn.example.test/avatar.jpg',
+  });
+
+  assert.deepEqual(projection, {
+    avatarUrl: 'https://cdn.example.test/avatar.jpg',
+    photoURL: 'https://cdn.example.test/avatar.jpg',
+  });
+});
+
+test('prefere avatarUrl canônico quando os dois campos existem', () => {
+  const projection = buildPublicAvatarProjection({
+    avatarUrl: 'https://cdn.example.test/canonical.jpg',
+    photoURL: 'https://cdn.example.test/legacy.jpg',
+  });
+
+  assert.deepEqual(projection, {
+    avatarUrl: 'https://cdn.example.test/canonical.jpg',
+    photoURL: 'https://cdn.example.test/canonical.jpg',
+  });
+});
+
+test('não publica avatar inseguro e detecta projeção divergente', () => {
+  const projection = buildPublicAvatarProjection({
+    photoURL: 'http://cdn.example.test/avatar.jpg',
+  });
+
+  assert.deepEqual(projection, {
+    avatarUrl: null,
+    photoURL: null,
+  });
+  assert.equal(publicAvatarProjectionMatches({
+    avatarUrl: 'https://cdn.example.test/old.jpg',
+    photoURL: 'https://cdn.example.test/old.jpg',
+  }, projection), false);
+  assert.equal(publicAvatarProjectionMatches(projection, projection), true);
+});
+
+test('projeta localização free com precisão pública reduzida', () => {
+  const projection = buildPublicLocationProjection({
+    latitude: -22.9309,
+    longitude: -43.3536,
+    role: 'free',
+    emailVerified: true,
+  });
+
+  assert.deepEqual(projection, {
+    latitude: -22.93,
+    longitude: -43.35,
+    geohash: '75cjt',
+  });
+});
+
+test('mantém política mais precisa para premium verificado', () => {
+  const projection = buildPublicLocationProjection({
+    latitude: -22.93091,
+    longitude: -43.35364,
+    role: 'premium',
+    emailVerified: true,
+  });
+
+  assert.equal(projection.latitude, -22.9309);
+  assert.equal(projection.longitude, -43.3536);
+  assert.equal(projection.geohash?.length, 8);
+});
+
+test('reduz localização de conta não verificada ao limite conservador', () => {
+  const projection = buildPublicLocationProjection({
+    latitude: 42.6,
+    longitude: -5.6,
+    role: 'vip',
+    emailVerified: false,
+  });
+
+  assert.deepEqual(projection, {
+    latitude: 42.6,
+    longitude: -5.6,
+    geohash: 'ezs42',
+  });
+});
+
+test('remove coordenada sentinela 0,0 da projeção pública', () => {
+  const projection = buildPublicLocationProjection({
+    latitude: 0,
+    longitude: 0,
+    role: 'free',
+    emailVerified: true,
+  });
+
+  assert.deepEqual(projection, {
+    latitude: null,
+    longitude: null,
+    geohash: null,
+  });
+});
+
+test('compara localização pública sem considerar campos não relacionados', () => {
+  const expected = buildPublicLocationProjection({
+    latitude: -22.9309,
+    longitude: -43.3536,
+    role: 'free',
+    emailVerified: true,
+  });
+
+  assert.equal(publicLocationProjectionMatches({
+    ...expected,
+    mediaCount: 12,
+  }, expected), true);
+
+  assert.equal(publicLocationProjectionMatches({
+    ...expected,
+    longitude: -43.34,
+  }, expected), false);
 });
 
 test('não publica sinais quando o usuário desativa badges', () => {

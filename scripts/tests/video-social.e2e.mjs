@@ -61,6 +61,26 @@ async function readDocumentData(reference) {
   return snapshot.exists ? snapshot.data() : null;
 }
 
+function eligibleAdultAccessData() {
+  return {
+    accountStatus: 'active',
+    suspended: false,
+    acceptedTerms: {
+      accepted: true,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    },
+    initialAdultConsentRequired: true,
+    adultConsent: {
+      accepted: true,
+      version: 'v1',
+    },
+    ageReverification: {
+      status: 'NONE',
+    },
+  };
+}
+
 async function expectCallableFailure(callable, payload) {
   try {
     await callable(payload);
@@ -131,6 +151,23 @@ async function run() {
     visitorUser = visitorCredential.user;
     ownerUid = ownerUser.uid;
     visitorUid = visitorUser.uid;
+
+    const ownerUserRef = db.doc(`users/${ownerUid}`);
+    const visitorUserRef = db.doc(`users/${visitorUid}`);
+
+    await waitFor(
+      'documentos base dos usuários sociais',
+      async () => ({
+        owner: await readDocumentData(ownerUserRef),
+        visitor: await readDocumentData(visitorUserRef),
+      }),
+      (state) => Boolean(state.owner && state.visitor)
+    );
+
+    await Promise.all([
+      ownerUserRef.set(eligibleAdultAccessData(), { merge: true }),
+      visitorUserRef.set(eligibleAdultAccessData(), { merge: true }),
+    ]);
 
     const privateVideoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
     const publicationRef = db.doc(

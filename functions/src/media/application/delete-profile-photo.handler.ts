@@ -13,9 +13,13 @@ interface DeleteProfilePhotoRequest {
   photoId?: string;
 }
 
-interface DeleteProfilePhotoResponse {
+export interface DeleteProfilePhotoResponse {
   photoId: string;
   cleanupPending: boolean;
+}
+
+export interface DeleteProfilePhotoResourcesOptions {
+  allowQuarantined?: boolean;
 }
 
 interface PhotoDeletionJob {
@@ -35,6 +39,7 @@ type PrivatePhotoDoc = {
 
 type PhotoPublicationDoc = {
   publishedStoragePath?: string;
+  moderationStatus?: string;
 };
 
 const DELETION_JOBS_COLLECTION = 'media_photo_deletion_jobs';
@@ -55,6 +60,14 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
       'Você só pode excluir fotos do seu próprio perfil.'
     );
   }
+}
+
+function isQuarantinedPublication(
+  publication: PhotoPublicationDoc | null
+): boolean {
+  return String(publication?.moderationStatus ?? '')
+    .trim()
+    .toUpperCase() === 'FLAGGED';
 }
 
 function buildDeletionJobId(ownerUid: string, photoId: string): string {
@@ -106,6 +119,145 @@ async function recordDeletionAttemptFailure(
   }
 }
 
+/**
+ * Exclusão canônica reutilizável pela ação do proprietário e pela moderação.
+ * Evidência preservada fica fora do agregado do usuário em
+ * system/moderation-evidence e não é removida por este fluxo.
+ *
+ * `allowQuarantined` é reservado à moderação depois da preservação probatória.
+ * A exclusão do proprietário permanece fail-closed enquanto FLAGGED.
+ */
+export async function deleteProfilePhotoResources(
+  ownerUidValue: unknown,
+  photoIdValue: unknown,
+  options: DeleteProfilePhotoResourcesOptions = {}
+): Promise<DeleteProfilePhotoResponse> {
+  const ownerUid = cleanId(ownerUidValue);
+  const photoId = cleanId(photoIdValue);
+
+  if (!ownerUid || !photoId) {
+    throw new HttpsError('invalid-argument', 'Foto inválida.');
+  }
+
+  const privatePhotoRef = db.doc(`users/${ownerUid}/photos/${photoId}`);
+  const publicationRef = db.doc(
+    `users/${ownerUid}/photo_publications/${photoId}`
+  );
+  const publicPhotoRef = db.doc(
+    `public_profiles/${ownerUid}/public_photos/${photoId}`
+  );
+  const [privatePhotoSnap, publicationSnap] = await Promise.all([
+    privatePhotoRef.get(),
+    publicationRef.get(),
+  ]);
+  const publication = publicationSnap.exists
+    ? (publicationSnap.data() as PhotoPublicationDoc)
+    : null;
+
+  if (isQuarantinedPublication(publication) && options.allowQuarantined !== true) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Esta foto está temporariamente preservada durante uma análise de segurança.'
+    );
+  }
+
+  if (!privatePhotoSnap.exists) {
+    const cleanupBatch = db.batch();
+    if (publicationSnap.exists && publicationSnap.updateTime) {
+      cleanupBatch.delete(publicationRef, {
+        lastUpdateTime: publicationSnap.updateTime,
+      });
+    } else {
+      cleanupBatch.delete(publicationRef);
+    }
+    cleanupBatch.delete(publicPhotoRef);
+    await cleanupBatch.commit();
+
+    const publishedAssetDeleted = await deletePublishedPhotoAssetOrQueue({
+      ownerUid,
+      photoId,
+      storagePath: publication?.publishedStoragePath,
+      reason: 'delete-missing-private-photo',
+    });
+
+    await refreshPublicProfileMediaMetrics(ownerUid);
+
+    return {
+      photoId,
+      cleanupPending: !publishedAssetDeleted,
+    };
+  }
+
+  const privatePhoto = privatePhotoSnap.data() as PrivatePhotoDoc;
+  const storagePath =
+    extractOwnedPrivatePhotoPath(ownerUid, privatePhoto.path) ??
+    extractOwnedPrivatePhotoPath(ownerUid, privatePhoto.url);
+
+  if (!storagePath) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A foto não possui um caminho privado válido para exclusão.'
+    );
+  }
+
+  const now = Date.now();
+  const jobId = buildDeletionJobId(ownerUid, photoId);
+  const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
+  const job: PhotoDeletionJob = {
+    ownerUid,
+    photoId,
+    storagePath,
+    createdAt: now,
+    updatedAt: now,
+    attempts: 0,
+    lastError: null,
+  };
+
+  const hideBatch = db.batch();
+  hideBatch.set(jobRef, job);
+  if (publicationSnap.exists && publicationSnap.updateTime) {
+    hideBatch.delete(publicationRef, {
+      lastUpdateTime: publicationSnap.updateTime,
+    });
+  } else {
+    hideBatch.delete(publicationRef);
+  }
+  hideBatch.delete(publicPhotoRef);
+  await hideBatch.commit();
+
+  const publishedAssetDeleted = await deletePublishedPhotoAssetOrQueue({
+    ownerUid,
+    photoId,
+    storagePath: publication?.publishedStoragePath,
+    reason: 'delete-profile-photo',
+  });
+
+  await refreshPublicProfileMediaMetrics(ownerUid);
+
+  try {
+    await executeDeletionJob(jobId, job);
+
+    return {
+      photoId,
+      cleanupPending: !publishedAssetDeleted,
+    };
+  } catch (error) {
+    await recordDeletionAttemptFailure(jobId, error);
+
+    logger.error('[deleteProfilePhoto] Limpeza física pendente.', {
+      ownerUid,
+      photoId,
+      jobId,
+      error: normalizeErrorMessage(error),
+    });
+
+    return {
+      photoId,
+      cleanupPending: true,
+    };
+  }
+}
+
 export const deleteProfilePhoto = onCall<DeleteProfilePhotoRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<DeleteProfilePhotoResponse> => {
@@ -118,110 +270,7 @@ export const deleteProfilePhoto = onCall<DeleteProfilePhotoRequest>(
     }
 
     assertOwner(requesterUid, ownerUid);
-
-    const privatePhotoRef = db.doc(`users/${ownerUid}/photos/${photoId}`);
-    const publicationRef = db.doc(
-      `users/${ownerUid}/photo_publications/${photoId}`
-    );
-    const publicPhotoRef = db.doc(
-      `public_profiles/${ownerUid}/public_photos/${photoId}`
-    );
-    const [privatePhotoSnap, publicationSnap] = await Promise.all([
-      privatePhotoRef.get(),
-      publicationRef.get(),
-    ]);
-    const publication = publicationSnap.exists
-      ? (publicationSnap.data() as PhotoPublicationDoc)
-      : null;
-
-    if (!privatePhotoSnap.exists) {
-      const cleanupBatch = db.batch();
-      cleanupBatch.delete(publicationRef);
-      cleanupBatch.delete(publicPhotoRef);
-      await cleanupBatch.commit();
-
-      const publishedAssetDeleted = await deletePublishedPhotoAssetOrQueue({
-        ownerUid,
-        photoId,
-        storagePath: publication?.publishedStoragePath,
-        reason: 'delete-missing-private-photo',
-      });
-
-      await refreshPublicProfileMediaMetrics(ownerUid);
-
-      return {
-        photoId,
-        cleanupPending: !publishedAssetDeleted,
-      };
-    }
-
-    const privatePhoto = privatePhotoSnap.data() as PrivatePhotoDoc;
-    const storagePath =
-      extractOwnedPrivatePhotoPath(ownerUid, privatePhoto.path) ??
-      extractOwnedPrivatePhotoPath(ownerUid, privatePhoto.url);
-
-    if (!storagePath) {
-      throw new HttpsError(
-        'failed-precondition',
-        'A foto não possui um caminho privado válido para exclusão.'
-      );
-    }
-
-    const now = Date.now();
-    const jobId = buildDeletionJobId(ownerUid, photoId);
-    const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
-    const job: PhotoDeletionJob = {
-      ownerUid,
-      photoId,
-      storagePath,
-      createdAt: now,
-      updatedAt: now,
-      attempts: 0,
-      lastError: null,
-    };
-
-    /**
-     * Primeiro removemos toda projeção pública e registramos um job durável.
-     * A limpeza física ocorre depois. Se Storage ou recursiveDelete falharem,
-     * os agendadores retomam sem republicar a foto.
-     */
-    const hideBatch = db.batch();
-    hideBatch.set(jobRef, job);
-    hideBatch.delete(publicationRef);
-    hideBatch.delete(publicPhotoRef);
-    await hideBatch.commit();
-
-    const publishedAssetDeleted = await deletePublishedPhotoAssetOrQueue({
-      ownerUid,
-      photoId,
-      storagePath: publication?.publishedStoragePath,
-      reason: 'delete-profile-photo',
-    });
-
-    await refreshPublicProfileMediaMetrics(ownerUid);
-
-    try {
-      await executeDeletionJob(jobId, job);
-
-      return {
-        photoId,
-        cleanupPending: !publishedAssetDeleted,
-      };
-    } catch (error) {
-      await recordDeletionAttemptFailure(jobId, error);
-
-      logger.error('[deleteProfilePhoto] Limpeza física pendente.', {
-        ownerUid,
-        photoId,
-        jobId,
-        error: normalizeErrorMessage(error),
-      });
-
-      return {
-        photoId,
-        cleanupPending: true,
-      };
-    }
+    return deleteProfilePhotoResources(ownerUid, photoId);
   }
 );
 

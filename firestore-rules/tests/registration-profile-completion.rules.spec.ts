@@ -28,6 +28,7 @@ const PROJECT_ID = 'demo-entretenimento-rules';
 const FIRESTORE_HOST = '127.0.0.1';
 const FIRESTORE_PORT = 8180;
 const UID = 'registration-user';
+const IDENTITY_CATALOG_VERSION = 1;
 
 let testEnv: RulesTestEnvironment;
 
@@ -109,6 +110,8 @@ function publicProfilePayload(): Record<string, unknown> {
     nickname: 'Pessoa Segura',
     nicknameNormalized: 'pessoa_segura',
     gender: 'mulher',
+    identityCode: 'mulher',
+    identityCatalogVersion: IDENTITY_CATALOG_VERSION,
     orientation: 'bissexual',
     estado: 'RJ',
     municipio: 'Rio de Janeiro',
@@ -208,6 +211,8 @@ describe('Firestore Rules / registration and profile completion', () => {
     batch.update(doc(db, 'users', UID), {
       nickname: 'Pessoa Segura',
       gender: 'mulher',
+      declaredIdentityCode: 'mulher',
+      identityCatalogVersion: IDENTITY_CATALOG_VERSION,
       orientation: 'bissexual',
       estado: 'RJ',
       municipio: 'Rio de Janeiro',
@@ -224,6 +229,34 @@ describe('Firestore Rules / registration and profile completion', () => {
     );
 
     await assertSucceeds(batch.commit());
+  });
+
+  it('nega conclusão quando a projeção pública diverge da declaração privada', async () => {
+    await seedReadyPrivateUser();
+    const db = authenticatedDb(true);
+    const batch = writeBatch(db);
+
+    batch.update(doc(db, 'users', UID), {
+      nickname: 'Pessoa Segura',
+      gender: 'mulher',
+      declaredIdentityCode: 'mulher',
+      identityCatalogVersion: IDENTITY_CATALOG_VERSION,
+      orientation: 'bissexual',
+      estado: 'RJ',
+      municipio: 'Rio de Janeiro',
+      profileCompleted: true,
+      publicVisibility: 'visible',
+      interactionBlocked: false,
+      registrationCompletedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      updatedAtMs: Date.now(),
+    });
+    batch.set(doc(db, 'public_profiles', UID), {
+      ...publicProfilePayload(),
+      identityCode: 'homem',
+    });
+
+    await assertFails(batch.commit());
   });
 
   it('nega conclusão atômica sem termos aceitos', async () => {
@@ -250,6 +283,8 @@ describe('Firestore Rules / registration and profile completion', () => {
     const batch = writeBatch(db);
     batch.update(doc(db, 'users', UID), {
       gender: 'mulher',
+      declaredIdentityCode: 'mulher',
+      identityCatalogVersion: IDENTITY_CATALOG_VERSION,
       orientation: 'bissexual',
       estado: 'RJ',
       municipio: 'Rio de Janeiro',

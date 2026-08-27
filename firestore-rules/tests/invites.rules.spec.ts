@@ -10,6 +10,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -39,6 +40,8 @@ const RECEIVER_UID = 'invite-receiver';
 const OUTSIDER_UID = 'invite-outsider';
 const ROOM_ID = 'invite-room-001';
 const INVITE_ID = `room:${ROOM_ID}:to:${RECEIVER_UID}`;
+const COMMUNITY_ID = 'community-invite-001';
+const COMMUNITY_INVITE_ID = `community:${COMMUNITY_ID}:to:${RECEIVER_UID}`;
 
 let testEnv: RulesTestEnvironment;
 
@@ -87,6 +90,18 @@ async function seedDatabase(): Promise<void> {
         sentAt: new Date(),
         expiresAt: new Date(Date.now() + 60_000),
       }),
+      setDoc(doc(db, 'invites', COMMUNITY_INVITE_ID), {
+        type: 'community',
+        targetId: COMMUNITY_ID,
+        targetName: 'Comunidade por convite',
+        communityId: COMMUNITY_ID,
+        communityName: 'Comunidade por convite',
+        senderId: SENDER_UID,
+        receiverId: RECEIVER_UID,
+        status: 'pending',
+        sentAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+      }),
     ]);
   });
 }
@@ -128,12 +143,15 @@ describe('Firestore Rules / invites backend response boundary', () => {
     );
 
     const snapshot = await assertSucceeds(getDocs(inboxQuery));
-    expect(snapshot.docs.map((item) => item.id)).toEqual([INVITE_ID]);
+    expect(snapshot.docs.map((item) => item.id).sort()).toEqual(
+      [INVITE_ID, COMMUNITY_INVITE_ID].sort()
+    );
   });
 
   it('nega leitura do convite para terceiro', async () => {
     const db = authenticatedDb(OUTSIDER_UID);
     await assertFails(getDoc(doc(db, 'invites', INVITE_ID)));
+    await assertFails(getDoc(doc(db, 'invites', COMMUNITY_INVITE_ID)));
   });
 
   it('nega criação direta mesmo para o owner da sala', async () => {
@@ -167,6 +185,13 @@ describe('Firestore Rules / invites backend response boundary', () => {
         updatedAt: serverTimestamp(),
       })
     );
+    await assertFails(
+      updateDoc(doc(db, 'invites', COMMUNITY_INVITE_ID), {
+        status: 'accepted',
+        respondedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
   });
 
   it('nega entrada direta na sala mesmo com convite pendente válido', async () => {
@@ -180,7 +205,7 @@ describe('Firestore Rules / invites backend response boundary', () => {
     );
   });
 
-  it('preserva cancelamento direto pelo sender enquanto pending', async () => {
+  it('preserva cancelamento direto do convite legado de Sala pelo sender', async () => {
     const db = authenticatedDb(SENDER_UID);
 
     await assertSucceeds(
@@ -189,5 +214,17 @@ describe('Firestore Rules / invites backend response boundary', () => {
         updatedAt: serverTimestamp(),
       })
     );
+  });
+
+  it('obriga sender a usar revokeCommunityInvite para convite de Comunidade', async () => {
+    const db = authenticatedDb(SENDER_UID);
+
+    await assertFails(
+      updateDoc(doc(db, 'invites', COMMUNITY_INVITE_ID), {
+        status: 'canceled',
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await assertFails(deleteDoc(doc(db, 'invites', COMMUNITY_INVITE_ID)));
   });
 });

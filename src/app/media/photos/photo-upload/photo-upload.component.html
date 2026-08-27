@@ -22,7 +22,7 @@
 
     <div class="upload-header__copy">
       <h1 id="photo-upload-title">Adicionar foto</h1>
-      <p>Escolha, confira e envie.</p>
+      <p>Escolha, ajuste e confirme antes de enviar.</p>
     </div>
   </header>
 
@@ -63,7 +63,10 @@
       </div>
     </article>
   } @else {
-    <article class="upload-card app-card">
+    <article
+      class="upload-card app-card"
+      [attr.aria-busy]="phase === 'EDITING' || phase === 'UPLOADING' ? 'true' : null"
+    >
       @if (phase !== 'DONE') {
         <div class="upload-grid">
           <section class="upload-panel" aria-label="Selecionar e enviar foto">
@@ -73,17 +76,25 @@
                 id="fileInput"
                 class="native-file-input"
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                [attr.accept]="imageAccept"
                 (change)="onFileSelected($event)"
-                [disabled]="phase === 'UPLOADING'"
+                [disabled]="phase === 'EDITING' || phase === 'UPLOADING'"
               />
 
               <span class="file-drop__icon" aria-hidden="true">
                 <i class="fas fa-image"></i>
               </span>
               <span class="file-drop__title">Escolher foto</span>
-              <span class="file-drop__hint">JPG, PNG ou WEBP · até 10 MB</span>
+              <span class="file-drop__hint">
+                {{ imageFormatLabel }} · até {{ imageMaxMegabytes }} MB
+              </span>
             </label>
+
+            @if (phase === 'EDITING') {
+              <p class="upload-note" role="status" aria-live="polite">
+                Editor aberto. Confirme ou cancele a edição para continuar.
+              </p>
+            }
 
             @if (selectedFileName) {
               <div class="selected-file" aria-live="polite">
@@ -98,7 +109,7 @@
             }
 
             <p class="upload-note">
-              A foto entra na biblioteca privada. A publicação no perfil é uma etapa separada.
+              A imagem é normalizada pelo editor, sem metadados da foto original, antes de entrar na biblioteca privada. A publicação no perfil é uma etapa separada.
             </p>
 
             <div class="upload-actions">
@@ -118,18 +129,18 @@
               <button
                 type="button"
                 class="btn btn-secondary"
-                (click)="editBeforeUpload($event)"
+                (click)="editBeforeUpload()"
                 [disabled]="phase !== 'READY'"
               >
                 <i class="fas fa-crop-simple" aria-hidden="true"></i>
-                Ajustar
+                Ajustar novamente
               </button>
 
               <button
                 type="button"
                 class="btn btn-ghost"
                 (click)="resetSelection(fileInput)"
-                [disabled]="phase === 'UPLOADING' || phase === 'IDLE'"
+                [disabled]="phase === 'EDITING' || phase === 'UPLOADING' || phase === 'IDLE'"
               >
                 Limpar
               </button>
@@ -155,12 +166,12 @@
           <section class="preview-panel" aria-label="Pré-visualização da foto">
             @if (preview) {
               <figure class="preview-card">
-                <img [src]="preview" alt="Pré-visualização da foto selecionada" />
+                <img [src]="preview" alt="Pré-visualização da foto editada" />
               </figure>
             } @else {
               <div class="preview-empty" role="status" aria-live="polite">
                 <i class="fas fa-images" aria-hidden="true"></i>
-                <strong>Nenhuma foto selecionada</strong>
+                <strong>Nenhuma foto confirmada</strong>
               </div>
             }
           </section>

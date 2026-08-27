@@ -1,0 +1,368 @@
+:host {
+  display: block;
+}
+
+.comment-replies {
+  margin-top: 0.35rem;
+}
+
+.comment-replies__actions,
+.comment-replies__composer-footer,
+.comment-replies__composer-footer > div,
+.comment-reply__identity-line,
+.comment-reply__confirmation > div,
+.comment-reply__body > header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.comment-replies__actions {
+  min-height: 2rem;
+  flex-wrap: wrap;
+}
+
+.comment-replies__action {
+  min-height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.35rem 0.55rem;
+  background: transparent;
+  color: var(--text-secondary, #6b7280);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.comment-replies__action:hover {
+  background: color-mix(in oklab, currentColor 6%, transparent);
+  color: var(--text-color, #222);
+}
+
+.comment-replies__composer,
+.comment-replies__content {
+  margin-top: 0.45rem;
+  margin-left: 0.75rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid color-mix(in oklab, var(--primary-color, #d83768) 18%, transparent);
+}
+
+.comment-replies__composer {
+  display: grid;
+  gap: 0.4rem;
+  padding-block: 0.45rem;
+}
+
+.comment-replies__composer label,
+.comment-reply__confirmation label {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.comment-replies__composer textarea,
+.comment-reply__confirmation textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid color-mix(in oklab, currentColor 17%, transparent);
+  border-radius: 0.7rem;
+  padding: 0.65rem 0.7rem;
+  background: var(--surface-color, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.comment-replies__composer textarea {
+  min-height: 3rem;
+}
+
+.comment-replies__composer-footer {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.comment-replies__composer-footer small,
+.comment-reply time,
+.comment-replies__state,
+.comment-replies__feedback {
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.74rem;
+}
+
+.comment-replies__composer button,
+.comment-replies__more,
+.comment-replies__state button,
+.comment-reply__confirmation button {
+  min-height: 2.4rem;
+  border: 0;
+  border-radius: 0.65rem;
+  padding: 0.45rem 0.7rem;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.comment-replies__composer .is-primary {
+  background: var(--primary-color, #d83768);
+  color: #fff;
+}
+
+.comment-replies__composer .is-secondary,
+.comment-replies__more,
+.comment-replies__state button,
+.comment-reply__confirmation button:not(.is-danger) {
+  background: color-mix(in oklab, currentColor 6%, transparent);
+  color: inherit;
+}
+
+.comment-replies__feedback,
+.comment-replies__state {
+  margin: 0.4rem 0;
+}
+
+.comment-replies__list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comment-reply {
+  display: grid;
+  grid-template-columns: 2.05rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.comment-reply__avatar {
+  width: 2.05rem;
+  height: 2.05rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #d83768) 18%, transparent);
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--primary-color, #d83768) 9%, transparent);
+}
+
+.comment-reply__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.comment-reply__content-shell,
+.comment-reply__body {
+  min-width: 0;
+}
+
+.comment-reply__body {
+  padding: 0.58rem 0.68rem;
+  border-radius: 0.78rem;
+  background: color-mix(in oklab, var(--surface-color, #fff) 94%, currentColor 6%);
+}
+
+.comment-reply__body > header {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.comment-reply.is-recent .comment-reply__body {
+  animation: comment-reply-arrival 1.6s ease-out;
+}
+
+.comment-reply__identity {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.comment-reply__identity-line {
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.comment-reply__identity strong {
+  font-size: 0.8rem;
+}
+
+.comment-reply__author-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  color: var(--text-secondary, #6b7280);
+  font-size: 0.67rem;
+}
+
+.comment-reply__author-context > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.2rem;
+  padding: 0.12rem 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #d83768) 6%, transparent);
+}
+
+.comment-reply p {
+  margin: 0.35rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.comment-reply__menu {
+  position: relative;
+  margin: -0.35rem -0.35rem -0.25rem 0;
+}
+
+.comment-reply__menu > summary {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  list-style: none;
+  border-radius: 50%;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+}
+
+.comment-reply__menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.comment-reply__menu > summary:hover {
+  background: color-mix(in oklab, currentColor 7%, transparent);
+  color: inherit;
+}
+
+.comment-reply__menu-panel {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% - 0.15rem);
+  right: 0;
+  width: max-content;
+  min-width: 11.5rem;
+  max-width: min(17rem, calc(100vw - 2rem));
+  padding: 0.35rem;
+  border: 1px solid color-mix(in oklab, currentColor 12%, transparent);
+  border-radius: 0.75rem;
+  background: var(--surface-color, #fff);
+  box-shadow: 0 0.7rem 1.8rem color-mix(in oklab, #000 16%, transparent);
+}
+
+.comment-reply__menu-action {
+  width: 100%;
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 0;
+  border-radius: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.comment-reply__menu-action:hover {
+  background: color-mix(in oklab, currentColor 6%, transparent);
+}
+
+.comment-reply__menu-action.is-danger {
+  color: #b42318;
+}
+
+.comment-reply__confirmation {
+  margin-top: 0.4rem;
+  padding: 0.6rem;
+  border-radius: 0.65rem;
+  background: color-mix(in oklab, currentColor 5%, transparent);
+}
+
+.comment-reply__confirmation > div {
+  justify-content: flex-end;
+  margin-top: 0.45rem;
+}
+
+.comment-reply__confirmation .is-danger {
+  background: #b42318;
+  color: #fff;
+}
+
+.comment-replies__more {
+  display: block;
+  margin: 0.55rem 0 0 2.55rem;
+}
+
+button:focus-visible,
+summary:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--primary-color, #d83768) 35%, transparent);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+@keyframes comment-reply-arrival {
+  0% {
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color, #d83768) 14%, transparent);
+  }
+  100% {
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comment-reply.is-recent .comment-reply__body {
+    animation: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .comment-replies__composer,
+  .comment-replies__content {
+    margin-left: 0.25rem;
+    padding-left: 0.55rem;
+  }
+
+  .comment-replies__composer-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .comment-replies__composer-footer > div {
+    justify-content: flex-end;
+  }
+
+  .comment-reply {
+    grid-template-columns: 1.9rem minmax(0, 1fr);
+    gap: 0.42rem;
+  }
+
+  .comment-reply__avatar {
+    width: 1.9rem;
+    height: 1.9rem;
+  }
+
+  .comment-reply__body {
+    padding-inline: 0.58rem;
+  }
+
+  .comment-reply__menu-panel {
+    max-width: min(15rem, calc(100vw - 1.5rem));
+  }
+
+  .comment-replies__more {
+    margin-left: 2.3rem;
+  }
+}

@@ -1,8 +1,8 @@
 // src/app/media/photos/photo-upload/photo-upload.component.ts
-// Fluxo reativo de seleção, ajuste e envio de fotos do perfil.
-// O editor é carregado sob demanda e o foco é gerenciado antes da abertura do modal.
+// Fluxo reativo de seleção, edição canônica e envio de fotos do perfil.
+// O editor apenas processa a imagem; a persistência pertence a este fluxo.
 
-import { CommonModule, DOCUMENT } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -11,11 +11,11 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { BehaviorSubject, EMPTY, Observable, combineLatest, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
+  finalize,
   map,
   shareReplay,
   switchMap,
@@ -26,11 +26,17 @@ import {
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/photo-editor-session.service';
+import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import {
   IPhotoUploadFlowEvent,
   PhotoUploadFlowService,
 } from 'src/app/core/services/image-handling/photo-upload-flow.service';
+import {
+  MEDIA_IMAGE_ACCEPT,
+  MEDIA_IMAGE_FORMAT_LABEL,
+  resolveImageMaxBytes,
+  validateImageMediaFile,
+} from 'src/app/core/services/media/media-format.policy';
 import {
   IMediaPolicyResult,
   IMediaPolicyViewerSnapshot,
@@ -41,7 +47,7 @@ import { environment } from 'src/environments/environment';
 
 const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
 
-type UploadPhase = 'IDLE' | 'READY' | 'UPLOADING' | 'DONE';
+type UploadPhase = 'IDLE' | 'EDITING' | 'READY' | 'UPLOADING' | 'DONE';
 
 @Component({
   selector: 'app-photo-upload',
@@ -53,35 +59,26 @@ type UploadPhase = 'IDLE' | 'READY' | 'UPLOADING' | 'DONE';
 })
 export class PhotoUploadComponent {
   private readonly destroyRef = inject(DestroyRef);
-  private readonly document = inject(DOCUMENT);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly modal = inject(NgbModal);
 
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly policy = inject(MediaPolicyService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
   private readonly photoUploadFlow = inject(PhotoUploadFlowService);
-  private readonly photoEditorSession = inject(PhotoEditorSessionService);
+  private readonly photoEditor = inject(PhotoEditorLauncherService);
 
   private readonly DEBUG =
     !environment.production &&
     localStorage.getItem('debug.photo-upload') === '1';
 
-  private readonly allowedMimeTypes = new Set([
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-  ]);
-
-  private readonly maxFileSizeBytes = 10 * 1024 * 1024; // 10 MB
+  readonly imageAccept = MEDIA_IMAGE_ACCEPT;
+  readonly imageFormatLabel = MEDIA_IMAGE_FORMAT_LABEL;
+  readonly imageMaxMegabytes = resolveImageMaxBytes('default') / 1024 / 1024;
 
   constructor() {
-    this.destroyRef.onDestroy(() => {
-      this.revokePreviewUrl();
-      this.photoEditorSession.clearDraft();
-    });
+    this.destroyRef.onDestroy(() => this.revokePreviewUrl());
   }
 
   readonly ownerUid$: Observable<string> = this.route.paramMap.pipe(
@@ -152,6 +149,9 @@ export class PhotoUploadComponent {
   private readonly fileSubject = new BehaviorSubject<File | null>(null);
   readonly file$: Observable<File | null> = this.fileSubject.asObservable();
 
+  private readonly imageStateSubject = new BehaviorSubject<string | null>(null);
+  readonly imageState$: Observable<string | null> = this.imageStateSubject.asObservable();
+
   private readonly previewUrlSubject = new BehaviorSubject<string | null>(null);
   readonly previewUrl$: Observable<string | null> =
     this.previewUrlSubject.asObservable();
@@ -187,41 +187,108 @@ export class PhotoUploadComponent {
       return;
     }
 
-    if (!this.allowedMimeTypes.has(file.type)) {
-      this.errorNotifier.showError('Formato inválido. Envie JPG, PNG ou WEBP.');
-      input.value = '';
+    input.value = '';
+
+    const validation = validateImageMediaFile(file, 'default');
+    if (!validation.valid) {
+      this.errorNotifier.showError(
+        validation.userMessage ?? 'A imagem selecionada não é válida.'
+      );
       return;
     }
 
-    if (file.size > this.maxFileSizeBytes) {
-      this.errorNotifier.showError('A imagem excede o limite de 10 MB.');
-      input.value = '';
-      return;
-    }
+    combineLatest([this.policyResult$, this.ownerUid$, this.phase$])
+      .pipe(
+        take(1),
+        switchMap(([policyResult, ownerUid, phase]) => {
+          if (phase === 'UPLOADING' || phase === 'EDITING') {
+            return EMPTY;
+          }
 
-    this.revokePreviewUrl();
+          if (policyResult.decision !== 'ALLOW') {
+            this.errorNotifier.showError(
+              this.getPolicyDeniedMessage(policyResult.reason, 'adicionar fotos')
+            );
+            return EMPTY;
+          }
 
-    const url = URL.createObjectURL(file);
+          if (!ownerUid?.trim()) {
+            this.reportError(
+              'Não foi possível identificar o perfil de destino.',
+              new Error('ownerUid ausente na rota.'),
+              { op: 'onFileSelected.ownerUid' }
+            );
+            return EMPTY;
+          }
 
-    this.fileSubject.next(file);
-    this.previewUrlSubject.next(url);
-    this.phaseSubject.next('READY');
-    this.uploadedPhotoIdSubject.next(null);
-    this.uploadPercentSubject.next(0);
+          const fallbackPhase: UploadPhase = this.fileSubject.value
+            ? 'READY'
+            : 'IDLE';
+          this.phaseSubject.next('EDITING');
 
-    this.debug('fileSelected', {
-      name: file.name,
-      type: file.type,
-      size: file.size,
-    });
+          return this.photoEditor
+            .editFile$(file, {
+              source: 'photo-upload',
+              context: 'profile-photo',
+              preset: 'profile-photo',
+            })
+            .pipe(
+              tap((result) => {
+                if (!result) {
+                  return;
+                }
+
+                const processedValidation = validateImageMediaFile(
+                  result.file,
+                  'default'
+                );
+                if (!processedValidation.valid) {
+                  this.errorNotifier.showError(
+                    processedValidation.userMessage ?? 'A imagem editada não é válida.'
+                  );
+                  return;
+                }
+
+                this.applySelectedFile(result.file, result.imageStateStr);
+                this.debug('fileSelectedAndEdited', {
+                  name: result.file.name,
+                  type: result.file.type,
+                  size: result.file.size,
+                  metadataStripped: result.metadataStripped,
+                });
+              }),
+              catchError((error) => {
+                this.reportError('Erro ao editar a imagem.', error, {
+                  op: 'onFileSelected.editor',
+                  ownerUid,
+                  fileName: file.name,
+                });
+                return EMPTY;
+              }),
+              finalize(() => {
+                if (this.phaseSubject.value === 'EDITING') {
+                  this.phaseSubject.next(fallbackPhase);
+                }
+              })
+            );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   startUpload(): void {
-    combineLatest([this.policyResult$, this.file$, this.ownerUid$, this.phase$])
+    combineLatest([
+      this.policyResult$,
+      this.file$,
+      this.ownerUid$,
+      this.phase$,
+      this.imageState$,
+    ])
       .pipe(
         take(1),
-        switchMap(([policyResult, file, ownerUid, phase]) => {
-          if (phase === 'UPLOADING') {
+        switchMap(([policyResult, file, ownerUid, phase, imageStateStr]) => {
+          if (phase === 'UPLOADING' || phase === 'EDITING') {
             return EMPTY;
           }
 
@@ -246,48 +313,21 @@ export class PhotoUploadComponent {
             return EMPTY;
           }
 
+          if (!imageStateStr) {
+            this.errorNotifier.showError(
+              'Confirme a foto no editor antes de enviar.'
+            );
+            return EMPTY;
+          }
+
           this.phaseSubject.next('UPLOADING');
           this.uploadPercentSubject.next(0);
 
-          return this.photoUploadFlow.uploadProcessedPhotoWithProgress$({
-            userId: ownerUid,
-            processedFile: file,
-            originalFileName: file.name,
-            mimeType: file.type,
-          }).pipe(
-            tap((event: IPhotoUploadFlowEvent) => {
-              if (event.type === 'progress') {
-                this.uploadPercentSubject.next(event.progress);
-                return;
-              }
-
-              this.debug('uploadSuccess', event.result);
-              this.phaseSubject.next('DONE');
-              this.uploadedPhotoIdSubject.next(event.result.photoId);
-              this.uploadPercentSubject.next(100);
-
-              if (event.result.url) {
-                this.revokePreviewUrl();
-                this.previewUrlSubject.next(event.result.url);
-              }
-
-              this.fileSubject.next(null);
-              this.errorNotifier.showSuccess('Upload concluído com sucesso.');
-            }),
-            catchError((error) => {
-              this.phaseSubject.next('READY');
-              this.uploadPercentSubject.next(0);
-              this.reportError(
-                'Erro ao enviar a imagem.',
-                error,
-                {
-                  op: 'startUpload',
-                  ownerUid,
-                  fileName: file.name,
-                }
-              );
-              return EMPTY;
-            })
+          return this.uploadSelectedFile$(
+            ownerUid,
+            file,
+            imageStateStr,
+            'Upload concluído com sucesso.'
           );
         }),
         takeUntilDestroyed(this.destroyRef)
@@ -295,47 +335,88 @@ export class PhotoUploadComponent {
       .subscribe();
   }
 
-  editBeforeUpload(event?: Event): void {
-    const focusOrigin = this.resolveFocusOrigin(event);
-
+  editBeforeUpload(): void {
     combineLatest([this.policyResult$, this.file$, this.ownerUid$, this.phase$])
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe(([policyResult, file, ownerUid, phase]) => {
-        if (phase === 'UPLOADING') {
-          return;
-        }
+      .pipe(
+        take(1),
+        switchMap(([policyResult, file, ownerUid, phase]) => {
+          if (phase !== 'READY') {
+            return EMPTY;
+          }
 
-        if (policyResult.decision !== 'ALLOW') {
-          this.errorNotifier.showError(
-            this.getPolicyDeniedMessage(
-              policyResult.reason,
-              'editar e enviar fotos'
-            )
-          );
-          return;
-        }
+          if (policyResult.decision !== 'ALLOW') {
+            this.errorNotifier.showError(
+              this.getPolicyDeniedMessage(policyResult.reason, 'editar fotos')
+            );
+            return EMPTY;
+          }
 
-        if (!ownerUid?.trim()) {
-          this.reportError(
-            'Não foi possível identificar o perfil de destino.',
-            new Error('ownerUid ausente na rota.'),
-            { op: 'editBeforeUpload.ownerUid' }
-          );
-          return;
-        }
+          if (!ownerUid?.trim()) {
+            this.reportError(
+              'Não foi possível identificar o perfil de destino.',
+              new Error('ownerUid ausente na rota.'),
+              { op: 'editBeforeUpload.ownerUid' }
+            );
+            return EMPTY;
+          }
 
-        if (!file) {
-          this.errorNotifier.showError('Selecione uma imagem antes de editar.');
-          return;
-        }
+          if (!file) {
+            this.errorNotifier.showError('Selecione uma imagem antes de editar.');
+            return EMPTY;
+          }
 
-        void this.openEditorModal(file, ownerUid, focusOrigin);
-      });
+          this.phaseSubject.next('EDITING');
+
+          return this.photoEditor
+            .editFile$(file, {
+              source: 'photo-upload',
+              context: 'profile-photo',
+              preset: 'profile-photo',
+            })
+            .pipe(
+              tap((result) => {
+                if (!result) {
+                  return;
+                }
+
+                const validation = validateImageMediaFile(result.file, 'default');
+                if (!validation.valid) {
+                  this.errorNotifier.showError(
+                    validation.userMessage ?? 'A imagem editada não é válida.'
+                  );
+                  return;
+                }
+
+                this.applySelectedFile(result.file, result.imageStateStr);
+              }),
+              catchError((error) => {
+                this.reportError('Erro ao editar a imagem.', error, {
+                  op: 'editBeforeUpload.editor',
+                  ownerUid,
+                  fileName: file.name,
+                });
+                return EMPTY;
+              }),
+              finalize(() => {
+                if (this.phaseSubject.value === 'EDITING') {
+                  this.phaseSubject.next('READY');
+                }
+              })
+            );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   resetSelection(fileInput?: HTMLInputElement): void {
+    if (this.phaseSubject.value === 'UPLOADING' || this.phaseSubject.value === 'EDITING') {
+      return;
+    }
+
     this.revokePreviewUrl();
     this.fileSubject.next(null);
+    this.imageStateSubject.next(null);
     this.previewUrlSubject.next(null);
     this.phaseSubject.next('IDLE');
     this.uploadedPhotoIdSubject.next(null);
@@ -360,100 +441,75 @@ export class PhotoUploadComponent {
     });
   }
 
-  private async openEditorModal(
-    file: File,
+  private uploadSelectedFile$(
     ownerUid: string,
-    focusOrigin: HTMLElement | null
-  ): Promise<void> {
-    this.photoEditorSession.setCreateDraft(file, ownerUid);
+    file: File,
+    imageStateStr: string,
+    successMessage: string
+  ): Observable<IPhotoUploadFlowEvent> {
+    return this.photoUploadFlow.uploadProcessedPhotoWithProgress$({
+      userId: ownerUid,
+      processedFile: file,
+      originalFileName: file.name,
+      mimeType: file.type,
+      imageStateStr,
+    }).pipe(
+      tap((event: IPhotoUploadFlowEvent) => {
+        if (event.type === 'progress') {
+          this.uploadPercentSubject.next(event.progress);
+          return;
+        }
 
-    try {
-      const { PhotoEditorComponent } = await import(
-        'src/app/photo-editor/photo-editor/photo-editor.component'
-      );
+        this.debug('uploadSuccess', event.result);
+        this.phaseSubject.next('DONE');
+        this.uploadedPhotoIdSubject.next(event.result.photoId);
+        this.uploadPercentSubject.next(100);
 
-      this.releaseFocusBeforeModal();
+        if (event.result.url) {
+          this.revokePreviewUrl();
+          this.previewUrlSubject.next(event.result.url);
+        }
 
-      const modalRef = this.modal.open(PhotoEditorComponent, {
-        size: 'xl',
-        centered: true,
-        backdrop: 'static',
-        keyboard: false,
-        scrollable: true,
-        ariaLabelledBy: 'photo-editor-title',
-        windowClass: 'photo-editor-modal-window',
-      });
-
-      const payload = await modalRef.result;
-
-      if (!payload || payload.reason !== 'uploadSuccess' || !payload.photo) {
-        return;
-      }
-
-      this.phaseSubject.next('DONE');
-      this.uploadedPhotoIdSubject.next(payload.photo.photoId ?? null);
-      this.uploadPercentSubject.next(100);
-
-      if (payload.photo.url) {
-        this.revokePreviewUrl();
-        this.previewUrlSubject.next(payload.photo.url);
-      }
-
-      this.fileSubject.next(null);
-      this.errorNotifier.showSuccess('Foto editada e enviada com sucesso.');
-    } catch (error) {
-      if (error !== 'close' && error !== 'dismiss') {
+        this.fileSubject.next(null);
+        this.imageStateSubject.next(null);
+        this.errorNotifier.showSuccess(successMessage);
+      }),
+      catchError((error) => {
+        this.phaseSubject.next('READY');
+        this.uploadPercentSubject.next(0);
         this.reportError(
-          'Erro ao abrir o editor da foto.',
+          'Erro ao enviar a imagem.',
           error,
           {
-            op: 'openEditorModal',
+            op: 'uploadSelectedFile',
             ownerUid,
             fileName: file.name,
           }
         );
-      }
-    } finally {
-      this.photoEditorSession.clearDraft();
-      this.restoreFocusAfterModal(focusOrigin);
-    }
+        return EMPTY;
+      })
+    );
   }
 
-  private resolveFocusOrigin(event?: Event): HTMLElement | null {
-    const eventTarget = event?.currentTarget;
+  private applySelectedFile(
+    file: File,
+    imageStateStr: string
+  ): void {
+    this.revokePreviewUrl();
 
-    if (eventTarget instanceof HTMLElement) {
-      return eventTarget;
+    let previewUrl: string | null = null;
+    try {
+      previewUrl = URL.createObjectURL(file);
+    } catch {
+      previewUrl = null;
     }
 
-    const activeElement = this.document.activeElement;
-    return activeElement instanceof HTMLElement &&
-      activeElement !== this.document.body
-      ? activeElement
-      : null;
-  }
-
-  private releaseFocusBeforeModal(): void {
-    const activeElement = this.document.activeElement;
-
-    if (
-      activeElement instanceof HTMLElement &&
-      activeElement !== this.document.body
-    ) {
-      activeElement.blur();
-    }
-  }
-
-  private restoreFocusAfterModal(focusOrigin: HTMLElement | null): void {
-    if (!focusOrigin) {
-      return;
-    }
-
-    setTimeout(() => {
-      if (focusOrigin.isConnected && !focusOrigin.hasAttribute('disabled')) {
-        focusOrigin.focus({ preventScroll: true });
-      }
-    }, 0);
+    this.fileSubject.next(file);
+    this.imageStateSubject.next(imageStateStr);
+    this.previewUrlSubject.next(previewUrl);
+    this.phaseSubject.next('READY');
+    this.uploadedPhotoIdSubject.next(null);
+    this.uploadPercentSubject.next(0);
   }
 
   private revokePreviewUrl(): void {

@@ -1,0 +1,478 @@
+name: Explore Social Visual Validation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/app/explore/**'
+      - 'src/app/core/services/discovery/user-intent-status.service.ts'
+      - 'src/app/core/services/discovery/user-intent-status-time.utils.ts'
+      - 'src/app/core/interfaces/discovery/user-intent-status.interface.ts'
+      - 'src/app/core/services/media/public-media-owner-page-query.service.ts'
+      - 'src/app/core/interfaces/media/i-public-media-owner-page.ts'
+      - 'src/app/dashboard/discovery/application/compatible-profile-candidates.service.ts'
+      - 'src/app/media/shared/components/public-photo-card/**'
+      - 'src/app/media/shared/components/public-video-card/**'
+      - 'src/app/media/shared/components/public-media-engagement-actions/**'
+      - 'firestore.indexes.json'
+      - 'src/styles/**'
+      - '.github/visual-harness/explore-social-visual.app-component.ts'
+      - '.github/workflows/explore-social-visual-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: explore-social-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  explore-social-visual:
+    name: Explore social visual (${{ matrix.configuration }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration:
+          - development
+          - production
+          - dev-emu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Java for Firestore emulator
+        if: ${{ matrix.configuration == 'dev-emu' }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build selected environment normally
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.configuration }}" in
+            development) npm run build:dev ;;
+            production) npm run build:prod ;;
+            dev-emu) npm run build:emu ;;
+            *)
+              echo "Unsupported configuration: ${{ matrix.configuration }}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Install Playwright CLI and Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @playwright/cli@0.1.17
+          playwright-cli install-browser --with-deps
+
+      - name: Start Auth and Firestore emulators for dev-emu
+        if: ${{ matrix.configuration == 'dev-emu' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "artifacts/${{ matrix.configuration }}"
+          nohup npx firebase emulators:start \
+            --only auth,firestore \
+            --project demo-explore-social-visual \
+            > "artifacts/${{ matrix.configuration }}/firebase-emulators.log" 2>&1 &
+          echo $! > "artifacts/${{ matrix.configuration }}/firebase-emulators.pid"
+
+          for attempt in $(seq 1 120); do
+            auth_ready=0
+            firestore_ready=0
+            (echo > /dev/tcp/127.0.0.1/9099) >/dev/null 2>&1 && auth_ready=1 || true
+            (echo > /dev/tcp/127.0.0.1/8080) >/dev/null 2>&1 && firestore_ready=1 || true
+
+            if [[ "$auth_ready" == "1" && "$firestore_ready" == "1" ]]; then
+              echo "Auth and Firestore emulators ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Auth/Firestore emulators did not become ready" >&2
+          cat "artifacts/${{ matrix.configuration }}/firebase-emulators.log" >&2 || true
+          exit 1
+
+      - name: Prepare temporary visual configuration
+        shell: bash
+        env:
+          BASE_CONFIGURATION: ${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'angular.json';
+          const visualRootSource = '.github/visual-harness/explore-social-visual.app-component.ts';
+          const visualRootTarget = 'src/app/app.component.ts';
+          const visualFirestoreErrorHandler = 'src/app/explore/visual-validation/firestore-error-handler.visual.ts';
+          const firestoreErrorHandlerTarget = 'src/app/core/services/error-handler/firestore-error-handler.service.ts';
+          const visualLegalUpdateNotice = 'src/app/explore/visual-validation/legal-update-notice.visual.ts';
+          const legalUpdateNoticeTarget = 'src/app/core/services/compliance/legal-update-notice.service.ts';
+
+          // O build normal já passou. A partir daqui o checkout é descartável.
+          // Mantemos os mesmos caminhos dos arquivos reais para preservar os
+          // contextos de módulo/injeção e neutralizamos somente side-effects do
+          // usuário fictício usados na evidência visual.
+          fs.copyFileSync(visualRootSource, visualRootTarget);
+          fs.copyFileSync(visualFirestoreErrorHandler, firestoreErrorHandlerTarget);
+          fs.copyFileSync(visualLegalUpdateNotice, legalUpdateNoticeTarget);
+
+          const angular = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const project = angular.projects.entretenimento;
+          const baseName = process.env.BASE_CONFIGURATION;
+          const visualName = `${baseName}-explore-social-visual`;
+          const buildConfigurations = project.architect.build.configurations;
+          const serveConfigurations = project.architect.serve.configurations;
+          const base = structuredClone(buildConfigurations[baseName]);
+
+          if (!base) {
+            throw new Error(`Missing base Angular configuration: ${baseName}`);
+          }
+
+          const replacements = [
+            ['src/app/core/guards/auth-guard/auth.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
+            ['src/app/account/guards/account-lifecycle.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
+            ['src/app/core/guards/compliance/adult-content-consent.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
+            ['src/app/core/guards/compliance/age-reverification.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
+            ['src/app/core/guards/profile-guard/email-verified.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
+            ['src/app/core/guards/profile-guard/profile-completed.guard.ts', 'src/app/dashboard/discovery/visual-validation/discovery-visual.guards.ts'],
+            ['src/app/explore/facades/explore-feed.facade.ts', 'src/app/explore/visual-validation/explore-social-visual.replacements.ts'],
+            ['src/app/explore/services/explore-personal-media.service.ts', 'src/app/explore/visual-validation/explore-personal-media.visual.ts'],
+            ['src/app/dashboard/discovery/application/compatible-profile-candidates.service.ts', 'src/app/explore/visual-validation/compatible-profile-candidates.visual.ts'],
+            ['src/app/core/services/autentication/auth/current-user-store.service.ts', 'src/app/explore/visual-validation/explore-social-visual.replacements.ts'],
+            ['src/app/core/services/autentication/auth/auth-session.service.ts', 'src/app/explore/visual-validation/explore-social-visual.replacements.ts'],
+            ['src/app/core/services/discovery/user-intent-status.service.ts', 'src/app/explore/visual-validation/explore-social-visual.replacements.ts'],
+            ['src/app/core/services/venues/venue.service.ts', 'src/app/explore/visual-validation/explore-social-visual.replacements.ts'],
+            ['src/app/core/services/media/photo-view-tracking.service.ts', 'src/app/explore/visual-validation/explore-social-visual.replacements.ts'],
+            ['src/app/core/services/media/media-reactions.service.ts', 'src/app/explore/visual-validation/explore-social-visual.replacements.ts'],
+          ].map(([replace, withFile]) => ({ replace, with: withFile }));
+
+          base.fileReplacements = [
+            ...(base.fileReplacements ?? []),
+            ...replacements,
+          ];
+
+          buildConfigurations[visualName] = base;
+          serveConfigurations[visualName] = {
+            buildTarget: `entretenimento:build:${visualName}`,
+          };
+
+          fs.writeFileSync(path, `${JSON.stringify(angular, null, 2)}\n`);
+          console.log(`Prepared temporary Angular configuration ${visualName}`);
+          NODE
+
+      - name: Start Angular Explore visual harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "artifacts/${{ matrix.configuration }}"
+          VISUAL_CONFIGURATION="${{ matrix.configuration }}-explore-social-visual"
+
+          nohup npx ng serve \
+            --configuration="$VISUAL_CONFIGURATION" \
+            --host=127.0.0.1 \
+            --port=4200 \
+            > "artifacts/${{ matrix.configuration }}/ng-serve.log" 2>&1 &
+          echo $! > "artifacts/${{ matrix.configuration }}/ng-serve.pid"
+
+          for attempt in $(seq 1 180); do
+            if curl --fail --silent --show-error \
+              'http://127.0.0.1:4200/descobrir?visualState=feed' \
+              >/dev/null; then
+              echo "Explore visual harness ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Explore visual harness did not become ready" >&2
+          cat "artifacts/${{ matrix.configuration }}/ng-serve.log" >&2 || true
+          exit 1
+
+      - name: Capture feed, empty and partial-error states
+        shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: explore-${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          OUT="artifacts/${{ matrix.configuration }}/explore"
+          BASE="http://127.0.0.1:4200/descobrir"
+          mkdir -p "$OUT/feed" "$OUT/empty" "$OUT/owner-more" "$OUT/video-error"
+
+          check_log() {
+            local file="$1"
+            if grep -q '^### Error' "$file"; then
+              echo "Playwright reported an error in $file" >&2
+              cat "$file" >&2
+              exit 1
+            fi
+          }
+
+          run_checked() {
+            local file="$1"
+            local code="$2"
+            playwright-cli run-code "$code" | tee "$file"
+            check_log "$file"
+          }
+
+          require_file() {
+            local file="$1"
+            if [[ ! -s "$file" ]]; then
+              echo "Expected visual evidence was not created: $file" >&2
+              exit 1
+            fi
+          }
+
+          playwright-cli open "$BASE?visualState=feed"
+          playwright-cli resize 1440 1000
+
+          run_checked "$OUT/feed/desktop.metrics.log" "async (page) => {
+            await page.waitForSelector('.social-feed-page', { state: 'visible' });
+            await page.waitForSelector('.feed-list', { state: 'visible' });
+            await page.waitForSelector('.video-highlights', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const feed = document.querySelector('.feed-list');
+              const composer = document.querySelector('.feed-composer__moment');
+              const loadMore = document.querySelector('.feed-pagination button');
+              const highlights = Array.from(document.querySelectorAll('.video-highlights app-public-video-card'));
+              const feedPhotos = Array.from(document.querySelectorAll('.feed-list app-public-photo-card'));
+              const feedVideos = Array.from(document.querySelectorAll('.feed-list app-public-video-card'));
+              const moments = Array.from(document.querySelectorAll('.feed-list .feed-intent'));
+              const engagementButtons = Array.from(document.querySelectorAll('.feed-list app-public-media-engagement-actions button'));
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                composerHeight: composer?.getBoundingClientRect().height ?? 0,
+                loadMoreHeight: loadMore?.getBoundingClientRect().height ?? 0,
+                highlightCount: highlights.length,
+                photoCount: feedPhotos.length,
+                videoCount: feedVideos.length,
+                momentCount: moments.length,
+                engagementActionCount: engagementButtons.length,
+                ownStatusCount: feed?.querySelectorAll('app-user-intent-status-composer').length ?? 0,
+                feedListItems: feed?.querySelectorAll('[role=\"listitem\"]').length ?? 0,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Explore desktop has horizontal overflow');
+            if (metrics.composerHeight < 44) throw new Error('Explore composer action is below 44px');
+            if (metrics.highlightCount !== 3) throw new Error('Explore deterministic highlights were not rendered');
+            if (metrics.photoCount < 1 || metrics.videoCount < 1 || metrics.momentCount < 1) throw new Error('Explore mixed social timeline is incomplete');
+            if (metrics.engagementActionCount < 4) throw new Error('Explore feed engagement actions were not rendered');
+            if (metrics.ownStatusCount !== 1) throw new Error('Explore own temporary status composer is missing');
+            if (metrics.loadMoreHeight < 44) throw new Error('Explore load-more action is below 44px');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/feed/desktop.accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/feed/desktop-viewport.png"
+          playwright-cli screenshot --full-page --filename="$OUT/feed/desktop.png"
+          require_file "$OUT/feed/desktop.accessibility.yml"
+          require_file "$OUT/feed/desktop-viewport.png"
+          require_file "$OUT/feed/desktop.png"
+
+          run_checked "$OUT/feed/load-more.metrics.log" "async (page) => {
+            const selector = '.feed-list [role=\"listitem\"]';
+            const before = await page.locator(selector).count();
+            await page.locator('.feed-pagination button').click();
+            await page.waitForFunction(
+              (expected) => document.querySelectorAll('.feed-list [role=\"listitem\"]').length > expected,
+              before,
+              { timeout: 5000 }
+            );
+            const after = await page.locator(selector).count();
+            console.log(JSON.stringify({ before, after }));
+            if (after <= before) throw new Error('Explore load-more did not reveal additional timeline items');
+            return { before, after };
+          }"
+
+          playwright-cli goto "$BASE?visualState=feed" | tee "$OUT/feed/mobile-goto.log"
+          check_log "$OUT/feed/mobile-goto.log"
+          playwright-cli resize 390 844
+
+          run_checked "$OUT/feed/mobile.metrics.log" "async (page) => {
+            await page.waitForSelector('.feed-list app-public-photo-card, .feed-list app-public-video-card', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const composer = document.querySelector('.feed-composer__moment');
+              const profileAvatar = document.querySelector('.feed-composer__avatar');
+              const loadMore = document.querySelector('.feed-pagination button');
+              const mediaCard = document.querySelector('.feed-list app-public-photo-card, .feed-list app-public-video-card');
+              const cardRect = mediaCard?.getBoundingClientRect();
+              const authorTargets = Array.from(document.querySelectorAll('.feed-card-owner, .public-video-card__owner'));
+              const authorHeights = authorTargets.map((item) => item.getBoundingClientRect().height);
+              const engagementButtons = Array.from(document.querySelectorAll('.feed-list app-public-media-engagement-actions button'));
+              const engagementHeights = engagementButtons.map((item) => item.getBoundingClientRect().height);
+              const likeButtons = engagementButtons.filter((item) => item.hasAttribute('aria-pressed'));
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                composerHeight: composer?.getBoundingClientRect().height ?? 0,
+                profileAvatarHeight: profileAvatar?.getBoundingClientRect().height ?? 0,
+                loadMoreHeight: loadMore?.getBoundingClientRect().height ?? 0,
+                minAuthorTargetHeight: authorHeights.length ? Math.min(...authorHeights) : 0,
+                minEngagementTargetHeight: engagementHeights.length ? Math.min(...engagementHeights) : 0,
+                engagementActionCount: engagementButtons.length,
+                likeButtonCount: likeButtons.length,
+                cardWidth: cardRect?.width ?? 0,
+                photoCount: document.querySelectorAll('.feed-list app-public-photo-card').length,
+                videoCount: document.querySelectorAll('.feed-list app-public-video-card').length,
+                momentCount: document.querySelectorAll('.feed-list .feed-intent').length,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Explore mobile has horizontal overflow');
+            if (metrics.composerHeight < 44 || metrics.profileAvatarHeight < 44 || metrics.loadMoreHeight < 44) throw new Error('Explore mobile primary actions are below 44px');
+            if (metrics.minAuthorTargetHeight < 44) throw new Error('Explore media author links are below 44px');
+            if (metrics.engagementActionCount < 4 || metrics.likeButtonCount < 2) throw new Error('Explore mobile engagement actions are incomplete');
+            if (metrics.minEngagementTargetHeight < 44) throw new Error('Explore engagement actions are below 44px');
+            if (metrics.cardWidth < metrics.viewportWidth * 0.85) throw new Error('Explore mobile media card wastes useful width');
+            if (metrics.photoCount < 1 || metrics.videoCount < 1 || metrics.momentCount < 1) throw new Error('Explore mobile mixed timeline is incomplete');
+            return metrics;
+          }"
+
+          run_checked "$OUT/feed/mobile-like.metrics.log" "async (page) => {
+            const like = page.locator('.feed-list app-public-photo-card app-public-media-engagement-actions button[aria-pressed]').first();
+            await like.waitFor({ state: 'visible' });
+            const beforePressed = await like.getAttribute('aria-pressed');
+            const beforeText = (await like.innerText()).trim();
+            await like.click();
+            await page.waitForFunction(() => {
+              const button = document.querySelector('.feed-list app-public-photo-card app-public-media-engagement-actions button[aria-pressed]');
+              return button?.getAttribute('aria-pressed') === 'true';
+            }, undefined, { timeout: 5000 });
+            const afterPressed = await like.getAttribute('aria-pressed');
+            const afterText = (await like.innerText()).trim();
+            console.log(JSON.stringify({ beforePressed, afterPressed, beforeText, afterText }));
+            if (beforePressed !== 'false' || afterPressed !== 'true') throw new Error('Explore like action did not expose pressed state');
+            if (beforeText === afterText) throw new Error('Explore like action did not update its counter');
+            return { beforePressed, afterPressed, beforeText, afterText };
+          }"
+
+          playwright-cli snapshot --filename="$OUT/feed/mobile.accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/feed/mobile-viewport.png"
+          playwright-cli screenshot --full-page --filename="$OUT/feed/mobile.png"
+          require_file "$OUT/feed/mobile.accessibility.yml"
+          require_file "$OUT/feed/mobile-viewport.png"
+          require_file "$OUT/feed/mobile.png"
+
+          playwright-cli goto "$BASE?visualState=empty" | tee "$OUT/empty/goto.log"
+          check_log "$OUT/empty/goto.log"
+          playwright-cli resize 390 844
+
+          run_checked "$OUT/empty/mobile.metrics.log" "async (page) => {
+            await page.waitForSelector('.feed-empty', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const empty = document.querySelector('.feed-empty');
+              const action = document.querySelector('.feed-empty__action');
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                text: empty?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                suggestionCount: document.querySelectorAll('.feed-empty__profiles a').length,
+                actionHeight: action?.getBoundingClientRect().height ?? 0,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Explore empty state has horizontal overflow');
+            if (!metrics.text.includes('Seu feed começa com conexões')) throw new Error('Explore empty title is missing');
+            if (!metrics.text.includes('Conecte-se com pessoas compatíveis')) throw new Error('Explore empty guidance is inconsistent with connections');
+            if (metrics.suggestionCount !== 3) throw new Error('Explore empty compatible suggestions are incomplete');
+            if (metrics.actionHeight < 44) throw new Error('Explore empty action is below 44px');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/empty/mobile.accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/empty/mobile-viewport.png"
+          require_file "$OUT/empty/mobile.accessibility.yml"
+          require_file "$OUT/empty/mobile-viewport.png"
+
+          playwright-cli goto "$BASE?visualState=empty&ownerMore=1" | tee "$OUT/owner-more/goto.log"
+          check_log "$OUT/owner-more/goto.log"
+          playwright-cli resize 390 844
+
+          run_checked "$OUT/owner-more/mobile.metrics.log" "async (page) => {
+            await page.waitForSelector('.feed-empty', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const state = document.querySelector('.feed-empty');
+              const action = document.querySelector('.feed-empty .feed-pagination button');
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                text: state?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                actionHeight: action?.getBoundingClientRect().height ?? 0,
+                ariaBusy: action?.getAttribute('aria-busy') ?? null,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Explore owner-more state has horizontal overflow');
+            if (!metrics.text.includes('Ainda há conexões para verificar')) throw new Error('Explore owner-more title is missing');
+            if (!metrics.text.includes('Buscar mais atualizações')) throw new Error('Explore owner-more action is missing');
+            if (metrics.text.includes('Seu feed começa com conexões')) throw new Error('Explore owner-more incorrectly rendered terminal empty state');
+            if (metrics.actionHeight < 44) throw new Error('Explore owner-more action is below 44px');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/owner-more/mobile.accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/owner-more/mobile-viewport.png"
+          require_file "$OUT/owner-more/mobile.accessibility.yml"
+          require_file "$OUT/owner-more/mobile-viewport.png"
+
+          playwright-cli goto "$BASE?visualState=video-error" | tee "$OUT/video-error/goto.log"
+          check_log "$OUT/video-error/goto.log"
+          playwright-cli resize 390 844
+
+          run_checked "$OUT/video-error/mobile.metrics.log" "async (page) => {
+            await page.waitForSelector('.video-highlights__error', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const errorState = document.querySelector('.video-highlights__error');
+              const retry = document.querySelector('.video-highlights__error button');
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                role: errorState?.getAttribute('role') ?? '',
+                text: errorState?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                retryHeight: retry?.getBoundingClientRect().height ?? 0,
+                feedItems: document.querySelectorAll('.feed-list [role=\"listitem\"]').length,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Explore partial error state has horizontal overflow');
+            if (metrics.role !== 'alert' || !metrics.text.includes('Vídeos temporariamente indisponíveis')) throw new Error('Explore video error lost alert semantics');
+            if (metrics.retryHeight < 44) throw new Error('Explore video retry is below 44px');
+            if (metrics.feedItems < 2) throw new Error('Explore partial video error incorrectly blanked the social timeline');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/video-error/mobile.accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/video-error/mobile-viewport.png"
+          require_file "$OUT/video-error/mobile.accessibility.yml"
+          require_file "$OUT/video-error/mobile-viewport.png"
+
+          playwright-cli console error > "$OUT/browser-console-errors.log" || true
+          playwright-cli close
+
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: explore-social-visual-${{ matrix.configuration }}
+          path: artifacts/${{ matrix.configuration }}/
+          if-no-files-found: error
+          retention-days: 7

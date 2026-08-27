@@ -5,12 +5,19 @@
 // - Tratamento de erros básico
 // - Observable-first para evitar Promises na API pública quando possível
 // - Não esquecer os comentários explicativos.
+//
+// SUPRESSÃO EXPLÍCITA:
+// - updateUserRole$() e updateUserRole() foram removidos.
+//
+// Motivo:
+// - role/tier de assinatura são projeções do entitlement financeiro;
+// - o cliente não deve possuir caminho de escrita concorrente para esses campos;
+// - upgrades/downgrades são confirmados e projetados exclusivamente pelo backend.
 // src/app/core/services/user-profile/user-profile.service.ts
 import { Injectable } from '@angular/core';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
-import { updateUserRole } from '../../../store/actions/actions.user/user-role.actions';
 import { updateUserLocation } from '../../../store/actions/actions.location/location.actions';
 import { GeoCoordinates } from '../../interfaces/geolocation.interface';
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
@@ -51,36 +58,6 @@ export class UserProfileService {
       })
     );
   }
-
-  /**
-   * Observable-first: atualiza role e sincroniza Store.
-   */
-  updateUserRole$(uid: string, newRole: string): Observable<void> {
-    if (!uid || !newRole) {
-      return throwError(() => new Error('[UserProfileService] UID ou novo papel inválido.'));
-    }
-
-    const fs = this.firestoreQueryService.getFirestoreInstance();
-
-    return from(updateDoc(doc(fs, 'users', uid), { role: newRole })).pipe(
-      tap(() => this.store.dispatch(updateUserRole({ uid, newRole }))),
-      map(() => void 0),
-      catchError((err) => {
-        this.routeError(err, 'updateUserRole$', 'Não foi possível atualizar o papel do usuário.');
-        return throwError(() => err);
-      })
-    );
-  }
-
-
-  /**
-   * Mantido (compat): Promise wrapper do método Observable-first.
-   * Mantém a nomenclatura pública usada no projeto sem te prender a Promises.
-   */
-  async updateUserRole(uid: string, newRole: string): Promise<void> {
-    await firstValueFrom(this.updateUserRole$(uid, newRole));
-  }
-
 
   // Observable-first: atualiza localização e sincroniza Store.
   updateUserLocation$(uid: string, location: GeoCoordinates, geohash: string): Observable<void> {
@@ -128,4 +105,4 @@ export class UserProfileService {
       this.notifier.showError(userMessage);
     }
   }
-} // Linha 132
+} // fim UserProfileService

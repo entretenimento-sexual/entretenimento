@@ -6,7 +6,7 @@
 // do consentimento inicial.
 //
 // Ordem fail-closed:
-// 1. exige Termos de Uso materiais vigentes;
+// 1. exige Termos de Uso materiais vigentes quando a política do ambiente exige;
 // 2. exige consentimento adulto quando aplicável;
 // 3. libera o recurso protegido.
 //
@@ -22,7 +22,7 @@ import { catchError, filter, map, take } from 'rxjs/operators';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
-import { hasAcceptedCurrentTerms } from 'src/app/core/services/compliance/terms-acceptance.service';
+import { isCurrentLegalAcceptanceSatisfied } from 'src/app/core/services/compliance/terms-acceptance.service';
 import { buildRedirectTree, guardLog } from '../_shared-guard/guard-utils';
 
 export const adultContentConsentGuard: CanActivateFn = (
@@ -83,7 +83,7 @@ export const adultContentConsentGuard: CanActivateFn = (
     map(([_, authUser, appUser, accepted]): GuardResult => {
       if (!authUser) return true;
 
-      if (!hasAcceptedCurrentTerms(appUser?.acceptedTerms)) {
+      if (!isCurrentLegalAcceptanceSatisfied(appUser?.acceptedTerms)) {
         return redirectToTerms();
       }
 

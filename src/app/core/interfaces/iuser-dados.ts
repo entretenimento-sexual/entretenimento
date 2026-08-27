@@ -133,7 +133,29 @@ export interface IUserDados {
   // ---------------------------------------------------------------------------
   // Perfil
   // ---------------------------------------------------------------------------
+
+  /**
+   * Campo legado de compatibilidade. O código social persistido passa a ser
+   * `declaredIdentityCode`; enquanto a migração estiver ativa ambos devem
+   * permanecer coerentes.
+   */
   gender?: string;
+
+  /** Declaração social estável escolhida pelo próprio usuário. */
+  declaredIdentityCode?: string | null;
+
+  /** Versão do catálogo usada quando a declaração foi persistida. */
+  identityCatalogVersion?: number | null;
+
+  /**
+   * Projeções públicas derivadas pelo backend. Labels nunca substituem o código
+   * persistido e podem evoluir sem migração dos documentos de usuário.
+   */
+  identityCode?: string | null;
+  identityLabel?: string | null;
+  identityShortLabel?: string | null;
+  identityDiscoveryGroup?: string | null;
+
   orientation?: string;
 
   /** Campos canônicos de discovery calculados no backend. */

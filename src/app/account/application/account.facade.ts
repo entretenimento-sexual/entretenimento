@@ -2,55 +2,46 @@
 // -----------------------------------------------------------------------------
 // ACCOUNT FACADE
 // -----------------------------------------------------------------------------
-// - Combina Auth, perfil runtime e snapshot sanitizado de billing.
+// - Combina Auth, perfil runtime e a assinatura canônica do Angular.
 // - Não concede visualmente assinatura a partir de role/tier projetados.
 // - Não anuncia senha, 2FA ou gestão de dispositivos sem evidência real.
+//
+// Supressão explícita preservada:
+// - `BillingRepository.getMyBillingSnapshot$()` não é uma segunda stream visual.
+//
+// Motivo:
+// - o snapshot financeiro continua sendo reconciliado pelo backend;
+// - `PlatformSubscriptionAccessService` é a projeção canônica, reativa e
+//   compartilhada no Angular.
 // -----------------------------------------------------------------------------
 import { Injectable, inject } from '@angular/core';
 import { User } from 'firebase/auth';
-import { combineLatest, Observable, of } from 'rxjs';
+import { combineLatest, Observable } from 'rxjs';
 import {
-  catchError,
   distinctUntilChanged,
   map,
   shareReplay,
   startWith,
-  switchMap,
 } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { BillingRepository } from 'src/app/payments-core/infrastructure/repositories/billing.repository';
-import { BillingSnapshotResult } from 'src/app/payments-core/domain/models/billing-return.model';
+import { PlatformSubscriptionAccessService } from 'src/app/core/services/subscriptions/platform-subscription-access.service';
+import type {
+  PlatformSubscriptionAccessState,
+  PlatformSubscriptionRole,
+} from 'src/app/core/services/subscriptions/platform-subscription-access.model';
 
 import { AccountOverviewVm } from '../models/account-overview.model';
 
-type PaidPlanKey = 'basic' | 'premium' | 'vip';
+type PaidPlanKey = PlatformSubscriptionRole;
 
 @Injectable({ providedIn: 'root' })
 export class AccountFacade {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly authSession = inject(AuthSessionService);
-  private readonly billingRepository = inject(BillingRepository);
-  private readonly globalError = inject(GlobalErrorHandlerService);
-
-  private readonly billingSnapshot$ = this.authSession.readyUid$.pipe(
-    map((uid) => String(uid ?? '').trim() || null),
-    distinctUntilChanged(),
-    switchMap((uid) => {
-      if (!uid) return of(null);
-
-      return this.billingRepository.getMyBillingSnapshot$().pipe(
-        catchError((error: unknown) => {
-          this.reportSilent(error, 'loadBillingSnapshot');
-          return of(null);
-        })
-      );
-    }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  private readonly subscriptionAccess = inject(PlatformSubscriptionAccessService);
 
   readonly vm$: Observable<AccountOverviewVm | null> = combineLatest([
     this.currentUserStore.user$.pipe(
@@ -61,11 +52,11 @@ export class AccountFacade {
       map((authUser): User | null => authUser ?? null),
       startWith(null)
     ),
-    this.billingSnapshot$.pipe(startWith(null)),
+    this.subscriptionAccess.state$,
   ]).pipe(
-    map(([user, authUser, billingSnapshot]) => {
+    map(([user, authUser, subscriptionState]) => {
       if (!user && !authUser) return null;
-      return this.buildVm(user, authUser, billingSnapshot);
+      return this.buildVm(user, authUser, subscriptionState);
     }),
     distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -74,7 +65,7 @@ export class AccountFacade {
   private buildVm(
     user: IUserDados | null,
     authUser: User | null,
-    billingSnapshot: BillingSnapshotResult | null
+    subscriptionState: PlatformSubscriptionAccessState
   ): AccountOverviewVm {
     const nickname = String(user?.nickname ?? '').trim() || null;
     const uid = String(user?.uid ?? authUser?.uid ?? '').trim() || null;
@@ -108,11 +99,10 @@ export class AccountFacade {
           ? `${estado}, BR`
           : 'Localização não informada';
 
-    const effectivePlanKey = this.resolveAuthoritativePlanKey(
-      billingSnapshot
-    );
+    const effectivePlanKey =
+      subscriptionState.active ? subscriptionState.role : null;
     const subscriptionActive =
-      billingSnapshot?.isSubscriber === true && effectivePlanKey !== null;
+      subscriptionState.active && effectivePlanKey !== null;
     const roleLabel = this.mapRoleLabel(user, effectivePlanKey);
     const activePlanLabel = subscriptionActive
       ? this.mapPaidPlanLabel(effectivePlanKey)
@@ -149,11 +139,15 @@ export class AccountFacade {
 
       subscriptionLabel: subscriptionActive
         ? 'Assinatura ativa'
-        : billingSnapshot
-          ? 'Sem assinatura ativa'
-          : 'Não foi possível confirmar agora',
+        : 'Sem assinatura ativa',
       subscriptionActive,
       activePlanLabel,
+      subscriptionStartedAt: subscriptionActive
+        ? subscriptionState.startsAt
+        : null,
+      subscriptionEndsAt: subscriptionActive
+        ? subscriptionState.endsAt
+        : null,
 
       tokensBalance: null,
       quickPurchaseEnabled: null,
@@ -166,37 +160,14 @@ export class AccountFacade {
     };
   }
 
-  private resolveAuthoritativePlanKey(
-    snapshot: BillingSnapshotResult | null
-  ): PaidPlanKey | null {
-    const candidate = String(snapshot?.role ?? snapshot?.tier ?? '')
-      .trim()
-      .toLowerCase();
-
-    return candidate === 'basic' ||
-      candidate === 'premium' ||
-      candidate === 'vip'
-      ? candidate
-      : null;
-  }
-
   private mapRoleLabel(
     user: IUserDados | null,
     paidPlan: PaidPlanKey | null
   ): string {
+    if (user?.role === 'admin') return 'Administrador';
     if (paidPlan) return this.mapPaidPlanLabel(paidPlan);
-
-    const rawRole = String(user?.role ?? '').trim().toLowerCase();
-    switch (rawRole) {
-      case 'free':
-        return 'Gratuito';
-      case 'visitante':
-        return 'Visitante';
-      case 'basic':
-        return 'Básico';
-      default:
-        return 'Não definido';
-    }
+    if (user?.role === 'visitante') return 'Visitante';
+    return 'Gratuito';
   }
 
   private mapPaidPlanLabel(plan: PaidPlanKey): string {
@@ -208,26 +179,6 @@ export class AccountFacade {
       case 'basic':
       default:
         return 'Básico';
-    }
-  }
-
-  private reportSilent(error: unknown, operation: string): void {
-    try {
-      const normalized =
-        error instanceof Error
-          ? error
-          : new Error('[AccountFacade] operação falhou');
-      const contextual = normalized as Error & {
-        original?: unknown;
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.original = error;
-      contextual.context = { scope: 'AccountFacade', operation };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha de diagnóstico não interrompe o estado fail-closed da conta.
     }
   }
 }

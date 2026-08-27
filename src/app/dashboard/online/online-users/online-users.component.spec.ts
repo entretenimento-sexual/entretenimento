@@ -35,7 +35,6 @@ describe('OnlineUsersComponent', () => {
     startTracking: vi.fn(),
     getLastSnapshot: vi.fn(),
     persistLocationOnce$: vi.fn(),
-    persistPublicLocation$: vi.fn(),
   };
 
   const distanceCalculationMock = {

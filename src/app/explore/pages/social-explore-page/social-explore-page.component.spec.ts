@@ -1,10 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
+import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
@@ -12,9 +13,11 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/photo-upload-flow.service';
 import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
-import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view-tracking.service';
+import { MediaReactionsService } from 'src/app/core/services/media/media-reactions.service';
 import { VenueService } from 'src/app/core/services/venues/venue.service';
+import { CompatibleProfileCandidatesService } from 'src/app/dashboard/discovery/application/compatible-profile-candidates.service';
 import { UserIntentStatusComposerComponent } from 'src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
+import { PublicMixedMediaViewerLauncherService } from 'src/app/media/shared/services/public-mixed-media-viewer-launcher.service';
 import { FeedPublicationComposerComponent } from '../../components/feed-publication-composer/feed-publication-composer.component';
 import { ExploreFeedFacade } from '../../facades/explore-feed.facade';
 import { ExplorePersonalMediaService } from '../../services/explore-personal-media.service';
@@ -25,6 +28,8 @@ const EMPTY_VM = {
   mostViewedPhotos: [],
   topPhotos: [],
   latestPhotos: [],
+  videoHighlights: [],
+  videoHighlightsStatus: 'empty' as const,
   sections: [],
   compatibleProfiles: [
     {
@@ -35,6 +40,76 @@ const EMPTY_VM = {
   ],
   totalItems: 0,
   hasAnyContent: false,
+};
+
+const VIDEO_HIGHLIGHT: IPublicVideoItem = {
+  id: 'video-1',
+  ownerUid: 'owner-1',
+  mediaType: 'VIDEO',
+  assetAccess: 'SIGNED_URL',
+  posterAccess: 'SIGNED_URL',
+  title: 'Vídeo em destaque',
+  description: null,
+  alt: 'Vídeo público em destaque',
+  mimeType: 'video/mp4',
+  sizeBytes: 2_048,
+  durationMs: 12_000,
+  createdAt: 1_700_000_000_000,
+  publishedAt: 1_700_000_000_000,
+  updatedAt: 1_700_000_000_000,
+  lastViewedAt: null,
+  visibility: 'PUBLIC',
+  orderIndex: 0,
+  moderationStatus: 'APPROVED',
+  moderationReason: null,
+  reactionsEnabled: true,
+  commentsEnabled: true,
+  ratingsEnabled: true,
+  viewsCount: 42,
+  uniqueViewersCount: 20,
+  reactionsCount: 0,
+  commentsCount: 0,
+  ratingsCount: 0,
+  ratingAverage: 0,
+  reportsCount: 0,
+  openReportsCount: 0,
+  confirmedReportsCount: 0,
+  viewScore: 0,
+  engagementScore: 0,
+  score: 0,
+  scoreBreakdown: {
+    rankingScore: 0,
+    qualityScore: 0,
+    engagementScore: 0,
+    safetyScore: 100,
+  },
+  owner: {
+    nickname: 'Perfil vídeo',
+    photoURL: null,
+    gender: null,
+    orientation: null,
+    municipio: null,
+    estado: null,
+  },
+  url: null,
+  posterUrl: 'https://example.test/poster.webp?token=temporary',
+  accessExpiresAt: Date.now() + 300_000,
+};
+
+const PERSONAL_VIDEO: IPublicVideoItem = {
+  ...VIDEO_HIGHLIGHT,
+  id: 'friend-video-1',
+  ownerUid: 'friend-1',
+  title: 'Vídeo da amiga',
+  publishedAt: 1_800_000_000_000,
+  createdAt: 1_800_000_000_000,
+  updatedAt: 1_800_000_000_000,
+  owner: {
+    ...VIDEO_HIGHLIGHT.owner!,
+    nickname: 'Amiga vídeo',
+  },
+  url: null,
+  posterUrl: 'https://example.test/friend-poster.webp?token=temporary',
 };
 
 const FRIEND_STATUS: IUserIntentStatusCardVm = {
@@ -64,21 +139,75 @@ const FRIEND_STATUS: IUserIntentStatusCardVm = {
   isActive: true,
 };
 
+type PersonalMediaFixture = {
+  friendUids: readonly string[];
+  personalPhotos: readonly never[];
+  personalVideos: readonly IPublicVideoItem[];
+  hasMorePersonalMedia?: boolean;
+  loadingInitialPersonalMedia?: boolean;
+  loadingMorePersonalMedia?: boolean;
+  personalMediaLoadFailed?: boolean;
+};
+
 describe('SocialExplorePageComponent', () => {
   let fixture: ComponentFixture<SocialExplorePageComponent>;
+  let exploreVmSubject: BehaviorSubject<any>;
+  let personalMediaSubject: BehaviorSubject<PersonalMediaFixture>;
+  let compatibleProfilesSubject: BehaviorSubject<readonly any[]>;
+  let exploreFacade: {
+    vm$: ReturnType<BehaviorSubject<any>['asObservable']>;
+    retryVideoHighlights: ReturnType<typeof vi.fn>;
+  };
+  let mixedViewer: {
+    open$: ReturnType<typeof vi.fn>;
+  };
+  let loadMorePersonalMedia: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
+    exploreVmSubject = new BehaviorSubject<any>(EMPTY_VM);
+    personalMediaSubject = new BehaviorSubject<PersonalMediaFixture>({
+      friendUids: ['friend-1'],
+      personalPhotos: [],
+      personalVideos: [],
+      hasMorePersonalMedia: false,
+      loadingInitialPersonalMedia: false,
+      loadingMorePersonalMedia: false,
+      personalMediaLoadFailed: false,
+    });
+    compatibleProfilesSubject = new BehaviorSubject<readonly any[]>([
+      {
+        uid: 'compatible-1',
+        nickname: 'Compatível teste',
+        photoURL: null,
+      },
+    ]);
+    exploreFacade = {
+      vm$: exploreVmSubject.asObservable(),
+      retryVideoHighlights: vi.fn(),
+    };
+    mixedViewer = {
+      open$: vi.fn(() => of(void 0)),
+    };
+    loadMorePersonalMedia = vi.fn(() => of(false));
+
     await TestBed.configureTestingModule({
       imports: [RouterTestingModule, SocialExplorePageComponent],
       providers: [
         {
           provide: ExploreFeedFacade,
-          useValue: { vm$: of(EMPTY_VM) },
+          useValue: exploreFacade,
         },
         {
           provide: ExplorePersonalMediaService,
           useValue: {
-            context$: of({ friendUids: ['friend-1'], personalPhotos: [] }),
+            context$: personalMediaSubject.asObservable(),
+            loadMore$: loadMorePersonalMedia,
+          },
+        },
+        {
+          provide: CompatibleProfileCandidatesService,
+          useValue: {
+            profiles$: compatibleProfilesSubject.asObservable(),
           },
         },
         {
@@ -112,9 +241,20 @@ describe('SocialExplorePageComponent', () => {
           },
         },
         {
-          provide: PhotoViewTrackingService,
+          provide: PublicMixedMediaViewerLauncherService,
+          useValue: mixedViewer,
+        },
+        {
+          provide: MediaReactionsService,
           useValue: {
-            recordPhotoView$: vi.fn(() => of(void 0)),
+            isPhotoLikedByViewer$: vi.fn(() => of(false)),
+            isVideoLikedByViewer$: vi.fn(() => of(false)),
+            toggleLikePhotoWithState$: vi.fn(() =>
+              of({ liked: true, reactionsCount: 1, score: 0 })
+            ),
+            toggleLikeVideoWithState$: vi.fn(() =>
+              of({ liked: true, reactionsCount: 1, score: 0 })
+            ),
           },
         },
         {
@@ -182,6 +322,45 @@ describe('SocialExplorePageComponent', () => {
     expect(relatedStatus.nativeElement.textContent).toContain('Disponível hoje');
   });
 
+  it('filtra momentos pelos amigos e pelo pool canônico antes do limite regional', () => {
+    const statusService = TestBed.inject(UserIntentStatusService) as unknown as {
+      watchActiveStatusesForUserRegion$: ReturnType<typeof vi.fn>;
+    };
+
+    expect(statusService.watchActiveStatusesForUserRegion$).toHaveBeenCalledWith(
+      'u1',
+      {
+        limit: 24,
+        ownerUids: ['friend-1', 'compatible-1'],
+      }
+    );
+
+    compatibleProfilesSubject.next([
+      ...Array.from({ length: 7 }, (_, index) => ({
+        uid: `compatible-${index + 1}`,
+        nickname: `Compatível ${index + 1}`,
+      })),
+    ]);
+    fixture.detectChanges();
+
+    expect(statusService.watchActiveStatusesForUserRegion$).toHaveBeenLastCalledWith(
+      'u1',
+      {
+        limit: 24,
+        ownerUids: [
+          'friend-1',
+          'compatible-1',
+          'compatible-2',
+          'compatible-3',
+          'compatible-4',
+          'compatible-5',
+          'compatible-6',
+          'compatible-7',
+        ],
+      }
+    );
+  });
+
   it('abre a publicação persistente e recolhe o formulário temporário', () => {
     const statusComposer = fixture.debugElement.query(
       By.css('app-user-intent-status-composer')
@@ -214,12 +393,259 @@ describe('SocialExplorePageComponent', () => {
     const suggestion = emptyFixture.debugElement.query(
       By.css('a[href="/outro-perfil/compatible-1"]')
     );
+    const discoveryActions = emptyFixture.debugElement.queryAll(
+      By.css('.feed-empty__action')
+    );
 
     expect(emptyState.nativeElement.textContent).toContain(
       'Seu feed começa com conexões'
     );
     expect(emptyState.nativeElement.textContent).toContain('Compatível teste');
     expect(suggestion).toBeTruthy();
+    expect(discoveryActions).toHaveLength(3);
+    expect(
+      discoveryActions.map((action) => action.nativeElement.textContent.trim())
+    ).toEqual(['Pessoas', 'Locais', 'Comunidades']);
+  });
+
+  it('não mostra vazio falso durante a primeira página pessoal', () => {
+    const statusService = TestBed.inject(UserIntentStatusService) as unknown as {
+      watchActiveStatusesForUserRegion$: ReturnType<typeof vi.fn>;
+    };
+    statusService.watchActiveStatusesForUserRegion$.mockReturnValue(of([]));
+    personalMediaSubject.next({
+      friendUids: ['friend-1'],
+      personalPhotos: [],
+      personalVideos: [],
+      loadingInitialPersonalMedia: true,
+    });
+
+    const loadingFixture = TestBed.createComponent(SocialExplorePageComponent);
+    loadingFixture.detectChanges();
+
+    const loadingState = loadingFixture.debugElement.query(
+      By.css('.feed-empty[role="status"]')
+    );
+
+    expect(loadingState.nativeElement.textContent).toContain(
+      'Carregando atualizações'
+    );
+    expect(loadingState.nativeElement.textContent).not.toContain(
+      'Seu feed começa com conexões'
+    );
+  });
+
+  it('oferece busca de novos autores antes do vazio definitivo', () => {
+    const statusService = TestBed.inject(UserIntentStatusService) as unknown as {
+      watchActiveStatusesForUserRegion$: ReturnType<typeof vi.fn>;
+    };
+    statusService.watchActiveStatusesForUserRegion$.mockReturnValue(of([]));
+    personalMediaSubject.next({
+      friendUids: ['friend-1'],
+      personalPhotos: [],
+      personalVideos: [],
+      hasMorePersonalMedia: true,
+      loadingInitialPersonalMedia: false,
+      loadingMorePersonalMedia: false,
+      personalMediaLoadFailed: false,
+    });
+
+    const moreOwnersFixture = TestBed.createComponent(SocialExplorePageComponent);
+    moreOwnersFixture.detectChanges();
+
+    const state = moreOwnersFixture.debugElement.query(By.css('.feed-empty'));
+    const action = moreOwnersFixture.debugElement.query(
+      By.css('.feed-empty .feed-pagination button')
+    );
+
+    expect(state.nativeElement.textContent).toContain(
+      'Ainda há conexões para verificar'
+    );
+    expect(state.nativeElement.textContent).not.toContain(
+      'Seu feed começa com conexões'
+    );
+    expect(action.nativeElement.textContent).toContain('Buscar mais atualizações');
+
+    action.triggerEventHandler('click');
+
+    expect(loadMorePersonalMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it('oferece retry em vez de estado vazio quando a mídia falha', () => {
+    const statusService = TestBed.inject(UserIntentStatusService) as unknown as {
+      watchActiveStatusesForUserRegion$: ReturnType<typeof vi.fn>;
+    };
+    statusService.watchActiveStatusesForUserRegion$.mockReturnValue(of([]));
+    personalMediaSubject.next({
+      friendUids: ['friend-1'],
+      personalPhotos: [],
+      personalVideos: [],
+      hasMorePersonalMedia: true,
+      loadingInitialPersonalMedia: false,
+      loadingMorePersonalMedia: false,
+      personalMediaLoadFailed: true,
+    });
+
+    const retryFixture = TestBed.createComponent(SocialExplorePageComponent);
+    retryFixture.detectChanges();
+
+    const retryState = retryFixture.debugElement.query(By.css('.feed-empty'));
+    const retryButton = retryFixture.debugElement.query(
+      By.css('.feed-empty .feed-pagination button')
+    );
+
+    expect(retryState.nativeElement.textContent).toContain(
+      'Não foi possível concluir o carregamento'
+    );
+    expect(retryState.nativeElement.textContent).not.toContain(
+      'Seu feed começa com conexões'
+    );
+
+    retryButton.triggerEventHandler('click');
+
+    expect(loadMorePersonalMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it('renderiza vídeos em destaque pelo card compartilhado', () => {
+    exploreVmSubject.next({
+      ...EMPTY_VM,
+      videoHighlights: [VIDEO_HIGHLIGHT],
+      videoHighlightsStatus: 'ready',
+      totalItems: 1,
+      hasAnyContent: true,
+    });
+    fixture.detectChanges();
+
+    const section = fixture.debugElement.query(By.css('.video-highlights'));
+    const card = section.query(By.css('app-public-video-card'));
+    const preview = card.query(By.css('.public-video-card__preview'));
+
+    expect(section.nativeElement.textContent).toContain('Vídeos em destaque');
+    expect(card.nativeElement.textContent).toContain('Vídeo em destaque');
+    expect(card.nativeElement.textContent).toContain('Perfil vídeo');
+    expect(preview.attributes['aria-label']).toContain('Assistir Vídeo em destaque');
+  });
+
+  it('insere vídeo pessoal de amigo na timeline sem playback pré-hidratado', () => {
+    personalMediaSubject.next({
+      friendUids: ['friend-1'],
+      personalPhotos: [],
+      personalVideos: [PERSONAL_VIDEO],
+    });
+    fixture.detectChanges();
+
+    const card = fixture.debugElement.query(
+      By.css('.feed-list app-public-video-card')
+    );
+
+    expect(card).toBeTruthy();
+    expect(card.nativeElement.textContent).toContain('Vídeo da amiga');
+    expect(card.nativeElement.textContent).toContain('Amiga vídeo');
+    expect(PERSONAL_VIDEO.url).toBeNull();
+  });
+
+  it('abre mídia do feed pelo launcher misto canônico', () => {
+    personalMediaSubject.next({
+      friendUids: ['friend-1'],
+      personalPhotos: [],
+      personalVideos: [PERSONAL_VIDEO],
+    });
+    fixture.detectChanges();
+
+    fixture.componentInstance.openFeedVideo(PERSONAL_VIDEO);
+
+    expect(mixedViewer.open$).toHaveBeenCalledWith({
+      items: [PERSONAL_VIDEO],
+      selected: PERSONAL_VIDEO,
+      source: 'discover',
+    });
+  });
+
+  it('encaminha comentários do card para o mesmo viewer canônico', () => {
+    personalMediaSubject.next({
+      friendUids: ['friend-1'],
+      personalPhotos: [],
+      personalVideos: [PERSONAL_VIDEO],
+    });
+    fixture.detectChanges();
+
+    const commentsButton = fixture.debugElement.queryAll(
+      By.css('.feed-list app-public-media-engagement-actions button')
+    )[1];
+    commentsButton.triggerEventHandler('click', null);
+
+    expect(mixedViewer.open$).toHaveBeenCalledWith({
+      items: [PERSONAL_VIDEO],
+      selected: PERSONAL_VIDEO,
+      source: 'discover',
+    });
+  });
+
+  it('busca página remota quando a janela local terminou e o backend ainda tem mídia', () => {
+    personalMediaSubject.next({
+      friendUids: ['friend-1'],
+      personalPhotos: [],
+      personalVideos: [],
+      hasMorePersonalMedia: true,
+      loadingInitialPersonalMedia: false,
+      loadingMorePersonalMedia: false,
+    });
+    fixture.detectChanges();
+
+    fixture.componentInstance.loadMoreFeed();
+
+    expect(loadMorePersonalMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantém mídia de compatível além do limite visual de seis sugestões', () => {
+    const seventhCompatibleVideo: IPublicVideoItem = {
+      ...PERSONAL_VIDEO,
+      id: 'compatible-video-7',
+      ownerUid: 'compatible-7',
+      title: 'Vídeo da sétima compatível',
+      owner: {
+        ...PERSONAL_VIDEO.owner!,
+        nickname: 'Compatível sete',
+      },
+    };
+
+    compatibleProfilesSubject.next([
+      ...Array.from({ length: 6 }, (_, index) => ({
+        uid: `compatible-${index + 1}`,
+        nickname: `Compatível ${index + 1}`,
+      })),
+      { uid: 'compatible-7', nickname: 'Compatível sete' },
+    ]);
+    personalMediaSubject.next({
+      friendUids: [],
+      personalPhotos: [],
+      personalVideos: [seventhCompatibleVideo],
+    });
+    fixture.detectChanges();
+
+    const card = fixture.debugElement.query(
+      By.css('.feed-list app-public-video-card')
+    );
+
+    expect(EMPTY_VM.compatibleProfiles).toHaveLength(1);
+    expect(card).toBeTruthy();
+    expect(card.nativeElement.textContent).toContain('Vídeo da sétima compatível');
+    expect(card.nativeElement.textContent).toContain('Compatível sete');
+  });
+
+  it('oferece retry explícito quando os vídeos falham', () => {
+    exploreVmSubject.next({
+      ...EMPTY_VM,
+      videoHighlightsStatus: 'error',
+    });
+    fixture.detectChanges();
+
+    const retryButton = fixture.debugElement.query(
+      By.css('.video-highlights__error button')
+    );
+    retryButton.triggerEventHandler('click');
+
+    expect(exploreFacade.retryVideoHighlights).toHaveBeenCalledTimes(1);
   });
 
   it('envia a foto e promove a mesma mídia para a publicação persistente', () => {

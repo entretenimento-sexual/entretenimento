@@ -27,6 +27,11 @@ export interface IPublicPhotoBase {
 
   createdAt: number;
   publishedAt: number;
+  /**
+   * Versão física do ativo publicado. Projeções antigas podem não possuir o
+   * campo e usam `publishedAt` como fallback estável no cache de acesso.
+   */
+  assetVersion?: number;
   updatedAt?: number;
 
   visibility: TPhotoVisibility;

@@ -36,7 +36,11 @@ import {
   take,
 } from 'rxjs/operators';
 
-import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import type { IPublicMediaContinuationContext } from 'src/app/core/interfaces/media/i-public-media-continuation-context';
+import {
+  IPublicVideoItem,
+  isPublicVideoPlaybackItem,
+} from 'src/app/core/interfaces/media/i-public-video-item';
 import { IVideoComment } from 'src/app/core/interfaces/media/i-video-comment';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -47,6 +51,7 @@ import {
   VideoRatingSummary,
 } from 'src/app/core/services/media/media-video-ratings.service';
 import { PublicVideoAccessService } from 'src/app/core/services/media/public-video-access.service';
+import { PublicVideoContinuationService } from 'src/app/core/services/media/public-video-continuation.service';
 import {
   TVideoViewSource,
   VideoViewTrackingService,
@@ -63,6 +68,7 @@ export interface IPublicVideoViewerData {
   items: readonly IPublicVideoItem[];
   startIndex: number;
   source?: TVideoViewSource;
+  continuationContext?: IPublicMediaContinuationContext;
 }
 
 interface ViewerUserLike {
@@ -93,6 +99,8 @@ type TAccessRefreshReason = 'automatic' | 'manual' | 'expiry';
 const ACCESS_REFRESH_WINDOW_MS = 60_000;
 const ACCESS_REFRESH_RETRY_MS = 15_000;
 const MAX_TIMER_DELAY_MS = 2_147_000_000;
+const CONTINUATION_PREFETCH_REMAINING_ITEMS = 2;
+const CONTINUATION_BATCH_SIZE = 8;
 const SWIPE_MIN_DISTANCE_PX = 64;
 const SWIPE_INTENT_DISTANCE_PX = 18;
 const SWIPE_AXIS_DOMINANCE = 1.2;
@@ -139,6 +147,7 @@ export class PublicVideoViewerComponent {
   private readonly videoViewTracking = inject(VideoViewTrackingService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly publicVideoAccess = inject(PublicVideoAccessService);
+  private readonly publicVideoContinuation = inject(PublicVideoContinuationService);
   private readonly reactions = inject(MediaReactionsService);
   private readonly comments = inject(MediaVideoCommentsService);
   private readonly ratings = inject(MediaVideoRatingsService);
@@ -149,8 +158,11 @@ export class PublicVideoViewerComponent {
 
   private accessRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private refreshingAccess = false;
+  private accessRevision = 0;
   private pendingPlaybackResume: PendingPlaybackResume | null = null;
   private swipeNavigationGesture: SwipeNavigationGesture | null = null;
+  private continuationExhausted = false;
+  private pendingContinuationAdvanceKey: string | null = null;
 
   @ViewChild('videoPlayer')
   private videoPlayer?: ElementRef<HTMLVideoElement>;
@@ -166,6 +178,7 @@ export class PublicVideoViewerComponent {
   readonly commentsExpanded = signal(false);
   readonly ratingsExpanded = signal(false);
   readonly navigationAnnouncement = signal('');
+  readonly loadingContinuation = signal(false);
   readonly commentControl = new FormControl('', {
     nonNullable: true,
     validators: [Validators.required, Validators.maxLength(500)],
@@ -335,8 +348,10 @@ export class PublicVideoViewerComponent {
       ? Math.max(0, Math.min(this.data.startIndex ?? 0, itemsCount - 1))
       : 0;
     this.syncCurrentVideoId();
-    this.scheduleAccessRefresh();
-    queueMicrotask(() => this.syncViewQualification());
+    queueMicrotask(() => {
+      this.ensureCurrentPlaybackAccess();
+      this.prefetchContinuationIfNeeded();
+    });
 
     this.destroyRef.onDestroy(() => this.clearAccessRefreshTimer());
   }
@@ -350,7 +365,11 @@ export class PublicVideoViewerComponent {
   }
 
   get hasNext(): boolean {
-    return this.index < this.items.length - 1;
+    return this.index < this.items.length - 1 || !this.continuationExhausted;
+  }
+
+  get waitingForContinuation(): boolean {
+    return this.loadingContinuation() && this.index >= this.items.length - 1;
   }
 
   get positionLabel(): string {
@@ -507,14 +526,24 @@ export class PublicVideoViewerComponent {
 
   previous(): void {
     if (this.hasPrevious) {
+      this.pendingContinuationAdvanceKey = null;
       this.changeIndex(this.index - 1);
     }
   }
 
   next(): void {
-    if (this.hasNext) {
+    if (this.index < this.items.length - 1) {
+      this.pendingContinuationAdvanceKey = null;
       this.changeIndex(this.index + 1);
+      return;
     }
+
+    if (this.continuationExhausted) {
+      return;
+    }
+
+    this.pendingContinuationAdvanceKey = this.videoKey(this.current);
+    this.loadContinuation();
   }
 
   toggleComments(): void {
@@ -824,26 +853,129 @@ export class PublicVideoViewerComponent {
     this.cancelSwipeNavigation();
     this.pauseCurrentVideo();
     this.clearAccessRefreshTimer();
+    this.accessRevision += 1;
+    this.refreshingAccess = false;
+    this.pendingContinuationAdvanceKey = null;
     this.index = nextIndex;
     this.commentsExpanded.set(false);
     this.ratingsExpanded.set(false);
     this.commentControl.setValue('');
     this.cancelReply();
     this.pendingPlaybackResume = null;
-    this.playbackFeedback?.markLoading();
+    this.playbackFeedback?.markLoading('Preparando vídeo...');
     this.syncCurrentVideoId();
     this.announceCurrentVideo();
-    this.scheduleAccessRefresh();
 
     queueMicrotask(() => {
-      this.syncViewQualification();
-      const player = this.videoPlayer?.nativeElement;
-      if (!player) {
-        return;
-      }
-      player.load();
-      player.focus({ preventScroll: true });
+      this.ensureCurrentPlaybackAccess();
+      this.prefetchContinuationIfNeeded();
     });
+  }
+
+  private prefetchContinuationIfNeeded(): void {
+    if (
+      this.continuationExhausted ||
+      this.loadingContinuation() ||
+      !this.current
+    ) {
+      return;
+    }
+
+    const remainingItems = Math.max(0, this.items.length - this.index - 1);
+
+    if (remainingItems <= CONTINUATION_PREFETCH_REMAINING_ITEMS) {
+      this.loadContinuation();
+    }
+  }
+
+  private loadContinuation(): void {
+    if (
+      this.continuationExhausted ||
+      this.loadingContinuation() ||
+      !this.current
+    ) {
+      return;
+    }
+
+    this.loadingContinuation.set(true);
+    this.viewerUid$
+      .pipe(
+        take(1),
+        switchMap((viewerUid) =>
+          this.publicVideoContinuation.loadContinuation$({
+            existingItems: this.items,
+            source: this.data.source ?? 'unknown',
+            excludeOwnerUid: viewerUid,
+            limit: CONTINUATION_BATCH_SIZE,
+            continuationContext: this.data.continuationContext,
+          })
+        ),
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.loadingContinuation.set(false);
+          this.changeDetector.markForCheck();
+        })
+      )
+      .subscribe((result) => {
+        const pendingAdvanceKey = this.pendingContinuationAdvanceKey;
+        const currentKey = this.videoKey(this.current);
+
+        if (result.exhausted) {
+          this.continuationExhausted = true;
+        }
+
+        const appendedCount = this.appendContinuationItems(result.items);
+        this.changeDetector.markForCheck();
+
+        if (
+          pendingAdvanceKey &&
+          pendingAdvanceKey === currentKey &&
+          this.index < this.items.length - 1
+        ) {
+          this.pendingContinuationAdvanceKey = null;
+          this.changeIndex(this.index + 1);
+          return;
+        }
+
+        if (pendingAdvanceKey && pendingAdvanceKey === currentKey) {
+          this.pendingContinuationAdvanceKey = null;
+
+          if (result.failed) {
+            this.errorNotification.showWarning(
+              'Não foi possível carregar o próximo vídeo agora. Tente novamente.'
+            );
+          } else if (result.exhausted) {
+            this.navigationAnnouncement.set(
+              'Não há mais vídeos públicos disponíveis para continuar.'
+            );
+          }
+        }
+
+        if (appendedCount > 0) {
+          this.prefetchContinuationIfNeeded();
+        }
+      });
+  }
+
+  private appendContinuationItems(
+    candidates: readonly IPublicVideoItem[]
+  ): number {
+    const seen = new Set(this.items.map((item) => this.videoKey(item)));
+    let appendedCount = 0;
+
+    for (const candidate of candidates) {
+      const key = this.videoKey(candidate);
+
+      if (!key || seen.has(key)) {
+        continue;
+      }
+
+      seen.add(key);
+      this.items.push(candidate);
+      appendedCount += 1;
+    }
+
+    return appendedCount;
   }
 
   private syncCurrentVideoId(): void {
@@ -913,7 +1045,7 @@ export class PublicVideoViewerComponent {
   private syncViewQualification(): void {
     const video = this.current;
 
-    if (!video) {
+    if (!video || !isPublicVideoPlaybackItem(video)) {
       return;
     }
 
@@ -955,19 +1087,112 @@ export class PublicVideoViewerComponent {
             evidence
           );
         }),
-        catchError(() => EMPTY)
+        catchError(() => {
+          this.recordedViewKeys.delete(viewKey);
+          return EMPTY;
+        })
       )
-      .subscribe();
+      .subscribe((recorded) => {
+        if (!recorded) {
+          this.recordedViewKeys.delete(viewKey);
+        }
+      });
+  }
+
+  private ensureCurrentPlaybackAccess(): void {
+    const video = this.current;
+
+    if (!video) {
+      return;
+    }
+
+    if (isPublicVideoPlaybackItem(video)) {
+      this.scheduleAccessRefresh();
+      this.loadCurrentPlayer();
+      return;
+    }
+
+    if (this.refreshingAccess) {
+      return;
+    }
+
+    const revision = this.accessRevision;
+    const targetIndex = this.index;
+    const ownerUid = video.ownerUid;
+    const videoId = video.id;
+
+    this.refreshingAccess = true;
+    this.clearAccessRefreshTimer();
+    this.playbackFeedback?.markLoading('Preparando vídeo...');
+
+    this.publicVideoAccess.hydratePublicVideoUrls$([video])
+      .pipe(
+        take(1),
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          if (this.accessRevision === revision) {
+            this.refreshingAccess = false;
+          }
+        })
+      )
+      .subscribe({
+        next: (items) => {
+          const hydrated = items[0] ?? null;
+
+          if (!this.isCurrentAccessTarget(
+            revision,
+            targetIndex,
+            ownerUid,
+            videoId
+          )) {
+            return;
+          }
+
+          if (!hydrated || !isPublicVideoPlaybackItem(hydrated)) {
+            this.handleAccessRefreshFailure('manual');
+            return;
+          }
+
+          this.items[targetIndex] = hydrated;
+          this.currentVideoSubject.next(hydrated);
+          this.changeDetector.markForCheck();
+          this.scheduleAccessRefresh();
+          this.loadCurrentPlayer();
+        },
+        error: () => {
+          if (this.isCurrentAccessTarget(
+            revision,
+            targetIndex,
+            ownerUid,
+            videoId
+          )) {
+            this.handleAccessRefreshFailure('manual');
+          }
+        },
+      });
   }
 
   private refreshCurrentVideoAccess(reason: TAccessRefreshReason): void {
     const video = this.current;
 
-    if (!video || this.refreshingAccess) {
+    if (!video) {
       return;
     }
 
-    const refreshKey = `${video.ownerUid}:${video.id}:${video.url}`;
+    if (!isPublicVideoPlaybackItem(video)) {
+      this.ensureCurrentPlaybackAccess();
+      return;
+    }
+
+    if (this.refreshingAccess) {
+      return;
+    }
+
+    const revision = this.accessRevision;
+    const targetIndex = this.index;
+    const ownerUid = video.ownerUid;
+    const videoId = video.id;
+    const refreshKey = `${ownerUid}:${videoId}:${video.url}`;
 
     if (reason === 'automatic' && this.automaticRefreshKeys.has(refreshKey)) {
       this.playbackFeedback?.markError(
@@ -994,32 +1219,43 @@ export class PublicVideoViewerComponent {
         take(1),
         takeUntilDestroyed(this.destroyRef),
         finalize(() => {
-          this.refreshingAccess = false;
+          if (this.accessRevision === revision) {
+            this.refreshingAccess = false;
+          }
         })
       )
       .subscribe({
         next: (refreshed) => {
-          if (!refreshed) {
+          if (!this.isCurrentAccessTarget(
+            revision,
+            targetIndex,
+            ownerUid,
+            videoId
+          )) {
+            return;
+          }
+
+          if (!refreshed || !isPublicVideoPlaybackItem(refreshed)) {
             this.handleAccessRefreshFailure(reason);
             return;
           }
 
-          this.items[this.index] = refreshed;
+          this.items[targetIndex] = refreshed;
           this.currentVideoSubject.next(refreshed);
           this.changeDetector.markForCheck();
           this.scheduleAccessRefresh();
-
-          queueMicrotask(() => {
-            this.syncViewQualification();
-            const player = this.videoPlayer?.nativeElement;
-            if (!player) {
-              return;
-            }
-            player.load();
-            player.focus({ preventScroll: true });
-          });
+          this.loadCurrentPlayer();
         },
-        error: () => this.handleAccessRefreshFailure(reason),
+        error: () => {
+          if (this.isCurrentAccessTarget(
+            revision,
+            targetIndex,
+            ownerUid,
+            videoId
+          )) {
+            this.handleAccessRefreshFailure(reason);
+          }
+        },
       });
   }
 
@@ -1029,10 +1265,12 @@ export class PublicVideoViewerComponent {
       this.errorNotification.showWarning(
         'Não foi possível prolongar o acesso agora. Uma nova tentativa será feita.'
       );
-      this.accessRefreshTimer = setTimeout(
-        () => this.refreshCurrentVideoAccess('expiry'),
-        ACCESS_REFRESH_RETRY_MS
-      );
+      const revision = this.accessRevision;
+      this.accessRefreshTimer = setTimeout(() => {
+        if (this.accessRevision === revision) {
+          this.refreshCurrentVideoAccess('expiry');
+        }
+      }, ACCESS_REFRESH_RETRY_MS);
       return;
     }
 
@@ -1048,23 +1286,63 @@ export class PublicVideoViewerComponent {
   private scheduleAccessRefresh(): void {
     this.clearAccessRefreshTimer();
 
-    const expiresAt = Number(this.current?.accessExpiresAt ?? 0);
+    const video = this.current;
+    if (!isPublicVideoPlaybackItem(video)) {
+      return;
+    }
+
+    const expiresAt = Number(video.accessExpiresAt ?? 0);
 
     if (!Number.isFinite(expiresAt) || expiresAt <= 0) {
       return;
     }
 
+    const revision = this.accessRevision;
     const delay = expiresAt - Date.now() - ACCESS_REFRESH_WINDOW_MS;
 
     if (delay <= 0) {
-      queueMicrotask(() => this.refreshCurrentVideoAccess('expiry'));
+      queueMicrotask(() => {
+        if (this.accessRevision === revision) {
+          this.refreshCurrentVideoAccess('expiry');
+        }
+      });
       return;
     }
 
-    this.accessRefreshTimer = setTimeout(
-      () => this.refreshCurrentVideoAccess('expiry'),
-      Math.min(delay, MAX_TIMER_DELAY_MS)
-    );
+    this.accessRefreshTimer = setTimeout(() => {
+      if (this.accessRevision === revision) {
+        this.refreshCurrentVideoAccess('expiry');
+      }
+    }, Math.min(delay, MAX_TIMER_DELAY_MS));
+  }
+
+  private isCurrentAccessTarget(
+    revision: number,
+    targetIndex: number,
+    ownerUid: string,
+    videoId: string
+  ): boolean {
+    const current = this.current;
+
+    return this.accessRevision === revision &&
+      this.index === targetIndex &&
+      current?.ownerUid === ownerUid &&
+      current.id === videoId;
+  }
+
+  private loadCurrentPlayer(): void {
+    queueMicrotask(() => {
+      const player = this.videoPlayer?.nativeElement;
+      const current = this.current;
+
+      if (!player || !isPublicVideoPlaybackItem(current)) {
+        return;
+      }
+
+      this.syncViewQualification();
+      player.load();
+      player.focus({ preventScroll: true });
+    });
   }
 
   private clearAccessRefreshTimer(): void {
@@ -1143,6 +1421,12 @@ export class PublicVideoViewerComponent {
 
   private emptyRatingSummary(): VideoRatingSummary {
     return { ratingsCount: 0, ratingAverage: 0 };
+  }
+
+  private videoKey(item: IPublicVideoItem | null | undefined): string {
+    const ownerUid = String(item?.ownerUid ?? '').trim();
+    const videoId = String(item?.id ?? '').trim();
+    return ownerUid && videoId ? `${ownerUid}:${videoId}` : '';
   }
 
   private pauseCurrentVideo(): void {

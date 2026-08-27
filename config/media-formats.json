@@ -1,0 +1,148 @@
+{
+  "version": 3,
+  "image": {
+    "inputFormats": [
+      {
+        "extension": "jpg",
+        "mimeTypes": ["image/jpeg", "image/jpg"],
+        "browserPreviewLikely": true,
+        "editable": true,
+        "preservesTransparency": false
+      },
+      {
+        "extension": "jpeg",
+        "mimeTypes": ["image/jpeg"],
+        "browserPreviewLikely": true,
+        "editable": true,
+        "preservesTransparency": false
+      },
+      {
+        "extension": "png",
+        "mimeTypes": ["image/png"],
+        "browserPreviewLikely": true,
+        "editable": true,
+        "preservesTransparency": true
+      },
+      {
+        "extension": "webp",
+        "mimeTypes": ["image/webp"],
+        "browserPreviewLikely": true,
+        "editable": true,
+        "preservesTransparency": true
+      }
+    ],
+    "outputMimeTypes": ["image/jpeg", "image/png", "image/webp"],
+    "limits": {
+      "defaultBytes": 10485760,
+      "avatarBytes": 8388608,
+      "posterBytes": 10485760
+    },
+    "editorPresets": {
+      "free": {
+        "aspectRatio": "original",
+        "lockAspectRatio": false,
+        "maxOutputEdge": 2048,
+        "lossyQuality": 0.88
+      },
+      "profile-photo": {
+        "aspectRatio": "original",
+        "lockAspectRatio": false,
+        "maxOutputEdge": 2048,
+        "lossyQuality": 0.88
+      },
+      "avatar-square": {
+        "aspectRatio": "square",
+        "lockAspectRatio": true,
+        "maxOutputEdge": 1024,
+        "lossyQuality": 0.9
+      },
+      "community-cover": {
+        "aspectRatio": "landscape",
+        "lockAspectRatio": true,
+        "maxOutputEdge": 2048,
+        "lossyQuality": 0.88
+      },
+      "social-feed": {
+        "aspectRatio": "original",
+        "lockAspectRatio": false,
+        "maxOutputEdge": 2048,
+        "lossyQuality": 0.88
+      }
+    },
+    "label": "JPG, JPEG, PNG ou WebP"
+  },
+  "video": {
+    "inputFormats": [
+      {
+        "extension": "mp4",
+        "mimeTypes": ["video/mp4"],
+        "browserPreviewLikely": true
+      },
+      {
+        "extension": "m4v",
+        "mimeTypes": ["video/x-m4v"],
+        "canonicalMimeType": "video/mp4",
+        "browserPreviewLikely": true
+      },
+      {
+        "extension": "mov",
+        "mimeTypes": ["video/quicktime"],
+        "browserPreviewLikely": false
+      },
+      {
+        "extension": "webm",
+        "mimeTypes": ["video/webm"],
+        "browserPreviewLikely": true
+      },
+      {
+        "extension": "mkv",
+        "mimeTypes": ["video/x-matroska"],
+        "browserPreviewLikely": false
+      },
+      {
+        "extension": "avi",
+        "mimeTypes": ["video/x-msvideo", "video/avi", "video/msvideo"],
+        "canonicalMimeType": "video/x-msvideo",
+        "browserPreviewLikely": false
+      },
+      {
+        "extension": "wmv",
+        "mimeTypes": ["video/x-ms-wmv"],
+        "browserPreviewLikely": false
+      },
+      {
+        "extension": "ts",
+        "mimeTypes": ["video/mp2t"],
+        "browserPreviewLikely": false
+      },
+      {
+        "extension": "mts",
+        "mimeTypes": ["video/mp2t"],
+        "canonicalMimeType": "video/mp2t",
+        "browserPreviewLikely": false
+      },
+      {
+        "extension": "m2ts",
+        "mimeTypes": ["video/mp2t"],
+        "canonicalMimeType": "video/mp2t",
+        "browserPreviewLikely": false
+      },
+      {
+        "extension": "mxf",
+        "mimeTypes": ["application/mxf", "video/mxf"],
+        "canonicalMimeType": "application/mxf",
+        "browserPreviewLikely": false
+      }
+    ],
+    "publicPlaybackMimeTypes": ["video/mp4", "video/webm"],
+    "limits": {
+      "defaultBytes": 524288000
+    },
+    "output": {
+      "container": "mp4",
+      "videoCodec": "h264",
+      "audioCodec": "aac"
+    },
+    "label": "MP4, M4V, MOV, WebM, MKV, AVI, WMV, TS, MTS, M2TS ou MXF"
+  }
+}

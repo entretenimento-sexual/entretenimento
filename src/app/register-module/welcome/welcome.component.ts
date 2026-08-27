@@ -29,6 +29,11 @@ import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
 
 type UiBannerVariant = 'info' | 'warn' | 'error' | 'success';
+type VerificationEmailDeliveryState = 'sent' | 'failed' | 'unknown';
+type VerificationSyncResult =
+  | { status: 'verified' }
+  | { status: 'pending' }
+  | { status: 'error'; error: unknown };
 
 type UiBanner = {
   variant: UiBannerVariant;
@@ -57,6 +62,7 @@ export class WelcomeComponent implements OnInit {
   lastCheckedAt: Date | null = null;
   profileCompleted = false;
   profileStateLoaded = false;
+  verificationEmailDelivery: VerificationEmailDeliveryState = 'unknown';
 
   private latestVm: RegisterFlowVm | null = null;
   private redirecting = false;
@@ -103,6 +109,8 @@ export class WelcomeComponent implements OnInit {
 
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => this.stopPolling());
+    this.verificationEmailDelivery =
+      this.resolveInitialVerificationEmailDelivery();
 
     this.registerFlow.vm$
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -119,6 +127,18 @@ export class WelcomeComponent implements OnInit {
           this.reportError('WelcomeComponent.registerFlow.vm$', err);
         },
       });
+  }
+
+  private resolveInitialVerificationEmailDelivery(): VerificationEmailDeliveryState {
+    const value = String(
+      this.router.parseUrl(this.router.url).queryParams['verificationEmail'] ?? ''
+    ).trim();
+
+    if (value === 'sent' || value === 'failed') {
+      return value;
+    }
+
+    return 'unknown';
   }
 
   private applyVm(vm: RegisterFlowVm): void {
@@ -141,12 +161,20 @@ export class WelcomeComponent implements OnInit {
 
     if (vm.currentStep === 'emailVerification') {
       if (!this.banner) {
-        this.setBanner(
-          'info',
-          'Confirme seu e-mail',
-          vm.blockingMessage ??
-            'Confirme seu e-mail para continuar com segurança.'
-        );
+        if (this.verificationEmailDelivery === 'failed') {
+          this.setBanner(
+            'warn',
+            'Reenvie o e-mail de verificação',
+            'Sua conta foi criada, mas não conseguimos confirmar o envio inicial do link. Use “Reenviar e-mail” para continuar.'
+          );
+        } else {
+          this.setBanner(
+            'info',
+            'Confirme seu e-mail',
+            vm.blockingMessage ??
+              'Confirme seu e-mail para continuar com segurança.'
+          );
+        }
       }
 
       this.startPolling();
@@ -197,7 +225,14 @@ export class WelcomeComponent implements OnInit {
           this.reloadAndSync$().pipe(
             take(1),
             timeout({ first: this.ACTION_TIMEOUT_MS }),
-            map((syncedOk) => ({ dbg, syncedOk })),
+            map((syncResult) => ({
+              dbg,
+              syncedOk: syncResult.status === 'verified',
+              syncError:
+                syncResult.status === 'error'
+                  ? syncResult.error
+                  : undefined,
+            })),
             catchError((err) =>
               of({ dbg, syncedOk: false, syncError: err })
             )
@@ -277,14 +312,24 @@ export class WelcomeComponent implements OnInit {
     this.reloadAndSync$()
       .pipe(
         take(1),
-        tap((ok) => {
-          if (ok) {
+        tap((result) => {
+          if (result.status === 'verified') {
             this.setBanner(
               'success',
               'E-mail verificado com sucesso!',
               'Sua conta foi validada. Vamos continuar para a próxima etapa.'
             );
             this.tryAutoRedirectToNextStep();
+            return;
+          }
+
+          if (result.status === 'error') {
+            this.setBanner(
+              'error',
+              'Erro ao verificar e-mail',
+              'Não foi possível consultar a verificação agora. Tente novamente em instantes.',
+              result.error
+            );
             return;
           }
 
@@ -321,6 +366,7 @@ export class WelcomeComponent implements OnInit {
         take(1),
         timeout({ first: this.ACTION_TIMEOUT_MS }),
         tap((msg) => {
+          this.verificationEmailDelivery = 'sent';
           this.setBanner(
             'info',
             'E-mail reenviado',
@@ -408,7 +454,7 @@ export class WelcomeComponent implements OnInit {
     this.continueToPreferences();
   }
 
-  private reloadAndSync$(): Observable<boolean> {
+  private reloadAndSync$(): Observable<VerificationSyncResult> {
     return this.authSession.refreshCurrentUser$().pipe(
       timeout({ first: this.ACTION_TIMEOUT_MS }),
       switchMap((user) => {
@@ -416,19 +462,15 @@ export class WelcomeComponent implements OnInit {
         this.email = user?.email ?? this.email ?? null;
         this.emailVerified = user?.emailVerified === true;
 
-        if (!user?.uid) {
-          return of(false);
-        }
-
-        if (!user.emailVerified) {
-          return of(false);
+        if (!user?.uid || !user.emailVerified) {
+          return of({ status: 'pending' } as const);
         }
 
         return this.emailVerificationService
           .updateEmailVerificationStatus(user.uid, true)
           .pipe(
             take(1),
-            map(() => true),
+            map(() => ({ status: 'verified' } as const)),
             catchError((err) => {
               this.reportError(
                 'WelcomeComponent.updateEmailVerificationStatus',
@@ -436,19 +478,20 @@ export class WelcomeComponent implements OnInit {
                 true
               );
 
-              return of(true);
+              return of({ status: 'verified' } as const);
             })
           );
       }),
       catchError((err) => {
-        this.setBanner(
-          'error',
-          'Erro ao verificar e-mail',
-          'Tente novamente em instantes.',
-          err
+        this.reportError(
+          'WelcomeComponent.reloadAndSync$',
+          err,
+          true
         );
-        this.reportError('WelcomeComponent.reloadAndSync$', err);
-        return of(false);
+        return of({
+          status: 'error',
+          error: err,
+        } as VerificationSyncResult);
       })
     );
   }
@@ -524,12 +567,23 @@ export class WelcomeComponent implements OnInit {
             !this.emailVerified
         ),
         exhaustMap(() => this.reloadAndSync$().pipe(take(1))),
-        tap((ok) => {
+        tap((result) => {
           this.pollTries++;
 
-          if (ok) {
+          if (result.status === 'verified') {
             this.stopPolling();
             this.tryAutoRedirectToNextStep();
+            return;
+          }
+
+          if (result.status === 'error') {
+            this.stopPolling();
+            this.setBanner(
+              'error',
+              'Erro ao verificar e-mail',
+              'A verificação automática foi interrompida por uma falha de comunicação. Use “Checar agora” para tentar novamente.',
+              result.error
+            );
             return;
           }
 
@@ -614,8 +668,15 @@ export class WelcomeComponent implements OnInit {
   }
 
   openInbox(): void {
-    const mail = this.email || '';
+    const mail = String(this.email ?? '').trim();
     const domain = (mail.split('@')[1] || '').toLowerCase();
+
+    if (!mail || !domain) {
+      this.notify.showWarning(
+        'Não foi possível identificar o e-mail desta conta.'
+      );
+      return;
+    }
 
     const map: Record<string, string> = {
       'gmail.com': 'https://mail.google.com',
@@ -632,28 +693,66 @@ export class WelcomeComponent implements OnInit {
       'ig.com.br': 'https://email.ig.com.br',
     };
 
-    const url = map[domain] || '';
-    if (url && typeof window !== 'undefined') {
-      window.open(url, '_blank', 'noopener,noreferrer');
+    const url = map[domain];
+    if (!url) {
+      this.notify.showInfo(
+        `Abra seu aplicativo ou provedor de e-mail para conferir ${mail}.`
+      );
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      this.notify.showWarning(
+        'Não foi possível abrir seu provedor de e-mail neste dispositivo.'
+      );
+      return;
+    }
+
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      this.notify.showWarning(
+        'O navegador bloqueou a abertura do e-mail. Libere pop-ups ou abra seu provedor manualmente.'
+      );
     }
   }
 
   copyEmail(): void {
-    if (
-      !this.email ||
-      typeof navigator === 'undefined' ||
-      !navigator.clipboard
-    ) {
+    const mail = String(this.email ?? '').trim();
+
+    if (!mail) {
+      this.notify.showWarning(
+        'Não foi possível identificar o e-mail desta conta.'
+      );
       return;
     }
 
-    navigator.clipboard.writeText(this.email).catch(() => {});
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard?.writeText
+    ) {
+      this.notify.showWarning(
+        'Seu navegador não permite copiar o e-mail automaticamente.'
+      );
+      return;
+    }
+
+    navigator.clipboard
+      .writeText(mail)
+      .then(() => {
+        this.notify.showSuccess('E-mail copiado.');
+      })
+      .catch((err) => {
+        this.reportError('WelcomeComponent.copyEmail', err, true);
+        this.notify.showWarning(
+          'Não foi possível copiar o e-mail. Tente novamente ou copie manualmente.'
+        );
+      });
   }
 
   private reportError(
     origin: string,
     err: unknown,
-    silentToast: boolean = false
+    silentToast: boolean = true
   ): void {
     try {
       const reportable = err instanceof Error

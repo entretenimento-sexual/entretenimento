@@ -1,0 +1,73 @@
+<!-- src/app/account/pages/account-security/account-security.component.html -->
+<section class="account-section-page" aria-labelledby="account-security-title">
+  @if (vm$ | async; as vm) {
+    @if (vm) {
+      <header class="account-section-header">
+        <h2 id="account-security-title">Segurança</h2>
+      </header>
+
+      <section class="account-surface" aria-labelledby="account-access-methods-title">
+        <div class="account-surface__head">
+          <h3 id="account-access-methods-title">Acesso</h3>
+        </div>
+
+        <div class="account-list">
+          <div class="account-list__row">
+            <div class="account-list__copy">
+              <span class="account-fact-label">E-mail</span>
+              <strong>{{ vm.email || 'Não informado' }}</strong>
+              <small>{{ vm.emailStatusLabel }}</small>
+            </div>
+
+            @if (!vm.emailVerified) {
+              <a class="btn btn-primary" routerLink="/register/welcome">
+                Confirmar e-mail
+              </a>
+            }
+          </div>
+
+          <div class="account-list__row">
+            <div class="account-list__copy">
+              <span class="account-fact-label">Senha</span>
+              <strong>{{ vm.passwordConfigured ? 'Configurada' : 'Não confirmada' }}</strong>
+            </div>
+          </div>
+
+          <div class="account-list__row">
+            <div class="account-list__copy">
+              <span class="account-fact-label">Google</span>
+              <strong>{{ vm.googleLinked ? 'Vinculado' : 'Não vinculado' }}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="account-surface" aria-labelledby="account-security-history-title">
+        <div class="account-list">
+          <div class="account-list__row">
+            <div class="account-list__copy">
+              <strong id="account-security-history-title">Histórico de privilégios</strong>
+              <small>Somente leitura.</small>
+            </div>
+
+            <a
+              class="account-support-link"
+              routerLink="/conta/seguranca/historico-privilegios"
+              aria-label="Ver histórico somente leitura de privilégios administrativos"
+            >
+              Ver histórico
+            </a>
+          </div>
+        </div>
+      </section>
+    } @else {
+      <section class="account-context-panel" role="alert">
+        <p>Não foi possível carregar os dados de segurança desta conta.</p>
+      </section>
+    }
+  } @else {
+    <section class="account-context-panel" role="status" aria-live="polite">
+      <p>Carregando segurança...</p>
+    </section>
+  }
+</section>

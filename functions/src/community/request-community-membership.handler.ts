@@ -12,9 +12,12 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  assertCommunityAcceptingNewMembers,
+  getCommunityCapacityForOwnerInTransaction,
+} from './community-capacity.service';
+import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
+import {
   assertCommunityMembershipActorEligible,
-  isCommunityMembershipEntitlementAllowed,
-  resolveCommunityMembershipRequirement,
 } from './community-membership-eligibility.service';
 import {
   CommunityJoinPolicy,
@@ -57,10 +60,17 @@ function normalizeMembershipStatus(
     : null;
 }
 
-function throwDecisionError(
-  reason: string | null,
-  minimumRole: 'basic' | 'premium' | 'vip'
-): never {
+function resolveMemberCountDelta(
+  rawCommunity: unknown,
+  delta: -1 | 1
+): number | null {
+  const community = (rawCommunity ?? {}) as Record<string, unknown>;
+  const metrics = (community['metrics'] ?? {}) as Record<string, unknown>;
+
+  return resolveCommunityMemberCountDelta(metrics['memberCount'], delta);
+}
+
+function throwDecisionError(reason: string | null): never {
   if (reason === 'invite_only') {
     throw new HttpsError(
       'failed-precondition',
@@ -72,18 +82,6 @@ function throwDecisionError(
     throw new HttpsError(
       'permission-denied',
       'Você não pode participar desta comunidade.'
-    );
-  }
-
-  if (reason === 'subscription_required') {
-    throw new HttpsError(
-      'permission-denied',
-      'Assinatura compatível necessária.',
-      {
-        reason: 'subscription_inactive',
-        recommendedAction: 'upgrade_subscription',
-        minimumRole,
-      }
     );
   }
 
@@ -163,21 +161,6 @@ export const requestCommunityMembership =
         >;
         const access = (community['access'] ?? {}) as Record<string, unknown>;
         const join = normalizeJoin(access['join']);
-        const requirement = resolveCommunityMembershipRequirement(community);
-        let entitlementAllowed = !requirement.requiresEntitlement;
-
-        if (requirement.requiresEntitlement) {
-          const entitlementRef = db
-            .collection('entitlements')
-            .doc(`platform_subscription_${uid}`);
-          const entitlementSnapshot = await transaction.get(entitlementRef);
-          entitlementAllowed = isCommunityMembershipEntitlementAllowed(
-            entitlementSnapshot.exists ? entitlementSnapshot.data() : null,
-            uid,
-            requirement
-          );
-        }
-
         const existingStatus = normalizeMembershipStatus(
           membershipSnapshot.data()?.['status']
         );
@@ -193,11 +176,18 @@ export const requestCommunityMembership =
           join,
           existingStatus,
           actorEligible: true,
-          entitlementAllowed,
         });
 
         if (!decision.allowed || !decision.targetStatus) {
-          throwDecisionError(decision.denialReason, requirement.minimumRole);
+          throwDecisionError(decision.denialReason);
+        }
+
+        if (decision.incrementMemberCount) {
+          const capacity = await getCommunityCapacityForOwnerInTransaction(
+            transaction,
+            community
+          );
+          assertCommunityAcceptingNewMembers(capacity);
         }
 
         if (!decision.idempotent) {
@@ -225,14 +215,21 @@ export const requestCommunityMembership =
           );
 
           if (decision.incrementMemberCount) {
-            transaction.update(communityRef, {
-              'metrics.memberCount': FieldValue.increment(1),
+            const nextMemberCount = resolveMemberCountDelta(community, 1);
+            const communityPatch: Record<string, unknown> = {
+              'lifecycle.lastMeaningfulActivityAt': now,
               updatedAt: now,
-            });
+            };
 
-            if (discoverySnapshot.exists) {
+            if (nextMemberCount !== null) {
+              communityPatch['metrics.memberCount'] = nextMemberCount;
+            }
+
+            transaction.update(communityRef, communityPatch);
+
+            if (discoverySnapshot.exists && nextMemberCount !== null) {
               transaction.update(discoveryRef, {
-                'metrics.memberCount': FieldValue.increment(1),
+                'metrics.memberCount': nextMemberCount,
                 updatedAt: now,
               });
             }

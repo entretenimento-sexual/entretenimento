@@ -19,7 +19,11 @@ interface ExistingTermsAcceptance {
 }
 
 export const acceptPlatformTerms = onCall<AcceptPlatformTermsRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    cors: true,
+    invoker: 'public',
+  },
   async (request): Promise<{
     ok: true;
     version: string;

@@ -18,6 +18,8 @@ const navigationVm = {
     photoURL: '',
     role: 'premium',
   },
+  subscriptionRole: 'premium' as const,
+  isSubscriber: true,
   currentUrl: '/perfil/u1',
   viewedUid: 'u1',
   isProfileRoute: true,

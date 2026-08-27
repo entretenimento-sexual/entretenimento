@@ -330,9 +330,10 @@ function resolveOwnedUploadAssets(
 }
 
 /**
- * Registra o upload e só responde depois que a fila idempotente foi persistida.
- * O trigger Firestore continua como mecanismo de reconciliação e recuperação.
- * A elegibilidade é revalidada no backend antes do registro definitivo.
+ * Registra o arquivo-fonte protegido e só responde depois que a intenção de
+ * publicação e a fila idempotente foram persistidas. Não há segundo write de
+ * publicação aqui: o core cria PUBLIC + APPROVED atomicamente com o
+ * documento do vídeo.
  */
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest

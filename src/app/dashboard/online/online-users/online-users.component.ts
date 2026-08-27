@@ -7,7 +7,7 @@
 // - exibir usuários online/próximos com base no estado já materializado pelo NgRx;
 // - obter/atualizar a localização do usuário atual por gesto explícito ou permissão já concedida;
 // - persistir localização privada em users/{uid};
-// - persistir localização pública, já reduzida pela policy, em public_profiles/{uid};
+// - consumir a localização pública derivada pelo backend em public_profiles/{uid};
 // - aplicar raio visual/local e cálculo de distância;
 // - NÃO decidir quem está online no Firestore diretamente.
 //
@@ -569,16 +569,12 @@ get listAriaLabel(): string {
       );
 
       /**
-       * Persistências separadas:
-       * - raw: users/{uid}, dado privado/completo;
-       * - safe: public_profiles/{uid}, dado público já reduzido pela policy.
+       * A única escrita do cliente é a posição privada em users/{uid}.
+       * syncPublicProfileDiscovery deriva public_profiles/{uid} no backend.
+       * A versão reduzida continua sendo usada localmente para UI/raio.
        */
       await firstValueFrom(
         this.geoTracking.persistLocationOnce$(currentUser.uid, raw)
-      );
-
-      await firstValueFrom(
-        this.geoTracking.persistPublicLocation$(currentUser.uid, safe)
       );
 
       this.userLocation = {

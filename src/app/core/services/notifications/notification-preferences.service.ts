@@ -43,6 +43,14 @@ interface UserPreferencesDocument {
   notificationPreferences?: unknown;
 }
 
+interface NotificationPreferencesReportableError extends Error {
+  context?: string;
+  operation?: string;
+  extra?: Record<string, unknown>;
+  original?: unknown;
+  skipUserNotification?: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class NotificationPreferencesService {
   private readonly firestore = inject(Firestore);
@@ -130,6 +138,7 @@ export class NotificationPreferencesService {
       'messages',
       'connections',
       'rooms',
+      'communities',
       'places',
       'compatibleStatus',
     ];
@@ -150,6 +159,10 @@ export class NotificationPreferencesService {
       messages: this.toBool(source?.messages, DEFAULT_NOTIFICATION_PREFERENCES.messages),
       connections: this.toBool(source?.connections, DEFAULT_NOTIFICATION_PREFERENCES.connections),
       rooms: this.toBool(source?.rooms, DEFAULT_NOTIFICATION_PREFERENCES.rooms),
+      communities: this.toBool(
+        source?.communities,
+        DEFAULT_NOTIFICATION_PREFERENCES.communities
+      ),
       places: this.toBool(source?.places, DEFAULT_NOTIFICATION_PREFERENCES.places),
       compatibleStatus: this.toBool(
         source?.compatibleStatus,
@@ -169,17 +182,18 @@ export class NotificationPreferencesService {
     extra: Record<string, unknown>
   ): void {
     try {
-      const err = error instanceof Error
+      const reportable = (error instanceof Error
         ? error
-        : new Error('[NotificationPreferencesService] operation failed');
+        : new Error('[NotificationPreferencesService] operation failed')) as
+        NotificationPreferencesReportableError;
 
-      (err as any).context = 'NotificationPreferencesService';
-      (err as any).operation = operation;
-      (err as any).extra = extra;
-      (err as any).original = error;
-      (err as any).skipUserNotification = true;
+      reportable.context = 'NotificationPreferencesService';
+      reportable.operation = operation;
+      reportable.extra = extra;
+      reportable.original = error;
+      reportable.skipUserNotification = true;
 
-      this.globalError.handleError(err);
+      this.globalError.handleError(reportable);
     } catch {
       // noop
     }
