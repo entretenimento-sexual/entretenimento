@@ -8,12 +8,12 @@
 // retenção, moderação, denúncias e eventual obrigação legal.
 // -----------------------------------------------------------------------------
 
-export type CommunityLifecycleStatus =
-  | 'active'
-  | 'paused'
-  | 'dormant'
-  | 'archived'
-  | 'scheduled_for_deletion';
+import { isCommunityLifecycleStatus } from './community-contract.generated';
+import type {
+  CommunityLifecycleStatus as CanonicalCommunityLifecycleStatus,
+} from './community-contract.generated';
+
+export type CommunityLifecycleStatus = CanonicalCommunityLifecycleStatus;
 
 export type CommunityLifecycleReason =
   | 'not_community'
@@ -97,12 +97,7 @@ function normalizeOptionalCount(value: unknown): number | null {
 }
 
 function normalizeStatus(value: unknown): CommunityLifecycleStatus {
-  return value === 'paused'
-    || value === 'dormant'
-    || value === 'archived'
-    || value === 'scheduled_for_deletion'
-    ? value
-    : 'active';
+  return isCommunityLifecycleStatus(value) ? value : 'active';
 }
 
 /**
