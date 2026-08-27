@@ -107,17 +107,40 @@ function stagePostPhotoCleanup(
   if (post['kind'] !== 'photo') return null;
 
   const ownerUid = String(post['actorUid'] ?? '').trim();
-  const media = normalizePublishedMediaReference(post['media']);
-  const legacyImage = (post['image'] ?? {}) as Record<string, unknown>;
-  const photoId = media?.mediaType === 'PHOTO' ? media.mediaId : postId;
-  const storagePath = media?.mediaType === 'PHOTO'
-    ? media.storagePath
-    : String(legacyImage['storagePath'] ?? '').trim();
-  if (!ownerUid || !storagePath) return null;
+  if (!ownerUid) {
+    throw new HttpsError(
+      'data-loss',
+      'A publicação possui autoria inconsistente e exige revisão.'
+    );
+  }
+
+  let storagePath = '';
+
+  if (post['media'] != null) {
+    const media = normalizePublishedMediaReference(post['media']);
+    if (
+      !media
+      || media.mediaType !== 'PHOTO'
+      || media.ownerUid !== ownerUid
+      || media.mediaId !== postId
+    ) {
+      throw new HttpsError(
+        'data-loss',
+        'A referência de mídia da publicação está inconsistente e exige revisão.'
+      );
+    }
+    storagePath = media.storagePath;
+  } else {
+    // Compatibilidade com posts anteriores ao contrato canônico `media`.
+    const legacyImage = (post['image'] ?? {}) as Record<string, unknown>;
+    storagePath = String(legacyImage['storagePath'] ?? '').trim();
+  }
+
+  if (!storagePath) return null;
 
   return stagePublishedPhotoAssetCleanup(transaction, {
     ownerUid,
-    photoId,
+    photoId: postId,
     storagePath,
     reason: action === 'delete_own'
       ? 'community-feed-post-deleted-by-author'
