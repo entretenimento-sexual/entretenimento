@@ -63,6 +63,26 @@ export interface BuildPublishedVideoReferenceInput {
   alt?: unknown;
 }
 
+function containsControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 31 || code === 127) return true;
+  }
+
+  return false;
+}
+
+function replaceControlCharacters(value: string): string {
+  let sanitized = '';
+
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    sanitized += code <= 31 || code === 127 ? ' ' : value[index];
+  }
+
+  return sanitized;
+}
+
 function normalizeId(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
 
@@ -70,7 +90,7 @@ function normalizeId(value: unknown): string | null {
     !normalized
     || normalized.length > 128
     || normalized.includes('/')
-    || /[\u0000-\u001F\u007F]/.test(normalized)
+    || containsControlCharacter(normalized)
   ) {
     return null;
   }
@@ -79,8 +99,7 @@ function normalizeId(value: unknown): string | null {
 }
 
 function normalizeAlt(value: unknown, fallback: string): string {
-  const normalized = String(value ?? '')
-    .replace(/[\u0000-\u001F\u007F]/g, ' ')
+  const normalized = replaceControlCharacters(String(value ?? ''))
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 140);
