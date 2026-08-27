@@ -47,7 +47,7 @@ export class CommunityFeedCacheService {
   private activeViewerUid: string | null = null;
 
   constructor() {
-    this.session.readyUid$
+    this.session.uid$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((uid) => {
         const viewerUid = normalizeCommunityFeedViewerUid(uid) || null;
@@ -62,7 +62,7 @@ export class CommunityFeedCacheService {
     communityId: string,
     view: CommunityFeedView
   ): Observable<CommunityFeedCacheSnapshot | null> {
-    return this.session.readyUid$.pipe(
+    return this.session.uid$.pipe(
       take(1),
       switchMap((uid) => {
         const query = buildCommunityFeedCacheQuery(uid, communityId, view);
