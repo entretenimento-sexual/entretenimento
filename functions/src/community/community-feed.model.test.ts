@@ -208,6 +208,7 @@ test('aceita referência canônica de foto publicada sem expor o storage ao item
         mediaId: 'post-photo-canonical',
         ownerUid: 'u1',
         assetAccess: 'SIGNED_URL',
+        assetLifecycle: 'SURFACE_OWNED',
         storagePath:
           'users/u1/published/images/post-photo-canonical/1800000000000-version1',
         alt: 'Foto preparada pela camada canônica',
@@ -234,6 +235,7 @@ test('falha fechado quando a referência canônica de mídia está corrompida', 
           mediaId: 'outro-post',
           ownerUid: 'u1',
           assetAccess: 'SIGNED_URL',
+          assetLifecycle: 'SURFACE_OWNED',
           storagePath:
             'users/u1/published/images/post-photo-invalid-media/1800000000000-version1',
         },
