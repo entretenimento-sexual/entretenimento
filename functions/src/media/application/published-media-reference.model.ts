@@ -2,9 +2,14 @@
 // -----------------------------------------------------------------------------
 // PUBLISHED MEDIA REFERENCE
 // -----------------------------------------------------------------------------
-// Contrato canônico para superfícies sociais referenciaren assets já preparados
-// pela camada de mídia. A referência nunca concede acesso por si só: a superfície
-// ainda precisa autorizar o viewer e emitir URL/playback temporário no backend.
+// Contrato canônico interno para superfícies sociais referenciarem assets já
+// preparados pela camada de mídia. A referência nunca concede acesso por si só:
+// a superfície ainda autoriza o viewer e emite URL/playback temporário no backend.
+//
+// `SURFACE_OWNED` significa que o asset físico foi criado exclusivamente para a
+// publicação que guarda esta referência e pode acompanhar seu lifecycle. Mídia
+// pública reutilizável entre superfícies deve usar referência lógica (owner/id),
+// sem transferir ao consumidor a responsabilidade de apagar o arquivo físico.
 // -----------------------------------------------------------------------------
 
 import { normalizeOwnedPublishedPhotoPath } from './photo-storage-path';
@@ -15,26 +20,26 @@ import {
 
 export type PublishedMediaType = 'PHOTO' | 'VIDEO';
 export type PublishedMediaAssetAccess = 'SIGNED_URL';
+export type PublishedMediaAssetLifecycle = 'SURFACE_OWNED';
 
-export interface PublishedPhotoReference {
-  readonly mediaType: 'PHOTO';
+interface PublishedMediaReferenceBase {
   readonly mediaId: string;
   readonly ownerUid: string;
   readonly assetAccess: PublishedMediaAssetAccess;
+  readonly assetLifecycle: PublishedMediaAssetLifecycle;
   readonly storagePath: string;
   readonly alt: string;
 }
 
-export interface PublishedVideoReference {
+export interface PublishedPhotoReference extends PublishedMediaReferenceBase {
+  readonly mediaType: 'PHOTO';
+}
+
+export interface PublishedVideoReference extends PublishedMediaReferenceBase {
   readonly mediaType: 'VIDEO';
-  readonly mediaId: string;
-  readonly ownerUid: string;
-  readonly assetAccess: PublishedMediaAssetAccess;
-  readonly storagePath: string;
   readonly posterStoragePath: string | null;
   readonly mimeType: 'video/mp4' | 'video/webm';
   readonly durationMs: number;
-  readonly alt: string;
 }
 
 export type PublishedMediaReference =
@@ -95,6 +100,21 @@ function normalizeVideoMimeType(value: unknown): 'video/mp4' | 'video/webm' | nu
     : null;
 }
 
+function normalizePublishedVideoPosterPath(
+  ownerUid: string | null,
+  mediaId: string | null,
+  value: unknown
+): string | null {
+  if (value == null) return null;
+  if (!ownerUid || !mediaId) return null;
+
+  return normalizeOwnedPublishedVideoPosterPath(ownerUid, mediaId, value);
+}
+
+function hasSurfaceOwnedLifecycle(source: Record<string, unknown>): boolean {
+  return source['assetLifecycle'] === 'SURFACE_OWNED';
+}
+
 export function buildPublishedPhotoReference(
   input: Readonly<BuildPublishedPhotoReferenceInput>
 ): PublishedPhotoReference {
@@ -113,6 +133,7 @@ export function buildPublishedPhotoReference(
     mediaId,
     ownerUid,
     assetAccess: 'SIGNED_URL',
+    assetLifecycle: 'SURFACE_OWNED',
     storagePath,
     alt: normalizeAlt(input.alt, 'Foto publicada'),
   };
@@ -126,15 +147,11 @@ export function buildPublishedVideoReference(
   const storagePath = ownerUid && mediaId
     ? normalizeOwnedPublishedVideoPath(ownerUid, mediaId, input.storagePath)
     : null;
-  const posterStoragePath = input.posterStoragePath == null
-    ? null
-    : ownerUid && mediaId
-      ? normalizeOwnedPublishedVideoPosterPath(
-        ownerUid,
-        mediaId,
-        input.posterStoragePath
-      )
-      : null;
+  const posterStoragePath = normalizePublishedVideoPosterPath(
+    ownerUid,
+    mediaId,
+    input.posterStoragePath
+  );
   const mimeType = normalizeVideoMimeType(input.mimeType);
   const durationMs = normalizeDurationMs(input.durationMs);
 
@@ -154,6 +171,7 @@ export function buildPublishedVideoReference(
     mediaId,
     ownerUid,
     assetAccess: 'SIGNED_URL',
+    assetLifecycle: 'SURFACE_OWNED',
     storagePath,
     posterStoragePath,
     mimeType,
@@ -167,9 +185,15 @@ export function normalizePublishedMediaReference(
 ): PublishedMediaReference | null {
   const source = (raw ?? {}) as Record<string, unknown>;
 
+  if (
+    source['assetAccess'] !== 'SIGNED_URL'
+    || !hasSurfaceOwnedLifecycle(source)
+  ) {
+    return null;
+  }
+
   try {
     if (source['mediaType'] === 'PHOTO') {
-      if (source['assetAccess'] !== 'SIGNED_URL') return null;
       return buildPublishedPhotoReference({
         ownerUid: source['ownerUid'],
         mediaId: source['mediaId'],
@@ -179,7 +203,6 @@ export function normalizePublishedMediaReference(
     }
 
     if (source['mediaType'] === 'VIDEO') {
-      if (source['assetAccess'] !== 'SIGNED_URL') return null;
       return buildPublishedVideoReference({
         ownerUid: source['ownerUid'],
         mediaId: source['mediaId'],
