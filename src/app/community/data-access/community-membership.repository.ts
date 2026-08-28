@@ -8,8 +8,9 @@
 
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { defer, from, map, Observable } from 'rxjs';
+import { defer, from, map, Observable, tap } from 'rxjs';
 
+import { CommunityDomainEventsService } from './community-domain-events.service';
 import {
   CommunityMembershipRequestResponse,
   CommunityMembershipRequestsResponse,
@@ -23,6 +24,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class CommunityMembershipRepository {
   private readonly functions = inject(Functions);
+  private readonly domainEvents = inject(CommunityDomainEventsService);
 
   private readonly requestMembershipCallable = httpsCallable<
     { communityId: string },
@@ -51,8 +53,9 @@ export class CommunityMembershipRepository {
   requestMembership$(
     communityId: string
   ): Observable<CommunityMembershipRequestResponse> {
+    const normalizedCommunityId = communityId.trim();
     return defer(() =>
-      from(this.requestMembershipCallable({ communityId: communityId.trim() }))
+      from(this.requestMembershipCallable({ communityId: normalizedCommunityId }))
     ).pipe(
       map((result) => {
         const normalized = normalizeCommunityMembershipResponse(result.data);
@@ -62,15 +65,22 @@ export class CommunityMembershipRepository {
         }
 
         return normalized;
-      })
+      }),
+      tap(() =>
+        this.domainEvents.notifyDiscoveryChanged(
+          'membership_changed',
+          normalizedCommunityId
+        )
+      )
     );
   }
 
   leaveMembership$(
     communityId: string
   ): Observable<CommunityMembershipRequestResponse> {
+    const normalizedCommunityId = communityId.trim();
     return defer(() =>
-      from(this.leaveMembershipCallable({ communityId: communityId.trim() }))
+      from(this.leaveMembershipCallable({ communityId: normalizedCommunityId }))
     ).pipe(
       map((result) => {
         const normalized = normalizeCommunityMembershipResponse(result.data);
@@ -80,7 +90,13 @@ export class CommunityMembershipRepository {
         }
 
         return normalized;
-      })
+      }),
+      tap(() =>
+        this.domainEvents.notifyDiscoveryChanged(
+          'membership_changed',
+          normalizedCommunityId
+        )
+      )
     );
   }
 
@@ -111,10 +127,11 @@ export class CommunityMembershipRepository {
     memberId: string,
     action: CommunityMembershipReviewAction
   ): Observable<CommunityMembershipReviewResponse> {
+    const normalizedCommunityId = communityId.trim();
     return defer(() =>
       from(
         this.reviewMembershipCallable({
-          communityId: communityId.trim(),
+          communityId: normalizedCommunityId,
           memberId: memberId.trim(),
           action,
         })
@@ -130,7 +147,13 @@ export class CommunityMembershipRepository {
         }
 
         return normalized;
-      })
+      }),
+      tap(() =>
+        this.domainEvents.notifyDiscoveryChanged(
+          'membership_changed',
+          normalizedCommunityId
+        )
+      )
     );
   }
 }
