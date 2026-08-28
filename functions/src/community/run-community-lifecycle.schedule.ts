@@ -22,6 +22,7 @@ import {
 } from './community-lifecycle-execution.policy';
 import { evaluateCommunityLifecycle } from './community-lifecycle.policy';
 import { sanitizeCommunityDocument } from './community-preview.model';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 const PAGE_SIZE = 50;
 const SYSTEM_SOURCE = 'scheduled-community-lifecycle';
@@ -184,6 +185,11 @@ export const runCommunityLifecycle = onSchedule(
     concurrency: 1,
   },
   async () => {
+    if (!isCommunityPreviewRuntimeAvailable()) {
+      logger.info('community_lifecycle_skipped_runtime_guard');
+      return;
+    }
+
     const now = Date.now();
     const configRef = db.collection('platform_config').doc('community');
     const runtimeRef = db

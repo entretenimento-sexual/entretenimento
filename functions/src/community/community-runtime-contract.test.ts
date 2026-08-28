@@ -8,19 +8,24 @@ const communitySourceDirectory = path.resolve(
   '../../src/community'
 );
 const ON_CALL_ASSIGNMENT_PATTERN = /=\s*onCall\s*(?:<|\()/;
+const ON_SCHEDULE_ASSIGNMENT_PATTERN = /=\s*onSchedule\s*\(/;
 const COMMUNITY_RUNTIME_PATTERN = /isCommunityPreviewRuntimeAvailable\(\)/;
+
+function communitySourceFiles(): Array<{ fileName: string; source: string }> {
+  return readdirSync(communitySourceDirectory)
+    .filter((fileName) => fileName.endsWith('.ts'))
+    .map((fileName) => ({
+      fileName,
+      source: readFileSync(
+        path.join(communitySourceDirectory, fileName),
+        'utf8'
+      ),
+    }));
+}
 
 describe('community runtime contract', () => {
   it('mantém toda callable na fronteira de runtime própria de Comunidades', () => {
-    const callableFiles = readdirSync(communitySourceDirectory)
-      .filter((fileName) => fileName.endsWith('.ts'))
-      .map((fileName) => ({
-        fileName,
-        source: readFileSync(
-          path.join(communitySourceDirectory, fileName),
-          'utf8'
-        ),
-      }))
+    const callableFiles = communitySourceFiles()
       .filter(({ source }) => ON_CALL_ASSIGNMENT_PATTERN.test(source));
 
     assert.ok(
@@ -38,6 +43,24 @@ describe('community runtime contract', () => {
         source,
         COMMUNITY_RUNTIME_PATTERN,
         `${fileName}: callable deve usar o guard de runtime de Comunidades.`
+      );
+    }
+  });
+
+  it('mantém schedulers de Comunidades na mesma fronteira de runtime', () => {
+    const scheduledFiles = communitySourceFiles()
+      .filter(({ source }) => ON_SCHEDULE_ASSIGNMENT_PATTERN.test(source));
+
+    assert.ok(
+      scheduledFiles.length > 0,
+      'O contrato deve encontrar ao menos um scheduler de Comunidades.'
+    );
+
+    for (const { fileName, source } of scheduledFiles) {
+      assert.match(
+        source,
+        COMMUNITY_RUNTIME_PATTERN,
+        `${fileName}: scheduler deve usar o guard de runtime de Comunidades.`
       );
     }
   });
