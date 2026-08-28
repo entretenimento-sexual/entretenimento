@@ -17,7 +17,7 @@ import {
   stagePublishedPhotoAssetCleanup,
   type StagedPublishedPhotoAssetCleanup,
 } from '../media/application/published-photo-asset.service';
-import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
@@ -45,7 +45,7 @@ interface PostActionTransactionResult {
 }
 
 function assertFeedRuntime(): void {
-  if (isFunctionsEmulatorRuntime()) return;
+  if (isCommunityPreviewRuntimeAvailable()) return;
 
   throw new HttpsError(
     'failed-precondition',

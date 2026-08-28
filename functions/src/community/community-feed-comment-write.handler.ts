@@ -11,7 +11,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
 import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
-import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   buildBilateralBlockPaths,
   isBilateralBlockActive,
@@ -52,7 +52,7 @@ type FlatConversationCreateRequest = CommunityFeedCommentCreateRequest & {
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 
 function assertRuntime(): void {
-  if (isFunctionsEmulatorRuntime()) return;
+  if (isCommunityPreviewRuntimeAvailable()) return;
   throw new HttpsError(
     'failed-precondition',
     'A conversa do Mural ainda não está disponível neste ambiente.'

@@ -8,7 +8,7 @@ import {
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { assertNoActiveBilateralBlockInTransaction } from '../friendship/application/bilateral-block-access.policy';
-import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   assertCommunityAcceptingNewMembers,
   getCommunityCapacityForOwnerInTransaction,
@@ -45,7 +45,7 @@ interface CommunityInviteResponseRequest {
 }
 
 function assertPreviewRuntime(): void {
-  if (isFunctionsEmulatorRuntime()) return;
+  if (isCommunityPreviewRuntimeAvailable()) return;
 
   throw new HttpsError(
     'failed-precondition',

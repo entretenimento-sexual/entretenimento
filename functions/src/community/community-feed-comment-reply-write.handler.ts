@@ -14,7 +14,7 @@ import {
   isBilateralBlockActive,
 } from '../friendship/application/bilateral-block-access.policy';
 import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
-import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
@@ -43,7 +43,7 @@ import type { CommunityViewerRole } from './community-preview.model';
 import { getCommunityViewerContext } from './community-viewer-access.service';
 
 function assertRuntime(): void {
-  if (isFunctionsEmulatorRuntime()) return;
+  if (isCommunityPreviewRuntimeAvailable()) return;
   throw new HttpsError(
     'failed-precondition',
     'As respostas dos comentários ainda não estão disponíveis neste ambiente.'

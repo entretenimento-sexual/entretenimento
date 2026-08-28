@@ -21,7 +21,7 @@ import { db } from '../firebaseApp';
 import {
   evaluatePlatformSubscriptionEntitlement,
 } from '../payments/application/platform-subscription-entitlement.service';
-import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
@@ -41,7 +41,7 @@ import {
 } from './create-community.model';
 
 function assertPreviewRuntime(): void {
-  if (isFunctionsEmulatorRuntime()) return;
+  if (isCommunityPreviewRuntimeAvailable()) return;
 
   throw new HttpsError(
     'failed-precondition',

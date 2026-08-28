@@ -13,7 +13,7 @@ import { assertInteractionAccess } from '../account_lifecycle/interaction-access
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
-import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
@@ -32,7 +32,7 @@ const REPORT_SUSTAINED_WINDOW_MS = 10 * 60 * 1_000;
 const REPORT_SUSTAINED_MAX = 48;
 
 function assertFeedRuntime(): void {
-  if (isFunctionsEmulatorRuntime()) return;
+  if (isCommunityPreviewRuntimeAvailable()) return;
   throw new HttpsError(
     'failed-precondition',
     'As denúncias do Mural ainda não estão disponíveis neste ambiente.'

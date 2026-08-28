@@ -10,7 +10,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
-import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   assertCommunityAcceptingNewMembers,
   getCommunityCapacityForOwnerInTransaction,
@@ -71,7 +71,7 @@ const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const MAX_PENDING_REQUESTS = 24;
 
 function assertPreviewRuntime(): void {
-  if (isFunctionsEmulatorRuntime()) return;
+  if (isCommunityPreviewRuntimeAvailable()) return;
 
   throw new HttpsError(
     'failed-precondition',

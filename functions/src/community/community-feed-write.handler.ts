@@ -17,7 +17,7 @@ import {
   deletePublishedPhotoAssetOrQueue,
 } from '../media/application/published-photo-asset.service';
 import { extractOwnedPrivatePhotoPath } from '../media/application/photo-storage-path';
-import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
@@ -53,7 +53,7 @@ interface CommunityFeedTransactionResult extends CommunityFeedPostWriteResponse 
 }
 
 function assertPreviewRuntime(): void {
-  if (isFunctionsEmulatorRuntime()) return;
+  if (isCommunityPreviewRuntimeAvailable()) return;
 
   throw new HttpsError(
     'failed-precondition',
