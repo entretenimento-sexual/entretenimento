@@ -10,10 +10,10 @@ import { selectCommunityDiscoveryCacheSlice } from 'src/app/store/selectors/sele
 import type { AppState } from 'src/app/store/states/app.state';
 import type { CommunityDiscoveryPage } from '../data-access/community-preview.model';
 import {
-  COMMUNITY_DISCOVERY_CACHE_TTL_MS,
   CommunityDiscoveryCacheContext,
   buildCommunityDiscoveryCacheKey,
   buildCommunityDiscoveryCacheQuery,
+  isCommunityDiscoveryCacheSoftFresh,
   normalizeCommunityDiscoveryViewerUid,
 } from './community-discovery-cache.model';
 
@@ -52,23 +52,30 @@ export class CommunityDiscoveryCacheService {
         const query = buildCommunityDiscoveryCacheQuery(uid, context);
         if (!query) return of(null);
 
+        const accessedAt = Date.now();
+        this.store.dispatch(
+          CommunityDiscoveryCacheActions.touchCommunityDiscoveryQuery({
+            query,
+            accessedAt,
+          })
+        );
+
         const queryKey = buildCommunityDiscoveryCacheKey(query);
         return this.store.select(selectCommunityDiscoveryCacheSlice(queryKey)).pipe(
           take(1),
           map((slice): CommunityDiscoveryCacheSnapshot | null => {
             if (!slice) return null;
 
-            const age = Date.now() - slice.lastLoadedAt;
             return {
               page: {
                 items: slice.items,
                 nextCursor: slice.nextCursor,
                 generatedAt: slice.lastLoadedAt,
               },
-              fresh:
-                slice.lastLoadedAt > 0
-                && age >= 0
-                && age <= COMMUNITY_DISCOVERY_CACHE_TTL_MS,
+              fresh: isCommunityDiscoveryCacheSoftFresh(
+                slice.lastLoadedAt,
+                accessedAt
+              ),
             };
           })
         );
