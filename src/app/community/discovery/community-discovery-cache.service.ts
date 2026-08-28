@@ -8,6 +8,7 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import * as CommunityDiscoveryCacheActions from 'src/app/store/actions/actions.discovery/community-discovery-cache.actions';
 import { selectCommunityDiscoveryCacheSlice } from 'src/app/store/selectors/selectors.discovery/community-discovery-cache.selectors';
 import type { AppState } from 'src/app/store/states/app.state';
+import { CommunityDomainEventsService } from '../data-access/community-domain-events.service';
 import type { CommunityDiscoveryPage } from '../data-access/community-preview.model';
 import {
   CommunityDiscoveryCacheContext,
@@ -26,6 +27,7 @@ export interface CommunityDiscoveryCacheSnapshot {
 export class CommunityDiscoveryCacheService {
   private readonly store = inject(Store<AppState>);
   private readonly session = inject(AuthSessionService);
+  private readonly domainEvents = inject(CommunityDomainEventsService);
   private readonly destroyRef = inject(DestroyRef);
   private activeViewerUid: string | null = null;
 
@@ -41,6 +43,10 @@ export class CommunityDiscoveryCacheService {
           })
         );
       });
+
+    this.domainEvents.discoveryChanged$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.invalidateCurrentViewer());
   }
 
   readSnapshot$(
@@ -108,7 +114,12 @@ export class CommunityDiscoveryCacheService {
   }
 
   invalidateCurrentViewer(): void {
-    const viewerUid = this.activeViewerUid;
+    const viewerUid =
+      this.activeViewerUid
+      || normalizeCommunityDiscoveryViewerUid(
+        this.session.currentAuthUser?.uid
+      )
+      || null;
     if (!viewerUid) return;
 
     this.store.dispatch(
