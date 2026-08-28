@@ -114,6 +114,7 @@
                 <app-community-camera-capture
                   #cameraCapture
                   [disabled]="writeState.status === 'loading'"
+                  (opened)="attachmentMenu.open = false"
                   (closed)="attachmentMenu.open = false"
                   (attachmentCaptured)="attachmentMenu.open = false; removeSelectedPhoto(); selectedAttachment.set($event); expandComposer()"
                   (fallbackRequested)="attachmentMenu.open = false; cameraPhotoInput.click()"
