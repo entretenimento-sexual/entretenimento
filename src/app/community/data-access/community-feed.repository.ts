@@ -53,6 +53,10 @@ import {
   normalizeCommunityFeedPageResponse,
 } from './community-feed.model';
 import {
+  CommunityFeedPostCreateWireRequest,
+  buildCommunityFeedPostCreateWireRequest,
+} from './community-feed-write-contract.model';
+import {
   CommunityFeedRealtimeChange,
   CommunityFeedRealtimeProjection,
   diffCommunityFeedRealtimeProjections,
@@ -86,7 +90,7 @@ export class CommunityFeedRepository {
   >(this.functions, 'getCommunityFeedItems');
 
   private readonly createCommunityFeedPostCallable = httpsCallable<
-    CommunityFeedPostCreateRequest,
+    CommunityFeedPostCreateWireRequest,
     unknown
   >(this.functions, 'createCommunityFeedPost');
 
@@ -176,14 +180,7 @@ export class CommunityFeedRepository {
   createPost$(
     request: CommunityFeedPostCreateRequest
   ): Observable<CommunityFeedPostCreateResponse> {
-    const payload: CommunityFeedPostCreateRequest = {
-      requestId: request.requestId.trim(),
-      communityId: request.communityId.trim(),
-      text: request.text.trim(),
-      audience: request.audience,
-      imageUploadPath: request.imageUploadPath?.trim() || null,
-      replyToPostId: request.replyToPostId?.trim() || null,
-    };
+    const payload = buildCommunityFeedPostCreateWireRequest(request);
 
     return defer(() => from(this.createCommunityFeedPostCallable(payload))).pipe(
       map((result) => normalizeCommunityFeedPostCreateResponse(result.data)),
