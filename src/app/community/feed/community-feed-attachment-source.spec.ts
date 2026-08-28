@@ -145,6 +145,7 @@ describe('CommunityFeedComponent attachment sources', () => {
     cameraAction?.click();
     fixture.detectChanges();
 
+    expect(menu?.open).toBe(false);
     expect(fixture.nativeElement.querySelector('[role="dialog"]')).not.toBeNull();
   });
 
