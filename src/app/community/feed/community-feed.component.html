@@ -83,11 +83,14 @@
             <details
               #attachmentMenu
               class="community-post__menu community-feed__attachment-menu"
+              (document:pointerdown)="attachmentMenu.open && !attachmentMenu.contains($any($event.target)) ? attachmentMenu.open = false : null"
+              (document:keydown.escape)="attachmentMenu.open = false"
             >
               <summary
                 class="community-feed__composer-tool"
                 aria-label="Adicionar ao Mural"
                 title="Adicionar"
+                [attr.aria-expanded]="attachmentMenu.open"
                 [attr.aria-disabled]="writeState.status === 'loading' ? 'true' : null"
                 (click)="writeState.status === 'loading' ? $event.preventDefault() : null"
               >
@@ -111,6 +114,7 @@
                 <app-community-camera-capture
                   #cameraCapture
                   [disabled]="writeState.status === 'loading'"
+                  (opened)="attachmentMenu.open = false"
                   (closed)="attachmentMenu.open = false"
                   (attachmentCaptured)="attachmentMenu.open = false; removeSelectedPhoto(); selectedAttachment.set($event); expandComposer()"
                   (fallbackRequested)="attachmentMenu.open = false; cameraPhotoInput.click()"
@@ -414,26 +418,6 @@
                   </button>
                 }
               </footer>
-
-              @if (item.capabilities.canViewComments && commentCount(item) > 0) {
-                <div class="community-post__metrics" aria-label="Histórico anterior da publicação">
-                  <button
-                    class="community-post__action community-post__comments-toggle"
-                    type="button"
-                    [attr.aria-expanded]="commentsOpen(item)"
-                    [attr.aria-controls]="'community-feed-comments-' + item.postId"
-                    [attr.aria-label]="(commentsOpen(item) ? 'Ocultar ' : 'Ver ') + commentCount(item) + (commentCount(item) === 1 ? ' mensagem anterior.' : ' mensagens anteriores.')"
-                    (click)="toggleComments(item)"
-                  >
-                    <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
-                    <span class="community-post__action-label">
-                      {{ commentsOpen(item) ? 'Ocultar' : 'Ver' }}
-                      {{ commentCount(item) }}
-                      {{ commentCount(item) === 1 ? 'mensagem anterior' : 'mensagens anteriores' }}
-                    </span>
-                  </button>
-                </div>
-              }
 
               @if (commentsOpen(item)) {
                 <app-community-feed-comments

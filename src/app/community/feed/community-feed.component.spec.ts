@@ -297,41 +297,25 @@ describe('CommunityFeedComponent', () => {
     expect(removed.items).toHaveLength(0);
   });
 
-  it('abre comentários autorizados também no item retornado pelo Mural', () => {
+  it('mantém Responder sem reabrir o histórico legado', () => {
     const interactivePage = page();
     interactivePage.items[0].capabilities.canViewComments = true;
     interactivePage.items[0].capabilities.canComment = true;
     repositoryMock.getPage$.mockReturnValue(of(interactivePage));
-    commentRepositoryMock.getPage$.mockReturnValue(of({
-      items: [],
-      nextCursor: null,
-      generatedAt: Date.now(),
-    }));
     const fixture = create('feed', 'community', true, 'member');
-    const toggle = fixture.nativeElement.querySelector(
-      '.community-post__comments-toggle'
+    const reply = fixture.nativeElement.querySelector(
+      '.community-post__reply'
     ) as HTMLButtonElement;
 
-    expect(toggle).not.toBeNull();
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    toggle.click();
-    fixture.detectChanges();
-
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(reply).not.toBeNull();
+    expect(reply.textContent).toContain('Responder');
+    expect(
+      fixture.nativeElement.querySelector('.community-post__comments-toggle')
+    ).toBeNull();
     expect(
       fixture.nativeElement.querySelector('app-community-feed-comments')
-    ).not.toBeNull();
-    expect(fixture.nativeElement.querySelector(
-      'app-community-feed-comments textarea'
-    )).not.toBeNull();
-    expect(commentRepositoryMock.getPage$).toHaveBeenCalledWith(expect.objectContaining({
-      communityId: 'community-1',
-      postId: 'post-1',
-    }));
-
-    fixture.componentInstance.updateCommentCount(interactivePage.items[0], 4);
-    fixture.detectChanges();
-    expect(toggle.textContent).toContain('4');
+    ).toBeNull();
+    expect(commentRepositoryMock.getPage$).not.toHaveBeenCalled();
   });
 
   it('mostra estados vazios coerentes por contexto', () => {
