@@ -6,6 +6,7 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
+import { provideCommunityFeedCacheTestDouble } from './community-feed-cache.testing';
 import {
   CommunityFeedComponent,
   INITIAL_COMMUNITY_FEED_STATE,
@@ -108,6 +109,7 @@ describe('CommunityFeedComponent', () => {
     TestBed.configureTestingModule({
       imports: [CommunityFeedComponent],
       providers: [
+        provideCommunityFeedCacheTestDouble(),
         { provide: CommunityFeedRepository, useValue: repositoryMock },
         {
           provide: CommunityFeedCommentRepository,
