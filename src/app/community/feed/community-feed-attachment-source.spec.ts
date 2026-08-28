@@ -8,6 +8,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import { CameraCaptureService } from 'src/app/core/services/media/camera-capture.service';
+import { GeolocationService } from 'src/app/core/services/geolocation/geolocation.service';
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
 import { CommunityFeedComponent } from './community-feed.component';
@@ -34,6 +35,9 @@ describe('CommunityFeedComponent attachment sources', () => {
   const photoEditorMock = {
     editFile$: vi.fn(),
   };
+  const geolocationMock = {
+    currentPosition$: vi.fn(),
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -51,6 +55,16 @@ describe('CommunityFeedComponent attachment sources', () => {
     cameraMock.openCamera$.mockReturnValue(
       of({ getTracks: () => [] } as unknown as MediaStream)
     );
+    geolocationMock.currentPosition$.mockReturnValue(of({
+      latitude: -22.9068,
+      longitude: -43.1729,
+      altitude: null,
+      accuracy: 20,
+      altitudeAccuracy: null,
+      heading: null,
+      speed: null,
+      geohash: '75cm',
+    }));
     photoEditorMock.editFile$.mockImplementation((file: File) => of({
       kind: 'image',
       file: new File(['editada'], `editada-${file.name}`, { type: file.type }),
@@ -69,6 +83,7 @@ describe('CommunityFeedComponent attachment sources', () => {
         { provide: CommunityFeedCommentRepository, useValue: commentRepositoryMock },
         { provide: StorageService, useValue: { uploadFile: vi.fn() } },
         { provide: CameraCaptureService, useValue: cameraMock },
+        { provide: GeolocationService, useValue: geolocationMock },
         { provide: PhotoEditorLauncherService, useValue: photoEditorMock },
         {
           provide: AuthSessionService,
@@ -134,6 +149,7 @@ describe('CommunityFeedComponent attachment sources', () => {
     expect(cameraInput?.getAttribute('capture')).toBe('environment');
     expect(menu?.textContent).toContain('Galeria');
     expect(menu?.textContent).toContain('Câmera');
+    expect(menu?.textContent).toContain('Localização');
 
     const cameraAction = Array.from(
       menu?.querySelectorAll('button') ?? []
@@ -181,7 +197,61 @@ describe('CommunityFeedComponent attachment sources', () => {
       context: 'community-feed',
       preset: 'social-feed',
     });
-    expect(fixture.componentInstance.selectedAttachment()?.file.name)
+    const selected = fixture.componentInstance.selectedAttachment();
+    expect(selected?.kind).toBe('image');
+    expect(selected?.kind === 'image' ? selected.file.name : null)
       .toBe('editada-galeria.jpg');
+  });
+
+  it('fecha o menu ao clicar fora e também com Escape', () => {
+    const fixture = createFixture();
+    const menu = fixture.nativeElement.querySelector(
+      '.community-feed__attachment-menu'
+    ) as HTMLDetailsElement;
+    const trigger = menu.querySelector('summary') as HTMLElement;
+
+    trigger.click();
+    fixture.detectChanges();
+    expect(menu.open).toBe(true);
+
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    fixture.detectChanges();
+    expect(menu.open).toBe(false);
+
+    trigger.click();
+    fixture.detectChanges();
+    expect(menu.open).toBe(true);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(menu.open).toBe(false);
+  });
+
+  it('adiciona somente localização aproximada após gesto explícito', () => {
+    const fixture = createFixture();
+    const menu = fixture.nativeElement.querySelector(
+      '.community-feed__attachment-menu'
+    ) as HTMLDetailsElement;
+    const trigger = menu.querySelector('summary') as HTMLElement;
+
+    trigger.click();
+    fixture.detectChanges();
+
+    const locationAction = Array.from(menu.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Localização'));
+    expect(locationAction).toBeDefined();
+
+    locationAction?.click();
+    fixture.detectChanges();
+
+    expect(menu.open).toBe(false);
+    expect(geolocationMock.currentPosition$).toHaveBeenCalledTimes(1);
+    expect(fixture.componentInstance.selectedAttachment()).toEqual({
+      kind: 'location',
+      latitude: -22.91,
+      longitude: -43.17,
+      precision: 'approximate',
+    });
+    expect(fixture.nativeElement.textContent).toContain('Localização aproximada');
   });
 });

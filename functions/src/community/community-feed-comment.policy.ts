@@ -37,7 +37,7 @@ function isManagementRole(role: CommunityFeedWriterRole): boolean {
 }
 
 export function isCommunityFeedInteractivePostKind(kind: unknown): boolean {
-  return kind === 'text' || kind === 'photo';
+  return kind === 'text' || kind === 'photo' || kind === 'location';
 }
 
 export function evaluateCommunityFeedCommentWrite(input: {

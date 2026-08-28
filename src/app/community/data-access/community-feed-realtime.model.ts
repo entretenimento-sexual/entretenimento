@@ -81,7 +81,7 @@ export function normalizeCommunityFeedRealtimeProjection(
   if (
     !SAFE_ID_PATTERN.test(postId)
     || declaredPostId !== postId
-    || (kind !== 'text' && kind !== 'photo')
+    || (kind !== 'text' && kind !== 'photo' && kind !== 'location')
     || (state !== 'active' && state !== 'removed')
     || publishedAt === null
     || publishedAt < MIN_TIMESTAMP

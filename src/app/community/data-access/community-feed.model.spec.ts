@@ -73,6 +73,24 @@ describe('normalizeCommunityFeedPageResponse', () => {
     expect(page.nextCursor).toBe('post-1');
   });
 
+  it('normaliza localização compartilhada para precisão aproximada', () => {
+    const page = normalizeCommunityFeedPageResponse({
+      items: [item({
+        kind: 'location',
+        image: null,
+        location: { latitude: -22.9068, longitude: -43.1729 },
+      })],
+    });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].kind).toBe('location');
+    expect(page.items[0].location).toEqual({
+      latitude: -22.91,
+      longitude: -43.17,
+      precision: 'approximate',
+    });
+  });
+
   it('remove URLs inseguras sem descartar texto válido', () => {
     const page = normalizeCommunityFeedPageResponse({
       items: [

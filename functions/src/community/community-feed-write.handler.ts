@@ -192,10 +192,17 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
       throw new HttpsError('invalid-argument', 'Mensagem inválida para o Mural.');
     }
 
-    if (!command.text && !command.imageUploadPath) {
+    if (command.imageUploadPath && command.location) {
       throw new HttpsError(
         'invalid-argument',
-        'Escreva uma mensagem ou adicione uma foto.'
+        'Adicione apenas um tipo de anexo por publicação.'
+      );
+    }
+
+    if (!command.text && !command.imageUploadPath && !command.location) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Escreva uma mensagem ou adicione uma foto ou localização.'
       );
     }
 
@@ -442,7 +449,11 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             { label: 'Participante', avatarUrl: null }
           );
           const now = Timestamp.fromMillis(nowMs);
-          const kind = promotedStoragePath ? 'photo' : 'text';
+          const kind = promotedStoragePath
+            ? 'photo'
+            : command.location
+              ? 'location'
+              : 'text';
           const image = promotedStoragePath
             ? {
               storagePath: promotedStoragePath,
@@ -457,6 +468,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             author,
             text: command.text || null,
             image,
+            location: command.location,
             replyToPostId: command.replyToPostId,
             metrics: {
               commentCount: 0,
@@ -497,6 +509,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             communityId,
             postId,
             kind,
+            location: command.location,
             replyToPostId: command.replyToPostId,
             createdAt: nowMs,
           });
@@ -510,6 +523,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             replyToPostId: command.replyToPostId,
             kind,
             hasText: command.text.length > 0,
+            hasLocation: command.location !== null,
             audience: effectiveAudience,
             createdAt: nowMs,
           });

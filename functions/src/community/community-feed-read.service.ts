@@ -169,7 +169,9 @@ export async function hydrateCommunityFeedItemsForViewer(params: {
     const textPreview = targetProjection.item.text
       || (targetProjection.item.kind === 'photo'
         ? 'Foto publicada no Mural'
-        : 'Publicação no Mural');
+        : targetProjection.item.kind === 'location'
+          ? 'Localização compartilhada no Mural'
+          : 'Publicação no Mural');
 
     replyReferencesById.set(replyTargetId, {
       postId: replyTargetId,
@@ -187,7 +189,7 @@ export async function hydrateCommunityFeedItemsForViewer(params: {
       const raw = operational?.exists ? operational.data() ?? {} : {};
       const authorUid = authorUids[index] ?? '';
       const activePost =
-        (item.kind === 'text' || item.kind === 'photo')
+        (item.kind === 'text' || item.kind === 'photo' || item.kind === 'location')
         && raw['status'] === 'active'
         && raw['moderationState'] === 'active'
         && authorUid.length > 0;

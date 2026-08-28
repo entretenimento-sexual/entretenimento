@@ -11,7 +11,7 @@ import {
 } from './community-public-author.model';
 
 export type CommunityFeedView = 'feed' | 'photos';
-export type CommunityFeedKind = 'text' | 'photo';
+export type CommunityFeedKind = 'text' | 'photo' | 'location';
 export type CommunityFeedAudience = 'public_preview' | 'members_only';
 
 export interface CommunityFeedReplyReference {
@@ -19,6 +19,12 @@ export interface CommunityFeedReplyReference {
   readonly authorLabel: string;
   readonly textPreview: string;
   readonly available: boolean;
+}
+
+export interface CommunityFeedLocation {
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly precision: 'approximate';
 }
 
 export interface CommunityFeedItem {
@@ -30,6 +36,7 @@ export interface CommunityFeedItem {
     url: string;
     alt: string;
   } | null;
+  location?: CommunityFeedLocation | null;
   replyTo: CommunityFeedReplyReference | null;
   metrics: {
     commentCount: number;
@@ -66,6 +73,10 @@ export interface CommunityFeedPostCreateRequest {
   readonly text: string;
   readonly audience: CommunityFeedAudience;
   readonly imageUploadPath?: string | null;
+  readonly location?: {
+    readonly latitude: number;
+    readonly longitude: number;
+  } | null;
   readonly replyToPostId?: string | null;
 }
 
@@ -160,6 +171,30 @@ function normalizeCount(value: unknown): number {
     : 0;
 }
 
+function normalizeCommunityFeedLocation(value: unknown): CommunityFeedLocation | null {
+  if (!value || typeof value !== 'object') return null;
+  const source = value as Record<string, unknown>;
+  const latitude = Number(source['latitude']);
+  const longitude = Number(source['longitude']);
+
+  if (
+    !Number.isFinite(latitude)
+    || !Number.isFinite(longitude)
+    || latitude < -90
+    || latitude > 90
+    || longitude < -180
+    || longitude > 180
+  ) {
+    return null;
+  }
+
+  return {
+    latitude: Number(latitude.toFixed(2)),
+    longitude: Number(longitude.toFixed(2)),
+    precision: 'approximate',
+  };
+}
+
 function normalizeReplyReference(value: unknown): CommunityFeedReplyReference | null {
   if (!value || typeof value !== 'object') return null;
   const source = value as Record<string, unknown>;
@@ -189,11 +224,12 @@ function normalizeItem(raw: unknown): CommunityFeedItem | null {
   const kind = source['kind'];
   const author = normalizeCommunityPublicAuthor(source['author']);
   const text = normalizeText(source['text'], 1_000);
+  const location = normalizeCommunityFeedLocation(source['location']);
   const publishedAt = Number(source['publishedAt']);
 
   if (
     !postId
-    || (kind !== 'text' && kind !== 'photo')
+    || (kind !== 'text' && kind !== 'photo' && kind !== 'location')
     || !author
     || !Number.isFinite(publishedAt)
     || publishedAt < MIN_PUBLISHED_AT
@@ -207,6 +243,7 @@ function normalizeItem(raw: unknown): CommunityFeedItem | null {
 
   if (kind === 'text' && !text) return null;
   if (kind === 'photo' && !imageUrl) return null;
+  if (kind === 'location' && !location) return null;
 
   return {
     postId,
@@ -219,6 +256,7 @@ function normalizeItem(raw: unknown): CommunityFeedItem | null {
           alt: imageAlt || 'Foto publicada na comunidade',
         }
       : null,
+    location: kind === 'location' ? location : null,
     replyTo: normalizeReplyReference(source['replyTo']),
     metrics: {
       commentCount: normalizeCount(metrics['commentCount']),

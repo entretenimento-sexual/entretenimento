@@ -10,8 +10,14 @@
 import type { CommunityPublicAuthor } from './community-public-author.model';
 
 export type CommunityFeedView = 'feed' | 'photos';
-export type CommunityFeedKind = 'text' | 'photo';
+export type CommunityFeedKind = 'text' | 'photo' | 'location';
 export type CommunityFeedAudience = 'public_preview' | 'members_only';
+
+export interface CommunityFeedLocation {
+  latitude: number;
+  longitude: number;
+  precision: 'approximate';
+}
 
 export interface CommunityFeedPageRequest {
   communityId?: unknown;
@@ -26,6 +32,7 @@ export interface CommunityFeedPostCreateRequest {
   text?: unknown;
   audience?: unknown;
   imageUploadPath?: unknown;
+  location?: unknown;
   replyToPostId?: unknown;
 }
 
@@ -35,6 +42,7 @@ export interface NormalizedCommunityFeedPostCreateRequest {
   text: string;
   audience: CommunityFeedAudience;
   imageUploadPath: string | null;
+  location: CommunityFeedLocation | null;
   replyToPostId: string | null;
 }
 
@@ -78,6 +86,7 @@ export interface CommunityFeedItem {
     url: string;
     alt: string;
   } | null;
+  location?: CommunityFeedLocation | null;
   replyTo: CommunityFeedReplyReference | null;
   metrics: {
     commentCount: number;
@@ -153,6 +162,30 @@ function normalizeCount(value: unknown): number {
     : 0;
 }
 
+function normalizeCommunityFeedLocation(value: unknown): CommunityFeedLocation | null {
+  if (!value || typeof value !== 'object') return null;
+  const source = value as Record<string, unknown>;
+  const latitude = Number(source['latitude']);
+  const longitude = Number(source['longitude']);
+
+  if (
+    !Number.isFinite(latitude)
+    || !Number.isFinite(longitude)
+    || latitude < -90
+    || latitude > 90
+    || longitude < -180
+    || longitude > 180
+  ) {
+    return null;
+  }
+
+  return {
+    latitude: Number(latitude.toFixed(2)),
+    longitude: Number(longitude.toFixed(2)),
+    precision: 'approximate',
+  };
+}
+
 function normalizeTimestamp(value: unknown): number | null {
   if (value instanceof Date) {
     const time = value.getTime();
@@ -216,6 +249,7 @@ export function normalizeCommunityFeedPostCreateRequest(
       ? 'public_preview'
       : 'members_only',
     imageUploadPath: imageUploadPath || null,
+    location: normalizeCommunityFeedLocation(raw?.location),
     replyToPostId: normalizeSafeId(raw?.replyToPostId),
   };
 }
@@ -234,6 +268,7 @@ export function sanitizeCommunityFeedProjection(
   const audience = source['audience'];
   const authorLabel = normalizeText(author['label'], 60);
   const text = normalizeText(source['text'], 1_000);
+  const location = normalizeCommunityFeedLocation(source['location']);
   const publishedAt = normalizeTimestamp(source['publishedAt']);
   const expiresAt = source['expiresAt'] == null
     ? null
@@ -245,7 +280,7 @@ export function sanitizeCommunityFeedProjection(
 
   if (
     !postId
-    || (kind !== 'text' && kind !== 'photo')
+    || (kind !== 'text' && kind !== 'photo' && kind !== 'location')
     || (audience !== 'public_preview' && audience !== 'members_only')
     || source['status'] !== 'active'
     || source['moderationState'] !== 'active'
@@ -266,6 +301,7 @@ export function sanitizeCommunityFeedProjection(
 
   if (kind === 'text' && text.length < 1) return null;
   if (kind === 'photo' && !imageUrl && !imageStoragePath) return null;
+  if (kind === 'location' && !location) return null;
 
   return {
     audience,
@@ -290,6 +326,7 @@ export function sanitizeCommunityFeedProjection(
           alt: imageAlt,
         }
         : null,
+      location: kind === 'location' ? location : null,
       replyTo: null,
       metrics: {
         commentCount: normalizeCount(metrics['commentCount']),

@@ -76,6 +76,7 @@ test('normaliza mensagem textual com audiência privada por padrão', () => {
       text: 'Uma nova conversa no mural.',
       audience: 'members_only',
       imageUploadPath: null,
+      location: null,
       replyToPostId: null,
     }
   );
@@ -89,6 +90,21 @@ test('normaliza mensagem textual com audiência privada por padrão', () => {
     }).requestId,
     null
   );
+});
+
+test('normaliza localização para precisão pública aproximada', () => {
+  const result = normalizeCommunityFeedPostCreateRequest({
+    requestId: 'post-location-1',
+    communityId: 'community-1',
+    text: 'Estamos aqui.',
+    location: { latitude: -22.9068, longitude: -43.1729 },
+  });
+
+  assert.deepEqual(result.location, {
+    latitude: -22.91,
+    longitude: -43.17,
+    precision: 'approximate',
+  });
 });
 
 test('normaliza resposta como nova mensagem do Mural ligada à origem', () => {
@@ -196,6 +212,24 @@ test('aceita foto publicada backend-only para hidratação posterior', () => {
     'users/u1/published/images/post-photo/1800000000000-version1'
   );
   assert.equal(result?.item.image, null);
+});
+
+test('sanitiza localização no backend sem preservar coordenada precisa', () => {
+  const result = sanitizeCommunityFeedProjection(
+    'post-location',
+    feedItem({
+      kind: 'location',
+      image: null,
+      location: { latitude: -22.9068, longitude: -43.1729 },
+    }),
+    NOW
+  );
+
+  assert.deepEqual(result?.item.location, {
+    latitude: -22.91,
+    longitude: -43.17,
+    precision: 'approximate',
+  });
 });
 
 test('mantém item válido quando avatar usa URL insegura', () => {

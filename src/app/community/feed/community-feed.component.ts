@@ -11,6 +11,7 @@ import { AsyncPipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   HostListener,
   Injector,
@@ -19,9 +20,10 @@ import {
   inject,
   input,
   signal,
+  viewChild,
   viewChildren,
 } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormControl,
   FormGroup,
@@ -46,6 +48,7 @@ import {
   startWith,
   Subject,
   switchMap,
+  take,
   tap,
   throwError,
   timer,
@@ -55,6 +58,11 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
+import {
+  GeolocationError,
+  GeolocationErrorCode,
+  GeolocationService,
+} from 'src/app/core/services/geolocation/geolocation.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 import {
@@ -76,6 +84,7 @@ import {
 import { CommunityCameraCaptureComponent } from './community-camera-capture.component';
 import {
   CommunityComposerAttachment,
+  createCommunityComposerLocationAttachment,
   validateCommunityComposerImage,
 } from './community-composer-attachment.model';
 import {
@@ -155,6 +164,8 @@ export class CommunityFeedComponent implements OnDestroy {
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly geolocation = inject(GeolocationService);
   private readonly loadRequests$ = new Subject<CommunityFeedLoadRequest>();
   private readonly realtimeHydrationRequests$ = new Subject<string>();
   private readonly localFeedEvents$ = new Subject<CommunityFeedLoadEvent>();
@@ -168,6 +179,7 @@ export class CommunityFeedComponent implements OnDestroy {
   private readonly postHighlightRequests$ = new Subject<string>();
   private readonly pendingReactionPostIds = new Set<string>();
   private readonly postElements = viewChildren<ElementRef<HTMLElement>>('postElement');
+  private readonly attachmentMenu = viewChild<ElementRef<HTMLDetailsElement>>('attachmentMenu');
   private readonly pendingOwnPostFollowId = signal<string | null>(null);
   private readonly unseenAnchorPostId = signal<string | null>(null);
   private pendingPostRequestId: string | null = null;
@@ -184,6 +196,7 @@ export class CommunityFeedComponent implements OnDestroy {
   readonly composerExpanded = signal(false);
   readonly selectedAttachment = signal<CommunityComposerAttachment | null>(null);
   readonly uploadProgress = signal<number | null>(null);
+  readonly locationCaptureState = signal<'idle' | 'loading'>('idle');
   readonly actionPostId = signal<string | null>(null);
   readonly actionMode = signal<CommunityFeedPostAction | null>(null);
   readonly commentsPostId = signal<string | null>(null);
@@ -534,7 +547,7 @@ export class CommunityFeedComponent implements OnDestroy {
   );
 
   ngOnDestroy(): void {
-    this.revokePreviewUrl(this.selectedAttachment()?.previewUrl ?? null);
+    this.revokePreviewUrl(this.selectedImagePreviewUrl());
   }
 
   canCreatePost(): boolean {
@@ -582,6 +595,54 @@ export class CommunityFeedComponent implements OnDestroy {
     this.clearSelectedAttachment();
   }
 
+  shareApproximateLocation(): void {
+    if (!this.canCreatePost() || this.locationCaptureState() === 'loading') return;
+
+    const menu = this.attachmentMenu()?.nativeElement;
+    if (menu) menu.open = false;
+    this.locationCaptureState.set('loading');
+
+    this.geolocation.currentPosition$({
+      enableHighAccuracy: false,
+      timeout: 10_000,
+      maximumAge: 60_000,
+    }).pipe(
+      take(1),
+      map((coordinates) =>
+        createCommunityComposerLocationAttachment(
+          coordinates.latitude,
+          coordinates.longitude
+        )
+      ),
+      tap((attachment) => {
+        if (!attachment) {
+          throw new Error('Coordenadas inválidas para compartilhamento no Mural.');
+        }
+        this.clearSelectedAttachment();
+        this.selectedAttachment.set(attachment);
+        this.composerExpanded.set(true);
+        this.errorNotifier.showSuccess('Localização aproximada adicionada.');
+      }),
+      catchError((error: unknown) => {
+        this.reportLocationError(error);
+        return EMPTY;
+      }),
+      finalize(() => this.locationCaptureState.set('idle')),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
+  }
+
+  approximateLocationLabel(latitude: number, longitude: number): string {
+    return `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
+  }
+
+  locationMapUrl(item: CommunityFeedItem): string {
+    const location = item.location;
+    if (!location) return '#';
+    const query = encodeURIComponent(`${location.latitude},${location.longitude}`);
+    return `https://www.google.com/maps/search/?api=1&query=${query}`;
+  }
+
   submitPostOnEnter(event: Event): void {
     const keyboardEvent = event as KeyboardEvent;
     if (keyboardEvent.isComposing || keyboardEvent.shiftKey) {
@@ -607,7 +668,7 @@ export class CommunityFeedComponent implements OnDestroy {
       return;
     }
     if (!text && !attachment) {
-      this.errorNotifier.showWarning('Escreva uma mensagem ou adicione uma foto.');
+      this.errorNotifier.showWarning('Escreva uma mensagem ou adicione uma foto ou localização.');
       return;
     }
 
@@ -621,6 +682,9 @@ export class CommunityFeedComponent implements OnDestroy {
         // exclusivamente da visibilidade configurada para a Comunidade.
         audience: 'members_only',
         imageUploadPath: null,
+        location: attachment?.kind === 'location'
+          ? { latitude: attachment.latitude, longitude: attachment.longitude }
+          : null,
       },
       attachment,
     });
@@ -731,6 +795,20 @@ export class CommunityFeedComponent implements OnDestroy {
 
     this.pendingOwnPostFollowId.set(normalizedPostId);
     this.realtimeHydrationRequests$.next(normalizedPostId);
+  }
+
+  @HostListener('document:pointerdown', ['$event'])
+  onDocumentPointerDown(event: Event): void {
+    const menu = this.attachmentMenu()?.nativeElement;
+    const target = event.target;
+    if (!menu?.open || !(target instanceof Node) || menu.contains(target)) return;
+    menu.open = false;
+  }
+
+  @HostListener('document:keydown.escape')
+  onDocumentEscape(): void {
+    const menu = this.attachmentMenu()?.nativeElement;
+    if (menu?.open) menu.open = false;
   }
 
   @HostListener('window:scroll')
@@ -1072,7 +1150,7 @@ export class CommunityFeedComponent implements OnDestroy {
         })
       );
 
-    if (!command.attachment) {
+    if (!command.attachment || command.attachment.kind === 'location') {
       return publish(null);
     }
 
@@ -1108,6 +1186,10 @@ export class CommunityFeedComponent implements OnDestroy {
           )
         ).pipe(finalize(() => this.uploadProgress.set(null)));
       }
+      case 'location':
+        return throwError(() =>
+          new Error('Localização não requer upload de arquivo.')
+        );
     }
   }
 
@@ -1121,6 +1203,11 @@ export class CommunityFeedComponent implements OnDestroy {
     }
   }
 
+  private selectedImagePreviewUrl(): string | null {
+    const attachment = this.selectedAttachment();
+    return attachment?.kind === 'image' ? attachment.previewUrl : null;
+  }
+
   private revokePreviewUrl(previewUrl: string | null): void {
     if (!previewUrl) return;
     try {
@@ -1131,7 +1218,7 @@ export class CommunityFeedComponent implements OnDestroy {
   }
 
   private clearSelectedAttachment(): void {
-    this.revokePreviewUrl(this.selectedAttachment()?.previewUrl ?? null);
+    this.revokePreviewUrl(this.selectedImagePreviewUrl());
     this.selectedAttachment.set(null);
   }
 
@@ -1234,6 +1321,37 @@ export class CommunityFeedComponent implements OnDestroy {
     this.reportTechnicalError(error, 'createPost');
   }
 
+  private reportLocationError(error: unknown): void {
+    let message = 'Não foi possível obter sua localização agora.';
+
+    if (error instanceof GeolocationError) {
+      switch (error.code) {
+        case GeolocationErrorCode.PERMISSION_DENIED:
+          message = 'Permita o acesso à localização no navegador para compartilhar sua posição.';
+          break;
+        case GeolocationErrorCode.TIMEOUT:
+          message = 'A localização demorou demais para responder. Tente novamente.';
+          break;
+        case GeolocationErrorCode.UNSUPPORTED:
+        case GeolocationErrorCode.INSECURE_CONTEXT:
+          message = 'A localização não está disponível neste navegador ou ambiente.';
+          break;
+        case GeolocationErrorCode.POSITION_UNAVAILABLE:
+          message = 'Sua posição não está disponível neste momento.';
+          break;
+        default:
+          break;
+      }
+    }
+
+    try {
+      this.errorNotifier.showWarning(message);
+    } catch {
+      // O diagnóstico centralizado abaixo permanece ativo.
+    }
+    this.reportTechnicalError(error, 'shareLocation');
+  }
+
   private reportReferenceNavigationError(error: unknown): void {
     try {
       this.errorNotifier.showWarning(
@@ -1271,7 +1389,8 @@ export class CommunityFeedComponent implements OnDestroy {
       | 'toggleReaction'
       | 'watchRealtime'
       | 'hydrateRealtimeItem'
-      | 'navigateReference',
+      | 'navigateReference'
+      | 'shareLocation',
     view: CommunityFeedView = this.view()
   ): void {
     try {

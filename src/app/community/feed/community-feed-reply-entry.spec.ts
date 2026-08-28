@@ -144,6 +144,36 @@ describe('CommunityFeedComponent conversation entry points', () => {
     expect(feedRepository.createPost$).toHaveBeenCalledTimes(1);
   });
 
+  it('chama comentários existentes de respostas, nunca de mensagem anterior', () => {
+    feedRepository.getPage$.mockReturnValue(of({
+      items: [{
+        postId: 'post-1',
+        kind: 'text',
+        author: { label: 'serale', avatarUrl: null },
+        text: 'Mensagem com uma resposta.',
+        image: null,
+        location: null,
+        replyTo: null,
+        metrics: { commentCount: 1, reactionCount: 0 },
+        capabilities: { ...baseCapabilities },
+        publishedAt: Date.now() - 1_000,
+      }],
+      nextCursor: null,
+      generatedAt: Date.now(),
+    }));
+
+    const fixture = createFixture();
+    const toggle = fixture.nativeElement.querySelector(
+      '.community-post__comments-toggle'
+    ) as HTMLButtonElement;
+
+    expect(toggle.textContent).toContain('Ver');
+    expect(toggle.textContent).toContain('1');
+    expect(toggle.textContent).toContain('resposta');
+    expect(toggle.textContent).not.toContain('mensagem anterior');
+    expect(toggle.getAttribute('aria-label')).toContain('1 resposta');
+  });
+
   it('publica resposta à publicação como novo item do Mural e não como comment filho', async () => {
     const fixture = createFixture();
     const replyButton = fixture.nativeElement.querySelector(

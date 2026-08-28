@@ -33,6 +33,16 @@ describe('community-feed-realtime.model', () => {
     });
   });
 
+  it('aceita localização no contrato mínimo realtime', () => {
+    expect(
+      normalizeCommunityFeedRealtimeProjection(
+        'post-1',
+        projectionRaw({ kind: 'location' }),
+        NOW
+      )?.kind
+    ).toBe('location');
+  });
+
   it('rejeita documento cujo postId declarado não corresponde ao id do documento', () => {
     expect(
       normalizeCommunityFeedRealtimeProjection(

@@ -38,6 +38,23 @@
                   </button>
                 </div>
               }
+              @case ('location') {
+                <div class="community-feed__location-preview" role="status" aria-live="polite">
+                  <i class="fas fa-location-dot" aria-hidden="true"></i>
+                  <span>
+                    <strong>Localização aproximada</strong>
+                    <small>{{ approximateLocationLabel(attachment.latitude, attachment.longitude) }}</small>
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Remover localização selecionada"
+                    [disabled]="writeState.status === 'loading'"
+                    (click)="removeSelectedPhoto()"
+                  >
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
+                  </button>
+                </div>
+              }
             }
           }
 
@@ -97,7 +114,7 @@
               <div
                 class="community-post__menu-panel"
                 role="group"
-                aria-label="Adicionar foto ao Mural"
+                aria-label="Adicionar ao Mural"
               >
                 <button
                   class="community-post__menu-action"
@@ -115,6 +132,20 @@
                   (attachmentCaptured)="attachmentMenu.open = false; removeSelectedPhoto(); selectedAttachment.set($event); expandComposer()"
                   (fallbackRequested)="attachmentMenu.open = false; cameraPhotoInput.click()"
                 />
+                <button
+                  class="community-post__menu-action"
+                  type="button"
+                  [disabled]="writeState.status === 'loading' || locationCaptureState() === 'loading'"
+                  (click)="shareApproximateLocation()"
+                >
+                  @if (locationCaptureState() === 'loading') {
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    <span>Obtendo localização...</span>
+                  } @else {
+                    <i class="fas fa-location-dot" aria-hidden="true"></i>
+                    <span>Localização</span>
+                  }
+                </button>
               </div>
             </details>
 
@@ -156,7 +187,7 @@
 
             @if (writeState.status === 'error') {
               <p class="community-feed__composer-error" role="status">
-                Sua mensagem e a foto selecionada foram preservadas. Tente enviar novamente.
+                Sua mensagem e o anexo selecionado foram preservados. Tente enviar novamente.
               </p>
             }
           }
@@ -361,6 +392,23 @@
                 </figure>
               }
 
+              @if (item.location; as location) {
+                <a
+                  class="community-post__location"
+                  [href]="locationMapUrl(item)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  [attr.aria-label]="'Abrir localização aproximada ' + approximateLocationLabel(location.latitude, location.longitude) + ' no mapa'"
+                >
+                  <i class="fas fa-location-dot" aria-hidden="true"></i>
+                  <span>
+                    <strong>Localização aproximada</strong>
+                    <small>{{ approximateLocationLabel(location.latitude, location.longitude) }}</small>
+                  </span>
+                  <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                </a>
+              }
+
               <footer class="community-post__metrics" aria-label="Ações da publicação">
                 @if (item.capabilities.canReact) {
                   <button
@@ -416,20 +464,20 @@
               </footer>
 
               @if (item.capabilities.canViewComments && commentCount(item) > 0) {
-                <div class="community-post__metrics" aria-label="Histórico anterior da publicação">
+                <div class="community-post__metrics" aria-label="Respostas da publicação">
                   <button
                     class="community-post__action community-post__comments-toggle"
                     type="button"
                     [attr.aria-expanded]="commentsOpen(item)"
                     [attr.aria-controls]="'community-feed-comments-' + item.postId"
-                    [attr.aria-label]="(commentsOpen(item) ? 'Ocultar ' : 'Ver ') + commentCount(item) + (commentCount(item) === 1 ? ' mensagem anterior.' : ' mensagens anteriores.')"
+                    [attr.aria-label]="(commentsOpen(item) ? 'Ocultar ' : 'Ver ') + commentCount(item) + (commentCount(item) === 1 ? ' resposta.' : ' respostas.')"
                     (click)="toggleComments(item)"
                   >
                     <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
                     <span class="community-post__action-label">
                       {{ commentsOpen(item) ? 'Ocultar' : 'Ver' }}
                       {{ commentCount(item) }}
-                      {{ commentCount(item) === 1 ? 'mensagem anterior' : 'mensagens anteriores' }}
+                      {{ commentCount(item) === 1 ? 'resposta' : 'respostas' }}
                     </span>
                   </button>
                 </div>

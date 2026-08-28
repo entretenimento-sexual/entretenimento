@@ -13,7 +13,7 @@ function normalizeCount(value: unknown): number {
 
 function isActiveProjection(raw: unknown): boolean {
   const source = (raw ?? {}) as Record<string, unknown>;
-  return (source['kind'] === 'text' || source['kind'] === 'photo')
+  return (source['kind'] === 'text' || source['kind'] === 'photo' || source['kind'] === 'location')
     && source['status'] === 'active'
     && source['moderationState'] === 'active';
 }

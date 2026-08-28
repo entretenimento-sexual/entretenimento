@@ -477,7 +477,7 @@ describe('CommunityFeedComponent', () => {
 
     component.submitPost();
     expect(errorNotifierMock.showWarning).toHaveBeenCalledWith(
-      'Escreva uma mensagem ou adicione uma foto.'
+      'Escreva uma mensagem ou adicione uma foto ou localização.'
     );
     expect(repositoryMock.createPost$).not.toHaveBeenCalled();
 
