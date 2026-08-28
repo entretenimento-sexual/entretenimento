@@ -129,23 +129,18 @@ describe('CommunityFeedComponent legacy comments access', () => {
     expect(reaction.querySelector('.community-post__action-count')?.textContent).toContain('3');
   });
 
-  it('oferece acesso secundário somente quando há mensagens anteriores', () => {
+  it('não reintroduz acesso ao histórico legado mesmo quando há mensagens anteriores', () => {
     const fixture = createFixture(2);
-    const legacyAccess = fixture.nativeElement.querySelector(
-      '.community-post__comments-toggle'
-    ) as HTMLButtonElement;
 
-    expect(legacyAccess).not.toBeNull();
-    expect(legacyAccess.textContent).toContain('Ver');
-    expect(legacyAccess.textContent).toContain('2');
-    expect(legacyAccess.textContent).toContain('mensagens anteriores');
-
-    legacyAccess.click();
-    fixture.detectChanges();
-
-    expect(legacyAccess.getAttribute('aria-expanded')).toBe('true');
+    expect(fixture.nativeElement.textContent).toContain('Responder');
+    expect(fixture.nativeElement.textContent).not.toContain('mensagens anteriores');
+    expect(fixture.nativeElement.textContent).not.toContain('mensagem anterior');
+    expect(
+      fixture.nativeElement.querySelector('.community-post__comments-toggle')
+    ).toBeNull();
     expect(
       fixture.nativeElement.querySelector('app-community-feed-comments')
-    ).not.toBeNull();
+    ).toBeNull();
+    expect(commentRepository.getPage$).not.toHaveBeenCalled();
   });
 });
