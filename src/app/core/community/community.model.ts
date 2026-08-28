@@ -23,7 +23,23 @@ export function isCommunitySourceType(
   return value === 'community' || value === 'venue';
 }
 
-export type CommunityStatus = 'active' | 'paused' | 'archived';
+export const COMMUNITY_STATUSES = [
+  'active',
+  'paused',
+  'dormant',
+  'archived',
+  'scheduled_for_deletion',
+] as const;
+
+export type CommunityStatus = (typeof COMMUNITY_STATUSES)[number];
+
+export function isCommunityStatus(value: unknown): value is CommunityStatus {
+  return value === 'active'
+    || value === 'paused'
+    || value === 'dormant'
+    || value === 'archived'
+    || value === 'scheduled_for_deletion';
+}
 
 export type CommunityVisibility =
   | 'public_preview'
