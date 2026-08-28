@@ -75,7 +75,8 @@ test('normaliza mensagem textual com audiência privada por padrão', () => {
       communityId: 'community-1',
       text: 'Uma nova conversa no mural.',
       audience: 'members_only',
-      imageUploadPath: null,
+      attachment: null,
+      attachmentValid: true,
       replyToPostId: null,
     }
   );
@@ -111,19 +112,68 @@ test('normaliza resposta como nova mensagem do Mural ligada à origem', () => {
   );
 });
 
-test('normaliza mensagem com foto privada para promoção backend', () => {
+test('normaliza attachment canônico de foto privada', () => {
   const result = normalizeCommunityFeedPostCreateRequest({
-    requestId: 'post-photo-1',
+    requestId: 'post-photo-canonical-1',
+    communityId: 'community-1',
+    text: 'Como está o local agora.',
+    attachment: {
+      type: 'photo',
+      uploadPath: 'users/u1/uploads/images/photo.webp',
+    },
+  });
+
+  assert.equal(result.attachmentValid, true);
+  assert.deepEqual(result.attachment, {
+    type: 'photo',
+    uploadPath: 'users/u1/uploads/images/photo.webp',
+  });
+});
+
+test('converte imageUploadPath legado para o attachment canônico', () => {
+  const result = normalizeCommunityFeedPostCreateRequest({
+    requestId: 'post-photo-legacy-1',
     communityId: 'community-1',
     text: 'Como está o local agora.',
     imageUploadPath: 'users/u1/uploads/images/photo.webp',
   });
 
-  assert.equal(result.text, 'Como está o local agora.');
-  assert.equal(
-    result.imageUploadPath,
-    'users/u1/uploads/images/photo.webp'
-  );
+  assert.equal(result.attachmentValid, true);
+  assert.deepEqual(result.attachment, {
+    type: 'photo',
+    uploadPath: 'users/u1/uploads/images/photo.webp',
+  });
+});
+
+test('rejeita duas autoridades de transporte de anexo no mesmo request', () => {
+  const result = normalizeCommunityFeedPostCreateRequest({
+    requestId: 'post-photo-conflict-1',
+    communityId: 'community-1',
+    text: 'Não pode publicar parcialmente.',
+    attachment: {
+      type: 'photo',
+      uploadPath: 'users/u1/uploads/images/photo-new.webp',
+    },
+    imageUploadPath: 'users/u1/uploads/images/photo-legacy.webp',
+  });
+
+  assert.equal(result.attachmentValid, false);
+  assert.equal(result.attachment, null);
+});
+
+test('rejeita tipo de attachment ainda não habilitado', () => {
+  const result = normalizeCommunityFeedPostCreateRequest({
+    requestId: 'post-video-premature-1',
+    communityId: 'community-1',
+    text: 'Vídeo ainda não está habilitado.',
+    attachment: {
+      type: 'video',
+      uploadPath: 'users/u1/uploads/videos/video.mp4',
+    },
+  });
+
+  assert.equal(result.attachmentValid, false);
+  assert.equal(result.attachment, null);
 });
 
 test('sanitiza publicação pública com foto legada HTTPS', () => {
