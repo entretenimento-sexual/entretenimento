@@ -5,7 +5,10 @@ import type { CommunityPreviewCard } from 'src/app/community/data-access/communi
 export interface CommunityDiscoveryCacheSlice {
   readonly items: readonly CommunityPreviewCard[];
   readonly nextCursor: string | null;
+  /** Última revalidação bem-sucedida da primeira página da consulta. */
   readonly lastLoadedAt: number;
+  /** Último acesso ao escopo, usado exclusivamente para retenção LRU. */
+  readonly lastAccessedAt: number;
 }
 
 export interface CommunityDiscoveryCacheState {
