@@ -49,6 +49,7 @@ describe('communityDiscoveryCacheReducer', () => {
     expect(slice.items.map((item) => item.communityId)).toEqual(['a', 'b', 'c']);
     expect(slice.lastLoadedAt).toBe(100);
     expect(slice.lastAccessedAt).toBe(200);
+    expect(slice.invalidated).toBe(false);
   });
 
   it('limpa snapshots quando o viewer muda', () => {
@@ -65,7 +66,7 @@ describe('communityDiscoveryCacheReducer', () => {
     expect(switched.byQuery).toEqual({});
   });
 
-  it('invalida sem destruir a lista para stale-while-revalidate', () => {
+  it('invalida sem destruir a lista nem perder a idade real', () => {
     const populated = communityDiscoveryCacheReducer(initialCommunityDiscoveryCacheState,
       Actions.storeCommunityDiscoveryPage({
         query,
@@ -77,11 +78,12 @@ describe('communityDiscoveryCacheReducer', () => {
       Actions.invalidateCommunityDiscoveryViewer({ viewerUid: 'viewer-1' }));
     const slice = Object.values(invalidated.byQuery)[0]!;
     expect(slice.items).toHaveLength(1);
-    expect(slice.lastLoadedAt).toBe(0);
+    expect(slice.lastLoadedAt).toBe(100);
     expect(slice.lastAccessedAt).toBe(100);
+    expect(slice.invalidated).toBe(true);
   });
 
-  it('descarta um snapshot no hard ttl quando a consulta volta a ser acessada', () => {
+  it('descarta um snapshot no hard ttl mesmo depois de invalidado', () => {
     const populated = communityDiscoveryCacheReducer(initialCommunityDiscoveryCacheState,
       Actions.storeCommunityDiscoveryPage({
         query,
@@ -89,7 +91,9 @@ describe('communityDiscoveryCacheReducer', () => {
         append: false,
         storedAt: 100,
       }));
-    const expired = communityDiscoveryCacheReducer(populated,
+    const invalidated = communityDiscoveryCacheReducer(populated,
+      Actions.invalidateCommunityDiscoveryViewer({ viewerUid: 'viewer-1' }));
+    const expired = communityDiscoveryCacheReducer(invalidated,
       Actions.touchCommunityDiscoveryQuery({
         query,
         accessedAt: 100 + COMMUNITY_DISCOVERY_CACHE_HARD_TTL_MS,
