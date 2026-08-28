@@ -9,23 +9,24 @@
 // -----------------------------------------------------------------------------
 
 import type { Provider } from '@angular/core';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
+import type { Observable } from 'rxjs';
 
 import type { CommunityFeedView } from '../data-access/community-feed.model';
 import {
-  CommunityFeedCacheQuery,
   buildCommunityFeedCacheKey,
   buildCommunityFeedCacheQuery,
 } from './community-feed-cache.model';
+import type { CommunityFeedCacheQuery } from './community-feed-cache.model';
+import { CommunityFeedCacheService } from './community-feed-cache.service';
+import type { CommunityFeedCacheSnapshot } from './community-feed-cache.service';
 import {
-  CommunityFeedCacheService,
-  CommunityFeedCacheSnapshot,
-} from './community-feed-cache.service';
-import {
-  CommunityFeedLoadEvent,
-  CommunityFeedState,
   INITIAL_COMMUNITY_FEED_STATE,
   reduceCommunityFeedState,
+} from './community-feed-state.model';
+import type {
+  CommunityFeedLoadEvent,
+  CommunityFeedState,
 } from './community-feed-state.model';
 
 class CommunityFeedCacheTestDouble {
