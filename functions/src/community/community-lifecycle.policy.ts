@@ -177,7 +177,7 @@ export function evaluateCommunityLifecycle(
   rawCommunity: unknown,
   now = Date.now(),
   thresholds: Readonly<CommunityLifecycleThresholds> =
-    DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS
+  DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS
 ): CommunityLifecycleDecision {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const source = (community['source'] ?? {}) as Record<string, unknown>;
