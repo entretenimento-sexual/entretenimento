@@ -10,6 +10,7 @@ import { CommunityFeedRepository } from '../data-access/community-feed.repositor
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityTopicRepository } from '../data-access/community-topic.repository';
+import { provideCommunityFeedCacheTestDouble } from '../feed/community-feed-cache.testing';
 import { CommunityPreviewPageComponent } from './community-preview-page.component';
 
 const now = Date.now();
@@ -92,6 +93,7 @@ describe('CommunityPreviewPageComponent / Tópicos', () => {
       imports: [CommunityPreviewPageComponent],
       providers: [
         provideRouter([]),
+        provideCommunityFeedCacheTestDouble(),
         {
           provide: ActivatedRoute,
           useValue: {
