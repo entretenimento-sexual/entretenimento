@@ -9,6 +9,10 @@ import {
   assertCommunityAcceptingNewMembers,
   getCommunityCapacityForOwnerInTransaction,
 } from './community-capacity.service';
+import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
 import { evaluateCommunityInviteSend } from './community-invite.policy';
 import {
   assertCommunityInviteAuthenticatedUid,
@@ -75,8 +79,12 @@ function throwSendDecisionError(reason: string | null): never {
 }
 
 export const sendCommunityInvite = onCall<SendCommunityInviteRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityInviteResult> => {
+    assertCommunityCallableAppCheck(request.app);
     assertPreviewRuntime();
     const actorUid = assertCommunityInviteAuthenticatedUid(request.auth);
     const communityId = normalizeCommunityId(request.data?.communityId);

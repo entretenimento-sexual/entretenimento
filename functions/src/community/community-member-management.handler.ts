@@ -14,6 +14,10 @@ import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
 import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
@@ -368,9 +372,13 @@ function throwDecisionError(reason: string | null): never {
 }
 
 export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityManagedMembersPageResponse> => {
     assertManagementRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const communityId = normalizeCommunityId(request.data?.communityId);
     const status = normalizeListStatus(request.data?.status);
@@ -476,9 +484,13 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
 );
 
 export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityManageMemberResponse> => {
     assertManagementRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const communityId = normalizeCommunityId(request.data?.communityId);
     const memberId = normalizeSafeId(request.data?.memberId);

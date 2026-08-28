@@ -21,6 +21,10 @@ import {
   resolveCommunityCapacitySponsorRole,
   resolveCommunityOwnerPlanLimit,
 } from './community-capacity.policy';
+import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
 import { normalizeCommunityMemberCount } from './community-member-count.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
@@ -133,9 +137,13 @@ function commandSettings(
 }
 
 export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<UpdateCommunitySettingsResponse> => {
     assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeUpdateCommunitySettingsRequest(request.data);
 

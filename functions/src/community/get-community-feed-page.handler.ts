@@ -12,6 +12,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
+import {
   canViewerReadCommunityFeedAudience,
   canViewerReadCommunityFeedProjection,
   resolveCommunityFeedContentAccess,
@@ -47,8 +51,12 @@ function assertValidCursor(
 }
 
 export const getCommunityFeedPage = onCall<CommunityFeedPageRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityFeedPageResponse> => {
+    assertCommunityCallableAppCheck(request.app);
     assertPreviewRuntime();
 
     const uid = request.auth?.uid ?? null;

@@ -12,6 +12,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import { canViewerModerateCommunityTopic } from './community-topic-access.policy';
@@ -132,9 +136,13 @@ function auditAction(action: CommunityTopicModerationAction): string {
 }
 
 export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityTopicModerationResponse> => {
     assertTopicsRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityTopicModerationRequest(request.data);
 

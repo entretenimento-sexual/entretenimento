@@ -1,8 +1,9 @@
 // src/app/community/data-access/community-create.repository.ts
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, map } from 'rxjs';
+import { Observable, defer, from, map, tap } from 'rxjs';
 
+import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
 import {
   CommunityCreateCommand,
   CommunityCreateResult,
@@ -16,6 +17,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class CommunityCreateRepository {
   private readonly functions = inject(Functions);
+  private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
 
   private readonly createCommunityCallable = httpsCallable<
     CommunityCreateCommand,
@@ -53,7 +55,8 @@ export class CommunityCreateRepository {
         }
 
         return normalized;
-      })
+      }),
+      tap(() => this.discoveryCache.invalidateCurrentViewer())
     );
   }
 }

@@ -12,6 +12,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
 import {
   assertCommunityMembershipActorEligible,
@@ -138,9 +142,13 @@ function throwRateLimit(): never {
 }
 
 export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityTopicWriteResponse> => {
     assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityTopicCreateRequest(request.data);
 
@@ -348,9 +356,13 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
 );
 
 export const createCommunityTopicReply = onCall<CommunityTopicReplyCreateRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityTopicReplyWriteResponse> => {
     assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityTopicReplyCreateRequest(request.data);
 

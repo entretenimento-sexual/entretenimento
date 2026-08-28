@@ -16,6 +16,10 @@ import {
 import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
   CommunityFeedCommentReplyCreateRequest,
   CommunityFeedCommentReplyCreateResponse,
   normalizeCommunityFeedCommentReplyCreateRequest,
@@ -116,9 +120,13 @@ function existingResponse(
 export const createCommunityFeedCommentReply = onCall<
   CommunityFeedCommentReplyCreateRequest
 >(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityFeedCommentReplyCreateResponse> => {
     assertRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityFeedCommentReplyCreateRequest(request.data);
     if (

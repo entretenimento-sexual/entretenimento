@@ -14,6 +14,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
 import { canViewerReadCommunityFeedAudience } from './community-feed-access.policy';
 import {
   CommunityFeedReportRequest,
@@ -58,9 +62,13 @@ function buildReportId(
 }
 
 export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<{ reportId: string }> => {
     assertFeedRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const reporterUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityFeedReportRequest(request.data);
 

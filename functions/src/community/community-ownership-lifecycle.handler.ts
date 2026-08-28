@@ -14,6 +14,10 @@ import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
 import { hasCommunityLifecycleHold } from './community-lifecycle.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
@@ -311,9 +315,13 @@ function throwArchiveDecisionError(reason: string | null): never {
 }
 
 export const getCommunityOwnershipCandidates = onCall<CommunityIdPayload>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityOwnershipCandidatesResponse> => {
     assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const communityId = normalizeCommunityId(request.data?.communityId);
 
@@ -408,9 +416,13 @@ export const getCommunityOwnershipCandidates = onCall<CommunityIdPayload>(
 
 export const transferCommunityOwnership =
   onCall<CommunityOwnershipTransferPayload>(
-    { region: FUNCTIONS_REGION },
+    {
+      region: FUNCTIONS_REGION,
+      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+    },
     async (request): Promise<CommunityOwnershipTransferResponse> => {
       assertPreviewRuntime();
+      assertCommunityCallableAppCheck(request.app);
       const actorUid = assertAuthenticatedUid(request.auth);
       assertRecentAuthentication(
         (request.auth?.token ?? undefined) as Record<string, unknown> | undefined
@@ -626,9 +638,13 @@ export const transferCommunityOwnership =
   );
 
 export const archiveCommunity = onCall<CommunityArchivePayload>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityArchiveResponse> => {
     assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     assertRecentAuthentication(
       (request.auth?.token ?? undefined) as Record<string, unknown> | undefined

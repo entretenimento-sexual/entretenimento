@@ -14,6 +14,10 @@ import { resolveBlockedTargetUids } from '../friendship/application/bilateral-bl
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import { getCommunityCapacityForOwner } from './community-capacity.service';
 import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
   canSendCommunityInvite,
 } from './community-invite.policy';
 import {
@@ -137,9 +141,13 @@ async function requireInviteActor(
 
 export const findCommunityInviteCandidate =
   onCall<CommunityInviteCandidateRequest>(
-    { region: FUNCTIONS_REGION },
+    {
+      region: FUNCTIONS_REGION,
+      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+    },
     async (request): Promise<CommunityInviteCandidateResponse> => {
       assertPreviewRuntime();
+      assertCommunityCallableAppCheck(request.app);
       const actorUid = assertCommunityInviteAuthenticatedUid(request.auth);
       const command = normalizeCommunityInviteCandidateRequest(request.data);
 
@@ -254,9 +262,13 @@ export const findCommunityInviteCandidate =
   );
 
 export const getCommunitySentInvites = onCall<CommunityInviteManagementRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunitySentInvitesResponse> => {
     assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertCommunityInviteAuthenticatedUid(request.auth);
     const communityId = normalizeCommunityInviteManagementRequest(request.data);
 

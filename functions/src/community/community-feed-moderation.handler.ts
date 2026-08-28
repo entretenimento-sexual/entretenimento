@@ -19,6 +19,10 @@ import {
 } from '../media/application/published-photo-asset.service';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
   CommunityFeedPostActionRequest,
   CommunityFeedPostActionResponse,
   CommunityFeedPostOperationalStatus,
@@ -121,9 +125,13 @@ function stagePostPhotoCleanup(
 }
 
 export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityFeedPostActionResponse> => {
     assertFeedRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityFeedPostActionRequest(request.data);
 

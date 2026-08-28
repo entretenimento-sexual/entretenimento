@@ -8,6 +8,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
   buildCommunityModerationNotificationCopy,
   buildCommunityModerationNotificationId,
   buildCommunityNotificationRoute,
@@ -77,13 +81,17 @@ function assertAdmin(requestAuth: unknown): string {
 export const reviewCommunityFeedCommentReport = onCall<
   ReviewCommunityFeedCommentReportRequest
 >(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<{
     reportId: string;
     decision: ReviewDecision;
     targetType: 'community_feed_comment';
   }> => {
     assertRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const adminUid = assertAdmin(request.auth);
     const reportId = cleanId(request.data?.reportId);
     const decision = cleanDecision(request.data?.decision);

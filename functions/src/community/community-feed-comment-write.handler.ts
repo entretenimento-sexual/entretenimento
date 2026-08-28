@@ -17,6 +17,10 @@ import {
   isBilateralBlockActive,
 } from '../friendship/application/bilateral-block-access.policy';
 import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
   CommunityFeedCommentCreateRequest,
   CommunityFeedCommentCreateResponse,
   normalizeCommunityFeedCommentCreateRequest,
@@ -128,9 +132,13 @@ function existingResponse(
 }
 
 export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityFeedCommentCreateResponse> => {
     assertRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityFeedCommentCreateRequest(request.data);
     const rawReplyToCommentId = String(request.data?.replyToCommentId ?? '').trim();

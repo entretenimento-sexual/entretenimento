@@ -1,4 +1,3 @@
-// src/app/community/discovery/community-discovery-cache.service.ts
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
@@ -81,12 +80,7 @@ export class CommunityDiscoveryCacheService {
     page: CommunityDiscoveryPage,
     append: boolean
   ): void {
-    const viewerUid =
-      this.activeViewerUid
-      || normalizeCommunityDiscoveryViewerUid(
-        this.session.currentAuthUser?.uid
-      )
-      || null;
+    const viewerUid = this.resolveCurrentViewerUid();
     const query = buildCommunityDiscoveryCacheQuery(viewerUid, context);
     if (!query) return;
 
@@ -101,7 +95,7 @@ export class CommunityDiscoveryCacheService {
   }
 
   invalidateCurrentViewer(): void {
-    const viewerUid = this.activeViewerUid;
+    const viewerUid = this.resolveCurrentViewerUid();
     if (!viewerUid) return;
 
     this.store.dispatch(
@@ -109,5 +103,13 @@ export class CommunityDiscoveryCacheService {
         viewerUid,
       })
     );
+  }
+
+  private resolveCurrentViewerUid(): string | null {
+    return this.activeViewerUid
+      || normalizeCommunityDiscoveryViewerUid(
+        this.session.currentAuthUser?.uid
+      )
+      || null;
   }
 }

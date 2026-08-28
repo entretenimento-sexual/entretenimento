@@ -12,6 +12,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
+import {
   canViewerReadCommunityFeedProjection,
   resolveCommunityFeedContentAccess,
 } from './community-feed-access.policy';
@@ -70,8 +74,12 @@ function assertAuthenticatedUid(
 }
 
 export const getCommunityFeedItems = onCall<CommunityFeedItemsRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityFeedPageResponse> => {
+    assertCommunityCallableAppCheck(request.app);
     assertRuntime();
     const uid = assertAuthenticatedUid(request.auth);
     const communityId = cleanId(request.data?.communityId);

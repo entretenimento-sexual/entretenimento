@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, map } from 'rxjs';
+import { Observable, defer, from, map, tap } from 'rxjs';
 
+import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
 import {
   CommunitySettingsUpdateCommand,
   CommunitySettingsUpdateResult,
@@ -11,6 +12,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class CommunitySettingsRepository {
   private readonly functions = inject(Functions);
+  private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
 
   private readonly updateCommunitySettingsCallable = httpsCallable<
     CommunitySettingsUpdateCommand,
@@ -29,7 +31,8 @@ export class CommunitySettingsRepository {
         }
 
         return normalized;
-      })
+      }),
+      tap(() => this.discoveryCache.invalidateCurrentViewer())
     );
   }
 }

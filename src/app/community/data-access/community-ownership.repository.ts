@@ -8,8 +8,9 @@
 
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { defer, from, map, Observable } from 'rxjs';
+import { defer, from, map, Observable, tap } from 'rxjs';
 
+import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
 import {
   CommunityArchiveResponse,
   CommunityOwnershipCandidatesResponse,
@@ -22,6 +23,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class CommunityOwnershipRepository {
   private readonly functions = inject(Functions);
+  private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
 
   private readonly getCandidatesCallable = httpsCallable<
     { communityId: string },
@@ -83,7 +85,8 @@ export class CommunityOwnershipRepository {
         }
 
         return normalized;
-      })
+      }),
+      tap(() => this.discoveryCache.invalidateCurrentViewer())
     );
   }
 
@@ -111,7 +114,8 @@ export class CommunityOwnershipRepository {
         }
 
         return normalized;
-      })
+      }),
+      tap(() => this.discoveryCache.invalidateCurrentViewer())
     );
   }
 

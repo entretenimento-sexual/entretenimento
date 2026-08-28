@@ -12,6 +12,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
   CommunityTagCategory,
@@ -39,8 +43,12 @@ function assertPreviewRuntime(): void {
 }
 
 export const getCommunityTagCatalog = onCall(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityTagCatalogResponse> => {
+    assertCommunityCallableAppCheck(request.app);
     assertPreviewRuntime();
 
     const uid = String(request.auth?.uid ?? '').trim();

@@ -6,6 +6,10 @@ import { db } from '../firebaseApp';
 import { resolveBlockedTargetUids } from '../friendship/application/bilateral-block-access.policy';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
+import {
   assertCommunityInviteAuthenticatedUid,
   communityInviteToEpochMs,
   normalizeCommunityInviteText,
@@ -53,8 +57,12 @@ function normalizeHttpsUrl(value: unknown): string | null {
 }
 
 export const getCommunityInvites = onCall(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityInviteInboxResponse> => {
+    assertCommunityCallableAppCheck(request.app);
     assertPreviewRuntime();
     const uid = assertCommunityInviteAuthenticatedUid(request.auth);
     const userSnapshot = await db.collection('users').doc(uid).get();

@@ -13,6 +13,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
+import {
   CommunityDiscoveryPageRequest,
   CommunityDiscoveryPageResponse,
   CommunityPreviewCard,
@@ -50,8 +54,12 @@ function assertAuthenticatedUid(
 }
 
 export const getMyCommunitiesPage = onCall<CommunityDiscoveryPageRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityDiscoveryPageResponse> => {
+    assertCommunityCallableAppCheck(request.app);
     assertPreviewRuntime();
     const uid = assertAuthenticatedUid(request.auth);
     const pageRequest = normalizeCommunityDiscoveryPageRequest(request.data);

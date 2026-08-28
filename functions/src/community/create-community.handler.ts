@@ -23,6 +23,10 @@ import {
 } from '../payments/application/platform-subscription-entitlement.service';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
   MAX_PERSONAL_COMMUNITIES_PER_OWNER,
   isCommunityMemberLimitAllowed,
   resolveCommunityCapacitySponsorRole,
@@ -70,9 +74,13 @@ function normalizeExistingId(value: unknown): string | null {
 }
 
 export const createCommunity = onCall<CreateCommunityRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CreateCommunityResponse> => {
     assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCreateCommunityRequest(request.data);
 

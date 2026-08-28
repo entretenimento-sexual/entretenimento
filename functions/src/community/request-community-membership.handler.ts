@@ -12,6 +12,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
   assertCommunityAcceptingNewMembers,
   getCommunityCapacityForOwnerInTransaction,
 } from './community-capacity.service';
@@ -100,9 +104,13 @@ function throwDecisionError(reason: string | null): never {
 
 export const requestCommunityMembership =
   onCall<RequestCommunityMembershipPayload>(
-    { region: FUNCTIONS_REGION },
+    {
+      region: FUNCTIONS_REGION,
+      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+    },
     async (request): Promise<RequestCommunityMembershipResponse> => {
       assertPreviewRuntime();
+      assertCommunityCallableAppCheck(request.app);
 
       const uid = String(request.auth?.uid ?? '').trim();
       if (!uid) {

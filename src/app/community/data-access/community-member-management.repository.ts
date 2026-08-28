@@ -1,8 +1,9 @@
 // src/app/community/data-access/community-member-management.repository.ts
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { defer, from, map, Observable } from 'rxjs';
+import { defer, from, map, Observable, tap } from 'rxjs';
 
+import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
 import {
   CommunityAssignableMemberRole,
   CommunityManagedMembersPage,
@@ -16,6 +17,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class CommunityMemberManagementRepository {
   private readonly functions = inject(Functions);
+  private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
 
   private readonly getMembersPageCallable = httpsCallable<
     {
@@ -82,6 +84,11 @@ export class CommunityMemberManagementRepository {
           throw new Error('Resposta de gestão de participante inválida.');
         }
         return normalized;
+      }),
+      tap(() => {
+        if (action === 'remove' || action === 'block') {
+          this.discoveryCache.invalidateCurrentViewer();
+        }
       })
     );
   }

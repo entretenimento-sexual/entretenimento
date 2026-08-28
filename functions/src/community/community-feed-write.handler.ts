@@ -19,6 +19,10 @@ import {
 import { extractOwnedPrivatePhotoPath } from '../media/application/photo-storage-path';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
   CommunityFeedPostCreateRequest,
   CommunityFeedPostWriteResponse,
   normalizeCommunityFeedPostCreateRequest,
@@ -168,9 +172,13 @@ async function deletePrivateDraftQuietly(storagePath: string | null): Promise<vo
 }
 
 export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityFeedPostWriteResponse> => {
     assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityFeedPostCreateRequest(request.data);
     const rawReplyToPostId = String(request.data?.replyToPostId ?? '').trim();

@@ -14,6 +14,10 @@ import {
   getCommunityCapacityForOwnerInTransaction,
 } from './community-capacity.service';
 import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
+import {
   evaluateCommunityInviteResponse,
   type CommunityInviteResponseAction,
 } from './community-invite.policy';
@@ -117,7 +121,6 @@ async function respondCommunityInvite(
   request: CallableRequest<CommunityInviteResponseRequest>,
   action: CommunityInviteResponseAction
 ): Promise<CommunityInviteResult> {
-  assertPreviewRuntime();
   const receiverId = assertCommunityInviteAuthenticatedUid(request.auth);
   const inviteId = requireCommunityInviteId(request.data?.inviteId);
   const inviteRef = db.collection('invites').doc(inviteId);
@@ -193,7 +196,6 @@ async function respondCommunityInvite(
       if (!community) {
         throw new HttpsError('not-found', 'Comunidade não encontrada.');
       }
-
     }
 
     if (decision.incrementMemberCount && community) {
@@ -283,11 +285,25 @@ async function respondCommunityInvite(
 }
 
 export const acceptCommunityInvite = onCall<CommunityInviteResponseRequest>(
-  { region: FUNCTIONS_REGION },
-  async (request) => respondCommunityInvite(request, 'accept')
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
+  async (request) => {
+    assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
+    return respondCommunityInvite(request, 'accept');
+  }
 );
 
 export const declineCommunityInvite = onCall<CommunityInviteResponseRequest>(
-  { region: FUNCTIONS_REGION },
-  async (request) => respondCommunityInvite(request, 'decline')
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
+  async (request) => {
+    assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
+    return respondCommunityInvite(request, 'decline');
+  }
 );

@@ -12,6 +12,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
+import {
   canViewerReadCommunityTopicProjection,
   resolveCommunityTopicContentAccess,
 } from './community-topic-access.policy';
@@ -45,8 +49,12 @@ function assertValidCursor(
 }
 
 export const getCommunityTopicsPage = onCall<CommunityTopicPageRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityTopicPageResponse> => {
+    assertCommunityCallableAppCheck(request.app);
     assertTopicsRuntime();
 
     const uid = request.auth?.uid ?? null;

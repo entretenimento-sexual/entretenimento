@@ -19,6 +19,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
 import { evaluateOfficialSpaceCreationGrant } from './community-official-space.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
@@ -61,9 +65,13 @@ function normalizeExistingId(value: unknown): string | null {
 }
 
 export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CreateVenueCommunityResponse> => {
     assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCreateVenueCommunityRequest(request.data);
 

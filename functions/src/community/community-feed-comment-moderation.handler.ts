@@ -8,6 +8,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
   CommunityFeedCommentActionRequest,
   CommunityFeedCommentActionResponse,
   CommunityFeedCommentStatus,
@@ -86,9 +90,13 @@ function throwDenied(reason: string | null): never {
 export const moderateCommunityFeedComment = onCall<
   CommunityFeedCommentActionRequest
 >(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityFeedCommentActionResponse> => {
     assertRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const command = normalizeCommunityFeedCommentActionRequest(request.data);
     if (

@@ -19,6 +19,10 @@ import {
   resolveCommunityCapacitySponsorRole,
   resolveCommunityCreationCapability,
 } from './community-capacity.policy';
+import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 
 export interface CommunityCreationCapabilityResponse
@@ -55,8 +59,12 @@ function assertAuthenticatedUid(
 }
 
 export const getCommunityCreationCapability = onCall(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityCreationCapabilityResponse> => {
+    assertCommunityCallableAppCheck(request.app);
     assertPreviewRuntime();
     const actorUid = assertAuthenticatedUid(request.auth);
     const userRef = db.collection('users').doc(actorUid);

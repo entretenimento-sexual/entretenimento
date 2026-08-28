@@ -11,6 +11,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
 import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import { evaluateCommunityFeedReaction } from './community-feed-reaction.policy';
@@ -81,9 +85,13 @@ function throwDenied(reason: string | null): never {
 export const toggleCommunityFeedReaction = onCall<
   ToggleCommunityFeedReactionRequest
 >(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<ToggleCommunityFeedReactionResponse> => {
     assertRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const communityId = cleanId(request.data?.communityId);
     const postId = cleanId(request.data?.postId);

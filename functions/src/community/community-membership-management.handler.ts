@@ -15,6 +15,10 @@ import {
   assertCommunityAcceptingNewMembers,
   getCommunityCapacityForOwnerInTransaction,
 } from './community-capacity.service';
+import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
 import { resolveCommunityMemberCountDelta } from './community-member-count.policy';
 import { buildCommunityMembershipReviewAudit } from './community-membership-audit.model';
 import {
@@ -321,9 +325,13 @@ function sanitizePendingRequest(
 }
 
 export const getCommunityMembershipRequests = onCall<CommunityIdPayload>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityMembershipRequestsResponse> => {
     assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const actorUid = assertAuthenticatedUid(request.auth);
     const communityId = normalizeCommunityId(request.data?.communityId);
 
@@ -385,9 +393,13 @@ export const getCommunityMembershipRequests = onCall<CommunityIdPayload>(
 );
 
 export const leaveCommunityMembership = onCall<CommunityIdPayload>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityMembershipLifecycleResponse> => {
     assertPreviewRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const uid = assertAuthenticatedUid(request.auth);
     const communityId = normalizeCommunityId(request.data?.communityId);
 
@@ -503,9 +515,13 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
 
 export const reviewCommunityMembership =
   onCall<ReviewCommunityMembershipPayload>(
-    { region: FUNCTIONS_REGION },
+    {
+      region: FUNCTIONS_REGION,
+      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+    },
     async (request): Promise<CommunityMembershipReviewResponse> => {
       assertPreviewRuntime();
+      assertCommunityCallableAppCheck(request.app);
       const actorUid = assertAuthenticatedUid(request.auth);
       const communityId = normalizeCommunityId(request.data?.communityId);
       const memberId = normalizeSafeId(request.data?.memberId);

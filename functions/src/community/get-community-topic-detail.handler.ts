@@ -12,6 +12,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
+import {
   canViewerReadCommunityTopicAudience,
   canViewerReplyToCommunityTopic,
   resolveCommunityTopicContentAccess,
@@ -81,8 +85,12 @@ function assertValidReplyCursor(
 }
 
 export const getCommunityTopicDetail = onCall<CommunityTopicDetailRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityTopicDetailResponse> => {
+    assertCommunityCallableAppCheck(request.app);
     assertTopicsRuntime();
     const uid = assertAuthenticatedViewer(request.auth);
     const command = normalizeCommunityTopicDetailRequest(request.data);
@@ -129,8 +137,12 @@ export const getCommunityTopicDetail = onCall<CommunityTopicDetailRequest>(
 );
 
 export const getCommunityTopicRepliesPage = onCall<CommunityTopicRepliesPageRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityTopicRepliesPageResponse> => {
+    assertCommunityCallableAppCheck(request.app);
     assertTopicsRuntime();
     const uid = assertAuthenticatedViewer(request.auth);
     const command = normalizeCommunityTopicRepliesPageRequest(request.data);

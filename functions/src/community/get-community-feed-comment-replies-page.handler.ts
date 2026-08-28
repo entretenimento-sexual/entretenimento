@@ -12,6 +12,10 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
   canViewerReadCommunityFeedAudience,
   resolveCommunityFeedContentAccess,
 } from './community-feed-access.policy';
@@ -44,9 +48,13 @@ function isManagementRole(value: unknown): boolean {
 export const getCommunityFeedCommentRepliesPage = onCall<
   CommunityFeedCommentReplyPageRequest
 >(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityFeedCommentReplyPageResponse> => {
     assertRuntime();
+    assertCommunityCallableAppCheck(request.app);
     const uid = String(request.auth?.uid ?? '').trim();
     if (!uid) throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     if (request.auth?.token.email_verified !== true) {

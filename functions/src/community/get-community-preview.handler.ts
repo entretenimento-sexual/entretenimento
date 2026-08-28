@@ -11,6 +11,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
 import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
+import {
   CommunityPreviewRequest,
   CommunityPreviewResponse,
   normalizeCommunityId,
@@ -27,8 +31,12 @@ function assertPreviewRuntime(): void {
 }
 
 export const getCommunityPreview = onCall<CommunityPreviewRequest>(
-  { region: FUNCTIONS_REGION },
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
   async (request): Promise<CommunityPreviewResponse> => {
+    assertCommunityCallableAppCheck(request.app);
     assertPreviewRuntime();
 
     const uid = request.auth?.uid ?? null;
