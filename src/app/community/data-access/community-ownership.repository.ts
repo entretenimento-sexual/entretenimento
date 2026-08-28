@@ -8,8 +8,9 @@
 
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { defer, from, map, Observable } from 'rxjs';
+import { defer, from, map, Observable, tap } from 'rxjs';
 
+import { CommunityDomainEventsService } from './community-domain-events.service';
 import {
   CommunityArchiveResponse,
   CommunityOwnershipCandidatesResponse,
@@ -22,6 +23,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class CommunityOwnershipRepository {
   private readonly functions = inject(Functions);
+  private readonly domainEvents = inject(CommunityDomainEventsService);
 
   private readonly getCandidatesCallable = httpsCallable<
     { communityId: string },
@@ -63,11 +65,12 @@ export class CommunityOwnershipRepository {
     targetUid: string
   ): Observable<CommunityOwnershipTransferResponse> {
     const requestId = this.createRequestId('transfer');
+    const normalizedCommunityId = communityId.trim();
 
     return defer(() =>
       from(
         this.transferOwnershipCallable({
-          communityId: communityId.trim(),
+          communityId: normalizedCommunityId,
           targetUid: targetUid.trim(),
           requestId,
         })
@@ -83,7 +86,13 @@ export class CommunityOwnershipRepository {
         }
 
         return normalized;
-      })
+      }),
+      tap(() =>
+        this.domainEvents.notifyDiscoveryChanged(
+          'ownership_changed',
+          normalizedCommunityId
+        )
+      )
     );
   }
 
@@ -93,11 +102,12 @@ export class CommunityOwnershipRepository {
   ): Observable<CommunityArchiveResponse> {
     const requestId = this.createRequestId('archive');
     const safeReason = this.normalizeOptionalReason(reason);
+    const normalizedCommunityId = communityId.trim();
 
     return defer(() =>
       from(
         this.archiveCommunityCallable({
-          communityId: communityId.trim(),
+          communityId: normalizedCommunityId,
           requestId,
           reason: safeReason,
         })
@@ -111,7 +121,13 @@ export class CommunityOwnershipRepository {
         }
 
         return normalized;
-      })
+      }),
+      tap(() =>
+        this.domainEvents.notifyDiscoveryChanged(
+          'archived',
+          normalizedCommunityId
+        )
+      )
     );
   }
 
