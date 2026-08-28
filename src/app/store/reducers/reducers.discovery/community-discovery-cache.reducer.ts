@@ -131,6 +131,9 @@ export const communityDiscoveryCacheReducer = createReducer(
       const lastLoadedAt = append && current
         ? current.lastLoadedAt
         : now;
+      const invalidated = append && current
+        ? current.invalidated
+        : false;
 
       return {
         ...scoped,
@@ -142,6 +145,7 @@ export const communityDiscoveryCacheReducer = createReducer(
               nextCursor: page.nextCursor,
               lastLoadedAt,
               lastAccessedAt: now,
+              invalidated,
             },
           },
           now
@@ -158,7 +162,7 @@ export const communityDiscoveryCacheReducer = createReducer(
       const byQuery = Object.fromEntries(
         Object.entries(state.byQuery).map(([key, slice]) => [
           key,
-          { ...slice, lastLoadedAt: 0 },
+          { ...slice, invalidated: true },
         ])
       );
 
