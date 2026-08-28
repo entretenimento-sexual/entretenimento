@@ -1,8 +1,9 @@
 // src/app/community/data-access/community-invite.repository.ts
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { defer, from, map, Observable } from 'rxjs';
+import { defer, from, map, Observable, tap } from 'rxjs';
 
+import { CommunityDomainEventsService } from './community-domain-events.service';
 import {
   CommunityInviteInbox,
   CommunityInviteCandidateResponse,
@@ -17,6 +18,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class CommunityInviteRepository {
   private readonly functions = inject(Functions);
+  private readonly domainEvents = inject(CommunityDomainEventsService);
 
   private readonly getInvitesCallable = httpsCallable<void, unknown>(
     this.functions,
@@ -68,7 +70,9 @@ export class CommunityInviteRepository {
   }
 
   acceptInvite$(inviteId: string): Observable<CommunityInviteResult> {
-    return this.respond$(this.acceptInviteCallable, inviteId, 'accepted');
+    return this.respond$(this.acceptInviteCallable, inviteId, 'accepted').pipe(
+      tap(() => this.domainEvents.notifyDiscoveryChanged('invite_accepted'))
+    );
   }
 
   declineInvite$(inviteId: string): Observable<CommunityInviteResult> {
