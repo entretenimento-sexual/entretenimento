@@ -1,0 +1,483 @@
+name: Community Mural Visual Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/app/community/feed/**'
+      - 'src/app/community/feed-comments/**'
+      - 'src/app/community/data-access/community-feed*.ts'
+      - 'src/styles/**'
+      - '.github/workflows/community-feed-visual-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: community-mural-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual:
+    name: Mural desktop and mobile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate normal emulator build
+        run: npm run build:emu
+
+      - name: Prepare isolated Mural visual harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > src/main.ts <<'TS'
+          import { bootstrapApplication } from '@angular/platform-browser';
+          import { AppComponent } from './app/app.component';
+
+          bootstrapApplication(AppComponent).catch((error: unknown) => {
+            console.error(error);
+          });
+          TS
+
+          cat > src/app/app.component.ts <<'TS'
+          import { Component } from '@angular/core';
+          import { NEVER, of } from 'rxjs';
+
+          import { AuthSessionService } from './core/services/autentication/auth/auth-session.service';
+          import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';
+          import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
+          import { GeolocationService } from './core/services/geolocation/geolocation.service';
+          import { PhotoEditorLauncherService } from './core/services/image-handling/photo-editor-launcher.service';
+          import { StorageService } from './core/services/image-handling/storage.service';
+          import { CameraCaptureService } from './core/services/media/camera-capture.service';
+          import { CommunityFeedCommentRepository } from './community/data-access/community-feed-comment.repository';
+          import type { CommunityFeedCommentPage } from './community/data-access/community-feed-comment.model';
+          import { CommunityFeedRepository } from './community/data-access/community-feed.repository';
+          import type {
+            CommunityFeedPage,
+            CommunityFeedPostCreateRequest,
+            CommunityFeedPostActionRequest,
+            CommunityFeedReactionRequest,
+          } from './community/data-access/community-feed.model';
+          import { CommunityFeedComponent } from './community/feed/community-feed.component';
+
+          const now = Date.now();
+          const image = `data:image/svg+xml,${encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675">
+              <defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#202631"/><stop offset="1" stop-color="#70798a"/></linearGradient></defs>
+              <rect width="1200" height="675" fill="url(#g)"/>
+              <circle cx="820" cy="260" r="145" fill="#ffffff" opacity=".10"/>
+              <rect x="120" y="420" width="760" height="68" rx="34" fill="#ffffff" opacity=".12"/>
+              <rect x="120" y="520" width="520" height="34" rx="17" fill="#ffffff" opacity=".09"/>
+            </svg>
+          `)}`;
+
+          const page: CommunityFeedPage = {
+            generatedAt: now,
+            nextCursor: null,
+            items: [
+              {
+                postId: 'visual-text',
+                kind: 'text',
+                author: { label: 'Ana', avatarUrl: null },
+                text: 'Uma publicação curta para conferir leitura, ações e abertura da conversa sem transformar o Mural em um formulário administrativo.',
+                image: null,
+                location: null,
+                replyTo: null,
+                metrics: { commentCount: 2, reactionCount: 8 },
+                capabilities: {
+                  canDeleteOwn: false,
+                  canModerate: false,
+                  canReport: false,
+                  canReact: true,
+                  viewerReacted: false,
+                  canViewComments: true,
+                  canComment: true,
+                },
+                publishedAt: now - 4 * 60_000,
+              },
+              {
+                postId: 'visual-photo',
+                kind: 'photo',
+                author: { label: 'Bruno', avatarUrl: null },
+                text: 'Registro visual compartilhado pela comunidade.',
+                image: { url: image, alt: 'Imagem de teste do Mural' },
+                location: null,
+                replyTo: {
+                  postId: 'visual-text',
+                  authorLabel: 'Ana',
+                  textPreview: 'Uma publicação curta para conferir leitura e ações.',
+                  available: true,
+                },
+                metrics: { commentCount: 0, reactionCount: 3 },
+                capabilities: {
+                  canDeleteOwn: false,
+                  canModerate: false,
+                  canReport: false,
+                  canReact: true,
+                  viewerReacted: true,
+                  canViewComments: true,
+                  canComment: true,
+                },
+                publishedAt: now - 12 * 60_000,
+              },
+              {
+                postId: 'visual-location',
+                kind: 'location',
+                author: { label: 'Carla', avatarUrl: null },
+                text: 'Ponto aproximado para o encontro do grupo.',
+                image: null,
+                location: { latitude: -22.91, longitude: -43.18, precision: 'approximate' },
+                replyTo: null,
+                metrics: { commentCount: 1, reactionCount: 1 },
+                capabilities: {
+                  canDeleteOwn: false,
+                  canModerate: false,
+                  canReport: false,
+                  canReact: true,
+                  viewerReacted: false,
+                  canViewComments: true,
+                  canComment: true,
+                },
+                publishedAt: now - 26 * 60_000,
+              },
+            ],
+          };
+
+          const comments: CommunityFeedCommentPage = {
+            generatedAt: now,
+            nextCursor: null,
+            items: [
+              {
+                commentId: 'visual-comment-1',
+                author: { label: 'Diego', avatarUrl: null },
+                text: 'Gostei da proposta. Ficou fácil acompanhar a conversa.',
+                replyTo: null,
+                replyCount: 0,
+                capabilities: { canDeleteOwn: false, canModerate: false, canReport: false },
+                createdAt: now - 3 * 60_000,
+              },
+              {
+                commentId: 'visual-comment-2',
+                author: { label: 'Elisa', avatarUrl: null },
+                text: 'Também achei. A resposta continua no contexto da publicação.',
+                replyTo: {
+                  commentId: 'visual-comment-1',
+                  authorLabel: 'Diego',
+                  textPreview: 'Gostei da proposta.',
+                  available: true,
+                },
+                replyCount: 0,
+                capabilities: { canDeleteOwn: false, canModerate: false, canReport: false },
+                createdAt: now - 2 * 60_000,
+              },
+            ],
+          };
+
+          const visualFeedRepository = {
+            getPage$: () => of(page),
+            getItems$: ({ postIds }: { postIds: readonly string[] }) => of({
+              ...page,
+              items: page.items.filter((item) => postIds.includes(item.postId)),
+            }),
+            watchLatestChanges$: () => NEVER,
+            createPost$: (request: CommunityFeedPostCreateRequest) => of({
+              communityId: request.communityId,
+              postId: 'visual-created-post',
+              created: true,
+              deduplicated: false,
+            }),
+            moderatePost$: (request: CommunityFeedPostActionRequest) => of({
+              communityId: request.communityId,
+              postId: request.postId,
+              action: request.action,
+              status: request.action === 'delete_own' ? 'deleted' : 'removed',
+              deduplicated: false,
+              generatedAt: Date.now(),
+            }),
+            toggleReaction$: (request: CommunityFeedReactionRequest) => of({
+              communityId: request.communityId,
+              postId: request.postId,
+              reacted: true,
+              reactionCount: 9,
+            }),
+          };
+
+          const visualCommentRepository = {
+            getPage$: () => of(comments),
+            getRepliesPage$: () => of({ items: [], nextCursor: null, generatedAt: Date.now() }),
+            watchCommentCount$: () => of(2),
+            createComment$: (request: { communityId: string; postId: string }) => of({
+              communityId: request.communityId,
+              postId: request.postId,
+              commentId: 'visual-created-comment',
+              commentCount: 3,
+              created: true,
+              deduplicated: false,
+            }),
+            createReply$: (request: { communityId: string; postId: string; commentId: string }) => of({
+              communityId: request.communityId,
+              postId: request.postId,
+              commentId: request.commentId,
+              replyId: 'visual-created-reply',
+              replyCount: 1,
+              created: true,
+              deduplicated: false,
+            }),
+            moderateComment$: () => NEVER,
+            moderateReply$: () => NEVER,
+          };
+
+          @Component({
+            selector: 'app-root',
+            standalone: true,
+            imports: [CommunityFeedComponent],
+            providers: [
+              { provide: CommunityFeedRepository, useValue: visualFeedRepository },
+              { provide: CommunityFeedCommentRepository, useValue: visualCommentRepository },
+              {
+                provide: ErrorNotificationService,
+                useValue: {
+                  showSuccess: () => undefined,
+                  showWarning: () => undefined,
+                  showError: () => undefined,
+                },
+              },
+              {
+                provide: GlobalErrorHandlerService,
+                useValue: { handleError: (error: unknown) => console.error(error) },
+              },
+              {
+                provide: GeolocationService,
+                useValue: { currentPosition$: () => of({ latitude: -22.91, longitude: -43.18 }) },
+              },
+              {
+                provide: AuthSessionService,
+                useValue: { currentAuthUser: { uid: 'visual-user' } },
+              },
+              {
+                provide: StorageService,
+                useValue: { uploadFile: () => of('community-feed/visual-image.webp') },
+              },
+              { provide: CameraCaptureService, useValue: {} },
+              { provide: PhotoEditorLauncherService, useValue: {} },
+            ],
+            template: `
+              <main class="visual-shell">
+                <header class="visual-shell__header">
+                  <p class="visual-shell__eyebrow">Comunidade</p>
+                  <h1>Mural</h1>
+                  <p>Validação isolada da superfície real do Mural.</p>
+                </header>
+                <app-community-feed
+                  communityId="visual-community"
+                  [canInteract]="true"
+                  viewerRole="member"
+                />
+              </main>
+            `,
+            styles: [`
+              :host { display: block; min-height: 100vh; }
+              .visual-shell { width: min(100%, 760px); margin: 0 auto; padding: 24px 16px 64px; }
+              .visual-shell__header { padding: 8px 4px 18px; }
+              .visual-shell__header h1 { margin: 0; font-size: clamp(1.6rem, 4vw, 2.15rem); }
+              .visual-shell__header p { margin: 6px 0 0; }
+              .visual-shell__eyebrow { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+              @media (max-width: 480px) { .visual-shell { padding: 12px 8px 40px; } }
+            `],
+          })
+          export class AppComponent {}
+          TS
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @playwright/cli@0.1.17
+          playwright-cli install-browser --with-deps
+
+      - name: Start isolated Mural harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          nohup npx ng serve \
+            --configuration=dev-emu \
+            --host=127.0.0.1 \
+            --port=4200 \
+            > artifacts/ng-serve.log 2>&1 &
+          echo $! > artifacts/ng-serve.pid
+
+          for attempt in $(seq 1 180); do
+            if curl --fail --silent --show-error 'http://127.0.0.1:4200/' >/dev/null; then
+              echo "Mural visual harness ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat artifacts/ng-serve.log >&2 || true
+          exit 1
+
+      - name: Validate and capture desktop and mobile
+        shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: community-mural
+        run: |
+          set -euo pipefail
+          OUT='artifacts/community-mural'
+          mkdir -p "$OUT/desktop" "$OUT/mobile"
+
+          check_log() {
+            local file="$1"
+            if grep -q '^### Error' "$file"; then
+              cat "$file" >&2
+              exit 1
+            fi
+          }
+
+          run_checked() {
+            local file="$1"
+            local code="$2"
+            playwright-cli run-code "$code" | tee "$file"
+            check_log "$file"
+          }
+
+          playwright-cli open 'http://127.0.0.1:4200/'
+          playwright-cli resize 1440 1100
+
+          run_checked "$OUT/desktop/metrics.log" "async (page) => {
+            await page.waitForSelector('.community-feed', { state: 'visible' });
+            await page.waitForSelector('.community-post', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const actions = Array.from(document.querySelectorAll('.community-post__action')).filter((element) => {
+                const style = getComputedStyle(element);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+              });
+              const heights = actions.map((element) => element.getBoundingClientRect().height);
+              const buttons = Array.from(document.querySelectorAll('button')).filter((element) => {
+                const style = getComputedStyle(element);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+              });
+              const unnamedButtons = buttons.filter((button) => {
+                const label = button.getAttribute('aria-label') || button.getAttribute('title') || button.textContent || '';
+                return !label.trim();
+              }).length;
+              return {
+                viewportWidth: innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                postCount: document.querySelectorAll('.community-post').length,
+                locationCount: document.querySelectorAll('.community-post__location').length,
+                imageCount: document.querySelectorAll('.community-post__media img').length,
+                minActionHeight: heights.length ? Math.min(...heights) : 0,
+                unnamedButtons,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Desktop horizontal overflow');
+            if (metrics.postCount !== 3) throw new Error('Expected three deterministic Mural posts');
+            if (metrics.locationCount !== 1) throw new Error('Location attachment was not rendered');
+            if (metrics.imageCount !== 1) throw new Error('Image attachment was not rendered');
+            if (metrics.minActionHeight < 44) throw new Error('A visible Mural action is below 44px');
+            if (metrics.unnamedButtons > 0) throw new Error('Visible button without accessible name');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/desktop/accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/desktop/viewport.png"
+          playwright-cli screenshot --full-page --filename="$OUT/desktop/full-page.png"
+
+          run_checked "$OUT/desktop/reply.metrics.log" "async (page) => {
+            const reply = page.getByRole('button', { name: 'Responder à publicação de Ana' });
+            await reply.click();
+            await page.waitForSelector('.feed-comments', { state: 'visible' });
+            const expanded = await reply.getAttribute('aria-expanded');
+            const comments = await page.locator('.feed-comment').count();
+            console.log(JSON.stringify({ expanded, comments }));
+            if (expanded !== 'true') throw new Error('Responder did not expose the conversation');
+            if (comments !== 2) throw new Error('Conversation visual fixture was not rendered');
+            return { expanded, comments };
+          }"
+          playwright-cli screenshot --full-page --filename="$OUT/desktop/reply-open.png"
+
+          run_checked "$OUT/desktop/location-composer.metrics.log" "async (page) => {
+            await page.getByRole('button', { name: 'Fechar conversa' }).click();
+            await page.locator('.community-feed__attachment-menu summary').click();
+            await page.getByRole('button', { name: 'Localização' }).click();
+            await page.waitForSelector('.community-feed__location-preview', { state: 'visible' });
+            const preview = (await page.locator('.community-feed__location-preview').innerText()).trim();
+            const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+            console.log(JSON.stringify({ preview, scrollWidth }));
+            if (!preview.includes('-22.91') || !preview.includes('-43.18')) throw new Error('Approximate location preview is incomplete');
+            if (scrollWidth > 1441) throw new Error('Composer location preview caused desktop overflow');
+            return { preview, scrollWidth };
+          }"
+          playwright-cli screenshot --filename="$OUT/desktop/location-composer.png"
+
+          playwright-cli goto 'http://127.0.0.1:4200/'
+          playwright-cli resize 390 844
+
+          run_checked "$OUT/mobile/metrics.log" "async (page) => {
+            await page.waitForSelector('.community-post', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const postRects = Array.from(document.querySelectorAll('.community-post')).map((element) => element.getBoundingClientRect());
+              const actionRects = Array.from(document.querySelectorAll('.community-post__action')).map((element) => element.getBoundingClientRect());
+              const composerTools = Array.from(document.querySelectorAll('.community-feed__composer-tool, .community-feed__send')).map((element) => element.getBoundingClientRect());
+              return {
+                viewportWidth: innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                widestPost: postRects.length ? Math.max(...postRects.map((rect) => rect.width)) : 0,
+                minActionHeight: actionRects.length ? Math.min(...actionRects.map((rect) => rect.height)) : 0,
+                minComposerTarget: composerTools.length ? Math.min(...composerTools.map((rect) => Math.min(rect.width, rect.height))) : 0,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Mobile horizontal overflow');
+            if (metrics.widestPost > metrics.viewportWidth + 1) throw new Error('Mural card exceeds mobile viewport');
+            if (metrics.minActionHeight < 44) throw new Error('Mobile Mural action is below 44px');
+            if (metrics.minComposerTarget < 44) throw new Error('Mobile composer target is below 44px');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/mobile/accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/mobile/viewport.png"
+          playwright-cli screenshot --full-page --filename="$OUT/mobile/full-page.png"
+
+          run_checked "$OUT/mobile/reply.metrics.log" "async (page) => {
+            const reply = page.getByRole('button', { name: 'Responder à publicação de Ana' });
+            await reply.click();
+            await page.waitForSelector('.feed-comments', { state: 'visible' });
+            const viewportWidth = await page.evaluate(() => innerWidth);
+            const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+            const rect = await page.locator('.feed-comments').boundingBox();
+            console.log(JSON.stringify({ viewportWidth, scrollWidth, rect }));
+            if (scrollWidth > viewportWidth + 1) throw new Error('Open conversation causes mobile overflow');
+            if (!rect || rect.width > viewportWidth + 1) throw new Error('Conversation exceeds mobile viewport');
+            return { viewportWidth, scrollWidth, rect };
+          }"
+          playwright-cli screenshot --full-page --filename="$OUT/mobile/reply-open.png"
+
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: community-mural-visual-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
