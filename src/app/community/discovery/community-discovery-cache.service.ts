@@ -78,10 +78,12 @@ export class CommunityDiscoveryCacheService {
                 nextCursor: slice.nextCursor,
                 generatedAt: slice.lastLoadedAt,
               },
-              fresh: isCommunityDiscoveryCacheSoftFresh(
-                slice.lastLoadedAt,
-                accessedAt
-              ),
+              fresh:
+                !slice.invalidated
+                && isCommunityDiscoveryCacheSoftFresh(
+                  slice.lastLoadedAt,
+                  accessedAt
+                ),
             };
           })
         );
