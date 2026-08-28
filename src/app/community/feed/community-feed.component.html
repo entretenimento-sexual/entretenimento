@@ -83,11 +83,14 @@
             <details
               #attachmentMenu
               class="community-post__menu community-feed__attachment-menu"
+              (document:pointerdown)="attachmentMenu.open && !attachmentMenu.contains($any($event.target)) ? attachmentMenu.open = false : null"
+              (document:keydown.escape)="attachmentMenu.open = false"
             >
               <summary
                 class="community-feed__composer-tool"
                 aria-label="Adicionar ao Mural"
                 title="Adicionar"
+                [attr.aria-expanded]="attachmentMenu.open"
                 [attr.aria-disabled]="writeState.status === 'loading' ? 'true' : null"
                 (click)="writeState.status === 'loading' ? $event.preventDefault() : null"
               >
@@ -415,8 +418,17 @@
                 }
               </footer>
 
+              <!--
+                Histórico legado preservado para compatibilidade/migração, mas não
+                é mais uma superfície navegável do Mural. O atributo hidden remove
+                o controle do layout, do foco e da árvore de acessibilidade.
+              -->
               @if (item.capabilities.canViewComments && commentCount(item) > 0) {
-                <div class="community-post__metrics" aria-label="Histórico anterior da publicação">
+                <div
+                  class="community-post__metrics"
+                  aria-label="Histórico anterior da publicação"
+                  hidden
+                >
                   <button
                     class="community-post__action community-post__comments-toggle"
                     type="button"
