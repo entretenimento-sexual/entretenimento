@@ -1,8 +1,9 @@
 // src/app/community/data-access/community-member-management.repository.ts
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { defer, from, map, Observable } from 'rxjs';
+import { defer, from, map, Observable, tap } from 'rxjs';
 
+import { CommunityDomainEventsService } from './community-domain-events.service';
 import {
   CommunityAssignableMemberRole,
   CommunityManagedMembersPage,
@@ -16,6 +17,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class CommunityMemberManagementRepository {
   private readonly functions = inject(Functions);
+  private readonly domainEvents = inject(CommunityDomainEventsService);
 
   private readonly getMembersPageCallable = httpsCallable<
     {
@@ -66,10 +68,11 @@ export class CommunityMemberManagementRepository {
     action: CommunityMemberManagementAction,
     nextRole: CommunityAssignableMemberRole | null = null
   ): Observable<CommunityManageMemberResponse> {
+    const normalizedCommunityId = communityId.trim();
     return defer(() =>
       from(
         this.manageMemberCallable({
-          communityId: communityId.trim(),
+          communityId: normalizedCommunityId,
           memberId: memberId.trim(),
           action,
           nextRole,
@@ -82,7 +85,13 @@ export class CommunityMemberManagementRepository {
           throw new Error('Resposta de gestão de participante inválida.');
         }
         return normalized;
-      })
+      }),
+      tap(() =>
+        this.domainEvents.notifyDiscoveryChanged(
+          'membership_changed',
+          normalizedCommunityId
+        )
+      )
     );
   }
 }
