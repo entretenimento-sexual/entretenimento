@@ -12,6 +12,9 @@ import { CommunityDomainEventsService } from '../data-access/community-domain-ev
 import type { CommunityDiscoveryPage } from '../data-access/community-preview.model';
 import {
   CommunityDiscoveryCacheContext,
+  CommunityDiscoveryCacheQuery,
+  CommunityDiscoveryListState,
+  INITIAL_COMMUNITY_DISCOVERY_LIST_STATE,
   buildCommunityDiscoveryCacheKey,
   buildCommunityDiscoveryCacheQuery,
   isCommunityDiscoveryCacheSoftFresh,
@@ -49,6 +52,31 @@ export class CommunityDiscoveryCacheService {
       .subscribe(() => this.invalidateCurrentViewer());
   }
 
+  state$(
+    context: CommunityDiscoveryCacheContext
+  ): Observable<CommunityDiscoveryListState> {
+    return this.session.uid$.pipe(
+      switchMap((uid) => {
+        const query = buildCommunityDiscoveryCacheQuery(uid, context);
+        if (!query) return of(INITIAL_COMMUNITY_DISCOVERY_LIST_STATE);
+
+        const queryKey = buildCommunityDiscoveryCacheKey(query);
+        return this.store.select(selectCommunityDiscoveryCacheSlice(queryKey)).pipe(
+          map((slice): CommunityDiscoveryListState => {
+            if (!slice) return INITIAL_COMMUNITY_DISCOVERY_LIST_STATE;
+
+            return {
+              status: slice.status,
+              items: slice.items,
+              nextCursor: slice.nextCursor,
+              loadingMore: slice.loadingMore,
+            };
+          })
+        );
+      })
+    );
+  }
+
   readSnapshot$(
     context: CommunityDiscoveryCacheContext
   ): Observable<CommunityDiscoveryCacheSnapshot | null> {
@@ -70,7 +98,7 @@ export class CommunityDiscoveryCacheService {
         return this.store.select(selectCommunityDiscoveryCacheSlice(queryKey)).pipe(
           take(1),
           map((slice): CommunityDiscoveryCacheSnapshot | null => {
-            if (!slice) return null;
+            if (!slice || slice.lastLoadedAt <= 0) return null;
 
             return {
               page: {
@@ -91,18 +119,28 @@ export class CommunityDiscoveryCacheService {
     );
   }
 
+  beginLoad(
+    context: CommunityDiscoveryCacheContext,
+    append: boolean
+  ): void {
+    const query = this.resolveCurrentQuery(context);
+    if (!query) return;
+
+    this.store.dispatch(
+      CommunityDiscoveryCacheActions.beginCommunityDiscoveryLoad({
+        query,
+        append,
+        startedAt: Date.now(),
+      })
+    );
+  }
+
   rememberPage(
     context: CommunityDiscoveryCacheContext,
     page: CommunityDiscoveryPage,
     append: boolean
   ): void {
-    const viewerUid =
-      this.activeViewerUid
-      || normalizeCommunityDiscoveryViewerUid(
-        this.session.currentAuthUser?.uid
-      )
-      || null;
-    const query = buildCommunityDiscoveryCacheQuery(viewerUid, context);
+    const query = this.resolveCurrentQuery(context);
     if (!query) return;
 
     this.store.dispatch(
@@ -111,6 +149,22 @@ export class CommunityDiscoveryCacheService {
         page,
         append,
         storedAt: Date.now(),
+      })
+    );
+  }
+
+  failLoad(
+    context: CommunityDiscoveryCacheContext,
+    append: boolean
+  ): void {
+    const query = this.resolveCurrentQuery(context);
+    if (!query) return;
+
+    this.store.dispatch(
+      CommunityDiscoveryCacheActions.failCommunityDiscoveryLoad({
+        query,
+        append,
+        failedAt: Date.now(),
       })
     );
   }
@@ -129,5 +183,18 @@ export class CommunityDiscoveryCacheService {
         viewerUid,
       })
     );
+  }
+
+  private resolveCurrentQuery(
+    context: CommunityDiscoveryCacheContext
+  ): CommunityDiscoveryCacheQuery | null {
+    const viewerUid =
+      this.activeViewerUid
+      || normalizeCommunityDiscoveryViewerUid(
+        this.session.currentAuthUser?.uid
+      )
+      || null;
+
+    return buildCommunityDiscoveryCacheQuery(viewerUid, context);
   }
 }

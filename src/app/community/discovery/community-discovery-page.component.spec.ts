@@ -1,11 +1,14 @@
 // src/app/community/discovery/community-discovery-page.component.spec.ts
 import { TestBed } from '@angular/core/testing';
+import { StoreModule } from '@ngrx/store';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { filter, firstValueFrom, of, take } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { communityDiscoveryCacheReducer } from 'src/app/store/reducers/reducers.discovery/community-discovery-cache.reducer';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
@@ -34,8 +37,6 @@ function venueCard() {
 describe('CommunityDiscoveryPageComponent / Locais', () => {
   const getDiscoveryPage$ = vi.fn();
   const getCommunityTagCatalog$ = vi.fn();
-  const readSnapshot$ = vi.fn();
-  const rememberPage = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,10 +50,14 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
     getCommunityTagCatalog$.mockReturnValue(
       of({ items: [], generatedAt: 123 })
     );
-    readSnapshot$.mockReturnValue(of(null));
 
     TestBed.configureTestingModule({
-      imports: [CommunityDiscoveryPageComponent],
+      imports: [
+        CommunityDiscoveryPageComponent,
+        StoreModule.forRoot({
+          communityDiscoveryCache: communityDiscoveryCacheReducer,
+        }),
+      ],
       providers: [
         provideRouter([]),
         {
@@ -66,16 +71,19 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
           },
         },
         {
+          provide: AuthSessionService,
+          useValue: {
+            uid$: of('viewer-1'),
+            currentAuthUser: { uid: 'viewer-1' },
+          },
+        },
+        {
           provide: CommunityPreviewRepository,
           useValue: { getDiscoveryPage$ },
         },
         {
           provide: CommunityTagRepository,
           useValue: { getCommunityTagCatalog$ },
-        },
-        {
-          provide: CommunityDiscoveryCacheService,
-          useValue: { readSnapshot$, rememberPage },
         },
         {
           provide: CommunityCreationGateService,
@@ -94,6 +102,8 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
   });
 
   it('carrega somente Locais e usa a rota canônica', async () => {
+    const cache = TestBed.inject(CommunityDiscoveryCacheService);
+    const rememberPage = vi.spyOn(cache, 'rememberPage');
     const component = TestBed.runInInjectionContext(
       () => new CommunityDiscoveryPageComponent()
     );

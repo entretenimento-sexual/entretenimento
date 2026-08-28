@@ -6,10 +6,29 @@
 // snapshots de "Minhas" nunca sejam reutilizados entre sessões diferentes.
 // -----------------------------------------------------------------------------
 
-import type { CommunityPreviewSourceType } from '../data-access/community-preview.model';
+import type {
+  CommunityPreviewCard,
+  CommunityPreviewSourceType,
+} from '../data-access/community-preview.model';
 import { normalizeCommunityTagId } from '../data-access/community-tag.model';
 
 export type CommunityDiscoveryMode = 'explore' | 'mine';
+export type CommunityDiscoveryStatus = 'loading' | 'ready' | 'empty' | 'error';
+
+export interface CommunityDiscoveryListState {
+  readonly status: CommunityDiscoveryStatus;
+  readonly items: readonly CommunityPreviewCard[];
+  readonly nextCursor: string | null;
+  readonly loadingMore: boolean;
+}
+
+export const INITIAL_COMMUNITY_DISCOVERY_LIST_STATE: CommunityDiscoveryListState =
+  Object.freeze({
+    status: 'loading',
+    items: [],
+    nextCursor: null,
+    loadingMore: false,
+  });
 
 export interface CommunityDiscoveryCacheContext {
   readonly sourceType: CommunityPreviewSourceType;

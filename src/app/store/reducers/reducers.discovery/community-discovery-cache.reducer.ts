@@ -20,6 +20,18 @@ function normalizeTimestamp(value: number): number {
   return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
 }
 
+function initialSlice(now: number): CommunityDiscoveryCacheSlice {
+  return {
+    status: 'loading',
+    items: [],
+    nextCursor: null,
+    loadingMore: false,
+    lastLoadedAt: 0,
+    lastAccessedAt: normalizeTimestamp(now),
+    invalidated: false,
+  };
+}
+
 function mergeCards(
   current: readonly CommunityPreviewCard[],
   incoming: readonly CommunityPreviewCard[]
@@ -63,6 +75,17 @@ function pruneQueries(
   return Object.fromEntries(activeEntries);
 }
 
+function hasRetainedSnapshot(slice: CommunityDiscoveryCacheSlice): boolean {
+  return slice.lastLoadedAt > 0;
+}
+
+function resolvedStatus(
+  slice: CommunityDiscoveryCacheSlice
+): CommunityDiscoveryCacheSlice['status'] {
+  if (!hasRetainedSnapshot(slice)) return 'error';
+  return slice.items.length > 0 ? 'ready' : 'empty';
+}
+
 export const communityDiscoveryCacheReducer = createReducer(
   initialCommunityDiscoveryCacheState,
 
@@ -96,6 +119,47 @@ export const communityDiscoveryCacheReducer = createReducer(
               ...current,
               lastAccessedAt: now,
             },
+          },
+          now
+        ),
+      };
+    }
+  ),
+
+  on(
+    CommunityDiscoveryCacheActions.beginCommunityDiscoveryLoad,
+    (state, { query, append, startedAt }) => {
+      const now = normalizeTimestamp(startedAt);
+      const scoped = scopeToViewer(state, query.viewerUid);
+      const key = buildCommunityDiscoveryCacheKey(query);
+      const current = scoped.byQuery[key];
+      const currentValid = current
+        && !isCommunityDiscoveryCacheHardExpired(current.lastLoadedAt, now)
+          ? current
+          : null;
+      const pruned = pruneQueries(scoped.byQuery, now);
+
+      if (append && !currentValid) {
+        return { ...scoped, byQuery: pruned };
+      }
+
+      const base = currentValid ?? initialSlice(now);
+      const nextSlice: CommunityDiscoveryCacheSlice = {
+        ...base,
+        status:
+          append || hasRetainedSnapshot(base)
+            ? base.status
+            : 'loading',
+        loadingMore: append,
+        lastAccessedAt: now,
+      };
+
+      return {
+        ...scoped,
+        byQuery: pruneQueries(
+          {
+            ...pruned,
+            [key]: nextSlice,
           },
           now
         ),
@@ -141,12 +205,47 @@ export const communityDiscoveryCacheReducer = createReducer(
           {
             ...scoped.byQuery,
             [key]: {
+              status: items.length > 0 ? 'ready' : 'empty',
               items,
               nextCursor: page.nextCursor,
+              loadingMore: false,
               lastLoadedAt,
               lastAccessedAt: now,
               invalidated,
             },
+          },
+          now
+        ),
+      };
+    }
+  ),
+
+  on(
+    CommunityDiscoveryCacheActions.failCommunityDiscoveryLoad,
+    (state, { query, failedAt }) => {
+      const now = normalizeTimestamp(failedAt);
+      const scoped = scopeToViewer(state, query.viewerUid);
+      const key = buildCommunityDiscoveryCacheKey(query);
+      const current = scoped.byQuery[key];
+      const currentValid = current
+        && !isCommunityDiscoveryCacheHardExpired(current.lastLoadedAt, now)
+          ? current
+          : null;
+      const pruned = pruneQueries(scoped.byQuery, now);
+      const base = currentValid ?? initialSlice(now);
+      const nextSlice: CommunityDiscoveryCacheSlice = {
+        ...base,
+        status: resolvedStatus(base),
+        loadingMore: false,
+        lastAccessedAt: now,
+      };
+
+      return {
+        ...scoped,
+        byQuery: pruneQueries(
+          {
+            ...pruned,
+            [key]: nextSlice,
           },
           now
         ),

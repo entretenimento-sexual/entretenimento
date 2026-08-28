@@ -1,10 +1,9 @@
 // src/app/store/states/states.discovery/community-discovery-cache.state.ts
 
-import type { CommunityPreviewCard } from 'src/app/community/data-access/community-preview.model';
+import type { CommunityDiscoveryListState } from 'src/app/community/discovery/community-discovery-cache.model';
 
-export interface CommunityDiscoveryCacheSlice {
-  readonly items: readonly CommunityPreviewCard[];
-  readonly nextCursor: string | null;
+export interface CommunityDiscoveryCacheSlice
+  extends CommunityDiscoveryListState {
   /** Última revalidação bem-sucedida da primeira página da consulta. */
   readonly lastLoadedAt: number;
   /** Último acesso ao escopo, usado exclusivamente para retenção LRU. */

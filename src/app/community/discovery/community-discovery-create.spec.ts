@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { StoreModule } from '@ngrx/store';
 import {
   ActivatedRoute,
   Router,
@@ -8,13 +9,14 @@ import {
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { communityDiscoveryCacheReducer } from 'src/app/store/reducers/reducers.discovery/community-discovery-cache.reducer';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
 import type { CommunityPreviewCard } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
-import { CommunityDiscoveryCacheService } from './community-discovery-cache.service';
 import { CommunityDiscoveryPageComponent } from './community-discovery-page.component';
 
 const TAG_CATALOG = [
@@ -46,8 +48,6 @@ describe('CommunityDiscoveryPageComponent / criação direta', () => {
   const getDiscoveryPage$ = vi.fn();
   const getCommunityTagCatalog$ = vi.fn();
   const requestCreation$ = vi.fn();
-  const readSnapshot$ = vi.fn();
-  const rememberPage = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -58,10 +58,14 @@ describe('CommunityDiscoveryPageComponent / criação direta', () => {
       of({ items: TAG_CATALOG, generatedAt: Date.now() })
     );
     requestCreation$.mockReturnValue(of(void 0));
-    readSnapshot$.mockReturnValue(of(null));
 
     TestBed.configureTestingModule({
-      imports: [CommunityDiscoveryPageComponent],
+      imports: [
+        CommunityDiscoveryPageComponent,
+        StoreModule.forRoot({
+          communityDiscoveryCache: communityDiscoveryCacheReducer,
+        }),
+      ],
       providers: [
         provideRouter([]),
         {
@@ -75,6 +79,13 @@ describe('CommunityDiscoveryPageComponent / criação direta', () => {
           },
         },
         {
+          provide: AuthSessionService,
+          useValue: {
+            uid$: of('viewer-1'),
+            currentAuthUser: { uid: 'viewer-1' },
+          },
+        },
+        {
           provide: CommunityPreviewRepository,
           useValue: {
             getDiscoveryPage$,
@@ -84,10 +95,6 @@ describe('CommunityDiscoveryPageComponent / criação direta', () => {
         {
           provide: CommunityTagRepository,
           useValue: { getCommunityTagCatalog$ },
-        },
-        {
-          provide: CommunityDiscoveryCacheService,
-          useValue: { readSnapshot$, rememberPage },
         },
         {
           provide: CommunityCreationGateService,

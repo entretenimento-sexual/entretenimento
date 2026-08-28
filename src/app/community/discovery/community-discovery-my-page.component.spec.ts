@@ -1,11 +1,14 @@
 // src/app/community/discovery/community-discovery-my-page.component.spec.ts
 import { TestBed } from '@angular/core/testing';
+import { StoreModule } from '@ngrx/store';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { filter, firstValueFrom, of, take } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { communityDiscoveryCacheReducer } from 'src/app/store/reducers/reducers.discovery/community-discovery-cache.reducer';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
@@ -37,8 +40,6 @@ function communityCard() {
 describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
   const getDiscoveryPage$ = vi.fn();
   const getMyCommunitiesPage$ = vi.fn();
-  const readSnapshot$ = vi.fn();
-  const rememberPage = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,10 +50,14 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
         generatedAt: 123,
       })
     );
-    readSnapshot$.mockReturnValue(of(null));
 
     TestBed.configureTestingModule({
-      imports: [CommunityDiscoveryPageComponent],
+      imports: [
+        CommunityDiscoveryPageComponent,
+        StoreModule.forRoot({
+          communityDiscoveryCache: communityDiscoveryCacheReducer,
+        }),
+      ],
       providers: [
         provideRouter([]),
         {
@@ -66,16 +71,19 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
           },
         },
         {
+          provide: AuthSessionService,
+          useValue: {
+            uid$: of('viewer-1'),
+            currentAuthUser: { uid: 'viewer-1' },
+          },
+        },
+        {
           provide: CommunityPreviewRepository,
           useValue: { getDiscoveryPage$, getMyCommunitiesPage$ },
         },
         {
           provide: CommunityTagRepository,
           useValue: { getCommunityTagCatalog$: vi.fn() },
-        },
-        {
-          provide: CommunityDiscoveryCacheService,
-          useValue: { readSnapshot$, rememberPage },
         },
         {
           provide: CommunityCreationGateService,
@@ -179,17 +187,22 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
   });
 
   it('restaura snapshot fresco sem repetir a callable privada', async () => {
-    getMyCommunitiesPage$.mockClear();
-    readSnapshot$.mockReturnValue(
-      of({
-        fresh: true,
-        page: {
-          items: [communityCard()],
-          nextCursor: 'cursor-2',
-          generatedAt: 456,
-        },
-      })
+    const cache = TestBed.inject(CommunityDiscoveryCacheService);
+    cache.rememberPage(
+      {
+        sourceType: 'community',
+        discoveryMode: 'mine',
+        tagId: null,
+        pageSize: 12,
+      },
+      {
+        items: [communityCard()],
+        nextCursor: 'cursor-2',
+        generatedAt: Date.now(),
+      },
+      false
     );
+    getMyCommunitiesPage$.mockClear();
 
     const component = TestBed.runInInjectionContext(
       () => new CommunityDiscoveryPageComponent()

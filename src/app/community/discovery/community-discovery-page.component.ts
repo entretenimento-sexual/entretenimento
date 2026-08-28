@@ -7,7 +7,10 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  takeUntilDestroyed,
+  toObservable,
+} from '@angular/core/rxjs-interop';
 import {
   ActivatedRoute,
   Router,
@@ -16,13 +19,12 @@ import {
 } from '@angular/router';
 import {
   catchError,
-  concat,
   distinctUntilChanged,
+  EMPTY,
   finalize,
   map,
   Observable,
   of,
-  scan,
   shareReplay,
   startWith,
   Subject,
@@ -59,36 +61,10 @@ import {
 } from './community-discovery-cache.model';
 import { CommunityDiscoveryCacheService } from './community-discovery-cache.service';
 
-type CommunityDiscoveryStatus = 'loading' | 'ready' | 'empty' | 'error';
 type CommunityTagFilterState =
   | { status: 'loading'; items: readonly CommunityTagDefinition[] }
   | { status: 'ready'; items: readonly CommunityTagDefinition[] }
   | { status: 'error'; items: readonly CommunityTagDefinition[] };
-
-interface CommunityDiscoveryState {
-  status: CommunityDiscoveryStatus;
-  items: readonly CommunityPreviewCard[];
-  nextCursor: string | null;
-  loadingMore: boolean;
-}
-
-interface LoadRequest {
-  cursor: string | null;
-  append: boolean;
-  tagId: string | null;
-}
-
-type LoadEvent =
-  | { type: 'loading'; request: LoadRequest }
-  | { type: 'success'; request: LoadRequest; page: CommunityDiscoveryPage }
-  | { type: 'error'; request: LoadRequest };
-
-const INITIAL_STATE: CommunityDiscoveryState = Object.freeze({
-  status: 'loading',
-  items: [],
-  nextCursor: null,
-  loadingMore: false,
-});
 
 /**
  * Os IDs apenas definem prioridade visual dos atalhos. Rótulos e existência
@@ -105,58 +81,6 @@ const COMMUNITY_QUICK_FILTER_TAG_IDS = Object.freeze([
 const COMMUNITY_QUICK_FILTER_TAG_ID_SET = new Set<string>(
   COMMUNITY_QUICK_FILTER_TAG_IDS
 );
-
-function mergeCards(
-  current: readonly CommunityPreviewCard[],
-  incoming: readonly CommunityPreviewCard[]
-): readonly CommunityPreviewCard[] {
-  const merged = new Map<string, CommunityPreviewCard>();
-
-  for (const item of current) merged.set(item.communityId, item);
-  for (const item of incoming) merged.set(item.communityId, item);
-
-  return [...merged.values()];
-}
-
-function reduceState(
-  state: CommunityDiscoveryState,
-  event: LoadEvent
-): CommunityDiscoveryState {
-  if (event.type === 'loading') {
-    return event.request.append
-      ? { ...state, loadingMore: true }
-      : INITIAL_STATE;
-  }
-
-  if (event.type === 'error') {
-    /**
-     * Um refresh stale-while-revalidate nunca derruba conteúdo já restaurado do
-     * cache. O diagnóstico e o feedback de erro permanecem ativos, mas o usuário
-     * conserva a lista e a posição de navegação que já possuía.
-     */
-    if (state.items.length > 0) {
-      return { ...state, loadingMore: false };
-    }
-
-    return {
-      status: 'error',
-      items: [],
-      nextCursor: null,
-      loadingMore: false,
-    };
-  }
-
-  const items = event.request.append
-    ? mergeCards(state.items, event.page.items)
-    : event.page.items;
-
-  return {
-    status: items.length > 0 ? 'ready' : 'empty',
-    items,
-    nextCursor: event.page.nextCursor,
-    loadingMore: false,
-  };
-}
 
 @Component({
   selector: 'app-community-discovery-page',
@@ -181,7 +105,6 @@ export class CommunityDiscoveryPageComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly loadRequests$ = new Subject<LoadRequest>();
   private readonly tagCatalogReload$ = new Subject<void>();
 
   readonly sourceType: CommunityPreviewSourceType =
@@ -244,22 +167,14 @@ export class CommunityDiscoveryPageComponent {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  readonly state$ = this.loadRequests$.pipe(
-    startWith<LoadRequest>({
-      cursor: null,
-      append: false,
-      tagId: this.initialTagId,
-    }),
-    switchMap((request) =>
-      this.resolveLoadEvents$(request).pipe(
-        startWith<LoadEvent>({ type: 'loading', request }),
-        catchError((error: unknown) => {
-          this.reportError(error);
-          return of<LoadEvent>({ type: 'error', request });
-        })
-      )
+  /**
+   * O NgRx é a única autoridade dos cards, cursor e lifecycle de carregamento.
+   * O signal local escolhe apenas qual consulta viewer-scoped deve ser observada.
+   */
+  readonly state$ = toObservable(this.selectedTagId).pipe(
+    switchMap((tagId) =>
+      this.discoveryCache.state$(this.cacheContext(tagId))
     ),
-    scan(reduceState, INITIAL_STATE),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -279,6 +194,8 @@ export class CommunityDiscoveryPageComponent {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((tagId) => this.applyTagFilter(tagId, false));
+
+    this.loadFirstPage(this.initialTagId);
   }
 
   requestCommunityCreation(event?: Event): void {
@@ -295,19 +212,26 @@ export class CommunityDiscoveryPageComponent {
   loadMore(cursor: string | null): void {
     if (!cursor) return;
 
-    this.loadRequests$.next({
-      cursor,
-      append: true,
-      tagId: this.selectedTagId(),
-    });
+    const context = this.cacheContext(this.selectedTagId());
+
+    /**
+     * A paginação só pode partir de uma primeira página ainda retida. Se o hard
+     * TTL removeu o snapshot, revalidamos a base em vez de aceitar page 2 órfã.
+     */
+    this.discoveryCache.readSnapshot$(context).pipe(
+      switchMap((snapshot) =>
+        this.executePageLoad$(
+          context,
+          snapshot ? cursor : null,
+          snapshot !== null
+        )
+      ),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   retry(): void {
-    this.loadRequests$.next({
-      cursor: null,
-      append: false,
-      tagId: this.selectedTagId(),
-    });
+    this.loadFirstPage(this.selectedTagId(), true);
   }
 
   retryTagCatalog(): void {
@@ -389,60 +313,54 @@ export class CommunityDiscoveryPageComponent {
       : ['/dashboard/comunidades', item.communityId];
   }
 
-  private resolveLoadEvents$(request: LoadRequest): Observable<LoadEvent> {
-    const context = this.cacheContext(request.tagId);
+  private loadFirstPage(tagId: string | null, force = false): void {
+    const context = this.cacheContext(tagId);
 
-    if (request.append) {
-      return this.fetchPageEvent$(request, context);
-    }
-
-    return this.discoveryCache.readSnapshot$(context).pipe(
+    this.discoveryCache.readSnapshot$(context).pipe(
       switchMap((snapshot) => {
-        if (!snapshot) {
-          return this.fetchPageEvent$(request, context);
-        }
+        if (snapshot?.fresh && !force) return EMPTY;
+        return this.executePageLoad$(context, null, false);
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
+  }
 
-        const cached$ = of<LoadEvent>({
-          type: 'success',
-          request,
-          page: snapshot.page,
-        });
+  private executePageLoad$(
+    context: CommunityDiscoveryCacheContext,
+    cursor: string | null,
+    append: boolean
+  ): Observable<CommunityDiscoveryPage> {
+    this.discoveryCache.beginLoad(context, append);
 
-        return snapshot.fresh
-          ? cached$
-          : concat(cached$, this.fetchPageEvent$(request, context));
+    return this.fetchPage$(cursor, context, append).pipe(
+      catchError((error: unknown) => {
+        this.discoveryCache.failLoad(context, append);
+        this.reportError(error);
+        return EMPTY;
       })
     );
   }
 
-  private fetchPageEvent$(
-    request: LoadRequest,
-    context: CommunityDiscoveryCacheContext
-  ): Observable<LoadEvent> {
+  private fetchPage$(
+    cursor: string | null,
+    context: CommunityDiscoveryCacheContext,
+    append: boolean
+  ): Observable<CommunityDiscoveryPage> {
     const page$ = this.discoveryMode === 'mine'
       ? this.repository.getMyCommunitiesPage$({
           limit: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
-          cursor: request.cursor,
+          cursor,
           sourceType: 'community',
         })
       : this.repository.getDiscoveryPage$({
           limit: DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
-          cursor: request.cursor,
+          cursor,
           sourceType: this.sourceType,
-          tagId: this.canFilterByTags ? request.tagId : null,
+          tagId: this.canFilterByTags ? context.tagId : null,
         });
 
     return page$.pipe(
-      tap((page) =>
-        this.discoveryCache.rememberPage(context, page, request.append)
-      ),
-      map(
-        (page): LoadEvent => ({
-          type: 'success',
-          request,
-          page,
-        })
-      )
+      tap((page) => this.discoveryCache.rememberPage(context, page, append))
     );
   }
 
@@ -459,7 +377,7 @@ export class CommunityDiscoveryPageComponent {
     if (!this.canFilterByTags || tagId === this.selectedTagId()) return;
 
     this.selectedTagId.set(tagId);
-    this.loadRequests$.next({ cursor: null, append: false, tagId });
+    this.loadFirstPage(tagId);
 
     if (!syncUrl) return;
 

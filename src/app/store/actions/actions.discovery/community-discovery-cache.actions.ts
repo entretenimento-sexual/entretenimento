@@ -18,6 +18,15 @@ export const touchCommunityDiscoveryQuery = createAction(
   }>()
 );
 
+export const beginCommunityDiscoveryLoad = createAction(
+  '[Community Discovery Cache] Begin Load',
+  props<{
+    query: CommunityDiscoveryCacheQuery;
+    append: boolean;
+    startedAt: number;
+  }>()
+);
+
 export const storeCommunityDiscoveryPage = createAction(
   '[Community Discovery Cache] Store Page',
   props<{
@@ -25,6 +34,15 @@ export const storeCommunityDiscoveryPage = createAction(
     page: CommunityDiscoveryPage;
     append: boolean;
     storedAt: number;
+  }>()
+);
+
+export const failCommunityDiscoveryLoad = createAction(
+  '[Community Discovery Cache] Fail Load',
+  props<{
+    query: CommunityDiscoveryCacheQuery;
+    append: boolean;
+    failedAt: number;
   }>()
 );
 

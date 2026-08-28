@@ -30,6 +30,96 @@ describe('communityDiscoveryCacheReducer', () => {
     sourceType: 'community', discoveryMode: 'explore', tagId: null, pageSize: 12,
   })!;
 
+  it('mantém o lifecycle de carregamento no mesmo slice que contém a lista', () => {
+    const loading = communityDiscoveryCacheReducer(
+      initialCommunityDiscoveryCacheState,
+      Actions.beginCommunityDiscoveryLoad({
+        query,
+        append: false,
+        startedAt: 100,
+      })
+    );
+    const loadingSlice = loading.byQuery[buildCommunityDiscoveryCacheKey(query)]!;
+    expect(loadingSlice.status).toBe('loading');
+    expect(loadingSlice.loadingMore).toBe(false);
+
+    const ready = communityDiscoveryCacheReducer(
+      loading,
+      Actions.storeCommunityDiscoveryPage({
+        query,
+        page: { items: [card('a')], nextCursor: 'a', generatedAt: 10 },
+        append: false,
+        storedAt: 110,
+      })
+    );
+    const readySlice = ready.byQuery[buildCommunityDiscoveryCacheKey(query)]!;
+    expect(readySlice.status).toBe('ready');
+    expect(readySlice.loadingMore).toBe(false);
+
+    const loadingMore = communityDiscoveryCacheReducer(
+      ready,
+      Actions.beginCommunityDiscoveryLoad({
+        query,
+        append: true,
+        startedAt: 120,
+      })
+    );
+    expect(
+      loadingMore.byQuery[buildCommunityDiscoveryCacheKey(query)]?.loadingMore
+    ).toBe(true);
+  });
+
+  it('falha inicial vira error, mas refresh stale preserva conteúdo pronto', () => {
+    const loading = communityDiscoveryCacheReducer(
+      initialCommunityDiscoveryCacheState,
+      Actions.beginCommunityDiscoveryLoad({
+        query,
+        append: false,
+        startedAt: 100,
+      })
+    );
+    const failedInitial = communityDiscoveryCacheReducer(
+      loading,
+      Actions.failCommunityDiscoveryLoad({
+        query,
+        append: false,
+        failedAt: 110,
+      })
+    );
+    expect(
+      failedInitial.byQuery[buildCommunityDiscoveryCacheKey(query)]?.status
+    ).toBe('error');
+
+    const populated = communityDiscoveryCacheReducer(
+      initialCommunityDiscoveryCacheState,
+      Actions.storeCommunityDiscoveryPage({
+        query,
+        page: { items: [card('a')], nextCursor: null, generatedAt: 10 },
+        append: false,
+        storedAt: 200,
+      })
+    );
+    const refreshing = communityDiscoveryCacheReducer(
+      populated,
+      Actions.beginCommunityDiscoveryLoad({
+        query,
+        append: false,
+        startedAt: 210,
+      })
+    );
+    const failedRefresh = communityDiscoveryCacheReducer(
+      refreshing,
+      Actions.failCommunityDiscoveryLoad({
+        query,
+        append: false,
+        failedAt: 220,
+      })
+    );
+    const slice = failedRefresh.byQuery[buildCommunityDiscoveryCacheKey(query)]!;
+    expect(slice.status).toBe('ready');
+    expect(slice.items.map((item) => item.communityId)).toEqual(['a']);
+  });
+
   it('acumula paginas sem duplicar communityId nem renovar a idade da primeira pagina', () => {
     const first = communityDiscoveryCacheReducer(initialCommunityDiscoveryCacheState,
       Actions.storeCommunityDiscoveryPage({
@@ -50,6 +140,8 @@ describe('communityDiscoveryCacheReducer', () => {
     expect(slice.lastLoadedAt).toBe(100);
     expect(slice.lastAccessedAt).toBe(200);
     expect(slice.invalidated).toBe(false);
+    expect(slice.status).toBe('ready');
+    expect(slice.loadingMore).toBe(false);
   });
 
   it('limpa snapshots quando o viewer muda', () => {
