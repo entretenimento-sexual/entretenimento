@@ -15,6 +15,7 @@ import type {
   CommunityPreviewResponse,
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
+import { provideCommunityFeedCacheTestDouble } from '../feed/community-feed-cache.testing';
 import { CommunityPreviewPageComponent } from './community-preview-page.component';
 
 type JoinPolicy = 'open' | 'approval' | 'invite_only';
@@ -87,6 +88,7 @@ describe('CommunityPreviewPageComponent / comunicação de adesão', () => {
       imports: [CommunityPreviewPageComponent],
       providers: [
         provideRouter([]),
+        provideCommunityFeedCacheTestDouble(),
         {
           provide: ActivatedRoute,
           useValue: {
