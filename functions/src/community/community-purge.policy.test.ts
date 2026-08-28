@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  resolveCommunityFeedActionPointerFromModerationReport,
+} from './community-purge-action-pointer.policy';
+import {
   DEFAULT_COMMUNITY_PURGE_GRACE_DAYS,
   evaluateCommunityPurgeEligibility,
   resolveCommunityPurgeGraceDays,
@@ -149,4 +152,55 @@ test('community purge grace config is bounded and defaults safely', () => {
   assert.equal(resolveCommunityPurgeGraceDays({ lifecyclePurgeGraceDays: 3 }), 7);
   assert.equal(resolveCommunityPurgeGraceDays({ lifecyclePurgeGraceDays: 45 }), 45);
   assert.equal(resolveCommunityPurgeGraceDays({ lifecyclePurgeGraceDays: 999 }), 365);
+});
+
+test('community purge recovers legacy admin action pointer from resolved removal report', () => {
+  const target = resolveCommunityFeedActionPointerFromModerationReport(
+    {
+      targetType: 'community_feed_post',
+      targetId: 'post-1',
+      parentTargetId: 'community-1',
+      status: 'resolved',
+      moderationAction: 'REMOVE',
+      reviewedBy: 'admin-1',
+    },
+    'community-1'
+  );
+
+  assert.deepEqual(target, {
+    actorUid: 'admin-1',
+    postId: 'post-1',
+  });
+});
+
+test('community purge does not derive action pointer from keep or mismatched report', () => {
+  assert.equal(
+    resolveCommunityFeedActionPointerFromModerationReport(
+      {
+        targetType: 'community_feed_post',
+        targetId: 'post-1',
+        parentTargetId: 'community-1',
+        status: 'rejected',
+        moderationAction: 'KEEP',
+        reviewedBy: 'admin-1',
+      },
+      'community-1'
+    ),
+    null
+  );
+
+  assert.equal(
+    resolveCommunityFeedActionPointerFromModerationReport(
+      {
+        targetType: 'community_feed_post',
+        targetId: 'post-1',
+        parentTargetId: 'community-other',
+        status: 'resolved',
+        moderationAction: 'REMOVE',
+        reviewedBy: 'admin-1',
+      },
+      'community-1'
+    ),
+    null
+  );
 });

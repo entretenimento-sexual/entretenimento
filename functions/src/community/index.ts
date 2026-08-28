@@ -87,6 +87,9 @@ export { updateCommunitySettings } from './update-community-settings.handler';
 export { runCommunityLifecycle } from './run-community-lifecycle.schedule';
 export { runCommunityPurge } from './run-community-purge.schedule';
 export {
+  cleanupCommunityFeedActionPointersOnDelete,
+} from './cleanup-community-feed-action-pointers-on-delete.trigger';
+export {
   syncCommunityArchiveProjections,
 } from './sync-community-archive-projections.trigger';
 export { syncCommunityFeedActivity } from './sync-community-feed-activity.trigger';
