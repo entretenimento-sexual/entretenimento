@@ -147,6 +147,7 @@ test('plano de reativação limpa marcadores antigos e renova ranking', () => {
 test('plano de arquivamento mantém âncora canônica e compatibilidade legada', () => {
   const raw = community({
     status: 'dormant',
+    metrics: { memberCount: 0, postCount: 1, mediaCount: 0, topicCount: 0 },
     lifecycle: { lastMeaningfulActivityAt: NOW - 150 * DAY_MS },
   });
   const decision = evaluateCommunityLifecycle(raw, NOW);
