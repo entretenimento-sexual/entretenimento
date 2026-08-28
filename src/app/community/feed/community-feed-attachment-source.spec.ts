@@ -145,8 +145,54 @@ describe('CommunityFeedComponent attachment sources', () => {
     cameraAction?.click();
     fixture.detectChanges();
 
-    expect(menu?.open).toBe(true);
     expect(fixture.nativeElement.querySelector('[role="dialog"]')).not.toBeNull();
+  });
+
+  it('fecha o menu ao clicar fora e ao pressionar Escape', () => {
+    const fixture = createFixture();
+    const menu = fixture.nativeElement.querySelector(
+      '.community-feed__attachment-menu'
+    ) as HTMLDetailsElement;
+    const trigger = menu.querySelector('summary') as HTMLElement;
+
+    trigger.click();
+    fixture.detectChanges();
+    expect(menu.open).toBe(true);
+
+    document.body.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true })
+    );
+    fixture.detectChanges();
+    expect(menu.open).toBe(false);
+
+    trigger.click();
+    fixture.detectChanges();
+    expect(menu.open).toBe(true);
+
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })
+    );
+    fixture.detectChanges();
+    expect(menu.open).toBe(false);
+  });
+
+  it('não fecha o menu em interação interna antes da ação escolhida', () => {
+    const fixture = createFixture();
+    const menu = fixture.nativeElement.querySelector(
+      '.community-feed__attachment-menu'
+    ) as HTMLDetailsElement;
+    const trigger = menu.querySelector('summary') as HTMLElement;
+    const panel = menu.querySelector(
+      '.community-post__menu-panel'
+    ) as HTMLElement;
+
+    trigger.click();
+    fixture.detectChanges();
+    expect(menu.open).toBe(true);
+
+    panel.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    fixture.detectChanges();
+    expect(menu.open).toBe(true);
   });
 
   it('fecha o menu para Galeria e envia a foto escolhida ao editor canônico', () => {
