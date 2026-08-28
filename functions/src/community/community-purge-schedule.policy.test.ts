@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { hasCommunityPurgeOperationsPermission } from './community-purge-operations.authorization';
 import { resolveCommunityPurgeScheduleOptions } from './community-purge-schedule.policy';
 
 test('purge agendado permanece desligado sem opt-in explícito', () => {
@@ -50,4 +51,34 @@ test('valores não numéricos retornam aos defaults seguros', () => {
   assert.equal(options.maxPerRun, 20);
   assert.equal(options.pageSize, 100);
   assert.equal(options.maxPagesPerStep, 30);
+});
+
+test('diagnóstico de purge aceita somente administração ou permissão explícita', () => {
+  assert.equal(hasCommunityPurgeOperationsPermission({ superadmin: true }), true);
+  assert.equal(hasCommunityPurgeOperationsPermission({ admin: true }), true);
+  assert.equal(
+    hasCommunityPurgeOperationsPermission({ roles: ['ADMIN'] }),
+    true
+  );
+  assert.equal(
+    hasCommunityPurgeOperationsPermission({ permissions: ['community:purge'] }),
+    true
+  );
+  assert.equal(
+    hasCommunityPurgeOperationsPermission({ permissions: ['community:lifecycle'] }),
+    true
+  );
+});
+
+test('moderador comum não recebe acesso operacional ao purge', () => {
+  assert.equal(hasCommunityPurgeOperationsPermission({ moderator: true }), false);
+  assert.equal(
+    hasCommunityPurgeOperationsPermission({ staffRoles: ['moderator'] }),
+    false
+  );
+  assert.equal(
+    hasCommunityPurgeOperationsPermission({ permissions: ['community:moderate'] }),
+    false
+  );
+  assert.equal(hasCommunityPurgeOperationsPermission(null), false);
 });

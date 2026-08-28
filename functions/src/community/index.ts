@@ -82,6 +82,7 @@ export {
   transferCommunityOwnership,
 } from './community-ownership-lifecycle.handler';
 export { getCommunityPreview } from './get-community-preview.handler';
+export { inspectCommunityPurgeReadiness } from './inspect-community-purge-readiness.handler';
 export { requestCommunityMembership } from './request-community-membership.handler';
 export { updateCommunitySettings } from './update-community-settings.handler';
 export { runCommunityLifecycle } from './run-community-lifecycle.schedule';
