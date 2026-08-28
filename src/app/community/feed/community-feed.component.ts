@@ -38,10 +38,10 @@ import {
   exhaustMap,
   filter,
   finalize,
+  ignoreElements,
   map,
   merge,
   of,
-  scan,
   shareReplay,
   startWith,
   Subject,
@@ -74,6 +74,7 @@ import {
   CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
 import { CommunityCameraCaptureComponent } from './community-camera-capture.component';
+import { CommunityFeedCacheService } from './community-feed-cache.service';
 import {
   CommunityComposerAttachment,
   validateCommunityComposerImage,
@@ -82,7 +83,6 @@ import {
   CommunityFeedLoadEvent,
   CommunityFeedLoadRequest,
   INITIAL_COMMUNITY_FEED_STATE,
-  reduceCommunityFeedState,
 } from './community-feed-state.model';
 import { CommunityFeedTimeTickerService } from './community-feed-time-ticker.service';
 import {
@@ -151,6 +151,7 @@ const MAX_UNSEEN_NEW_POSTS = 99;
 })
 export class CommunityFeedComponent implements OnDestroy {
   private readonly repository = inject(CommunityFeedRepository);
+  private readonly feedCache = inject(CommunityFeedCacheService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
@@ -266,86 +267,98 @@ export class CommunityFeedComponent implements OnDestroy {
   );
 
   readonly state$ = this.feedScope$.pipe(
-    switchMap(([communityId, view]) => {
-      const pageEvents$ = this.loadRequests$.pipe(
-        startWith<CommunityFeedLoadRequest>({
-          cursor: null,
-          append: false,
-          preserve: true,
-        }),
-        exhaustMap((request) =>
-          this.repository
-            .getPage$({
-              communityId,
-              view,
-              limit: 10,
-              cursor: request.cursor,
-            })
-            .pipe(
-              map(
-                (page): CommunityFeedLoadEvent => ({
-                  type: 'success',
-                  request,
-                  page,
+    switchMap(([communityId, view]) =>
+      this.feedCache.readSnapshot$(communityId, view).pipe(
+        switchMap((snapshot) => {
+          if (!snapshot) return of(INITIAL_COMMUNITY_FEED_STATE);
+
+          const pageEvents$ = this.loadRequests$.pipe(
+            startWith<CommunityFeedLoadRequest>({
+              cursor: null,
+              append: false,
+              preserve: true,
+            }),
+            exhaustMap((request) =>
+              this.repository
+                .getPage$({
+                  communityId,
+                  view,
+                  limit: 10,
+                  cursor: request.cursor,
                 })
-              ),
-              startWith<CommunityFeedLoadEvent>({
-                type: 'loading',
-                request,
-              }),
-              catchError((error: unknown) => {
-                this.reportLoadError(error, view);
-                return of<CommunityFeedLoadEvent>({ type: 'error', request });
-              })
+                .pipe(
+                  map(
+                    (page): CommunityFeedLoadEvent => ({
+                      type: 'success',
+                      request,
+                      page,
+                    })
+                  ),
+                  startWith<CommunityFeedLoadEvent>({
+                    type: 'loading',
+                    request,
+                  }),
+                  catchError((error: unknown) => {
+                    this.reportLoadError(error, view);
+                    return of<CommunityFeedLoadEvent>({ type: 'error', request });
+                  })
+                )
             )
-        )
-      );
+          );
 
-      const realtimeEvents$ = this.repository
-        .watchLatestChanges$(communityId, 20)
-        .pipe(
-          tap((changes) => this.reconcileRealtimeOverrides(changes)),
-          // Cada diff precisa concluir sua hidratação. Cancelar a chamada anterior
-          // em uma rajada pode fazer um post já sinalizado nunca entrar no estado.
-          concatMap((changes) =>
-            this.buildRealtimeEvent$(communityId, view, changes)
-          ),
-          catchError((error: unknown) => {
-            this.reportTechnicalError(error, 'watchRealtime', view);
-            return EMPTY;
-          })
-        );
+          const realtimeEvents$ = this.repository
+            .watchLatestChanges$(communityId, 20)
+            .pipe(
+              tap((changes) => this.reconcileRealtimeOverrides(changes)),
+              // Cada diff precisa concluir sua hidratação. Cancelar a chamada anterior
+              // em uma rajada pode fazer um post já sinalizado nunca entrar no estado.
+              concatMap((changes) =>
+                this.buildRealtimeEvent$(communityId, view, changes)
+              ),
+              catchError((error: unknown) => {
+                this.reportTechnicalError(error, 'watchRealtime', view);
+                return EMPTY;
+              })
+            );
 
-      const directedHydrationEvents$ = this.realtimeHydrationRequests$.pipe(
-        concatMap((postId) =>
-          this.repository.getItems$({
-            communityId,
-            view,
-            postIds: [postId],
-          }).pipe(
-            map((page): CommunityFeedLoadEvent => ({
-              type: 'realtime',
-              upserts: page.items,
-              metricPatches: [],
-              removedIds: [],
-            })),
-            catchError((error: unknown) => {
-              this.reportTechnicalError(error, 'hydrateRealtimeItem', view);
-              return EMPTY;
-            })
-          )
-        )
-      );
+          const directedHydrationEvents$ = this.realtimeHydrationRequests$.pipe(
+            concatMap((postId) =>
+              this.repository.getItems$({
+                communityId,
+                view,
+                postIds: [postId],
+              }).pipe(
+                map((page): CommunityFeedLoadEvent => ({
+                  type: 'realtime',
+                  upserts: page.items,
+                  metricPatches: [],
+                  removedIds: [],
+                })),
+                catchError((error: unknown) => {
+                  this.reportTechnicalError(error, 'hydrateRealtimeItem', view);
+                  return EMPTY;
+                })
+              )
+            )
+          );
 
-      return merge(
-        pageEvents$,
-        realtimeEvents$,
-        directedHydrationEvents$,
-        this.localFeedEvents$
-      ).pipe(
-        scan(reduceCommunityFeedState, INITIAL_COMMUNITY_FEED_STATE)
-      );
-    }),
+          const stateUpdates$ = merge(
+            pageEvents$,
+            realtimeEvents$,
+            directedHydrationEvents$,
+            this.localFeedEvents$
+          ).pipe(
+            tap((event) => this.feedCache.applyEvent(snapshot.query, event)),
+            ignoreElements()
+          );
+
+          return merge(
+            this.feedCache.state$(snapshot.query),
+            stateUpdates$
+          );
+        })
+      )
+    ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 

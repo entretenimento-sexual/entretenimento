@@ -8,6 +8,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
+import { provideCommunityFeedCacheTestDouble } from './community-feed-cache.testing';
 import { CommunityFeedComponent } from './community-feed.component';
 import { CommunityFeedTimeTickerService } from './community-feed-time-ticker.service';
 
@@ -43,6 +44,7 @@ describe('CommunityFeedComponent legacy comments access', () => {
     TestBed.configureTestingModule({
       imports: [CommunityFeedComponent],
       providers: [
+        provideCommunityFeedCacheTestDouble(),
         { provide: CommunityFeedRepository, useValue: feedRepository },
         { provide: CommunityFeedCommentRepository, useValue: commentRepository },
         { provide: CommunityFeedTimeTickerService, useValue: { now$: of(Date.now()) } },

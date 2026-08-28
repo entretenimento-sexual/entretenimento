@@ -14,6 +14,7 @@ import { friendsPaginationReducer } from '../reducers/reducers.interactions/frie
 import { friendsReducer } from '../reducers/reducers.interactions/friends.reducer';
 import { discoveryFeedReducer } from '../reducers/reducers.discovery/discovery-feed.reducer';
 import { communityDiscoveryCacheReducer } from '../reducers/reducers.discovery/community-discovery-cache.reducer';
+import { communityFeedCacheReducer } from '../reducers/reducers.community/community-feed-cache.reducer';
 
 export interface AppState {
   // USER DOMAIN
@@ -34,6 +35,9 @@ export interface AppState {
   // DISCOVERY DOMAIN
   discoveryFeeds: ReturnType<typeof discoveryFeedReducer>;
   communityDiscoveryCache: ReturnType<typeof communityDiscoveryCacheReducer>;
+
+  // COMMUNITY DOMAIN
+  communityFeedCache: ReturnType<typeof communityFeedCacheReducer>;
 
   // INTERACTIONS DOMAIN
   interactions_friends: ReturnType<typeof friendsReducer>;

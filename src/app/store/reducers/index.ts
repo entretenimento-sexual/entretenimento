@@ -14,6 +14,7 @@ import { locationReducers } from './reducers.location';
 import { interactionsReducers } from './reducers.interactions';
 import { discoveryFeedReducer } from './reducers.discovery/discovery-feed.reducer';
 import { communityDiscoveryCacheReducer } from './reducers.discovery/community-discovery-cache.reducer';
+import { communityFeedCacheReducer } from './reducers.community/community-feed-cache.reducer';
 
 export const reducers: ActionReducerMap<AppState> = {
   // USER DOMAIN
@@ -33,6 +34,9 @@ export const reducers: ActionReducerMap<AppState> = {
   // DISCOVERY DOMAIN
   [STORE_FEATURE.discoveryFeeds]: discoveryFeedReducer,
   [STORE_FEATURE.communityDiscoveryCache]: communityDiscoveryCacheReducer,
+
+  // COMMUNITY DOMAIN
+  [STORE_FEATURE.communityFeedCache]: communityFeedCacheReducer,
 
   // INTERACTIONS DOMAIN
   [STORE_FEATURE.friendsPages]: interactionsReducers.friendsPages,

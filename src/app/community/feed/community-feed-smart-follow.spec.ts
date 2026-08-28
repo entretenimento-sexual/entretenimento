@@ -9,6 +9,7 @@ import { StorageService } from 'src/app/core/services/image-handling/storage.ser
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
 import type { CommunityFeedRealtimeChange } from '../data-access/community-feed-realtime.model';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
+import { provideCommunityFeedCacheTestDouble } from './community-feed-cache.testing';
 import { CommunityFeedComponent } from './community-feed.component';
 import { CommunityFeedTimeTickerService } from './community-feed-time-ticker.service';
 
@@ -54,6 +55,7 @@ describe('CommunityFeedComponent smart follow', () => {
     TestBed.configureTestingModule({
       imports: [CommunityFeedComponent],
       providers: [
+        provideCommunityFeedCacheTestDouble(),
         { provide: CommunityFeedRepository, useValue: feedRepository },
         { provide: CommunityFeedCommentRepository, useValue: commentRepository },
         { provide: CommunityFeedTimeTickerService, useValue: { now$: of(Date.now()) } },

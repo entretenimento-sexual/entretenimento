@@ -10,6 +10,7 @@ import { StorageService } from 'src/app/core/services/image-handling/storage.ser
 import { CameraCaptureService } from 'src/app/core/services/media/camera-capture.service';
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
+import { provideCommunityFeedCacheTestDouble } from './community-feed-cache.testing';
 import { CommunityFeedComponent } from './community-feed.component';
 
 describe('CommunityFeedComponent attachment sources', () => {
@@ -65,6 +66,7 @@ describe('CommunityFeedComponent attachment sources', () => {
     TestBed.configureTestingModule({
       imports: [CommunityFeedComponent],
       providers: [
+        provideCommunityFeedCacheTestDouble(),
         { provide: CommunityFeedRepository, useValue: repositoryMock },
         { provide: CommunityFeedCommentRepository, useValue: commentRepositoryMock },
         { provide: StorageService, useValue: { uploadFile: vi.fn() } },
