@@ -162,6 +162,13 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
     const command = normalizeCommunityFeedPostCreateRequest(request.data);
     const rawReplyToPostId = String(request.data?.replyToPostId ?? '').trim();
 
+    if (!command.attachmentValid) {
+      throw new HttpsError(
+        'invalid-argument',
+        'O anexo enviado para o Mural não é válido.'
+      );
+    }
+
     if (
       !command.requestId
       || !command.communityId
@@ -171,7 +178,7 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
       throw new HttpsError('invalid-argument', 'Mensagem inválida para o Mural.');
     }
 
-    if (!command.text && !command.imageUploadPath) {
+    if (!command.text && !command.attachment) {
       throw new HttpsError(
         'invalid-argument',
         'Escreva uma mensagem ou adicione uma foto.'
@@ -181,11 +188,11 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
     const communityId = command.communityId;
     const postId = command.requestId;
     const requestRef = db.collection('community_feed_requests').doc(postId);
-    const privateImagePath = command.imageUploadPath
-      ? extractOwnedPrivatePhotoPath(actorUid, command.imageUploadPath)
+    const privateImagePath = command.attachment
+      ? extractOwnedPrivatePhotoPath(actorUid, command.attachment.uploadPath)
       : null;
 
-    if (command.imageUploadPath && !privateImagePath) {
+    if (command.attachment && !privateImagePath) {
       throw new HttpsError(
         'invalid-argument',
         'A foto deve pertencer ao usuário autenticado.'
