@@ -16,6 +16,7 @@ const NOW = Date.UTC(2026, 7, 17, 12, 0, 0);
 function community(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     source: { type: 'community', id: 'community-1' },
+    ownerUid: 'owner-1',
     status: 'active',
     moderation: { state: 'active' },
     metrics: { memberCount: 10, postCount: 4, mediaCount: 2, topicCount: 1 },
@@ -52,9 +53,10 @@ test('não aplica lifecycle de Comunidade a Local', () => {
   assert.equal(result.reason, 'not_community');
 });
 
-test('arquiva automaticamente Comunidade vazia e inativa com métricas completas', () => {
+test('arquiva automaticamente somente Comunidade vazia, órfã e inativa', () => {
   const result = evaluateCommunityLifecycle(
     community({
+      ownerUid: null,
       metrics: { memberCount: 0, postCount: 0, mediaCount: 0, topicCount: 0 },
       lifecycle: {
         lastMeaningfulActivityAt:
@@ -69,9 +71,26 @@ test('arquiva automaticamente Comunidade vazia e inativa com métricas completas
   assert.equal(result.shouldHideFromDiscovery, true);
 });
 
+test('não arquiva automaticamente uma Comunidade vazia que ainda possui ownerUid', () => {
+  const result = evaluateCommunityLifecycle(
+    community({
+      metrics: { memberCount: 0, postCount: 0, mediaCount: 0, topicCount: 0 },
+      lifecycle: {
+        lastMeaningfulActivityAt:
+          NOW - DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS.emptyArchiveAfterDays * DAY_MS,
+      },
+    }),
+    NOW
+  );
+
+  assert.equal(result.changed, false);
+  assert.equal(result.nextStatus, 'active');
+});
+
 test('métrica de conteúdo incompleta não classifica Comunidade como vazia no prazo curto', () => {
   const result = evaluateCommunityLifecycle(
     community({
+      ownerUid: null,
       metrics: { memberCount: 0, postCount: 0, mediaCount: 0 },
       lifecycle: {
         lastMeaningfulActivityAt:
@@ -129,7 +148,7 @@ test('aceita Firestore Timestamp como atividade significativa', () => {
   assert.equal(result.reason, 'meaningful_activity_resumed');
 });
 
-test('arquiva Comunidade dormente depois da janela máxima de inatividade', () => {
+test('preserva Comunidade dormente enquanto ainda existe ownership ou membros', () => {
   const result = evaluateCommunityLifecycle(
     community({
       status: 'dormant',
@@ -141,12 +160,50 @@ test('arquiva Comunidade dormente depois da janela máxima de inatividade', () =
     NOW
   );
 
+  assert.equal(result.changed, false);
+  assert.equal(result.nextStatus, 'dormant');
+});
+
+test('arquiva Comunidade dormente órfã e sem membros depois da janela máxima', () => {
+  const result = evaluateCommunityLifecycle(
+    community({
+      ownerUid: null,
+      status: 'dormant',
+      metrics: { memberCount: 0, postCount: 4, mediaCount: 2, topicCount: 1 },
+      lifecycle: {
+        lastMeaningfulActivityAt:
+          NOW - DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS.archiveAfterDays * DAY_MS,
+      },
+    }),
+    NOW
+  );
+
   assert.equal(result.nextStatus, 'archived');
+  assert.equal(result.reason, 'inactive');
+});
+
+test('recupera arquivo legado que ainda preserva ownerUid para dormant', () => {
+  const result = evaluateCommunityLifecycle(
+    community({
+      status: 'archived',
+      lifecycle: {
+        archivedAt: NOW - 30 * DAY_MS,
+        lastMeaningfulActivityAt: NOW - 150 * DAY_MS,
+      },
+    }),
+    NOW
+  );
+
+  assert.equal(result.changed, true);
+  assert.equal(result.nextStatus, 'dormant');
+  assert.equal(result.reason, 'owned_archive_recovered');
+  assert.equal(result.shouldHideFromDiscovery, true);
 });
 
 test('agenda exclusão de arquivo vazio somente depois da retenção mínima', () => {
   const result = evaluateCommunityLifecycle(
     community({
+      ownerUid: null,
       status: 'archived',
       metrics: { memberCount: 0, postCount: 0, mediaCount: 0, topicCount: 0 },
       lifecycle: {
@@ -166,6 +223,7 @@ test('agenda exclusão de arquivo vazio somente depois da retenção mínima', (
 test('métrica de tópico legada ausente usa retenção longa em vez de considerar arquivo vazio', () => {
   const result = evaluateCommunityLifecycle(
     community({
+      ownerUid: null,
       status: 'archived',
       metrics: { memberCount: 0, postCount: 0, mediaCount: 0 },
       lifecycle: {
@@ -184,6 +242,7 @@ test('métrica de tópico legada ausente usa retenção longa em vez de consider
 test('preserva por mais tempo conteúdo histórico sem integrantes', () => {
   const result = evaluateCommunityLifecycle(
     community({
+      ownerUid: null,
       status: 'archived',
       metrics: { memberCount: 0, postCount: 8, mediaCount: 1, topicCount: 0 },
       lifecycle: {
@@ -202,6 +261,7 @@ test('preserva por mais tempo conteúdo histórico sem integrantes', () => {
 test('Tópicos persistidos entram na retenção longa de conteúdo histórico', () => {
   const result = evaluateCommunityLifecycle(
     community({
+      ownerUid: null,
       status: 'archived',
       metrics: { memberCount: 0, postCount: 0, mediaCount: 0, topicCount: 1 },
       lifecycle: {
@@ -222,6 +282,7 @@ test('Tópicos persistidos entram na retenção longa de conteúdo histórico', 
 test('métrica de membros ausente nunca autoriza transição destrutiva', () => {
   const result = evaluateCommunityLifecycle(
     community({
+      ownerUid: null,
       status: 'archived',
       metrics: { postCount: 0, mediaCount: 0, topicCount: 0 },
       lifecycle: {
@@ -279,6 +340,7 @@ test('normaliza os aliases de retenção e legal hold em uma única policy', () 
 test('retenção de moderação impede qualquer transição destrutiva', () => {
   const result = evaluateCommunityLifecycle(
     community({
+      ownerUid: null,
       status: 'archived',
       metrics: { memberCount: 0, postCount: 0, mediaCount: 0, topicCount: 0 },
       lifecycle: {

@@ -20,6 +20,7 @@ export type CommunityLifecycleReason =
   | 'moderation_hold'
   | 'status_not_managed'
   | 'meaningful_activity_resumed'
+  | 'owned_archive_recovered'
   | 'inactive'
   | 'empty_and_inactive'
   | 'empty_archive_expired'
@@ -100,6 +101,10 @@ function normalizeStatus(value: unknown): CommunityLifecycleStatus {
   return isCommunityLifecycleStatus(value) ? value : 'active';
 }
 
+function hasOwnershipReference(value: unknown): boolean {
+  return String(value ?? '').trim().length > 0;
+}
+
 /**
  * `dormant` sai da descoberta e não aceita novas adesões, mas membros já ativos
  * podem gerar atividade legítima para que o lifecycle volte a `active`.
@@ -172,7 +177,7 @@ export function evaluateCommunityLifecycle(
   rawCommunity: unknown,
   now = Date.now(),
   thresholds: Readonly<CommunityLifecycleThresholds> =
-  DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS
+    DEFAULT_COMMUNITY_LIFECYCLE_THRESHOLDS
 ): CommunityLifecycleDecision {
   const community = (rawCommunity ?? {}) as Record<string, unknown>;
   const source = (community['source'] ?? {}) as Record<string, unknown>;
@@ -201,6 +206,7 @@ export function evaluateCommunityLifecycle(
   const contentCount =
     (postCount ?? 0) + (mediaCount ?? 0) + (topicCount ?? 0);
   const hasRetainedContent = !contentMetricsComplete || contentCount > 0;
+  const ownerReferencePresent = hasOwnershipReference(community['ownerUid']);
   const lastMeaningfulActivityAt =
     normalizeTimestamp(lifecycle['lastMeaningfulActivityAt'])
     ?? normalizeTimestamp(community['updatedAt'])
@@ -211,8 +217,14 @@ export function evaluateCommunityLifecycle(
   const archivedDays = ageInDays(now, archivedAt ?? lastMeaningfulActivityAt);
 
   if (status === 'active') {
+    /**
+     * Arquivamento automático é terminal. Portanto só pode ocorrer quando não
+     * existe mais ownership nem vínculo ativo conhecido. Comunidades pertencentes
+     * a alguém entram primeiro em `dormant` e continuam recuperáveis por atividade.
+     */
     if (
-      memberCount === 0
+      !ownerReferencePresent
+      && memberCount === 0
       && contentMetricsComplete
       && contentCount === 0
       && inactiveDays >= thresholds.emptyArchiveAfterDays
@@ -232,11 +244,29 @@ export function evaluateCommunityLifecycle(
       return transition(status, 'active', 'meaningful_activity_resumed');
     }
 
+    /**
+     * `dormant` é o estado recuperável. Nunca convertemos automaticamente uma
+     * Comunidade ainda pertencente a alguém ou com membros conhecidos para o
+     * estado terminal `archived`.
+     */
+    if (ownerReferencePresent || memberCount === null || memberCount > 0) {
+      return noTransition(status, 'no_transition');
+    }
+
     if (inactiveDays >= thresholds.archiveAfterDays) {
       return transition(status, 'archived', 'inactive');
     }
 
     return noTransition(status, 'no_transition');
+  }
+
+  /**
+   * Versões anteriores do scheduler podiam produzir `archived` preservando
+   * `ownerUid`. Esse estado não possui a mesma semântica do arquivamento manual.
+   * Rebaixamos para `dormant`: permanece oculto, mas volta ao lifecycle recuperável.
+   */
+  if (status === 'archived' && ownerReferencePresent) {
+    return transition(status, 'dormant', 'owned_archive_recovered');
   }
 
   // Ausência/corrupção da métrica de membros nunca pode ser interpretada como
