@@ -24,7 +24,16 @@ export interface CommunityDiscoveryCacheQuery
 }
 
 export const DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE = 12;
-export const COMMUNITY_DISCOVERY_CACHE_TTL_MS = 30_000;
+export const COMMUNITY_DISCOVERY_CACHE_SOFT_TTL_MS = 30_000;
+export const COMMUNITY_DISCOVERY_CACHE_HARD_TTL_MS = 5 * 60_000;
+export const COMMUNITY_DISCOVERY_CACHE_MAX_QUERIES = 10;
+
+/**
+ * Alias preservado para consumidores existentes. Novos usos devem distinguir
+ * explicitamente soft TTL de hard TTL.
+ */
+export const COMMUNITY_DISCOVERY_CACHE_TTL_MS =
+  COMMUNITY_DISCOVERY_CACHE_SOFT_TTL_MS;
 
 const SAFE_UID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const COMMUNITY_DISCOVERY_CACHE_PREFIX = 'community:discovery:v1';
@@ -94,4 +103,35 @@ export function buildCommunityDiscoveryCacheKey(
     `tag=${normalized.tagId ?? 'all'}`,
     `size=${normalized.pageSize}`,
   ].join('|');
+}
+
+export function communityDiscoveryCacheAgeMs(
+  lastLoadedAt: number,
+  now = Date.now()
+): number | null {
+  if (
+    !Number.isFinite(lastLoadedAt)
+    || lastLoadedAt <= 0
+    || !Number.isFinite(now)
+  ) {
+    return null;
+  }
+
+  return Math.max(0, Math.trunc(now) - Math.trunc(lastLoadedAt));
+}
+
+export function isCommunityDiscoveryCacheSoftFresh(
+  lastLoadedAt: number,
+  now = Date.now()
+): boolean {
+  const age = communityDiscoveryCacheAgeMs(lastLoadedAt, now);
+  return age !== null && age < COMMUNITY_DISCOVERY_CACHE_SOFT_TTL_MS;
+}
+
+export function isCommunityDiscoveryCacheHardExpired(
+  lastLoadedAt: number,
+  now = Date.now()
+): boolean {
+  const age = communityDiscoveryCacheAgeMs(lastLoadedAt, now);
+  return age !== null && age >= COMMUNITY_DISCOVERY_CACHE_HARD_TTL_MS;
 }

@@ -33,8 +33,10 @@ import {
   map,
   of,
   pairwise,
+  tap,
 } from 'rxjs';
 
+import { CommunityDomainEventsService } from './community-domain-events.service';
 import {
   CommunityFeedPage,
   CommunityFeedPageRequest,
@@ -71,6 +73,7 @@ export class CommunityFeedRepository {
   private readonly functions = inject(Functions);
   private readonly firestore = inject(Firestore);
   private readonly environmentInjector = inject(EnvironmentInjector);
+  private readonly domainEvents = inject(CommunityDomainEventsService);
 
   private readonly getCommunityFeedPageCallable = httpsCallable<
     CommunityFeedPageRequest,
@@ -183,7 +186,13 @@ export class CommunityFeedRepository {
     };
 
     return defer(() => from(this.createCommunityFeedPostCallable(payload))).pipe(
-      map((result) => normalizeCommunityFeedPostCreateResponse(result.data))
+      map((result) => normalizeCommunityFeedPostCreateResponse(result.data)),
+      tap(() =>
+        this.domainEvents.notifyDiscoveryChanged(
+          'content_changed',
+          payload.communityId
+        )
+      )
     );
   }
 
@@ -199,7 +208,13 @@ export class CommunityFeedRepository {
     };
 
     return defer(() => from(this.moderateCommunityFeedPostCallable(payload))).pipe(
-      map((result) => normalizeCommunityFeedPostActionResponse(result.data))
+      map((result) => normalizeCommunityFeedPostActionResponse(result.data)),
+      tap(() =>
+        this.domainEvents.notifyDiscoveryChanged(
+          'content_changed',
+          payload.communityId
+        )
+      )
     );
   }
 

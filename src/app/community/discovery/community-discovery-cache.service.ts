@@ -8,12 +8,13 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import * as CommunityDiscoveryCacheActions from 'src/app/store/actions/actions.discovery/community-discovery-cache.actions';
 import { selectCommunityDiscoveryCacheSlice } from 'src/app/store/selectors/selectors.discovery/community-discovery-cache.selectors';
 import type { AppState } from 'src/app/store/states/app.state';
+import { CommunityDomainEventsService } from '../data-access/community-domain-events.service';
 import type { CommunityDiscoveryPage } from '../data-access/community-preview.model';
 import {
-  COMMUNITY_DISCOVERY_CACHE_TTL_MS,
   CommunityDiscoveryCacheContext,
   buildCommunityDiscoveryCacheKey,
   buildCommunityDiscoveryCacheQuery,
+  isCommunityDiscoveryCacheSoftFresh,
   normalizeCommunityDiscoveryViewerUid,
 } from './community-discovery-cache.model';
 
@@ -26,6 +27,7 @@ export interface CommunityDiscoveryCacheSnapshot {
 export class CommunityDiscoveryCacheService {
   private readonly store = inject(Store<AppState>);
   private readonly session = inject(AuthSessionService);
+  private readonly domainEvents = inject(CommunityDomainEventsService);
   private readonly destroyRef = inject(DestroyRef);
   private activeViewerUid: string | null = null;
 
@@ -41,6 +43,10 @@ export class CommunityDiscoveryCacheService {
           })
         );
       });
+
+    this.domainEvents.discoveryChanged$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.invalidateCurrentViewer());
   }
 
   readSnapshot$(
@@ -52,13 +58,20 @@ export class CommunityDiscoveryCacheService {
         const query = buildCommunityDiscoveryCacheQuery(uid, context);
         if (!query) return of(null);
 
+        const accessedAt = Date.now();
+        this.store.dispatch(
+          CommunityDiscoveryCacheActions.touchCommunityDiscoveryQuery({
+            query,
+            accessedAt,
+          })
+        );
+
         const queryKey = buildCommunityDiscoveryCacheKey(query);
         return this.store.select(selectCommunityDiscoveryCacheSlice(queryKey)).pipe(
           take(1),
           map((slice): CommunityDiscoveryCacheSnapshot | null => {
             if (!slice) return null;
 
-            const age = Date.now() - slice.lastLoadedAt;
             return {
               page: {
                 items: slice.items,
@@ -66,9 +79,11 @@ export class CommunityDiscoveryCacheService {
                 generatedAt: slice.lastLoadedAt,
               },
               fresh:
-                slice.lastLoadedAt > 0
-                && age >= 0
-                && age <= COMMUNITY_DISCOVERY_CACHE_TTL_MS,
+                !slice.invalidated
+                && isCommunityDiscoveryCacheSoftFresh(
+                  slice.lastLoadedAt,
+                  accessedAt
+                ),
             };
           })
         );
@@ -101,7 +116,12 @@ export class CommunityDiscoveryCacheService {
   }
 
   invalidateCurrentViewer(): void {
-    const viewerUid = this.activeViewerUid;
+    const viewerUid =
+      this.activeViewerUid
+      || normalizeCommunityDiscoveryViewerUid(
+        this.session.currentAuthUser?.uid
+      )
+      || null;
     if (!viewerUid) return;
 
     this.store.dispatch(
