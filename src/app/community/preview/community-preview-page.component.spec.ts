@@ -11,6 +11,7 @@ import { CommunityFeedRepository } from '../data-access/community-feed.repositor
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import { CommunityPreviewResponse } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
+import { provideCommunityFeedCacheTestDouble } from '../feed/community-feed-cache.testing';
 import { CommunityPreviewPageComponent } from './community-preview-page.component';
 
 function preview(
@@ -113,6 +114,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
       imports: [CommunityPreviewPageComponent],
       providers: [
         provideRouter([]),
+        provideCommunityFeedCacheTestDouble(),
         {
           provide: ActivatedRoute,
           useValue: {
