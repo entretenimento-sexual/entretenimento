@@ -2,14 +2,26 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY DOMAIN MODEL
 // -----------------------------------------------------------------------------
-// Contrato canônico compartilhado por comunidades originadas de locais e salas.
-// A origem mantém sua autoridade própria; feed, mídia, membros e acesso usam este
-// domínio social comum.
+// Contrato canônico do frontend para o domínio social de Comunidades.
+//
+// - `community`: Comunidade criada por usuário elegível, com membros, regras,
+//   mural, moderação e lifecycle próprios;
+// - `venue`: superfície social vinculada a um Local físico, reutilizando a
+//   infraestrutura comunitária sem transformar o Local em uma Comunidade;
+// - Sala não é origem comunitária. Salas pertencem ao domínio de Conversas.
 // -----------------------------------------------------------------------------
 
 import type { ContentAccessPolicy } from '../access/content-access-policy.model';
 
-export type CommunitySourceType = 'venue' | 'room';
+export const COMMUNITY_SOURCE_TYPES = ['community', 'venue'] as const;
+
+export type CommunitySourceType = (typeof COMMUNITY_SOURCE_TYPES)[number];
+
+export function isCommunitySourceType(
+  value: unknown
+): value is CommunitySourceType {
+  return value === 'community' || value === 'venue';
+}
 
 export type CommunityStatus = 'active' | 'paused' | 'archived';
 
