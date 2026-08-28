@@ -9,6 +9,8 @@ export interface CommunityDiscoveryCacheSlice {
   readonly lastLoadedAt: number;
   /** Último acesso ao escopo, usado exclusivamente para retenção LRU. */
   readonly lastAccessedAt: number;
+  /** Força revalidação sem perder a idade real usada pelo hard TTL. */
+  readonly invalidated: boolean;
 }
 
 export interface CommunityDiscoveryCacheState {
