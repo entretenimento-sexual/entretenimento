@@ -2,7 +2,7 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY PURGE FIRESTORE POLICY
 // -----------------------------------------------------------------------------
-// Define os namespaces que o adapter de purge pode tocar. A lista protegida é
+// Define os namespaces que o adapter de purge pode excluir. A lista protegida é
 // propositalmente separada para tornar revisões de segurança e compliance
 // objetivas. Alterar estes conjuntos exige revisão explícita de retenção.
 // -----------------------------------------------------------------------------
@@ -50,6 +50,7 @@ export const COMMUNITY_PURGE_PROTECTED_COLLECTIONS = Object.freeze([
   'community_feed_audit',
   'community_topic_audit',
   'community_lifecycle_audit',
+  'community_purge_audit',
   'moderation_reports',
   'admin_logs',
   'compliance_audit',

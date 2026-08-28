@@ -3,11 +3,11 @@
 // FIRESTORE COMMUNITY PURGE ADAPTER
 // -----------------------------------------------------------------------------
 // Implementa somente os namespaces autorizados pela política de purge. Auditoria,
-// denúncias, admin logs e evidências de compliance são deliberadamente inacessíveis
-// por esta classe.
+// denúncias, admin logs e evidências de compliance nunca são alvos de exclusão.
+// `community_purge_audit` recebe apenas o recibo mínimo da operação destrutiva.
 // -----------------------------------------------------------------------------
 
-import { db } from '../firebaseApp';
+import { db, FieldValue } from '../firebaseApp';
 import type {
   CommunityPurgeExecutionAdapter,
   CommunityPurgeReferenceKind,
@@ -30,6 +30,9 @@ const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const MAX_BATCH_WRITES = 450;
 const MEMBER_SCOPED_PAGE_SIZE = 200;
 const MEMBER_SCOPED_MAX_PAGES = 50;
+const PURGE_AUDIT_COLLECTION = 'community_purge_audit';
+const PURGE_POLICY_VERSION = 1;
+const PURGE_SOURCE = 'community-purge-executor';
 
 export class FirestoreCommunityPurgeAdapter
 implements CommunityPurgeExecutionAdapter {
@@ -91,10 +94,56 @@ implements CommunityPurgeExecutionAdapter {
 
   async deleteCommunityRoots(communityIdRaw: string): Promise<number> {
     const communityId = requireCommunityId(communityIdRaw);
-    return deleteRootCollections(
+    const auditRef = db.collection(PURGE_AUDIT_COLLECTION).doc(communityId);
+    const startedAt = Date.now();
+
+    await db.runTransaction(async (transaction) => {
+      const auditSnapshot = await transaction.get(auditRef);
+
+      if (!auditSnapshot.exists) {
+        transaction.create(auditRef, {
+          communityId,
+          status: 'deleting',
+          attemptCount: 1,
+          startedAt,
+          completedAt: null,
+          policyVersion: PURGE_POLICY_VERSION,
+          source: PURGE_SOURCE,
+          updatedAt: startedAt,
+        });
+        return;
+      }
+
+      transaction.set(
+        auditRef,
+        {
+          status: 'deleting',
+          attemptCount: FieldValue.increment(1),
+          policyVersion: PURGE_POLICY_VERSION,
+          source: PURGE_SOURCE,
+          updatedAt: startedAt,
+        },
+        { merge: true }
+      );
+    });
+
+    const rootsProcessed = await deleteRootCollections(
       communityId,
       COMMUNITY_PURGE_FINAL_ROOT_COLLECTIONS
     );
+    const completedAt = Date.now();
+
+    await auditRef.set(
+      {
+        status: 'completed',
+        rootsProcessed,
+        completedAt,
+        updatedAt: completedAt,
+      },
+      { merge: true }
+    );
+
+    return rootsProcessed;
   }
 
   private async deleteMemberScopedReferencesPage(
