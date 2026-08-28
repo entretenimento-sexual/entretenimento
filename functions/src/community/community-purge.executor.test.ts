@@ -13,7 +13,7 @@ class FakeAdapter implements CommunityPurgeExecutionAdapter {
   readonly referenceCalls: CommunityPurgeReferenceKind[] = [];
   readonly readinessCalls: string[] = [];
   readonly queues = new Map<CommunityPurgeReferenceKind, number[]>();
-  readiness: boolean[] = [true, true];
+  readiness: boolean[] = [true, true, true];
   projectionRootsDeleted = 0;
   communityRootsDeleted = 0;
   projectionDeleteCalls = 0;
@@ -52,7 +52,7 @@ class FakeAdapter implements CommunityPurgeExecutionAdapter {
   }
 }
 
-test('purge completo limpa referências, revalida duas vezes e só então apaga raízes', async () => {
+test('purge completo valida readiness três vezes e só então apaga raízes', async () => {
   const adapter = new FakeAdapter();
   adapter.projectionRootsDeleted = 4;
   adapter.communityRootsDeleted = 5;
@@ -65,11 +65,30 @@ test('purge completo limpa referências, revalida duas vezes e só então apaga 
 
   assert.equal(result.status, 'completed');
   assert.deepEqual(adapter.referenceCalls, COMMUNITY_PURGE_REFERENCE_KINDS);
-  assert.deepEqual(adapter.readinessCalls, ['community-1', 'community-1']);
+  assert.deepEqual(adapter.readinessCalls, [
+    'community-1',
+    'community-1',
+    'community-1',
+  ]);
   assert.equal(adapter.projectionDeleteCalls, 1);
   assert.equal(adapter.communityDeleteCalls, 1);
   assert.equal(result.details['projectionRootsDeleted'], 4);
   assert.equal(result.details['communityRootsDeleted'], 5);
+});
+
+test('readiness inicial negativa bloqueia toda limpeza', async () => {
+  const adapter = new FakeAdapter();
+  adapter.readiness = [false];
+
+  const result = await executeCommunityPurge(adapter, {
+    communityId: 'community-1',
+  });
+
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.blocker, 'readiness-not-confirmed-before-cleanup');
+  assert.equal(adapter.referenceCalls.length, 0);
+  assert.equal(adapter.projectionDeleteCalls, 0);
+  assert.equal(adapter.communityDeleteCalls, 0);
 });
 
 test('executor trata resíduos privados do membro como um único passo paginado', async () => {
@@ -133,14 +152,14 @@ test('limite de paginação bloqueia qualquer exclusão de raiz', async () => {
 
   assert.equal(result.status, 'partial');
   assert.equal(result.blocker, 'pagination-limit-reached');
-  assert.equal(adapter.readinessCalls.length, 0);
+  assert.deepEqual(adapter.readinessCalls, ['community-1']);
   assert.equal(adapter.projectionDeleteCalls, 0);
   assert.equal(adapter.communityDeleteCalls, 0);
 });
 
 test('readiness alterada antes das projeções bloqueia destruição', async () => {
   const adapter = new FakeAdapter();
-  adapter.readiness = [false];
+  adapter.readiness = [true, false];
 
   const result = await executeCommunityPurge(adapter, {
     communityId: 'community-1',
@@ -154,7 +173,7 @@ test('readiness alterada antes das projeções bloqueia destruição', async () 
 
 test('readiness alterada após limpar projeções preserva árvore comunitária', async () => {
   const adapter = new FakeAdapter();
-  adapter.readiness = [true, false];
+  adapter.readiness = [true, true, false];
   adapter.projectionRootsDeleted = 3;
 
   const result = await executeCommunityPurge(adapter, {

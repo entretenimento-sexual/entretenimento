@@ -3,7 +3,8 @@
 // COMMUNITY PURGE EXECUTOR
 // -----------------------------------------------------------------------------
 // Orquestra a remoção física de uma Comunidade somente depois que a política de
-// readiness já a tornou elegível. O executor continua fail closed:
+// readiness a confirma como elegível. O executor continua fail closed:
+// - readiness é validada antes de qualquer limpeza;
 // - referências operacionais são removidas de forma paginada;
 // - referências privadas por usuário são limpas junto com memberships históricas;
 // - se a paginação não terminar, nenhuma raiz destrutiva é tocada;
@@ -38,15 +39,18 @@ export type CommunityPurgeExecutionStatus =
   | 'blocked'
   | 'failed';
 
+export type CommunityPurgeExecutionBlocker =
+  | 'pagination-limit-reached'
+  | 'readiness-not-confirmed-before-cleanup'
+  | 'readiness-changed-before-projections'
+  | 'readiness-changed-before-final-delete';
+
 export interface CommunityPurgeExecutionResult {
   communityId: string;
   status: CommunityPurgeExecutionStatus;
   processed: number;
   pages: number;
-  blocker?:
-    | 'pagination-limit-reached'
-    | 'readiness-changed-before-projections'
-    | 'readiness-changed-before-final-delete';
+  blocker?: CommunityPurgeExecutionBlocker;
   errorCode?: string;
   details: Record<string, number | string>;
 }
@@ -106,6 +110,14 @@ export async function executeCommunityPurge(
       CommunityPurgeReferenceKind,
       PagedExecutionResult
     >();
+
+    if (!(await adapter.confirmPurgeReadiness(communityId))) {
+      return blockedResult(
+        communityId,
+        referenceResults,
+        'readiness-not-confirmed-before-cleanup'
+      );
+    }
 
     for (const kind of COMMUNITY_PURGE_REFERENCE_KINDS) {
       const result = await executePagedStep(
@@ -205,9 +217,7 @@ function partialResult(
 function blockedResult(
   communityId: string,
   results: ReadonlyMap<CommunityPurgeReferenceKind, PagedExecutionResult>,
-  blocker:
-    | 'readiness-changed-before-projections'
-    | 'readiness-changed-before-final-delete',
+  blocker: Exclude<CommunityPurgeExecutionBlocker, 'pagination-limit-reached'>,
   projectionRootsDeleted = 0
 ): CommunityPurgeExecutionResult {
   return {
