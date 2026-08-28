@@ -72,6 +72,24 @@ test('purge completo limpa referências, revalida duas vezes e só então apaga 
   assert.equal(result.details['communityRootsDeleted'], 5);
 });
 
+test('executor trata resíduos privados do membro como um único passo paginado', async () => {
+  const adapter = new FakeAdapter();
+  adapter.queues.set('member_scoped_refs', [2, 1]);
+
+  const result = await executeCommunityPurge(adapter, {
+    communityId: 'community-1',
+    pageSize: 2,
+    maxPagesPerStep: 5,
+  });
+
+  assert.equal(result.status, 'completed');
+  assert.equal(result.details['member_scoped_refsDeleted'], 3);
+  assert.equal(
+    adapter.referenceCalls.filter((kind) => kind === 'member_scoped_refs').length,
+    2
+  );
+});
+
 test('executor é idempotente quando referências e raízes já não existem', async () => {
   const adapter = new FakeAdapter();
 

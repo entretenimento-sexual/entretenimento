@@ -5,6 +5,7 @@
 // Orquestra a remoção física de uma Comunidade somente depois que a política de
 // readiness já a tornou elegível. O executor continua fail closed:
 // - referências operacionais são removidas de forma paginada;
+// - referências privadas por usuário são limpas junto com memberships históricas;
 // - se a paginação não terminar, nenhuma raiz destrutiva é tocada;
 // - readiness é revalidada antes das projeções e novamente antes da árvore final;
 // - auditorias, moderation_reports, admin_logs e evidências não fazem parte do
@@ -18,9 +19,7 @@ export type CommunityPurgeReferenceKind =
   | 'lifecycle_requests'
   | 'invites'
   | 'notifications'
-  | 'user_indexes'
-  | 'feed_user_actions'
-  | 'feed_user_comments';
+  | 'member_scoped_refs';
 
 export interface CommunityPurgeExecutionAdapter {
   deleteReferencePage(
@@ -77,9 +76,7 @@ export const COMMUNITY_PURGE_REFERENCE_KINDS:
     'lifecycle_requests',
     'invites',
     'notifications',
-    'user_indexes',
-    'feed_user_actions',
-    'feed_user_comments',
+    'member_scoped_refs',
   ]);
 
 export async function executeCommunityPurge(
@@ -101,10 +98,7 @@ export async function executeCommunityPurge(
   );
 
   if (!communityId) {
-    return failedResult(
-      '',
-      new Error('Community ID inválido para purge.')
-    );
+    return failedResult('', new Error('Community ID inválido para purge.'));
   }
 
   try {
@@ -182,10 +176,7 @@ async function executePagedStep(
   let processed = 0;
 
   for (let page = 1; page <= maxPages; page += 1) {
-    const pageProcessed = normalizeProcessedCount(
-      await action(),
-      pageSize
-    );
+    const pageProcessed = normalizeProcessedCount(await action(), pageSize);
     processed += pageProcessed;
 
     if (pageProcessed < pageSize) {
