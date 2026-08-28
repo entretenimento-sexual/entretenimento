@@ -1,0 +1,171 @@
+<!-- src/app/authentication/register-module/welcome/welcome.component.html -->
+<div class="welcome-container">
+  <section class="welcome-hero" aria-labelledby="welcome-title">
+    <h1 id="welcome-title">Confirme seu e-mail</h1>
+    <p class="subtitle" id="welcome-subtitle">
+      @if (verificationEmailDelivery === 'sent') {
+        Enviamos um link de verificação para <strong>{{ email || 'seu e-mail' }}</strong>.
+      } @else if (verificationEmailDelivery === 'failed') {
+        Sua conta foi criada, mas o primeiro envio do link para
+        <strong>{{ email || 'seu e-mail' }}</strong> não foi confirmado. Reenvie o e-mail abaixo.
+      } @else {
+        Confirme <strong>{{ email || 'seu e-mail' }}</strong> para continuar. Se o link ainda não chegou, use a opção de reenvio abaixo.
+      }
+      Depois da confirmação, direcionamos você para a próxima etapa do cadastro.
+    </p>
+  </section>
+
+  <div
+    *ngIf="banner as b"
+    class="alert welcome-alert"
+    [ngClass]="{
+      'alert-info': b.variant === 'info',
+      'alert-error': b.variant === 'error',
+      'alert-success': b.variant === 'success',
+      'alert-warning': b.variant === 'warn'
+    }"
+    [attr.role]="(b.variant === 'error' || b.variant === 'warn') ? 'alert' : 'status'"
+    [attr.aria-live]="(b.variant === 'error' || b.variant === 'warn') ? 'assertive' : 'polite'"
+    aria-atomic="true"
+  >
+    <strong class="welcome-alert__title">{{ b.title }}</strong>
+    <span class="welcome-alert__msg">{{ b.message }}</span>
+
+    <div *ngIf="lastCheckedAt" class="welcome-alert__meta">
+      Última checagem: {{ lastCheckedAt | date:'shortTime' }}
+    </div>
+
+    <div *ngIf="debugEnabled()" class="alert-actions" aria-label="Ações técnicas de suporte">
+      <div class="alert-actions__debug">
+        <button class="btn btn-ghost" (click)="toggleTech()">
+          {{ showTech ? 'Ocultar detalhes' : 'Mostrar detalhes técnicos' }}
+        </button>
+
+        <button class="btn btn-ghost" (click)="reloadPage()">Recarregar</button>
+        <button class="btn btn-ghost" (click)="restartRegistration()">Refazer cadastro</button>
+      </div>
+    </div>
+
+    <pre *ngIf="debugEnabled() && showTech && b.details" class="tech-details">{{ b.details }}</pre>
+  </div>
+
+  <main class="welcome-content" [attr.aria-describedby]="'welcome-subtitle'">
+    <section *ngIf="!sessionInvalid" class="welcome-card status-card">
+      <div class="status-card__header">
+        <div>
+          <p class="card-kicker">Status da conta</p>
+          <h2 class="card-title">
+            E-mail
+            <span *ngIf="emailVerified; else notVerified" class="badge ok">verificado</span>
+            <ng-template #notVerified><span class="badge warn">pendente</span></ng-template>
+          </h2>
+        </div>
+
+        <div class="status-orb" [class.status-orb--ok]="emailVerified" aria-hidden="true">
+          {{ emailVerified ? '✓' : '!' }}
+        </div>
+      </div>
+
+      @if (!emailVerified) {
+        <ol class="steps">
+          @if (verificationEmailDelivery === 'failed') {
+            <li>
+              <strong>Reenvie o e-mail de verificação.</strong>
+              <span>O envio inicial não foi confirmado; use o botão abaixo antes de procurar a mensagem.</span>
+            </li>
+          } @else {
+            <li>
+              <strong>Abra sua caixa de entrada.</strong>
+              <span>Confira também spam, promoções ou lixo eletrônico.</span>
+            </li>
+          }
+          <li>
+            <strong>Localize o e-mail de confirmação.</strong>
+            <span>Use o mesmo e-mail informado no cadastro.</span>
+          </li>
+          <li>
+            <strong>Confirme e volte para o app.</strong>
+            <span>Depois clique em checar agora para continuar.</span>
+          </li>
+        </ol>
+
+        <div class="actions primary-actions">
+          <button
+            class="btn btn-primary"
+            (click)="checkNow()"
+            [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev || sessionInvalid"
+            [attr.aria-busy]="checkingVerification"
+          >
+            {{ checkingVerification ? 'Checando…' : 'Já verifiquei — checar agora' }}
+          </button>
+
+          <button
+            *ngIf="isDevEmu"
+            class="btn btn-ghost"
+            (click)="markVerifiedDev()"
+            [disabled]="markingVerifiedDev || checkingVerification || resendingVerificationEmail || sessionInvalid"
+            [attr.aria-busy]="markingVerifiedDev"
+          >
+            {{ markingVerifiedDev ? 'Marcando…' : 'DEV: aplicar verificação pendente (emulator)' }}
+          </button>
+
+          <button
+            class="btn btn-secondary"
+            (click)="resendVerificationEmail()"
+            [disabled]="resendingVerificationEmail || checkingVerification || markingVerifiedDev || sessionInvalid"
+            [attr.aria-busy]="resendingVerificationEmail"
+          >
+            {{ resendingVerificationEmail ? 'Reenviando…' : 'Reenviar e-mail' }}
+          </button>
+        </div>
+
+        <div class="actions support-actions" aria-label="Ações auxiliares de e-mail">
+          <button class="btn btn-ghost" (click)="openInbox()">Abrir e-mail</button>
+          <button class="btn btn-ghost" (click)="copyEmail()" [disabled]="!email">Copiar e-mail</button>
+        </div>
+      } @else {
+        <p class="status-card__message">
+          Seu e-mail está confirmado. Continue para
+          {{ profileCompleted ? 'ajustar suas preferências.' : 'completar seu perfil.' }}
+        </p>
+
+        <div class="actions primary-actions">
+          <button
+            class="btn btn-primary"
+            (click)="continueToPreferences()"
+            [disabled]="busy"
+          >
+            {{ profileCompleted ? 'Ir para minhas preferências' : 'Completar perfil' }}
+          </button>
+        </div>
+      }
+    </section>
+
+    <section
+      *ngIf="sessionInvalid"
+      class="welcome-card card-error"
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+    >
+      <p class="card-kicker">Atenção</p>
+      <h2 class="card-title">Sessão encerrada</h2>
+      <p>
+        Não conseguimos manter sua sessão ativa durante a verificação. Você pode tentar reconectar ou refazer o cadastro.
+      </p>
+
+      <div class="actions">
+        <button
+          class="btn btn-secondary"
+          (click)="checkNow()"
+          [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev"
+          [attr.aria-busy]="checkingVerification"
+        >
+          {{ checkingVerification ? 'Reconectando…' : 'Tentar reconectar' }}
+        </button>
+
+        <button class="btn btn-primary" (click)="restartRegistration()">Refazer cadastro</button>
+      </div>
+    </section>
+  </main>
+</div>

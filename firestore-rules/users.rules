@@ -1,0 +1,430 @@
+// ==============================================================
+// USERS (private)
+// ==============================================================
+// - ordinary profile fields remain self-editable;
+// - auth, privilege, billing, lifecycle and compliance fields are protected;
+// - discovery preference projections are private, bounded and schema-validated;
+// - profileCompleted is a one-way, eligibility-checked registration transition;
+// - new accounts are private and interaction-blocked until completion;
+// - accepted terms start false and can only become true through trusted backend.
+// ==============================================================
+
+match /users/{userId} {
+
+  function isAdminActor() {
+    return isAdmin();
+  }
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function affectedUserKeys() {
+    return request.resource.data.diff(resource.data).affectedKeys();
+  }
+
+  function discoveryProjectionKeys() {
+    return [
+      "interestedInGenders",
+      "discoveryPreferences",
+      "discoveryPreferencesUpdatedAt"
+    ];
+  }
+
+  function discoveryPreferenceKeys() {
+    return [
+      "genderInterests",
+      "relationshipIntents",
+      "acceptsCouples",
+      "acceptsSingles",
+      "acceptsTransProfiles",
+      "ageRange",
+      "maxDistanceKm",
+      "locationRequired",
+      "relationshipIntentMode",
+      "sexualPractices",
+      "sexualPracticeMode",
+      "bodyPreferences",
+      "bodyPreferenceMode",
+      "updatedAt"
+    ];
+  }
+
+  function validPreferenceMatchMode(value) {
+    return value == "prefer" || value == "require";
+  }
+
+  function validDiscoveryAgeRangeFields(value) {
+    return value.keys().hasOnly(["min", "max"])
+      && value.keys().size() == 2
+      && value.min is number
+      && value.max is number
+      && value.min >= 18
+      && value.max <= 100
+      && value.min <= value.max;
+  }
+
+  function validDiscoveryAgeRange(value) {
+    return value == null
+      || (value is map && validDiscoveryAgeRangeFields(value));
+  }
+
+  function validDiscoveryPreferencesFields(value) {
+    return value.keys().hasOnly(discoveryPreferenceKeys())
+      && value.keys().size() == 14
+      && value.genderInterests is list
+      && value.genderInterests.size() <= 20
+      && value.relationshipIntents is list
+      && value.relationshipIntents.size() <= 10
+      && value.acceptsCouples is bool
+      && value.acceptsSingles is bool
+      && (value.acceptsTransProfiles == null
+        || value.acceptsTransProfiles is bool)
+      && validDiscoveryAgeRange(value.ageRange)
+      && (value.maxDistanceKm == null
+        || (value.maxDistanceKm is number
+          && value.maxDistanceKm >= 1
+          && value.maxDistanceKm <= 500))
+      && value.locationRequired is bool
+      && validPreferenceMatchMode(value.relationshipIntentMode)
+      && value.sexualPractices is list
+      && value.sexualPractices.size() <= 40
+      && validPreferenceMatchMode(value.sexualPracticeMode)
+      && value.bodyPreferences is list
+      && value.bodyPreferences.size() <= 30
+      && validPreferenceMatchMode(value.bodyPreferenceMode)
+      && value.updatedAt is number;
+  }
+
+  function validDiscoveryPreferencesMap(value) {
+    return value is map && validDiscoveryPreferencesFields(value);
+  }
+
+  function validDiscoveryProjectionPayload(data) {
+    return data.keys().hasAll(discoveryProjectionKeys())
+      && data.interestedInGenders is list
+      && data.interestedInGenders.size() <= 12
+      && validDiscoveryPreferencesMap(data.discoveryPreferences)
+      && data.discoveryPreferencesUpdatedAt is number;
+  }
+
+  function discoveryProjectionSafeOnCreate(data) {
+    return !data.keys().hasAny(discoveryProjectionKeys())
+      || validDiscoveryProjectionPayload(data);
+  }
+
+  function selfUpdatingDiscoveryProjection(changedKeys) {
+    return isSelf(userId)
+      && changedKeys.hasAny(discoveryProjectionKeys())
+      && changedKeys.hasOnly(discoveryProjectionKeys())
+      && validDiscoveryProjectionPayload(request.resource.data);
+  }
+
+  function authEmailVerified() {
+    return signedIn()
+      && request.auth.token.keys().hasAny(["email_verified"])
+      && request.auth.token.email_verified == true;
+  }
+
+  function emailVerifiedMatchesToken() {
+    return !hasField("emailVerified")
+      || request.resource.data.emailVerified == authEmailVerified();
+  }
+
+  function emailVerifiedSafeOnUpdate(changedKeys) {
+    return !changedKeys.hasAny(["emailVerified"])
+      || request.resource.data.emailVerified == authEmailVerified();
+  }
+
+  function declaredIdentityValid(data) {
+    return data.keys().hasAll([
+        "gender",
+        "declaredIdentityCode",
+        "identityCatalogVersion"
+      ])
+      && data.gender is string
+      && data.gender.size() >= 1
+      && data.gender.size() <= 80
+      && data.declaredIdentityCode is string
+      && data.declaredIdentityCode == data.gender
+      && data.declaredIdentityCode.size() >= 1
+      && data.declaredIdentityCode.size() <= 80
+      && data.identityCatalogVersion is int
+      && data.identityCatalogVersion >= 1;
+  }
+
+  function identityUpdateSafe(changedKeys) {
+    let identityKeys = [
+      "gender",
+      "declaredIdentityCode",
+      "identityCatalogVersion"
+    ];
+    return !changedKeys.hasAny(identityKeys)
+      || (
+        changedKeys.hasAll(identityKeys)
+        && declaredIdentityValid(request.resource.data)
+      );
+  }
+
+  function selfChangingSensitiveKeys(changedKeys) {
+    return changedKeys.hasAny([
+      "adultConsent",
+      "acceptedTerms",
+      "registrationFlowVersion",
+      "initialAdultConsentRequired",
+      "registrationCompletedAt",
+      "profileCompleted",
+      "ageReverification",
+      "ageReverificationRestrictedAt",
+
+      "role",
+      "tier",
+      "billingProjectionVersion",
+      "isSubscriber",
+      "monthlyPayer",
+      "subscriptionStatus",
+      "subscriptionScope",
+      "subscriptionExpires",
+      "lastBillingCheckoutSessionId",
+      "lastBillingTransactionId",
+      "billingUpdatedAt",
+      "currentSubscriptionId",
+      "subscriptionStartedAt",
+      "subscriptionEndsAt",
+      "subscriptionCanceledAt",
+      "billingCustomerId",
+      "billingProvider",
+
+      "roles",
+      "permissions",
+      "entitlements",
+
+      "accountLocked",
+      "accountStatus",
+      "publicVisibility",
+      "interactionBlocked",
+      "loginAllowed",
+
+      "suspended",
+      "suspensionReason",
+      "suspensionSource",
+      "suspensionEndsAt",
+      "suspendedAt",
+      "suspendedAtMs",
+      "suspendedBy",
+      "unsuspendedAtMs",
+      "unsuspendedBy",
+
+      "deletionRequestedAt",
+      "deletionRequestedBy",
+      "deletionUndoUntil",
+      "purgeAfter",
+      "deletedAt",
+      "deletionRestoreStatus",
+      "deletionRestoreSuspended",
+      "deletionRestoreSuspensionReason",
+      "deletionRestoreSuspensionSource",
+      "deletionRestoreSuspensionEndsAt",
+      "purgeStartedAt",
+      "purgeAttemptCount",
+      "purgeLastAttemptAt",
+
+      "statusUpdatedAt",
+      "statusUpdatedBy",
+      "moderatedBy",
+      "moderatedAt",
+      "lastStatusChangeAt"
+    ]);
+  }
+
+  function adminModerationOnly(changedKeys) {
+    return changedKeys.hasOnly([
+      "accountLocked",
+      "suspended",
+      "suspensionReason",
+      "suspendedAt",
+      "accountStatus",
+      "moderatedBy",
+      "moderatedAt",
+      "lastStatusChangeAt"
+    ]);
+  }
+
+  function initialTermsDefaultsOk(data) {
+    return data.acceptedTerms is map
+      && data.acceptedTerms.keys().hasAny(["accepted"])
+      && data.acceptedTerms.accepted == false;
+  }
+
+  function createRequiredDefaultsOk(data) {
+    return data.keys().hasAll([
+        "uid",
+        "registrationFlowVersion",
+        "initialAdultConsentRequired",
+        "registrationCompletedAt",
+        "profileCompleted",
+        "acceptedTerms"
+      ])
+      && data.uid == uid()
+      && !data.keys().hasAny([
+        "adultConsent",
+        "ageReverification",
+        "ageReverificationRestrictedAt"
+      ])
+      && data.initialAdultConsentRequired == true
+      && data.registrationCompletedAt == null
+      && data.profileCompleted == false
+      && initialTermsDefaultsOk(data);
+  }
+
+  function createBillingDefaultsOk(data) {
+    return data.get("role", "free") == "free"
+      && data.get("tier", "free") == "free"
+      && data.get("billingProjectionVersion", 0) == 0
+      && data.get("isSubscriber", false) == false
+      && data.get("monthlyPayer", false) == false
+      && data.get("subscriptionStatus", "inactive") == "inactive"
+      && data.get("subscriptionScope", null) == null
+      && data.get("subscriptionStartedAt", null) == null
+      && data.get("subscriptionEndsAt", null) == null
+      && data.get("subscriptionExpires", null) == null
+      && data.get("lastBillingCheckoutSessionId", null) == null
+      && data.get("lastBillingTransactionId", null) == null
+      && data.get("billingUpdatedAt", null) == null;
+  }
+
+  function createPrivilegeDefaultsOk(data) {
+    return data.get("roles", ["user"]) == ["user"]
+      && data.get("permissions", []) == []
+      && data.get("entitlements", []) == [];
+  }
+
+  function createLifecycleDefaultsOk(data) {
+    return data.get("accountLocked", false) == false
+      && data.get("accountStatus", "active") == "active"
+      && data.get("loginAllowed", true) == true
+      && data.get("suspended", false) == false
+      && data.get("suspensionReason", null) == null
+      && data.get("suspensionSource", null) == null
+      && data.get("suspensionEndsAt", null) == null
+      && data.get("deletionRequestedAt", null) == null
+      && data.get("deletionRequestedBy", null) == null
+      && data.get("deletionUndoUntil", null) == null
+      && data.get("purgeAfter", null) == null;
+  }
+
+  function commonCreateDefaultsOk(data) {
+    return createRequiredDefaultsOk(data)
+      && createBillingDefaultsOk(data)
+      && createPrivilegeDefaultsOk(data)
+      && createLifecycleDefaultsOk(data);
+  }
+
+  function createVisibilityDefaultsOk(data) {
+    return data.registrationFlowVersion == "v2"
+      ? (data.get("publicVisibility", "visible") == "visible"
+        && data.get("interactionBlocked", false) == false)
+      : (data.registrationFlowVersion == "v3-private-by-default"
+        && data.keys().hasAll(["publicVisibility", "interactionBlocked"])
+        && data.publicVisibility == "hidden"
+        && data.interactionBlocked == true);
+  }
+
+  function createDefaultsOk() {
+    let data = request.resource.data;
+    return commonCreateDefaultsOk(data)
+      && createVisibilityDefaultsOk(data)
+      && discoveryProjectionSafeOnCreate(data);
+  }
+
+  function acceptedTermsReady(data) {
+    return data.keys().hasAny(["acceptedTerms"])
+      && data.acceptedTerms is map
+      && data.acceptedTerms.keys().hasAny(["accepted"])
+      && data.acceptedTerms.accepted == true;
+  }
+
+  function adultConsentReady(data) {
+    return (data.keys().hasAny(["initialAdultConsentRequired"])
+        && data.initialAdultConsentRequired == false)
+      || (data.keys().hasAny(["adultConsent"])
+        && data.adultConsent is map
+        && data.adultConsent.keys().hasAny(["accepted"])
+        && data.adultConsent.accepted == true);
+  }
+
+  function selfCompletingRegistration(changedKeys) {
+    let data = request.resource.data;
+    let current = resource.data;
+    return isSelf(userId)
+      && changedKeys.hasAll([
+        "profileCompleted",
+        "publicVisibility",
+        "interactionBlocked",
+        "registrationCompletedAt",
+        "declaredIdentityCode",
+        "identityCatalogVersion"
+      ])
+      && changedKeys.hasOnly([
+        "nickname",
+        "nicknameHistory",
+        "gender",
+        "declaredIdentityCode",
+        "identityCatalogVersion",
+        "orientation",
+        "estado",
+        "municipio",
+        "profileCompleted",
+        "publicVisibility",
+        "interactionBlocked",
+        "registrationCompletedAt",
+        "updatedAt",
+        "updatedAtMs"
+      ])
+      && declaredIdentityValid(data)
+      && current.get("profileCompleted", false) != true
+      && data.profileCompleted == true
+      && current.get("accountStatus", "active") == "active"
+      && data.accountStatus == "active"
+      && authEmailVerified()
+      && data.emailVerified == true
+      && acceptedTermsReady(data)
+      && adultConsentReady(data)
+      && data.publicVisibility == "visible"
+      && data.interactionBlocked == false
+      && data.registrationCompletedAt == request.time;
+  }
+
+  function ordinarySelfUpdateAllowed(changedKeys) {
+    return isSelf(userId)
+      && !changedKeys.hasAny(discoveryProjectionKeys())
+      && !changedKeys.hasAny([
+        "profileCompleted",
+        "registrationCompletedAt",
+        "publicVisibility",
+        "interactionBlocked"
+      ])
+      && !selfChangingSensitiveKeys(changedKeys)
+      && identityUpdateSafe(changedKeys)
+      && emailVerifiedSafeOnUpdate(changedKeys);
+  }
+
+  function validUserUpdate() {
+    let changedKeys = affectedUserKeys();
+    return selfCompletingRegistration(changedKeys)
+      || selfUpdatingDiscoveryProjection(changedKeys)
+      || ordinarySelfUpdateAllowed(changedKeys)
+      || (isAdminActor() && adminModerationOnly(changedKeys));
+  }
+
+  allow get: if isSelf(userId) || isAdminActor();
+  allow list: if false;
+
+  allow create: if isSelf(userId)
+    && emailVerifiedMatchesToken()
+    && createDefaultsOk();
+
+  allow update: if validUserUpdate();
+
+  allow delete: if false;
+}

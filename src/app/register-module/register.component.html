@@ -1,0 +1,346 @@
+<!-- src/app/register-module/register.component.html -->
+<div class="auth-container">
+  <section class="auth-intro" aria-labelledby="register-intro-title">
+    <h1 id="register-intro-title">Conta simples. Perfil depois.</h1>
+    <p>
+      Crie seu acesso e avance para configurar sua presença na plataforma.
+    </p>
+  </section>
+
+  <div class="form-container">
+
+    <div *ngIf="banner() as b" class="alert" [ngClass]="{
+        'alert-secondary': b.variant === 'info',
+        'alert-error': b.variant === 'error',
+        'alert-success': b.variant === 'success',
+        'alert-warning': b.variant === 'warn'
+      }"
+      [attr.role]="b.variant === 'error' ? 'alert' : 'status'"
+      [attr.aria-live]="b.variant === 'error' ? 'assertive' : 'polite'"
+      aria-atomic="true">
+
+      <strong>{{ b.variant === 'info' ? 'Não foi possível concluir' : b.title }}</strong>
+      <span>
+        {{
+          b.variant === 'info'
+            ? 'Revise os dados informados. Caso já tenha iniciado um acesso, verifique sua caixa de entrada ou use a recuperação de senha.'
+            : b.message
+        }}
+      </span>
+
+      <div *ngIf="b.variant === 'info'" class="actions">
+        <a class="btn btn-ghost" routerLink="/login">Entrar ou recuperar acesso</a>
+      </div>
+
+      <div *ngIf="debugEnabled()" class="actions">
+        <button class="btn btn-secondary" type="button" (click)="onSubmit()" [disabled]="isLoading() || creating()">
+          Tentar novamente
+        </button>
+
+        <button class="btn" type="button" (click)="syncSessionNow()" [disabled]="syncing()">
+          Sincronizar sessão
+        </button>
+
+        <button class="btn" type="button" (click)="resetForm()" [disabled]="isLoading() || creating()">
+          Refazer cadastro
+        </button>
+
+        <button class="btn" type="button" (click)="toggleTech()">
+          {{ showTech() ? 'Ocultar detalhes' : 'Mostrar detalhes técnicos' }}
+        </button>
+
+        <button *ngIf="b.details" class="btn" type="button" (click)="copyDetails()">
+          Copiar detalhes
+        </button>
+
+        <button class="btn" type="button" (click)="reloadPage()">
+          Recarregar
+        </button>
+      </div>
+
+      <pre *ngIf="debugEnabled() && showTech() && b.details">{{ b.details }}</pre>
+    </div>
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" aria-labelledby="form-title" autocomplete="on" novalidate
+      formInvalidMessage="Revise os dados do cadastro antes de continuar."
+      [attr.aria-busy]="(isLoading() || creating()) ? 'true' : null">
+
+      <h2 id="form-title" class="form-header">Crie seu cadastro</h2>
+
+      <!-- Apelido principal -->
+      <div class="form-field nickname-field">
+        <label for="apelidoPrincipal">Apelido *</label>
+
+        <div class="field-row">
+          <div class="input-wrapper">
+            <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="input-field"
+              name="nickname" autocomplete="nickname" placeholder="Ex: casadinho" spellcheck="false"
+              autocapitalize="none" inputmode="text" maxlength="12" aria-label="Apelido"
+              aria-describedby="apelidoTooltip" (input)="onNicknameTyping()" (blur)="onNicknameBlur()"
+              [attr.aria-invalid]="
+                (submitted() || form.get('apelidoPrincipal')?.touched || nicknameFeedbackArmed())
+                && (form.get('apelidoPrincipal')?.invalid || form.hasError('invalidFullNickname'))
+                  ? true
+                  : null
+              " [ngClass]="{
+                'is-pending': nicknameChecking(),
+
+                'is-invalid':
+                  (submitted() || form.get('apelidoPrincipal')?.touched || nicknameFeedbackArmed())
+                  && (form.get('apelidoPrincipal')?.invalid || form.hasError('invalidFullNickname')),
+
+                'is-valid':
+                  nicknameFeedbackArmed()
+                  && !nicknameChecking()
+                  && form.get('apelidoPrincipal')?.valid
+                  && !form.hasError('invalidFullNickname')
+                  && ((apelidoCompleto() || '').length >= 4)
+                  && ((apelidoCompleto() || '').length <= 24)
+                  && !apelidoEmUso()
+                  && nicknameCheckState() === 'available'
+              }" />
+          </div>
+
+          <div class="inline-feedback" aria-live="polite">
+            <div *ngIf="nicknameChecking()" class="badge info">
+              <span class="inline-spinner" aria-hidden="true"></span> Verificando…
+            </div>
+
+            <div *ngIf="
+                !nicknameChecking()
+                && nicknameFeedbackArmed()
+                && form.get('apelidoPrincipal')?.valid
+                && !form.hasError('invalidFullNickname')
+                && ((apelidoCompleto() || '').length >= 4)
+                && ((apelidoCompleto() || '').length <= 24)
+                && !apelidoEmUso()
+                && nicknameCheckState() === 'available'
+              " class="badge ok">
+              Disponível
+            </div>
+
+            <div *ngIf="
+                !nicknameChecking()
+                && (submitted() || nicknameFeedbackArmed())
+                && !form.hasError('invalidFullNickname')
+                && ((apelidoCompleto() || '').length >= 4)
+                && ((apelidoCompleto() || '').length <= 24)
+                && (apelidoEmUso() || nicknameCheckState() === 'taken')
+              " class="badge error">
+              Em uso
+            </div>
+
+            <div *ngIf="
+                !nicknameChecking()
+                && nicknameFeedbackArmed()
+                && !form.hasError('invalidFullNickname')
+                && ((apelidoCompleto() || '').length >= 4)
+                && ((apelidoCompleto() || '').length <= 24)
+                && nicknameCheckState() === 'unverified'
+                && !apelidoEmUso()
+              " class="badge warn">
+              Não verificado
+            </div>
+          </div>
+        </div>
+
+        <div class="hint-row hint-row--compact">
+          <small class="char-counter" [class.warn]="(form.get('apelidoPrincipal')?.value?.length || 0) > 10">
+            {{ (form.get('apelidoPrincipal')?.value?.length || 0) }}/12
+          </small>
+        </div>
+
+        <div *ngIf="
+            getError('apelidoPrincipal')
+            && (submitted() || nicknameFeedbackArmed())
+            && !nicknameChecking()
+          " id="apelidoTooltip" class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
+          {{ getError('apelidoPrincipal') }}
+        </div>
+      </div>
+
+      <!-- Complemento do apelido -->
+      <div class="form-field">
+        <label for="complementoApelido">Complemento</label>
+
+        <input id="complementoApelido" formControlName="complementoApelido" type="text" class="input-field"
+          name="nicknameSuffix" autocomplete="off" placeholder="Opcional" autocapitalize="none" inputmode="text"
+          maxlength="12" aria-label="Complemento do apelido" aria-describedby="complementoTooltip"
+          (input)="onNicknameTyping()" (blur)="onComplementoBlur()" [attr.aria-invalid]="
+            (submitted() || form.get('complementoApelido')?.touched)
+            && form.get('complementoApelido')?.invalid
+              ? true
+              : null
+          " [ngClass]="{
+            'is-invalid': (submitted() || form.get('complementoApelido')?.touched) && form.get('complementoApelido')?.invalid,
+            'is-valid': (submitted() || form.get('complementoApelido')?.touched) && form.get('complementoApelido')?.valid
+          }" />
+
+        <div *ngIf="getError('complementoApelido') && (submitted() || form.get('complementoApelido')?.touched)"
+          id="complementoTooltip" class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
+          {{ getError('complementoApelido') }}
+        </div>
+      </div>
+
+      <!-- Email -->
+      <div class="form-field">
+        <label for="email">E-mail *</label>
+
+        <input id="email" formControlName="email" type="email" class="input-field" name="email" autocomplete="email"
+          placeholder="email@exemplo.com" autocapitalize="none" inputmode="email" aria-label="E-mail"
+          aria-describedby="emailTooltip" [attr.aria-invalid]="
+            (submitted() || form.get('email')?.touched)
+            && form.get('email')?.invalid
+              ? true
+              : null
+          " [ngClass]="{
+            'is-invalid': (submitted() || form.get('email')?.touched) && form.get('email')?.invalid,
+            'is-valid': (submitted() || form.get('email')?.touched) && form.get('email')?.valid
+          }" />
+
+        <div *ngIf="getError('email') && (submitted() || form.get('email')?.touched)" id="emailTooltip"
+          class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
+          {{ getError('email') }}
+        </div>
+      </div>
+
+      <!-- Senha -->
+      <div class="form-field">
+        <label for="password">Senha *</label>
+
+        <div class="input-wrapper password-field">
+          <input id="password" [type]="showPassword() ? 'text' : 'password'" formControlName="password"
+            class="input-field" name="password" autocomplete="new-password" placeholder="Crie uma senha segura"
+            spellcheck="false" autocapitalize="none" maxlength="128" aria-label="Senha"
+            aria-describedby="passwordHint passwordTooltip" [attr.aria-invalid]="
+              (submitted() || form.get('password')?.touched)
+              && form.get('password')?.invalid
+                ? true
+                : null
+            " [ngClass]="{
+              'is-invalid': (submitted() || form.get('password')?.touched) && form.get('password')?.invalid,
+              'is-valid': (submitted() || form.get('password')?.touched) && form.get('password')?.valid
+            }" />
+
+          <button type="button" class="toggle-input" (click)="togglePasswordVisibility()"
+            [attr.aria-pressed]="showPassword() ? 'true' : 'false'"
+            [attr.aria-label]="showPassword() ? 'Ocultar senha' : 'Mostrar senha'">
+            @if (showPassword()) {
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M3 3l18 18" />
+                <path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6 0 9.5 7 9.5 7a16.5 16.5 0 0 1-2.7 3.3" />
+                <path d="M6.2 6.8A16.3 16.3 0 0 0 2.5 12s3.5 7 9.5 7c1.8 0 3.4-.5 4.8-1.2" />
+                <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+              </svg>
+            } @else {
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            }
+          </button>
+        </div>
+
+        <small id="passwordHint" class="field-hint">
+          Use pelo menos 8 caracteres, com letra maiúscula, minúscula e número.
+        </small>
+
+        <div *ngIf="getError('password') && (submitted() || form.get('password')?.touched)" id="passwordTooltip"
+          class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
+          {{ getError('password') }}
+        </div>
+      </div>
+
+      <!-- Confirmação de senha -->
+      <div class="form-field">
+        <label for="confirmPassword">Confirmar senha *</label>
+
+        <div class="input-wrapper password-field">
+          <input id="confirmPassword" [type]="showConfirmPassword() ? 'text' : 'password'"
+            formControlName="confirmPassword" class="input-field" name="confirmPassword"
+            autocomplete="new-password" placeholder="Digite a mesma senha novamente" spellcheck="false"
+            autocapitalize="none" maxlength="128" aria-label="Confirmar senha"
+            aria-describedby="confirmPasswordTooltip" [attr.aria-invalid]="
+              (submitted() || form.get('confirmPassword')?.touched)
+              && (form.get('confirmPassword')?.invalid || form.hasError('passwordMismatch'))
+                ? true
+                : null
+            " [ngClass]="{
+              'is-invalid':
+                (submitted() || form.get('confirmPassword')?.touched)
+                && (form.get('confirmPassword')?.invalid || form.hasError('passwordMismatch')),
+              'is-valid':
+                (submitted() || form.get('confirmPassword')?.touched)
+                && form.get('confirmPassword')?.valid
+                && !form.hasError('passwordMismatch')
+            }" />
+
+          <button type="button" class="toggle-input" (click)="toggleConfirmPasswordVisibility()"
+            [attr.aria-pressed]="showConfirmPassword() ? 'true' : 'false'"
+            [attr.aria-label]="showConfirmPassword() ? 'Ocultar confirmação de senha' : 'Mostrar confirmação de senha'">
+            @if (showConfirmPassword()) {
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M3 3l18 18" />
+                <path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6 0 9.5 7 9.5 7a16.5 16.5 0 0 1-2.7 3.3" />
+                <path d="M6.2 6.8A16.3 16.3 0 0 0 2.5 12s3.5 7 9.5 7c1.8 0 3.4-.5 4.8-1.2" />
+                <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+              </svg>
+            } @else {
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            }
+          </button>
+        </div>
+
+        <div *ngIf="getError('confirmPassword') && (submitted() || form.get('confirmPassword')?.touched)"
+          id="confirmPasswordTooltip" class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
+          {{ getError('confirmPassword') }}
+        </div>
+      </div>
+
+      <!-- Aceite de Termos -->
+      <div class="form-checkbox">
+        <input type="checkbox" id="termos" formControlName="aceitarTermos" autocomplete="off"
+          aria-describedby="termosTooltip" [attr.aria-invalid]="
+            (submitted() || form.get('aceitarTermos')?.touched)
+            && form.get('aceitarTermos')?.invalid
+              ? true
+              : null
+          " />
+
+        <label for="termos">
+          Aceito os
+          <a href="/termos" target="_blank" rel="noopener noreferrer">Termos</a>
+          e a
+          <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">Privacidade</a>.
+        </label>
+
+        <div *ngIf="getError('aceitarTermos') && (submitted() || form.get('aceitarTermos')?.touched)" id="termosTooltip"
+          class="tooltip-error" role="alert" aria-live="polite" aria-atomic="true">
+          {{ getError('aceitarTermos') }}
+        </div>
+      </div>
+
+      <button class="btn btn-primary" type="submit"
+        [appActionState]="isLoading() || creating()"
+        [actionDisabled]="nicknameChecking()">
+        {{ isLoading() || creating() ? 'Criando conta…' : nicknameChecking() ? 'Validando apelido…' : 'Cadastrar' }}
+      </button>
+
+      <p class="login-redirect">
+        Já tem conta?
+        <a routerLink="/login">Entrar</a>
+      </p>
+    </form>
+  </div>
+</div>
+
+<div *ngIf="creating()" class="rg-overlay" role="status" aria-live="assertive" aria-label="Criando sua conta">
+  <div class="rg-card">
+    <div class="rg-spinner" aria-hidden="true"></div>
+    <h3 class="rg-title">Criando sua conta</h3>
+    <p class="rg-sub">{{ creatingMsg() }}</p>
+  </div>
+</div>

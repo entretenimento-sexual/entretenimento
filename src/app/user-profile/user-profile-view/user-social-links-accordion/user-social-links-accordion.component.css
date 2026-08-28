@@ -1,0 +1,280 @@
+/* src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.css */
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+:host[hidden] {
+  display: none !important;
+}
+
+.social-links-accordion {
+  width: 100%;
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #e5e7eb) 82%,
+    transparent
+  );
+  border-radius: 0.9rem;
+  background: var(--surface-color, #ffffff);
+  color: var(--text-color, #111827);
+}
+
+.social-links-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 3.2rem;
+  box-sizing: border-box;
+  padding: 0 0.9rem;
+  background: transparent;
+  color: var(--text-color, #111827);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.social-links-summary::-webkit-details-marker {
+  display: none;
+}
+
+.social-links-summary:hover {
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff4d57) 5%,
+    transparent
+  );
+}
+
+.social-links-summary:focus-visible,
+.social-link-value:focus-visible,
+.social-links-management button:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color, #ff4d57));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+.social-links-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.social-links-title i {
+  color: var(--primary-color, #ff4d57);
+}
+
+.social-links-chevron {
+  flex: 0 0 auto;
+  color: color-mix(in oklab, var(--text-color, #111827) 72%, transparent);
+  font-size: 0.75rem;
+  transition: transform 160ms ease;
+}
+
+.social-links-accordion[open] .social-links-chevron {
+  transform: rotate(180deg);
+}
+
+.social-links-body {
+  padding: 0.75rem 0.9rem 0.9rem;
+}
+
+.social-links-note,
+.no-links-info,
+.social-links-management p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #111827) 70%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.social-links-note {
+  margin-bottom: 0.65rem;
+}
+
+.social-link-list {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+
+.social-link-item {
+  display: grid;
+  grid-template-columns: 1.2rem minmax(5.5rem, 7.5rem) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #e5e7eb) 66%,
+    transparent
+  );
+  color: var(--text-color, #111827);
+}
+
+.social-link-item:last-child {
+  border-bottom: 0;
+}
+
+.social-link-icon {
+  color: color-mix(
+    in oklab,
+    var(--primary-color, #ff4d57) 74%,
+    var(--text-color, #111827)
+  );
+  text-align: center;
+}
+
+.social-link-label {
+  color: color-mix(in oklab, var(--text-color, #111827) 66%, transparent);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.social-link-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-color, #111827);
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.social-link-value:hover,
+.social-link-value:focus-visible {
+  text-decoration: underline;
+}
+
+.social-links-management {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #e5e7eb) 68%,
+    transparent
+  );
+}
+
+.social-links-management p {
+  flex: 1 1 18rem;
+}
+
+.social-links-management button {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 2.5rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--primary-color, #ff4d57);
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--primary-color, #ff4d57);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 780;
+  cursor: pointer;
+}
+
+.social-links-management button:hover {
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff4d57) 7%,
+    transparent
+  );
+}
+
+/* Perfil visitado: conteúdo aberto, sem outro cartão dentro da vitrine. */
+.social-links-accordion--compact {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.social-links-accordion--compact .social-links-summary {
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+}
+
+.social-links-accordion--compact .social-links-summary:hover {
+  background: transparent;
+}
+
+.social-links-accordion--compact .social-links-body {
+  padding: 0.2rem 0 0;
+}
+
+.social-links-accordion--compact .social-link-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 1rem;
+}
+
+.social-links-accordion--compact .social-link-item {
+  grid-template-columns: 1.1rem minmax(4.5rem, 6.5rem) minmax(0, 1fr);
+  min-height: 2.6rem;
+}
+
+.social-links-accordion--compact:not(.social-links-accordion--managed)
+  .social-links-management {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .social-links-accordion--compact .social-link-list {
+    grid-template-columns: 1fr;
+  }
+
+  .social-link-item {
+    grid-template-columns: 1.2rem minmax(0, 1fr);
+    gap: 0.35rem 0.55rem;
+  }
+
+  .social-link-label,
+  .social-link-value {
+    grid-column: 2;
+  }
+
+  .social-links-management {
+    align-items: stretch;
+  }
+
+  .social-links-management button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .social-links-chevron {
+    transition: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .social-links-accordion,
+  .social-links-management button {
+    border-width: 2px;
+  }
+
+  .social-link-label,
+  .social-links-note,
+  .no-links-info,
+  .social-links-management p {
+    color: var(--text-color, #111827);
+  }
+}

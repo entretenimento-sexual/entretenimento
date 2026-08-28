@@ -1,0 +1,9 @@
+<!-- src/app/dashboard/online/online-users-full/online-users-full.component.html -->
+<section
+  class="online-users-full"
+  [class.online-users-full--embedded]="embedded"
+  [class.online-users-full--standalone]="!embedded"
+  aria-label="Perfis online"
+>
+  <app-online-users [mode]="mode"></app-online-users>
+</section>

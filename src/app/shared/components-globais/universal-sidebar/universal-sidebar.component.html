@@ -1,0 +1,335 @@
+<!-- src/app/shared/components-globais/universal-sidebar/universal-sidebar.component.html -->
+<button
+  *ngIf="isOverlayMode && vm.isOpen"
+  type="button"
+  class="universal-sidebar__backdrop"
+  aria-label="Fechar navegação lateral"
+  (click)="onBackdropClick()"
+></button>
+
+<aside
+  #sidebarRoot
+  id="app-sidebar"
+  class="universal-sidebar"
+  [class.universal-sidebar--mobile]="isOverlayMode"
+  [class.universal-sidebar--open]="vm.isOpen"
+  [class.universal-sidebar--collapsed]="isCollapsedMode"
+  [class.universal-sidebar--locked]="lockCollapsed && isCollapsedMode"
+  [attr.aria-hidden]="isOverlayMode && !vm.isOpen ? 'true' : null"
+  aria-label="Navegação principal"
+>
+  <div class="universal-sidebar__top">
+    <button
+      *ngIf="isOverlayMode"
+      type="button"
+      class="universal-sidebar__action"
+      aria-label="Fechar menu lateral"
+      aria-controls="app-sidebar"
+      (click)="onCloseButtonClick()"
+    >
+      <span aria-hidden="true">✕</span>
+    </button>
+
+    <button
+      *ngIf="shouldShowDesktopCollapseButton"
+      type="button"
+      class="universal-sidebar__action"
+      [attr.aria-label]="isCollapsedMode ? 'Expandir menu lateral' : 'Recolher menu lateral'"
+      [attr.aria-pressed]="isCollapsedMode ? 'true' : 'false'"
+      aria-controls="app-sidebar"
+      (click)="onCollapseButtonClick()"
+    >
+      <span aria-hidden="true">{{ isCollapsedMode ? '⟫' : '⟪' }}</span>
+    </button>
+  </div>
+
+  <ng-container *ngIf="shouldShowUserBlock && user as sidebarUser">
+    <div class="universal-sidebar__profile">
+      <ng-container *ngIf="sidebarUser.profileRoute; else staticProfile">
+        <a
+          class="universal-sidebar__profile-link"
+          [routerLink]="sidebarUser.profileRoute"
+          [attr.aria-label]="'Abrir perfil de ' + sidebarUser.displayName"
+          [attr.title]="isCollapsedMode ? sidebarUser.displayName : null"
+          (click)="onItemActivated()"
+        >
+          <img
+            class="universal-sidebar__avatar"
+            [src]="avatarSrc"
+            [alt]="'Foto de ' + sidebarUser.displayName"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
+            (error)="onAvatarError($event)"
+          />
+
+          <div
+            class="universal-sidebar__profile-meta"
+            *ngIf="shouldShowExpandedContent"
+          >
+            <strong class="universal-sidebar__profile-name">
+              {{ sidebarUser.displayName }}
+            </strong>
+
+            <span
+              class="universal-sidebar__profile-subtitle"
+              *ngIf="userSecondaryText"
+            >
+              {{ userSecondaryText }}
+            </span>
+          </div>
+        </a>
+      </ng-container>
+
+      <ng-template #staticProfile>
+        <div
+          class="universal-sidebar__profile-link universal-sidebar__profile-link--static"
+          [attr.title]="isCollapsedMode ? sidebarUser.displayName : null"
+        >
+          <img
+            class="universal-sidebar__avatar"
+            [src]="avatarSrc"
+            [alt]="'Foto de ' + sidebarUser.displayName"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
+            (error)="onAvatarError($event)"
+          />
+
+          <div
+            class="universal-sidebar__profile-meta"
+            *ngIf="shouldShowExpandedContent"
+          >
+            <strong class="universal-sidebar__profile-name">
+              {{ sidebarUser.displayName }}
+            </strong>
+
+            <span
+              class="universal-sidebar__profile-subtitle"
+              *ngIf="userSecondaryText"
+            >
+              {{ userSecondaryText }}
+            </span>
+          </div>
+        </div>
+      </ng-template>
+    </div>
+  </ng-container>
+
+  <section
+    class="universal-sidebar__quick-actions"
+    *ngIf="shouldShowQuickActionsBlock && quickActions.length > 0"
+    aria-label="Ações rápidas"
+  >
+    <a
+      class="universal-sidebar__quick-action"
+      *ngFor="let action of quickActions; trackBy: trackQuickAction"
+      [class.universal-sidebar__quick-action--primary]="action.variant === 'primary'"
+      [class.universal-sidebar__quick-action--secondary]="action.variant === 'secondary'"
+      [class.universal-sidebar__quick-action--ghost]="action.variant === 'ghost'"
+      [class.universal-sidebar__quick-action--disabled]="action.disabled === true"
+      [routerLink]="action.disabled ? null : action.route"
+      [queryParams]="action.disabled ? null : (action.queryParams ?? null)"
+      [attr.aria-label]="action.ariaLabel || action.label"
+      [attr.aria-disabled]="action.disabled ? 'true' : null"
+      [attr.title]="isCollapsedMode ? action.label : null"
+      (click)="action.disabled ? $event.preventDefault() : onItemActivated()"
+    >
+      <span class="universal-sidebar__quick-action-icon" aria-hidden="true">
+        {{ action.icon || '•' }}
+      </span>
+
+      <span
+        class="universal-sidebar__quick-action-label"
+        *ngIf="shouldShowExpandedContent"
+      >
+        {{ action.label }}
+      </span>
+      <span
+        *ngIf="hasBadge(action.badgeCount)"
+        class="universal-sidebar__badge"
+        [attr.aria-label]="action.badgeLabel || (formatBadgeCount(action.badgeCount) + ' notificações')"
+      >
+        {{ formatBadgeCount(action.badgeCount) }}
+      </span>
+    </a>
+  </section>
+
+  <nav class="universal-sidebar__nav" aria-label="Seções da aplicação">
+    <section
+      class="universal-sidebar__section"
+      *ngFor="let section of vm.sections; trackBy: trackSection"
+      [attr.aria-label]="section.title || 'Opções da conta'"
+    >
+      <h2
+        class="universal-sidebar__title"
+        *ngIf="shouldShowExpandedContent && section.title"
+      >
+        {{ section.title }}
+      </h2>
+
+      <ul class="universal-sidebar__list">
+        <li
+          class="universal-sidebar__item"
+          *ngFor="let item of section.items; trackBy: trackItem"
+        >
+          <ng-container *ngIf="isGroupItem(item); else simpleLinkItem">
+            <button
+              type="button"
+              class="universal-sidebar__link universal-sidebar__group-toggle"
+              [class.universal-sidebar__link--active]="isGroupActive(item)"
+              [disabled]="item.disabled === true"
+              [attr.aria-label]="item.ariaLabel || item.label"
+              [attr.aria-expanded]="isGroupExpanded(item) ? 'true' : 'false'"
+              [attr.aria-controls]="groupPanelId(item.id)"
+              [attr.title]="isCollapsedMode ? item.label : null"
+              (click)="onGroupToggle(item)"
+            >
+              <span class="universal-sidebar__icon" aria-hidden="true">
+                {{ item.icon || '•' }}
+              </span>
+
+              <span
+                class="universal-sidebar__label"
+                *ngIf="shouldShowExpandedContent"
+              >
+                {{ item.label }}
+              </span>
+
+              <span
+                class="universal-sidebar__group-indicator"
+                *ngIf="shouldShowExpandedContent"
+                aria-hidden="true"
+              >
+                {{ isGroupExpanded(item) ? '⌃' : '⌄' }}
+              </span>
+            </button>
+
+            <ul
+              *ngIf="isGroupExpanded(item)"
+              class="universal-sidebar__submenu"
+              [class.universal-sidebar__submenu--collapsed]="isCollapsedMode"
+              [id]="groupPanelId(item.id)"
+              [attr.aria-label]="item.label"
+            >
+              <li
+                class="universal-sidebar__submenu-item"
+                *ngFor="let child of item.children; trackBy: trackChild"
+              >
+                <ng-container *ngIf="!child.disabled; else disabledChildItem">
+                  <a
+                    class="universal-sidebar__link universal-sidebar__submenu-link"
+                    [routerLink]="child.route"
+                    routerLinkActive="universal-sidebar__link--active"
+                    [routerLinkActiveOptions]="{ exact: child.exact ?? false }"
+                    #childRla="routerLinkActive"
+                    [attr.aria-label]="child.ariaLabel || child.label"
+                    [attr.aria-current]="childRla.isActive ? 'page' : null"
+                    [attr.title]="isCollapsedMode ? child.label : null"
+                    (click)="onChildActivated(item.id)"
+                  >
+                    <span class="universal-sidebar__icon" aria-hidden="true">
+                      {{ child.icon || '•' }}
+                    </span>
+
+                    <span
+                      class="universal-sidebar__label"
+                      *ngIf="shouldShowExpandedContent"
+                    >
+                      {{ child.label }}
+                    </span>
+
+                    <span
+                      *ngIf="hasBadge(child.badgeCount)"
+                      class="universal-sidebar__badge"
+                      [attr.aria-label]="child.badgeLabel || (formatBadgeCount(child.badgeCount) + ' pendências')"
+                    >
+                      {{ formatBadgeCount(child.badgeCount) }}
+                    </span>
+                  </a>
+                </ng-container>
+
+                <ng-template #disabledChildItem>
+                  <span
+                    class="universal-sidebar__link universal-sidebar__submenu-link universal-sidebar__link--disabled"
+                    aria-disabled="true"
+                    [attr.aria-label]="child.ariaLabel || child.label"
+                    [attr.title]="isCollapsedMode ? child.label : null"
+                  >
+                    <span class="universal-sidebar__icon" aria-hidden="true">
+                      {{ child.icon || '•' }}
+                    </span>
+
+                    <span
+                      class="universal-sidebar__label"
+                      *ngIf="shouldShowExpandedContent"
+                    >
+                      {{ child.label }}
+                    </span>
+                  </span>
+                </ng-template>
+              </li>
+            </ul>
+          </ng-container>
+
+          <ng-template #simpleLinkItem>
+            <ng-container *ngIf="asLinkItem(item) as linkItem">
+              <ng-container *ngIf="!linkItem.disabled; else disabledItem">
+                <a
+                  class="universal-sidebar__link"
+                  [routerLink]="linkItem.route"
+                  routerLinkActive="universal-sidebar__link--active"
+                  [routerLinkActiveOptions]="{ exact: linkItem.exact ?? false }"
+                  #rla="routerLinkActive"
+                  [attr.aria-label]="linkItem.ariaLabel || linkItem.label"
+                  [attr.aria-current]="rla.isActive ? 'page' : null"
+                  [attr.title]="isCollapsedMode ? linkItem.label : null"
+                  (click)="onItemActivated()"
+                >
+                  <span class="universal-sidebar__icon" aria-hidden="true">
+                    {{ linkItem.icon || '•' }}
+                  </span>
+
+                  <span
+                    class="universal-sidebar__label"
+                    *ngIf="shouldShowExpandedContent"
+                  >
+                    {{ linkItem.label }}
+                  </span>
+
+                  <span
+                    *ngIf="hasBadge(linkItem.badgeCount)"
+                    class="universal-sidebar__badge"
+                    [attr.aria-label]="linkItem.badgeLabel || (formatBadgeCount(linkItem.badgeCount) + ' pendências')"
+                  >
+                    {{ formatBadgeCount(linkItem.badgeCount) }}
+                  </span>
+                </a>
+              </ng-container>
+
+              <ng-template #disabledItem>
+                <span
+                  class="universal-sidebar__link universal-sidebar__link--disabled"
+                  aria-disabled="true"
+                  [attr.aria-label]="linkItem.ariaLabel || linkItem.label"
+                  [attr.title]="isCollapsedMode ? linkItem.label : null"
+                >
+                  <span class="universal-sidebar__icon" aria-hidden="true">
+                    {{ linkItem.icon || '•' }}
+                  </span>
+
+                  <span
+                    class="universal-sidebar__label"
+                    *ngIf="shouldShowExpandedContent"
+                  >
+                    {{ linkItem.label }}
+                  </span>
+                </span>
+              </ng-template>
+            </ng-container>
+          </ng-template>
+        </li>
+      </ul>
+    </section>
+  </nav>
+</aside>

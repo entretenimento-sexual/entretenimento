@@ -1,0 +1,104 @@
+/* src/app/header/global-invite-badge/global-invite-badge.component.css */
+:host {
+  display: block;
+}
+
+.global-invite-badge-shell {
+  display: flex;
+  justify-content: flex-end;
+  width: min(100%, 90rem);
+  margin: 0 auto;
+  padding: 0.35rem clamp(0.75rem, 3vw, 2rem) 0;
+  pointer-events: none;
+}
+
+.global-invite-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid rgb(127 127 127 / 35%);
+  border-color: color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 999px;
+  background: var(--surface-card, Canvas);
+  color: var(--text-color, CanvasText);
+  text-decoration: none;
+  box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 10%);
+  pointer-events: auto;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.global-invite-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.4rem 1.2rem rgb(0 0 0 / 14%);
+}
+
+.global-invite-badge:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 3px;
+}
+
+.global-invite-badge__icon {
+  line-height: 1;
+}
+
+.global-invite-badge__label {
+  font-weight: 650;
+}
+
+.global-invite-badge__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.65rem;
+  min-height: 1.65rem;
+  padding-inline: 0.35rem;
+  border-radius: 999px;
+  background: currentColor;
+  color: var(--surface-card, Canvas);
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.global-invite-badge__announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.global-invite-badge-shell--mobile {
+  justify-content: stretch;
+  padding-inline: 0.75rem;
+}
+
+.global-invite-badge--mobile {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (max-width: 47.99rem) {
+  .global-invite-badge-shell {
+    justify-content: stretch;
+    padding-top: 0.3rem;
+  }
+
+  .global-invite-badge {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .global-invite-badge {
+    transition: none;
+  }
+}

@@ -1,0 +1,64 @@
+<!-- src/app/dashboard/hot-places/hot-places-widget/hot-places-widget.component.html -->
+
+<section class="hot-places app-card" aria-labelledby="hot-places-title">
+  <header class="hot-places__header">
+    <h2 id="hot-places-title">Locais</h2>
+  </header>
+
+  @if (vm$ | async; as vm) {
+    @if (vm.state === 'loading') {
+      <div class="hot-places__state" role="status" aria-live="polite">
+        <span class="hot-places__pulse" aria-hidden="true"></span>
+        <strong>Carregando...</strong>
+      </div>
+    } @else if (vm.state === 'empty') {
+      <div class="hot-places__state hot-places__state--empty" role="status" aria-live="polite">
+        <span class="hot-places__empty-icon" aria-hidden="true">📍</span>
+        <strong>Nada em destaque.</strong>
+      </div>
+    } @else {
+      <div class="hot-places__rail" aria-label="Lista de locais em destaque">
+        @for (place of vm.items; track trackByPlaceId($index, place)) {
+          <article class="hot-place-card">
+            <div class="hot-place-card__topline">
+              <span>{{ place.regionLabel }}</span>
+              <strong>{{ place.scoreLabel }}</strong>
+            </div>
+
+            <h3>{{ place.title }}</h3>
+
+            @if (place.subtitle) {
+              <p>{{ place.subtitle }}</p>
+            }
+
+            @if (place.affinitySummaryLabel) {
+              <div class="hot-place-card__affinity" aria-label="Afinidade agregada do local">
+                <strong>{{ place.affinitySummaryLabel }}</strong>
+
+                @if (place.affinitySegmentLabels.length > 0) {
+                  <div class="hot-place-card__segments" aria-label="Segmentos agregados">
+                    @for (label of place.affinitySegmentLabels; track label) {
+                      <span>{{ label }}</span>
+                    }
+                  </div>
+                }
+              </div>
+            }
+
+            <footer class="hot-place-card__footer">
+              <span>{{ place.activityLabel }}</span>
+
+              @if (place.kind === 'room_cluster') {
+                <a routerLink="/chat" aria-label="Abrir conversas e salas relacionadas">
+                  Salas
+                </a>
+              } @else {
+                <span class="hot-place-card__tag">Em alta</span>
+              }
+            </footer>
+          </article>
+        }
+      </div>
+    }
+  }
+</section>

@@ -1,0 +1,65 @@
+<!-- src/app/chat-module/chat-messages-list/chat-messages-list.component.html -->
+<div class="thread-shell" #messagesContainer>
+  @if (type; as safeType) {
+    @if (messages.length > 0) {
+      <div class="thread-shell__stack">
+        @for (item of threadItems; track item.id) {
+          @if (item.kind === 'date-separator') {
+            <div
+              class="thread-shell__date-separator"
+              role="separator"
+              [attr.aria-label]="'Mensagens de ' + item.label"
+            >
+              <span>{{ item.label }}</span>
+            </div>
+          } @else {
+            @if (item.message; as message) {
+              <app-chat-message
+                [message]="message"
+                [previousMessage]="item.previousMessage ?? null"
+                [nextMessage]="item.nextMessage ?? null"
+                [chatId]="chatId"
+                [type]="safeType">
+              </app-chat-message>
+            }
+          }
+        }
+      </div>
+
+      @if (pendingIncomingCount > 0) {
+        <button
+          type="button"
+          class="thread-shell__new-messages"
+          aria-label="Ir para novas mensagens"
+          (click)="scrollToLatestFromNotice()"
+        >
+          <span class="thread-shell__new-messages-dot" aria-hidden="true"></span>
+          <span>
+            {{ pendingIncomingCount === 1 ? '1 nova mensagem' : pendingIncomingCount + ' novas mensagens' }}
+          </span>
+          <span aria-hidden="true">↓</span>
+        </button>
+      }
+    } @else {
+      <div class="thread-shell__empty" role="status" aria-live="polite">
+        <p class="thread-shell__empty-title">
+          Ainda não há mensagens nesta conversa.
+        </p>
+
+        <p class="thread-shell__empty-text">
+          Envie a primeira mensagem para iniciar a interação.
+        </p>
+      </div>
+    }
+  } @else {
+    <div class="thread-shell__empty" role="status" aria-live="polite">
+      <p class="thread-shell__empty-title">
+        Nenhuma conversa ativa.
+      </p>
+
+      <p class="thread-shell__empty-text">
+        Selecione um chat ou uma sala para visualizar a thread.
+      </p>
+    </div>
+  }
+</div>

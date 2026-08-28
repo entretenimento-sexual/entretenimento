@@ -1,0 +1,95 @@
+// firestore-rules/public_profiles_photos.rules
+// ===============================================================
+// PUBLIC_PROFILES / public_photos
+// ===============================================================
+
+match /public_profiles/{userId}/public_photos/{photoId} {
+
+  function publicProfilePath() {
+    return /databases/$(database)/documents/public_profiles/$(userId);
+  }
+
+  function publicProfileExists() {
+    return exists(publicProfilePath());
+  }
+
+  function photoPath() {
+    return /databases/$(database)/documents/public_profiles/$(userId)/public_photos/$(photoId);
+  }
+
+  function photoExists() {
+    return exists(photoPath());
+  }
+
+  function photoData() {
+    return get(photoPath()).data;
+  }
+
+  function isApprovedPublicPhotoData(data) {
+    return data.visibility == "PUBLIC"
+      && data.moderationStatus == "APPROVED";
+  }
+
+  function isPublicReadable() {
+    return publicProfileExists()
+      && resource.data.visibility == "PUBLIC"
+      && resource.data.moderationStatus == "APPROVED";
+  }
+
+  allow get: if signedIn() && (isSelf(userId) || isPublicReadable());
+
+  allow list: if signedIn() && isPublicReadable();
+
+  allow create, update, delete: if false;
+
+  match /likes/{viewerUid} {
+    allow get: if signedIn() && request.auth.uid == viewerUid;
+    allow list: if false;
+    allow create, update, delete: if false;
+  }
+
+  match /comments/{commentId} {
+    allow get: if signedIn()
+      && (
+        isSelf(userId)
+        || (
+          publicProfileExists()
+          && resource.data.status == "VISIBLE"
+          && photoExists()
+          && isApprovedPublicPhotoData(photoData())
+        )
+      );
+
+    allow list: if signedIn()
+      && (
+        isSelf(userId)
+        || (
+          publicProfileExists()
+          && resource.data.status == "VISIBLE"
+          && photoExists()
+          && isApprovedPublicPhotoData(photoData())
+        )
+      );
+
+    allow create, update, delete: if false;
+  }
+}
+
+// ------------------------------------------------------------
+// Collection group: public_photos
+// A revalidação muda a projeção para PRIVATE na mesma transação;
+// por isso a consulta global continua filtrável por visibility.
+// Leituras diretas permanecem no match específico acima, que também
+// confirma a existência do perfil público pai.
+// ------------------------------------------------------------
+match /{path=**}/public_photos/{photoId} {
+  allow list: if signedIn()
+    && resource.data.visibility == "PUBLIC"
+    && resource.data.moderationStatus == "APPROVED";
+
+  allow create, update, delete: if false;
+}
+
+// ==============================================================
+//           FIM DO PUBLIC_PROFILES_PHOTOS.RULES
+// ==============================================================

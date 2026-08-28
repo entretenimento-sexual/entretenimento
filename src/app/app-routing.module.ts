@@ -1,0 +1,321 @@
+// src/app/app-routing.module.ts
+import { NgModule } from '@angular/core';
+import { NoPreloading, RouterModule, Routes } from '@angular/router';
+
+import { authGuard } from './core/guards/auth-guard/auth.guard';
+import { guestOnlyCanActivate, guestOnlyCanMatch } from './core/guards/auth-guard/guest-only.guard';
+import { adminCanMatch } from './core/guards/access-guard/admin.guard';
+import { emailVerifiedGuard } from './core/guards/profile-guard/email-verified.guard';
+import { profileCompletedGuard } from './core/guards/profile-guard/profile-completed.guard';
+import { adultContentConsentGuard } from './core/guards/compliance/adult-content-consent.guard';
+import { ageReverificationGuard } from './core/guards/compliance/age-reverification.guard';
+
+import { LayoutShellComponent } from './layout/layout-shell/layout-shell.component';
+import { accountLifecycleGuard } from './account/guards/account-lifecycle.guard';
+import { registrationStepGuard } from './register-module/data-access/registration-step.guard';
+
+const routes: Routes = [
+  {
+    path: 'adulto/confirmar',
+    loadComponent: () =>
+      import('./compliance/adult-consent-page/adult-consent-page.component')
+        .then(m => m.AdultConsentPageComponent),
+    canActivate: [authGuard, accountLifecycleGuard, registrationStepGuard],
+    data: {
+      allowUnverified: true,
+      allowedRegisterSteps: ['adultConsent'],
+    },
+  },
+  {
+    path: 'adulto/revalidar',
+    loadComponent: () =>
+      import('./compliance/age-reverification-page/age-reverification-page.component')
+        .then(m => m.AgeReverificationPageComponent),
+    canActivate: [authGuard, accountLifecycleGuard],
+  },
+  {
+    path: '',
+    component: LayoutShellComponent,
+    children: [
+      {
+        path: '',
+        redirectTo: 'login',
+        pathMatch: 'full',
+      },
+
+      {
+        path: 'principal',
+        redirectTo: 'dashboard/principal',
+        pathMatch: 'full',
+      },
+      {
+        path: 'amigos',
+        redirectTo: 'friends',
+        pathMatch: 'full',
+      },
+      {
+        path: 'meu-perfil',
+        redirectTo: 'perfil',
+        pathMatch: 'full',
+      },
+      {
+        path: 'meu-perfil/:uid',
+        redirectTo: 'perfil/:uid',
+        pathMatch: 'full',
+      },
+      {
+        path: 'profile/:id',
+        redirectTo: 'perfil/:id',
+        pathMatch: 'full',
+      },
+      {
+        path: 'finalizar-cadastro',
+        redirectTo: 'register/finalizar-cadastro',
+        pathMatch: 'full',
+      },
+      {
+        path: 'welcome',
+        redirectTo: 'register/welcome',
+        pathMatch: 'full',
+      },
+
+      {
+        path: 'perfil/:uid/fotos',
+        redirectTo: 'media/perfil/:uid/fotos',
+        pathMatch: 'full',
+      },
+      {
+        path: 'perfil/:uid/fotos/upload',
+        redirectTo: 'media/perfil/:uid/fotos/upload',
+        pathMatch: 'full',
+      },
+      {
+        path: 'profile-list',
+        redirectTo: 'dashboard/explorar',
+        pathMatch: 'full',
+      },
+      {
+        path: 'perfis-proximos',
+        redirectTo: 'dashboard/explorar',
+        pathMatch: 'full',
+      },
+      {
+        path: 'perfis-sugeridos',
+        redirectTo: 'dashboard/perfis-sugeridos',
+        pathMatch: 'full',
+      },
+      {
+        path: 'suggested-profiles',
+        redirectTo: 'dashboard/perfis-sugeridos',
+        pathMatch: 'full',
+      },
+
+      {
+        path: 'register',
+        loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),
+        canMatch: [guestOnlyCanMatch],
+        canActivate: [guestOnlyCanActivate],
+        data: {
+          allowUnverified: true,
+          guestAllowAuthenticatedPaths: [
+            'welcome',
+            'verify',
+            'recuperar-conta',
+            'aceitar-termos',
+            'finalizar-cadastro',
+          ],
+        },
+      },
+
+      {
+        path: 'login',
+        loadChildren: () => import('./authentication/authentication.module').then(m => m.AuthenticationModule),
+        canMatch: [guestOnlyCanMatch],
+        canActivate: [guestOnlyCanActivate],
+        data: {
+          allowUnverified: true,
+          guestAllowAuthenticatedPaths: ['progressive-signup', 'suggested-profiles'],
+        },
+      },
+
+      {
+        path: 'post-verification/action',
+        loadComponent: () =>
+          import('./register-module/auth-verification-handler/auth-verification-handler.component')
+            .then(m => m.AuthVerificationHandlerComponent),
+        data: { allowUnverified: true },
+      },
+
+      {
+        path: '__/auth/action',
+        loadComponent: () =>
+          import('./register-module/auth-verification-handler/auth-verification-handler.component')
+            .then(m => m.AuthVerificationHandlerComponent),
+        data: { allowUnverified: true },
+      },
+
+      {
+        path: 'descobrir',
+        loadChildren: () =>
+          import('./explore/explore.routes').then((m) => m.EXPLORE_ROUTES),
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard],
+        data: {
+          requireVerified: true,
+        },
+      },
+
+      /**
+       * Notificações jurídicas, de segurança e conformidade permanecem
+       * acessíveis para contas suspensas, em reverificação ou com onboarding
+       * incompleto. Os recursos sociais continuam protegidos pelos seus guards.
+       */
+      {
+        path: 'notificacoes',
+        loadComponent: () =>
+          import('./notifications/notifications-page/notifications-page.component')
+            .then((m) => m.NotificationsPageComponent),
+        canActivate: [authGuard],
+        data: {
+          requireVerified: false,
+        },
+      },
+
+      {
+        path: 'dashboard',
+        loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+      },
+
+      {
+        path: 'outro-perfil/:id',
+        loadComponent: () =>
+          import('./layout/other-user-profile-view/other-user-profile-view.component')
+            .then(c => c.OtherUserProfileViewComponent),
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
+
+      {
+        path: 'perfil',
+        loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule),
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+      },
+
+      {
+        path: 'chat',
+        loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule),
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
+
+      {
+        path: 'preferencias',
+        loadChildren: () =>
+          import('./preferences/preferences.routes').then(m => m.PREFERENCES_ROUTES),
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard],
+        data: {
+          requireVerified: true,
+        },
+      },
+
+      {
+        path: 'friends',
+        loadChildren: () =>
+          import('./layout/friend-management/friend-management.module')
+            .then(m => m.FriendManagementModule),
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
+
+      {
+        path: 'admin-dashboard',
+        loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule),
+        canMatch: [adminCanMatch],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
+
+      /**
+       * Aqui eu deixei leve de propósito:
+       * assinatura/checkout não deveriam depender de e-mail verificado
+       * se você quiser exigir depois, pode voltar o emailVerifiedGuard.
+       */
+      {
+        path: 'subscription-plan',
+        loadComponent: () =>
+          import('./subscriptions/subscription-plan/subscription-plan.component')
+            .then((m) => m.SubscriptionPlanComponent),
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+        data: {
+          requireVerified: false,
+        },
+      },
+      {
+        path: 'checkout',
+        loadComponent: () =>
+          import('./subscriptions/checkout/checkout.component').then(
+            (m) => m.CheckoutComponent
+          ),
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+        data: {
+          requireVerified: false,
+        },
+      },
+
+      {
+        path: 'billing',
+        loadChildren: () =>
+          import('./payments-core/payments-core.routes').then(
+            (m) => m.PAYMENTS_CORE_ROUTES
+          ),
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+        data: {
+          requireVerified: false,
+        },
+      },
+
+      {
+        path: 'conta',
+        loadChildren: () =>
+          import('./account/account.routes').then((m) => m.ACCOUNT_ROUTES),
+        canActivate: [authGuard, adultContentConsentGuard],
+      },
+
+      {
+        path: 'media',
+        loadChildren: () =>
+          import('./media/media.routes').then(m => m.MEDIA_ROUTES),
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, ageReverificationGuard],
+      },
+    ],
+  },
+  {
+    path: '**',
+    redirectTo: 'login',
+  },
+];
+
+@NgModule({
+  imports: [
+    RouterModule.forRoot(routes, {
+      preloadingStrategy: NoPreloading,
+      bindToComponentInputs: true,
+      scrollPositionRestoration: 'enabled',
+      anchorScrolling: 'enabled',
+    })
+  ],
+  exports: [RouterModule]
+})
+export class AppRoutingModule { }

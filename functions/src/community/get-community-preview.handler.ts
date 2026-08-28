@@ -1,0 +1,77 @@
+// functions/src/community/get-community-preview.handler.ts
+// -----------------------------------------------------------------------------
+// GET COMMUNITY PREVIEW
+// -----------------------------------------------------------------------------
+// Retorna somente metadados comunitários sanitizados e capacidades do viewer.
+// Publicações, mídia e listas de membros não fazem parte deste endpoint.
+// -----------------------------------------------------------------------------
+
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
+
+import { FUNCTIONS_REGION } from '../config/functions-region';
+import { isFunctionsEmulatorRuntime } from '../shared/runtime/functions-runtime.guard';
+import {
+  assertCommunityCallableAppCheck,
+  REQUIRE_COMMUNITY_APP_CHECK,
+} from './community-callable-security';
+import {
+  CommunityPreviewRequest,
+  CommunityPreviewResponse,
+  normalizeCommunityId,
+} from './community-preview.model';
+import { getCommunityViewerContext } from './community-viewer-access.service';
+
+function assertPreviewRuntime(): void {
+  if (isFunctionsEmulatorRuntime()) return;
+
+  throw new HttpsError(
+    'failed-precondition',
+    'As comunidades ainda não estão disponíveis neste ambiente.'
+  );
+}
+
+export const getCommunityPreview = onCall<CommunityPreviewRequest>(
+  {
+    region: FUNCTIONS_REGION,
+    enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+  },
+  async (request): Promise<CommunityPreviewResponse> => {
+    assertCommunityCallableAppCheck(request.app);
+    assertPreviewRuntime();
+
+    const uid = request.auth?.uid ?? null;
+    if (!uid) {
+      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    }
+
+    if (request.auth?.token.email_verified !== true) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Verifique seu e-mail para continuar.'
+      );
+    }
+
+    const communityId = normalizeCommunityId(request.data?.communityId);
+    if (!communityId) {
+      throw new HttpsError('invalid-argument', 'Comunidade inválida.');
+    }
+
+    const context = await getCommunityViewerContext(uid, communityId);
+
+    return {
+      community: context.community,
+      rules: context.rules,
+      lifecycleStatus: context.lifecycleStatus,
+      viewerMode: context.viewerMode,
+      viewerRole: context.viewerRole,
+      canInteract: context.canInteract,
+      canManageMemberships: context.canManageMemberships,
+      canInviteCommunityMembers: context.canInviteCommunityMembers,
+      canManageCommunitySettings: context.canManageCommunitySettings,
+      capacity: context.capacity,
+      settings: context.settings,
+      canLeaveMembership: context.canLeaveMembership,
+      generatedAt: Date.now(),
+    };
+  }
+);

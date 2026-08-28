@@ -1,0 +1,538 @@
+/* src/app/chat-module/chat-message/chat-message.component.css */
+/* -------------------------------------------------------------------------- */
+/* Mensagem individual — corredor operacional estilo WhatsApp Web              */
+/* -------------------------------------------------------------------------- */
+
+:host {
+  display: block;
+
+  /*
+    A conversa ocupa a tela toda, mas as mensagens vivem dentro
+    de uma faixa operacional. A faixa NÃO é centralizada:
+    ela nasce à esquerda da área de conversa e limita o excesso
+    de distância entre mensagens recebidas e enviadas.
+  */
+  --message-lane-max: 1120px;
+  --message-side-gutter: clamp(18px, 2.2vw, 42px);
+
+  --message-bubble-max: min(58ch, 68%);
+  --message-bubble-radius: 16px;
+  --message-bubble-radius-tight: 7px;
+
+  --message-sent-bg: color-mix(
+    in oklab,
+    var(--primary-color) 9%,
+    var(--surface-color)
+  );
+
+  --message-sent-border: color-mix(
+    in oklab,
+    var(--primary-color) 18%,
+    var(--surface-border)
+  );
+
+  --message-received-bg: color-mix(
+    in oklab,
+    var(--surface-color) 97%,
+    var(--background-color)
+  );
+
+  --message-received-border: color-mix(
+    in oklab,
+    var(--surface-border) 76%,
+    transparent
+  );
+}
+
+.thread-message {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  padding-block: 1px;
+  box-sizing: border-box;
+}
+
+.thread-message--group-start,
+.thread-message--group-single { margin-top: 9px; }
+
+.thread-message--group-middle,
+.thread-message--group-end { margin-top: 2px; }
+
+.thread-message--has-reaction { padding-bottom: 12px; }
+
+.thread-message__rail {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  margin-inline: auto;
+  padding-inline: var(--message-side-gutter);
+  box-sizing: border-box;
+}
+
+.thread-message--sent .thread-message__rail { justify-content: flex-end; }
+.thread-message--received .thread-message__rail { justify-content: flex-start; }
+
+.thread-message__bubble {
+  position: relative;
+  width: fit-content;
+  max-width: var(--message-bubble-max);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--message-bubble-radius);
+  color: var(--text-color);
+  box-shadow: none;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.thread-message--sent .thread-message__bubble {
+  background: var(--message-sent-bg);
+  border-color: var(--message-sent-border);
+}
+
+.thread-message--received .thread-message__bubble {
+  background: var(--message-received-bg);
+  border-color: var(--message-received-border);
+}
+
+.thread-message--deleted .thread-message__bubble {
+  background: color-mix(in oklab, var(--surface-color) 76%, var(--background-color));
+  border-style: dashed;
+  border-color: color-mix(in oklab, var(--surface-border) 62%, transparent);
+  opacity: 0.84;
+}
+
+.thread-message--sent.thread-message--group-start:not(.thread-message--group-single)
+  .thread-message__bubble { border-bottom-right-radius: var(--message-bubble-radius-tight); }
+.thread-message--sent.thread-message--group-middle .thread-message__bubble {
+  border-top-right-radius: var(--message-bubble-radius-tight);
+  border-bottom-right-radius: var(--message-bubble-radius-tight);
+}
+.thread-message--sent.thread-message--group-end:not(.thread-message--group-single)
+  .thread-message__bubble { border-top-right-radius: var(--message-bubble-radius-tight); }
+.thread-message--received.thread-message--group-start:not(.thread-message--group-single)
+  .thread-message__bubble { border-bottom-left-radius: var(--message-bubble-radius-tight); }
+.thread-message--received.thread-message--group-middle .thread-message__bubble {
+  border-top-left-radius: var(--message-bubble-radius-tight);
+  border-bottom-left-radius: var(--message-bubble-radius-tight);
+}
+.thread-message--received.thread-message--group-end:not(.thread-message--group-single)
+  .thread-message__bubble { border-top-left-radius: var(--message-bubble-radius-tight); }
+
+.thread-message__header {
+  display: flex;
+  align-items: center;
+  min-height: 0;
+}
+
+.thread-message__sender {
+  margin: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.73rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+}
+
+.thread-message__content {
+  margin: 0;
+  font-size: 0.94rem;
+  line-height: 1.42;
+  font-weight: 500;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  color: var(--text-color);
+}
+
+.thread-message__content--deleted {
+  color: color-mix(in oklab, var(--text-color) 54%, transparent);
+  font-size: 0.88rem;
+  font-style: italic;
+  font-weight: 650;
+}
+
+.thread-message__reply-card {
+  display: grid;
+  gap: 3px;
+  max-width: 100%;
+  margin: 0 0 4px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 22%, var(--surface-border));
+  border-left: 3px solid color-mix(in oklab, var(--primary-color) 78%, var(--surface-border));
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--primary-color) 8%, var(--surface-color));
+  color: var(--text-color);
+  box-sizing: border-box;
+}
+
+.thread-message__reply-card strong,
+.thread-message__reply-card span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-message__reply-card strong {
+  color: color-mix(in oklab, var(--primary-color) 74%, var(--text-color));
+  font-size: 0.74rem;
+  line-height: 1.15;
+  font-weight: 900;
+}
+
+.thread-message__reply-card span {
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.thread-message__footer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: flex-end;
+  gap: 5px;
+  min-height: 13px;
+  margin-top: -1px;
+  padding-left: 22px;
+}
+
+.thread-message__time {
+  font-size: 0.66rem;
+  line-height: 1;
+  white-space: nowrap;
+  color: color-mix(in oklab, var(--text-color) 48%, transparent);
+}
+
+.thread-message__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  font-size: 0.72rem;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.1em;
+  white-space: nowrap;
+}
+
+.thread-message__status--sent { color: color-mix(in oklab, var(--text-color) 44%, transparent); }
+.thread-message__status--delivered { color: color-mix(in oklab, var(--text-color) 62%, transparent); }
+.thread-message__status--read {
+  color: #4da3ff;
+  text-shadow: 0 0 10px rgba(77, 163, 255, 0.22);
+}
+
+.thread-message__status-text {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.thread-message__reactions {
+  position: absolute;
+  top: -36px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color) 96%, var(--background-color));
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px) scale(0.98);
+  transition: opacity 0.14s ease, transform 0.14s ease, border-color 0.14s ease;
+}
+
+.thread-message--sent .thread-message__reactions { right: 8px; }
+.thread-message--received .thread-message__reactions { left: 8px; }
+
+.thread-message__bubble:hover .thread-message__reactions,
+.thread-message__bubble:focus-within .thread-message__reactions,
+.thread-message__reactions:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.thread-message__reaction-button,
+.thread-message__menu-trigger {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.thread-message__reaction-button:hover,
+.thread-message__reaction-button:focus-visible,
+.thread-message__reaction-button--active,
+.thread-message__menu[open] .thread-message__menu-trigger {
+  transform: translateY(-1px) scale(1.08);
+  border-color: color-mix(in oklab, var(--primary-color) 38%, transparent);
+  background: color-mix(in oklab, var(--primary-color) 12%, var(--surface-color));
+}
+
+.thread-message__reaction-button:focus-visible,
+.thread-message__menu-trigger:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--primary-color) 58%, transparent);
+  outline-offset: 2px;
+}
+
+.thread-message__menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.thread-message__menu summary {
+  list-style: none;
+}
+
+.thread-message__menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.thread-message__menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 5;
+  min-width: 178px;
+  padding: 7px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 72%, transparent);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--surface-color) 98%, var(--background-color));
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.32);
+  box-sizing: border-box;
+}
+
+.thread-message--received .thread-message__menu-panel {
+  left: 0;
+  right: auto;
+}
+
+.thread-message__menu-panel button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1.1;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.thread-message__menu-panel button:hover,
+.thread-message__menu-panel button:focus-visible {
+  outline: none;
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+}
+
+.thread-message__menu-panel button span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-message__menu-danger {
+  color: var(--danger-color, #ff5c7a) !important;
+}
+
+.thread-message__selected-reaction {
+  position: absolute;
+  bottom: -16px;
+  z-index: 3;
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 68%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color) 96%, var(--background-color));
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.98rem;
+  line-height: 1;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.thread-message--sent .thread-message__selected-reaction { right: 10px; }
+.thread-message--received .thread-message__selected-reaction { left: 10px; }
+
+.thread-message__selected-reaction:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--primary-color) 58%, transparent);
+  outline-offset: 2px;
+}
+
+@media (hover: none) {
+  .thread-message__reactions {
+    position: static;
+    align-self: flex-end;
+    margin-top: 4px;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+    box-shadow: none;
+    background: transparent;
+    border-color: transparent;
+  }
+
+  .thread-message--received .thread-message__reactions { align-self: flex-start; }
+}
+
+:host-context(html.dark-mode) {
+  --message-sent-bg: color-mix(in oklab, var(--primary-color) 8%, #1a1721);
+  --message-sent-border: color-mix(in oklab, var(--primary-color) 18%, rgba(255, 255, 255, 0.08));
+  --message-received-bg: #101722;
+  --message-received-border: rgba(255, 255, 255, 0.08);
+}
+
+:host-context(html.dark-mode) .thread-message__reactions,
+:host-context(html.dark-mode) .thread-message__selected-reaction,
+:host-context(html.dark-mode) .thread-message__menu-panel {
+  background: rgba(15, 22, 32, 0.96);
+  border-color: rgba(240, 246, 252, 0.12);
+}
+
+:host-context(html.dark-mode) .thread-message--deleted .thread-message__bubble {
+  background: rgba(15, 22, 32, 0.62);
+  border-color: rgba(240, 246, 252, 0.14);
+}
+
+:host-context(html.dark-mode) .thread-message__content--deleted {
+  color: rgba(240, 246, 252, 0.56);
+}
+
+:host-context(html.dark-mode) .thread-message__reply-card {
+  background: rgba(255, 91, 132, 0.1);
+  border-color: rgba(255, 91, 132, 0.24);
+  border-left-color: rgba(255, 91, 132, 0.82);
+}
+
+:host-context(html.high-contrast) .thread-message__bubble,
+:host-context(html.high-contrast) .thread-message__reactions,
+:host-context(html.high-contrast) .thread-message__reaction-button,
+:host-context(html.high-contrast) .thread-message__selected-reaction,
+:host-context(html.high-contrast) .thread-message__reply-card,
+:host-context(html.high-contrast) .thread-message__menu-panel,
+:host-context(html.high-contrast) .thread-message__menu-panel button {
+  opacity: 1;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  border: 2px solid currentColor !important;
+  box-shadow: none !important;
+}
+
+:host-context(html.high-contrast) .thread-message__reply-card strong,
+:host-context(html.high-contrast) .thread-message__reply-card span,
+:host-context(html.high-contrast) .thread-message__content--deleted {
+  color: var(--text-color) !important;
+}
+
+@media (min-width: 1600px) {
+  :host {
+    --message-lane-max: 1180px;
+    --message-side-gutter: 38px;
+    --message-bubble-max: min(66ch, 66%);
+  }
+}
+
+@media (max-width: 1200px) {
+  :host {
+    --message-lane-max: 100%;
+    --message-side-gutter: clamp(14px, 3vw, 36px);
+    --message-bubble-max: min(62ch, 72%);
+  }
+}
+
+@media (max-width: 900px) {
+  :host {
+    --message-side-gutter: 12px;
+    --message-bubble-max: 78%;
+  }
+}
+
+@media (max-width: 560px) {
+  :host {
+    --message-side-gutter: 8px;
+    --message-bubble-max: 88%;
+  }
+
+  .thread-message--group-start,
+  .thread-message--group-single { margin-top: 8px; }
+
+  .thread-message__bubble {
+    padding: 8px 9px 6px;
+    border-radius: 15px;
+  }
+
+  .thread-message__content {
+    font-size: 0.93rem;
+    line-height: 1.4;
+  }
+
+  .thread-message__content--deleted {
+    font-size: 0.86rem;
+  }
+
+  .thread-message__reply-card {
+    padding: 6px 8px;
+    border-radius: 11px;
+  }
+
+  .thread-message__footer { padding-left: 18px; }
+
+  .thread-message__reaction-button,
+  .thread-message__menu-trigger {
+    width: 28px;
+    height: 28px;
+  }
+
+  .thread-message__menu-panel {
+    min-width: 166px;
+  }
+}
+
+@media (max-width: 360px) {
+  :host {
+    --message-side-gutter: 6px;
+    --message-bubble-max: 92%;
+  }
+
+  .thread-message__bubble { padding-inline: 8px; }
+}

@@ -1,0 +1,134 @@
+// firestore-rules/presence.rules
+// =========================================================================
+// PRESENCE (efêmero / realtime)
+//
+// Objetivo (custo/benefício):
+// - Bloquear LIST/QUERY de presença para requesters NÃO verificados.
+// - Manter GET do próprio doc permitido (debug/telemetria do dono).
+//
+// Por que NÃO validar "targetEligible" aqui?
+// - Para list/query seria necessário cross-document get() por doc retornado,
+//   o que torna as rules pesadas e propensas a limite/custo.
+// - A elegibilidade do ALVO fica no app (AccessControlService) por enquanto.
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// uso de helpers globais
+// =========================================================================
+
+match /presence/{presenceUid} {
+
+  // Requester precisa ter email verificado no token do Auth
+  function requesterEmailVerified() {
+    return signedIn() && request.auth.token.email_verified == true;
+  }
+
+  // -------------------------------------------------------------------------
+  // READ
+  // -------------------------------------------------------------------------
+
+  // GET:
+  // - dono pode ler o próprio doc (mesmo não verificado) para debug/telemetria
+  // - terceiros: apenas se requester verificado
+  allow get: if signedIn() && (
+    isSelf(presenceUid) || requesterEmailVerified()
+  );
+
+  // LIST/QUERY:
+  // - apenas requesters verificados podem consultar presença
+  allow list: if requesterEmailVerified();
+
+  // -------------------------------------------------------------------------
+  // Helpers SAFE (writes)
+  // -------------------------------------------------------------------------
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function reqString(field) {
+    return hasField(field) && request.resource.data[field] is string;
+  }
+
+  function reqBool(field) {
+    return hasField(field) && request.resource.data[field] is bool;
+  }
+
+  function reqTimestamp(field) {
+    return hasField(field) && isTs(request.resource.data[field]);
+  }
+
+  function reqEnum(field, allowed) {
+    return hasField(field)
+      && request.resource.data[field] is string
+      && request.resource.data[field] in allowed;
+  }
+
+  // Whitelist rígida
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "presenceSessionId",
+
+      "isOnline",
+      "presenceState",
+
+      "lastSeen",
+      "updatedAt",
+
+      "lastStateChangeAt",
+      "lastOnlineAt",
+      "lastOfflineAt",
+
+      "nickname",
+      "municipio",
+      "estado",
+      "photoURL",
+      "latitude",
+      "longitude"
+    ]);
+  }
+
+  // Documento final precisa estar íntegro
+  function validPresencePayload() {
+    return allowedKeys()
+
+      // dono
+      && reqString("uid")
+      && request.resource.data.uid == uid()
+
+      // sessão/aba
+      && reqString("presenceSessionId")
+
+      // estado
+      && reqBool("isOnline")
+      && reqEnum("presenceState", ["online", "away", "offline"])
+
+      // telemetria base
+      && reqTimestamp("lastSeen")
+
+      // demais timestamps opcionais
+      && optTimestamp("updatedAt")
+      && optTimestamp("lastStateChangeAt")
+      && optTimestamp("lastOnlineAt")
+      && optTimestamp("lastOfflineAt")
+
+      // campos públicos opcionais
+      && optString("nickname")
+      && optString("municipio")
+      && optString("estado")
+      && optString("photoURL")
+      && optNumberOrNull("latitude")
+      && optNumberOrNull("longitude");
+  }
+
+  // -------------------------------------------------------------------------
+  // WRITE
+  // -------------------------------------------------------------------------
+  allow create, update: if (
+    isSelf(presenceUid)
+    && validPresencePayload()
+  );
+
+  allow delete: if false;
+}
+// ================================================================
+                        // FIM DO PRESENCE.RULES
+// ================================================================

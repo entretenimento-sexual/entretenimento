@@ -1,0 +1,108 @@
+<section
+  class="publication-composer"
+  aria-label="Criar publicação"
+  [attr.aria-busy]="publishing() || editingPhoto() ? 'true' : null"
+>
+  <header class="publication-composer__header">
+    <strong>Criar publicação</strong>
+    <button
+      type="button"
+      class="publication-composer__close"
+      [disabled]="publishing() || editingPhoto()"
+      (click)="cancel()"
+      aria-label="Fechar publicação"
+    >
+      <span aria-hidden="true">×</span>
+    </button>
+  </header>
+
+  <textarea
+    class="publication-composer__caption"
+    [formControl]="captionControl"
+    [attr.maxlength]="maxCaptionLength"
+    [disabled]="publishing() || editingPhoto()"
+    rows="3"
+    placeholder="Escreva uma legenda"
+    aria-label="Legenda da publicação"
+  ></textarea>
+
+  <div class="publication-composer__counter" aria-live="polite">
+    {{ captionControl.value.length }}/{{ maxCaptionLength }}
+  </div>
+
+  <input
+    #fileInput
+    class="publication-composer__file-input"
+    type="file"
+    [attr.accept]="imageAccept"
+    [disabled]="publishing() || editingPhoto()"
+    aria-describedby="explore-photo-policy"
+    (change)="onFileSelected($event)"
+  />
+
+  <p id="explore-photo-policy" class="publication-composer__media-policy">
+    {{ imageFormatLabel }} · até {{ imageMaxMegabytes }} MB · a foto será aberta no editor antes de publicar.
+  </p>
+
+  @if (editingPhoto()) {
+    <p class="publication-composer__editing" role="status" aria-live="polite">
+      Abrindo editor de foto...
+    </p>
+  }
+
+  @if (previewUrl(); as preview) {
+    <div class="publication-composer__preview">
+      <img [src]="preview" alt="Prévia da foto editada" />
+      <button
+        type="button"
+        [disabled]="publishing() || editingPhoto()"
+        (click)="removeSelectedPhoto()"
+        aria-label="Remover foto escolhida"
+      >
+        Remover
+      </button>
+    </div>
+  } @else {
+    <button
+      type="button"
+      class="publication-composer__choose"
+      [disabled]="publishing() || editingPhoto()"
+      (click)="openFilePicker()"
+    >
+      <i class="fas fa-image" aria-hidden="true"></i>
+      {{ editingPhoto() ? 'Abrindo editor...' : 'Escolher foto' }}
+    </button>
+  }
+
+  @if (publishing()) {
+    <div
+      class="publication-composer__progress"
+      role="progressbar"
+      aria-label="Progresso da publicação"
+      aria-valuemin="0"
+      aria-valuemax="100"
+      [attr.aria-valuenow]="progress()"
+    >
+      <span [style.width.%]="progress()"></span>
+    </div>
+  }
+
+  <footer class="publication-composer__actions">
+    <button
+      type="button"
+      class="publication-composer__cancel"
+      [disabled]="publishing() || editingPhoto()"
+      (click)="cancel()"
+    >
+      Cancelar
+    </button>
+    <button
+      type="button"
+      class="publication-composer__publish"
+      [disabled]="publishing() || editingPhoto() || !selectedFile() || captionControl.invalid"
+      (click)="publish()"
+    >
+      {{ publishing() ? 'Publicando...' : 'Publicar' }}
+    </button>
+  </footer>
+</section>

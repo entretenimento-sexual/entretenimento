@@ -1,0 +1,24 @@
+/* src\app\admin-dashboard\user-details\user-details.component.css */
+
+button {
+  margin: 5px;
+  padding: 8px;
+  cursor: pointer;
+}
+
+button.danger {
+  background-color: red;
+  color: white;
+}
+
+.ativo {
+  color: green;
+}
+
+.suspenso {
+  color: red;
+}
+
+mat-card {
+  display: block;
+}

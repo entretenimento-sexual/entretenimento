@@ -1,0 +1,135 @@
+<!-- src/app/account/pages/account-home/account-home.component.html -->
+<section class="account-section-page" aria-label="Visão geral da conta">
+  @if (vm$ | async; as vm) {
+    @if (vm) {
+      @if (currentUser$ | async; as currentUser) {
+        @if (shouldShowPostPaymentNotice$ | async) {
+          <section
+            class="account-context-panel account-context-panel--success"
+            aria-labelledby="account-post-payment-title"
+          >
+            <div>
+              <h3 id="account-post-payment-title">Plano confirmado</h3>
+              <p>Conclua o perfil para liberar os recursos sociais disponíveis para sua conta.</p>
+            </div>
+
+            <div class="account-context-panel__actions">
+              <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
+                Completar perfil
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="onDismissPostPaymentNotice(currentUser)"
+              >
+                Agora não
+              </button>
+            </div>
+          </section>
+        } @else if (shouldShowIncompleteProfileBanner$ | async) {
+          <section
+            class="account-context-panel account-context-panel--info"
+            aria-labelledby="account-incomplete-profile-title"
+          >
+            <div>
+              <h3 id="account-incomplete-profile-title">Perfil incompleto</h3>
+              <p>Algumas interações permanecem limitadas até a conclusão do perfil.</p>
+            </div>
+
+            <div class="account-context-panel__actions">
+              <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
+                Finalizar perfil
+              </button>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="onSnoozeIncompleteProfileBanner(currentUser)"
+              >
+                Lembrar depois
+              </button>
+            </div>
+          </section>
+        }
+      }
+
+      <div class="account-overview-grid" aria-label="Resumo e atalhos da conta">
+        <a class="account-overview-card" routerLink="/perfil">
+          <span class="account-overview-card__topline">
+            <span class="account-fact-label">Perfil</span>
+            <span class="account-overview-card__arrow" aria-hidden="true">→</span>
+          </span>
+          <strong class="account-overview-card__title">
+            {{ vm.nickname || 'Meu perfil' }}
+          </strong>
+          <span class="account-overview-card__meta">
+            {{ vm.locationLabel }} · {{ vm.localeLabel }}
+          </span>
+          <span class="account-overview-card__action">Ver perfil</span>
+        </a>
+
+        <a
+          class="account-overview-card account-overview-card--subscription"
+          routerLink="/conta/assinatura"
+        >
+          <span class="account-overview-card__topline">
+            <span class="account-fact-label">Assinatura</span>
+            <span class="account-overview-card__arrow" aria-hidden="true">→</span>
+          </span>
+          <strong class="account-overview-card__title">
+            {{ vm.activePlanLabel ? 'Plano ' + vm.activePlanLabel : 'Plano gratuito' }}
+          </strong>
+          <span class="account-overview-card__meta">
+            @if (vm.subscriptionActive && vm.subscriptionEndsAt) {
+              Ativa até {{ vm.subscriptionEndsAt | date:'dd/MM/yyyy' }}
+            } @else {
+              {{ vm.subscriptionLabel }}
+            }
+          </span>
+          <span class="account-overview-card__action">Gerenciar assinatura</span>
+        </a>
+
+        <a class="account-overview-card" routerLink="/conta/seguranca">
+          <span class="account-overview-card__topline">
+            <span class="account-fact-label">Segurança</span>
+            <span class="account-overview-card__arrow" aria-hidden="true">→</span>
+          </span>
+          <strong class="account-overview-card__title">{{ vm.emailStatusLabel }}</strong>
+          <span class="account-overview-card__meta">
+            {{ vm.email || 'E-mail não informado' }}
+          </span>
+          <span class="account-overview-card__action">Revisar segurança</span>
+        </a>
+
+        <a class="account-overview-card" routerLink="/conta/gerenciar">
+          <span class="account-overview-card__topline">
+            <span class="account-fact-label">Conta</span>
+            <span class="account-overview-card__arrow" aria-hidden="true">→</span>
+          </span>
+          <strong class="account-overview-card__title">
+            @if (vm.memberSince) {
+              Desde {{ vm.memberSince | date:'dd/MM/yyyy' }}
+            } @else {
+              Dados da conta
+            }
+          </strong>
+          <span class="account-overview-card__meta">
+            @if (vm.lastLoginAt) {
+              Último acesso {{ vm.lastLoginAt | date:'dd/MM/yyyy HH:mm' }}
+            } @else {
+              Último acesso não disponível
+            }
+          </span>
+          <span class="account-overview-card__action">Gerenciar conta</span>
+        </a>
+      </div>
+    } @else {
+      <section class="account-context-panel" role="alert">
+        <p>Você precisa estar autenticado para acessar sua conta.</p>
+      </section>
+    }
+  } @else {
+    <section class="account-context-panel" role="status" aria-live="polite">
+      <p>Carregando conta...</p>
+    </section>
+  }
+</section>

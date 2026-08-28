@@ -1,0 +1,278 @@
+<!-- src/app/header/navbar/navbar.component.html -->
+<div class="navbar-with-links">
+  <nav class="navbar" aria-label="Navegação principal">
+    <div class="navbar-container">
+      <div class="navbar-header">
+        <a
+          routerLink="/"
+          class="navbar-brand"
+          routerLinkActive="active"
+          #rlaHome="routerLinkActive"
+          [attr.aria-current]="rlaHome.isActive ? 'page' : null"
+          (click)="closeMobileMenu()"
+        >
+          <app-logo class="navbar-logo"></app-logo>
+          <span class="visually-hidden">Página inicial</span>
+        </a>
+
+        @if (isMobileMenuViewport) {
+          <button
+            type="button"
+            class="hamburger-btn"
+            (click)="toggleMobileMenu()"
+            aria-label="Abrir ou fechar menu principal"
+            aria-controls="navbar-mobile-panel"
+            [attr.aria-expanded]="isMobileMenuOpen ? 'true' : 'false'"
+          >
+            &#9776;
+          </button>
+        }
+      </div>
+
+      <ul class="navbar-menu">
+        @if (isAuthenticated && !isPublicAuthRoute) {
+          <li class="navbar-item navbar-item--appearance">
+            <button
+              type="button"
+              class="dark-toggle appearance-toggle"
+              (click)="toggleDarkMode()"
+              [attr.aria-label]="isDarkMode() ? 'Usar modo claro' : 'Usar modo escuro'"
+              [attr.aria-pressed]="isDarkMode() ? 'true' : 'false'"
+              [title]="isDarkMode() ? 'Modo claro' : 'Modo escuro'"
+            >
+              <span aria-hidden="true">{{ isDarkMode() ? '☀' : '☾' }}</span>
+            </button>
+          </li>
+
+          <li class="navbar-item navbar-item--appearance">
+            <button
+              type="button"
+              class="contrast-toggle appearance-toggle"
+              (click)="toggleHighContrast()"
+              [attr.aria-pressed]="isHighContrast() ? 'true' : 'false'"
+              [attr.aria-label]="isHighContrast() ? 'Desativar alto contraste' : 'Ativar alto contraste'"
+              title="Alto contraste"
+            >
+              <span aria-hidden="true">◐</span>
+            </button>
+          </li>
+
+          <li class="navbar-item account-menu-item">
+            <details class="account-menu" #accountMenu>
+              <summary
+                class="account-menu__summary"
+                [attr.aria-label]="'Abrir menu de ' + (nickname || 'usuário')"
+              >
+                @if (photoURL) {
+                  <img
+                    [src]="photoURL"
+                    alt=""
+                    class="user-photo"
+                    width="32"
+                    height="32"
+                    loading="lazy"
+                    decoding="async"
+                    referrerpolicy="no-referrer"
+                  />
+                } @else {
+                  <span class="account-menu__fallback" aria-hidden="true">
+                    {{ nickname ? nickname.charAt(0).toUpperCase() : 'U' }}
+                  </span>
+                }
+
+                <span class="user-name">{{ nickname || 'Conta' }}</span>
+                <span class="account-menu__chevron" aria-hidden="true">⌄</span>
+              </summary>
+
+              <div class="account-menu__panel">
+                <a
+                  [routerLink]="myProfileLink"
+                  routerLinkActive="active"
+                  [routerLinkActiveOptions]="{ exact: false }"
+                  (click)="accountMenu.open = false"
+                >
+                  Meu perfil
+                </a>
+
+                <a
+                  routerLink="/subscription-plan"
+                  routerLinkActive="active"
+                  (click)="accountMenu.open = false"
+                >
+                  Planos
+                </a>
+
+                <button
+                  type="button"
+                  (click)="accountMenu.open = false; logout()"
+                >
+                  Sair
+                </button>
+              </div>
+            </details>
+          </li>
+        } @else if (isAuthenticated && isPublicAuthRoute) {
+          <li class="navbar-item">
+            <button type="button" class="navbar-link as-button" (click)="logout()">
+              Sair
+            </button>
+          </li>
+        } @else {
+          @if (!isLoginPage) {
+            <li class="navbar-item">
+              <a
+                routerLink="/login"
+                class="navbar-link"
+                routerLinkActive="active"
+                #rlaLogin="routerLinkActive"
+                [attr.aria-current]="rlaLogin.isActive ? 'page' : null"
+              >
+                Entrar
+              </a>
+            </li>
+          }
+
+          @if (isLoginPage) {
+            <li class="navbar-item">
+              <a
+                routerLink="/register"
+                class="navbar-link"
+                routerLinkActive="active"
+                #rlaRegister="routerLinkActive"
+                [attr.aria-current]="rlaRegister.isActive ? 'page' : null"
+              >
+                Cadastre-se
+              </a>
+            </li>
+          }
+
+          <li class="navbar-item navbar-item--appearance">
+            <button
+              type="button"
+              class="dark-toggle appearance-toggle"
+              (click)="toggleDarkMode()"
+              [attr.aria-label]="isDarkMode() ? 'Usar modo claro' : 'Usar modo escuro'"
+              [attr.aria-pressed]="isDarkMode() ? 'true' : 'false'"
+              [title]="isDarkMode() ? 'Modo claro' : 'Modo escuro'"
+            >
+              <span aria-hidden="true">{{ isDarkMode() ? '☀' : '☾' }}</span>
+            </button>
+          </li>
+
+          <li class="navbar-item navbar-item--appearance">
+            <button
+              type="button"
+              class="contrast-toggle appearance-toggle"
+              (click)="toggleHighContrast()"
+              [attr.aria-pressed]="isHighContrast() ? 'true' : 'false'"
+              [attr.aria-label]="isHighContrast() ? 'Desativar alto contraste' : 'Ativar alto contraste'"
+              title="Alto contraste"
+            >
+              <span aria-hidden="true">◐</span>
+            </button>
+          </li>
+        }
+      </ul>
+    </div>
+  </nav>
+
+  @if (isMobileMenuViewport && isMobileMenuOpen) {
+    <div id="navbar-mobile-panel" class="navbar-mobile-panel" aria-label="Menu principal móvel">
+      @if (isAuthenticated && !isPublicAuthRoute) {
+        <a
+          routerLink="/dashboard/principal"
+          class="navbar-mobile-link"
+          routerLinkActive="active"
+          #rlaPrincipalMobile="routerLinkActive"
+          [attr.aria-current]="rlaPrincipalMobile.isActive ? 'page' : null"
+          (click)="closeMobileMenu()"
+        >
+          Hoje
+        </a>
+
+        <a
+          class="navbar-mobile-link"
+          [routerLink]="myProfileLink"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: false }"
+          #rlaProfileMobile="routerLinkActive"
+          [attr.aria-current]="rlaProfileMobile.isActive ? 'page' : null"
+          (click)="closeMobileMenu()"
+        >
+          Meu perfil
+        </a>
+
+        <a
+          routerLink="/subscription-plan"
+          class="navbar-mobile-link"
+          routerLinkActive="active"
+          #rlaPlanosMobile="routerLinkActive"
+          [attr.aria-current]="rlaPlanosMobile.isActive ? 'page' : null"
+          (click)="closeMobileMenu()"
+        >
+          Planos
+        </a>
+
+        <button
+          type="button"
+          class="navbar-mobile-link navbar-mobile-link--button"
+          (click)="logout(); closeMobileMenu()"
+        >
+          Sair
+        </button>
+      } @else if (isAuthenticated && isPublicAuthRoute) {
+        <button
+          type="button"
+          class="navbar-mobile-link navbar-mobile-link--button"
+          (click)="logout(); closeMobileMenu()"
+        >
+          Sair
+        </button>
+      } @else {
+        @if (!isLoginPage) {
+          <a
+            routerLink="/login"
+            class="navbar-mobile-link"
+            routerLinkActive="active"
+            #rlaLoginMobile="routerLinkActive"
+            [attr.aria-current]="rlaLoginMobile.isActive ? 'page' : null"
+            (click)="closeMobileMenu()"
+          >
+            Entrar
+          </a>
+        }
+
+        @if (isLoginPage) {
+          <a
+            routerLink="/register"
+            class="navbar-mobile-link"
+            routerLinkActive="active"
+            #rlaRegisterMobile="routerLinkActive"
+            [attr.aria-current]="rlaRegisterMobile.isActive ? 'page' : null"
+            (click)="closeMobileMenu()"
+          >
+            Cadastre-se
+          </a>
+        }
+      }
+
+      <div class="navbar-mobile-actions">
+        <button
+          type="button"
+          class="navbar-mobile-link navbar-mobile-link--button"
+          (click)="toggleDarkMode()"
+        >
+          {{ isDarkMode() ? 'Usar modo claro' : 'Usar modo escuro' }}
+        </button>
+
+        <button
+          type="button"
+          class="navbar-mobile-link navbar-mobile-link--button"
+          (click)="toggleHighContrast()"
+        >
+          {{ isHighContrast() ? 'Desativar alto contraste' : 'Ativar alto contraste' }}
+        </button>
+      </div>
+    </div>
+  }
+</div>

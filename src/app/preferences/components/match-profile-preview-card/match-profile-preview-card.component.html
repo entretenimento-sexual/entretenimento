@@ -1,0 +1,50 @@
+<!-- src\app\preferences\components\match-profile-preview-card\match-profile-preview-card.component.html -->
+ <section class="match-profile-card" aria-label="Prévia do match profile">
+  @if (matchProfile(); as data) {
+    <header class="card-header">
+      <div>
+        <h2 class="card-title">{{ title() }}</h2>
+        <p class="card-subtitle">
+          Documento derivado para discovery e ranking.
+        </p>
+      </div>
+
+      <span class="card-badge">
+        {{ data.search.discoveryMode }}
+      </span>
+    </header>
+
+    <div class="card-grid" role="list">
+      <article class="card-item" role="listitem">
+        <span class="card-label">Intenções</span>
+        <strong class="card-value">{{ relationshipIntentsCount() }}</strong>
+      </article>
+
+      <article class="card-item" role="listitem">
+        <span class="card-label">Práticas</span>
+        <strong class="card-value">{{ sexualPracticesCount() }}</strong>
+      </article>
+
+      <article class="card-item" role="listitem">
+        <span class="card-label">Disponibilidade</span>
+        <strong class="card-value">{{ availabilityLabel() }}</strong>
+      </article>
+
+      <article class="card-item" role="listitem">
+        <span class="card-label">Boosts</span>
+        <strong class="card-value">{{ boostsCount() }}</strong>
+      </article>
+    </div>
+
+    <footer class="card-footer">
+      <p class="card-footnote">
+        Atualizado em:
+        <span>{{ data.updatedAt | date: 'short' }}</span>
+      </p>
+    </footer>
+  } @else {
+    <div class="card-empty" role="status" aria-live="polite">
+      Nenhum match profile disponível.
+    </div>
+  }
+</section>

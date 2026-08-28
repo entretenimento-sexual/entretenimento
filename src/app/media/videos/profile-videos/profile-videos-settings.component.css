@@ -1,0 +1,717 @@
+.profile-videos__description {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.profile-videos__settings-form {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 94%,
+    var(--text-color, #f5f7fb) 3%
+  );
+}
+
+.profile-videos__upload-composer {
+  align-content: start;
+  min-width: 0;
+  padding: clamp(13px, 2vw, 18px);
+  border-radius: 16px;
+}
+
+.profile-videos__upload-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: clamp(14px, 2vw, 18px);
+  border: 1px dashed var(--surface-border, rgb(255 255 255 / 16%));
+  border-radius: 16px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 96%,
+    var(--text-color, #f5f7fb) 2%
+  );
+}
+
+.profile-videos__upload-start .profile-videos__file-label {
+  flex: 0 0 auto;
+  min-height: 46px;
+}
+
+.profile-videos__upload-start .profile-videos__limits {
+  flex: 1 1 320px;
+}
+
+.profile-videos__file-input:focus-visible
+  ~ .profile-videos__upload-start
+  .profile-videos__file-label {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
+}
+
+.profile-videos__settings-form > label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.profile-videos__settings-form input[type='text'],
+.profile-videos__settings-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 16%));
+  border-radius: 10px;
+  background: var(--background-color, #080d13);
+  color: var(--text-color, #f5f7fb);
+  font: inherit;
+}
+
+.profile-videos__settings-form input[type='text'] {
+  min-height: 42px;
+  padding: 9px 11px;
+}
+
+.profile-videos__settings-form textarea {
+  min-height: 92px;
+  padding: 10px 11px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.profile-videos__settings-form input:focus-visible,
+.profile-videos__settings-form textarea:focus-visible,
+.profile-videos__settings-form button:focus-visible,
+.profile-videos__upload-failure button:focus-visible,
+.profile-videos__upload-launch:focus-visible,
+.profile-videos__dialog-close:focus-visible,
+.profile-videos__delete-button:focus-visible,
+.profile-videos__media-trigger--interactive:focus-visible {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 2px;
+}
+
+.profile-videos__field-error {
+  margin: -6px 0 0;
+  color: var(--error-color, #ff7a86);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.profile-videos__settings-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.profile-videos__settings-options legend {
+  width: 100%;
+  margin-bottom: 1px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.profile-videos__settings-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  cursor: pointer;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.82rem;
+}
+
+.profile-videos__settings-options input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary-color, #ff6b6b);
+}
+
+.profile-videos__settings-options:disabled,
+.profile-videos__settings-options:disabled label {
+  opacity: 0.62;
+  cursor: default;
+}
+
+.profile-videos__settings-note {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.profile-videos__settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-videos__settings-actions .app-action {
+  min-height: 42px;
+  flex: 1 1 130px;
+}
+
+.profile-videos__upload-failure {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--error-color, #ff6b6b) 42%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--error-color, #ff6b6b) 10%,
+    transparent
+  );
+  color: var(--text-color, #f5f7fb);
+}
+
+.profile-videos__upload-failure > i {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: color-mix(
+    in oklab,
+    var(--error-color, #ff6b6b) 16%,
+    transparent
+  );
+  color: var(--error-color, #ff7a86);
+}
+
+.profile-videos__upload-failure > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.profile-videos__upload-failure strong,
+.profile-videos__upload-failure span,
+.profile-videos__upload-failure small {
+  overflow-wrap: anywhere;
+}
+
+.profile-videos__upload-failure strong {
+  font-size: 0.9rem;
+}
+
+.profile-videos__upload-failure span {
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.profile-videos__upload-failure small {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.profile-videos__upload-failure .app-action {
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.profile-videos__publication-chip--review {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 42%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 11%,
+    transparent
+  );
+  color: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 76%,
+    var(--text-color, #f5f7fb)
+  );
+}
+
+.profile-videos__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.profile-videos__header h1 {
+  margin: 0;
+}
+
+.profile-videos__upload-launch {
+  justify-self: end;
+  min-height: 44px;
+  gap: 9px;
+  white-space: nowrap;
+}
+
+.profile-videos__upload-launch-progress {
+  min-width: 42px;
+  padding: 5px 7px;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--background-color, #080d13) 42%,
+    transparent
+  );
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.profile-videos__upload-dialog,
+.profile-videos__settings-dialog {
+  position: fixed;
+  inset: 0;
+  max-width: none;
+  margin: auto;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  color: var(--text-color, #f5f7fb);
+}
+
+.profile-videos__upload-dialog {
+  width: min(960px, calc(100vw - 24px));
+  max-height: 88dvh;
+}
+
+.profile-videos__settings-dialog {
+  width: min(560px, calc(100vw - 24px));
+  max-height: 86dvh;
+}
+
+.profile-videos__upload-dialog::backdrop,
+.profile-videos__settings-dialog::backdrop {
+  background: rgb(0 0 0 / 70%);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+.profile-videos__upload-dialog .profile-videos__upload {
+  width: 100%;
+  max-height: 88dvh;
+  margin: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  box-shadow: 0 28px 80px rgb(0 0 0 / 48%);
+}
+
+.profile-videos__settings-dialog-card {
+  width: 100%;
+  max-height: 86dvh;
+  margin: 0;
+  padding: clamp(16px, 3vw, 22px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 14%));
+  border-radius: 20px;
+  background: var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: 0 28px 80px rgb(0 0 0 / 52%);
+}
+
+.profile-videos__upload-heading,
+.profile-videos__settings-dialog-heading {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  background: var(--surface-color, #101923);
+}
+
+.profile-videos__settings-dialog-heading > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.profile-videos__settings-dialog-heading h2,
+.profile-videos__settings-dialog-heading p {
+  margin: 0;
+}
+
+.profile-videos__settings-dialog-heading h2 {
+  font-size: clamp(1.15rem, 3vw, 1.4rem);
+}
+
+.profile-videos__settings-dialog-heading p {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.profile-videos__settings-dialog-form {
+  padding: 4px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.profile-videos__settings-dialog-form .profile-videos__settings-actions {
+  margin-top: 4px;
+}
+
+.profile-videos__dialog-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 14%));
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-color, #f5f7fb);
+  cursor: pointer;
+}
+
+.profile-videos__dialog-close:hover:not(:disabled) {
+  background: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 9%,
+    transparent
+  );
+}
+
+.profile-videos__dialog-close:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.profile-videos__grid {
+  grid-template-columns: 1fr;
+  align-items: stretch;
+}
+
+.profile-videos__card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+}
+
+.profile-videos__body {
+  align-content: start;
+  height: 100%;
+}
+
+.profile-videos__title-row strong {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.profile-videos__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.profile-videos__actions > .app-action {
+  min-height: 44px;
+}
+
+.profile-videos__delete-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--error-color, #ff6b6b) 44%,
+    var(--surface-border, rgb(255 255 255 / 14%))
+  );
+  border-radius: 11px;
+  background: transparent;
+  color: var(--error-color, #ff7a86);
+  cursor: pointer;
+}
+
+.profile-videos__delete-button:hover:not(:disabled) {
+  background: color-mix(
+    in oklab,
+    var(--error-color, #ff6b6b) 12%,
+    transparent
+  );
+}
+
+.profile-videos__delete-button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.profile-videos__media-trigger {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  appearance: none;
+  background: #05070d;
+  color: #fff;
+  font: inherit;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.profile-videos__media-trigger:disabled {
+  opacity: 1;
+}
+
+.profile-videos__media-trigger--interactive {
+  cursor: pointer;
+}
+
+.profile-videos__media-trigger--interactive:hover img {
+  transform: scale(1.015);
+}
+
+.profile-videos__media-trigger::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    transparent 48%,
+    rgb(0 0 0 / 54%) 100%
+  );
+  content: '';
+  pointer-events: none;
+}
+
+.profile-videos__media-trigger img,
+.profile-videos__media-placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.profile-videos__media-trigger img {
+  object-fit: cover;
+  transition: transform 160ms ease;
+}
+
+.profile-videos__media-placeholder {
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(
+      circle at center,
+      color-mix(in oklab, var(--primary-color, #ff6b6b) 17%, transparent),
+      transparent 48%
+    ),
+    #05070d;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 54%, transparent);
+  font-size: clamp(1.8rem, 5vw, 3rem);
+}
+
+.profile-videos__play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: clamp(44px, 5vw, 54px);
+  height: clamp(44px, 5vw, 54px);
+  border: 1px solid rgb(255 255 255 / 44%);
+  border-radius: 50%;
+  background: rgb(5 7 13 / 72%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 34%);
+  transform: translate(-50%, -50%);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.profile-videos__play i {
+  margin-left: 3px;
+}
+
+.profile-videos__duration {
+  position: absolute;
+  right: 10px;
+  bottom: 9px;
+  z-index: 2;
+  min-width: 44px;
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: rgb(0 0 0 / 76%);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .profile-videos__settings-form {
+    padding: 12px;
+  }
+
+  .profile-videos__settings-dialog-form {
+    padding: 4px 0 0;
+  }
+
+  .profile-videos__settings-actions,
+  .profile-videos__settings-options {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .profile-videos__settings-options label {
+    min-height: 40px;
+  }
+
+  .profile-videos__upload-start {
+    display: grid;
+  }
+
+  .profile-videos__upload-start .profile-videos__file-label {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .profile-videos__upload-failure {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .profile-videos__upload-failure .app-action {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .profile-videos__header {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .profile-videos__upload-launch {
+    width: 100%;
+    justify-self: stretch;
+    justify-content: center;
+  }
+
+  .profile-videos__upload-dialog,
+  .profile-videos__settings-dialog {
+    inset: auto 0 0;
+    width: 100%;
+    margin: 0;
+  }
+
+  .profile-videos__upload-dialog {
+    max-height: 94dvh;
+  }
+
+  .profile-videos__settings-dialog {
+    max-height: 92dvh;
+  }
+
+  .profile-videos__upload-dialog .profile-videos__upload {
+    max-height: 94dvh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .profile-videos__settings-dialog-card {
+    max-height: 92dvh;
+    padding: 18px 16px max(18px, env(safe-area-inset-bottom));
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 20px 20px 0 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .profile-videos__title-row {
+    display: grid;
+  }
+
+  .profile-videos__publication-chip {
+    justify-self: start;
+  }
+}
+
+@media (min-width: 600px) {
+  .profile-videos__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .profile-videos__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .profile-videos__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-videos__media-trigger img,
+  .profile-videos__play {
+    transition: none;
+  }
+}
+
+html.high-contrast .profile-videos__settings-form,
+html.high-contrast .profile-videos__settings-form input,
+html.high-contrast .profile-videos__settings-form textarea,
+html.high-contrast .profile-videos__upload-start,
+html.high-contrast .profile-videos__upload-failure,
+html.high-contrast .profile-videos__upload-launch,
+html.high-contrast .profile-videos__dialog-close,
+html.high-contrast .profile-videos__delete-button,
+html.high-contrast .profile-videos__upload-dialog .profile-videos__upload,
+html.high-contrast .profile-videos__settings-dialog-card,
+html.high-contrast .profile-videos__media-trigger,
+html.high-contrast .profile-videos__play,
+html.high-contrast .profile-videos__duration {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+}

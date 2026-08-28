@@ -1,0 +1,243 @@
+import { TestBed } from '@angular/core/testing';
+import { BehaviorSubject, of } from 'rxjs';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+
+import type { IUserDados } from '@core/interfaces/iuser-dados';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
+import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { BillingRepository } from '../infrastructure/repositories/billing.repository';
+import { PlatformSubscriptionReconciliationService } from './platform-subscription-reconciliation.service';
+
+const NOW = 1_800_000_000_000;
+
+const CURRENT_USER: IUserDados = {
+  uid: 'u1',
+  email: 'u1@example.com',
+  photoURL: null,
+  role: 'free',
+  tier: 'free',
+  lastLogin: NOW,
+  descricao: '',
+  isSubscriber: false,
+  monthlyPayer: false,
+  subscriptionStatus: 'inactive',
+};
+
+describe('PlatformSubscriptionReconciliationService', () => {
+  let ready$: BehaviorSubject<boolean>;
+  let uid$: BehaviorSubject<string | null>;
+  let user$: BehaviorSubject<IUserDados | null | undefined>;
+  let current: IUserDados;
+  let getSnapshotMock: ReturnType<typeof vi.fn>;
+  let patchMock: ReturnType<typeof vi.fn>;
+  let service: PlatformSubscriptionReconciliationService;
+
+  beforeEach(() => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    ready$ = new BehaviorSubject<boolean>(true);
+    uid$ = new BehaviorSubject<string | null>('u1');
+    current = { ...CURRENT_USER };
+    user$ = new BehaviorSubject<IUserDados | null | undefined>(current);
+    getSnapshotMock = vi.fn(() =>
+      of({
+        role: 'premium',
+        tier: 'premium',
+        isSubscriber: true,
+        status: 'active',
+        entitlements: ['platform_subscription'],
+        startsAt: NOW - 60_000,
+        endsAt: NOW + 60_000,
+        updatedAt: NOW,
+        projectionVersion: 1,
+      })
+    );
+    patchMock = vi.fn((partial: Partial<IUserDados>) => {
+      current = { ...current, ...partial };
+      user$.next(current);
+    });
+
+    TestBed.configureTestingModule({
+      providers: [
+        PlatformSubscriptionReconciliationService,
+        {
+          provide: AuthSessionService,
+          useValue: {
+            ready$: ready$.asObservable(),
+            uid$: uid$.asObservable(),
+          },
+        },
+        {
+          provide: CurrentUserStoreService,
+          useValue: {
+            user$: user$.asObservable(),
+            getSnapshot: () => current,
+            patch: patchMock,
+          },
+        },
+        {
+          provide: BillingRepository,
+          useValue: { getMyBillingSnapshot$: getSnapshotMock },
+        },
+        {
+          provide: GlobalErrorHandlerService,
+          useValue: { handleError: vi.fn() },
+        },
+      ],
+    });
+
+    service = TestBed.inject(PlatformSubscriptionReconciliationService);
+  });
+
+  afterEach(() => {
+    TestBed.resetTestingModule();
+    vi.restoreAllMocks();
+  });
+
+  it('aplica snapshot canônico ativo ao runtime', () => {
+    service.start();
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1);
+    expect(patchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'premium',
+        tier: 'premium',
+        billingProjectionVersion: 1,
+        isSubscriber: true,
+        monthlyPayer: true,
+        subscriptionStatus: 'active',
+        subscriptionScope: 'platform_subscription',
+        subscriptionStartedAt: NOW - 60_000,
+        subscriptionEndsAt: NOW + 60_000,
+      })
+    );
+  });
+
+  it('preserva papel administrativo e usa tier pago separadamente', () => {
+    current = { ...CURRENT_USER, role: 'admin', tier: 'free' };
+    user$.next(current);
+
+    service.start();
+
+    expect(patchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'admin',
+        tier: 'premium',
+        isSubscriber: true,
+      })
+    );
+  });
+
+  it('aguarda a hidratação do perfil atual', () => {
+    user$.next(undefined);
+    service.start();
+
+    expect(getSnapshotMock).not.toHaveBeenCalled();
+
+    user$.next(current);
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('faz fail-closed quando o período retornado já expirou', () => {
+    getSnapshotMock.mockReturnValueOnce(
+      of({
+        role: 'premium',
+        tier: 'premium',
+        isSubscriber: true,
+        status: 'active',
+        entitlements: ['platform_subscription'],
+        startsAt: NOW - 60_000,
+        endsAt: NOW,
+        updatedAt: NOW,
+        projectionVersion: 1,
+      })
+    );
+
+    service.start();
+
+    expect(patchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'free',
+        tier: 'free',
+        isSubscriber: false,
+        monthlyPayer: false,
+        subscriptionStatus: 'inactive',
+        subscriptionScope: null,
+      })
+    );
+  });
+
+  it('faz fail-closed quando faltam versão, entitlement ou role válida', () => {
+    getSnapshotMock.mockReturnValueOnce(
+      of({
+        role: null,
+        tier: null,
+        isSubscriber: true,
+        status: 'active',
+        entitlements: [],
+        startsAt: NOW - 60_000,
+        endsAt: NOW + 60_000,
+        updatedAt: NOW,
+        projectionVersion: null,
+      })
+    );
+
+    service.start();
+
+    expect(patchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'free',
+        tier: 'free',
+        billingProjectionVersion: 1,
+        isSubscriber: false,
+        monthlyPayer: false,
+        subscriptionStatus: 'inactive',
+        subscriptionScope: null,
+      })
+    );
+  });
+
+  it('faz fail-closed quando o snapshot não contém período finito', () => {
+    getSnapshotMock.mockReturnValueOnce(
+      of({
+        role: 'vip',
+        tier: 'vip',
+        isSubscriber: true,
+        status: 'active',
+        entitlements: ['platform_subscription'],
+        startsAt: Number.NaN,
+        endsAt: Number.POSITIVE_INFINITY,
+        updatedAt: NOW,
+        projectionVersion: 1,
+      })
+    );
+
+    service.start();
+
+    expect(patchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'free',
+        tier: 'free',
+        isSubscriber: false,
+        monthlyPayer: false,
+        subscriptionStatus: 'inactive',
+      })
+    );
+  });
+
+  it('reconcilia novamente após logout e login do mesmo usuário', () => {
+    service.start();
+    uid$.next(null);
+    uid$.next('u1');
+
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2);
+  });
+});

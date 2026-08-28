@@ -1,0 +1,84 @@
+// ===============================================================
+// PUBLIC SOCIAL LINKS (espelho público)
+// - Somente subset publicado
+// - Publicação: somente dono com assinatura ativa
+// - Leitura por visitantes: exige login e assinatura ativa do dono
+// - Leitura pelo dono: permitida para gerenciamento e limpeza
+// - Remoção: o dono mantém controle mesmo após o término da assinatura
+// - Evita LIST (padrão anti-scraping)
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
+// uso de helpers globais
+// C:\entretenimento\firestore-rules\public_social_links.rules
+// ===============================================================
+match /public_social_links/{userId} {
+
+  allow get: if isSelf(userId)
+    || (signedIn() && isActiveSubscriber(userId));
+  allow list: if false;
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
+      "sexlog","d4swing",
+      "hotvips","privacy","onlyfans","fansly","linktree",
+      "updatedAt"
+    ]);
+  }
+
+  function validPayload() {
+    return request.resource.data.uid == uid()
+      && allowedKeys()
+      && optString("facebook")
+      && optString("instagram")
+      && optString("twitter")
+      && optString("linkedin")
+      && optString("youtube")
+      && optString("tiktok")
+      && optString("snapchat")
+      && optString("sexlog")
+      && optString("d4swing")
+      && optString("hotvips")
+      && optString("privacy")
+      && optString("onlyfans")
+      && optString("fansly")
+      && optString("linktree")
+      && optTimestamp("updatedAt");
+  }
+
+  function changedKeysAllowed() {
+    return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
+      "sexlog","d4swing",
+      "hotvips","privacy","onlyfans","fansly","linktree",
+      "updatedAt"
+    ]);
+  }
+
+  function removesOnly() {
+    let diff = request.resource.data.diff(resource.data);
+    return diff.addedKeys().size() == 0
+      && diff.changedKeys().hasOnly(["updatedAt"])
+      && diff.removedKeys().size() > 0;
+  }
+
+  allow create: if isSelf(userId)
+    && isActiveSubscriber(userId)
+    && validPayload()
+    && request.resource.data.updatedAt == request.time;
+
+  allow update: if isSelf(userId)
+    && validPayload()
+    && request.resource.data.uid == resource.data.uid
+    && request.resource.data.updatedAt == request.time
+    && changedKeysAllowed()
+    && (
+      isActiveSubscriber(userId)
+      || removesOnly()
+    );
+
+  allow delete: if isSelf(userId);
+}
+// ===============================================================
+//                 FIM PUBLIC SOCIAL LINKS
+// ===============================================================

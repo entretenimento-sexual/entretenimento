@@ -1,0 +1,51 @@
+<!-- src\app\preferences\components\preference-summary-card\preference-summary-card.component.html -->
+<section class="preferences-summary-card" aria-label="Resumo das preferências">
+  @if (vm(); as data) {
+    <header class="summary-header">
+      <div>
+        <h2 class="summary-title">Resumo das preferências</h2>
+        <p class="summary-subtitle">
+          Visão rápida do perfil de descoberta e intenção atual.
+        </p>
+      </div>
+
+      <div class="summary-badges" aria-label="Indicadores do perfil">
+        <span class="summary-badge">{{ discoveryModeLabel() }}</span>
+        <span class="summary-badge">{{ currentModeLabel() }}</span>
+      </div>
+    </header>
+
+    <div class="summary-grid" role="list">
+      <article class="summary-item" role="listitem" aria-label="Interesses relacionais">
+        <span class="summary-label">Intenções relacionais</span>
+        <strong class="summary-value">{{ relationshipIntentCount() }}</strong>
+      </article>
+
+      <article class="summary-item" role="listitem" aria-label="Interesses de gênero">
+        <span class="summary-label">Interesses de gênero</span>
+        <strong class="summary-value">{{ acceptedGendersCount() }}</strong>
+      </article>
+
+      <article class="summary-item" role="listitem" aria-label="Práticas desejadas">
+        <span class="summary-label">Práticas desejadas</span>
+        <strong class="summary-value">{{ practicesCount() }}</strong>
+      </article>
+
+      <article class="summary-item" role="listitem" aria-label="Disponibilidade atual">
+        <span class="summary-label">Disponibilidade</span>
+        <strong class="summary-value">{{ availableNowLabel() }}</strong>
+      </article>
+    </div>
+
+    <footer class="summary-footer">
+      <p class="summary-footnote">
+        Atualizado em:
+        <span>{{ data.profile.updatedAt | date: 'short' }}</span>
+      </p>
+    </footer>
+  } @else {
+    <div class="summary-empty" role="status" aria-live="polite">
+      Carregando resumo das preferências...
+    </div>
+  }
+</section>

@@ -1,0 +1,362 @@
+// src/app/core/services/notifications/app-notification.service.ts
+// -----------------------------------------------------------------------------
+// APP NOTIFICATION SERVICE
+// -----------------------------------------------------------------------------
+// Leitura reativa das notificações internas do usuário autenticado.
+//
+// Decisões:
+// - leitura reativa via Firestore;
+// - escrita de leitura passa por Cloud Functions;
+// - cliente segue sem updateDoc direto em /notifications;
+// - aguarda bootstrap do Auth antes de iniciar watchers de Firestore;
+// - usa AuthSessionService.readyAuthUser$ como fonte única do usuário autenticado;
+// - falhas opcionais de permissão na leitura retornam lista vazia sem poluir login.
+// -----------------------------------------------------------------------------
+
+import { Injectable, inject } from '@angular/core';
+import {
+  Firestore,
+  collection,
+  collectionData,
+  limit as firestoreLimit,
+  orderBy,
+  query,
+  where,
+} from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+import { Observable, defer, from, of, throwError } from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  shareReplay,
+  startWith,
+  switchMap,
+} from 'rxjs/operators';
+
+import {
+  IAppNotification,
+  IAppNotificationListVm,
+  AppNotificationType,
+} from 'src/app/core/interfaces/app-notification.interface';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import {
+  isFirebasePermissionDeniedError,
+  toErrorInstance,
+} from 'src/app/core/utils/firebase-error-utils';
+
+interface AppNotificationFirestoreDocument {
+  id?: unknown;
+  userId?: unknown;
+  type?: unknown;
+  title?: unknown;
+  body?: unknown;
+  route?: unknown;
+  caseId?: unknown;
+  legalVersion?: unknown;
+  actionRequired?: unknown;
+  responseDueAt?: unknown;
+  policySection?: unknown;
+  communityId?: unknown;
+  postId?: unknown;
+  commentId?: unknown;
+  activityCount?: unknown;
+  moderationTarget?: unknown;
+  readAt?: unknown;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+interface MarkNotificationReadPayload {
+  notificationId: string;
+}
+
+interface MarkAllNotificationsReadResponse {
+  updated: number;
+}
+
+interface NotificationReportableError extends Error {
+  context?: string;
+  operation?: string;
+  extra?: Record<string, unknown>;
+  original?: unknown;
+  skipUserNotification?: boolean;
+}
+
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 50;
+
+@Injectable({ providedIn: 'root' })
+export class AppNotificationService {
+  private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
+  private readonly session = inject(AuthSessionService);
+  private readonly firestoreContext = inject(FirestoreContextService);
+  private readonly globalError = inject(GlobalErrorHandlerService);
+
+  private readonly markNotificationReadCallable = httpsCallable<
+    MarkNotificationReadPayload,
+    { ok: true }
+  >(this.functions, 'markNotificationRead');
+
+  private readonly markAllNotificationsReadCallable = httpsCallable<
+    Record<string, never>,
+    MarkAllNotificationsReadResponse
+  >(this.functions, 'markAllNotificationsRead');
+
+  readonly currentUserNotifications$: Observable<IAppNotification[]> =
+    this.session.readyAuthUser$.pipe(
+      switchMap((user) => {
+        const uid = String(user?.uid ?? '').trim();
+
+        if (!uid) {
+          return of([]);
+        }
+
+        return this.watchForUser$(uid).pipe(
+          catchError((error) => {
+            this.reportReadError(error, 'currentUserNotifications', { uid });
+            return of([]);
+          })
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly currentUserUnreadCount$: Observable<number> =
+    this.currentUserNotifications$.pipe(
+      map((items) => items.filter((item) => item.readAt == null).length),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly currentUserVm$: Observable<IAppNotificationListVm> =
+    this.currentUserNotifications$.pipe(
+      map((items) => ({
+        loading: false,
+        items,
+        unreadCount: items.filter((item) => item.readAt == null).length,
+      })),
+      startWith({ loading: true, items: [], unreadCount: 0 }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  watchForUser$(uid: string, max = DEFAULT_LIMIT): Observable<IAppNotification[]> {
+    const safeUid = String(uid ?? '').trim();
+
+    if (!safeUid) {
+      return of([]);
+    }
+
+    const safeLimit = this.normalizeLimit(max);
+
+    return this.firestoreContext.deferObservable$(() => {
+      const notificationsRef = collection(this.firestore, 'notifications');
+      const notificationsQuery = query(
+        notificationsRef,
+        where('userId', '==', safeUid),
+        orderBy('createdAt', 'desc'),
+        firestoreLimit(safeLimit)
+      );
+
+      return collectionData(notificationsQuery, { idField: 'id' }) as Observable<
+        AppNotificationFirestoreDocument[]
+      >;
+    }).pipe(
+      map((items) =>
+        (items ?? [])
+          .map((item) => this.toNotification(item))
+          .filter((item): item is IAppNotification => !!item)
+      ),
+      catchError((error) => {
+        this.reportReadError(error, 'watchForUser', { uid: safeUid });
+        return of([]);
+      })
+    );
+  }
+
+  markAsRead$(notificationId: string): Observable<void> {
+    const safeNotificationId = String(notificationId ?? '').trim();
+
+    if (!safeNotificationId) {
+      return throwError(() => new Error('Notificação inválida.'));
+    }
+
+    return defer(() => from(this.markNotificationReadCallable({
+      notificationId: safeNotificationId,
+    }))).pipe(
+      map(() => undefined),
+      catchError((error) => {
+        this.reportWriteError(error, 'markAsRead', {
+          notificationId: safeNotificationId,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  markAllAsRead$(): Observable<number> {
+    return defer(() => from(this.markAllNotificationsReadCallable({}))).pipe(
+      map((response) => Number(response.data?.updated ?? 0)),
+      catchError((error) => {
+        this.reportWriteError(error, 'markAllAsRead', {});
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private normalizeLimit(value: unknown): number {
+    const parsed = Number(value ?? DEFAULT_LIMIT);
+
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return DEFAULT_LIMIT;
+    }
+
+    return Math.min(Math.floor(parsed), MAX_LIMIT);
+  }
+
+  private toNotification(
+    raw: AppNotificationFirestoreDocument
+  ): IAppNotification | null {
+    const id = this.toText(raw.id);
+    const userId = this.toText(raw.userId);
+    const title = this.toText(raw.title);
+    const body = this.toText(raw.body);
+
+    if (!id || !userId || !title || !body) {
+      return null;
+    }
+
+    return {
+      id,
+      userId,
+      type: this.toType(raw.type),
+      title,
+      body,
+      route: this.toText(raw.route) || null,
+      caseId: this.toText(raw.caseId) || null,
+      legalVersion: this.toText(raw.legalVersion) || null,
+      actionRequired:
+        typeof raw.actionRequired === 'boolean'
+          ? raw.actionRequired
+          : null,
+      responseDueAt: this.toMillis(raw.responseDueAt),
+      policySection: this.toText(raw.policySection) || null,
+      communityId: this.toText(raw.communityId) || null,
+      postId: this.toText(raw.postId) || null,
+      commentId: this.toText(raw.commentId) || null,
+      activityCount: this.toPositiveInteger(raw.activityCount),
+      moderationTarget:
+        raw.moderationTarget === 'comment' || raw.moderationTarget === 'post'
+          ? raw.moderationTarget
+          : null,
+      readAt: this.toMillis(raw.readAt),
+      createdAt: this.toMillis(raw.createdAt),
+      updatedAt: this.toMillis(raw.updatedAt),
+    };
+  }
+
+  private toType(value: unknown): AppNotificationType {
+    const raw = this.toText(value);
+
+    switch (raw) {
+      case 'user_intent_status.published':
+      case 'user_intent_status.compatible':
+      case 'compliance.terms.update_required':
+      case 'compliance.terms.updated':
+      case 'compliance.violation.suspected':
+      case 'compliance.violation.response_received':
+      case 'compliance.violation.resolved':
+      case 'compliance.action.taken':
+      case 'community.comment.received':
+      case 'community.content.moderated':
+      case 'system':
+      case 'social':
+      case 'chat':
+      case 'billing':
+        return raw;
+      default:
+        return 'system';
+    }
+  }
+
+  private toText(value: unknown): string {
+    return String(value ?? '').trim();
+  }
+
+  private toPositiveInteger(value: unknown): number | null {
+    const parsed = Math.trunc(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  private toMillis(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    const maybeTimestamp = value as {
+      toMillis?: () => number;
+      toDate?: () => Date;
+    } | null | undefined;
+
+    if (typeof maybeTimestamp?.toMillis === 'function') {
+      const millis = maybeTimestamp.toMillis();
+      return Number.isFinite(millis) ? millis : null;
+    }
+
+    if (typeof maybeTimestamp?.toDate === 'function') {
+      const millis = maybeTimestamp.toDate().getTime();
+      return Number.isFinite(millis) ? millis : null;
+    }
+
+    return null;
+  }
+
+  private reportReadError(
+    error: unknown,
+    operation: string,
+    extra: Record<string, unknown>
+  ): void {
+    if (isFirebasePermissionDeniedError(error)) {
+      return;
+    }
+
+    try {
+      const reportable = toErrorInstance(
+        error,
+        '[AppNotificationService] read failed'
+      ) as NotificationReportableError;
+      reportable.context = 'AppNotificationService';
+      reportable.operation = operation;
+      reportable.extra = extra;
+      reportable.original = error;
+      reportable.skipUserNotification = true;
+      this.globalError.handleError(reportable);
+    } catch {
+      // noop
+    }
+  }
+
+  private reportWriteError(
+    error: unknown,
+    operation: string,
+    extra: Record<string, unknown>
+  ): void {
+    try {
+      const reportable = toErrorInstance(
+        error,
+        '[AppNotificationService] write failed'
+      ) as NotificationReportableError;
+      reportable.context = 'AppNotificationService';
+      reportable.operation = operation;
+      reportable.extra = extra;
+      reportable.original = error;
+      reportable.skipUserNotification = true;
+      this.globalError.handleError(reportable);
+    } catch {
+      // noop
+    }
+  }
+}

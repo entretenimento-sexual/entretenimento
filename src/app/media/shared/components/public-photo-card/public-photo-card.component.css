@@ -1,0 +1,432 @@
+/* src/app/media/shared/components/public-photo-card/public-photo-card.component.css */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.photo-tile,
+.photo-tile.app-card {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 18px;
+  background: var(--surface-color, #0f1620);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.photo-tile:hover,
+.photo-tile:focus-within {
+  transform: translateY(-2px);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 28%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  box-shadow: 0 16px 36px rgb(0 0 0 / 24%);
+}
+
+.photo-tile--feed,
+.photo-tile--feed.app-card {
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.photo-tile--feed:hover,
+.photo-tile--feed:focus-within {
+  transform: none;
+  box-shadow: none;
+}
+
+.photo-tile--cover {
+  border-color: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 32%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--success-color, #5ed39a) 28%, transparent),
+    0 12px 32px rgb(0 0 0 / 22%);
+}
+
+.photo-tile--boosted {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 42%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+}
+
+/* Cabeçalho específico do feed --------------------------------------------- */
+.feed-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.52rem 0.65rem;
+  border-bottom: 1px solid var(--surface-border, rgba(255, 255, 255, 0.08));
+}
+
+.feed-card-owner {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.84rem;
+  line-height: 1.1;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.feed-card-owner:focus-visible {
+  border-radius: 0.4rem;
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+.feed-card-time {
+  flex: 0 0 auto;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.68rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Imagem ------------------------------------------------------------------- */
+.photo-card-link,
+.photo-card-link.app-media-frame {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  padding: 0;
+  border: 0;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color, #0f1620) 92%, white 6%),
+      color-mix(in oklab, var(--surface-color, #0f1620) 80%, black 18%)
+    );
+  color: inherit;
+  cursor: pointer;
+  text-align: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.photo-card-link--feed,
+.photo-card-link--feed.app-media-frame {
+  height: clamp(14rem, 32vh, 19rem);
+  aspect-ratio: auto;
+  background: #070a0f;
+}
+
+.photo-card-link:focus-visible {
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: calc(var(--focus-offset, 2px) * -1);
+}
+
+.photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
+}
+
+.photo-card-link--feed .photo {
+  object-fit: contain;
+}
+
+.photo-card-link:hover .photo,
+.photo-card-link:focus-visible .photo {
+  transform: scale(1.025);
+  filter: brightness(1.05);
+}
+
+.photo-card-link--feed:hover .photo,
+.photo-card-link--feed:focus-visible .photo {
+  transform: none;
+  filter: none;
+}
+
+/* Overlay das variantes de galeria ---------------------------------------- */
+.photo-overlay,
+.photo-overlay.app-media-overlay {
+  position: absolute;
+  inset: auto 0 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "owner owner"
+    "stats cover";
+  gap: 6px 8px;
+  align-items: end;
+  min-width: 0;
+  padding: 46px 9px 9px;
+  background:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      rgb(0 0 0 / 38%) 36%,
+      rgb(0 0 0 / 78%) 100%
+    );
+  pointer-events: none;
+}
+
+.photo-owner-link {
+  grid-area: owner;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: #fff;
+  text-decoration: none;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 72%);
+  pointer-events: auto;
+}
+
+.photo-owner-link:hover,
+.photo-owner-link:focus-visible {
+  color: #fff;
+  text-decoration: underline;
+  outline: none;
+}
+
+.photo-owner-link:focus-visible {
+  border-radius: 8px;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 72%);
+}
+
+.photo-owner-link strong,
+.photo-owner-link small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-owner-link strong {
+  font-size: 0.8rem;
+  font-weight: 900;
+  line-height: 1.08;
+}
+
+.photo-owner-link small {
+  color: rgb(255 255 255 / 84%);
+  font-size: 0.66rem;
+  font-weight: 720;
+  line-height: 1.08;
+}
+
+.photo-stats {
+  grid-area: stats;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  pointer-events: none;
+}
+
+.stat-chip,
+.cover-chip,
+.meta-chip,
+.stat-chip.app-chip,
+.cover-chip.app-chip,
+.meta-chip.app-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 25px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 42%);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 820;
+  line-height: 1;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+
+.stat-chip--time {
+  color: rgb(255 255 255 / 86%);
+}
+
+.cover-chip {
+  grid-area: cover;
+  justify-self: end;
+  background: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 58%,
+    rgb(0 0 0 / 35%)
+  );
+  pointer-events: none;
+}
+
+/* Rodapé opcional do feed -------------------------------------------------- */
+.feed-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.65rem;
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.08));
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
+  font-size: 0.7rem;
+  font-weight: 740;
+}
+
+.feed-card-footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.feed-card-boosted {
+  margin-left: auto;
+  color: var(--primary-color, #ff7070);
+}
+
+/* Meta inferior das galerias ---------------------------------------------- */
+.photo-meta,
+.photo-meta.app-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px;
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #0f1620) 94%,
+    black 6%
+  );
+}
+
+.photo-meta .meta-chip {
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 82%,
+    transparent
+  );
+}
+
+.meta-boost,
+.meta-boost.app-chip {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 32%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 16%, transparent);
+  color: var(--primary-color, #ff7070);
+}
+
+@media (max-width: 700px) {
+  .photo-tile {
+    border-radius: 13px;
+    box-shadow: none;
+  }
+
+  .photo-tile:hover,
+  .photo-tile:focus-within {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .feed-card-header {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .photo-card-link--feed,
+  .photo-card-link--feed.app-media-frame {
+    height: clamp(14rem, 42vh, 20rem);
+  }
+
+  .photo-overlay {
+    gap: 5px 6px;
+    padding: 40px 6px 6px;
+  }
+
+  .photo-owner-link strong {
+    font-size: 0.72rem;
+  }
+
+  .photo-owner-link small {
+    font-size: 0.61rem;
+  }
+
+  .stat-chip,
+  .cover-chip,
+  .meta-chip {
+    min-height: 22px;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+  }
+
+  .photo-meta {
+    gap: 6px;
+    padding: 8px;
+  }
+}
+
+@media (max-width: 340px) {
+  .feed-card-time {
+    display: none;
+  }
+
+  .photo-overlay {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "owner"
+      "stats"
+      "cover";
+  }
+
+  .cover-chip {
+    justify-self: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-tile,
+  .photo {
+    transition: none;
+  }
+
+  .photo-tile:hover,
+  .photo-card-link:hover .photo,
+  .photo-card-link:focus-visible .photo {
+    transform: none;
+  }
+}
+
+:host-context(html.high-contrast) .photo-tile,
+:host-context(html.high-contrast) .stat-chip,
+:host-context(html.high-contrast) .cover-chip,
+:host-context(html.high-contrast) .meta-chip,
+:host-context(html.high-contrast) .feed-card-header,
+:host-context(html.high-contrast) .feed-card-footer {
+  border-color: currentColor !important;
+  box-shadow: none !important;
+}
+
+:host-context(html.high-contrast) .photo-tile--cover {
+  box-shadow: none !important;
+}

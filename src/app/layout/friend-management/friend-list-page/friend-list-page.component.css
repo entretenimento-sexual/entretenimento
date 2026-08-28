@@ -1,0 +1,219 @@
+/* src/app/layout/friend-management/friend-list-page/friend-list-page.component.css */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.friends-page {
+  display: grid;
+  gap: clamp(12px, 1.6vw, 18px);
+  width: min(100%, var(--content-wide, 1360px));
+  min-width: 0;
+  margin-inline: auto;
+  color: var(--text-color, #f5f7fb);
+}
+
+.friends-page__hero,
+.friends-page__hero.app-card,
+.friends-controls,
+.friends-controls.app-card {
+  min-width: 0;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 18px;
+  background: var(--surface-color, #101923);
+  box-shadow: var(--box-shadow, 0 10px 24px rgb(0 0 0 / 14%));
+}
+
+.friends-page__hero,
+.friends-page__hero.app-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: clamp(14px, 2vw, 18px);
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent), transparent 32rem),
+    color-mix(in oklab, var(--surface-color, #101923) 96%, var(--text-color, #f5f7fb) 4%);
+}
+
+.friends-page__copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.friends-page__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 0.28rem 0.68rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent);
+  color: var(--primary-color, #ff7070);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.friends-page h1 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.friends-page__copy p {
+  margin: 0;
+  max-width: 66ch;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.friends-page__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.friends-page__metric {
+  display: grid;
+  gap: 2px;
+  min-width: 84px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 82%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, var(--text-color, #f5f7fb) 5%);
+}
+
+.friends-page__metric strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.05rem, 1.4vw, 1.22rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.friends-page__metric span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.friends-page__metric--online {
+  border-color: color-mix(in oklab, var(--success-color, #36d399) 30%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+}
+
+.friends-controls,
+.friends-controls.app-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+}
+
+.friends-controls__field {
+  min-width: 0;
+  width: 100%;
+}
+
+.friends-controls__toggle {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.friends-page__content {
+  min-width: 0;
+}
+
+.friends-scroll {
+  min-width: 0;
+  overflow: visible;
+}
+
+.infinite-sentinel {
+  width: 100%;
+  min-height: 1px;
+}
+
+.friends-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.friends-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.friends-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--text-color, #f5f7fb) 24%, transparent);
+  border-radius: 999px;
+}
+
+@media (max-width: 900px) {
+  .friends-page__hero,
+  .friends-page__hero.app-card,
+  .friends-controls,
+  .friends-controls.app-card {
+    grid-template-columns: 1fr;
+  }
+
+  .friends-page__metrics {
+    justify-content: flex-start;
+  }
+
+  .friends-controls__toggle {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .friends-page {
+    gap: 12px;
+  }
+
+  .friends-page__hero,
+  .friends-controls,
+  .friends-page__hero.app-card,
+  .friends-controls.app-card {
+    padding: 12px;
+    border-radius: 14px;
+    box-shadow: none;
+  }
+
+  .friends-page__copy p {
+    font-size: 0.86rem;
+  }
+
+  .friends-page__metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .friends-page__metric {
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .friends-page__hero,
+  .friends-controls {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+html.high-contrast .friends-page__hero,
+html.high-contrast .friends-controls,
+html.high-contrast .friends-page__metric,
+html.high-contrast .friends-page__eyebrow {
+  border-color: currentColor !important;
+  box-shadow: none !important;
+}

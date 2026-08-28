@@ -1,0 +1,28 @@
+<!-- src/app/chat-module/modals/base-modal/base-modal.component.html -->
+<section
+  class="modal-shell"
+  role="document"
+  [attr.aria-labelledby]="titleId"
+>
+  <header class="modal-header">
+    <h2 [id]="titleId">{{ title() }}</h2>
+
+    <button
+      type="button"
+      class="close-btn"
+      (click)="onClose()"
+      aria-label="Fechar janela"
+      title="Fechar"
+    >
+      <span aria-hidden="true">&times;</span>
+    </button>
+  </header>
+
+  <div class="modal-body">
+    <ng-content select="[body-content]"></ng-content>
+  </div>
+
+  <div class="modal-default-content">
+    <ng-content></ng-content>
+  </div>
+</section>

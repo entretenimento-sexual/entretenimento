@@ -1,0 +1,23 @@
+<main class="exclusive-connections-page">
+  <h1 class="sr-only">Conexões exclusivas</h1>
+
+  @if (accessDecision$ | async; as decision) {
+    @if (decision.allowed) {
+      <app-exclusive-connections-feed />
+    } @else {
+      <app-content-access-notice
+        [decision]="decision"
+        (retryRequested)="retryAccess()"
+      />
+    }
+  } @else {
+    <div
+      class="exclusive-connections-page__loading"
+      role="status"
+      aria-live="polite"
+    >
+      <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+      <span>Verificando acesso...</span>
+    </div>
+  }
+</main>

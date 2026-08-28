@@ -1,0 +1,20 @@
+/* src/app/header/logo/logo.component.css */
+.logo {
+  display: block;
+  width: auto;
+  max-width: 200px;
+  height: auto;
+  filter: invert(1);
+  transition: filter 160ms ease, opacity 160ms ease;
+}
+
+:host-context(html.dark-mode) .logo,
+:host-context(html.high-contrast) .logo {
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo {
+    transition: none;
+  }
+}

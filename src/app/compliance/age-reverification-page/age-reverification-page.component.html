@@ -1,0 +1,129 @@
+@if (vm$ | async; as vm) {
+  <main class="age-reverification" aria-labelledby="age-reverification-title">
+    <section class="age-reverification__card">
+      <header class="age-reverification__header">
+        <p class="age-reverification__eyebrow">Segurança da plataforma</p>
+        <h1 id="age-reverification-title">Revalidação de idade</h1>
+        <p>
+          Esta etapa aparece apenas quando a moderação solicita revisão após uma
+          denúncia de perfil por possível pessoa menor de 18 anos.
+        </p>
+      </header>
+
+      <div class="age-reverification__status" role="status" aria-live="polite">
+        <span>Status</span>
+        <strong>{{ vm.label }}</strong>
+      </div>
+
+      @if (vm.canSubmit) {
+        <section class="age-reverification__notice" role="note">
+          <h2>Como funciona</h2>
+          <p>
+            Informe sua data de nascimento para uma triagem restrita. A data é
+            usada pela Callable apenas para calcular a faixa etária e não é
+            armazenada no perfil, no caso de moderação ou no histórico público.
+          </p>
+          <p>
+            O envio não libera a conta automaticamente. A moderação ainda precisa
+            concluir a análise.
+          </p>
+        </section>
+
+        <form class="age-reverification__form" [formGroup]="form" (ngSubmit)="submit()">
+          <div class="age-reverification__field">
+            <label for="age-reverification-birth-date">Data de nascimento</label>
+            <input
+              id="age-reverification-birth-date"
+              type="date"
+              formControlName="birthDate"
+              autocomplete="bday"
+              required
+              aria-describedby="age-reverification-birth-date-hint"
+            />
+            <small id="age-reverification-birth-date-hint">
+              A data completa não será persistida.
+            </small>
+            @if (form.controls.birthDate.touched && form.controls.birthDate.invalid) {
+              <span class="age-reverification__error" role="alert">
+                Informe uma data de nascimento válida.
+              </span>
+            }
+          </div>
+
+          <label class="age-reverification__check">
+            <input type="checkbox" formControlName="confirmsTruthfulness" />
+            <span>Confirmo que os dados informados são verdadeiros.</span>
+          </label>
+
+          <label class="age-reverification__check">
+            <input type="checkbox" formControlName="acceptsRestrictedProcessing" />
+            <span>
+              Autorizo o processamento restrito desta informação exclusivamente
+              para a revalidação de idade.
+            </span>
+          </label>
+
+          @if (
+            (form.controls.confirmsTruthfulness.touched && form.controls.confirmsTruthfulness.invalid) ||
+            (form.controls.acceptsRestrictedProcessing.touched && form.controls.acceptsRestrictedProcessing.invalid)
+          ) {
+            <p class="age-reverification__error" role="alert">
+              As duas confirmações são obrigatórias.
+            </p>
+          }
+
+          <button
+            class="age-reverification__primary"
+            type="submit"
+            [disabled]="form.invalid || isSaving()"
+          >
+            {{ isSaving() ? 'Enviando...' : 'Enviar para análise' }}
+          </button>
+        </form>
+      } @else if (vm.isPendingReview) {
+        <section class="age-reverification__pending" role="status">
+          <h2>Envio recebido</h2>
+          <p>
+            A moderação está analisando o caso. Enquanto isso, o perfil não aparece
+            no discovery e novas interações permanecem bloqueadas.
+          </p>
+          @if (vm.state?.submittedAt) {
+            <small>Enviado em {{ vm.state?.submittedAt | date:'dd/MM/yyyy HH:mm' }}.</small>
+          }
+        </section>
+      } @else if (vm.status === 'EXPIRED') {
+        <section class="age-reverification__pending age-reverification__pending--warning" role="alert">
+          <h2>Prazo expirado</h2>
+          <p>
+            A revalidação não foi enviada dentro do prazo. Use a área da conta para
+            consultar as opções de suporte.
+          </p>
+        </section>
+      } @else if (vm.status === 'VERIFIED') {
+        <section class="age-reverification__pending" role="status">
+          <h2>Maioridade confirmada</h2>
+          <p>A restrição de idade foi encerrada pela moderação.</p>
+        </section>
+      } @else if (vm.status === 'REJECTED') {
+        <section class="age-reverification__pending age-reverification__pending--warning" role="alert">
+          <h2>Revalidação rejeitada</h2>
+          <p>Consulte o status da conta para verificar a decisão registrada.</p>
+        </section>
+      } @else {
+        <section class="age-reverification__pending" role="status">
+          <h2>Nenhuma revalidação pendente</h2>
+          <p>Esta conta não possui solicitação ativa de revisão de idade.</p>
+        </section>
+      }
+
+      <footer class="age-reverification__actions">
+        <button type="button" class="age-reverification__secondary" (click)="goToAccount()">
+          Área da conta
+        </button>
+        <button type="button" class="age-reverification__link" (click)="logout()">
+          Sair da conta
+        </button>
+      </footer>
+    </section>
+  </main>
+}

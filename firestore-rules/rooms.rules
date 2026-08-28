@@ -1,0 +1,100 @@
+// ================================================================
+// ROOMS.RULES
+// ================================================================
+// - criação, encerramento e resposta a convite: somente backend confiável;
+// - leitura individual: participante/owner operacionalmente válido;
+// - listagem: somente salas em que o usuário consta em participants[];
+// - nenhum cliente altera estrutura ou membership diretamente.
+// ================================================================
+match /rooms/{roomId} {
+
+  function actorUserPath() {
+    return /databases/$(database)/documents/users/$(uid());
+  }
+
+  function actorUserExists() {
+    return signedIn() && exists(actorUserPath());
+  }
+
+  function actorIsOperationallyActive() {
+    return actorUserExists()
+      && (
+        !get(actorUserPath()).data.keys().hasAny(["accountStatus"])
+        || get(actorUserPath()).data.accountStatus == "active"
+      )
+      && (
+        !get(actorUserPath()).data.keys().hasAny(["interactionBlocked"])
+        || get(actorUserPath()).data.interactionBlocked != true
+      )
+      && (
+        !get(actorUserPath()).data.keys().hasAny(["accountLocked"])
+        || get(actorUserPath()).data.accountLocked != true
+      )
+      && (
+        !get(actorUserPath()).data.keys().hasAny(["loginAllowed"])
+        || get(actorUserPath()).data.loginAllowed != false
+      );
+  }
+
+  function actorCanInteract() {
+    return actorIsOperationallyActive()
+      && request.auth.token.email_verified == true
+      && get(actorUserPath()).data.profileCompleted == true;
+  }
+
+  function participantsFrom(data) {
+    return (
+      data.keys().hasAny(["participants"])
+      && data.participants is list
+    )
+      ? data.participants
+      : [];
+  }
+
+  function isRoomParticipant() {
+    return actorCanInteract()
+      && (uid() in participantsFrom(resource.data));
+  }
+
+  function isRoomOwner() {
+    return actorCanInteract()
+      && resource.data.keys().hasAny(["createdBy"])
+      && resource.data.createdBy == uid();
+  }
+
+  function canListParticipatingRooms() {
+    return actorCanInteract()
+      && request.query.limit <= 30
+      && (uid() in resource.data.participants);
+  }
+
+  allow get: if isRoomParticipant() || isRoomOwner();
+  allow list: if canListParticipatingRooms();
+
+  // createPrivateRoom usa Admin SDK.
+  allow create: if false;
+
+  /**
+   * SUPRESSÃO EXPLÍCITA:
+   * - removida a entrada temporária do próprio destinatário pelo navegador;
+   * - acceptRoomInvite agora atualiza room, members, user.roomIds e invite em
+   *   uma única transação backend com auditoria.
+   */
+  allow update: if false;
+  allow delete: if false;
+}
+
+match /rooms/{roomId}/members/{memberUid} {
+  allow read, write: if false;
+}
+
+match /room_owner_slots/{ownerUid} {
+  allow read, write: if false;
+}
+
+match /room_audit/{auditId} {
+  allow read, write: if false;
+}
+// ================================================================
+// FIM DE ROOMS.RULES
+// ================================================================

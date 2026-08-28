@@ -1,0 +1,110 @@
+<!-- src/app/account/pages/account-status/account-status.component.html -->
+<main class="account-status-page app-page" aria-label="Status da conta">
+  <section class="account-status-shell ui-container">
+    @if (vm$ | async; as vm) {
+      <header class="account-status-hero">
+        <p class="account-status-hero__eyebrow">Estado da conta</p>
+        <h1>{{ vm.title }}</h1>
+        <p class="account-status-hero__subtitle">{{ vm.description }}</p>
+
+        <span class="account-status-badge" role="status">
+          {{ vm.badgeLabel }}
+        </span>
+      </header>
+
+      <section class="account-status-card" aria-label="Detalhes do estado da conta">
+        @if (vm.suspensionReason) {
+          <article class="account-status-item">
+            <span class="label">Motivo</span>
+            <strong>{{ vm.suspensionReason }}</strong>
+          </article>
+        }
+
+        @if (vm.suspensionEndsAt) {
+          <article class="account-status-item">
+            <span class="label">Fim previsto da suspensão</span>
+            <strong>{{ vm.suspensionEndsAt | date:'dd/MM/yyyy HH:mm' }}</strong>
+          </article>
+        }
+
+        @if (vm.deletionUndoUntil) {
+          <article class="account-status-item">
+            <span class="label">Prazo para cancelar a solicitação</span>
+            <strong>{{ vm.deletionUndoUntil | date:'dd/MM/yyyy HH:mm' }}</strong>
+          </article>
+        }
+
+        @if (vm.purgeAfter) {
+          <article class="account-status-item">
+            <span class="label">Exclusão definitiva prevista a partir de</span>
+            <strong>{{ vm.purgeAfter | date:'dd/MM/yyyy HH:mm' }}</strong>
+          </article>
+        }
+      </section>
+
+      @if (vm.isBlocked) {
+        <section class="account-status-card" aria-label="Manifestação e revisão">
+          <h2>Manifestação e revisão</h2>
+          <p>
+            Consulte avisos de conformidade, prazos e manifestações vinculados à sua conta. Uma suspeita em análise não equivale a infração confirmada.
+          </p>
+          <a class="btn btn-secondary" routerLink="/conta/conformidade">
+            Abrir avisos e manifestações
+          </a>
+        </section>
+      }
+
+      <section class="account-status-actions" aria-label="Ações de status da conta">
+        @if (vm.canReactivateSelfSuspension) {
+          <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="isBusy()"
+            [attr.aria-busy]="isReactivating()"
+            (click)="onReactivateSelfSuspension()"
+          >
+            {{ isReactivating() ? 'Reativando...' : 'Reativar conta' }}
+          </button>
+        }
+
+        @if (vm.canCancelDeletion) {
+          <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="isBusy()"
+            [attr.aria-busy]="isCancelingDeletion()"
+            (click)="onCancelDeletion()"
+          >
+            {{ isCancelingDeletion() ? 'Cancelando...' : 'Cancelar solicitação de exclusão' }}
+          </button>
+        }
+
+        @if (vm.canGoToAccountHome) {
+          <a class="btn btn-secondary" routerLink="/conta">
+            Voltar para minha conta
+          </a>
+        }
+
+        @if (!vm.isBlocked) {
+          <a class="btn btn-secondary" routerLink="/perfil">
+            Ir para meu perfil
+          </a>
+        }
+      </section>
+
+      @if (lifecycleDialogIntent()) {
+        <app-account-lifecycle-dialog
+          [intent]="lifecycleDialogIntent()!"
+          [busy]="isBusy()"
+          [reauthenticationMode]="lifecycleReauthenticationMode()"
+          (closed)="closeLifecycleDialog()"
+          (confirmed)="onLifecycleDialogConfirmed($event)"
+        />
+      }
+    } @else {
+      <section class="account-status-card" role="status" aria-live="polite">
+        <p>Carregando o estado da conta...</p>
+      </section>
+    }
+  </section>
+</main>

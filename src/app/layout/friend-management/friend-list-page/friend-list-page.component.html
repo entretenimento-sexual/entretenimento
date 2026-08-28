@@ -1,0 +1,70 @@
+<!-- src/app/layout/friend-management/friend-list-page/friend-list-page.component.html -->
+<section class="friends-page" aria-labelledby="friends-page-title">
+  <header class="friends-page__hero app-card">
+    <div class="friends-page__copy">
+      <h1 id="friends-page-title">Amizades</h1>
+      <p>
+        Filtre contatos online e mantenha as conversas acessíveis em qualquer tela.
+      </p>
+    </div>
+
+    <div class="friends-page__metrics" aria-label="Resumo de amizades">
+      <div class="friends-page__metric">
+        <strong>{{ friendsCount$ | async }}</strong>
+        <span>Total</span>
+      </div>
+
+      <div class="friends-page__metric friends-page__metric--online">
+        <strong>{{ onlineCount$ | async }}</strong>
+        <span>Online</span>
+      </div>
+    </div>
+  </header>
+
+  <section class="friends-controls app-card" aria-label="Filtros da lista de amigos">
+    <mat-form-field appearance="outline" class="friends-controls__field">
+      <mat-label>Buscar</mat-label>
+      <input
+        matInput
+        type="search"
+        autocomplete="off"
+        (input)="onQueryChange($any($event.target).value)"
+        placeholder="Nome ou apelido"
+      />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="friends-controls__field">
+      <mat-label>Ordenar</mat-label>
+      <mat-select panelClass="friends-select-panel" [value]="sortBy()" (valueChange)="onSortChange($event)">
+        <mat-option value="recent">Recentes</mat-option>
+        <mat-option value="online">Online</mat-option>
+        <mat-option value="distance">Distância</mat-option>
+        <mat-option value="alpha">A–Z</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-slide-toggle
+      class="friends-controls__toggle"
+      [checked]="filters().onlyOnline ?? false"
+      (change)="onOnlyOnlineToggle($event.checked)"
+    >
+      Só online
+    </mat-slide-toggle>
+  </section>
+
+  <div class="friends-page__content">
+    <div class="friends-scroll">
+      <app-friend-cards
+        [items]="(items$ | async) ?? []"
+        [isLoading]="(loading$ | async) ?? false"
+        [reachedEnd]="(reachedEnd$ | async) ?? false"
+        [displayMode]="'full'"
+        [sortBy]="sortBy()"
+        [filters]="filters()"
+      >
+      </app-friend-cards>
+
+      <div #sentinel class="infinite-sentinel" aria-hidden="true"></div>
+    </div>
+  </div>
+</section>

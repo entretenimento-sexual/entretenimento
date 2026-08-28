@@ -1,0 +1,45 @@
+<section class="latest-photos-page" aria-labelledby="latest-photos-title">
+  @let items = (latestPhotos$ | async);
+  @let selectedIndex = (selectedIndex$ | async);
+
+  <header class="latest-photos-header gallery-header-clean">
+    <h1 id="latest-photos-title">Fotos recentes</h1>
+  </header>
+
+  @if (((items?.length) || 0) === 0) {
+    <div class="empty-state" role="status" aria-live="polite">
+      <h2>Nenhuma foto recente.</h2>
+      <p>Novas publicações públicas aparecerão aqui.</p>
+    </div>
+  } @else {
+    <div class="photos-grid" role="list" aria-label="Fotos públicas recentes">
+      @for (item of (items || []); track trackByPhotoId($index, item); let i = $index) {
+        <app-public-photo-card
+          [photo]="item"
+          variant="latest"
+          (preview)="openPhoto(i)" />
+      }
+    </div>
+
+    @if (canLoadMore$ | async) {
+      <div class="feed-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="loadMore()">
+          Carregar mais
+        </button>
+      </div>
+    }
+  }
+
+  @if (selectedIndex !== null) {
+    <app-public-photo-lightbox
+      [items]="items || []"
+      [activeIndex]="selectedIndex"
+      title="Fotos recentes"
+      (closed)="closeViewer()"
+      (prevRequested)="prev()"
+      (nextRequested)="next()" />
+  }
+</section>

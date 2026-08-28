@@ -1,0 +1,304 @@
+:host {
+  display: block;
+}
+
+.compliance-page {
+  min-height: 100%;
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+.compliance-shell {
+  width: min(100%, 1080px);
+  margin-inline: auto;
+}
+
+.compliance-hero {
+  margin-bottom: 1rem;
+  padding: clamp(1rem, 3vw, 1.6rem);
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
+  background: var(--surface-color);
+}
+
+.compliance-hero__eyebrow,
+.compliance-detail__eyebrow {
+  margin: 0 0 0.35rem;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.compliance-hero h1,
+.compliance-detail h2,
+.compliance-state h2,
+.compliance-response h3 {
+  margin: 0;
+  color: var(--text-color);
+}
+
+.compliance-hero p:last-child {
+  margin-bottom: 0;
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+  line-height: 1.55;
+}
+
+.compliance-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.compliance-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.compliance-list__item {
+  display: grid;
+  gap: 0.3rem;
+  min-height: 44px;
+  padding: 0.9rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 14px;
+  background: var(--surface-color);
+  color: var(--text-color);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.compliance-list__item:hover,
+.compliance-list__item:focus-visible,
+.compliance-list__item--active {
+  border-color: color-mix(in oklab, var(--primary-color) 55%, var(--surface-border));
+  background: color-mix(in oklab, var(--primary-color) 8%, var(--surface-color));
+  outline: none;
+}
+
+.compliance-list__item:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.compliance-list__category,
+.compliance-list__item > span:last-of-type,
+.compliance-list__item time {
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.78rem;
+}
+
+.compliance-detail,
+.compliance-state {
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
+  background: var(--surface-color);
+}
+
+.compliance-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.compliance-status {
+  flex: 0 0 auto;
+  padding: 0.38rem 0.7rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 40%, var(--surface-border));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.compliance-notice {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 36%, var(--surface-border));
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--primary-color) 6%, transparent);
+}
+
+.compliance-notice p {
+  margin: 0.35rem 0 0;
+  line-height: 1.45;
+}
+
+.compliance-notice--warning {
+  border-color: color-mix(in oklab, #d99a28 58%, var(--surface-border));
+  background: color-mix(in oklab, #d99a28 8%, transparent);
+}
+
+.compliance-facts {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+}
+
+.compliance-facts > div {
+  padding: 0.85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+}
+
+.compliance-facts dt {
+  margin-bottom: 0.3rem;
+  color: color-mix(in oklab, var(--text-color) 65%, transparent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.compliance-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.compliance-response {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--surface-border);
+}
+
+.compliance-response label {
+  font-weight: 850;
+}
+
+.compliance-response > p,
+.compliance-response time {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  line-height: 1.5;
+}
+
+.compliance-response textarea {
+  width: 100%;
+  min-height: 160px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 0.85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--input-background);
+  color: var(--text-color);
+  font: inherit;
+  line-height: 1.5;
+}
+
+.compliance-response textarea:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.compliance-response__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: color-mix(in oklab, var(--text-color) 64%, transparent);
+  font-size: 0.78rem;
+}
+
+.compliance-error {
+  color: var(--error-color, #ff9d9d);
+  font-weight: 800;
+}
+
+.compliance-button {
+  min-height: 44px;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.compliance-button--primary {
+  justify-self: start;
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+  color: #fff;
+}
+
+.compliance-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.compliance-detail__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--surface-border);
+}
+
+.compliance-detail__footer a {
+  color: var(--primary-color);
+  font-weight: 750;
+}
+
+.compliance-state {
+  display: grid;
+  place-items: center;
+  gap: 0.65rem;
+  min-height: 220px;
+  text-align: center;
+}
+
+.compliance-state p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 760px) {
+  .compliance-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .compliance-list {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(230px, 82%);
+    overflow-x: auto;
+    padding-bottom: 0.35rem;
+    scroll-snap-type: x proximity;
+  }
+
+  .compliance-list__item {
+    scroll-snap-align: start;
+  }
+
+  .compliance-detail__header,
+  .compliance-response__meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compliance-list {
+    scroll-behavior: auto;
+  }
+}

@@ -1,0 +1,98 @@
+<!-- src/app/notifications/notifications-page/notifications-page.component.html -->
+@if (vm$ | async; as vm) {
+  @let markAllBusy = ((markAllBusy$ | async) || false);
+
+  <section class="notifications-page" aria-labelledby="notifications-title">
+    <header class="notifications-hero notifications-hero--compact">
+      <h1 id="notifications-title">Notificações</h1>
+
+      @if (!vm.loading) {
+        <div class="notifications-hero__actions">
+          @if (vm.unreadCount > 0) {
+            <span
+              class="notifications-hero__count"
+              [attr.aria-label]="vm.unreadCount + (vm.unreadCount === 1 ? ' notificação não lida' : ' notificações não lidas')"
+            >
+              {{ vm.unreadCount }} nova{{ vm.unreadCount === 1 ? '' : 's' }}
+            </span>
+          }
+
+          <a class="notifications-hero__button" routerLink="/preferencias/notificacoes">
+            Preferências
+          </a>
+
+          @if (vm.unreadCount > 0) {
+            <button
+              type="button"
+              class="notifications-hero__button"
+              (click)="markAllAsRead()"
+              [disabled]="markAllBusy"
+            >
+              {{ markAllBusy ? 'Marcando...' : 'Marcar todas' }}
+            </button>
+          }
+        </div>
+      }
+    </header>
+
+    @if (vm.loading) {
+      <div class="notifications-state" role="status" aria-live="polite">
+        Carregando notificações...
+      </div>
+    } @else if (vm.items.length === 0) {
+      <div class="notifications-state notifications-state--empty" role="status">
+        <strong>Nenhuma notificação.</strong>
+        <span>Atualizações importantes aparecerão aqui.</span>
+      </div>
+    } @else {
+      <div class="notifications-list" role="list" aria-label="Lista de notificações">
+        @for (item of vm.items; track trackNotification($index, item)) {
+          <article
+            class="notification-card"
+            role="listitem"
+            [class.notification-card--unread]="item.readAt === null"
+          >
+            <div class="notification-card__icon" aria-hidden="true">
+              {{ notificationIcon(item) }}
+            </div>
+
+            <div class="notification-card__body">
+              <header class="notification-card__header">
+                <h2>{{ item.title }}</h2>
+                <time>{{ formatNotificationDate(item.createdAt) }}</time>
+              </header>
+
+              <p>{{ item.body }}</p>
+
+              @if (notificationRoute(item) || item.readAt === null) {
+                <div class="notification-card__actions">
+                  @if (notificationRoute(item)) {
+                    <button
+                      type="button"
+                      class="notification-card__link notification-card__link--button"
+                      (click)="openNotification(item)"
+                      [disabled]="isBusy(item.id)"
+                    >
+                      {{ isBusy(item.id) ? 'Abrindo...' : 'Abrir' }}
+                    </button>
+                  }
+
+                  @if (item.readAt === null) {
+                    <button
+                      type="button"
+                      class="notification-card__link notification-card__link--button"
+                      (click)="markAsRead(item)"
+                      [disabled]="isBusy(item.id)"
+                    >
+                      {{ isBusy(item.id) ? 'Marcando...' : 'Marcar como lida' }}
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
+}

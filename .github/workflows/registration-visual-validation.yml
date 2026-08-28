@@ -1,0 +1,652 @@
+name: Registration Visual Validation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'angular.json'
+      - 'src/app/register-module/**'
+      - 'src/app/compliance/adult-consent-page/**'
+      - 'src/app/account/guards/account-lifecycle.guard.ts'
+      - 'src/app/core/guards/**'
+      - 'src/app/core/services/autentication/register/**'
+      - 'src/app/core/services/compliance/**'
+      - 'src/styles/**'
+      - '.github/workflows/registration-visual-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: registration-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  registration-visual:
+    name: Registration visual (${{ matrix.configuration }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration:
+          - development
+          - production
+          - dev-emu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build selected environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.configuration }}" in
+            development)
+              npm run build:dev
+              ;;
+            production)
+              npm run build:prod
+              ;;
+            dev-emu)
+              npm run build:emu
+              ;;
+            *)
+              echo "Unsupported configuration: ${{ matrix.configuration }}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Install Playwright CLI and Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @playwright/cli@0.1.17
+          playwright-cli install-browser --with-deps
+
+      - name: Start Auth emulator for dev-emu
+        if: ${{ matrix.configuration == 'dev-emu' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "artifacts/${{ matrix.configuration }}"
+          nohup npx firebase emulators:start \
+            --only auth \
+            --project demo-registration-visual \
+            > "artifacts/${{ matrix.configuration }}/auth-emulator.log" 2>&1 &
+          echo $! > "artifacts/${{ matrix.configuration }}/auth-emulator.pid"
+
+          for attempt in $(seq 1 90); do
+            if (echo > /dev/tcp/127.0.0.1/9099) >/dev/null 2>&1; then
+              echo "Auth emulator ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Auth emulator did not become ready" >&2
+          cat "artifacts/${{ matrix.configuration }}/auth-emulator.log" >&2 || true
+          exit 1
+
+      - name: Start Angular for visual inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "artifacts/${{ matrix.configuration }}"
+          VISUAL_CONFIGURATION="${{ matrix.configuration }}-registration-visual"
+
+          nohup npx ng serve \
+            --configuration="$VISUAL_CONFIGURATION" \
+            --host=127.0.0.1 \
+            --port=4200 \
+            > "artifacts/${{ matrix.configuration }}/ng-serve.log" 2>&1 &
+          echo $! > "artifacts/${{ matrix.configuration }}/ng-serve.pid"
+
+          for attempt in $(seq 1 180); do
+            if curl --fail --silent --show-error http://127.0.0.1:4200/register >/dev/null; then
+              echo "Angular visual harness ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Angular did not become ready" >&2
+          cat "artifacts/${{ matrix.configuration }}/ng-serve.log" >&2 || true
+          exit 1
+
+      - name: Capture desktop and mobile registration states
+        shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: registration-${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          OUT="artifacts/${{ matrix.configuration }}"
+          URL="http://127.0.0.1:4200/register"
+
+          playwright-cli open "$URL"
+
+          playwright-cli resize 1440 1000
+          playwright-cli reload
+          playwright-cli snapshot --filename="$OUT/desktop-initial.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/desktop-initial.png"
+          playwright-cli run-code "async (page) => {
+            const metrics = await page.evaluate(() => ({
+              viewportWidth: window.innerWidth,
+              viewportHeight: window.innerHeight,
+              scrollWidth: document.documentElement.scrollWidth,
+              scrollHeight: document.documentElement.scrollHeight,
+              introVisible: !!document.querySelector('.auth-intro')?.getClientRects().length,
+              title: document.querySelector('#register-intro-title')?.textContent?.trim() || '',
+              submitVisible: !!document.querySelector('button[type=submit]')?.getClientRects().length,
+            }));
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) {
+              throw new Error('Desktop initial state has horizontal overflow');
+            }
+            if (!metrics.introVisible || !metrics.title || !metrics.submitVisible) {
+              throw new Error('Desktop initial registration shell is incomplete');
+            }
+            return metrics;
+          }" | tee "$OUT/desktop-initial.metrics.log"
+
+          playwright-cli click "button[type='submit']"
+          playwright-cli run-code "async (page) => {
+            await page.waitForTimeout(250);
+            const metrics = await page.evaluate(() => {
+              const isVisible = (el) => !!el.getClientRects().length;
+              const errors = Array.from(document.querySelectorAll('.tooltip-error')).filter(isVisible);
+              const overlaps = [];
+
+              for (const error of errors) {
+                const owner = error.closest('.form-field, .form-checkbox');
+                if (!owner) continue;
+                let next = owner.nextElementSibling;
+                while (next && !next.matches('.form-field, .form-checkbox, button[type=submit]')) {
+                  next = next.nextElementSibling;
+                }
+                if (!next) continue;
+                const errorRect = error.getBoundingClientRect();
+                const nextRect = next.getBoundingClientRect();
+                if (errorRect.bottom > nextRect.top + 1) {
+                  overlaps.push({ id: error.id, bottom: errorRect.bottom, nextTop: nextRect.top });
+                }
+              }
+
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                visibleErrors: errors.length,
+                accessibleErrors: errors.filter((el) =>
+                  el.getAttribute('role') === 'alert' &&
+                  el.getAttribute('aria-live') === 'polite'
+                ).length,
+                outOfViewportErrors: errors
+                  .map((el) => ({ id: el.id, ...el.getBoundingClientRect().toJSON() }))
+                  .filter((rect) => rect.left < -1 || rect.right > window.innerWidth + 1),
+                overlaps,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) {
+              throw new Error('Desktop invalid state has horizontal overflow');
+            }
+            if (metrics.visibleErrors < 5) {
+              throw new Error('Desktop invalid state did not render the expected field feedback');
+            }
+            if (metrics.accessibleErrors !== metrics.visibleErrors) {
+              throw new Error('Desktop invalid feedback lost alert/live-region semantics');
+            }
+            if (metrics.outOfViewportErrors.length) {
+              throw new Error('Desktop invalid feedback escaped the viewport');
+            }
+            if (metrics.overlaps.length) {
+              throw new Error('Desktop invalid feedback overlaps the following field');
+            }
+            return metrics;
+          }" | tee "$OUT/desktop-invalid.metrics.log"
+          playwright-cli snapshot --filename="$OUT/desktop-invalid.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/desktop-invalid.png"
+
+          playwright-cli resize 390 844
+          playwright-cli reload
+          playwright-cli snapshot --filename="$OUT/mobile-initial.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/mobile-initial.png"
+          playwright-cli run-code "async (page) => {
+            const metrics = await page.evaluate(() => {
+              const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
+              const inputRect = document.querySelector('.input-field')?.getBoundingClientRect();
+              return {
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+                scrollWidth: document.documentElement.scrollWidth,
+                scrollHeight: document.documentElement.scrollHeight,
+                introVisible: !!document.querySelector('.auth-intro')?.getClientRects().length,
+                formVisible: !!document.querySelector('.form-container')?.getClientRects().length,
+                submitVisible: !!document.querySelector('button[type=submit]')?.getClientRects().length,
+                formWidth: formRect?.width ?? 0,
+                firstInputWidth: inputRect?.width ?? 0,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) {
+              throw new Error('Mobile initial state has horizontal overflow');
+            }
+            if (metrics.introVisible) {
+              throw new Error('Mobile introductory hero must stay suppressed to protect form hierarchy');
+            }
+            if (!metrics.formVisible || !metrics.submitVisible) {
+              throw new Error('Mobile initial registration form is incomplete');
+            }
+            if (metrics.formWidth < metrics.viewportWidth * 0.85) {
+              throw new Error('Mobile form card is not using the available viewport width');
+            }
+            if (metrics.firstInputWidth < metrics.viewportWidth * 0.70) {
+              throw new Error('Mobile form controls are compressed into a narrow column');
+            }
+            return metrics;
+          }" | tee "$OUT/mobile-initial.metrics.log"
+
+          playwright-cli click "button[type='submit']"
+          playwright-cli run-code "async (page) => {
+            await page.waitForTimeout(250);
+            const metrics = await page.evaluate(() => {
+              const isVisible = (el) => !!el.getClientRects().length;
+              const errors = Array.from(document.querySelectorAll('.tooltip-error')).filter(isVisible);
+              const overlaps = [];
+              const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
+              const inputRect = document.querySelector('.input-field')?.getBoundingClientRect();
+
+              for (const error of errors) {
+                const owner = error.closest('.form-field, .form-checkbox');
+                if (!owner) continue;
+                let next = owner.nextElementSibling;
+                while (next && !next.matches('.form-field, .form-checkbox, button[type=submit]')) {
+                  next = next.nextElementSibling;
+                }
+                if (!next) continue;
+                const errorRect = error.getBoundingClientRect();
+                const nextRect = next.getBoundingClientRect();
+                if (errorRect.bottom > nextRect.top + 1) {
+                  overlaps.push({ id: error.id, bottom: errorRect.bottom, nextTop: nextRect.top });
+                }
+              }
+
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                introVisible: !!document.querySelector('.auth-intro')?.getClientRects().length,
+                formWidth: formRect?.width ?? 0,
+                firstInputWidth: inputRect?.width ?? 0,
+                visibleErrors: errors.length,
+                accessibleErrors: errors.filter((el) =>
+                  el.getAttribute('role') === 'alert' &&
+                  el.getAttribute('aria-live') === 'polite'
+                ).length,
+                outOfViewportErrors: errors
+                  .map((el) => ({ id: el.id, ...el.getBoundingClientRect().toJSON() }))
+                  .filter((rect) => rect.left < -1 || rect.right > window.innerWidth + 1),
+                overlaps,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) {
+              throw new Error('Mobile invalid state has horizontal overflow');
+            }
+            if (metrics.introVisible) {
+              throw new Error('Mobile introductory hero reappeared behind the validation state');
+            }
+            if (metrics.formWidth < metrics.viewportWidth * 0.85 || metrics.firstInputWidth < metrics.viewportWidth * 0.70) {
+              throw new Error('Mobile invalid form lost its useful content width');
+            }
+            if (metrics.visibleErrors < 5) {
+              throw new Error('Mobile invalid state did not render the expected field feedback');
+            }
+            if (metrics.accessibleErrors !== metrics.visibleErrors) {
+              throw new Error('Mobile invalid feedback lost alert/live-region semantics');
+            }
+            if (metrics.outOfViewportErrors.length) {
+              throw new Error('Mobile invalid feedback escaped the viewport');
+            }
+            if (metrics.overlaps.length) {
+              throw new Error('Mobile invalid feedback overlaps the following field');
+            }
+            return metrics;
+          }" | tee "$OUT/mobile-invalid.metrics.log"
+          playwright-cli snapshot --filename="$OUT/mobile-invalid.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/mobile-invalid.png"
+
+          playwright-cli console error > "$OUT/browser-console-errors.log" || true
+          playwright-cli close
+
+      - name: Capture onboarding flow surfaces
+        shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: onboarding-${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          OUT="artifacts/${{ matrix.configuration }}/onboarding"
+          BASE="http://127.0.0.1:4200"
+          mkdir -p "$OUT/welcome" "$OUT/profile" "$OUT/terms" "$OUT/adult"
+
+          playwright-cli open "$BASE/register/welcome?verificationEmail=failed"
+          playwright-cli resize 1440 1000
+          playwright-cli run-code "async (page) => {
+            await page.waitForSelector('.welcome-card', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const root = document.querySelector('.welcome-container');
+              const card = document.querySelector('.welcome-card');
+              const alert = document.querySelector('.welcome-alert');
+              const buttons = Array.from(document.querySelectorAll('.welcome-card button')).filter((el) => el.getClientRects().length);
+              const rootRect = root?.getBoundingClientRect();
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                rootWidth: rootRect?.width ?? 0,
+                cardVisible: !!card?.getClientRects().length,
+                alertVisible: !!alert?.getClientRects().length,
+                buttonCount: buttons.length,
+                shortButtons: buttons.filter((el) => el.getBoundingClientRect().height < 40).map((el) => el.textContent?.trim()),
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Welcome desktop overflow');
+            if (!metrics.cardVisible || !metrics.alertVisible || metrics.buttonCount < 4) throw new Error('Welcome desktop incomplete');
+            if (metrics.shortButtons.length) throw new Error('Welcome desktop has undersized actions');
+            return metrics;
+          }" | tee "$OUT/welcome/desktop.metrics.log"
+          playwright-cli snapshot --filename="$OUT/welcome/desktop.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/welcome/desktop.png"
+
+          playwright-cli resize 390 844
+          playwright-cli reload
+          playwright-cli run-code "async (page) => {
+            await page.waitForSelector('.welcome-card', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const rootRect = document.querySelector('.welcome-container')?.getBoundingClientRect();
+              const cardRect = document.querySelector('.welcome-card')?.getBoundingClientRect();
+              const buttons = Array.from(document.querySelectorAll('.welcome-card button')).filter((el) => el.getClientRects().length);
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                rootWidth: rootRect?.width ?? 0,
+                cardWidth: cardRect?.width ?? 0,
+                buttonCount: buttons.length,
+                narrowButtons: buttons.filter((el) => el.getBoundingClientRect().width < (cardRect?.width ?? 0) * 0.75).map((el) => el.textContent?.trim()),
+                shortButtons: buttons.filter((el) => el.getBoundingClientRect().height < 40).map((el) => el.textContent?.trim()),
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Welcome mobile overflow');
+            if (metrics.cardWidth < metrics.viewportWidth * 0.85) throw new Error('Welcome mobile card is too narrow');
+            if (metrics.buttonCount < 4 || metrics.narrowButtons.length || metrics.shortButtons.length) throw new Error('Welcome mobile actions lost useful width or touch size');
+            return metrics;
+          }" | tee "$OUT/welcome/mobile.metrics.log"
+          playwright-cli snapshot --filename="$OUT/welcome/mobile.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/welcome/mobile.png"
+
+          playwright-cli run-code "async (page) => {
+            await page.goto('$BASE/register/finalizar-cadastro?reason=profile_incomplete');
+            await page.waitForSelector('.form-container', { state: 'visible' });
+            await page.waitForFunction(() => {
+              const button = document.querySelector('.btn-submit');
+              return button && !button.disabled;
+            });
+          }"
+          playwright-cli resize 1440 1000
+          playwright-cli run-code "async (page) => {
+            const metrics = await page.evaluate(() => {
+              const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
+              const inputRect = document.querySelector('.input-field')?.getBoundingClientRect();
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                formWidth: formRect?.width ?? 0,
+                firstInputWidth: inputRect?.width ?? 0,
+                heroVisible: !!document.querySelector('.completion-hero')?.getClientRects().length,
+                submitVisible: !!document.querySelector('.btn-submit')?.getClientRects().length,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Profile completion desktop overflow');
+            if (!metrics.heroVisible || !metrics.submitVisible || metrics.formWidth < 320) throw new Error('Profile completion desktop incomplete');
+            return metrics;
+          }" | tee "$OUT/profile/desktop-initial.metrics.log"
+          playwright-cli snapshot --filename="$OUT/profile/desktop-initial.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/profile/desktop-initial.png"
+          playwright-cli click ".btn-submit"
+          playwright-cli run-code "async (page) => {
+            await page.waitForSelector('.tooltip-error', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const errors = Array.from(document.querySelectorAll('.tooltip-error')).filter((el) => el.getClientRects().length);
+              const overlaps = [];
+              for (const error of errors) {
+                const owner = error.closest('.form-field');
+                const next = owner?.nextElementSibling;
+                if (!next) continue;
+                if (error.getBoundingClientRect().bottom > next.getBoundingClientRect().top + 1) {
+                  overlaps.push(error.id);
+                }
+              }
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                visibleErrors: errors.length,
+                accessibleErrors: errors.filter((el) => el.getAttribute('role') === 'alert' && el.getAttribute('aria-live') === 'polite').length,
+                overlaps,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Profile completion desktop invalid overflow');
+            if (metrics.visibleErrors !== 4 || metrics.accessibleErrors !== 4 || metrics.overlaps.length) throw new Error('Profile completion desktop invalid feedback regression');
+            return metrics;
+          }" | tee "$OUT/profile/desktop-invalid.metrics.log"
+          playwright-cli snapshot --filename="$OUT/profile/desktop-invalid.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/profile/desktop-invalid.png"
+
+          playwright-cli resize 390 844
+          playwright-cli run-code "async (page) => {
+            await page.goto('$BASE/register/finalizar-cadastro?reason=profile_incomplete');
+            await page.waitForFunction(() => {
+              const button = document.querySelector('.btn-submit');
+              return button && !button.disabled;
+            });
+            const metrics = await page.evaluate(() => {
+              const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
+              const inputRect = document.querySelector('.input-field')?.getBoundingClientRect();
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                formWidth: formRect?.width ?? 0,
+                firstInputWidth: inputRect?.width ?? 0,
+                heroVisible: !!document.querySelector('.completion-hero')?.getClientRects().length,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Profile completion mobile overflow');
+            if (metrics.formWidth < metrics.viewportWidth * 0.85 || metrics.firstInputWidth < metrics.viewportWidth * 0.70) throw new Error('Profile completion mobile lost useful width');
+            return metrics;
+          }" | tee "$OUT/profile/mobile-initial.metrics.log"
+          playwright-cli snapshot --filename="$OUT/profile/mobile-initial.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/profile/mobile-initial.png"
+          playwright-cli click ".btn-submit"
+          playwright-cli run-code "async (page) => {
+            await page.waitForSelector('.tooltip-error', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const errors = Array.from(document.querySelectorAll('.tooltip-error')).filter((el) => el.getClientRects().length);
+              const formRect = document.querySelector('.form-container')?.getBoundingClientRect();
+              const overlaps = [];
+              for (const error of errors) {
+                const owner = error.closest('.form-field');
+                const next = owner?.nextElementSibling;
+                if (!next) continue;
+                if (error.getBoundingClientRect().bottom > next.getBoundingClientRect().top + 1) overlaps.push(error.id);
+              }
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                formWidth: formRect?.width ?? 0,
+                visibleErrors: errors.length,
+                accessibleErrors: errors.filter((el) => el.getAttribute('role') === 'alert' && el.getAttribute('aria-live') === 'polite').length,
+                outOfViewportErrors: errors.filter((el) => {
+                  const rect = el.getBoundingClientRect();
+                  return rect.left < -1 || rect.right > window.innerWidth + 1;
+                }).map((el) => el.id),
+                overlaps,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Profile completion mobile invalid overflow');
+            if (metrics.formWidth < metrics.viewportWidth * 0.85) throw new Error('Profile completion mobile invalid card too narrow');
+            if (metrics.visibleErrors !== 4 || metrics.accessibleErrors !== 4 || metrics.outOfViewportErrors.length || metrics.overlaps.length) throw new Error('Profile completion mobile invalid feedback regression');
+            return metrics;
+          }" | tee "$OUT/profile/mobile-invalid.metrics.log"
+          playwright-cli snapshot --filename="$OUT/profile/mobile-invalid.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/profile/mobile-invalid.png"
+
+          playwright-cli resize 1440 1000
+          playwright-cli run-code "async (page) => {
+            await page.goto('$BASE/register/aceitar-termos');
+            await page.waitForSelector('.terms-acceptance__card', { state: 'visible' });
+            const metrics = await page.evaluate(() => ({
+              viewportWidth: window.innerWidth,
+              scrollWidth: document.documentElement.scrollWidth,
+              links: document.querySelectorAll('.terms-acceptance__links a').length,
+              checkboxVisible: !!document.querySelector('input[type=checkbox]')?.getClientRects().length,
+              actions: document.querySelectorAll('.terms-acceptance__actions button').length,
+            }));
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Terms desktop overflow');
+            if (metrics.links !== 2 || !metrics.checkboxVisible || metrics.actions !== 2) throw new Error('Terms desktop incomplete');
+            return metrics;
+          }" | tee "$OUT/terms/desktop-initial.metrics.log"
+          playwright-cli snapshot --filename="$OUT/terms/desktop-initial.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/terms/desktop-initial.png"
+          playwright-cli click ".terms-acceptance__button--primary"
+          playwright-cli run-code "async (page) => {
+            await page.waitForSelector('#terms-confirmation-error.terms-acceptance__error', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const error = document.querySelector('#terms-confirmation-error.terms-acceptance__error');
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                role: error?.getAttribute('role'),
+                errorVisible: !!error?.getClientRects().length,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1 || !metrics.errorVisible || metrics.role !== 'alert') throw new Error('Terms desktop invalid feedback regression');
+            return metrics;
+          }" | tee "$OUT/terms/desktop-invalid.metrics.log"
+          playwright-cli snapshot --filename="$OUT/terms/desktop-invalid.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/terms/desktop-invalid.png"
+
+          playwright-cli resize 390 844
+          playwright-cli run-code "async (page) => {
+            await page.goto('$BASE/register/aceitar-termos');
+            await page.waitForSelector('.terms-acceptance__card', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const cardRect = document.querySelector('.terms-acceptance__card')?.getBoundingClientRect();
+              const buttons = Array.from(document.querySelectorAll('.terms-acceptance__actions button'));
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                cardWidth: cardRect?.width ?? 0,
+                shortButtons: buttons.filter((el) => el.getBoundingClientRect().height < 44).map((el) => el.textContent?.trim()),
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Terms mobile overflow');
+            if (metrics.cardWidth < metrics.viewportWidth * 0.85 || metrics.shortButtons.length) throw new Error('Terms mobile lost useful width or touch size');
+            return metrics;
+          }" | tee "$OUT/terms/mobile-initial.metrics.log"
+          playwright-cli snapshot --filename="$OUT/terms/mobile-initial.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/terms/mobile-initial.png"
+          playwright-cli click ".terms-acceptance__button--primary"
+          playwright-cli run-code "async (page) => {
+            await page.waitForSelector('#terms-confirmation-error.terms-acceptance__error', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const error = document.querySelector('#terms-confirmation-error.terms-acceptance__error');
+              const rect = error?.getBoundingClientRect();
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                role: error?.getAttribute('role'),
+                escaped: !!rect && (rect.left < -1 || rect.right > window.innerWidth + 1),
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1 || metrics.role !== 'alert' || metrics.escaped) throw new Error('Terms mobile invalid feedback regression');
+            return metrics;
+          }" | tee "$OUT/terms/mobile-invalid.metrics.log"
+          playwright-cli snapshot --filename="$OUT/terms/mobile-invalid.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/terms/mobile-invalid.png"
+
+          playwright-cli resize 1440 1000
+          playwright-cli run-code "async (page) => {
+            await page.goto('$BASE/adulto/confirmar');
+            await page.waitForSelector('.adult-consent__card', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const buttons = Array.from(document.querySelectorAll('.adult-consent__actions button'));
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                cardVisible: !!document.querySelector('.adult-consent__card')?.getClientRects().length,
+                actionCount: buttons.length,
+                shortButtons: buttons.filter((el) => el.getBoundingClientRect().height < 44).map((el) => el.textContent?.trim()),
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Adult confirmation desktop overflow');
+            if (!metrics.cardVisible || metrics.actionCount !== 2 || metrics.shortButtons.length) throw new Error('Adult confirmation desktop incomplete');
+            return metrics;
+          }" | tee "$OUT/adult/desktop.metrics.log"
+          playwright-cli snapshot --filename="$OUT/adult/desktop.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/adult/desktop.png"
+
+          playwright-cli resize 390 844
+          playwright-cli reload
+          playwright-cli run-code "async (page) => {
+            await page.waitForSelector('.adult-consent__card', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const cardRect = document.querySelector('.adult-consent__card')?.getBoundingClientRect();
+              const actionsRect = document.querySelector('.adult-consent__actions')?.getBoundingClientRect();
+              const buttons = Array.from(document.querySelectorAll('.adult-consent__actions button'));
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                cardWidth: cardRect?.width ?? 0,
+                actionCount: buttons.length,
+                narrowButtons: buttons.filter((el) => el.getBoundingClientRect().width < (actionsRect?.width ?? 0) * 0.95).map((el) => el.textContent?.trim()),
+                shortButtons: buttons.filter((el) => el.getBoundingClientRect().height < 44).map((el) => el.textContent?.trim()),
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Adult confirmation mobile overflow');
+            if (metrics.cardWidth < metrics.viewportWidth * 0.85 || metrics.actionCount !== 2 || metrics.narrowButtons.length || metrics.shortButtons.length) throw new Error('Adult confirmation mobile actions/layout regression');
+            return metrics;
+          }" | tee "$OUT/adult/mobile.metrics.log"
+          playwright-cli snapshot --filename="$OUT/adult/mobile.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/adult/mobile.png"
+
+          playwright-cli console error > "$OUT/browser-console-errors.log" || true
+          playwright-cli close
+
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: registration-visual-${{ matrix.configuration }}
+          path: artifacts/${{ matrix.configuration }}/
+          if-no-files-found: warn
+          retention-days: 7

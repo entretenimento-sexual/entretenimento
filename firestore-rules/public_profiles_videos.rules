@@ -1,0 +1,111 @@
+// ===============================================================
+// PUBLIC_PROFILES / public_videos
+// ===============================================================
+
+match /public_profiles/{userId}/public_videos/{videoId} {
+
+  function publicProfilePath() {
+    return /databases/$(database)/documents/public_profiles/$(userId);
+  }
+
+  function publicProfileExists() {
+    return exists(publicProfilePath());
+  }
+
+  function videoPath() {
+    return /databases/$(database)/documents/public_profiles/$(userId)/public_videos/$(videoId);
+  }
+
+  function videoExists() {
+    return exists(videoPath());
+  }
+
+  function videoData() {
+    return get(videoPath()).data;
+  }
+
+  function isApprovedPublicVideoData(data) {
+    return data.visibility == "PUBLIC"
+      && data.moderationStatus == "APPROVED";
+  }
+
+  function isPublicReadableVideo() {
+    return publicProfileExists()
+      && resource.data.visibility == "PUBLIC"
+      && resource.data.moderationStatus == "APPROVED";
+  }
+
+  allow get: if canConsumeAdultPublicMedia()
+    && (isSelf(userId) || isPublicReadableVideo());
+
+  allow list: if canConsumeAdultPublicMedia()
+    && isPublicReadableVideo();
+
+  allow create, update, delete: if false;
+
+  // Sessões efêmeras de playback são backend-only. O cliente recebe apenas
+  // o token opaco retornado pela Callable Function e nunca pode consultar,
+  // enumerar ou alterar o hash/relógio server-side usado para qualificar view.
+  match /playback_sessions/{viewerUid} {
+    allow read, write: if false;
+  }
+
+  match /likes/{viewerUid} {
+    allow get: if canConsumeAdultPublicMedia()
+      && request.auth.uid == viewerUid;
+    allow list: if false;
+    allow create, update, delete: if false;
+  }
+
+  match /ratings/{viewerUid} {
+    allow get: if canConsumeAdultPublicMedia()
+      && request.auth.uid == viewerUid;
+    allow list: if false;
+    allow create, update, delete: if false;
+  }
+
+  match /comments/{commentId} {
+    allow get: if canConsumeAdultPublicMedia()
+      && (
+        isSelf(userId)
+        || (
+          publicProfileExists()
+          && resource.data.status == "VISIBLE"
+          && videoExists()
+          && isApprovedPublicVideoData(videoData())
+        )
+      );
+
+    allow list: if canConsumeAdultPublicMedia()
+      && (
+        isSelf(userId)
+        || (
+          publicProfileExists()
+          && resource.data.status == "VISIBLE"
+          && videoExists()
+          && isApprovedPublicVideoData(videoData())
+        )
+      );
+
+    allow create, update, delete: if false;
+  }
+}
+
+// ------------------------------------------------------------
+// Collection group: public_videos
+// A revalidação muda a projeção para PRIVATE na mesma transação;
+// por isso a consulta global continua filtrável por visibility.
+// A elegibilidade do viewer é verificada independentemente do documento,
+// evitando que um cliente modificado contorne os guards de rota.
+// ------------------------------------------------------------
+match /{path=**}/public_videos/{videoId} {
+  allow list: if canConsumeAdultPublicMedia()
+    && resource.data.visibility == "PUBLIC"
+    && resource.data.moderationStatus == "APPROVED";
+
+  allow create, update, delete: if false;
+}
+
+// ==============================================================
+//           FIM DO PUBLIC_PROFILES_VIDEOS.RULES
+// ==============================================================

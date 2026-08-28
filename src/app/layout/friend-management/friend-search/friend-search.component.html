@@ -1,0 +1,30 @@
+<!-- src\app\layout\friend-management\friend-search\friend-search.component.html -->
+<div class="friend-search">
+  <h3>Buscar Amigos</h3>
+
+  <!-- Campo de entrada acessível -->
+  <mat-form-field appearance="outline">
+    <mat-label>Digite um nome ou UID</mat-label>
+    <input matInput [formControl]="searchControl" aria-label="Buscar amigos">
+  </mat-form-field>
+
+  <!-- Loader enquanto carrega -->
+  @if (isLoading$ | async) {
+    <mat-spinner></mat-spinner>
+  }
+
+  <!-- Lista de resultados -->
+  @if ((searchResults$ | async)?.length) {
+    <ul>
+      @for (user of searchResults$ | async; track user) {
+        <li>
+          {{ user.nickname || user.uid }}
+          <button mat-button color="primary">Adicionar Amigo</button>
+        </li>
+      }
+    </ul>
+  } @else {
+    <p>Nenhum usuário encontrado.</p>
+  }
+  <!-- Mensagem quando não há resultados -->
+</div>

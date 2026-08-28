@@ -1,0 +1,61 @@
+// src\app\authentication\progressive-signup\progressive-signup.component.ts
+// Este componente é responsável por coletar as preferências do usuário durante o processo de registro progressivo.
+// Não esquecer comentários e ferramentas de debug para garantir que as preferências estão sendo coletadas e salvas corretamente.
+import { Component } from '@angular/core';
+import { Router } from '@angular/router';
+
+@Component({
+    selector: 'app-progressive-signup',
+    templateUrl: './progressive-signup.component.html',
+    styleUrls: ['./progressive-signup.component.css'],
+    standalone: false
+})
+
+export class ProgressiveSignupComponent {
+
+  userPreferences: any = {};
+
+  practices = [
+    { value: 'swing', label: 'Swing' },
+    { value: 'menage', label: 'Ménage' },
+    { value: 'sameSex', label: 'Mesmo Sexo' },
+    { value: 'exhibition', label: 'Exibição' },
+    { value: 'professionals', label: 'Perfis de Profissionais' },
+    { value: 'bdsm', label: 'BDSM' },
+    { value: 'roleplay', label: 'Role-play' },
+    { value: 'voyeurism', label: 'Voyeurismo' },
+    { value: 'fetish', label: 'Fetiche' },
+    { value: 'polyamory', label: 'Poliamor' },
+    { value: 'transsexual', label: 'Transexual' },
+    { value: 'crossdresser', label: 'Crossdresser' },
+    { value: 'travesti', label: 'Travesti' },
+    // ... outros valores ...
+  ];
+
+  constructor(
+        private router: Router,
+        
+    ) { }
+
+  // Função para capturar as mudanças nos checkboxes
+  capturePreference(event: any, preference: string) {
+    if (event.target.checked) {
+      this.userPreferences[preference] = true;
+    } else {
+      delete this.userPreferences[preference];
+    }
+  }
+
+  async register() {
+    try {
+      
+      console.log('Preferências do usuário coletadas com sucesso.');
+
+      // Navegue para o SuggestedProfilesComponent
+      this.router.navigate(['/suggested-profiles']); // Certifique-se de que o caminho é correto
+
+    } catch (error) {
+      console.log('Erro durante o registro das preferências:', error);
+    }
+  }
+}

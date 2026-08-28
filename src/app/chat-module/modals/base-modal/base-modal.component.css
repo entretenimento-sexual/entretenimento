@@ -1,0 +1,147 @@
+/* src/app/chat-module/modals/base-modal/base-modal.component.css */
+:host {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.modal-shell {
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-block-size: min(88dvh, 52rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgba(17, 24, 39, 0.14));
+  border-radius: var(--radius-xl, 1rem);
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #1f2937);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.18);
+}
+
+.modal-header {
+  min-inline-size: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+  padding: clamp(0.9rem, 3vw, 1.2rem);
+  border-bottom: 1px solid var(--surface-border, rgba(17, 24, 39, 0.14));
+  background: var(--surface-color, #fff);
+}
+
+.modal-header h2 {
+  min-inline-size: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: inherit;
+  font-size: clamp(1.05rem, 4vw, 1.35rem);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.close-btn {
+  inline-size: var(--tap-target, 2.75rem);
+  block-size: var(--tap-target, 2.75rem);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  font: inherit;
+  font-size: 1.65rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.close-btn:hover {
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 10%,
+    transparent
+  );
+  color: var(--primary-color, #d83768);
+}
+
+.close-btn:active {
+  transform: scale(0.96);
+}
+
+.close-btn:focus-visible {
+  outline: 3px solid var(--focus-ring, var(--primary-color, #d83768));
+  outline-offset: 2px;
+}
+
+.modal-body,
+.modal-default-content {
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: clamp(0.9rem, 3vw, 1.2rem);
+  color: inherit;
+  line-height: 1.5;
+}
+
+.modal-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.modal-body:empty {
+  display: none;
+}
+
+.modal-default-content {
+  flex: 1 1 auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.modal-body:not(:empty) + .modal-default-content {
+  flex: 0 0 auto;
+  overflow: visible;
+  padding-top: 0;
+  padding-bottom: calc(
+    clamp(0.9rem, 3vw, 1.2rem) + env(safe-area-inset-bottom, 0px)
+  );
+}
+
+.modal-default-content:empty {
+  display: none;
+}
+
+@media (max-width: 30rem) {
+  .modal-shell {
+    max-block-size: calc(100dvh - 1rem - env(safe-area-inset-top, 0px));
+    border-radius: var(--radius-lg, 0.875rem);
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-default-content {
+    padding-inline: 0.85rem;
+  }
+}
+
+:host-context(.high-contrast) .modal-shell,
+:host-context(.high-contrast) .close-btn {
+  border: 2px solid var(--text-color, #111);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .close-btn {
+    transition: none;
+  }
+}

@@ -1,0 +1,368 @@
+<!-- src/app/explore/pages/social-explore-page/social-explore-page.component.html -->
+@if (vm$ | async; as vm) {
+  @let feedWindow = (feedWindow$ | async);
+  @let feedItems = (feedWindow?.items || []);
+  @let currentUser = (currentUser$ | async);
+  @let viewerUid = ((authUid$ | async) || '');
+  @let emptySuggestions = vm.compatibleProfiles.slice(0, 4);
+
+  <section class="social-feed-page" aria-label="Atualizações">
+    @if (currentUser?.uid) {
+      <section class="feed-composer" aria-label="Criar publicação">
+        <a
+          class="feed-composer__avatar"
+          routerLink="/perfil"
+          aria-label="Abrir meu perfil"
+        >
+          @if (currentUser?.photoURL) {
+            <img
+              [src]="currentUser?.photoURL"
+              alt=""
+              width="40"
+              height="40"
+              decoding="async"
+              referrerpolicy="no-referrer"
+            />
+          } @else {
+            <span aria-hidden="true">
+              {{ (currentUser?.nickname || '?').slice(0, 1).toUpperCase() }}
+            </span>
+          }
+        </a>
+
+        <button
+          type="button"
+          class="feed-composer__moment"
+          aria-label="Criar publicação persistente"
+          (click)="openPublicationComposer()"
+        >
+          Criar publicação
+        </button>
+      </section>
+
+      @if (publicationComposerVisible()) {
+        <app-feed-publication-composer
+          class="feed-publication-composer"
+          [user]="currentUser"
+          (closed)="closePublicationComposer()"
+          (published)="onPublicationPublished()"
+        />
+      }
+    }
+
+    @if (vm.videoHighlightsStatus !== 'empty') {
+      <section
+        class="video-highlights"
+        aria-labelledby="video-highlights-title"
+      >
+        <header class="video-highlights__header">
+          <div>
+            <span>Descobrir</span>
+            <h2 id="video-highlights-title">Vídeos em destaque</h2>
+          </div>
+
+          @if (vm.videoHighlightsStatus === 'ready') {
+            <span class="video-highlights__count" aria-live="polite">
+              {{ vm.videoHighlights.length }} disponíveis
+            </span>
+          }
+        </header>
+
+        @switch (vm.videoHighlightsStatus) {
+          @case ('loading') {
+            <div
+              class="video-highlights__rail video-highlights__rail--loading"
+              role="status"
+              aria-live="polite"
+              aria-label="Carregando vídeos em destaque"
+            >
+              @for (placeholder of [1, 2, 3]; track placeholder) {
+                <span class="video-highlight-skeleton" aria-hidden="true"></span>
+              }
+            </div>
+          }
+
+          @case ('error') {
+            <div class="video-highlights__error" role="alert">
+              <div>
+                <strong>Vídeos temporariamente indisponíveis</strong>
+                <span>Tente carregar novamente.</span>
+              </div>
+
+              <button
+                type="button"
+                (click)="retryVideoHighlights()"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          }
+
+          @case ('ready') {
+            <div
+              class="video-highlights__rail"
+              role="list"
+              aria-label="Vídeos públicos em destaque"
+            >
+              @for (
+                item of vm.videoHighlights;
+                track trackByVideoId($index, item)
+              ) {
+                <app-public-video-card
+                  role="listitem"
+                  [video]="item"
+                  variant="highlight"
+                  [opening]="isVideoOpening(item)"
+                  [posterAvailable]="hasUsableVideoPoster(item)"
+                  (preview)="openVideoHighlight(item)"
+                  (posterError)="onVideoPosterError(item)"
+                />
+              }
+            </div>
+          }
+        }
+      </section>
+    }
+
+    <section class="feed-timeline" aria-labelledby="timeline-title">
+      <h2 id="timeline-title" class="visually-hidden">
+        Publicações e momentos recentes de amigos e perfis compatíveis
+      </h2>
+
+      <div
+        class="feed-list"
+        role="list"
+        aria-label="Publicações, vídeos e momentos recentes"
+      >
+        @if (currentUser?.uid) {
+          <app-user-intent-status-composer
+            class="feed-status-composer"
+            role="listitem"
+            [user]="currentUser"
+          />
+        }
+
+        @for (
+          item of feedItems;
+          track trackByFeedItem($index, item)
+        ) {
+          @if (item.kind === 'photo') {
+            <app-public-photo-card
+              role="listitem"
+              [photo]="item.photo"
+              variant="feed"
+              [viewerUid]="viewerUid"
+              [engagementActions]="true"
+              (preview)="openFeedPhoto(item.photo)"
+              (commentsRequested)="openFeedPhoto(item.photo)"
+            />
+          } @else if (item.kind === 'video') {
+            <app-public-video-card
+              role="listitem"
+              [video]="item.video"
+              variant="feed"
+              [viewerUid]="viewerUid"
+              [engagementActions]="true"
+              [opening]="isVideoOpening(item.video)"
+              [posterAvailable]="hasUsableVideoPoster(item.video)"
+              (preview)="openFeedVideo(item.video)"
+              (commentsRequested)="openFeedVideo(item.video)"
+              (posterError)="onVideoPosterError(item.video)"
+            />
+          } @else {
+            <article
+              class="feed-intent"
+              role="listitem"
+              [attr.aria-label]="
+                'Momento temporário de ' + item.status.profile.nickname
+              "
+            >
+              <header class="feed-intent__header">
+                <div class="feed-intent__identity">
+                  <span class="feed-intent__avatar" aria-hidden="true">
+                    @if (item.status.profile.photoURL) {
+                      <img
+                        [src]="item.status.profile.photoURL"
+                        alt=""
+                        width="44"
+                        height="44"
+                        loading="lazy"
+                        decoding="async"
+                        referrerpolicy="no-referrer"
+                      />
+                    } @else {
+                      {{ item.status.profile.nickname.slice(0, 1).toUpperCase() }}
+                    }
+                  </span>
+
+                  <div>
+                    <strong>{{ item.status.profile.nickname }}</strong>
+                    <span>
+                      Momento · {{ item.status.expiresInLabel }}
+                    </span>
+                  </div>
+                </div>
+
+                <span class="feed-intent__relationship">
+                  {{ item.relationship === 'friend' ? 'Amigo' : 'Compatível' }}
+                </span>
+              </header>
+
+              <div class="feed-intent__body">
+                <strong>{{ item.status.availabilityLabel }}</strong>
+                <p>{{ item.status.destinationLabel }}</p>
+              </div>
+            </article>
+          }
+        }
+      </div>
+
+      @if (feedItems.length > 0) {
+        <p class="visually-hidden" aria-live="polite">
+          Exibindo {{ feedWindow?.visibleCount || 0 }} de
+          {{ feedWindow?.totalItems || 0 }} atualizações carregadas.
+        </p>
+
+        @if (feedWindow?.hasMore) {
+          <div class="feed-pagination">
+            <button
+              type="button"
+              (click)="loadMoreFeed()"
+              [disabled]="feedWindow?.loadingMore"
+              [attr.aria-busy]="feedWindow?.loadingMore ? 'true' : null"
+              [attr.aria-label]="
+                feedWindow?.loadingMore
+                  ? 'Carregando mais atualizações'
+                  : (feedWindow?.remainingItems || 0) > 0
+                    ? 'Carregar mais atualizações. ' +
+                      (feedWindow?.remainingItems || 0) +
+                      ' já carregadas aguardando exibição.'
+                    : 'Carregar mais atualizações do servidor.'
+              "
+            >
+              {{ feedWindow?.loadingMore ? 'Carregando…' : 'Carregar mais' }}
+            </button>
+          </div>
+        }
+      } @else if (vm.loadingInitialPersonalMedia) {
+        <section
+          class="feed-empty"
+          role="status"
+          aria-live="polite"
+          aria-label="Carregando atualizações"
+        >
+          <div class="feed-empty__copy">
+            <strong>Carregando atualizações</strong>
+            <span>Buscando publicações recentes das suas conexões.</span>
+          </div>
+        </section>
+      } @else if (vm.personalMediaLoadFailed && vm.hasMorePersonalMedia) {
+        <section class="feed-empty" aria-labelledby="feed-retry-title">
+          <div class="feed-empty__copy">
+            <strong id="feed-retry-title">Não foi possível concluir o carregamento</strong>
+            <span>Suas conexões continuam disponíveis. Tente buscar as publicações novamente.</span>
+          </div>
+
+          <div class="feed-pagination">
+            <button
+              type="button"
+              (click)="loadMoreFeed()"
+              [disabled]="feedWindow?.loadingMore"
+              [attr.aria-busy]="feedWindow?.loadingMore ? 'true' : null"
+            >
+              {{ feedWindow?.loadingMore ? 'Carregando…' : 'Tentar novamente' }}
+            </button>
+          </div>
+        </section>
+      } @else if (vm.hasMorePersonalMedia) {
+        <section class="feed-empty" aria-labelledby="feed-more-title">
+          <div class="feed-empty__copy">
+            <strong id="feed-more-title">Ainda há conexões para verificar</strong>
+            <span>
+              O primeiro grupo não tem publicações disponíveis. Podemos procurar nas próximas conexões compatíveis.
+            </span>
+          </div>
+
+          <div class="feed-pagination">
+            <button
+              type="button"
+              (click)="loadMoreFeed()"
+              [disabled]="feedWindow?.loadingMore"
+              [attr.aria-busy]="feedWindow?.loadingMore ? 'true' : null"
+              [attr.aria-label]="
+                feedWindow?.loadingMore
+                  ? 'Buscando mais atualizações das conexões'
+                  : 'Buscar mais atualizações das conexões'
+              "
+            >
+              {{ feedWindow?.loadingMore ? 'Buscando…' : 'Buscar mais atualizações' }}
+            </button>
+          </div>
+        </section>
+      } @else {
+        <section class="feed-empty" aria-labelledby="feed-empty-title">
+          <div class="feed-empty__copy">
+            <strong id="feed-empty-title">Seu feed começa com conexões</strong>
+            <span>
+              Conecte-se com pessoas compatíveis para receber publicações, vídeos e momentos aqui.
+            </span>
+          </div>
+
+          @if (emptySuggestions.length > 0) {
+            <div
+              class="feed-empty__profiles"
+              role="list"
+              aria-label="Perfis compatíveis sugeridos"
+            >
+              @for (profile of emptySuggestions; track profile.uid) {
+                <a
+                  role="listitem"
+                  [routerLink]="['/outro-perfil', profile.uid]"
+                  [attr.aria-label]="'Abrir perfil de ' + profile.nickname"
+                >
+                  <span class="feed-empty__avatar" aria-hidden="true">
+                    @if (profile.photoURL) {
+                      <img
+                        [src]="profile.photoURL"
+                        alt=""
+                        width="42"
+                        height="42"
+                        loading="lazy"
+                        decoding="async"
+                        referrerpolicy="no-referrer"
+                      />
+                    } @else {
+                      {{ profile.nickname.slice(0, 1).toUpperCase() }}
+                    }
+                  </span>
+                  <span>{{ profile.nickname }}</span>
+                </a>
+              }
+            </div>
+          }
+
+          <div class="app-card__actions" aria-label="Outras formas de descobrir">
+            <a
+              class="app-action app-action--ghost feed-empty__action"
+              routerLink="/dashboard/explorar"
+            >
+              Pessoas
+            </a>
+            <a
+              class="app-action app-action--ghost feed-empty__action"
+              routerLink="/dashboard/locais"
+            >
+              Locais
+            </a>
+            <a
+              class="app-action app-action--ghost feed-empty__action"
+              routerLink="/dashboard/comunidades"
+            >
+              Comunidades
+            </a>
+          </div>
+        </section>
+      }
+    </section>
+  </section>
+}

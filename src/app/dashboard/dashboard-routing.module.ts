@@ -1,0 +1,233 @@
+// src/app/dashboard/dashboard-routing.module.ts
+import { NgModule } from '@angular/core';
+import { RouterModule, Routes } from '@angular/router';
+
+import { FeaturedProfilesComponent } from './featured-profiles/featured-profiles.component';
+import { PrincipalComponent } from './principal/principal.component';
+import { ChatRoomsComponent } from '../chat-module/chat-rooms/chat-rooms.component';
+import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
+import { OnlineUsersComponent } from './online/online-users/online-users.component';
+import { OnlineUsersFullComponent } from './online/online-users-full/online-users-full.component';
+
+import { authGuard } from '../core/guards/auth-guard/auth.guard';
+import { requireFeatureFlag } from '../core/guards/access-guard/feature-flag.guard';
+import { emailVerifiedGuard } from '../core/guards/profile-guard/email-verified.guard';
+import { profileCompletedGuard } from '../core/guards/profile-guard/profile-completed.guard';
+
+const routes: Routes = [
+  {
+    path: '',
+    component: DashboardLayoutComponent,
+    children: [
+      {
+        path: 'principal',
+        component: PrincipalComponent,
+      },
+
+      /**
+       * Painel compacto:
+       * política leve
+       * - exige autenticação
+       * - não exige verificação de e-mail no guard
+       * - UX local já trata perfil mínimo no clique da localização
+       */
+      {
+        path: 'online-users',
+        component: OnlineUsersComponent,
+        canActivate: [authGuard],
+      },
+
+      /**
+       * Página pai de descoberta de perfis.
+       *
+       * Esta rota será o novo ponto canônico para:
+       * - Online
+       * - Todos
+       * - Perto
+       * - Compatíveis
+       * - Novos
+       *
+       * Por enquanto, /dashboard/online permanece intacta para evitar quebra.
+       */
+      {
+        path: 'explorar',
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+        loadComponent: () =>
+          import('./discovery/profiles-discovery-page/profiles-discovery-page.component')
+            .then((m) => m.ProfilesDiscoveryPageComponent),
+      },
+
+      /**
+       * Central inicial de segurança e confiança.
+       *
+       * Mantida no dashboard para entrar no shell autenticado atual sem criar
+       * uma área de domínio maior antes do backend de denúncias.
+       */
+      {
+        path: 'seguranca',
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+        loadComponent: () =>
+          import('../safety/safety-center/safety-center.component')
+            .then((m) => m.SafetyCenterComponent),
+      },
+
+      /**
+       * Rota canônica para visualização dos perfis sugeridos.
+       *
+       * Mantida separada de /dashboard/explorar porque esta tela usa o motor de
+       * recomendações personalizado de SuggestionService.
+       */
+      {
+        path: 'perfis-sugeridos',
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+        loadComponent: () =>
+          import('./suggested-profiles/suggested-profiles.component')
+            .then((m) => m.SuggestedProfilesComponent),
+      },
+
+      /**
+       * Alias legado/inglês para evitar quebra de links antigos.
+       */
+      {
+        path: 'suggested-profiles',
+        redirectTo: 'perfis-sugeridos',
+        pathMatch: 'full',
+      },
+
+      /**
+       * Comunidade é um grupo permanente de pessoas com membros, regras e mural.
+       * A rota não lista Locais e não carrega Salas de conversa.
+       */
+      {
+        path: 'comunidades',
+        canMatch: [requireFeatureFlag('communityPreview')],
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+        loadChildren: () =>
+          import('../community/community.routes')
+            .then((module) => module.COMMUNITY_ROUTES),
+      },
+
+      /**
+       * Local é um lugar físico ou estabelecimento real. Ele possui descoberta e
+       * criação próprias, embora reutilize internamente feed e permissões sociais.
+       */
+      {
+        path: 'locais',
+        canMatch: [requireFeatureFlag('communityPreview')],
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+        loadChildren: () =>
+          import('../community/venue.routes')
+            .then((module) => module.VENUE_ROUTES),
+      },
+
+      /**
+       * Experiências de assinantes em preparação.
+       *
+       * A flag impede download e exposição fora do ambiente controlado. A
+       * política interna da página continua responsável por perfil e assinatura.
+       */
+      {
+        path: 'exclusivos',
+        canMatch: [requireFeatureFlag('subscriberExperiencesPreview')],
+        canActivate: [authGuard, emailVerifiedGuard],
+        data: {
+          requireVerified: true,
+        },
+        loadChildren: () =>
+          import('../subscriber-experiences/subscriber-experiences.routes')
+            .then((routes) => routes.SUBSCRIBER_EXPERIENCES_ROUTES),
+      },
+
+      /**
+       * Rota legada/específica de perfis online.
+       *
+       * Mantida por compatibilidade enquanto /dashboard/explorar
+       * passa a ser a página pai de descoberta da plataforma.
+       */
+      {
+        path: 'online',
+        component: OnlineUsersFullComponent,
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
+
+      {
+        path: 'featured-profiles',
+        component: FeaturedProfilesComponent,
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
+
+      {
+        path: 'chat-rooms',
+        component: ChatRoomsComponent,
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
+
+      {
+        path: 'friends/list',
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+        loadComponent: () =>
+          import('src/app/layout/friend-management/friend-list-page/friend-list-page.component')
+            .then(m => m.FriendListPageComponent)
+      },
+
+      {
+        path: 'friends',
+        redirectTo: 'friends/list',
+        pathMatch: 'full',
+      },
+
+      {
+        path: '',
+        redirectTo: 'principal',
+        pathMatch: 'full',
+      },
+    ]
+  },
+
+  {
+    path: '**',
+    redirectTo: 'principal',
+  }
+];
+
+@NgModule({
+  imports: [RouterModule.forChild(routes)],
+  exports: [RouterModule]
+})
+export class DashboardRoutingModule { }

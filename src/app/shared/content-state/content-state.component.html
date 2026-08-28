@@ -1,0 +1,53 @@
+@if (state === 'loading') {
+  <section
+    class="content-state content-state--loading"
+    [class.content-state--compact]="compact"
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+    aria-label="Carregando conteúdo"
+  >
+    <span class="visually-hidden">{{ message || 'Carregando conteúdo.' }}</span>
+
+    <div class="content-state__skeleton" aria-hidden="true">
+      @for (row of rows; track row) {
+        <div class="content-state__skeleton-row">
+          <span class="content-state__skeleton-avatar"></span>
+          <span class="content-state__skeleton-copy">
+            <span></span>
+            <span></span>
+          </span>
+        </div>
+      }
+    </div>
+  </section>
+} @else {
+  <section
+    class="content-state"
+    [class.content-state--compact]="compact"
+    [class.content-state--empty]="state === 'empty'"
+    [class.content-state--error]="state === 'error'"
+    [class.content-state--offline]="state === 'offline'"
+    [class.content-state--stale]="state === 'stale'"
+    [attr.role]="role"
+    [attr.aria-live]="liveMode"
+    aria-atomic="true"
+  >
+    <span class="content-state__icon" aria-hidden="true">{{ icon }}</span>
+
+    <div class="content-state__copy">
+      <h3>{{ title }}</h3>
+      <p>{{ message }}</p>
+    </div>
+
+    @if (actionLabel) {
+      <button
+        type="button"
+        class="content-state__action"
+        (click)="triggerAction()"
+      >
+        {{ actionLabel }}
+      </button>
+    }
+  </section>
+}

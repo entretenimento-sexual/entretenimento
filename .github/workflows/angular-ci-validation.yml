@@ -1,0 +1,117 @@
+name: Angular CI Validation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'angular.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - '.github/workflows/angular-ci-validation.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'angular.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - '.github/workflows/angular-ci-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: angular-ci-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NODE_VERSION: '22'
+
+jobs:
+  validate:
+    name: test:ci and build:emu
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Prepare logs
+        run: mkdir -p logs
+
+      - name: Install dependencies
+        id: install
+        shell: bash
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee logs/npm-ci.log
+
+      - name: Run Angular tests
+        id: angular_tests
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:ci 2>&1 | tee logs/test-ci.log
+
+      - name: Build emulator configuration
+        id: angular_build_emu
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build:emu 2>&1 | tee logs/build-emu.log
+
+      - name: Publish validation summary
+        if: always()
+        shell: bash
+        env:
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          TEST_OUTCOME: ${{ steps.angular_tests.outcome }}
+          BUILD_OUTCOME: ${{ steps.angular_build_emu.outcome }}
+        run: |
+          {
+            echo '## Angular CI Validation'
+            echo
+            echo '| Etapa | Resultado |'
+            echo '| --- | --- |'
+            echo "| npm ci | ${INSTALL_OUTCOME:-skipped} |"
+            echo "| npm run test:ci | ${TEST_OUTCOME:-skipped} |"
+            echo "| npm run build:emu | ${BUILD_OUTCOME:-skipped} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: angular-ci-validation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: logs/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce validation result
+        if: always() && steps.install.outcome == 'success'
+        shell: bash
+        env:
+          TEST_OUTCOME: ${{ steps.angular_tests.outcome }}
+          BUILD_OUTCOME: ${{ steps.angular_build_emu.outcome }}
+        run: |
+          if [[ "$TEST_OUTCOME" != 'success' || "$BUILD_OUTCOME" != 'success' ]]; then
+            echo 'A validação Angular falhou. Consulte os logs anexados ao workflow.'
+            exit 1
+          fi

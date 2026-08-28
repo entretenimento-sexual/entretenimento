@@ -1,0 +1,319 @@
+// src/app/core/services/autentication/auth/auth.facade.ts
+// =============================================================================
+// AUTH FACADE
+//
+// Responsabilidade desta facade:
+// - centralizar fluxos de autenticação usados pela UI
+// - expor estado reativo de loading
+// - encapsular register, verificação de e-mail, social auth e logout
+// - devolver resultados estruturados para a camada chamadora decidir UI/rota
+//
+// NÃO é responsabilidade desta facade:
+// - decidir regra de negócio de maioridade
+// - hidratar CurrentUserStore manualmente
+// - iniciar watchers
+// - executar side-effects de navegação automaticamente
+//
+// Observação:
+// - A camada chamadora (component, container, orchestrator ou guard) decide:
+//   - feedback visual
+//   - navegação
+//   - pós-ação
+// =============================================================================
+
+import { Injectable } from '@angular/core';
+import { BehaviorSubject, Observable, of } from 'rxjs';
+import { catchError, finalize, map } from 'rxjs/operators';
+import type { UserCredential } from 'firebase/auth';
+
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
+import { RegisterService } from '../register/register.service';
+import {
+  EmailVerificationService,
+  VerifyEmailResult,
+} from '../register/email-verification.service';
+import { LogoutService } from './logout.service';
+import { AuthSessionService } from './auth-session.service';
+import {
+  SocialAuthService,
+  SocialAuthResult,
+} from '../social-auth.service';
+import { hasAcceptedCurrentTerms } from '../../compliance/terms-acceptance.service';
+
+const RECOVERABLE_SOCIAL_AUTH_CODES = new Set([
+  'social-auth/bootstrap-failed',
+  'social-auth/new-user-write-failed',
+  'social-auth/existing-user-update-failed',
+]);
+
+export interface RegisterFacadeResult {
+  success: boolean;
+  credential?: UserCredential;
+  needsEmailVerification: boolean;
+  message?: string;
+  code?: string;
+}
+
+export type AuthFacadeSocialAuthResult = Omit<SocialAuthResult, 'nextRoute'> & {
+  nextRoute:
+    | SocialAuthResult['nextRoute']
+    | '/register/welcome'
+    | '/register/recuperar-conta'
+    | '/register/aceitar-termos';
+};
+
+@Injectable({ providedIn: 'root' })
+export class AuthFacade {
+  private readonly loadingSubject = new BehaviorSubject<boolean>(false);
+
+  /**
+   * loading$:
+   * - permite UI reativa simples
+   * - útil para botão, spinner e bloqueio temporário de ações concorrentes
+   */
+  readonly loading$: Observable<boolean> = this.loadingSubject.asObservable();
+
+  constructor(
+    private readonly registerService: RegisterService,
+    private readonly emailVerification: EmailVerificationService,
+    private readonly logoutService: LogoutService,
+    private readonly socialAuthService: SocialAuthService,
+    private readonly authSession: AuthSessionService,
+  ) {}
+
+  // ===========================================================================
+  // Helpers internos
+  // ===========================================================================
+
+  private startLoading(): void {
+    this.loadingSubject.next(true);
+  }
+
+  private stopLoading(): void {
+    this.loadingSubject.next(false);
+  }
+
+  private normalizeSocialAuthResult(
+    result: SocialAuthResult
+  ): AuthFacadeSocialAuthResult {
+    const recoveredSession = this.recoverAuthenticatedSocialFailure(result);
+
+    if (recoveredSession) {
+      return recoveredSession;
+    }
+
+    if (!result?.success) {
+      return result as AuthFacadeSocialAuthResult;
+    }
+
+    /**
+     * Usuário social autenticado, mas sem e-mail verificado, deve voltar para a
+     * tela oficial de verificação antes de qualquer etapa posterior.
+     */
+    if (result.emailVerified !== true) {
+      return {
+        ...result,
+        nextRoute: '/register/welcome',
+        message: result.message || 'Confirme seu e-mail para continuar.',
+      };
+    }
+
+    /**
+     * Contas sociais nascem com acceptedTerms.accepted=false. O aceite precisa
+     * ser explícito e persistido pelo backend antes da conclusão do perfil.
+     */
+    if (!hasAcceptedCurrentTerms(result.user?.acceptedTerms)) {
+      return {
+        ...result,
+        nextRoute: '/register/aceitar-termos',
+        message: 'Revise e aceite os termos para continuar seu cadastro.',
+      };
+    }
+
+    return result as AuthFacadeSocialAuthResult;
+  }
+
+  /**
+   * O popup do Google pode autenticar com sucesso e, depois disso, uma leitura
+   * ou atualização secundária do perfil pode falhar. Nessa situação não devemos
+   * informar que o login falhou, porque já existe uma sessão válida no Auth.
+   *
+   * A recuperação usa a rota canônica e a Cloud Function idempotente. O objeto
+   * abaixo é somente um estado transitório para navegação; não é gravado como
+   * perfil e não substitui o CurrentUserStoreService.
+   */
+  private recoverAuthenticatedSocialFailure(
+    result: SocialAuthResult
+  ): AuthFacadeSocialAuthResult | null {
+    if (result?.success) {
+      return null;
+    }
+
+    const originalCode = String(result?.code ?? '').trim();
+
+    if (!RECOVERABLE_SOCIAL_AUTH_CODES.has(originalCode)) {
+      return null;
+    }
+
+    const authUser = this.authSession.currentAuthUser;
+    const uid = String(authUser?.uid ?? '').trim();
+
+    if (!authUser || !uid) {
+      return null;
+    }
+
+    const nowMs = Date.now();
+    const transientUser = {
+      uid,
+      email: authUser.email ?? '',
+      emailVerified: authUser.emailVerified === true,
+      nickname: null,
+      photoURL: authUser.photoURL ?? null,
+      role: 'free',
+      tier: 'free',
+      isSubscriber: false,
+      profileCompleted: false,
+      acceptedTerms: {
+        accepted: false,
+        date: nowMs,
+      },
+      firstLogin: nowMs,
+      lastLogin: nowMs,
+      accountStatus: 'active',
+      suspended: false,
+      accountLocked: false,
+    } as IUserDados;
+
+    return {
+      success: true,
+      outcome: 'profile-incomplete',
+      isNewUser: originalCode === 'social-auth/new-user-write-failed',
+      emailVerified: transientUser.emailVerified === true,
+      user: transientUser,
+      nextRoute: '/register/recuperar-conta',
+      code: 'social-auth/session-recovery-required',
+      message:
+        'Login com Google concluído. Vamos confirmar os dados básicos da sua conta.',
+    };
+  }
+
+  // ===========================================================================
+  // Registro
+  // ===========================================================================
+
+  register$(
+    user: IUserRegistrationData,
+    password: string
+  ): Observable<RegisterFacadeResult> {
+    this.startLoading();
+
+    return this.registerService.registerUser(user, password).pipe(
+      map((credential) => ({
+        success: true,
+        credential,
+        needsEmailVerification: true,
+      })),
+      catchError((err: any) =>
+        of({
+          success: false,
+          needsEmailVerification: false,
+          code: err?.code,
+          message: err?.message || 'Não foi possível concluir o registro.',
+        })
+      ),
+      finalize(() => this.stopLoading())
+    );
+  }
+
+  // ===========================================================================
+  // Verificação de e-mail
+  // ===========================================================================
+
+  resendVerificationEmail$(): Observable<string> {
+    this.startLoading();
+
+    return this.emailVerification.resendVerificationEmail().pipe(
+      finalize(() => this.stopLoading())
+    );
+  }
+
+  handleEmailVerification$(): Observable<VerifyEmailResult> {
+    this.startLoading();
+
+    return this.emailVerification.handleEmailVerification().pipe(
+      finalize(() => this.stopLoading())
+    );
+  }
+
+  // ===========================================================================
+  // Social auth
+  // ===========================================================================
+
+  /**
+   * googleLogin$:
+   * - executa login social
+   * - devolve resultado estruturado, já normalizado para o fluxo de onboarding
+   * - não navega
+   * - não faz toast
+   *
+   * A UI decide:
+   * - mostrar mensagem
+   * - navegar para result.nextRoute
+   * - abrir fluxo complementar
+   */
+  googleLogin$(): Observable<AuthFacadeSocialAuthResult> {
+    this.startLoading();
+
+    return this.socialAuthService.googleLogin().pipe(
+      map((result) => this.normalizeSocialAuthResult(result)),
+      catchError((err: any) =>
+        of({
+          success: false,
+          outcome: 'error',
+          isNewUser: false,
+          emailVerified: false,
+          user: null,
+          nextRoute: null,
+          code: err?.code ?? 'auth-facade/social-login-failed',
+          message: err?.message ?? 'Não foi possível autenticar com Google agora.',
+        } as AuthFacadeSocialAuthResult)
+      ),
+      finalize(() => this.stopLoading())
+    );
+  }
+
+  // ===========================================================================
+  // Logout
+  // ===========================================================================
+
+  logout$(): Observable<void> {
+    this.startLoading();
+
+    return this.logoutService.logout$().pipe(
+      finalize(() => this.stopLoading())
+    );
+  }
+
+  logoutNow(): void {
+    this.logoutService.logout();
+  }
+}
+/*
+(1) fonte única,
+(2) hidratação / limpeza automática,
+(3) gating de listeners realtime,
+(4) observabilidade + erro centralizado.
+
+AuthSessionService como dono do UID
+authState(this.auth).pipe(shareReplay…) + uid$ com distinctUntilChanged()
+é o padrão certo: um stream, replayado, barato, e “sempre igual”.
+
+CurrentUserStoreService como dono do IUserDados
+Ter BehaviorSubject<IUserDados | null | undefined> é ótimo porque:
+undefined = “ainda não hidratei”
+null = “não logado”
+objeto = “logado e com perfil carregado”
+
+Restore seguro
+*/

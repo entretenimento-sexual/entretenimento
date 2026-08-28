@@ -1,0 +1,37 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/spec",
+    "types": [
+      "vitest/globals",
+      "node"
+    ],
+    "emitDecoratorMetadata": false,
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "src/*": ["src/*"],
+      "@app/*": ["src/app/*"],
+      "@core/*": ["src/app/core/*"],
+      "@shared/*": ["src/app/shared/*"],
+      "@env/*": ["src/environments/*"],
+      "@store/*": ["src/app/store/*"]
+    }
+  },
+  "files": [
+    "src/test/setup-vitest.ts"
+  ],
+  "include": [
+    "src/**/*.spec.ts",
+    "src/**/*.d.ts",
+    "src/app/**/*.ts",
+    "src/environments/**/*.ts",
+    "src/test/**/*.ts"
+  ],
+  "exclude": [
+    "src/main.ts",
+    "src/test/setup-jest.ts",
+    "src/test/_setup-jest.legacy.ts",
+    "src/test/**/*.legacy.ts"
+  ]
+}

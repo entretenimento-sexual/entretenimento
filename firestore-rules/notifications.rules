@@ -1,0 +1,25 @@
+// ===============================================================
+// firestore-rules/notifications.rules
+// ===============================================================
+// Notificações internas/push.
+//
+// Modelo atual:
+// - backend/Admin SDK cria notificações;
+// - Cloud Function sendNotification pode enviar FCM;
+// - cliente autenticado pode ler apenas as próprias notificações;
+// - cliente NÃO cria/edita/remove notificações nesta fase.
+//
+// Segurança:
+// - evita que usuário force push para terceiros;
+// - evita manipulação de userId/read state enquanto não houver endpoint próprio;
+// - futura marcação como lida deve passar por callable ou regra específica.
+// ===============================================================
+
+match /notifications/{notificationId} {
+  function isOwnNotification() {
+    return signedIn() && resource.data.userId == uid();
+  }
+
+  allow get, list: if isOwnNotification();
+  allow create, update, delete: if false;
+}

@@ -1,0 +1,98 @@
+/* src/app/admin-dashboard/admin-dashboard.component.css */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.admin-shell {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+  color: var(--text-color, #111827);
+}
+
+.admin-shell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.15rem 0 0.6rem;
+  border-bottom: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
+}
+
+.admin-shell h1 {
+  margin: 0;
+  font-size: clamp(1.3rem, 1.18rem + 0.55vw, 1.7rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+
+.admin-shell__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: flex-end;
+}
+
+.admin-shell__nav a {
+  min-height: 34px;
+  padding: 0 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color, #111827) 72%, transparent);
+  font-size: 0.78rem;
+  font-weight: 760;
+  text-decoration: none;
+}
+
+.admin-shell__nav a:hover,
+.admin-shell__nav a:focus-visible,
+.admin-shell__nav a.is-active {
+  border-color: color-mix(in oklab, var(--primary-color, #d64d4d) 34%, transparent);
+  background: color-mix(in oklab, var(--primary-color, #d64d4d) 8%, transparent);
+  color: var(--text-color, #111827);
+  outline: none;
+}
+
+.admin-shell__nav a.is-active {
+  color: var(--primary-color, #d64d4d);
+}
+
+@media (max-width: 760px) {
+  .admin-shell__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-shell__nav {
+    width: 100%;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 0.15rem;
+    scrollbar-width: thin;
+  }
+
+  .admin-shell__nav a {
+    flex: 0 0 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-shell__nav {
+    scroll-behavior: auto;
+  }
+}
+
+:host-context(html.high-contrast) .admin-shell__header,
+:host-context(html.high-contrast) .admin-shell__nav a {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+}

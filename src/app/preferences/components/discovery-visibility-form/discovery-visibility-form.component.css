@@ -1,0 +1,52 @@
+/* src\app\preferences\components\discovery-visibility-form\discovery-visibility-form.component.css */
+.discovery-visibility-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.form-section {
+  display: grid;
+  gap: 0.875rem;
+  padding: 1rem;
+  border: 1px solid var(--surface-border, #2b2b2b);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.section-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem;
+}
+
+.form-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.inline-item {
+  padding-top: 0.35rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}

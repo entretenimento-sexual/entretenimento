@@ -1,0 +1,21 @@
+// firestore-rules/exclusive_connection_candidates.rules
+// =========================================================================
+// EXCLUSIVE CONNECTION CANDIDATES
+// =========================================================================
+// Projeção backend-only por viewer para experiências de assinantes.
+//
+// Segurança:
+// - o navegador não lê candidatos diretamente;
+// - o navegador não grava score, intenção, região ou ordem;
+// - a callable revalida Auth, runtime de prévia e entitlement;
+// - o Admin SDK gera e consulta a projeção sanitizada;
+// - nenhum dado financeiro ou localização precisa pertence a esta coleção.
+// =========================================================================
+
+match /exclusive_connection_candidates/{viewerUid} {
+  allow read, write: if false;
+
+  match /items/{candidateUid} {
+    allow read, write: if false;
+  }
+}

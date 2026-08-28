@@ -1,0 +1,16 @@
+<!-- src/app/admin-dashboard/admin-dashboard.component.html -->
+<section class="admin-shell" aria-labelledby="admin-title">
+  <header class="admin-shell__header admin-shell__header--compact">
+    <h1 id="admin-title">Admin</h1>
+
+    <nav class="admin-shell__nav" aria-label="Navegação administrativa">
+      <a routerLink="operacional" routerLinkActive="is-active">Operacional</a>
+      <a routerLink="exclusoes" routerLinkActive="is-active">Exclusões</a>
+      <a routerLink="users" routerLinkActive="is-active">Usuários</a>
+      <a routerLink="denuncias" routerLinkActive="is-active">Denúncias</a>
+      <a routerLink="videos" routerLinkActive="is-active">Vídeos</a>
+    </nav>
+  </header>
+
+  <router-outlet></router-outlet>
+</section>

@@ -1,0 +1,162 @@
+/* src/app/layout/layout-shell/layout-shell.component.css */
+:host {
+  display: block;
+  min-height: 100dvh;
+
+  --app-sidebar-width: clamp(272px, 18vw, 320px);
+  --app-sidebar-collapsed-width: clamp(84px, 6vw, 96px);
+  --app-sidebar-gap: clamp(12px, 1.2vw, 20px);
+  --app-mobile-bottom-nav-height: 76px;
+}
+
+.auth-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--background-color);
+  color: var(--text-color);
+}
+
+/**
+ * O modo chat ocupa exatamente a altura visível da aplicação.
+ * A navbar e eventual gate permanecem no fluxo; o corpo recebe o restante.
+ */
+.auth-shell[data-chat-layout='true'] {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.auth-shell[data-chat-layout='true'] .auth-shell__body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+app-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: block;
+  width: 100%;
+  background-color: var(--header-bg);
+  color: var(--header-fg);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.auth-shell__body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.auth-shell__body--sidebar-overlay-open {
+  overflow: hidden;
+}
+
+.auth-shell__content-area {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  margin-left: calc(var(--app-sidebar-width) + var(--app-sidebar-gap));
+  transition: margin-left 220ms ease;
+}
+
+.auth-shell__content-area--compact,
+.auth-shell__content-area--collapsed {
+  margin-left: calc(var(--app-sidebar-collapsed-width) + var(--app-sidebar-gap));
+}
+
+/**
+ * No chat, a lateral de conversas deve começar imediatamente após o rail
+ * colapsado da navegação global, sem corredor visual intermediário.
+ */
+.auth-shell__content-area--chat {
+  margin-left: var(--app-sidebar-collapsed-width);
+}
+
+.auth-shell__content-area--full,
+.auth-shell__content-area--overlay {
+  margin-left: 0;
+}
+
+.auth-shell__content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(12px, 1.2vw, 24px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.auth-shell__bottom-nav {
+  display: none;
+}
+
+/**
+ * Ajuste crítico:
+ * no modo chat o shell pai não deve criar respiro visual.
+ *
+ * SUPRESSÃO EXPLÍCITA:
+ * - removido o padding global do content enquanto a rota for /chat*
+ */
+.auth-shell[data-chat-layout='true'] .auth-shell__content {
+  padding: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 767.98px) {
+  .auth-shell__content-area,
+  .auth-shell__content-area--chat,
+  .auth-shell__content-area--compact,
+  .auth-shell__content-area--collapsed,
+  .auth-shell__content-area--full,
+  .auth-shell__content-area--overlay {
+    margin-left: 0;
+  }
+
+  .auth-shell[data-shell-mode='auth']:not([data-chat-layout='true']) .auth-shell__content {
+    padding: var(--space-2) var(--space-2) calc(var(--app-mobile-bottom-nav-height) + 14px + env(safe-area-inset-bottom));
+  }
+
+  .auth-shell__bottom-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 220;
+    display: block;
+    pointer-events: auto;
+  }
+
+  .auth-shell[data-chat-layout='true'] .auth-shell__bottom-nav {
+    display: none;
+  }
+
+  .auth-shell[data-chat-layout='true'] .auth-shell__content {
+    padding: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .auth-shell[data-shell-mode='auth']:not([data-chat-layout='true']) .auth-shell__content {
+    padding: 10px 10px calc(var(--app-mobile-bottom-nav-height) + 12px + env(safe-area-inset-bottom));
+  }
+
+  .auth-shell[data-chat-layout='true'] .auth-shell__content {
+    padding: 0;
+  }
+}
+
+@media (min-width: 1600px) {
+  .auth-shell__content {
+    padding: clamp(18px, 1.5vw, 28px);
+  }
+
+  .auth-shell[data-chat-layout='true'] .auth-shell__content {
+    padding: 0;
+  }
+}

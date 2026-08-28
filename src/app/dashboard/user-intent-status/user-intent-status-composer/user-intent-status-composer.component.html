@@ -1,0 +1,232 @@
+<!-- src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.html -->
+
+@let activeStatus = (activeStatus$ | async);
+
+<section
+  class="intent-composer app-card"
+  [class.intent-composer--expanded]="isComposerExpanded"
+  [attr.aria-label]="isComposerExpanded ? 'Editar momento de 12 horas' : 'Seu momento de 12 horas'"
+>
+  <header class="intent-composer__header">
+    <div class="intent-composer__summary">
+      <span class="intent-composer__summary-icon" aria-hidden="true">
+        <i class="fas fa-clock"></i>
+      </span>
+
+      <div class="intent-composer__summary-copy">
+        <span class="intent-composer__eyebrow">
+          Seu momento · {{ activeStatus ? activeStatus.expiresInLabel : '12h' }}
+        </span>
+
+        @if (activeStatus) {
+          <strong>{{ activeStatus.availabilityLabel }}</strong>
+          <p>{{ activeStatus.destinationLabel }}</p>
+        } @else {
+          <p>Mostre onde estará e quem pode encontrar você.</p>
+        }
+      </div>
+    </div>
+
+    <div class="intent-composer__actions">
+      <button
+        type="button"
+        class="btn btn-primary intent-composer__toggle"
+        [attr.aria-expanded]="isComposerExpanded ? 'true' : 'false'"
+        [attr.aria-controls]="'intent-composer-form'"
+        (click)="toggleComposer()"
+      >
+        <i
+          class="fas"
+          [class.fa-xmark]="isComposerExpanded"
+          [class.fa-pen]="!isComposerExpanded && !!activeStatus"
+          [class.fa-plus]="!isComposerExpanded && !activeStatus"
+          aria-hidden="true"
+        ></i>
+        <span>
+          {{ isComposerExpanded ? 'Fechar' : (activeStatus ? 'Editar' : 'Definir momento') }}
+        </span>
+      </button>
+
+      @if (activeStatus) {
+        <button
+          type="button"
+          class="btn btn-ghost intent-composer__hide"
+          [disabled]="hiding"
+          (click)="hideCurrentStatus()"
+        >
+          <i class="fas fa-circle-stop" aria-hidden="true"></i>
+          <span>{{ hiding ? 'Encerrando...' : 'Encerrar' }}</span>
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (isComposerExpanded) {
+    <form
+      id="intent-composer-form"
+      class="intent-composer__form"
+      [formGroup]="form"
+      (ngSubmit)="publish()"
+    >
+      <label class="intent-composer__field">
+        <span>
+          <i class="fas fa-clock" aria-hidden="true"></i>
+          Disponibilidade
+        </span>
+        <select formControlName="availability">
+          <option value="available_now">Disponível agora</option>
+          <option value="available_today">Disponível hoje</option>
+          <option value="planning_later">Planejando ir depois</option>
+        </select>
+      </label>
+
+      <label class="intent-composer__field">
+        <span>
+          <i class="fas fa-location-dot" aria-hidden="true"></i>
+          Destino
+        </span>
+        <select formControlName="destinationKind">
+          <option value="region">Região</option>
+          <option value="venue">Local</option>
+          <option value="event">Evento</option>
+          <option value="undecided">Decidindo</option>
+        </select>
+      </label>
+
+      @if ((destinationKind$ | async) === 'venue') {
+        <section class="intent-composer__venues" aria-label="Locais disponíveis">
+          <div class="intent-composer__venues-header">
+            <strong>
+              <i class="fas fa-map-pin" aria-hidden="true"></i>
+              Locais
+            </strong>
+
+            @if (form.controls.venueId.value) {
+              <button
+                type="button"
+                class="btn btn-ghost intent-composer__clear-venue"
+                (click)="clearVenueSelection()"
+              >
+                <i class="fas fa-pen" aria-hidden="true"></i>
+                <span>Texto livre</span>
+              </button>
+            }
+          </div>
+
+          @if (venues$ | async; as venues) {
+            @if (venues.length === 0) {
+              <p class="intent-composer__venues-empty" role="status">
+                Nenhum local cadastrado nesta região.
+              </p>
+            } @else {
+              <div class="intent-composer__venue-list" role="list">
+                @for (venue of venues; track venue.id) {
+                  <button
+                    type="button"
+                    class="intent-composer__venue-option"
+                    [class.intent-composer__venue-option--selected]="form.controls.venueId.value === venue.id"
+                    (click)="applyVenue(venue)"
+                  >
+                    <strong>{{ venue.name }}</strong>
+                    <span>{{ venue.kindLabel }} · {{ venue.regionLabel }}</span>
+
+                    @if (venue.sponsorshipLabel) {
+                      <small>
+                        <i class="fas fa-star" aria-hidden="true"></i>
+                        {{ venue.sponsorshipLabel }}
+                      </small>
+                    }
+                  </button>
+                }
+              </div>
+            }
+          }
+
+          @if (selectedVenue$ | async; as selectedVenue) {
+            <p class="intent-composer__venue-selected" role="status">
+              <i class="fas fa-circle-check" aria-hidden="true"></i>
+              <strong>{{ selectedVenue.name }}</strong>
+            </p>
+          }
+        </section>
+      }
+
+      <label class="intent-composer__field intent-composer__field--wide">
+        <span>
+          <i class="fas fa-map-location-dot" aria-hidden="true"></i>
+          Região ou local
+        </span>
+        <input
+          type="text"
+          formControlName="destinationLabel"
+          maxlength="80"
+          placeholder="Centro, Zona Sul, Bar X..."
+          autocomplete="off"
+        />
+      </label>
+
+      <div class="intent-composer__row" aria-label="Região do momento">
+        <label class="intent-composer__field">
+          <span>UF</span>
+          <input
+            type="text"
+            formControlName="uf"
+            maxlength="2"
+            placeholder="RJ"
+            autocomplete="address-level1"
+          />
+        </label>
+
+        <label class="intent-composer__field">
+          <span>Cidade</span>
+          <input
+            type="text"
+            formControlName="city"
+            maxlength="80"
+            placeholder="Rio de Janeiro"
+            autocomplete="address-level2"
+          />
+        </label>
+      </div>
+
+      <label class="intent-composer__field intent-composer__field--wide">
+        <span>
+          <i class="fas fa-shield-halved" aria-hidden="true"></i>
+          Visibilidade
+        </span>
+        <select formControlName="visibility">
+          <option value="public_discovery">Descoberta pública</option>
+          <option value="members_only">Somente membros</option>
+          <option value="friends_only">Somente amigos</option>
+        </select>
+      </label>
+
+      <footer class="intent-composer__footer">
+        <p class="intent-composer__hint">
+          <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+          Expira em até 12h e pode ser encerrado antes.
+        </p>
+
+        <div class="intent-composer__footer-actions">
+          <button
+            type="button"
+            class="btn btn-ghost intent-composer__cancel"
+            [disabled]="publishing"
+            (click)="closeComposer()"
+          >
+            Cancelar
+          </button>
+
+          <button
+            type="submit"
+            class="btn btn-primary intent-composer__submit"
+            [disabled]="publishing"
+          >
+            <i class="fas fa-paper-plane" aria-hidden="true"></i>
+            <span>{{ publishing ? 'Publicando...' : 'Publicar momento' }}</span>
+          </button>
+        </div>
+      </footer>
+    </form>
+  }
+</section>

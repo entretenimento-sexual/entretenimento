@@ -1,0 +1,109 @@
+/* src\app\payments-core\pages\billing-return\billing-return.component.css */
+:host {
+  display: block;
+}
+
+.billing-return-page {
+  width: 100%;
+  min-height: 100%;
+}
+
+.billing-return-shell {
+  width: min(760px, 100%);
+  margin-inline: auto;
+  padding-block: 1rem 2rem;
+}
+
+.billing-return-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--surface-color) 96%, transparent), var(--surface-color));
+  box-shadow: var(--box-shadow);
+}
+
+.billing-return-card[data-status='granted'] {
+  border-color: color-mix(in oklab, var(--success-color) 32%, var(--surface-border));
+}
+
+.billing-return-card[data-status='failed'],
+.billing-return-card[data-status='canceled'] {
+  border-color: color-mix(in oklab, var(--danger-color) 28%, var(--surface-border));
+}
+
+.billing-return-card__icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color) 14%, transparent);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.billing-return-card__content {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.billing-return-card__eyebrow {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+}
+
+.billing-return-card h1 {
+  margin: 0;
+  font-size: clamp(1.45rem, 2vw, 2rem);
+  line-height: 1.08;
+}
+
+.billing-return-card__description,
+.billing-return-card__detail {
+  margin: 0;
+  line-height: 1.5;
+  color: color-mix(in oklab, var(--text-color) 78%, transparent);
+}
+
+.billing-return-card__progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 600;
+}
+
+.billing-return-card__progress .spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in oklab, var(--primary-color) 26%, transparent);
+  border-top-color: var(--primary-color);
+  animation: spin 0.8s linear infinite;
+}
+
+.billing-return-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.billing-return-card__actions .btn {
+  min-height: var(--tap-target);
+  padding: 0.85rem 1rem;
+}
+
+@media (max-width: 640px) {
+  .billing-return-card {
+    border-radius: 18px;
+  }
+
+  .billing-return-card__actions .btn {
+    width: 100%;
+  }
+}

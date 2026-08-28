@@ -1,0 +1,86 @@
+<!-- src/app/media/photos/shared/public-photo-lightbox/public-photo-lightbox.component.html -->
+@let photo = currentPhoto();
+<div
+  class="lightbox-backdrop"
+  (click)="close()">
+  <div
+    #dialogRoot
+    class="lightbox-dialog"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="title()"
+    tabindex="-1"
+    (click)="$event.stopPropagation()">
+
+    <header class="lightbox-header">
+      <div class="lightbox-title">
+        <strong>{{ title() }}</strong>
+        <span>{{ activeIndex() + 1 }}/{{ items().length }}</span>
+      </div>
+
+      @if (photo && profileLink()) {
+  <a
+    class="lightbox-owner"
+    [routerLink]="profileLink()"
+    (click)="close()"
+    [attr.aria-label]="'Abrir perfil de ' + getOwnerName(photo)"
+  >
+    @if (photo.ownerPhotoURL) {
+      <img
+        class="lightbox-owner__avatar"
+        [src]="photo.ownerPhotoURL"
+        [alt]="'Avatar de ' + getOwnerName(photo)"
+      />
+    }
+
+    <span>
+      <strong>{{ getOwnerName(photo) }}</strong>
+
+      @if (getOwnerLocation(photo)) {
+        <small>{{ getOwnerLocation(photo) }}</small>
+      }
+    </span>
+  </a>
+}
+
+      <button
+        type="button"
+        class="btn btn-ghost icon"
+        (click)="close()"
+        aria-label="Fechar visualização">
+        ✕
+      </button>
+    </header>
+
+    <div class="lightbox-body">
+      @if (photo) {
+        <img
+          class="lightbox-img"
+          [src]="photo.url"
+          [alt]="photo.alt || 'Foto pública ampliada'" />
+      } @else {
+        <p class="empty-state">Nenhuma foto disponível.</p>
+      }
+    </div>
+
+    <footer class="lightbox-footer">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="prev()"
+        [disabled]="!hasPrev()"
+        aria-label="Foto anterior">
+        ← Anterior
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="next()"
+        [disabled]="!hasNext()"
+        aria-label="Próxima foto">
+        Próxima →
+      </button>
+    </footer>
+  </div>
+</div>

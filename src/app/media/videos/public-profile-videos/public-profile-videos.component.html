@@ -1,0 +1,217 @@
+@let ownerUid = (ownerUid$ | async);
+@let viewerUid = (viewerUid$ | async);
+
+@if (state$ | async; as state) {
+  <section class="public-videos-page" aria-labelledby="public-profile-videos-title">
+    <header class="public-videos-header">
+      <a
+        class="back-link"
+        [routerLink]="['/perfil', ownerUid || '']"
+        aria-label="Voltar ao perfil"
+      >
+        <span aria-hidden="true">←</span>
+        <span>Voltar ao perfil</span>
+      </a>
+
+      <div class="title-block">
+        <h1 id="public-profile-videos-title">Vídeos</h1>
+      </div>
+
+      <div class="gallery-summary" aria-live="polite" aria-atomic="true">
+        @if (state.status === 'ready') {
+          <strong>{{ state.items.length }}</strong>
+          <span>
+            {{ state.items.length === 1 ? 'vídeo' : 'vídeos' }}
+            {{ state.hasMore ? 'carregados' : '' }}
+          </span>
+        } @else if (state.status === 'loading') {
+          <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
+          <span>Carregando</span>
+        } @else {
+          <strong>0</strong>
+          <span>vídeos</span>
+        }
+      </div>
+    </header>
+
+    @switch (state.status) {
+      @case ('loading') {
+        <div class="videos-skeleton" role="status" aria-live="polite">
+          <span class="visually-hidden">Carregando vídeos.</span>
+          @for (placeholder of [1, 2, 3, 4]; track placeholder) {
+            <article class="video-skeleton-card" aria-hidden="true">
+              <span class="video-skeleton-card__poster"></span>
+              <span class="video-skeleton-card__line"></span>
+              <span class="video-skeleton-card__line video-skeleton-card__line--short"></span>
+            </article>
+          }
+        </div>
+      }
+
+      @case ('error') {
+        <div class="state-card" role="alert">
+          <div class="state-card__icon" aria-hidden="true">
+            <i class="fas fa-triangle-exclamation"></i>
+          </div>
+
+          <div>
+            <h2>Não foi possível carregar os vídeos</h2>
+            <p>Tente novamente.</p>
+          </div>
+
+          <button
+            type="button"
+            class="app-action app-action--primary"
+            (click)="retry()"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      }
+
+      @case ('empty') {
+        <div class="state-card" role="status" aria-live="polite">
+          <div class="state-card__icon" aria-hidden="true">
+            <i class="fas fa-film"></i>
+          </div>
+
+          <div>
+            <h2>Nenhum vídeo disponível</h2>
+            <p>Este perfil ainda não publicou vídeos.</p>
+          </div>
+        </div>
+      }
+
+      @case ('ready') {
+        <div class="videos-grid" role="list" aria-label="Vídeos do perfil">
+          @for (
+            item of state.items;
+            track trackByVideoId($index, item);
+            let index = $index
+          ) {
+            <article class="video-card" role="listitem">
+              <button
+                type="button"
+                class="video-card__preview"
+                [appPublicVideoMetadataPreload]="item"
+                (click)="openVideo(index)"
+                [disabled]="viewerOpening()"
+                [attr.aria-busy]="isVideoOpening(item) ? 'true' : null"
+                [attr.aria-label]="getVideoAriaLabel(item, index, state.items.length)"
+              >
+                @if (hasUsablePoster(item)) {
+                  <img
+                    [src]="item.posterUrl || ''"
+                    [alt]="item.alt || item.title || 'Capa do vídeo'"
+                    [attr.loading]="index === 0 ? 'eager' : 'lazy'"
+                    [attr.fetchpriority]="index === 0 ? 'high' : null"
+                    decoding="async"
+                    referrerpolicy="no-referrer"
+                    (error)="onPosterError(item)"
+                  />
+                } @else {
+                  <span class="video-card__placeholder" aria-hidden="true">
+                    <i class="fas fa-clapperboard"></i>
+                  </span>
+                }
+
+                <span class="video-card__shade" aria-hidden="true"></span>
+
+                <span class="video-card__play" aria-hidden="true">
+                  @if (isVideoOpening(item)) {
+                    <i class="fas fa-circle-notch fa-spin"></i>
+                  } @else {
+                    <i class="fas fa-play"></i>
+                  }
+                </span>
+
+                @if (isVideoOpening(item)) {
+                  <span class="visually-hidden" role="status" aria-live="polite">
+                    Abrindo vídeo.
+                  </span>
+                }
+
+                <span class="video-card__duration">
+                  {{ formatDuration(item.durationMs) }}
+                </span>
+              </button>
+
+              <div class="video-card__body">
+                <h2>{{ item.title || 'Vídeo do perfil' }}</h2>
+
+                @if (item.description) {
+                  <p>{{ item.description }}</p>
+                }
+
+                <div class="video-card__meta">
+                  <span>
+                    <i class="fas fa-eye" aria-hidden="true"></i>
+                    {{ formatViews(item.viewsCount) }}
+                  </span>
+                </div>
+
+                <div class="video-card__actions" aria-label="Ações do vídeo">
+                  <button
+                    type="button"
+                    class="video-card__share app-action app-action--ghost"
+                    [disabled]="isVideoSharing(item)"
+                    [attr.aria-busy]="isVideoSharing(item) ? 'true' : null"
+                    [attr.aria-label]="getShareAriaLabel(item)"
+                    (click)="shareVideo(item)"
+                  >
+                    <i
+                      [class]="isVideoSharing(item) ? 'fas fa-circle-notch fa-spin' : 'fas fa-share-nodes'"
+                      aria-hidden="true"
+                    ></i>
+                    <span>Compartilhar</span>
+                  </button>
+
+                  @if (viewerUid && viewerUid !== item.ownerUid) {
+                    <app-report-content-button
+                      appearance="link"
+                      label="Denunciar vídeo"
+                      targetType="video"
+                      [targetId]="item.id"
+                      [parentTargetId]="item.id"
+                      [targetOwnerUid]="item.ownerUid"
+                      [targetAuthorUid]="item.ownerUid"
+                      [title]="item.title || 'vídeo do perfil'"
+                    />
+                  }
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+
+        @if (state.hasMore) {
+          <div class="gallery-pagination">
+            <button
+              type="button"
+              class="app-action app-action--ghost"
+              (click)="loadMoreVideos()"
+              [disabled]="state.loadingMore"
+              [attr.aria-busy]="state.loadingMore ? 'true' : null"
+              aria-label="Carregar mais vídeos públicos"
+            >
+              @if (state.loadingMore) {
+                <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
+                <span>Carregando mais</span>
+              } @else {
+                <span>Carregar mais vídeos</span>
+              }
+            </button>
+
+            <p class="visually-hidden" aria-live="polite" aria-atomic="true">
+              @if (state.loadingMore) {
+                Carregando a próxima página de vídeos.
+              } @else {
+                {{ state.items.length }} vídeos carregados.
+              }
+            </p>
+          </div>
+        }
+      }
+    }
+  </section>
+}

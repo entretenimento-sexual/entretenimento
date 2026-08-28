@@ -1,0 +1,36 @@
+@if (!decision().allowed) {
+  @let vm = viewModel();
+
+  <section
+    class="content-access-notice"
+    [class.content-access-notice--compact]="compact()"
+    role="status"
+    aria-live="polite"
+    [attr.aria-label]="vm.ariaLabel"
+  >
+    <span class="content-access-notice__icon" aria-hidden="true">
+      <i class="fas {{ vm.icon }}"></i>
+    </span>
+
+    <p>{{ vm.message }}</p>
+
+    @if (vm.actionLabel) {
+      <button
+        type="button"
+        class="content-access-notice__action"
+        [disabled]="navigating()"
+        (click)="handleAction()"
+      >
+        @if (navigating()) {
+          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          <span>Abrindo...</span>
+        } @else {
+          @if (vm.actionIcon) {
+            <i class="fas {{ vm.actionIcon }}" aria-hidden="true"></i>
+          }
+          <span>{{ vm.actionLabel }}</span>
+        }
+      </button>
+    }
+  </section>
+}

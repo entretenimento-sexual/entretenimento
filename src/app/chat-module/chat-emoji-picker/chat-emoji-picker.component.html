@@ -1,0 +1,51 @@
+<!-- src/app/chat-module/chat-emoji-picker/chat-emoji-picker.component.html -->
+<details #picker class="chat-shell__emoji-picker">
+  <summary
+    class="chat-shell__emoji-trigger"
+    aria-label="Abrir painel de emojis"
+    title="Emojis"
+  >
+    <span aria-hidden="true">😊</span>
+  </summary>
+
+  <div class="chat-shell__emoji-panel" aria-label="Painel de emojis">
+    <div class="chat-shell__emoji-panel-header">
+      <strong>Emojis</strong>
+      <span>Toque para inserir</span>
+    </div>
+
+    @if (recentEmojis.length > 0) {
+      <section class="chat-shell__emoji-group" aria-label="Emojis recentes">
+        <p>Recentes</p>
+        <div class="chat-shell__emoji-grid">
+          @for (item of recentEmojis; track item.emoji) {
+            <button
+              type="button"
+              [attr.aria-label]="item.label"
+              (click)="insertEmoji(item, picker)"
+            >
+              {{ item.emoji }}
+            </button>
+          }
+        </div>
+      </section>
+    }
+
+    @for (group of groups; track group.title) {
+      <section class="chat-shell__emoji-group" [attr.aria-label]="group.ariaLabel">
+        <p>{{ group.title }}</p>
+        <div class="chat-shell__emoji-grid">
+          @for (item of group.items; track item.emoji) {
+            <button
+              type="button"
+              [attr.aria-label]="item.label"
+              (click)="insertEmoji(item, picker)"
+            >
+              {{ item.emoji }}
+            </button>
+          }
+        </div>
+      </section>
+    }
+  </div>
+</details>

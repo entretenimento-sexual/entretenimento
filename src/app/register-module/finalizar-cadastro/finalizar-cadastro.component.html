@@ -1,0 +1,265 @@
+<!-- src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.html -->
+<div class="auth-container">
+  <section class="completion-hero" aria-labelledby="profile-completion-hero-title">
+    <span class="completion-hero__eyebrow">Cadastro seguro</span>
+
+    <h2 id="profile-completion-hero-title">Perfil básico</h2>
+
+    <p>
+      Preencha apenas o necessário para liberar sua presença inicial. Você pode ajustar fotos, preferências e detalhes depois.
+    </p>
+  </section>
+
+  <div class="form-container">
+    <h1>{{ pageTitle }}</h1>
+    <p>{{ introText }}</p>
+
+    @if (hasUnsavedChanges()) {
+      <p class="alert alert-info" role="status" aria-live="polite" aria-atomic="true">
+        Rascunho salvo neste dispositivo. Ele expira automaticamente em 24 horas.
+      </p>
+    }
+
+    @if (isSubmitting) {
+      <div class="alert alert-secondary" role="status" aria-live="polite" aria-atomic="true">
+        Salvando seus dados...
+      </div>
+    }
+
+    @if (message) {
+      <p
+        class="alert"
+        [ngClass]="{
+          'alert-error': messageKind === 'error',
+          'alert-success': messageKind === 'success',
+          'alert-warning': messageKind === 'warning',
+          'alert-info': messageKind === 'info'
+        }"
+        [attr.role]="messageKind === 'error' || messageKind === 'warning' ? 'alert' : 'status'"
+        [attr.aria-live]="messageKind === 'error' || messageKind === 'warning' ? 'assertive' : 'polite'"
+        aria-atomic="true"
+      >
+        {{ message }}
+      </p>
+    }
+
+    <form
+      ngForm
+      #form="ngForm"
+      formInvalidMessage="Revise os campos obrigatórios do perfil antes de continuar."
+      (ngSubmit)="onSubmit()"
+      novalidate
+      [attr.aria-busy]="isSubmitting || isUploading || isEditingAvatar"
+    >
+      @if (needsNickname) {
+        <div class="form-field">
+          <label for="nickname">
+            Apelido <span class="req" aria-hidden="true">*</span>
+            <span class="sr-only">(obrigatório)</span>
+          </label>
+
+          <input
+            id="nickname"
+            type="text"
+            [(ngModel)]="nickname"
+            name="nickname"
+            required
+            minlength="4"
+            maxlength="24"
+            autocomplete="nickname"
+            class="input-field"
+            placeholder="Como você quer aparecer?"
+            (input)="checkFieldValidity('nickname', nickname, 'Apelido')"
+            (blur)="checkFieldValidity('nickname', nickname, 'Apelido')"
+            [disabled]="isSubmitting"
+            [attr.aria-invalid]="isFieldInvalid('nickname') ? 'true' : 'false'"
+            [attr.aria-describedby]="isFieldInvalid('nickname') ? 'nickname-err nickname-hint' : 'nickname-hint'"
+          />
+
+          <p class="field-hint" id="nickname-hint">
+            Use de 4 a 24 caracteres. O apelido será reservado ao concluir o cadastro.
+          </p>
+
+          @if (isFieldInvalid('nickname')) {
+            <div class="tooltip-error" id="nickname-err" role="alert" aria-live="polite" aria-atomic="true">
+              {{ formErrors['nickname'] }}
+            </div>
+          }
+        </div>
+      }
+
+      <div class="form-field">
+        <label for="gender">
+          Quero me cadastrar como <span class="req" aria-hidden="true">*</span>
+          <span class="sr-only">(obrigatório)</span>
+        </label>
+
+        <select
+          id="gender"
+          [(ngModel)]="gender"
+          name="gender"
+          required
+          class="input-field"
+          (change)="checkFieldValidity('gender', gender, 'Quero me cadastrar como')"
+          (blur)="checkFieldValidity('gender', gender, 'Quero me cadastrar como')"
+          [disabled]="isSubmitting"
+          [attr.aria-invalid]="isFieldInvalid('gender') ? 'true' : 'false'"
+          [attr.aria-describedby]="isFieldInvalid('gender') ? 'gender-err' : null"
+        >
+          <option value="" disabled>Selecione...</option>
+          @for (identityOption of identityOptions; track identityOption.code) {
+            <option [value]="identityOption.code">{{ identityOption.label }}</option>
+          }
+        </select>
+
+        @if (isFieldInvalid('gender')) {
+          <div class="tooltip-error" id="gender-err" role="alert" aria-live="polite" aria-atomic="true">
+            {{ formErrors['gender'] }}
+          </div>
+        }
+      </div>
+
+      <div class="form-field">
+        <label for="orientation">Eu sou (opcional)</label>
+
+        <select
+          id="orientation"
+          [(ngModel)]="orientation"
+          name="orientation"
+          class="input-field"
+          (change)="onDraftChange()"
+          [disabled]="isSubmitting"
+        >
+          <option value="" disabled>Selecione...</option>
+          <option value="bissexual">Bissexual</option>
+          <option value="homossexual">Homossexual</option>
+          <option value="heterossexual">Heterossexual</option>
+          <option value="pansexual">Pansexual</option>
+        </select>
+      </div>
+
+      <div class="form-field">
+        <label for="estado">
+          Estado <span class="req" aria-hidden="true">*</span>
+          <span class="sr-only">(obrigatório)</span>
+        </label>
+
+        <select
+          id="estado"
+          [(ngModel)]="selectedEstado"
+          name="estado"
+          required
+          class="input-field"
+          (change)="selectedMunicipio = ''; municipios = []; onEstadoChange(); checkFieldValidity('estado', selectedEstado, 'Estado'); checkFieldValidity('municipio', selectedMunicipio, 'Município')"
+          (blur)="checkFieldValidity('estado', selectedEstado, 'Estado')"
+          [disabled]="isSubmitting"
+          [attr.aria-invalid]="isFieldInvalid('estado') ? 'true' : 'false'"
+          [attr.aria-describedby]="isFieldInvalid('estado') ? 'estado-err' : null"
+        >
+          <option value="" disabled>Selecione...</option>
+          @for (estado of estados; track estado.id) {
+            <option [value]="estado.sigla">{{ estado.nome }}</option>
+          }
+        </select>
+
+        @if (isFieldInvalid('estado')) {
+          <div class="tooltip-error" id="estado-err" role="alert" aria-live="polite" aria-atomic="true">
+            {{ formErrors['estado'] }}
+          </div>
+        }
+      </div>
+
+      <div class="form-field">
+        <label for="municipio">
+          Município <span class="req" aria-hidden="true">*</span>
+          <span class="sr-only">(obrigatório)</span>
+        </label>
+
+        <select
+          id="municipio"
+          [(ngModel)]="selectedMunicipio"
+          name="municipio"
+          required
+          class="input-field"
+          (change)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
+          (blur)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
+          [disabled]="isSubmitting || !selectedEstado || municipios.length === 0"
+          [attr.aria-invalid]="isFieldInvalid('municipio') ? 'true' : 'false'"
+          [attr.aria-describedby]="isFieldInvalid('municipio') ? 'municipio-err' : null"
+        >
+          <option value="" disabled>Selecione...</option>
+          @for (municipio of municipios; track municipio.id) {
+            <option [value]="municipio.nome">{{ municipio.nome }}</option>
+          }
+        </select>
+
+        @if (isFieldInvalid('municipio')) {
+          <div class="tooltip-error" id="municipio-err" role="alert" aria-live="polite" aria-atomic="true">
+            {{ formErrors['municipio'] }}
+          </div>
+        }
+      </div>
+
+      <div class="form-field">
+        <label for="avatar">Foto principal (opcional)</label>
+
+        <input
+          id="avatar"
+          type="file"
+          (change)="uploadFile($event)"
+          class="input-field"
+          [attr.accept]="avatarAccept"
+          [disabled]="isSubmitting || isEditingAvatar"
+          aria-describedby="avatar-hint avatar-status"
+        />
+
+        <p class="field-hint" id="avatar-hint">
+          {{ avatarFormatLabel }}, com até {{ avatarMaxMegabytes }} MB. Antes do envio, a foto será aberta no editor e enquadrada em formato quadrado.
+        </p>
+
+        <div id="avatar-status" aria-live="polite" aria-atomic="true">
+          @if (isEditingAvatar) {
+            <p class="field-hint">Preparando o editor da foto principal...</p>
+          } @else if (avatarFile) {
+            <p class="field-hint">Foto principal editada e pronta: {{ avatarFile.name }}</p>
+          }
+        </div>
+      </div>
+
+      @if (isUploading) {
+        <div class="progress-custom" aria-label="Enviando foto principal">
+          <div
+            class="progress-bar-custom"
+            role="progressbar"
+            [attr.aria-valuenow]="progressValue"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            [style.width]="progressValue + '%'"
+          >
+            {{ progressValue | number:'1.0-0' }}%
+          </div>
+        </div>
+      }
+
+      <button
+        type="submit"
+        [disabled]="isSubmitting || isLoading || isEditingAvatar"
+        class="btn-submit"
+      >
+        {{ isSubmitting ? 'Concluindo…' : 'Concluir cadastro' }}
+      </button>
+    </form>
+
+    @if (uploadMessage) {
+      <div
+        class="alert alert-warning"
+        role="alert"
+        aria-live="polite"
+        aria-atomic="true"
+        style="margin-top: var(--space-2, 12px);"
+      >
+        {{ uploadMessage }}
+      </div>
+    }
+  </div>
+</div>

@@ -1,0 +1,229 @@
+// ===============================================================
+//              firestore-rules/_helpers.rules
+// ===============================================================
+// Objetivo:
+// - Centralizar helpers de autenticação/claims/tipos realmente usados
+// - Evitar warnings do compiler (ex.: "k in map")
+// - Padronizar timestamps aceitando:
+//   (1) timestamp real (v is timestamp)
+//   (2) serverTimestamp() -> nas rules equivale a request.time
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+//
+// Observação:
+// - Para forçar “somente serverTimestamp()” em um campo específico,
+//   use: request.resource.data.campo == request.time
+// ===============================================================
+// Importante: este arquivo abre service e match /databases/... e não fecha —
+// o fechamento continua no seu _footer.rules
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Auth helpers
+    // ===============================================================
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function isSelf(userId) { return signedIn() && uid() == userId; }
+
+    // ===============================================================
+    // Acesso a conteúdo adulto público
+    // ===============================================================
+    // O Router protege a navegação, mas não é fronteira de segurança.
+    // Leituras de mídia adulta pública precisam repetir no Firestore as
+    // condições canônicas de lifecycle, termos, consentimento e reverificação.
+    function currentPrivateUserPath() {
+      return /databases/$(database)/documents/users/$(uid());
+    }
+
+    function mapFieldOrNull(data, field) {
+      return data.keys().hasAny([field]) ? data[field] : null;
+    }
+
+    function adultMediaLifecycleAllowsAccess(user) {
+      let accountStatus = mapFieldOrNull(user, "accountStatus");
+      let suspended = mapFieldOrNull(user, "suspended");
+      return suspended != true
+        && accountStatus != "self_suspended"
+        && accountStatus != "moderation_suspended"
+        && accountStatus != "pending_deletion"
+        && accountStatus != "deleted";
+    }
+
+    function adultMediaHasCurrentTerms(user) {
+      let acceptedTerms = mapFieldOrNull(user, "acceptedTerms");
+      return acceptedTerms is map
+        && acceptedTerms.keys().hasAll([
+          "accepted",
+          "version",
+          "acknowledgedPrivacyNotice"
+        ])
+        && acceptedTerms.accepted == true
+        && acceptedTerms.version == "v3"
+        && acceptedTerms.acknowledgedPrivacyNotice == true;
+    }
+
+    function adultMediaHasRequiredConsent(user) {
+      let consentRequired =
+        mapFieldOrNull(user, "initialAdultConsentRequired") != false;
+      let adultConsent = mapFieldOrNull(user, "adultConsent");
+      return !consentRequired
+        || (
+          adultConsent is map
+          && adultConsent.keys().hasAll(["accepted", "version"])
+          && adultConsent.accepted == true
+          && adultConsent.version == "v1"
+        );
+    }
+
+    function adultMediaAgeReverificationAllowsAccess(user) {
+      let ageReverification = mapFieldOrNull(user, "ageReverification");
+      let status = ageReverification is map
+        && ageReverification.keys().hasAny(["status"])
+        ? ageReverification.status
+        : null;
+      return status != "REQUIRED"
+        && status != "SUBMITTED"
+        && status != "UNDER_REVIEW"
+        && status != "EXPIRED";
+    }
+
+    function canConsumeAdultPublicMedia() {
+      let userPath = currentPrivateUserPath();
+      let user = signedIn() && exists(userPath)
+        ? get(userPath).data
+        : null;
+      return user is map
+        && adultMediaLifecycleAllowsAccess(user)
+        && adultMediaHasCurrentTerms(user)
+        && adultMediaHasRequiredConsent(user)
+        && adultMediaAgeReverificationAllowsAccess(user);
+    }
+
+    // ===============================================================
+    // Assinatura
+    // ===============================================================
+    // Entitlements são a verdade financeira e permanecem fechados ao cliente.
+    // users/{uid} contém somente uma projeção operacional, escrita pelo backend.
+    // Para autorizar, todos os campos canônicos devem concordar e a janela
+    // temporal precisa estar vigente no instante da própria requisição.
+    //
+    // A projeção é carregada uma única vez por avaliação de rank. Isso reduz o
+    // custo de expressão das Rules sem alterar a matriz Básico/Premium/VIP.
+    function activeSubscriptionProjectionIsValid(user) {
+      return user.keys().hasAll([
+          "billingProjectionVersion",
+          "isSubscriber",
+          "subscriptionStatus",
+          "subscriptionScope",
+          "subscriptionStartedAt",
+          "subscriptionEndsAt"
+        ])
+        && user.billingProjectionVersion == 1
+        && user.isSubscriber == true
+        && user.subscriptionStatus == "active"
+        && user.subscriptionScope == "platform_subscription"
+        && user.subscriptionStartedAt is timestamp
+        && user.subscriptionEndsAt is timestamp
+        && user.subscriptionStartedAt <= request.time
+        && request.time < user.subscriptionEndsAt;
+    }
+
+    function subscriptionRoleFromProjection(user) {
+      return user.keys().hasAny(["tier"])
+        ? user.tier
+        : user.keys().hasAny(["role"])
+          ? user.role
+          : null;
+    }
+
+    function subscriptionRoleRank(role) {
+      return role == "basic"
+        ? 1
+        : role == "premium"
+          ? 2
+          : role == "vip"
+            ? 3
+            : 0;
+    }
+
+    function activeSubscriptionRankFromProjection(user) {
+      return activeSubscriptionProjectionIsValid(user)
+        ? subscriptionRoleRank(subscriptionRoleFromProjection(user))
+        : 0;
+    }
+
+    function activeSubscriptionRank(userId) {
+      let userPath = /databases/$(database)/documents/users/$(userId);
+      return signedIn() && exists(userPath)
+        ? activeSubscriptionRankFromProjection(get(userPath).data)
+        : 0;
+    }
+
+    function isActiveSubscriber(userId) {
+      return activeSubscriptionRank(userId) > 0;
+    }
+
+    function activeSubscriptionRole(userId) {
+      let userPath = /databases/$(database)/documents/users/$(userId);
+      return signedIn() && exists(userPath)
+        ? subscriptionRoleFromProjection(get(userPath).data)
+        : null;
+    }
+
+    function hasMinimumActiveSubscriptionRole(userId, minimumRole) {
+      return activeSubscriptionRank(userId) >= subscriptionRoleRank(minimumRole);
+    }
+
+    // ===============================================================
+    // Timestamp helpers (timestamp real OU serverTimestamp() == request.time)
+    // ===============================================================
+    // serverTimestamp() (sentinel) chega nas rules como "request.time"
+    function isServerTime(v) { return v == request.time; }
+
+    // Aceita timestamp real ou serverTimestamp() (request.time)
+    function isTs(v) { return (v is timestamp) || isServerTime(v); }
+
+    // ===============================================================
+    // Claims helpers (usado em users.rules / admin_logs.rules)
+    // ===============================================================
+    // Evita "(k in request.auth.token)" para não disparar warning
+    function hasClaim(k) {
+      return signedIn()
+        && request.auth.token.keys().hasAny([k])
+        && request.auth.token[k] == true;
+    }
+
+    function isAdmin() { return hasClaim("admin"); }
+
+    // ===============================================================
+    // Optional fields helpers (campos opcionais)
+    // ===============================================================
+    // Para chave dinâmica (map[k]), checar keys().hasAny([k]) antes.
+    function hasReqField(k) {
+      return request.resource.data.keys().hasAny([k]);
+    }
+
+    function optString(k) {
+      return !hasReqField(k)
+        || request.resource.data[k] == null
+        || request.resource.data[k] is string;
+    }
+
+    function optNumberOrNull(k) {
+      return !hasReqField(k)
+        || request.resource.data[k] == null
+        || request.resource.data[k] is number;
+    }
+
+    function optTimestamp(k) {
+      return !hasReqField(k)
+        || request.resource.data[k] == null
+        || isTs(request.resource.data[k]);
+    }
+    // (os demais matches/arquivos entram abaixo via build)
+// ===============================================================
+//             Fim do firestore-rules/_helpers.rules
+// ===============================================================

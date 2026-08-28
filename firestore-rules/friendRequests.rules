@@ -1,0 +1,35 @@
+    // =========================================================================
+    // FRIEND.REQUESTS.RULES
+    // - Solicitações de amizade (privado)
+    //
+    // Modelo de segurança:
+    // - Leitura: somente envolvidos na solicitação.
+    // - Escrita: somente via Cloud Functions.
+    //
+    // Callables responsáveis:
+    // - sendFriendRequest
+    // - acceptFriendRequest
+    // - cancelFriendRequest
+    // - declineFriendRequest
+    //
+    // Motivo:
+    // - o cliente Angular/web/mobile não deve criar, aceitar, recusar,
+    //   cancelar ou apagar solicitações diretamente no Firestore;
+    // - Cloud Functions usam Admin SDK, validam request.auth.uid,
+    //   e-mail verificado, ownership, status pending e auditoria;
+    // - isso reduz bypass, spam social e inconsistência de estado.
+    //
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+    // uso de helpers globais
+    // =========================================================================
+    match /friendRequests/{reqId} {
+      allow read: if signedIn() &&
+        (resource.data.requesterUid == uid() ||
+         resource.data.targetUid == uid());
+
+      allow create, update, delete: if false;
+    }
+
+    // ====================================================================
+    //                        FIM DO FRIEND.REQUESTS.RULES
+    // ====================================================================

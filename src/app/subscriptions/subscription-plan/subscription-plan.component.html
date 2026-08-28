@@ -1,0 +1,203 @@
+<!-- src/app/subscriptions/subscription-plan/subscription-plan.component.html -->
+<section class="subscription-plan-container ui-container">
+  @if (vm$ | async; as vm) {
+    <header class="subscription-plan-header">
+      <p class="subscription-plan-kicker">Assinatura premium</p>
+      <h1>Planos de assinatura</h1>
+      <p class="subscription-plan-description">
+        Ative os benefícios premium da sua conta e explore a plataforma com mais liberdade.
+      </p>
+
+      <section class="subscription-plan-status-card" aria-label="Status atual da assinatura">
+        <span class="subscription-plan-status-card__eyebrow">Status atual</span>
+        <strong class="subscription-plan-status-card__title">{{ vm.statusTitle }}</strong>
+        <p class="subscription-plan-status-card__description">
+          {{ vm.statusDescription }}
+        </p>
+
+        @if (vm.currentPlanLabel) {
+          <small class="subscription-plan-status-card__support">
+            Seu plano atual: {{ vm.currentPlanLabel }}
+          </small>
+        }
+      </section>
+
+      <div class="subscription-plan-header__actions">
+        @if (vm.canGoToAccount) {
+          <button type="button" class="btn btn-secondary" (click)="goToAccount()">
+            Ir para minha conta
+          </button>
+        }
+
+        @if (vm.canGoToProfile) {
+          <button type="button" class="btn btn-secondary" (click)="goToProfile()">
+            Voltar ao perfil
+          </button>
+        }
+      </div>
+    </header>
+
+    @if (vm.communityCreationFlow) {
+      <section
+        class="subscription-plan-context"
+        aria-labelledby="subscription-plan-context-title"
+        aria-describedby="subscription-plan-context-description"
+        aria-live="polite"
+      >
+        <span class="subscription-plan-context__icon" aria-hidden="true">
+          <i class="fas fa-people-group"></i>
+        </span>
+        <div>
+          <p class="subscription-plan-context__eyebrow">Sua Comunidade</p>
+          <h2 id="subscription-plan-context-title">
+            Escolha o plano para continuar a criação
+          </h2>
+          <p id="subscription-plan-context-description">
+            @if (minimumPlanLabel(vm); as minimumPlan) {
+              {{ minimumPlan }} é o nível mínimo indicado para este passo.
+            }
+            Depois da confirmação segura da assinatura, você voltará ao
+            compositor e sua permissão será verificada novamente.
+          </p>
+        </div>
+      </section>
+    }
+
+    @if (shouldShowSubscriptionWarning$ | async) {
+      <section
+        class="subscription-plan-warning"
+        aria-labelledby="subscription-plan-warning-title"
+        aria-describedby="subscription-plan-warning-description"
+      >
+        <h2 id="subscription-plan-warning-title">
+          Assinatura com perfil em conclusão
+        </h2>
+
+        <p id="subscription-plan-warning-description">
+          Seu plano será ativado normalmente. Algumas funções sociais e de descoberta podem continuar limitadas até a conclusão do perfil.
+        </p>
+
+        <ul class="subscription-plan-warning__list">
+          <li *ngFor="let item of subscriptionWarningItems">
+            {{ item }}
+          </li>
+        </ul>
+
+        <p class="subscription-plan-warning__discreet-text">
+          Prefere mais discrição neste momento? Sem problema. Você pode assinar agora e completar o perfil depois, quando quiser liberar mais visibilidade e interação.
+        </p>
+      </section>
+    }
+
+    <section class="subscription-plan-accordions" aria-label="Atalhos e informações rápidas">
+      <details class="subscription-plan-accordion">
+        <summary>Atalhos rápidos</summary>
+
+        <div class="subscription-plan-accordion__content">
+          @if (vm.canGoToAccount) {
+            <button type="button" class="btn btn-secondary" (click)="goToAccount()">
+              Abrir minha conta
+            </button>
+          }
+
+          @if (vm.canGoToProfile) {
+            <button type="button" class="btn btn-secondary" (click)="goToProfile()">
+              Abrir meu perfil
+            </button>
+          }
+        </div>
+      </details>
+
+      <details class="subscription-plan-accordion">
+        <summary>O que muda se o perfil estiver incompleto?</summary>
+
+        <div class="subscription-plan-accordion__content">
+          <p>
+            A assinatura libera os benefícios do plano normalmente, mas algumas limitações sociais e de descoberta podem continuar até a finalização do perfil.
+          </p>
+        </div>
+      </details>
+
+      <details class="subscription-plan-accordion">
+        <summary>Como funcionam mudanças de plano?</summary>
+
+        <div class="subscription-plan-accordion__content">
+          <p>
+            Upgrades entram em vigor após a confirmação do pagamento e preservam o período já pago. Reduções de plano não são aplicadas imediatamente: elas só serão oferecidas quando a plataforma puder programá-las com segurança para o próximo ciclo.
+          </p>
+        </div>
+      </details>
+    </section>
+
+    <div class="plans-grid">
+      <article
+        class="plan"
+        *ngFor="let plan of plans"
+        [class.featured-plan]="plan.featured"
+        [class.plan--recommended]="isRecommendedPlan(plan.key, vm)"
+        [attr.data-current]="vm.subscriptionActive && vm.currentPlanKey === plan.key ? 'true' : 'false'"
+        [attr.data-recommended]="isRecommendedPlan(plan.key, vm) ? 'true' : 'false'"
+        [attr.aria-describedby]="isRecommendedPlan(plan.key, vm) ? 'plan-recommendation-' + plan.key : null"
+      >
+        <div class="plan-badges">
+          <span class="plan-badge">{{ plan.badge }}</span>
+          @if (isRecommendedPlan(plan.key, vm)) {
+            <span
+              class="plan-recommendation"
+              [id]="'plan-recommendation-' + plan.key"
+            >
+              Recomendado para continuar
+            </span>
+          }
+        </div>
+        <h2>{{ plan.title }}</h2>
+        <p class="plan-description">{{ plan.description }}</p>
+
+        <div class="plan-price-block">
+          <span class="plan-price-label">Valor</span>
+          <p class="price">{{ plan.priceLabel }}</p>
+        </div>
+
+        <ul>
+          <li *ngFor="let feature of plan.features">
+            {{ feature }}
+          </li>
+        </ul>
+
+        @if (vm.subscriptionActive && vm.currentPlanKey === plan.key) {
+          <div class="plan-current-state">
+            <strong>Este é o seu plano atual</strong>
+            <small>Para mais detalhes, acesse sua conta.</small>
+          </div>
+        }
+
+        @if (isDowngrade(plan.key, vm)) {
+          <div class="plan-requirement-state" role="note">
+            <strong>Redução preservada para o próximo ciclo</strong>
+            <small>
+              Seu plano atual e os benefícios já pagos continuam válidos. A redução ficará disponível quando puder ser programada para a próxima renovação.
+            </small>
+          </div>
+        } @else if (!planMeetsMinimum(plan.key, vm)) {
+          <div class="plan-requirement-state">
+            <strong>Este plano não atende ao passo atual</strong>
+            <small>
+              Escolha {{ minimumPlanLabel(vm) }} ou um plano superior para
+              continuar.
+            </small>
+          </div>
+        }
+
+        <button
+          class="btn btn-primary"
+          type="button"
+          [disabled]="!canSelectPlan(plan.key, vm)"
+          [attr.aria-current]="vm.subscriptionActive && vm.currentPlanKey === plan.key ? 'true' : null"
+          (click)="subscribe(plan.key, vm)"
+        >
+          {{ getPlanActionLabel(plan.key, vm) }}
+        </button>
+      </article>
+    </div>
+  }
+</section>

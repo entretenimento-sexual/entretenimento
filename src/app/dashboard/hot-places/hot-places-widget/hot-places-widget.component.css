@@ -1,0 +1,242 @@
+/* src/app/dashboard/hot-places/hot-places-widget/hot-places-widget.component.css
+   -----------------------------------------------------------------------------
+   Widget mobile-first para Locais bombando.
+   - cards horizontais no mobile;
+   - grid compacto em telas largas;
+   - estados de loading/vazio sem layout shift brusco;
+   - visual profissional, sem expor dados pessoais.
+   -----------------------------------------------------------------------------
+*/
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.hot-places,
+.hot-places.app-card {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: clamp(16px, 2vw, 22px);
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top right, color-mix(in oklab, var(--primary-color, #ff7070) 14%, transparent), transparent 38%),
+    var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
+}
+
+.hot-places__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.hot-places__eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 74%, var(--text-color, #f5f7fb));
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.hot-places h2,
+.hot-place-card h3 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  letter-spacing: -0.02em;
+}
+
+.hot-places h2 {
+  font-size: clamp(1.18rem, 1.8vw, 1.55rem);
+  font-weight: 950;
+  line-height: 1.08;
+}
+
+.hot-places__badge,
+.hot-place-card__tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding-inline: 10px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 38%, transparent);
+  border-radius: 999px;
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 74%, var(--text-color, #f5f7fb));
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.hot-places__state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 92px;
+  padding: 14px;
+  border: 1px dashed color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 82%, transparent);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 88%, var(--text-color, #f5f7fb) 4%);
+}
+
+.hot-places__state strong,
+.hot-places__state span:last-child {
+  display: block;
+}
+
+.hot-places__state strong {
+  margin-bottom: 3px;
+  font-size: 0.95rem;
+  font-weight: 920;
+}
+
+.hot-places__state span:last-child {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.hot-places__pulse,
+.hot-places__empty-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent);
+}
+
+.hot-places__pulse {
+  position: relative;
+}
+
+.hot-places__pulse::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 86%, #fff 14%);
+  animation: hot-place-pulse 1.15s ease-in-out infinite;
+}
+
+.hot-places__rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 78%);
+  gap: 12px;
+  margin-inline: -4px;
+  padding: 2px 4px 6px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+.hot-place-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 90%, transparent);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 88%, var(--text-color, #f5f7fb) 5%);
+  scroll-snap-align: start;
+}
+
+.hot-place-card__topline,
+.hot-place-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hot-place-card__topline {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: capitalize;
+}
+
+.hot-place-card__topline strong {
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 76%, var(--text-color, #f5f7fb));
+  white-space: nowrap;
+}
+
+.hot-place-card h3 {
+  font-size: 1rem;
+  font-weight: 940;
+  line-height: 1.16;
+}
+
+.hot-place-card p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.42;
+}
+
+.hot-place-card__footer {
+  margin-top: 2px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.hot-place-card__footer a {
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 82%, var(--text-color, #f5f7fb));
+  font-weight: 930;
+  text-decoration: none;
+}
+
+.hot-place-card__footer a:hover,
+.hot-place-card__footer a:focus-visible {
+  text-decoration: underline;
+}
+
+@media (min-width: 860px) {
+  .hot-places__rail {
+    grid-auto-flow: initial;
+    grid-auto-columns: initial;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .hot-places,
+  .hot-places.app-card {
+    border-radius: 16px;
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hot-places__pulse::after {
+    animation: none !important;
+  }
+}
+
+@keyframes hot-place-pulse {
+  0%, 100% {
+    opacity: 0.58;
+    transform: scale(0.86);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}

@@ -1,0 +1,438 @@
+<!-- src/app/media/photos/photo-viewer/photo-viewer.component.html -->
+@let commentThreads = (commentThreads$ | async);
+@let submittingComment = (submittingComment$ | async);
+@let submittingReply = (submittingReply$ | async);
+@let togglingLike = (togglingLike$ | async);
+@let commentLength = (commentLength$ | async);
+@let replyLength = (replyLength$ | async);
+@let likesCount = (likesCount$ | async);
+@let likedByViewer = (likedByViewer$ | async);
+@let canComment = (currentCanComment$ | async);
+@let canReact = (currentCanReact$ | async);
+@let commentDisabledReason = (commentDisabledReason$ | async);
+@let viewerUid = (viewerUid$ | async);
+@let viewerIsOwner = (viewerIsOwner$ | async);
+@let replyingToCommentId = (replyingToCommentId$ | async);
+@let moderatingCommentId = (moderatingCommentId$ | async);
+
+<section class="viewer" aria-label="Visualizador de foto">
+  <header class="viewer-header">
+    @if (data.source && current; as photo) {
+      <a
+        class="viewer-owner"
+        [routerLink]="viewerIsOwner ? ['/perfil'] : ['/outro-perfil', currentOwnerUid]"
+        [attr.aria-label]="viewerIsOwner
+          ? 'Abrir seu perfil'
+          : 'Abrir perfil de ' + (photo.ownerNickname || 'usuário')"
+      >
+        @if (photo.ownerPhotoURL) {
+          <img
+            class="viewer-owner-avatar"
+            [src]="photo.ownerPhotoURL"
+            alt=""
+            width="32"
+            height="32"
+            loading="lazy"
+          />
+        } @else {
+          <span class="viewer-owner-avatar viewer-owner-avatar--fallback" aria-hidden="true">
+            <span>●</span>
+          </span>
+        }
+
+        <span class="viewer-owner-copy">
+          <strong>{{ photo.ownerNickname || 'Perfil' }}</strong>
+
+          <span class="viewer-owner-context">
+            @if (data.source === 'profile') {
+              <span
+                class="viewer-discovery-reason"
+                aria-label="Motivo desta mídia no seu fluxo: Do perfil."
+              >
+                Do perfil
+              </span>
+            } @else if (data.continuationContext?.connectionOwnerUids?.includes(currentOwnerUid)) {
+              <span
+                class="viewer-discovery-reason"
+                aria-label="Motivo desta mídia no seu fluxo: Da sua rede."
+              >
+                Da sua rede
+              </span>
+            } @else if (data.continuationContext?.compatibleOwnerUids?.includes(currentOwnerUid)) {
+              <span
+                class="viewer-discovery-reason"
+                aria-label="Motivo desta mídia no seu fluxo: Sugestão para você."
+              >
+                Sugestão para você
+              </span>
+            } @else if (data.source === 'latest') {
+              <span
+                class="viewer-discovery-reason"
+                aria-label="Motivo desta mídia no seu fluxo: Recente."
+              >
+                Recente
+              </span>
+            } @else if (data.source === 'top') {
+              <span
+                class="viewer-discovery-reason"
+                aria-label="Motivo desta mídia no seu fluxo: Em alta."
+              >
+                Em alta
+              </span>
+            } @else if (data.source === 'boosted') {
+              <span
+                class="viewer-discovery-reason"
+                aria-label="Motivo desta mídia no seu fluxo: Em destaque."
+              >
+                Em destaque
+              </span>
+            } @else if (data.source === 'discover') {
+              <span
+                class="viewer-discovery-reason"
+                aria-label="Motivo desta mídia no seu fluxo: Descoberta."
+              >
+                Descoberta
+              </span>
+            }
+
+            <span class="viewer-owner-cta">
+              {{ viewerIsOwner ? 'Seu perfil' : 'Ver perfil' }}
+            </span>
+          </span>
+        </span>
+      </a>
+    } @else {
+      <strong class="viewer-counter" aria-live="polite">
+        {{ index + 1 }}/{{ data.items.length }}
+      </strong>
+    }
+
+    <div class="viewer-header-actions">
+      @if (data.source) {
+        <strong class="viewer-counter" aria-live="polite">
+          {{ index + 1 }}/{{ data.items.length }}
+        </strong>
+      }
+
+      <button
+        type="button"
+        class="viewer-close-btn"
+        (click)="close()"
+        aria-label="Fechar visualizador"
+      >
+        ✕
+      </button>
+    </div>
+  </header>
+
+  <span class="visually-hidden" role="status" aria-live="polite">
+    {{ continuationAnnouncement() }}
+  </span>
+
+  <div class="viewer-shell">
+    <main class="viewer-media-panel" aria-label="Foto selecionada">
+      <div class="viewer-media-frame">
+        @if (current) {
+          <img
+            class="viewer-img"
+            [src]="current.url"
+            [alt]="current.alt || 'Foto do perfil'"
+            loading="eager"
+            referrerpolicy="no-referrer"
+          />
+        } @else {
+          <p class="empty">Nenhuma foto para exibir.</p>
+        }
+      </div>
+
+      <nav class="viewer-nav" aria-label="Navegação entre fotos">
+        <button
+          type="button"
+          class="viewer-nav-btn viewer-nav-btn--prev"
+          (click)="prev()"
+          [disabled]="!hasPrev"
+          aria-label="Foto anterior"
+        >
+          ‹
+        </button>
+
+        <button
+          type="button"
+          class="viewer-nav-btn viewer-nav-btn--next"
+          (click)="next()"
+          [disabled]="!hasNext || waitingForContinuation"
+          [attr.aria-busy]="waitingForContinuation ? 'true' : null"
+          [attr.aria-label]="waitingForContinuation ? 'Carregando próxima foto' : 'Próxima foto'"
+        >
+          ›
+        </button>
+      </nav>
+    </main>
+
+    <aside class="viewer-social-panel" aria-label="Comentários e reações da foto">
+      <section class="comments-section" aria-label="Comentários da foto">
+        <header class="comments-header">
+          <h2>Comentários</h2>
+
+          <span class="comments-count" aria-live="polite">
+            {{ commentThreads?.length || 0 }}
+          </span>
+        </header>
+
+        @if ((commentThreads?.length || 0) > 0) {
+          <div class="comments-list" role="list" aria-label="Lista de comentários">
+            @for (thread of (commentThreads || []); track thread.root.id) {
+              <article class="comment-thread" role="listitem">
+                <section class="comment-item">
+                  <header class="comment-header">
+                    <div class="comment-author">
+                      <a
+                        class="comment-author-link"
+                        [routerLink]="['/outro-perfil', thread.root.authorUid]"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {{ thread.root.authorNickname || 'Usuário' }}
+                      </a>
+                    </div>
+
+                    <small class="comment-date">
+                      {{ thread.root.createdAt | date:'dd/MM HH:mm' }}
+                    </small>
+                  </header>
+
+                  <p class="comment-text">{{ thread.root.content }}</p>
+
+                  <div class="comment-actions" aria-label="Ações do comentário">
+                    @if (canShowReplyAction(thread.root, viewerIsOwner)) {
+                      <button
+                        type="button"
+                        class="comment-action"
+                        (click)="startReply(thread.root)"
+                        [disabled]="!!moderatingCommentId"
+                      >
+                        Responder
+                      </button>
+                    }
+
+                    @if (canShowHideAction(viewerIsOwner)) {
+                      <button
+                        type="button"
+                        class="comment-action"
+                        (click)="hideComment(thread.root)"
+                        [disabled]="moderatingCommentId === thread.root.id"
+                      >
+                        @if (moderatingCommentId === thread.root.id) {
+                          Ocultando...
+                        } @else {
+                          Ocultar
+                        }
+                      </button>
+                    }
+
+                    @if (canShowDeleteAction(thread.root, viewerUid, viewerIsOwner)) {
+                      <button
+                        type="button"
+                        class="comment-action comment-action--danger"
+                        (click)="deleteComment(thread.root)"
+                        [disabled]="moderatingCommentId === thread.root.id"
+                      >
+                        @if (moderatingCommentId === thread.root.id) {
+                          Removendo...
+                        } @else {
+                          Remover
+                        }
+                      </button>
+                    }
+                  </div>
+
+                  @if (isReplyingTo(thread.root, replyingToCommentId)) {
+                    <section class="reply-form" aria-label="Resposta ao comentário">
+                      <label class="visually-hidden" for="photo-reply">
+                        Responder comentário
+                      </label>
+
+                      <textarea
+                        id="photo-reply"
+                        class="comment-input reply-input"
+                        rows="2"
+                        maxlength="500"
+                        [formControl]="replyControl"
+                        [placeholder]="'Responder ' + (thread.root.authorNickname || 'usuário')"
+                      ></textarea>
+
+                      <div class="comment-form-footer">
+                        <span class="comment-meta">{{ replyLength || 0 }}/500</span>
+
+                        <div class="reply-actions">
+                          <button
+                            type="button"
+                            class="btn-cancel-reply"
+                            (click)="cancelReply()"
+                            [disabled]="!!submittingReply"
+                          >
+                            Cancelar
+                          </button>
+
+                          <button
+                            type="button"
+                            class="btn-send-comment"
+                            (click)="submitReply(thread.root, $event)"
+                            [disabled]="replyControl.invalid || !!submittingReply"
+                          >
+                            @if (submittingReply) {
+                              Respondendo...
+                            } @else {
+                              Responder
+                            }
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+                  }
+                </section>
+
+                @if (thread.replies.length > 0) {
+                  <div class="comment-replies" aria-label="Respostas do perfil">
+                    @for (reply of thread.replies; track reply.id) {
+                      <section class="comment-item comment-item--reply comment-item--owner-reply">
+                        <header class="comment-header">
+                          <span class="comment-author-link comment-author-link--owner">
+                            Perfil
+                          </span>
+
+                          <small class="comment-date">
+                            {{ reply.createdAt | date:'dd/MM HH:mm' }}
+                          </small>
+                        </header>
+
+                        <p class="comment-text">{{ reply.content }}</p>
+
+                        <div class="comment-actions" aria-label="Ações da resposta">
+                          @if (canShowHideAction(viewerIsOwner)) {
+                            <button
+                              type="button"
+                              class="comment-action"
+                              (click)="hideComment(reply)"
+                              [disabled]="moderatingCommentId === reply.id"
+                            >
+                              @if (moderatingCommentId === reply.id) {
+                                Ocultando...
+                              } @else {
+                                Ocultar
+                              }
+                            </button>
+                          }
+
+                          @if (canShowDeleteAction(reply, viewerUid, viewerIsOwner)) {
+                            <button
+                              type="button"
+                              class="comment-action comment-action--danger"
+                              (click)="deleteComment(reply)"
+                              [disabled]="moderatingCommentId === reply.id"
+                            >
+                              @if (moderatingCommentId === reply.id) {
+                                Removendo...
+                              } @else {
+                                Remover
+                              }
+                            </button>
+                          }
+                        </div>
+                      </section>
+                    }
+                  </div>
+                }
+              </article>
+            }
+          </div>
+        } @else {
+          <p class="comments-empty">Nenhum comentário visível ainda.</p>
+        }
+
+        @if (canComment) {
+          <section class="comment-form" aria-label="Novo comentário">
+            <label for="photo-comment" class="visually-hidden">
+              Escreva um comentário
+            </label>
+
+            <textarea
+              id="photo-comment"
+              class="comment-input"
+              rows="2"
+              maxlength="500"
+              [formControl]="commentControl"
+              placeholder="Escreva um comentário"
+              (keydown.control.enter)="submitComment($event)"
+            ></textarea>
+
+            <div class="comment-form-footer">
+              <span class="comment-meta">{{ commentLength || 0 }}/500</span>
+
+              <button
+                type="button"
+                class="btn-send-comment"
+                (click)="submitComment($event)"
+                [disabled]="commentControl.invalid || !!submittingComment"
+              >
+                @if (submittingComment) {
+                  Enviando...
+                } @else {
+                  Comentar
+                }
+              </button>
+            </div>
+          </section>
+        } @else {
+          <p class="comments-disabled" role="status" aria-live="polite">
+            {{ commentDisabledReason || 'Comentários indisponíveis nesta foto.' }}
+          </p>
+        }
+      </section>
+
+      <section class="reaction-bar" aria-label="Interações da foto">
+        <button
+          type="button"
+          class="reaction-button"
+          (click)="toggleLike()"
+          [disabled]="!!togglingLike || !canReact"
+          [attr.aria-pressed]="likedByViewer ? 'true' : 'false'"
+          aria-label="Curtir foto"
+        >
+          <span class="reaction-icon" aria-hidden="true">
+            @if (likedByViewer) {
+              ♥
+            } @else {
+              ♡
+            }
+          </span>
+
+          <span>
+            @if (likedByViewer) {
+              Curtido
+            } @else {
+              Curtir
+            }
+          </span>
+
+          <span class="reaction-count">{{ likesCount || 0 }}</span>
+        </button>
+
+        @if (current && viewerUid && !viewerIsOwner) {
+          <a
+            class="reaction-button"
+            [routerLink]="['/media/denunciar/photo', currentOwnerUid, current.id]"
+            aria-label="Denunciar foto"
+          >
+            <span class="reaction-icon" aria-hidden="true">⚑</span>
+            <span>Denunciar</span>
+          </a>
+        }
+
+        @if (!canReact) {
+          <span class="interaction-note">Reações indisponíveis</span>
+        }
+      </section>
+    </aside>
+  </div>
+</section>

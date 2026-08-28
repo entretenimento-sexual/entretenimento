@@ -1,0 +1,50 @@
+<!-- src\app\preferences\components\intent-state-card\intent-state-card.component.html -->
+<section class="intent-card" aria-label="Estado atual de intenção">
+  @if (intent(); as data) {
+    <header class="intent-card-header">
+      <div>
+        <h3 class="intent-card-title">Intenção atual</h3>
+        <p class="intent-card-subtitle">
+          Estado temporário do que o usuário busca neste momento.
+        </p>
+      </div>
+
+      <span class="intent-card-badge">
+        {{ modeLabel() }}
+      </span>
+    </header>
+
+    <div class="intent-card-grid" role="list">
+      <article class="intent-card-item" role="listitem">
+        <span class="intent-card-label">Disponibilidade</span>
+        <strong class="intent-card-value">{{ availabilityLabel() }}</strong>
+      </article>
+
+      <article class="intent-card-item" role="listitem">
+        <span class="intent-card-label">Cidade contextual</span>
+        <strong class="intent-card-value">
+          {{ data.cityOverride || 'Sem override' }}
+        </strong>
+      </article>
+
+      <article class="intent-card-item" role="listitem">
+        <span class="intent-card-label">Expiração</span>
+        <strong class="intent-card-value">
+          {{ data.expiresAt ? (data.expiresAt | date: 'short') : 'Sem expiração' }}
+        </strong>
+      </article>
+    </div>
+
+    @if (hasTags()) {
+      <div class="intent-tags" aria-label="Tags de contexto">
+        @for (tag of data.tags; track tag) {
+          <span class="intent-tag">{{ tag }}</span>
+        }
+      </div>
+    }
+  } @else {
+    <div class="intent-card-empty" role="status" aria-live="polite">
+      Carregando intenção atual...
+    </div>
+  }
+</section>

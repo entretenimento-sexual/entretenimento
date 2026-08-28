@@ -1,0 +1,18 @@
+// =========================================================================
+// USERS / blocks (privado) + events (auditoria)
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// uso de helpers globais
+// firestore-rules/users_blocks.rules
+// =========================================================================
+
+match /users/{ownerUid}/blocks/{targetUid} {
+  // O cliente pode consultar apenas sua própria lista de bloqueios.
+  // Estado e auditoria são alterados exclusivamente pelas Cloud Functions.
+  allow get, list: if isSelf(ownerUid);
+  allow create, update, delete: if false;
+
+  match /events/{eventId} {
+    allow get, list: if isSelf(ownerUid);
+    allow create, update, delete: if false;
+  }
+}

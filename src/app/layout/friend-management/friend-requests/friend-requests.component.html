@@ -1,0 +1,437 @@
+<!-- src/app/layout/friend-management/friend-requests/friend-requests.component.html -->
+@let inboundCount = (inboundCount$ | async) ?? 0;
+@let outboundCount = (outboundCount$ | async) ?? 0;
+@let cancelingIds = (cancelingOutboundRequestIds$ | async) || [];
+
+<section
+  class="friend-requests"
+  aria-labelledby="fr-title"
+  aria-describedby="fr-description"
+>
+  <header class="friend-requests__header">
+    <h1 id="fr-title">Solicitações de amizade</h1>
+    <p id="fr-description">
+      Gerencie convites recebidos e enviados em um só lugar.
+    </p>
+  </header>
+
+  <mat-tab-group class="friend-requests__tabs" aria-labelledby="fr-title">
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <span class="friend-requests__tab-label">
+          Recebidas
+          <span class="friend-requests__tab-count" aria-hidden="true">
+            {{ inboundCount }}
+          </span>
+          <span class="sr-only">
+            {{ inboundCount }} solicitação ou solicitações recebidas
+          </span>
+        </span>
+      </ng-template>
+
+      @if (loadingInbound$ | async) {
+        <section
+          class="friend-requests__state"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="friend-requests__loader" aria-hidden="true"></span>
+          <p>Carregando solicitações recebidas...</p>
+        </section>
+      }
+
+      @if (inbound$ | async; as requests) {
+        @if (requests.length === 0) {
+          <section class="friend-requests__state">
+            <mat-icon aria-hidden="true">person_add_disabled</mat-icon>
+            <h2>Nenhuma solicitação recebida</h2>
+            <p>Novos convites aparecerão aqui para você responder.</p>
+          </section>
+        } @else {
+          <ul class="request-list">
+            @for (req of requests; track trackById($index, req)) {
+              <li>
+                <article
+                  class="request-card request-card--inbound"
+                  [attr.aria-labelledby]="'request-inbound-' + req.id"
+                >
+                  <div class="request-card__avatar">
+                    @if (req.avatarUrl) {
+                      <img
+                        [src]="req.avatarUrl"
+                        alt="Avatar de {{ req.nickname || 'usuário' }}"
+                        loading="lazy"
+                        decoding="async"
+                        referrerpolicy="no-referrer"
+                      />
+                    } @else {
+                      <div class="request-card__avatar-fallback">
+                        <mat-icon aria-hidden="true">person</mat-icon>
+                        <span class="sr-only">Usuário sem avatar</span>
+                      </div>
+                    }
+                  </div>
+
+                  <div class="request-card__body">
+                    <header class="request-card__header">
+                      <div class="request-card__identity">
+                        <h2 [attr.id]="'request-inbound-' + req.id">
+                          {{ req.nickname || 'Usuário' }}
+                        </h2>
+                        <span
+                          class="request-card__presence"
+                          [class.request-card__presence--online]="req.isOnline"
+                        >
+                          {{ req.isOnline ? 'Online' : 'Offline' }}
+                        </span>
+                      </div>
+
+                      @if (req.role) {
+                        <span
+                          class="request-card__role"
+                          [attr.data-role]="req.role"
+                        >
+                          {{ req.role | titlecase }}
+                        </span>
+                      }
+                    </header>
+
+                    @if (
+                      req.gender ||
+                      req.age ||
+                      req.orientation ||
+                      req.municipio ||
+                      req.estado
+                    ) {
+                      <p
+                        class="request-card__meta"
+                        aria-label="Informações públicas"
+                      >
+                        @if (req.gender) {
+                          <span>{{ req.gender }}</span>
+                        }
+                        @if (req.age) {
+                          <span>{{ req.age }} anos</span>
+                        }
+                        @if (req.orientation) {
+                          <span>{{ req.orientation }}</span>
+                        }
+                        @if (req.municipio || req.estado) {
+                          <span>
+                            {{ req.municipio }}@if (req.municipio && req.estado) {, }{{ req.estado }}
+                          </span>
+                        }
+                      </p>
+                    }
+
+                    <p
+                      class="request-card__time"
+                      [attr.title]="req.createdAt | dateFormat:'datetime'"
+                      [attr.aria-label]="
+                        'Recebida em ' +
+                        (req.createdAt | dateFormat:'datetime') +
+                        '. ' +
+                        (req.createdAt | dateFormat:'elapsed')
+                      "
+                    >
+                      Recebida {{ req.createdAt | dateFormat:'elapsed' }}
+                    </p>
+
+                    @if (req.message) {
+                      <p class="request-card__message">“{{ req.message }}”</p>
+                    }
+
+                    @let media = req.photos || [];
+                    @if (media.length) {
+                      <div
+                        class="request-card__photos"
+                        role="region"
+                        [attr.aria-label]="
+                          'Fotos de ' + (req.nickname || 'usuário')
+                        "
+                      >
+                        @for (photo of (media | slice:0:4); track $index) {
+                          <a
+                            class="request-card__thumb"
+                            [href]="photo"
+                            target="_blank"
+                            rel="noopener"
+                            [attr.aria-label]="
+                              'Abrir foto ' +
+                              ($index + 1) +
+                              ' de ' +
+                              (req.nickname || 'usuário') +
+                              ' em nova aba'
+                            "
+                          >
+                            <img
+                              [src]="photo"
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              referrerpolicy="no-referrer"
+                            />
+                          </a>
+                        }
+                      </div>
+                    }
+
+                    <div
+                      class="request-card__actions"
+                      aria-label="Ações da solicitação recebida"
+                    >
+                      <button
+                        type="button"
+                        class="request-action request-action--accept"
+                        (click)="acceptRequest(req)"
+                        [attr.aria-label]="
+                          'Aceitar solicitação de ' +
+                          (req.nickname || 'usuário')
+                        "
+                      >
+                        <mat-icon aria-hidden="true">check</mat-icon>
+                        <span>Aceitar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        class="request-action request-action--decline"
+                        (click)="declineRequest(req)"
+                        [attr.aria-label]="
+                          'Recusar solicitação de ' +
+                          (req.nickname || 'usuário')
+                        "
+                      >
+                        <mat-icon aria-hidden="true">close</mat-icon>
+                        <span>Recusar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        class="request-action request-action--block"
+                        (click)="blockUser(req)"
+                        [attr.aria-label]="
+                          'Bloquear ' + (req.nickname || 'usuário')
+                        "
+                      >
+                        <mat-icon aria-hidden="true">block</mat-icon>
+                        <span>Bloquear</span>
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              </li>
+            }
+          </ul>
+        }
+      }
+    </mat-tab>
+
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <span class="friend-requests__tab-label">
+          Enviadas
+          <span class="friend-requests__tab-count" aria-hidden="true">
+            {{ outboundCount }}
+          </span>
+          <span class="sr-only">
+            {{ outboundCount }} solicitação ou solicitações enviadas
+          </span>
+        </span>
+      </ng-template>
+
+      @if (loadingOutbound$ | async) {
+        <section
+          class="friend-requests__state"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="friend-requests__loader" aria-hidden="true"></span>
+          <p>Carregando solicitações enviadas...</p>
+        </section>
+      }
+
+      @if (outbound$ | async; as sent) {
+        @if (sent.length === 0) {
+          <section class="friend-requests__state">
+            <mat-icon aria-hidden="true">outgoing_mail</mat-icon>
+            <h2>Nenhuma solicitação enviada</h2>
+            <p>Explore perfis públicos para iniciar uma nova conexão.</p>
+          </section>
+        } @else {
+          <ul class="request-list">
+            @for (req of sent; track trackById($index, req)) {
+              <li>
+                <article
+                  class="request-card request-card--outbound"
+                  [attr.aria-labelledby]="'request-outbound-' + req.id"
+                >
+                  <div class="request-card__avatar">
+                    @if (req.avatarUrl) {
+                      <img
+                        [src]="req.avatarUrl"
+                        alt="Avatar de {{ req.nickname || 'usuário' }}"
+                        loading="lazy"
+                        decoding="async"
+                        referrerpolicy="no-referrer"
+                      />
+                    } @else {
+                      <div class="request-card__avatar-fallback">
+                        <mat-icon aria-hidden="true">person</mat-icon>
+                        <span class="sr-only">Usuário sem avatar</span>
+                      </div>
+                    }
+                  </div>
+
+                  <div class="request-card__body">
+                    <header class="request-card__header">
+                      <div class="request-card__identity">
+                        <h2 [attr.id]="'request-outbound-' + req.id">
+                          {{ req.nickname || 'Usuário' }}
+                        </h2>
+                        <span
+                          class="request-card__presence"
+                          [class.request-card__presence--online]="req.isOnline"
+                        >
+                          {{ req.isOnline ? 'Online' : 'Offline' }}
+                        </span>
+                      </div>
+
+                      @if (req.role) {
+                        <span
+                          class="request-card__role"
+                          [attr.data-role]="req.role"
+                        >
+                          {{ req.role | titlecase }}
+                        </span>
+                      }
+                    </header>
+
+                    @if (
+                      req.gender ||
+                      req.age ||
+                      req.orientation ||
+                      req.municipio ||
+                      req.estado
+                    ) {
+                      <p
+                        class="request-card__meta"
+                        aria-label="Informações públicas"
+                      >
+                        @if (req.gender) {
+                          <span>{{ req.gender }}</span>
+                        }
+                        @if (req.age) {
+                          <span>{{ req.age }} anos</span>
+                        }
+                        @if (req.orientation) {
+                          <span>{{ req.orientation }}</span>
+                        }
+                        @if (req.municipio || req.estado) {
+                          <span>
+                            {{ req.municipio }}@if (req.municipio && req.estado) {, }{{ req.estado }}
+                          </span>
+                        }
+                      </p>
+                    }
+
+                    <p
+                      class="request-card__time"
+                      [attr.title]="req.createdAt | dateFormat:'datetime'"
+                      [attr.aria-label]="
+                        'Enviada em ' +
+                        (req.createdAt | dateFormat:'datetime') +
+                        '. ' +
+                        (req.createdAt | dateFormat:'elapsed')
+                      "
+                    >
+                      Enviada {{ req.createdAt | dateFormat:'elapsed' }}
+                    </p>
+
+                    @if (req.message) {
+                      <p class="request-card__message">“{{ req.message }}”</p>
+                    }
+
+                    @let media = req.photos || [];
+                    @if (media.length) {
+                      <div
+                        class="request-card__photos"
+                        role="region"
+                        [attr.aria-label]="
+                          'Fotos de ' + (req.nickname || 'usuário')
+                        "
+                      >
+                        @for (photo of (media | slice:0:4); track $index) {
+                          <a
+                            class="request-card__thumb"
+                            [href]="photo"
+                            target="_blank"
+                            rel="noopener"
+                            [attr.aria-label]="
+                              'Abrir foto ' +
+                              ($index + 1) +
+                              ' de ' +
+                              (req.nickname || 'usuário') +
+                              ' em nova aba'
+                            "
+                          >
+                            <img
+                              [src]="photo"
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              referrerpolicy="no-referrer"
+                            />
+                          </a>
+                        }
+                      </div>
+                    }
+
+                    <div
+                      class="request-card__actions"
+                      aria-label="Ações da solicitação enviada"
+                    >
+                      @let isCanceling = isCancelingRequest(cancelingIds, req.id);
+
+                      <button
+                        type="button"
+                        class="request-action request-action--cancel"
+                        (click)="cancelRequest(req)"
+                        [disabled]="isCanceling"
+                        [attr.aria-busy]="isCanceling ? 'true' : null"
+                        [attr.aria-label]="
+                          isCanceling
+                            ? 'Cancelando solicitação enviada para ' +
+                              (req.nickname || 'usuário')
+                            : 'Cancelar solicitação enviada para ' +
+                              (req.nickname || 'usuário')
+                        "
+                      >
+                        <mat-icon aria-hidden="true">
+                          {{ isCanceling ? 'hourglass_empty' : 'undo' }}
+                        </mat-icon>
+                        <span>{{ isCanceling ? 'Cancelando' : 'Cancelar' }}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        class="request-action request-action--block"
+                        (click)="blockUser(req)"
+                        [attr.aria-label]="
+                          'Bloquear ' + (req.nickname || 'usuário')
+                        "
+                      >
+                        <mat-icon aria-hidden="true">block</mat-icon>
+                        <span>Bloquear</span>
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              </li>
+            }
+          </ul>
+        }
+      }
+    </mat-tab>
+  </mat-tab-group>
+</section>

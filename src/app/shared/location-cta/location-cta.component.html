@@ -1,0 +1,20 @@
+<!-- src\app\shared\location-cta\location-cta.component.html -->
+<div class="loc-cta" [class.busy]="busy">
+  <div class="copy">
+    <ng-container [ngSwitch]="permState">
+      <p *ngSwitchCase="'granted'">Localização já permitida neste navegador.</p>
+      <p *ngSwitchCase="'prompt'">Usamos sua localização para mostrar perfis próximos. Você decide 🙂</p>
+      <p *ngSwitchCase="'denied'">Permissão negada. Reative no cadeado do navegador para continuar.</p>
+      <p *ngSwitchDefault>Seu navegador pode pedir uma confirmação.</p>
+    </ng-container>
+  </div>
+
+  <button mat-raised-button color="primary" (click)="onActivate()" [disabled]="busy">
+    {{ buttonLabel }}
+  </button>
+
+  <small class="hint">
+    Prefere informar manualmente? <a routerLink="/explorar/regiao">Escolher região</a>
+  </small>
+</div>
+

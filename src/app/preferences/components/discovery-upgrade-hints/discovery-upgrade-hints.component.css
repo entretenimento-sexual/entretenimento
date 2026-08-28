@@ -1,0 +1,75 @@
+/* src\app\preferences\components\discovery-upgrade-hints\discovery-upgrade-hints.component.css */
+.upgrade-hints {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--surface-border, #2b2b2b);
+  border-radius: 1rem;
+  background: var(--surface-color, rgba(255, 255, 255, 0.02));
+}
+
+.upgrade-hints-header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.upgrade-hints-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.upgrade-hints-subtitle {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.upgrade-hints-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.upgrade-hint-item {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.875rem;
+  border-radius: 0.875rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.upgrade-hint-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.upgrade-hint-title {
+  font-size: 0.95rem;
+}
+
+.upgrade-hint-status {
+  font-size: 0.9rem;
+}
+
+.upgrade-hint-description {
+  margin: 0;
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+
+.upgrade-hints-footer {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.upgrade-hint-footnote {
+  margin: 0;
+  opacity: 0.8;
+}
+
+@media (max-width: 720px) {
+  .upgrade-hints-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,262 @@
+// src/app/core/services/autentication/auth/logout.service.ts
+// =============================================================================
+// LOGOUT SERVICE (Auth-only)
+//
+// Objetivo:
+// - Centralizar logout voluntário e hard signout inevitável.
+// - Coordenar side-effects que pertencem ao encerramento da sessão:
+//   presença, geolocalização, signOut, limpeza de perfil runtime e navegação.
+// =============================================================================
+import {
+  EnvironmentInjector,
+  Injectable,
+  runInInjectionContext,
+} from '@angular/core';
+import { Router } from '@angular/router';
+import { Auth, signOut } from '@angular/fire/auth';
+
+import { Observable, defer, from, of, throwError } from 'rxjs';
+import {
+  catchError,
+  defaultIfEmpty,
+  finalize,
+  map,
+  switchMap,
+  take,
+} from 'rxjs/operators';
+
+import { PresenceService } from '@core/services/presence/presence.service';
+import { CurrentUserStoreService } from './current-user-store.service';
+import { AuthAppBlockService } from './auth-app-block.service';
+import { CacheService } from '@core/services/general/cache/cache.service';
+import { GeolocationTrackingService } from '@core/services/geolocation/geolocation-tracking.service';
+
+import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.types';
+import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
+
+type SignOutMode = 'strict' | 'best-effort';
+
+@Injectable({ providedIn: 'root' })
+export class LogoutService {
+  private running = false;
+
+  constructor(
+    private readonly auth: Auth,
+    private readonly router: Router,
+    private readonly presence: PresenceService,
+    private readonly geolocation: GeolocationTrackingService,
+    private readonly currentUserStore: CurrentUserStoreService,
+    private readonly appBlock: AuthAppBlockService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly errorNotifier: ErrorNotificationService,
+    private readonly envInjector: EnvironmentInjector,
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+    private readonly cache: CacheService,
+  ) {}
+
+  /**
+   * Logout voluntário:
+   * - para geolocalização e presença
+   * - faz signOut estrito
+   * - limpa CurrentUserStore/cache
+   * - limpa bloqueio de app
+   * - navega para /login
+   */
+  logout$(): Observable<void> {
+    if (this.running) return of(void 0);
+    this.running = true;
+
+    return this.stopGeolocationBestEffort$().pipe(
+      switchMap(() => this.stopPresenceBestEffort$()),
+      switchMap(() => this.executeSignOut$('strict')),
+      switchMap(() => this.clearLocalSessionDataBestEffort$()),
+      switchMap(() => this.navigateBestEffort$('/login')),
+      catchError((err) => {
+        this.reportSilent(err, { phase: 'logout$' });
+        return throwError(() => err);
+      }),
+      finalize(() => {
+        this.running = false;
+      })
+    );
+  }
+
+  logout(): void {
+    this.logout$().pipe(take(1)).subscribe({
+      next: () => {},
+      error: () => {},
+    });
+  }
+
+  /**
+   * Hard signout:
+   * - usado quando a sessão do Auth ficou tecnicamente inválida
+   * - tenta parar geolocalização e presença
+   * - faz signOut best-effort
+   * - limpa CurrentUserStore/cache
+   * - limpa bloqueio de app
+   * - redireciona para welcome com reason
+   */
+  hardSignOutToWelcome$(
+    reason: TerminateReason = 'auth-invalid'
+  ): Observable<void> {
+    if (this.running) return of(void 0);
+    this.running = true;
+
+    const url = this.router.url || '';
+
+    if (!this.inRegistrationFlow(url)) {
+      this.errorNotifier.showError(
+        'Sua sessão foi encerrada. Faça login novamente.'
+      );
+    }
+
+    return this.stopGeolocationBestEffort$().pipe(
+      switchMap(() => this.stopPresenceBestEffort$()),
+      switchMap(() => this.executeSignOut$('best-effort')),
+      switchMap(() => this.clearLocalSessionDataBestEffort$()),
+      switchMap(() => this.navigateToWelcomeBestEffort$(reason)),
+      catchError((err) => {
+        this.reportSilent(err, { phase: 'hardSignOutToWelcome$', reason });
+        return of(void 0);
+      }),
+      finalize(() => {
+        this.running = false;
+      })
+    );
+  }
+
+  hardSignOutToWelcome(reason: TerminateReason = 'auth-invalid'): void {
+    this.hardSignOutToWelcome$(reason).pipe(take(1)).subscribe({
+      next: () => {},
+      error: () => {},
+    });
+  }
+
+  private inRegistrationFlow(url: string): boolean {
+    return isRegFlow(url);
+  }
+
+  /**
+   * Geolocalização pertence à sessão autenticada.
+   * Ao encerrar a sessão removemos watcher, listener de permissão e snapshot
+   * sensível para impedir reaproveitamento pela próxima conta no mesmo browser.
+   */
+  private stopGeolocationBestEffort$(): Observable<void> {
+    return defer(() => {
+      this.geolocation.stopTracking({ clearCachedLocation: true });
+      return of(void 0);
+    }).pipe(
+      catchError((err) => {
+        this.reportSilent(err, { phase: 'stopGeolocationBestEffort$' });
+        return of(void 0);
+      })
+    );
+  }
+
+  /** Para presença antes do signOut sem bloquear o encerramento em caso de falha. */
+  private stopPresenceBestEffort$(): Observable<void> {
+    return this.presence.stop$().pipe(
+      take(1),
+      defaultIfEmpty(void 0),
+      catchError((err) => {
+        this.reportSilent(err, { phase: 'stopPresenceBestEffort$' });
+        return of(void 0);
+      })
+    );
+  }
+
+  private executeSignOut$(mode: SignOutMode): Observable<void> {
+    return defer(() =>
+      from(
+        runInInjectionContext(this.envInjector, () => signOut(this.auth))
+      )
+    ).pipe(
+      map(() => void 0),
+      catchError((err) => {
+        if (mode === 'strict') {
+          return throwError(() => err);
+        }
+
+        this.reportSilent(err, { phase: 'executeSignOut$', mode });
+        return of(void 0);
+      })
+    );
+  }
+
+  private navigateBestEffort$(path: string): Observable<void> {
+    return from(
+      this.router.navigate([path], { replaceUrl: true })
+    ).pipe(
+      catchError((err) => {
+        this.reportSilent(err, { phase: 'navigateBestEffort$', path });
+        return of(false);
+      }),
+      map(() => void 0)
+    );
+  }
+
+  private navigateToWelcomeBestEffort$(reason: TerminateReason): Observable<void> {
+    return from(
+      this.router.navigate(['/register/welcome'], {
+        queryParams: { reason, autocheck: '1' },
+        replaceUrl: true,
+      })
+    ).pipe(
+      catchError((err) => {
+        this.reportSilent(err, {
+          phase: 'navigateToWelcomeBestEffort$',
+          reason,
+        });
+        return of(false);
+      }),
+      map(() => void 0)
+    );
+  }
+
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('auth', `LogoutService: ${message}`, extra, 'warn');
+  }
+
+  private reportSilent(err: unknown, context: Record<string, unknown>): void {
+    try {
+      this.dbg('reportSilent()', {
+        context,
+        error: err,
+      });
+
+      const error = new Error('[LogoutService] internal error');
+      (error as any).silent = true;
+      (error as any).skipUserNotification = true;
+      (error as any).original = err;
+      (error as any).context = context;
+
+      this.globalErrorHandler.handleError(error);
+    } catch {
+      // noop
+    }
+  }
+
+  /**
+   * Limpeza local pós-logout.
+   * Cache sensível não deve sobreviver à sessão; falha de limpeza não bloqueia
+   * navegação/signOut.
+   */
+  private clearLocalSessionDataBestEffort$(): Observable<void> {
+    return this.cache.clearSensitiveSessionCache$().pipe(
+      catchError((err) => {
+        this.reportSilent(err, {
+          phase: 'clearLocalSessionDataBestEffort$',
+        });
+        return of(void 0);
+      }),
+      map(() => {
+        this.appBlock.clear();
+        this.currentUserStore.clear();
+        return void 0;
+      })
+    );
+  }
+}

@@ -1,0 +1,15 @@
+/* src\app\layout\friend-management\friend-settings\friend-settings.component.css */
+.friend-settings {
+  max-width: 400px;
+  margin: auto;
+  padding: 16px;
+}
+
+mat-slide-toggle {
+  display: block;
+  margin: 10px 0;
+}
+
+button {
+  margin-top: 20px;
+}

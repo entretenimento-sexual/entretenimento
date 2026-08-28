@@ -1,0 +1,220 @@
+<!-- src/app/authentication/login-component/login-component.html -->
+<div class="auth-container">
+  <section class="auth-intro" aria-labelledby="auth-intro-title">
+    <h1 id="auth-intro-title">
+      Entre. Continue de onde parou.
+    </h1>
+
+    <p>
+      Acesse sua conta para seguir com perfil, preferências e conversas.
+    </p>
+  </section>
+
+  <div class="form-container">
+    <h2 class="form-header">Entre na sua conta</h2>
+
+    <form
+      [formGroup]="loginForm"
+      (ngSubmit)="login()"
+      class="form"
+      autocomplete="on"
+      novalidate
+      [attr.aria-busy]="isLoading ? 'true' : 'false'"
+      aria-describedby="form-status"
+    >
+      <p id="form-status" class="sr-only" role="status" aria-live="polite">
+        {{ currentAssistiveStatus }}
+      </p>
+
+      <label class="field-label" for="email">E-mail</label>
+      <input
+        formControlName="email"
+        id="email"
+        class="input-field"
+        type="email"
+        name="email"
+        placeholder="seu@email.com"
+        required
+        autocomplete="email"
+        [attr.aria-invalid]="loginForm.controls['email'].touched && loginForm.controls['email'].invalid ? 'true' : 'false'"
+        [attr.aria-describedby]="loginForm.controls['email'].invalid ? 'email-error form-status' : 'form-status'"
+        (focus)="clearError()"
+      />
+      @if (loginForm.controls['email'].touched && loginForm.controls['email'].invalid) {
+        <small id="email-error" class="field-error">Informe um e-mail válido.</small>
+      }
+
+      <label class="field-label" for="password">Senha</label>
+      <div class="password-field">
+        <input
+          formControlName="password"
+          id="password"
+          class="input-field"
+          [type]="passwordInputType"
+          name="password"
+          placeholder="Sua senha"
+          required
+          autocomplete="current-password"
+          [attr.aria-invalid]="loginForm.controls['password'].touched && loginForm.controls['password'].invalid ? 'true' : 'false'"
+          [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error form-status' : 'form-status'"
+          (focus)="clearError()"
+        />
+
+        <button
+          class="password-toggle"
+          type="button"
+          (click)="togglePasswordVisibility()"
+          [disabled]="isLoading"
+          [attr.aria-label]="passwordToggleLabel"
+          [attr.aria-pressed]="isPasswordVisible ? 'true' : 'false'"
+        >
+          @if (isPasswordVisible) {
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M3 3l18 18" />
+              <path d="M10.6 5.1A10.8 10.8 0 0 1 12 5c6 0 9.5 7 9.5 7a16.5 16.5 0 0 1-2.7 3.3" />
+              <path d="M6.2 6.8A16.3 16.3 0 0 0 2.5 12s3.5 7 9.5 7c1.8 0 3.4-.5 4.8-1.2" />
+              <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+            </svg>
+          } @else {
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          }
+        </button>
+      </div>
+      @if (loginForm.controls['password'].touched && loginForm.controls['password'].invalid) {
+        <small id="password-error" class="field-error">Informe sua senha.</small>
+      }
+
+      <input
+        formControlName="honeypot"
+        class="honeypot-hidden"
+        type="text"
+        name="company"
+        tabindex="-1"
+        aria-hidden="true"
+        autocomplete="off"
+      />
+
+      <div class="login-row">
+        <div class="remember-me">
+          <input type="checkbox" id="rememberMe" formControlName="rememberMe" />
+          <label for="rememberMe">Lembrar de mim</label>
+        </div>
+
+        <button
+          class="forgot-password btn-link"
+          type="button"
+          (click)="openPasswordRecoveryModal()"
+          [disabled]="isLoading"
+          aria-label="Abrir recuperação de senha"
+        >
+          Esqueci minha senha
+        </button>
+      </div>
+
+      <div class="button-container">
+        <button
+          class="btn btn-primary"
+          type="submit"
+          [disabled]="isLoading || !(hasRequiredFields$ | async)"
+          [attr.aria-disabled]="(isLoading || !(hasRequiredFields$ | async)) ? 'true' : 'false'"
+        >
+          {{ primaryButtonLabel }}
+        </button>
+      </div>
+
+      <div class="auth-divider" aria-hidden="true">
+        <span>ou</span>
+      </div>
+
+      <button
+        class="btn-google"
+        type="button"
+        (click)="loginWithGoogle()"
+        [disabled]="isLoading"
+        [attr.aria-disabled]="isLoading ? 'true' : 'false'"
+      >
+        <span class="google-mark" aria-hidden="true">G</span>
+        <span>{{ googleButtonLabel }}</span>
+      </button>
+
+      @if (isLoading) {
+        <div class="loading-overlay" role="status" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="loading-overlay__copy">{{ loadingMessage }}</p>
+        </div>
+      }
+
+      @if (successMessage) {
+        <p id="form-success" class="alert alert-success" role="status" aria-live="polite">
+          {{ successMessage }}
+        </p>
+      }
+
+      @if (errorMessage) {
+        <p id="form-error" class="alert alert-error" role="alert" aria-live="assertive">
+          {{ errorMessage }}
+        </p>
+      }
+
+      <p class="register-link">
+        Não tem conta?
+        <a [routerLink]="['/register']">Cadastre-se</a>
+      </p>
+    </form>
+  </div>
+
+  @if (showEmailVerificationModal) {
+    <div
+      class="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="verify-title"
+      aria-describedby="verify-desc"
+    >
+      <div class="modal-content">
+        <h2 id="verify-title">Verificação de e-mail</h2>
+        <p id="verify-desc">
+          Seu e-mail ainda não foi verificado. Verifique sua caixa de entrada
+          ou reenvie o link de verificação.
+        </p>
+
+        <div class="modal-actions">
+          <button
+            class="btn btn-primary"
+            type="button"
+            (click)="resendVerificationEmail()"
+            [disabled]="isLoading"
+            [attr.aria-busy]="isResendingVerification ? 'true' : 'false'"
+          >
+            {{ isResendingVerification ? 'Reenviando...' : 'Reenviar e-mail' }}
+          </button>
+
+          <button
+            class="btn btn-primary"
+            type="button"
+            [routerLink]="['/register/welcome']"
+            [queryParams]="{ autocheck: '1' }"
+            [disabled]="isLoading"
+          >
+            Ir para verificação
+          </button>
+
+          <button
+            class="btn btn-danger"
+            type="button"
+            (click)="logout()"
+            [disabled]="isLoading"
+            [attr.aria-busy]="isLoggingOut ? 'true' : 'false'"
+          >
+            {{ isLoggingOut ? 'Saindo...' : 'Sair' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <app-email-input-modal></app-email-input-modal>
+</div>

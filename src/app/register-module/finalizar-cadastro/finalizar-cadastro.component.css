@@ -1,0 +1,335 @@
+/* src/app/authentication/finalizar-cadastro/finalizar-cadastro.component.css
+   ----------------------------------------------------------------------------
+   Finalizar Cadastro (mobile-first)
+   Objetivos:
+   - Layout clean, consistente com tokens globais (variables.css)
+   - Acessível (focus-visible, alvos de toque)
+   - Responsivo real (desktop → 350px)
+   - Sem “pulos” de layout desnecessários
+   ----------------------------------------------------------------------------
+*/
+
+/* Evita dependência de @import de fontes aqui.
+   Sua plataforma já define família em variables.css/global-layout.css. */
+:host {
+  display: block;
+}
+
+/* ----------------------------------------------------------------------------
+   1) Layout base (centralizado, mas respeitando telas pequenas)
+   - Usa dvh/svh para evitar bugs de 100vh no mobile (barra do navegador).
+   - Usa gutters e safe-area definidos no seu design system.
+---------------------------------------------------------------------------- */
+.auth-container {
+  min-height: 100svh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding:
+    calc(var(--space-4, 24px) + var(--safe-top, 0px)) var(--gutter, 16px) calc(var(--space-5, 40px) + var(--safe-bottom, 0px));
+
+  background: var(--background-color);
+  color: var(--text-color);
+}
+
+/* ----------------------------------------------------------------------------
+   2) Card do formulário (superfície)
+---------------------------------------------------------------------------- */
+.form-container {
+  width: min(100%, 560px);
+  background: var(--surface-color);
+  color: var(--text-color);
+
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--box-shadow);
+
+  padding: clamp(18px, 3vw, 28px);
+  text-align: left;
+}
+
+.form-container h1 {
+  margin: 0 0 var(--space-2, 12px);
+  font-size: clamp(1.2rem, 1rem + 0.8vw, 1.65rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+
+.form-container h3 {
+  margin: var(--space-3, 16px) 0 var(--space-2, 12px);
+  font-size: 1.05rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.form-container p {
+  margin: 0 0 var(--space-2, 12px);
+  color: color-mix(in oklab, var(--text-color) 82%, transparent);
+  text-align: center;
+}
+
+.form-container>form {
+  margin-top: var(--space-3, 16px);
+}
+
+/* ----------------------------------------------------------------------------
+   3) Form (grid com gap)
+---------------------------------------------------------------------------- */
+form {
+  display: grid;
+  gap: var(--space-2, 12px);
+}
+
+.form-field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-top: var(--space-1, 8px);
+  color: var(--text-color);
+}
+
+/* ----------------------------------------------------------------------------
+   4) Campos (touch targets + contraste + foco)
+---------------------------------------------------------------------------- */
+select,
+.input-field,
+input[type="file"] {
+  width: 100%;
+  min-height: var(--tap-target, 44px);
+  padding: 10px 12px;
+
+  border: 1px solid color-mix(in oklab, var(--text-color) 18%, transparent);
+  border-radius: var(--radius-md, 8px);
+
+  font-size: 1rem;
+  line-height: 1.25;
+
+  background: var(--input-background);
+  color: var(--text-color);
+  margin: 0;
+
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+select:focus,
+.input-field:focus,
+input[type="file"]:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary-color) 30%, transparent);
+}
+
+.input-field.ng-invalid.ng-touched,
+select.ng-invalid.ng-touched {
+  border-color: var(--danger-color);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--danger-color) 25%, transparent);
+}
+
+/* ----------------------------------------------------------------------------
+   5) Mensagens
+---------------------------------------------------------------------------- */
+.alert {
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 12px;
+  margin: 0 0 var(--space-2, 12px);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.alert.error-message {
+  background: var(--danger-color);
+  color: #fff;
+  border: 1px solid color-mix(in oklab, #fff 20%, transparent);
+}
+
+.alert.success-message {
+  background: var(--success-color);
+  color: #fff;
+  border: 1px solid color-mix(in oklab, #fff 20%, transparent);
+}
+
+.alert.alert-warning {
+  margin-top: var(--space-2, 12px);
+}
+
+form .error-message {
+  margin-top: -6px;
+  margin-bottom: 6px;
+
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--danger-color);
+
+  background: color-mix(in oklab, var(--danger-color) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--danger-color) 20%, transparent);
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+
+/* ----------------------------------------------------------------------------
+   6) Botões (touch-friendly + estados)
+---------------------------------------------------------------------------- */
+.btn-submit {
+  width: 100%;
+  min-height: var(--tap-target, 44px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+
+  padding: 12px 14px;
+  border: none;
+  border-radius: var(--radius-md, 8px);
+
+  background: var(--primary-color);
+  color: #fff;
+
+  font-size: 1rem;
+  font-weight: 700;
+
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.15s ease, opacity 0.2s ease;
+}
+
+.btn-submit:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-submit:active {
+  transform: translateY(0);
+}
+
+.btn-submit[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ----------------------------------------------------------------------------
+   7) Progress bar
+---------------------------------------------------------------------------- */
+.progress-custom {
+  width: 100%;
+  background: color-mix(in oklab, var(--text-color) 10%, transparent);
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.progress-bar-custom {
+  height: 18px;
+  width: 0%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+
+  background: var(--primary-color);
+  transition: width 0.25s ease;
+}
+
+/* ----------------------------------------------------------------------------
+   8) Erros de campo em fluxo normal
+   - Reservam espaço real no layout e não cobrem o campo seguinte no mobile.
+---------------------------------------------------------------------------- */
+.req {
+  color: var(--danger-color);
+  font-weight: 800;
+  margin-left: 4px;
+}
+
+.field-hint {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+}
+
+.form-field .tooltip-error {
+  position: static;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 7px 9px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--danger-color) 10%, var(--surface-color));
+  color: var(--danger-color);
+  border: 1px solid color-mix(in oklab, var(--danger-color) 24%, transparent);
+  box-shadow: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.form-field .tooltip-error::before {
+  content: none;
+}
+
+/* ----------------------------------------------------------------------------
+   9) Ajustes de responsividade real (inclui 350px)
+---------------------------------------------------------------------------- */
+@media (max-width: 520px) {
+  .auth-container {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .form-container {
+    width: 100%;
+    border-radius: var(--radius-md, 10px);
+    padding: clamp(16px, 4vw, 22px);
+  }
+
+  .form-container h1 {
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 350px) {
+  .form-container {
+    padding: 14px;
+  }
+
+  select,
+  .input-field,
+  input[type="file"],
+  .btn-submit {
+    font-size: 0.95rem;
+  }
+
+  form .error-message,
+  .form-field .tooltip-error {
+    font-size: 0.85rem;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   10) Preferência do usuário (movimento reduzido)
+---------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+
+  .btn-submit,
+  select,
+  .input-field,
+  .progress-bar-custom {
+    transition: none !important;
+  }
+}

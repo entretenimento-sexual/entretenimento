@@ -1,0 +1,143 @@
+/* src/app/dashboard/discovery/discovery-mode-tabs/discovery-mode-tabs.component.css */
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+
+  --tabs-border: color-mix(in oklab, var(--surface-border) 78%, transparent);
+  --tabs-text: color-mix(in oklab, var(--text-color) 58%, transparent);
+  --tabs-active: var(--text-color);
+}
+
+.discovery-tabs-shell {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.discovery-tabs-shell::-webkit-scrollbar {
+  display: none;
+}
+
+.discovery-tabs {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.1rem;
+  width: 100%;
+  min-width: max-content;
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--tabs-border);
+}
+
+.discovery-tabs__item {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: max-content;
+  min-height: 44px;
+  padding: 0.62rem 0.82rem 0.55rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--tabs-text);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.discovery-tabs__item:hover:not(:disabled) {
+  color: var(--tabs-active);
+  background: color-mix(in oklab, var(--primary-color) 5%, transparent);
+}
+
+.discovery-tabs__item:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color));
+  outline-offset: calc(var(--focus-offset, 2px) * -1);
+}
+
+.discovery-tabs__item--active,
+.discovery-tabs__item[aria-current="page"] {
+  border-bottom-color: var(--primary-color);
+  color: var(--tabs-active);
+}
+
+.discovery-tabs__item--disabled,
+.discovery-tabs__item:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.discovery-tabs__item i {
+  width: 0.95rem;
+  min-width: 0.95rem;
+  font-size: 0.82rem;
+  line-height: 1;
+  text-align: center;
+}
+
+.discovery-tabs__label {
+  display: inline-block;
+  min-width: 0;
+}
+
+:host-context(.dark-mode) {
+  --tabs-border: color-mix(in oklab, var(--surface-border) 68%, #ffffff 8%);
+  --tabs-text: color-mix(in oklab, var(--text-color) 62%, transparent);
+}
+
+:host-context(.high-contrast) {
+  --tabs-border: var(--text-color);
+  --tabs-text: var(--text-color);
+  --tabs-active: var(--text-color);
+}
+
+:host-context(.high-contrast) .discovery-tabs {
+  border-bottom-width: 2px;
+}
+
+:host-context(.high-contrast) .discovery-tabs__item--active,
+:host-context(.high-contrast) .discovery-tabs__item[aria-current="page"] {
+  border-bottom-color: currentColor;
+}
+
+@media (max-width: 767.98px) {
+  .discovery-tabs {
+    justify-content: flex-start;
+  }
+
+  .discovery-tabs__item {
+    min-height: 44px;
+    padding-inline: 0.7rem;
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .discovery-tabs__item {
+    gap: 0.28rem;
+    padding-inline: 0.58rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .discovery-tabs__item {
+    transition: none;
+  }
+}

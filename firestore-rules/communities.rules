@@ -1,0 +1,283 @@
+// =============================================================================
+// COMMUNITIES
+// =============================================================================
+// Comunidades sociais próprias ou infraestrutura social vinculada a Locais.
+// Salas pertencem exclusivamente ao domínio de conversas.
+//
+// Segurança:
+// - usuário autenticado pode abrir uma comunidade com prévia pública;
+// - membro ativo pode abrir comunidade restrita;
+// - membership bloqueada nega acesso inclusive à prévia;
+// - listagem global direta fica bloqueada até existir projeção/callable paginada;
+// - criação, adesão, moderação e mutações são exclusivas do backend;
+// - o cliente só pode ler o próprio documento de membership;
+// - conteúdo integral do mural/tópicos, índices, idempotência e auditoria são backend-only;
+// - realtime do Mural expõe apenas metadados mínimos sem conteúdo ou identidade.
+// =============================================================================
+
+match /communities/{communityId} {
+  function communityMembershipPath() {
+    return /databases/$(database)/documents/communities/$(communityId)/members/$(uid());
+  }
+
+  function communityMembershipExists() {
+    return signedIn() && exists(communityMembershipPath());
+  }
+
+  function communityMembershipStatus() {
+    return get(communityMembershipPath()).data.status;
+  }
+
+  function hasActiveCommunityMembership() {
+    return communityMembershipExists()
+      && communityMembershipStatus() == "active";
+  }
+
+  function hasBlockedCommunityMembership() {
+    return communityMembershipExists()
+      && communityMembershipStatus() == "blocked";
+  }
+
+  function isPublicPreviewCommunity() {
+    return resource.data.status == "active"
+      && resource.data.moderation.state == "active"
+      && resource.data.visibility == "public_preview"
+      && resource.data.access.preview == "authenticated";
+  }
+
+  allow get: if signedIn()
+    && !hasBlockedCommunityMembership()
+    && (
+      isPublicPreviewCommunity()
+      || hasActiveCommunityMembership()
+    );
+
+  // Descoberta será feita por projeção/callable, evitando enumeração direta.
+  allow list: if false;
+
+  // Admin SDK não depende destas permissões.
+  allow create, update, delete: if false;
+}
+
+match /communities/{communityId}/members/{memberUid} {
+  // O usuário conhece somente o próprio vínculo e papel.
+  allow get: if signedIn() && memberUid == uid();
+
+  // Listas de membros, adesão e mudanças de papel passam pelo backend.
+  allow list, create, update, delete: if false;
+}
+
+// Projeção sanitizada usada exclusivamente pela callable de descoberta.
+match /community_discovery_index/{communityId} {
+  allow read, write: if false;
+}
+
+// Mural público/membros sanitizado. Mesmo itens públicos passam pela callable,
+// que revalida comunidade, membership e audiência antes de responder.
+match /community_public_feed/{communityId} {
+  allow read, write: if false;
+}
+
+match /community_public_feed/{communityId}/items/{postId} {
+  allow read, write: if false;
+}
+
+// Stream realtime mínimo do Mural. Não contém texto, autor, UID, audiência,
+// storage path, URL de mídia ou moderação interna. O conteúdo completo segue
+// backend-only e é hidratado por callable. Escrita permanece sempre negada.
+match /community_feed_realtime/{communityId} {
+  allow read, write: if false;
+}
+
+match /community_feed_realtime/{communityId}/items/{postId} {
+  function realtimeCommunityPath() {
+    return /databases/$(database)/documents/communities/$(communityId);
+  }
+
+  function realtimeMembershipPath() {
+    return /databases/$(database)/documents/communities/$(communityId)/members/$(uid());
+  }
+
+  function realtimeMembershipHasStatus(status) {
+    return signedIn()
+      && exists(realtimeMembershipPath())
+      && get(realtimeMembershipPath()).data.status == status;
+  }
+
+  function realtimeCommunityAllowsPreview() {
+    return exists(realtimeCommunityPath())
+      && get(realtimeCommunityPath()).data.status == "active"
+      && get(realtimeCommunityPath()).data.moderation.state == "active"
+      && get(realtimeCommunityPath()).data.visibility == "public_preview"
+      && get(realtimeCommunityPath()).data.access.preview == "authenticated";
+  }
+
+  function canReadRealtimeCommunityFeed() {
+    return signedIn()
+      && !realtimeMembershipHasStatus("blocked")
+      && (
+        realtimeCommunityAllowsPreview()
+        || realtimeMembershipHasStatus("active")
+      );
+  }
+
+  allow get, list: if canReadRealtimeCommunityFeed();
+  allow create, update, delete: if false;
+}
+
+// Tópicos persistentes usam a mesma fronteira do Mural: a projeção nunca é
+// consultada diretamente pelo navegador. A callable revalida a audiência.
+match /community_public_topics/{communityId} {
+  allow read, write: if false;
+}
+
+match /community_public_topics/{communityId}/items/{topicId} {
+  allow read, write: if false;
+}
+
+match /community_public_topics/{communityId}/items/{topicId}/replies/{replyId} {
+  allow read, write: if false;
+}
+
+// Escrita operacional, idempotência, rate limit e auditoria do Mural são
+// exclusivamente backend. A projeção pública também é servida por callable.
+match /community_feed_posts/{communityId}/items/{postId} {
+  allow read, write: if false;
+}
+
+match /community_feed_posts/{communityId}/items/{postId}/reactions/{userId} {
+  allow read, write: if false;
+}
+
+match /community_feed_posts/{communityId}/items/{postId}/comments/{commentId} {
+  allow read, write: if false;
+}
+
+// Respostas de comentário permanecem backend-only mesmo quando o comentário é
+// visível em authenticated preview. A leitura sanitizada passa pela callable.
+match /community_feed_posts/{communityId}/items/{postId}/comments/{commentId}/replies/{replyId} {
+  allow read, write: if false;
+}
+
+match /community_feed_requests/{requestId} {
+  allow read, write: if false;
+}
+
+match /community_feed_user_state/{userId} {
+  allow read, write: if false;
+}
+
+match /community_feed_user_posts/{userId} {
+  allow read, write: if false;
+}
+
+match /community_feed_user_posts/{userId}/items/{pointerId} {
+  allow read, write: if false;
+}
+
+match /community_feed_user_actions/{userId} {
+  allow read, write: if false;
+}
+
+match /community_feed_user_actions/{userId}/items/{pointerId} {
+  allow read, write: if false;
+}
+
+match /community_feed_user_reactions/{userId} {
+  allow read, write: if false;
+}
+
+match /community_feed_user_reactions/{userId}/items/{pointerId} {
+  allow read, write: if false;
+}
+
+match /community_feed_user_comments/{userId} {
+  allow read, write: if false;
+}
+
+match /community_feed_user_comments/{userId}/items/{pointerId} {
+  allow read, write: if false;
+}
+
+match /community_feed_user_replies/{userId} {
+  allow read, write: if false;
+}
+
+match /community_feed_user_replies/{userId}/items/{pointerId} {
+  allow read, write: if false;
+}
+
+match /community_feed_audit/{auditId} {
+  allow read, write: if false;
+}
+
+// Estado operacional dos Tópicos contém UID, texto integral, moderação e trilha
+// de escrita. Somente Functions/Admin SDK podem acessá-lo.
+match /community_topics/{communityId} {
+  allow read, write: if false;
+}
+
+match /community_topics/{communityId}/items/{topicId} {
+  allow read, write: if false;
+}
+
+match /community_topics/{communityId}/items/{topicId}/replies/{replyId} {
+  allow read, write: if false;
+}
+
+// Idempotência, rate limit e auditoria de Tópicos também são backend-only.
+match /community_topic_requests/{requestId} {
+  allow read, write: if false;
+}
+
+match /community_topic_user_state/{userId} {
+  allow read, write: if false;
+}
+
+match /community_topic_audit/{auditId} {
+  allow read, write: if false;
+}
+
+// Auditoria de solicitações, entradas e criação comunitária.
+match /community_membership_audit/{auditId} {
+  allow read, write: if false;
+}
+
+// Registros idempotentes contêm ator e identificadores internos e nunca devem
+// ser consultados ou alterados pelo navegador.
+match /community_creation_requests/{requestId} {
+  allow read, write: if false;
+}
+
+match /venue_community_creation_requests/{requestId} {
+  allow read, write: if false;
+}
+
+// Concessões de cadastro comercial são emitidas e lidas somente pelo backend.
+match /official_space_creation_grants/{userId} {
+  allow read, write: if false;
+}
+
+// Configurações privadas, idempotência e auditoria são exclusivamente backend.
+match /community_settings_requests/{requestId} {
+  allow read, write: if false;
+}
+
+match /community_settings_audit/{auditId} {
+  allow read, write: if false;
+}
+
+// Projeção privada das Comunidades e Locais do próprio usuário. Continua
+// backend-only; a leitura sanitizada ocorre por callable paginada.
+match /community_user_index/{userId}/items/{communityId} {
+  allow read, write: if false;
+}
+
+// Cursor do Scheduler e trilha de transições do lifecycle nunca são dados de UI.
+match /community_lifecycle_runtime/{runtimeId} {
+  allow read, write: if false;
+}
+
+match /community_lifecycle_audit/{auditId} {
+  allow read, write: if false;
+}

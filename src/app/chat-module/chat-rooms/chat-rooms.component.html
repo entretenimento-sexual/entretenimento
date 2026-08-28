@@ -1,0 +1,163 @@
+<!-- src/app/chat-module/chat-rooms/chat-rooms.component.html -->
+@if (roomsVm$ | async; as vm) {
+  <main class="chat-rooms" aria-labelledby="chat-rooms-title">
+    <header class="chat-rooms__toolbar chat-rooms__toolbar--compact">
+      <h1 id="chat-rooms-title">Salas</h1>
+
+      <button
+        type="button"
+        class="chat-rooms__create-action"
+        [disabled]="creatingRoom || vm.loading || vm.hasOwnedActiveRoom"
+        [attr.aria-describedby]="vm.hasOwnedActiveRoom ? 'rooms-create-limit' : null"
+        (click)="openCreateRoomModal()"
+      >
+        @if (creatingRoom) {
+          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          <span>Criando</span>
+        } @else if (vm.hasOwnedActiveRoom) {
+          <i class="fas fa-check" aria-hidden="true"></i>
+          <span>Sala ativa</span>
+        } @else {
+          <i class="fas fa-plus" aria-hidden="true"></i>
+          <span>Criar</span>
+        }
+      </button>
+    </header>
+
+    @if (vm.hasOwnedActiveRoom) {
+      <p id="rooms-create-limit" class="chat-rooms__limit-note" role="status">
+        Uma sala própria ativa por vez.
+      </p>
+    }
+
+    <section class="chat-rooms__collection" aria-label="Salas do usuário">
+      @if (vm.loading) {
+        <div class="chat-rooms__state" role="status" aria-live="polite">
+          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          <span>Carregando...</span>
+        </div>
+      } @else if (vm.loadFailed) {
+        <div class="chat-rooms__state chat-rooms__state--error" role="alert">
+          <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+          <span>Não foi possível carregar suas salas.</span>
+        </div>
+      } @else if (vm.rooms.length === 0) {
+        <div class="chat-rooms__state" role="status">
+          <i class="fas fa-comments" aria-hidden="true"></i>
+          <span>Nenhuma sala.</span>
+        </div>
+      } @else {
+        <section class="chat-rooms__group" aria-labelledby="active-rooms-title">
+          <header class="chat-rooms__group-header">
+            <h2 id="active-rooms-title">Ativas</h2>
+            <span>{{ vm.activeRooms.length }}</span>
+          </header>
+
+          @if (vm.activeRooms.length === 0) {
+            <div class="chat-rooms__state chat-rooms__state--compact" role="status">
+              <span>Nenhuma sala ativa.</span>
+            </div>
+          } @else {
+            <ul class="chat-rooms__list" aria-label="Salas ativas">
+              @for (room of vm.activeRooms; track room.id) {
+                <li class="chat-rooms__card">
+                  <article aria-labelledby="room-title-{{ room.id }}">
+                    <header class="chat-rooms__card-header">
+                      <div class="chat-rooms__room-heading">
+                        <h3 id="room-title-{{ room.id }}">{{ room.roomName }}</h3>
+                        <span class="chat-rooms__access">
+                          {{ room.isOwner ? 'Administrada por você' : 'Participante' }}
+                        </span>
+                      </div>
+                    </header>
+
+                    @if (room.description) {
+                      <p class="chat-rooms__description">{{ room.description }}</p>
+                    }
+
+                    <div class="chat-rooms__summary">
+                      <span>
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        {{ room.memberCount }}
+                      </span>
+                    </div>
+
+                    @if (room.placeIntent; as place) {
+                      <section
+                        class="chat-rooms__place"
+                        aria-label="Local associado à sala"
+                      >
+                        <i class="fas fa-location-dot" aria-hidden="true"></i>
+
+                        <div>
+                          <strong>{{ place.label }}</strong>
+                          <span>
+                            {{ place.region.city }}, {{ place.region.uf }} ·
+                            {{ place.mode === 'scheduled' ? 'mais tarde' : 'agora' }}
+                          </span>
+                        </div>
+                      </section>
+                    }
+
+                    @if (room.canClose) {
+                      <footer class="chat-rooms__card-footer">
+                        <button
+                          type="button"
+                          class="chat-rooms__close-action"
+                          [disabled]="isClosingRoom(room.id)"
+                          (click)="closeRoom(room)"
+                        >
+                          @if (isClosingRoom(room.id)) {
+                            <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                            <span>Encerrando</span>
+                          } @else {
+                            <span>Encerrar</span>
+                          }
+                        </button>
+                      </footer>
+                    }
+                  </article>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+
+        @if (vm.closedRooms.length > 0) {
+          <details class="chat-rooms__history">
+            <summary>
+              <span>Encerradas</span>
+              <span>{{ vm.closedRooms.length }}</span>
+            </summary>
+
+            <ul class="chat-rooms__list chat-rooms__list--history" aria-label="Salas encerradas">
+              @for (room of vm.closedRooms; track room.id) {
+                <li class="chat-rooms__card chat-rooms__card--closed">
+                  <article aria-labelledby="closed-room-title-{{ room.id }}">
+                    <header class="chat-rooms__card-header">
+                      <div class="chat-rooms__room-heading">
+                        <h3 id="closed-room-title-{{ room.id }}">{{ room.roomName }}</h3>
+                        <span class="chat-rooms__access">Encerrada</span>
+                      </div>
+                    </header>
+
+                    @if (room.description) {
+                      <p class="chat-rooms__description">{{ room.description }}</p>
+                    }
+
+                    <div class="chat-rooms__summary">
+                      <span>
+                        <i class="fas fa-users" aria-hidden="true"></i>
+                        {{ room.memberCount }}
+                      </span>
+                    </div>
+                  </article>
+                </li>
+              }
+            </ul>
+          </details>
+        }
+      }
+    </section>
+  </main>
+}

@@ -1,0 +1,541 @@
+<!-- src/app/community/feed/community-feed.component.html -->
+@if (state$ | async; as state) {
+  @if (postActionState$ | async; as actionState) {
+  @if (reactionState$ | async; as reactionState) {
+  <section
+    class="community-feed"
+    [class.community-feed--photos]="view() === 'photos'"
+    [attr.aria-label]="sectionAriaLabel()"
+  >
+    @if (canCreatePost()) {
+      @if (postCreateState$ | async; as writeState) {
+        <form
+          class="community-feed__composer"
+          [class.is-expanded]="composerExpanded() || !!selectedAttachment()"
+          [formGroup]="postForm"
+          (ngSubmit)="submitPost()"
+          novalidate
+        >
+          @if (selectedAttachment(); as attachment) {
+            @switch (attachment.kind) {
+              @case ('image') {
+                <div class="community-feed__photo-preview" aria-live="polite">
+                  @if (attachment.previewUrl) {
+                    <img [src]="attachment.previewUrl" alt="Prévia da foto selecionada" />
+                  } @else {
+                    <span class="community-feed__photo-placeholder" aria-hidden="true">
+                      <i class="fas fa-image"></i>
+                    </span>
+                  }
+                  <span class="community-feed__photo-name">{{ attachment.file.name }}</span>
+                  <button
+                    type="button"
+                    aria-label="Remover foto selecionada"
+                    [disabled]="writeState.status === 'loading'"
+                    (click)="removeSelectedPhoto()"
+                  >
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
+                  </button>
+                </div>
+              }
+            }
+          }
+
+          <div class="community-feed__composer-row">
+            <label class="community-feed__sr-only" for="community-feed-post-text">
+              Escreva uma mensagem para a Comunidade
+            </label>
+            <textarea
+              id="community-feed-post-text"
+              rows="1"
+              maxlength="1000"
+              enterkeyhint="send"
+              formControlName="text"
+              placeholder="Escreva uma mensagem..."
+              [attr.aria-invalid]="postForm.controls.text.invalid && postForm.controls.text.touched ? 'true' : null"
+              aria-describedby="community-feed-post-help"
+              (focus)="expandComposer()"
+              (keydown.enter)="submitPostOnEnter($event)"
+            ></textarea>
+
+            <input
+              #galleryPhotoInput
+              id="community-feed-gallery-input"
+              class="community-feed__photo-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              tabindex="-1"
+              aria-hidden="true"
+              (change)="cameraCapture.editDevicePhoto($event)"
+            />
+            <input
+              #cameraPhotoInput
+              id="community-feed-camera-input"
+              class="community-feed__photo-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              tabindex="-1"
+              aria-hidden="true"
+              (change)="cameraCapture.editDevicePhoto($event)"
+            />
+
+            <details
+              #attachmentMenu
+              class="community-post__menu community-feed__attachment-menu"
+            >
+              <summary
+                class="community-feed__composer-tool"
+                aria-label="Adicionar ao Mural"
+                title="Adicionar"
+                [attr.aria-disabled]="writeState.status === 'loading' ? 'true' : null"
+                (click)="writeState.status === 'loading' ? $event.preventDefault() : null"
+              >
+                <i class="fas fa-plus" aria-hidden="true"></i>
+              </summary>
+
+              <div
+                class="community-post__menu-panel"
+                role="group"
+                aria-label="Adicionar foto ao Mural"
+              >
+                <button
+                  class="community-post__menu-action"
+                  type="button"
+                  [disabled]="writeState.status === 'loading'"
+                  (click)="attachmentMenu.open = false; galleryPhotoInput.click()"
+                >
+                  <i class="fas fa-images" aria-hidden="true"></i>
+                  <span>Galeria</span>
+                </button>
+                <app-community-camera-capture
+                  #cameraCapture
+                  [disabled]="writeState.status === 'loading'"
+                  (closed)="attachmentMenu.open = false"
+                  (attachmentCaptured)="attachmentMenu.open = false; removeSelectedPhoto(); selectedAttachment.set($event); expandComposer()"
+                  (fallbackRequested)="attachmentMenu.open = false; cameraPhotoInput.click()"
+                />
+              </div>
+            </details>
+
+            <button
+              class="community-feed__send is-primary"
+              type="submit"
+              aria-label="Enviar mensagem"
+              [disabled]="postForm.invalid || writeState.status === 'loading' || (!postForm.controls.text.value.trim() && !selectedAttachment())"
+            >
+              @if (writeState.status === 'loading') {
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              } @else {
+                <i class="fas fa-paper-plane" aria-hidden="true"></i>
+              }
+            </button>
+          </div>
+
+          @if (composerExpanded() || selectedAttachment()) {
+            <div id="community-feed-post-help" class="community-feed__composer-help">
+              @if (postForm.controls.text.invalid && postForm.controls.text.touched) {
+                <span class="is-error" role="alert">
+                  A mensagem deve ter no máximo 1.000 caracteres.
+                </span>
+              } @else {
+                <span>{{ postForm.controls.text.value.length }}/1.000</span>
+              }
+            </div>
+
+            @if (uploadProgress() !== null; as progress) {
+              <div
+                class="community-feed__upload-progress"
+                role="status"
+                aria-live="polite"
+                [attr.aria-label]="'Enviando foto: ' + progress + '% concluído'"
+              >
+                <span [style.width.%]="progress"></span>
+              </div>
+            }
+
+            @if (writeState.status === 'error') {
+              <p class="community-feed__composer-error" role="status">
+                Sua mensagem e a foto selecionada foram preservadas. Tente enviar novamente.
+              </p>
+            }
+          }
+        </form>
+      }
+    }
+
+    @if (unseenNewPostCount() > 0) {
+      <div class="community-feed__new-items" aria-live="polite">
+        <button
+          type="button"
+          [attr.aria-label]="newPostsLabel() + '. Ir para a publicação mais recente.'"
+          (click)="showLatestPosts()"
+        >
+          <i class="fas fa-arrow-up" aria-hidden="true"></i>
+          <span>{{ newPostsLabel() }}</span>
+        </button>
+      </div>
+    }
+
+    @if (state.status === 'loading') {
+      <div class="community-feed__state" role="status" aria-live="polite">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>{{ loadingLabel() }}</span>
+      </div>
+    } @else if (state.status === 'error') {
+      <div class="community-feed__state" role="alert">
+        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+        <span>{{ errorStateLabel() }}</span>
+        <button type="button" (click)="retry()">Tentar novamente</button>
+      </div>
+    } @else if (state.status === 'empty') {
+      <div class="community-feed__state" role="status">
+        <i
+          class="fas {{ view() === 'photos' ? 'fa-images' : 'fa-comments' }}"
+          aria-hidden="true"
+        ></i>
+        <span>{{ emptyLabel() }}</span>
+      </div>
+    } @else {
+      <ul class="community-feed__items" role="list">
+        @for (item of state.items; track item.postId) {
+          <li>
+            <article
+              #postElement
+              class="community-post"
+              [class.is-reference-target]="highlightedPostId() === item.postId"
+              [id]="'community-feed-post-' + item.postId"
+              [attr.data-post-id]="item.postId"
+              tabindex="-1"
+            >
+              <header class="community-post__header">
+                <span class="community-post__avatar" aria-hidden="true">
+                  @if (item.author.avatarUrl) {
+                    <img
+                      [src]="item.author.avatarUrl"
+                      alt=""
+                      loading="lazy"
+                      appImageFallback
+                    />
+                  } @else {
+                    <i class="fas fa-user-group"></i>
+                  }
+                </span>
+
+                <div class="community-post__identity">
+                  <div class="community-post__identity-line">
+                    <strong>{{ item.author.label }}</strong>
+                    <time [attr.datetime]="publishedIso(item.publishedAt)">
+                      {{ publishedLabel(item.publishedAt) }}
+                    </time>
+                  </div>
+                  @if (
+                    item.author.profileTypeLabel
+                    || item.author.city
+                    || item.author.state
+                  ) {
+                    <div
+                      class="community-post__author-context"
+                      [attr.aria-label]="'Informações públicas de ' + item.author.label"
+                    >
+                      @if (item.author.profileTypeLabel) {
+                        <span>{{ item.author.profileTypeLabel }}</span>
+                      }
+                      @if (item.author.city || item.author.state) {
+                        <span>
+                          @if (item.author.city) {
+                            {{ item.author.city }}
+                          }
+                          @if (item.author.city && item.author.state) {
+                            <span aria-hidden="true">/</span>
+                          }
+                          @if (item.author.state) {
+                            {{ item.author.state }}
+                          }
+                        </span>
+                      }
+                    </div>
+                  }
+                </div>
+
+                @if (
+                  item.capabilities.canDeleteOwn
+                  || item.capabilities.canModerate
+                  || item.capabilities.canReport
+                ) {
+                  <details #postMenu class="community-post__menu">
+                    <summary
+                      [attr.aria-label]="'Mais ações da publicação de ' + item.author.label"
+                      title="Mais ações"
+                    >
+                      <i class="fas fa-ellipsis" aria-hidden="true"></i>
+                    </summary>
+
+                    <div
+                      class="community-post__menu-panel"
+                      role="group"
+                      [attr.aria-label]="'Ações da publicação de ' + item.author.label"
+                    >
+                      @if (item.capabilities.canDeleteOwn) {
+                        <button
+                          class="community-post__menu-action is-danger"
+                          type="button"
+                          [disabled]="actionState.status === 'loading'"
+                          (click)="postMenu.open = false; requestPostAction(item, 'delete_own')"
+                        >
+                          <i class="fas fa-trash" aria-hidden="true"></i>
+                          <span>Excluir publicação</span>
+                        </button>
+                      }
+
+                      @if (item.capabilities.canModerate) {
+                        <button
+                          class="community-post__menu-action"
+                          type="button"
+                          [disabled]="actionState.status === 'loading'"
+                          (click)="postMenu.open = false; requestPostAction(item, 'remove')"
+                        >
+                          <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                          <span>Remover publicação</span>
+                        </button>
+                      }
+
+                      @if (item.capabilities.canReport) {
+                        <app-report-content-button
+                          [targetType]="'community_feed_post'"
+                          [targetId]="item.postId"
+                          [parentTargetId]="communityId()"
+                          label="Denunciar publicação"
+                          title="mensagem do Mural"
+                          appearance="link"
+                          [disabled]="actionState.status === 'loading'"
+                          (click)="postMenu.open = false"
+                        />
+                      }
+                    </div>
+                  </details>
+                }
+              </header>
+
+              @if (item.replyTo; as reference) {
+                @if (reference.available) {
+                  <a
+                    class="community-post__reply-context is-navigable"
+                    [attr.href]="'#community-feed-post-' + reference.postId"
+                    [attr.aria-label]="'Ir para a publicação original de ' + reference.authorLabel + ': ' + reference.textPreview"
+                    (click)="navigateToReferencedPost($event, reference.postId)"
+                  >
+                    <strong>
+                      <i class="fas fa-reply" aria-hidden="true"></i>
+                      Em resposta a {{ reference.authorLabel }}
+                    </strong>
+                    <span>{{ reference.textPreview }}</span>
+                  </a>
+                } @else {
+                  <div
+                    class="community-post__reply-context"
+                    role="note"
+                    aria-label="Publicação original indisponível"
+                  >
+                    <strong>
+                      <i class="fas fa-reply" aria-hidden="true"></i>
+                      Publicação original indisponível
+                    </strong>
+                    <span>{{ reference.textPreview }}</span>
+                  </div>
+                }
+              }
+
+              @if (item.text) {
+                <p>{{ item.text }}</p>
+              }
+
+              @if (item.image) {
+                <figure class="community-post__media">
+                  <img
+                    [src]="item.image.url"
+                    [alt]="item.image.alt"
+                    loading="lazy"
+                    appImageFallback
+                  />
+                </figure>
+              }
+
+              <footer class="community-post__metrics" aria-label="Ações da publicação">
+                @if (item.capabilities.canReact) {
+                  <button
+                    class="community-post__action community-post__reaction"
+                    type="button"
+                    [class.is-active]="viewerReacted(item)"
+                    [disabled]="reactionState.status === 'loading' && reactionState.postId === item.postId"
+                    [attr.aria-pressed]="viewerReacted(item)"
+                    [attr.aria-busy]="reactionState.status === 'loading' && reactionState.postId === item.postId ? 'true' : null"
+                    [attr.aria-label]="(viewerReacted(item) ? 'Remover curtida. ' : 'Curtir publicação. ') + reactionCount(item) + ' curtidas.'"
+                    (click)="toggleReaction(item)"
+                  >
+                    @if (
+                      reactionState.status === 'loading'
+                      && reactionState.postId === item.postId
+                    ) {
+                      <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    } @else {
+                      <i class="fas fa-heart" aria-hidden="true"></i>
+                    }
+                    <span class="community-post__action-label">Curtir</span>
+                    @if (reactionCount(item) > 0) {
+                      <span class="community-post__action-count">{{ reactionCount(item) }}</span>
+                    }
+                  </button>
+                } @else {
+                  <span
+                    class="community-post__action community-post__action--static"
+                    [attr.aria-label]="reactionCount(item) + ' curtidas'"
+                  >
+                    <i class="fas fa-heart" aria-hidden="true"></i>
+                    <span class="community-post__action-label">Curtir</span>
+                    @if (reactionCount(item) > 0) {
+                      <span class="community-post__action-count">{{ reactionCount(item) }}</span>
+                    }
+                  </span>
+                }
+
+                @if (view() === 'feed' && item.capabilities.canComment) {
+                  <button
+                    class="community-post__action community-post__reply"
+                    type="button"
+                    [class.is-replying]="replyPostId() === item.postId"
+                    [attr.aria-expanded]="commentsOpen(item)"
+                    [attr.aria-controls]="'community-feed-comments-' + item.postId"
+                    [attr.aria-label]="'Responder à publicação de ' + item.author.label"
+                    (click)="openCommentsForReply(item)"
+                  >
+                    <i class="fas fa-reply" aria-hidden="true"></i>
+                    <span class="community-post__action-label">Responder</span>
+                  </button>
+                }
+              </footer>
+
+              @if (item.capabilities.canViewComments && commentCount(item) > 0) {
+                <div class="community-post__metrics" aria-label="Histórico anterior da publicação">
+                  <button
+                    class="community-post__action community-post__comments-toggle"
+                    type="button"
+                    [attr.aria-expanded]="commentsOpen(item)"
+                    [attr.aria-controls]="'community-feed-comments-' + item.postId"
+                    [attr.aria-label]="(commentsOpen(item) ? 'Ocultar ' : 'Ver ') + commentCount(item) + (commentCount(item) === 1 ? ' mensagem anterior.' : ' mensagens anteriores.')"
+                    (click)="toggleComments(item)"
+                  >
+                    <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+                    <span class="community-post__action-label">
+                      {{ commentsOpen(item) ? 'Ocultar' : 'Ver' }}
+                      {{ commentCount(item) }}
+                      {{ commentCount(item) === 1 ? 'mensagem anterior' : 'mensagens anteriores' }}
+                    </span>
+                  </button>
+                </div>
+              }
+
+              @if (commentsOpen(item)) {
+                <app-community-feed-comments
+                  [communityId]="communityId()"
+                  [postId]="item.postId"
+                  [canComment]="item.capabilities.canComment"
+                  [postAuthorLabel]="item.author.label"
+                  [postTextPreview]="item.text || (item.image ? 'Foto publicada no Mural' : 'Publicação no Mural')"
+                  [replyToPostRequested]="replyPostId() === item.postId"
+                  [replyRequestVersion]="postReplyRequestVersion()"
+                  (feedPostCreated)="followCreatedPost($event)"
+                  (postReplyCleared)="clearPostReplyContext(item)"
+                  (commentCountChanged)="updateCommentCount(item, $event)"
+                  (closeRequested)="toggleComments(item)"
+                />
+              }
+
+              @if (actionPostId() === item.postId && actionMode(); as selectedAction) {
+                <section
+                  class="community-post__confirmation"
+                  [attr.aria-label]="selectedAction === 'delete_own' ? 'Confirmar exclusão' : 'Confirmar remoção'"
+                >
+                  @if (selectedAction === 'delete_own') {
+                    <p>Excluir esta mensagem do Mural?</p>
+                    <small>Ela deixará de ser exibida, mas o registro mínimo será preservado para segurança.</small>
+                  } @else {
+                    <label [for]="'community-feed-removal-reason-' + item.postId">
+                      Motivo da remoção
+                    </label>
+                    <textarea
+                      [id]="'community-feed-removal-reason-' + item.postId"
+                      rows="2"
+                      maxlength="240"
+                      [formControl]="removalReason"
+                      [attr.aria-invalid]="removalReason.invalid && removalReason.touched ? 'true' : null"
+                      [attr.aria-describedby]="'community-feed-removal-help-' + item.postId"
+                    ></textarea>
+                    <small [id]="'community-feed-removal-help-' + item.postId">
+                      O motivo fica restrito à trilha de moderação.
+                    </small>
+                  }
+
+                  <div class="community-post__confirmation-actions">
+                    <button
+                      type="button"
+                      [disabled]="actionState.status === 'loading'"
+                      (click)="cancelPostAction()"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      class="is-danger"
+                      type="button"
+                      [disabled]="actionState.status === 'loading' || (selectedAction === 'remove' && removalReason.invalid)"
+                      (click)="confirmPostAction(item)"
+                    >
+                      @if (
+                        actionState.status === 'loading'
+                        && actionState.postId === item.postId
+                      ) {
+                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                        Processando...
+                      } @else {
+                        {{ selectedAction === 'delete_own' ? 'Excluir mensagem' : 'Remover do Mural' }}
+                      }
+                    </button>
+                  </div>
+
+                  @if (
+                    actionState.status === 'error'
+                    && actionState.postId === item.postId
+                  ) {
+                    <p class="community-post__confirmation-error" role="status">
+                      A confirmação foi preservada. Tente novamente.
+                    </p>
+                  }
+                </section>
+              }
+            </article>
+          </li>
+        }
+      </ul>
+
+      @if (state.nextCursor) {
+        <div class="community-feed__more">
+          <button
+            type="button"
+            [disabled]="state.loadingMore"
+            (click)="loadMore(state.nextCursor)"
+          >
+            @if (state.loadingMore) {
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Carregando</span>
+            } @else {
+              <i class="fas fa-chevron-down" aria-hidden="true"></i>
+              <span>Ver mais</span>
+            }
+          </button>
+        </div>
+      }
+    }
+  </section>
+  }
+  }
+}

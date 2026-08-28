@@ -1,0 +1,84 @@
+<section class="boosted-photos-page" aria-labelledby="boosted-photos-title">
+  @if (vm$ | async; as vm) {
+    @let selectedIndex = (selectedIndex$ | async);
+
+    <header class="boosted-photos-header gallery-header-clean">
+      <h1 id="boosted-photos-title">Fotos turbinadas</h1>
+    </header>
+
+    @if (vm.showStaleNotice) {
+      <app-content-state
+        state="stale"
+        title="Exibindo fotos já carregadas"
+        [message]="vm.offline
+          ? 'A conexão está indisponível. O conteúdo será atualizado quando você estiver online.'
+          : 'A atualização falhou, mas o último resultado válido foi preservado.'"
+        actionLabel="Atualizar"
+        [compact]="true"
+        (action)="retry()"
+      />
+    }
+
+    @if (vm.showInitialLoading) {
+      <app-content-state
+        state="loading"
+        message="Carregando fotos turbinadas."
+        [skeletonRows]="6"
+      />
+    } @else if (vm.showOfflineEmpty) {
+      <app-content-state
+        state="offline"
+        title="Fotos indisponíveis sem conexão"
+        message="Conecte-se à internet para carregar esta seleção."
+        actionLabel="Tentar novamente"
+        (action)="retry()"
+      />
+    } @else if (vm.showBlockingError) {
+      <app-content-state
+        state="error"
+        title="Não foi possível carregar as fotos"
+        message="Tente novamente em instantes."
+        actionLabel="Tentar novamente"
+        (action)="retry()"
+      />
+    } @else if (vm.showEmpty) {
+      <app-content-state
+        state="empty"
+        title="Nenhuma foto turbinada"
+        message="Ainda não há publicações com impulso ativo."
+        actionLabel="Atualizar"
+        (action)="retry()"
+      />
+    } @else {
+      <div class="photos-grid" role="list" aria-label="Fotos públicas turbinadas">
+        @for (item of vm.items; track trackByPhotoId($index, item); let i = $index) {
+          <app-public-photo-card
+            [photo]="item"
+            variant="boosted"
+            (preview)="openPhoto(i)" />
+        }
+      </div>
+
+      @if (vm.canLoadMore) {
+        <div class="feed-actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="loadMore()">
+            Carregar mais
+          </button>
+        </div>
+      }
+    }
+
+    @if (selectedIndex !== null) {
+      <app-public-photo-lightbox
+        [items]="vm.items"
+        [activeIndex]="selectedIndex"
+        title="Fotos turbinadas"
+        (closed)="closeViewer()"
+        (prevRequested)="prev()"
+        (nextRequested)="next()" />
+    }
+  }
+</section>

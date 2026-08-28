@@ -1,0 +1,527 @@
+/* src/app/register-module/register.component.css */
+
+/* ================================
+   RegisterComponent styles (scoped)
+   - Harmonizado com tokens globais
+   - Layout de produto em pré-lançamento
+   - Feedback robusto sem alterar a lógica TS
+   ================================ */
+
+:host {
+  display: block;
+}
+
+.auth-container {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 560px);
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 4rem);
+  min-height: calc(100vh - 88px);
+  padding: clamp(1rem, 4vw, 3rem);
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color) 16%, transparent), transparent 32rem),
+    var(--background-color);
+  color: var(--text-color);
+  font-family: var(--font-family-primary);
+}
+
+.auth-intro {
+  max-width: 680px;
+}
+
+.auth-badge,
+.form-kicker {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 32px;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.auth-intro h1 {
+  margin: 1rem 0;
+  max-width: 11ch;
+  font-size: clamp(2.25rem, 7vw, 5rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+  color: var(--text-color);
+}
+
+.auth-intro p:not(.auth-badge) {
+  max-width: 58ch;
+  margin: 0;
+  color: var(--text-muted, var(--text-color));
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.7;
+}
+
+.form-container {
+  width: 100%;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  background: color-mix(in oklab, var(--background-color) 92%, white 8%);
+  color: var(--text-color);
+  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 14%, transparent));
+  border-radius: 24px;
+  box-shadow: 0 24px 70px color-mix(in oklab, black 18%, transparent);
+  transition: background-color .3s ease, color .3s ease, border-color .3s ease;
+  overflow: visible;
+}
+
+.form-container form {
+  text-align: left;
+}
+
+.form-kicker {
+  margin: 0 0 1rem;
+}
+
+.form-header {
+  margin: 0;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--text-color);
+}
+
+.form-subtitle {
+  margin: 0.65rem 0 1.5rem;
+  color: var(--text-muted, var(--text-color));
+  line-height: 1.5;
+}
+
+.form-container .alert {
+  padding: 12px 14px;
+  border-radius: 14px;
+  margin-bottom: 16px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .12);
+  border: 1px solid color-mix(in oklab, var(--surface-border) 70%, transparent);
+}
+
+:host-context(html.dark-mode) .form-container .alert {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .35);
+  border-color: color-mix(in oklab, var(--surface-border) 85%, transparent);
+}
+
+.form-container .alert strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+.form-container .alert .actions {
+  margin-top: 8px;
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.form-container .alert .actions .btn {
+  padding: 10px 12px;
+  min-height: 40px;
+  line-height: 1.1;
+  border-radius: 10px;
+}
+
+.form-container .alert pre {
+  margin-top: 8px;
+  white-space: pre-wrap;
+  font-size: .85rem;
+  background: rgba(0, 0, 0, .05);
+  padding: 8px;
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.form-container .btn {
+  padding: 10px 14px;
+  min-height: 44px;
+  border-radius: 12px;
+}
+
+.form-field {
+  margin-bottom: 16px;
+  position: relative;
+  overflow: visible;
+}
+
+.form-field label,
+.form-checkbox label {
+  font-weight: 700;
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.input-field {
+  display: block;
+  width: 100%;
+  min-height: 46px;
+  padding: 0.8rem 0.95rem;
+  margin-bottom: 0;
+  border-radius: 14px;
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
+  background: color-mix(in oklab, var(--background-color) 96%, white 4%);
+  color: var(--text-color);
+  font: inherit;
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+
+.input-field::placeholder {
+  color: color-mix(in oklab, var(--text-color) 48%, transparent);
+}
+
+.input-field:focus,
+.input-field:focus-visible {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 18%, transparent);
+  outline: none;
+}
+
+.input-wrapper .input-field {
+  padding-right: 44px;
+}
+
+.toggle-input {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  height: 34px;
+  width: 34px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text-color);
+  transition: background-color .15s ease, border-color .15s ease, transform .08s ease;
+}
+
+.toggle-input:hover,
+.toggle-input:focus-visible {
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  border-color: color-mix(in oklab, var(--primary-color) 28%, transparent);
+  outline: none;
+}
+
+.toggle-input:active {
+  transform: translateY(-50%) scale(.98);
+}
+
+.input-field.is-pending {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 18%, transparent);
+}
+
+.input-field.is-valid {
+  border-color: var(--success-color);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--success-color) 18%, transparent);
+}
+
+.input-field.is-invalid,
+.input-field[aria-invalid="true"] {
+  border-color: var(--danger-color) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--danger-color) 18%, transparent) !important;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inline-feedback {
+  min-width: 210px;
+  flex: 0 0 auto;
+  font-size: .9rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .38rem .65rem;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badge.info {
+  background: color-mix(in oklab, var(--primary-color) 14%, transparent);
+  color: color-mix(in oklab, var(--text-color) 92%, transparent);
+  border-color: color-mix(in oklab, var(--primary-color) 28%, transparent);
+}
+
+.badge.ok {
+  background: color-mix(in oklab, var(--success-color) 14%, transparent);
+  color: color-mix(in oklab, var(--text-color) 92%, transparent);
+  border-color: color-mix(in oklab, var(--success-color) 28%, transparent);
+}
+
+.badge.error {
+  background: color-mix(in oklab, var(--danger-color) 14%, transparent);
+  color: color-mix(in oklab, var(--text-color) 92%, transparent);
+  border-color: color-mix(in oklab, var(--danger-color) 28%, transparent);
+}
+
+.badge.warn {
+  background: color-mix(in oklab, var(--snackbar-warning) 16%, transparent);
+  color: color-mix(in oklab, var(--text-color) 92%, transparent);
+  border-color: color-mix(in oklab, var(--snackbar-warning) 34%, transparent);
+}
+
+.inline-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid color-mix(in oklab, var(--primary-color) 25%, transparent);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: rgspin .7s linear infinite;
+}
+
+.hint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: .45rem;
+}
+
+.field-hint {
+  display: block;
+  margin-top: .45rem;
+  font-size: .85rem;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+}
+
+.char-counter {
+  font-size: .8rem;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+}
+
+.char-counter.warn {
+  color: var(--danger-color);
+}
+
+.nickname-field>.field-hint {
+  margin-top: .55rem;
+  font-size: .9rem;
+  color: color-mix(in oklab, var(--text-color) 78%, transparent);
+}
+
+.nickname-field>.field-hint strong {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .22rem .55rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 28%, transparent);
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color: var(--text-color);
+  font-weight: 700;
+  letter-spacing: .1px;
+}
+
+.form-container .tooltip-error {
+  --tt-bg: color-mix(in oklab, var(--danger-color) 16%, var(--tooltip-background));
+  position: static;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: .45rem;
+  white-space: normal;
+  overflow-wrap: break-word;
+  padding: .5rem .75rem;
+  border-radius: .5rem;
+  font-size: .9rem;
+  line-height: 1.35;
+  background: var(--tt-bg);
+  border: 1px solid color-mix(in oklab, var(--danger-color) 50%, transparent);
+  color: #fff;
+  box-shadow: var(--box-shadow);
+  animation: fadeIn .2s ease;
+}
+
+.form-container .tooltip-error::before {
+  content: none;
+}
+
+.form-checkbox {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 10px;
+  color: var(--text-color);
+  line-height: 1.45;
+}
+
+.form-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 0.1rem;
+  accent-color: var(--primary-color);
+}
+
+.form-checkbox .tooltip-error {
+  flex: 0 0 100%;
+  margin-left: 28px;
+}
+
+.form-checkbox a,
+.login-redirect a {
+  color: var(--primary-color);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.form-container button[type="submit"] {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 0.35rem;
+  border-radius: 14px;
+  font-weight: 800;
+}
+
+.login-redirect {
+  margin-top: 16px;
+  font-size: .95rem;
+  text-align: center;
+}
+
+.rg-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .52);
+  z-index: 9999;
+  backdrop-filter: blur(1.5px);
+}
+
+.rg-card {
+  min-width: 280px;
+  max-width: 92vw;
+  background: var(--surface-color, #fff);
+  color: var(--text-color);
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
+  border-radius: 16px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, .35);
+  padding: 22px 18px;
+  text-align: center;
+}
+
+.rg-title {
+  margin: 10px 0 4px;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.2px;
+}
+
+.rg-sub {
+  margin: 0;
+  opacity: .85;
+}
+
+.rg-spinner {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 8px;
+  border-radius: 50%;
+  border: 3px solid color-mix(in oklab, var(--text-color) 20%, transparent);
+  border-top-color: var(--primary-color);
+  animation: rgspin 1s linear infinite;
+}
+
+@keyframes rgspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1000px) {
+  .auth-container {
+    /*
+     * O contrato global de densidade de Auth usa duas colunas com !important.
+     * Neste breakpoint, o componente precisa assumir explicitamente uma coluna
+     * para que o formulário use a largura disponível em tablet/mobile.
+     */
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: stretch;
+    gap: 1.25rem;
+    min-height: auto;
+  }
+
+  .auth-intro h1 {
+    max-width: 14ch;
+  }
+}
+
+@media (max-width: 768px) {
+  /*
+   * SUPRESSÃO RESPONSIVA INTENCIONAL:
+   * no mobile, o card já apresenta o título operacional “Crie seu cadastro”.
+   * Removemos o hero redundante para evitar competição visual e sobreposição,
+   * mantendo o conteúdo completo em tablet amplo/desktop.
+   */
+  .auth-intro {
+    display: none;
+  }
+
+  .auth-container {
+    gap: 0;
+  }
+
+  .field-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inline-feedback {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .auth-container {
+    padding: 1rem;
+  }
+
+  .form-container {
+    border-radius: 20px;
+  }
+
+  .hint-row {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .form-container .tooltip-error {
+    width: 100%;
+  }
+
+  .form-checkbox .tooltip-error {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .form-container .tooltip-error {
+    font-size: .88rem;
+    padding: .55rem .7rem;
+  }
+}

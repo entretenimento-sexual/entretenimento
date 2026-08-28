@@ -1,0 +1,20 @@
+// =========================================================================
+// MODERATION EVIDENCE / LEGAL REVIEW — BACKEND ONLY
+// =========================================================================
+// Manifestos de cadeia de custódia, jobs de preservação e casos jurídico-
+// compliance nunca são acessados diretamente por cliente, inclusive por sessão
+// admin. Consulta operacional ou eventual exportação para autoridade deve
+// passar por Callable específica, autorização mais restrita e trilha de auditoria.
+// =========================================================================
+
+match /moderation_evidence/{evidenceId} {
+  allow read, write: if false;
+}
+
+match /moderation_evidence_preservation_jobs/{jobId} {
+  allow read, write: if false;
+}
+
+match /moderation_legal_review_cases/{caseId} {
+  allow read, write: if false;
+}

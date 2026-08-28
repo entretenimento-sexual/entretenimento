@@ -1,0 +1,242 @@
+<!-- src/app/admin-dashboard/operational-overview/operational-overview.component.html -->
+<section class="operational-overview" aria-labelledby="operational-title" *ngIf="vm$ | async as vm">
+  <header class="operational-hero">
+    <div class="operational-hero__copy">
+      <p class="operational-hero__eyebrow">Operação</p>
+      <h2 id="operational-title">Painel operacional</h2>
+      <p>Acompanhe usuários, cadastros pendentes, denúncias, presença e assinaturas.</p>
+    </div>
+
+    <div class="operational-hero__actions" aria-label="Atalhos principais">
+      <a mat-stroked-button routerLink="/admin-dashboard/users">Usuários</a>
+      <a mat-flat-button color="primary" routerLink="/admin-dashboard/denuncias">Moderação</a>
+    </div>
+  </header>
+
+  <mat-progress-bar *ngIf="vm.loading" mode="indeterminate" aria-label="Carregando indicadores operacionais"></mat-progress-bar>
+
+  <section class="mobile-summary" aria-labelledby="mobile-summary-title">
+    <div class="mobile-summary__copy">
+      <p class="mobile-summary__eyebrow">Resumo rápido</p>
+      <h3 id="mobile-summary-title">Agora</h3>
+    </div>
+
+    <div class="mobile-summary__rail" aria-label="Indicadores compactos">
+      <article
+        class="mobile-summary-card"
+        [class]="'mobile-summary-card mobile-summary-card--' + metric.severity"
+        *ngFor="let metric of vm.metrics | slice: 1 : 5; trackBy: trackByMetricLabel"
+      >
+        <span class="mobile-summary-card__icon" aria-hidden="true"><mat-icon>{{ metric.icon }}</mat-icon></span>
+        <span class="mobile-summary-card__body">
+          <strong>{{ metric.value }}</strong>
+          <span>{{ metric.label }}</span>
+        </span>
+      </article>
+    </div>
+  </section>
+
+  <section class="metric-grid" aria-label="Indicadores operacionais">
+    <article [class]="'metric-card metric-card--' + metric.severity" *ngFor="let metric of vm.metrics; trackBy: trackByMetricLabel">
+      <div class="metric-card__icon" aria-hidden="true"><mat-icon>{{ metric.icon }}</mat-icon></div>
+      <div>
+        <p>{{ metric.label }}</p>
+        <strong>{{ metric.value }}</strong>
+        <span>{{ metric.hint }}</span>
+      </div>
+    </article>
+  </section>
+
+  <section class="quick-actions" aria-labelledby="quick-actions-title">
+    <header class="operational-panel__header">
+      <div>
+        <p class="operational-panel__eyebrow">Resposta</p>
+        <h3 id="quick-actions-title">Ações rápidas</h3>
+      </div>
+    </header>
+
+    <div class="quick-actions__grid">
+      <a [class]="'quick-action quick-action--' + action.severity" *ngFor="let action of vm.quickActions; trackBy: trackByQuickActionTitle" [routerLink]="action.routerLink">
+        <span class="quick-action__icon" aria-hidden="true"><mat-icon>{{ action.icon }}</mat-icon></span>
+        <span class="quick-action__body">
+          <strong>{{ action.title }}</strong>
+          <span>{{ action.description }}</span>
+        </span>
+        <span class="quick-action__meta">{{ action.count }}</span>
+        <span class="quick-action__cta">{{ action.cta }}</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="operational-grid">
+    <article class="operational-panel" aria-labelledby="attention-title">
+      <header class="operational-panel__header">
+        <div>
+          <p class="operational-panel__eyebrow">Fila</p>
+          <h3 id="attention-title">Atenção operacional</h3>
+        </div>
+      </header>
+
+      <ul class="alert-list" aria-label="Alertas operacionais">
+        <li [class]="'alert-item alert-item--' + alert.severity" *ngFor="let alert of vm.alerts; trackBy: trackByAlertTitle">
+          <mat-icon aria-hidden="true">{{ alert.icon }}</mat-icon>
+          <div class="alert-item__content">
+            <strong>{{ alert.title }}</strong>
+            <span>{{ alert.description }}</span>
+          </div>
+          <a *ngIf="alert.routerLink" mat-button [routerLink]="alert.routerLink">Abrir</a>
+        </li>
+      </ul>
+    </article>
+
+    <article class="operational-panel operational-panel--wide" aria-labelledby="reports-title">
+      <header class="operational-panel__header">
+        <div>
+          <p class="operational-panel__eyebrow">Moderação</p>
+          <h3 id="reports-title">Fila de denúncias</h3>
+        </div>
+        <a mat-button routerLink="/admin-dashboard/denuncias">Ver todas</a>
+      </header>
+
+      <div class="queue-controls" aria-label="Controles da fila de denúncias">
+        <div class="queue-controls__group" role="group" aria-label="Filtro de denúncias">
+          <button
+            type="button"
+            class="queue-chip"
+            [class.is-active]="option.value === vm.reportFilter"
+            [attr.aria-pressed]="option.value === vm.reportFilter"
+            *ngFor="let option of vm.reportFilterOptions; trackBy: trackByReportFilterValue"
+            (click)="setReportFilter(option.value)"
+          >
+            {{ option.label }}
+            <span>{{ option.count }}</span>
+          </button>
+        </div>
+
+        <div class="queue-controls__group" role="group" aria-label="Ordenação de denúncias">
+          <button
+            type="button"
+            class="queue-chip queue-chip--sort"
+            [class.is-active]="option.value === vm.reportSort"
+            [attr.aria-pressed]="option.value === vm.reportSort"
+            *ngFor="let option of vm.reportSortOptions; trackBy: trackByReportSortValue"
+            (click)="setReportSort(option.value)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="queue-feedback" role="status" aria-live="polite">
+        <mat-icon aria-hidden="true">tune</mat-icon>
+        <span>
+          Exibindo {{ vm.filteredReports.length }} de {{ vm.totalReports }} denúncia(s).
+          Filtro ativo: {{ vm.reportFilter === 'priority' ? 'Prioridade 48h+' : vm.reportFilter === 'open' ? 'Abertas' : vm.reportFilter === 'reviewing' ? 'Em análise' : 'Todas' }}.
+        </span>
+      </div>
+
+      <ol class="compact-list" *ngIf="vm.filteredReports.length; else noReports">
+        <li
+          [class]="'compact-list__item compact-list__item--' + report.status"
+          [attr.aria-busy]="report.actionPending"
+          *ngFor="let report of vm.filteredReports; trackBy: trackByReportId"
+        >
+          <div class="compact-list__content">
+            <strong>{{ statusLabel(report.status) }}</strong>
+            <span>{{ report.reason || 'Motivo não informado' }} · {{ report.targetType || 'alvo não informado' }}</span>
+          </div>
+          <span [class]="'status-pill status-pill--' + report.status">{{ statusLabel(report.status) }}</span>
+          <time *ngIf="dateValue(report.createdAt) as reportDate" [attr.datetime]="reportDate.toISOString()">{{ reportDate | date: 'dd/MM HH:mm' }}</time>
+
+          <div class="report-actions" aria-label="Ações da denúncia">
+            <button
+              *ngIf="report.status === 'open'"
+              type="button"
+              mat-stroked-button
+              [disabled]="!report.canReview"
+              (click)="markReportReviewing(report)"
+            >
+              {{ report.actionPending ? 'Salvando...' : 'Analisar' }}
+            </button>
+
+            <button
+              *ngIf="report.status === 'open' || report.status === 'reviewing'"
+              type="button"
+              mat-stroked-button
+              color="primary"
+              [disabled]="!report.canResolve"
+              (click)="resolveReport(report)"
+            >
+              Resolver
+            </button>
+
+            <button
+              *ngIf="report.status === 'open' || report.status === 'reviewing'"
+              type="button"
+              mat-button
+              [disabled]="!report.canReject"
+              (click)="rejectReport(report)"
+            >
+              Rejeitar
+            </button>
+
+            <a *ngIf="!report.targetUserUid" mat-button routerLink="/admin-dashboard/denuncias">Completar</a>
+          </div>
+        </li>
+      </ol>
+
+      <ng-template #noReports>
+        <div class="empty-state empty-state--queue" role="status" aria-live="polite">
+          <div class="empty-state__icon" aria-hidden="true">
+            <mat-icon>{{ vm.totalReports ? 'filter_alt_off' : 'verified' }}</mat-icon>
+          </div>
+
+          <div class="empty-state__content">
+            <strong>{{ vm.totalReports ? 'Nenhuma denúncia neste filtro' : 'Fila operacional limpa' }}</strong>
+            <span>
+              {{ vm.totalReports ? 'Troque o filtro para visualizar outras denúncias ou abra a tela completa de moderação.' : 'Nenhuma denúncia foi carregada para a fila operacional neste momento.' }}
+            </span>
+          </div>
+
+          <div class="empty-state__actions">
+            <button *ngIf="vm.totalReports" type="button" mat-stroked-button (click)="setReportFilter('all')">Ver todas</button>
+            <a mat-button routerLink="/admin-dashboard/denuncias">Abrir moderação</a>
+          </div>
+        </div>
+      </ng-template>
+    </article>
+
+    <article class="operational-panel" aria-labelledby="users-title">
+      <header class="operational-panel__header">
+        <div>
+          <p class="operational-panel__eyebrow">Usuários</p>
+          <h3 id="users-title">Entradas recentes</h3>
+        </div>
+        <a mat-button routerLink="/admin-dashboard/users">Ver usuários</a>
+      </header>
+
+      <ol class="compact-list" *ngIf="vm.recentUsers.length; else noUsers">
+        <li *ngFor="let user of vm.recentUsers; trackBy: trackByUserUid">
+          <div>
+            <strong>{{ user.label }}</strong>
+            <span>{{ user.subtitle }}</span>
+          </div>
+          <time *ngIf="user.timestamp" [attr.datetime]="user.timestamp | date: 'yyyy-MM-ddTHH:mm:ss'">{{ user.timestamp | date: 'dd/MM HH:mm' }}</time>
+        </li>
+      </ol>
+
+      <ng-template #noUsers>
+        <div class="empty-state" role="status" aria-live="polite">
+          <div class="empty-state__icon" aria-hidden="true"><mat-icon>person_off</mat-icon></div>
+          <div class="empty-state__content">
+            <strong>Nenhum usuário carregado</strong>
+            <span>Os dados de usuários ainda não foram retornados para este painel.</span>
+          </div>
+          <div class="empty-state__actions">
+            <a mat-button routerLink="/admin-dashboard/users">Abrir usuários</a>
+          </div>
+        </div>
+      </ng-template>
+    </article>
+  </section>
+</section>

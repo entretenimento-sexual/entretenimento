@@ -1,0 +1,673 @@
+<!-- src/app/photo-editor/photo-editor/photo-editor.component.html -->
+<section class="editor-shell" aria-labelledby="photo-editor-title">
+  <header class="editor-header">
+    <div class="editor-title-block">
+      <span class="eyebrow">Ajustar foto</span>
+      <h2 id="photo-editor-title">Enquadramento e privacidade</h2>
+      <p class="subtitle">Proteja detalhes e personalize a foto antes de aplicar.</p>
+    </div>
+
+    <button
+      #closeButton
+      type="button"
+      class="btn btn-ghost close-btn"
+      (click)="onClose()"
+      aria-label="Fechar editor"
+    >
+      Fechar
+    </button>
+  </header>
+
+  <div
+    class="editor-card"
+    [attr.aria-busy]="(isLoading$ | async) || (isSaving$ | async) ? 'true' : 'false'"
+  >
+    <div #editorStage class="editor-stage">
+      <canvas
+        #editorCanvas
+        class="editor-canvas"
+        [class.is-pan-tool]="activeTool === 'move' && !selectedOverlay"
+        [class.is-draw-tool]="isPrivacyTool && !selectedOverlay"
+        [class.is-place-tool]="isDecorationTool && !selectedOverlay"
+        [class.has-selection]="!!selectedOverlay"
+        tabindex="0"
+        role="img"
+        [attr.aria-label]="canvasAriaLabel"
+        (pointerdown)="onPointerDown($event)"
+        (pointermove)="onPointerMove($event)"
+        (pointerup)="onPointerUp($event)"
+        (pointercancel)="onPointerCancel($event)"
+        (keydown)="onCanvasKeydown($event)"
+      ></canvas>
+
+      @if ((isLoading$ | async) || !(isEditorReady$ | async)) {
+        <div class="editor-loading" role="status" aria-live="polite">
+          <mat-progress-spinner mode="indeterminate" diameter="38"></mat-progress-spinner>
+          <p>Preparando imagem...</p>
+        </div>
+      }
+    </div>
+
+    <section class="editor-toolbox" aria-label="Ferramentas da foto">
+      <div class="editor-toolbox__bar" role="toolbar" aria-label="Ferramentas">
+        @for (tool of toolOptions; track tool.value) {
+          <button
+            type="button"
+            class="editor-tool-button"
+            [class.is-active]="activeTool === tool.value && !selectedOverlay"
+            [attr.aria-pressed]="activeTool === tool.value && !selectedOverlay"
+            [attr.aria-label]="tool.label"
+            (click)="selectTool(tool.value)"
+          >
+            {{ tool.shortLabel }}
+          </button>
+        }
+
+        <span class="editor-toolbox__separator" aria-hidden="true"></span>
+
+        <button
+          type="button"
+          class="editor-tool-button editor-tool-button--history"
+          (click)="undoOverlay()"
+          [disabled]="!canUndo"
+          aria-label="Desfazer última alteração"
+          title="Desfazer"
+        >
+          ↶
+        </button>
+        <button
+          type="button"
+          class="editor-tool-button editor-tool-button--history"
+          (click)="redoOverlay()"
+          [disabled]="!canRedo"
+          aria-label="Refazer última alteração"
+          title="Refazer"
+        >
+          ↷
+        </button>
+        <button
+          type="button"
+          class="editor-tool-button editor-tool-button--danger"
+          (click)="clearOverlays()"
+          [disabled]="!hasOverlays"
+        >
+          Limpar elementos
+        </button>
+      </div>
+
+      <p class="editor-tool-hint" aria-live="polite">{{ toolInstruction }}</p>
+
+      @if (selectedOverlay; as selected) {
+        <section class="editor-selection-panel" aria-label="Propriedades do elemento selecionado">
+          <header class="editor-selection-panel__header">
+            <div>
+              <span class="editor-selection-panel__eyebrow">Selecionado</span>
+              <strong>
+                @switch (selected.kind) {
+                  @case ('blur') { Área borrada }
+                  @case ('pixelate') { Área pixelada }
+                  @case ('emoji') { Emoji }
+                  @case ('text') { Texto }
+                  @case ('datetime') { Data e hora }
+                }
+              </strong>
+            </div>
+
+            <button
+              type="button"
+              class="editor-tool-button"
+              (click)="selectOverlay(null)"
+            >
+              Concluir
+            </button>
+          </header>
+
+          @if (selected.kind === 'blur' || selected.kind === 'pixelate') {
+            <div class="editor-properties-grid editor-properties-grid--privacy">
+              <label class="editor-tool-field editor-tool-field--range">
+                <span>Intensidade</span>
+                <input
+                  type="range"
+                  min="0.8"
+                  max="8"
+                  step="0.2"
+                  [ngModel]="selected.strength * 100"
+                  (ngModelChange)="updateSelectedPrivacyStrength($event)"
+                  (change)="commitSelectedOverlayEdit()"
+                />
+                <output>{{ (selected.strength * 100).toFixed(1) }}%</output>
+              </label>
+            </div>
+          }
+
+          @if (selected.kind === 'emoji') {
+            <div class="editor-properties-grid">
+              <div class="editor-emoji-browser editor-properties-grid__wide">
+                @for (group of emojiGroups; track group.label) {
+                  <div class="editor-emoji-group">
+                    <span>{{ group.label }}</span>
+                    <div class="editor-emoji-palette" role="group" [attr.aria-label]="group.label">
+                      @for (emoji of group.items; track emoji) {
+                        <button
+                          type="button"
+                          [class.is-active]="selected.value === emoji"
+                          [attr.aria-pressed]="selected.value === emoji"
+                          (click)="updateSelectedEmoji(emoji)"
+                        >
+                          {{ emoji }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <label class="editor-tool-field editor-tool-field--range">
+                <span>Tamanho</span>
+                <input
+                  type="range"
+                  min="3.5"
+                  max="28"
+                  step="0.5"
+                  [ngModel]="selected.size * 100"
+                  (ngModelChange)="updateSelectedDecorationSize($event)"
+                  (change)="commitSelectedOverlayEdit()"
+                />
+                <output>{{ (selected.size * 100).toFixed(1) }}%</output>
+              </label>
+            </div>
+          }
+
+          @if (selected.kind === 'text') {
+            <div class="editor-properties-grid">
+              <label class="editor-tool-field editor-properties-grid__wide">
+                <span>Texto</span>
+                <input
+                  type="text"
+                  maxlength="40"
+                  autocomplete="off"
+                  [ngModel]="selected.value"
+                  (ngModelChange)="updateSelectedText($event)"
+                  (blur)="commitSelectedOverlayEdit()"
+                />
+              </label>
+
+              <label class="editor-tool-field">
+                <span>Fonte</span>
+                <select
+                  [ngModel]="selected.fontFamily"
+                  (ngModelChange)="updateSelectedFontFamily($event)"
+                >
+                  @for (font of fontOptions; track font.value) {
+                    <option [value]="font.value">{{ font.label }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="editor-tool-field">
+                <span>Estilo</span>
+                <select
+                  [ngModel]="selected.style"
+                  (ngModelChange)="updateSelectedStyle($event)"
+                >
+                  <option value="classic">Clássico</option>
+                  <option value="badge">Tarja</option>
+                  <option value="neon">Neon</option>
+                </select>
+              </label>
+
+              <label class="editor-tool-field editor-tool-field--range editor-properties-grid__wide">
+                <span>Tamanho</span>
+                <input
+                  type="range"
+                  min="3.5"
+                  max="28"
+                  step="0.5"
+                  [ngModel]="selected.size * 100"
+                  (ngModelChange)="updateSelectedDecorationSize($event)"
+                  (change)="commitSelectedOverlayEdit()"
+                />
+                <output>{{ (selected.size * 100).toFixed(1) }}%</output>
+              </label>
+            </div>
+          }
+
+          @if (selected.kind === 'datetime') {
+            <div class="editor-properties-grid">
+              <label class="editor-tool-field">
+                <span>Data</span>
+                <input
+                  type="date"
+                  [ngModel]="selectedDateTimeMeta?.date ?? ''"
+                  (ngModelChange)="updateSelectedDateTimeDate($event)"
+                  (blur)="commitSelectedOverlayEdit()"
+                />
+              </label>
+
+              <label class="editor-tool-field">
+                <span>Hora</span>
+                <input
+                  type="time"
+                  [ngModel]="selectedDateTimeMeta?.time ?? ''"
+                  (ngModelChange)="updateSelectedDateTimeTime($event)"
+                  (blur)="commitSelectedOverlayEdit()"
+                />
+              </label>
+
+              <label class="editor-tool-field">
+                <span>Formato</span>
+                <select
+                  [ngModel]="selectedDateTimeMeta?.format ?? 'instagram'"
+                  (ngModelChange)="updateSelectedDateTimeFormat($event)"
+                >
+                  @for (format of dateTimeFormatOptions; track format.value) {
+                    <option [value]="format.value">{{ format.label }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="editor-tool-field">
+                <span>Fonte</span>
+                <select
+                  [ngModel]="selected.fontFamily"
+                  (ngModelChange)="updateSelectedFontFamily($event)"
+                >
+                  @for (font of fontOptions; track font.value) {
+                    <option [value]="font.value">{{ font.label }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="editor-tool-field">
+                <span>Estilo</span>
+                <select
+                  [ngModel]="selected.style"
+                  (ngModelChange)="updateSelectedStyle($event)"
+                >
+                  <option value="classic">Clássico</option>
+                  <option value="badge">Tarja</option>
+                  <option value="neon">Neon</option>
+                </select>
+              </label>
+
+              <label class="editor-check-field">
+                <input
+                  type="checkbox"
+                  [ngModel]="selectedDateTimeMeta?.includeYear ?? false"
+                  (ngModelChange)="updateSelectedDateTimeIncludeYear($event)"
+                />
+                <span>Mostrar ano</span>
+              </label>
+
+              <label class="editor-tool-field editor-tool-field--range editor-properties-grid__wide">
+                <span>Tamanho</span>
+                <input
+                  type="range"
+                  min="3.5"
+                  max="28"
+                  step="0.5"
+                  [ngModel]="selected.size * 100"
+                  (ngModelChange)="updateSelectedDecorationSize($event)"
+                  (change)="commitSelectedOverlayEdit()"
+                />
+                <output>{{ (selected.size * 100).toFixed(1) }}%</output>
+              </label>
+
+              <button type="button" class="btn btn-ghost" (click)="useCurrentDateTimeForSelected()">
+                Usar agora
+              </button>
+            </div>
+          }
+
+          <div class="editor-selection-actions">
+            <button type="button" class="btn btn-ghost" (click)="sendSelectedOverlayBackward()">
+              Para trás
+            </button>
+            <button type="button" class="btn btn-ghost" (click)="bringSelectedOverlayForward()">
+              Para frente
+            </button>
+            <button type="button" class="btn btn-ghost" (click)="duplicateSelectedOverlay()">
+              Duplicar
+            </button>
+            <button type="button" class="btn btn-danger" (click)="removeSelectedOverlay()">
+              Excluir
+            </button>
+          </div>
+        </section>
+      } @else {
+        @if (isPrivacyTool) {
+          <div class="editor-tool-panel editor-tool-panel--privacy">
+            <label class="editor-tool-field editor-tool-field--range">
+              <span>Intensidade</span>
+              <input
+                type="range"
+                min="0.8"
+                max="8"
+                step="0.2"
+                [ngModel]="privacyStrength"
+                (ngModelChange)="updatePrivacyStrength($event)"
+                [attr.aria-valuetext]="privacyStrength.toFixed(1) + ' por cento'"
+              />
+              <output>{{ privacyStrength.toFixed(1) }}%</output>
+            </label>
+            <p class="editor-tool-note">
+              Arraste sobre a área. A proteção será incorporada ao arquivo final.
+            </p>
+          </div>
+        }
+
+        @if (activeTool === 'emoji') {
+          <div class="editor-tool-panel editor-tool-panel--stacked">
+            <div class="editor-emoji-browser">
+              @for (group of emojiGroups; track group.label) {
+                <div class="editor-emoji-group">
+                  <span>{{ group.label }}</span>
+                  <div class="editor-emoji-palette" role="group" [attr.aria-label]="group.label">
+                    @for (emoji of group.items; track emoji) {
+                      <button
+                        type="button"
+                        [class.is-active]="selectedEmoji === emoji"
+                        [attr.aria-pressed]="selectedEmoji === emoji"
+                        (click)="selectEmoji(emoji)"
+                      >
+                        {{ emoji }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+
+            <div class="editor-tool-panel__row">
+              <label class="editor-tool-field editor-tool-field--range">
+                <span>Tamanho</span>
+                <input
+                  type="range"
+                  min="3.5"
+                  max="28"
+                  step="0.5"
+                  [ngModel]="decorationSize"
+                  (ngModelChange)="updateDecorationSize($event)"
+                />
+                <output>{{ decorationSize.toFixed(1) }}%</output>
+              </label>
+
+              <button type="button" class="btn btn-ghost" (click)="addCurrentToolAtCenter()">
+                Inserir no centro
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (activeTool === 'text') {
+          <div class="editor-tool-panel editor-tool-panel--decoration">
+            <label class="editor-tool-field editor-tool-field--text">
+              <span>Texto</span>
+              <input
+                type="text"
+                maxlength="40"
+                autocomplete="off"
+                [ngModel]="captionText"
+                (ngModelChange)="captionText = $event"
+                placeholder="Digite uma legenda curta"
+              />
+            </label>
+
+            <label class="editor-tool-field">
+              <span>Fonte</span>
+              <select
+                [ngModel]="captionFontFamily"
+                (ngModelChange)="setCaptionFontFamily($event)"
+              >
+                @for (font of fontOptions; track font.value) {
+                  <option [value]="font.value">{{ font.label }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="editor-tool-field">
+              <span>Estilo</span>
+              <select
+                [ngModel]="captionStyle"
+                (ngModelChange)="setCaptionStyle($event)"
+              >
+                <option value="classic">Clássico</option>
+                <option value="badge">Tarja</option>
+                <option value="neon">Neon</option>
+              </select>
+            </label>
+
+            <label class="editor-tool-field editor-tool-field--range">
+              <span>Tamanho</span>
+              <input
+                type="range"
+                min="3.5"
+                max="28"
+                step="0.5"
+                [ngModel]="decorationSize"
+                (ngModelChange)="updateDecorationSize($event)"
+              />
+              <output>{{ decorationSize.toFixed(1) }}%</output>
+            </label>
+
+            <button
+              type="button"
+              class="btn btn-ghost"
+              (click)="addCurrentToolAtCenter()"
+              [disabled]="!captionText.trim()"
+            >
+              Inserir no centro
+            </button>
+          </div>
+        }
+
+        @if (activeTool === 'datetime') {
+          <div class="editor-tool-panel editor-tool-panel--datetime">
+            <label class="editor-tool-field">
+              <span>Data</span>
+              <input
+                type="date"
+                [ngModel]="newDateTimeMeta.date"
+                (ngModelChange)="setNewDateTimeDate($event)"
+              />
+            </label>
+
+            <label class="editor-tool-field">
+              <span>Hora</span>
+              <input
+                type="time"
+                [ngModel]="newDateTimeMeta.time"
+                (ngModelChange)="setNewDateTimeTime($event)"
+              />
+            </label>
+
+            <label class="editor-tool-field">
+              <span>Formato</span>
+              <select
+                [ngModel]="newDateTimeMeta.format"
+                (ngModelChange)="setNewDateTimeFormat($event)"
+              >
+                @for (format of dateTimeFormatOptions; track format.value) {
+                  <option [value]="format.value">{{ format.label }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="editor-tool-field">
+              <span>Fonte</span>
+              <select
+                [ngModel]="captionFontFamily"
+                (ngModelChange)="setCaptionFontFamily($event)"
+              >
+                @for (font of fontOptions; track font.value) {
+                  <option [value]="font.value">{{ font.label }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="editor-tool-field">
+              <span>Estilo</span>
+              <select
+                [ngModel]="captionStyle"
+                (ngModelChange)="setCaptionStyle($event)"
+              >
+                <option value="classic">Clássico</option>
+                <option value="badge">Tarja</option>
+                <option value="neon">Neon</option>
+              </select>
+            </label>
+
+            <label class="editor-check-field">
+              <input
+                type="checkbox"
+                [ngModel]="newDateTimeMeta.includeYear"
+                (ngModelChange)="setNewDateTimeIncludeYear($event)"
+              />
+              <span>Mostrar ano</span>
+            </label>
+
+            <label class="editor-tool-field editor-tool-field--range">
+              <span>Tamanho</span>
+              <input
+                type="range"
+                min="3.5"
+                max="28"
+                step="0.5"
+                [ngModel]="decorationSize"
+                (ngModelChange)="updateDecorationSize($event)"
+              />
+              <output>{{ decorationSize.toFixed(1) }}%</output>
+            </label>
+
+            <button type="button" class="btn btn-ghost" (click)="resetNewDateTimeToNow()">
+              Agora
+            </button>
+            <button type="button" class="btn btn-ghost" (click)="addCurrentToolAtCenter()">
+              Inserir no centro
+            </button>
+          </div>
+        }
+      }
+    </section>
+
+    <div class="editor-controls" aria-label="Ferramentas de enquadramento">
+      <fieldset class="editor-control-group editor-control-group--ratio">
+        <legend>Formato</legend>
+
+        <div class="editor-segmented" role="group" aria-label="Formato da foto">
+          <button
+            type="button"
+            [class.is-active]="aspectRatio === 'original'"
+            [attr.aria-pressed]="aspectRatio === 'original'"
+            [disabled]="isAspectRatioOptionDisabled('original')"
+            (click)="setAspectRatio('original')"
+          >
+            Original
+          </button>
+          <button
+            type="button"
+            [class.is-active]="aspectRatio === 'square'"
+            [attr.aria-pressed]="aspectRatio === 'square'"
+            [disabled]="isAspectRatioOptionDisabled('square')"
+            (click)="setAspectRatio('square')"
+          >
+            1:1
+          </button>
+          <button
+            type="button"
+            [class.is-active]="aspectRatio === 'portrait'"
+            [attr.aria-pressed]="aspectRatio === 'portrait'"
+            [disabled]="isAspectRatioOptionDisabled('portrait')"
+            (click)="setAspectRatio('portrait')"
+          >
+            4:5
+          </button>
+          <button
+            type="button"
+            [class.is-active]="aspectRatio === 'landscape'"
+            [attr.aria-pressed]="aspectRatio === 'landscape'"
+            [disabled]="isAspectRatioOptionDisabled('landscape')"
+            (click)="setAspectRatio('landscape')"
+          >
+            16:9
+          </button>
+        </div>
+
+        @if (isAspectRatioLocked) {
+          <p class="editor-tool-note" role="status">
+            Este uso da imagem exige um formato fixo para manter consistência visual na plataforma.
+          </p>
+        }
+      </fieldset>
+
+      <fieldset class="editor-control-group">
+        <legend>Rotação</legend>
+
+        <div class="editor-inline-actions">
+          <button type="button" class="btn btn-ghost" (click)="rotateLeft()">
+            <i class="fas fa-rotate-left" aria-hidden="true"></i>
+            Esquerda
+          </button>
+          <button type="button" class="btn btn-ghost" (click)="rotateRight()">
+            <i class="fas fa-rotate-right" aria-hidden="true"></i>
+            Direita
+          </button>
+        </div>
+      </fieldset>
+
+      <label class="editor-control-group editor-zoom">
+        <span>Zoom</span>
+        <input
+          type="range"
+          min="1"
+          max="3"
+          step="0.05"
+          [ngModel]="zoom"
+          (ngModelChange)="updateZoom($event)"
+          [attr.aria-valuetext]="zoom.toFixed(2) + ' vezes'"
+        />
+        <output>{{ zoom.toFixed(2) }}×</output>
+      </label>
+    </div>
+
+    @if ((errorMessage$ | async); as errorMessage) {
+      <div class="alert alert-error editor-error" role="alert" aria-live="assertive">
+        {{ errorMessage }}
+      </div>
+    }
+
+    <footer class="editor-footer">
+      <button
+        type="button"
+        class="btn btn-ghost"
+        (click)="resetEditor()"
+        [disabled]="(isLoading$ | async) || (isSaving$ | async)"
+      >
+        Restaurar tudo
+      </button>
+
+      <div class="editor-footer__actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="onClose()"
+          [disabled]="isSaving$ | async"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="save()"
+          [disabled]="(isLoading$ | async) || (isSaving$ | async) || !(isEditorReady$ | async)"
+        >
+          @if (isSaving$ | async) {
+            {{ savingActionLabel }}
+          } @else {
+            {{ saveActionLabel }}
+          }
+        </button>
+      </div>
+    </footer>
+  </div>
+</section>

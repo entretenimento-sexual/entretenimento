@@ -1,0 +1,27 @@
+<!-- src/app/dashboard/discovery/discovery-mode-tabs/discovery-mode-tabs.component.html -->
+
+<div class="discovery-tabs-shell">
+  <nav
+    class="discovery-tabs"
+    aria-label="Tipos de descoberta de perfis"
+  >
+    @for (tab of tabs(); track trackTab($index, tab)) {
+      <button
+        type="button"
+        class="discovery-tabs__item"
+        [class.discovery-tabs__item--active]="activeMode() === tab.id"
+        [class.discovery-tabs__item--disabled]="tab.disabled"
+        [disabled]="tab.disabled"
+        [attr.aria-label]="tab.ariaLabel"
+        [attr.aria-current]="activeMode() === tab.id ? 'page' : null"
+        (click)="selectTab(tab)"
+      >
+        <i [class]="tab.icon" aria-hidden="true"></i>
+
+        <span class="discovery-tabs__label">
+          {{ tab.shortLabel || tab.label }}
+        </span>
+      </button>
+    }
+  </nav>
+</div>

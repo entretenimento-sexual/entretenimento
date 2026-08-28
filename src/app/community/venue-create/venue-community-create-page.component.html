@@ -1,0 +1,141 @@
+<!-- src/app/community/venue-create/venue-community-create-page.component.html -->
+<main class="venue-create" aria-labelledby="venue-create-title">
+  <header class="venue-create__header">
+    <a
+      class="venue-create__back"
+      routerLink="/dashboard/locais"
+      aria-label="Voltar para Locais"
+    >
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+    </a>
+
+    <div>
+      <h1 id="venue-create-title">Cadastrar Espaço Oficial</h1>
+      <p>{{ venueDefinition.description }}</p>
+      <p>
+        Destinado a estabelecimentos, Locais e espaços de eventos. A publicação
+        exige uma organização e um responsável comercial verificados.
+      </p>
+    </div>
+  </header>
+
+  <form class="venue-create__form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <section aria-labelledby="venue-create-basic-title">
+      <h2 id="venue-create-basic-title">Identificação</h2>
+
+      <label>
+        <span>Nome</span>
+        <input
+          type="text"
+          formControlName="name"
+          maxlength="80"
+          autocomplete="organization"
+          placeholder="Nome do Local"
+        />
+      </label>
+
+      <label>
+        <span>Tipo</span>
+        <select formControlName="kind">
+          @for (option of kindOptions; track option.value) {
+            <option [value]="option.value">{{ option.label }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        <span>Descrição</span>
+        <textarea
+          formControlName="description"
+          maxlength="240"
+          rows="3"
+          placeholder="O que existe ou acontece neste Local?"
+        ></textarea>
+      </label>
+    </section>
+
+    <section aria-labelledby="venue-create-region-title">
+      <h2 id="venue-create-region-title">Região</h2>
+
+      <div class="venue-create__row venue-create__row--region">
+        <label>
+          <span>UF</span>
+          <input
+            type="text"
+            formControlName="uf"
+            maxlength="2"
+            autocomplete="address-level1"
+            inputmode="text"
+            placeholder="RJ"
+          />
+        </label>
+
+        <label>
+          <span>Cidade</span>
+          <input
+            type="text"
+            formControlName="city"
+            maxlength="80"
+            autocomplete="address-level2"
+            placeholder="Rio de Janeiro"
+          />
+        </label>
+      </div>
+
+      <label>
+        <span>Bairro</span>
+        <input
+          type="text"
+          formControlName="district"
+          maxlength="80"
+          autocomplete="address-level3"
+          placeholder="Opcional"
+        />
+      </label>
+
+      <label>
+        <span>Referência pública</span>
+        <input
+          type="text"
+          formControlName="addressHint"
+          maxlength="160"
+          autocomplete="off"
+          placeholder="Sem endereço preciso"
+        />
+      </label>
+    </section>
+
+    <section aria-labelledby="venue-create-access-title">
+      <h2 id="venue-create-access-title">Acompanhamento e acesso</h2>
+
+      <label>
+        <span>Quem pode acompanhar e interagir</span>
+        <select formControlName="joinPolicy">
+          <option value="approval">Aprovação da administração</option>
+          <option value="open">Acompanhamento imediato</option>
+        </select>
+      </label>
+
+      <p class="venue-create__note">
+        Visitantes poderão ver a prévia pública. A interação ficará reservada às pessoas autorizadas no Local.
+      </p>
+      <p class="venue-create__note">
+        O Espaço Oficial comporta até 1.000 participantes ativos. Seguidores e
+        recursos de divulgação serão tratados separadamente da participação.
+      </p>
+    </section>
+
+    <div class="venue-create__actions">
+      <a routerLink="/dashboard/locais">Cancelar</a>
+      <button type="submit" [disabled]="submitting()">
+        @if (submitting()) {
+          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+          <span>Cadastrando</span>
+        } @else {
+          <i class="fas fa-plus" aria-hidden="true"></i>
+          <span>Cadastrar Espaço Oficial</span>
+        }
+      </button>
+    </div>
+  </form>
+</main>

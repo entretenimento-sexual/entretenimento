@@ -1,0 +1,181 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { NO_ERRORS_SCHEMA } from '@angular/core';
+import { By } from '@angular/platform-browser';
+import { BehaviorSubject, of } from 'rxjs';
+import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+
+import { InviteUserModalComponent } from './invite-user-modal.component';
+
+import { AuthSessionService } from '../../../core/services/autentication/auth/auth-session.service';
+import { CurrentUserStoreService } from '../../../core/services/autentication/auth/current-user-store.service';
+import { IBGELocationService } from '../../../core/services/general/api/ibge-location.service';
+import { RegionFilterService } from '../../../core/services/filtering/filters/region-filter.service';
+import { InviteSearchService } from '../../../core/services/batepapo/invite-service/invite-search.service';
+import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
+import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  Mock,
+  vi,
+} from 'vitest';
+
+describe('InviteUserModalComponent', () => {
+  let fixture: ComponentFixture<InviteUserModalComponent>;
+  let component: InviteUserModalComponent;
+
+  let authUidSubject: BehaviorSubject<string | null>;
+  let currentUserSubject: BehaviorSubject<any>;
+
+  let dialogRefMock: { close: Mock; updateSize: Mock };
+  let authSessionMock: {
+    uid$: ReturnType<BehaviorSubject<string | null>['asObservable']>;
+    currentAuthUser: { uid: string } | null;
+  };
+  let currentUserStoreMock: {
+    user$: ReturnType<BehaviorSubject<any>['asObservable']>;
+    getSnapshot: Mock;
+  };
+
+  let ibgeStub: { getEstados: Mock; getMunicipios: Mock };
+  let regionFilterStub: { getUserRegion: Mock };
+  let inviteSearchStub: { searchEligibleUsers: Mock };
+  let globalErrorHandlerMock: { handleError: Mock };
+  let errorNotifierMock: {
+    showError: Mock;
+    showWarning: Mock;
+    showInfo: Mock;
+  };
+
+  beforeEach(async () => {
+    authUidSubject = new BehaviorSubject<string | null>('uid-123');
+
+    currentUserSubject = new BehaviorSubject<any>({
+      uid: 'uid-123',
+      role: 'admin',
+      nickname: 'Usuário Teste',
+      isSubscriber: true,
+    });
+
+    dialogRefMock = {
+      close: vi.fn(),
+      updateSize: vi.fn(),
+    };
+
+    authSessionMock = {
+      uid$: authUidSubject.asObservable(),
+      currentAuthUser: { uid: 'uid-123' },
+    };
+
+    currentUserStoreMock = {
+      user$: currentUserSubject.asObservable(),
+      getSnapshot: vi.fn(() => currentUserSubject.value),
+    };
+
+    ibgeStub = {
+      getEstados: vi.fn(() => of([{ sigla: 'SP' }, { sigla: 'RJ' }])),
+      getMunicipios: vi.fn(() =>
+        of([{ nome: 'São Paulo' }, { nome: 'Rio de Janeiro' }])
+      ),
+    };
+
+    regionFilterStub = {
+      getUserRegion: vi.fn(() => of({ uf: 'SP', city: 'São Paulo' })),
+    };
+
+    inviteSearchStub = {
+      searchEligibleUsers: vi.fn(() => of([])),
+    };
+
+    globalErrorHandlerMock = {
+      handleError: vi.fn(),
+    };
+
+    errorNotifierMock = {
+      showError: vi.fn(),
+      showWarning: vi.fn(),
+      showInfo: vi.fn(),
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [InviteUserModalComponent, NoopAnimationsModule],
+      providers: [
+        { provide: MatDialogRef, useValue: dialogRefMock },
+        {
+          provide: MAT_DIALOG_DATA,
+          useValue: { roomId: 'r1' },
+        },
+        { provide: AuthSessionService, useValue: authSessionMock },
+        { provide: CurrentUserStoreService, useValue: currentUserStoreMock },
+        { provide: IBGELocationService, useValue: ibgeStub },
+        { provide: RegionFilterService, useValue: regionFilterStub },
+        { provide: InviteSearchService, useValue: inviteSearchStub },
+        { provide: GlobalErrorHandlerService, useValue: globalErrorHandlerMock },
+        { provide: ErrorNotificationService, useValue: errorNotifierMock },
+      ],
+      schemas: [NO_ERRORS_SCHEMA],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(InviteUserModalComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    authUidSubject.complete();
+    currentUserSubject.complete();
+    fixture.destroy();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+
+  it('normaliza o tamanho do modal pelo shell compartilhado', () => {
+    expect(dialogRefMock.updateSize).toHaveBeenCalledWith(
+      'min(92vw, 40rem)'
+    );
+  });
+
+  it('expõe busca e filtros com rótulos acessíveis', () => {
+    const search = fixture.debugElement.query(By.css('#invite-search'))
+      .nativeElement as HTMLInputElement;
+    const state = fixture.debugElement.query(By.css('#invite-region-uf'))
+      .nativeElement as HTMLSelectElement;
+    const city = fixture.debugElement.query(By.css('#invite-region-city'))
+      .nativeElement as HTMLSelectElement;
+    const gender = fixture.debugElement.query(By.css('#invite-gender'))
+      .nativeElement as HTMLSelectElement;
+
+    expect(search.type).toBe('search');
+    expect(search.labels?.[0]?.textContent?.trim()).toBe('Buscar pessoas');
+    expect(state.labels?.[0]?.textContent?.trim()).toBe('Estado');
+    expect(city.labels?.[0]?.textContent?.trim()).toBe('Cidade');
+    expect(gender.labels?.[0]?.textContent?.trim()).toBe('Gênero');
+  });
+
+  it('usa botão real para acionar a busca pelo teclado', () => {
+    const searchButton = fixture.debugElement.query(By.css('.search-button'))
+      .nativeElement as HTMLButtonElement;
+
+    expect(searchButton.type).toBe('submit');
+    expect(searchButton.getAttribute('aria-label')).toBe('Buscar usuários');
+  });
+
+  it('retorna apenas os IDs selecionados ao owner do fluxo', () => {
+    component.availableUsers = [
+      { id: 'uid-a', nickname: 'A', selected: true },
+      { id: 'uid-b', nickname: 'B', selected: false },
+      { id: 'uid-a', nickname: 'A duplicado', selected: true },
+    ];
+
+    component.confirmSelection();
+
+    expect(dialogRefMock.close).toHaveBeenCalledTimes(1);
+    expect(dialogRefMock.close).toHaveBeenCalledWith(['uid-a']);
+  });
+});

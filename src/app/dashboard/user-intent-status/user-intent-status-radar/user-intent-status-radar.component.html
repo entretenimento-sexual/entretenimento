@@ -1,0 +1,95 @@
+<!-- src/app/dashboard/user-intent-status/user-intent-status-radar/user-intent-status-radar.component.html -->
+
+<section class="intent-radar" aria-label="Pessoas disponíveis hoje">
+  @if (vm$ | async; as vm) {
+    <h2 class="sr-only">Pessoas disponíveis hoje</h2>
+
+    @if (!vm.loading && vm.items.length > 0) {
+      <div class="intent-radar__summary" role="status" aria-live="polite">
+        <i class="fas fa-user-group" aria-hidden="true"></i>
+        <span>
+          {{ vm.items.length }} {{ vm.items.length === 1 ? 'pessoa' : 'pessoas' }}
+        </span>
+      </div>
+    }
+
+    @if (vm.loading) {
+      <div class="intent-radar__state" role="status" aria-live="polite">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Carregando disponibilidade...</span>
+      </div>
+    } @else if (vm.items.length === 0) {
+      <div class="intent-radar__state intent-radar__state--empty" role="status">
+        <i class="fas fa-user-clock" aria-hidden="true"></i>
+        <span>Ninguém compartilhou disponibilidade agora.</span>
+      </div>
+    } @else {
+      <div class="intent-radar__rail" aria-label="Perfis disponíveis hoje">
+        @for (status of vm.items; track trackByStatusId($index, status)) {
+          <article class="intent-status-card">
+            <header class="intent-status-card__header">
+              @if (status.profile.photoURL) {
+                <img
+                  [src]="status.profile.photoURL"
+                  [alt]="'Foto de ' + status.profile.nickname"
+                  loading="lazy"
+                  decoding="async"
+                  referrerpolicy="no-referrer"
+                  appImageFallback
+                />
+              } @else {
+                <span class="intent-status-card__avatar" aria-hidden="true">
+                  {{ status.profile.nickname.slice(0, 1).toUpperCase() }}
+                </span>
+              }
+
+              <div class="intent-status-card__identity">
+                <h3>{{ status.profile.nickname }}</h3>
+                <span>
+                  <i class="fas fa-circle" aria-hidden="true"></i>
+                  {{ status.availabilityLabel }}
+                </span>
+              </div>
+            </header>
+
+            <p class="intent-status-card__destination">
+              <i
+                class="fas"
+                [class.fa-location-dot]="status.destination.kind !== 'event'"
+                [class.fa-calendar-day]="status.destination.kind === 'event'"
+                aria-hidden="true"
+              ></i>
+              <span>{{ status.destinationLabel }}</span>
+            </p>
+
+            <div class="intent-status-card__meta">
+              <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+              <span>{{ status.expiresInLabel }}</span>
+            </div>
+
+            <div class="intent-status-card__actions" aria-label="Ações do perfil">
+              <a
+                class="intent-status-card__action intent-status-card__action--secondary"
+                [routerLink]="['/perfil', status.uid]"
+                [attr.aria-label]="'Ver perfil de ' + status.profile.nickname"
+              >
+                <i class="fas fa-user" aria-hidden="true"></i>
+                <span>Perfil</span>
+              </a>
+
+              <a
+                class="intent-status-card__action intent-status-card__action--primary"
+                [routerLink]="['/chat']"
+                [queryParams]="{ withUser: status.uid }"
+                [attr.aria-label]="'Conversar com ' + status.profile.nickname"
+              >
+                <i class="fas fa-comment" aria-hidden="true"></i>
+                <span>Conversar</span>
+              </a>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  }
+</section>

@@ -1,0 +1,39 @@
+.public-video-viewer__interaction--link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.public-video-viewer__comment-actions a {
+  min-height: 28px;
+  padding: 3px 7px;
+  border: 0;
+  color: rgb(255 255 255 / 68%);
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.public-video-viewer__comment-actions a:hover,
+.public-video-viewer__comment-actions a:focus-visible {
+  color: #fff;
+}
+
+.public-video-viewer__comment-actions a:focus-visible,
+.public-video-viewer__interaction--link:focus-visible {
+  outline: 3px solid rgb(255 112 112 / 92%);
+  outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+  .public-video-viewer__interaction--link {
+    flex: 0 1 auto;
+  }
+}
+
+html.high-contrast .public-video-viewer__interaction--link {
+  border-color: currentColor !important;
+}

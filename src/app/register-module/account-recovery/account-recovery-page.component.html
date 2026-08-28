@@ -1,0 +1,68 @@
+<main class="recovery-page">
+  <section class="recovery-card" aria-labelledby="recovery-title">
+    <div
+      class="status-mark"
+      [class.status-mark--error]="status() === 'error'"
+      [class.status-mark--success]="status() === 'success'"
+      aria-hidden="true"
+    >
+      <span *ngIf="status() === 'working'" class="spinner"></span>
+      <span *ngIf="status() === 'success'">✓</span>
+      <span *ngIf="status() === 'error'">!</span>
+    </div>
+
+    <p class="eyebrow">Segurança da conta</p>
+
+    <h1 id="recovery-title">
+      {{
+        status() === 'error'
+          ? 'Precisamos tentar novamente'
+          : status() === 'success'
+            ? 'Cadastro confirmado'
+            : 'Verificando seu cadastro'
+      }}
+    </h1>
+
+    <p
+      class="status-message"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      {{ message() }}
+    </p>
+
+    <div class="info-box">
+      <strong>O que esta etapa faz</strong>
+      <p>
+        Confirma os dados básicos da conta e, somente quando necessário, reconstrói
+        o registro mínimo para retomar o cadastro. Plano, permissões e consentimentos
+        não são inventados nem elevados.
+      </p>
+    </div>
+
+    <div class="actions" *ngIf="status() === 'error'">
+      <button
+        type="button"
+        class="primary-action"
+        (click)="recover()"
+        [disabled]="isWorking()"
+      >
+        {{ isWorking() ? 'Tentando novamente…' : 'Tentar novamente' }}
+      </button>
+
+      <button
+        type="button"
+        class="secondary-action"
+        (click)="leaveAccount()"
+        [disabled]="isWorking()"
+      >
+        Sair da conta
+      </button>
+    </div>
+
+    <p class="support-note" *ngIf="status() === 'error'">
+      Se o problema continuar, saia da conta e entre novamente antes de acionar o suporte.
+    </p>
+  </section>
+</main>

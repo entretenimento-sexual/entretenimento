@@ -1,0 +1,270 @@
+<!-- src/app/dashboard/online/online-users/online-users.component.html -->
+<div
+  class="ui-container online-users"
+  [attr.aria-busy]="loading ? 'true' : 'false'"
+>
+  @if (currentUserStatus$ | async; as status) {
+    @if (status === 'boot' || status === 'loading_profile') {
+      <section class="online-users__state" role="status" aria-live="polite">
+        <span class="online-users__loader" aria-hidden="true"></span>
+        <span class="online-users__state-copy">
+          <strong>Carregando sua sessão</strong>
+          <span>Preparando sua experiência.</span>
+        </span>
+      </section>
+    } @else if (status === 'signed_out') {
+      <section class="online-users__state" role="status" aria-live="polite">
+        <span class="online-users__state-icon" aria-hidden="true">
+          <i class="fas fa-user-lock"></i>
+        </span>
+        <span class="online-users__state-copy">
+          <strong>Entre na sua conta</strong>
+          <span>Faça login para acessar a descoberta de perfis.</span>
+        </span>
+      </section>
+    } @else {
+      @if (currentUserResolved$ | async; as user) {
+        @if (!user.emailVerified) {
+          <aside class="online-users__notice" role="note">
+            <i class="fas fa-circle-info" aria-hidden="true"></i>
+            <span>
+              <strong>Conta não verificada.</strong>
+              Confirme seu e-mail para aumentar a confiança e reduzir limitações de segurança.
+            </span>
+          </aside>
+        }
+
+        @if (shouldShowLocationLoading) {
+          <section class="online-users__state" role="status" aria-live="polite">
+            <span class="online-users__loader" aria-hidden="true"></span>
+            <span class="online-users__state-copy">
+              <strong>Verificando localização</strong>
+              <span>Consultando a permissão já concedida neste navegador.</span>
+            </span>
+          </section>
+        } @else if (shouldShowLocationRequest) {
+          <section
+            class="online-users__activation"
+            aria-labelledby="onlineLocationTitle"
+            aria-describedby="onlineLocationDescription onlineLocationHelp"
+          >
+            <div class="online-users__activation-main">
+              <span class="online-users__feature-icon" aria-hidden="true">
+                <i class="fas fa-location-dot"></i>
+              </span>
+
+              <div class="online-users__activation-copy">
+                <h2 id="onlineLocationTitle">Encontrar perfis por perto</h2>
+                <span id="onlineLocationDescription">
+                  A posição aproximada ordena resultados sem revelar seu endereço exato.
+                </span>
+              </div>
+
+              <button
+                type="button"
+                class="btn btn-primary online-users__primary-action"
+                (click)="enableLocation()"
+                [disabled]="loading || !user.uid"
+                [attr.aria-busy]="loading ? 'true' : 'false'"
+              >
+                {{ loading ? 'Obtendo localização…' : 'Ativar localização' }}
+              </button>
+            </div>
+
+            <small id="onlineLocationHelp" class="online-users__helper">
+              A permissão só é solicitada após seu toque.
+            </small>
+
+            @if (showProfileCompletionPrompt) {
+              <div class="online-users__decision" role="alert">
+                <span class="online-users__decision-copy">
+                  <strong>Conclua o perfil mínimo</strong>
+                  <span>Essa etapa é necessária para ativar a localização nesta área.</span>
+                </span>
+
+                <div class="online-users__decision-actions">
+                  <button
+                    type="button"
+                    class="btn btn-primary"
+                    (click)="goToFinishMinimumProfile()"
+                  >
+                    Finalizar agora
+                  </button>
+
+                  <button
+                    type="button"
+                    class="btn btn-ghost"
+                    (click)="continueWithoutLocation()"
+                  >
+                    Agora não
+                  </button>
+                </div>
+              </div>
+            }
+          </section>
+        } @else {
+          @if (shouldShowDistanceControls) {
+            @let total = (count$ | async) ?? 0;
+
+            <section
+              class="online-users__toolbar"
+              aria-labelledby="onlineDiscoveryTitle"
+            >
+              <div class="online-users__toolbar-main">
+                <span class="online-users__toolbar-icon" aria-hidden="true">
+                  <i class="fas fa-location-crosshairs"></i>
+                </span>
+
+                <div class="online-users__toolbar-copy">
+                  <h2 id="onlineDiscoveryTitle">Perfis por perto</h2>
+                  <span>
+                    <strong>{{ total }}</strong>
+                    {{ total === 1 ? 'resultado' : 'resultados' }}
+                    <span aria-hidden="true">·</span>
+                    raio de {{ uiDistanceKm ?? policyMaxDistanceKm }} km
+                  </span>
+                </div>
+              </div>
+
+              <div class="online-users__toolbar-actions">
+                @if (loading) {
+                  <span class="online-users__updating" role="status" aria-live="polite">
+                    Atualizando
+                  </span>
+                }
+
+                <button
+                  type="button"
+                  class="online-users__toggle"
+                  (click)="toggleDiscoveryControls()"
+                  [attr.aria-expanded]="discoveryControlsOpen() ? 'true' : 'false'"
+                  aria-controls="onlineDiscoveryControls"
+                >
+                  <i class="fas fa-sliders" aria-hidden="true"></i>
+                  <span>{{ discoveryControlsOpen() ? 'Fechar ajustes' : 'Ajustar raio' }}</span>
+                </button>
+              </div>
+            </section>
+          }
+
+          @if (shouldShowDistanceControls && discoveryControlsOpen()) {
+            <section
+              id="onlineDiscoveryControls"
+              class="online-users__controls"
+              aria-label="Ajustes da descoberta por proximidade"
+            >
+              <header class="online-users__controls-head">
+                <span class="online-users__controls-copy">
+                  <strong>Ajuste o raio</strong>
+                  <span>Menos distância favorece discrição; mais distância amplia os resultados.</span>
+                </span>
+
+                <button
+                  type="button"
+                  class="online-users__refresh"
+                  (click)="enableLocation()"
+                  [disabled]="loading || !user.uid"
+                  [attr.aria-busy]="loading ? 'true' : 'false'"
+                  aria-label="Atualizar minha posição"
+                  title="Atualizar minha posição"
+                >
+                  <i class="fas fa-location-crosshairs" aria-hidden="true"></i>
+                  <span>Atualizar posição</span>
+                </button>
+              </header>
+
+              <div
+                class="online-users__range-row"
+                role="group"
+                aria-label="Ajuste do raio de busca"
+              >
+                <button
+                  class="online-users__step"
+                  type="button"
+                  (click)="stepRange(-1)"
+                  aria-label="Diminuir raio em um quilômetro"
+                >
+                  −
+                </button>
+
+                <input
+                  type="range"
+                  class="form-range online-users__range"
+                  [(ngModel)]="uiDistanceKm"
+                  (ngModelChange)="onDistanceChange($event)"
+                  [min]="1"
+                  [max]="policyMaxDistanceKm"
+                  [step]="1"
+                  [style.background]="getRangeTrackBackground(uiDistanceKm)"
+                  aria-label="Raio de busca em quilômetros"
+                  list="km-ticks"
+                />
+
+                <button
+                  class="online-users__step"
+                  type="button"
+                  (click)="stepRange(1)"
+                  aria-label="Aumentar raio em um quilômetro"
+                >
+                  +
+                </button>
+              </div>
+
+              <div class="online-users__range-meta">
+                <span>1 km</span>
+                <output aria-live="polite">
+                  Raio atual: {{ uiDistanceKm ?? policyMaxDistanceKm }} km
+                </output>
+                <span>{{ policyMaxDistanceKm }} km</span>
+              </div>
+
+              <datalist id="km-ticks">
+                <option *ngFor="let tick of [1,5,10,15,20,25,30,40,50]" [value]="tick"></option>
+              </datalist>
+            </section>
+          }
+
+          <div
+            class="profiles-grid"
+            role="list"
+            [attr.aria-label]="listAriaLabel"
+          >
+            @let users = (onlineUsers$ | async) ?? [];
+
+            @if (users.length === 0) {
+              <section class="online-users__empty" role="status" aria-live="polite">
+                <i class="fas fa-user-group" aria-hidden="true"></i>
+                <strong>{{ emptyTitle }}</strong>
+                <span>{{ emptyText }}</span>
+              </section>
+            } @else {
+              @for (profile of users; track profile.uid) {
+                <app-user-card
+                  role="listitem"
+                  [user]="profile"
+                  [distanciaKm]="profile.distanciaKm ?? null"
+                ></app-user-card>
+              }
+            }
+          </div>
+        }
+      } @else {
+        <section class="online-users__state" role="status" aria-live="polite">
+          <span class="online-users__loader" aria-hidden="true"></span>
+          <span class="online-users__state-copy">
+            <strong>Sincronizando perfil</strong>
+            <span>Aguarde um instante.</span>
+          </span>
+        </section>
+      }
+    }
+  } @else {
+    <section class="online-users__state" role="status" aria-live="polite">
+      <span class="online-users__loader" aria-hidden="true"></span>
+      <span class="online-users__state-copy">
+        <strong>Carregando sessão</strong>
+        <span>Aguarde um instante.</span>
+      </span>
+    </section>
+  }
+</div>

@@ -1,0 +1,38 @@
+/* src\app\preferences\components\preferences-hub-card\preferences-hub-card.component.css */
+.hub-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--surface-border, #2b2b2b);
+  border-radius: 1rem;
+  background: var(--surface-color, rgba(255, 255, 255, 0.02));
+}
+
+.hub-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.hub-card-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.hub-card-description {
+  margin: 0.35rem 0 0;
+  opacity: 0.8;
+}
+
+.hub-card-badge {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--surface-border, #2b2b2b);
+  font-size: 0.85rem;
+}
+
+.hub-card-footer {
+  display: flex;
+  justify-content: flex-start;
+}

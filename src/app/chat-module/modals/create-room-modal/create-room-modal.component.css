@@ -1,0 +1,206 @@
+/* src/app/chat-module/modals/create-room-modal/create-room-modal.component.css */
+
+.form-group {
+  min-width: 0;
+  margin-bottom: 0.9rem;
+}
+
+.form-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  color: var(--text-color, #222);
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+
+.form-group label > i {
+  width: 1rem;
+  color: var(--primary-color, #d83768);
+  text-align: center;
+}
+
+.form-optional {
+  font-size: 0.72rem;
+  font-weight: 500;
+  opacity: 0.58;
+}
+
+.input-field {
+  width: 100%;
+  min-height: var(--tap-target, 2.75rem);
+  box-sizing: border-box;
+  padding: 0.68rem 0.75rem;
+  border: 1px solid var(--surface-border, #ccc);
+  border-radius: var(--radius-md, 0.625rem);
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #222);
+  font: inherit;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  transition:
+    border-color 160ms ease,
+    outline-color 160ms ease;
+}
+
+.input-field::placeholder {
+  color: currentColor;
+  opacity: 0.48;
+}
+
+.input-field:focus-visible {
+  border-color: var(--primary-color, #d83768);
+  outline: 3px solid color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 28%,
+    transparent
+  );
+  outline-offset: 2px;
+}
+
+.input-field[aria-invalid='true'] {
+  border-color: var(--error-color, #b42318);
+}
+
+textarea.input-field {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.form-error {
+  margin: 0.35rem 0 0;
+  color: var(--error-color, #b42318);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.place-intent {
+  min-width: 0;
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.25rem 0 0;
+  padding: 0.75rem;
+  border: 1px solid var(--surface-border, #ccc);
+  border-radius: var(--radius-lg, 0.875rem);
+  background: var(--surface-color, #fff);
+}
+
+.place-intent__toggle {
+  min-height: var(--tap-target, 2.75rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.place-intent__toggle-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.place-intent__toggle-copy i {
+  color: var(--primary-color, #d83768);
+}
+
+.place-intent__toggle input {
+  inline-size: 1.2rem;
+  block-size: 1.2rem;
+  flex: 0 0 auto;
+  accent-color: var(--primary-color, #d83768);
+}
+
+.place-intent__toggle input:focus-visible {
+  outline: 3px solid var(--primary-color, #d83768);
+  outline-offset: 3px;
+}
+
+.place-intent__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--surface-border, #ccc);
+}
+
+.place-intent__grid .form-group {
+  margin-bottom: 0;
+}
+
+.place-intent__state {
+  min-height: var(--tap-target, 2.75rem);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-color, #222);
+  font-size: 0.82rem;
+  opacity: 0.72;
+}
+
+.place-intent__state i {
+  color: var(--primary-color, #d83768);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.modal-actions .btn {
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+button[type='submit']:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+@media (min-width: 36rem) {
+  .place-intent__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .place-intent__wide {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 28rem) {
+  .place-intent {
+    padding: 0.65rem;
+    border-radius: var(--radius-md, 0.625rem);
+  }
+
+  .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .modal-actions .btn {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+:host-context(.high-contrast) .input-field,
+:host-context(.high-contrast) .place-intent {
+  border: 2px solid var(--text-color, #222);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input-field {
+    transition: none;
+  }
+}

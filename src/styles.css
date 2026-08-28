@@ -1,0 +1,566 @@
+@import '@pqina/pintura/pintura.css';
+
+/* src/styles.css */
+.photo-viewer-backdrop {
+  background: rgb(0 0 0 / 88%);
+}
+
+.photo-viewer-dialog--immersive {
+  max-width: 100vw !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+.photo-viewer-dialog--immersive .mat-mdc-dialog-container,
+.photo-viewer-dialog--immersive .mdc-dialog__container,
+.photo-viewer-dialog--immersive .mdc-dialog__surface {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+/* -----------------------------------------------------------------------------
+   UserCard / Discovery visual cleanup
+
+   Supressão visual intencional:
+   - selo "Offline";
+   - selo de tier comum no topo da imagem.
+
+   Preservação:
+   - Online continua visível;
+   - Premium/VIP continuam visíveis como sinal comercial útil;
+   - estado online/offline segue disponível no texto acessível do card.
+----------------------------------------------------------------------------- */
+app-user-card .user-card__presence--offline,
+app-user-card .user-card__tier {
+  display: none !important;
+}
+
+app-user-card .user-card--premium .user-card__tier,
+app-user-card .user-card--vip .user-card__tier {
+  display: inline-flex !important;
+}
+
+app-user-card .user-card__topbar {
+  justify-content: flex-start !important;
+}
+
+app-user-card .user-card--online.user-card--premium .user-card__topbar,
+app-user-card .user-card--online.user-card--vip .user-card__topbar {
+  justify-content: space-between !important;
+}
+
+/* -----------------------------------------------------------------------------
+   Discovery mobile density
+
+   Ajuste responsivo do card dentro da descoberta:
+   - reduz altura ociosa da foto em telas pequenas;
+   - compacta bloco de metadados sem reduzir alvo de toque;
+   - mantém ações com 44px no mobile.
+----------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  app-public-profiles-list .public-profiles__grid {
+    gap: 0.78rem !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card {
+    border-radius: 20px !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__media {
+    height: clamp(168px, 52vw, 188px) !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__body {
+    gap: 0.46rem !important;
+    padding: 0.74rem 0.78rem 0.82rem !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__summary {
+    gap: 0.12rem !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__meta {
+    font-size: 0.88rem !important;
+    line-height: 1.1 !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__orientation,
+  app-public-profiles-list app-user-card .user-card__location,
+  app-public-profiles-list app-user-card .user-card__distance {
+    font-size: 0.75rem !important;
+    line-height: 1.16 !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__actions {
+    gap: 0.5rem !important;
+    padding-top: 0.02rem !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__action {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  app-public-profiles-list app-user-card .user-card__media {
+    height: clamp(158px, 50vw, 174px) !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__body {
+    padding: 0.68rem 0.72rem 0.78rem !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__name {
+    font-size: 1rem !important;
+  }
+}
+
+.chat-shell__reply-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 24%, var(--surface-border));
+  border-left: 4px solid color-mix(in oklab, var(--primary-color) 72%, var(--surface-border));
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--primary-color) 7%, var(--surface-color));
+  color: var(--text-color);
+}
+
+.chat-shell__reply-preview-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.chat-shell__reply-preview-title,
+.chat-shell__reply-preview-text {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-shell__reply-preview-title {
+  color: color-mix(in oklab, var(--primary-color) 72%, var(--text-color));
+  font-size: 0.78rem;
+  line-height: 1.15;
+  font-weight: 900;
+}
+
+.chat-shell__reply-preview-text {
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.2;
+  font-weight: 650;
+}
+
+.chat-shell__reply-preview-close {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color) 92%, var(--background-color));
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chat-shell__reply-preview-close:hover,
+.chat-shell__reply-preview-close:focus-visible {
+  background: color-mix(in oklab, var(--primary-color) 12%, var(--surface-color));
+}
+
+.chat-shell__reply-preview-close:focus-visible {
+  outline: var(--focus-ring, 3px solid color-mix(in oklab, var(--primary-color) 58%, white));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+html.dark-mode .chat-shell__reply-preview {
+  background: rgba(255, 91, 132, 0.1);
+  border-color: rgba(255, 91, 132, 0.24);
+  border-left-color: rgba(255, 91, 132, 0.82);
+}
+
+html.dark-mode .chat-shell__reply-preview-close {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(240, 246, 252, 0.12);
+}
+
+html.high-contrast .chat-shell__reply-preview,
+html.high-contrast .chat-shell__reply-preview-close {
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  border: 2px solid currentColor !important;
+  box-shadow: none !important;
+}
+
+html.high-contrast .chat-shell__reply-preview-title,
+html.high-contrast .chat-shell__reply-preview-text {
+  color: var(--text-color) !important;
+}
+
+@media (max-width: 520px) {
+  .chat-shell__reply-preview {
+    grid-template-columns: minmax(0, 1fr) 32px;
+    gap: 8px;
+    padding: 8px 9px;
+    border-radius: 13px;
+  }
+
+  .chat-shell__reply-preview-close {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Auth form density
+
+   Contrato visual para Login e Registro:
+   - campos mais baixos e consistentes;
+   - botão de senha em formato de ícone, sem pílula pesada;
+   - alinhamento vertical garantido por altura fixa no wrapper;
+   - registro usa o mesmo ritmo visual do login, com Google como ação social;
+   - escopo limitado aos componentes de autenticação.
+----------------------------------------------------------------------------- */
+app-register .auth-container {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px) !important;
+}
+
+app-register .form-container {
+  max-width: 440px !important;
+  justify-self: end !important;
+}
+
+app-login-component .form,
+app-register .form-container form {
+  display: grid !important;
+  gap: 0.62rem !important;
+}
+
+app-register .form-subtitle {
+  margin-bottom: 1rem !important;
+}
+
+app-login-component .field-label,
+app-register .form-field label {
+  display: inline-flex !important;
+  margin-bottom: 0.34rem !important;
+  font-size: 0.88rem !important;
+  line-height: 1.2 !important;
+}
+
+app-register .form-field {
+  margin-bottom: 0.38rem !important;
+}
+
+app-register .field-row {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  align-items: stretch !important;
+  gap: 0.42rem !important;
+}
+
+app-register .field-row .input-wrapper {
+  width: 100% !important;
+}
+
+app-register .inline-feedback {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  font-size: 0.82rem !important;
+}
+
+app-register .badge {
+  padding: 0.3rem 0.55rem !important;
+  font-size: 0.78rem !important;
+}
+
+app-login-component .input-field,
+app-register .input-field {
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 0.82rem !important;
+  border-radius: 12px !important;
+  line-height: 40px !important;
+}
+
+app-register .nickname-field .input-wrapper .input-field,
+app-register .form-field:not(:has(.password-field)) .input-field {
+  padding-right: 0.82rem !important;
+}
+
+app-login-component .password-field,
+app-register .password-field {
+  position: relative !important;
+  display: block !important;
+  height: 40px !important;
+  min-height: 40px !important;
+}
+
+app-login-component .password-field .input-field,
+app-register .password-field .input-field {
+  padding-right: 2.75rem !important;
+}
+
+app-login-component .password-toggle,
+app-register .toggle-input {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  position: absolute !important;
+  top: 50% !important;
+  right: 0.42rem !important;
+  z-index: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  color: color-mix(in oklab, var(--text-color) 74%, transparent) !important;
+  line-height: 0 !important;
+  transform: translate3d(0, -50%, 0) !important;
+}
+
+app-login-component .password-toggle:hover:not(:disabled),
+app-login-component .password-toggle:focus-visible,
+app-register .toggle-input:hover:not(:disabled),
+app-register .toggle-input:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color) 28%, transparent) !important;
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent) !important;
+  color: var(--primary-color) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 10%, transparent) !important;
+  outline: none !important;
+}
+
+app-login-component .password-toggle[aria-pressed="true"],
+app-register .toggle-input[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--primary-color) 12%, transparent) !important;
+  color: var(--primary-color) !important;
+}
+
+app-login-component .password-toggle svg,
+app-register .toggle-input svg {
+  flex: 0 0 auto !important;
+  width: 17px !important;
+  height: 17px !important;
+  display: block !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 1.9 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+app-login-component .button-container .btn,
+app-login-component .btn-google,
+app-register .form-container button[type="submit"],
+app-register .btn-google {
+  min-height: 42px !important;
+  border-radius: 12px !important;
+}
+
+app-register .auth-divider {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  margin: 0.05rem 0 !important;
+  color: color-mix(in oklab, var(--text-color) 56%, transparent) !important;
+  font-size: 0.84rem !important;
+  font-weight: 800 !important;
+}
+
+app-register .auth-divider::before,
+app-register .auth-divider::after {
+  content: "" !important;
+  flex: 1 !important;
+  height: 1px !important;
+  background: var(--surface-border, color-mix(in oklab, var(--text-color) 14%, transparent)) !important;
+}
+
+app-register .btn-google {
+  width: 100% !important;
+  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 16%, transparent)) !important;
+  background: color-mix(in oklab, var(--background-color) 96%, white 4%) !important;
+  color: var(--text-color) !important;
+  font: inherit !important;
+  font-weight: 850 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.75rem !important;
+  cursor: pointer !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, transform 0.2s ease !important;
+}
+
+app-register .btn-google:hover:not(:disabled),
+app-register .btn-google:focus-visible {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 14%, transparent) !important;
+  outline: none !important;
+}
+
+app-register .btn-google:disabled {
+  opacity: 0.62 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+app-register .google-mark {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 999px !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  background: #fff !important;
+  color: #1f1f1f !important;
+  border: 1px solid rgb(0 0 0 / 10%) !important;
+  font-weight: 900 !important;
+  font-family: Arial, sans-serif !important;
+  line-height: 1 !important;
+}
+
+app-register .auth-note {
+  margin: 0 !important;
+  color: color-mix(in oklab, var(--text-color) 60%, transparent) !important;
+  font-size: 0.8rem !important;
+  line-height: 1.4 !important;
+  text-align: center !important;
+}
+
+app-register .field-hint,
+app-register .hint-row {
+  margin-top: 0.3rem !important;
+}
+
+app-register .nickname-preview {
+  display: none !important;
+}
+
+app-register .form-checkbox {
+  margin: 0.25rem 0 0.15rem !important;
+  gap: 0.55rem !important;
+  font-size: 0.88rem !important;
+}
+
+app-register .login-redirect {
+  margin-top: 0.35rem !important;
+}
+
+@media (max-width: 1000px) {
+  app-register .form-container {
+    justify-self: stretch !important;
+    max-width: none !important;
+  }
+}
+
+@media (max-width: 420px) {
+  app-login-component .input-field,
+  app-register .input-field,
+  app-login-component .password-field,
+  app-register .password-field {
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  app-login-component .password-toggle,
+  app-register .toggle-input,
+  app-register .btn-google {
+    transition: none !important;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Auth visual parity
+
+   Ajuste de consistência entre Login e Registro:
+   - remove resíduos visuais redundantes no login;
+   - unifica cor de CTA e aparência dos campos;
+   - preserva Google apenas no login;
+   - não altera regra de autenticação ou cadastro.
+----------------------------------------------------------------------------- */
+app-login-component .auth-badge,
+app-login-component .form-kicker,
+app-login-component .auth-trust-list,
+app-login-component .form-subtitle,
+app-login-component .auth-note,
+app-register .auth-badge {
+  display: none !important;
+}
+
+app-login-component .form-container,
+app-register .form-container {
+  width: min(100%, 440px) !important;
+}
+
+app-login-component .form-header,
+app-register .form-header {
+  margin-bottom: 0.9rem !important;
+}
+
+app-login-component .input-field,
+app-register .input-field {
+  border-color: color-mix(in oklab, var(--text-color) 16%, transparent) !important;
+  background: color-mix(in oklab, var(--background-color) 94%, white 6%) !important;
+  color: var(--text-color) !important;
+}
+
+app-login-component .input-field:focus-visible,
+app-register .input-field:focus-visible {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 14%, transparent) !important;
+}
+
+app-login-component .button-container .btn,
+app-register .form-container button[type="submit"] {
+  border-color: var(--primary-color) !important;
+  background: var(--primary-color) !important;
+  color: var(--button-text-color, #fff) !important;
+}
+
+app-login-component .button-container .btn:hover:not(:disabled),
+app-login-component .button-container .btn:focus-visible,
+app-register .form-container button[type="submit"]:hover:not(:disabled),
+app-register .form-container button[type="submit"]:focus-visible {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 16%, transparent) !important;
+}
+
+app-login-component .btn-google {
+  min-height: 42px !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+}
+
+app-register .login-redirect a,
+app-login-component .register-link a,
+app-login-component .forgot-password {
+  color: var(--primary-color) !important;
+}

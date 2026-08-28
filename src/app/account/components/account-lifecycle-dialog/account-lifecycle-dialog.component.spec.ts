@@ -1,0 +1,170 @@
+import { TestBed } from '@angular/core/testing';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { AccountLifecycleDialogComponent } from './account-lifecycle-dialog.component';
+import {
+  AccountLifecycleDialogIntent,
+  AccountReauthenticationMode,
+} from '../../models/account-lifecycle.model';
+
+describe('AccountLifecycleDialogComponent', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [AccountLifecycleDialogComponent],
+    }).compileComponents();
+  });
+
+  function create(
+    intent: AccountLifecycleDialogIntent = 'self_delete',
+    reauthenticationMode: AccountReauthenticationMode = 'google'
+  ) {
+    const fixture = TestBed.createComponent(AccountLifecycleDialogComponent);
+    fixture.componentRef.setInput('intent', intent);
+    fixture.componentRef.setInput(
+      'reauthenticationMode',
+      reauthenticationMode
+    );
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('mantém o diálogo visível para tecnologias assistivas', () => {
+    const fixture = create();
+    const backdrop = fixture.nativeElement.querySelector(
+      '.account-lifecycle-dialog-backdrop'
+    ) as HTMLElement;
+    const dialog = fixture.nativeElement.querySelector(
+      '[role="dialog"]'
+    ) as HTMLElement;
+
+    expect(backdrop.getAttribute('aria-hidden')).toBeNull();
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.getAttribute('aria-labelledby')).toBe(
+      'account-lifecycle-dialog-title'
+    );
+    expect(dialog.tabIndex).toBe(-1);
+  });
+
+  it('gerencia foco inicial e restauração sem cdkFocusInitial', async () => {
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.textContent = 'Abrir diálogo';
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    const fixture = TestBed.createComponent(AccountLifecycleDialogComponent);
+    fixture.componentRef.setInput('intent', 'self_delete');
+    fixture.componentRef.setInput('reauthenticationMode', 'google');
+    document.body.appendChild(fixture.nativeElement);
+
+    try {
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      const cancel = fixture.nativeElement.querySelector(
+        '.account-lifecycle-dialog__actions .btn-secondary'
+      ) as HTMLButtonElement;
+
+      expect(fixture.nativeElement.querySelector('[cdkFocusInitial]')).toBeNull();
+      expect(cancel.disabled).toBe(false);
+      expect(document.activeElement).toBe(cancel);
+
+      fixture.componentInstance.onClose();
+      fixture.destroy();
+      fixture.nativeElement.remove();
+      await Promise.resolve();
+
+      expect(document.activeElement).toBe(trigger);
+    } finally {
+      if (!fixture.componentRef.hostView.destroyed) {
+        fixture.destroy();
+      }
+      fixture.nativeElement.remove();
+      trigger.remove();
+    }
+  });
+
+  it('explica que a exclusão é uma solicitação com prazo de 24 horas', () => {
+    const fixture = create('self_delete');
+
+    expect(fixture.nativeElement.textContent).toContain('24 horas');
+    expect(fixture.nativeElement.textContent).toContain('Solicitar exclusão');
+  });
+
+  it('bloqueia motivo acima do limite compartilhado com o backend', () => {
+    const fixture = create('self_delete');
+    const textarea = fixture.nativeElement.querySelector(
+      'textarea'
+    ) as HTMLTextAreaElement;
+    const confirm = fixture.nativeElement.querySelector(
+      '.account-lifecycle-dialog__actions .btn-danger'
+    ) as HTMLButtonElement;
+
+    textarea.value = 'a'.repeat(501);
+    textarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(confirm.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain(
+      'no máximo 500 caracteres'
+    );
+  });
+
+  it('exige a senha atual quando o provedor password está vinculado', () => {
+    const fixture = create('self_suspend', 'password');
+    const confirm = fixture.nativeElement.querySelector(
+      '.account-lifecycle-dialog__actions .btn-primary'
+    ) as HTMLButtonElement;
+    const password = fixture.nativeElement.querySelector(
+      '#account-lifecycle-dialog-password'
+    ) as HTMLInputElement;
+
+    expect(confirm.disabled).toBe(true);
+
+    password.value = 'senha-atual';
+    password.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(confirm.disabled).toBe(false);
+  });
+
+  it('bloqueia a ação para provedor sem reautenticação suportada', () => {
+    const fixture = create('self_delete', 'unsupported');
+    const confirm = fixture.nativeElement.querySelector(
+      '.account-lifecycle-dialog__actions .btn-danger'
+    ) as HTMLButtonElement;
+
+    expect(confirm.disabled).toBe(true);
+    expect(fixture.nativeElement.textContent).toContain(
+      'A ação permanece bloqueada'
+    );
+  });
+
+  it('normaliza o motivo e envia a senha somente quando necessária', () => {
+    const fixture = create('self_suspend', 'password');
+    const component = fixture.componentInstance;
+    const emit = vi.spyOn(component.confirmed, 'emit');
+    const textarea = fixture.nativeElement.querySelector(
+      'textarea'
+    ) as HTMLTextAreaElement;
+    const password = fixture.nativeElement.querySelector(
+      '#account-lifecycle-dialog-password'
+    ) as HTMLInputElement;
+    const confirm = fixture.nativeElement.querySelector(
+      '.account-lifecycle-dialog__actions .btn-primary'
+    ) as HTMLButtonElement;
+
+    textarea.value = '  pausa pessoal  ';
+    textarea.dispatchEvent(new Event('input'));
+    password.value = 'senha-atual';
+    password.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    confirm.click();
+
+    expect(emit).toHaveBeenCalledWith({
+      intent: 'self_suspend',
+      reason: 'pausa pessoal',
+      password: 'senha-atual',
+    });
+  });
+});

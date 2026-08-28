@@ -1,0 +1,12 @@
+<!-- src\app\chat-module\chat-window\chat-window.component.html -->
+<div class="chat-window-container">
+  <div class="chat-messages">
+    @for (message of messages; track message) {
+      <app-chat-message [message]="message"></app-chat-message>
+    }
+  </div>
+  <div class="chat-input">
+    <textarea [(ngModel)]="messageContent"></textarea>
+    <button (click)="sendMessage()">Enviar</button>
+  </div>
+</div>

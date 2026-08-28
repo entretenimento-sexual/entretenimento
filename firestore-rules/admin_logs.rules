@@ -1,0 +1,33 @@
+// firestore-rules/admin_logs.rules
+// =========================================================================
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
+// ADMIN LOGS (auditoria / staff)
+// - Somente admin pode criar admin_logs operacionais existentes
+// - Leitura/listagem restrita a admin para auditoria interna
+// - Sem update/delete (log imutável)
+// - account_privilege_audit é exclusivamente backend: nem mesmo admin web
+//   escreve ou lê diretamente; a transparência do titular usa callable sanitizada.
+// =========================================================================
+match /admin_logs/{logId} {
+  function isAdminActor() { return isAdmin(); }
+
+  allow get: if isAdminActor();
+  allow list: if isAdminActor();
+
+  allow create: if isAdminActor()
+    && request.resource.data.keys().hasOnly([
+      "adminUid","action","targetUserUid","details","timestamp"
+    ])
+    && request.resource.data.adminUid == uid()
+    && request.resource.data.action is string
+    && request.resource.data.targetUserUid is string
+    && request.resource.data.timestamp == request.time; // força server time
+
+  allow update, delete: if false;
+}
+
+match /account_privilege_audit/{auditId} {
+  // Trilha de segurança append-only criada por Admin SDK/Cloud Functions.
+  // O próprio titular consulta somente uma projeção via callable autenticada.
+  allow read, write: if false;
+}

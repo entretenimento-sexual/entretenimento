@@ -1,0 +1,336 @@
+name: Discovery Visual Validation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'angular.json'
+      - 'src/app/dashboard/discovery/**'
+      - 'src/app/shared/user-card/**'
+      - 'src/app/core/guards/auth-guard/auth.guard.ts'
+      - 'src/app/core/guards/profile-guard/**'
+      - 'src/app/core/guards/compliance/**'
+      - 'src/app/account/guards/account-lifecycle.guard.ts'
+      - 'src/styles/**'
+      - '.github/workflows/discovery-visual-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discovery-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discovery-visual:
+    name: Discovery visual (${{ matrix.configuration }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration:
+          - development
+          - production
+          - dev-emu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build selected environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.configuration }}" in
+            development) npm run build:dev ;;
+            production) npm run build:prod ;;
+            dev-emu) npm run build:emu ;;
+            *)
+              echo "Unsupported configuration: ${{ matrix.configuration }}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Install Playwright CLI and Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @playwright/cli@0.1.17
+          playwright-cli install-browser --with-deps
+
+      - name: Start Auth emulator for dev-emu
+        if: ${{ matrix.configuration == 'dev-emu' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "artifacts/${{ matrix.configuration }}"
+          nohup npx firebase emulators:start \
+            --only auth \
+            --project demo-discovery-visual \
+            > "artifacts/${{ matrix.configuration }}/auth-emulator.log" 2>&1 &
+          echo $! > "artifacts/${{ matrix.configuration }}/auth-emulator.pid"
+
+          for attempt in $(seq 1 90); do
+            if (echo > /dev/tcp/127.0.0.1/9099) >/dev/null 2>&1; then
+              echo "Auth emulator ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Auth emulator did not become ready" >&2
+          cat "artifacts/${{ matrix.configuration }}/auth-emulator.log" >&2 || true
+          exit 1
+
+      - name: Start Angular discovery visual harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "artifacts/${{ matrix.configuration }}"
+          VISUAL_CONFIGURATION="${{ matrix.configuration }}-discovery-visual"
+
+          nohup npx ng serve \
+            --configuration="$VISUAL_CONFIGURATION" \
+            --host=127.0.0.1 \
+            --port=4200 \
+            > "artifacts/${{ matrix.configuration }}/ng-serve.log" 2>&1 &
+          echo $! > "artifacts/${{ matrix.configuration }}/ng-serve.pid"
+
+          for attempt in $(seq 1 180); do
+            if curl --fail --silent --show-error \
+              'http://127.0.0.1:4200/dashboard/explorar?visualState=cards' \
+              >/dev/null; then
+              echo "Angular discovery visual harness ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Angular discovery visual harness did not become ready" >&2
+          cat "artifacts/${{ matrix.configuration }}/ng-serve.log" >&2 || true
+          exit 1
+
+      - name: Capture discovery cards and feedback states
+        shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: discovery-${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          OUT="artifacts/${{ matrix.configuration }}/discovery"
+          BASE="http://127.0.0.1:4200/dashboard/explorar"
+          mkdir -p "$OUT/cards" "$OUT/filtered" "$OUT/error"
+
+          check_log() {
+            local file="$1"
+            if grep -q '^### Error' "$file"; then
+              echo "Playwright reported an error in $file" >&2
+              cat "$file" >&2
+              exit 1
+            fi
+          }
+
+          run_checked() {
+            local file="$1"
+            local code="$2"
+            playwright-cli run-code "$code" | tee "$file"
+            check_log "$file"
+          }
+
+          require_file() {
+            local file="$1"
+            if [[ ! -s "$file" ]]; then
+              echo "Expected visual evidence was not created: $file" >&2
+              exit 1
+            fi
+          }
+
+          playwright-cli open "$BASE?visualState=cards"
+          playwright-cli resize 1440 1000
+
+          run_checked "$OUT/cards/desktop.metrics.log" "async (page) => {
+            await page.waitForSelector('.profiles-discovery-page', { state: 'visible' });
+            await page.waitForSelector('.public-profiles__item', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const tabs = Array.from(document.querySelectorAll('.discovery-tabs__item'));
+              const tabRects = tabs.map((item) => item.getBoundingClientRect());
+              const grid = document.querySelector('.public-profiles__grid');
+              const gridStyle = grid ? getComputedStyle(grid) : null;
+              const cards = Array.from(document.querySelectorAll('.public-profiles__item'));
+              const cardRects = cards.map((item) => item.getBoundingClientRect());
+              const loadMore = document.querySelector('.public-profiles__load-more');
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                tabsCount: tabs.length,
+                activeTabText: document.querySelector('.discovery-tabs__item--active, .discovery-tabs__item[aria-current=\"page\"]')?.textContent?.trim() ?? '',
+                minTabHeight: tabRects.length ? Math.min(...tabRects.map((rect) => rect.height)) : 0,
+                gridDisplay: gridStyle?.display ?? '',
+                gridColumns: gridStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
+                cardsCount: cards.length,
+                minCardWidth: cardRects.length ? Math.min(...cardRects.map((rect) => rect.width)) : 0,
+                firstMeta: document.querySelector('.user-card__meta')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                loadMoreHeight: loadMore?.getBoundingClientRect().height ?? 0,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Discovery desktop has horizontal overflow');
+            if (metrics.tabsCount !== 3 || !metrics.activeTabText.includes('Para você')) throw new Error('Discovery desktop tabs are incomplete or wrong');
+            if (metrics.minTabHeight < 44) throw new Error('Discovery tabs lost the 44px touch target');
+            if (metrics.gridDisplay !== 'grid' || metrics.gridColumns < 3) throw new Error('Discovery desktop grid is too narrow');
+            if (metrics.cardsCount !== 6 || metrics.minCardWidth < 220) throw new Error('Discovery desktop did not render the deterministic cards');
+            if (!metrics.firstMeta.includes('29')) throw new Error('Public age is not visible in the first discovery card');
+            if (metrics.loadMoreHeight < 44) throw new Error('Discovery load-more action lost the 44px touch target');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/cards/desktop.accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/cards/desktop-viewport.png"
+          playwright-cli screenshot --full-page --filename="$OUT/cards/desktop.png"
+          require_file "$OUT/cards/desktop.accessibility.yml"
+          require_file "$OUT/cards/desktop-viewport.png"
+          require_file "$OUT/cards/desktop.png"
+
+          playwright-cli resize 390 844
+          playwright-cli reload
+
+          run_checked "$OUT/cards/mobile.metrics.log" "async (page) => {
+            await page.waitForSelector('.public-profiles__item', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const tabs = Array.from(document.querySelectorAll('.discovery-tabs__item'));
+              const tabRects = tabs.map((item) => item.getBoundingClientRect());
+              const grid = document.querySelector('.public-profiles__grid');
+              const gridStyle = grid ? getComputedStyle(grid) : null;
+              const gridRect = grid?.getBoundingClientRect();
+              const cards = Array.from(document.querySelectorAll('.public-profiles__item'));
+              const firstCard = cards[0]?.getBoundingClientRect();
+              const loadMore = document.querySelector('.public-profiles__load-more');
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                minTabHeight: tabRects.length ? Math.min(...tabRects.map((rect) => rect.height)) : 0,
+                gridColumns: gridStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
+                gridWidth: gridRect?.width ?? 0,
+                firstCardWidth: firstCard?.width ?? 0,
+                firstMeta: document.querySelector('.user-card__meta')?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                loadMoreHeight: loadMore?.getBoundingClientRect().height ?? 0,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Discovery mobile has horizontal overflow');
+            if (metrics.minTabHeight < 44) throw new Error('Discovery mobile tabs are below 44px');
+            if (metrics.gridColumns !== 1) throw new Error('Discovery mobile grid did not collapse to one column');
+            if (metrics.gridWidth < metrics.viewportWidth * 0.87) throw new Error('Discovery mobile grid lost useful viewport width');
+            if (Math.abs(metrics.firstCardWidth - metrics.gridWidth) > 1) throw new Error('Discovery mobile card does not fill its grid column');
+            if (!metrics.firstMeta.includes('29')) throw new Error('Public age disappeared on mobile');
+            if (metrics.loadMoreHeight < 44) throw new Error('Discovery mobile load-more action is below 44px');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/cards/mobile.accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/cards/mobile-viewport.png"
+          playwright-cli screenshot --full-page --filename="$OUT/cards/mobile.png"
+          require_file "$OUT/cards/mobile.accessibility.yml"
+          require_file "$OUT/cards/mobile-viewport.png"
+          require_file "$OUT/cards/mobile.png"
+
+          playwright-cli goto "$BASE?visualState=filtered" | tee "$OUT/filtered/goto.log"
+          check_log "$OUT/filtered/goto.log"
+          playwright-cli resize 390 844
+
+          run_checked "$OUT/filtered/mobile.metrics.log" "async (page) => {
+            await page.waitForSelector('.public-profiles__empty', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const empty = document.querySelector('.public-profiles__empty');
+              const loadMore = document.querySelector('.public-profiles__load-more');
+              const review = document.querySelector('.public-profiles__review');
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                emptyText: empty?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                loadMoreHeight: loadMore?.getBoundingClientRect().height ?? 0,
+                reviewHeight: review?.getBoundingClientRect().height ?? 0,
+                loadMoreWidth: loadMore?.getBoundingClientRect().width ?? 0,
+                reviewWidth: review?.getBoundingClientRect().width ?? 0,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Filtered discovery state has horizontal overflow');
+            if (!metrics.emptyText.includes('Nenhum perfil corresponde aos filtros desta página.')) throw new Error('Filtered discovery guidance is missing');
+            if (!metrics.emptyText.includes('Revisar preferências')) throw new Error('Filtered discovery review action is missing');
+            if (metrics.loadMoreHeight < 44 || metrics.reviewHeight < 44) throw new Error('Filtered discovery actions are below 44px');
+            if (metrics.loadMoreWidth < metrics.viewportWidth * 0.80 || metrics.reviewWidth < metrics.viewportWidth * 0.80) throw new Error('Filtered discovery mobile actions do not use the available width');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/filtered/mobile.accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/filtered/mobile-viewport.png"
+          require_file "$OUT/filtered/mobile.accessibility.yml"
+          require_file "$OUT/filtered/mobile-viewport.png"
+
+          run_checked "$OUT/filtered/recovery.metrics.log" "async (page) => {
+            await page.locator('.public-profiles__load-more').click();
+            await page.waitForSelector('.public-profiles__item', { state: 'visible' });
+            const count = await page.locator('.public-profiles__item').count();
+            console.log(JSON.stringify({ count }));
+            if (count !== 6) throw new Error('Filtered discovery did not recover after requesting more profiles');
+            return { count };
+          }"
+
+          playwright-cli goto "$BASE?visualState=error" | tee "$OUT/error/goto.log"
+          check_log "$OUT/error/goto.log"
+          playwright-cli resize 390 844
+
+          run_checked "$OUT/error/mobile.metrics.log" "async (page) => {
+            await page.waitForSelector('.public-profiles__state--error', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const state = document.querySelector('.public-profiles__state--error');
+              const retry = document.querySelector('.public-profiles__retry');
+              return {
+                role: state?.getAttribute('role') ?? '',
+                text: state?.textContent?.replace(/\\s+/g, ' ').trim() ?? '',
+                retryHeight: retry?.getBoundingClientRect().height ?? 0,
+                scrollWidth: document.documentElement.scrollWidth,
+                viewportWidth: window.innerWidth,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Discovery error state has horizontal overflow');
+            if (metrics.role !== 'alert' || !metrics.text.includes('Não foi possível carregar os perfis agora.')) throw new Error('Discovery error feedback lost alert semantics');
+            if (metrics.retryHeight < 44) throw new Error('Discovery retry action is below 44px');
+            return metrics;
+          }"
+
+          playwright-cli screenshot --filename="$OUT/error/mobile-viewport.png"
+          require_file "$OUT/error/mobile-viewport.png"
+
+          run_checked "$OUT/error/recovery.metrics.log" "async (page) => {
+            await page.locator('.public-profiles__retry').click();
+            await page.waitForSelector('.public-profiles__item', { state: 'visible' });
+            const count = await page.locator('.public-profiles__item').count();
+            console.log(JSON.stringify({ count }));
+            if (count !== 6) throw new Error('Discovery retry did not recover the profile cards');
+            return { count };
+          }"
+
+          playwright-cli console error > "$OUT/browser-console-errors.log" || true
+          playwright-cli close
+
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: discovery-visual-${{ matrix.configuration }}
+          path: artifacts/${{ matrix.configuration }}/
+          if-no-files-found: error
+          retention-days: 7

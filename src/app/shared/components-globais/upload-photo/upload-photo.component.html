@@ -1,0 +1,58 @@
+<!-- src/app/shared/components-globais/upload-photo/upload-photo.component.html -->
+<section
+  class="upload-modal-content"
+  aria-labelledby="upload-photo-title"
+  [attr.aria-busy]="isLoading ? 'true' : null"
+>
+  <button
+    type="button"
+    class="btn-close"
+    [appActionState]="isLoading"
+    (click)="closeModal('cancel')"
+    aria-label="Fechar seleção de foto"
+  >
+    &times;
+  </button>
+
+  <h2 id="upload-photo-title">Selecione uma foto</h2>
+
+  <label class="file-input-label" for="upload-photo-input">
+    Escolher imagem
+  </label>
+
+  <input
+    id="upload-photo-input"
+    type="file"
+    [attr.accept]="imageAccept"
+    class="file-input"
+    [appActionState]="isLoading"
+    [attr.aria-describedby]="errorMessage
+      ? 'upload-photo-help upload-photo-error'
+      : 'upload-photo-help'"
+    [attr.aria-invalid]="errorMessage ? 'true' : null"
+    (change)="onFileSelected($event)"
+  />
+
+  <p id="upload-photo-help" class="upload-photo-help">
+    Formatos aceitos: {{ imageFormatLabel }}. Tamanho máximo:
+    {{ maxUploadMegabytes }} MB. A foto será aberta no editor antes da confirmação.
+  </p>
+
+  @if (isLoading) {
+    <div class="loading-spinner" role="status" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Preparando o editor...</p>
+    </div>
+  }
+
+  @if (errorMessage) {
+    <div
+      id="upload-photo-error"
+      class="alert alert-danger mt-2"
+      role="alert"
+      aria-live="assertive"
+    >
+      {{ errorMessage }}
+    </div>
+  }
+</section>

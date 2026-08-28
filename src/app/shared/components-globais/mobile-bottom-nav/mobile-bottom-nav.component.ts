@@ -1,0 +1,162 @@
+// src/app/shared/components-globais/mobile-bottom-nav/mobile-bottom-nav.component.ts
+// -----------------------------------------------------------------------------
+// MOBILE BOTTOM NAV
+// -----------------------------------------------------------------------------
+// Navegação principal inferior para mobile.
+//
+// Decisões:
+// - componente standalone e sem side-effects;
+// - recebe a URL atual do LayoutShell;
+// - não substitui a sidebar universal no desktop;
+// - fica oculto em chat para não competir com teclado/thread;
+// - reduz a navegação fixa para quatro áreas mentais: Hoje, Feed, Chat e Perfil;
+// - mantém rotas existentes para não quebrar deep links ou guards;
+// - sinaliza no destino Chat somente solicitações recebidas e acionáveis.
+// -----------------------------------------------------------------------------
+
+import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
+
+interface MobileBottomNavItem {
+  readonly id: string;
+  readonly label: string;
+  readonly icon: string;
+  readonly route: any[];
+  readonly activePrefixes: readonly string[];
+  readonly exact?: boolean;
+  readonly ariaLabel: string;
+  readonly badgeCount?: number | null;
+}
+
+@Component({
+  selector: 'app-mobile-bottom-nav',
+  standalone: true,
+  imports: [CommonModule, RouterModule],
+  templateUrl: './mobile-bottom-nav.component.html',
+  styleUrls: ['./mobile-bottom-nav.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class MobileBottomNavComponent {
+  @Input() currentUrl = '/';
+
+  /**
+   * Quantidade de solicitações de conexão recebidas.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - solicitações enviadas não entram neste indicador;
+   * - convites para salas não são somados aqui.
+   *
+   * Motivo:
+   * - somente solicitações recebidas exigem resposta imediata neste destino;
+   * - convites para salas mantêm identidade e feedback próprios.
+   */
+  @Input() friendRequestsCount = 0;
+
+  readonly items: MobileBottomNavItem[] = [
+    {
+      id: 'today',
+      label: 'Hoje',
+      icon: '🏠',
+      route: ['/dashboard', 'principal'],
+      activePrefixes: ['/dashboard/principal', '/principal'],
+      exact: true,
+      ariaLabel: 'Ir para Hoje',
+    },
+    {
+      id: 'feed',
+      label: 'Feed',
+      icon: '📰',
+      route: ['/descobrir'],
+      activePrefixes: [
+        '/descobrir',
+        '/dashboard/explorar',
+        '/dashboard/locais',
+        '/dashboard/comunidades',
+        '/outro-perfil',
+        '/profile-list',
+        '/perfis-proximos',
+        '/dashboard/online',
+        '/dashboard/online-users',
+      ],
+      ariaLabel: 'Abrir feed e áreas de descoberta',
+    },
+    {
+      id: 'chat',
+      label: 'Chat',
+      icon: '💬',
+      route: ['/chat'],
+      activePrefixes: ['/chat', '/friends', '/dashboard/friends'],
+      ariaLabel: 'Abrir conversas, convites e conexões',
+    },
+    {
+      id: 'profile',
+      label: 'Perfil',
+      icon: '🙍',
+      route: ['/perfil'],
+      activePrefixes: ['/perfil', '/preferencias', '/conta', '/subscription-plan'],
+      ariaLabel: 'Abrir perfil, preferências e conta',
+    },
+  ];
+
+  isActive(item: MobileBottomNavItem): boolean {
+    const clean = this.normalizeUrl(this.currentUrl);
+
+    if (item.exact) {
+      return item.activePrefixes.some((prefix) => clean === prefix);
+    }
+
+    return item.activePrefixes.some(
+      (prefix) => clean === prefix || clean.startsWith(`${prefix}/`)
+    );
+  }
+
+  itemBadgeCount(item: MobileBottomNavItem): number {
+    if (item.id === 'chat') {
+      return this.normalizeBadgeCount(this.friendRequestsCount);
+    }
+
+    return this.normalizeBadgeCount(item.badgeCount);
+  }
+
+  itemAriaLabel(item: MobileBottomNavItem): string {
+    const count = this.itemBadgeCount(item);
+
+    if (item.id !== 'chat' || count <= 0) {
+      return item.ariaLabel;
+    }
+
+    const pendingLabel = count === 1
+      ? '1 solicitação de conexão recebida'
+      : `${count} solicitações de conexão recebidas`;
+
+    return `${item.ariaLabel}. ${pendingLabel}.`;
+  }
+
+  trackById(_index: number, item: MobileBottomNavItem): string {
+    return item.id;
+  }
+
+  formatBadge(count: number | null | undefined): string | null {
+    const safeCount = this.normalizeBadgeCount(count);
+    return safeCount > 0
+      ? safeCount > 99
+        ? '99+'
+        : String(safeCount)
+      : null;
+  }
+
+  private normalizeBadgeCount(count: unknown): number {
+    const safeCount = Number(count ?? 0);
+
+    if (!Number.isFinite(safeCount) || safeCount <= 0) {
+      return 0;
+    }
+
+    return Math.floor(safeCount);
+  }
+
+  private normalizeUrl(url: string | null | undefined): string {
+    return String(url ?? '').trim().split('?')[0].split('#')[0] || '/';
+  }
+}

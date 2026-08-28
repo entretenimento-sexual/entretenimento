@@ -1,0 +1,142 @@
+<!-- src/app/user-profile/user-photo-manager/user-photo-manager.component.html -->
+<!--
+  Gerenciador/resumo de fotos do perfil.
+
+  Diretriz:
+  - usa card system global de forma progressiva: app-card, app-toolbar, app-action,
+    app-card-grid, app-media-frame e app-chip;
+  - mantém classes locais porque este componente tem dois modos: summary e manager;
+  - preserva inputs, rotas, ordenação, recolhimento e ação de remoção existentes.
+-->
+
+<section
+  class="photo-manager app-card app-card--flat"
+  [class.photo-manager--summary]="isSummaryMode()"
+  [class.photo-manager--collapsed]="isCollapsed()"
+  aria-label="Fotos do perfil"
+>
+  @if ((userPhotos$ | async); as photos) {
+    <header class="photo-manager__summary app-toolbar">
+      <div class="photo-manager__copy app-toolbar__summary">
+        <span class="photo-manager__eyebrow">Vitrine do perfil</span>
+        <h3>{{ title() }}</h3>
+
+        <p>
+          <strong>{{ photos.length }}</strong>
+          {{ photos.length === 1 ? 'foto publicada' : 'fotos publicadas' }} no perfil
+        </p>
+
+        @if (!isCollapsed() && isSummaryMode() && photos.length > getVisiblePhotos(photos).length) {
+          <span>
+            Exibindo {{ getVisiblePhotos(photos).length }} de {{ photos.length }} fotos.
+          </span>
+        }
+      </div>
+
+      <div class="photo-manager__toolbar app-toolbar__controls">
+        @if (shouldShowSort(photos) && !isCollapsed()) {
+          <div class="photo-sort app-segmented" aria-label="Ordenar fotos">
+            <button
+              type="button"
+              class="photo-sort__button app-segmented__button"
+              [class.photo-sort__button--active]="getSortModeSnapshot() === 'newest'"
+              [class.app-segmented__button--active]="getSortModeSnapshot() === 'newest'"
+              (click)="setSortMode('newest')"
+            >
+              Recentes
+            </button>
+
+            <button
+              type="button"
+              class="photo-sort__button app-segmented__button"
+              [class.photo-sort__button--active]="getSortModeSnapshot() === 'oldest'"
+              [class.app-segmented__button--active]="getSortModeSnapshot() === 'oldest'"
+              (click)="setSortMode('oldest')"
+            >
+              Antigas
+            </button>
+          </div>
+        }
+
+        @if (galleryLink(); as link) {
+          <a class="photo-manager__link app-action app-action--ghost" [routerLink]="link">
+            Ver galeria
+          </a>
+        }
+
+        @if (uploadLink(); as link) {
+          <a class="photo-manager__link photo-manager__link--primary app-action app-action--primary" [routerLink]="link">
+            Adicionar foto
+          </a>
+        }
+
+        @if (collapsible()) {
+          <button
+            type="button"
+            class="photo-manager__link photo-manager__toggle app-action app-action--ghost"
+            (click)="toggleCollapsed()"
+            [attr.aria-expanded]="!isCollapsed()"
+          >
+            {{ getCollapseLabel() }}
+          </button>
+        }
+      </div>
+    </header>
+
+    @if (isCollapsed()) {
+      <p class="photo-manager__collapsed-text app-empty-card__text">
+        Expanda para ver uma prévia das fotos publicadas no seu perfil.
+      </p>
+    } @else {
+      @if (photos.length) {
+        <div
+          class="photo-grid app-card-grid app-card-grid--compact app-card-grid--media"
+          role="list"
+          aria-label="Fotos cadastradas no perfil"
+        >
+          @for (photo of getVisiblePhotos(photos); track photo.id) {
+            <article class="photo-item app-card app-card--media app-card--interactive" role="listitem">
+              <div class="photo-media app-media-frame app-media-frame--portrait">
+                <img
+                  [src]="photo.url"
+                  alt="Foto do usuário"
+                  class="user-photo"
+                  loading="lazy"
+                  referrerpolicy="no-referrer"
+                />
+              </div>
+
+              @if (shouldShowDate()) {
+                <span class="photo-date app-chip app-chip--overlay app-chip--muted">
+                  {{ getPhotoDateLabel(photo) }}
+                </span>
+              }
+
+              @if (shouldShowActions()) {
+                <div class="photo-actions">
+                  <button
+                    type="button"
+                    class="delete-button app-action app-action--danger"
+                    (click)="deleteFile(photo.id, photo.path ? photo.path : '')"
+                    aria-label="Remover foto do perfil"
+                    title="Remover foto"
+                  >
+                    Remover
+                  </button>
+                </div>
+              }
+            </article>
+          }
+        </div>
+      } @else {
+        <p class="empty-state app-empty-card">
+          Nenhuma foto publicada ainda. Adicione fotos para deixar seu perfil mais confiável e atrativo.
+        </p>
+      }
+    }
+  } @else {
+    <p class="empty-state app-empty-card">
+      Carregando fotos do perfil...
+    </p>
+  }
+</section>

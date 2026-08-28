@@ -1,0 +1,98 @@
+<!-- src/app/layout/perfis-proximos/perfis-proximos.component.html -->
+<section class="container mt-3" aria-labelledby="nearby-profiles-title">
+  <header class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <h1 id="nearby-profiles-title" class="profiles-title m-0">Pessoas por perto</h1>
+  </header>
+
+  @if (!userLocation()) {
+    <section class="card mb-3" aria-labelledby="nearby-location-title">
+      <div class="card-body">
+        <h2 id="nearby-location-title" class="h6">Ative a localização</h2>
+        <p class="form-text mb-3">
+          Sua posição exata não é exibida. O raio disponível depende do plano e da verificação da conta.
+        </p>
+
+        @if (showProfileCompletionPrompt()) {
+          <div class="alert alert-warning" role="alert" aria-live="assertive">
+            Conclua o perfil mínimo antes de ativar a localização.
+          </div>
+
+          <div class="d-flex flex-wrap gap-2 mb-3">
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="goToFinishMinimumProfile()">
+              Finalizar perfil
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="continueWithoutLocation()">
+              Agora não
+            </button>
+          </div>
+        }
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="onEnableLocationClick()">
+          Ativar localização
+        </button>
+      </div>
+    </section>
+  } @else {
+    <section class="card mb-3" aria-labelledby="distControlTitle">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+          <h2 class="h6 m-0" id="distControlTitle">Raio de busca</h2>
+          <strong>{{ uiDistanceKm() }} km</strong>
+        </div>
+
+        <input
+          type="range"
+          class="form-range"
+          [value]="uiDistanceKm()"
+          [min]="1"
+          [max]="policyMaxDistanceKm()"
+          [step]="1"
+          (input)="onDistanceChangeKm($any($event.target).value)"
+          aria-label="Raio de busca em quilômetros" />
+
+        <div class="d-flex justify-content-between small text-muted">
+          <span>1 km</span>
+          <span>{{ policyMaxDistanceKm() }} km</span>
+        </div>
+      </div>
+    </section>
+
+    @if (contentState$ | async; as contentState) {
+      <app-content-state
+        class="d-block mb-3"
+        [state]="contentState.state"
+        [title]="contentState.title"
+        [message]="contentState.message"
+        [actionLabel]="contentState.actionLabel"
+        [compact]="contentState.compact"
+        [skeletonRows]="4"
+        (action)="retryNearbyProfiles()"
+      />
+    }
+
+    @if (profiles$ | async; as profiles) {
+      @if (profiles.length > 0) {
+        <div class="profiles-row mt-3" aria-label="Perfis próximos encontrados">
+          @for (profile of profiles; track profile.uid) {
+            <div class="profile-card">
+              <app-user-card
+                [user]="profile"
+                [distanciaKm]="profile.distanciaKm ?? null">
+              </app-user-card>
+            </div>
+          }
+        </div>
+      }
+    }
+  }
+</section>

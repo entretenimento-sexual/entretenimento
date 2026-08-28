@@ -1,0 +1,176 @@
+<!-- src/app/user-profile/user-profile-view/user-profile-view.component.html -->
+<div class="profile-page">
+  <main class="profile-main" aria-label="Perfil do usuário">
+    <div class="profile-shell container-wide">
+      @if (redirectingToOtherProfile) {
+        <app-content-state
+          state="loading"
+          message="Abrindo o perfil público."
+          [skeletonRows]="2"
+        />
+      } @else {
+        @if (profileContentState$ | async; as contentState) {
+          <app-content-state
+            class="profile-content-state"
+            [state]="contentState.state"
+            [title]="contentState.title"
+            [message]="contentState.message"
+            [actionLabel]="contentState.actionLabel"
+            [compact]="contentState.compact"
+            [skeletonRows]="3"
+            (action)="retryProfile()"
+          />
+        }
+
+        @if (usuario$ | async; as usuario) {
+          @if (usuario && isOnOwnProfile()) {
+            <section class="profile-card profile-card--hero" aria-label="Dados do perfil">
+              <header class="profile-header">
+                <div class="profile-identity">
+                  <img
+                    class="profile-avatar"
+                    [src]="usuario.photoURL || 'assets/imagem-padrao.webp'"
+                    [alt]="usuario.nickname ? ('Foto de perfil de ' + usuario.nickname) : 'Foto de perfil'"
+                    width="84"
+                    height="84"
+                    loading="eager"
+                    decoding="async"
+                    (error)="onAvatarImageError($event)"
+                  />
+
+                  <div class="profile-title">
+                    <p class="profile-kicker">Minha presença</p>
+                    <h1 class="category-title">
+                      {{ usuario.nickname || 'Meu perfil' }}
+                    </h1>
+                  </div>
+                </div>
+
+                <div class="profile-actions" role="group" aria-label="Ações do perfil">
+                  <a
+                    class="btn btn-secondary"
+                    [routerLink]="['/perfil', uid, 'editar-dados-pessoais']"
+                    aria-label="Editar dados pessoais"
+                  >
+                    Editar dados
+                  </a>
+
+                  <a
+                    class="btn btn-secondary"
+                    [routerLink]="['/preferencias', 'editar', uid]"
+                    aria-label="Editar preferências"
+                  >
+                    Preferências
+                  </a>
+                </div>
+              </header>
+
+              <div class="profile-grid">
+                <div class="profile-block">
+                  <h2 class="block-title">Identidade</h2>
+
+                  @if (isCouple(usuario.gender)) {
+                    <p class="muted">
+                      {{ getCoupleDescription(usuario.gender, usuario.partner1Orientation, usuario.partner2Orientation) }}
+                    </p>
+                  } @else {
+                    <p class="muted">
+                      {{ usuario.gender | capitalize }} {{ usuario.orientation }}
+                    </p>
+                  }
+
+                  <p class="muted">
+                    {{ usuario.municipio || 'Cidade não informada' }},
+                    {{ usuario.estado || 'Estado não informado' }}
+                  </p>
+
+                  <p class="muted">
+                    Perfil criado em:
+                    <span>{{ usuario.firstLogin | dateFormat: 'date' }}</span>
+                  </p>
+                </div>
+
+                <div class="profile-block">
+                  <h2 class="block-title">Sobre mim</h2>
+                  <p class="profile-text">
+                    {{ usuario.descricao || 'Adicione uma descrição para explicar melhor quem você é e o que procura.' }}
+                  </p>
+                </div>
+
+                <div class="profile-block profile-block--social">
+                  <app-social-links-accordion
+                    [uid]="uid"
+                    [isOwner]="true"
+                    [compact]="true"
+                    aria-label="Minhas redes sociais"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section class="profile-card" aria-label="Fotos do perfil">
+              @if (uid; as currentUid) {
+                <app-user-photo-manager
+                  title="Minhas fotos"
+                  mode="summary"
+                  [limit]="6"
+                  [showSort]="false"
+                  [showActions]="false"
+                  [showDate]="true"
+                  [collapsible]="true"
+                  [startCollapsed]="true"
+                  [galleryLink]="['/media', 'perfil', currentUid, 'fotos']"
+                  [uploadLink]="['/media', 'perfil', currentUid, 'fotos', 'upload']"
+                />
+              }
+            </section>
+
+            @if (uid; as currentUid) {
+              <section
+                class="profile-card profile-video-entry"
+                aria-labelledby="profile-video-entry-title"
+              >
+                <div class="profile-video-entry__icon" aria-hidden="true">
+                  <i class="fas fa-clapperboard"></i>
+                </div>
+
+                <div class="profile-video-entry__copy">
+                  <p class="profile-kicker">Biblioteca privada</p>
+                  <h2 id="profile-video-entry-title">Meus vídeos</h2>
+                  <p>
+                    Envie MP4, WebM ou MOV, acompanhe o processamento e escolha
+                    quais vídeos aprovados aparecem no seu perfil público.
+                  </p>
+
+                  <div class="profile-video-entry__features" aria-label="Recursos dos vídeos">
+                    <span>
+                      <i class="fas fa-lock" aria-hidden="true"></i>
+                      Privados por padrão
+                    </span>
+                    <span>
+                      <i class="fas fa-gears" aria-hidden="true"></i>
+                      Processamento seguro
+                    </span>
+                    <span>
+                      <i class="fas fa-eye" aria-hidden="true"></i>
+                      Publicação controlada
+                    </span>
+                  </div>
+                </div>
+
+                <a
+                  class="profile-video-entry__action app-action app-action--primary"
+                  [routerLink]="['/media', 'perfil', currentUid, 'videos']"
+                  aria-label="Abrir minha biblioteca de vídeos"
+                >
+                  <i class="fas fa-film" aria-hidden="true"></i>
+                  <span>Gerenciar vídeos</span>
+                </a>
+              </section>
+            }
+          }
+        }
+      }
+    </div>
+  </main>
+</div>

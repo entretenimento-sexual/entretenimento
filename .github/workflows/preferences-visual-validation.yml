@@ -1,0 +1,397 @@
+name: Preferences Visual Validation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'angular.json'
+      - 'src/app/preferences/**'
+      - 'src/app/shared/form-validation-focus/**'
+      - 'src/app/core/guards/auth-guard/auth.guard.ts'
+      - 'src/app/core/guards/profile-guard/email-verified.guard.ts'
+      - 'src/app/core/guards/compliance/**'
+      - 'src/app/account/guards/account-lifecycle.guard.ts'
+      - 'src/styles/**'
+      - '.github/workflows/preferences-visual-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preferences-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preferences-visual:
+    name: Preferences visual (${{ matrix.configuration }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration:
+          - development
+          - production
+          - dev-emu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build selected environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.configuration }}" in
+            development) npm run build:dev ;;
+            production) npm run build:prod ;;
+            dev-emu) npm run build:emu ;;
+            *)
+              echo "Unsupported configuration: ${{ matrix.configuration }}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Install Playwright CLI and Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @playwright/cli@0.1.17
+          playwright-cli install-browser --with-deps
+
+      - name: Start Auth emulator for dev-emu
+        if: ${{ matrix.configuration == 'dev-emu' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "artifacts/${{ matrix.configuration }}"
+          nohup npx firebase emulators:start \
+            --only auth \
+            --project demo-preferences-visual \
+            > "artifacts/${{ matrix.configuration }}/auth-emulator.log" 2>&1 &
+          echo $! > "artifacts/${{ matrix.configuration }}/auth-emulator.pid"
+
+          for attempt in $(seq 1 90); do
+            if (echo > /dev/tcp/127.0.0.1/9099) >/dev/null 2>&1; then
+              echo "Auth emulator ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Auth emulator did not become ready" >&2
+          cat "artifacts/${{ matrix.configuration }}/auth-emulator.log" >&2 || true
+          exit 1
+
+      - name: Start Angular preferences visual harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "artifacts/${{ matrix.configuration }}"
+          VISUAL_CONFIGURATION="${{ matrix.configuration }}-preferences-visual"
+
+          nohup npx ng serve \
+            --configuration="$VISUAL_CONFIGURATION" \
+            --host=127.0.0.1 \
+            --port=4200 \
+            > "artifacts/${{ matrix.configuration }}/ng-serve.log" 2>&1 &
+          echo $! > "artifacts/${{ matrix.configuration }}/ng-serve.pid"
+
+          for attempt in $(seq 1 180); do
+            if curl --fail --silent --show-error \
+              'http://127.0.0.1:4200/preferencias/editar?visualPlan=free' \
+              >/dev/null; then
+              echo "Angular preferences visual harness ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Angular preferences visual harness did not become ready" >&2
+          cat "artifacts/${{ matrix.configuration }}/ng-serve.log" >&2 || true
+          exit 1
+
+      - name: Capture free and VIP preference editor states
+        shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: preferences-${{ matrix.configuration }}
+        run: |
+          set -euo pipefail
+          OUT="artifacts/${{ matrix.configuration }}/preferences"
+          BASE="http://127.0.0.1:4200/preferencias/editar"
+          mkdir -p "$OUT/free" "$OUT/vip"
+
+          check_log() {
+            local file="$1"
+            if grep -q '^### Error' "$file"; then
+              echo "Playwright reported an error in $file" >&2
+              cat "$file" >&2
+              exit 1
+            fi
+          }
+
+          run_checked() {
+            local file="$1"
+            local code="$2"
+            playwright-cli run-code "$code" | tee "$file"
+            check_log "$file"
+          }
+
+          require_file() {
+            local file="$1"
+            if [[ ! -s "$file" ]]; then
+              echo "Expected visual evidence was not created: $file" >&2
+              exit 1
+            fi
+          }
+
+          playwright-cli open "$BASE?visualPlan=free"
+          playwright-cli resize 1440 1000
+
+          run_checked "$OUT/free/desktop.metrics.log" "async (page) => {
+            await page.waitForSelector('.preferences-editor-page', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const shellRect = document.querySelector('.preferences-editor-shell')?.getBoundingClientRect();
+              const relationshipGroup = Array.from(document.querySelectorAll('.preference-group')).find((group) =>
+                group.querySelector('summary')?.textContent?.includes('Intenções relacionais')
+              );
+              const grid = relationshipGroup?.querySelector('.checkbox-grid--nested');
+              const gridStyle = grid ? getComputedStyle(grid) : null;
+              const items = grid ? Array.from(grid.querySelectorAll('.checkbox-item')).slice(0, 2) : [];
+              const rects = items.map((item) => item.getBoundingClientRect());
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                shellWidth: shellRect?.width ?? 0,
+                planText: document.querySelector('.plan-strip')?.textContent?.trim() ?? '',
+                advancedLocked: !!document.querySelector('.preference-group--locked'),
+                gridDisplay: gridStyle?.display ?? '',
+                gridColumns: gridStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
+                firstRowAligned: rects.length === 2 ? Math.abs(rects[0].top - rects[1].top) <= 2 : false,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Free desktop has horizontal overflow');
+            if (metrics.shellWidth < Math.min(metrics.viewportWidth * 0.60, 850)) throw new Error('Free desktop editor shell is too narrow');
+            if (!metrics.planText.includes('Gratuito')) throw new Error('Free desktop did not render the free capability state');
+            if (!metrics.advancedLocked) throw new Error('Free desktop lost the advanced-preferences locked state');
+            if (metrics.gridDisplay !== 'grid' || metrics.gridColumns < 2 || !metrics.firstRowAligned) throw new Error('Nested preference options are not using a multi-column desktop grid');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/free/desktop.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/free/desktop.png"
+          require_file "$OUT/free/desktop.accessibility.yml"
+          require_file "$OUT/free/desktop.png"
+
+          run_checked "$OUT/free/desktop-advanced.metrics.log" "async (page) => {
+            const summary = page.locator('.preference-group__summary').filter({ hasText: 'Preferências avançadas' });
+            await summary.click();
+            const metrics = await page.evaluate(() => ({
+              upgradeVisible: !!document.querySelector('.preference-upgrade')?.getClientRects().length,
+              upgradeText: document.querySelector('.preference-upgrade')?.textContent?.trim() ?? '',
+            }));
+            console.log(JSON.stringify(metrics));
+            if (!metrics.upgradeVisible || !metrics.upgradeText.includes('plano Básico')) throw new Error('Free advanced-preferences upgrade guidance is missing');
+            return metrics;
+          }"
+          playwright-cli screenshot --full-page --filename="$OUT/free/desktop-advanced.png"
+          require_file "$OUT/free/desktop-advanced.png"
+
+          playwright-cli resize 390 844
+          playwright-cli reload
+
+          run_checked "$OUT/free/mobile.metrics.log" "async (page) => {
+            await page.waitForSelector('.preferences-editor-page', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const shellRect = document.querySelector('.preferences-editor-shell')?.getBoundingClientRect();
+              const relationshipGroup = Array.from(document.querySelectorAll('.preference-group')).find((group) =>
+                group.querySelector('summary')?.textContent?.includes('Intenções relacionais')
+              );
+              const grid = relationshipGroup?.querySelector('.checkbox-grid--nested');
+              const gridStyle = grid ? getComputedStyle(grid) : null;
+              const items = grid ? Array.from(grid.querySelectorAll('.checkbox-item')).slice(0, 2) : [];
+              const rects = items.map((item) => item.getBoundingClientRect());
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                shellWidth: shellRect?.width ?? 0,
+                gridDisplay: gridStyle?.display ?? '',
+                gridColumns: gridStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
+                stacked: rects.length === 2 ? rects[1].top >= rects[0].bottom - 1 : false,
+                minTouchHeight: rects.length ? Math.min(...rects.map((rect) => rect.height)) : 0,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Free mobile has horizontal overflow');
+            if (metrics.shellWidth < metrics.viewportWidth * 0.85) throw new Error('Free mobile editor does not use the available width');
+            if (metrics.gridDisplay !== 'grid' || metrics.gridColumns !== 1 || !metrics.stacked) throw new Error('Nested preference grid did not collapse to one column on mobile');
+            if (metrics.minTouchHeight < 44) throw new Error('Mobile preference options lost the minimum touch height');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/free/mobile.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/free/mobile.png"
+          require_file "$OUT/free/mobile.accessibility.yml"
+          require_file "$OUT/free/mobile.png"
+
+          run_checked "$OUT/free/mobile-invalid.metrics.log" "async (page) => {
+            const summary = page.locator('.preference-group__summary').filter({ hasText: 'Opções de descoberta' });
+            await summary.click();
+            await page.locator('#minAge').fill('17');
+            const submit = page.locator('.preference-profile-form button[type=submit]');
+            if (await submit.isDisabled()) throw new Error('Invalid dirty form hides the action needed to disclose validation feedback');
+            await submit.click();
+            await page.waitForTimeout(250);
+            const metrics = await page.evaluate(() => {
+              const error = document.querySelector('#minAgeError');
+              const input = document.querySelector('#minAge');
+              const errorRect = error?.getBoundingClientRect();
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                errorVisible: !!error?.getClientRects().length,
+                role: error?.getAttribute('role') ?? '',
+                live: error?.getAttribute('aria-live') ?? '',
+                atomic: error?.getAttribute('aria-atomic') ?? '',
+                inputInvalid: input?.getAttribute('aria-invalid') ?? '',
+                describedBy: input?.getAttribute('aria-describedby') ?? '',
+                activeElementId: document.activeElement?.id ?? '',
+                errorInViewport: !!errorRect && errorRect.left >= -1 && errorRect.right <= window.innerWidth + 1,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('Free mobile invalid state has horizontal overflow');
+            if (!metrics.errorVisible || metrics.role !== 'alert' || metrics.live !== 'polite' || metrics.atomic !== 'true') throw new Error('Numeric validation feedback lost accessible alert semantics');
+            if (metrics.inputInvalid !== 'true' || metrics.describedBy !== 'minAgeError') throw new Error('Invalid numeric input is not associated with its feedback');
+            if (metrics.activeElementId !== 'minAge') throw new Error('Invalid submit did not focus the first problematic filter');
+            if (!metrics.errorInViewport) throw new Error('Numeric validation feedback escaped the mobile viewport');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/free/mobile-invalid.accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/free/mobile-invalid-viewport.png"
+          playwright-cli screenshot --full-page --filename="$OUT/free/mobile-invalid.png"
+          require_file "$OUT/free/mobile-invalid.accessibility.yml"
+          require_file "$OUT/free/mobile-invalid-viewport.png"
+          require_file "$OUT/free/mobile-invalid.png"
+
+          run_checked "$OUT/free/cleanup.metrics.log" "async (page) => {
+            await page.locator('#minAge').fill('25');
+            const submit = page.locator('.preference-profile-form button[type=submit]');
+            if (await submit.isDisabled()) throw new Error('Corrected form cannot be saved before navigation');
+            await submit.click();
+            await page.waitForTimeout(150);
+            const metrics = await page.evaluate(() => ({
+              statusText: document.querySelector('.form-actions__status')?.textContent?.trim() ?? '',
+              submitDisabled: document.querySelector('.preference-profile-form button[type=submit]')?.disabled ?? false,
+            }));
+            console.log(JSON.stringify(metrics));
+            if (!metrics.statusText.includes('Preferências salvas') || !metrics.submitDisabled) throw new Error('Visual harness could not clear the dirty profile state');
+            return metrics;
+          }"
+
+          playwright-cli goto "$BASE?visualPlan=vip" | tee "$OUT/vip/goto.log"
+          check_log "$OUT/vip/goto.log"
+          playwright-cli resize 1440 1000
+
+          run_checked "$OUT/vip/desktop.metrics.log" "async (page) => {
+            await page.waitForSelector('.preferences-editor-page', { state: 'visible' });
+            await page.locator('.preference-group__summary').filter({ hasText: 'Preferências avançadas' }).click();
+            await page.locator('.availability-section__summary').click();
+            await page.locator('.intent-context__summary').click();
+            const metrics = await page.evaluate(() => {
+              const advancedGroup = Array.from(document.querySelectorAll('.preference-group')).find((group) =>
+                group.querySelector('summary')?.textContent?.includes('Preferências avançadas')
+              );
+              const advancedGrid = advancedGroup?.querySelector('.checkbox-grid--nested');
+              const advancedStyle = advancedGrid ? getComputedStyle(advancedGrid) : null;
+              const contextual = ['cityOverride', 'expiresAt', 'tagsText'].map((id) => document.getElementById(id));
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                planText: document.querySelector('.plan-strip')?.textContent?.trim() ?? '',
+                advancedLocked: advancedGroup?.classList.contains('preference-group--locked') ?? true,
+                advancedGridDisplay: advancedStyle?.display ?? '',
+                advancedGridColumns: advancedStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
+                contextualVisible: contextual.every((el) => !!el?.getClientRects().length),
+                freeUpgradeVisible: !!advancedGroup?.querySelector('.preference-upgrade')?.getClientRects().length,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('VIP desktop has horizontal overflow');
+            if (!metrics.planText.includes('VIP')) throw new Error('VIP desktop did not render VIP capabilities');
+            if (metrics.advancedLocked || metrics.freeUpgradeVisible) throw new Error('VIP desktop incorrectly renders advanced preferences as locked');
+            if (metrics.advancedGridDisplay !== 'grid' || metrics.advancedGridColumns < 2) throw new Error('VIP advanced preferences lost their desktop grid');
+            if (!metrics.contextualVisible) throw new Error('VIP contextual availability fields are not visible');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/vip/desktop.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/vip/desktop.png"
+          require_file "$OUT/vip/desktop.accessibility.yml"
+          require_file "$OUT/vip/desktop.png"
+
+          playwright-cli resize 390 844
+          playwright-cli reload
+
+          run_checked "$OUT/vip/mobile.metrics.log" "async (page) => {
+            await page.waitForSelector('.preferences-editor-page', { state: 'visible' });
+            await page.locator('.preference-group__summary').filter({ hasText: 'Preferências avançadas' }).click();
+            await page.locator('.availability-section__summary').click();
+            await page.locator('.intent-context__summary').click();
+            const metrics = await page.evaluate(() => {
+              const shellRect = document.querySelector('.preferences-editor-shell')?.getBoundingClientRect();
+              const advancedGroup = Array.from(document.querySelectorAll('.preference-group')).find((group) =>
+                group.querySelector('summary')?.textContent?.includes('Preferências avançadas')
+              );
+              const advancedGrid = advancedGroup?.querySelector('.checkbox-grid--nested');
+              const advancedStyle = advancedGrid ? getComputedStyle(advancedGrid) : null;
+              const controls = ['cityOverride', 'expiresAt', 'tagsText']
+                .map((id) => document.getElementById(id))
+                .filter(Boolean);
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                shellWidth: shellRect?.width ?? 0,
+                advancedGridDisplay: advancedStyle?.display ?? '',
+                advancedGridColumns: advancedStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
+                contextualVisible: controls.length === 3 && controls.every((el) => !!el.getClientRects().length),
+                minControlHeight: controls.length ? Math.min(...controls.map((el) => el.getBoundingClientRect().height)) : 0,
+              };
+            });
+            console.log(JSON.stringify(metrics));
+            if (metrics.scrollWidth > metrics.viewportWidth + 1) throw new Error('VIP mobile has horizontal overflow');
+            if (metrics.shellWidth < metrics.viewportWidth * 0.85) throw new Error('VIP mobile editor does not use the available width');
+            if (metrics.advancedGridDisplay !== 'grid' || metrics.advancedGridColumns !== 1) throw new Error('VIP advanced grid did not collapse to one column on mobile');
+            if (!metrics.contextualVisible || metrics.minControlHeight < 44) throw new Error('VIP contextual controls are incomplete or too small on mobile');
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/vip/mobile.accessibility.yml"
+          playwright-cli screenshot --full-page --filename="$OUT/vip/mobile.png"
+          require_file "$OUT/vip/mobile.accessibility.yml"
+          require_file "$OUT/vip/mobile.png"
+
+          playwright-cli console error > "$OUT/browser-console-errors.log" || true
+          check_log "$OUT/browser-console-errors.log"
+          playwright-cli close
+
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: preferences-visual-${{ matrix.configuration }}
+          path: artifacts/${{ matrix.configuration }}
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,0 +1,76 @@
+<!-- src/app/layout/layout-shell/layout-shell.component.html -->
+<div
+  class="auth-shell"
+  *ngIf="vm$ | async as vm"
+  [attr.data-shell-mode]="vm.shellMode"
+  [attr.data-chat-layout]="vm.isChatLayout ? 'true' : 'false'"
+>
+  <app-navbar></app-navbar>
+  <app-legal-update-notice-bridge></app-legal-update-notice-bridge>
+
+  <!--
+    SUPRESSÃO EXPLÍCITA:
+    - a faixa global de convites não aparece quando a sidebar desktop está visível.
+
+    Motivo:
+    - o link "Convites para salas" já exibe seu badge acionável;
+    - evita duplicar a mesma pendência e deslocar verticalmente o conteúdo.
+    - no mobile ou sem sidebar, a faixa continua sendo o acesso visível.
+  -->
+  <app-global-invite-badge
+    *ngIf="vm.shellMode === 'auth' && (vm.sidebarShouldOverlay || !vm.showSidebar)"
+    [mobile]="vm.sidebarShouldOverlay"
+  ></app-global-invite-badge>
+
+  <app-email-verification-gate-banner></app-email-verification-gate-banner>
+
+  <div
+    class="auth-shell__body"
+    [class.auth-shell__body--sidebar-overlay-open]="vm.showSidebar && vm.sidebarShouldOverlay && vm.sidebar.isOpen"
+  >
+    <app-universal-sidebar
+      *ngIf="vm.showSidebar"
+      [vm]="vm.sidebar"
+      [user]="vm.sidebarUser"
+      [quickActions]="vm.sidebarQuickActions"
+      [forceOverlay]="vm.sidebarShouldOverlay"
+      [forceCollapsed]="vm.isChatLayout || vm.sidebarShouldCompact"
+      [lockCollapsed]="vm.isChatLayout"
+      (toggleRequested)="onToggleSidebar()"
+      (collapseRequested)="onToggleCollapse()"
+      (groupToggleRequested)="onToggleSidebarGroup($event)"
+      (groupCloseRequested)="onCloseSidebarGroup($event)"
+    ></app-universal-sidebar>
+
+    <div
+      class="auth-shell__content-area"
+      [class.auth-shell__content-area--chat]="vm.showSidebar && vm.isChatLayout && !vm.sidebarShouldOverlay"
+      [class.auth-shell__content-area--compact]="vm.showSidebar && !vm.isChatLayout && vm.sidebarShouldCompact"
+      [class.auth-shell__content-area--collapsed]="vm.showSidebar && !vm.isChatLayout && !vm.sidebarShouldOverlay && !vm.sidebarShouldCompact && !vm.sidebar.isMobile && vm.sidebar.isCollapsed"
+      [class.auth-shell__content-area--full]="!vm.showSidebar"
+      [class.auth-shell__content-area--overlay]="vm.showSidebar && vm.sidebarShouldOverlay"
+    >
+      <app-user-activity-hub
+        *ngIf="vm.shellMode === 'auth' && !vm.isChatLayout"
+      ></app-user-activity-hub>
+
+      <main
+        class="auth-shell__content"
+        [attr.inert]="vm.showSidebar && vm.sidebarShouldOverlay && vm.sidebar.isOpen ? '' : null"
+      >
+        <router-outlet></router-outlet>
+      </main>
+
+      <app-authenticated-footer
+        *ngIf="vm.shellMode === 'auth' && vm.showFooter"
+      ></app-authenticated-footer>
+    </div>
+  </div>
+
+  <app-mobile-bottom-nav
+    *ngIf="vm.shellMode === 'auth' && vm.sidebarShouldOverlay && !vm.isChatLayout && vm.showSidebar"
+    class="auth-shell__bottom-nav"
+    [currentUrl]="vm.currentUrl"
+    [friendRequestsCount]="vm.friendRequestsCount"
+  ></app-mobile-bottom-nav>
+</div>

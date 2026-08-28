@@ -1,0 +1,100 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ============================================================
+    // Helpers básicos - 14ABR2026
+    // ============================================================
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isImageCreateOrUpdate() {
+      return request.resource != null
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    function isVideoCreateOrUpdate() {
+      return request.resource != null
+        && (
+          request.resource.contentType.matches('video/.*')
+          || request.resource.contentType == 'application/mxf'
+        )
+        && request.resource.size <= 500 * 1024 * 1024;
+    }
+
+    // ============================================================
+    // Upload bruto e privado do usuário
+    // - upload e rollback continuam sob controle do proprietário;
+    // - reprodução usa URL temporária emitida pelo backend.
+    // ============================================================
+
+    match /users/{uid}/uploads/images/{fileName} {
+      allow read: if isSelf(uid);
+      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+      allow delete: if isSelf(uid);
+    }
+
+    match /users/{uid}/uploads/videos/{fileName} {
+      allow read: if false;
+      allow create, update: if isSelf(uid) && isVideoCreateOrUpdate();
+      allow delete: if isSelf(uid);
+    }
+
+    // Poster gerado localmente para um vídeo privado específico.
+    // O namespace separado permite limpeza segura junto do vídeo sem afetar fotos.
+    match /users/{uid}/uploads/video-posters/{videoId}/{fileName} {
+      allow read: if false;
+      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+      allow delete: if isSelf(uid);
+    }
+
+    // Derivados produzidos exclusivamente pelo backend.
+    // Reprodução também ocorre somente por URL temporária emitida pelo backend.
+    match /users/{uid}/processed/videos/{videoId}/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // ============================================================
+    // Avatar publicado
+    // ============================================================
+
+    match /users/{uid}/published/avatar/{fileName} {
+      allow read: if signedIn();
+      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+      allow delete: if isSelf(uid);
+    }
+
+    // ============================================================
+    // Mídia publicada sensível
+    // - leitura ocorre somente por URL temporária emitida pelo backend;
+    // - clientes não acessam nem escrevem diretamente estes namespaces.
+    // ============================================================
+
+    match /users/{uid}/published/images/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{uid}/published/videos/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // ============================================================
+    // Área técnica / sistema / derivados
+    // ============================================================
+
+    match /system/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

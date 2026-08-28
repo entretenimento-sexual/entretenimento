@@ -1,0 +1,121 @@
+/* Camada enxuta da central de notificações. */
+.notifications-page {
+  max-width: min(760px, 100%);
+  padding-top: 0.9rem;
+}
+
+.notifications-hero--compact {
+  align-items: center;
+  margin-bottom: 0.7rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.notifications-hero--compact h1 {
+  font-size: clamp(1.3rem, 1.18rem + 0.5vw, 1.65rem);
+}
+
+.notifications-hero__actions {
+  gap: 0.4rem;
+}
+
+.notifications-hero__count,
+.notifications-hero__button {
+  min-height: 34px;
+  padding-inline: 0.65rem;
+  font-size: 0.74rem;
+}
+
+.notifications-list {
+  gap: 0;
+}
+
+.notification-card {
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 0.7rem;
+  padding: 0.85rem 0.15rem;
+  border: 0;
+  border-bottom: 1px solid var(--surface-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.notification-card--unread {
+  border-color: var(--surface-border);
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--primary-color) 7%, transparent),
+    transparent 42%
+  );
+}
+
+.notification-card__icon {
+  width: 32px;
+  height: 32px;
+  font-size: 0.88rem;
+}
+
+.notification-card__body {
+  gap: 0.42rem;
+}
+
+.notification-card h2 {
+  font-size: 0.92rem;
+}
+
+.notification-card time {
+  font-size: 0.68rem;
+}
+
+.notification-card p {
+  font-size: 0.82rem;
+  line-height: 1.38;
+}
+
+.notification-card__actions {
+  gap: 0.6rem;
+}
+
+.notification-card__link,
+.notification-card__link--button {
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-size: 0.74rem;
+}
+
+.notification-card__link:hover,
+.notification-card__link:focus-visible {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.notifications-state {
+  min-height: 110px;
+  border-radius: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .notifications-hero--compact {
+    align-items: flex-start;
+    gap: 0.55rem;
+  }
+
+  .notification-card {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .notification-card__header {
+    align-items: baseline;
+    flex-direction: row;
+  }
+}
+
+:host-context(html.high-contrast) .notifications-hero--compact,
+:host-context(html.high-contrast) .notification-card,
+:host-context(html.high-contrast) .notifications-state {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+}

@@ -1,0 +1,283 @@
+/* src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component.css */
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.public-profiles {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.public-profiles__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(236px, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+  gap: clamp(0.7rem, 1.2vw, 1rem);
+  width: 100%;
+  min-width: 0;
+}
+
+.public-profiles__item {
+  display: block;
+  align-self: stretch;
+  justify-self: center;
+  width: 100%;
+  height: 100%;
+  max-width: 300px;
+  min-width: 0;
+}
+
+.public-profiles__state,
+.public-profiles__inline-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  width: min(100%, 560px);
+  margin-inline: auto;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+}
+
+.public-profiles__state {
+  min-height: 5rem;
+  padding: 0.8rem;
+}
+
+.public-profiles__state p,
+.public-profiles__empty p {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.public-profiles__state--error,
+.public-profiles__inline-error {
+  color: var(--danger-color);
+}
+
+.public-profiles__state--error {
+  flex-wrap: wrap;
+}
+
+.public-profiles__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8rem;
+  width: min(100%, 560px);
+  margin: clamp(1.5rem, 6vw, 3rem) auto;
+  padding-inline: 0.75rem;
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  text-align: center;
+}
+
+.public-profiles__empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.public-profiles__refreshing {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--background-color) 88%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.public-profiles__inline-error {
+  justify-content: space-between;
+  margin-bottom: 0.7rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--danger-color) 28%, transparent);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.public-profiles__retry,
+.public-profiles__inline-error button,
+.public-profiles__load-more,
+.public-profiles__review {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 32%, var(--surface-border));
+  border-radius: 0.75rem;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 760;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.public-profiles__retry,
+.public-profiles__inline-error button,
+.public-profiles__review {
+  padding: 0.52rem 0.8rem;
+}
+
+.public-profiles__load-more {
+  min-width: min(100%, 11rem);
+  padding: 0.62rem 1rem;
+}
+
+.public-profiles__retry:hover,
+.public-profiles__inline-error button:hover,
+.public-profiles__load-more:hover:not(:disabled),
+.public-profiles__review:hover {
+  border-color: color-mix(in oklab, var(--primary-color) 52%, var(--surface-border));
+  background: color-mix(in oklab, var(--primary-color) 7%, transparent);
+}
+
+.public-profiles__retry:focus-visible,
+.public-profiles__inline-error button:focus-visible,
+.public-profiles__load-more:focus-visible,
+.public-profiles__review:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+.public-profiles__load-more:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.public-profiles__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: clamp(1rem, 2.5vw, 1.6rem) 0 0.25rem;
+}
+
+.public-profiles__loading-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.spinner {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid color-mix(in oklab, var(--primary-color) 20%, transparent);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: public-profiles-spin 700ms linear infinite;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@keyframes public-profiles-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+:host-context(.high-contrast) .public-profiles__state,
+:host-context(.high-contrast) .public-profiles__empty,
+:host-context(.high-contrast) .public-profiles__inline-error,
+:host-context(.high-contrast) .public-profiles__loading-more {
+  color: var(--text-color);
+}
+
+:host-context(.high-contrast) .public-profiles__retry,
+:host-context(.high-contrast) .public-profiles__inline-error button,
+:host-context(.high-contrast) .public-profiles__load-more,
+:host-context(.high-contrast) .public-profiles__review {
+  border: 2px solid var(--text-color);
+  background: var(--background-color);
+  color: var(--text-color);
+}
+
+:host-context(.high-contrast) .public-profiles__refreshing {
+  border: 2px solid var(--text-color);
+  background: var(--background-color);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+@media (max-width: 760px) {
+  .public-profiles__grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 470px) {
+  .public-profiles__grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+    gap: 0.8rem;
+  }
+
+  .public-profiles__item {
+    height: auto;
+    max-width: 100%;
+  }
+
+  .public-profiles__inline-error {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .public-profiles__empty-actions {
+    flex-direction: column;
+  }
+
+  .public-profiles__load-more,
+  .public-profiles__review {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+
+  .public-profiles__retry,
+  .public-profiles__inline-error button,
+  .public-profiles__load-more,
+  .public-profiles__review {
+    transition: none;
+  }
+}

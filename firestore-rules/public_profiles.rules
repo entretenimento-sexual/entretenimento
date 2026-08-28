@@ -1,0 +1,375 @@
+// firestore-rules/public_profiles.rules
+// =========================================================================
+// PUBLIC PROFILES (consultable / discovery)
+// =========================================================================
+match /public_profiles/{userId} {
+  allow get, list: if signedIn();
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function hasExistingField(field) {
+    return resource.data.keys().hasAny([field]);
+  }
+
+  function fieldOrNull(field) {
+    return hasField(field) ? request.resource.data[field] : null;
+  }
+
+  function existingFieldOrNull(field) {
+    return hasExistingField(field) ? resource.data[field] : null;
+  }
+
+  function immutableIfExisting(field) {
+    return !hasExistingField(field)
+      || fieldOrNull(field) == existingFieldOrNull(field);
+  }
+
+  function immutableExistingOrAbsent(field) {
+    return hasExistingField(field)
+      ? fieldOrNull(field) == existingFieldOrNull(field)
+      : !hasField(field);
+  }
+
+  function optStringSized(field, min, max) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+          && request.resource.data[field].size() >= min
+          && request.resource.data[field].size() <= max);
+  }
+
+  function optUrl(field, maxLen) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+          && request.resource.data[field].size() <= maxLen
+          && request.resource.data[field].matches('^https?://.*'));
+  }
+
+  function optNumberInRange(field, min, max) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is number
+          && request.resource.data[field] >= min
+          && request.resource.data[field] <= max);
+  }
+
+  function optStringList(field, maxSize) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is list
+          && request.resource.data[field].size() <= maxSize);
+  }
+
+  function optGeohash(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+          && request.resource.data[field].size() >= 5
+          && request.resource.data[field].size() <= 12
+          && request.resource.data[field]
+            .matches('^[0123456789bcdefghjkmnpqrstuvwxyz]{5,12}$'));
+  }
+
+  function nicknameCoherent() {
+    let nick = fieldOrNull("nickname");
+    let norm = fieldOrNull("nicknameNormalized");
+    return (nick == null && norm == null) || (nick != null && norm != null);
+  }
+
+  function geoCoherent() {
+    let lat = fieldOrNull("latitude");
+    let lng = fieldOrNull("longitude");
+    let gh = fieldOrNull("geohash");
+    return (lat == null && lng == null && gh == null)
+      || (lat != null && lng != null && gh != null);
+  }
+
+  function privateUserPath() {
+    return /databases/$(database)/documents/users/$(userId);
+  }
+
+  function hasAcceptedTerms(data) {
+    return data.keys().hasAny(["acceptedTerms"])
+      && data.acceptedTerms is map
+      && data.acceptedTerms.keys().hasAll([
+        "accepted",
+        "version",
+        "acknowledgedPrivacyNotice"
+      ])
+      && data.acceptedTerms.accepted == true
+      && data.acceptedTerms.version == "v3"
+      && data.acceptedTerms.acknowledgedPrivacyNotice == true;
+  }
+
+  function hasRequiredAdultConsent(data) {
+    return (
+        data.keys().hasAny(["initialAdultConsentRequired"])
+        && data.initialAdultConsentRequired == false
+      )
+      || (
+        data.keys().hasAny(["adultConsent"])
+        && data.adultConsent is map
+        && data.adultConsent.keys().hasAny(["accepted"])
+        && data.adultConsent.accepted == true
+      );
+  }
+
+  function eligiblePrivateUserData(data) {
+    return data.keys().hasAll([
+        "accountStatus",
+        "emailVerified",
+        "profileCompleted",
+        "publicVisibility",
+        "interactionBlocked"
+      ])
+      && data.accountStatus == "active"
+      && data.emailVerified == true
+      && data.profileCompleted == true
+      && data.publicVisibility == "visible"
+      && data.interactionBlocked == false
+      && hasAcceptedTerms(data)
+      && hasRequiredAdultConsent(data);
+  }
+
+  function eligiblePrivateUserAfter() {
+    return existsAfter(privateUserPath())
+      && eligiblePrivateUserData(getAfter(privateUserPath()).data);
+  }
+
+  function noClientManagedFieldsOnCreate() {
+    return !request.resource.data.keys().hasAny([
+      "age",
+      "normalizedGender",
+      "normalizedOrientation",
+      "interestedInGenders",
+      "interestedInOrientations",
+      "compatibilityReady",
+      "discoveryNormalizedAt",
+      "preferenceBadgesVisible",
+      "publicRelationshipIntents",
+      "publicSexualPractices",
+      "publicBodyTraits",
+      "publicBodyPreferences",
+      "publicPreferencesUpdatedAt",
+      "mediaCount",
+      "publicMediaCount",
+      "photosCount",
+      "publicPhotosCount",
+      "videosCount",
+      "publicVideosCount",
+      "viewsCount",
+      "profileViewsCount",
+      "profileViews",
+      "uniqueViewersCount",
+      "profileUniqueViewersCount",
+      "mediaUniqueViewersCount",
+      "reactionsCount",
+      "likesCount",
+      "publicLikesCount",
+      "viewScore",
+      "engagementScore",
+      "profileCompletenessScore",
+      "coverPhotoId",
+      "coverPhotoURL",
+      "coverVideoId",
+      "coverVideoURL",
+      "lastViewedAt",
+      "mediaMetricsUpdatedAt",
+      "profileViewerIndexVersion",
+      "profileViewerIndexBackfilledAt"
+    ]);
+  }
+
+  function backendManagedFieldsUnchangedOnUpdate() {
+    return !request.resource.data.diff(resource.data).changedKeys().hasAny([
+      "age",
+      "normalizedGender",
+      "normalizedOrientation",
+      "interestedInGenders",
+      "interestedInOrientations",
+      "compatibilityReady",
+      "discoveryNormalizedAt",
+      "preferenceBadgesVisible",
+      "publicRelationshipIntents",
+      "publicSexualPractices",
+      "publicBodyTraits",
+      "publicBodyPreferences",
+      "publicPreferencesUpdatedAt",
+      "mediaCount",
+      "publicMediaCount",
+      "photosCount",
+      "publicPhotosCount",
+      "videosCount",
+      "publicVideosCount",
+      "viewsCount",
+      "profileViewsCount",
+      "profileViews",
+      "uniqueViewersCount",
+      "profileUniqueViewersCount",
+      "mediaUniqueViewersCount",
+      "reactionsCount",
+      "likesCount",
+      "publicLikesCount",
+      "viewScore",
+      "engagementScore",
+      "profileCompletenessScore",
+      "coverPhotoId",
+      "coverPhotoURL",
+      "coverVideoId",
+      "coverVideoURL",
+      "lastViewedAt",
+      "mediaMetricsUpdatedAt",
+      "profileViewerIndexVersion",
+      "profileViewerIndexBackfilledAt"
+    ]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "nickname",
+      "nicknameNormalized",
+      "avatarUrl",
+      "photoURL",
+      "municipio",
+      "estado",
+      "gender",
+      "orientation",
+      "age",
+      "normalizedGender",
+      "normalizedOrientation",
+      "interestedInGenders",
+      "interestedInOrientations",
+      "compatibilityReady",
+      "discoveryNormalizedAt",
+      "preferenceBadgesVisible",
+      "publicRelationshipIntents",
+      "publicSexualPractices",
+      "publicBodyTraits",
+      "publicBodyPreferences",
+      "publicPreferencesUpdatedAt",
+      "role",
+      "latitude",
+      "longitude",
+      "geohash",
+      "createdAt",
+      "updatedAt",
+      "mediaCount",
+      "publicMediaCount",
+      "photosCount",
+      "publicPhotosCount",
+      "videosCount",
+      "publicVideosCount",
+      "viewsCount",
+      "profileViewsCount",
+      "profileViews",
+      "uniqueViewersCount",
+      "profileUniqueViewersCount",
+      "mediaUniqueViewersCount",
+      "reactionsCount",
+      "likesCount",
+      "publicLikesCount",
+      "viewScore",
+      "engagementScore",
+      "profileCompletenessScore",
+      "coverPhotoId",
+      "coverPhotoURL",
+      "coverVideoId",
+      "coverVideoURL",
+      "lastViewedAt",
+      "mediaMetricsUpdatedAt",
+      "profileViewerIndexVersion",
+      "profileViewerIndexBackfilledAt"
+    ]);
+  }
+
+  function validClientEditablePublicProfilePayload() {
+    return allowedKeys()
+      && request.resource.data.uid is string
+      && request.resource.data.uid == uid()
+      && optTimestamp("updatedAt")
+      && nicknameCoherent()
+      && optStringSized("nickname", 3, 40)
+      && (
+        !hasField("nicknameNormalized")
+        || request.resource.data.nicknameNormalized == null
+        || (request.resource.data.nicknameNormalized is string
+          && request.resource.data.nicknameNormalized.matches('^[a-z0-9._-]{3,40}$'))
+      )
+      && optUrl("avatarUrl", 1024)
+      && optUrl("photoURL", 1024)
+      && geoCoherent()
+      && optNumberInRange("latitude", -90, 90)
+      && optNumberInRange("longitude", -180, 180)
+      && optGeohash("geohash")
+      && optStringSized("municipio", 1, 80)
+      && optStringSized("estado", 1, 40)
+      && optStringSized("gender", 1, 40)
+      && optStringSized("orientation", 1, 40);
+  }
+
+  function validPublicProfileCreatePayload() {
+    return validClientEditablePublicProfilePayload()
+      && optTimestamp("createdAt")
+      && optTimestamp("discoveryNormalizedAt")
+      && optTimestamp("publicPreferencesUpdatedAt")
+      && optNumberInRange("age", 18, 100)
+      && optStringSized("normalizedGender", 3, 20)
+      && optStringSized("normalizedOrientation", 3, 20)
+      && optStringList("interestedInGenders", 12)
+      && optStringList("interestedInOrientations", 8)
+      && optStringList("publicRelationshipIntents", 10)
+      && optStringList("publicSexualPractices", 40)
+      && optStringList("publicBodyTraits", 30)
+      && optStringList("publicBodyPreferences", 30)
+      && (!hasField("preferenceBadgesVisible")
+        || request.resource.data.preferenceBadgesVisible == null
+        || request.resource.data.preferenceBadgesVisible is bool)
+      && (!hasField("compatibilityReady")
+        || request.resource.data.compatibilityReady == null
+        || request.resource.data.compatibilityReady is bool)
+      && optStringSized("role", 3, 20);
+  }
+
+  function avatarOnlyUpdate() {
+    return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      "photoURL",
+      "avatarUrl",
+      "updatedAt"
+    ])
+      && request.resource.data.updatedAt == request.time
+      && optUrl("photoURL", 2048)
+      && optUrl("avatarUrl", 2048);
+  }
+
+  allow create: if isSelf(userId)
+    && eligiblePrivateUserAfter()
+    && validPublicProfileCreatePayload()
+    && noClientManagedFieldsOnCreate()
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.updatedAt == request.time
+    && request.resource.data.role == "free";
+
+  allow update: if isSelf(userId)
+    && eligiblePrivateUserAfter()
+    && backendManagedFieldsUnchangedOnUpdate()
+    && (
+      avatarOnlyUpdate()
+      || (
+        validClientEditablePublicProfilePayload()
+        && immutableIfExisting("uid")
+        && immutableExistingOrAbsent("createdAt")
+        && request.resource.data.updatedAt == request.time
+        && immutableExistingOrAbsent("role")
+      )
+    );
+
+  allow delete: if false;
+
+  match /profile_viewers/{viewerUid} {
+    allow read, write: if false;
+  }
+}

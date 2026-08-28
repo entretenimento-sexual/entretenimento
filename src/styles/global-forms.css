@@ -1,0 +1,229 @@
+/* src/styles/global-forms.css */
+.input-field {
+  width: 100%;
+  padding: 7px;
+  margin-bottom: 15px;
+  border: 1px solid #cccccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  background-color: var(--input-background);
+  transition: border-color 0.3s ease, box-shadow 0.2s ease;
+}
+
+.input-field:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  outline: none;
+}
+
+.input-field.ng-invalid.ng-touched {
+  border-color: var(--danger-color);
+}
+
+.form-label {
+  font-size: 1rem;
+  color: var(--text-color);
+  margin-bottom: 8px;
+  display: block;
+}
+
+.form-field {
+  position: relative;
+}
+
+.form-wrapper {
+  width: 100%;
+  max-width: 450px;
+  padding: 25px;
+  margin: auto;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  border-radius: 12px;
+  box-shadow: var(--box-shadow);
+  text-align: center;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.form-header {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.form-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 20px 0;
+  color: var(--text-color);
+}
+
+.form-checkbox input[type="checkbox"]:checked {
+  accent-color: var(--primary-color);
+}
+
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  min-height: 70vh;
+  background-color: var(--background-color);
+  font-family: var(--font-family-primary);
+}
+
+.login-link,
+.register-link {
+  margin-top: 20px;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.login-link a,
+.register-link a {
+  color: var(--primary-color);
+  font-weight: bold;
+  text-decoration: underline;
+  transition: color 0.3s ease;
+}
+
+.login-link a:hover,
+.register-link a:hover {
+  color: var(--primary-hover);
+}
+
+.toggle-input {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+}
+
+.tooltip-error {
+  position: absolute;
+  z-index: 1000;
+  margin-top: 4px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background-color: var(--tooltip-background);
+  color: #fff;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  box-shadow: var(--box-shadow);
+  animation: fadeIn 0.3s ease;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Range acessível                                                            */
+/* -------------------------------------------------------------------------- */
+:is(input[type="range"], .form-range) {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--range-track-height);
+  background: transparent;
+}
+
+:is(input[type="range"], .form-range)::-webkit-slider-runnable-track {
+  height: var(--range-track-height);
+  background-color: var(--range-track-color);
+  border-radius: var(--radius-sm);
+}
+
+:is(input[type="range"], .form-range)::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--range-thumb-size);
+  height: var(--range-thumb-size);
+  margin-top: calc((var(--range-track-height) - var(--range-thumb-size)) / 2);
+  border-radius: 50%;
+  background: var(--primary-color);
+  box-shadow: var(--range-thumb-shadow);
+  transition: transform 0.1s ease;
+}
+
+:is(input[type="range"], .form-range):focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+:is(input[type="range"], .form-range)::-webkit-slider-thumb:hover {
+  transform: scale(1.05);
+}
+
+:is(input[type="range"], .form-range)::-moz-range-track {
+  height: var(--range-track-height);
+  background-color: var(--range-track-color);
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+:is(input[type="range"], .form-range)::-moz-range-thumb {
+  width: var(--range-thumb-size);
+  height: var(--range-thumb-size);
+  border: none;
+  border-radius: 50%;
+  background: var(--primary-color);
+  box-shadow: var(--range-thumb-shadow);
+}
+
+:is(input[type="range"], .form-range):focus-visible::-moz-range-thumb {
+  outline: var(--focus-ring);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Alto contraste                                                             */
+/* -------------------------------------------------------------------------- */
+html.high-contrast .input-field {
+  background: var(--background-color);
+  color: var(--text-color);
+  border: 2px solid var(--text-color);
+}
+
+html.high-contrast .input-field:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  box-shadow: none;
+}
+
+html.high-contrast :is(input[type="range"], .form-range) {
+  height: var(--range-track-height);
+}
+
+html.high-contrast :is(input[type="range"], .form-range)::-webkit-slider-runnable-track,
+html.high-contrast :is(input[type="range"], .form-range)::-moz-range-track {
+  height: 4px;
+  background: var(--range-track-color);
+}
+
+html.high-contrast :is(input[type="range"], .form-range)::-webkit-slider-thumb {
+  width: var(--range-thumb-size);
+  height: var(--range-thumb-size);
+  margin-top: calc((4px - var(--range-thumb-size)) / 2);
+  background: var(--background-color);
+  border: 3px solid var(--text-color);
+  box-shadow: none;
+}
+
+html.high-contrast :is(input[type="range"], .form-range)::-moz-range-thumb {
+  width: var(--range-thumb-size);
+  height: var(--range-thumb-size);
+  background: var(--background-color);
+  border: 3px solid var(--text-color);
+  box-shadow: none;
+}
+
+html.high-contrast .tooltip-error,
+html.high-contrast .success-snackbar,
+html.high-contrast .error-snackbar,
+html.high-contrast .info-snackbar,
+html.high-contrast .warning-snackbar {
+  color: #000 !important;
+  background: #ff0 !important;
+  border: 3px solid #000 !important;
+}

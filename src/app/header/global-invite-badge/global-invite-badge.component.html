@@ -1,0 +1,30 @@
+<!-- src/app/header/global-invite-badge/global-invite-badge.component.html -->
+@if (vm$ | async; as vm) {
+  @if (vm.visible) {
+    <div
+      class="global-invite-badge-shell"
+      [class.global-invite-badge-shell--mobile]="mobile"
+    >
+      <a
+        class="global-invite-badge"
+        [class.global-invite-badge--mobile]="mobile"
+        routerLink="/chat/room-invites"
+        [attr.aria-label]="vm.ariaLabel"
+      >
+        <span class="global-invite-badge__icon" aria-hidden="true">✉️</span>
+        <span class="global-invite-badge__label">Convites para salas</span>
+        <span class="global-invite-badge__count" aria-hidden="true">
+          {{ vm.countLabel }}
+        </span>
+      </a>
+
+      <span
+        class="global-invite-badge__announcement"
+        role="status"
+        aria-live="polite"
+      >
+        {{ vm.ariaLabel }}
+      </span>
+    </div>
+  }
+}

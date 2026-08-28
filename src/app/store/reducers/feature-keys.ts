@@ -1,0 +1,29 @@
+// src/app/store/reducers/feature-keys.ts
+// Centraliza as chaves de cada slice do Store.
+// Mantém consistência entre reducers, selectors e AppState.
+export const STORE_FEATURE = {
+  // USER DOMAIN
+  auth: 'auth',
+  user: 'user',
+  terms: 'terms',
+  file: 'file',
+  userPreferences: 'userPreferences',
+
+  // MESSAGING GLOBAL
+  // Chat direto e salas são Observable-first fora do Store global.
+  invite: 'invite',
+
+  // LOCATION DOMAIN
+  location: 'location',
+  nearbyProfiles: 'nearbyProfiles',
+
+  // DISCOVERY DOMAIN
+  discoveryFeeds: 'discoveryFeeds',
+  communityDiscoveryCache: 'communityDiscoveryCache',
+
+  // INTERACTIONS DOMAIN
+  friendsPages: 'friendsPages',
+  interactionsFriends: 'interactions_friends',
+} as const;
+
+export type StoreFeatureKey = typeof STORE_FEATURE[keyof typeof STORE_FEATURE];

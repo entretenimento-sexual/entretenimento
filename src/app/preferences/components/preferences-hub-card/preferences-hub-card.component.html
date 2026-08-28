@@ -1,0 +1,19 @@
+<!-- src\app\preferences\components\preferences-hub-card\preferences-hub-card.component.html -->
+ <article class="hub-card">
+  <header class="hub-card-header">
+    <div>
+      <h2 class="hub-card-title">{{ title() }}</h2>
+      <p class="hub-card-description">{{ description() }}</p>
+    </div>
+
+    @if (badge()) {
+      <span class="hub-card-badge">{{ badge() }}</span>
+    }
+  </header>
+
+  <footer class="hub-card-footer">
+    <a class="btn btn-primary" [routerLink]="route()">
+      Abrir
+    </a>
+  </footer>
+</article>

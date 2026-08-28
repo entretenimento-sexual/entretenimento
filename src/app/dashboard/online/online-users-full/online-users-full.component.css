@@ -1,0 +1,38 @@
+/* src/app/dashboard/online/online-users-full/online-users-full.component.css */
+/* ==========================================================================
+   ONLINE USERS FULL
+   --------------------------------------------------------------------------
+   Wrapper leve para a tela/lista de perfis online.
+
+   Objetivos:
+   - não duplicar cabeçalho;
+   - não duplicar barra de modos;
+   - não criar espaçamentos grandes;
+   - manter o componente compatível com uso isolado e embutido.
+   ========================================================================== */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.online-users-full {
+  width: 100%;
+  min-width: 0;
+}
+
+.online-users-full--embedded {
+  padding: 0;
+  margin: 0;
+}
+
+.online-users-full--standalone {
+  width: min(100%, 920px);
+  margin-inline: auto;
+  padding: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+/* Em alto contraste, o wrapper não deve inventar fundo, sombra ou borda. */
+html.high-contrast .online-users-full {
+  background: transparent !important;
+  box-shadow: none !important;
+}

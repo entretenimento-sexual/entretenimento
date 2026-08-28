@@ -1,0 +1,450 @@
+<!-- src/app/admin-dashboard/moderation-reports/moderation-reports.component.html -->
+@if (vm$ | async; as vm) {
+  <section class="moderation-reports" aria-labelledby="moderation-reports-title">
+    <header class="moderation-reports__hero">
+      <div>
+        <p class="moderation-reports__eyebrow">Moderação</p>
+        <h2 id="moderation-reports-title">Triagem de denúncias</h2>
+        <p>
+          Revise denúncias recebidas, acompanhe o status e registre a decisão inicial da moderação.
+        </p>
+      </div>
+
+      <div class="moderation-reports__stats" aria-label="Resumo de denúncias">
+        <button type="button" (click)="setFilter('open')" [class.is-active]="selectedFilter() === 'open' || selectedFilter() === 'aged_open'">
+          <strong>{{ vm.open }}</strong>
+          <span>Abertas / 48h+</span>
+        </button>
+
+        <button type="button" (click)="setFilter('reviewing')" [class.is-active]="selectedFilter() === 'reviewing'">
+          <strong>{{ vm.reviewing }}</strong>
+          <span>Em análise</span>
+        </button>
+
+        <button type="button" (click)="setFilter('all')" [class.is-active]="selectedFilter() === 'all'">
+          <strong>{{ vm.total }}</strong>
+          <span>Total</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="moderation-reports__admin-notice" role="note" aria-label="Aviso de acesso restrito">
+      <mat-icon aria-hidden="true">admin_panel_settings</mat-icon>
+      <div>
+        <strong>Área restrita a administradores</strong>
+        <span>Fila, histórico e decisões de denúncias são internos e não ficam visíveis para usuários comuns.</span>
+      </div>
+    </section>
+
+    <div class="moderation-reports__filters" aria-label="Filtros de denúncia">
+      <button type="button" (click)="setFilter('open')" [class.is-active]="selectedFilter() === 'open' || selectedFilter() === 'aged_open'">
+        Abertas / 48h+
+      </button>
+      <button type="button" (click)="setFilter('reviewing')" [class.is-active]="selectedFilter() === 'reviewing'">
+        Em análise
+      </button>
+      <button type="button" (click)="setFilter('resolved')" [class.is-active]="selectedFilter() === 'resolved'">
+        Resolvidas
+      </button>
+      <button type="button" (click)="setFilter('rejected')" [class.is-active]="selectedFilter() === 'rejected'">
+        Rejeitadas
+      </button>
+      <button type="button" (click)="setFilter('all')" [class.is-active]="selectedFilter() === 'all'">
+        Todas
+      </button>
+    </div>
+
+    <section class="moderation-queue-overview" aria-label="Resumo operacional da fila">
+      <article class="moderation-queue-overview__item moderation-queue-overview__item--open">
+        <span>Abertas</span>
+        <strong>{{ vm.open }}</strong>
+        <small>{{ vm.reports | agedOpenModerationReportsCount }} abertas há 48h+. Priorize denúncias ainda sem revisão.</small>
+      </article>
+
+      <article class="moderation-queue-overview__item moderation-queue-overview__item--reviewing">
+        <span>Em análise</span>
+        <strong>{{ vm.reviewing }}</strong>
+        <small>Itens já assumidos pela moderação e aguardando decisão.</small>
+      </article>
+
+      <article class="moderation-queue-overview__item moderation-queue-overview__item--closed">
+        <span>Encerradas</span>
+        <strong>{{ vm.resolved + vm.rejected }}</strong>
+        <small>Resolvidas ou rejeitadas, mantendo histórico interno.</small>
+      </article>
+    </section>
+
+    <section class="moderation-reports__search" aria-label="Busca em denúncias">
+      <mat-form-field appearance="outline">
+        <mat-label>Buscar na triagem</mat-label>
+        <input
+          matInput
+          type="search"
+          maxlength="120"
+          [ngModel]="searchTerm()"
+          (ngModelChange)="setSearchTerm($event)"
+          placeholder="Alvo, denunciante, motivo, tipo, origem ou nota"
+          aria-describedby="moderation-search-hint"
+        />
+        @if (searchTerm()) {
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            aria-label="Limpar busca"
+            (click)="clearSearchTerm()"
+          >
+            <mat-icon aria-hidden="true">close</mat-icon>
+          </button>
+        }
+        <mat-hint id="moderation-search-hint">
+          Busca local nos dados já carregados da triagem.
+        </mat-hint>
+      </mat-form-field>
+    </section>
+
+    <p class="moderation-reports__result-summary" aria-live="polite">
+      @if (vm.searchTerm) {
+        Exibindo {{ vm.filteredReports.length }} de {{ vm.statusFilteredTotal }} denúncias neste filtro.
+      } @else {
+        Exibindo {{ vm.filteredReports.length }} denúncias neste filtro.
+      }
+    </p>
+
+    <section class="moderation-history" aria-labelledby="moderation-history-title">
+      <header class="moderation-history__header">
+        <div>
+          <p class="moderation-reports__eyebrow">Histórico</p>
+          <h3 id="moderation-history-title">Decisões recentes</h3>
+        </div>
+        <strong>{{ vm.historyItems.length }}</strong>
+      </header>
+
+      @if (vm.historyItems.length === 0) {
+        <p class="moderation-history__empty">Nenhuma decisão registrada ainda.</p>
+      } @else {
+        <div class="moderation-history__list" role="list" aria-label="Decisões recentes de moderação">
+          @for (item of vm.historyItems.slice(0, 5); track trackByHistoryId($index, item)) {
+            <article class="moderation-history__item" role="listitem">
+              <strong>{{ statusLabel(item.previousStatus) }} → {{ statusLabel(item.nextStatus) }}</strong>
+              <span>Denúncia {{ item.reportId }}</span>
+              <small>
+                @if (dateValue(item.timestamp); as createdAt) {
+                  {{ createdAt | date:'dd/MM/yyyy HH:mm' }}
+                } @else {
+                  Data não disponível
+                }
+              </small>
+
+              <details class="moderation-history__details">
+                <summary>Ver detalhes</summary>
+                <dl>
+                  <div>
+                    <dt>Admin</dt>
+                    <dd>{{ item.adminUid }}</dd>
+                  </div>
+                  <div>
+                    <dt>Alvo</dt>
+                    <dd>{{ item.targetUserUid }}</dd>
+                  </div>
+                  <div>
+                    <dt>Tipo</dt>
+                    <dd>
+                      @switch (item.targetType) {
+                        @case ('video') { Vídeo }
+                        @case ('video_comment') { Comentário de vídeo }
+                        @case ('video_rating') { Avaliação de vídeo }
+                        @default { {{ targetTypeLabel(item.targetType) }} }
+                      }
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Motivo</dt>
+                    <dd>{{ reasonLabel(item.reason) }}</dd>
+                  </div>
+                </dl>
+                @if (item.resolution) {
+                  <p>{{ item.resolution }}</p>
+                }
+              </details>
+            </article>
+          }
+        </div>
+      }
+    </section>
+
+    @if (vm.filteredReports.length === 0) {
+      <section class="moderation-reports__empty" role="status">
+        <mat-icon aria-hidden="true">verified_user</mat-icon>
+        @if (vm.searchTerm) {
+          <strong>Nenhum resultado para a busca.</strong>
+          <span>Revise o termo ou altere o filtro de status.</span>
+        } @else {
+          <strong>Nenhuma denúncia neste filtro.</strong>
+          <span>Quando houver denúncia compatível com o filtro atual, ela aparecerá aqui.</span>
+        }
+      </section>
+    } @else {
+      <div class="moderation-reports__list" role="list" aria-label="Lista de denúncias">
+        @for (report of vm.filteredReports; track trackByReportId($index, report)) {
+          @let mediaContentReport = report.targetType === 'photo' || report.targetType === 'video' || report.targetType === 'video_comment' || report.targetType === 'video_rating';
+          @let minorProfileReport = report.targetType === 'profile' && report.reason === 'minor_safety';
+          <article
+            class="report-card"
+            role="listitem"
+            [class.report-card--open]="report.status === 'open'"
+            [class.report-card--reviewing]="report.status === 'reviewing'"
+            [class.report-card--resolved]="report.status === 'resolved'"
+            [class.report-card--rejected]="report.status === 'rejected'"
+          >
+            <header class="report-card__header">
+              <div>
+                <span class="report-card__type">
+                  @switch (report.targetType) {
+                    @case ('video') { Vídeo }
+                    @case ('video_comment') { Comentário de vídeo }
+                    @case ('video_rating') { Avaliação de vídeo }
+                    @default { {{ targetTypeLabel(report.targetType) }} }
+                  }
+                </span>
+                <h3>{{ reasonLabel(report.reason) }}</h3>
+              </div>
+
+              @if (report | agedOpenModerationReport; as agedOpenLabel) {
+                <mat-chip-set class="report-card__priority" aria-label="Prioridade da denúncia">
+                  <mat-chip color="warn" highlighted>
+                    {{ agedOpenLabel }}
+                  </mat-chip>
+                </mat-chip-set>
+              }
+
+              @if (report.contentQuarantined || (report.evidencePreservationStatus && report.evidencePreservationStatus !== 'NOT_REQUIRED') || report.legalReviewStatus) {
+                <mat-chip-set aria-label="Segurança, preservação e revisão jurídica da denúncia">
+                  @if (report.contentQuarantined) {
+                    <mat-chip color="warn" highlighted>Em quarentena</mat-chip>
+                  }
+
+                  @switch (report.evidencePreservationStatus) {
+                    @case ('PENDING') {
+                      <mat-chip color="warn" highlighted>Preservação pendente</mat-chip>
+                    }
+                    @case ('PRESERVED') {
+                      <mat-chip color="primary" highlighted>Evidência preservada</mat-chip>
+                    }
+                    @case ('RELEASED') {
+                      <mat-chip>Evidência liberada</mat-chip>
+                    }
+                  }
+
+                  @switch (report.legalReviewStatus) {
+                    @case ('PENDING_LEGAL_REVIEW') {
+                      <mat-chip color="warn" highlighted>Revisão jurídica pendente</mat-chip>
+                    }
+                    @case ('UNDER_LEGAL_REVIEW') {
+                      <mat-chip color="primary" highlighted>Em revisão jurídica</mat-chip>
+                    }
+                    @case ('NO_DISCLOSURE_REQUIRED') {
+                      <mat-chip>Sem encaminhamento</mat-chip>
+                    }
+                    @case ('DISCLOSURE_AUTHORIZED') {
+                      <mat-chip color="primary" highlighted>Encaminhamento autorizado</mat-chip>
+                    }
+                    @case ('CLOSED') {
+                      <mat-chip>Revisão jurídica encerrada</mat-chip>
+                    }
+                  }
+                </mat-chip-set>
+              }
+
+              <span class="report-card__status">
+                {{ statusLabel(report.status) }}
+              </span>
+            </header>
+
+            <dl class="report-card__facts">
+              <div>
+                <dt>Alvo</dt>
+                <dd>{{ report.targetId }}</dd>
+              </div>
+
+              @if (report.parentTargetId) {
+                <div>
+                  <dt>Vídeo</dt>
+                  <dd>{{ report.parentTargetId }}</dd>
+                </div>
+              }
+
+              <div>
+                <dt>Dono do alvo</dt>
+                <dd>{{ report.targetOwnerUid || 'Não informado' }}</dd>
+              </div>
+
+              @if (report.targetAuthorUid) {
+                <div>
+                  <dt>Autor do conteúdo</dt>
+                  <dd>{{ report.targetAuthorUid }}</dd>
+                </div>
+              }
+
+              <div>
+                <dt>Denunciante</dt>
+                <dd>{{ report.reporterUid }}</dd>
+              </div>
+
+              <div>
+                <dt>Criada em</dt>
+                <dd>
+                  @if (dateValue(report.createdAt); as createdAt) {
+                    {{ createdAt | date:'dd/MM/yyyy HH:mm' }}
+                  } @else {
+                    Data não disponível
+                  }
+                </dd>
+              </div>
+
+              @if (minorProfileReport && report.ageReverificationStatus) {
+                <div>
+                  <dt>Revalidação</dt>
+                  <dd>{{ report.ageReverificationStatus }}</dd>
+                </div>
+              }
+
+              @if (minorProfileReport && report.ageReverificationCaseId) {
+                <div>
+                  <dt>Caso</dt>
+                  <dd>{{ report.ageReverificationCaseId }}</dd>
+                </div>
+              }
+            </dl>
+
+            @if (report.reviewedBy || dateValue(report.reviewedAt)) {
+              <section class="report-card__review" aria-label="Última revisão da denúncia">
+                <strong>Última revisão</strong>
+                <dl>
+                  <div>
+                    <dt>Por</dt>
+                    <dd>{{ report.reviewedBy || 'Não informado' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Em</dt>
+                    <dd>
+                      @if (dateValue(report.reviewedAt); as reviewedAt) {
+                        {{ reviewedAt | date:'dd/MM/yyyy HH:mm' }}
+                      } @else {
+                        Data não disponível
+                      }
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+            }
+
+            @if (targetRoute(report) || sourceRoute(report)) {
+              <div class="report-card__target-actions">
+                @if (targetRoute(report); as route) {
+                  <a
+                    mat-stroked-button
+                    color="primary"
+                    [routerLink]="route"
+                    target="_blank"
+                    rel="noopener"
+                    [attr.aria-label]="'Abrir perfil denunciado ' + report.targetId"
+                  >
+                    Abrir perfil denunciado
+                  </a>
+                }
+
+                @if (sourceRoute(report); as route) {
+                  <a
+                    mat-stroked-button
+                    [routerLink]="route"
+                    target="_blank"
+                    rel="noopener"
+                    [attr.aria-label]="'Abrir origem da denúncia ' + report.id"
+                  >
+                    Abrir origem
+                  </a>
+                }
+              </div>
+            }
+
+            @if (report.details) {
+              <section class="report-card__details" aria-label="Detalhes da denúncia">
+                <strong>Detalhes</strong>
+                <p>{{ report.details }}</p>
+              </section>
+            }
+
+            @if (report.route) {
+              <p class="report-card__route">
+                <span>Origem:</span> {{ report.route }}
+              </p>
+            }
+
+            @if (report.resolution) {
+              <section class="report-card__resolution" aria-label="Resolução registrada">
+                <strong>Resolução atual</strong>
+                <p>{{ report.resolution }}</p>
+              </section>
+            }
+
+            <section class="report-card__decision" aria-label="Nota da moderação">
+              <mat-form-field appearance="outline">
+                <mat-label>Nota da moderação</mat-label>
+                <textarea
+                  matInput
+                  rows="3"
+                  maxlength="900"
+                  [ngModel]="resolutionDraft(report)"
+                  (ngModelChange)="setResolutionDraft(report, $event)"
+                  [placeholder]="mediaContentReport ? 'Justifique objetivamente por que o conteúdo será mantido ou removido.' : minorProfileReport ? 'Registre os indícios, a solicitação ou a decisão sobre a revalidação.' : 'Descreva a decisão, providência tomada ou motivo da rejeição.'"
+                  [attr.aria-label]="'Nota da moderação para denúncia ' + report.id"
+                ></textarea>
+                <mat-hint align="end">{{ resolutionDraftLength(report) }}/900</mat-hint>
+              </mat-form-field>
+            </section>
+
+            @if (minorProfileReport) {
+              <app-profile-age-reverification-admin-actions
+                [report]="report"
+                [resolution]="resolutionDraft(report)"
+              />
+            } @else {
+              <footer class="report-card__actions" aria-label="Ações da denúncia">
+                <button
+                  mat-stroked-button
+                  type="button"
+                  color="primary"
+                  (click)="markReviewing(report)"
+                  [disabled]="isBusy(report) || report.status === 'reviewing' || report.status === 'resolved'"
+                >
+                  {{ isBusy(report) ? 'Atualizando...' : 'Marcar em análise' }}
+                </button>
+
+                <button
+                  mat-flat-button
+                  type="button"
+                  color="primary"
+                  (click)="resolveReport(report)"
+                  [disabled]="isBusy(report) || report.status === 'resolved'"
+                >
+                  {{ mediaContentReport ? 'Remover conteúdo' : 'Resolver' }}
+                </button>
+
+                <button
+                  mat-stroked-button
+                  type="button"
+                  color="warn"
+                  (click)="rejectReport(report)"
+                  [disabled]="isBusy(report) || report.status === 'rejected'"
+                >
+                  {{ mediaContentReport ? 'Manter conteúdo' : 'Rejeitar' }}
+                </button>
+              </footer>
+            }
+          </article>
+        }
+      </div>
+    }
+  </section>
+}

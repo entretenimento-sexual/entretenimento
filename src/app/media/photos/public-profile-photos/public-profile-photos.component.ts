@@ -1,0 +1,170 @@
+// src/app/media/photos/public-profile-photos/public-profile-photos.component.ts
+// Galeria pública de fotos do perfil.
+//
+// Ajustes desta versão:
+// - mantém leitura somente da projeção pública;
+// - transforma a página em galeria real, não foto gigante;
+// - abre o viewer pela porta canônica pública;
+// - mantém Observable e tratamento centralizado de erro.
+
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute, RouterModule } from '@angular/router';
+
+import { EMPTY, Observable, of } from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  shareReplay,
+  switchMap,
+  take,
+  tap,
+} from 'rxjs/operators';
+
+import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+
+import { PublicPhotoViewerLauncherService } from '../photo-viewer/public-photo-viewer-launcher.service';
+import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
+
+@Component({
+  selector: 'app-public-profile-photos',
+  standalone: true,
+  imports: [
+    CommonModule,
+    RouterModule,
+    PublicPhotoCardComponent,
+  ],
+  templateUrl: './public-profile-photos.component.html',
+  styleUrls: ['./public-profile-photos.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class PublicProfilePhotosComponent {
+  private readonly route = inject(ActivatedRoute);
+  private readonly mediaPublicQuery = inject(MediaPublicQueryService);
+  private readonly photoViewerLauncher = inject(PublicPhotoViewerLauncherService);
+  private readonly errorNotifier = inject(ErrorNotificationService);
+  private readonly errorHandler = inject(GlobalErrorHandlerService);
+  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
+
+  private readonly DEBUG = false;
+
+  readonly ownerUid$: Observable<string> = this.route.paramMap.pipe(
+    map((params) => (params.get('id') ?? '').trim()),
+    distinctUntilChanged(),
+    tap((ownerUid) =>
+      this.debug('ownerUid$', {
+        hasOwnerUid: !!ownerUid,
+      })
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly publicPhotos$: Observable<IPublicPhotoItem[]> = this.ownerUid$.pipe(
+    switchMap((ownerUid) => {
+      if (!ownerUid) {
+        return of([] as IPublicPhotoItem[]);
+      }
+
+      return this.mediaPublicQuery.getProfilePublicPhotos$(ownerUid);
+    }),
+    catchError((error: unknown) => {
+      this.reportError(
+        'Erro ao carregar a galeria pública do perfil.',
+        error,
+        { op: 'publicPhotos$' }
+      );
+
+      return of([] as IPublicPhotoItem[]);
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly isEmpty$: Observable<boolean> = this.publicPhotos$.pipe(
+    map((items) => items.length === 0),
+    distinctUntilChanged()
+  );
+
+  openPhoto(index: number): void {
+    this.publicPhotos$
+      .pipe(
+        take(1),
+        switchMap((items) => {
+          if (!items.length) {
+            this.errorNotifier.showWarning('Nenhuma foto pública disponível.');
+            return EMPTY;
+          }
+
+          const safeIndex = Math.max(0, Math.min(index, items.length - 1));
+          const selected = items[safeIndex];
+
+          if (!selected) {
+            this.errorNotifier.showWarning('Esta foto não está mais disponível.');
+            return EMPTY;
+          }
+
+          return this.photoViewerLauncher.open$({
+            items,
+            selected,
+            source: 'profile',
+          });
+        }),
+        catchError((error: unknown) => {
+          this.reportError(
+            'Não foi possível abrir esta foto agora.',
+            error,
+            { op: 'openPhoto' }
+          );
+          return EMPTY;
+        })
+      )
+      .subscribe();
+  }
+
+  trackByPhotoId(_index: number, item: IPublicPhotoItem): string {
+    return item.id;
+  }
+
+  private reportError(
+    userMessage: string,
+    error: unknown,
+    context?: Record<string, unknown>
+  ): void {
+    try {
+      this.errorNotifier.showError(userMessage);
+    } catch {
+      // noop
+    }
+
+    try {
+      const err = error instanceof Error ? error : new Error(userMessage);
+
+      (err as any).original = error;
+      (err as any).context = {
+        scope: 'PublicProfilePhotosComponent',
+        ...(context ?? {}),
+      };
+      (err as any).skipUserNotification = true;
+
+      this.errorHandler.handleError(err);
+    } catch {
+      // noop
+    }
+
+    this.debug('reportError', {
+      userMessage,
+      op: context?.['op'] ?? 'unknown',
+      hasContext: !!context,
+      errorMessage: error instanceof Error ? error.message : String(error ?? ''),
+    });
+  }
+
+  private debug(message: string, extra?: unknown): void {
+    if (!this.DEBUG) return;
+    this.privacyDebug.log('media', `PublicProfilePhotos: ${message}`, extra);
+  }
+}

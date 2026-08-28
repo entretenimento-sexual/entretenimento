@@ -1,0 +1,39 @@
+<!-- src/app/shared/components-globais/moderation-report/report-content-button.component.html -->
+@if (appearance === 'icon') {
+  <button
+    mat-icon-button
+    type="button"
+    class="report-button report-button--icon"
+    [attr.aria-label]="submitting() ? 'Enviando denúncia' : ariaLabel"
+    [attr.aria-busy]="submitting() ? 'true' : null"
+    [disabled]="disabled || submitting()"
+    (click)="openReportDialog()"
+  >
+    <mat-icon aria-hidden="true">{{ submitting() ? 'hourglass_empty' : 'flag' }}</mat-icon>
+  </button>
+} @else if (appearance === 'link') {
+  <button
+    type="button"
+    class="report-button report-button--link"
+    [attr.aria-label]="submitting() ? 'Enviando denúncia' : ariaLabel"
+    [attr.aria-busy]="submitting() ? 'true' : null"
+    [disabled]="disabled || submitting()"
+    (click)="openReportDialog()"
+  >
+    {{ submitting() ? 'Enviando denúncia...' : label }}
+  </button>
+} @else {
+  <button
+    mat-stroked-button
+    type="button"
+    color="warn"
+    class="report-button report-button--default"
+    [attr.aria-label]="submitting() ? 'Enviando denúncia' : ariaLabel"
+    [attr.aria-busy]="submitting() ? 'true' : null"
+    [disabled]="disabled || submitting()"
+    (click)="openReportDialog()"
+  >
+    <mat-icon aria-hidden="true">{{ submitting() ? 'hourglass_empty' : 'flag' }}</mat-icon>
+    <span>{{ submitting() ? 'Enviando denúncia...' : label }}</span>
+  </button>
+}

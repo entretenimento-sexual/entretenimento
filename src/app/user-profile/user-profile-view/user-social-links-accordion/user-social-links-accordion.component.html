@@ -1,0 +1,83 @@
+<!-- src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.html -->
+@if (canManage() || anyLinks()) {
+  <!--
+    SUPRESSÃO EXPLÍCITA:
+    O mat-accordion/mat-expansion-panel foi substituído por details/summary.
+
+    Motivo:
+    O loader estrutural interno do MatExpansionModule estava sendo registrado
+    duas vezes no bundle de desenvolvimento e gerava NG0912. O disclosure
+    nativo mantém teclado, semântica e estado aberto sem depender do loader.
+  -->
+  <details
+    class="social-links-accordion"
+    [class.social-links-accordion--compact]="compact()"
+    [class.social-links-accordion--managed]="canManage()"
+    [open]="compact() || anyLinks()"
+  >
+    <summary class="social-links-summary">
+      <span class="social-links-title">
+        <i class="fas fa-share-nodes" aria-hidden="true"></i>
+        <span>{{ canManage() ? 'Minhas redes' : 'Redes' }}</span>
+      </span>
+      <i class="fas fa-chevron-down social-links-chevron" aria-hidden="true"></i>
+    </summary>
+
+    <div class="social-links-body">
+      @if (anyLinks()) {
+        @if (!compact()) {
+          <p class="social-links-note">
+            Links externos abrem em nova aba. Confira o destino antes de
+            compartilhar dados pessoais ou financeiros.
+          </p>
+        }
+
+        <div class="social-link-list" aria-label="Links sociais disponíveis">
+          @for (platform of socialMediaPlatforms; track trackByKey($index, platform)) {
+            @if (socialLinks?.[platform.key]) {
+              <div class="social-link-item">
+                <i
+                  class="social-link-icon"
+                  [class]="platform.icon"
+                  aria-hidden="true"
+                ></i>
+
+                <span class="social-link-label">{{ platform.label }}</span>
+
+                @if (normalizedLinks[platform.key]; as href) {
+                  <a
+                    class="social-link-value"
+                    [href]="href"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    [attr.aria-label]="'Abrir ' + platform.label + ' em nova aba externa'"
+                  >
+                    <span>{{ socialLinks?.[platform.key] }}</span>
+                    <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+                  </a>
+                }
+              </div>
+            }
+          }
+        </div>
+      } @else if (canManage()) {
+        <p class="no-links-info">Nenhuma rede publicada.</p>
+      }
+
+      @if (canManage()) {
+        <div class="social-links-management">
+          @if (!canEdit()) {
+            <p role="note">
+              A publicação de redes é exclusiva para assinantes. Links
+              existentes continuam disponíveis para remoção.
+            </p>
+          }
+
+          <button type="button" (click)="goToEditSocialLinks()">
+            Gerenciar redes
+          </button>
+        </div>
+      }
+    </div>
+  </details>
+}

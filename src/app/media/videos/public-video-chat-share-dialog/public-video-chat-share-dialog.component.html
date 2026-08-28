@@ -1,0 +1,73 @@
+<section class="video-chat-share" aria-labelledby="video-chat-share-title">
+  <header>
+    <h2 id="video-chat-share-title">Escolha uma conversa</h2>
+
+    <button
+      type="button"
+      class="video-chat-share__close"
+      (click)="close()"
+      [disabled]="!!sendingChatId()"
+      aria-label="Fechar seleção de conversa"
+    >
+      <i class="fas fa-xmark" aria-hidden="true"></i>
+    </button>
+  </header>
+
+  @if (state$ | async; as state) {
+    @if (state.loading && !state.loaded) {
+      <div class="video-chat-share__state" role="status">
+        <i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>
+        Carregando conversas…
+      </div>
+    } @else if (state.items.length === 0) {
+      <div class="video-chat-share__state" role="status">
+        <i class="fas fa-comment-slash" aria-hidden="true"></i>
+        <strong>Nenhuma conversa disponível</strong>
+        <span>Conecte-se com outro perfil para enviar o vídeo.</span>
+      </div>
+    } @else {
+      <div class="video-chat-share__list" role="list">
+        @for (item of state.items; track trackByChatId($index, item)) {
+          <button
+            type="button"
+            class="video-chat-share__item"
+            role="listitem"
+            (click)="sendTo(item)"
+            [disabled]="item.canOpen === false || !!sendingChatId()"
+            [attr.aria-busy]="sendingChatId() === item.id ? 'true' : null"
+            [attr.aria-label]="'Enviar vídeo para ' + displayName(item)"
+          >
+            @if (item.otherParticipantPhotoURL) {
+              <img
+                [src]="item.otherParticipantPhotoURL"
+                alt=""
+                width="48"
+                height="48"
+                loading="lazy"
+              />
+            } @else {
+              <span class="video-chat-share__avatar" aria-hidden="true">
+                {{ displayName(item).slice(0, 1).toUpperCase() }}
+              </span>
+            }
+
+            <span class="video-chat-share__copy">
+              <strong>{{ displayName(item) }}</strong>
+              @if (item.lastMessagePreview) {
+                <small>{{ item.lastMessagePreview }}</small>
+              }
+            </span>
+
+            <span class="video-chat-share__action" aria-hidden="true">
+              @if (sendingChatId() === item.id) {
+                <i class="fas fa-circle-notch fa-spin"></i>
+              } @else {
+                <i class="fas fa-paper-plane"></i>
+              }
+            </span>
+          </button>
+        }
+      </div>
+    }
+  }
+</section>

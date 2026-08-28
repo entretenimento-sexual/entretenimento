@@ -1,0 +1,425 @@
+/* src/app/media/photos/photo-upload/photo-upload.component.css */
+:host {
+  display: block;
+  width: 100%;
+}
+
+.upload-page {
+  display: grid;
+  gap: 14px;
+  width: min(100%, 1180px);
+  margin-inline: auto;
+  padding: clamp(10px, 2vw, 20px);
+  color: var(--text-color, #f5f7fb);
+}
+
+.upload-header,
+.upload-card,
+.upload-blocked {
+  min-width: 0;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 16px;
+  background: var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 10px 24px rgb(0 0 0 / 14%));
+}
+
+.upload-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+}
+
+.upload-header__back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
+  font-weight: 820;
+  text-decoration: none;
+}
+
+.upload-header__back-link:hover,
+.upload-header__back-link:focus-visible {
+  color: var(--primary-color, #ff7070);
+}
+
+.upload-header__copy {
+  display: grid;
+  gap: 3px;
+  text-align: right;
+}
+
+.upload-header h1,
+.upload-header p,
+.upload-done h2,
+.upload-done p,
+.upload-blocked p {
+  margin: 0;
+}
+
+.upload-header h1,
+.upload-done h2 {
+  font-size: clamp(1.2rem, 1rem + 1vw, 1.65rem);
+  line-height: 1.1;
+}
+
+.upload-header p,
+.upload-done p,
+.upload-blocked p {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.upload-blocked {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px;
+  border-color: color-mix(
+    in oklab,
+    var(--danger-color, #ef4444) 36%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+}
+
+.upload-blocked__icon,
+.selected-file > i,
+.file-drop__icon,
+.upload-done__fallback {
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+}
+
+.upload-blocked__icon {
+  width: 42px;
+  height: 42px;
+  background: color-mix(in oklab, var(--danger-color, #ef4444) 14%, transparent);
+  color: var(--danger-color, #ef4444);
+}
+
+.upload-blocked strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.upload-card {
+  padding: clamp(10px, 1.8vw, 16px);
+}
+
+.upload-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.78fr) minmax(0, 1.22fr);
+  gap: clamp(12px, 2vw, 20px);
+}
+
+.upload-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.file-drop {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 7px;
+  min-height: 164px;
+  padding: 18px;
+  border: 1px dashed color-mix(
+    in oklab,
+    var(--surface-border, rgb(255 255 255 / 12%)) 90%,
+    transparent
+  );
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 94%,
+    var(--text-color, #f5f7fb) 4%
+  );
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.file-drop:hover,
+.file-drop:focus-within {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 50%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+}
+
+.native-file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.native-file-input:disabled {
+  cursor: not-allowed;
+}
+
+.file-drop__icon {
+  width: 48px;
+  height: 48px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 15%, transparent);
+  color: var(--primary-color, #ff7070);
+  font-size: 1.2rem;
+}
+
+.file-drop__title {
+  font-weight: 900;
+}
+
+.file-drop__hint,
+.selected-file span,
+.upload-note,
+.upload-progress__label {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.selected-file {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 12px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 94%,
+    var(--text-color, #f5f7fb) 4%
+  );
+}
+
+.selected-file > i {
+  width: 36px;
+  height: 36px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 13%, transparent);
+  color: var(--primary-color, #ff7070);
+}
+
+.selected-file strong,
+.selected-file span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.upload-note {
+  margin: 0;
+  padding-inline: 2px;
+}
+
+.upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.upload-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding-inline: 15px;
+  font-weight: 820;
+}
+
+.upload-progress-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+}
+
+.upload-progress {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-border, rgb(255 255 255 / 12%)) 70%,
+    transparent
+  );
+}
+
+.upload-progress__bar {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--primary-color, #ff7070);
+  transition: width 180ms linear;
+}
+
+.preview-panel {
+  min-width: 0;
+}
+
+.preview-card,
+.preview-empty {
+  min-height: clamp(300px, 52vh, 520px);
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 16px;
+  background: #080b10;
+}
+
+.preview-card {
+  display: grid;
+  margin: 0;
+}
+
+.preview-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  object-fit: contain;
+}
+
+.preview-empty {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 20px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 54%, transparent);
+  text-align: center;
+}
+
+.preview-empty i {
+  font-size: 1.8rem;
+}
+
+.upload-done {
+  display: grid;
+  grid-template-columns: minmax(170px, 250px) minmax(0, 1fr);
+  gap: clamp(14px, 2vw, 22px);
+  align-items: center;
+}
+
+.upload-done__visual {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #080b10;
+}
+
+.upload-done__visual img,
+.upload-done__fallback {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+}
+
+.upload-done__visual img {
+  object-fit: cover;
+}
+
+.upload-done__fallback {
+  color: var(--success-color, #36d399);
+  font-size: 2rem;
+}
+
+.upload-done__copy {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.upload-header__back-link:focus-visible,
+.file-drop:focus-within,
+.upload-actions .btn:focus-visible {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
+}
+
+@media (max-width: 860px) {
+  .upload-grid,
+  .upload-done {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .upload-page {
+    padding: 10px;
+  }
+
+  .upload-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .upload-header__copy {
+    text-align: left;
+  }
+
+  .upload-header,
+  .upload-card,
+  .upload-blocked {
+    border-radius: 14px;
+    box-shadow: none;
+  }
+
+  .upload-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .upload-actions .btn {
+    width: 100%;
+  }
+
+  .upload-actions .btn-ghost {
+    grid-column: 1 / -1;
+  }
+
+  .preview-card,
+  .preview-empty {
+    min-height: min(52vh, 440px);
+  }
+}
+
+@media (max-width: 390px) {
+  .upload-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-actions .btn-ghost {
+    grid-column: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-drop,
+  .upload-progress__bar {
+    transition: none;
+  }
+}
+
+html.high-contrast .upload-header,
+html.high-contrast .upload-card,
+html.high-contrast .upload-blocked,
+html.high-contrast .file-drop,
+html.high-contrast .selected-file,
+html.high-contrast .preview-card,
+html.high-contrast .preview-empty {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: none !important;
+}

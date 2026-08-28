@@ -1,0 +1,221 @@
+// firestore-rules/public_profiles_next.rules
+// =========================================================================
+// PUBLIC PROFILES (consultable / discovery)
+// =========================================================================
+// Fragmento canônico otimizado para permanecer abaixo do limite de 1.000
+// expressões. O cliente cria somente a projeção inicial e altera campos
+// editoriais; métricas, compatibilidade, moderação e capas são backend-only.
+// =========================================================================
+match /public_profiles/{userId} {
+  allow get, list: if signedIn();
+
+  function hasPublicField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function privateUserPath() {
+    return /databases/$(database)/documents/users/$(userId);
+  }
+
+  function privateUserEligibleAfter() {
+    let user = getAfter(privateUserPath()).data;
+    return existsAfter(privateUserPath())
+      && user.accountStatus == "active"
+      && user.emailVerified == true
+      && user.profileCompleted == true
+      && user.publicVisibility == "visible"
+      && user.interactionBlocked == false
+      && user.acceptedTerms.accepted == true
+      && user.acceptedTerms.version == "v3"
+      && user.acceptedTerms.acknowledgedPrivacyNotice == true
+      && (
+        user.initialAdultConsentRequired == false
+        || user.adultConsent.accepted == true
+      );
+  }
+
+  function createKeysValid() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "nickname",
+      "nicknameNormalized",
+      "avatarUrl",
+      "photoURL",
+      "municipio",
+      "estado",
+      "gender",
+      "identityCode",
+      "identityCatalogVersion",
+      "orientation",
+      "role",
+      "latitude",
+      "longitude",
+      "geohash",
+      "createdAt",
+      "updatedAt"
+    ])
+      && request.resource.data.keys().hasAll([
+        "uid",
+        "nickname",
+        "nicknameNormalized",
+        "municipio",
+        "estado",
+        "gender",
+        "identityCode",
+        "identityCatalogVersion",
+        "orientation",
+        "role",
+        "createdAt",
+        "updatedAt"
+      ]);
+  }
+
+  function updateKeysValid() {
+    return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+      "nickname",
+      "nicknameNormalized",
+      "avatarUrl",
+      "photoURL",
+      "municipio",
+      "estado",
+      "gender",
+      "identityCode",
+      "identityCatalogVersion",
+      "orientation",
+      "latitude",
+      "longitude",
+      "geohash",
+      "updatedAt"
+    ]);
+  }
+
+  function requiredTextValid(field, min, max) {
+    return request.resource.data[field] is string
+      && request.resource.data[field].size() >= min
+      && request.resource.data[field].size() <= max;
+  }
+
+  function optionalHttpsUrlValid(field) {
+    return !hasPublicField(field)
+      || request.resource.data[field] == null
+      || (
+        request.resource.data[field] is string
+        && request.resource.data[field].size() <= 2048
+        && request.resource.data[field].matches('^https://.*')
+      );
+  }
+
+  function identityProjectionPresent() {
+    return request.resource.data.keys().hasAny([
+      "identityCode",
+      "identityCatalogVersion"
+    ]);
+  }
+
+  function identityProjectionValid() {
+    return !identityProjectionPresent()
+      || (
+        request.resource.data.keys().hasAll([
+          "identityCode",
+          "identityCatalogVersion"
+        ])
+        && requiredTextValid("identityCode", 1, 80)
+        && request.resource.data.identityCode == request.resource.data.gender
+        && request.resource.data.identityCatalogVersion is int
+        && request.resource.data.identityCatalogVersion >= 1
+      );
+  }
+
+  function identityMatchesPrivateDeclaration() {
+    let user = getAfter(privateUserPath()).data;
+    let declaredCode = user.get("declaredIdentityCode", user.get("gender", ""));
+    let catalogVersion = user.get("identityCatalogVersion", 1);
+    return request.resource.data.identityCode == declaredCode
+      && request.resource.data.gender == user.get("gender", declaredCode)
+      && request.resource.data.identityCatalogVersion == catalogVersion;
+  }
+
+  function identityChangeSafe() {
+    let changed = request.resource.data.diff(resource.data).affectedKeys();
+    let identityKeys = ["gender", "identityCode", "identityCatalogVersion"];
+    return !changed.hasAny(identityKeys)
+      || (
+        changed.hasAll(identityKeys)
+        && identityProjectionValid()
+        && identityMatchesPrivateDeclaration()
+      );
+  }
+
+  function locationValid() {
+    let hasLat = hasPublicField("latitude");
+    let hasLng = hasPublicField("longitude");
+    let hasHash = hasPublicField("geohash");
+    return (!hasLat && !hasLng && !hasHash)
+      || (
+        hasLat
+        && hasLng
+        && hasHash
+        && request.resource.data.latitude is number
+        && request.resource.data.latitude >= -90
+        && request.resource.data.latitude <= 90
+        && request.resource.data.longitude is number
+        && request.resource.data.longitude >= -180
+        && request.resource.data.longitude <= 180
+        && request.resource.data.geohash is string
+        && request.resource.data.geohash
+          .matches('^[0123456789bcdefghjkmnpqrstuvwxyz]{5,12}$')
+      );
+  }
+
+  function editablePayloadValid() {
+    return request.resource.data.uid == uid()
+      && requiredTextValid("nickname", 3, 40)
+      && requiredTextValid("nicknameNormalized", 3, 40)
+      && request.resource.data.nicknameNormalized.matches('^[a-z0-9._-]{3,40}$')
+      && requiredTextValid("municipio", 1, 80)
+      && requiredTextValid("estado", 1, 40)
+      && requiredTextValid("gender", 1, 80)
+      && identityProjectionValid()
+      && requiredTextValid("orientation", 1, 40)
+      && optionalHttpsUrlValid("avatarUrl")
+      && optionalHttpsUrlValid("photoURL")
+      && locationValid();
+  }
+
+  function avatarOnlyUpdate() {
+    let changed = request.resource.data.diff(resource.data).changedKeys();
+    return changed.hasOnly(["photoURL", "avatarUrl", "updatedAt"])
+      && changed.hasAny(["photoURL", "avatarUrl"])
+      && request.resource.data.updatedAt == request.time
+      && optionalHttpsUrlValid("photoURL")
+      && optionalHttpsUrlValid("avatarUrl");
+  }
+
+  allow create: if isSelf(userId)
+    && privateUserEligibleAfter()
+    && createKeysValid()
+    && editablePayloadValid()
+    && identityProjectionPresent()
+    && identityMatchesPrivateDeclaration()
+    && request.resource.data.role == "free"
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.updatedAt == request.time;
+
+  allow update: if isSelf(userId)
+    && privateUserEligibleAfter()
+    && (
+      avatarOnlyUpdate()
+      || (
+        updateKeysValid()
+        && editablePayloadValid()
+        && identityChangeSafe()
+        && request.resource.data.updatedAt == request.time
+      )
+    );
+
+  allow delete: if false;
+
+  match /profile_viewers/{viewerUid} {
+    allow read, write: if false;
+  }
+}

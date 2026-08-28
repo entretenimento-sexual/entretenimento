@@ -1,0 +1,219 @@
+<!-- src/app/media/photos/photo-upload/photo-upload.component.html -->
+
+@let ownerUid = (ownerUid$ | async);
+@let canUpload = (canUpload$ | async);
+@let policy = (policyResult$ | async);
+@let preview = (previewUrl$ | async);
+@let phase = (phase$ | async);
+@let selectedFileName = (selectedFileName$ | async);
+@let selectedFileSizeLabel = (selectedFileSizeLabel$ | async);
+@let uploadPercent = (uploadPercent$ | async);
+
+<section class="upload-page" aria-labelledby="photo-upload-title">
+  <header class="upload-header app-card">
+    <a
+      class="upload-header__back-link"
+      [routerLink]="['/media', 'perfil', ownerUid || '', 'fotos']"
+      aria-label="Voltar para minhas fotos"
+    >
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+      Minhas fotos
+    </a>
+
+    <div class="upload-header__copy">
+      <h1 id="photo-upload-title">Adicionar foto</h1>
+      <p>Escolha, ajuste e confirme antes de enviar.</p>
+    </div>
+  </header>
+
+  @if (!canUpload) {
+    <article class="upload-blocked app-card" role="status" aria-live="polite">
+      <div class="upload-blocked__icon" aria-hidden="true">
+        <i class="fas fa-lock"></i>
+      </div>
+
+      <div>
+        <strong>
+          @if (!policy || policy.reason === 'UNKNOWN') {
+            Validando acesso
+          } @else {
+            Envio indisponível
+          }
+        </strong>
+
+        <p>
+          @if (!policy || policy.reason === 'UNKNOWN') {
+            Aguarde enquanto verificamos sua sessão.
+          } @else if (policy.reason === 'NOT_AUTHENTICATED') {
+            Faça login para enviar fotos.
+          } @else if (policy.reason === 'NOT_OWNER') {
+            Você só pode enviar fotos do próprio perfil.
+          } @else if (policy.reason === 'EMAIL_UNVERIFIED') {
+            Confirme seu e-mail antes de continuar.
+          } @else if (policy.reason === 'PROFILE_INCOMPLETE') {
+            Finalize seu cadastro antes de continuar.
+          } @else if (policy.reason === 'INTERACTION_BLOCKED' || policy.reason === 'BLOCKED') {
+            Sua conta não pode enviar fotos no momento.
+          } @else if (policy.reason === 'SUBSCRIPTION_REQUIRED') {
+            Assinatura necessária para enviar fotos.
+          } @else {
+            Não foi possível autorizar o envio agora.
+          }
+        </p>
+      </div>
+    </article>
+  } @else {
+    <article
+      class="upload-card app-card"
+      [attr.aria-busy]="phase === 'EDITING' || phase === 'UPLOADING' ? 'true' : null"
+    >
+      @if (phase !== 'DONE') {
+        <div class="upload-grid">
+          <section class="upload-panel" aria-label="Selecionar e enviar foto">
+            <label class="file-drop" for="fileInput">
+              <input
+                #fileInput
+                id="fileInput"
+                class="native-file-input"
+                type="file"
+                [attr.accept]="imageAccept"
+                (change)="onFileSelected($event)"
+                [disabled]="phase === 'EDITING' || phase === 'UPLOADING'"
+              />
+
+              <span class="file-drop__icon" aria-hidden="true">
+                <i class="fas fa-image"></i>
+              </span>
+              <span class="file-drop__title">Escolher foto</span>
+              <span class="file-drop__hint">
+                {{ imageFormatLabel }} · até {{ imageMaxMegabytes }} MB
+              </span>
+            </label>
+
+            @if (phase === 'EDITING') {
+              <p class="upload-note" role="status" aria-live="polite">
+                Editor aberto. Confirme ou cancele a edição para continuar.
+              </p>
+            }
+
+            @if (selectedFileName) {
+              <div class="selected-file" aria-live="polite">
+                <i class="fas fa-file-image" aria-hidden="true"></i>
+                <div>
+                  <strong>{{ selectedFileName }}</strong>
+                  @if (selectedFileSizeLabel) {
+                    <span>{{ selectedFileSizeLabel }}</span>
+                  }
+                </div>
+              </div>
+            }
+
+            <p class="upload-note">
+              A imagem é normalizada pelo editor, sem metadados da foto original, antes de entrar na biblioteca privada. A publicação no perfil é uma etapa separada.
+            </p>
+
+            <div class="upload-actions">
+              <button
+                type="button"
+                class="btn btn-primary"
+                (click)="startUpload()"
+                [disabled]="phase !== 'READY'"
+              >
+                @if (phase === 'UPLOADING') {
+                  Enviando...
+                } @else {
+                  Enviar foto
+                }
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="editBeforeUpload()"
+                [disabled]="phase !== 'READY'"
+              >
+                <i class="fas fa-crop-simple" aria-hidden="true"></i>
+                Ajustar novamente
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-ghost"
+                (click)="resetSelection(fileInput)"
+                [disabled]="phase === 'EDITING' || phase === 'UPLOADING' || phase === 'IDLE'"
+              >
+                Limpar
+              </button>
+            </div>
+
+            @if (phase === 'UPLOADING') {
+              <div class="upload-progress-wrap" aria-live="polite">
+                <div
+                  class="upload-progress"
+                  role="progressbar"
+                  [attr.aria-valuemin]="0"
+                  [attr.aria-valuemax]="100"
+                  [attr.aria-valuenow]="uploadPercent || 0"
+                  [attr.aria-label]="'Progresso do upload: ' + (uploadPercent || 0) + '%'"
+                >
+                  <div class="upload-progress__bar" [style.width.%]="uploadPercent || 0"></div>
+                </div>
+                <span class="upload-progress__label">{{ uploadPercent || 0 }}%</span>
+              </div>
+            }
+          </section>
+
+          <section class="preview-panel" aria-label="Pré-visualização da foto">
+            @if (preview) {
+              <figure class="preview-card">
+                <img [src]="preview" alt="Pré-visualização da foto editada" />
+              </figure>
+            } @else {
+              <div class="preview-empty" role="status" aria-live="polite">
+                <i class="fas fa-images" aria-hidden="true"></i>
+                <strong>Nenhuma foto confirmada</strong>
+              </div>
+            }
+          </section>
+        </div>
+      }
+
+      @if (phase === 'DONE') {
+        <section class="upload-done" role="status" aria-live="polite">
+          <div class="upload-done__visual">
+            @if (preview) {
+              <img [src]="preview" alt="Foto enviada com sucesso" />
+            } @else {
+              <div class="upload-done__fallback" aria-hidden="true">
+                <i class="fas fa-check"></i>
+              </div>
+            }
+          </div>
+
+          <div class="upload-done__copy">
+            <h2>Foto adicionada</h2>
+            <p>Ela permanece privada até você decidir publicá-la no perfil.</p>
+
+            <div class="upload-actions upload-actions--done">
+              <button
+                type="button"
+                class="btn btn-primary"
+                (click)="backToPhotos(ownerUid || '')"
+              >
+                Ver minhas fotos
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="sendAnotherPhoto()"
+              >
+                Adicionar outra
+              </button>
+            </div>
+          </div>
+        </section>
+      }
+    </article>
+  }
+</section>

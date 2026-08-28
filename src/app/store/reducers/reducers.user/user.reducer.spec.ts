@@ -1,0 +1,175 @@
+// src/app/store/reducers/reducers.user/user.reducer.spec.ts
+import { userReducer } from './user.reducer';
+import { initialUserState } from '../../states/states.user/user.state';
+import { IUserDados } from '../../../core/interfaces/iuser-dados';
+import type { IError } from '../../../core/interfaces/ierror';
+import {
+  addUserToState,
+  loadUsers,
+  loadUsersSuccess,
+  loadUsersFailure,
+  loadOnlineUsersSuccess,
+  updateUserOnlineStatus,
+  setFilteredOnlineUsers,
+  setCurrentUser,
+  clearCurrentUser,
+} from '../../actions/actions.user/user.actions';
+import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.actions';
+import { describe, expect, it } from 'vitest';
+
+function reduceFrom(initial = initialUserState, ...actions: any[]) {
+  return actions.reduce((state, action) => userReducer(state, action), initial);
+}
+
+/** Helper pra mockar Timestamp.now() do firebase */
+const nowMs = () => Date.now();
+
+const u = (overrides?: Partial<IUserDados>): IUserDados => ({
+  uid: 'u1',
+  email: 'u1@mail.com',
+  nickname: 'u1',
+  role: 'free',
+  tier: 'free',
+  emailVerified: true,
+  isOnline: false,
+  photoURL: null,
+  lastLogin: nowMs(),
+  firstLogin: nowMs(),
+  isSubscriber: false,
+  monthlyPayer: false,
+  subscriptionStatus: 'inactive',
+  subscriptionScope: null,
+  descricao: '',
+  ...overrides,
+});
+
+const v = (overrides?: Partial<IUserDados>): IUserDados => ({
+  uid: 'u2',
+  email: 'u2@mail.com',
+  nickname: 'u2',
+  role: 'vip',
+  tier: 'vip',
+  emailVerified: true,
+  isOnline: true,
+  photoURL: null,
+  lastLogin: nowMs(),
+  firstLogin: nowMs(),
+  billingProjectionVersion: 1,
+  isSubscriber: true,
+  monthlyPayer: true,
+  subscriptionStatus: 'active',
+  subscriptionScope: 'platform_subscription',
+  subscriptionStartedAt: nowMs() - 60_000,
+  subscriptionEndsAt: nowMs() + 60_000,
+  descricao: '',
+  ...overrides,
+});
+
+describe('userReducer', () => {
+  it('deve hidratar o mapa ao fazer loginSuccess e setar currentUser sanitizado', () => {
+    const user = u({ isOnline: true });
+    const state = reduceFrom(initialUserState, loginSuccess({ user }));
+
+    expect(state.currentUser).toMatchObject(user);
+    expect(state.users[user.uid]).toMatchObject(user);
+    expect(state.onlineUsers.find((x: IUserDados) => x.uid === user.uid)).toBeFalsy();
+  });
+
+  it('setCurrentUser deve hidratar e setar currentUser sanitizado', () => {
+    const user = u({ isOnline: false });
+    const state = reduceFrom(initialUserState, setCurrentUser({ user }));
+
+    expect(state.currentUser).toMatchObject(user);
+    expect(state.users[user.uid]).toMatchObject(user);
+    expect(state.onlineUsers.find((x: IUserDados) => x.uid === user.uid)).toBeFalsy();
+  });
+
+  it('updateUserOnlineStatus deve criar patch mínimo quando uid não existe e refletir no array', () => {
+    const uid = 'ghost';
+    const state = reduceFrom(initialUserState, updateUserOnlineStatus({ uid, isOnline: true }));
+
+    expect(state.users[uid]).toBeTruthy();
+    expect(state.users[uid].uid).toBe(uid);
+    expect(state.users[uid].isOnline).toBe(true);
+    expect(state.onlineUsers.find((x: IUserDados) => x.uid === uid)).toBeTruthy();
+  });
+
+  it('updateUserOnlineStatus deve espelhar no currentUser quando for o mesmo uid', () => {
+    const logged = u({ uid: 'me', isOnline: false });
+    const s1 = reduceFrom(initialUserState, loginSuccess({ user: logged }));
+    const s2 = reduceFrom(s1, updateUserOnlineStatus({ uid: 'me', isOnline: true }));
+
+    expect(s2.currentUser?.isOnline).toBe(true);
+    expect(s2.users['me']?.isOnline).toBe(true);
+    expect(s2.onlineUsers.find((x: IUserDados) => x.uid === 'me')).toBeTruthy();
+  });
+
+  it('loadOnlineUsersSuccess deve preencher users + onlineUsers sem duplicar e mantendo merges', () => {
+    const base = reduceFrom(
+      initialUserState,
+      addUserToState({ user: u({ uid: 'x', nickname: 'antes' }) })
+    );
+
+    const incoming = [
+      v({ uid: 'x', isOnline: true, nickname: 'depois' }),
+      v({ uid: 'y', isOnline: true }),
+    ];
+
+    const s2 = reduceFrom(base, loadOnlineUsersSuccess({ users: incoming }));
+
+    expect(s2.users['x']?.nickname).toBe('depois');
+    expect(s2.users['y']?.uid).toBe('y');
+    expect(s2.onlineUsers.map((x: IUserDados) => x.uid).sort()).toEqual(['x', 'y']);
+  });
+
+  it('clearCurrentUser deve limpar currentUser, onlineUsers e remover currentUser do dicionário', () => {
+    const me = u({ uid: 'me', isOnline: true });
+    const s1 = reduceFrom(initialUserState, loginSuccess({ user: me }));
+    const s2 = reduceFrom(s1, clearCurrentUser());
+
+    expect(s2.currentUser).toBeNull();
+    expect(s2.onlineUsers.find((x: IUserDados) => x.uid === 'me')).toBeFalsy();
+    expect(s2.users['me']).toBeUndefined();
+  });
+
+  it('logoutSuccess deve limpar currentUser, onlineUsers e remover currentUser do dicionário', () => {
+    const me = u({ uid: 'me', isOnline: true });
+    const s1 = reduceFrom(initialUserState, loginSuccess({ user: me }));
+    const s2 = reduceFrom(s1, logoutSuccess());
+
+    expect(s2.currentUser).toBeNull();
+    expect(s2.onlineUsers.find((x: IUserDados) => x.uid === 'me')).toBeFalsy();
+    expect(s2.users['me']).toBeUndefined();
+  });
+
+  it('loadUsersSuccess deve mesclar lista no dicionário e desligar loading', () => {
+    const s1 = reduceFrom(initialUserState, loadUsers());
+    expect(s1.loading).toBe(true);
+
+    const list = [u({ uid: 'a' }), u({ uid: 'b' })];
+    const s2 = reduceFrom(s1, loadUsersSuccess({ users: list }));
+
+    expect(s2.loading).toBe(false);
+    expect(s2.users['a']).toBeTruthy();
+    expect(s2.users['b']).toBeTruthy();
+    expect(s2.error).toBeNull();
+  });
+
+  it('loadUsersFailure deve desligar loading e setar erro', () => {
+    const s1 = reduceFrom(initialUserState, loadUsers());
+
+    const error = { message: 'oops' } as IError;
+    const s2 = reduceFrom(s1, loadUsersFailure({ error }));
+
+    expect(s2.loading).toBe(false);
+    expect(s2.error).toEqual(error);
+  });
+
+  it('setFilteredOnlineUsers deve apenas setar o array filtrado', () => {
+    const filtered = [v({ uid: 'f1' }), v({ uid: 'f2' })];
+    const s = reduceFrom(initialUserState, setFilteredOnlineUsers({ filteredUsers: filtered }));
+
+    expect(s.filteredUsers.length).toBe(2);
+    expect(s.filteredUsers[0].uid).toBe('f1');
+  });
+});

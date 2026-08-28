@@ -1,0 +1,36 @@
+<div class="public-video-share-actions" (click)="$event.stopPropagation()">
+  <button
+    type="button"
+    class="public-video-share-action"
+    (click)="toggleMenu($event)"
+    [disabled]="sharingExternally() || openingConversationPicker()"
+    [attr.aria-busy]="sharingExternally() || openingConversationPicker() ? 'true' : null"
+    [attr.aria-expanded]="menuOpen()"
+    aria-haspopup="menu"
+    aria-label="Opções para compartilhar vídeo"
+  >
+    <span class="public-video-share-action__icon">
+      <i
+        [class]="sharingExternally() || openingConversationPicker()
+          ? 'fas fa-circle-notch fa-spin'
+          : 'fas fa-share-nodes'"
+        aria-hidden="true"
+      ></i>
+    </span>
+    <small>Compartilhar</small>
+  </button>
+
+  @if (menuOpen()) {
+    <div class="public-video-share-menu" role="menu" aria-label="Compartilhar vídeo">
+      <button type="button" role="menuitem" (click)="shareExternally($event)">
+        <i class="fas fa-arrow-up-from-bracket" aria-hidden="true"></i>
+        <span>Compartilhar fora</span>
+      </button>
+
+      <button type="button" role="menuitem" (click)="sendToConversation($event)">
+        <i class="fas fa-paper-plane" aria-hidden="true"></i>
+        <span>Enviar em conversa</span>
+      </button>
+    </div>
+  }
+</div>

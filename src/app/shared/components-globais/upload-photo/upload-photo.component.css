@@ -1,0 +1,165 @@
+/* src/app/shared/components-globais/upload-photo/upload-photo.component.css */
+:host {
+  display: block;
+  color: var(--text-color);
+}
+
+.upload-modal-content {
+  position: relative;
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 32rem);
+  padding: 1.25rem;
+  box-sizing: border-box;
+  border: 1px solid var(--surface-border);
+  border-radius: 1.25rem;
+  background: var(--surface-color);
+  color: var(--text-color);
+  box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 16%);
+}
+
+.upload-modal-content h2 {
+  margin: 0;
+  padding-right: 3rem;
+  font-size: clamp(1.15rem, 4vw, 1.4rem);
+  line-height: 1.2;
+}
+
+.btn-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.btn-close:hover:not(:disabled),
+.btn-close:focus-visible {
+  background: var(--header-hover-bg);
+}
+
+.btn-close:focus-visible,
+.file-input:focus-visible,
+.file-input-label:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.file-input-label {
+  font-weight: 800;
+}
+
+.file-input {
+  display: block;
+  width: 100%;
+  min-height: var(--tap-target, 44px);
+  padding: 0.75rem;
+  box-sizing: border-box;
+  border: 1px dashed color-mix(in oklab, var(--primary-color) 52%, var(--surface-border));
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--primary-color) 5%, var(--surface-color));
+  color: var(--text-color);
+  font: inherit;
+  cursor: pointer;
+}
+
+.file-input::file-selector-button {
+  min-height: 2.5rem;
+  margin-right: 0.75rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--primary-color);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.upload-photo-help {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.loading-spinner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--primary-color) 8%, var(--surface-color));
+}
+
+.loading-spinner p {
+  margin: 0;
+  font-weight: 750;
+}
+
+.spinner {
+  flex: 0 0 auto;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 3px solid color-mix(in oklab, var(--primary-color) 18%, transparent);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: upload-photo-spin 0.8s linear infinite;
+}
+
+.alert {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 0.9rem;
+  line-height: 1.4;
+}
+
+@keyframes upload-photo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 480px) {
+  .upload-modal-content {
+    width: 100%;
+    padding: 1rem;
+    border-radius: 1rem;
+  }
+
+  .file-input::file-selector-button {
+    display: block;
+    width: 100%;
+    margin: 0 0 0.65rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+:host-context(html.high-contrast) .upload-modal-content,
+:host-context(html.high-contrast) .file-input,
+:host-context(html.high-contrast) .btn-close,
+:host-context(html.high-contrast) .loading-spinner,
+:host-context(html.high-contrast) .alert {
+  border: 2px solid currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: none !important;
+}

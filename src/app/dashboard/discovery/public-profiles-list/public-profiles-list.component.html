@@ -1,0 +1,94 @@
+<!-- src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component.html -->
+<section class="public-profiles" aria-label="Perfis selecionados para você">
+  @if (loading() && profiles().length === 0) {
+    <div class="public-profiles__state" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <p>Buscando perfis compatíveis...</p>
+    </div>
+  } @else if (errorMessage() && profiles().length === 0) {
+    <div
+      class="public-profiles__state public-profiles__state--error"
+      role="alert"
+    >
+      <p>{{ errorMessage() }}</p>
+      <button
+        type="button"
+        class="public-profiles__retry"
+        (click)="requestRetry()"
+      >
+        Tentar novamente
+      </button>
+    </div>
+  } @else if (profiles().length === 0) {
+    <div class="public-profiles__empty">
+      <p role="status" aria-live="polite">{{ emptyMessage() }}</p>
+
+      <div class="public-profiles__empty-actions">
+        @if (hasMore()) {
+          <button
+            type="button"
+            class="public-profiles__load-more"
+            [disabled]="loadingMore()"
+            [attr.aria-busy]="loadingMore() ? 'true' : 'false'"
+            (click)="requestLoadMore()"
+          >
+            {{ loadingMore() ? 'Buscando mais…' : 'Buscar mais perfis' }}
+          </button>
+        }
+
+        @if (filteredByPreferences()) {
+          <a class="public-profiles__review" routerLink="/preferencias/editar">
+            Revisar preferências
+          </a>
+        }
+      </div>
+    </div>
+  } @else {
+    <p class="sr-only" role="status" aria-live="polite">
+      {{ profiles().length === 1 ? '1 perfil disponível' : (profiles().length + ' perfis disponíveis') }}
+    </p>
+
+    @if (refreshing()) {
+      <div class="public-profiles__refreshing" role="status" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="sr-only">Atualizando perfis</span>
+      </div>
+    }
+
+    @if (errorMessage()) {
+      <div class="public-profiles__inline-error" role="alert">
+        <span>{{ errorMessage() }}</span>
+        <button type="button" (click)="requestRetry()">Tentar novamente</button>
+      </div>
+    }
+
+    <div class="public-profiles__grid">
+      @for (profile of profiles(); track trackProfile($index, profile)) {
+        <app-user-card
+          class="public-profiles__item"
+          [user]="toUserCardProfile(profile)"
+          [distanciaKm]="getDistance(profile)"
+        />
+      }
+    </div>
+
+    @if (loadingMore() || hasMore()) {
+      <div class="public-profiles__pagination" aria-live="polite">
+        @if (loadingMore()) {
+          <div class="public-profiles__loading-more" role="status">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Buscando mais...</span>
+          </div>
+        } @else {
+          <button
+            type="button"
+            class="public-profiles__load-more"
+            (click)="requestLoadMore()"
+          >
+            Ver mais
+          </button>
+        }
+      </div>
+    }
+  }
+</section>

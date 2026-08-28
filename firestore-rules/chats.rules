@@ -1,0 +1,156 @@
+    // =======================================================================
+    // CHATS DIRETOS
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem
+    //    `service cloud.firestore`
+    //
+    // Segurança desta versão:
+    // - leitura permanece restrita aos participantes da conversa;
+    // - criação de chat direto ocorre somente por Cloud Function confiável;
+    // - atualização do documento de chat ocorre somente por backend confiável;
+    // - criação de mensagens diretas ocorre somente por Cloud Function;
+    // - cliente pode atualizar exclusivamente recibos de mensagens recebidas,
+    //   respeitando transição progressiva de status;
+    // - cliente pode alterar somente a própria reação em reactionsByUser.
+    //
+    // Supressões explícitas:
+    // - removida criação client-side de chats;
+    // - removida atualização client-side de lastMessage,
+    //   otherParticipantDetails e timestamp;
+    // - removida criação client-side de mensagens diretas.
+    // =======================================================================
+match /chats/{chatId} {
+  function isChatParticipant() {
+    return signedIn()
+      && (uid() in resource.data.participants);
+  }
+
+  /**
+   * Permite ao cliente ler somente conversas das quais participa.
+   *
+   * A consulta do frontend já utiliza:
+   * where('participants', 'array-contains', uid)
+   */
+  allow read: if isChatParticipant();
+
+  /**
+   * Criação e alteração estrutural de chat direto permanecem exclusivas
+   * das Cloud Functions confiáveis.
+   */
+  allow create, update, delete: if false;
+}
+
+    match /chats/{chatId}/messages/{messageId} {
+      function chatExists() {
+        return exists(/databases/$(database)/documents/chats/$(chatId));
+      }
+
+      function isChatParticipantByChat() {
+        return signedIn()
+          && chatExists()
+          && get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list
+          && (
+            uid() in get(
+              /databases/$(database)/documents/chats/$(chatId)
+            ).data.participants
+          );
+      }
+
+      function isMessageReceivedByCurrentUser() {
+        return (
+          resource.data.keys().hasAny(["senderId"])
+          && resource.data.senderId != uid()
+        )
+        || (
+          resource.data.keys().hasAny(["senderUid"])
+          && resource.data.senderUid != uid()
+        );
+      }
+
+      function isForwardReceiptTransition() {
+        return (
+          resource.data.status == "sent"
+          && request.resource.data.status == "delivered"
+        )
+        || (
+          resource.data.status == "delivered"
+          && request.resource.data.status == "read"
+        );
+      }
+
+      function hasOnlyReactionFieldChanged() {
+        return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "reactionsByUser"
+        ]);
+      }
+
+      function hasValidReactionValue() {
+        return !(uid() in request.resource.data.reactionsByUser)
+          || request.resource.data.reactionsByUser[uid()] in [
+            "❤️",
+            "😂",
+            "🔥",
+            "👀"
+          ];
+      }
+
+      function changesOnlyOwnReaction() {
+        return request.resource.data.reactionsByUser is map
+          && (
+            (
+              !resource.data.keys().hasAny(["reactionsByUser"])
+              && request.resource.data.reactionsByUser.keys().hasOnly([uid()])
+            )
+            || (
+              resource.data.keys().hasAny(["reactionsByUser"])
+              && request.resource.data.reactionsByUser
+                .diff(resource.data.reactionsByUser)
+                .affectedKeys()
+                .hasOnly([uid()])
+            )
+          );
+      }
+
+      function isReactionUpdate() {
+        return hasOnlyReactionFieldChanged()
+          && changesOnlyOwnReaction()
+          && hasValidReactionValue();
+      }
+
+      /**
+       * Leitura permanece disponível somente a participantes do chat.
+       */
+      allow read: if isChatParticipantByChat();
+
+      /**
+       * Mensagens diretas novas são gravadas apenas por sendDirectMessage.
+       */
+      allow create: if false;
+
+      /**
+       * Exceção temporária e estrita para recibos:
+       * - somente participante;
+       * - somente mensagem recebida;
+       * - somente campo status;
+       * - somente avanço sent -> delivered -> read.
+       *
+       * Em etapa futura, receipts também deverão migrar para backend.
+       */
+      allow update: if isChatParticipantByChat()
+        && isMessageReceivedByCurrentUser()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "status"
+        ])
+        && isForwardReceiptTransition();
+
+      /**
+       * Reações persistentes:
+       * - somente participante;
+       * - somente campo reactionsByUser;
+       * - usuário só altera a própria chave;
+       * - valores limitados aos emojis suportados na UI.
+       */
+      allow update: if isChatParticipantByChat()
+        && isReactionUpdate();
+
+      allow delete: if false;
+    }

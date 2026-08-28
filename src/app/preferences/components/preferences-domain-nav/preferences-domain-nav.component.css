@@ -1,0 +1,40 @@
+/* src\app\preferences\components\preferences-domain-nav\preferences-domain-nav.component.css */
+.preferences-domain-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--surface-border, #2b2b2b);
+  border-radius: 1rem;
+  background: var(--surface-color, rgba(255, 255, 255, 0.02));
+}
+
+.preferences-domain-nav__list {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.preferences-domain-nav__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  text-decoration: none;
+  border: 1px solid var(--surface-border, #2b2b2b);
+  color: inherit;
+}
+
+.preferences-domain-nav__link--active {
+  font-weight: 600;
+}
+
+.preferences-domain-nav__extra {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}

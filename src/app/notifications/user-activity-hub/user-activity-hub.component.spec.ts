@@ -1,0 +1,103 @@
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { of } from 'rxjs';
+import { describe, expect, it } from 'vitest';
+
+import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
+import { UserActivityHubComponent } from './user-activity-hub.component';
+
+describe('UserActivityHubComponent', () => {
+  it('mantém pendências globais sem misturar Conexões com convites de Sala', () => {
+    TestBed.configureTestingModule({
+      imports: [UserActivityHubComponent],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AppNotificationService,
+          useValue: {
+            currentUserNotifications$: of([
+              {
+                id: 'notification-room-1',
+                userId: 'user-1',
+                type: 'social',
+                title: 'Convite para sala',
+                body: 'Uma nova sala está disponível.',
+                route: '/chat/rooms/room-1',
+                readAt: null,
+                createdAt: 1,
+                updatedAt: 1,
+              },
+              {
+                id: 'notification-place-1',
+                userId: 'user-1',
+                type: 'social',
+                title: 'Novidade em um Local',
+                body: 'Confira a atualização.',
+                route: '/dashboard/locais/local-1',
+                readAt: null,
+                createdAt: 2,
+                updatedAt: 2,
+              },
+              {
+                id: 'notification-community-1',
+                userId: 'user-1',
+                type: 'community.comment.received',
+                title: 'Novo comentário',
+                body: 'Uma publicação recebeu um comentário.',
+                route: '/dashboard/comunidades/community-1',
+                readAt: null,
+                createdAt: 4,
+                updatedAt: 4,
+              },
+              {
+                id: 'notification-connection-1',
+                userId: 'user-1',
+                type: 'social',
+                title: 'Solicitação de conexão',
+                body: 'Uma pessoa quer se conectar.',
+                route: '/friends/requests',
+                readAt: null,
+                createdAt: 3,
+                updatedAt: 3,
+              },
+            ]),
+          },
+        },
+      ],
+    });
+
+    const fixture = TestBed.createComponent(UserActivityHubComponent);
+    fixture.detectChanges();
+
+    const links = Array.from(
+      fixture.nativeElement.querySelectorAll('a') as NodeListOf<HTMLAnchorElement>
+    );
+    const labels = Array.from(
+      fixture.nativeElement.querySelectorAll('.activity-bar__label') as NodeListOf<HTMLElement>
+    ).map((element) => element.textContent?.trim());
+    const connectionLink = links.find((link) =>
+      link.textContent?.includes('Conexões')
+    );
+    const roomLink = links.find((link) =>
+      link.textContent?.includes('Salas')
+    );
+    const momentsLink = links.find((link) =>
+      link.textContent?.includes('Momentos')
+    );
+
+    expect(labels).toEqual([
+      'Mensagens',
+      'Conexões',
+      'Salas',
+      'Comunidades',
+      'Momentos',
+      'Central',
+    ]);
+    expect(labels).not.toContain('Status');
+    expect(labels).not.toContain('Locais');
+    expect(connectionLink?.getAttribute('href')).toBe('/friends/requests');
+    expect(roomLink?.getAttribute('href')).toBe('/chat/room-invites');
+    expect(momentsLink?.getAttribute('href')).toBe('/descobrir');
+    expect(fixture.nativeElement.textContent).toContain('4');
+  });
+});

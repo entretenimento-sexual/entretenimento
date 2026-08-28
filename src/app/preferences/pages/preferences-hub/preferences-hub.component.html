@@ -1,0 +1,78 @@
+<!-- src\app\preferences\pages\preferences-hub\preferences-hub.component.html -->
+<main class="preferences-hub-page app-page" aria-label="Preferências da conta">
+  <section class="preferences-hub-shell stack">
+    <app-preferences-page-header
+      title="Preferências"
+      subtitle="Ajuste como seu perfil aparece, como você recebe notificações e como deseja ser descoberto na plataforma."
+    >
+      <a page-actions class="btn btn-secondary" routerLink="/perfil">
+        Voltar ao perfil
+      </a>
+    </app-preferences-page-header>
+
+    <app-preferences-domain-nav></app-preferences-domain-nav>
+
+    @if (vm$ | async; as vm) {
+      @if (vm) {
+        <app-preference-summary-card [vm]="vm"></app-preference-summary-card>
+
+        <section class="hub-grid" aria-label="Navegação de preferências">
+          <app-preferences-hub-card
+            title="Visão geral"
+            description="Veja um resumo das suas configurações atuais e pendências importantes."
+            route="/preferencias/overview">
+          </app-preferences-hub-card>
+
+          <app-preferences-hub-card
+            title="Editar preferências"
+            description="Atualize intenção, perfil, visibilidade e informações usadas para descoberta."
+            route="/preferencias/editar"
+            badge="Principal">
+          </app-preferences-hub-card>
+
+          <app-preferences-hub-card
+            title="Notificações"
+            description="Controle avisos de mensagens, conexões, salas, locais e atividades relevantes."
+            route="/preferencias/notificacoes">
+          </app-preferences-hub-card>
+
+          <app-preferences-hub-card
+            title="Descoberta e privacidade"
+            description="Defina se seu perfil pode aparecer em buscas, sugestões e recursos regionais."
+            route="/preferencias/discovery-settings">
+          </app-preferences-hub-card>
+
+          <app-preferences-hub-card
+            title="Perfil para combinações"
+            description="Revise os dados usados para compatibilidade e descoberta entre perfis."
+            route="/preferencias/match-profile">
+          </app-preferences-hub-card>
+
+          <app-preferences-hub-card
+            title="Compatibilidade"
+            description="Compare preferências e sinais de compatibilidade com outro perfil."
+            [route]="'/preferencias/compatibility-lab/' + vm.uid"
+            badge="Teste">
+          </app-preferences-hub-card>
+
+          @if (lastCompatibilityTargetUid()) {
+            <app-preferences-hub-card
+              title="Retomar compatibilidade"
+              description="Volte para a última comparação de compatibilidade acessada."
+              [route]="'/preferencias/compatibility-lab/' + lastCompatibilityTargetUid()"
+              badge="Recente">
+            </app-preferences-hub-card>
+          }
+        </section>
+      } @else {
+        <section class="hub-empty section" aria-label="Sem sessão ativa">
+          <p>Você precisa estar autenticado para acessar suas preferências.</p>
+        </section>
+      }
+    } @else {
+      <section class="hub-empty section" aria-label="Carregando preferências">
+        <p>Carregando suas preferências...</p>
+      </section>
+    }
+  </section>
+</main>

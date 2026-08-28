@@ -1,0 +1,105 @@
+<!-- src/app/community/invites/community-invites-page.component.html -->
+<main class="community-invites" aria-labelledby="community-invites-title">
+  <header class="community-invites__header">
+    <a
+      class="community-invites__back"
+      routerLink="/dashboard/comunidades"
+      aria-label="Voltar para Comunidades"
+    >
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+    </a>
+
+    <div>
+      <h1 id="community-invites-title">Convites</h1>
+      <p>Comunidades que convidaram você para participar.</p>
+    </div>
+  </header>
+
+  @if (state$ | async; as state) {
+    @if (state.status === 'loading') {
+      <div class="community-invites__state" role="status" aria-live="polite">
+        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+        <span>Carregando convites...</span>
+      </div>
+    } @else if (state.status === 'error') {
+      <div class="community-invites__state" role="alert">
+        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+        <span>Não foi possível carregar seus convites.</span>
+        <button type="button" (click)="retry()">Tentar novamente</button>
+      </div>
+    } @else if (state.status === 'empty') {
+      <section class="community-invites__empty" aria-label="Sem convites pendentes">
+        <i class="fas fa-envelope-open" aria-hidden="true"></i>
+        <h2>Nenhum convite pendente</h2>
+        <p>Quando uma Comunidade convidar você, ela aparecerá aqui.</p>
+        <a routerLink="/dashboard/comunidades">Explorar Comunidades</a>
+      </section>
+    } @else {
+      <ul class="community-invites__list" aria-label="Convites pendentes">
+        @for (item of state.items; track item.inviteId) {
+          <li class="community-invite-card">
+            <div class="community-invite-card__identity">
+              <span class="community-invite-card__avatar" aria-hidden="true">
+                @if (item.senderAvatarUrl) {
+                  <img
+                    [src]="item.senderAvatarUrl"
+                    alt=""
+                    loading="lazy"
+                    appImageFallback
+                  />
+                } @else {
+                  <i class="fas fa-user" aria-hidden="true"></i>
+                }
+              </span>
+
+              <div class="community-invite-card__copy">
+                <h2>{{ item.communityName }}</h2>
+                <p>
+                  <strong>{{ item.senderLabel }}</strong> convidou você para participar.
+                </p>
+                <span class="community-invite-card__meta">
+                  Recebido {{ item.sentAt | date:'dd/MM, HH:mm' }}
+                  · expira {{ item.expiresAt | date:'dd/MM, HH:mm' }}
+                </span>
+              </div>
+            </div>
+
+            <div
+              class="community-invite-card__actions"
+              [attr.aria-label]="'Responder ao convite para ' + item.communityName"
+            >
+              <button
+                type="button"
+                class="community-invite-card__decline"
+                [disabled]="isBusy(item.inviteId)"
+                [attr.aria-busy]="busyAction(item.inviteId) === 'decline' ? 'true' : null"
+                (click)="decline(item)"
+              >
+                @if (busyAction(item.inviteId) === 'decline') {
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  <span>Recusando</span>
+                } @else {
+                  <span>Recusar</span>
+                }
+              </button>
+              <button
+                type="button"
+                class="community-invite-card__accept"
+                [disabled]="isBusy(item.inviteId)"
+                [attr.aria-busy]="busyAction(item.inviteId) === 'accept' ? 'true' : null"
+                (click)="accept(item)"
+              >
+                @if (busyAction(item.inviteId) === 'accept') {
+                  <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                  <span>Aceitando</span>
+                } @else {
+                  <span>Aceitar</span>
+                }
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  }
+</main>

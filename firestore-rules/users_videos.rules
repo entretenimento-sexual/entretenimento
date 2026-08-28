@@ -1,0 +1,21 @@
+// ===============================================================
+// USERS / videos
+// - Biblioteca privada de vídeos do usuário
+// - Somente o dono pode ler a própria biblioteca
+// - Criação, processamento, publicação e exclusão ficam no backend
+// - Sem enumeração por terceiros
+// - Paths privados nunca são projetados diretamente para visitantes
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// firestore-rules/users_videos.rules
+// ===============================================================
+match /users/{userId}/videos/{videoId} {
+  allow get, list: if isSelf(userId);
+  allow create, update, delete: if false;
+
+  match /{allPaths=**} {
+    allow read, write: if false;
+  }
+}
+// ===============================================================
+//                         FIM DO USERS / VIDEOS
+// ===============================================================

@@ -1,0 +1,21 @@
+// firestore-rules/users_photo_publications.rules
+// ==============================================================
+// USERS / photo_publications
+//
+// Configuração privada de publicação das fotos.
+//
+// Segurança:
+// - o dono pode ler o estado da própria publicação;
+// - publicação, despublicação, capa, moderação, métricas e caminhos físicos
+//   são alterados exclusivamente por Cloud Functions auditáveis;
+// - o cliente não escreve nem remove configuração de publicação.
+// ==============================================================
+
+match /users/{userId}/photo_publications/{photoId} {
+  allow get, list: if isSelf(userId);
+  allow create, update, delete: if false;
+}
+
+// ==============================================================
+//           FIM DO USERS_PHOTO_PUBLICATIONS.RULES
+// ==============================================================

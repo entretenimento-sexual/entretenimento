@@ -1,0 +1,226 @@
+/* src\styles\global-components.css */
+.btn {
+  display: inline-block;
+  background-color: var(--primary-color);
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  color: #fff;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+  transform: scale(1.05);
+}
+
+.btn-danger {
+  background-color: var(--danger-color);
+}
+
+.btn-danger:hover {
+  background-color: var(--danger-hover);
+}
+
+.btn-success {
+  background-color: var(--success-color);
+}
+
+.btn-success:hover {
+  background-color: var(--success-hover);
+}
+
+.btn-secondary {
+  background-color: var(--secondary-color);
+}
+
+.btn-secondary:hover {
+  background-color: #666;
+}
+
+.btn:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+button[disabled],
+.btn[disabled],
+[aria-disabled="true"] {
+  opacity: .7;
+  cursor: not-allowed !important;
+}
+
+/* Alertas */
+.alert {
+  padding: 5px;
+  margin-bottom: 5px;
+  border-radius: 8px;
+  font-size: 1rem;
+  color: white;
+  font-weight: bold;
+}
+
+.alert-warning {
+  background-color: var(--snackbar-warning);
+  color: #fff;
+}
+
+.alert-secondary {
+  background-color: var(--secondary-color);
+  color: #fff;
+}
+
+.alert-success {
+  background-color: var(--success-color);
+}
+
+.alert-error {
+  background-color: var(--danger-color);
+}
+
+.alert-info {
+  background-color: var(--primary-color);
+}
+
+/* Snackbar */
+.success-snackbar {
+  background-color: var(--snackbar-success);
+  color: white;
+}
+
+.error-snackbar {
+  background-color: var(--snackbar-error);
+  color: white;
+}
+
+.info-snackbar {
+  background-color: var(--snackbar-info);
+  color: white;
+}
+
+.warning-snackbar {
+  background-color: var(--snackbar-warning);
+  color: white;
+}
+
+/* Modal customizado. O conteúdo é deliberadamente escopado ao overlay próprio
+   para não sobrescrever o .modal-content do Bootstrap/ng-bootstrap. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-overlay > .modal-content {
+  background-color: var(--modal-background);
+  padding: 25px;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 450px;
+  box-shadow: var(--box-shadow);
+  text-align: center;
+}
+
+/* Editor de fotos aberto pelo NgbModal. */
+.photo-editor-modal-window .modal-dialog {
+  width: min(1120px, calc(100vw - 24px));
+  max-width: 1120px;
+  margin: 12px auto;
+}
+
+.photo-editor-modal-window .modal-content {
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 18px;
+  background: var(--surface-color, #101923);
+  text-align: left;
+}
+
+/* Spinner */
+.spinner {
+  color: var(--primary-color);
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+/* Toggle */
+.dark-toggle {
+  background: transparent;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: var(--text-color);
+  transition: transform 0.2s ease;
+}
+
+.dark-toggle:hover {
+  transform: scale(1.15);
+}
+
+/* === Alto Contraste (padronizado em html.high-contrast) === */
+html.high-contrast .btn,
+html.high-contrast .btn-primary,
+html.high-contrast .btn-secondary,
+html.high-contrast .btn-danger,
+html.high-contrast .btn-success {
+  background: var(--primary-color) !important;
+  color: var(--background-color) !important;
+  border: 2px solid var(--text-color) !important;
+  transform: none !important;
+}
+
+html.high-contrast .btn:hover {
+  background: var(--primary-hover) !important;
+}
+
+html.high-contrast button[disabled],
+html.high-contrast .btn[disabled],
+html.high-contrast [aria-disabled="true"] {
+  opacity: 1 !important;
+  border-style: dashed !important;
+  color: var(--background-color) !important;
+}
+
+html.high-contrast .alert {
+  color: #000 !important;
+  background: #ff0 !important;  /* amarelo forte */
+  border: 3px solid #000 !important;
+}
+
+/* Variante ghost/link para ações discretas */
+.btn-ghost {
+  background: transparent !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--surface-border) !important;
+}
+
+.btn-ghost:hover,
+.btn-ghost:focus-visible {
+  background: var(--header-hover-bg) !important;
+}
+
+/* Variante link (só texto) mantendo foco visível */
+.btn-link {
+  background: transparent !important;
+  color: var(--primary-color) !important;
+  border: none !important;
+  padding: 0 !important;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: var(--primary-hover) !important;
+}

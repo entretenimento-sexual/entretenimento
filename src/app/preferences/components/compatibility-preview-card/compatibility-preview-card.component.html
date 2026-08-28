@@ -1,0 +1,65 @@
+<!-- src\app\preferences\components\compatibility-preview-card\compatibility-preview-card.component.html -->
+ <section class="compatibility-card" aria-label="Prévia de compatibilidade">
+  @if (preview(); as data) {
+    <header class="compatibility-header">
+      <div>
+        <h2 class="compatibility-title">Prévia de compatibilidade</h2>
+        <p class="compatibility-subtitle">
+          {{ overallLabel() }} · score geral {{ data.overallScore }}%
+        </p>
+      </div>
+    </header>
+
+    <div class="compatibility-grid" role="list">
+      <article class="compatibility-item" role="listitem">
+        <span class="compatibility-label">Intenção</span>
+        <strong>{{ data.intentScore }}%</strong>
+      </article>
+
+      <article class="compatibility-item" role="listitem">
+        <span class="compatibility-label">Práticas</span>
+        <strong>{{ data.practiceScore }}%</strong>
+      </article>
+
+      <article class="compatibility-item" role="listitem">
+        <span class="compatibility-label">Disponibilidade</span>
+        <strong>{{ data.availabilityScore }}%</strong>
+      </article>
+
+      <article class="compatibility-item" role="listitem">
+        <span class="compatibility-label">Descoberta</span>
+        <strong>{{ data.discoveryModeScore }}%</strong>
+      </article>
+
+      <article class="compatibility-item" role="listitem">
+        <span class="compatibility-label">Geografia</span>
+        <strong>{{ data.geographyScore }}%</strong>
+      </article>
+
+      <article class="compatibility-item" role="listitem">
+        <span class="compatibility-label">Prontidão</span>
+        <strong>{{ data.readinessScore }}%</strong>
+      </article>
+    </div>
+
+    <section class="compatibility-reasons" aria-label="Motivos da compatibilidade">
+      <h3 class="reasons-title">Motivos do score</h3>
+
+      <div class="reasons-list" role="list">
+        @for (reason of data.reasons; track reason.key) {
+          <article class="reason-item" role="listitem">
+            <div class="reason-header">
+              <span>{{ reason.label }}</span>
+              <strong>{{ reason.score }}%</strong>
+            </div>
+            <p class="reason-description">{{ reason.description }}</p>
+          </article>
+        }
+      </div>
+    </section>
+  } @else {
+    <div class="compatibility-empty" role="status" aria-live="polite">
+      Nenhuma compatibilidade disponível ainda.
+    </div>
+  }
+</section>
