@@ -10,6 +10,14 @@ export const activateCommunityDiscoveryViewer = createAction(
   props<{ viewerUid: string | null }>()
 );
 
+export const touchCommunityDiscoveryQuery = createAction(
+  '[Community Discovery Cache] Touch Query',
+  props<{
+    query: CommunityDiscoveryCacheQuery;
+    accessedAt: number;
+  }>()
+);
+
 export const storeCommunityDiscoveryPage = createAction(
   '[Community Discovery Cache] Store Page',
   props<{
