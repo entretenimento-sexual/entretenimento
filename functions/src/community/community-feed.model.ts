@@ -29,16 +29,27 @@ export interface CommunityFeedPostCreateRequest {
   communityId?: unknown;
   text?: unknown;
   audience?: unknown;
+  attachment?: unknown;
+  /** Compatibilidade temporária com clientes anteriores ao contrato de anexo. */
   imageUploadPath?: unknown;
   replyToPostId?: unknown;
 }
+
+export interface NormalizedCommunityFeedPhotoAttachment {
+  readonly type: 'photo';
+  readonly uploadPath: string;
+}
+
+export type NormalizedCommunityFeedPostAttachment =
+  NormalizedCommunityFeedPhotoAttachment;
 
 export interface NormalizedCommunityFeedPostCreateRequest {
   requestId: string | null;
   communityId: string | null;
   text: string;
   audience: CommunityFeedAudience;
-  imageUploadPath: string | null;
+  attachment: NormalizedCommunityFeedPostAttachment | null;
+  attachmentValid: boolean;
   replyToPostId: string | null;
 }
 
@@ -200,6 +211,60 @@ interface ProjectionPhotoSource {
   valid: boolean;
 }
 
+interface NormalizedPostAttachmentResult {
+  attachment: NormalizedCommunityFeedPostAttachment | null;
+  valid: boolean;
+}
+
+function invalidPostAttachment(): NormalizedPostAttachmentResult {
+  return { attachment: null, valid: false };
+}
+
+function normalizePostAttachment(
+  raw: CommunityFeedPostCreateRequest | null | undefined
+): NormalizedPostAttachmentResult {
+  const source = (raw ?? {}) as CommunityFeedPostCreateRequest;
+  const hasCanonicalAttachment = Object.prototype.hasOwnProperty.call(
+    source,
+    'attachment'
+  );
+  const legacyUploadPath = normalizeText(source.imageUploadPath, 2_000) || null;
+
+  if (!hasCanonicalAttachment) {
+    return {
+      attachment: legacyUploadPath
+        ? { type: 'photo', uploadPath: legacyUploadPath }
+        : null,
+      valid: true,
+    };
+  }
+
+  // Um cliente não pode enviar duas autoridades de transporte ao mesmo tempo.
+  if (legacyUploadPath) return invalidPostAttachment();
+
+  if (source.attachment == null) {
+    return { attachment: null, valid: true };
+  }
+
+  if (
+    typeof source.attachment !== 'object'
+    || Array.isArray(source.attachment)
+  ) {
+    return invalidPostAttachment();
+  }
+
+  const attachment = source.attachment as Record<string, unknown>;
+  const type = normalizeText(attachment['type'], 32);
+  const uploadPath = normalizeText(attachment['uploadPath'], 2_000);
+
+  if (type !== 'photo' || !uploadPath) return invalidPostAttachment();
+
+  return {
+    attachment: { type: 'photo', uploadPath },
+    valid: true,
+  };
+}
+
 function invalidProjectionPhotoSource(): ProjectionPhotoSource {
   return {
     url: null,
@@ -266,7 +331,7 @@ export function normalizeCommunityFeedPageRequest(
 export function normalizeCommunityFeedPostCreateRequest(
   raw: CommunityFeedPostCreateRequest | null | undefined
 ): NormalizedCommunityFeedPostCreateRequest {
-  const imageUploadPath = normalizeText(raw?.imageUploadPath, 2_000);
+  const attachmentResult = normalizePostAttachment(raw);
 
   return {
     requestId: normalizeSafeId(raw?.requestId),
@@ -275,7 +340,8 @@ export function normalizeCommunityFeedPostCreateRequest(
     audience: raw?.audience === 'public_preview'
       ? 'public_preview'
       : 'members_only',
-    imageUploadPath: imageUploadPath || null,
+    attachment: attachmentResult.attachment,
+    attachmentValid: attachmentResult.valid,
     replyToPostId: normalizeSafeId(raw?.replyToPostId),
   };
 }
