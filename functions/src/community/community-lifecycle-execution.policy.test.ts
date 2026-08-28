@@ -9,6 +9,10 @@ import {
   resolveCommunityLifecycleThresholds,
 } from './community-lifecycle-execution.policy';
 import { evaluateCommunityLifecycle } from './community-lifecycle.policy';
+import {
+  evaluateCommunityPurgeReadiness,
+  resolveCommunityPurgeGraceDays,
+} from './community-purge.policy';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const NOW = Date.UTC(2026, 7, 17, 12, 0, 0);
@@ -31,6 +35,25 @@ function community(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+function purgeCandidate(overrides: Record<string, unknown> = {}) {
+  return community({
+    status: 'scheduled_for_deletion',
+    metrics: { memberCount: 0, postCount: 0, mediaCount: 0, topicCount: 0 },
+    lifecycle: {
+      lastMeaningfulActivityAt: NOW - 500 * DAY_MS,
+      archivedAt: NOW - 120 * DAY_MS,
+      scheduledForDeletionAt: NOW - 40 * DAY_MS,
+    },
+    ...overrides,
+  });
+}
+
+const EMPTY_PURGE_EVIDENCE = {
+  hasLiveMemberships: false,
+  hasRetainedContent: false,
+  hasModerationEvidence: false,
+} as const;
 
 test('resolve limites configuráveis preservando relações mínimas', () => {
   const thresholds = resolveCommunityLifecycleThresholds({
@@ -174,4 +197,149 @@ test('plano de agendamento nunca contém operação de exclusão física', () =>
   assert.equal(plan.communityPatch['status'], 'scheduled_for_deletion');
   assert.equal(plan.discoveryPatch['status'], 'scheduled_for_deletion');
   assert.equal('delete' in plan.communityPatch, false);
+});
+
+test('purge exige período de graça configurável e limitado', () => {
+  assert.equal(resolveCommunityPurgeGraceDays({}), 30);
+  assert.equal(resolveCommunityPurgeGraceDays({ lifecyclePurgeGraceDays: 1 }), 7);
+  assert.equal(
+    resolveCommunityPurgeGraceDays({ lifecyclePurgeGraceDays: 999 }),
+    365
+  );
+});
+
+test('purge autoriza apenas Comunidade vazia, sem evidência e após a graça', () => {
+  const decision = evaluateCommunityPurgeReadiness(
+    purgeCandidate(),
+    EMPTY_PURGE_EVIDENCE,
+    NOW,
+    30
+  );
+
+  assert.equal(decision.eligible, true);
+  assert.equal(decision.denialReason, null);
+  assert.equal(decision.purgeEligibleAt, NOW - 10 * DAY_MS);
+});
+
+test('purge bloqueia Local, owner residual, membros e métricas desconhecidas', () => {
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate({ source: { type: 'venue', id: 'venue-1' } }),
+      EMPTY_PURGE_EVIDENCE,
+      NOW
+    ).denialReason,
+    'not_community'
+  );
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate({ ownerUid: 'owner-1' }),
+      EMPTY_PURGE_EVIDENCE,
+      NOW
+    ).denialReason,
+    'ownership_not_released'
+  );
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate({ metrics: {} }),
+      EMPTY_PURGE_EVIDENCE,
+      NOW
+    ).denialReason,
+    'member_count_unknown'
+  );
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate({
+        metrics: { memberCount: 1, postCount: 0, mediaCount: 0, topicCount: 0 },
+      }),
+      EMPTY_PURGE_EVIDENCE,
+      NOW
+    ).denialReason,
+    'members_present'
+  );
+});
+
+test('purge falha fechado sem prova sobre memberships, conteúdo e moderação', () => {
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate(),
+      { ...EMPTY_PURGE_EVIDENCE, hasLiveMemberships: null },
+      NOW
+    ).denialReason,
+    'membership_probe_unknown'
+  );
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate(),
+      { ...EMPTY_PURGE_EVIDENCE, hasRetainedContent: null },
+      NOW
+    ).denialReason,
+    'content_probe_unknown'
+  );
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate(),
+      { ...EMPTY_PURGE_EVIDENCE, hasModerationEvidence: null },
+      NOW
+    ).denialReason,
+    'moderation_evidence_probe_unknown'
+  );
+});
+
+test('purge bloqueia qualquer vínculo, conteúdo ou evidência de moderação', () => {
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate(),
+      { ...EMPTY_PURGE_EVIDENCE, hasLiveMemberships: true },
+      NOW
+    ).denialReason,
+    'live_memberships_present'
+  );
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate(),
+      { ...EMPTY_PURGE_EVIDENCE, hasRetainedContent: true },
+      NOW
+    ).denialReason,
+    'retained_content_present'
+  );
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate(),
+      { ...EMPTY_PURGE_EVIDENCE, hasModerationEvidence: true },
+      NOW
+    ).denialReason,
+    'moderation_evidence_present'
+  );
+});
+
+test('purge respeita hold, timestamp canônico e período de graça', () => {
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate({ lifecycle: { retentionHold: true } }),
+      EMPTY_PURGE_EVIDENCE,
+      NOW
+    ).denialReason,
+    'retention_hold'
+  );
+  assert.equal(
+    evaluateCommunityPurgeReadiness(
+      purgeCandidate({ lifecycle: { scheduledForDeletionAt: null } }),
+      EMPTY_PURGE_EVIDENCE,
+      NOW
+    ).denialReason,
+    'scheduled_at_unknown'
+  );
+
+  const waiting = evaluateCommunityPurgeReadiness(
+    purgeCandidate({
+      lifecycle: {
+        scheduledForDeletionAt: NOW - 10 * DAY_MS,
+      },
+    }),
+    EMPTY_PURGE_EVIDENCE,
+    NOW,
+    30
+  );
+  assert.equal(waiting.denialReason, 'grace_period_not_elapsed');
+  assert.equal(waiting.purgeEligibleAt, NOW + 20 * DAY_MS);
 });
