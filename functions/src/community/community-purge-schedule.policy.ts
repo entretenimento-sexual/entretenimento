@@ -2,12 +2,17 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY PURGE SCHEDULE POLICY
 // -----------------------------------------------------------------------------
-// A exclusão física é opt-in. Ausência da flag, valores truthy em string/número
-// e configuração inválida mantêm o scheduler desligado.
+// O modo operacional é explícito e fail closed:
+// - off: scheduler inerte;
+// - dry_run: avalia readiness sem excluir dados;
+// - execute: permite o executor destrutivo.
+// Valores legados/ambíguos nunca habilitam exclusão.
 // -----------------------------------------------------------------------------
 
+export type CommunityPurgeScheduleMode = 'off' | 'dry_run' | 'execute';
+
 export interface CommunityPurgeScheduleOptions {
-  enabled: boolean;
+  mode: CommunityPurgeScheduleMode;
   maxPerRun: number;
   pageSize: number;
   maxPagesPerStep: number;
@@ -26,7 +31,7 @@ export function resolveCommunityPurgeScheduleOptions(
   const config = (rawConfig ?? {}) as Record<string, unknown>;
 
   return {
-    enabled: config['communityPurgeEnabled'] === true,
+    mode: normalizeMode(config['communityPurgeMode']),
     maxPerRun: normalizeInteger(
       config['communityPurgeMaxPerRun'],
       DEFAULT_MAX_PER_RUN,
@@ -46,6 +51,10 @@ export function resolveCommunityPurgeScheduleOptions(
       MAX_MAX_PAGES_PER_STEP
     ),
   };
+}
+
+function normalizeMode(value: unknown): CommunityPurgeScheduleMode {
+  return value === 'dry_run' || value === 'execute' ? value : 'off';
 }
 
 function normalizeInteger(

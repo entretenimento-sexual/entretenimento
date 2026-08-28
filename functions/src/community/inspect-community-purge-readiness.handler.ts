@@ -15,41 +15,15 @@ import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
-import { hasCommunityLifecycleHold } from './community-lifecycle.policy';
-import { hasCommunityPurgeOperationsPermission } from './community-purge-operations.authorization';
-import { readCommunityPurgeEvidence } from './community-purge-readiness.service';
-import { resolveCommunityPurgeScheduleOptions } from './community-purge-schedule.policy';
 import {
-  evaluateCommunityPurgeReadiness,
-  resolveCommunityPurgeGraceDays,
-} from './community-purge.policy';
+  readCommunityPurgeInspection,
+  type CommunityPurgeInspection,
+} from './community-purge-inspection.service';
+import { hasCommunityPurgeOperationsPermission } from './community-purge-operations.authorization';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 interface InspectCommunityPurgeReadinessRequest {
   communityId?: unknown;
-}
-
-interface InspectCommunityPurgeReadinessResponse {
-  communityId: string;
-  eligible: boolean;
-  denialReason: string | null;
-  purgeEligibleAt: number | null;
-  graceDays: number;
-  schedulerEnabled: boolean;
-  snapshot: {
-    sourceType: string | null;
-    status: string | null;
-    ownerReleased: boolean;
-    memberCount: number | null;
-    retentionHold: boolean;
-  };
-  evidence: {
-    hasLiveMemberships: boolean | null;
-    hasRetainedContent: boolean | null;
-    hasModerationEvidence: boolean | null;
-    failedProbes: readonly string[];
-  };
-  generatedAt: number;
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
@@ -66,12 +40,6 @@ function assertRuntime(): void {
 function normalizeCommunityId(value: unknown): string {
   const normalized = String(value ?? '').trim();
   return SAFE_ID_PATTERN.test(normalized) ? normalized : '';
-}
-
-function normalizeOptionalCount(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0
-    ? Math.trunc(value)
-    : null;
 }
 
 async function assertAuthorized(
@@ -105,7 +73,7 @@ export const inspectCommunityPurgeReadiness = onCall<InspectCommunityPurgeReadin
     region: FUNCTIONS_REGION,
     enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
   },
-  async (request): Promise<InspectCommunityPurgeReadinessResponse> => {
+  async (request): Promise<CommunityPurgeInspection> => {
     assertRuntime();
     assertCommunityCallableAppCheck(request.app);
 
@@ -120,57 +88,20 @@ export const inspectCommunityPurgeReadiness = onCall<InspectCommunityPurgeReadin
       throw new HttpsError('invalid-argument', 'Comunidade inválida para inspeção.');
     }
 
-    const [communitySnapshot, configSnapshot] = await Promise.all([
-      db.collection('communities').doc(communityId).get(),
-      db.collection('platform_config').doc('community').get(),
-    ]);
-
-    if (!communitySnapshot.exists) {
+    const inspection = await readCommunityPurgeInspection(communityId);
+    if (!inspection) {
       throw new HttpsError('not-found', 'Comunidade não encontrada.');
     }
-
-    const community = (communitySnapshot.data() ?? {}) as Record<string, unknown>;
-    const config = configSnapshot.exists ? configSnapshot.data() ?? {} : {};
-    const evidenceRead = await readCommunityPurgeEvidence(communityId);
-    const graceDays = resolveCommunityPurgeGraceDays(config);
-    const decision = evaluateCommunityPurgeReadiness(
-      community,
-      evidenceRead.evidence,
-      Date.now(),
-      graceDays
-    );
-    const scheduleOptions = resolveCommunityPurgeScheduleOptions(config);
-    const source = (community['source'] ?? {}) as Record<string, unknown>;
-    const metrics = (community['metrics'] ?? {}) as Record<string, unknown>;
-    const generatedAt = Date.now();
 
     logger.info('community_purge_readiness_inspected', {
       actorUid,
       communityId,
-      eligible: decision.eligible,
-      denialReason: decision.denialReason,
-      failedProbes: evidenceRead.failedProbes,
+      schedulerMode: inspection.schedulerMode,
+      eligible: inspection.eligible,
+      denialReason: inspection.denialReason,
+      failedProbes: inspection.evidence.failedProbes,
     });
 
-    return {
-      communityId,
-      eligible: decision.eligible,
-      denialReason: decision.denialReason,
-      purgeEligibleAt: decision.purgeEligibleAt,
-      graceDays,
-      schedulerEnabled: scheduleOptions.enabled,
-      snapshot: {
-        sourceType: typeof source['type'] === 'string' ? source['type'] : null,
-        status: typeof community['status'] === 'string' ? community['status'] : null,
-        ownerReleased: String(community['ownerUid'] ?? '').trim().length === 0,
-        memberCount: normalizeOptionalCount(metrics['memberCount']),
-        retentionHold: hasCommunityLifecycleHold(community),
-      },
-      evidence: {
-        ...evidenceRead.evidence,
-        failedProbes: evidenceRead.failedProbes,
-      },
-      generatedAt,
-    };
+    return inspection;
   }
 );

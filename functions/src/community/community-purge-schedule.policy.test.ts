@@ -5,32 +5,32 @@ import test from 'node:test';
 import { hasCommunityPurgeOperationsPermission } from './community-purge-operations.authorization';
 import { resolveCommunityPurgeScheduleOptions } from './community-purge-schedule.policy';
 
-test('purge agendado permanece desligado sem opt-in explícito', () => {
-  assert.equal(resolveCommunityPurgeScheduleOptions(null).enabled, false);
+test('purge agendado permanece off sem modo explícito', () => {
+  assert.equal(resolveCommunityPurgeScheduleOptions(null).mode, 'off');
   assert.equal(
-    resolveCommunityPurgeScheduleOptions({ communityPurgeEnabled: 'true' }).enabled,
-    false
+    resolveCommunityPurgeScheduleOptions({ communityPurgeEnabled: true }).mode,
+    'off'
   );
   assert.equal(
-    resolveCommunityPurgeScheduleOptions({ communityPurgeEnabled: 1 }).enabled,
-    false
+    resolveCommunityPurgeScheduleOptions({ communityPurgeMode: 'EXECUTE' }).mode,
+    'off'
   );
 });
 
-test('purge agendado só habilita com boolean true', () => {
-  const options = resolveCommunityPurgeScheduleOptions({
-    communityPurgeEnabled: true,
-  });
-
-  assert.equal(options.enabled, true);
-  assert.equal(options.maxPerRun, 20);
-  assert.equal(options.pageSize, 100);
-  assert.equal(options.maxPagesPerStep, 30);
+test('dry_run habilita somente observação e execute é explícito', () => {
+  assert.equal(
+    resolveCommunityPurgeScheduleOptions({ communityPurgeMode: 'dry_run' }).mode,
+    'dry_run'
+  );
+  assert.equal(
+    resolveCommunityPurgeScheduleOptions({ communityPurgeMode: 'execute' }).mode,
+    'execute'
+  );
 });
 
 test('limites operacionais são normalizados e restringidos', () => {
   const options = resolveCommunityPurgeScheduleOptions({
-    communityPurgeEnabled: true,
+    communityPurgeMode: 'dry_run',
     communityPurgeMaxPerRun: 999,
     communityPurgePageSize: 0,
     communityPurgeMaxPagesPerStep: 500,

@@ -2,13 +2,11 @@
 // -----------------------------------------------------------------------------
 // RUN COMMUNITY PURGE
 // -----------------------------------------------------------------------------
-// Executor agendado de exclusão física. Permanece inerte por padrão e exige:
-// 1) runtime autorizado de Comunidades (Emulator ou staging);
-// 2) platform_config/community.communityPurgeEnabled === true.
-//
-// A consulta seleciona somente documentos `scheduled_for_deletion`; a política
-// de readiness revalida source.type, ownership, memberships, conteúdo,
-// moderação, retention hold e grace period antes de qualquer limpeza.
+// Scheduler com modo operacional explícito:
+// - off: inerte;
+// - dry_run: avalia os mesmos probes/readiness sem excluir dados;
+// - execute: habilita o executor destrutivo.
+// Runtime de produção permanece bloqueado pela fronteira de Comunidades.
 // -----------------------------------------------------------------------------
 
 import { FieldPath } from 'firebase-admin/firestore';
@@ -19,6 +17,7 @@ import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import { executeCommunityPurge } from './community-purge.executor';
 import { FirestoreCommunityPurgeAdapter } from './community-purge.firestore';
+import { readCommunityPurgeInspection } from './community-purge-inspection.service';
 import { resolveCommunityPurgeScheduleOptions } from './community-purge-schedule.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
@@ -29,6 +28,12 @@ const SYSTEM_SOURCE = 'scheduled-community-purge';
 function normalizeCursor(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
   return normalized ? normalized.slice(0, 1_500) : null;
+}
+
+function errorMessage(error: unknown): string {
+  return String(
+    error instanceof Error ? error.message : error ?? 'unknown'
+  ).slice(0, 300);
 }
 
 export const runCommunityPurge = onSchedule(
@@ -56,8 +61,8 @@ export const runCommunityPurge = onSchedule(
     const config = configSnapshot.exists ? configSnapshot.data() ?? {} : {};
     const options = resolveCommunityPurgeScheduleOptions(config);
 
-    if (!options.enabled) {
-      logger.info('community_purge_run_skipped_disabled', {
+    if (options.mode === 'off') {
+      logger.info('community_purge_run_skipped_off', {
         source: SYSTEM_SOURCE,
       });
       return;
@@ -71,6 +76,7 @@ export const runCommunityPurge = onSchedule(
     let cursor = normalizeCursor(runtime['cursor']);
     let processed = 0;
     let completed = 0;
+    let dryRunEligible = 0;
     let blocked = 0;
     let partial = 0;
     let failed = 0;
@@ -96,14 +102,60 @@ export const runCommunityPurge = onSchedule(
       }
 
       for (const document of pageSnapshot.docs) {
+        processed += 1;
+        cursor = document.id;
+
+        if (options.mode === 'dry_run') {
+          try {
+            const inspection = await readCommunityPurgeInspection(document.id, {
+              now: startedAt,
+              community: document.data(),
+              config,
+            });
+
+            if (!inspection) {
+              failed += 1;
+              logger.error('community_purge_dry_run_candidate_missing', {
+                communityId: document.id,
+                mode: options.mode,
+                source: SYSTEM_SOURCE,
+              });
+              continue;
+            }
+
+            if (inspection.eligible) {
+              dryRunEligible += 1;
+            } else {
+              blocked += 1;
+            }
+
+            logger.info('community_purge_dry_run_candidate_inspected', {
+              communityId: document.id,
+              mode: options.mode,
+              eligible: inspection.eligible,
+              denialReason: inspection.denialReason,
+              purgeEligibleAt: inspection.purgeEligibleAt,
+              failedProbes: inspection.evidence.failedProbes,
+              source: SYSTEM_SOURCE,
+            });
+          } catch (error: unknown) {
+            failed += 1;
+            logger.error('community_purge_dry_run_candidate_failed', {
+              communityId: document.id,
+              mode: options.mode,
+              error: errorMessage(error),
+              source: SYSTEM_SOURCE,
+            });
+          }
+
+          continue;
+        }
+
         const result = await executeCommunityPurge(adapter, {
           communityId: document.id,
           pageSize: options.pageSize,
           maxPagesPerStep: options.maxPagesPerStep,
         });
-
-        processed += 1;
-        cursor = document.id;
 
         if (result.status === 'completed') completed += 1;
         if (result.status === 'blocked') blocked += 1;
@@ -112,6 +164,7 @@ export const runCommunityPurge = onSchedule(
 
         const logPayload = {
           communityId: document.id,
+          mode: options.mode,
           status: result.status,
           blocker: result.blocker ?? null,
           errorCode: result.errorCode ?? null,
@@ -139,9 +192,11 @@ export const runCommunityPurge = onSchedule(
 
     await runtimeRef.set(
       {
+        mode: options.mode,
         cursor,
         processed,
         completed,
+        dryRunEligible,
         blocked,
         partial,
         failed,
@@ -156,8 +211,10 @@ export const runCommunityPurge = onSchedule(
     );
 
     logger.info('community_purge_run_completed', {
+      mode: options.mode,
       processed,
       completed,
+      dryRunEligible,
       blocked,
       partial,
       failed,
