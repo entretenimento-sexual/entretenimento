@@ -161,7 +161,7 @@ describe('CommunityFeedComponent attachment sources', () => {
     expect(menu.open).toBe(true);
 
     document.body.dispatchEvent(
-      new PointerEvent('pointerdown', { bubbles: true })
+      new Event('pointerdown', { bubbles: true })
     );
     fixture.detectChanges();
     expect(menu.open).toBe(false);
@@ -191,7 +191,7 @@ describe('CommunityFeedComponent attachment sources', () => {
     fixture.detectChanges();
     expect(menu.open).toBe(true);
 
-    panel.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    panel.dispatchEvent(new Event('pointerdown', { bubbles: true }));
     fixture.detectChanges();
     expect(menu.open).toBe(true);
   });
