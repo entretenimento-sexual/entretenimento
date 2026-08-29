@@ -25,8 +25,8 @@ import {
   tap,
 } from 'rxjs';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import {
   CommunityAssignableMemberRole,
@@ -85,6 +85,26 @@ type RoleChangeConfirmation = {
 };
 
 type ManagementConfirmation = DestructiveConfirmation | RoleChangeConfirmation;
+
+const MEMBER_MANAGEMENT_REASON_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    'recent-authentication-required':
+      'Por segurança, saia e entre novamente antes de confirmar esta ação administrativa.',
+    community_source_not_supported:
+      'Esta ação não está disponível para este tipo de espaço.',
+    manager_required:
+      'Sua função não permite gerenciar participantes desta Comunidade.',
+    self_action_forbidden:
+      'Use os controles da sua própria participação para alterar seu vínculo.',
+    owner_protected:
+      'O proprietário só pode ser alterado pelo fluxo de transferência de propriedade.',
+    target_unavailable:
+      'O vínculo deste participante não permite esta ação agora.',
+    role_change_forbidden:
+      'Sua função não permite atribuir este papel ao participante.',
+    action_forbidden:
+      'Sua função não permite executar esta ação sobre este participante.',
+  });
 
 function initialState(
   listStatus: CommunityManagedMemberListStatus
@@ -155,7 +175,7 @@ function reduceState(
 export class CommunityMemberRosterManagementComponent {
   private readonly repository = inject(CommunityMemberManagementRepository);
   private readonly notifications = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly loadRequests$ = new Subject<LoadRequest>();
   private readonly commands$ = new Subject<MemberCommand>();
 
@@ -189,11 +209,7 @@ export class CommunityMemberRosterManagementComponent {
           map((page): LoadEvent => ({ type: 'success', request, page })),
           startWith<LoadEvent>({ type: 'loading', request }),
           catchError((error: unknown) => {
-            this.reportError(
-              error,
-              'Não foi possível carregar os participantes da Comunidade.',
-              'loadManagedMembers'
-            );
+            this.reportLoadError(error, request);
             return of<LoadEvent>({ type: 'error', request });
           })
         )
@@ -231,12 +247,7 @@ export class CommunityMemberRosterManagementComponent {
             action: command.action,
           }),
           catchError((error: unknown) => {
-            this.reportError(
-              error,
-              this.actionErrorMessage(command.action),
-              'manageCommunityMember',
-              command
-            );
+            this.reportActionError(error, command);
             return of<MemberActionState>({
               status: 'error',
               memberId: command.item.memberId,
@@ -440,42 +451,46 @@ export class CommunityMemberRosterManagementComponent {
     return 'Não foi possível desbloquear este participante agora.';
   }
 
-  private reportError(
-    error: unknown,
-    fallback: string,
-    op: string,
-    command: MemberCommand | null = null
-  ): void {
-    const source = (error ?? {}) as { details?: unknown };
-    const details = (source.details ?? {}) as Record<string, unknown>;
-    const message = details['reason'] === 'recent-authentication-required'
-      ? 'Por segurança, saia e entre novamente antes de confirmar esta ação administrativa.'
-      : fallback;
-
-    try {
-      this.notifications.showError(message);
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+  private reportLoadError(error: unknown, request: LoadRequest): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'loadManagedMembers',
+      fallbackMessage: 'Não foi possível carregar os participantes da Comunidade.',
+      notification: 'none',
+      reasonMessages: MEMBER_MANAGEMENT_REASON_MESSAGES,
+      metadata: {
         scope: 'CommunityMemberRosterManagementComponent',
-        op,
+        communityId: this.communityId().trim(),
+        listStatus: request.listStatus,
+        append: request.append,
+      },
+    });
+  }
+
+  private reportActionError(error: unknown, command: MemberCommand): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'manageCommunityMember',
+      fallbackMessage: this.actionErrorMessage(command.action),
+      reasonMessages: MEMBER_MANAGEMENT_REASON_MESSAGES,
+      codeMessages: {
+        'permission-denied':
+          'Sua função não permite executar esta ação sobre este participante.',
+        'failed-precondition':
+          'O vínculo deste participante não permite esta ação agora.',
+        'invalid-argument':
+          'Não foi possível validar esta alteração de participante.',
+        'not-found':
+          'Este participante ou Comunidade não está mais disponível.',
+      },
+      metadata: {
+        scope: 'CommunityMemberRosterManagementComponent',
         communityId: this.communityId().trim(),
         listStatus: this.selectedStatus(),
-        memberId: command?.item.memberId ?? null,
-        action: command?.action ?? null,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+        memberId: command.item.memberId,
+        action: command.action,
+        nextRole: command.nextRole,
+      },
+    });
   }
 }
