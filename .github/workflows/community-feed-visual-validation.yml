@@ -224,18 +224,21 @@ jobs:
           run_checked "$OUT/desktop/reply.metrics.log" "async (page) => {
             const reply = page.getByRole('button', { name: 'Responder à publicação de Ana' });
             await reply.click();
-            await page.waitForSelector('.feed-comments', { state: 'visible' });
+            await page.waitForSelector('.feed-comments--quick-reply', { state: 'visible' });
             const expanded = await reply.getAttribute('aria-expanded');
             const comments = await page.locator('.feed-comment').count();
-            if (expanded !== 'true' || comments !== 2) {
-              throw new Error('Desktop conversation validation failed: ' + JSON.stringify({ expanded, comments }));
+            const replyTarget = await page.locator('.feed-comments__reply-target').count();
+            const textarea = page.locator('.feed-comments--quick-reply textarea').first();
+            const focused = await textarea.evaluate((element) => document.activeElement === element);
+            if (expanded !== 'true' || comments !== 0 || replyTarget !== 1 || !focused) {
+              throw new Error('Desktop quick reply validation failed: ' + JSON.stringify({ expanded, comments, replyTarget, focused }));
             }
-            return { expanded, comments };
+            return { expanded, comments, replyTarget, focused };
           }"
           playwright-cli screenshot --full-page --filename="$OUT/desktop/reply-open.png"
 
           run_checked "$OUT/desktop/location-composer.metrics.log" "async (page) => {
-            await page.getByRole('button', { name: 'Fechar conversa' }).click();
+            await page.getByRole('button', { name: 'Cancelar resposta à publicação' }).click();
             await page.locator('.community-feed__attachment-menu summary').click();
             await page.getByRole('button', { name: 'Localização' }).click();
             await page.waitForSelector('.community-feed__location-preview', { state: 'visible' });
@@ -326,15 +329,15 @@ jobs:
           run_checked "$OUT/mobile/reply.metrics.log" "async (page) => {
             const reply = page.getByRole('button', { name: 'Responder à publicação de Ana' });
             await reply.click();
-            await page.waitForSelector('.feed-comments', { state: 'visible' });
+            await page.waitForSelector('.feed-comments--quick-reply', { state: 'visible' });
             const metrics = await page.evaluate(() => {
-              const root = document.querySelector('.feed-comments');
+              const root = document.querySelector('.feed-comments--quick-reply');
               const visible = (element) => {
                 const style = getComputedStyle(element);
                 return style.display !== 'none' && style.visibility !== 'hidden';
               };
               const targets = root
-                ? Array.from(root.querySelectorAll('button, .feed-comment__quote')).filter(visible)
+                ? Array.from(root.querySelectorAll('button')).filter(visible)
                 : [];
               const sizes = targets.map((element) => {
                 const rect = element.getBoundingClientRect();
@@ -344,25 +347,29 @@ jobs:
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
-                conversationWidth: rect?.width ?? 0,
+                replyWidth: rect?.width ?? 0,
+                legacyCommentCount: document.querySelectorAll('.feed-comment').length,
+                replyTargetCount: document.querySelectorAll('.feed-comments__reply-target').length,
                 targetCount: targets.length,
-                minConversationTarget: sizes.length ? Math.min(...sizes) : 0,
+                minReplyTarget: sizes.length ? Math.min(...sizes) : 0,
               };
             });
             if (
               metrics.scrollWidth > metrics.viewportWidth + 1
-              || metrics.conversationWidth > metrics.viewportWidth + 1
-              || metrics.targetCount < 4
-              || metrics.minConversationTarget < 44
+              || metrics.replyWidth > metrics.viewportWidth + 1
+              || metrics.legacyCommentCount !== 0
+              || metrics.replyTargetCount !== 1
+              || metrics.targetCount < 2
+              || metrics.minReplyTarget < 44
             ) {
-              throw new Error('Mobile conversation validation failed: ' + JSON.stringify(metrics));
+              throw new Error('Mobile quick reply validation failed: ' + JSON.stringify(metrics));
             }
             return metrics;
           }"
           playwright-cli screenshot --full-page --filename="$OUT/mobile/reply-open.png"
 
           run_checked "$OUT/mobile/location-composer.metrics.log" "async (page) => {
-            await page.getByRole('button', { name: 'Fechar conversa' }).click();
+            await page.getByRole('button', { name: 'Cancelar resposta à publicação' }).click();
             await page.locator('.community-feed__attachment-menu summary').click();
             await page.getByRole('button', { name: 'Localização' }).click();
             await page.waitForSelector('.community-feed__location-preview', { state: 'visible' });
