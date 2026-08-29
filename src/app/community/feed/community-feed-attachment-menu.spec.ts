@@ -28,6 +28,11 @@ describe('CommunityFeedComponent attachment menu', () => {
     stopStream: vi.fn(),
   };
 
+  const geolocationMock = {
+    currentPosition$: vi.fn(),
+    watchPosition$: vi.fn(),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     repositoryMock.getPage$.mockReturnValue(of({
@@ -41,6 +46,16 @@ describe('CommunityFeedComponent attachment menu', () => {
       generatedAt: Date.now(),
     }));
     repositoryMock.watchLatestChanges$.mockReturnValue(NEVER);
+    geolocationMock.currentPosition$.mockReturnValue(of({
+      latitude: -22.91,
+      longitude: -43.18,
+      accuracy: 800,
+    }));
+    geolocationMock.watchPosition$.mockReturnValue(of(
+      { latitude: -22.91, longitude: -43.18, accuracy: 850 },
+      { latitude: -22.9121, longitude: -43.1812, accuracy: 90 },
+      { latitude: -22.912345, longitude: -43.187654, accuracy: 18 }
+    ));
 
     TestBed.configureTestingModule({
       imports: [CommunityFeedComponent],
@@ -67,12 +82,7 @@ describe('CommunityFeedComponent attachment menu', () => {
           },
         },
         { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
-        {
-          provide: GeolocationService,
-          useValue: {
-            currentPosition$: vi.fn(() => of({ latitude: -22.91, longitude: -43.18 })),
-          },
-        },
+        { provide: GeolocationService, useValue: geolocationMock },
         { provide: AuthSessionService, useValue: { currentAuthUser: { uid: 'u1' } } },
         { provide: StorageService, useValue: { uploadFile: vi.fn() } },
         { provide: CameraCaptureService, useValue: cameraCaptureMock },
@@ -138,5 +148,25 @@ describe('CommunityFeedComponent attachment menu', () => {
     fixture.detectChanges();
 
     expect(menu.open).toBe(true);
+  });
+
+  it('observa refinamentos e mantém a coordenada com menor margem de erro', () => {
+    const fixture = createFixture();
+
+    fixture.componentInstance.shareApproximateLocation();
+    fixture.detectChanges();
+
+    expect(geolocationMock.watchPosition$).toHaveBeenCalledWith({
+      enableHighAccuracy: true,
+      timeout: 8_000,
+      maximumAge: 0,
+    });
+    expect(fixture.componentInstance.selectedAttachment()).toMatchObject({
+      kind: 'location',
+      latitude: -22.912345,
+      longitude: -43.187654,
+      precision: 'precise',
+      accuracyMeters: 18,
+    });
   });
 });
