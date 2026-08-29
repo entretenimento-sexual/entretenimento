@@ -46,7 +46,8 @@ function assertPreviewRuntime(): void {
 
   throw new HttpsError(
     'failed-precondition',
-    'Os convites de Comunidades ainda não estão disponíveis neste ambiente.'
+    'Os convites de Comunidades ainda não estão disponíveis neste ambiente.',
+    { reason: 'community_invites_unavailable' }
   );
 }
 
@@ -54,27 +55,31 @@ function throwSendDecisionError(reason: string | null): never {
   if (reason === 'inviter_not_allowed') {
     throw new HttpsError(
       'permission-denied',
-      'Você não pode enviar convites para esta Comunidade.'
+      'Você não pode enviar convites para esta Comunidade.',
+      { reason }
     );
   }
 
   if (reason === 'target_already_member') {
     throw new HttpsError(
       'already-exists',
-      'Este perfil já participa da Comunidade.'
+      'Este perfil já participa da Comunidade.',
+      { reason }
     );
   }
 
   if (reason === 'target_blocked') {
     throw new HttpsError(
       'permission-denied',
-      'Este vínculo não pode receber convites.'
+      'Este vínculo não pode receber convites.',
+      { reason }
     );
   }
 
   throw new HttpsError(
     'failed-precondition',
-    'Esta Comunidade não aceita convites agora.'
+    'Esta Comunidade não aceita convites agora.',
+    { reason: reason ?? 'community_unavailable' }
   );
 }
 
@@ -94,13 +99,18 @@ export const sendCommunityInvite = onCall<SendCommunityInviteRequest>(
     );
 
     if (!communityId) {
-      throw new HttpsError('invalid-argument', 'Comunidade inválida.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Comunidade inválida.',
+        { reason: 'invalid_community_id' }
+      );
     }
 
     if (actorUid === receiverId) {
       throw new HttpsError(
         'invalid-argument',
-        'Você não pode enviar convite para si mesmo.'
+        'Você não pode enviar convite para si mesmo.',
+        { reason: 'self_invite_forbidden' }
       );
     }
 
@@ -138,7 +148,11 @@ export const sendCommunityInvite = onCall<SendCommunityInviteRequest>(
       ]);
 
       if (!communitySnapshot.exists) {
-        throw new HttpsError('not-found', 'Comunidade não encontrada.');
+        throw new HttpsError(
+          'not-found',
+          'Comunidade não encontrada.',
+          { reason: 'community_not_found' }
+        );
       }
 
       assertCommunityMembershipActorEligible(
