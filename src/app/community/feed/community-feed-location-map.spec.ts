@@ -12,7 +12,12 @@ import { CommunityFeedComponent } from './community-feed.component';
 import { CommunityFeedTimeTickerService } from './community-feed-time-ticker.service';
 
 describe('CommunityFeedComponent shared location map', () => {
-  it('exibe Google Maps incorporado e mantém link externo como fallback', () => {
+  function configureFixture(location: {
+    latitude: number;
+    longitude: number;
+    precision: 'approximate' | 'precise';
+    accuracyMeters: number | null;
+  }) {
     const now = Date.now();
     const feedRepository = {
       getPage$: vi.fn().mockReturnValue(of({
@@ -22,11 +27,7 @@ describe('CommunityFeedComponent shared location map', () => {
           author: { label: 'serale', avatarUrl: null },
           text: 'Estamos aqui.',
           image: null,
-          location: {
-            latitude: -22.91,
-            longitude: -43.18,
-            precision: 'approximate',
-          },
+          location,
           replyTo: null,
           metrics: { commentCount: 0, reactionCount: 0 },
           capabilities: {
@@ -90,6 +91,48 @@ describe('CommunityFeedComponent shared location map', () => {
     fixture.componentRef.setInput('canInteract', true);
     fixture.componentRef.setInput('viewerRole', 'member');
     fixture.detectChanges();
+    return fixture;
+  }
+
+  it('preserva coordenadas precisas na visualização e no link externo', () => {
+    const fixture = configureFixture({
+      latitude: -22.912345,
+      longitude: -43.187654,
+      precision: 'precise',
+      accuracyMeters: 8,
+    });
+
+    const map = fixture.nativeElement.querySelector(
+      '.community-post__location-map iframe'
+    ) as HTMLIFrameElement;
+    const metadata = fixture.nativeElement.querySelector(
+      '.community-post__location-meta'
+    ) as HTMLElement;
+    const externalLink = fixture.nativeElement.querySelector(
+      '.community-post__location-link'
+    ) as HTMLAnchorElement;
+
+    expect(map).not.toBeNull();
+    expect(map.getAttribute('src')).toBe(
+      'https://www.google.com/maps?q=-22.912345,-43.187654&z=14&output=embed'
+    );
+    expect(map.getAttribute('title')).toContain('-22.912345, -43.187654');
+    expect(metadata.textContent).toContain('Localização compartilhada');
+    expect(metadata.textContent).toContain('-22.912345, -43.187654');
+
+    expect(externalLink).not.toBeNull();
+    expect(externalLink.textContent).toContain('Abrir mapa');
+    expect(externalLink.href).toContain('https://www.google.com/maps/search/');
+    expect(externalLink.href).toContain('query=-22.912345%2C-43.187654');
+  });
+
+  it('mantém posts legados aproximados em duas casas sem atribuir precisão retroativa', () => {
+    const fixture = configureFixture({
+      latitude: -22.912345,
+      longitude: -43.187654,
+      precision: 'approximate',
+      accuracyMeters: null,
+    });
 
     const map = fixture.nativeElement.querySelector(
       '.community-post__location-map iframe'
@@ -98,15 +141,9 @@ describe('CommunityFeedComponent shared location map', () => {
       '.community-post__location-link'
     ) as HTMLAnchorElement;
 
-    expect(map).not.toBeNull();
     expect(map.getAttribute('src')).toBe(
-      'https://www.google.com/maps?q=-22.91,-43.18&z=14&output=embed'
+      'https://www.google.com/maps?q=-22.91,-43.19&z=14&output=embed'
     );
-    expect(map.getAttribute('title')).toContain('-22.91, -43.18');
-
-    expect(externalLink).not.toBeNull();
-    expect(externalLink.textContent).toContain('Abrir no Google Maps');
-    expect(externalLink.href).toContain('https://www.google.com/maps/search/');
-    expect(externalLink.href).toContain('query=-22.91%2C-43.18');
+    expect(externalLink.href).toContain('query=-22.91%2C-43.19');
   });
 });
