@@ -3,49 +3,30 @@ import { describe, expect, it } from 'vitest';
 import {
   normalizeCommunityCreationCapability,
   normalizeCommunityCapacityPreview,
-  resolveCommunityMemberLimitOptions,
-  resolvePersonalCommunityCreationPolicy,
 } from './community-capacity.model';
 
 describe('community capacity normalization', () => {
-  it('mantém as opções dentro do teto de cada plano', () => {
-    expect(resolveCommunityMemberLimitOptions('free')).toEqual([]);
-    expect(resolveCommunityMemberLimitOptions('basic')).toEqual([25, 50, 100]);
-    expect(resolveCommunityMemberLimitOptions('premium')).toEqual([
-      25,
-      50,
-      100,
-      250,
-    ]);
-    expect(resolveCommunityMemberLimitOptions('vip')).toEqual([
-      25,
-      50,
-      100,
-      250,
-      500,
-    ]);
-  });
-
-  it('mantém criação pessoal separada da capacidade comercial', () => {
-    expect(resolvePersonalCommunityCreationPolicy('free')).toEqual({
-      canCreate: false,
-      maxOwnedCommunities: 0,
-      memberLimit: 0,
-    });
-    expect(resolvePersonalCommunityCreationPolicy('basic')).toEqual({
+  it('mantém no client somente limites retornados pela capability autoritativa', () => {
+    expect(normalizeCommunityCreationCapability({
       canCreate: true,
-      maxOwnedCommunities: 1,
-      memberLimit: 100,
-    });
-    expect(resolvePersonalCommunityCreationPolicy('premium')).toEqual({
-      canCreate: true,
+      reason: null,
+      sponsorRole: 'premium',
+      minimumRole: 'basic',
+      currentOwnedCommunities: 1,
       maxOwnedCommunities: 3,
       memberLimit: 250,
-    });
-    expect(resolvePersonalCommunityCreationPolicy('vip')).toEqual({
+      allowedMemberLimits: [25, 50, 100, 250, 500, 25],
+      generatedAt: 100,
+    })).toEqual({
       canCreate: true,
-      maxOwnedCommunities: 5,
-      memberLimit: 500,
+      reason: null,
+      sponsorRole: 'premium',
+      minimumRole: 'basic',
+      currentOwnedCommunities: 1,
+      maxOwnedCommunities: 3,
+      memberLimit: 250,
+      allowedMemberLimits: [25, 50, 100, 250],
+      generatedAt: 100,
     });
   });
 
