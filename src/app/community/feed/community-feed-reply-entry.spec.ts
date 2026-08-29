@@ -230,7 +230,7 @@ describe('CommunityFeedComponent conversation entry points', () => {
     expect(fixture.nativeElement.querySelector('app-community-feed-comments')).toBeNull();
   });
 
-  it('busca a publicação original fora da página atual e navega até ela pela referência', async () => {
+  it('mantém a mensagem atual antes da referência e ancora a original no topo', async () => {
     const now = Date.now();
     feedRepository.getPage$.mockReturnValue(of({
       items: [{
@@ -269,12 +269,21 @@ describe('CommunityFeedComponent conversation entry points', () => {
     }));
 
     const fixture = createFixture();
-    const reference = fixture.nativeElement.querySelector(
+    const replyPost = fixture.nativeElement.querySelector(
+      '#community-feed-post-reply-1'
+    ) as HTMLElement;
+    const currentMessage = replyPost.querySelector('p') as HTMLParagraphElement;
+    const reference = replyPost.querySelector(
       '.community-post__reply-context.is-navigable'
     ) as HTMLAnchorElement;
 
     expect(reference).not.toBeNull();
     expect(reference.getAttribute('href')).toBe('#community-feed-post-post-original');
+    expect(currentMessage).not.toBeNull();
+    expect(
+      currentMessage.compareDocumentPosition(reference)
+      & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(fixture.nativeElement.querySelector('#community-feed-post-post-original')).toBeNull();
 
     reference.click();
@@ -294,6 +303,9 @@ describe('CommunityFeedComponent conversation entry points', () => {
       '#community-feed-post-post-original'
     ) as HTMLElement;
     expect(target).not.toBeNull();
+    expect(target.scrollIntoView).toHaveBeenCalledWith(
+      expect.objectContaining({ block: 'start' })
+    );
     expect(target.classList.contains('is-reference-target')).toBe(true);
     expect(document.activeElement).toBe(target);
   });
