@@ -17,7 +17,6 @@ import { PlatformSubscriptionAccessService } from '@core/services/subscriptions/
 import type { PlatformSubscriptionAccessState } from '@core/services/subscriptions/platform-subscription-access.model';
 import { IncompleteProfileSubscriptionNoticeService } from '../application/incomplete-profile-subscription-notice.service';
 import { IUserDados } from '@core/interfaces/iuser-dados';
-import { resolvePersonalCommunityCreationPolicy } from 'src/app/community/data-access/community-capacity.model';
 import {
   isCommunityCreationSubscriptionFlow,
   normalizeSubscriptionFlowContext,
@@ -50,16 +49,29 @@ interface SubscriptionPlanPageVm {
   communityCreationFlow: boolean;
 }
 
+/**
+ * Copy de apresentação apenas. Os limites numéricos e a quantidade de
+ * Comunidades que cada plano pode criar pertencem à capability retornada pelo
+ * backend e não são duplicados nesta tela.
+ */
 function communityPlanFeatures(plan: PaidPlanKey): string[] {
-  const policy = resolvePersonalCommunityCreationPolicy(plan);
-  const ownedLabel = policy.maxOwnedCommunities === 1
-    ? 'Crie 1 Comunidade pessoal'
-    : `Crie até ${policy.maxOwnedCommunities} Comunidades pessoais`;
-
-  return [
-    ownedLabel,
-    `Até ${policy.memberLimit} membros por Comunidade`,
-  ];
+  switch (plan) {
+    case 'basic':
+      return [
+        'Criação e administração de Comunidade pessoal',
+        'Capacidade inicial para desenvolver sua Comunidade',
+      ];
+    case 'premium':
+      return [
+        'Mais espaço para criar e administrar Comunidades pessoais',
+        'Capacidade ampliada para crescimento das Comunidades',
+      ];
+    case 'vip':
+      return [
+        'Maior liberdade para administrar Comunidades pessoais',
+        'Maior capacidade disponível para crescimento das Comunidades',
+      ];
+  }
 }
 
 @Component({
