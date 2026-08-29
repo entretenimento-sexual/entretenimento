@@ -113,6 +113,8 @@ export interface CommunityFeedPostActionResponse {
 export interface CommunityFeedReactionRequest {
   readonly communityId: string;
   readonly postId: string;
+  /** Estado final desejado. Torna retries seguros e idempotentes. */
+  readonly reacted: boolean;
 }
 
 export interface CommunityFeedReactionResponse {
