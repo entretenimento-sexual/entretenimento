@@ -115,7 +115,7 @@ describe('CommunityTopicModerationControlsComponent', () => {
     const secondRequest = repositoryMock.moderateTopic$.mock.calls[1][0];
     expect(secondRequest.requestId).toBe(firstRequest.requestId);
     expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Não foi possível aplicar a moderação agora.'
+      'O serviço está temporariamente indisponível. Tente novamente em instantes.'
     );
     expect(globalErrorMock.handleError).toHaveBeenCalled();
     expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith(
@@ -181,5 +181,27 @@ describe('CommunityTopicModerationControlsComponent', () => {
     });
     expect(component.removeConfirmationOpen()).toBe(false);
     expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith('Discussão removida.');
+  });
+
+  it('traduz reason estruturado sem expor detalhe técnico da moderação', () => {
+    repositoryMock.moderateTopic$.mockReturnValue(
+      throwError(() => ({
+        code: 'functions/failed-precondition',
+        message: 'internal transition detail',
+        details: { reason: 'removed_topic' },
+      }))
+    );
+    const fixture = createFixture('owner', 'locked');
+
+    fixture.componentInstance.submitStatusAction();
+    fixture.detectChanges();
+
+    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
+      'Uma discussão removida não pode ser reaberta.'
+    );
+    expect(errorNotifierMock.showError.mock.calls[0]?.[0]).not.toContain(
+      'internal transition detail'
+    );
+    expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
   });
 });
