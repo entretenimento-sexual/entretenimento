@@ -13,6 +13,7 @@ import {
 export type CommunityFeedView = 'feed' | 'photos';
 export type CommunityFeedKind = 'text' | 'photo' | 'location';
 export type CommunityFeedAudience = 'public_preview' | 'members_only';
+export type CommunityFeedLocationPrecision = 'approximate' | 'precise';
 
 export interface CommunityFeedReplyReference {
   readonly postId: string;
@@ -24,7 +25,8 @@ export interface CommunityFeedReplyReference {
 export interface CommunityFeedLocation {
   readonly latitude: number;
   readonly longitude: number;
-  readonly precision: 'approximate';
+  readonly precision: CommunityFeedLocationPrecision;
+  readonly accuracyMeters: number | null;
 }
 
 export interface CommunityFeedItem {
@@ -76,6 +78,8 @@ export interface CommunityFeedPostCreateRequest {
   readonly location?: {
     readonly latitude: number;
     readonly longitude: number;
+    readonly precision: CommunityFeedLocationPrecision;
+    readonly accuracyMeters?: number | null;
   } | null;
   readonly replyToPostId?: string | null;
 }
@@ -121,6 +125,8 @@ export interface CommunityFeedReactionResponse {
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const MIN_PUBLISHED_AT = Date.UTC(2000, 0, 1);
 const MAX_FUTURE_SKEW_MS = 5 * 60_000;
+const APPROXIMATE_LOCATION_DECIMALS = 2;
+const PRECISE_LOCATION_DECIMALS = 6;
 
 function normalizeText(value: unknown, maxLength: number): string {
   return Array.from(String(value ?? ''))
@@ -171,6 +177,12 @@ function normalizeCount(value: unknown): number {
     : 0;
 }
 
+function normalizeLocationAccuracy(value: unknown): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.min(Math.round(parsed), 100_000);
+}
+
 function normalizeCommunityFeedLocation(value: unknown): CommunityFeedLocation | null {
   if (!value || typeof value !== 'object') return null;
   const source = value as Record<string, unknown>;
@@ -188,10 +200,22 @@ function normalizeCommunityFeedLocation(value: unknown): CommunityFeedLocation |
     return null;
   }
 
+  // Ausência da flag é tratada como legado aproximado para não atribuir uma
+  // precisão que os posts antigos nunca tiveram.
+  const precision: CommunityFeedLocationPrecision = source['precision'] === 'precise'
+    ? 'precise'
+    : 'approximate';
+  const decimals = precision === 'precise'
+    ? PRECISE_LOCATION_DECIMALS
+    : APPROXIMATE_LOCATION_DECIMALS;
+
   return {
-    latitude: Number(latitude.toFixed(2)),
-    longitude: Number(longitude.toFixed(2)),
-    precision: 'approximate',
+    latitude: Number(latitude.toFixed(decimals)),
+    longitude: Number(longitude.toFixed(decimals)),
+    precision,
+    accuracyMeters: precision === 'precise'
+      ? normalizeLocationAccuracy(source['accuracyMeters'])
+      : null,
   };
 }
 
