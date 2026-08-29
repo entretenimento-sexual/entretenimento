@@ -287,7 +287,7 @@ describe('CommunityTopicsComponent', () => {
     expect(repositoryMock.getRepliesPage$).toHaveBeenCalledTimes(2);
   });
 
-  it('mantém feedback visual e diagnóstico centralizado em erro de listagem', () => {
+  it('mantém erro bloqueante de listagem inline sem snackbar duplicado', () => {
     repositoryMock.getPage$.mockReturnValue(
       throwError(() => new Error('falha controlada'))
     );
@@ -297,9 +297,39 @@ describe('CommunityTopicsComponent', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Não foi possível carregar as discussões.'
     );
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Não foi possível carregar as discussões da Comunidade agora.'
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
+    expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
+  });
+
+  it('traduz reason estruturado ao criar discussão sem expor detalhe técnico', () => {
+    repositoryMock.createTopic$.mockReturnValue(
+      throwError(() => ({
+        code: 'functions/resource-exhausted',
+        message: 'internal rate detail',
+        details: { reason: 'community_topic_rate_limited' },
+      }))
     );
-    expect(globalErrorMock.handleError).toHaveBeenCalled();
+    const fixture = createFixture(true);
+    const component = fixture.componentInstance;
+    component.toggleComposer();
+    fixture.detectChanges();
+    component.topicForm.setValue({
+      title: 'Discussão válida',
+      body: 'Mensagem válida para testar o contrato de erro.',
+    });
+
+    component.submitTopic();
+    fixture.detectChanges();
+
+    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
+      'Você atingiu o limite temporário de interações em Discussões. Tente novamente mais tarde.'
+    );
+    expect(errorNotifierMock.showError.mock.calls[0]?.[0]).not.toContain(
+      'internal rate detail'
+    );
+    expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
+    expect(component.topicForm.controls.body.value).toBe(
+      'Mensagem válida para testar o contrato de erro.'
+    );
   });
 });
