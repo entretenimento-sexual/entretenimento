@@ -1,0 +1,243 @@
+name: Community Page Visual Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/app/community/preview/**'
+      - 'src/app/community/feed/**'
+      - 'src/app/community/feed-comments/**'
+      - 'src/app/community/data-access/community-preview*.ts'
+      - 'src/app/community/data-access/community-feed*.ts'
+      - 'src/app/community/presentation/**'
+      - 'src/styles/**'
+      - '.github/visual-harness/community-preview-visual.app-component.ts'
+      - '.github/workflows/community-preview-visual-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: community-page-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual:
+    name: Community page desktop and mobile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate production-safe build
+        run: npm run build:safe
+
+      - name: Prepare real Community page visual harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/visual-harness/community-preview-visual.app-component.ts src/app/app.component.ts
+
+          cat > src/main.ts <<'TS'
+          import 'zone.js';
+          import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
+          import { AppModule } from './app/app.module';
+
+          platformBrowserDynamic()
+            .bootstrapModule(AppModule)
+            .catch((error: unknown) => console.error(error));
+          TS
+
+          cat > src/app/app.module.ts <<'TS'
+          import { NgModule } from '@angular/core';
+          import { BrowserModule } from '@angular/platform-browser';
+          import { RouterModule } from '@angular/router';
+          import { AppComponent } from './app.component';
+          import { CommunityPreviewPageComponent } from './community/preview/community-preview-page.component';
+
+          @NgModule({
+            declarations: [AppComponent],
+            imports: [
+              BrowserModule,
+              RouterModule.forRoot([]),
+              CommunityPreviewPageComponent,
+            ],
+            bootstrap: [AppComponent],
+          })
+          export class AppModule {}
+          TS
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @playwright/cli@0.1.17
+          playwright-cli install-browser --with-deps
+
+      - name: Start Community page harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          nohup npx ng serve \
+            --configuration=dev-emu \
+            --host=127.0.0.1 \
+            --port=4200 \
+            > artifacts/ng-serve.log 2>&1 &
+          echo $! > artifacts/ng-serve.pid
+
+          for attempt in $(seq 1 180); do
+            if curl --fail --silent --show-error 'http://127.0.0.1:4200/' >/dev/null; then
+              echo "Community page visual harness ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat artifacts/ng-serve.log >&2 || true
+          exit 1
+
+      - name: Capture real Community page desktop and mobile
+        shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: community-page
+        run: |
+          set -euo pipefail
+          OUT='artifacts/community-page'
+          mkdir -p "$OUT/desktop" "$OUT/mobile"
+
+          check_log() {
+            local file="$1"
+            if grep -q '^### Error' "$file"; then
+              cat "$file" >&2
+              exit 1
+            fi
+          }
+
+          run_checked() {
+            local file="$1"
+            local code="$2"
+            playwright-cli run-code "$code" | tee "$file"
+            check_log "$file"
+          }
+
+          playwright-cli open 'http://127.0.0.1:4200/'
+          playwright-cli resize 1440 1100
+
+          run_checked "$OUT/desktop/feed.metrics.log" "async (page) => {
+            await page.waitForSelector('.community-preview__content', { state: 'visible' });
+            await page.waitForSelector('.community-post', { state: 'visible' });
+            const metrics = await page.evaluate(() => ({
+              viewportWidth: window.innerWidth,
+              scrollWidth: document.documentElement.scrollWidth,
+              h1Count: document.querySelectorAll('.community-preview h1').length,
+              tabCount: document.querySelectorAll('.community-preview__tabs button').length,
+              postCount: document.querySelectorAll('.community-post').length,
+              hasComposer: Boolean(document.querySelector('.community-feed__composer')),
+              hasCover: Boolean(document.querySelector('.community-preview__cover')),
+              hasIdentity: Boolean(document.querySelector('.community-preview__identity')),
+            }));
+            if (
+              metrics.scrollWidth > metrics.viewportWidth + 1
+              || metrics.h1Count !== 1
+              || metrics.tabCount !== 4
+              || metrics.postCount !== 3
+              || !metrics.hasComposer
+              || !metrics.hasCover
+              || !metrics.hasIdentity
+            ) {
+              throw new Error('Community page desktop feed validation failed: ' + JSON.stringify(metrics));
+            }
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/desktop/feed.accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/desktop/feed.viewport.png"
+          playwright-cli screenshot --full-page --filename="$OUT/desktop/feed.full-page.png"
+
+          run_checked "$OUT/desktop/about.metrics.log" "async (page) => {
+            await page.getByRole('button', { name: 'Sobre' }).click();
+            await page.waitForSelector('.community-preview__about', { state: 'visible' });
+            const text = (await page.locator('.community-preview__about').innerText()).trim();
+            const metrics = {
+              hasRules: text.includes('Regras da Comunidade'),
+              hasDescription: text.includes('Espaço para conhecer pessoas'),
+              hasTags: text.includes('#Amizade') && text.includes('#Encontros'),
+              scrollWidth: await page.evaluate(() => document.documentElement.scrollWidth),
+            };
+            if (!metrics.hasRules || !metrics.hasDescription || !metrics.hasTags || metrics.scrollWidth > 1441) {
+              throw new Error('Community page desktop about validation failed: ' + JSON.stringify(metrics));
+            }
+            return metrics;
+          }"
+          playwright-cli screenshot --filename="$OUT/desktop/about.viewport.png"
+          playwright-cli screenshot --full-page --filename="$OUT/desktop/about.full-page.png"
+
+          playwright-cli goto 'http://127.0.0.1:4200/'
+          playwright-cli resize 390 844
+
+          run_checked "$OUT/mobile/feed.metrics.log" "async (page) => {
+            await page.waitForSelector('.community-preview__content', { state: 'visible' });
+            await page.waitForSelector('.community-post', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const tabs = document.querySelector('.community-preview__tabs')?.getBoundingClientRect();
+              const content = document.querySelector('.community-preview__content')?.getBoundingClientRect();
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                contentWidth: content?.width ?? 0,
+                tabsWidth: tabs?.width ?? 0,
+                tabCount: document.querySelectorAll('.community-preview__tabs button').length,
+                postCount: document.querySelectorAll('.community-post').length,
+              };
+            });
+            if (
+              metrics.scrollWidth > metrics.viewportWidth + 1
+              || metrics.contentWidth > metrics.viewportWidth + 1
+              || metrics.tabsWidth > metrics.viewportWidth + 1
+              || metrics.tabCount !== 4
+              || metrics.postCount !== 3
+            ) {
+              throw new Error('Community page mobile validation failed: ' + JSON.stringify(metrics));
+            }
+            return metrics;
+          }"
+
+          playwright-cli snapshot --filename="$OUT/mobile/feed.accessibility.yml"
+          playwright-cli screenshot --filename="$OUT/mobile/feed.viewport.png"
+          playwright-cli screenshot --full-page --filename="$OUT/mobile/feed.full-page.png"
+
+          run_checked "$OUT/mobile/about.metrics.log" "async (page) => {
+            await page.getByRole('button', { name: 'Sobre' }).click();
+            await page.waitForSelector('.community-preview__about', { state: 'visible' });
+            const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+            if (scrollWidth > 391) {
+              throw new Error('Community page mobile about overflow: ' + scrollWidth);
+            }
+            return { scrollWidth };
+          }"
+          playwright-cli screenshot --full-page --filename="$OUT/mobile/about.full-page.png"
+
+          playwright-cli close
+
+      - name: Upload full Community page visual evidence
+        uses: actions/upload-artifact@v6
+        with:
+          name: community-page-visual-${{ github.run_id }}
+          path: artifacts/community-page
+          if-no-files-found: error
+          retention-days: 14
