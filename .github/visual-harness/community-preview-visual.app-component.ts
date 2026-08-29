@@ -73,7 +73,10 @@ const preview: CommunityPreviewResponse = {
   capacity: {
     memberCount: 86,
     configuredLimit: 100,
+    effectiveLimit: 100,
+    restrictedByOwnerPlan: false,
     acceptingNewMembers: true,
+    allowedMemberLimits: [25, 50, 100],
   },
   settings: null,
   canLeaveMembership: true,
