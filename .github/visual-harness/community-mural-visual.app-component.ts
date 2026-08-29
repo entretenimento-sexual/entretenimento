@@ -172,8 +172,8 @@ const visualFeedRepository = {
   toggleReaction$: (request: CommunityFeedReactionRequest) => of({
     communityId: request.communityId,
     postId: request.postId,
-    reacted: true,
-    reactionCount: 9,
+    reacted: request.reacted,
+    reactionCount: request.reacted ? 9 : 8,
   }),
 };
 
