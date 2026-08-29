@@ -78,27 +78,31 @@ function throwDecisionError(reason: string | null): never {
   if (reason === 'invite_only') {
     throw new HttpsError(
       'failed-precondition',
-      'Esta comunidade aceita somente convites.'
+      'Esta comunidade aceita somente convites.',
+      { reason: 'invite_only' }
     );
   }
 
   if (reason === 'membership_blocked') {
     throw new HttpsError(
       'permission-denied',
-      'Você não pode participar desta comunidade.'
+      'Você não pode participar desta comunidade.',
+      { reason: 'membership_blocked' }
     );
   }
 
   if (reason === 'actor_restricted') {
     throw new HttpsError(
       'permission-denied',
-      'Sua conta não pode participar agora.'
+      'Sua conta não pode participar agora.',
+      { reason: 'actor_restricted' }
     );
   }
 
   throw new HttpsError(
     'failed-precondition',
-    'Esta comunidade não aceita novas entradas agora.'
+    'Esta comunidade não aceita novas entradas agora.',
+    { reason: 'community_unavailable' }
   );
 }
 
