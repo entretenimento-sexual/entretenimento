@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -19,6 +19,7 @@ describe('CommunityInviteManagementComponent', () => {
     showSuccess: vi.fn(),
     showWarning: vi.fn(),
   };
+  const handleError = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -57,7 +58,7 @@ describe('CommunityInviteManagementComponent', () => {
         { provide: ErrorNotificationService, useValue: notificationsMock },
         {
           provide: GlobalErrorHandlerService,
-          useValue: { handleError: vi.fn() },
+          useValue: { handleError },
         },
       ],
     });
@@ -155,5 +156,108 @@ describe('CommunityInviteManagementComponent', () => {
     expect(notificationsMock.showWarning).toHaveBeenCalledWith(
       'Informe o apelido exato com pelo menos 3 caracteres.'
     );
+  });
+
+  it('mantém falha de listagem inline sem snackbar duplicado', () => {
+    repositoryMock.getSentInvites$.mockReturnValue(
+      throwError(() => ({
+        code: 'functions/permission-denied',
+        details: { reason: 'invite_management_forbidden' },
+      }))
+    );
+
+    const fixture = createFixture();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Não foi possível carregar os convites.'
+    );
+    expect(notificationsMock.showError).not.toHaveBeenCalled();
+    expect(handleError).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantém falha de busca inline sem snackbar duplicado', () => {
+    repositoryMock.findCandidate$.mockReturnValue(
+      throwError(() => ({
+        code: 'functions/invalid-argument',
+        details: { reason: 'invalid_invite_candidate_query' },
+      }))
+    );
+    const fixture = createFixture();
+    fixture.componentInstance.nickname.setValue('Pessoa Segura');
+
+    fixture.componentInstance.search();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Busca indisponível. Tente novamente.'
+    );
+    expect(notificationsMock.showError).not.toHaveBeenCalled();
+    expect(handleError).toHaveBeenCalledTimes(1);
+  });
+
+  it('traduz reason estruturado do envio sem expor mensagem técnica', () => {
+    repositoryMock.sendInvite$.mockReturnValue(
+      throwError(() => ({
+        code: 'functions/resource-exhausted',
+        message: 'internal capacity detail',
+        details: { reason: 'community_capacity_reached' },
+      }))
+    );
+    const fixture = createFixture();
+    fixture.componentInstance.nickname.setValue('Pessoa Segura');
+    fixture.componentInstance.search();
+    fixture.detectChanges();
+
+    const sendButton = fixture.nativeElement.querySelector(
+      '.community-invite-candidate > button'
+    ) as HTMLButtonElement;
+    sendButton.click();
+    fixture.detectChanges();
+
+    expect(notificationsMock.showError).toHaveBeenCalledWith(
+      'A Comunidade atingiu a capacidade atual. Novos convites estão pausados.'
+    );
+    expect(notificationsMock.showError.mock.calls[0]?.[0]).not.toContain(
+      'internal capacity detail'
+    );
+    expect(handleError).toHaveBeenCalledTimes(1);
+  });
+
+  it('traduz convite não pendente ao revogar sem usar mensagem do backend', () => {
+    repositoryMock.getSentInvites$.mockReturnValue(of({
+      items: [{
+        inviteId: 'community:community-1:to:user-1',
+        receiverId: 'user-1',
+        receiverLabel: 'Pessoa Segura',
+        receiverAvatarUrl: null,
+        senderId: 'owner-1',
+        senderLabel: 'Você',
+        sentAt: 90,
+        expiresAt: 200,
+      }],
+      generatedAt: 100,
+    }));
+    repositoryMock.revokeInvite$.mockReturnValue(
+      throwError(() => ({
+        code: 'functions/failed-precondition',
+        message: 'raw state detail',
+        details: { reason: 'invite_not_pending' },
+      }))
+    );
+    const fixture = createFixture();
+    const revokeButton = fixture.nativeElement.querySelector(
+      '.community-invite-management__pending li > button'
+    ) as HTMLButtonElement;
+
+    revokeButton.click();
+    fixture.detectChanges();
+
+    expect(notificationsMock.showError).toHaveBeenCalledWith(
+      'Este convite não está mais pendente.'
+    );
+    expect(notificationsMock.showError.mock.calls[0]?.[0]).not.toContain(
+      'raw state detail'
+    );
+    expect(handleError).toHaveBeenCalledTimes(1);
   });
 });
