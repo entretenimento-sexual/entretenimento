@@ -48,8 +48,8 @@ import {
   tap,
 } from 'rxjs';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import {
@@ -204,7 +204,7 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
   private readonly repository = inject(CommunityFeedCommentRepository);
   private readonly feedRepository = inject(CommunityFeedRepository);
   private readonly notification = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
   private readonly loadRequests$ = new Subject<CommentLoadRequest>();
   private readonly createRequests$ = new Subject<ConversationCreateCommand>();
@@ -616,59 +616,52 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
   }
 
   private reportRealtimeError(error: unknown): void {
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'watchCommentCount',
+      fallbackMessage: 'Atualizações da conversa em tempo real estão indisponíveis.',
+      notification: 'none',
+      metadata: {
         scope: 'CommunityFeedCommentsComponent',
-        operation: 'watchRealtime',
         communityId: this.communityId(),
         postId: this.postId(),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // O listener realtime é complementar; a callable continua operacional.
-    }
+      },
+    });
   }
 
   private reportError(
     error: unknown,
     operation: 'load' | 'create' | 'moderate'
   ): void {
-    const code = String((error as { code?: unknown })?.code ?? '')
-      .replace(/^functions\//, '');
-    try {
-      const message = operation === 'load'
-        ? 'Não foi possível carregar a conversa.'
+    const fallbackMessage = operation === 'load'
+      ? 'Não foi possível carregar a conversa.'
+      : operation === 'create'
+        ? 'Não foi possível enviar a mensagem agora.'
+        : 'Não foi possível atualizar a mensagem agora.';
+
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: operation === 'load'
+        ? 'loadConversation'
         : operation === 'create'
-          ? code === 'resource-exhausted'
-            ? 'Você enviou muitas mensagens em pouco tempo. Aguarde um instante.'
-            : 'Não foi possível enviar a mensagem agora.'
-          : 'Não foi possível atualizar a mensagem agora.';
-      this.notification.showError(message);
-    } catch {
-      // O diagnóstico técnico abaixo permanece ativo.
-    }
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+          ? 'createConversationMessage'
+          : 'moderateConversationMessage',
+      fallbackMessage,
+      codeMessages: operation === 'create'
+        ? {
+            'resource-exhausted':
+              'Você enviou muitas mensagens em pouco tempo. Aguarde um instante.',
+          }
+        : undefined,
+      reasonMessages: {
+        community_feed_rate_limited:
+          'Você enviou muitas mensagens em pouco tempo. Aguarde um instante.',
+      },
+      metadata: {
         scope: 'CommunityFeedCommentsComponent',
-        operation,
         communityId: this.communityId(),
         postId: this.postId(),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+      },
+    });
   }
 }
