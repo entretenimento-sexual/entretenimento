@@ -1,0 +1,349 @@
+/* A referência contextualiza a conversa sem disputar atenção com a mensagem atual. */
+.community-post__reply-context {
+  min-width: 0;
+  max-width: min(30rem, calc(100% - 3.17rem));
+  display: grid;
+  gap: 0.08rem;
+  margin: -0.08rem 0 0.5rem 3.17rem;
+  padding: 0.34rem 0.55rem 0.38rem 0.65rem;
+  border-inline-start: 2px solid color-mix(
+    in oklab,
+    var(--primary-color) 38%,
+    transparent
+  );
+  border-radius: 0.35rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 97%,
+    var(--primary-color) 3%
+  );
+  color: color-mix(in oklab, var(--text-color) 52%, transparent);
+  font-size: 0.66rem;
+  line-height: 1.25;
+}
+
+.community-post__reply-context strong {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.26rem;
+  color: color-mix(in oklab, var(--text-color) 64%, transparent);
+  font-size: 0.65rem;
+  font-weight: 650;
+}
+
+.community-post__reply-context strong i {
+  color: color-mix(in oklab, var(--primary-color) 62%, transparent);
+  font-size: 0.62rem;
+}
+
+.community-post__reply-context > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-post__reply-context + p {
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.community-feed--photos .community-post__reply-context {
+  max-width: none;
+  margin: 0.42rem 0.6rem 0;
+  padding: 0.28rem 0.42rem;
+}
+
+@media (max-width: 30rem) {
+  .community-post__reply-context {
+    max-width: none;
+    margin-left: 0;
+    padding-inline: 0.5rem;
+  }
+}
+
+:host-context(.high-contrast) .community-post__reply-context {
+  border-inline-start-color: var(--text-color);
+  background: var(--surface-color);
+}
+
+/* MURAL-02: a referência é navegável, e o alvo recebe feedback visual temporário. */
+.community-post__reply-context.is-navigable {
+  min-height: 44px;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.community-post__reply-context.is-navigable:hover {
+  border-inline-start-color: color-mix(
+    in oklab,
+    var(--primary-color) 66%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 94%,
+    var(--primary-color) 6%
+  );
+}
+
+.community-post.is-reference-target {
+  animation: community-post-reference-highlight 1.8s ease-out both;
+}
+
+@keyframes community-post-reference-highlight {
+  0%,
+  38% {
+    background: color-mix(
+      in oklab,
+      var(--surface-color) 88%,
+      var(--primary-color) 12%
+    );
+    box-shadow: inset 3px 0 0 color-mix(
+      in oklab,
+      var(--primary-color) 72%,
+      transparent
+    );
+  }
+
+  100% {
+    background: transparent;
+    box-shadow: inset 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .community-post__reply-context.is-navigable {
+    transition: none;
+  }
+
+  .community-post.is-reference-target {
+    animation: none;
+    background: color-mix(
+      in oklab,
+      var(--surface-color) 94%,
+      var(--primary-color) 6%
+    );
+    box-shadow: inset 3px 0 0 var(--primary-color);
+  }
+}
+
+:host-context(.high-contrast) .community-post.is-reference-target {
+  outline: 2px solid var(--text-color);
+  outline-offset: -2px;
+}
+
+/* MURAL-03.1: o aviso acompanha a viewport sem alterar a posição de leitura. */
+.community-feed__new-items {
+  position: fixed;
+  z-index: 210;
+  inset-inline-start: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1.25rem);
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  display: flex;
+  justify-content: center;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.community-feed__new-items button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  max-width: 100%;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color) 32%,
+    var(--surface-border)
+  );
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 96%,
+    var(--primary-color) 4%
+  );
+  color: var(--primary-color);
+  box-shadow: 0 0.45rem 1.25rem color-mix(in oklab, #000 12%, transparent);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 750;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.community-feed__new-items button:hover {
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 91%,
+    var(--primary-color) 9%
+  );
+}
+
+@media (max-width: 47.99rem) {
+  .community-feed__new-items {
+    bottom: calc(
+      env(safe-area-inset-bottom, 0px)
+      + var(--app-mobile-bottom-nav-height, 76px)
+      + 0.75rem
+    );
+  }
+}
+
+:host-context(.high-contrast) .community-feed__new-items button {
+  border: 2px solid var(--text-color);
+  background: var(--surface-color);
+  color: var(--text-color);
+  box-shadow: none;
+}
+
+/* Responder expressa intenção; abrir Conversa expressa somente leitura. */
+.community-post__reply:hover,
+.community-post__reply.is-replying {
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 8%,
+    transparent
+  );
+  color: var(--primary-color);
+}
+
+.community-post__reply.is-replying {
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 12%,
+    transparent
+  );
+}
+
+/* Desktop: usa melhor a área disponível sem reduzir os alvos de interação. */
+@media (min-width: 48rem) {
+  .community-feed__composer {
+    padding-block: 0.62rem;
+  }
+
+  .community-post {
+    padding: 0.72rem 1.1rem;
+  }
+
+  .community-post__header {
+    margin-bottom: 0.38rem;
+  }
+
+  .community-post__media {
+    max-width: 38rem;
+    margin-top: 0.52rem;
+  }
+
+  .community-post__media img {
+    max-height: 38rem;
+  }
+
+  .community-post__metrics {
+    margin-top: 0.32rem;
+  }
+
+  .community-post__reply-context {
+    margin-bottom: 0.38rem;
+  }
+}
+
+
+/* Localização compartilhada no Mural: sempre aproximada e explícita. */
+.community-feed__location-preview,
+.community-post__location {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 0.9rem;
+  background: color-mix(in oklab, var(--surface-color) 94%, var(--primary-color) 6%);
+}
+
+.community-feed__location-preview {
+  padding: 0.5rem 0.6rem;
+}
+
+.community-feed__location-preview > i,
+.community-post__location > i:first-child {
+  width: 2.4rem;
+  height: 2.4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--surface-color) 82%, var(--primary-color) 18%);
+  color: var(--primary-color);
+}
+
+.community-feed__location-preview span,
+.community-post__location span {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.community-feed__location-preview strong,
+.community-post__location strong {
+  font-size: 0.78rem;
+}
+
+.community-feed__location-preview small,
+.community-post__location small {
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  font-size: 0.68rem;
+}
+
+.community-feed__location-preview button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  cursor: pointer;
+}
+
+.community-feed__location-preview button:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--surface-color) 90%, var(--error-color, #b42318) 10%);
+  color: var(--error-color, #b42318);
+}
+
+.community-post__location {
+  margin: 0.65rem 0;
+  padding: 0.65rem 0.75rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.community-post__location > i:last-child {
+  color: color-mix(in oklab, var(--text-color) 54%, transparent);
+  font-size: 0.72rem;
+}
+
+.community-post__location:hover {
+  border-color: color-mix(in oklab, var(--primary-color) 45%, var(--surface-border));
+}
+
+.community-feed__location-preview button:focus-visible,
+.community-post__location:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+@media (max-width: 520px) {
+  .community-feed__location-preview,
+  .community-post__location {
+    grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+    gap: 0.5rem;
+  }
+}

@@ -20,7 +20,7 @@
 
 .feed-comments__header {
   justify-content: space-between;
-  min-height: 2.75rem;
+  min-height: 44px;
   margin: 0;
   padding: 0 0.55rem 0.35rem;
 }
@@ -58,8 +58,8 @@
 .feed-comments__close,
 .feed-comment__menu > summary,
 .feed-comments__reply-target > button {
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
@@ -86,7 +86,7 @@
 
 .feed-comments__state button,
 .feed-comments__more {
-  min-height: 2.75rem;
+  min-height: 44px;
   border: 0;
   border-radius: 999px;
   padding: 0.5rem 0.85rem;
@@ -224,6 +224,7 @@
 
 .feed-comment__quote {
   width: min(100%, 28rem);
+  min-height: 44px;
   min-width: 0;
   display: grid;
   gap: 0.06rem;
@@ -277,7 +278,7 @@
 }
 
 .feed-comment__actions button {
-  min-height: 2.15rem;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 0.28rem;
@@ -327,7 +328,7 @@
 
 .feed-comment__menu-action {
   width: 100%;
-  min-height: 2.75rem;
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 0.55rem;
@@ -377,7 +378,7 @@
 }
 
 .feed-comment__confirmation button {
-  min-height: 2.75rem;
+  min-height: 44px;
   border: 0;
   border-radius: 0.65rem;
   padding: 0.5rem 0.8rem;
@@ -410,7 +411,7 @@
 .feed-comments__reply-target {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 2.75rem;
+  grid-template-columns: minmax(0, 1fr) 44px;
   gap: 0.45rem;
   align-items: center;
   width: min(100%, 32rem);
@@ -449,7 +450,7 @@
 
 .feed-comments__composer-row textarea {
   min-width: 0;
-  min-height: 2.75rem;
+  min-height: 44px;
   max-height: 9rem;
   flex: 1 1 auto;
   resize: vertical;
@@ -463,8 +464,8 @@
 }
 
 .feed-comments__composer-row > button {
-  min-width: 2.75rem;
-  min-height: 2.75rem;
+  min-width: 44px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -548,7 +549,7 @@ button:disabled {
   }
 
   .feed-comments__composer-row > button {
-    width: 2.75rem;
+    width: 44px;
     padding-inline: 0;
   }
 

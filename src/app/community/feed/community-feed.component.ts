@@ -155,7 +155,10 @@ const MAX_UNSEEN_NEW_POSTS = 99;
     CommunityCameraCaptureComponent,
   ],
   templateUrl: './community-feed.component.html',
-  styleUrl: './community-feed.component.css',
+  styleUrls: [
+    './community-feed.component.css',
+    './community-feed.interactions.css',
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CommunityFeedComponent implements OnDestroy {
