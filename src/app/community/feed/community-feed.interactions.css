@@ -1,76 +1,75 @@
 /* A referência contextualiza a conversa sem disputar atenção com a mensagem atual. */
 .community-post__reply-context {
   min-width: 0;
-  max-width: min(34rem, calc(100% - 3.17rem));
+  max-width: min(32rem, calc(100% - 3.17rem));
   display: grid;
-  gap: 0.12rem;
-  margin: -0.08rem 0 0.5rem 3.17rem;
-  padding: 0.46rem 0.72rem 0.5rem 0.78rem;
-  border: 1px solid color-mix(
+  gap: 0.06rem;
+  margin: -0.08rem 0 0.42rem 3.17rem;
+  padding: 0.28rem 1.8rem 0.3rem 0.58rem;
+  border: 0;
+  border-inline-start: 2px solid color-mix(
     in oklab,
-    var(--surface-border) 82%,
-    var(--primary-color) 18%
-  );
-  border-inline-start: 3px solid color-mix(
-    in oklab,
-    var(--primary-color) 58%,
+    var(--primary-color) 38%,
     transparent
   );
-  border-radius: 0.62rem;
+  border-radius: 0.28rem;
   background: color-mix(
     in oklab,
-    var(--surface-color) 95%,
-    var(--primary-color) 5%
+    var(--surface-color) 98%,
+    var(--primary-color) 2%
   );
-  color: color-mix(in oklab, var(--text-color) 58%, transparent);
-  font-size: 0.69rem;
-  line-height: 1.3;
+  color: color-mix(in oklab, var(--text-color) 48%, transparent);
+  font-size: 0.64rem;
+  line-height: 1.24;
 }
 
 .community-post__reply-context strong {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  color: color-mix(in oklab, var(--text-color) 76%, transparent);
-  font-size: 0.68rem;
-  font-weight: 750;
+  gap: 0.24rem;
+  color: color-mix(in oklab, var(--text-color) 60%, transparent);
+  font-size: 0.63rem;
+  font-weight: 650;
 }
 
 .community-post__reply-context strong i {
-  color: color-mix(in oklab, var(--primary-color) 78%, transparent);
-  font-size: 0.64rem;
+  color: color-mix(in oklab, var(--primary-color) 56%, transparent);
+  font-size: 0.6rem;
 }
 
 .community-post__reply-context > span {
   min-width: 0;
   overflow: hidden;
-  color: color-mix(in oklab, var(--text-color) 60%, transparent);
+  color: color-mix(in oklab, var(--text-color) 50%, transparent);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* A resposta nova é o conteúdo principal; a referência acima é apenas contexto. */
 .community-post__reply-context + p {
-  font-size: 0.94rem;
+  margin-top: 0.08rem;
+  color: var(--text-color);
+  font-size: 1rem;
+  font-weight: 540;
   line-height: 1.55;
 }
 
 .community-feed--photos .community-post__reply-context {
   max-width: none;
   margin: 0.42rem 0.6rem 0;
-  padding: 0.42rem 2rem 0.46rem 0.62rem;
+  padding: 0.28rem 1.8rem 0.3rem 0.52rem;
 }
 
 @media (max-width: 30rem) {
   .community-post__reply-context {
     max-width: none;
     margin-left: 0;
-    padding: 0.5rem 2rem 0.52rem 0.62rem;
+    padding: 0.34rem 1.8rem 0.36rem 0.54rem;
   }
 }
 
 :host-context(.high-contrast) .community-post__reply-context {
-  border-color: var(--text-color);
   border-inline-start-color: var(--text-color);
   background: var(--surface-color);
 }
@@ -89,35 +88,30 @@
 .community-post__reply-context.is-navigable::after {
   content: '›';
   position: absolute;
-  inset-inline-end: 0.72rem;
+  inset-inline-end: 0.6rem;
   top: 50%;
   transform: translateY(-50%);
-  color: color-mix(in oklab, var(--primary-color) 58%, transparent);
-  font-size: 1.18rem;
-  font-weight: 700;
+  color: color-mix(in oklab, var(--text-color) 34%, transparent);
+  font-size: 1rem;
+  font-weight: 650;
   line-height: 1;
 }
 
 .community-post__reply-context.is-navigable:hover {
-  border-color: color-mix(
-    in oklab,
-    var(--surface-border) 62%,
-    var(--primary-color) 38%
-  );
   border-inline-start-color: color-mix(
     in oklab,
-    var(--primary-color) 76%,
+    var(--primary-color) 62%,
     transparent
   );
   background: color-mix(
     in oklab,
-    var(--surface-color) 91%,
-    var(--primary-color) 9%
+    var(--surface-color) 95%,
+    var(--primary-color) 5%
   );
 }
 
 .community-post__reply-context.is-navigable:hover::after {
-  color: var(--primary-color);
+  color: color-mix(in oklab, var(--primary-color) 62%, transparent);
 }
 
 .community-post__reply-context.is-navigable:focus-visible {
@@ -284,7 +278,7 @@
   }
 
   .community-post__reply-context {
-    margin-bottom: 0.38rem;
+    margin-bottom: 0.34rem;
   }
 }
 
