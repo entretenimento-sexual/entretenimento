@@ -223,6 +223,7 @@ export class CommunityFeedRepository {
     const payload: CommunityFeedReactionRequest = {
       communityId: request.communityId.trim(),
       postId: request.postId.trim(),
+      reacted: request.reacted,
     };
 
     return defer(() => from(this.toggleCommunityFeedReactionCallable(payload))).pipe(
