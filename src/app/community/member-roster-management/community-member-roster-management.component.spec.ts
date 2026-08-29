@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -34,6 +34,7 @@ describe('CommunityMemberRosterManagementComponent', () => {
   const manageMember$ = vi.fn();
   const showSuccess = vi.fn();
   const showError = vi.fn();
+  const handleError = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -57,7 +58,7 @@ describe('CommunityMemberRosterManagementComponent', () => {
         },
         {
           provide: GlobalErrorHandlerService,
-          useValue: { handleError: vi.fn() },
+          useValue: { handleError },
         },
       ],
     });
@@ -307,5 +308,48 @@ describe('CommunityMemberRosterManagementComponent', () => {
     expect(
       fixture.nativeElement.querySelector('.community-member-roster__unblock')
     ).toBeNull();
+  });
+
+  it('mantém falha de carregamento inline sem snackbar duplicado', () => {
+    getManagedMembersPage$.mockReturnValue(
+      throwError(() => ({
+        code: 'functions/failed-precondition',
+        details: { reason: 'community_not_manageable' },
+      }))
+    );
+
+    const fixture = createFixture();
+
+    expect(fixture.nativeElement.textContent).toContain('Participantes indisponíveis.');
+    expect(showError).not.toHaveBeenCalled();
+    expect(handleError).toHaveBeenCalledTimes(1);
+  });
+
+  it('traduz reason estruturado em ação administrativa sem expor mensagem técnica', () => {
+    manageMember$.mockReturnValue(
+      throwError(() => ({
+        code: 'functions/failed-precondition',
+        message: 'internal detail',
+        details: { reason: 'recent-authentication-required' },
+      }))
+    );
+    const fixture = createFixture();
+    const block = fixture.nativeElement.querySelector(
+      '.community-member-roster__actions .is-block'
+    ) as HTMLButtonElement;
+
+    block.click();
+    fixture.detectChanges();
+    const confirm = fixture.nativeElement.querySelector(
+      '.community-member-roster__confirmation .is-confirm'
+    ) as HTMLButtonElement;
+    confirm.click();
+    fixture.detectChanges();
+
+    expect(showError).toHaveBeenCalledWith(
+      'Por segurança, saia e entre novamente antes de confirmar esta ação administrativa.'
+    );
+    expect(showError.mock.calls[0]?.[0]).not.toContain('internal detail');
+    expect(handleError).toHaveBeenCalledTimes(1);
   });
 });
