@@ -1,22 +1,22 @@
 import { Component } from '@angular/core';
 import { NEVER, of } from 'rxjs';
 
-import { AuthSessionService } from '../../src/app/core/services/autentication/auth/auth-session.service';
-import { ErrorNotificationService } from '../../src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../src/app/core/services/error-handler/global-error-handler.service';
-import { GeolocationService } from '../../src/app/core/services/geolocation/geolocation.service';
-import { PhotoEditorLauncherService } from '../../src/app/core/services/image-handling/photo-editor-launcher.service';
-import { StorageService } from '../../src/app/core/services/image-handling/storage.service';
-import { CameraCaptureService } from '../../src/app/core/services/media/camera-capture.service';
-import { CommunityFeedCommentRepository } from '../../src/app/community/data-access/community-feed-comment.repository';
-import type { CommunityFeedCommentPage } from '../../src/app/community/data-access/community-feed-comment.model';
-import { CommunityFeedRepository } from '../../src/app/community/data-access/community-feed.repository';
+import { AuthSessionService } from './core/services/autentication/auth/auth-session.service';
+import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
+import { GeolocationService } from './core/services/geolocation/geolocation.service';
+import { PhotoEditorLauncherService } from './core/services/image-handling/photo-editor-launcher.service';
+import { StorageService } from './core/services/image-handling/storage.service';
+import { CameraCaptureService } from './core/services/media/camera-capture.service';
+import { CommunityFeedCommentRepository } from './community/data-access/community-feed-comment.repository';
+import type { CommunityFeedCommentPage } from './community/data-access/community-feed-comment.model';
+import { CommunityFeedRepository } from './community/data-access/community-feed.repository';
 import type {
   CommunityFeedPage,
   CommunityFeedPostActionRequest,
   CommunityFeedPostCreateRequest,
   CommunityFeedReactionRequest,
-} from '../../src/app/community/data-access/community-feed.model';
+} from './community/data-access/community-feed.model';
 
 const now = Date.now();
 const image = `data:image/svg+xml,${encodeURIComponent(`
