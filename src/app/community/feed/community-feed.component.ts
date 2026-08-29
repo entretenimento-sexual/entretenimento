@@ -857,6 +857,7 @@ export class CommunityFeedComponent implements OnDestroy {
       request: {
         communityId: this.communityId().trim(),
         postId: item.postId,
+        reacted: optimistic.reacted,
       },
       previous,
     });
