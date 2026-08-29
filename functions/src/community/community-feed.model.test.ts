@@ -99,7 +99,7 @@ test('preserva localização precisa enviada por gesto explícito', () => {
     text: 'Estamos aqui.',
     location: {
       latitude: -22.9068123,
-      longitude: -43.1729345,
+      longitude: -43.1729344,
       precision: 'precise',
       accuracyMeters: 8.4,
     },
@@ -107,7 +107,7 @@ test('preserva localização precisa enviada por gesto explícito', () => {
 
   assert.deepEqual(result.location, {
     latitude: -22.906812,
-    longitude: -43.172935,
+    longitude: -43.172934,
     precision: 'precise',
     accuracyMeters: 8,
   });
@@ -244,7 +244,7 @@ test('sanitiza localização precisa preservando o consentimento e a acurácia',
       image: null,
       location: {
         latitude: -22.9068123,
-        longitude: -43.1729345,
+        longitude: -43.1729344,
         precision: 'precise',
         accuracyMeters: 11,
       },
@@ -254,7 +254,7 @@ test('sanitiza localização precisa preservando o consentimento e a acurácia',
 
   assert.deepEqual(result?.item.location, {
     latitude: -22.906812,
-    longitude: -43.172935,
+    longitude: -43.172934,
     precision: 'precise',
     accuracyMeters: 11,
   });
@@ -375,7 +375,6 @@ test('projeta somente identidade social pública coarse para Comunidades', () =>
     label: 'casal_serale',
     avatarUrl: 'https://example.com/public-avatar.webp',
     identityCode: 'casal-ele-ela',
-    identityCatalogVersion: 1,
     identityLabel: 'Casal (Ele/Ela)',
     identityShortLabel: 'Casal',
     discoveryGroup: 'couple',
@@ -385,6 +384,7 @@ test('projeta somente identidade social pública coarse para Comunidades', () =>
     profileTypeLabel: 'Casal',
   });
   assert.equal('uid' in author, false);
+  assert.equal('identityCatalogVersion' in author, false);
   assert.equal('nome' in author, false);
   assert.equal('cpf' in author, false);
   assert.equal('endereco' in author, false);

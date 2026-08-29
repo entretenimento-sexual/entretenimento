@@ -88,6 +88,7 @@ describe('normalizeCommunityFeedPageResponse', () => {
       latitude: -22.91,
       longitude: -43.17,
       precision: 'approximate',
+      accuracyMeters: null,
     });
   });
 

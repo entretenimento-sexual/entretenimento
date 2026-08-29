@@ -36,7 +36,7 @@ describe('CommunityFeedComponent attachment sources', () => {
     editFile$: vi.fn(),
   };
   const geolocationMock = {
-    currentPosition$: vi.fn(),
+    watchPosition$: vi.fn(),
   };
 
   beforeEach(() => {
@@ -55,7 +55,7 @@ describe('CommunityFeedComponent attachment sources', () => {
     cameraMock.openCamera$.mockReturnValue(
       of({ getTracks: () => [] } as unknown as MediaStream)
     );
-    geolocationMock.currentPosition$.mockReturnValue(of({
+    geolocationMock.watchPosition$.mockReturnValue(of({
       latitude: -22.9068,
       longitude: -43.1729,
       altitude: null,
@@ -227,7 +227,7 @@ describe('CommunityFeedComponent attachment sources', () => {
     expect(menu.open).toBe(false);
   });
 
-  it('adiciona somente localização aproximada após gesto explícito', () => {
+  it('adiciona localização precisa após gesto explícito', () => {
     const fixture = createFixture();
     const menu = fixture.nativeElement.querySelector(
       '.community-feed__attachment-menu'
@@ -245,13 +245,20 @@ describe('CommunityFeedComponent attachment sources', () => {
     fixture.detectChanges();
 
     expect(menu.open).toBe(false);
-    expect(geolocationMock.currentPosition$).toHaveBeenCalledTimes(1);
+    expect(geolocationMock.watchPosition$).toHaveBeenCalledTimes(1);
+    expect(geolocationMock.watchPosition$).toHaveBeenCalledWith({
+      enableHighAccuracy: true,
+      timeout: 8_000,
+      maximumAge: 0,
+    });
     expect(fixture.componentInstance.selectedAttachment()).toEqual({
       kind: 'location',
-      latitude: -22.91,
-      longitude: -43.17,
-      precision: 'approximate',
+      latitude: -22.9068,
+      longitude: -43.1729,
+      precision: 'precise',
+      accuracyMeters: 20,
     });
-    expect(fixture.nativeElement.textContent).toContain('Localização aproximada');
+    expect(fixture.nativeElement.textContent).toContain('Localização atual');
+    expect(fixture.nativeElement.textContent).toContain('Precisão estimada: ±20 m');
   });
 });
