@@ -42,8 +42,8 @@ import {
 } from 'rxjs';
 
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { COMMUNITY_CREATE_RETURN_URL } from 'src/app/subscriptions/domain/subscription-flow-context.model';
 import {
   COMMUNITY_MEMBER_LIMIT_OPTIONS,
@@ -95,6 +95,34 @@ type CommunityCreationState =
   | { status: 'ready'; capability: CommunityCreationCapability }
   | { status: 'error'; capability: null };
 
+const COMMUNITY_CREATE_REASON_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    community_creation_limit_reached:
+      'Seu plano atingiu a quantidade de Comunidades próprias.',
+    community_creation_subscription_required:
+      'Uma assinatura Basic ou superior é necessária para criar Comunidades.',
+    community_capacity_upgrade_required:
+      'Seu plano atual não permite a capacidade escolhida para esta Comunidade.',
+    profile_incomplete:
+      'Complete seu perfil antes de criar uma Comunidade.',
+    adult_access_required:
+      'Confirme seu acesso adulto antes de criar uma Comunidade.',
+    account_restricted:
+      'Sua conta não pode criar Comunidades neste momento.',
+  });
+
+const COMMUNITY_CREATE_CODE_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    'already-exists':
+      'Não foi possível reservar esta Comunidade. Tente novamente.',
+    'permission-denied':
+      'Sua conta não pode criar esta Comunidade neste momento.',
+    'failed-precondition':
+      'Sua conta precisa de uma atualização antes de criar uma Comunidade.',
+    'invalid-argument':
+      'Revise os dados obrigatórios da Comunidade e tente novamente.',
+  });
+
 function communityTagCountValidator(): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
     const value = Array.isArray(control.value) ? control.value : [];
@@ -117,7 +145,7 @@ export class CommunityCreatePageComponent {
   private readonly tagRepository = inject(CommunityTagRepository);
   private readonly creationGate = inject(CommunityCreationGateService);
   private readonly notifications = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly requestId = this.createRequestId();
@@ -490,95 +518,41 @@ export class CommunityCreatePageComponent {
       .slice(2, 14)}`;
   }
 
-  private creationErrorMessage(error: unknown): string {
-    const source = (error ?? {}) as {
-      code?: unknown;
-      details?: { reason?: unknown; recommendedAction?: unknown };
-    };
-    const code = String(source.code ?? '').replace(/^functions\//, '');
-    const recommendedAction = String(source.details?.recommendedAction ?? '');
-    const reason = String(source.details?.reason ?? '');
-
-    if (reason === 'community_creation_limit_reached') {
-      return 'Seu plano atingiu a quantidade de Comunidades próprias.';
-    }
-
-    if (reason === 'community_creation_subscription_required') {
-      return 'Uma assinatura Basic ou superior é necessária para criar Comunidades.';
-    }
-
-    if (code === 'permission-denied') {
-      return recommendedAction === 'upgrade_subscription'
-        ? 'Seu plano atual não permite a capacidade escolhida para esta Comunidade.'
-        : 'Sua conta não pode criar esta Comunidade neste momento.';
-    }
-
-    if (code === 'failed-precondition') {
-      if (recommendedAction === 'complete_profile') {
-        return 'Complete seu perfil antes de criar uma Comunidade.';
-      }
-      if (recommendedAction === 'confirm_adult_access') {
-        return 'Confirme seu acesso adulto antes de criar uma Comunidade.';
-      }
-      return 'Sua conta precisa de uma atualização antes de criar uma Comunidade.';
-    }
-
-    if (code === 'already-exists') {
-      return 'Não foi possível reservar esta Comunidade. Tente novamente.';
-    }
-
-    return 'Não foi possível criar a Comunidade agora.';
-  }
-
   private reportTagCatalogError(error: unknown): void {
-    try {
-      this.notifications.showError(
-        'Não foi possível carregar os interesses disponíveis. Tente novamente.'
-      );
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-
-    this.reportTechnicalError(error, 'getCommunityTagCatalog');
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'getCommunityTagCatalog',
+      fallbackMessage:
+        'Não foi possível carregar os interesses disponíveis. Tente novamente.',
+      metadata: {
+        scope: 'CommunityCreatePageComponent',
+      },
+    });
   }
 
   private reportCreationCapabilityError(error: unknown): void {
-    try {
-      this.notifications.showError(
-        'Não foi possível verificar a criação de Comunidades agora.'
-      );
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-
-    this.reportTechnicalError(error, 'getCommunityCreationCapability');
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'getCommunityCreationCapability',
+      fallbackMessage:
+        'Não foi possível verificar a criação de Comunidades agora.',
+      reasonMessages: COMMUNITY_CREATE_REASON_MESSAGES,
+      metadata: {
+        scope: 'CommunityCreatePageComponent',
+      },
+    });
   }
 
   private reportError(error: unknown): void {
-    try {
-      this.notifications.showError(this.creationErrorMessage(error));
-    } catch {
-      // A observabilidade abaixo permanece ativa.
-    }
-
-    this.reportTechnicalError(error, 'createCommunity');
-  }
-
-  private reportTechnicalError(error: unknown, op: string): void {
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'createCommunity',
+      fallbackMessage: 'Não foi possível criar a Comunidade agora.',
+      codeMessages: COMMUNITY_CREATE_CODE_MESSAGES,
+      reasonMessages: COMMUNITY_CREATE_REASON_MESSAGES,
+      metadata: {
         scope: 'CommunityCreatePageComponent',
-        op,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+      },
+    });
   }
 }
