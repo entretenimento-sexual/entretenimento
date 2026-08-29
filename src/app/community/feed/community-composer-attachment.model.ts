@@ -3,8 +3,9 @@
 // COMMUNITY COMPOSER ATTACHMENT
 // -----------------------------------------------------------------------------
 // Modelo canônico do anexo selecionado no composer. Foto e localização
-// aproximada são variantes explícitas do mesmo estado, sem criar fluxos
-// paralelos no componente do Mural. Coordenadas precisas nunca são persistidas.
+// compartilhada são variantes explícitas do mesmo estado, sem criar fluxos
+// paralelos no componente do Mural. A localização precisa só é capturada após
+// ação explícita do usuário no composer.
 // -----------------------------------------------------------------------------
 
 import {
@@ -23,18 +24,27 @@ export interface CommunityComposerLocationAttachment {
   readonly kind: 'location';
   readonly latitude: number;
   readonly longitude: number;
-  readonly precision: 'approximate';
+  readonly precision: 'precise';
+  readonly accuracyMeters: number | null;
 }
 
 export type CommunityComposerAttachment =
   | CommunityComposerImageAttachment
   | CommunityComposerLocationAttachment;
 
-export const COMMUNITY_COMPOSER_LOCATION_DECIMALS = 2;
+/** Seis casas preservam a coordenada do navegador sem persistir ruído submétrico. */
+export const COMMUNITY_COMPOSER_LOCATION_DECIMALS = 6;
+
+function normalizeLocationAccuracy(value: unknown): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.min(Math.round(parsed), 100_000);
+}
 
 export function createCommunityComposerLocationAttachment(
   latitude: unknown,
-  longitude: unknown
+  longitude: unknown,
+  accuracyMeters: unknown = null
 ): CommunityComposerLocationAttachment | null {
   const parsedLatitude = Number(latitude);
   const parsedLongitude = Number(longitude);
@@ -54,7 +64,8 @@ export function createCommunityComposerLocationAttachment(
     kind: 'location',
     latitude: Number(parsedLatitude.toFixed(COMMUNITY_COMPOSER_LOCATION_DECIMALS)),
     longitude: Number(parsedLongitude.toFixed(COMMUNITY_COMPOSER_LOCATION_DECIMALS)),
-    precision: 'approximate',
+    precision: 'precise',
+    accuracyMeters: normalizeLocationAccuracy(accuracyMeters),
   };
 }
 
