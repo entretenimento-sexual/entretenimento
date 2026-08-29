@@ -23,13 +23,14 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription, finalize, take } from 'rxjs';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { PhotoEditorLauncherService } from 'src/app/core/services/image-handling/photo-editor-launcher.service';
 import {
   CameraCaptureError,
+  CameraCaptureErrorCode,
   CameraCaptureService,
 } from 'src/app/core/services/media/camera-capture.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
   CommunityComposerAttachment,
   validateCommunityComposerImage,
@@ -42,6 +43,26 @@ type CameraSurfaceState =
   | 'capturing'
   | 'captured'
   | 'error';
+
+const CAMERA_ERROR_MESSAGES: Readonly<Record<CameraCaptureErrorCode, string>> =
+  Object.freeze({
+    UNSUPPORTED:
+      'Este navegador não oferece acesso direto à câmera. Use o seletor do dispositivo.',
+    INSECURE_CONTEXT:
+      'A câmera só pode ser usada em uma conexão segura. Use o seletor do dispositivo.',
+    PERMISSION_DENIED:
+      'Permita o acesso à câmera no navegador ou use o seletor do dispositivo.',
+    DEVICE_NOT_FOUND:
+      'Nenhuma câmera disponível foi encontrada neste dispositivo.',
+    DEVICE_BUSY:
+      'A câmera está sendo usada por outro aplicativo. Feche-o e tente novamente.',
+    CONSTRAINT_FAILED:
+      'A câmera disponível não pôde ser iniciada com segurança. Use o seletor do dispositivo.',
+    CAPTURE_FAILED:
+      'Não foi possível concluir a captura. Tente novamente ou use o seletor do dispositivo.',
+    UNKNOWN:
+      'Não foi possível usar a câmera agora. Tente novamente ou use o seletor do dispositivo.',
+  });
 
 @Component({
   selector: 'app-community-camera-capture',
@@ -438,7 +459,7 @@ export class CommunityCameraCaptureComponent implements OnDestroy {
   private readonly camera = inject(CameraCaptureService);
   private readonly photoEditor = inject(PhotoEditorLauncherService);
   private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly disabled = input(false);
@@ -700,60 +721,38 @@ export class CommunityCameraCaptureComponent implements OnDestroy {
     this.stopActiveStream();
     const normalized = error instanceof CameraCaptureError
       ? error
-      : new CameraCaptureError('UNKNOWN', 'Não foi possível usar a câmera agora.', error);
-    this.errorMessage.set(normalized.message);
-    this.state.set('error');
-
-    try {
-      this.errorNotifier.showError(normalized.message);
-    } catch {
-      // O estado inline continua visível mesmo se o serviço de notificação falhar.
-    }
-
-    try {
-      const contextual = normalized as CameraCaptureError & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+      : new CameraCaptureError(
+          'UNKNOWN',
+          'Não foi possível usar a câmera agora.',
+          error
+        );
+    const descriptor = this.applicationError.report(normalized, {
+      feature: 'community',
+      operation: 'cameraCapture',
+      fallbackMessage: CAMERA_ERROR_MESSAGES.UNKNOWN,
+      notification: 'none',
+      codeMessages: CAMERA_ERROR_MESSAGES,
+      metadata: {
         scope: 'CommunityCameraCaptureComponent',
-        op: 'cameraCapture',
-        code: normalized.code,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária de diagnóstico não quebra a superfície de captura.
-    }
+        cameraCode: normalized.code,
+      },
+    });
+
+    this.errorMessage.set(descriptor.userMessage);
+    this.state.set('error');
   }
 
   private reportPhotoEditError(error: unknown): void {
-    const normalized = error instanceof Error
-      ? error
-      : new Error('Não foi possível editar a foto agora.');
-
-    try {
-      this.errorNotifier.showError(
-        'Não foi possível editar a foto agora. A foto original foi preservada.'
-      );
-    } catch {
-      // A mídia original continua disponível mesmo se o toast falhar.
-    }
-
-    try {
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'photoEdit',
+      fallbackMessage:
+        'Não foi possível editar a foto agora. A foto original foi preservada.',
+      metadata: {
         scope: 'CommunityCameraCaptureComponent',
-        op: 'photoEdit',
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária de diagnóstico não altera a mídia preservada.
-    }
+        source: 'community-feed',
+      },
+    });
   }
 
   private stopActiveStream(): void {
