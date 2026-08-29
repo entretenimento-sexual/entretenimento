@@ -70,7 +70,7 @@ const MEMBERSHIP_REVIEW_REASON_MESSAGES: Readonly<Record<string, string>> =
       'Este vínculo está bloqueado e não pode ser alterado.',
     protected_membership:
       'Este participante possui uma função protegida nesta Comunidade.',
-    membership_request_not_pending:
+    request_not_pending:
       'Esta solicitação já foi processada ou não está mais pendente.',
     account_restricted:
       'A conta deste participante não está elegível para entrada neste momento.',
@@ -78,6 +78,12 @@ const MEMBERSHIP_REVIEW_REASON_MESSAGES: Readonly<Record<string, string>> =
       'A conta deste participante precisa confirmar o acesso adulto antes da entrada.',
     profile_incomplete:
       'A conta deste participante precisa concluir o perfil antes da entrada.',
+    community_not_manageable:
+      'Esta Comunidade não pode revisar solicitações no estado atual.',
+    community_not_found:
+      'Esta Comunidade não está mais disponível.',
+    invalid_membership_review:
+      'Não foi possível validar esta solicitação.',
   });
 
 @Component({
@@ -224,8 +230,8 @@ export class CommunityMembershipManagementComponent {
       fallbackMessage: this.sourceType() === 'venue'
         ? 'Não foi possível carregar as solicitações de acesso.'
         : 'Não foi possível carregar as solicitações de entrada.',
-      // A própria fila já possui estado inline de indisponibilidade.
       notification: 'none',
+      reasonMessages: MEMBERSHIP_REVIEW_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityMembershipManagementComponent',
         communityId: this.communityId(),
