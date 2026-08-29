@@ -3,7 +3,7 @@ param(
   [switch]$Install,
   [switch]$Validate,
   [switch]$Start,
-  [string]$Branch = ''
+  [string]$Branch = 'main'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -228,13 +228,13 @@ $currentBranch = Get-GitScalar `
   -Arguments @('branch', '--show-current') `
   -FailureMessage 'Nao foi possivel identificar a branch atual.'
 $requestedBranch = ([string]$Branch).Trim()
-$targetBranch = if ($requestedBranch) { $requestedBranch } else { $currentBranch }
+$targetBranch = 'main'
 
-if (-not $targetBranch) {
-  throw 'Branch de retomada ausente. Abra uma branch local ou informe -Branch.'
+if ($requestedBranch -and $requestedBranch -ne $targetBranch) {
+  throw "A retomada normal foi fixada em '$targetBranch'. Remova -Branch ou informe -Branch main."
 }
 
-Write-Host "[work:resume] Branch selecionada: $targetBranch"
+Write-Host "[work:resume] Linha canonica selecionada: $targetBranch"
 
 Invoke-NativeStep "Buscando origin/$targetBranch" {
   git fetch origin $targetBranch
@@ -242,20 +242,20 @@ Invoke-NativeStep "Buscando origin/$targetBranch" {
 
 if ($currentBranch -ne $targetBranch) {
   & git show-ref --verify --quiet "refs/heads/$targetBranch"
-  $localBranchExists = $LASTEXITCODE -eq 0
+  $localMainExists = $LASTEXITCODE -eq 0
 
-  if ($localBranchExists) {
+  if ($localMainExists) {
     Invoke-NativeStep "Alternando explicitamente para $targetBranch" {
       git switch $targetBranch
     }
   } else {
-    Invoke-NativeStep "Criando branch local explicita $targetBranch" {
+    Invoke-NativeStep "Criando checkout local de $targetBranch a partir de origin/$targetBranch" {
       git switch --track -c $targetBranch "origin/$targetBranch"
     }
   }
 }
 
-Invoke-NativeStep 'Atualizando branch somente por fast-forward' {
+Invoke-NativeStep 'Atualizando main somente por fast-forward' {
   git merge --ff-only "origin/$targetBranch"
 }
 
@@ -267,10 +267,10 @@ $remoteHead = Get-GitScalar `
   -FailureMessage 'Nao foi possivel identificar o HEAD remoto.'
 
 if ($localHead -ne $remoteHead) {
-  throw "Branch local e remota divergentes. Local: $localHead Remoto: $remoteHead"
+  throw "main local e remota divergentes. Local: $localHead Remoto: $remoteHead"
 }
 
-Write-Host "[work:resume] Checkpoint sincronizado: $localHead" -ForegroundColor Green
+Write-Host "[work:resume] Checkpoint main sincronizado: $localHead" -ForegroundColor Green
 
 Invoke-NativeStep 'Validando alinhamento entre package.json e package-lock.json' {
   node "$ProjectRoot\scripts\dev\check-package-lock-sync.mjs"

@@ -15,6 +15,7 @@ if (-not $ProjectRoot) {
 
 $logDirectory = Join-Path $ProjectRoot '.dev-logs'
 $logPath = Join-Path $logDirectory 'angular-dev.log'
+$sessionHeadPath = Join-Path $logDirectory 'angular-session-head.txt'
 
 New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
 Set-Content -LiteralPath $logPath -Value '' -Encoding UTF8
@@ -163,22 +164,38 @@ try {
     throw "Angular CLI local nao encontrado: $angularCli"
   }
 
+  Set-Location $ProjectRoot
+
+  $gitHeadOutput = @(& git rev-parse HEAD 2>$null)
+  $gitHead = if ($LASTEXITCODE -eq 0 -and $gitHeadOutput.Count -gt 0) {
+    ([string]$gitHeadOutput[0]).Trim()
+  } else {
+    ''
+  }
+
+  if (-not $gitHead) {
+    throw 'Nao foi possivel identificar o HEAD Git da sessao Angular.'
+  }
+
+  Set-Content -LiteralPath $sessionHeadPath -Value $gitHead -Encoding ASCII
+
   Write-SessionMessage "Projeto: $ProjectRoot"
+  Write-SessionMessage "Git HEAD: $gitHead"
   Write-SessionMessage "Node: $nodeVersion"
   Write-SessionMessage "Node executavel: $($runtime.Node)"
   Write-SessionMessage "npm: $npmVersion"
   Write-SessionMessage "npm executavel: $($runtime.Npm)"
   Write-SessionMessage "Angular CLI: $angularCli"
   Write-SessionMessage "Log: $logPath"
+  Write-SessionMessage 'HMR: ativo'
   Write-SessionMessage "Iniciando Angular em http://${HostAddress}:$Port/"
-
-  Set-Location $ProjectRoot
 
   $angularArguments = @(
     $angularCli,
     'serve',
     '--configuration',
     'dev-emu',
+    '--hmr',
     '--host',
     $HostAddress,
     '--port',
