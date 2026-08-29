@@ -278,42 +278,41 @@
   }
 }
 
-/* Localização selecionada no composer: sempre aproximada e explícita. */
+/* Localização escolhida explicitamente no composer. */
 .community-feed__location-preview {
   min-width: 0;
   display: grid;
-  grid-template-columns: 2.4rem minmax(0, 1fr) auto;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.5rem 0.6rem;
+  gap: 0.45rem;
+  padding: 0.35rem 0.45rem;
   border: 1px solid var(--surface-border);
-  border-radius: 0.9rem;
-  background: color-mix(in oklab, var(--surface-color) 94%, var(--primary-color) 6%);
+  border-radius: 0.7rem;
+  background: color-mix(in oklab, var(--surface-color) 97%, var(--primary-color) 3%);
 }
 
 .community-feed__location-preview > i {
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 1.75rem;
+  height: 1.75rem;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: color-mix(in oklab, var(--surface-color) 82%, var(--primary-color) 18%);
   color: var(--primary-color);
 }
 
 .community-feed__location-preview span {
   min-width: 0;
   display: grid;
-  gap: 0.1rem;
+  gap: 0.04rem;
 }
 
 .community-feed__location-preview strong {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
 }
 
 .community-feed__location-preview small {
-  color: color-mix(in oklab, var(--text-color) 62%, transparent);
-  font-size: 0.68rem;
+  color: color-mix(in oklab, var(--text-color) 56%, transparent);
+  font-size: 0.62rem;
 }
 
 .community-feed__location-preview button {
@@ -339,7 +338,8 @@
   outline-offset: var(--focus-offset);
 }
 
-/* Localização já compartilhada: mapa incorporado + fallback no Google Maps. */
+/* Localização compartilhada: o mapa é o conteúdo principal e esta faixa é só
+   metadado/saída para o Google Maps, portanto permanece visualmente secundária. */
 .community-post__location {
   width: min(100%, 38rem);
   min-width: 0;
@@ -347,7 +347,7 @@
   margin: 0.65rem 0;
   border: 1px solid var(--surface-border);
   border-radius: 0.9rem;
-  background: color-mix(in oklab, var(--surface-color) 97%, var(--primary-color) 3%);
+  background: color-mix(in oklab, var(--surface-color) 98%, var(--primary-color) 2%);
 }
 
 .community-post__location-map {
@@ -360,7 +360,7 @@
 
 /* O embed legado do Google pode tentar abrir Place Details para POIs clicados e
    retornar Place IDs obsoletos. No Mural ele funciona como preview visual; a
-   interação completa permanece no link "Abrir no Google Maps" logo abaixo. */
+   interação completa permanece no link do Google Maps logo abaixo. */
 .community-post__location-map iframe {
   width: 100%;
   height: 100%;
@@ -371,69 +371,74 @@
 
 .community-post__location-meta {
   min-width: 0;
+  min-height: 2.2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.62rem 0.72rem;
+  gap: 0.35rem;
+  padding: 0.22rem 0.4rem 0.22rem 0.5rem;
 }
 
 .community-post__location-label {
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.58rem;
+  gap: 0.3rem;
 }
 
 .community-post__location-label > i {
-  width: 2rem;
-  height: 2rem;
-  flex: 0 0 2rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 1.25rem;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: color-mix(in oklab, var(--surface-color) 82%, var(--primary-color) 18%);
   color: var(--primary-color);
+  font-size: 0.68rem;
 }
 
 .community-post__location-label > span {
   min-width: 0;
-  display: grid;
-  gap: 0.08rem;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.12rem 0.35rem;
 }
 
 .community-post__location-label strong {
-  font-size: 0.78rem;
+  font-size: 0.68rem;
+  font-weight: 680;
 }
 
 .community-post__location-label small {
-  color: color-mix(in oklab, var(--text-color) 62%, transparent);
-  font-size: 0.68rem;
+  color: color-mix(in oklab, var(--text-color) 50%, transparent);
+  font-size: 0.58rem;
 }
 
 .community-post__location-link {
+  min-width: 44px;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.38rem;
+  gap: 0.25rem;
   flex: 0 0 auto;
-  padding: 0.45rem 0.65rem;
+  padding: 0.2rem 0.35rem;
   border-radius: 999px;
-  color: var(--primary-color);
-  font-size: 0.72rem;
-  font-weight: 720;
+  color: color-mix(in oklab, var(--primary-color) 84%, var(--text-color));
+  font-size: 0.64rem;
+  font-weight: 680;
   text-decoration: none;
 }
 
 .community-post__location-link:hover {
-  background: color-mix(in oklab, var(--surface-color) 88%, var(--primary-color) 12%);
+  background: color-mix(in oklab, var(--surface-color) 92%, var(--primary-color) 8%);
 }
 
 @media (max-width: 520px) {
   .community-feed__location-preview {
-    grid-template-columns: 2.25rem minmax(0, 1fr) auto;
-    gap: 0.5rem;
+    grid-template-columns: 1.65rem minmax(0, 1fr) auto;
+    gap: 0.35rem;
   }
 
   .community-post__location {
@@ -445,14 +450,23 @@
   }
 
   .community-post__location-meta {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.2rem;
+    padding-inline: 0.38rem 0.2rem;
   }
 
-  .community-post__location-link {
-    width: 100%;
-    justify-content: flex-start;
+  .community-post__location-label > span {
+    display: grid;
+    gap: 0;
+  }
+
+  .community-post__location-link span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 
