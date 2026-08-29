@@ -127,7 +127,7 @@ describe('CommunityFeedComponent legacy comments access', () => {
     expect(reaction.querySelector('.community-post__action-count')?.textContent).toContain('3');
   });
 
-  it('oferece acesso secundário somente quando há respostas', () => {
+  it('oferece acesso secundário somente quando há mensagens anteriores do histórico legado', () => {
     const fixture = createFixture(2);
     const legacyAccess = fixture.nativeElement.querySelector(
       '.community-post__comments-toggle'
@@ -136,8 +136,9 @@ describe('CommunityFeedComponent legacy comments access', () => {
     expect(legacyAccess).not.toBeNull();
     expect(legacyAccess.textContent).toContain('Ver');
     expect(legacyAccess.textContent).toContain('2');
-    expect(legacyAccess.textContent).toContain('respostas');
-    expect(legacyAccess.textContent).not.toContain('mensagens anteriores');
+    expect(legacyAccess.textContent).toContain('mensagens anteriores');
+    expect(legacyAccess.textContent).not.toContain('respostas');
+    expect(legacyAccess.getAttribute('aria-label')).toContain('2 mensagens anteriores');
 
     legacyAccess.click();
     fixture.detectChanges();
