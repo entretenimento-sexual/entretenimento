@@ -94,7 +94,7 @@ describe('CommunityFeedComponent shared location map', () => {
     return fixture;
   }
 
-  it('usa o próprio mapa como link e informa a precisão disponível', () => {
+  it('mantém o iframe fora do DOM até o usuário pedir o mapa preciso', () => {
     const fixture = configureFixture({
       latitude: -22.912345,
       longitude: -43.187654,
@@ -102,36 +102,50 @@ describe('CommunityFeedComponent shared location map', () => {
       accuracyMeters: 8,
     });
 
+    const details = fixture.nativeElement.querySelector(
+      '.community-post__location-details'
+    ) as HTMLDetailsElement;
+    const summary = fixture.nativeElement.querySelector(
+      '.community-post__location-details > summary'
+    ) as HTMLElement;
+    const directLink = fixture.nativeElement.querySelector(
+      '.community-post__location a[href*="google.com/maps/search"]'
+    ) as HTMLAnchorElement;
+
+    expect(details).not.toBeNull();
+    expect(summary.textContent).toContain('Localização compartilhada');
+    expect(summary.textContent).toContain('Precisão estimada: ±8 m');
+    expect(summary.textContent).toContain('Ver mapa');
+    expect(
+      fixture.nativeElement.querySelector('.community-post__location-map iframe')
+    ).toBeNull();
+
+    expect(directLink).not.toBeNull();
+    expect(directLink.href).toContain('https://www.google.com/maps/search/');
+    expect(directLink.href).toContain('query=-22.912345%2C-43.187654');
+    expect(directLink.getAttribute('aria-label')).toContain('-22.912345, -43.187654');
+
+    details.open = true;
+    fixture.detectChanges();
+
     const map = fixture.nativeElement.querySelector(
       '.community-post__location-map iframe'
     ) as HTMLIFrameElement;
-    const mapLink = fixture.nativeElement.querySelector(
-      '.community-post__location-map-link'
-    ) as HTMLAnchorElement;
-    const metadata = fixture.nativeElement.querySelector(
-      '.community-post__location-meta'
-    ) as HTMLElement;
-    const oldBottomLink = fixture.nativeElement.querySelector(
-      '.community-post__location-link'
-    ) as HTMLAnchorElement | null;
-
     expect(map).not.toBeNull();
     expect(map.getAttribute('src')).toBe(
       'https://www.google.com/maps?q=-22.912345,-43.187654&z=14&output=embed'
     );
     expect(map.getAttribute('title')).toContain('-22.912345, -43.187654');
+    expect(summary.textContent).toContain('Ocultar mapa');
 
-    expect(mapLink).not.toBeNull();
-    expect(mapLink.href).toContain('https://www.google.com/maps/search/');
-    expect(mapLink.href).toContain('query=-22.912345%2C-43.187654');
-    expect(mapLink.getAttribute('aria-label')).toContain('-22.912345, -43.187654');
-
-    expect(metadata.textContent).toContain('Localização compartilhada');
-    expect(metadata.textContent).toContain('Precisão estimada: ±8 m');
-    expect(oldBottomLink).toBeNull();
+    details.open = false;
+    fixture.detectChanges();
+    expect(
+      fixture.nativeElement.querySelector('.community-post__location-map iframe')
+    ).toBeNull();
   });
 
-  it('mantém posts legados aproximados em duas casas sem atribuir precisão retroativa', () => {
+  it('mantém posts legados aproximados em duas casas sem carregar iframe antecipadamente', () => {
     const fixture = configureFixture({
       latitude: -22.912345,
       longitude: -43.187654,
@@ -139,22 +153,32 @@ describe('CommunityFeedComponent shared location map', () => {
       accuracyMeters: null,
     });
 
+    const details = fixture.nativeElement.querySelector(
+      '.community-post__location-details'
+    ) as HTMLDetailsElement;
+    const summary = fixture.nativeElement.querySelector(
+      '.community-post__location-details > summary'
+    ) as HTMLElement;
+    const directLink = fixture.nativeElement.querySelector(
+      '.community-post__location a[href*="google.com/maps/search"]'
+    ) as HTMLAnchorElement;
+
+    expect(summary.textContent).toContain(
+      'Coordenadas aproximadas de publicação antiga'
+    );
+    expect(
+      fixture.nativeElement.querySelector('.community-post__location-map iframe')
+    ).toBeNull();
+    expect(directLink.href).toContain('query=-22.91%2C-43.19');
+
+    details.open = true;
+    fixture.detectChanges();
+
     const map = fixture.nativeElement.querySelector(
       '.community-post__location-map iframe'
     ) as HTMLIFrameElement;
-    const mapLink = fixture.nativeElement.querySelector(
-      '.community-post__location-map-link'
-    ) as HTMLAnchorElement;
-    const metadata = fixture.nativeElement.querySelector(
-      '.community-post__location-meta'
-    ) as HTMLElement;
-
     expect(map.getAttribute('src')).toBe(
       'https://www.google.com/maps?q=-22.91,-43.19&z=14&output=embed'
-    );
-    expect(mapLink.href).toContain('query=-22.91%2C-43.19');
-    expect(metadata.textContent).toContain(
-      'Coordenadas aproximadas de publicação antiga'
     );
   });
 });
