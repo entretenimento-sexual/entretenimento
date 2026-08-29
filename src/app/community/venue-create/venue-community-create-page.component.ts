@@ -19,8 +19,8 @@ import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
   VenueCommunityCreateJoinPolicy,
   VenueCommunityCreateKind,
@@ -38,6 +38,22 @@ type VenueCreateForm = FormGroup<{
   joinPolicy: FormControl<VenueCommunityCreateJoinPolicy>;
 }>;
 
+const OFFICIAL_SPACE_REASON_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    official_space_verification_required:
+      'O cadastro exige uma organização e um responsável comercial verificados.',
+    official_space_grant_inactive:
+      'A autorização comercial está inativa. Regularize-a para criar outro Espaço Oficial.',
+    official_space_creation_limit_reached:
+      'A organização atingiu a quantidade de Espaços Oficiais contratada.',
+    account_restricted:
+      'Sua conta não pode cadastrar Espaços Oficiais neste momento.',
+    adult_access_required:
+      'Confirme o acesso adulto antes de cadastrar um Espaço Oficial.',
+    profile_incomplete:
+      'Complete seu perfil antes de cadastrar um Espaço Oficial.',
+  });
+
 @Component({
   selector: 'app-venue-community-create-page',
   standalone: true,
@@ -49,7 +65,7 @@ type VenueCreateForm = FormGroup<{
 export class VenueCommunityCreatePageComponent {
   private readonly repository = inject(VenueCommunityRepository);
   private readonly notifications = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly router = inject(Router);
   private readonly requestId = this.createRequestId();
 
@@ -147,7 +163,7 @@ export class VenueCommunityCreatePageComponent {
           void this.router.navigate([
             '/dashboard/locais',
             result.communityId,
-          ]);
+          ]).catch((error: unknown) => this.reportNavigationError(error));
         },
         error: (error: unknown) => this.reportError(error),
       });
@@ -172,38 +188,38 @@ export class VenueCommunityCreatePageComponent {
   }
 
   private reportError(error: unknown): void {
-    const reason = String(
-      (error as { details?: { reason?: unknown } } | null)?.details?.reason
-      ?? ''
-    );
-    const message = reason === 'official_space_verification_required'
-      ? 'O cadastro exige uma organização e um responsável comercial verificados.'
-      : reason === 'official_space_grant_inactive'
-        ? 'A autorização comercial está inativa. Regularize-a para criar outro Espaço Oficial.'
-        : reason === 'official_space_creation_limit_reached'
-          ? 'A organização atingiu a quantidade de Espaços Oficiais contratada.'
-          : 'Não foi possível cadastrar o Espaço Oficial agora.';
-
-    try {
-      this.notifications.showError(message);
-    } catch {
-      // A observabilidade abaixo permanece ativa.
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'createVenueCommunity',
+      fallbackMessage: 'Não foi possível cadastrar o Espaço Oficial agora.',
+      reasonMessages: OFFICIAL_SPACE_REASON_MESSAGES,
+      codeMessages: {
+        'permission-denied':
+          'Sua conta não possui autorização para cadastrar este Espaço Oficial.',
+        'resource-exhausted':
+          'A organização atingiu a quantidade de Espaços Oficiais contratada.',
+        'invalid-argument':
+          'Revise os dados obrigatórios do Espaço Oficial.',
+        'already-exists':
+          'Não foi possível reservar este cadastro. Revise os dados e tente novamente.',
+        'data-loss':
+          'O cadastro anterior está inconsistente e precisa de revisão.',
+      },
+      metadata: {
         scope: 'VenueCommunityCreatePageComponent',
-        op: 'createVenueCommunity',
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+      },
+    });
+  }
+
+  private reportNavigationError(error: unknown): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'navigateAfterVenueCreate',
+      fallbackMessage:
+        'O Espaço Oficial foi cadastrado, mas não foi possível abri-lo agora.',
+      metadata: {
+        scope: 'VenueCommunityCreatePageComponent',
+      },
+    });
   }
 }
