@@ -75,7 +75,8 @@ function assertPreviewRuntime(): void {
 
   throw new HttpsError(
     'failed-precondition',
-    'As comunidades ainda não estão disponíveis neste ambiente.'
+    'As comunidades ainda não estão disponíveis neste ambiente.',
+    { reason: 'community_runtime_unavailable' }
   );
 }
 
@@ -87,13 +88,18 @@ function assertAuthenticatedUid(auth: unknown): string {
   const uid = String(source.uid ?? '').trim();
 
   if (!uid) {
-    throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    throw new HttpsError(
+      'unauthenticated',
+      'Usuário não autenticado.',
+      { reason: 'authentication_required' }
+    );
   }
 
   if (source.token?.['email_verified'] !== true) {
     throw new HttpsError(
       'failed-precondition',
-      'Verifique seu e-mail para continuar.'
+      'Verifique seu e-mail para continuar.',
+      { reason: 'email_verification_required' }
     );
   }
 
@@ -218,7 +224,8 @@ function assertCommunityManageable(rawCommunity: unknown): void {
   ) {
     throw new HttpsError(
       'failed-precondition',
-      'Esta comunidade não pode ser moderada agora.'
+      'Esta comunidade não pode ser moderada agora.',
+      { reason: 'community_not_manageable' }
     );
   }
 }
@@ -236,7 +243,8 @@ function assertModerator(
   ) {
     throw new HttpsError(
       'permission-denied',
-      'Apenas a moderação da comunidade pode revisar solicitações.'
+      'Apenas a moderação da comunidade pode revisar solicitações.',
+      { reason: 'moderator_required' }
     );
   }
 
@@ -247,7 +255,8 @@ function throwLeaveDecisionError(reason: string | null): never {
   if (reason === 'membership_blocked') {
     throw new HttpsError(
       'permission-denied',
-      'Este vínculo está bloqueado e não pode ser alterado.'
+      'Este vínculo está bloqueado e não pode ser alterado.',
+      { reason }
     );
   }
 
@@ -255,13 +264,14 @@ function throwLeaveDecisionError(reason: string | null): never {
     throw new HttpsError(
       'failed-precondition',
       'Transfira a propriedade antes de sair da comunidade.',
-      { reason: 'owner_transfer_required' }
+      { reason }
     );
   }
 
   throw new HttpsError(
     'failed-precondition',
-    'Você não possui participação ativa ou pendente nesta comunidade.'
+    'Você não possui participação ativa ou pendente nesta comunidade.',
+    { reason: reason ?? 'membership_not_found' }
   );
 }
 
@@ -269,27 +279,31 @@ function throwReviewDecisionError(reason: string | null): never {
   if (reason === 'moderator_required') {
     throw new HttpsError(
       'permission-denied',
-      'Apenas a moderação pode revisar solicitações.'
+      'Apenas a moderação pode revisar solicitações.',
+      { reason }
     );
   }
 
   if (reason === 'self_review_forbidden') {
     throw new HttpsError(
       'failed-precondition',
-      'Você não pode revisar o próprio vínculo.'
+      'Você não pode revisar o próprio vínculo.',
+      { reason }
     );
   }
 
   if (reason === 'membership_blocked' || reason === 'protected_membership') {
     throw new HttpsError(
       'permission-denied',
-      'Este vínculo não pode ser alterado por esta operação.'
+      'Este vínculo não pode ser alterado por esta operação.',
+      { reason }
     );
   }
 
   throw new HttpsError(
     'failed-precondition',
-    'A solicitação já foi processada ou não está pendente.'
+    'A solicitação já foi processada ou não está pendente.',
+    { reason: reason ?? 'request_not_pending' }
   );
 }
 
@@ -336,7 +350,11 @@ export const getCommunityMembershipRequests = onCall<CommunityIdPayload>(
     const communityId = normalizeCommunityId(request.data?.communityId);
 
     if (!communityId) {
-      throw new HttpsError('invalid-argument', 'Comunidade inválida.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Comunidade inválida.',
+        { reason: 'invalid_community_id' }
+      );
     }
 
     return db.runTransaction(async (transaction) => {
@@ -353,7 +371,11 @@ export const getCommunityMembershipRequests = onCall<CommunityIdPayload>(
         ]);
 
       if (!communitySnapshot.exists) {
-        throw new HttpsError('not-found', 'Comunidade não encontrada.');
+        throw new HttpsError(
+          'not-found',
+          'Comunidade não encontrada.',
+          { reason: 'community_not_found' }
+        );
       }
 
       assertCommunityMembershipActorEligible(
@@ -404,7 +426,11 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
     const communityId = normalizeCommunityId(request.data?.communityId);
 
     if (!communityId) {
-      throw new HttpsError('invalid-argument', 'Comunidade inválida.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Comunidade inválida.',
+        { reason: 'invalid_community_id' }
+      );
     }
 
     return db.runTransaction(async (transaction) => {
@@ -422,7 +448,11 @@ export const leaveCommunityMembership = onCall<CommunityIdPayload>(
         ]);
 
       if (!communitySnapshot.exists) {
-        throw new HttpsError('not-found', 'Comunidade não encontrada.');
+        throw new HttpsError(
+          'not-found',
+          'Comunidade não encontrada.',
+          { reason: 'community_not_found' }
+        );
       }
 
       const community = communitySnapshot.data() ?? {};
@@ -528,7 +558,11 @@ export const reviewCommunityMembership =
       const action = normalizeReviewAction(request.data?.action);
 
       if (!communityId || !memberId || !action) {
-        throw new HttpsError('invalid-argument', 'Solicitação inválida.');
+        throw new HttpsError(
+          'invalid-argument',
+          'Solicitação inválida.',
+          { reason: 'invalid_membership_review' }
+        );
       }
 
       return db.runTransaction(async (transaction) => {
@@ -560,7 +594,11 @@ export const reviewCommunityMembership =
         ]);
 
         if (!communitySnapshot.exists) {
-          throw new HttpsError('not-found', 'Comunidade não encontrada.');
+          throw new HttpsError(
+            'not-found',
+            'Comunidade não encontrada.',
+            { reason: 'community_not_found' }
+          );
         }
 
         assertCommunityMembershipActorEligible(
@@ -594,7 +632,6 @@ export const reviewCommunityMembership =
             targetUserSnapshot.exists ? targetUserSnapshot.data() : null,
             memberId
           );
-
         }
 
         if (decision.incrementMemberCount) {
