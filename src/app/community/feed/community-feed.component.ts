@@ -609,6 +609,8 @@ export class CommunityFeedComponent implements OnDestroy {
     this.clearSelectedAttachment();
   }
 
+  // Nome preservado para não quebrar bindings/testes existentes; o gesto é
+  // explícito e agora prioriza a coordenada mais fiel fornecida pelo navegador.
   shareApproximateLocation(): void {
     if (!this.canCreatePost() || this.locationCaptureState() === 'loading') return;
 
@@ -617,15 +619,16 @@ export class CommunityFeedComponent implements OnDestroy {
     this.locationCaptureState.set('loading');
 
     this.geolocation.currentPosition$({
-      enableHighAccuracy: false,
-      timeout: 10_000,
-      maximumAge: 60_000,
+      enableHighAccuracy: true,
+      timeout: 15_000,
+      maximumAge: 0,
     }).pipe(
       take(1),
       map((coordinates) =>
         createCommunityComposerLocationAttachment(
           coordinates.latitude,
-          coordinates.longitude
+          coordinates.longitude,
+          coordinates.accuracy
         )
       ),
       tap((attachment) => {
@@ -635,7 +638,7 @@ export class CommunityFeedComponent implements OnDestroy {
         this.clearSelectedAttachment();
         this.selectedAttachment.set(attachment);
         this.composerExpanded.set(true);
-        this.errorNotifier.showSuccess('Localização aproximada adicionada.');
+        this.errorNotifier.showSuccess('Localização atual adicionada.');
       }),
       catchError((error: unknown) => {
         this.reportLocationError(error);
@@ -647,7 +650,9 @@ export class CommunityFeedComponent implements OnDestroy {
   }
 
   approximateLocationLabel(latitude: number, longitude: number): string {
-    return `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
+    const formatCoordinate = (value: number) =>
+      Number(value.toFixed(6)).toString();
+    return `${formatCoordinate(latitude)}, ${formatCoordinate(longitude)}`;
   }
 
   locationMapEmbedUrl(item: CommunityFeedItem): SafeResourceUrl | null {
@@ -718,7 +723,12 @@ export class CommunityFeedComponent implements OnDestroy {
         audience: 'members_only',
         imageUploadPath: null,
         location: attachment?.kind === 'location'
-          ? { latitude: attachment.latitude, longitude: attachment.longitude }
+          ? {
+              latitude: attachment.latitude,
+              longitude: attachment.longitude,
+              precision: attachment.precision,
+              accuracyMeters: attachment.accuracyMeters,
+            }
           : null,
       },
       attachment,
@@ -975,15 +985,20 @@ export class CommunityFeedComponent implements OnDestroy {
       return null;
     }
 
-    const roundedLatitude = Math.round(latitude * 100) / 100;
-    const roundedLongitude = Math.round(longitude * 100) / 100;
-    const normalizedLatitude = Object.is(roundedLatitude, -0) ? 0 : roundedLatitude;
-    const normalizedLongitude = Object.is(roundedLongitude, -0) ? 0 : roundedLongitude;
+    const decimals = location.precision === 'precise' ? 6 : 2;
+    const normalizedLatitudeValue = Number(latitude.toFixed(decimals));
+    const normalizedLongitudeValue = Number(longitude.toFixed(decimals));
+    const normalizedLatitude = Object.is(normalizedLatitudeValue, -0)
+      ? 0
+      : normalizedLatitudeValue;
+    const normalizedLongitude = Object.is(normalizedLongitudeValue, -0)
+      ? 0
+      : normalizedLongitudeValue;
 
     return {
       latitude: normalizedLatitude,
       longitude: normalizedLongitude,
-      cacheKey: `${normalizedLatitude.toFixed(2)},${normalizedLongitude.toFixed(2)}`,
+      cacheKey: `${location.precision}:${normalizedLatitude.toFixed(decimals)},${normalizedLongitude.toFixed(decimals)}`,
     };
   }
 
