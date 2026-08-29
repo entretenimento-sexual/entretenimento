@@ -79,6 +79,8 @@ export function buildCommunityFeedPostCreatePayload(
       ? {
           latitude: request.location.latitude,
           longitude: request.location.longitude,
+          precision: request.location.precision,
+          accuracyMeters: request.location.accuracyMeters ?? null,
         }
       : null,
     replyToPostId: request.replyToPostId?.trim() || null,
