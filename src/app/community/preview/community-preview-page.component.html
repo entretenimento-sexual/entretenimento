@@ -71,6 +71,31 @@
               </div>
 
               <h1>{{ preview.community.name }}</h1>
+
+              <div
+                class="community-preview__metrics"
+                [attr.aria-label]="metricsAriaLabel(preview.community)"
+              >
+                <span>
+                  <i class="fas fa-users" aria-hidden="true"></i>
+                  @if (
+                    preview.community.source.type === 'community'
+                    && preview.capacity
+                  ) {
+                    {{ preview.capacity.memberCount }} integrantes
+                  } @else {
+                    {{ preview.community.metrics.memberCount }} pessoas
+                  }
+                </span>
+                <span>
+                  <i class="fas fa-message" aria-hidden="true"></i>
+                  {{ preview.community.metrics.postCount }} publicações
+                </span>
+                <span>
+                  <i class="fas fa-image" aria-hidden="true"></i>
+                  {{ preview.community.metrics.mediaCount }} mídias
+                </span>
+              </div>
             </div>
 
             <div class="community-preview__membership-controls">
