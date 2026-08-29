@@ -397,15 +397,17 @@
                   class="community-post__location"
                   [attr.aria-label]="'Localização aproximada compartilhada: ' + approximateLocationLabel(location.latitude, location.longitude)"
                 >
-                  <div class="community-post__location-map">
-                    <iframe
-                      [attr.src]="'https://www.google.com/maps?q=' + location.latitude + ',' + location.longitude + '&z=14&output=embed'"
-                      [attr.title]="'Mapa da localização aproximada ' + approximateLocationLabel(location.latitude, location.longitude)"
-                      loading="lazy"
-                      referrerpolicy="no-referrer-when-downgrade"
-                      allowfullscreen
-                    ></iframe>
-                  </div>
+                  @if (locationMapEmbedUrl(item); as mapUrl) {
+                    <div class="community-post__location-map">
+                      <iframe
+                        [src]="mapUrl"
+                        [attr.title]="'Mapa da localização aproximada ' + approximateLocationLabel(location.latitude, location.longitude)"
+                        loading="lazy"
+                        referrerpolicy="no-referrer-when-downgrade"
+                        allowfullscreen
+                      ></iframe>
+                    </div>
+                  }
                   <div class="community-post__location-meta">
                     <span class="community-post__location-label">
                       <i class="fas fa-location-dot" aria-hidden="true"></i>
