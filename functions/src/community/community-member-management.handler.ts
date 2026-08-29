@@ -88,7 +88,8 @@ function assertManagementRuntime(): void {
 
   throw new HttpsError(
     'failed-precondition',
-    'A gestão de membros ainda não está disponível neste ambiente.'
+    'A gestão de membros ainda não está disponível neste ambiente.',
+    { reason: 'community_management_unavailable' }
   );
 }
 
@@ -100,13 +101,18 @@ function assertAuthenticatedUid(auth: unknown): string {
   const uid = normalizeSafeId(source.uid);
 
   if (!uid) {
-    throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    throw new HttpsError(
+      'unauthenticated',
+      'Usuário não autenticado.',
+      { reason: 'authentication_required' }
+    );
   }
 
   if (source.token?.['email_verified'] !== true) {
     throw new HttpsError(
       'failed-precondition',
-      'Verifique seu e-mail para continuar.'
+      'Verifique seu e-mail para continuar.',
+      { reason: 'email_verification_required' }
     );
   }
 
@@ -233,7 +239,8 @@ function assertCommunityManageable(rawCommunity: unknown): void {
   if (source['type'] !== 'community') {
     throw new HttpsError(
       'failed-precondition',
-      'A gestão de participantes de um Local segue fluxo próprio.'
+      'A gestão de participantes de um Local segue fluxo próprio.',
+      { reason: 'community_source_not_supported' }
     );
   }
 
@@ -243,7 +250,8 @@ function assertCommunityManageable(rawCommunity: unknown): void {
   ) {
     throw new HttpsError(
       'failed-precondition',
-      'Esta Comunidade não pode ser gerenciada agora.'
+      'Esta Comunidade não pode ser gerenciada agora.',
+      { reason: 'community_not_manageable' }
     );
   }
 }
@@ -262,7 +270,8 @@ function assertManagerMembership(rawMembership: unknown): {
   ) {
     throw new HttpsError(
       'permission-denied',
-      'Sua função não permite gerenciar participantes desta Comunidade.'
+      'Sua função não permite gerenciar participantes desta Comunidade.',
+      { reason: 'manager_required' }
     );
   }
 
@@ -333,41 +342,47 @@ function throwDecisionError(reason: string | null): never {
   if (reason === 'community_source_not_supported') {
     throw new HttpsError(
       'failed-precondition',
-      'Esta ação não está disponível para este tipo de espaço.'
+      'Esta ação não está disponível para este tipo de espaço.',
+      { reason }
     );
   }
 
   if (reason === 'manager_required') {
     throw new HttpsError(
       'permission-denied',
-      'Sua função não permite gerenciar participantes.'
+      'Sua função não permite gerenciar participantes.',
+      { reason }
     );
   }
 
   if (reason === 'self_action_forbidden') {
     throw new HttpsError(
       'invalid-argument',
-      'Use os controles da sua própria participação para alterar seu vínculo.'
+      'Use os controles da sua própria participação para alterar seu vínculo.',
+      { reason }
     );
   }
 
   if (reason === 'owner_protected') {
     throw new HttpsError(
       'failed-precondition',
-      'O proprietário só pode ser alterado pelo fluxo de transferência de propriedade.'
+      'O proprietário só pode ser alterado pelo fluxo de transferência de propriedade.',
+      { reason }
     );
   }
 
   if (reason === 'role_change_forbidden' || reason === 'action_forbidden') {
     throw new HttpsError(
       'permission-denied',
-      'Sua função não permite executar esta ação sobre este participante.'
+      'Sua função não permite executar esta ação sobre este participante.',
+      { reason }
     );
   }
 
   throw new HttpsError(
     'failed-precondition',
-    'O vínculo deste participante não permite esta ação agora.'
+    'O vínculo deste participante não permite esta ação agora.',
+    { reason: reason ?? 'target_unavailable' }
   );
 }
 
@@ -387,7 +402,11 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
     const limit = normalizePageLimit(request.data?.limit);
 
     if (!communityId || !status || (providedCursor && !cursor)) {
-      throw new HttpsError('invalid-argument', 'Consulta de participantes inválida.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Consulta de participantes inválida.',
+        { reason: 'invalid_management_query' }
+      );
     }
 
     const communityRef = db.collection('communities').doc(communityId);
@@ -401,7 +420,11 @@ export const getCommunityMembersForManagement = onCall<ManagedMembersPagePayload
       ]);
 
     if (!communitySnapshot.exists) {
-      throw new HttpsError('not-found', 'Comunidade não encontrada.');
+      throw new HttpsError(
+        'not-found',
+        'Comunidade não encontrada.',
+        { reason: 'community_not_found' }
+      );
     }
 
     assertCommunityMembershipActorEligible(
@@ -498,11 +521,19 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
     const nextRole = normalizeAssignableRole(request.data?.nextRole);
 
     if (!communityId || !memberId || !action) {
-      throw new HttpsError('invalid-argument', 'Ação de gestão inválida.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Ação de gestão inválida.',
+        { reason: 'invalid_member_management_action' }
+      );
     }
 
     if (action === 'set_role' && !nextRole) {
-      throw new HttpsError('invalid-argument', 'Papel comunitário inválido.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Papel comunitário inválido.',
+        { reason: 'invalid_community_role' }
+      );
     }
 
     return db.runTransaction(async (transaction) => {
@@ -529,7 +560,11 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
       ]);
 
       if (!communitySnapshot.exists) {
-        throw new HttpsError('not-found', 'Comunidade não encontrada.');
+        throw new HttpsError(
+          'not-found',
+          'Comunidade não encontrada.',
+          { reason: 'community_not_found' }
+        );
       }
 
       assertCommunityMembershipActorEligible(
