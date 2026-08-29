@@ -92,6 +92,7 @@ const page: CommunityFeedPage = {
         latitude: -22.91,
         longitude: -43.18,
         precision: 'approximate',
+        accuracyMeters: null,
       },
       replyTo: null,
       metrics: { commentCount: 1, reactionCount: 1 },
@@ -230,7 +231,16 @@ const visualCommentRepository = {
     {
       provide: GeolocationService,
       useValue: {
-        currentPosition$: () => of({ latitude: -22.91, longitude: -43.18 }),
+        currentPosition$: () => of({
+          latitude: -22.912345,
+          longitude: -43.187654,
+          accuracy: 18,
+        }),
+        watchPosition$: () => of({
+          latitude: -22.912345,
+          longitude: -43.187654,
+          accuracy: 18,
+        }),
       },
     },
     {
