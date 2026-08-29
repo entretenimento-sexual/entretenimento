@@ -254,26 +254,20 @@
   }
 }
 
-
-/* Localização compartilhada no Mural: sempre aproximada e explícita. */
-.community-feed__location-preview,
-.community-post__location {
+/* Localização selecionada no composer: sempre aproximada e explícita. */
+.community-feed__location-preview {
   min-width: 0;
   display: grid;
   grid-template-columns: 2.4rem minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.65rem;
+  padding: 0.5rem 0.6rem;
   border: 1px solid var(--surface-border);
   border-radius: 0.9rem;
   background: color-mix(in oklab, var(--surface-color) 94%, var(--primary-color) 6%);
 }
 
-.community-feed__location-preview {
-  padding: 0.5rem 0.6rem;
-}
-
-.community-feed__location-preview > i,
-.community-post__location > i:first-child {
+.community-feed__location-preview > i {
   width: 2.4rem;
   height: 2.4rem;
   display: grid;
@@ -283,20 +277,17 @@
   color: var(--primary-color);
 }
 
-.community-feed__location-preview span,
-.community-post__location span {
+.community-feed__location-preview span {
   min-width: 0;
   display: grid;
   gap: 0.1rem;
 }
 
-.community-feed__location-preview strong,
-.community-post__location strong {
+.community-feed__location-preview strong {
   font-size: 0.78rem;
 }
 
-.community-feed__location-preview small,
-.community-post__location small {
+.community-feed__location-preview small {
   color: color-mix(in oklab, var(--text-color) 62%, transparent);
   font-size: 0.68rem;
 }
@@ -318,32 +309,127 @@
   color: var(--error-color, #b42318);
 }
 
-.community-post__location {
-  margin: 0.65rem 0;
-  padding: 0.65rem 0.75rem;
-  color: inherit;
-  text-decoration: none;
-}
-
-.community-post__location > i:last-child {
-  color: color-mix(in oklab, var(--text-color) 54%, transparent);
-  font-size: 0.72rem;
-}
-
-.community-post__location:hover {
-  border-color: color-mix(in oklab, var(--primary-color) 45%, var(--surface-border));
-}
-
 .community-feed__location-preview button:focus-visible,
-.community-post__location:focus-visible {
+.community-post__location-link:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
 
+/* Localização já compartilhada: mapa incorporado + fallback no Google Maps. */
+.community-post__location {
+  width: min(100%, 38rem);
+  min-width: 0;
+  overflow: hidden;
+  margin: 0.65rem 0;
+  border: 1px solid var(--surface-border);
+  border-radius: 0.9rem;
+  background: color-mix(in oklab, var(--surface-color) 97%, var(--primary-color) 3%);
+}
+
+.community-post__location-map {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 12rem;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--surface-color) 92%, var(--primary-color) 8%);
+}
+
+.community-post__location-map iframe {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+}
+
+.community-post__location-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.62rem 0.72rem;
+}
+
+.community-post__location-label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.58rem;
+}
+
+.community-post__location-label > i {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--surface-color) 82%, var(--primary-color) 18%);
+  color: var(--primary-color);
+}
+
+.community-post__location-label > span {
+  min-width: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.community-post__location-label strong {
+  font-size: 0.78rem;
+}
+
+.community-post__location-label small {
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  font-size: 0.68rem;
+}
+
+.community-post__location-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  flex: 0 0 auto;
+  padding: 0.45rem 0.65rem;
+  border-radius: 999px;
+  color: var(--primary-color);
+  font-size: 0.72rem;
+  font-weight: 720;
+  text-decoration: none;
+}
+
+.community-post__location-link:hover {
+  background: color-mix(in oklab, var(--surface-color) 88%, var(--primary-color) 12%);
+}
+
 @media (max-width: 520px) {
-  .community-feed__location-preview,
-  .community-post__location {
+  .community-feed__location-preview {
     grid-template-columns: 2.25rem minmax(0, 1fr) auto;
     gap: 0.5rem;
   }
+
+  .community-post__location {
+    width: 100%;
+  }
+
+  .community-post__location-map {
+    min-height: 10rem;
+  }
+
+  .community-post__location-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .community-post__location-link {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+:host-context(.high-contrast) .community-post__location {
+  border-width: 2px;
+  border-color: var(--text-color);
+  background: var(--surface-color);
 }
