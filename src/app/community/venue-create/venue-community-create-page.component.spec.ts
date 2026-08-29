@@ -95,10 +95,11 @@ describe('VenueCommunityCreatePageComponent', () => {
     ]);
   });
 
-  it('explica a verificação comercial e preserva o erro técnico centralizado', () => {
+  it('explica a verificação comercial sem expor detalhe técnico', () => {
     createVenueCommunity$.mockReturnValue(
       throwError(() => ({
         code: 'functions/permission-denied',
+        message: 'internal commercial detail',
         details: { reason: 'official_space_verification_required' },
       }))
     );
@@ -121,12 +122,14 @@ describe('VenueCommunityCreatePageComponent', () => {
     expect(showError).toHaveBeenCalledWith(
       'O cadastro exige uma organização e um responsável comercial verificados.'
     );
+    expect(showError.mock.calls[0]?.[0]).not.toContain('internal commercial detail');
     expect(handleError).toHaveBeenCalledTimes(1);
     expect(handleError.mock.calls[0][0]).toMatchObject({
       skipUserNotification: true,
       context: {
+        feature: 'community',
+        operation: 'createVenueCommunity',
         scope: 'VenueCommunityCreatePageComponent',
-        op: 'createVenueCommunity',
       },
     });
   });
