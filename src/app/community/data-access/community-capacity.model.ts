@@ -2,6 +2,10 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY CAPACITY - CLIENT CONTRACTS
 // -----------------------------------------------------------------------------
+// O cliente conhece o contrato e normaliza respostas, mas não decide entitlement,
+// quota de criação nem teto por plano. Essas políticas permanecem autoritativas
+// em functions/src/community/community-capacity.policy.ts.
+// -----------------------------------------------------------------------------
 
 import type { PlatformSubscriptionRole } from 'src/app/core/services/subscriptions/platform-subscription-access.model';
 
@@ -31,12 +35,6 @@ export interface CommunityCapacityPreview {
   allowedMemberLimits: readonly CommunityMemberLimit[];
 }
 
-export interface PersonalCommunityCreationPolicy {
-  canCreate: boolean;
-  maxOwnedCommunities: number | null;
-  memberLimit: CommunityEffectiveMemberLimit;
-}
-
 export type CommunityCreationCapabilityReason =
   | 'subscription_required'
   | 'limit_reached'
@@ -54,26 +52,6 @@ export interface CommunityCreationCapability {
   generatedAt: number;
 }
 
-const ROLE_LIMIT: Readonly<
-  Record<CommunityCapacitySponsorRole, CommunityEffectiveMemberLimit>
-> = {
-  free: 0,
-  basic: 100,
-  premium: 250,
-  vip: 500,
-  admin: 1_000,
-};
-
-const PERSONAL_CREATION_LIMIT: Readonly<
-  Record<CommunityCapacitySponsorRole, number | null>
-> = {
-  free: 0,
-  basic: 1,
-  premium: 3,
-  vip: 5,
-  admin: null,
-};
-
 export function normalizeCommunityMemberLimit(
   value: unknown
 ): CommunityMemberLimit | null {
@@ -84,31 +62,10 @@ export function normalizeCommunityMemberLimit(
     : null;
 }
 
-export function resolveCommunityCapacitySponsorRole(
-  subscriptionRole: PlatformSubscriptionRole | null,
-  userRole: unknown
-): CommunityCapacitySponsorRole {
-  if (userRole === 'admin') return 'admin';
-  return subscriptionRole ?? 'free';
-}
-
-export function resolveCommunityMemberLimitOptions(
-  role: CommunityCapacitySponsorRole
-): readonly CommunityMemberLimit[] {
-  const ceiling = ROLE_LIMIT[role];
-  return COMMUNITY_MEMBER_LIMIT_OPTIONS.filter((limit) => limit <= ceiling);
-}
-
-export function resolvePersonalCommunityCreationPolicy(
-  role: CommunityCapacitySponsorRole
-): Readonly<PersonalCommunityCreationPolicy> {
-  return {
-    canCreate: role !== 'free',
-    maxOwnedCommunities: PERSONAL_CREATION_LIMIT[role],
-    memberLimit: ROLE_LIMIT[role],
-  };
-}
-
+/**
+ * Rótulo exclusivamente de apresentação. Não concede acesso e não substitui a
+ * capability retornada pelo backend; a validação efetiva sempre ocorre na Function.
+ */
 export function communityMemberLimitRequiredRole(
   limit: CommunityMemberLimit
 ): 'Basic' | 'Premium' | 'VIP' | 'Comercial' {
