@@ -42,7 +42,7 @@
                 <div class="community-feed__location-preview" role="status" aria-live="polite">
                   <i class="fas fa-location-dot" aria-hidden="true"></i>
                   <span>
-                    <strong>Localização aproximada</strong>
+                    <strong>Localização atual</strong>
                     <small>{{ approximateLocationLabel(attachment.latitude, attachment.longitude) }}</small>
                   </span>
                   <button
@@ -366,13 +366,13 @@
               @if (item.location; as location) {
                 <section
                   class="community-post__location"
-                  [attr.aria-label]="'Localização aproximada compartilhada: ' + approximateLocationLabel(location.latitude, location.longitude)"
+                  [attr.aria-label]="'Localização compartilhada: ' + approximateLocationLabel(location.latitude, location.longitude)"
                 >
                   @if (locationMapEmbedUrl(item); as mapUrl) {
                     <div class="community-post__location-map">
                       <iframe
                         [src]="mapUrl"
-                        [attr.title]="'Mapa da localização aproximada ' + approximateLocationLabel(location.latitude, location.longitude)"
+                        [attr.title]="'Mapa da localização compartilhada ' + approximateLocationLabel(location.latitude, location.longitude)"
                         loading="lazy"
                         referrerpolicy="no-referrer-when-downgrade"
                         allowfullscreen
@@ -383,7 +383,7 @@
                     <span class="community-post__location-label">
                       <i class="fas fa-location-dot" aria-hidden="true"></i>
                       <span>
-                        <strong>Localização aproximada</strong>
+                        <strong>Localização compartilhada</strong>
                         <small>{{ approximateLocationLabel(location.latitude, location.longitude) }}</small>
                       </span>
                     </span>
@@ -392,9 +392,9 @@
                       [href]="locationMapUrl(item)"
                       target="_blank"
                       rel="noopener noreferrer"
-                      [attr.aria-label]="'Abrir localização aproximada ' + approximateLocationLabel(location.latitude, location.longitude) + ' no Google Maps'"
+                      [attr.aria-label]="'Abrir localização compartilhada ' + approximateLocationLabel(location.latitude, location.longitude) + ' no Google Maps'"
                     >
-                      <span>Abrir no Google Maps</span>
+                      <span>Abrir mapa</span>
                       <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
                     </a>
                   </div>
