@@ -368,10 +368,15 @@
                   class="community-post__location"
                   [attr.aria-label]="'Localização compartilhada. ' + locationAccuracyLabel(location.accuracyMeters)"
                 >
-                  <details #locationMapDetails class="community-post__location-details">
+                  <details
+                    #locationMapDetails
+                    class="community-post__location-details"
+                    (toggle)="$event.stopPropagation()"
+                  >
                     <summary
                       class="community-post__location-meta"
                       style="justify-content: space-between; cursor: pointer; list-style: none;"
+                      [attr.aria-expanded]="locationMapDetails.open"
                       [attr.aria-label]="(locationMapDetails.open ? 'Ocultar' : 'Ver') + ' mapa da localização compartilhada. ' + locationAccuracyLabel(location.accuracyMeters)"
                     >
                       <span class="community-post__location-label">
