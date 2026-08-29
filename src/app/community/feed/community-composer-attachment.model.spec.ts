@@ -6,6 +6,7 @@ import {
 } from 'src/app/core/services/media/media-format.policy';
 import {
   MAX_COMMUNITY_COMPOSER_IMAGE_BYTES,
+  createCommunityComposerLocationAttachment,
   validateCommunityComposerImage,
 } from './community-composer-attachment.model';
 
@@ -29,5 +30,19 @@ describe('community composer attachment model', () => {
     expect(validateCommunityComposerImage(oversized)).toEqual(
       validateImageMediaFile(oversized, 'default')
     );
+  });
+
+  it('preserva localização precisa após gesto explícito e normaliza a acurácia', () => {
+    expect(createCommunityComposerLocationAttachment(
+      -22.9123454,
+      -43.1765434,
+      8.4
+    )).toEqual({
+      kind: 'location',
+      latitude: -22.912345,
+      longitude: -43.176543,
+      precision: 'precise',
+      accuracyMeters: 8,
+    });
   });
 });
