@@ -338,13 +338,13 @@
   outline-offset: var(--focus-offset);
 }
 
-/* Localização compartilhada: o próprio mapa é a ação principal. A faixa abaixo
-   existe apenas para informar a natureza/precisão da coordenada compartilhada. */
+/* Localização compartilhada continua precisa e diretamente acionável, mas não
+   deve dominar verticalmente a leitura quando várias posições aparecem no Mural. */
 .community-post__location {
-  width: min(100%, 38rem);
+  width: min(calc(100% - 3.17rem), 36rem);
   min-width: 0;
   overflow: hidden;
-  margin: 0.65rem 0;
+  margin: 0.58rem 0 0.18rem 3.17rem;
   border: 1px solid var(--surface-border);
   border-radius: 0.9rem;
   background: color-mix(in oklab, var(--surface-color) 98%, var(--primary-color) 2%);
@@ -353,8 +353,8 @@
 .community-post__location-map {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
-  min-height: 12rem;
+  height: clamp(10.5rem, 18vw, 13rem);
+  min-height: 0;
   overflow: hidden;
   background: color-mix(in oklab, var(--surface-color) 92%, var(--primary-color) 8%);
 }
@@ -463,10 +463,12 @@
 
   .community-post__location {
     width: 100%;
+    margin: 0.55rem 0 0.15rem;
   }
 
   .community-post__location-map {
-    min-height: 10rem;
+    height: clamp(10rem, 52vw, 12rem);
+    min-height: 0;
   }
 
   .community-post__location-map-hint {
