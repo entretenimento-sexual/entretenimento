@@ -10,6 +10,7 @@ on:
       - 'src/app/community/feed-comments/**'
       - 'src/app/community/data-access/community-feed*.ts'
       - 'src/styles/**'
+      - '.github/visual-harness/community-mural-visual.app-component.ts'
       - '.github/workflows/community-feed-visual-validation.yml'
 
 permissions:
@@ -36,108 +37,18 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      # Migração temporária e idempotente. Depois de validada, os arquivos
-      # transformados são materializados no main e este passo é removido.
-      - name: Prepare Mural style and touch-target candidate
-        shell: bash
-        run: |
-          set -euo pipefail
-          node <<'NODE'
-          const fs = require('node:fs');
-          const cssPath = 'src/app/community/feed/community-feed.component.css';
-          const interactionPath = 'src/app/community/feed/community-feed.interactions.css';
-          const commentsPath = 'src/app/community/feed-comments/community-feed-comments.component.css';
-          const componentPath = 'src/app/community/feed/community-feed.component.ts';
-          const marker = '/* A referência contextualiza a conversa sem disputar atenção com a mensagem atual. */';
-
-          function replaceCompat(source, oldValue, newValue, label) {
-            if (source.includes(oldValue)) return source.replaceAll(oldValue, newValue);
-            if (source.includes(newValue)) return source;
-            throw new Error(`Não foi possível aplicar ajuste idempotente: ${label}`);
-          }
-
-          const originalCss = fs.readFileSync(cssPath, 'utf8');
-          if (originalCss.includes(marker)) {
-            const index = originalCss.indexOf(marker);
-            const baseCss = `${originalCss.slice(0, index).trimEnd()}\n`;
-            const interactionCss = `${originalCss.slice(index).trim()}\n`;
-            if (!interactionCss.includes('.community-post__location')) {
-              throw new Error('A partição não capturou os estilos de localização do Mural.');
-            }
-            fs.writeFileSync(cssPath, baseCss);
-            fs.writeFileSync(interactionPath, interactionCss);
-          } else if (!fs.existsSync(interactionPath)) {
-            throw new Error('Marcador da partição do Mural ausente e arquivo de interações inexistente.');
-          }
-
-          let baseCss = fs.readFileSync(cssPath, 'utf8');
-          baseCss = replaceCompat(baseCss, 'grid-template-columns: minmax(0, 1fr) 2.65rem 2.65rem;', 'grid-template-columns: minmax(0, 1fr) 44px 44px;', 'grid do composer');
-          baseCss = replaceCompat(baseCss, '  min-height: 2.65rem;', '  min-height: 44px;', 'altura do textarea');
-          baseCss = replaceCompat(baseCss, '  width: 2.65rem;\n  height: 2.65rem;', '  width: 44px;\n  height: 44px;', 'controles circulares do composer');
-          baseCss = replaceCompat(baseCss, 'grid-template-columns: 3.3rem minmax(0, 1fr) 2.25rem;', 'grid-template-columns: 3.3rem minmax(0, 1fr) 44px;', 'grid da prévia de foto');
-          baseCss = replaceCompat(baseCss, '  width: 2.25rem;\n  height: 2.25rem;', '  width: 44px;\n  height: 44px;', 'remoção de foto');
-          baseCss = replaceCompat(baseCss, '  min-height: 2.75rem;', '  min-height: 44px;', 'alvos principais do Mural');
-          baseCss = replaceCompat(baseCss, '  width: 2.75rem;\n  height: 2.75rem;', '  width: 44px;\n  height: 44px;', 'menu da publicação');
-          baseCss = replaceCompat(baseCss, '  min-height: 2.5rem;', '  min-height: 44px;', 'confirmações do Mural');
-          baseCss = replaceCompat(baseCss, '  min-height: 2.25rem;', '  min-height: 44px;', 'ações da grade de fotos');
-          baseCss = replaceCompat(baseCss, '    grid-template-columns: minmax(0, 1fr) 2.5rem 2.5rem;', '    grid-template-columns: minmax(0, 1fr) 44px 44px;', 'grid mobile do composer');
-          baseCss = replaceCompat(baseCss, '    width: 2.5rem;\n    height: 2.5rem;', '    width: 44px;\n    height: 44px;', 'controles mobile do composer');
-          fs.writeFileSync(cssPath, baseCss);
-
-          let interactionCss = fs.readFileSync(interactionPath, 'utf8');
-          interactionCss = replaceCompat(interactionCss, '.community-post__reply-context.is-navigable {\n  cursor: pointer;', '.community-post__reply-context.is-navigable {\n  min-height: 44px;\n  cursor: pointer;', 'referência navegável');
-          interactionCss = replaceCompat(interactionCss, '  min-height: 2.5rem;', '  min-height: 44px;', 'aviso de novas publicações');
-          interactionCss = replaceCompat(interactionCss, '  width: 2.25rem;\n  height: 2.25rem;', '  width: 44px;\n  height: 44px;', 'remoção de localização');
-          fs.writeFileSync(interactionPath, interactionCss);
-
-          let commentsCss = fs.readFileSync(commentsPath, 'utf8');
-          commentsCss = replaceCompat(commentsCss, '  width: 2.75rem;\n  height: 2.75rem;', '  width: 44px;\n  height: 44px;', 'botões circulares da conversa');
-          commentsCss = replaceCompat(commentsCss, '  min-height: 2.75rem;', '  min-height: 44px;', 'alvos da conversa');
-          commentsCss = replaceCompat(commentsCss, '.feed-comment__quote {\n  width: min(100%, 28rem);', '.feed-comment__quote {\n  width: min(100%, 28rem);\n  min-height: 44px;', 'citação navegável da conversa');
-          commentsCss = replaceCompat(commentsCss, '  min-height: 2.15rem;', '  min-height: 44px;', 'ação responder na conversa');
-          commentsCss = replaceCompat(commentsCss, '  grid-template-columns: minmax(0, 1fr) 2.75rem;', '  grid-template-columns: minmax(0, 1fr) 44px;', 'grid do contexto de resposta');
-          commentsCss = replaceCompat(commentsCss, '  min-width: 2.75rem;\n  min-height: 44px;', '  min-width: 44px;\n  min-height: 44px;', 'botão enviar da conversa');
-          commentsCss = replaceCompat(commentsCss, '    width: 2.75rem;\n    padding-inline: 0;', '    width: 44px;\n    padding-inline: 0;', 'botão enviar mobile da conversa');
-          fs.writeFileSync(commentsPath, commentsCss);
-
-          let component = fs.readFileSync(componentPath, 'utf8');
-          const singleStyle = "  styleUrl: './community-feed.component.css',";
-          const partitionedStyles = "  styleUrls: [\n    './community-feed.component.css',\n    './community-feed.interactions.css',\n  ],";
-          if (component.includes(singleStyle)) {
-            component = component.replace(singleStyle, partitionedStyles);
-            fs.writeFileSync(componentPath, component);
-          } else if (!component.includes("'./community-feed.interactions.css'")) {
-            throw new Error('CommunityFeedComponent não referencia a partição de interações.');
-          }
-
-          const baseSize = fs.statSync(cssPath).size;
-          const interactionSize = fs.statSync(interactionPath).size;
-          console.log(JSON.stringify({ baseSize, interactionSize }));
-          if (baseSize >= 20 * 1024 || interactionSize >= 20 * 1024) {
-            throw new Error('Uma partição de estilos do Mural ainda excede 20 KiB.');
-          }
-          NODE
-
       - name: Install dependencies
         run: npm ci
 
       - name: Validate production-safe build
         run: npm run build:safe
 
-      - name: Stage validated source candidate
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/source/src/app/community/feed artifacts/source/src/app/community/feed-comments
-          cp src/app/community/feed/community-feed.component.css artifacts/source/src/app/community/feed/
-          cp src/app/community/feed/community-feed.interactions.css artifacts/source/src/app/community/feed/
-          cp src/app/community/feed/community-feed.component.ts artifacts/source/src/app/community/feed/
-          cp src/app/community/feed-comments/community-feed-comments.component.css artifacts/source/src/app/community/feed-comments/
-
       - name: Prepare isolated Mural visual harness
         shell: bash
         run: |
           set -euo pipefail
+          cp .github/visual-harness/community-mural-visual.app-component.ts src/app/app.component.ts
+
           cat > src/main.ts <<'TS'
           import 'zone.js';
           import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
@@ -162,114 +73,6 @@ jobs:
           export class AppModule {}
           TS
 
-          cat > src/app/app.component.ts <<'TS'
-          import { Component } from '@angular/core';
-          import { NEVER, of } from 'rxjs';
-
-          import { AuthSessionService } from './core/services/autentication/auth/auth-session.service';
-          import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';
-          import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
-          import { GeolocationService } from './core/services/geolocation/geolocation.service';
-          import { PhotoEditorLauncherService } from './core/services/image-handling/photo-editor-launcher.service';
-          import { StorageService } from './core/services/image-handling/storage.service';
-          import { CameraCaptureService } from './core/services/media/camera-capture.service';
-          import { CommunityFeedCommentRepository } from './community/data-access/community-feed-comment.repository';
-          import type { CommunityFeedCommentPage } from './community/data-access/community-feed-comment.model';
-          import { CommunityFeedRepository } from './community/data-access/community-feed.repository';
-          import type {
-            CommunityFeedPage,
-            CommunityFeedPostActionRequest,
-            CommunityFeedPostCreateRequest,
-            CommunityFeedReactionRequest,
-          } from './community/data-access/community-feed.model';
-
-          const now = Date.now();
-          const image = `data:image/svg+xml,${encodeURIComponent(`
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675">
-              <defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#202631"/><stop offset="1" stop-color="#70798a"/></linearGradient></defs>
-              <rect width="1200" height="675" fill="url(#g)"/>
-              <circle cx="820" cy="260" r="145" fill="#ffffff" opacity=".10"/>
-              <rect x="120" y="420" width="760" height="68" rx="34" fill="#ffffff" opacity=".12"/>
-            </svg>
-          `)}`;
-
-          const page: CommunityFeedPage = {
-            generatedAt: now,
-            nextCursor: null,
-            items: [
-              {
-                postId: 'visual-text', kind: 'text', author: { label: 'Ana', avatarUrl: null },
-                text: 'Uma publicação curta para conferir leitura, ações e abertura da conversa sem transformar o Mural em um formulário administrativo.',
-                image: null, location: null, replyTo: null,
-                metrics: { commentCount: 2, reactionCount: 8 },
-                capabilities: { canDeleteOwn: false, canModerate: false, canReport: false, canReact: true, viewerReacted: false, canViewComments: true, canComment: true },
-                publishedAt: now - 4 * 60_000,
-              },
-              {
-                postId: 'visual-photo', kind: 'photo', author: { label: 'Bruno', avatarUrl: null },
-                text: 'Registro visual compartilhado pela comunidade.', image: { url: image, alt: 'Imagem de teste do Mural' }, location: null,
-                replyTo: { postId: 'visual-text', authorLabel: 'Ana', textPreview: 'Uma publicação curta para conferir leitura e ações.', available: true },
-                metrics: { commentCount: 0, reactionCount: 3 },
-                capabilities: { canDeleteOwn: false, canModerate: false, canReport: false, canReact: true, viewerReacted: true, canViewComments: true, canComment: true },
-                publishedAt: now - 12 * 60_000,
-              },
-              {
-                postId: 'visual-location', kind: 'location', author: { label: 'Carla', avatarUrl: null },
-                text: 'Ponto aproximado para o encontro do grupo.', image: null,
-                location: { latitude: -22.91, longitude: -43.18, precision: 'approximate' }, replyTo: null,
-                metrics: { commentCount: 1, reactionCount: 1 },
-                capabilities: { canDeleteOwn: false, canModerate: false, canReport: false, canReact: true, viewerReacted: false, canViewComments: true, canComment: true },
-                publishedAt: now - 26 * 60_000,
-              },
-            ],
-          };
-
-          const comments: CommunityFeedCommentPage = {
-            generatedAt: now, nextCursor: null,
-            items: [
-              { commentId: 'visual-comment-1', author: { label: 'Diego', avatarUrl: null }, text: 'Gostei da proposta. Ficou fácil acompanhar a conversa.', replyTo: null, replyCount: 0, capabilities: { canDeleteOwn: false, canModerate: false, canReport: false }, createdAt: now - 3 * 60_000 },
-              { commentId: 'visual-comment-2', author: { label: 'Elisa', avatarUrl: null }, text: 'A resposta continua no contexto da publicação.', replyTo: { commentId: 'visual-comment-1', authorLabel: 'Diego', textPreview: 'Gostei da proposta.', available: true }, replyCount: 0, capabilities: { canDeleteOwn: false, canModerate: false, canReport: false }, createdAt: now - 2 * 60_000 },
-            ],
-          };
-
-          const visualFeedRepository = {
-            getPage$: () => of(page),
-            getItems$: ({ postIds }: { postIds: readonly string[] }) => of({ ...page, items: page.items.filter((item) => postIds.includes(item.postId)) }),
-            watchLatestChanges$: () => NEVER,
-            createPost$: (request: CommunityFeedPostCreateRequest) => of({ communityId: request.communityId, postId: 'visual-created-post', created: true, deduplicated: false }),
-            moderatePost$: (request: CommunityFeedPostActionRequest) => of({ communityId: request.communityId, postId: request.postId, action: request.action, status: request.action === 'delete_own' ? 'deleted' : 'removed', deduplicated: false, generatedAt: Date.now() }),
-            toggleReaction$: (request: CommunityFeedReactionRequest) => of({ communityId: request.communityId, postId: request.postId, reacted: true, reactionCount: 9 }),
-          };
-
-          const visualCommentRepository = {
-            getPage$: () => of(comments),
-            getRepliesPage$: () => of({ items: [], nextCursor: null, generatedAt: Date.now() }),
-            watchCommentCount$: () => of(2),
-            createComment$: (request: { communityId: string; postId: string }) => of({ communityId: request.communityId, postId: request.postId, commentId: 'visual-created-comment', commentCount: 3, created: true, deduplicated: false }),
-            createReply$: (request: { communityId: string; postId: string; commentId: string }) => of({ communityId: request.communityId, postId: request.postId, commentId: request.commentId, replyId: 'visual-created-reply', replyCount: 1, created: true, deduplicated: false }),
-            moderateComment$: () => NEVER,
-            moderateReply$: () => NEVER,
-          };
-
-          @Component({
-            selector: 'app-root', standalone: false,
-            providers: [
-              { provide: CommunityFeedRepository, useValue: visualFeedRepository },
-              { provide: CommunityFeedCommentRepository, useValue: visualCommentRepository },
-              { provide: ErrorNotificationService, useValue: { showSuccess: () => undefined, showWarning: () => undefined, showError: () => undefined } },
-              { provide: GlobalErrorHandlerService, useValue: { handleError: (error: unknown) => console.error(error) } },
-              { provide: GeolocationService, useValue: { currentPosition$: () => of({ latitude: -22.91, longitude: -43.18 }) } },
-              { provide: AuthSessionService, useValue: { currentAuthUser: { uid: 'visual-user' } } },
-              { provide: StorageService, useValue: { uploadFile: () => of('community-feed/visual-image.webp') } },
-              { provide: CameraCaptureService, useValue: {} },
-              { provide: PhotoEditorLauncherService, useValue: {} },
-            ],
-            template: `<main class="visual-shell"><header class="visual-shell__header"><p class="visual-shell__eyebrow">Comunidade</p><h1>Mural</h1><p>Validação isolada da superfície real do Mural.</p></header><app-community-feed communityId="visual-community" [canInteract]="true" viewerRole="member" /></main>`,
-            styles: [`:host{display:block;min-height:100vh}.visual-shell{width:min(100%,760px);margin:0 auto;padding:24px 16px 64px}.visual-shell__header{padding:8px 4px 18px}.visual-shell__header h1{margin:0;font-size:clamp(1.6rem,4vw,2.15rem)}.visual-shell__header p{margin:6px 0 0}.visual-shell__eyebrow{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}@media(max-width:480px){.visual-shell{padding:12px 8px 40px}}`],
-          })
-          export class AppComponent {}
-          TS
-
       - name: Install Playwright Chromium
         shell: bash
         run: |
@@ -282,8 +85,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          nohup npx ng serve --configuration=dev-emu --host=127.0.0.1 --port=4200 > artifacts/ng-serve.log 2>&1 &
+          nohup npx ng serve \
+            --configuration=dev-emu \
+            --host=127.0.0.1 \
+            --port=4200 \
+            > artifacts/ng-serve.log 2>&1 &
           echo $! > artifacts/ng-serve.pid
+
           for attempt in $(seq 1 180); do
             if curl --fail --silent --show-error 'http://127.0.0.1:4200/' >/dev/null; then
               echo "Mural visual harness ready after ${attempt}s"
@@ -291,6 +99,7 @@ jobs:
             fi
             sleep 1
           done
+
           cat artifacts/ng-serve.log >&2 || true
           exit 1
 
@@ -302,52 +111,209 @@ jobs:
           set -euo pipefail
           OUT='artifacts/community-mural'
           mkdir -p "$OUT/desktop" "$OUT/mobile"
-          check_log() { if grep -q '^### Error' "$1"; then cat "$1" >&2; exit 1; fi; }
-          run_checked() { local file="$1"; local code="$2"; playwright-cli run-code "$code" | tee "$file"; check_log "$file"; }
+
+          check_log() {
+            local file="$1"
+            if grep -q '^### Error' "$file"; then
+              cat "$file" >&2
+              exit 1
+            fi
+          }
+
+          run_checked() {
+            local file="$1"
+            local code="$2"
+            playwright-cli run-code "$code" | tee "$file"
+            check_log "$file"
+          }
 
           playwright-cli open 'http://127.0.0.1:4200/'
           playwright-cli resize 1440 1100
+
           run_checked "$OUT/desktop/metrics.log" "async (page) => {
             await page.waitForSelector('.community-post', { state: 'visible' });
             const metrics = await page.evaluate(() => {
-              const visible = (e) => { const s = getComputedStyle(e); return s.display !== 'none' && s.visibility !== 'hidden'; };
-              const size = (e) => { const r = e.getBoundingClientRect(); return Math.min(r.width, r.height); };
+              const visible = (element) => {
+                const style = getComputedStyle(element);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+              };
+              const size = (element) => {
+                const rect = element.getBoundingClientRect();
+                return Math.min(rect.width, rect.height);
+              };
               const actions = Array.from(document.querySelectorAll('.community-post__action')).filter(visible).map(size);
-              const composer = Array.from(document.querySelectorAll('.community-feed__composer-tool,.community-feed__send')).filter(visible).map(size);
+              const composer = Array.from(document.querySelectorAll('.community-feed__composer-tool, .community-feed__send')).filter(visible).map(size);
               const buttons = Array.from(document.querySelectorAll('button')).filter(visible);
-              return { viewportWidth: innerWidth, scrollWidth: document.documentElement.scrollWidth, postCount: document.querySelectorAll('.community-post').length, locationCount: document.querySelectorAll('.community-post__location').length, imageCount: document.querySelectorAll('.community-post__media img').length, minActionTarget: Math.min(...actions), minComposerTarget: Math.min(...composer), unnamedButtons: buttons.filter((b) => !((b.getAttribute('aria-label')||b.getAttribute('title')||b.textContent||'').trim())).length };
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                postCount: document.querySelectorAll('.community-post').length,
+                locationCount: document.querySelectorAll('.community-post__location').length,
+                imageCount: document.querySelectorAll('.community-post__media img').length,
+                minActionTarget: Math.min(...actions),
+                minComposerTarget: Math.min(...composer),
+                unnamedButtons: buttons.filter((button) => !(
+                  button.getAttribute('aria-label')
+                  || button.getAttribute('title')
+                  || button.textContent
+                  || ''
+                ).trim()).length,
+              };
             });
-            if (metrics.scrollWidth > metrics.viewportWidth + 1 || metrics.postCount !== 3 || metrics.locationCount !== 1 || metrics.imageCount !== 1 || metrics.minActionTarget < 44 || metrics.minComposerTarget < 44 || metrics.unnamedButtons > 0) throw new Error('Desktop Mural validation failed: ' + JSON.stringify(metrics));
+            if (
+              metrics.scrollWidth > metrics.viewportWidth + 1
+              || metrics.postCount !== 3
+              || metrics.locationCount !== 1
+              || metrics.imageCount !== 1
+              || metrics.minActionTarget < 44
+              || metrics.minComposerTarget < 44
+              || metrics.unnamedButtons > 0
+            ) {
+              throw new Error('Desktop Mural validation failed: ' + JSON.stringify(metrics));
+            }
             return metrics;
           }"
+
           playwright-cli snapshot --filename="$OUT/desktop/accessibility.yml"
           playwright-cli screenshot --filename="$OUT/desktop/viewport.png"
           playwright-cli screenshot --full-page --filename="$OUT/desktop/full-page.png"
 
-          run_checked "$OUT/desktop/reply.metrics.log" "async (page) => { const reply = page.getByRole('button',{name:'Responder à publicação de Ana'}); await reply.click(); await page.waitForSelector('.feed-comments',{state:'visible'}); const expanded=await reply.getAttribute('aria-expanded'); const comments=await page.locator('.feed-comment').count(); if(expanded!=='true'||comments!==2) throw new Error('Desktop conversation validation failed: '+JSON.stringify({expanded,comments})); return {expanded,comments}; }"
+          run_checked "$OUT/desktop/reply.metrics.log" "async (page) => {
+            const reply = page.getByRole('button', { name: 'Responder à publicação de Ana' });
+            await reply.click();
+            await page.waitForSelector('.feed-comments', { state: 'visible' });
+            const expanded = await reply.getAttribute('aria-expanded');
+            const comments = await page.locator('.feed-comment').count();
+            if (expanded !== 'true' || comments !== 2) {
+              throw new Error('Desktop conversation validation failed: ' + JSON.stringify({ expanded, comments }));
+            }
+            return { expanded, comments };
+          }"
           playwright-cli screenshot --full-page --filename="$OUT/desktop/reply-open.png"
 
-          run_checked "$OUT/desktop/location-composer.metrics.log" "async (page) => { await page.getByRole('button',{name:'Fechar conversa'}).click(); await page.locator('.community-feed__attachment-menu summary').click(); await page.getByRole('button',{name:'Localização'}).click(); await page.waitForSelector('.community-feed__location-preview',{state:'visible'}); const preview=(await page.locator('.community-feed__location-preview').innerText()).trim(); const rect=await page.getByRole('button',{name:'Remover localização selecionada'}).boundingBox(); const minRemoveTarget=rect?Math.min(rect.width,rect.height):0; const scrollWidth=await page.evaluate(()=>document.documentElement.scrollWidth); if(!preview.includes('-22.91')||!preview.includes('-43.18')||scrollWidth>1441||minRemoveTarget<44) throw new Error('Desktop location validation failed: '+JSON.stringify({preview,scrollWidth,minRemoveTarget})); return {preview,scrollWidth,minRemoveTarget}; }"
+          run_checked "$OUT/desktop/location-composer.metrics.log" "async (page) => {
+            await page.getByRole('button', { name: 'Fechar conversa' }).click();
+            await page.locator('.community-feed__attachment-menu summary').click();
+            await page.getByRole('button', { name: 'Localização' }).click();
+            await page.waitForSelector('.community-feed__location-preview', { state: 'visible' });
+            const preview = (await page.locator('.community-feed__location-preview').innerText()).trim();
+            const removeRect = await page.getByRole('button', { name: 'Remover localização selecionada' }).boundingBox();
+            const minRemoveTarget = removeRect ? Math.min(removeRect.width, removeRect.height) : 0;
+            const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+            if (
+              !preview.includes('-22.91')
+              || !preview.includes('-43.18')
+              || scrollWidth > 1441
+              || minRemoveTarget < 44
+            ) {
+              throw new Error('Desktop location validation failed: ' + JSON.stringify({ preview, scrollWidth, minRemoveTarget }));
+            }
+            return { preview, scrollWidth, minRemoveTarget };
+          }"
           playwright-cli screenshot --filename="$OUT/desktop/location-composer.png"
 
           playwright-cli goto 'http://127.0.0.1:4200/'
           playwright-cli resize 390 844
+
           run_checked "$OUT/mobile/metrics.log" "async (page) => {
-            await page.waitForSelector('.community-post',{state:'visible'});
-            const metrics=await page.evaluate(()=>{ const size=(e)=>{const r=e.getBoundingClientRect();return Math.min(r.width,r.height)}; const posts=Array.from(document.querySelectorAll('.community-post')).map(e=>e.getBoundingClientRect()); const actions=Array.from(document.querySelectorAll('.community-post__action')).map(size); const composer=Array.from(document.querySelectorAll('.community-feed__composer-tool,.community-feed__send')).map(size); const refs=Array.from(document.querySelectorAll('.community-post__reply-context.is-navigable')).map(e=>e.getBoundingClientRect().height); return {viewportWidth:innerWidth,scrollWidth:document.documentElement.scrollWidth,widestPost:Math.max(...posts.map(r=>r.width)),minActionTarget:Math.min(...actions),minComposerTarget:Math.min(...composer),minReferenceHeight:refs.length?Math.min(...refs):44}; });
-            if(metrics.scrollWidth>metrics.viewportWidth+1||metrics.widestPost>metrics.viewportWidth+1||metrics.minActionTarget<44||metrics.minComposerTarget<44||metrics.minReferenceHeight<44) throw new Error('Mobile Mural validation failed: '+JSON.stringify(metrics)); return metrics;
+            await page.waitForSelector('.community-post', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const size = (element) => {
+                const rect = element.getBoundingClientRect();
+                return Math.min(rect.width, rect.height);
+              };
+              const posts = Array.from(document.querySelectorAll('.community-post')).map((element) => element.getBoundingClientRect());
+              const actions = Array.from(document.querySelectorAll('.community-post__action')).map(size);
+              const composer = Array.from(document.querySelectorAll('.community-feed__composer-tool, .community-feed__send')).map(size);
+              const references = Array.from(document.querySelectorAll('.community-post__reply-context.is-navigable')).map((element) => element.getBoundingClientRect().height);
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                widestPost: Math.max(...posts.map((rect) => rect.width)),
+                minActionTarget: Math.min(...actions),
+                minComposerTarget: Math.min(...composer),
+                minReferenceHeight: references.length ? Math.min(...references) : 44,
+              };
+            });
+            if (
+              metrics.scrollWidth > metrics.viewportWidth + 1
+              || metrics.widestPost > metrics.viewportWidth + 1
+              || metrics.minActionTarget < 44
+              || metrics.minComposerTarget < 44
+              || metrics.minReferenceHeight < 44
+            ) {
+              throw new Error('Mobile Mural validation failed: ' + JSON.stringify(metrics));
+            }
+            return metrics;
           }"
+
           playwright-cli snapshot --filename="$OUT/mobile/accessibility.yml"
           playwright-cli screenshot --filename="$OUT/mobile/viewport.png"
           playwright-cli screenshot --full-page --filename="$OUT/mobile/full-page.png"
 
-          run_checked "$OUT/mobile/reply.metrics.log" "async (page) => { const reply=page.getByRole('button',{name:'Responder à publicação de Ana'}); await reply.click(); await page.waitForSelector('.feed-comments',{state:'visible'}); const metrics=await page.evaluate(()=>{const root=document.querySelector('.feed-comments');const visible=(e)=>{const s=getComputedStyle(e);return s.display!=='none'&&s.visibility!=='hidden'};const targets=root?Array.from(root.querySelectorAll('button,.feed-comment__quote')).filter(visible):[];const sizes=targets.map(e=>{const r=e.getBoundingClientRect();return Math.min(r.width,r.height)});const rect=root?.getBoundingClientRect();return{viewportWidth:innerWidth,scrollWidth:document.documentElement.scrollWidth,conversationWidth:rect?.width??0,targetCount:targets.length,minConversationTarget:sizes.length?Math.min(...sizes):0};}); if(metrics.scrollWidth>metrics.viewportWidth+1||metrics.conversationWidth>metrics.viewportWidth+1||metrics.targetCount<4||metrics.minConversationTarget<44) throw new Error('Mobile conversation validation failed: '+JSON.stringify(metrics)); return metrics; }"
+          run_checked "$OUT/mobile/reply.metrics.log" "async (page) => {
+            const reply = page.getByRole('button', { name: 'Responder à publicação de Ana' });
+            await reply.click();
+            await page.waitForSelector('.feed-comments', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const root = document.querySelector('.feed-comments');
+              const visible = (element) => {
+                const style = getComputedStyle(element);
+                return style.display !== 'none' && style.visibility !== 'hidden';
+              };
+              const targets = root
+                ? Array.from(root.querySelectorAll('button, .feed-comment__quote')).filter(visible)
+                : [];
+              const sizes = targets.map((element) => {
+                const rect = element.getBoundingClientRect();
+                return Math.min(rect.width, rect.height);
+              });
+              const rect = root?.getBoundingClientRect();
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                conversationWidth: rect?.width ?? 0,
+                targetCount: targets.length,
+                minConversationTarget: sizes.length ? Math.min(...sizes) : 0,
+              };
+            });
+            if (
+              metrics.scrollWidth > metrics.viewportWidth + 1
+              || metrics.conversationWidth > metrics.viewportWidth + 1
+              || metrics.targetCount < 4
+              || metrics.minConversationTarget < 44
+            ) {
+              throw new Error('Mobile conversation validation failed: ' + JSON.stringify(metrics));
+            }
+            return metrics;
+          }"
           playwright-cli screenshot --full-page --filename="$OUT/mobile/reply-open.png"
 
-          run_checked "$OUT/mobile/location-composer.metrics.log" "async (page) => { await page.getByRole('button',{name:'Fechar conversa'}).click(); await page.locator('.community-feed__attachment-menu summary').click(); await page.getByRole('button',{name:'Localização'}).click(); await page.waitForSelector('.community-feed__location-preview',{state:'visible'}); const rect=await page.getByRole('button',{name:'Remover localização selecionada'}).boundingBox(); const metrics=await page.evaluate(()=>({viewportWidth:innerWidth,scrollWidth:document.documentElement.scrollWidth})); const result={...metrics,minRemoveTarget:rect?Math.min(rect.width,rect.height):0}; if(result.scrollWidth>result.viewportWidth+1||result.minRemoveTarget<44) throw new Error('Mobile location validation failed: '+JSON.stringify(result)); return result; }"
+          run_checked "$OUT/mobile/location-composer.metrics.log" "async (page) => {
+            await page.getByRole('button', { name: 'Fechar conversa' }).click();
+            await page.locator('.community-feed__attachment-menu summary').click();
+            await page.getByRole('button', { name: 'Localização' }).click();
+            await page.waitForSelector('.community-feed__location-preview', { state: 'visible' });
+            const removeRect = await page.getByRole('button', { name: 'Remover localização selecionada' }).boundingBox();
+            const metrics = await page.evaluate(() => ({
+              viewportWidth: window.innerWidth,
+              scrollWidth: document.documentElement.scrollWidth,
+            }));
+            const result = {
+              ...metrics,
+              minRemoveTarget: removeRect ? Math.min(removeRect.width, removeRect.height) : 0,
+            };
+            if (
+              result.scrollWidth > result.viewportWidth + 1
+              || result.minRemoveTarget < 44
+            ) {
+              throw new Error('Mobile location validation failed: ' + JSON.stringify(result));
+            }
+            return result;
+          }"
           playwright-cli screenshot --filename="$OUT/mobile/location-composer.png"
 
-      - name: Upload visual evidence and source candidate
+      - name: Upload visual evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
