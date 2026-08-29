@@ -57,7 +57,11 @@ export function requireCommunityInviteCanonicalPart(
   const normalized = normalizeCommunityInviteText(value, 160);
 
   if (!normalized || normalized.includes(':') || normalized.includes('/')) {
-    throw new HttpsError('invalid-argument', message);
+    throw new HttpsError(
+      'invalid-argument',
+      message,
+      { reason: 'invalid_invite_identity' }
+    );
   }
 
   return normalized;
@@ -69,13 +73,18 @@ export function assertCommunityInviteAuthenticatedUid(
   const uid = normalizeCommunityInviteText(auth?.uid, 160);
 
   if (!uid) {
-    throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    throw new HttpsError(
+      'unauthenticated',
+      'Usuário não autenticado.',
+      { reason: 'authentication_required' }
+    );
   }
 
   if (auth?.token?.['email_verified'] !== true) {
     throw new HttpsError(
       'failed-precondition',
-      'Verifique seu e-mail para continuar.'
+      'Verifique seu e-mail para continuar.',
+      { reason: 'email_verification_required' }
     );
   }
 
@@ -187,7 +196,11 @@ export function requireCommunityInviteId(value: unknown): string {
   const inviteId = normalizeCommunityInviteText(value, 500);
 
   if (!/^community:[^:]{1,160}:to:[^:]{1,160}$/.test(inviteId)) {
-    throw new HttpsError('invalid-argument', 'Convite de Comunidade inválido.');
+    throw new HttpsError(
+      'invalid-argument',
+      'Convite de Comunidade inválido.',
+      { reason: 'invalid_invite_id' }
+    );
   }
 
   return inviteId;
@@ -203,7 +216,8 @@ export function resolveCommunityInviteCommunityId(
   if (!communityId) {
     throw new HttpsError(
       'failed-precondition',
-      'Convite sem Comunidade válida.'
+      'Convite sem Comunidade válida.',
+      { reason: 'invite_contract_invalid' }
     );
   }
 
