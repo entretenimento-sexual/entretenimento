@@ -143,12 +143,16 @@ jobs:
               };
               const actions = Array.from(document.querySelectorAll('.community-post__action')).filter(visible).map(size);
               const composer = Array.from(document.querySelectorAll('.community-feed__composer-tool, .community-feed__send')).filter(visible).map(size);
+              const locationMapLinks = Array.from(document.querySelectorAll('.community-post__location-map-link')).filter(visible);
               const buttons = Array.from(document.querySelectorAll('button')).filter(visible);
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
                 postCount: document.querySelectorAll('.community-post').length,
                 locationCount: document.querySelectorAll('.community-post__location').length,
+                locationMapLinkCount: locationMapLinks.length,
+                legacyLocationLinkCount: document.querySelectorAll('.community-post__location-link').length,
+                minLocationMapTarget: locationMapLinks.length ? Math.min(...locationMapLinks.map(size)) : 0,
                 imageCount: document.querySelectorAll('.community-post__media img').length,
                 minActionTarget: Math.min(...actions),
                 minComposerTarget: Math.min(...composer),
@@ -164,6 +168,9 @@ jobs:
               metrics.scrollWidth > metrics.viewportWidth + 1
               || metrics.postCount !== 3
               || metrics.locationCount !== 1
+              || metrics.locationMapLinkCount !== 1
+              || metrics.legacyLocationLinkCount !== 0
+              || metrics.minLocationMapTarget < 44
               || metrics.imageCount !== 1
               || metrics.minActionTarget < 44
               || metrics.minComposerTarget < 44
@@ -201,8 +208,7 @@ jobs:
             const minRemoveTarget = removeRect ? Math.min(removeRect.width, removeRect.height) : 0;
             const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
             if (
-              !preview.includes('-22.91')
-              || !preview.includes('-43.18')
+              !preview.includes('Precisão estimada: ±18 m')
               || scrollWidth > 1441
               || minRemoveTarget < 44
             ) {
@@ -226,6 +232,7 @@ jobs:
               const actions = Array.from(document.querySelectorAll('.community-post__action')).map(size);
               const composer = Array.from(document.querySelectorAll('.community-feed__composer-tool, .community-feed__send')).map(size);
               const references = Array.from(document.querySelectorAll('.community-post__reply-context.is-navigable')).map((element) => element.getBoundingClientRect().height);
+              const locationMapLinks = Array.from(document.querySelectorAll('.community-post__location-map-link'));
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
@@ -233,6 +240,8 @@ jobs:
                 minActionTarget: Math.min(...actions),
                 minComposerTarget: Math.min(...composer),
                 minReferenceHeight: references.length ? Math.min(...references) : 44,
+                locationMapLinkCount: locationMapLinks.length,
+                minLocationMapTarget: locationMapLinks.length ? Math.min(...locationMapLinks.map(size)) : 0,
               };
             });
             if (
@@ -241,6 +250,8 @@ jobs:
               || metrics.minActionTarget < 44
               || metrics.minComposerTarget < 44
               || metrics.minReferenceHeight < 44
+              || metrics.locationMapLinkCount !== 1
+              || metrics.minLocationMapTarget < 44
             ) {
               throw new Error('Mobile Mural validation failed: ' + JSON.stringify(metrics));
             }
@@ -294,6 +305,7 @@ jobs:
             await page.locator('.community-feed__attachment-menu summary').click();
             await page.getByRole('button', { name: 'Localização' }).click();
             await page.waitForSelector('.community-feed__location-preview', { state: 'visible' });
+            const preview = (await page.locator('.community-feed__location-preview').innerText()).trim();
             const removeRect = await page.getByRole('button', { name: 'Remover localização selecionada' }).boundingBox();
             const metrics = await page.evaluate(() => ({
               viewportWidth: window.innerWidth,
@@ -301,10 +313,12 @@ jobs:
             }));
             const result = {
               ...metrics,
+              preview,
               minRemoveTarget: removeRect ? Math.min(removeRect.width, removeRect.height) : 0,
             };
             if (
-              result.scrollWidth > result.viewportWidth + 1
+              !result.preview.includes('Precisão estimada: ±18 m')
+              || result.scrollWidth > result.viewportWidth + 1
               || result.minRemoveTarget < 44
             ) {
               throw new Error('Mobile location validation failed: ' + JSON.stringify(result));
