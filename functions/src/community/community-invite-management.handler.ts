@@ -60,7 +60,8 @@ function assertPreviewRuntime(): void {
 
   throw new HttpsError(
     'failed-precondition',
-    'A gestão de convites ainda não está disponível neste ambiente.'
+    'A gestão de convites ainda não está disponível neste ambiente.',
+    { reason: 'community_invites_unavailable' }
   );
 }
 
@@ -102,7 +103,11 @@ async function requireInviteActor(
     ]);
 
   if (!communitySnapshot.exists) {
-    throw new HttpsError('not-found', 'Comunidade não encontrada.');
+    throw new HttpsError(
+      'not-found',
+      'Comunidade não encontrada.',
+      { reason: 'community_not_found' }
+    );
   }
 
   assertCommunityMembershipActorEligible(
@@ -132,7 +137,8 @@ async function requireInviteActor(
   ) {
     throw new HttpsError(
       'permission-denied',
-      'Você não pode gerenciar convites desta Comunidade.'
+      'Você não pode gerenciar convites desta Comunidade.',
+      { reason: 'invite_management_forbidden' }
     );
   }
 
@@ -154,7 +160,8 @@ export const findCommunityInviteCandidate =
       if (!command) {
         throw new HttpsError(
           'invalid-argument',
-          'Informe o apelido exato de um perfil.'
+          'Informe o apelido exato de um perfil.',
+          { reason: 'invalid_invite_candidate_query' }
         );
       }
 
@@ -273,7 +280,11 @@ export const getCommunitySentInvites = onCall<CommunityInviteManagementRequest>(
     const communityId = normalizeCommunityInviteManagementRequest(request.data);
 
     if (!communityId) {
-      throw new HttpsError('invalid-argument', 'Comunidade inválida.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Comunidade inválida.',
+        { reason: 'invalid_community_id' }
+      );
     }
 
     const actorContext = await requireInviteActor(actorUid, communityId);
