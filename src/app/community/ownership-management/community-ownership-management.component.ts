@@ -27,8 +27,8 @@ import {
   tap,
 } from 'rxjs';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ActionStateDirective } from 'src/app/shared/action-state/action-state.directive';
 import {
   ConfirmationDialogComponent,
@@ -58,6 +58,25 @@ interface OwnershipCommand {
   candidate: CommunityOwnershipCandidate | null;
 }
 
+const OWNERSHIP_REASON_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+  'recent-authentication-required':
+    'Por segurança, saia e entre novamente antes de confirmar esta ação.',
+  community_source_not_supported:
+    'Esta ação não está disponível para este tipo de espaço.',
+  owner_required:
+    'Apenas o proprietário pode executar esta ação.',
+  ownership_inconsistent:
+    'A propriedade está inconsistente. A operação foi bloqueada para revisão.',
+  self_transfer_forbidden:
+    'Selecione outro membro para receber a propriedade.',
+  target_membership_ineligible:
+    'O participante selecionado não possui vínculo ativo elegível.',
+  target_account_ineligible:
+    'A conta selecionada não pode assumir a propriedade agora.',
+  community_lifecycle_hold:
+    'Esta Comunidade possui retenção operacional e não pode ser arquivada.',
+});
+
 @Component({
   selector: 'app-community-ownership-management',
   standalone: true,
@@ -71,7 +90,7 @@ export class CommunityOwnershipManagementComponent {
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
   private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly refreshCandidates$ = new Subject<void>();
   private readonly commands$ = new Subject<OwnershipCommand>();
 
@@ -100,11 +119,7 @@ export class CommunityOwnershipManagementComponent {
         ),
         startWith<OwnershipCandidatesState>({ status: 'loading', items: [] }),
         catchError((error: unknown) => {
-          this.reportError(
-            error,
-            'Não foi possível carregar os membros elegíveis à transferência.',
-            'loadOwnershipCandidates'
-          );
+          this.reportLoadError(error);
           return of<OwnershipCandidatesState>({ status: 'error', items: [] });
         })
       )
@@ -137,7 +152,9 @@ export class CommunityOwnershipManagementComponent {
 
           this.errorNotifier.showSuccess('Comunidade arquivada com segurança.');
           this.communityArchived.emit();
-          void this.router.navigateByUrl('/dashboard/comunidades');
+          void this.router.navigateByUrl('/dashboard/comunidades').catch(
+            (error: unknown) => this.reportNavigationError(error)
+          );
         }),
         map(
           (): OwnershipActionState => ({
@@ -152,15 +169,7 @@ export class CommunityOwnershipManagementComponent {
           targetUid: command.candidate?.uid ?? null,
         }),
         catchError((error: unknown) => {
-          this.reportError(
-            error,
-            command.kind === 'transfer'
-              ? 'Não foi possível transferir a propriedade agora.'
-              : 'Não foi possível arquivar a Comunidade agora.',
-            command.kind === 'transfer'
-              ? 'transferCommunityOwnership'
-              : 'archiveCommunity'
-          );
+          this.reportActionError(error, command);
 
           return of<OwnershipActionState>({
             status: 'error',
@@ -253,59 +262,66 @@ export class CommunityOwnershipManagementComponent {
       });
   }
 
-  private reportError(error: unknown, fallback: string, op: string): void {
-    const message = this.resolveUserMessage(error, fallback);
-
-    try {
-      this.errorNotifier.showError(message);
-    } catch {
-      // O diagnóstico técnico abaixo permanece ativo.
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+  private reportLoadError(error: unknown): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'loadOwnershipCandidates',
+      fallbackMessage:
+        'Não foi possível carregar os membros elegíveis à transferência.',
+      notification: 'none',
+      reasonMessages: OWNERSHIP_REASON_MESSAGES,
+      codeMessages: {
+        'data-loss':
+          'A propriedade está inconsistente. A operação foi bloqueada para revisão.',
+      },
+      metadata: {
         scope: 'CommunityOwnershipManagementComponent',
-        op,
         communityId: this.communityId().trim(),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o feedback visual.
-    }
+      },
+    });
   }
 
-  private resolveUserMessage(error: unknown, fallback: string): string {
-    const source = (error ?? {}) as {
-      code?: unknown;
-      message?: unknown;
-      details?: unknown;
-    };
-    const details = (source.details ?? {}) as Record<string, unknown>;
-    const reason = String(details['reason'] ?? '').toLowerCase();
-    const code = String(source.code ?? '').toLowerCase();
+  private reportActionError(error: unknown, command: OwnershipCommand): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: command.kind === 'transfer'
+        ? 'transferCommunityOwnership'
+        : 'archiveCommunity',
+      fallbackMessage: command.kind === 'transfer'
+        ? 'Não foi possível transferir a propriedade agora.'
+        : 'Não foi possível arquivar a Comunidade agora.',
+      reasonMessages: OWNERSHIP_REASON_MESSAGES,
+      codeMessages: {
+        'data-loss':
+          'A propriedade está inconsistente. A operação foi bloqueada para revisão.',
+        'permission-denied':
+          'Sua conta não pode executar esta ação administrativa.',
+        'failed-precondition':
+          'Esta ação não está disponível no estado atual da Comunidade.',
+        'invalid-argument':
+          'Não foi possível validar os dados desta ação.',
+        'not-found':
+          'Esta Comunidade ou participante não está mais disponível.',
+      },
+      metadata: {
+        scope: 'CommunityOwnershipManagementComponent',
+        communityId: this.communityId().trim(),
+        kind: command.kind,
+        targetUid: command.candidate?.uid ?? null,
+      },
+    });
+  }
 
-    if (reason === 'recent-authentication-required') {
-      return 'Por segurança, saia e entre novamente antes de confirmar esta ação.';
-    }
-
-    if (code.includes('data-loss')) {
-      return 'A propriedade está inconsistente. A operação foi bloqueada para revisão.';
-    }
-
-    if (
-      typeof source.message === 'string'
-      && source.message.trim()
-      && !source.message.toLowerCase().includes('internal')
-    ) {
-      return source.message;
-    }
-
-    return fallback;
+  private reportNavigationError(error: unknown): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'navigateAfterArchive',
+      fallbackMessage:
+        'A Comunidade foi arquivada, mas não foi possível abrir a lista agora.',
+      metadata: {
+        scope: 'CommunityOwnershipManagementComponent',
+        communityId: this.communityId().trim(),
+      },
+    });
   }
 }
