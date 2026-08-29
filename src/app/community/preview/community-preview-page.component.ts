@@ -35,8 +35,8 @@ import {
 } from 'src/app/core/access/content-access-policy.model';
 import { ContentAccessNavigationService } from 'src/app/core/access/content-access-navigation.service';
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
   ConfirmationDialogComponent,
   ConfirmationDialogData,
@@ -139,6 +139,36 @@ const ACCESS_REASONS = new Set<ContentAccessDenialReason>([
   'access_check_unavailable',
 ]);
 
+const COMMUNITY_MEMBERSHIP_REASON_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    community_capacity_reached:
+      'A Comunidade atingiu a capacidade atual. Novas entradas estão pausadas.',
+    owner_transfer_required:
+      'Transfira a propriedade da Comunidade antes de sair.',
+    membership_blocked:
+      'Este vínculo está bloqueado e não pode ser alterado.',
+    invite_only:
+      'A entrada nesta Comunidade é feita somente por convite.',
+    actor_restricted:
+      'Sua conta não pode participar desta Comunidade neste momento.',
+    community_unavailable:
+      'Esta Comunidade não aceita novas entradas agora.',
+    membership_not_found:
+      'Você não possui participação ativa ou pendente nesta Comunidade.',
+  });
+
+const COMMUNITY_MEMBERSHIP_CODE_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    'not-found': 'Esta Comunidade não está mais disponível.',
+    'permission-denied':
+      'Sua conta não tem permissão para realizar esta ação nesta Comunidade.',
+    'failed-precondition':
+      'Esta ação não está disponível no estado atual da Comunidade.',
+    'invalid-argument': 'Não foi possível validar esta Comunidade.',
+    'data-loss':
+      'Não foi possível validar o estado atual da Comunidade. Tente novamente.',
+  });
+
 const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | null>> =
   Object.freeze({
     feed: null,
@@ -174,7 +204,7 @@ export class CommunityPreviewPageComponent {
   private readonly membershipRepository = inject(CommunityMembershipRepository);
   private readonly accessNavigation = inject(ContentAccessNavigationService);
   private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly refreshPreview$ = new Subject<void>();
   private readonly membershipCommands$ = new Subject<CommunityMembershipCommand>();
 
@@ -662,12 +692,20 @@ export class CommunityPreviewPageComponent {
   }
 
   private reportPreviewError(error: unknown): void {
-    /**
-     * SUPRESSÃO EXPLÍCITA:
-     * o erro bloqueante da prévia não dispara snackbar, porque a própria página
-     * já apresenta o estado inline com retry. Evita feedback duplicado.
-     */
-    this.reportTechnicalError(error, 'loadPreview');
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'loadPreview',
+      fallbackMessage: 'Não foi possível carregar esta Comunidade agora.',
+      notification: 'none',
+      codeMessages: {
+        'not-found': 'Esta Comunidade não está mais disponível.',
+        'permission-denied': 'Você não tem acesso a esta Comunidade.',
+      },
+      metadata: {
+        scope: 'CommunityPreviewPageComponent',
+        section: this.activeSection(),
+      },
+    });
   }
 
   private reportMembershipError(
@@ -676,11 +714,7 @@ export class CommunityPreviewPageComponent {
     kind: CommunityMembershipActionKind
   ): void {
     const isVenue = community.source.type === 'venue';
-    const reason = ((error as { details?: { reason?: unknown } } | null)
-      ?.details?.reason);
-    const message = reason === 'community_capacity_reached'
-      ? 'A Comunidade atingiu a capacidade atual. Novas entradas estão pausadas.'
-      : kind === 'leave'
+    const fallbackMessage = kind === 'leave'
       ? isVenue
         ? 'Não foi possível sair deste Local agora.'
         : 'Não foi possível sair desta Comunidade agora.'
@@ -688,39 +722,31 @@ export class CommunityPreviewPageComponent {
         ? 'Não foi possível solicitar acesso a este Local agora.'
         : 'Não foi possível concluir a participação nesta Comunidade agora.';
 
-    this.reportError(
-      error,
-      message,
-      kind === 'leave' ? 'leaveMembership' : 'requestMembership'
-    );
-  }
-
-  private reportError(error: unknown, message: string, op: string): void {
-    try {
-      this.errorNotifier.showError(message);
-    } catch {
-      // O diagnóstico técnico abaixo permanece ativo.
-    }
-
-    this.reportTechnicalError(error, op);
-  }
-
-  private reportTechnicalError(error: unknown, op: string): void {
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: kind === 'leave' ? 'leaveMembership' : 'requestMembership',
+      fallbackMessage,
+      codeMessages: COMMUNITY_MEMBERSHIP_CODE_MESSAGES,
+      reasonMessages: COMMUNITY_MEMBERSHIP_REASON_MESSAGES,
+      metadata: {
         scope: 'CommunityPreviewPageComponent',
-        op,
+        communityId: community.communityId,
+        sourceType: community.source.type,
         section: this.activeSection(),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+      },
+    });
+  }
+
+  private reportTechnicalError(error: unknown, operation: string): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation,
+      fallbackMessage: 'Não foi possível concluir esta ação agora.',
+      notification: 'none',
+      metadata: {
+        scope: 'CommunityPreviewPageComponent',
+        section: this.activeSection(),
+      },
+    });
   }
 }
