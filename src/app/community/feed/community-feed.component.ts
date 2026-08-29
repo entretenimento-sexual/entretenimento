@@ -60,8 +60,8 @@ import {
 } from 'rxjs';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import {
   GeolocationError,
@@ -179,7 +179,7 @@ const COMMUNITY_LOCATION_LOW_ACCURACY_WARNING_METERS = 250;
 export class CommunityFeedComponent implements OnDestroy {
   private readonly repository = inject(CommunityFeedRepository);
   private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
@@ -1300,10 +1300,17 @@ export class CommunityFeedComponent implements OnDestroy {
         const uid = authSession.currentAuthUser?.uid?.trim() || '';
         if (!uid) {
           const error = new Error('Sessão não encontrada para enviar a foto.');
-          this.errorNotifier.showError(
-            'Sua sessão precisa ser atualizada para enviar a foto.'
-          );
-          this.reportTechnicalError(error, 'createPost');
+          this.applicationError.report(error, {
+            feature: 'community',
+            operation: 'uploadFeedImage',
+            fallbackMessage:
+              'Sua sessão precisa ser atualizada para enviar a foto.',
+            metadata: {
+              scope: 'CommunityFeedComponent',
+              view: this.view(),
+              sourceType: this.sourceType(),
+            },
+          });
           return throwError(() => error);
         }
 
@@ -1404,52 +1411,67 @@ export class CommunityFeedComponent implements OnDestroy {
     error: unknown,
     action: CommunityFeedPostAction
   ): void {
-    try {
-      this.errorNotifier.showError(
-        action === 'delete_own'
-          ? 'Não foi possível excluir a mensagem agora.'
-          : 'Não foi possível remover a mensagem agora.'
-      );
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-    this.reportTechnicalError(error, 'moderatePost');
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'moderatePost',
+      fallbackMessage: action === 'delete_own'
+        ? 'Não foi possível excluir a mensagem agora.'
+        : 'Não foi possível remover a mensagem agora.',
+      metadata: {
+        scope: 'CommunityFeedComponent',
+        action,
+        view: this.view(),
+        sourceType: this.sourceType(),
+      },
+    });
   }
 
   private reportReactionError(error: unknown): void {
-    const source = (error ?? {}) as { code?: unknown };
-    const code = String(source.code ?? '').replace(/^functions\//, '');
-    try {
-      this.errorNotifier.showError(
-        code === 'resource-exhausted'
-          ? 'Você reagiu muitas vezes em pouco tempo. Aguarde um instante.'
-          : 'Não foi possível atualizar sua reação agora.'
-      );
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-    this.reportTechnicalError(error, 'toggleReaction');
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'toggleReaction',
+      fallbackMessage: 'Não foi possível atualizar sua reação agora.',
+      codeMessages: {
+        'resource-exhausted':
+          'Você reagiu muitas vezes em pouco tempo. Aguarde um instante.',
+      },
+      metadata: {
+        scope: 'CommunityFeedComponent',
+        view: this.view(),
+        sourceType: this.sourceType(),
+      },
+    });
   }
 
   private reportPostWriteError(error: unknown): void {
-    const source = (error ?? {}) as {
-      code?: unknown;
-      details?: { reason?: unknown };
-    };
-    const code = String(source.code ?? '').replace(/^functions\//, '');
-    const reason = String(source.details?.reason ?? '');
-    const message = code === 'resource-exhausted'
-      || reason === 'community_feed_rate_limited'
-      ? 'Você atingiu o limite temporário de mensagens. Tente mais tarde.'
-      : 'Não foi possível enviar a mensagem agora.';
-
-    try {
-      this.errorNotifier.showError(message);
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-
-    this.reportTechnicalError(error, 'createPost');
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'createPost',
+      fallbackMessage: 'Não foi possível enviar a mensagem agora.',
+      reasonMessages: {
+        community_feed_rate_limited:
+          'Você atingiu o limite temporário de mensagens. Tente mais tarde.',
+      },
+      recommendedActionMessages: {
+        upgrade_subscription:
+          'Seu plano atual não permite publicar neste espaço.',
+      },
+      codeMessages: {
+        'resource-exhausted':
+          'Você atingiu o limite temporário de mensagens. Tente mais tarde.',
+        'permission-denied':
+          'Sua conta não pode publicar neste espaço agora.',
+        'failed-precondition':
+          'Atualize sua conta antes de publicar neste espaço.',
+        'invalid-argument':
+          'Revise a mensagem e tente novamente.',
+      },
+      metadata: {
+        scope: 'CommunityFeedComponent',
+        view: this.view(),
+        sourceType: this.sourceType(),
+      },
+    });
   }
 
   private reportLocationError(error: unknown): void {
@@ -1475,40 +1497,56 @@ export class CommunityFeedComponent implements OnDestroy {
       }
     }
 
-    try {
-      this.errorNotifier.showWarning(message);
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-    this.reportTechnicalError(error, 'shareLocation');
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'shareLocation',
+      fallbackMessage: message,
+      notification: 'warning',
+      metadata: {
+        scope: 'CommunityFeedComponent',
+        view: this.view(),
+        sourceType: this.sourceType(),
+      },
+    });
   }
 
   private reportReferenceNavigationError(error: unknown): void {
-    try {
-      this.errorNotifier.showWarning(
-        'A publicação original não está disponível neste momento.'
-      );
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-
-    this.reportTechnicalError(error, 'navigateReference');
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'navigateReference',
+      fallbackMessage:
+        'A publicação original não está disponível neste momento.',
+      notification: 'warning',
+      codeMessages: {
+        'not-found':
+          'A publicação original não está disponível neste momento.',
+      },
+      metadata: {
+        scope: 'CommunityFeedComponent',
+        view: this.view(),
+        sourceType: this.sourceType(),
+      },
+    });
   }
 
   private reportLoadError(error: unknown, view: CommunityFeedView): void {
-    try {
-      this.errorNotifier.showError(
-        view === 'photos'
-          ? 'Não foi possível carregar as fotos agora.'
-          : this.sourceType() === 'venue'
-            ? 'Não foi possível carregar as novidades do Local agora.'
-            : 'Não foi possível carregar o mural da Comunidade agora.'
-      );
-    } catch {
-      // O diagnóstico técnico abaixo permanece ativo.
-    }
+    const fallbackMessage = view === 'photos'
+      ? 'Não foi possível carregar as fotos agora.'
+      : this.sourceType() === 'venue'
+        ? 'Não foi possível carregar as novidades do Local agora.'
+        : 'Não foi possível carregar o mural da Comunidade agora.';
 
-    this.reportTechnicalError(error, 'loadPage', view);
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'loadPage',
+      fallbackMessage,
+      notification: 'none',
+      metadata: {
+        scope: 'CommunityFeedComponent',
+        view,
+        sourceType: this.sourceType(),
+      },
+    });
   }
 
   private reportTechnicalError(
@@ -1524,22 +1562,16 @@ export class CommunityFeedComponent implements OnDestroy {
       | 'shareLocation',
     view: CommunityFeedView = this.view()
   ): void {
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: op,
+      fallbackMessage: 'Não foi possível concluir esta atualização agora.',
+      notification: 'none',
+      metadata: {
         scope: 'CommunityFeedComponent',
-        op,
         view,
         sourceType: this.sourceType(),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+      },
+    });
   }
 }
