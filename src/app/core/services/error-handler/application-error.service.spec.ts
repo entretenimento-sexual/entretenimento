@@ -71,6 +71,35 @@ describe('ApplicationErrorService', () => {
     expect(notifier.showError.mock.calls[0]?.[0]).not.toContain('backend internal');
   });
 
+  it('prioriza recommendedAction conhecida quando não há reason mapeado', () => {
+    const descriptor = service.normalize(
+      {
+        code: 'functions/permission-denied',
+        details: {
+          recommendedAction: 'upgrade_subscription',
+        },
+      },
+      {
+        feature: 'community',
+        operation: 'createPost',
+        fallbackMessage: 'Não foi possível publicar agora.',
+        codeMessages: {
+          'permission-denied':
+            'Sua conta não pode publicar neste espaço agora.',
+        },
+        recommendedActionMessages: {
+          upgrade_subscription:
+            'Seu plano atual não permite publicar neste espaço.',
+        },
+      }
+    );
+
+    expect(descriptor.userMessage).toBe(
+      'Seu plano atual não permite publicar neste espaço.'
+    );
+    expect(descriptor.recommendedAction).toBe('upgrade_subscription');
+  });
+
   it('usa mensagem canônica para indisponibilidade transitória', () => {
     const descriptor = service.normalize(
       { code: 'functions/unavailable' },
