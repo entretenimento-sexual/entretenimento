@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { buildCommunityFeedPostCreatePayload } from './community-feed.repository';
 
 describe('buildCommunityFeedPostCreatePayload', () => {
-  it('preserva a localização compartilhada ao montar o payload da callable', () => {
+  it('preserva localização precisa e acurácia ao montar o payload da callable', () => {
     const payload = buildCommunityFeedPostCreatePayload({
       requestId: ' request-1 ',
       communityId: ' community-1 ',
@@ -11,8 +11,10 @@ describe('buildCommunityFeedPostCreatePayload', () => {
       audience: 'members_only',
       imageUploadPath: null,
       location: {
-        latitude: -22.93,
-        longitude: -43.35,
+        latitude: -22.912345,
+        longitude: -43.176543,
+        precision: 'precise',
+        accuracyMeters: 8,
       },
       replyToPostId: null,
     });
@@ -24,8 +26,10 @@ describe('buildCommunityFeedPostCreatePayload', () => {
       audience: 'members_only',
       imageUploadPath: null,
       location: {
-        latitude: -22.93,
-        longitude: -43.35,
+        latitude: -22.912345,
+        longitude: -43.176543,
+        precision: 'precise',
+        accuracyMeters: 8,
       },
       replyToPostId: null,
     });
