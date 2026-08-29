@@ -31,8 +31,8 @@ import {
   tap,
 } from 'rxjs';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
   COMMUNITY_MEMBER_LIMIT_OPTIONS,
   CommunityCapacityPreview,
@@ -78,6 +78,30 @@ interface CommunitySettingsSaveCommand extends CommunityEditableSettings {
   requestId: string;
 }
 
+const COMMUNITY_SETTINGS_REASON_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    'recent-authentication-required':
+      'Por segurança, saia e entre novamente antes de alterar a capacidade.',
+    owner_required_for_capacity:
+      'Somente o proprietário pode alterar a capacidade de membros.',
+    community_capacity_below_member_count:
+      'O limite não pode ser menor que a quantidade atual de membros.',
+    community_capacity_upgrade_required:
+      'Seu plano atual não permite essa capacidade de membros.',
+    community_not_found:
+      'Esta Comunidade não está mais disponível.',
+    community_settings_forbidden:
+      'Seu acesso atual não permite alterar estas configurações.',
+    invalid_community_settings:
+      'Revise os dados das configurações e tente novamente.',
+    account_restricted:
+      'Sua conta não pode alterar estas configurações neste momento.',
+    adult_access_required:
+      'Confirme o acesso adulto antes de alterar estas configurações.',
+    profile_incomplete:
+      'Complete seu perfil antes de alterar estas configurações.',
+  });
+
 function communityTagCountValidator(): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
     const value = Array.isArray(control.value) ? control.value : [];
@@ -100,7 +124,7 @@ export class CommunitySettingsComponent {
   private readonly repository = inject(CommunitySettingsRepository);
   private readonly tagRepository = inject(CommunityTagRepository);
   private readonly notifications = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly saveRequests$ = new Subject<CommunitySettingsSaveCommand>();
   private readonly tagCatalogReload$ = new Subject<void>();
@@ -186,11 +210,7 @@ export class CommunitySettingsComponent {
             items: catalog.items,
           })),
           catchError((error: unknown) => {
-            this.reportError(
-              error,
-              'Não foi possível carregar os interesses da Comunidade.',
-              'loadTagCatalog'
-            );
+            this.reportTagCatalogError(error);
             return of<CommunityTagCatalogState>({ status: 'error', items: [] });
           }),
           startWith<CommunityTagCatalogState>({ status: 'loading', items: [] })
@@ -217,11 +237,7 @@ export class CommunitySettingsComponent {
         map((): CommunitySettingsActionState => ({ status: 'idle' })),
         startWith<CommunitySettingsActionState>({ status: 'loading' }),
         catchError((error: unknown) => {
-          this.reportError(
-            error,
-            this.resolveUserMessage(error),
-            'updateCommunitySettings'
-          );
+          this.reportSettingsError(error);
           return of<CommunitySettingsActionState>({ status: 'error' });
         })
       )
@@ -378,57 +394,43 @@ export class CommunitySettingsComponent {
     return `settings-${Date.now().toString(36)}-${entropy}`.slice(0, 64);
   }
 
-  private resolveUserMessage(error: unknown): string {
-    const source = (error ?? {}) as {
-      code?: unknown;
-      message?: unknown;
-      details?: unknown;
-    };
-    const details = (source.details ?? {}) as Record<string, unknown>;
-    const reason = String(details['reason'] ?? '').toLowerCase();
-
-    if (reason === 'recent-authentication-required') {
-      return 'Por segurança, saia e entre novamente antes de alterar a capacidade.';
-    }
-
-    if (reason === 'owner_required_for_capacity') {
-      return 'Somente o proprietário pode alterar a capacidade de membros.';
-    }
-
-    if (reason === 'community_capacity_below_member_count') {
-      return 'O limite não pode ser menor que a quantidade atual de membros.';
-    }
-
-    if (reason === 'community_capacity_upgrade_required') {
-      return 'Seu plano atual não permite essa capacidade de membros.';
-    }
-
-    return 'Não foi possível salvar as configurações da Comunidade.';
-  }
-
-  private reportError(error: unknown, message: string, op: string): void {
-    try {
-      this.notifications.showError(message);
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+  private reportTagCatalogError(error: unknown): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'loadTagCatalog',
+      fallbackMessage: 'Não foi possível carregar os interesses da Comunidade.',
+      notification: 'none',
+      metadata: {
         scope: 'CommunitySettingsComponent',
-        op,
         communityId: this.communityId().trim(),
         viewerRole: this.viewerRole(),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+      },
+    });
+  }
+
+  private reportSettingsError(error: unknown): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'updateCommunitySettings',
+      fallbackMessage: 'Não foi possível salvar as configurações da Comunidade.',
+      reasonMessages: COMMUNITY_SETTINGS_REASON_MESSAGES,
+      codeMessages: {
+        'permission-denied':
+          'Seu acesso atual não permite alterar estas configurações.',
+        'failed-precondition':
+          'Estas configurações não podem ser alteradas no estado atual.',
+        'invalid-argument':
+          'Revise os dados das configurações e tente novamente.',
+        'not-found':
+          'Esta Comunidade não está mais disponível.',
+        'resource-exhausted':
+          'Seu plano atual não permite essa capacidade de membros.',
+      },
+      metadata: {
+        scope: 'CommunitySettingsComponent',
+        communityId: this.communityId().trim(),
+        viewerRole: this.viewerRole(),
+      },
+    });
   }
 }
