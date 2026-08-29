@@ -12,11 +12,13 @@ import type { CommunityPublicAuthor } from './community-public-author.model';
 export type CommunityFeedView = 'feed' | 'photos';
 export type CommunityFeedKind = 'text' | 'photo' | 'location';
 export type CommunityFeedAudience = 'public_preview' | 'members_only';
+export type CommunityFeedLocationPrecision = 'approximate' | 'precise';
 
 export interface CommunityFeedLocation {
   latitude: number;
   longitude: number;
-  precision: 'approximate';
+  precision: CommunityFeedLocationPrecision;
+  accuracyMeters: number | null;
 }
 
 export interface CommunityFeedPageRequest {
@@ -117,6 +119,8 @@ const MAX_PAGE_LIMIT = 20;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const PUBLISHED_PHOTO_PATH_PATTERN =
   /^users\/[A-Za-z0-9_-]{1,128}\/published\/images\/[A-Za-z0-9:_-]{1,128}\/[^/]{1,220}$/;
+const APPROXIMATE_LOCATION_DECIMALS = 2;
+const PRECISE_LOCATION_DECIMALS = 6;
 
 function normalizeText(value: unknown, maxLength: number): string {
   return String(value ?? '')
@@ -162,6 +166,12 @@ function normalizeCount(value: unknown): number {
     : 0;
 }
 
+function normalizeLocationAccuracy(value: unknown): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.min(Math.round(parsed), 100_000);
+}
+
 function normalizeCommunityFeedLocation(value: unknown): CommunityFeedLocation | null {
   if (!value || typeof value !== 'object') return null;
   const source = value as Record<string, unknown>;
@@ -179,10 +189,22 @@ function normalizeCommunityFeedLocation(value: unknown): CommunityFeedLocation |
     return null;
   }
 
+  // Ausência de precision pertence ao contrato legado, que era explicitamente
+  // aproximado. Apenas um gesto explícito no cliente moderno envia `precise`.
+  const precision: CommunityFeedLocationPrecision = source['precision'] === 'precise'
+    ? 'precise'
+    : 'approximate';
+  const decimals = precision === 'precise'
+    ? PRECISE_LOCATION_DECIMALS
+    : APPROXIMATE_LOCATION_DECIMALS;
+
   return {
-    latitude: Number(latitude.toFixed(2)),
-    longitude: Number(longitude.toFixed(2)),
-    precision: 'approximate',
+    latitude: Number(latitude.toFixed(decimals)),
+    longitude: Number(longitude.toFixed(decimals)),
+    precision,
+    accuracyMeters: precision === 'precise'
+      ? normalizeLocationAccuracy(source['accuracyMeters'])
+      : null,
   };
 }
 
