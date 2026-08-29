@@ -353,9 +353,12 @@
           <div
             class="community-preview__body"
             [class.has-context-rail]="
-              activeSection() === 'feed'
-              || activeSection() === 'topics'
-              || activeSection() === 'photos'
+              preview.community.source.type === 'community'
+              && (
+                activeSection() === 'feed'
+                || activeSection() === 'topics'
+                || activeSection() === 'photos'
+              )
             "
           >
             <div class="community-preview__primary">
@@ -517,9 +520,12 @@
             </div>
 
             @if (
-              activeSection() === 'feed'
-              || activeSection() === 'topics'
-              || activeSection() === 'photos'
+              preview.community.source.type === 'community'
+              && (
+                activeSection() === 'feed'
+                || activeSection() === 'topics'
+                || activeSection() === 'photos'
+              )
             ) {
               <aside
                 class="community-preview__rail"
