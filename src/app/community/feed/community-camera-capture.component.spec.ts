@@ -194,10 +194,10 @@ describe('CommunityCameraCaptureComponent', () => {
     expect(captured).toHaveLength(1);
   });
 
-  it('oferece fallback explícito quando a webcam não pode ser aberta', () => {
+  it('mantém falha da câmera inline, oferece fallback e registra um único diagnóstico', () => {
     cameraMock.openCamera$.mockReturnValue(throwError(() => new CameraCaptureError(
       'UNSUPPORTED',
-      'Este navegador não oferece acesso direto à câmera.'
+      'detalhe técnico que não deve controlar a interface'
     )));
     const fixture = TestBed.createComponent(CommunityCameraCaptureComponent);
     const component = fixture.componentInstance;
@@ -213,12 +213,68 @@ describe('CommunityCameraCaptureComponent', () => {
     fixture.detectChanges();
 
     expect(component.state()).toBe('error');
-    expect(errorNotifierMock.showError).toHaveBeenCalled();
-    expect(globalErrorMock.handleError).toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      'Este navegador não oferece acesso direto à câmera. Use o seletor do dispositivo.'
+    );
+    expect(fixture.nativeElement.textContent).not.toContain(
+      'detalhe técnico que não deve controlar a interface'
+    );
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
+    expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
 
     component.useDeviceFallback();
     expect(closed).toHaveBeenCalledTimes(1);
     expect(fallback).toHaveBeenCalledTimes(1);
     expect(component.isOpen()).toBe(false);
+  });
+
+  it('traduz permissão negada para mensagem segura e acionável dentro da câmera', () => {
+    cameraMock.openCamera$.mockReturnValue(throwError(() => new CameraCaptureError(
+      'PERMISSION_DENIED',
+      'raw browser detail'
+    )));
+    const fixture = TestBed.createComponent(CommunityCameraCaptureComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    component.openCamera();
+    fixture.detectChanges();
+    vi.runOnlyPendingTimers();
+    fixture.detectChanges();
+
+    expect(component.errorMessage()).toBe(
+      'Permita o acesso à câmera no navegador ou use o seletor do dispositivo.'
+    );
+    expect(component.errorMessage()).not.toContain('raw browser detail');
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
+    expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserva a foto original e usa erro centralizado quando o editor falha', () => {
+    photoEditorMock.editFile$.mockReturnValue(
+      throwError(() => new Error('editor internal detail'))
+    );
+    const fixture = TestBed.createComponent(CommunityCameraCaptureComponent);
+    const component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    component.openCamera();
+    fixture.detectChanges();
+    vi.runOnlyPendingTimers();
+    fixture.detectChanges();
+    component.capturePhoto();
+    fixture.detectChanges();
+
+    component.editCapturedPhoto();
+    fixture.detectChanges();
+
+    expect(component.state()).toBe('captured');
+    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
+      'Não foi possível editar a foto agora. A foto original foi preservada.'
+    );
+    expect(errorNotifierMock.showError.mock.calls[0]?.[0]).not.toContain(
+      'editor internal detail'
+    );
+    expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
   });
 });
