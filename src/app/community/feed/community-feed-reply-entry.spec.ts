@@ -144,13 +144,13 @@ describe('CommunityFeedComponent conversation entry points', () => {
     expect(feedRepository.createPost$).toHaveBeenCalledTimes(1);
   });
 
-  it('chama comentários existentes de respostas, nunca de mensagem anterior', () => {
+  it('chama comentários legados de mensagens anteriores, nunca de respostas do Mural', () => {
     feedRepository.getPage$.mockReturnValue(of({
       items: [{
         postId: 'post-1',
         kind: 'text',
         author: { label: 'serale', avatarUrl: null },
-        text: 'Mensagem com uma resposta.',
+        text: 'Mensagem com histórico anterior.',
         image: null,
         location: null,
         replyTo: null,
@@ -169,9 +169,9 @@ describe('CommunityFeedComponent conversation entry points', () => {
 
     expect(toggle.textContent).toContain('Ver');
     expect(toggle.textContent).toContain('1');
-    expect(toggle.textContent).toContain('resposta');
-    expect(toggle.textContent).not.toContain('mensagem anterior');
-    expect(toggle.getAttribute('aria-label')).toContain('1 resposta');
+    expect(toggle.textContent).toContain('mensagem anterior');
+    expect(toggle.textContent).not.toContain('resposta');
+    expect(toggle.getAttribute('aria-label')).toContain('1 mensagem anterior');
   });
 
   it('publica resposta à publicação como novo item do Mural e não como comment filho', async () => {
