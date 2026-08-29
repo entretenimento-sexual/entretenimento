@@ -378,7 +378,7 @@
 }
 
 .community-preview__lifecycle[data-lifecycle-status='archived'] > i,
-.community-preview__lifecycle[data-lifecycle-status='scheduled_for-deletion'] > i {
+.community-preview__lifecycle[data-lifecycle-status='scheduled_for_deletion'] > i {
   color: var(--warning-color, #a35f00);
 }
 
