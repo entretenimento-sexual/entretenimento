@@ -21,8 +21,8 @@ import {
   take,
 } from 'rxjs';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import {
   CommunityInviteInboxItem,
@@ -37,6 +37,23 @@ interface CommunityInvitesState {
   items: readonly CommunityInviteInboxItem[];
 }
 
+const COMMUNITY_INVITE_REASON_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    invite_expired: 'Este convite expirou.',
+    membership_blocked: 'Você não pode participar desta Comunidade.',
+    community_unavailable:
+      'Esta Comunidade não está disponível para entrada agora.',
+    community_capacity_reached:
+      'A Comunidade atingiu a capacidade atual. Novas entradas estão pausadas.',
+  });
+
+const COMMUNITY_INVITE_CODE_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    'not-found': 'Este convite não está mais disponível.',
+    'permission-denied': 'Este convite não está disponível para sua conta.',
+    'failed-precondition': 'Este convite não está mais disponível.',
+  });
+
 @Component({
   selector: 'app-community-invites-page',
   standalone: true,
@@ -48,7 +65,7 @@ interface CommunityInvitesState {
 export class CommunityInvitesPageComponent {
   private readonly repository = inject(CommunityInviteRepository);
   private readonly notifications = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly router = inject(Router);
   private readonly reloadRequests$ = new Subject<void>();
   private readonly busyInviteActions = signal<
@@ -69,7 +86,7 @@ export class CommunityInvitesPageComponent {
         })),
         startWith<CommunityInvitesState>({ status: 'loading', items: [] }),
         catchError((error: unknown) => {
-          this.reportError(error, 'loadInvites');
+          this.reportLoadError(error);
           return of<CommunityInvitesState>({ status: 'error', items: [] });
         })
       )
@@ -149,49 +166,32 @@ export class CommunityInvitesPageComponent {
     this.busyInviteActions.set(next);
   }
 
-  private reportActionError(
-    error: unknown,
-    op: string,
-    message: string
-  ): void {
-    try {
-      this.notifications.showError(message);
-    } catch {
-      // O erro técnico continua sendo encaminhado abaixo.
-    }
-
-    this.reportError(error, op, true);
+  private reportLoadError(error: unknown): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'loadInvites',
+      fallbackMessage:
+        'Não foi possível carregar seus convites de Comunidades.',
+      metadata: {
+        scope: 'CommunityInvitesPageComponent',
+      },
+    });
   }
 
-  private reportError(
+  private reportActionError(
     error: unknown,
-    op: string,
-    skipUserNotification = false
+    operation: string,
+    fallbackMessage: string
   ): void {
-    if (!skipUserNotification) {
-      try {
-        this.notifications.showError(
-          'Não foi possível carregar seus convites de Comunidades.'
-        );
-      } catch {
-        // A observabilidade abaixo permanece ativa.
-      }
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation,
+      fallbackMessage,
+      codeMessages: COMMUNITY_INVITE_CODE_MESSAGES,
+      reasonMessages: COMMUNITY_INVITE_REASON_MESSAGES,
+      metadata: {
         scope: 'CommunityInvitesPageComponent',
-        op,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+      },
+    });
   }
 }
