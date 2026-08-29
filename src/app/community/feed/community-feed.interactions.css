@@ -444,7 +444,7 @@
 }
 
 .community-post__location > .community-post__location-meta .community-post__action {
-  min-height: 36px;
+  min-height: 44px;
   padding-block: 0.3rem;
   color: color-mix(in oklab, var(--text-color) 66%, var(--primary-color));
 }
