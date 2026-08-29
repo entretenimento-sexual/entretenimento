@@ -5,7 +5,7 @@
 }
 
 .community-preview {
-  width: min(100%, 58rem);
+  width: min(100%, 68rem);
   margin-inline: auto;
   padding: clamp(0.55rem, 2vw, 1rem);
 }
@@ -63,8 +63,6 @@
 
 .community-preview__content {
   overflow: hidden;
-  border: 1px solid var(--surface-border, #d5d5d5);
-  border-radius: var(--radius-xl, 1rem);
   background: var(--surface-color, #fff);
 }
 
