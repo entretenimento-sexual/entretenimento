@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -26,6 +26,7 @@ describe('CommunityMembershipManagementComponent', () => {
     showError: vi.fn(),
     showSuccess: vi.fn(),
   };
+  const handleError = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -65,7 +66,7 @@ describe('CommunityMembershipManagementComponent', () => {
         { provide: CommunitySettingsRepository, useValue: settingsRepositoryMock },
         { provide: CommunityTagRepository, useValue: tagRepositoryMock },
         { provide: ErrorNotificationService, useValue: errorNotifierMock },
-        { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
+        { provide: GlobalErrorHandlerService, useValue: { handleError } },
       ],
     });
   });
@@ -243,5 +244,58 @@ describe('CommunityMembershipManagementComponent', () => {
     expect(errorNotifierMock.showSuccess).toHaveBeenCalledWith(
       'Solicitação de Pessoa Um recusada.'
     );
+  });
+
+  it('mantém indisponibilidade da fila inline sem snackbar duplicado', () => {
+    repositoryMock.getMembershipRequests$.mockReturnValue(
+      throwError(() => ({
+        code: 'functions/failed-precondition',
+        details: { reason: 'community_not_manageable' },
+      }))
+    );
+
+    const fixture = createFixture();
+
+    expect(fixture.nativeElement.textContent).toContain('Fila indisponível.');
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
+    expect(handleError).toHaveBeenCalledTimes(1);
+  });
+
+  it('traduz request_not_pending sem expor mensagem técnica do backend', () => {
+    repositoryMock.getMembershipRequests$.mockReturnValue(
+      of({
+        items: [
+          {
+            memberId: 'member-1',
+            label: 'Pessoa Um',
+            avatarUrl: null,
+            requestedAt: 100,
+          },
+        ],
+        generatedAt: 200,
+      })
+    );
+    repositoryMock.reviewMembership$.mockReturnValue(
+      throwError(() => ({
+        code: 'functions/failed-precondition',
+        message: 'internal state detail',
+        details: { reason: 'request_not_pending' },
+      }))
+    );
+
+    const fixture = createFixture();
+    const action = fixture.nativeElement.querySelector(
+      '.community-membership-management__actions .is-approve'
+    ) as HTMLButtonElement;
+    action.click();
+    fixture.detectChanges();
+
+    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
+      'Esta solicitação já foi processada ou não está mais pendente.'
+    );
+    expect(errorNotifierMock.showError.mock.calls[0]?.[0]).not.toContain(
+      'internal state detail'
+    );
+    expect(handleError).toHaveBeenCalledTimes(1);
   });
 });
