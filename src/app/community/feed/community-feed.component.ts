@@ -30,6 +30,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import {
   EMPTY,
   Observable,
@@ -141,7 +142,14 @@ interface CommunityFeedReferenceNavigationRequest {
   sequence: number;
 }
 
+interface CommunityFeedMapCoordinates {
+  latitude: number;
+  longitude: number;
+  cacheKey: string;
+}
+
 const MAX_UNSEEN_NEW_POSTS = 99;
+const MAX_LOCATION_EMBED_URL_CACHE_ENTRIES = 64;
 
 @Component({
   selector: 'app-community-feed',
@@ -169,6 +177,7 @@ export class CommunityFeedComponent implements OnDestroy {
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   private readonly geolocation = inject(GeolocationService);
+  private readonly sanitizer = inject(DomSanitizer);
   private readonly loadRequests$ = new Subject<CommunityFeedLoadRequest>();
   private readonly realtimeHydrationRequests$ = new Subject<string>();
   private readonly localFeedEvents$ = new Subject<CommunityFeedLoadEvent>();
@@ -181,6 +190,7 @@ export class CommunityFeedComponent implements OnDestroy {
     new Subject<CommunityFeedReferenceNavigationRequest>();
   private readonly postHighlightRequests$ = new Subject<string>();
   private readonly pendingReactionPostIds = new Set<string>();
+  private readonly locationEmbedUrlCache = new Map<string, SafeResourceUrl>();
   private readonly postElements = viewChildren<ElementRef<HTMLElement>>('postElement');
   private readonly attachmentMenu = viewChild<ElementRef<HTMLDetailsElement>>('attachmentMenu');
   private readonly pendingOwnPostFollowId = signal<string | null>(null);
@@ -551,6 +561,7 @@ export class CommunityFeedComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.revokePreviewUrl(this.selectedImagePreviewUrl());
+    this.locationEmbedUrlCache.clear();
   }
 
   canCreatePost(): boolean {
@@ -639,10 +650,31 @@ export class CommunityFeedComponent implements OnDestroy {
     return `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
   }
 
+  locationMapEmbedUrl(item: CommunityFeedItem): SafeResourceUrl | null {
+    const coordinates = this.normalizedMapCoordinates(item);
+    if (!coordinates) return null;
+
+    const cached = this.locationEmbedUrlCache.get(coordinates.cacheKey);
+    if (cached) return cached;
+
+    const trusted = this.sanitizer.bypassSecurityTrustResourceUrl(
+      `https://www.google.com/maps?q=${coordinates.latitude},${coordinates.longitude}&z=14&output=embed`
+    );
+
+    if (this.locationEmbedUrlCache.size >= MAX_LOCATION_EMBED_URL_CACHE_ENTRIES) {
+      const oldestKey = this.locationEmbedUrlCache.keys().next().value as string | undefined;
+      if (oldestKey) this.locationEmbedUrlCache.delete(oldestKey);
+    }
+    this.locationEmbedUrlCache.set(coordinates.cacheKey, trusted);
+    return trusted;
+  }
+
   locationMapUrl(item: CommunityFeedItem): string {
-    const location = item.location;
-    if (!location) return '#';
-    const query = encodeURIComponent(`${location.latitude},${location.longitude}`);
+    const coordinates = this.normalizedMapCoordinates(item);
+    if (!coordinates) return '#';
+    const query = encodeURIComponent(
+      `${coordinates.latitude},${coordinates.longitude}`
+    );
     return `https://www.google.com/maps/search/?api=1&query=${query}`;
   }
 
@@ -906,7 +938,7 @@ export class CommunityFeedComponent implements OnDestroy {
     if (this.view() === 'photos') return 'Não foi possível carregar as fotos.';
     return this.sourceType() === 'venue'
       ? 'Não foi possível carregar as novidades.'
-      : 'Não foi possível carregar o mural.';
+      : 'Não foi possível carregar o mural da Comunidade.';
   }
 
   emptyLabel(): string {
@@ -922,6 +954,37 @@ export class CommunityFeedComponent implements OnDestroy {
 
   publishedLabel(publishedAt: number): string {
     return formatCommunityFeedTime(publishedAt, this.now());
+  }
+
+  private normalizedMapCoordinates(
+    item: CommunityFeedItem
+  ): CommunityFeedMapCoordinates | null {
+    const location = item.location;
+    if (!location) return null;
+
+    const latitude = Number(location.latitude);
+    const longitude = Number(location.longitude);
+    if (
+      !Number.isFinite(latitude)
+      || !Number.isFinite(longitude)
+      || latitude < -90
+      || latitude > 90
+      || longitude < -180
+      || longitude > 180
+    ) {
+      return null;
+    }
+
+    const roundedLatitude = Math.round(latitude * 100) / 100;
+    const roundedLongitude = Math.round(longitude * 100) / 100;
+    const normalizedLatitude = Object.is(roundedLatitude, -0) ? 0 : roundedLatitude;
+    const normalizedLongitude = Object.is(roundedLongitude, -0) ? 0 : roundedLongitude;
+
+    return {
+      latitude: normalizedLatitude,
+      longitude: normalizedLongitude,
+      cacheKey: `${normalizedLatitude.toFixed(2)},${normalizedLongitude.toFixed(2)}`,
+    };
   }
 
   private ensureReferencedPost$(postId: string): Observable<void> {
