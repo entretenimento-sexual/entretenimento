@@ -358,11 +358,15 @@
   background: color-mix(in oklab, var(--surface-color) 92%, var(--primary-color) 8%);
 }
 
+/* O embed legado do Google pode tentar abrir Place Details para POIs clicados e
+   retornar Place IDs obsoletos. No Mural ele funciona como preview visual; a
+   interação completa permanece no link "Abrir no Google Maps" logo abaixo. */
 .community-post__location-map iframe {
   width: 100%;
   height: 100%;
   display: block;
   border: 0;
+  pointer-events: none;
 }
 
 .community-post__location-meta {
