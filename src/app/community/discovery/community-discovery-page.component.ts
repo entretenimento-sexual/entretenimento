@@ -31,8 +31,7 @@ import {
 } from 'rxjs';
 
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
 import {
@@ -176,8 +175,7 @@ export class CommunityDiscoveryPageComponent {
   private readonly tagRepository = inject(CommunityTagRepository);
   private readonly creationGate = inject(CommunityCreationGateService);
   private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
-  private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -472,47 +470,32 @@ export class CommunityDiscoveryPageComponent {
   }
 
   private reportTagCatalogError(error: unknown): void {
-    try {
-      this.errorNotifier.showWarning(
-        'Os filtros por interesse não puderam ser carregados agora.'
-      );
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-
-    this.reportTechnicalError(error, 'getCommunityTagCatalog');
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'getCommunityTagCatalog',
+      fallbackMessage:
+        'Os filtros por interesse não puderam ser carregados agora.',
+      notification: 'warning',
+      metadata: this.errorMetadata(),
+    });
   }
 
   private reportError(error: unknown): void {
-    try {
-      this.errorNotifier.showError(
-        `Não foi possível carregar ${this.title.toLowerCase()}.`
-      );
-    } catch {
-      // A observabilidade abaixo permanece ativa.
-    }
-
-    this.reportTechnicalError(error, 'loadPage');
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'loadDiscoveryPage',
+      fallbackMessage:
+        `Não foi possível carregar ${this.title.toLowerCase()}.`,
+      metadata: this.errorMetadata(),
+    });
   }
 
-  private reportTechnicalError(error: unknown, op: string): void {
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
-        scope: 'CommunityDiscoveryPageComponent',
-        op,
-        sourceType: this.sourceType,
-        discoveryMode: this.discoveryMode,
-        tagId: this.selectedTagId(),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+  private errorMetadata(): Readonly<Record<string, unknown>> {
+    return {
+      scope: 'CommunityDiscoveryPageComponent',
+      sourceType: this.sourceType,
+      discoveryMode: this.discoveryMode,
+      tagId: this.selectedTagId(),
+    };
   }
 }
