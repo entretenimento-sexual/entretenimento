@@ -461,59 +461,67 @@
                 }
               }
 
-              <footer class="community-post__metrics" aria-label="Ações da publicação">
-                @if (item.capabilities.canReact) {
-                  <button
-                    class="community-post__action community-post__reaction"
-                    type="button"
-                    [class.is-active]="viewerReacted(item)"
-                    [disabled]="reactionState.status === 'loading' && reactionState.postId === item.postId"
-                    [attr.aria-pressed]="viewerReacted(item)"
-                    [attr.aria-busy]="reactionState.status === 'loading' && reactionState.postId === item.postId ? 'true' : null"
-                    [attr.aria-label]="(viewerReacted(item) ? 'Remover curtida. ' : 'Curtir publicação. ') + reactionCount(item) + ' curtidas.'"
-                    (click)="toggleReaction(item)"
-                  >
-                    @if (
-                      reactionState.status === 'loading'
-                      && reactionState.postId === item.postId
-                    ) {
-                      <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                    } @else {
+              @if (
+                item.capabilities.canReact
+                || reactionCount(item) > 0
+                || (view() === 'feed' && item.capabilities.canComment)
+              ) {
+                <footer class="community-post__metrics" aria-label="Ações e reações da publicação">
+                  @if (item.capabilities.canReact) {
+                    <button
+                      class="community-post__action community-post__reaction"
+                      type="button"
+                      [class.is-active]="viewerReacted(item)"
+                      [disabled]="reactionState.status === 'loading' && reactionState.postId === item.postId"
+                      [attr.aria-pressed]="viewerReacted(item)"
+                      [attr.aria-busy]="reactionState.status === 'loading' && reactionState.postId === item.postId ? 'true' : null"
+                      [attr.aria-label]="(viewerReacted(item) ? 'Remover curtida. ' : 'Curtir publicação. ') + reactionCount(item) + ' curtidas.'"
+                      (click)="toggleReaction(item)"
+                    >
+                      @if (
+                        reactionState.status === 'loading'
+                        && reactionState.postId === item.postId
+                      ) {
+                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                      } @else {
+                        <i class="fas fa-heart" aria-hidden="true"></i>
+                      }
+                      <span class="community-post__action-label">
+                        {{ viewerReacted(item) ? 'Curtido' : 'Curtir' }}
+                      </span>
+                      @if (reactionCount(item) > 0) {
+                        <span class="community-post__action-count">{{ reactionCount(item) }}</span>
+                      }
+                    </button>
+                  } @else if (reactionCount(item) > 0) {
+                    <span
+                      class="community-post__action community-post__action--static"
+                      [attr.aria-label]="reactionCount(item) + (reactionCount(item) === 1 ? ' curtida' : ' curtidas')"
+                    >
                       <i class="fas fa-heart" aria-hidden="true"></i>
-                    }
-                    <span class="community-post__action-label">Curtir</span>
-                    @if (reactionCount(item) > 0) {
-                      <span class="community-post__action-count">{{ reactionCount(item) }}</span>
-                    }
-                  </button>
-                } @else {
-                  <span
-                    class="community-post__action community-post__action--static"
-                    [attr.aria-label]="reactionCount(item) + ' curtidas'"
-                  >
-                    <i class="fas fa-heart" aria-hidden="true"></i>
-                    <span class="community-post__action-label">Curtir</span>
-                    @if (reactionCount(item) > 0) {
-                      <span class="community-post__action-count">{{ reactionCount(item) }}</span>
-                    }
-                  </span>
-                }
+                      <span class="community-post__action-label">
+                        {{ reactionCount(item) }}
+                        {{ reactionCount(item) === 1 ? 'curtida' : 'curtidas' }}
+                      </span>
+                    </span>
+                  }
 
-                @if (view() === 'feed' && item.capabilities.canComment) {
-                  <button
-                    class="community-post__action community-post__reply"
-                    type="button"
-                    [class.is-replying]="replyPostId() === item.postId"
-                    [attr.aria-expanded]="commentsOpen(item)"
-                    [attr.aria-controls]="'community-feed-comments-' + item.postId"
-                    [attr.aria-label]="'Responder à publicação de ' + item.author.label"
-                    (click)="openCommentsForReply(item)"
-                  >
-                    <i class="fas fa-reply" aria-hidden="true"></i>
-                    <span class="community-post__action-label">Responder</span>
-                  </button>
-                }
-              </footer>
+                  @if (view() === 'feed' && item.capabilities.canComment) {
+                    <button
+                      class="community-post__action community-post__reply"
+                      type="button"
+                      [class.is-replying]="replyPostId() === item.postId"
+                      [attr.aria-expanded]="commentsOpen(item)"
+                      [attr.aria-controls]="'community-feed-comments-' + item.postId"
+                      [attr.aria-label]="'Responder à publicação de ' + item.author.label"
+                      (click)="openCommentsForReply(item)"
+                    >
+                      <i class="fas fa-reply" aria-hidden="true"></i>
+                      <span class="community-post__action-label">Responder</span>
+                    </button>
+                  }
+                </footer>
+              }
 
               @if (item.capabilities.canViewComments && commentCount(item) > 0) {
                 <div class="community-post__metrics" aria-label="Histórico anterior da publicação">
