@@ -1,44 +1,44 @@
 /* A referência contextualiza a conversa sem disputar atenção com a mensagem atual. */
 .community-post__reply-context {
   min-width: 0;
-  max-width: min(24rem, calc(100% - 3.17rem));
+  max-width: min(30rem, calc(100% - 3.17rem));
   display: grid;
-  gap: 0.04rem;
-  margin: 0.42rem 0 0.18rem 3.17rem;
-  padding: 0.24rem 1.65rem 0.26rem 0.52rem;
+  gap: 0.08rem;
+  margin: 0.38rem 0 0.2rem 3.17rem;
+  padding: 0.34rem 1.8rem 0.36rem 0.62rem;
   border: 0;
   border-inline-start: 2px solid color-mix(
     in oklab,
-    var(--primary-color) 34%,
+    var(--primary-color) 36%,
     transparent
   );
-  border-radius: 0.24rem;
+  border-radius: 0.45rem;
   background: color-mix(
     in oklab,
-    var(--surface-color) 99%,
-    var(--primary-color) 1%
+    var(--surface-color) 98%,
+    var(--primary-color) 2%
   );
-  color: color-mix(in oklab, var(--text-color) 46%, transparent);
-  font-size: 0.61rem;
-  line-height: 1.2;
+  color: color-mix(in oklab, var(--text-color) 52%, transparent);
+  font-size: 0.68rem;
+  line-height: 1.32;
 }
 
 .community-post__reply-context strong {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 0.22rem;
+  gap: 0.24rem;
   overflow: hidden;
-  color: color-mix(in oklab, var(--text-color) 58%, transparent);
-  font-size: 0.61rem;
-  font-weight: 650;
+  color: color-mix(in oklab, var(--text-color) 64%, transparent);
+  font-size: 0.68rem;
+  font-weight: 680;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .community-post__reply-context strong i {
-  color: color-mix(in oklab, var(--primary-color) 52%, transparent);
-  font-size: 0.58rem;
+  color: color-mix(in oklab, var(--primary-color) 58%, transparent);
+  font-size: 0.62rem;
 }
 
 /* O contrato limita o preview textual e a UI mantém uma única linha. Assim uma
@@ -46,22 +46,22 @@
 .community-post__reply-context > span {
   min-width: 0;
   overflow: hidden;
-  color: color-mix(in oklab, var(--text-color) 48%, transparent);
+  color: color-mix(in oklab, var(--text-color) 54%, transparent);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .community-feed--photos .community-post__reply-context {
-  max-width: min(24rem, calc(100% - 1.2rem));
+  max-width: min(30rem, calc(100% - 1.2rem));
   margin: 0.4rem 0.6rem 0;
-  padding: 0.24rem 1.65rem 0.26rem 0.48rem;
+  padding: 0.34rem 1.8rem 0.36rem 0.58rem;
 }
 
 @media (max-width: 30rem) {
   .community-post__reply-context {
     max-width: calc(100% - 0.75rem);
     margin: 0.38rem 0 0.14rem 0;
-    padding: 0.3rem 1.65rem 0.32rem 0.5rem;
+    padding: 0.34rem 1.7rem 0.36rem 0.54rem;
   }
 }
 
@@ -73,7 +73,7 @@
 /* MURAL-02: a referência é navegável, e o alvo recebe feedback visual temporário. */
 .community-post__reply-context.is-navigable {
   position: relative;
-  min-height: 44px;
+  min-height: 46px;
   cursor: pointer;
   text-decoration: none;
   transition:
@@ -87,8 +87,8 @@
   inset-inline-end: 0.55rem;
   top: 50%;
   transform: translateY(-50%);
-  color: color-mix(in oklab, var(--text-color) 30%, transparent);
-  font-size: 0.96rem;
+  color: color-mix(in oklab, var(--text-color) 34%, transparent);
+  font-size: 1rem;
   font-weight: 650;
   line-height: 1;
 }
@@ -96,18 +96,18 @@
 .community-post__reply-context.is-navigable:hover {
   border-inline-start-color: color-mix(
     in oklab,
-    var(--primary-color) 58%,
+    var(--primary-color) 60%,
     transparent
   );
   background: color-mix(
     in oklab,
-    var(--surface-color) 97%,
-    var(--primary-color) 3%
+    var(--surface-color) 96%,
+    var(--primary-color) 4%
   );
 }
 
 .community-post__reply-context.is-navigable:hover::after {
-  color: color-mix(in oklab, var(--primary-color) 58%, transparent);
+  color: color-mix(in oklab, var(--primary-color) 62%, transparent);
 }
 
 .community-post__reply-context.is-navigable:focus-visible {
@@ -248,9 +248,9 @@
 
 /* MURAL-05: hierarquia mais social sem transformar cada publicação em um card. */
 .community-post > p {
-  max-width: 42rem;
-  font-size: 0.92rem;
-  line-height: 1.52;
+  max-width: 44rem;
+  font-size: 0.94rem;
+  line-height: 1.5;
 }
 
 .community-post__author-context > span {
@@ -258,8 +258,8 @@
   padding: 0.08rem 0.32rem;
   background: color-mix(
     in oklab,
-    var(--surface-color) 96%,
-    var(--primary-color) 4%
+    var(--surface-color) 98%,
+    var(--primary-color) 2%
   );
 }
 
@@ -273,7 +273,7 @@
 
 .community-post__metrics {
   margin-left: 3.17rem;
-  gap: 0.08rem;
+  gap: 0.12rem;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -284,8 +284,8 @@
   .community-post:hover {
     background: color-mix(
       in oklab,
-      var(--surface-color) 98%,
-      var(--primary-color) 2%
+      var(--surface-color) 99%,
+      var(--primary-color) 1%
     );
   }
 }
@@ -297,11 +297,11 @@
   }
 
   .community-post {
-    padding: 0.72rem 1.1rem;
+    padding: 0.78rem 1.1rem;
   }
 
   .community-post__header {
-    margin-bottom: 0.34rem;
+    margin-bottom: 0.38rem;
   }
 
   .community-post__media {
@@ -314,11 +314,11 @@
   }
 
   .community-post__metrics {
-    margin-top: 0.24rem;
+    margin-top: 0.3rem;
   }
 
   .community-post__reply-context {
-    margin-bottom: 0.14rem;
+    margin-bottom: 0.18rem;
   }
 }
 
