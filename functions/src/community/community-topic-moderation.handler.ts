@@ -36,7 +36,8 @@ function assertTopicsRuntime(): void {
 
   throw new HttpsError(
     'failed-precondition',
-    'A moderação de Tópicos ainda não está disponível neste ambiente.'
+    'A moderação de Tópicos ainda não está disponível neste ambiente.',
+    { reason: 'community_topic_moderation_unavailable' }
   );
 }
 
@@ -46,13 +47,18 @@ function assertAuthenticatedUid(
   const uid = String(auth?.uid ?? '').trim();
 
   if (!uid) {
-    throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+    throw new HttpsError(
+      'unauthenticated',
+      'Usuário não autenticado.',
+      { reason: 'authentication_required' }
+    );
   }
 
   if (auth?.token?.['email_verified'] !== true) {
     throw new HttpsError(
       'failed-precondition',
-      'Verifique seu e-mail para continuar.'
+      'Verifique seu e-mail para continuar.',
+      { reason: 'email_verification_required' }
     );
   }
 
@@ -101,7 +107,8 @@ function assertTransactionalModerator(
   ) {
     throw new HttpsError(
       'permission-denied',
-      'Você não possui permissão para moderar Tópicos nesta Comunidade.'
+      'Você não possui permissão para moderar Tópicos nesta Comunidade.',
+      { reason: 'topic_moderation_forbidden' }
     );
   }
 
@@ -112,20 +119,23 @@ function throwTransitionError(reason: string | null): never {
   if (reason === 'removal_reason_required') {
     throw new HttpsError(
       'invalid-argument',
-      'Informe um motivo com pelo menos 3 caracteres para remover o Tópico.'
+      'Informe um motivo com pelo menos 3 caracteres para remover o Tópico.',
+      { reason }
     );
   }
 
   if (reason === 'removed_topic') {
     throw new HttpsError(
       'failed-precondition',
-      'Um Tópico removido não pode ser reaberto.'
+      'Um Tópico removido não pode ser reaberto.',
+      { reason }
     );
   }
 
   throw new HttpsError(
     'failed-precondition',
-    'O estado atual deste Tópico não permite esta ação.'
+    'O estado atual deste Tópico não permite esta ação.',
+    { reason: reason ?? 'topic_transition_forbidden' }
   );
 }
 
@@ -152,13 +162,18 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
       || !command.topicId
       || !command.action
     ) {
-      throw new HttpsError('invalid-argument', 'Ação de moderação inválida.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Ação de moderação inválida.',
+        { reason: 'invalid_topic_moderation_action' }
+      );
     }
 
     if (command.reasonTooLong) {
       throw new HttpsError(
         'invalid-argument',
-        'O motivo da moderação deve ter no máximo 240 caracteres.'
+        'O motivo da moderação deve ter no máximo 240 caracteres.',
+        { reason: 'removal_reason_too_long' }
       );
     }
 
@@ -169,7 +184,8 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
     ) {
       throw new HttpsError(
         'permission-denied',
-        'Você não possui permissão para moderar Tópicos nesta Comunidade.'
+        'Você não possui permissão para moderar Tópicos nesta Comunidade.',
+        { reason: 'topic_moderation_forbidden' }
       );
     }
 
@@ -224,7 +240,8 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
         ) {
           throw new HttpsError(
             'already-exists',
-            'Este identificador de requisição já foi utilizado.'
+            'Este identificador de requisição já foi utilizado.',
+            { reason: 'request_id_conflict' }
           );
         }
 
@@ -241,7 +258,8 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
         ) {
           throw new HttpsError(
             'data-loss',
-            'O registro idempotente desta moderação está inconsistente.'
+            'O registro idempotente desta moderação está inconsistente.',
+            { reason: 'moderation_record_inconsistent' }
           );
         }
 
@@ -257,11 +275,19 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
       }
 
       if (!communitySnapshot.exists) {
-        throw new HttpsError('not-found', 'Comunidade não encontrada.');
+        throw new HttpsError(
+          'not-found',
+          'Comunidade não encontrada.',
+          { reason: 'community_not_found' }
+        );
       }
 
       if (!topicSnapshot.exists) {
-        throw new HttpsError('not-found', 'Tópico não encontrado.');
+        throw new HttpsError(
+          'not-found',
+          'Tópico não encontrado.',
+          { reason: 'topic_not_found' }
+        );
       }
 
       const actorRole = assertTransactionalModerator(
@@ -291,7 +317,8 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
       if (!transition.deleteProjection && !projectionSnapshot.exists) {
         throw new HttpsError(
           'data-loss',
-          'A projeção deste Tópico está inconsistente e exige revisão.'
+          'A projeção deste Tópico está inconsistente e exige revisão.',
+          { reason: 'topic_projection_inconsistent' }
         );
       }
 
