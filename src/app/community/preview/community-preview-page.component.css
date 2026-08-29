@@ -562,6 +562,33 @@
     justify-self: start;
     justify-content: flex-start;
   }
+
+  /* Quando sair é a única ação, ela permanece na linha da identidade. Estados
+     de entrada/pendência mantêm a segunda linha porque carregam mais contexto. */
+  .community-preview__identity:has(
+    .community-preview__membership-controls
+      > .community-preview__membership-leave-action:only-child
+  ) {
+    grid-template-columns: auto minmax(0, 1fr) 2.75rem;
+  }
+
+  .community-preview__membership-controls:has(
+    > .community-preview__membership-leave-action:only-child
+  ) {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: center;
+    justify-self: end;
+    justify-content: flex-end;
+  }
+
+  .community-preview__membership-controls
+    > .community-preview__membership-leave-action:only-child {
+    width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0;
+    font-size: 0.9rem;
+  }
 }
 
 @media (max-width: 30rem) {
@@ -578,6 +605,13 @@
     grid-template-columns: 3.75rem minmax(0, 1fr);
     gap: 0.65rem;
     padding-inline: 0.75rem;
+  }
+
+  .community-preview__identity:has(
+    .community-preview__membership-controls
+      > .community-preview__membership-leave-action:only-child
+  ) {
+    grid-template-columns: 3.75rem minmax(0, 1fr) 2.75rem;
   }
 
   .community-preview__avatar {
