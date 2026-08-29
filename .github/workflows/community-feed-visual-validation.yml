@@ -141,18 +141,22 @@ jobs:
                 const rect = element.getBoundingClientRect();
                 return Math.min(rect.width, rect.height);
               };
-              const actions = Array.from(document.querySelectorAll('.community-post__action')).filter(visible).map(size);
+              const actions = Array.from(document.querySelectorAll('button.community-post__action, a.community-post__action')).filter(visible).map(size);
               const composer = Array.from(document.querySelectorAll('.community-feed__composer-tool, .community-feed__send')).filter(visible).map(size);
-              const locationMapLinks = Array.from(document.querySelectorAll('.community-post__location-map-link')).filter(visible);
+              const locationSummaries = Array.from(document.querySelectorAll('.community-post__location-details > summary')).filter(visible);
+              const locationDirectLinks = Array.from(document.querySelectorAll('.community-post__location a[href*="google.com/maps/search"]')).filter(visible);
               const buttons = Array.from(document.querySelectorAll('button')).filter(visible);
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
                 postCount: document.querySelectorAll('.community-post').length,
                 locationCount: document.querySelectorAll('.community-post__location').length,
-                locationMapLinkCount: locationMapLinks.length,
+                locationSummaryCount: locationSummaries.length,
+                locationDirectLinkCount: locationDirectLinks.length,
+                locationIframeCount: document.querySelectorAll('.community-post__location-map iframe').length,
                 legacyLocationLinkCount: document.querySelectorAll('.community-post__location-link').length,
-                minLocationMapTarget: locationMapLinks.length ? Math.min(...locationMapLinks.map(size)) : 0,
+                minLocationSummaryTarget: locationSummaries.length ? Math.min(...locationSummaries.map(size)) : 0,
+                minLocationDirectTarget: locationDirectLinks.length ? Math.min(...locationDirectLinks.map(size)) : 0,
                 imageCount: document.querySelectorAll('.community-post__media img').length,
                 minActionTarget: Math.min(...actions),
                 minComposerTarget: Math.min(...composer),
@@ -168,9 +172,12 @@ jobs:
               metrics.scrollWidth > metrics.viewportWidth + 1
               || metrics.postCount !== 3
               || metrics.locationCount !== 1
-              || metrics.locationMapLinkCount !== 1
+              || metrics.locationSummaryCount !== 1
+              || metrics.locationDirectLinkCount !== 1
+              || metrics.locationIframeCount !== 0
               || metrics.legacyLocationLinkCount !== 0
-              || metrics.minLocationMapTarget < 44
+              || metrics.minLocationSummaryTarget < 44
+              || metrics.minLocationDirectTarget < 44
               || metrics.imageCount !== 1
               || metrics.minActionTarget < 44
               || metrics.minComposerTarget < 44
@@ -184,6 +191,35 @@ jobs:
           playwright-cli snapshot --filename="$OUT/desktop/accessibility.yml"
           playwright-cli screenshot --filename="$OUT/desktop/viewport.png"
           playwright-cli screenshot --full-page --filename="$OUT/desktop/full-page.png"
+
+          run_checked "$OUT/desktop/location-map.metrics.log" "async (page) => {
+            const summary = page.locator('.community-post__location-details > summary').first();
+            await summary.click();
+            await page.waitForSelector('.community-post__location-map iframe', { state: 'visible' });
+            const result = await page.evaluate(() => {
+              const details = document.querySelector('.community-post__location-details');
+              const iframe = document.querySelector('.community-post__location-map iframe');
+              return {
+                expanded: details?.hasAttribute('open') ?? false,
+                iframeCount: document.querySelectorAll('.community-post__location-map iframe').length,
+                iframeSrc: iframe?.getAttribute('src') ?? '',
+                directLinkCount: document.querySelectorAll('.community-post__location a[href*="google.com/maps/search"]').length,
+                scrollWidth: document.documentElement.scrollWidth,
+                viewportWidth: window.innerWidth,
+              };
+            });
+            if (
+              !result.expanded
+              || result.iframeCount !== 1
+              || !result.iframeSrc.includes('google.com/maps?q=')
+              || result.directLinkCount !== 1
+              || result.scrollWidth > result.viewportWidth + 1
+            ) {
+              throw new Error('Desktop deferred map validation failed: ' + JSON.stringify(result));
+            }
+            return result;
+          }"
+          playwright-cli screenshot --filename="$OUT/desktop/location-open.png"
 
           run_checked "$OUT/desktop/reply.metrics.log" "async (page) => {
             const reply = page.getByRole('button', { name: 'Responder à publicação de Ana' });
@@ -229,10 +265,11 @@ jobs:
                 return Math.min(rect.width, rect.height);
               };
               const posts = Array.from(document.querySelectorAll('.community-post')).map((element) => element.getBoundingClientRect());
-              const actions = Array.from(document.querySelectorAll('.community-post__action')).map(size);
+              const actions = Array.from(document.querySelectorAll('button.community-post__action, a.community-post__action')).map(size);
               const composer = Array.from(document.querySelectorAll('.community-feed__composer-tool, .community-feed__send')).map(size);
               const references = Array.from(document.querySelectorAll('.community-post__reply-context.is-navigable')).map((element) => element.getBoundingClientRect().height);
-              const locationMapLinks = Array.from(document.querySelectorAll('.community-post__location-map-link'));
+              const locationSummaries = Array.from(document.querySelectorAll('.community-post__location-details > summary'));
+              const locationDirectLinks = Array.from(document.querySelectorAll('.community-post__location a[href*="google.com/maps/search"]'));
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
@@ -240,8 +277,11 @@ jobs:
                 minActionTarget: Math.min(...actions),
                 minComposerTarget: Math.min(...composer),
                 minReferenceHeight: references.length ? Math.min(...references) : 44,
-                locationMapLinkCount: locationMapLinks.length,
-                minLocationMapTarget: locationMapLinks.length ? Math.min(...locationMapLinks.map(size)) : 0,
+                locationSummaryCount: locationSummaries.length,
+                locationDirectLinkCount: locationDirectLinks.length,
+                locationIframeCount: document.querySelectorAll('.community-post__location-map iframe').length,
+                minLocationSummaryTarget: locationSummaries.length ? Math.min(...locationSummaries.map(size)) : 0,
+                minLocationDirectTarget: locationDirectLinks.length ? Math.min(...locationDirectLinks.map(size)) : 0,
               };
             });
             if (
@@ -250,8 +290,11 @@ jobs:
               || metrics.minActionTarget < 44
               || metrics.minComposerTarget < 44
               || metrics.minReferenceHeight < 44
-              || metrics.locationMapLinkCount !== 1
-              || metrics.minLocationMapTarget < 44
+              || metrics.locationSummaryCount !== 1
+              || metrics.locationDirectLinkCount !== 1
+              || metrics.locationIframeCount !== 0
+              || metrics.minLocationSummaryTarget < 44
+              || metrics.minLocationDirectTarget < 44
             ) {
               throw new Error('Mobile Mural validation failed: ' + JSON.stringify(metrics));
             }
@@ -261,6 +304,24 @@ jobs:
           playwright-cli snapshot --filename="$OUT/mobile/accessibility.yml"
           playwright-cli screenshot --filename="$OUT/mobile/viewport.png"
           playwright-cli screenshot --full-page --filename="$OUT/mobile/full-page.png"
+
+          run_checked "$OUT/mobile/location-map.metrics.log" "async (page) => {
+            await page.locator('.community-post__location-details > summary').first().click();
+            await page.waitForSelector('.community-post__location-map iframe', { state: 'visible' });
+            const result = await page.evaluate(() => ({
+              iframeCount: document.querySelectorAll('.community-post__location-map iframe').length,
+              scrollWidth: document.documentElement.scrollWidth,
+              viewportWidth: window.innerWidth,
+            }));
+            if (
+              result.iframeCount !== 1
+              || result.scrollWidth > result.viewportWidth + 1
+            ) {
+              throw new Error('Mobile deferred map validation failed: ' + JSON.stringify(result));
+            }
+            return result;
+          }"
+          playwright-cli screenshot --filename="$OUT/mobile/location-open.png"
 
           run_checked "$OUT/mobile/reply.metrics.log" "async (page) => {
             const reply = page.getByRole('button', { name: 'Responder à publicação de Ana' });
