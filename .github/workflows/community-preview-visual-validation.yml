@@ -150,16 +150,32 @@ jobs:
           run_checked "$OUT/desktop/feed.metrics.log" "async (page) => {
             await page.waitForSelector('.community-preview__content', { state: 'visible' });
             await page.waitForSelector('.community-post', { state: 'visible' });
-            const metrics = await page.evaluate(() => ({
-              viewportWidth: window.innerWidth,
-              scrollWidth: document.documentElement.scrollWidth,
-              h1Count: document.querySelectorAll('.community-preview h1').length,
-              tabCount: document.querySelectorAll('.community-preview__tabs button').length,
-              postCount: document.querySelectorAll('.community-post').length,
-              hasComposer: Boolean(document.querySelector('.community-feed__composer')),
-              hasCover: Boolean(document.querySelector('.community-preview__cover')),
-              hasIdentity: Boolean(document.querySelector('.community-preview__identity')),
-            }));
+            await page.waitForSelector('.community-preview__rail', { state: 'visible' });
+            const metrics = await page.evaluate(() => {
+              const rail = document.querySelector('.community-preview__rail');
+              const primary = document.querySelector('.community-preview__primary');
+              const body = document.querySelector('.community-preview__body');
+              const railRect = rail?.getBoundingClientRect();
+              const primaryRect = primary?.getBoundingClientRect();
+              const bodyRect = body?.getBoundingClientRect();
+              return {
+                viewportWidth: window.innerWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+                h1Count: document.querySelectorAll('.community-preview h1').length,
+                tabCount: document.querySelectorAll('.community-preview__tabs button').length,
+                postCount: document.querySelectorAll('.community-post').length,
+                hasComposer: Boolean(document.querySelector('.community-feed__composer')),
+                hasCover: Boolean(document.querySelector('.community-preview__cover')),
+                hasIdentity: Boolean(document.querySelector('.community-preview__identity')),
+                railVisible: Boolean(rail && getComputedStyle(rail).display !== 'none'),
+                railWidth: railRect?.width ?? 0,
+                primaryWidth: primaryRect?.width ?? 0,
+                bodyWidth: bodyRect?.width ?? 0,
+                railHasAbout: (rail?.textContent ?? '').includes('Sobre'),
+                railHasMetrics: (rail?.textContent ?? '').includes('Comunidade agora'),
+                railHasRules: (rail?.textContent ?? '').includes('Regras'),
+              };
+            });
             if (
               metrics.scrollWidth > metrics.viewportWidth + 1
               || metrics.h1Count !== 1
@@ -168,6 +184,13 @@ jobs:
               || !metrics.hasComposer
               || !metrics.hasCover
               || !metrics.hasIdentity
+              || !metrics.railVisible
+              || metrics.railWidth < 240
+              || metrics.primaryWidth < 700
+              || metrics.bodyWidth <= metrics.primaryWidth
+              || !metrics.railHasAbout
+              || !metrics.railHasMetrics
+              || !metrics.railHasRules
             ) {
               throw new Error('Community page desktop feed validation failed: ' + JSON.stringify(metrics));
             }
@@ -179,16 +202,23 @@ jobs:
           playwright-cli screenshot --full-page --filename="$OUT/desktop/feed.full-page.png"
 
           run_checked "$OUT/desktop/about.metrics.log" "async (page) => {
-            await page.getByRole('button', { name: 'Sobre' }).click();
+            await page.getByRole('button', { name: 'Sobre', exact: true }).click();
             await page.waitForSelector('.community-preview__about', { state: 'visible' });
             const text = (await page.locator('.community-preview__about').innerText()).trim();
             const metrics = {
               hasRules: text.includes('Regras da Comunidade'),
               hasDescription: text.includes('Espaço para conhecer pessoas'),
               hasTags: text.includes('#Amizade') && text.includes('#Encontros'),
+              railCount: await page.locator('.community-preview__rail').count(),
               scrollWidth: await page.evaluate(() => document.documentElement.scrollWidth),
             };
-            if (!metrics.hasRules || !metrics.hasDescription || !metrics.hasTags || metrics.scrollWidth > 1441) {
+            if (
+              !metrics.hasRules
+              || !metrics.hasDescription
+              || !metrics.hasTags
+              || metrics.railCount !== 0
+              || metrics.scrollWidth > 1441
+            ) {
               throw new Error('Community page desktop about validation failed: ' + JSON.stringify(metrics));
             }
             return metrics;
@@ -205,6 +235,7 @@ jobs:
             const metrics = await page.evaluate(() => {
               const tabs = document.querySelector('.community-preview__tabs')?.getBoundingClientRect();
               const content = document.querySelector('.community-preview__content')?.getBoundingClientRect();
+              const rail = document.querySelector('.community-preview__rail');
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
@@ -212,6 +243,8 @@ jobs:
                 tabsWidth: tabs?.width ?? 0,
                 tabCount: document.querySelectorAll('.community-preview__tabs button').length,
                 postCount: document.querySelectorAll('.community-post').length,
+                railCount: document.querySelectorAll('.community-preview__rail').length,
+                railVisible: Boolean(rail && getComputedStyle(rail).display !== 'none'),
               };
             });
             if (
@@ -220,6 +253,8 @@ jobs:
               || metrics.tabsWidth > metrics.viewportWidth + 1
               || metrics.tabCount !== 4
               || metrics.postCount !== 3
+              || metrics.railCount !== 1
+              || metrics.railVisible
             ) {
               throw new Error('Community page mobile validation failed: ' + JSON.stringify(metrics));
             }
@@ -231,13 +266,20 @@ jobs:
           playwright-cli screenshot --full-page --filename="$OUT/mobile/feed.full-page.png"
 
           run_checked "$OUT/mobile/about.metrics.log" "async (page) => {
-            await page.getByRole('button', { name: 'Sobre' }).click();
+            await page.getByRole('button', { name: 'Sobre', exact: true }).click();
             await page.waitForSelector('.community-preview__about', { state: 'visible' });
-            const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-            if (scrollWidth > 391) {
-              throw new Error('Community page mobile about overflow: ' + scrollWidth);
+            const metrics = await page.evaluate(() => ({
+              viewportWidth: window.innerWidth,
+              scrollWidth: document.documentElement.scrollWidth,
+              railCount: document.querySelectorAll('.community-preview__rail').length,
+            }));
+            if (
+              metrics.scrollWidth > metrics.viewportWidth + 1
+              || metrics.railCount !== 0
+            ) {
+              throw new Error('Community page mobile about validation failed: ' + JSON.stringify(metrics));
             }
-            return { scrollWidth };
+            return metrics;
           }"
           playwright-cli screenshot --full-page --filename="$OUT/mobile/about.full-page.png"
 
