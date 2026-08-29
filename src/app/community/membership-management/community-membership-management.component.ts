@@ -23,8 +23,8 @@ import {
   tap,
 } from 'rxjs';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
   CommunityMembershipRequestItem,
   CommunityMembershipReviewAction,
@@ -58,6 +58,28 @@ interface MembershipReviewCommand {
   action: CommunityMembershipReviewAction;
 }
 
+const MEMBERSHIP_REVIEW_REASON_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    community_capacity_reached:
+      'A capacidade atual foi atingida. A solicitação continua pendente.',
+    moderator_required:
+      'Seu acesso de moderação não permite revisar esta solicitação.',
+    self_review_forbidden:
+      'Você não pode revisar a própria solicitação.',
+    membership_blocked:
+      'Este vínculo está bloqueado e não pode ser alterado.',
+    protected_membership:
+      'Este participante possui uma função protegida nesta Comunidade.',
+    membership_request_not_pending:
+      'Esta solicitação já foi processada ou não está mais pendente.',
+    account_restricted:
+      'A conta deste participante não está elegível para entrada neste momento.',
+    adult_access_required:
+      'A conta deste participante precisa confirmar o acesso adulto antes da entrada.',
+    profile_incomplete:
+      'A conta deste participante precisa concluir o perfil antes da entrada.',
+  });
+
 @Component({
   selector: 'app-community-membership-management',
   standalone: true,
@@ -75,7 +97,7 @@ interface MembershipReviewCommand {
 export class CommunityMembershipManagementComponent {
   private readonly repository = inject(CommunityMembershipRepository);
   private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly refreshRequests$ = new Subject<void>();
   private readonly reviewRequests$ = new Subject<MembershipReviewCommand>();
 
@@ -110,13 +132,7 @@ export class CommunityMembershipManagementComponent {
         ),
         startWith<MembershipRequestsState>({ status: 'loading', items: [] }),
         catchError((error: unknown) => {
-          this.reportError(
-            error,
-            this.sourceType() === 'venue'
-              ? 'Não foi possível carregar as solicitações de acesso.'
-              : 'Não foi possível carregar as solicitações de entrada.',
-            'loadMembershipRequests'
-          );
+          this.reportLoadError(error);
           return of<MembershipRequestsState>({ status: 'error', items: [] });
         })
       )
@@ -155,18 +171,7 @@ export class CommunityMembershipManagementComponent {
             action,
           }),
           catchError((error: unknown) => {
-            const capacityReached = (
-              error as { details?: { reason?: unknown } } | null
-            )?.details?.reason === 'community_capacity_reached';
-            this.reportError(
-              error,
-              capacityReached
-                ? 'A capacidade atual foi atingida. A solicitação continua pendente.'
-                : this.sourceType() === 'venue'
-                ? 'Não foi possível revisar esta solicitação de acesso.'
-                : 'Não foi possível revisar esta solicitação de entrada.',
-              'reviewMembership'
-            );
+            this.reportReviewError(error, action);
             return of<MembershipReviewActionState>({
               status: 'error',
               memberId: request.memberId,
@@ -212,28 +217,50 @@ export class CommunityMembershipManagementComponent {
       : `${label} entrou na Comunidade.`;
   }
 
-  private reportError(error: unknown, message: string, op: string): void {
-    try {
-      this.errorNotifier.showError(message);
-    } catch {
-      // O diagnóstico técnico abaixo permanece ativo.
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+  private reportLoadError(error: unknown): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'loadMembershipRequests',
+      fallbackMessage: this.sourceType() === 'venue'
+        ? 'Não foi possível carregar as solicitações de acesso.'
+        : 'Não foi possível carregar as solicitações de entrada.',
+      // A própria fila já possui estado inline de indisponibilidade.
+      notification: 'none',
+      metadata: {
         scope: 'CommunityMembershipManagementComponent',
-        op,
+        communityId: this.communityId(),
         sourceType: this.sourceType(),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe a fila visual.
-    }
+      },
+    });
+  }
+
+  private reportReviewError(
+    error: unknown,
+    action: CommunityMembershipReviewAction
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'reviewMembership',
+      fallbackMessage: this.sourceType() === 'venue'
+        ? 'Não foi possível revisar esta solicitação de acesso.'
+        : 'Não foi possível revisar esta solicitação de entrada.',
+      reasonMessages: MEMBERSHIP_REVIEW_REASON_MESSAGES,
+      codeMessages: {
+        'permission-denied':
+          'Seu acesso atual não permite revisar esta solicitação.',
+        'failed-precondition':
+          'Esta solicitação não pode ser alterada no estado atual.',
+        'not-found':
+          'Esta solicitação ou Comunidade não está mais disponível.',
+        'invalid-argument':
+          'Não foi possível validar esta solicitação.',
+      },
+      metadata: {
+        scope: 'CommunityMembershipManagementComponent',
+        communityId: this.communityId(),
+        sourceType: this.sourceType(),
+        action,
+      },
+    });
   }
 }
