@@ -353,7 +353,7 @@ describe('CommunityFeedComponent', () => {
     );
   });
 
-  it('centraliza feedback e diagnóstico de Local em falha', () => {
+  it('mantém erro bloqueante inline e envia apenas diagnóstico técnico', () => {
     repositoryMock.getPage$.mockReturnValue(
       throwError(() => new Error('permission-denied'))
     );
@@ -362,9 +362,7 @@ describe('CommunityFeedComponent', () => {
     expect(fixture.nativeElement.textContent).toContain(
       'Não foi possível carregar as novidades.'
     );
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Não foi possível carregar as novidades do Local agora.'
-    );
+    expect(errorNotifierMock.showError).not.toHaveBeenCalled();
     expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
   });
 
