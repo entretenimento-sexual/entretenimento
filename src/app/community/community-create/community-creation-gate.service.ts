@@ -13,8 +13,7 @@ import {
   take,
 } from 'rxjs';
 
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import {
   ConfirmationDialogComponent,
   ConfirmationDialogData,
@@ -48,8 +47,7 @@ interface CommunityCreationGateDialogConfig {
 @Injectable({ providedIn: 'root' })
 export class CommunityCreationGateService {
   private readonly repository = inject(CommunityCreateRepository);
-  private readonly notifications = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
 
@@ -208,44 +206,33 @@ export class CommunityCreationGateService {
   }
 
   private reportCapabilityError(error: unknown): void {
-    try {
-      this.notifications.showError(
-        'Não foi possível verificar a criação de Comunidades agora.'
-      );
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-
-    this.reportTechnicalError(error, 'requestCreation');
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'requestCreation',
+      fallbackMessage:
+        'Não foi possível verificar a criação de Comunidades agora.',
+      reasonMessages: {
+        profile_incomplete: 'Complete seu perfil para criar uma Comunidade.',
+        adult_access_required:
+          'Confirme seu acesso adulto para criar uma Comunidade.',
+        account_restricted:
+          'Sua conta não pode criar Comunidades neste momento.',
+      },
+      metadata: {
+        scope: 'CommunityCreationGateService',
+      },
+    });
   }
 
   private reportNavigationError(error: unknown): void {
-    try {
-      this.notifications.showError(
-        'Não foi possível abrir o próximo passo da criação agora.'
-      );
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-
-    this.reportTechnicalError(error, 'navigateCreationGate');
-  }
-
-  private reportTechnicalError(error: unknown, op: string): void {
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'navigateCreationGate',
+      fallbackMessage:
+        'Não foi possível abrir o próximo passo da criação agora.',
+      metadata: {
         scope: 'CommunityCreationGateService',
-        op,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o fluxo visual.
-    }
+      },
+    });
   }
 }
