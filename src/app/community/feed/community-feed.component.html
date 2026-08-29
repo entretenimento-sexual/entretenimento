@@ -368,42 +368,61 @@
                   class="community-post__location"
                   [attr.aria-label]="'Localização compartilhada. ' + locationAccuracyLabel(location.accuracyMeters)"
                 >
-                  @if (locationMapEmbedUrl(item); as mapUrl) {
-                    <div class="community-post__location-map">
-                      <iframe
-                        [src]="mapUrl"
-                        [attr.title]="'Mapa da localização compartilhada ' + approximateLocationLabel(location.latitude, location.longitude)"
-                        loading="lazy"
-                        referrerpolicy="no-referrer-when-downgrade"
-                        allowfullscreen
-                      ></iframe>
-                      <a
-                        class="community-post__location-map-link"
-                        [href]="locationMapUrl(item)"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        [attr.aria-label]="'Abrir localização compartilhada ' + approximateLocationLabel(location.latitude, location.longitude) + ' no Google Maps'"
-                      >
-                        <span class="community-feed__sr-only">Abrir mapa no Google Maps</span>
-                        <span class="community-post__location-map-hint" aria-hidden="true">
-                          <i class="fas fa-arrow-up-right-from-square"></i>
-                          <span>Abrir mapa</span>
+                  <details #locationMapDetails class="community-post__location-details">
+                    <summary
+                      class="community-post__location-meta"
+                      style="justify-content: space-between; cursor: pointer; list-style: none;"
+                      [attr.aria-label]="(locationMapDetails.open ? 'Ocultar' : 'Ver') + ' mapa da localização compartilhada. ' + locationAccuracyLabel(location.accuracyMeters)"
+                    >
+                      <span class="community-post__location-label">
+                        <i class="fas fa-location-dot" aria-hidden="true"></i>
+                        <span>
+                          <strong>Localização compartilhada</strong>
+                          @if (location.precision === 'precise') {
+                            <small>{{ locationAccuracyLabel(location.accuracyMeters) }}</small>
+                          } @else {
+                            <small>Coordenadas aproximadas de publicação antiga</small>
+                          }
                         </span>
-                      </a>
-                    </div>
-                  }
-                  <div class="community-post__location-meta">
-                    <span class="community-post__location-label">
-                      <i class="fas fa-location-dot" aria-hidden="true"></i>
-                      <span>
-                        <strong>Localização compartilhada</strong>
-                        @if (location.precision === 'precise') {
-                          <small>{{ locationAccuracyLabel(location.accuracyMeters) }}</small>
+                      </span>
+                      <span class="community-post__action" aria-hidden="true">
+                        @if (locationMapDetails.open) {
+                          <i class="fas fa-chevron-up"></i>
+                          <span class="community-post__action-label">Ocultar mapa</span>
                         } @else {
-                          <small>Coordenadas aproximadas de publicação antiga</small>
+                          <i class="fas fa-map-location-dot"></i>
+                          <span class="community-post__action-label">Ver mapa</span>
                         }
                       </span>
-                    </span>
+                    </summary>
+
+                    @if (locationMapDetails.open) {
+                      @if (locationMapEmbedUrl(item); as mapUrl) {
+                        <div class="community-post__location-map">
+                          <iframe
+                            [src]="mapUrl"
+                            [attr.title]="'Mapa da localização compartilhada ' + approximateLocationLabel(location.latitude, location.longitude)"
+                            loading="lazy"
+                            referrerpolicy="no-referrer-when-downgrade"
+                            allowfullscreen
+                          ></iframe>
+                        </div>
+                      }
+                    }
+                  </details>
+
+                  <div class="community-post__location-meta" style="justify-content: flex-end; padding-top: 0;">
+                    <a
+                      class="community-post__action"
+                      style="text-decoration: none;"
+                      [href]="locationMapUrl(item)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      [attr.aria-label]="'Abrir localização compartilhada ' + approximateLocationLabel(location.latitude, location.longitude) + ' no Google Maps'"
+                    >
+                      <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                      <span class="community-post__action-label">Abrir no Google Maps</span>
+                    </a>
                   </div>
                 </section>
               }
