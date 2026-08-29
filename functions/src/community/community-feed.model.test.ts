@@ -92,9 +92,30 @@ test('normaliza mensagem textual com audiência privada por padrão', () => {
   );
 });
 
-test('normaliza localização para precisão pública aproximada', () => {
+test('preserva localização precisa enviada por gesto explícito', () => {
   const result = normalizeCommunityFeedPostCreateRequest({
-    requestId: 'post-location-1',
+    requestId: 'post-location-precise',
+    communityId: 'community-1',
+    text: 'Estamos aqui.',
+    location: {
+      latitude: -22.9068123,
+      longitude: -43.1729345,
+      precision: 'precise',
+      accuracyMeters: 8.4,
+    },
+  });
+
+  assert.deepEqual(result.location, {
+    latitude: -22.906812,
+    longitude: -43.172935,
+    precision: 'precise',
+    accuracyMeters: 8,
+  });
+});
+
+test('mantém localização legada sem precision como aproximada', () => {
+  const result = normalizeCommunityFeedPostCreateRequest({
+    requestId: 'post-location-legacy',
     communityId: 'community-1',
     text: 'Estamos aqui.',
     location: { latitude: -22.9068, longitude: -43.1729 },
@@ -104,6 +125,7 @@ test('normaliza localização para precisão pública aproximada', () => {
     latitude: -22.91,
     longitude: -43.17,
     precision: 'approximate',
+    accuracyMeters: null,
   });
 });
 
@@ -214,9 +236,33 @@ test('aceita foto publicada backend-only para hidratação posterior', () => {
   assert.equal(result?.item.image, null);
 });
 
-test('sanitiza localização no backend sem preservar coordenada precisa', () => {
+test('sanitiza localização precisa preservando o consentimento e a acurácia', () => {
   const result = sanitizeCommunityFeedProjection(
     'post-location',
+    feedItem({
+      kind: 'location',
+      image: null,
+      location: {
+        latitude: -22.9068123,
+        longitude: -43.1729345,
+        precision: 'precise',
+        accuracyMeters: 11,
+      },
+    }),
+    NOW
+  );
+
+  assert.deepEqual(result?.item.location, {
+    latitude: -22.906812,
+    longitude: -43.172935,
+    precision: 'precise',
+    accuracyMeters: 11,
+  });
+});
+
+test('mantém projeção de localização antiga como aproximada', () => {
+  const result = sanitizeCommunityFeedProjection(
+    'post-location-legacy',
     feedItem({
       kind: 'location',
       image: null,
@@ -229,6 +275,7 @@ test('sanitiza localização no backend sem preservar coordenada precisa', () =>
     latitude: -22.91,
     longitude: -43.17,
     precision: 'approximate',
+    accuracyMeters: null,
   });
 });
 
@@ -328,6 +375,7 @@ test('projeta somente identidade social pública coarse para Comunidades', () =>
     label: 'casal_serale',
     avatarUrl: 'https://example.com/public-avatar.webp',
     identityCode: 'casal-ele-ela',
+    identityCatalogVersion: 1,
     identityLabel: 'Casal (Ele/Ela)',
     identityShortLabel: 'Casal',
     discoveryGroup: 'couple',
