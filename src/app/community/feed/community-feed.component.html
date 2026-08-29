@@ -43,7 +43,7 @@
                   <i class="fas fa-location-dot" aria-hidden="true"></i>
                   <span>
                     <strong>Localização atual</strong>
-                    <small>{{ approximateLocationLabel(attachment.latitude, attachment.longitude) }}</small>
+                    <small>{{ locationAccuracyLabel(attachment.accuracyMeters) }}</small>
                   </span>
                   <button
                     type="button"
@@ -366,7 +366,7 @@
               @if (item.location; as location) {
                 <section
                   class="community-post__location"
-                  [attr.aria-label]="'Localização compartilhada: ' + approximateLocationLabel(location.latitude, location.longitude)"
+                  [attr.aria-label]="'Localização compartilhada. ' + locationAccuracyLabel(location.accuracyMeters)"
                 >
                   @if (locationMapEmbedUrl(item); as mapUrl) {
                     <div class="community-post__location-map">
@@ -377,6 +377,19 @@
                         referrerpolicy="no-referrer-when-downgrade"
                         allowfullscreen
                       ></iframe>
+                      <a
+                        class="community-post__location-map-link"
+                        [href]="locationMapUrl(item)"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        [attr.aria-label]="'Abrir localização compartilhada ' + approximateLocationLabel(location.latitude, location.longitude) + ' no Google Maps'"
+                      >
+                        <span class="community-feed__sr-only">Abrir mapa no Google Maps</span>
+                        <span class="community-post__location-map-hint" aria-hidden="true">
+                          <i class="fas fa-arrow-up-right-from-square"></i>
+                          <span>Abrir mapa</span>
+                        </span>
+                      </a>
                     </div>
                   }
                   <div class="community-post__location-meta">
@@ -384,19 +397,13 @@
                       <i class="fas fa-location-dot" aria-hidden="true"></i>
                       <span>
                         <strong>Localização compartilhada</strong>
-                        <small>{{ approximateLocationLabel(location.latitude, location.longitude) }}</small>
+                        @if (location.precision === 'precise') {
+                          <small>{{ locationAccuracyLabel(location.accuracyMeters) }}</small>
+                        } @else {
+                          <small>Coordenadas aproximadas de publicação antiga</small>
+                        }
                       </span>
                     </span>
-                    <a
-                      class="community-post__location-link"
-                      [href]="locationMapUrl(item)"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      [attr.aria-label]="'Abrir localização compartilhada ' + approximateLocationLabel(location.latitude, location.longitude) + ' no Google Maps'"
-                    >
-                      <span>Abrir mapa</span>
-                      <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                    </a>
                   </div>
                 </section>
               }
