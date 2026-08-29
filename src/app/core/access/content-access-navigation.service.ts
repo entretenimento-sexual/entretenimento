@@ -9,8 +9,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Params, Router } from '@angular/router';
 
-import { ErrorNotificationService } from '../services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../services/error-handler/global-error-handler.service';
+import { ApplicationErrorService } from '../services/error-handler/application-error.service';
 import {
   ContentAccessDecision,
   ContentAccessRecommendedAction,
@@ -93,8 +92,7 @@ export function resolveContentAccessNavigationTarget(
 @Injectable({ providedIn: 'root' })
 export class ContentAccessNavigationService {
   private readonly router = inject(Router);
-  private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
 
   async navigateForDecision(
     decision: ContentAccessDecision,
@@ -120,32 +118,15 @@ export class ContentAccessNavigationService {
     error: unknown,
     decision: ContentAccessDecision
   ): void {
-    try {
-      this.errorNotifier.showError('Não foi possível abrir esta etapa.');
-    } catch {
-      // O tratamento técnico abaixo continua mesmo se o canal visual falhar.
-    }
-
-    try {
-      const normalizedError =
-        error instanceof Error ? error : new Error(String(error));
-
-      (normalizedError as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      }).context = {
+    this.applicationError.report(error, {
+      feature: 'access',
+      operation: 'navigateForDecision',
+      fallbackMessage: 'Não foi possível abrir esta etapa.',
+      metadata: {
         scope: 'ContentAccessNavigationService',
-        op: 'navigateForDecision',
         reason: decision.reason,
         recommendedAction: decision.recommendedAction,
-      };
-
-      (normalizedError as Error & { skipUserNotification?: boolean })
-        .skipUserNotification = true;
-
-      this.globalError.handleError(normalizedError);
-    } catch {
-      // Evita transformar uma falha secundária de observabilidade em novo erro.
-    }
+      },
+    });
   }
 }
