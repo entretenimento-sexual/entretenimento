@@ -350,161 +350,276 @@
             }
           </nav>
 
-          @if (activeSection() === 'feed') {
-            <section id="community-panel-feed" aria-labelledby="community-tab-feed">
-              <app-community-feed
-                [communityId]="preview.community.communityId"
-                [sourceType]="preview.community.source.type"
-                [canInteract]="preview.canInteract"
-                [viewerRole]="preview.viewerRole"
-                view="feed"
-              />
-            </section>
-          } @else if (
-            activeSection() === 'topics'
-            && preview.community.source.type === 'community'
-          ) {
-            <section id="community-panel-topics" aria-labelledby="community-tab-topics">
-              <app-community-topics
-                [communityId]="preview.community.communityId"
-                [canInteract]="preview.canInteract"
-                [viewerRole]="preview.viewerRole"
-              />
-            </section>
-          } @else if (activeSection() === 'photos') {
-            <section id="community-panel-photos" aria-labelledby="community-tab-photos">
-              <app-community-feed
-                [communityId]="preview.community.communityId"
-                [sourceType]="preview.community.source.type"
-                view="photos"
-              />
-            </section>
-          } @else if (
-            activeSection() === 'invites'
-            && preview.canInviteCommunityMembers
-          ) {
-            <section id="community-panel-invites" aria-labelledby="community-tab-invites">
-              <app-community-invite-management
-                [communityId]="preview.community.communityId"
-                (invitesChanged)="membershipReviewed()"
-              />
-            </section>
-          } @else if (
-            activeSection() === 'requests'
-            && preview.canManageMemberships
-          ) {
-            <section id="community-panel-requests" aria-labelledby="community-tab-requests">
-              <app-community-membership-management
-                [communityId]="preview.community.communityId"
-                [sourceType]="preview.community.source.type"
-                [viewerRole]="preview.viewerRole"
-                [canManageCommunitySettings]="preview.canManageCommunitySettings"
-                [settings]="preview.settings"
-                [capacity]="preview.capacity"
-                (membershipChanged)="membershipReviewed()"
-                (settingsChanged)="membershipReviewed()"
-                (ownershipChanged)="selectSection('about'); membershipReviewed()"
-              />
-            </section>
-          } @else {
-            <section
-              id="community-panel-about"
-              class="community-preview__about"
-              aria-labelledby="community-tab-about"
-            >
-              <p>{{ sourceDescription(preview.community) }}</p>
-
-              @if (preview.community.description) {
-                <p>{{ preview.community.description }}</p>
-              }
-
-              @if (
-                preview.community.source.type === 'community'
-                && preview.rules
-              ) {
-                <section
-                  class="community-preview__rules community-preview__rules--about"
-                  aria-labelledby="community-preview-rules-about-title"
-                >
-                  <div class="community-preview__rules-heading">
-                    <i class="fas fa-scale-balanced" aria-hidden="true"></i>
-                    <h2 id="community-preview-rules-about-title">
-                      Regras da Comunidade
-                    </h2>
-                  </div>
-                  <p>{{ preview.rules }}</p>
+          <div
+            class="community-preview__body"
+            [class.has-context-rail]="
+              activeSection() === 'feed'
+              || activeSection() === 'topics'
+              || activeSection() === 'photos'
+            "
+          >
+            <div class="community-preview__primary">
+              @if (activeSection() === 'feed') {
+                <section id="community-panel-feed" aria-labelledby="community-tab-feed">
+                  <app-community-feed
+                    [communityId]="preview.community.communityId"
+                    [sourceType]="preview.community.source.type"
+                    [canInteract]="preview.canInteract"
+                    [viewerRole]="preview.viewerRole"
+                    view="feed"
+                  />
                 </section>
-              }
-
-              @if (preview.community.tags.length > 0) {
-                <div
-                  class="community-preview__tags"
-                  aria-label="Interesses e afinidades deste espaço"
+              } @else if (
+                activeSection() === 'topics'
+                && preview.community.source.type === 'community'
+              ) {
+                <section id="community-panel-topics" aria-labelledby="community-tab-topics">
+                  <app-community-topics
+                    [communityId]="preview.community.communityId"
+                    [canInteract]="preview.canInteract"
+                    [viewerRole]="preview.viewerRole"
+                  />
+                </section>
+              } @else if (activeSection() === 'photos') {
+                <section id="community-panel-photos" aria-labelledby="community-tab-photos">
+                  <app-community-feed
+                    [communityId]="preview.community.communityId"
+                    [sourceType]="preview.community.source.type"
+                    view="photos"
+                  />
+                </section>
+              } @else if (
+                activeSection() === 'invites'
+                && preview.canInviteCommunityMembers
+              ) {
+                <section id="community-panel-invites" aria-labelledby="community-tab-invites">
+                  <app-community-invite-management
+                    [communityId]="preview.community.communityId"
+                    (invitesChanged)="membershipReviewed()"
+                  />
+                </section>
+              } @else if (
+                activeSection() === 'requests'
+                && preview.canManageMemberships
+              ) {
+                <section id="community-panel-requests" aria-labelledby="community-tab-requests">
+                  <app-community-membership-management
+                    [communityId]="preview.community.communityId"
+                    [sourceType]="preview.community.source.type"
+                    [viewerRole]="preview.viewerRole"
+                    [canManageCommunitySettings]="preview.canManageCommunitySettings"
+                    [settings]="preview.settings"
+                    [capacity]="preview.capacity"
+                    (membershipChanged)="membershipReviewed()"
+                    (settingsChanged)="membershipReviewed()"
+                    (ownershipChanged)="selectSection('about'); membershipReviewed()"
+                  />
+                </section>
+              } @else {
+                <section
+                  id="community-panel-about"
+                  class="community-preview__about"
+                  aria-labelledby="community-tab-about"
                 >
-                  @for (tag of preview.community.tags; track tag.id) {
-                    <span class="app-chip app-chip--muted">#{{ tag.label }}</span>
-                  }
-                </div>
-              }
+                  <p>{{ sourceDescription(preview.community) }}</p>
 
-              <div
-                class="community-preview__metrics"
-                [attr.aria-label]="metricsAriaLabel(preview.community)"
-              >
-                <span>
-                  <i class="fas fa-users" aria-hidden="true"></i>
+                  @if (preview.community.description) {
+                    <p>{{ preview.community.description }}</p>
+                  }
+
                   @if (
                     preview.community.source.type === 'community'
-                    && preview.capacity
+                    && preview.rules
                   ) {
-                    {{ preview.capacity.memberCount }} de
-                    {{ preview.capacity.configuredLimit }} integrantes
-                  } @else {
-                    {{ preview.community.metrics.memberCount }} pessoas conectadas
+                    <section
+                      class="community-preview__rules community-preview__rules--about"
+                      aria-labelledby="community-preview-rules-about-title"
+                    >
+                      <div class="community-preview__rules-heading">
+                        <i class="fas fa-scale-balanced" aria-hidden="true"></i>
+                        <h2 id="community-preview-rules-about-title">
+                          Regras da Comunidade
+                        </h2>
+                      </div>
+                      <p>{{ preview.rules }}</p>
+                    </section>
                   }
-                </span>
-                <span>
-                  <i class="fas fa-message" aria-hidden="true"></i>
-                  {{ preview.community.metrics.postCount }} publicações
-                </span>
-                <span>
-                  <i class="fas fa-image" aria-hidden="true"></i>
-                  {{ preview.community.metrics.mediaCount }} mídias
-                </span>
-              </div>
 
-              <div class="community-preview__access">
-                <span>
-                  <i class="fas fa-door-open" aria-hidden="true"></i>
-                  {{ joinLabel(preview.community) }}
-                </span>
-                @if (!preview.canInteract) {
-                  <span>
-                    <i class="fas fa-lock" aria-hidden="true"></i>
-                    @if (
-                      preview.viewerMode !== 'visitor'
-                      && preview.viewerMode !== 'pending'
-                    ) {
-                      Interações temporariamente indisponíveis
-                    } @else if (preview.community.source.type === 'venue') {
-                      Interação reservada às pessoas autorizadas no Local
-                    } @else {
-                      Interação reservada aos membros da Comunidade
+                  @if (preview.community.tags.length > 0) {
+                    <div
+                      class="community-preview__tags"
+                      aria-label="Interesses e afinidades deste espaço"
+                    >
+                      @for (tag of preview.community.tags; track tag.id) {
+                        <span class="app-chip app-chip--muted">#{{ tag.label }}</span>
+                      }
+                    </div>
+                  }
+
+                  <div
+                    class="community-preview__metrics"
+                    [attr.aria-label]="metricsAriaLabel(preview.community)"
+                  >
+                    <span>
+                      <i class="fas fa-users" aria-hidden="true"></i>
+                      @if (
+                        preview.community.source.type === 'community'
+                        && preview.capacity
+                      ) {
+                        {{ preview.capacity.memberCount }} de
+                        {{ preview.capacity.configuredLimit }} integrantes
+                      } @else {
+                        {{ preview.community.metrics.memberCount }} pessoas conectadas
+                      }
+                    </span>
+                    <span>
+                      <i class="fas fa-message" aria-hidden="true"></i>
+                      {{ preview.community.metrics.postCount }} publicações
+                    </span>
+                    <span>
+                      <i class="fas fa-image" aria-hidden="true"></i>
+                      {{ preview.community.metrics.mediaCount }} mídias
+                    </span>
+                  </div>
+
+                  <div class="community-preview__access">
+                    <span>
+                      <i class="fas fa-door-open" aria-hidden="true"></i>
+                      {{ joinLabel(preview.community) }}
+                    </span>
+                    @if (!preview.canInteract) {
+                      <span>
+                        <i class="fas fa-lock" aria-hidden="true"></i>
+                        @if (
+                          preview.viewerMode !== 'visitor'
+                          && preview.viewerMode !== 'pending'
+                        ) {
+                          Interações temporariamente indisponíveis
+                        } @else if (preview.community.source.type === 'venue') {
+                          Interação reservada às pessoas autorizadas no Local
+                        } @else {
+                          Interação reservada aos membros da Comunidade
+                        }
+                      </span>
                     }
-                  </span>
+                    @if (
+                      preview.community.source.type === 'community'
+                      && preview.capacity?.acceptingNewMembers === false
+                    ) {
+                      <span role="status">
+                        <i class="fas fa-users-slash" aria-hidden="true"></i>
+                        Capacidade atingida: novas entradas estão pausadas
+                      </span>
+                    }
+                  </div>
+                </section>
+              }
+            </div>
+
+            @if (
+              activeSection() === 'feed'
+              || activeSection() === 'topics'
+              || activeSection() === 'photos'
+            ) {
+              <aside
+                class="community-preview__rail"
+                aria-label="Resumo da Comunidade"
+              >
+                <section class="community-preview__rail-card">
+                  <div class="community-preview__rail-heading">
+                    <i class="fas fa-circle-info" aria-hidden="true"></i>
+                    <h2>Sobre</h2>
+                  </div>
+                  <p>
+                    {{ preview.community.description || sourceDescription(preview.community) }}
+                  </p>
+                  <button type="button" (click)="selectSection('about')">
+                    Ver informações completas
+                  </button>
+                </section>
+
+                <section class="community-preview__rail-card">
+                  <div class="community-preview__rail-heading">
+                    <i class="fas fa-chart-simple" aria-hidden="true"></i>
+                    <h2>Comunidade agora</h2>
+                  </div>
+                  <div class="community-preview__rail-metrics">
+                    <span>
+                      <strong>
+                        @if (preview.capacity) {
+                          {{ preview.capacity.memberCount }}
+                        } @else {
+                          {{ preview.community.metrics.memberCount }}
+                        }
+                      </strong>
+                      <small>integrantes</small>
+                    </span>
+                    <span>
+                      <strong>{{ preview.community.metrics.postCount }}</strong>
+                      <small>publicações</small>
+                    </span>
+                    <span>
+                      <strong>{{ preview.community.metrics.mediaCount }}</strong>
+                      <small>mídias</small>
+                    </span>
+                  </div>
+                </section>
+
+                @if (preview.community.tags.length > 0) {
+                  <section class="community-preview__rail-card">
+                    <div class="community-preview__rail-heading">
+                      <i class="fas fa-hashtag" aria-hidden="true"></i>
+                      <h2>Interesses</h2>
+                    </div>
+                    <div
+                      class="community-preview__rail-tags"
+                      aria-label="Interesses desta Comunidade"
+                    >
+                      @for (tag of preview.community.tags; track tag.id) {
+                        <span class="app-chip app-chip--muted">#{{ tag.label }}</span>
+                      }
+                    </div>
+                  </section>
                 }
-                @if (
-                  preview.community.source.type === 'community'
-                  && preview.capacity?.acceptingNewMembers === false
-                ) {
-                  <span role="status">
-                    <i class="fas fa-users-slash" aria-hidden="true"></i>
-                    Capacidade atingida: novas entradas estão pausadas
-                  </span>
+
+                @if (preview.rules) {
+                  <section class="community-preview__rail-card">
+                    <div class="community-preview__rail-heading">
+                      <i class="fas fa-scale-balanced" aria-hidden="true"></i>
+                      <h2>Regras</h2>
+                    </div>
+                    <p class="community-preview__rail-rules">{{ preview.rules }}</p>
+                    <button type="button" (click)="selectSection('about')">
+                      Ler regras completas
+                    </button>
+                  </section>
                 }
-              </div>
-            </section>
-          }
+
+                @if (preview.canManageMemberships || preview.canInviteCommunityMembers) {
+                  <section class="community-preview__rail-card">
+                    <div class="community-preview__rail-heading">
+                      <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                      <h2>Administração</h2>
+                    </div>
+                    <div class="community-preview__rail-actions">
+                      @if (preview.canManageMemberships) {
+                        <button type="button" (click)="selectSection('requests')">
+                          <i class="fas fa-users-gear" aria-hidden="true"></i>
+                          Gestão
+                        </button>
+                      }
+                      @if (preview.canInviteCommunityMembers) {
+                        <button type="button" (click)="selectSection('invites')">
+                          <i class="fas fa-user-plus" aria-hidden="true"></i>
+                          Convidar
+                        </button>
+                      }
+                    </div>
+                  </section>
+                }
+              </aside>
+            }
+          </div>
         </article>
       }
     }
