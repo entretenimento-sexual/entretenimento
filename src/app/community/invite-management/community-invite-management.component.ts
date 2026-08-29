@@ -24,8 +24,8 @@ import {
   tap,
 } from 'rxjs';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import {
   CommunityInviteCandidate,
@@ -55,6 +55,43 @@ type InviteActionState =
   | { status: 'loading'; action: 'send' | 'revoke'; targetId: string }
   | { status: 'error'; action: 'send' | 'revoke'; targetId: string };
 
+const INVITE_REASON_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+  community_invites_unavailable:
+    'Os convites desta Comunidade não estão disponíveis neste momento.',
+  invite_management_forbidden:
+    'Seu acesso atual não permite gerenciar convites desta Comunidade.',
+  inviter_not_allowed:
+    'Seu acesso atual não permite enviar ou revogar este convite.',
+  target_already_member:
+    'Este perfil já participa da Comunidade.',
+  target_blocked:
+    'Este perfil não pode receber convites desta Comunidade.',
+  community_unavailable:
+    'Esta Comunidade não aceita novos convites neste momento.',
+  community_capacity_reached:
+    'A Comunidade atingiu a capacidade atual. Novos convites estão pausados.',
+  self_invite_forbidden:
+    'Você não pode enviar um convite para si mesmo.',
+  invite_not_found:
+    'Este convite não está mais disponível.',
+  invite_not_pending:
+    'Este convite não está mais pendente.',
+  invite_contract_invalid:
+    'Este convite não pôde ser validado com segurança.',
+  invalid_invite_candidate_query:
+    'Revise o apelido informado e tente novamente.',
+  invalid_community_id:
+    'Não foi possível identificar esta Comunidade.',
+  community_not_found:
+    'Esta Comunidade não está mais disponível.',
+  account_restricted:
+    'Esta conta não pode participar de Comunidades neste momento.',
+  adult_access_required:
+    'Esta conta precisa confirmar o acesso adulto antes de participar.',
+  profile_incomplete:
+    'Esta conta precisa concluir o perfil antes de participar.',
+});
+
 @Component({
   selector: 'app-community-invite-management',
   standalone: true,
@@ -71,7 +108,7 @@ type InviteActionState =
 export class CommunityInviteManagementComponent {
   private readonly repository = inject(CommunityInviteRepository);
   private readonly notifications = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly reloadRequests$ = new Subject<void>();
   private readonly searchRequests$ = new Subject<string>();
   private readonly actionRequests$ = new Subject<InviteActionCommand>();
@@ -106,11 +143,7 @@ export class CommunityInviteManagementComponent {
         })),
         startWith<SentInvitesState>({ status: 'loading', items: [] }),
         catchError((error: unknown) => {
-          this.reportError(
-            error,
-            'Não foi possível carregar os convites pendentes.',
-            'loadSentInvites'
-          );
+          this.reportLoadError(error);
           return of<SentInvitesState>({ status: 'error', items: [] });
         })
       )
@@ -128,11 +161,7 @@ export class CommunityInviteManagementComponent {
           ),
           startWith<CandidateState>({ status: 'loading', candidate: null }),
           catchError((error: unknown) => {
-            this.reportError(
-              error,
-              'Não foi possível localizar este perfil.',
-              'findInviteCandidate'
-            );
+            this.reportCandidateError(error);
             return of<CandidateState>({ status: 'error', candidate: null });
           })
         )
@@ -176,13 +205,7 @@ export class CommunityInviteManagementComponent {
             targetId,
           }),
           catchError((error: unknown) => {
-            this.reportError(
-              error,
-              command.action === 'send'
-                ? 'Não foi possível enviar este convite.'
-                : 'Não foi possível revogar este convite.',
-              command.action === 'send' ? 'sendInvite' : 'revokeInvite'
-            );
+            this.reportActionError(error, command.action);
             return of<InviteActionState>({
               status: 'error',
               action: command.action,
@@ -245,28 +268,60 @@ export class CommunityInviteManagementComponent {
     return 'Perfil disponível para convite.';
   }
 
-  private reportError(error: unknown, message: string, op: string): void {
-    try {
-      this.notifications.showError(message);
-    } catch {
-      // O diagnóstico centralizado abaixo permanece ativo.
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+  private reportLoadError(error: unknown): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'loadSentInvites',
+      fallbackMessage: 'Não foi possível carregar os convites pendentes.',
+      notification: 'none',
+      reasonMessages: INVITE_REASON_MESSAGES,
+      metadata: {
         scope: 'CommunityInviteManagementComponent',
-        op,
         communityId: this.communityId().trim(),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+      },
+    });
+  }
+
+  private reportCandidateError(error: unknown): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'findInviteCandidate',
+      fallbackMessage: 'Não foi possível localizar este perfil.',
+      notification: 'none',
+      reasonMessages: INVITE_REASON_MESSAGES,
+      metadata: {
+        scope: 'CommunityInviteManagementComponent',
+        communityId: this.communityId().trim(),
+      },
+    });
+  }
+
+  private reportActionError(
+    error: unknown,
+    action: 'send' | 'revoke'
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: action === 'send' ? 'sendInvite' : 'revokeInvite',
+      fallbackMessage: action === 'send'
+        ? 'Não foi possível enviar este convite.'
+        : 'Não foi possível revogar este convite.',
+      reasonMessages: INVITE_REASON_MESSAGES,
+      codeMessages: {
+        'already-exists': 'Este perfil já participa da Comunidade.',
+        'not-found': 'Este convite ou Comunidade não está mais disponível.',
+        'permission-denied':
+          'Seu acesso atual não permite executar esta ação de convite.',
+        'failed-precondition':
+          'Este convite não pode ser alterado nas condições atuais.',
+        'invalid-argument':
+          'Não foi possível validar os dados deste convite.',
+      },
+      metadata: {
+        scope: 'CommunityInviteManagementComponent',
+        communityId: this.communityId().trim(),
+        action,
+      },
+    });
   }
 }
