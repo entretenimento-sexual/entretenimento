@@ -24,8 +24,8 @@ import {
   tap,
 } from 'rxjs';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import type { CommunityPreviewViewerRole } from '../data-access/community-preview.model';
 import {
   CommunityTopicModerationAction,
@@ -41,6 +41,38 @@ type CommunityTopicModerationWriteState =
   | { readonly status: 'loading' }
   | { readonly status: 'error' };
 
+const TOPIC_MODERATION_REASON_MESSAGES: Readonly<Record<string, string>> =
+  Object.freeze({
+    community_topic_moderation_unavailable:
+      'A moderação de Discussões não está disponível neste momento.',
+    topic_moderation_forbidden:
+      'Sua função atual não permite moderar esta discussão.',
+    removal_reason_required:
+      'Informe um motivo com pelo menos 3 caracteres para remover a discussão.',
+    removal_reason_too_long:
+      'O motivo da remoção deve ter no máximo 240 caracteres.',
+    removed_topic:
+      'Uma discussão removida não pode ser reaberta.',
+    topic_transition_forbidden:
+      'O estado atual desta discussão não permite esta ação.',
+    topic_not_found:
+      'Esta discussão não está mais disponível.',
+    community_not_found:
+      'Esta Comunidade não está mais disponível.',
+    request_id_conflict:
+      'Esta tentativa de moderação não pôde ser confirmada com segurança.',
+    moderation_record_inconsistent:
+      'O registro desta moderação está inconsistente e exige revisão.',
+    topic_projection_inconsistent:
+      'A discussão está inconsistente e exige revisão antes de nova moderação.',
+    account_restricted:
+      'Sua conta não pode executar esta ação administrativa neste momento.',
+    adult_access_required:
+      'Confirme o acesso adulto antes de executar esta ação.',
+    profile_incomplete:
+      'Complete seu perfil antes de executar esta ação.',
+  });
+
 @Component({
   selector: 'app-community-topic-moderation-controls',
   standalone: true,
@@ -52,7 +84,7 @@ type CommunityTopicModerationWriteState =
 export class CommunityTopicModerationControlsComponent {
   private readonly repository = inject(CommunityTopicRepository);
   private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly moderationRequests$ = new Subject<CommunityTopicModerationRequest>();
   private pendingRequest: CommunityTopicModerationRequest | null = null;
 
@@ -91,7 +123,7 @@ export class CommunityTopicModerationControlsComponent {
         map((): CommunityTopicModerationWriteState => ({ status: 'idle' })),
         startWith<CommunityTopicModerationWriteState>({ status: 'loading' }),
         catchError((error: unknown) => {
-          this.reportError(error, this.moderationErrorMessage(error));
+          this.reportError(error);
           return of<CommunityTopicModerationWriteState>({ status: 'error' });
         })
       )
@@ -185,25 +217,6 @@ export class CommunityTopicModerationControlsComponent {
     return result.deduplicated ? 'Remoção confirmada.' : 'Discussão removida.';
   }
 
-  private moderationErrorMessage(error: unknown): string {
-    const rawCode = String((error as { code?: unknown } | null)?.code ?? '');
-    const code = rawCode.replace(/^functions\//, '');
-
-    if (code === 'permission-denied') {
-      return 'Sua função atual não permite moderar esta discussão.';
-    }
-
-    if (code === 'invalid-argument') {
-      return 'Revise o motivo e tente novamente.';
-    }
-
-    if (code === 'failed-precondition' || code === 'not-found') {
-      return 'O estado desta discussão mudou. Atualize a discussão antes de moderar novamente.';
-    }
-
-    return 'Não foi possível aplicar a moderação agora.';
-  }
-
   private showSuccess(message: string): void {
     try {
       this.errorNotifier.showSuccess(message);
@@ -212,31 +225,31 @@ export class CommunityTopicModerationControlsComponent {
     }
   }
 
-  private reportError(error: unknown, userMessage: string): void {
-    try {
-      this.errorNotifier.showError(userMessage);
-    } catch {
-      // O diagnóstico técnico abaixo permanece ativo.
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+  private reportError(error: unknown): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'moderateTopic',
+      fallbackMessage: 'Não foi possível aplicar a moderação agora.',
+      reasonMessages: TOPIC_MODERATION_REASON_MESSAGES,
+      codeMessages: {
+        'permission-denied':
+          'Sua função atual não permite moderar esta discussão.',
+        'invalid-argument':
+          'Revise o motivo e tente novamente.',
+        'failed-precondition':
+          'O estado desta discussão mudou. Atualize a discussão antes de moderar novamente.',
+        'not-found':
+          'Esta discussão não está mais disponível.',
+        'data-loss':
+          'A discussão está inconsistente e exige revisão antes de nova moderação.',
+      },
+      metadata: {
         scope: 'CommunityTopicModerationControlsComponent',
-        op: 'moderateTopic',
-        communityId: this.communityId(),
-        topicId: this.topicId(),
+        communityId: this.communityId().trim(),
+        topicId: this.topicId().trim(),
         viewerRole: this.viewerRole(),
         pendingAction: this.pendingRequest?.action ?? null,
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+      },
+    });
   }
 }
