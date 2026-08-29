@@ -331,6 +331,8 @@ export class CommunityFeedComponent implements OnDestroy {
         .watchLatestChanges$(communityId, 20)
         .pipe(
           tap((changes) => this.reconcileRealtimeOverrides(changes)),
+          // Cada diff precisa concluir sua hidratação. Cancelar a chamada anterior
+          // em uma rajada pode fazer um post já sinalizado nunca entrar no estado.
           concatMap((changes) =>
             this.buildRealtimeEvent$(communityId, view, changes)
           ),
@@ -404,11 +406,14 @@ export class CommunityFeedComponent implements OnDestroy {
 
     const previousIndex = orderedPostIds.indexOf(previousLatestPostId);
     if (previousIndex < 1) {
+      // Troca de escopo/remoção não representa conteúdo novo para o usuário.
       this.pendingRealtimeFollowIntent = null;
       this.clearUnseenNewPosts();
       return;
     }
 
+    // Publicação própria possui um efeito dedicado para localizar exatamente o
+    // post criado mesmo se outro item entrar no realtime no mesmo instante.
     const ownPostId = this.pendingOwnPostFollowId();
     if (ownPostId) {
       this.pendingRealtimeFollowIntent = null;
@@ -453,6 +458,7 @@ export class CommunityFeedComponent implements OnDestroy {
     queueMicrotask(() => {
       this.postHighlightRequests$.next(postId);
       this.scrollPostIntoView(target.nativeElement, 'nearest');
+      // Novidades externas já contabilizadas não são consumidas pela publicação própria.
       this.pendingOwnPostFollowId.set(null);
     });
   });
@@ -707,6 +713,8 @@ export class CommunityFeedComponent implements OnDestroy {
         requestId: this.pendingPostRequestId,
         communityId: this.communityId().trim(),
         text,
+        // Compatibilidade de transporte. O backend deriva a audiência efetiva
+        // exclusivamente da visibilidade configurada para a Comunidade.
         audience: 'members_only',
         imageUploadPath: null,
         location: attachment?.kind === 'location'
@@ -866,6 +874,7 @@ export class CommunityFeedComponent implements OnDestroy {
     if (!item.capabilities.canViewComments) return;
     const isOpen = this.commentsPostId() === item.postId;
     this.commentsPostId.set(isOpen ? null : item.postId);
+    // Abrir pelo contador é modo de leitura; não deve herdar intenção de resposta.
     this.replyPostId.set(null);
   }
 
@@ -1025,6 +1034,8 @@ export class CommunityFeedComponent implements OnDestroy {
       || 0;
     if (viewportHeight <= 0) return true;
 
+    // A decisão é capturada antes da hidratação do novo item. Assim uma foto ou
+    // mensagem longa não muda retroativamente a intenção de acompanhar o topo.
     return rect.bottom >= 0 && rect.top <= viewportHeight * 0.55;
   }
 
@@ -1104,6 +1115,9 @@ export class CommunityFeedComponent implements OnDestroy {
       postIds: addedIds,
     }).pipe(
       map((page): CommunityFeedLoadEvent => {
+        // Rajadas podem hidratar mais de um diff antes do próximo ciclo visual.
+        // Uma decisão de preservar a leitura nunca deve ser sobrescrita por uma
+        // chegada posterior cuja referência ainda nem foi renderizada no DOM.
         this.pendingRealtimeFollowIntent = this.pendingRealtimeFollowIntent === null
           ? shouldFollowLatest
           : this.pendingRealtimeFollowIntent && shouldFollowLatest;
@@ -1265,6 +1279,7 @@ export class CommunityFeedComponent implements OnDestroy {
     try {
       URL.revokeObjectURL(previewUrl);
     } catch {
+      // Preview local descartável; falha de revoke não afeta o fluxo.
     }
   }
 
@@ -1278,6 +1293,7 @@ export class CommunityFeedComponent implements OnDestroy {
       const randomUuid = globalThis.crypto?.randomUUID?.();
       if (randomUuid) return randomUuid;
     } catch {
+      // O fallback mantém a idempotência deste rascunho.
     }
 
     return `mural-${Date.now().toString(36)}-${Math.random()
@@ -1299,6 +1315,7 @@ export class CommunityFeedComponent implements OnDestroy {
         deduplicated ? 'Mensagem confirmada.' : 'Mensagem enviada.'
       );
     } catch {
+      // A atualização reativa do Mural já confirma a operação visualmente.
     }
   }
 
@@ -1314,6 +1331,7 @@ export class CommunityFeedComponent implements OnDestroy {
           : 'Mensagem removida do Mural.';
       this.errorNotifier.showSuccess(message);
     } catch {
+      // O stream realtime confirma a remoção visualmente.
     }
   }
 
@@ -1328,6 +1346,7 @@ export class CommunityFeedComponent implements OnDestroy {
           : 'Não foi possível remover a mensagem agora.'
       );
     } catch {
+      // O diagnóstico centralizado abaixo permanece ativo.
     }
     this.reportTechnicalError(error, 'moderatePost');
   }
@@ -1342,6 +1361,7 @@ export class CommunityFeedComponent implements OnDestroy {
           : 'Não foi possível atualizar sua reação agora.'
       );
     } catch {
+      // O diagnóstico centralizado abaixo permanece ativo.
     }
     this.reportTechnicalError(error, 'toggleReaction');
   }
@@ -1361,6 +1381,7 @@ export class CommunityFeedComponent implements OnDestroy {
     try {
       this.errorNotifier.showError(message);
     } catch {
+      // O diagnóstico centralizado abaixo permanece ativo.
     }
 
     this.reportTechnicalError(error, 'createPost');
@@ -1392,6 +1413,7 @@ export class CommunityFeedComponent implements OnDestroy {
     try {
       this.errorNotifier.showWarning(message);
     } catch {
+      // O diagnóstico centralizado abaixo permanece ativo.
     }
     this.reportTechnicalError(error, 'shareLocation');
   }
@@ -1402,6 +1424,7 @@ export class CommunityFeedComponent implements OnDestroy {
         'A publicação original não está disponível neste momento.'
       );
     } catch {
+      // O diagnóstico centralizado abaixo permanece ativo.
     }
 
     this.reportTechnicalError(error, 'navigateReference');
@@ -1417,6 +1440,7 @@ export class CommunityFeedComponent implements OnDestroy {
             : 'Não foi possível carregar o mural da Comunidade agora.'
       );
     } catch {
+      // O diagnóstico técnico abaixo permanece ativo.
     }
 
     this.reportTechnicalError(error, 'loadPage', view);
@@ -1450,6 +1474,7 @@ export class CommunityFeedComponent implements OnDestroy {
       contextual.skipUserNotification = true;
       this.globalError.handleError(contextual);
     } catch {
+      // Falha secundária não interrompe o estado visual.
     }
   }
 }
