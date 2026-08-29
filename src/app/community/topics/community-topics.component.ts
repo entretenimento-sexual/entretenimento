@@ -30,8 +30,8 @@ import {
   tap,
 } from 'rxjs';
 
+import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import type { CommunityPreviewViewerRole } from '../data-access/community-preview.model';
 import {
@@ -71,6 +71,37 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   timeStyle: 'short',
 });
 
+const TOPIC_REASON_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+  community_topics_unavailable:
+    'As Discussões desta Comunidade não estão disponíveis neste momento.',
+  community_topic_rate_limited:
+    'Você atingiu o limite temporário de interações em Discussões. Tente novamente mais tarde.',
+  community_interaction_forbidden:
+    'Sua participação atual não permite interagir nesta Comunidade.',
+  topic_creation_forbidden:
+    'Sua participação atual não permite criar discussões.',
+  topic_reply_forbidden:
+    'Sua participação atual não permite responder nesta discussão.',
+  topic_not_found:
+    'Esta discussão não está mais disponível.',
+  topic_not_replyable:
+    'Esta discussão não aceita novas respostas.',
+  invalid_topic_request:
+    'Revise o título e a mensagem da discussão.',
+  invalid_topic_reply:
+    'Revise a resposta e tente novamente.',
+  community_not_found:
+    'Esta Comunidade não está mais disponível.',
+  request_id_conflict:
+    'Esta tentativa não pôde ser confirmada com segurança. Tente novamente.',
+  account_restricted:
+    'Sua conta não pode interagir em Comunidades neste momento.',
+  adult_access_required:
+    'Confirme o acesso adulto antes de interagir nesta Comunidade.',
+  profile_incomplete:
+    'Complete seu perfil antes de interagir nesta Comunidade.',
+});
+
 @Component({
   selector: 'app-community-topics',
   standalone: true,
@@ -87,7 +118,7 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
 export class CommunityTopicsComponent {
   private readonly repository = inject(CommunityTopicRepository);
   private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly applicationError = inject(ApplicationErrorService);
   private readonly topicLoadRequests$ = new Subject<CommunityTopicsLoadRequest>();
   private readonly replyLoadRequests$ = new Subject<CommunityTopicsLoadRequest>();
   private readonly detailRefresh$ = new Subject<void>();
@@ -153,7 +184,7 @@ export class CommunityTopicsComponent {
               ),
               startWith<CommunityTopicsLoadEvent>({ type: 'loading', request }),
               catchError((error: unknown) => {
-                this.reportError(
+                this.reportLoadError(
                   error,
                   'loadTopics',
                   'Não foi possível carregar as discussões da Comunidade agora.'
@@ -188,7 +219,7 @@ export class CommunityTopicsComponent {
               detail: null,
             }),
             catchError((error: unknown) => {
-              this.reportError(
+              this.reportLoadError(
                 error,
                 'loadDetail',
                 'Não foi possível abrir esta discussão agora.'
@@ -233,7 +264,7 @@ export class CommunityTopicsComponent {
                 request,
               }),
               catchError((error: unknown) => {
-                this.reportError(
+                this.reportLoadError(
                   error,
                   'loadReplies',
                   'Não foi possível carregar as respostas desta discussão agora.'
@@ -270,11 +301,7 @@ export class CommunityTopicsComponent {
         map((): CommunityTopicWriteState => ({ status: 'idle' })),
         startWith<CommunityTopicWriteState>({ status: 'loading' }),
         catchError((error: unknown) => {
-          this.reportError(
-            error,
-            'createTopic',
-            this.writeErrorMessage(error, 'topic')
-          );
+          this.reportWriteError(error, 'topic');
           return of<CommunityTopicWriteState>({ status: 'error' });
         })
       )
@@ -299,11 +326,7 @@ export class CommunityTopicsComponent {
         map((): CommunityTopicWriteState => ({ status: 'idle' })),
         startWith<CommunityTopicWriteState>({ status: 'loading' }),
         catchError((error: unknown) => {
-          this.reportError(
-            error,
-            'createReply',
-            this.writeErrorMessage(error, 'reply')
-          );
+          this.reportWriteError(error, 'reply');
           return of<CommunityTopicWriteState>({ status: 'error' });
         })
       )
@@ -453,32 +476,6 @@ export class CommunityTopicsComponent {
     return DATE_TIME_FORMATTER.format(new Date(timestamp));
   }
 
-  private writeErrorMessage(
-    error: unknown,
-    kind: CommunityTopicWriteKind
-  ): string {
-    const rawCode = String((error as { code?: unknown } | null)?.code ?? '');
-    const code = rawCode.replace(/^functions\//, '');
-
-    if (code === 'resource-exhausted') {
-      return 'Você atingiu o limite temporário de interações em Discussões. Tente novamente mais tarde.';
-    }
-
-    if (code === 'permission-denied') {
-      return kind === 'topic'
-        ? 'Sua participação atual não permite criar discussões.'
-        : 'Sua participação atual não permite responder nesta discussão.';
-    }
-
-    if (code === 'failed-precondition') {
-      return 'Sua conta ou esta discussão precisa ser atualizada antes desta interação.';
-    }
-
-    return kind === 'topic'
-      ? 'Não foi possível publicar a discussão agora.'
-      : 'Não foi possível publicar a resposta agora.';
-  }
-
   private showSuccess(message: string): void {
     try {
       this.errorNotifier.showSuccess(message);
@@ -487,29 +484,57 @@ export class CommunityTopicsComponent {
     }
   }
 
-  private reportError(error: unknown, op: string, userMessage: string): void {
-    try {
-      this.errorNotifier.showError(userMessage);
-    } catch {
-      // O diagnóstico técnico abaixo permanece ativo.
-    }
-
-    try {
-      const normalized = error instanceof Error ? error : new Error(String(error));
-      const contextual = normalized as Error & {
-        context?: unknown;
-        skipUserNotification?: boolean;
-      };
-      contextual.context = {
+  private reportLoadError(
+    error: unknown,
+    operation: 'loadTopics' | 'loadDetail' | 'loadReplies',
+    fallbackMessage: string
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation,
+      fallbackMessage,
+      notification: 'none',
+      reasonMessages: TOPIC_REASON_MESSAGES,
+      metadata: {
         scope: 'CommunityTopicsComponent',
-        op,
-        communityId: this.communityId(),
+        communityId: this.communityId().trim(),
         topicId: this.selectedTopicId(),
-      };
-      contextual.skipUserNotification = true;
-      this.globalError.handleError(contextual);
-    } catch {
-      // Falha secundária não interrompe o estado visual.
-    }
+      },
+    });
+  }
+
+  private reportWriteError(
+    error: unknown,
+    kind: CommunityTopicWriteKind
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: kind === 'topic' ? 'createTopic' : 'createReply',
+      fallbackMessage: kind === 'topic'
+        ? 'Não foi possível publicar a discussão agora.'
+        : 'Não foi possível publicar a resposta agora.',
+      reasonMessages: TOPIC_REASON_MESSAGES,
+      codeMessages: {
+        'resource-exhausted':
+          'Você atingiu o limite temporário de interações em Discussões. Tente novamente mais tarde.',
+        'permission-denied': kind === 'topic'
+          ? 'Sua participação atual não permite criar discussões.'
+          : 'Sua participação atual não permite responder nesta discussão.',
+        'failed-precondition':
+          'Sua conta ou esta discussão precisa ser atualizada antes desta interação.',
+        'not-found': kind === 'topic'
+          ? 'Esta Comunidade não está mais disponível.'
+          : 'Esta discussão não está mais disponível.',
+        'invalid-argument': kind === 'topic'
+          ? 'Revise o título e a mensagem da discussão.'
+          : 'Revise a resposta e tente novamente.',
+      },
+      metadata: {
+        scope: 'CommunityTopicsComponent',
+        communityId: this.communityId().trim(),
+        topicId: this.selectedTopicId(),
+        kind,
+      },
+    });
   }
 }
