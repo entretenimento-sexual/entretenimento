@@ -25,18 +25,12 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
-import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import {
   EMPTY,
   Observable,
   catchError,
   combineLatest,
   concatMap,
+  defaultIfEmpty,
   distinctUntilChanged,
   exhaustMap,
   filter,
@@ -50,6 +44,9 @@ import {
   Subject,
   switchMap,
   take,
+  takeLast,
+  takeUntil,
+  takeWhile,
   tap,
   throwError,
   timer,
@@ -150,6 +147,9 @@ interface CommunityFeedMapCoordinates {
 
 const MAX_UNSEEN_NEW_POSTS = 99;
 const MAX_LOCATION_EMBED_URL_CACHE_ENTRIES = 64;
+const COMMUNITY_LOCATION_CAPTURE_WINDOW_MS = 8_000;
+const COMMUNITY_LOCATION_TARGET_ACCURACY_METERS = 30;
+const COMMUNITY_LOCATION_LOW_ACCURACY_WARNING_METERS = 250;
 
 @Component({
   selector: 'app-community-feed',
@@ -609,8 +609,8 @@ export class CommunityFeedComponent implements OnDestroy {
     this.clearSelectedAttachment();
   }
 
-  // Nome preservado para não quebrar bindings/testes existentes; o gesto é
-  // explícito e agora prioriza a coordenada mais fiel fornecida pelo navegador.
+  // Nome preservado para não quebrar bindings/testes existentes. O fluxo agora
+  // observa refinamentos do provedor e escolhe a leitura com menor margem de erro.
   shareApproximateLocation(): void {
     if (!this.canCreatePost() || this.locationCaptureState() === 'loading') return;
 
@@ -618,19 +618,32 @@ export class CommunityFeedComponent implements OnDestroy {
     if (menu) menu.open = false;
     this.locationCaptureState.set('loading');
 
-    this.geolocation.currentPosition$({
+    this.geolocation.watchPosition$({
       enableHighAccuracy: true,
-      timeout: 15_000,
+      timeout: COMMUNITY_LOCATION_CAPTURE_WINDOW_MS,
       maximumAge: 0,
     }).pipe(
-      take(1),
-      map((coordinates) =>
-        createCommunityComposerLocationAttachment(
+      scan((best, current) =>
+        current.accuracy < best.accuracy ? current : best
+      ),
+      takeWhile(
+        (coordinates) =>
+          coordinates.accuracy > COMMUNITY_LOCATION_TARGET_ACCURACY_METERS,
+        true
+      ),
+      takeUntil(timer(COMMUNITY_LOCATION_CAPTURE_WINDOW_MS)),
+      takeLast(1),
+      defaultIfEmpty(null),
+      map((coordinates) => {
+        if (!coordinates) {
+          throw new Error('Nenhuma coordenada disponível durante a captura.');
+        }
+        return createCommunityComposerLocationAttachment(
           coordinates.latitude,
           coordinates.longitude,
           coordinates.accuracy
-        )
-      ),
+        );
+      }),
       tap((attachment) => {
         if (!attachment) {
           throw new Error('Coordenadas inválidas para compartilhamento no Mural.');
@@ -638,7 +651,20 @@ export class CommunityFeedComponent implements OnDestroy {
         this.clearSelectedAttachment();
         this.selectedAttachment.set(attachment);
         this.composerExpanded.set(true);
-        this.errorNotifier.showSuccess('Localização atual adicionada.');
+
+        const accuracy = attachment.accuracyMeters;
+        if (
+          accuracy !== null
+          && accuracy > COMMUNITY_LOCATION_LOW_ACCURACY_WARNING_METERS
+        ) {
+          this.errorNotifier.showWarning(
+            `Localização adicionada, mas o dispositivo informou baixa precisão (${this.locationAccuracyLabel(accuracy)}).`
+          );
+        } else {
+          this.errorNotifier.showSuccess(
+            `Localização atual adicionada. ${this.locationAccuracyLabel(accuracy)}.`
+          );
+        }
       }),
       catchError((error: unknown) => {
         this.reportLocationError(error);
@@ -653,6 +679,23 @@ export class CommunityFeedComponent implements OnDestroy {
     const formatCoordinate = (value: number) =>
       Number(value.toFixed(6)).toString();
     return `${formatCoordinate(latitude)}, ${formatCoordinate(longitude)}`;
+  }
+
+  locationAccuracyLabel(accuracyMeters: number | null | undefined): string {
+    const parsed = Number(accuracyMeters);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return 'Precisão não informada pelo dispositivo';
+    }
+
+    const roundedMeters = Math.max(0, Math.round(parsed));
+    if (roundedMeters < 1_000) {
+      return `Precisão estimada: ±${roundedMeters} m`;
+    }
+
+    const kilometers = Number((roundedMeters / 1_000).toFixed(1))
+      .toString()
+      .replace('.', ',');
+    return `Precisão estimada: ±${kilometers} km`;
   }
 
   locationMapEmbedUrl(item: CommunityFeedItem): SafeResourceUrl | null {
