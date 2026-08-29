@@ -23,6 +23,11 @@ describe('CommunityFeedComponent attachment menu', () => {
     toggleReaction$: vi.fn(),
   };
 
+  const cameraCaptureMock = {
+    openCamera$: vi.fn(),
+    stopStream: vi.fn(),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     repositoryMock.getPage$.mockReturnValue(of({
@@ -70,7 +75,7 @@ describe('CommunityFeedComponent attachment menu', () => {
         },
         { provide: AuthSessionService, useValue: { currentAuthUser: { uid: 'u1' } } },
         { provide: StorageService, useValue: { uploadFile: vi.fn() } },
-        { provide: CameraCaptureService, useValue: { openCamera$: vi.fn() } },
+        { provide: CameraCaptureService, useValue: cameraCaptureMock },
         { provide: PhotoEditorLauncherService, useValue: { open$: vi.fn() } },
       ],
     });
