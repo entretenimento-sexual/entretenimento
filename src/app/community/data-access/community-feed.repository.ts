@@ -66,6 +66,25 @@ interface CommunityFeedItemsHydrationRequest {
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const MAX_REALTIME_ITEMS = 20;
 
+export function buildCommunityFeedPostCreatePayload(
+  request: CommunityFeedPostCreateRequest
+): CommunityFeedPostCreateRequest {
+  return {
+    requestId: request.requestId.trim(),
+    communityId: request.communityId.trim(),
+    text: request.text.trim(),
+    audience: request.audience,
+    imageUploadPath: request.imageUploadPath?.trim() || null,
+    location: request.location
+      ? {
+          latitude: request.location.latitude,
+          longitude: request.location.longitude,
+        }
+      : null,
+    replyToPostId: request.replyToPostId?.trim() || null,
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class CommunityFeedRepository {
   private readonly functions = inject(Functions);
@@ -173,14 +192,7 @@ export class CommunityFeedRepository {
   createPost$(
     request: CommunityFeedPostCreateRequest
   ): Observable<CommunityFeedPostCreateResponse> {
-    const payload: CommunityFeedPostCreateRequest = {
-      requestId: request.requestId.trim(),
-      communityId: request.communityId.trim(),
-      text: request.text.trim(),
-      audience: request.audience,
-      imageUploadPath: request.imageUploadPath?.trim() || null,
-      replyToPostId: request.replyToPostId?.trim() || null,
-    };
+    const payload = buildCommunityFeedPostCreatePayload(request);
 
     return defer(() => from(this.createCommunityFeedPostCallable(payload))).pipe(
       map((result) => normalizeCommunityFeedPostCreateResponse(result.data))
