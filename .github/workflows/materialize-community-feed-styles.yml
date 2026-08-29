@@ -1,0 +1,136 @@
+name: Materialize Community Feed Styles
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/materialize-community-feed-styles.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Materialize validated Mural styles
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const cssPath = 'src/app/community/feed/community-feed.component.css';
+          const interactionPath = 'src/app/community/feed/community-feed.interactions.css';
+          const componentPath = 'src/app/community/feed/community-feed.component.ts';
+          const marker = '/* A referência contextualiza a conversa sem disputar atenção com a mensagem atual. */';
+
+          const css = fs.readFileSync(cssPath, 'utf8');
+          const markerIndex = css.indexOf(marker);
+          if (markerIndex < 0) {
+            throw new Error('Marcador canônico da partição do Mural não encontrado.');
+          }
+
+          let baseCss = `${css.slice(0, markerIndex).trimEnd()}\n`;
+          let interactionCss = `${css.slice(markerIndex).trim()}\n`;
+
+          const replaceRequired = (source, from, to, label) => {
+            if (!source.includes(from)) {
+              throw new Error(`Trecho esperado ausente: ${label}`);
+            }
+            return source.split(from).join(to);
+          };
+
+          const baseReplacements = [
+            ['grid-template-columns: minmax(0, 1fr) 2.65rem 2.65rem;', 'grid-template-columns: minmax(0, 1fr) 44px 44px;', 'composer grid'],
+            ['  width: 2.65rem;\n  height: 2.65rem;\n  display: grid;', '  width: 44px;\n  height: 44px;\n  display: grid;', 'composer tools'],
+            ['grid-template-columns: 3.3rem minmax(0, 1fr) 2.25rem;', 'grid-template-columns: 3.3rem minmax(0, 1fr) 44px;', 'photo preview grid'],
+            ['  width: 2.25rem;\n  height: 2.25rem;\n  display: grid;', '  width: 44px;\n  height: 44px;\n  display: grid;', 'photo remove target'],
+            ['grid-template-columns: 2.55rem minmax(0, 1fr) 2.75rem;', 'grid-template-columns: 2.55rem minmax(0, 1fr) 44px;', 'post header action column'],
+            ['  width: 2.75rem;\n  height: 2.75rem;\n  display: grid;', '  width: 44px;\n  height: 44px;\n  display: grid;', 'post menu target'],
+            ['  width: 2.65rem;\n  height: 2.65rem;\n  align-self: end;', '  width: 44px;\n  height: 44px;\n  align-self: end;', 'attachment menu target'],
+            ['  min-height: 2.75rem;\n  display: flex;', '  min-height: 44px;\n  display: flex;', 'menu actions'],
+            ['  min-height: 2.75rem;\n  display: inline-flex;', '  min-height: 44px;\n  display: inline-flex;', 'post actions'],
+            ['  min-height: 2.5rem;\n  display: inline-flex;', '  min-height: 44px;\n  display: inline-flex;', 'confirmation actions'],
+            ['grid-template-columns: 1.85rem minmax(0, 1fr) 2.75rem;', 'grid-template-columns: 1.85rem minmax(0, 1fr) 44px;', 'photos header action column'],
+            ['  min-height: 2.25rem;\n  padding: 0.3rem 0.45rem;', '  min-height: 44px;\n  padding: 0.3rem 0.45rem;', 'photos action target'],
+            ['    grid-template-columns: minmax(0, 1fr) 2.5rem 2.5rem;', '    grid-template-columns: minmax(0, 1fr) 44px 44px;', 'mobile composer grid'],
+            ['    width: 2.5rem;\n    height: 2.5rem;', '    width: 44px;\n    height: 44px;', 'mobile composer targets'],
+            ['    grid-template-columns: 2.35rem minmax(0, 1fr) 2.75rem;', '    grid-template-columns: 2.35rem minmax(0, 1fr) 44px;', 'mobile header action column'],
+          ];
+
+          for (const [from, to, label] of baseReplacements) {
+            baseCss = replaceRequired(baseCss, from, to, label);
+          }
+
+          interactionCss = replaceRequired(
+            interactionCss,
+            '.community-post__reply-context {\n  min-width: 0;',
+            '.community-post__reply-context {\n  min-width: 0;\n  min-height: 44px;',
+            'reply context target'
+          );
+          interactionCss = replaceRequired(
+            interactionCss,
+            '  min-height: 2.5rem;\n  display: inline-flex;',
+            '  min-height: 44px;\n  display: inline-flex;',
+            'new items target'
+          );
+          interactionCss = replaceRequired(
+            interactionCss,
+            '  width: 2.25rem;\n  height: 2.25rem;\n  display: grid;',
+            '  width: 44px;\n  height: 44px;\n  display: grid;',
+            'location remove target'
+          );
+          interactionCss = replaceRequired(
+            interactionCss,
+            '.community-post__location {\n  margin:',
+            '.community-post__location {\n  min-height: 44px;\n  margin:',
+            'location link target'
+          );
+
+          let component = fs.readFileSync(componentPath, 'utf8');
+          component = replaceRequired(
+            component,
+            "  styleUrl: './community-feed.component.css',",
+            "  styleUrls: [\n    './community-feed.component.css',\n    './community-feed.interactions.css',\n  ],",
+            'component style metadata'
+          );
+
+          if (!interactionCss.includes('.community-post__location')) {
+            throw new Error('A partição não capturou a localização do Mural.');
+          }
+          if (Buffer.byteLength(baseCss) >= 20 * 1024 || Buffer.byteLength(interactionCss) >= 20 * 1024) {
+            throw new Error('Uma partição do Mural ainda excede 20 KiB.');
+          }
+          if (!baseCss.includes('min-height: 44px;') || !interactionCss.includes('min-height: 44px;')) {
+            throw new Error('Contrato de alvo mínimo de 44px não foi materializado.');
+          }
+
+          fs.writeFileSync(cssPath, baseCss);
+          fs.writeFileSync(interactionPath, interactionCss);
+          fs.writeFileSync(componentPath, component);
+          console.log(JSON.stringify({
+            baseBytes: Buffer.byteLength(baseCss),
+            interactionBytes: Buffer.byteLength(interactionCss),
+          }));
+          NODE
+
+      - name: Commit materialized source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/app/community/feed/community-feed.component.css \
+            src/app/community/feed/community-feed.interactions.css \
+            src/app/community/feed/community-feed.component.ts
+          git diff --cached --check
+          git commit -m 'fix(mural): enforce touch targets and split styles'
+          git push origin HEAD:main
