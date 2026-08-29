@@ -348,35 +348,6 @@
                 }
               </header>
 
-              @if (item.replyTo; as reference) {
-                @if (reference.available) {
-                  <a
-                    class="community-post__reply-context is-navigable"
-                    [attr.href]="'#community-feed-post-' + reference.postId"
-                    [attr.aria-label]="'Ir para a publicação original de ' + reference.authorLabel + ': ' + reference.textPreview"
-                    (click)="navigateToReferencedPost($event, reference.postId)"
-                  >
-                    <strong>
-                      <i class="fas fa-reply" aria-hidden="true"></i>
-                      Em resposta a {{ reference.authorLabel }}
-                    </strong>
-                    <span>{{ reference.textPreview }}</span>
-                  </a>
-                } @else {
-                  <div
-                    class="community-post__reply-context"
-                    role="note"
-                    aria-label="Publicação original indisponível"
-                  >
-                    <strong>
-                      <i class="fas fa-reply" aria-hidden="true"></i>
-                      Publicação original indisponível
-                    </strong>
-                    <span>{{ reference.textPreview }}</span>
-                  </div>
-                }
-              }
-
               @if (item.text) {
                 <p>{{ item.text }}</p>
               }
@@ -428,6 +399,35 @@
                     </a>
                   </div>
                 </section>
+              }
+
+              @if (item.replyTo; as reference) {
+                @if (reference.available) {
+                  <a
+                    class="community-post__reply-context is-navigable"
+                    [attr.href]="'#community-feed-post-' + reference.postId"
+                    [attr.aria-label]="'Ir para a publicação original de ' + reference.authorLabel + ': ' + reference.textPreview"
+                    (click)="navigateToReferencedPost($event, reference.postId)"
+                  >
+                    <strong>
+                      <i class="fas fa-reply" aria-hidden="true"></i>
+                      Em resposta a {{ reference.authorLabel }}
+                    </strong>
+                    <span>{{ reference.textPreview }}</span>
+                  </a>
+                } @else {
+                  <div
+                    class="community-post__reply-context"
+                    role="note"
+                    aria-label="Publicação original indisponível"
+                  >
+                    <strong>
+                      <i class="fas fa-reply" aria-hidden="true"></i>
+                      Publicação original indisponível
+                    </strong>
+                    <span>{{ reference.textPreview }}</span>
+                  </div>
+                }
               }
 
               <footer class="community-post__metrics" aria-label="Ações da publicação">
