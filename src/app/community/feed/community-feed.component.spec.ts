@@ -143,7 +143,9 @@ describe('CommunityFeedComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Equipe do local');
     expect(fixture.nativeElement.textContent).toContain('Movimento tranquilo.');
     expect(fixture.nativeElement.querySelector('.community-post')).not.toBeNull();
-    expect(fixture.nativeElement.querySelector('button[aria-label*="Reagir"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('button[aria-label*="Curtir"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('.community-post__action--static')?.textContent)
+      .toContain('5 curtidas');
     expect(
       fixture.nativeElement.querySelector('.community-feed')?.getAttribute('aria-label')
     ).toBe('Novidades do Local');
@@ -612,7 +614,7 @@ describe('CommunityFeedComponent', () => {
     expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
   });
 
-  it('aplica reação otimista e reconcilia a confirmação do backend', () => {
+  it('aplica reação otimista, envia o estado desejado e reconcilia o backend', () => {
     const interactivePage = page();
     interactivePage.items[0].capabilities.canReact = true;
     repositoryMock.getPage$.mockReturnValue(of(interactivePage));
@@ -631,6 +633,8 @@ describe('CommunityFeedComponent', () => {
     fixture.detectChanges();
     expect(component.viewerReacted(item)).toBe(true);
     expect(component.reactionCount(item)).toBe(6);
+    expect(fixture.nativeElement.querySelector('.community-post__reaction')?.textContent)
+      .toContain('Curtido');
 
     response$.next({
       communityId: 'community-1',
@@ -644,6 +648,7 @@ describe('CommunityFeedComponent', () => {
     expect(repositoryMock.toggleReaction$).toHaveBeenCalledWith({
       communityId: 'community-1',
       postId: 'post-1',
+      reacted: true,
     });
     expect(component.viewerReacted(item)).toBe(true);
     expect(component.reactionCount(item)).toBe(6);
