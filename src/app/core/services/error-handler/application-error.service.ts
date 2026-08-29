@@ -7,14 +7,14 @@
 // Responsabilidades:
 // - normalizar códigos de Firebase/Functions sem expor mensagens técnicas;
 // - extrair `reason` e `recommendedAction` de detalhes estruturados;
-// - resolver mensagens seguras por código ou motivo de domínio;
+// - resolver mensagens seguras por motivo, ação recomendada ou código;
 // - indicar se a falha pode ser tentada novamente;
 // - delegar feedback visual ao ErrorNotificationService;
 // - delegar diagnóstico sanitizado ao GlobalErrorHandlerService.
 //
 // O serviço não substitui regras de negócio e não confia em `error.message` como
 // texto de interface. Mensagens específicas devem ser declaradas pelo chamador
-// por código/motivo, mantendo a tradução do domínio testável e previsível.
+// por código/motivo/ação, mantendo a tradução do domínio testável e previsível.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -45,6 +45,7 @@ export interface ApplicationErrorReportOptions {
   readonly notification?: ApplicationErrorNotification;
   readonly codeMessages?: Readonly<Record<string, string>>;
   readonly reasonMessages?: Readonly<Record<string, string>>;
+  readonly recommendedActionMessages?: Readonly<Record<string, string>>;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
@@ -128,6 +129,12 @@ export class ApplicationErrorService {
     );
     const userMessage =
       (reason ? safeString(options.reasonMessages?.[reason], 280) : null)
+      ?? (recommendedAction
+        ? safeString(
+            options.recommendedActionMessages?.[recommendedAction],
+            280
+          )
+        : null)
       ?? (code ? safeString(options.codeMessages?.[code], 280) : null)
       ?? (code ? COMMON_CODE_MESSAGES[code] : null)
       ?? fallbackMessage;
