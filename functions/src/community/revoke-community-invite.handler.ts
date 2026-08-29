@@ -34,7 +34,8 @@ function assertPreviewRuntime(): void {
 
   throw new HttpsError(
     'failed-precondition',
-    'Os convites de Comunidades ainda não estão disponíveis neste ambiente.'
+    'Os convites de Comunidades ainda não estão disponíveis neste ambiente.',
+    { reason: 'community_invites_unavailable' }
   );
 }
 
@@ -42,13 +43,15 @@ function throwDecisionError(reason: string | null): never {
   if (reason === 'inviter_not_allowed') {
     throw new HttpsError(
       'permission-denied',
-      'Você não pode revogar este convite.'
+      'Você não pode revogar este convite.',
+      { reason }
     );
   }
 
   throw new HttpsError(
     'failed-precondition',
-    'Este convite não está mais pendente.'
+    'Este convite não está mais pendente.',
+    { reason: reason ?? 'invite_not_pending' }
   );
 }
 
@@ -73,13 +76,18 @@ export const revokeCommunityInvite = onCall<RevokeCommunityInviteRequest>(
       const invite = inviteSnapshot.data() as CommunityInviteDocument | undefined;
 
       if (!invite) {
-        throw new HttpsError('not-found', 'Convite não encontrado.');
+        throw new HttpsError(
+          'not-found',
+          'Convite não encontrado.',
+          { reason: 'invite_not_found' }
+        );
       }
 
       if (String(invite.type ?? '').trim() !== 'community') {
         throw new HttpsError(
           'failed-precondition',
-          'Este convite não pertence a uma Comunidade.'
+          'Este convite não pertence a uma Comunidade.',
+          { reason: 'invite_contract_invalid' }
         );
       }
 
@@ -96,7 +104,8 @@ export const revokeCommunityInvite = onCall<RevokeCommunityInviteRequest>(
       if (inviteId !== buildCommunityInviteId(communityId, receiverId)) {
         throw new HttpsError(
           'failed-precondition',
-          'Convite fora do contrato canônico.'
+          'Convite fora do contrato canônico.',
+          { reason: 'invite_contract_invalid' }
         );
       }
 
