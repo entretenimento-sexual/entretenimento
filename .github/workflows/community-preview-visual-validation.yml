@@ -27,7 +27,7 @@ jobs:
   visual:
     name: Community page desktop and mobile
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -40,11 +40,19 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+      # Este workflow é deliberadamente rápido. O Quality Gate executa a
+      # validação completa e limpa em paralelo; aqui priorizamos o ciclo
+      # template -> ng serve -> captura visual.
+      - name: Restore visual node_modules cache
+        id: visual-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: community-visual-node22-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Validate production-safe build
-        run: npm run build:safe
+      - name: Install dependencies when cache is cold
+        if: steps.visual-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
 
       - name: Prepare real Community page visual harness
         shell: bash
@@ -88,21 +96,22 @@ jobs:
           npm install --global @playwright/cli@0.1.17
           playwright-cli install-browser --with-deps
 
-      - name: Start Community page harness
+      - name: Start current Community template with HMR
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts
           nohup npx ng serve \
             --configuration=dev-emu \
+            --hmr \
             --host=127.0.0.1 \
             --port=4200 \
             > artifacts/ng-serve.log 2>&1 &
           echo $! > artifacts/ng-serve.pid
 
-          for attempt in $(seq 1 180); do
+          for attempt in $(seq 1 120); do
             if curl --fail --silent --show-error 'http://127.0.0.1:4200/' >/dev/null; then
-              echo "Community page visual harness ready after ${attempt}s"
+              echo "Current Community template ready after ${attempt}s"
               exit 0
             fi
             sleep 1
@@ -111,7 +120,7 @@ jobs:
           cat artifacts/ng-serve.log >&2 || true
           exit 1
 
-      - name: Capture real Community page desktop and mobile
+      - name: Capture current Community page desktop and mobile
         shell: bash
         env:
           PLAYWRIGHT_CLI_SESSION: community-page
@@ -234,7 +243,7 @@ jobs:
 
           playwright-cli close
 
-      - name: Upload full Community page visual evidence
+      - name: Upload current Community page visual evidence
         uses: actions/upload-artifact@v6
         with:
           name: community-page-visual-${{ github.run_id }}
