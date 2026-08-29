@@ -117,8 +117,14 @@ export function reduceCommunityFeedState(
     };
   }
 
+  /**
+   * `preserve` é uma política visual de stale-while-refresh: mantém a janela
+   * atual durante loading/falha, mas não transforma a primeira página nova em
+   * append. Quando o refresh conclui, a resposta autoritativa substitui a
+   * janela atual e elimina itens antigos/hidratados que não pertencem mais ao
+   * recorte inicial. Apenas paginação explícita continua acumulando histórico.
+   */
   const items = event.request.append
-    || (event.request.preserve === true && state.items.length > 0)
     ? mergeUniqueItems(state.items, event.page.items)
     : sortItems(event.page.items);
 
