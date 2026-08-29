@@ -1,8 +1,9 @@
 // -----------------------------------------------------------------------------
-// TOGGLE COMMUNITY FEED REACTION
+// SET COMMUNITY FEED REACTION
 // -----------------------------------------------------------------------------
-// Reação binária transacional. O documento por usuário torna concorrência e
-// contagem determinísticas; a projeção continua servida somente pela callable.
+// Reação binária transacional orientada ao estado desejado. O cliente envia se
+// a publicação deve terminar curtida ou não; retries da mesma intenção tornam-se
+// idempotentes e nunca invertem acidentalmente uma reação já confirmada.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -24,6 +25,7 @@ import { getCommunityViewerContext } from './community-viewer-access.service';
 interface ToggleCommunityFeedReactionRequest {
   communityId?: unknown;
   postId?: unknown;
+  reacted?: unknown;
 }
 
 interface ToggleCommunityFeedReactionResponse {
@@ -39,7 +41,8 @@ function assertRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
   throw new HttpsError(
     'failed-precondition',
-    'As reações do Mural ainda não estão disponíveis neste ambiente.'
+    'As reações do Mural ainda não estão disponíveis neste ambiente.',
+    { reason: 'community_feed_reactions_unavailable' }
   );
 }
 
@@ -52,9 +55,19 @@ function assertAuthenticatedUid(
   auth: { uid?: string; token?: Record<string, unknown> } | undefined
 ): string {
   const uid = cleanId(auth?.uid);
-  if (!uid) throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+  if (!uid) {
+    throw new HttpsError(
+      'unauthenticated',
+      'Usuário não autenticado.',
+      { reason: 'authentication_required' }
+    );
+  }
   if (auth?.token?.['email_verified'] !== true) {
-    throw new HttpsError('failed-precondition', 'Verifique seu e-mail para continuar.');
+    throw new HttpsError(
+      'failed-precondition',
+      'Verifique seu e-mail para continuar.',
+      { reason: 'email_verification_required' }
+    );
   }
   return uid;
 }
@@ -77,9 +90,17 @@ function normalizeCount(value: unknown): number {
 
 function throwDenied(reason: string | null): never {
   if (reason === 'active_membership_required') {
-    throw new HttpsError('permission-denied', 'Participe da Comunidade para reagir.');
+    throw new HttpsError(
+      'permission-denied',
+      'Participe da Comunidade para reagir.',
+      { reason: 'active_membership_required' }
+    );
   }
-  throw new HttpsError('failed-precondition', 'Esta publicação não aceita reações.');
+  throw new HttpsError(
+    'failed-precondition',
+    'Esta publicação não aceita reações.',
+    { reason: reason || 'community_feed_reaction_unavailable' }
+  );
 }
 
 export const toggleCommunityFeedReaction = onCall<
@@ -95,13 +116,22 @@ export const toggleCommunityFeedReaction = onCall<
     const actorUid = assertAuthenticatedUid(request.auth);
     const communityId = cleanId(request.data?.communityId);
     const postId = cleanId(request.data?.postId);
-    if (!communityId || !postId) {
-      throw new HttpsError('invalid-argument', 'Publicação inválida.');
+    const desiredReacted = request.data?.reacted;
+    if (!communityId || !postId || typeof desiredReacted !== 'boolean') {
+      throw new HttpsError(
+        'invalid-argument',
+        'Publicação ou estado da reação inválido.',
+        { reason: 'invalid_reaction_request' }
+      );
     }
 
     const context = await getCommunityViewerContext(actorUid, communityId);
     if (!context.canInteract) {
-      throw new HttpsError('permission-denied', 'Participe da Comunidade para reagir.');
+      throw new HttpsError(
+        'permission-denied',
+        'Participe da Comunidade para reagir.',
+        { reason: 'active_membership_required' }
+      );
     }
     await consumeBackendRateLimitQuota({
       action: 'toggleCommunityFeedReaction',
@@ -153,10 +183,18 @@ export const toggleCommunityFeedReaction = onCall<
       ]);
 
       if (!communitySnapshot.exists) {
-        throw new HttpsError('not-found', 'Comunidade não encontrada.');
+        throw new HttpsError(
+          'not-found',
+          'Comunidade não encontrada.',
+          { reason: 'community_not_found' }
+        );
       }
       if (!postSnapshot.exists || !projectionSnapshot.exists) {
-        throw new HttpsError('not-found', 'Publicação não encontrada.');
+        throw new HttpsError(
+          'not-found',
+          'Publicação não encontrada.',
+          { reason: 'community_feed_post_not_found' }
+        );
       }
       assertCommunityMembershipActorEligible(
         userSnapshot.exists ? userSnapshot.data() : null,
@@ -184,35 +222,51 @@ export const toggleCommunityFeedReaction = onCall<
 
       const metrics = (post['metrics'] ?? {}) as Record<string, unknown>;
       const currentCount = normalizeCount(metrics['reactionCount']);
-      const reacted = !reactionSnapshot.exists;
-      const nextCount = reacted
-        ? Math.min(currentCount + 1, 1_000_000_000)
-        : Math.max(0, currentCount - 1);
+      const currentlyReacted = reactionSnapshot.exists;
+      const stateChanged = currentlyReacted !== desiredReacted;
+      const nextCount = !stateChanged
+        ? currentCount
+        : desiredReacted
+          ? Math.min(currentCount + 1, 1_000_000_000)
+          : Math.max(0, currentCount - 1);
       const now = Date.now();
       const updatedAt = Timestamp.fromMillis(now);
 
-      if (reacted) {
-        transaction.create(reactionRef, { actorUid, createdAt: now });
+      if (desiredReacted) {
+        if (!currentlyReacted) {
+          transaction.create(reactionRef, { actorUid, createdAt: now });
+        }
+        // O espelho por usuário é reparado idempotentemente se tiver se perdido.
         transaction.set(userReactionRef, {
           actorUid,
           communityId,
           postId,
-          createdAt: now,
+          createdAt: currentlyReacted
+            ? Number(reactionSnapshot.data()?.['createdAt']) || now
+            : now,
         });
       } else {
-        transaction.delete(reactionRef);
+        if (currentlyReacted) transaction.delete(reactionRef);
         transaction.delete(userReactionRef);
       }
-      transaction.update(postRef, {
-        'metrics.reactionCount': nextCount,
-        updatedAt,
-      });
-      transaction.update(projectionRef, {
-        'metrics.reactionCount': nextCount,
-        updatedAt,
-      });
 
-      return { communityId, postId, reacted, reactionCount: nextCount };
+      if (stateChanged) {
+        transaction.update(postRef, {
+          'metrics.reactionCount': nextCount,
+          updatedAt,
+        });
+        transaction.update(projectionRef, {
+          'metrics.reactionCount': nextCount,
+          updatedAt,
+        });
+      }
+
+      return {
+        communityId,
+        postId,
+        reacted: desiredReacted,
+        reactionCount: nextCount,
+      };
     });
   }
 );
