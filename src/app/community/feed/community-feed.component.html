@@ -436,7 +436,10 @@
                 @if (reference.available) {
                   <a
                     class="community-post__reply-context is-navigable"
+                    [class.is-loading-reference]="referenceNavigationState().status === 'loading' && referenceNavigationState().postId === reference.postId"
+                    [class.is-reference-error]="referenceNavigationState().status === 'error' && referenceNavigationState().postId === reference.postId"
                     [attr.href]="'#community-feed-post-' + reference.postId"
+                    [attr.aria-busy]="referenceNavigationState().status === 'loading' && referenceNavigationState().postId === reference.postId ? 'true' : null"
                     [attr.aria-label]="'Ir para a publicação original de ' + reference.authorLabel + ': ' + reference.textPreview"
                     (click)="navigateToReferencedPost($event, reference.postId)"
                   >
@@ -445,6 +448,23 @@
                       Em resposta a {{ reference.authorLabel }}
                     </strong>
                     <span>{{ reference.textPreview }}</span>
+                    @if (
+                      referenceNavigationState().status === 'loading'
+                      && referenceNavigationState().postId === reference.postId
+                    ) {
+                      <span class="community-post__reply-status" role="status" aria-live="polite">
+                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                        Localizando publicação...
+                      </span>
+                    } @else if (
+                      referenceNavigationState().status === 'error'
+                      && referenceNavigationState().postId === reference.postId
+                    ) {
+                      <span class="community-post__reply-status is-error" role="status" aria-live="polite">
+                        <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+                        Publicação original não disponível. Clique para tentar novamente.
+                      </span>
+                    }
                   </a>
                 } @else {
                   <div
