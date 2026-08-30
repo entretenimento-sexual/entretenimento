@@ -94,6 +94,16 @@ describe('CommunityFeedComponent shared location map', () => {
     return fixture;
   }
 
+  function setMapOpen(
+    fixture: ReturnType<typeof configureFixture>,
+    details: HTMLDetailsElement,
+    open: boolean
+  ): void {
+    details.open = open;
+    details.dispatchEvent(new Event('toggle'));
+    fixture.detectChanges();
+  }
+
   it('mantém o iframe fora do DOM até o usuário pedir o mapa preciso', () => {
     const fixture = configureFixture({
       latitude: -22.912345,
@@ -125,8 +135,7 @@ describe('CommunityFeedComponent shared location map', () => {
     expect(directLink.href).toContain('query=-22.912345%2C-43.187654');
     expect(directLink.getAttribute('aria-label')).toContain('-22.912345, -43.187654');
 
-    details.open = true;
-    fixture.detectChanges();
+    setMapOpen(fixture, details, true);
 
     const map = fixture.nativeElement.querySelector(
       '.community-post__location-map iframe'
@@ -138,8 +147,7 @@ describe('CommunityFeedComponent shared location map', () => {
     expect(map.getAttribute('title')).toContain('-22.912345, -43.187654');
     expect(summary.textContent).toContain('Ocultar mapa');
 
-    details.open = false;
-    fixture.detectChanges();
+    setMapOpen(fixture, details, false);
     expect(
       fixture.nativeElement.querySelector('.community-post__location-map iframe')
     ).toBeNull();
@@ -171,12 +179,12 @@ describe('CommunityFeedComponent shared location map', () => {
     ).toBeNull();
     expect(directLink.href).toContain('query=-22.91%2C-43.19');
 
-    details.open = true;
-    fixture.detectChanges();
+    setMapOpen(fixture, details, true);
 
     const map = fixture.nativeElement.querySelector(
       '.community-post__location-map iframe'
     ) as HTMLIFrameElement;
+    expect(map).not.toBeNull();
     expect(map.getAttribute('src')).toBe(
       'https://www.google.com/maps?q=-22.91,-43.19&z=14&output=embed'
     );
