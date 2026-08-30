@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   evaluateCommunityHighlightAction,
+  shouldClearCommunityHighlightForCommunityTransition,
   shouldClearCommunityHighlightForPostTransition,
 } from './community-highlight.policy';
 
@@ -137,6 +138,29 @@ describe('community-highlight.policy', () => {
       highlightedTargetType: 'feed_post',
       highlightedTargetId: 'post-1',
       postId: 'post-1',
+      afterExists: true,
+      afterStatus: 'active',
+      afterModerationState: 'active',
+    })).toBe(false);
+  });
+
+  it('limpa destaque ao pausar, moderar ou excluir a Comunidade', () => {
+    expect(shouldClearCommunityHighlightForCommunityTransition({
+      afterExists: true,
+      afterStatus: 'paused',
+      afterModerationState: 'active',
+    })).toBe(true);
+    expect(shouldClearCommunityHighlightForCommunityTransition({
+      afterExists: true,
+      afterStatus: 'active',
+      afterModerationState: 'suspended',
+    })).toBe(true);
+    expect(shouldClearCommunityHighlightForCommunityTransition({
+      afterExists: false,
+      afterStatus: null,
+      afterModerationState: null,
+    })).toBe(true);
+    expect(shouldClearCommunityHighlightForCommunityTransition({
       afterExists: true,
       afterStatus: 'active',
       afterModerationState: 'active',
