@@ -57,7 +57,8 @@ function assertPreviewRuntime(): void {
 
   throw new HttpsError(
     'failed-precondition',
-    'As publicações de Comunidades ainda não estão disponíveis neste ambiente.'
+    'As publicações de Comunidades ainda não estão disponíveis neste ambiente.',
+    { reason: 'community_feed_unavailable' }
   );
 }
 
@@ -65,12 +66,19 @@ function assertAuthenticatedUid(
   auth: { uid?: string; token?: Record<string, unknown> } | undefined
 ): string {
   const uid = String(auth?.uid ?? '').trim();
-  if (!uid) throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+  if (!uid) {
+    throw new HttpsError(
+      'unauthenticated',
+      'Usuário não autenticado.',
+      { reason: 'authentication_required' }
+    );
+  }
 
   if (auth?.token?.['email_verified'] !== true) {
     throw new HttpsError(
       'failed-precondition',
-      'Verifique seu e-mail para continuar.'
+      'Verifique seu e-mail para continuar.',
+      { reason: 'email_verification_required' }
     );
   }
 
@@ -145,16 +153,25 @@ async function validatePrivateCommunityImage(storagePath: string): Promise<void>
   if (!ALLOWED_COMMUNITY_IMAGE_TYPES.has(contentType)) {
     throw new HttpsError(
       'invalid-argument',
-      'A foto deve ser JPG, PNG ou WEBP.'
+      'A foto deve ser JPG, PNG ou WEBP.',
+      { reason: 'invalid_image_type' }
     );
   }
 
   if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
-    throw new HttpsError('invalid-argument', 'Não foi possível validar a foto enviada.');
+    throw new HttpsError(
+      'invalid-argument',
+      'Não foi possível validar a foto enviada.',
+      { reason: 'invalid_image' }
+    );
   }
 
   if (sizeBytes > MAX_COMMUNITY_IMAGE_BYTES) {
-    throw new HttpsError('invalid-argument', 'A foto excede o limite de 10 MB.');
+    throw new HttpsError(
+      'invalid-argument',
+      'A foto excede o limite de 10 MB.',
+      { reason: 'image_too_large' }
+    );
   }
 }
 
@@ -189,20 +206,26 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
       || (rawReplyToPostId && !command.replyToPostId)
       || command.replyToPostId === command.requestId
     ) {
-      throw new HttpsError('invalid-argument', 'Mensagem inválida para o Mural.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Mensagem inválida para o Mural.',
+        { reason: 'invalid_post_request' }
+      );
     }
 
     if (command.imageUploadPath && command.location) {
       throw new HttpsError(
         'invalid-argument',
-        'Adicione apenas um tipo de anexo por publicação.'
+        'Adicione apenas um tipo de anexo por publicação.',
+        { reason: 'multiple_attachments_not_allowed' }
       );
     }
 
     if (!command.text && !command.imageUploadPath && !command.location) {
       throw new HttpsError(
         'invalid-argument',
-        'Escreva uma mensagem ou adicione uma foto ou localização.'
+        'Escreva uma mensagem ou adicione uma foto ou localização.',
+        { reason: 'empty_post' }
       );
     }
 
@@ -216,7 +239,8 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
     if (command.imageUploadPath && !privateImagePath) {
       throw new HttpsError(
         'invalid-argument',
-        'A foto deve pertencer ao usuário autenticado.'
+        'A foto deve pertencer ao usuário autenticado.',
+        { reason: 'image_not_owned' }
       );
     }
 
@@ -242,7 +266,8 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
       if (!existing) {
         throw new HttpsError(
           'already-exists',
-          'Este identificador de requisição já foi utilizado.'
+          'Este identificador de requisição já foi utilizado.',
+          { reason: 'request_id_conflict' }
         );
       }
 
@@ -344,7 +369,11 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
           ]);
 
           if (!communitySnapshot.exists) {
-            throw new HttpsError('not-found', 'Comunidade não encontrada.');
+            throw new HttpsError(
+              'not-found',
+              'Comunidade não encontrada.',
+              { reason: 'community_not_found' }
+            );
           }
 
           if (requestSnapshot.exists) {
@@ -359,7 +388,8 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             if (!existing) {
               throw new HttpsError(
                 'already-exists',
-                'Este identificador de requisição já foi utilizado.'
+                'Este identificador de requisição já foi utilizado.',
+                { reason: 'request_id_conflict' }
               );
             }
             return existing;
@@ -388,7 +418,11 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
           if (!decision.allowed) throwWriteDecision(decision.denialReason);
 
           if (postSnapshot.exists || projectionSnapshot.exists) {
-            throw new HttpsError('already-exists', 'Esta publicação já existe.');
+            throw new HttpsError(
+              'already-exists',
+              'Esta publicação já existe.',
+              { reason: 'post_already_exists' }
+            );
           }
 
           if (command.replyToPostId) {
@@ -410,7 +444,8 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
             ) {
               throw new HttpsError(
                 'failed-precondition',
-                'A mensagem original não está disponível para resposta.'
+                'A mensagem original não está disponível para resposta.',
+                { reason: 'referenced_post_unavailable' }
               );
             }
           }
