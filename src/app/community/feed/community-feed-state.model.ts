@@ -83,7 +83,10 @@ function applyRealtimeEvent(
         ? 'loading'
         : 'empty',
     items,
-    loadingMore: false,
+    // Realtime pode chegar enquanto uma página antiga está sendo buscada.
+    // Ele não conclui nem cancela essa paginação; manter loadingMore evita
+    // reabilitar o botão prematuramente e comunicar um estado falso ao usuário.
+    loadingMore: state.loadingMore,
   };
 }
 
