@@ -5,12 +5,20 @@ import {
 
 export type CommunityFeedStatus = 'loading' | 'ready' | 'empty' | 'error';
 
+export const MAX_COMMUNITY_FEED_REFERENCE_ITEMS = 6;
+
 export interface CommunityFeedState {
   status: CommunityFeedStatus;
   items: readonly CommunityFeedItem[];
   nextCursor: string | null;
   loadingMore: boolean;
   loadMoreError: boolean;
+  /**
+   * Itens hidratados apenas para resolver uma referência fora da janela
+   * corrente. O reducer mantém esta fila limitada e a promove para conteúdo
+   * canônico quando paginação/realtime entrega o mesmo post.
+   */
+  referenceOnlyIds: readonly string[];
 }
 
 export interface CommunityFeedLoadRequest {
@@ -33,6 +41,10 @@ export type CommunityFeedLoadEvent =
       upserts: readonly CommunityFeedItem[];
       metricPatches: readonly CommunityFeedMetricPatch[];
       removedIds: readonly string[];
+    }
+  | {
+      type: 'reference';
+      item: CommunityFeedItem;
     };
 
 export const INITIAL_COMMUNITY_FEED_STATE: CommunityFeedState = Object.freeze({
@@ -41,6 +53,7 @@ export const INITIAL_COMMUNITY_FEED_STATE: CommunityFeedState = Object.freeze({
   nextCursor: null,
   loadingMore: false,
   loadMoreError: false,
+  referenceOnlyIds: [],
 });
 
 function sortItems(items: readonly CommunityFeedItem[]): readonly CommunityFeedItem[] {
@@ -61,11 +74,50 @@ function mergeUniqueItems(
   return sortItems([...merged.values()]);
 }
 
+function applyReferenceEvent(
+  state: CommunityFeedState,
+  event: Extract<CommunityFeedLoadEvent, { type: 'reference' }>
+): CommunityFeedState {
+  const postId = event.item.postId;
+  const alreadyVisible = state.items.some((item) => item.postId === postId);
+  const alreadyReferenceOnly = state.referenceOnlyIds.includes(postId);
+
+  if (alreadyVisible && !alreadyReferenceOnly) {
+    return {
+      ...state,
+      items: mergeUniqueItems(state.items, [event.item]),
+    };
+  }
+
+  const queue = [
+    ...state.referenceOnlyIds.filter((referenceId) => referenceId !== postId),
+    postId,
+  ];
+  const overflow = Math.max(
+    0,
+    queue.length - MAX_COMMUNITY_FEED_REFERENCE_ITEMS
+  );
+  const evictedIds = new Set(queue.slice(0, overflow));
+  const referenceOnlyIds = queue.slice(overflow);
+  const items = mergeUniqueItems(
+    state.items.filter((item) => !evictedIds.has(item.postId)),
+    [event.item]
+  );
+
+  return {
+    ...state,
+    status: items.length > 0 ? 'ready' : state.status,
+    items,
+    referenceOnlyIds,
+  };
+}
+
 function applyRealtimeEvent(
   state: CommunityFeedState,
   event: Extract<CommunityFeedLoadEvent, { type: 'realtime' }>
 ): CommunityFeedState {
   const removedIds = new Set(event.removedIds);
+  const canonicalUpsertIds = new Set(event.upserts.map((item) => item.postId));
   const metricById = new Map(
     event.metricPatches.map((patch) => [patch.postId, patch.metrics])
   );
@@ -76,6 +128,9 @@ function applyRealtimeEvent(
       return metrics ? { ...item, metrics: { ...metrics } } : item;
     });
   const items = mergeUniqueItems(remaining, event.upserts);
+  const referenceOnlyIds = state.referenceOnlyIds.filter(
+    (postId) => !removedIds.has(postId) && !canonicalUpsertIds.has(postId)
+  );
 
   return {
     ...state,
@@ -85,6 +140,7 @@ function applyRealtimeEvent(
         ? 'loading'
         : 'empty',
     items,
+    referenceOnlyIds,
     // Realtime pode chegar enquanto uma página antiga está sendo buscada.
     // Ele não conclui nem cancela essa paginação; manter loadingMore evita
     // reabilitar o botão prematuramente e comunicar um estado falso ao usuário.
@@ -99,6 +155,10 @@ export function reduceCommunityFeedState(
   state: CommunityFeedState,
   event: CommunityFeedLoadEvent
 ): CommunityFeedState {
+  if (event.type === 'reference') {
+    return applyReferenceEvent(state, event);
+  }
+
   if (event.type === 'realtime') {
     return applyRealtimeEvent(state, event);
   }
@@ -144,6 +204,7 @@ export function reduceCommunityFeedState(
       nextCursor: null,
       loadingMore: false,
       loadMoreError: false,
+      referenceOnlyIds: [],
     };
   }
 
@@ -154,9 +215,13 @@ export function reduceCommunityFeedState(
    * janela atual e elimina itens antigos/hidratados que não pertencem mais ao
    * recorte inicial. Apenas paginação explícita continua acumulando histórico.
    */
+  const pageIds = new Set(event.page.items.map((item) => item.postId));
   const items = event.request.append
     ? mergeUniqueItems(state.items, event.page.items)
     : sortItems(event.page.items);
+  const referenceOnlyIds = event.request.append
+    ? state.referenceOnlyIds.filter((postId) => !pageIds.has(postId))
+    : [];
 
   return {
     status: items.length > 0 ? 'ready' : 'empty',
@@ -164,5 +229,6 @@ export function reduceCommunityFeedState(
     nextCursor: event.page.nextCursor,
     loadingMore: false,
     loadMoreError: false,
+    referenceOnlyIds,
   };
 }
