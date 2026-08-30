@@ -80,6 +80,16 @@ export function shouldClearCommunityHighlightForPostTransition(input: {
     || input.afterModerationState !== 'active';
 }
 
+export function shouldClearCommunityHighlightForCommunityTransition(input: {
+  afterExists: boolean;
+  afterStatus: unknown;
+  afterModerationState: unknown;
+}): boolean {
+  return !input.afterExists
+    || input.afterStatus !== 'active'
+    || input.afterModerationState !== 'active';
+}
+
 function denied(
   denialReason: CommunityHighlightDenialReason
 ): CommunityHighlightDecision {
