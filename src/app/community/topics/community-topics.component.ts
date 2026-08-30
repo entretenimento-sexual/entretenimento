@@ -42,6 +42,11 @@ import {
   CommunityTopicStatus,
 } from '../data-access/community-topic.model';
 import { CommunityTopicRepository } from '../data-access/community-topic.repository';
+import {
+  COMMUNITY_TOPIC_CREATE_CODE_MESSAGES,
+  COMMUNITY_TOPIC_REASON_MESSAGES,
+  COMMUNITY_TOPIC_REPLY_CODE_MESSAGES,
+} from '../presentation/community-error.messages';
 import { CommunityTopicModerationControlsComponent } from './community-topic-moderation-controls.component';
 import { createCommunityTopicRequestId } from './community-topic-request-id';
 import {
@@ -69,37 +74,6 @@ type CommunityTopicWriteKind = 'topic' | 'reply';
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'medium',
   timeStyle: 'short',
-});
-
-const TOPIC_REASON_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
-  community_topics_unavailable:
-    'As Discussões desta Comunidade não estão disponíveis neste momento.',
-  community_topic_rate_limited:
-    'Você atingiu o limite temporário de interações em Discussões. Tente novamente mais tarde.',
-  community_interaction_forbidden:
-    'Sua participação atual não permite interagir nesta Comunidade.',
-  topic_creation_forbidden:
-    'Sua participação atual não permite criar discussões.',
-  topic_reply_forbidden:
-    'Sua participação atual não permite responder nesta discussão.',
-  topic_not_found:
-    'Esta discussão não está mais disponível.',
-  topic_not_replyable:
-    'Esta discussão não aceita novas respostas.',
-  invalid_topic_request:
-    'Revise o título e a mensagem da discussão.',
-  invalid_topic_reply:
-    'Revise a resposta e tente novamente.',
-  community_not_found:
-    'Esta Comunidade não está mais disponível.',
-  request_id_conflict:
-    'Esta tentativa não pôde ser confirmada com segurança. Tente novamente.',
-  account_restricted:
-    'Sua conta não pode interagir em Comunidades neste momento.',
-  adult_access_required:
-    'Confirme o acesso adulto antes de interagir nesta Comunidade.',
-  profile_incomplete:
-    'Complete seu perfil antes de interagir nesta Comunidade.',
 });
 
 @Component({
@@ -494,7 +468,7 @@ export class CommunityTopicsComponent {
       operation,
       fallbackMessage,
       notification: 'none',
-      reasonMessages: TOPIC_REASON_MESSAGES,
+      reasonMessages: COMMUNITY_TOPIC_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityTopicsComponent',
         communityId: this.communityId().trim(),
@@ -513,22 +487,10 @@ export class CommunityTopicsComponent {
       fallbackMessage: kind === 'topic'
         ? 'Não foi possível publicar a discussão agora.'
         : 'Não foi possível publicar a resposta agora.',
-      reasonMessages: TOPIC_REASON_MESSAGES,
-      codeMessages: {
-        'resource-exhausted':
-          'Você atingiu o limite temporário de interações em Discussões. Tente novamente mais tarde.',
-        'permission-denied': kind === 'topic'
-          ? 'Sua participação atual não permite criar discussões.'
-          : 'Sua participação atual não permite responder nesta discussão.',
-        'failed-precondition':
-          'Sua conta ou esta discussão precisa ser atualizada antes desta interação.',
-        'not-found': kind === 'topic'
-          ? 'Esta Comunidade não está mais disponível.'
-          : 'Esta discussão não está mais disponível.',
-        'invalid-argument': kind === 'topic'
-          ? 'Revise o título e a mensagem da discussão.'
-          : 'Revise a resposta e tente novamente.',
-      },
+      reasonMessages: COMMUNITY_TOPIC_REASON_MESSAGES,
+      codeMessages: kind === 'topic'
+        ? COMMUNITY_TOPIC_CREATE_CODE_MESSAGES
+        : COMMUNITY_TOPIC_REPLY_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityTopicsComponent',
         communityId: this.communityId().trim(),
