@@ -65,14 +65,15 @@ export function normalizeCommunityMemberLimit(
 /**
  * Rótulo exclusivamente de apresentação. Não concede acesso e não substitui a
  * capability retornada pelo backend; a validação efetiva sempre ocorre na Function.
+ * O teto de 1.000 não corresponde hoje a um plano comercial público do usuário.
  */
 export function communityMemberLimitRequiredRole(
   limit: CommunityMemberLimit
-): 'Basic' | 'Premium' | 'VIP' | 'Comercial' {
+): 'Basic' | 'Premium' | 'VIP' | 'Acesso especial' {
   if (limit <= 100) return 'Basic';
   if (limit <= 250) return 'Premium';
   if (limit <= 500) return 'VIP';
-  return 'Comercial';
+  return 'Acesso especial';
 }
 
 export function normalizeCommunityEffectiveMemberLimit(
