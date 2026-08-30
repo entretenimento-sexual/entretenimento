@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { evaluateCommunityHighlightAction } from './community-highlight.policy';
+import {
+  evaluateCommunityHighlightAction,
+  shouldClearCommunityHighlightForPostTransition,
+} from './community-highlight.policy';
 
 describe('community-highlight.policy', () => {
   for (const viewerRole of ['owner', 'admin', 'moderator'] as const) {
@@ -77,5 +80,47 @@ describe('community-highlight.policy', () => {
       targetPostStatus: 'removed',
       targetPostModerationState: 'removed',
     })).toEqual({ allowed: true, denialReason: null });
+  });
+
+  it('limpa destaque quando a publicação-alvo deixa de estar ativa', () => {
+    expect(shouldClearCommunityHighlightForPostTransition({
+      highlightedTargetType: 'feed_post',
+      highlightedTargetId: 'post-1',
+      postId: 'post-1',
+      afterExists: true,
+      afterStatus: 'removed',
+      afterModerationState: 'removed',
+    })).toBe(true);
+  });
+
+  it('limpa destaque quando a publicação-alvo é excluída', () => {
+    expect(shouldClearCommunityHighlightForPostTransition({
+      highlightedTargetType: 'feed_post',
+      highlightedTargetId: 'post-1',
+      postId: 'post-1',
+      afterExists: false,
+      afterStatus: null,
+      afterModerationState: null,
+    })).toBe(true);
+  });
+
+  it('não interfere em outro destaque nem em atualização ainda ativa', () => {
+    expect(shouldClearCommunityHighlightForPostTransition({
+      highlightedTargetType: 'feed_post',
+      highlightedTargetId: 'post-2',
+      postId: 'post-1',
+      afterExists: false,
+      afterStatus: null,
+      afterModerationState: null,
+    })).toBe(false);
+
+    expect(shouldClearCommunityHighlightForPostTransition({
+      highlightedTargetType: 'feed_post',
+      highlightedTargetId: 'post-1',
+      postId: 'post-1',
+      afterExists: true,
+      afterStatus: 'active',
+      afterModerationState: 'active',
+    })).toBe(false);
   });
 });
