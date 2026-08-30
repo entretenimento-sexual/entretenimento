@@ -260,6 +260,54 @@ app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) .fee
   padding-top: 0.58rem;
 }
 
+/* -----------------------------------------------------------------------------
+   Community Mural — paginação incremental
+
+   O botão final continua deliberado: nada de scroll infinito. Durante a busca,
+   a largura não salta e o estado desabilitado comunica que a página anterior
+   ainda está sendo incorporada. Novidades realtime não devem encerrar esse
+   estado; essa garantia fica no reducer do Mural.
+----------------------------------------------------------------------------- */
+app-community-feed .community-feed__more {
+  padding-block: 0.72rem 1rem;
+  border-top-color: color-mix(
+    in oklab,
+    var(--surface-border, currentColor) 48%,
+    transparent
+  );
+}
+
+app-community-feed .community-feed__more button {
+  min-width: 9.4rem;
+  padding-inline: 1rem;
+  border-color: color-mix(
+    in oklab,
+    var(--surface-border, currentColor) 82%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color, transparent) 98%,
+    var(--text-color, #222) 2%
+  );
+}
+
+app-community-feed .community-feed__more button:not(:disabled):hover {
+  background: color-mix(
+    in oklab,
+    var(--surface-color, transparent) 95%,
+    var(--primary-color, #d83768) 5%
+  );
+}
+
+app-community-feed .community-feed__more button:disabled {
+  opacity: 0.72;
+}
+
+app-community-feed .community-feed__more button .fa-spinner {
+  color: var(--primary-color, #d83768);
+}
+
 @media (max-width: 520px) {
   app-community-feed .community-post__identity .community-post__identity-line strong {
     font-size: 0.88rem;
@@ -285,6 +333,10 @@ app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) .fee
     max-height: min(23rem, 46vh);
     scrollbar-gutter: auto;
   }
+
+  app-community-feed .community-feed__more button {
+    min-width: min(100%, 11rem);
+  }
 }
 
 html.high-contrast app-community-feed .community-post__identity .community-post__identity-line time,
@@ -300,7 +352,8 @@ html.high-contrast app-community-feed-comments .feed-comments.feed-comments--qui
   background: var(--surface-color, Canvas) !important;
 }
 
-html.high-contrast app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) .feed-comments__list {
+html.high-contrast app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) .feed-comments__list,
+html.high-contrast app-community-feed .community-feed__more button {
   border-color: currentColor !important;
   background: var(--surface-color, Canvas) !important;
 }
