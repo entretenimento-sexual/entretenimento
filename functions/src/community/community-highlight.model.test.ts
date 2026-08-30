@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isCommunityHighlightActive,
+  normalizeCommunityHighlightReadRequest,
   normalizeCommunityHighlightRequest,
+  normalizeCommunityHighlightSnapshot,
   resolveCommunityHighlightExpiresAt,
 } from './community-highlight.model';
 
@@ -55,6 +58,50 @@ describe('community-highlight.model', () => {
       targetId: 'topic-1',
       duration: '7d',
     });
+  });
+
+  it('normaliza leitura e snapshot persistido sem expor metadados administrativos', () => {
+    expect(normalizeCommunityHighlightReadRequest({ communityId: 'community-1' }))
+      .toEqual({ communityId: 'community-1' });
+
+    expect(normalizeCommunityHighlightSnapshot({
+      targetType: 'feed_post',
+      targetId: 'post-1',
+      duration: '7d',
+      pinnedAt: 1_000,
+      expiresAt: 2_000,
+      pinnedBy: 'uid-secret',
+      pinnedByRole: 'owner',
+    })).toEqual({
+      targetType: 'feed_post',
+      targetId: 'post-1',
+      duration: '7d',
+      pinnedAt: 1_000,
+      expiresAt: 2_000,
+    });
+  });
+
+  it('distingue destaque ativo de destaque vencido', () => {
+    const active = normalizeCommunityHighlightSnapshot({
+      targetType: 'feed_post',
+      targetId: 'post-1',
+      duration: '24h',
+      pinnedAt: 1_000,
+      expiresAt: 2_000,
+    });
+    const permanent = normalizeCommunityHighlightSnapshot({
+      targetType: 'feed_post',
+      targetId: 'post-2',
+      duration: 'until_unpinned',
+      pinnedAt: 1_000,
+      expiresAt: null,
+    });
+
+    expect(active).not.toBeNull();
+    expect(permanent).not.toBeNull();
+    expect(isCommunityHighlightActive(active!, 1_999)).toBe(true);
+    expect(isCommunityHighlightActive(active!, 2_000)).toBe(false);
+    expect(isCommunityHighlightActive(permanent!, 999_999)).toBe(true);
   });
 
   it('calcula vencimento separado da vida da publicação', () => {
