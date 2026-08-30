@@ -10,6 +10,7 @@ export interface CommunityFeedState {
   items: readonly CommunityFeedItem[];
   nextCursor: string | null;
   loadingMore: boolean;
+  loadMoreError: boolean;
 }
 
 export interface CommunityFeedLoadRequest {
@@ -39,6 +40,7 @@ export const INITIAL_COMMUNITY_FEED_STATE: CommunityFeedState = Object.freeze({
   items: [],
   nextCursor: null,
   loadingMore: false,
+  loadMoreError: false,
 });
 
 function sortItems(items: readonly CommunityFeedItem[]): readonly CommunityFeedItem[] {
@@ -87,6 +89,9 @@ function applyRealtimeEvent(
     // Ele não conclui nem cancela essa paginação; manter loadingMore evita
     // reabilitar o botão prematuramente e comunicar um estado falso ao usuário.
     loadingMore: state.loadingMore,
+    // Uma chegada realtime também não deve apagar o aviso de uma paginação
+    // anterior que falhou. O retry continua apontando para o mesmo cursor.
+    loadMoreError: state.loadMoreError,
   };
 }
 
@@ -100,23 +105,45 @@ export function reduceCommunityFeedState(
 
   if (event.type === 'loading') {
     if (event.request.append) {
-      return { ...state, loadingMore: true };
+      return {
+        ...state,
+        loadingMore: true,
+        loadMoreError: false,
+      };
     }
     if (event.request.preserve && state.items.length > 0) {
-      return { ...state, loadingMore: false };
+      return {
+        ...state,
+        loadingMore: false,
+        loadMoreError: false,
+      };
     }
     return INITIAL_COMMUNITY_FEED_STATE;
   }
 
   if (event.type === 'error') {
-    if ((event.request.append || event.request.preserve) && state.items.length > 0) {
-      return { ...state, status: 'ready', loadingMore: false };
+    if (event.request.append && state.items.length > 0) {
+      return {
+        ...state,
+        status: 'ready',
+        loadingMore: false,
+        loadMoreError: true,
+      };
+    }
+    if (event.request.preserve && state.items.length > 0) {
+      return {
+        ...state,
+        status: 'ready',
+        loadingMore: false,
+        loadMoreError: false,
+      };
     }
     return {
       status: 'error',
       items: [],
       nextCursor: null,
       loadingMore: false,
+      loadMoreError: false,
     };
   }
 
@@ -136,5 +163,6 @@ export function reduceCommunityFeedState(
     items,
     nextCursor: event.page.nextCursor,
     loadingMore: false,
+    loadMoreError: false,
   };
 }
