@@ -95,6 +95,9 @@ export {
 export { syncCommunityFeedActivity } from './sync-community-feed-activity.trigger';
 export { syncCommunityFeedRealtime } from './sync-community-feed-realtime.trigger';
 export {
+  syncCommunityHighlightCommunity,
+} from './sync-community-highlight-community.trigger';
+export {
   syncCommunityHighlightTarget,
 } from './sync-community-highlight-target.trigger';
 export {
