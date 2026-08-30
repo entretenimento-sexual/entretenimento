@@ -70,6 +70,11 @@ import {
   formatCommunityFeedIso,
   formatCommunityFeedTime,
 } from '../feed/community-feed-time.util';
+import {
+  COMMUNITY_FEED_CONVERSATION_ACTION_CODE_MESSAGES,
+  COMMUNITY_FEED_CONVERSATION_CREATE_CODE_MESSAGES,
+  COMMUNITY_FEED_CONVERSATION_REASON_MESSAGES,
+} from '../presentation/community-error.messages';
 
 interface CommentLoadRequest {
   cursor: string | null;
@@ -648,15 +653,11 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
           : 'moderateConversationMessage',
       fallbackMessage,
       codeMessages: operation === 'create'
-        ? {
-            'resource-exhausted':
-              'Você enviou muitas mensagens em pouco tempo. Aguarde um instante.',
-          }
-        : undefined,
-      reasonMessages: {
-        community_feed_rate_limited:
-          'Você enviou muitas mensagens em pouco tempo. Aguarde um instante.',
-      },
+        ? COMMUNITY_FEED_CONVERSATION_CREATE_CODE_MESSAGES
+        : operation === 'moderate'
+          ? COMMUNITY_FEED_CONVERSATION_ACTION_CODE_MESSAGES
+          : undefined,
+      reasonMessages: COMMUNITY_FEED_CONVERSATION_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityFeedCommentsComponent',
         communityId: this.communityId(),
