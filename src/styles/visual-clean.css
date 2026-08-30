@@ -25,3 +25,224 @@
     transition: none !important;
   }
 }
+
+/* -----------------------------------------------------------------------------
+   Community Mural — identidade do autor
+
+   Mantém nome, horário e contexto público no mesmo bloco sem transformar gênero
+   e localização em microchips concorrentes. O nome conduz a leitura; horário e
+   metadados permanecem disponíveis como informação secundária em claro/escuro.
+----------------------------------------------------------------------------- */
+app-community-feed .community-post__identity {
+  gap: 0.1rem;
+}
+
+app-community-feed .community-post__identity .community-post__identity-line {
+  gap: 0.18rem 0.38rem;
+  line-height: 1.15;
+}
+
+app-community-feed .community-post__identity .community-post__identity-line strong {
+  color: var(--text-color);
+  font-size: 0.9rem;
+  font-weight: 780;
+  letter-spacing: -0.01em;
+}
+
+app-community-feed .community-post__identity .community-post__identity-line time {
+  color: color-mix(in oklab, var(--text-color) 46%, transparent);
+  font-size: 0.63rem;
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+app-community-feed .community-post__identity .community-post__author-context {
+  gap: 0;
+  color: color-mix(in oklab, var(--text-color) 56%, transparent);
+  font-size: 0.64rem;
+  line-height: 1.25;
+}
+
+app-community-feed .community-post__identity .community-post__author-context > span {
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+app-community-feed .community-post__identity .community-post__author-context > span + span::before {
+  content: '•';
+  margin-inline: 0.38rem;
+  color: color-mix(in oklab, var(--text-color) 32%, transparent);
+}
+
+/* O mesmo ritmo visual é usado nas mensagens antigas da conversa para não
+   parecer uma segunda linguagem de identidade dentro da mesma publicação. */
+app-community-feed-comments .feed-comment__identity {
+  gap: 0.1rem;
+}
+
+app-community-feed-comments .feed-comment__identity .feed-comment__identity-line {
+  gap: 0.18rem 0.38rem;
+  line-height: 1.15;
+}
+
+app-community-feed-comments .feed-comment__identity .feed-comment__identity-line strong {
+  color: var(--text-color, #222);
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+app-community-feed-comments .feed-comment__identity .feed-comment__identity-line time {
+  color: color-mix(in oklab, var(--text-color, #222) 46%, transparent);
+  font-size: 0.62rem;
+  white-space: nowrap;
+}
+
+app-community-feed-comments .feed-comment__identity .feed-comment__author-context {
+  gap: 0;
+  color: color-mix(in oklab, var(--text-color, #222) 56%, transparent);
+  font-size: 0.63rem;
+}
+
+app-community-feed-comments .feed-comment__identity .feed-comment__author-context > span {
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+app-community-feed-comments .feed-comment__identity .feed-comment__author-context > span + span::before {
+  content: '•';
+  margin-inline: 0.36rem;
+  color: color-mix(in oklab, var(--text-color, #222) 32%, transparent);
+}
+
+/* -----------------------------------------------------------------------------
+   Community Mural — resposta rápida
+
+   "Responder" abre somente a intenção de resposta. O histórico continua sendo
+   outra ação. Esta superfície fica visualmente acoplada ao post e não se parece
+   com um segundo card ou uma caixa completa de comentários.
+----------------------------------------------------------------------------- */
+app-community-feed-comments .feed-comments.feed-comments--quick-reply {
+  margin: 0.12rem 0 0 3.17rem;
+  padding: 0.34rem 0 0.12rem;
+  border-top-color: color-mix(in oklab, var(--surface-border, currentColor) 42%, transparent);
+}
+
+app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__composer {
+  margin-top: 0;
+  padding: 0;
+  border-top: 0;
+}
+
+app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__reply-target {
+  width: min(100%, 34rem);
+  margin-bottom: 0.34rem;
+  padding: 0.32rem 0 0.32rem 0.58rem;
+  border-inline-start-width: 2px;
+  border-radius: 0 0.55rem 0.55rem 0;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, transparent) 97%,
+    var(--primary-color, #d83768) 3%
+  );
+}
+
+app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__reply-target strong {
+  color: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 72%,
+    var(--text-color, #222)
+  );
+  font-size: 0.69rem;
+}
+
+app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__reply-target span {
+  font-size: 0.68rem;
+}
+
+app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__composer-row {
+  width: min(100%, 36rem);
+  gap: 0.38rem;
+  align-items: center;
+}
+
+app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__composer-row textarea {
+  min-height: 48px;
+  max-height: 8rem;
+  resize: vertical;
+  padding: 0.66rem 0.76rem;
+  border-radius: 0.78rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 97%,
+    var(--text-color, #222) 3%
+  );
+}
+
+app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__composer-row > button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  box-shadow: 0 0.2rem 0.55rem color-mix(in oklab, var(--primary-color, #d83768) 18%, transparent);
+}
+
+app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__send-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__composer > small {
+  width: min(100%, 36rem);
+  margin-top: 0.12rem;
+  padding-inline-end: 3rem;
+  color: color-mix(in oklab, var(--text-color, #222) 46%, transparent);
+  font-size: 0.62rem;
+}
+
+@media (max-width: 520px) {
+  app-community-feed .community-post__identity .community-post__identity-line strong {
+    font-size: 0.88rem;
+  }
+
+  app-community-feed .community-post__identity .community-post__author-context,
+  app-community-feed-comments .feed-comment__identity .feed-comment__author-context {
+    font-size: 0.62rem;
+  }
+
+  app-community-feed-comments .feed-comments.feed-comments--quick-reply {
+    margin-inline-start: 0;
+    padding-inline: 0;
+  }
+
+  app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__reply-target,
+  app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__composer-row,
+  app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__composer > small {
+    width: 100%;
+  }
+}
+
+html.high-contrast app-community-feed .community-post__identity .community-post__identity-line time,
+html.high-contrast app-community-feed .community-post__identity .community-post__author-context,
+html.high-contrast app-community-feed-comments .feed-comment__identity .feed-comment__identity-line time,
+html.high-contrast app-community-feed-comments .feed-comment__identity .feed-comment__author-context {
+  color: var(--text-color) !important;
+}
+
+html.high-contrast app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__reply-target,
+html.high-contrast app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__composer-row textarea {
+  border-color: currentColor !important;
+  background: var(--surface-color, Canvas) !important;
+}
