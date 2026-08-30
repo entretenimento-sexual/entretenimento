@@ -84,7 +84,9 @@ export const getCommunityHighlight = onCall<CommunityHighlightReadRequest>(
       ? normalizeCommunityHighlightSnapshot(highlightSnapshot.data())
       : null;
 
-    let visibleHighlight = highlight && isCommunityHighlightActive(highlight, now)
+    let visibleHighlight = context.operational
+      && highlight
+      && isCommunityHighlightActive(highlight, now)
       ? highlight
       : null;
 
