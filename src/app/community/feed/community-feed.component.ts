@@ -1477,6 +1477,7 @@ export class CommunityFeedComponent implements OnDestroy {
       fallbackMessage: action === 'delete_own'
         ? 'Não foi possível excluir a mensagem agora.'
         : 'Não foi possível remover a mensagem agora.',
+      reasonMessages: COMMUNITY_FEED_POST_REASON_MESSAGES,
       codeMessages: COMMUNITY_FEED_POST_ACTION_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityFeedComponent',
