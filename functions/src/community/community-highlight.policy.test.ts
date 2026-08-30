@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import assert from 'node:assert/strict';
+import test from 'node:test';
 
 import {
   evaluateCommunityHighlightAction,
@@ -6,164 +7,162 @@ import {
   shouldClearCommunityHighlightForPostTransition,
 } from './community-highlight.policy';
 
-describe('community-highlight.policy', () => {
-  for (const viewerRole of ['owner', 'admin', 'moderator'] as const) {
-    it(`permite ${viewerRole} ativo fixar publicação ativa`, () => {
-      expect(evaluateCommunityHighlightAction({
-        action: 'pin',
-        sourceType: 'community',
-        communityOperational: true,
-        membershipStatus: 'active',
-        viewerRole,
-        targetPostStatus: 'active',
-        targetPostModerationState: 'active',
-      })).toEqual({ allowed: true, denialReason: null });
-    });
-  }
-
-  it('impede membro comum de administrar destaque', () => {
-    expect(evaluateCommunityHighlightAction({
+for (const viewerRole of ['owner', 'admin', 'moderator'] as const) {
+  test(`permite ${viewerRole} ativo fixar publicação ativa`, () => {
+    assert.deepEqual(evaluateCommunityHighlightAction({
       action: 'pin',
       sourceType: 'community',
       communityOperational: true,
       membershipStatus: 'active',
-      viewerRole: 'member',
+      viewerRole,
       targetPostStatus: 'active',
       targetPostModerationState: 'active',
-    })).toEqual({
-      allowed: false,
-      denialReason: 'active_management_required',
-    });
+    }), { allowed: true, denialReason: null });
   });
+}
 
-  it('exige vínculo ativo mesmo para papel administrativo', () => {
-    expect(evaluateCommunityHighlightAction({
-      action: 'unpin',
-      sourceType: 'community',
-      communityOperational: true,
-      membershipStatus: 'left',
-      viewerRole: 'admin',
-    })).toEqual({
-      allowed: false,
-      denialReason: 'active_management_required',
-    });
+test('impede membro comum de administrar destaque', () => {
+  assert.deepEqual(evaluateCommunityHighlightAction({
+    action: 'pin',
+    sourceType: 'community',
+    communityOperational: true,
+    membershipStatus: 'active',
+    viewerRole: 'member',
+    targetPostStatus: 'active',
+    targetPostModerationState: 'active',
+  }), {
+    allowed: false,
+    denialReason: 'active_management_required',
   });
+});
 
-  it('não altera destaque quando a Comunidade não está operacional', () => {
-    expect(evaluateCommunityHighlightAction({
-      action: 'unpin',
-      sourceType: 'community',
-      communityOperational: false,
-      membershipStatus: 'active',
-      viewerRole: 'owner',
-    })).toEqual({
-      allowed: false,
-      denialReason: 'community_unavailable',
-    });
+test('exige vínculo ativo mesmo para papel administrativo', () => {
+  assert.deepEqual(evaluateCommunityHighlightAction({
+    action: 'unpin',
+    sourceType: 'community',
+    communityOperational: true,
+    membershipStatus: 'left',
+    viewerRole: 'admin',
+  }), {
+    allowed: false,
+    denialReason: 'active_management_required',
   });
+});
 
-  it('não aplica destaque editorial a outro tipo de espaço', () => {
-    expect(evaluateCommunityHighlightAction({
-      action: 'unpin',
-      sourceType: 'venue',
-      communityOperational: true,
-      membershipStatus: 'active',
-      viewerRole: 'owner',
-    })).toEqual({
-      allowed: false,
-      denialReason: 'community_source_not_supported',
-    });
+test('não altera destaque quando a Comunidade não está operacional', () => {
+  assert.deepEqual(evaluateCommunityHighlightAction({
+    action: 'unpin',
+    sourceType: 'community',
+    communityOperational: false,
+    membershipStatus: 'active',
+    viewerRole: 'owner',
+  }), {
+    allowed: false,
+    denialReason: 'community_unavailable',
   });
+});
 
-  it('não permite fixar publicação removida ou indisponível', () => {
-    expect(evaluateCommunityHighlightAction({
-      action: 'pin',
-      sourceType: 'community',
-      communityOperational: true,
-      membershipStatus: 'active',
-      viewerRole: 'moderator',
-      targetPostStatus: 'removed',
-      targetPostModerationState: 'removed',
-    })).toEqual({
-      allowed: false,
-      denialReason: 'post_unavailable',
-    });
+test('não aplica destaque editorial a outro tipo de espaço', () => {
+  assert.deepEqual(evaluateCommunityHighlightAction({
+    action: 'unpin',
+    sourceType: 'venue',
+    communityOperational: true,
+    membershipStatus: 'active',
+    viewerRole: 'owner',
+  }), {
+    allowed: false,
+    denialReason: 'community_source_not_supported',
   });
+});
 
-  it('desafixar não depende do estado do alvo antigo', () => {
-    expect(evaluateCommunityHighlightAction({
-      action: 'unpin',
-      sourceType: 'community',
-      communityOperational: true,
-      membershipStatus: 'active',
-      viewerRole: 'moderator',
-      targetPostStatus: 'removed',
-      targetPostModerationState: 'removed',
-    })).toEqual({ allowed: true, denialReason: null });
+test('não permite fixar publicação removida ou indisponível', () => {
+  assert.deepEqual(evaluateCommunityHighlightAction({
+    action: 'pin',
+    sourceType: 'community',
+    communityOperational: true,
+    membershipStatus: 'active',
+    viewerRole: 'moderator',
+    targetPostStatus: 'removed',
+    targetPostModerationState: 'removed',
+  }), {
+    allowed: false,
+    denialReason: 'post_unavailable',
   });
+});
 
-  it('limpa destaque quando a publicação-alvo deixa de estar ativa', () => {
-    expect(shouldClearCommunityHighlightForPostTransition({
-      highlightedTargetType: 'feed_post',
-      highlightedTargetId: 'post-1',
-      postId: 'post-1',
-      afterExists: true,
-      afterStatus: 'removed',
-      afterModerationState: 'removed',
-    })).toBe(true);
-  });
+test('desafixar não depende do estado do alvo antigo', () => {
+  assert.deepEqual(evaluateCommunityHighlightAction({
+    action: 'unpin',
+    sourceType: 'community',
+    communityOperational: true,
+    membershipStatus: 'active',
+    viewerRole: 'moderator',
+    targetPostStatus: 'removed',
+    targetPostModerationState: 'removed',
+  }), { allowed: true, denialReason: null });
+});
 
-  it('limpa destaque quando a publicação-alvo é excluída', () => {
-    expect(shouldClearCommunityHighlightForPostTransition({
-      highlightedTargetType: 'feed_post',
-      highlightedTargetId: 'post-1',
-      postId: 'post-1',
-      afterExists: false,
-      afterStatus: null,
-      afterModerationState: null,
-    })).toBe(true);
-  });
+test('limpa destaque quando a publicação-alvo deixa de estar ativa', () => {
+  assert.equal(shouldClearCommunityHighlightForPostTransition({
+    highlightedTargetType: 'feed_post',
+    highlightedTargetId: 'post-1',
+    postId: 'post-1',
+    afterExists: true,
+    afterStatus: 'removed',
+    afterModerationState: 'removed',
+  }), true);
+});
 
-  it('não interfere em outro destaque nem em atualização ainda ativa', () => {
-    expect(shouldClearCommunityHighlightForPostTransition({
-      highlightedTargetType: 'feed_post',
-      highlightedTargetId: 'post-2',
-      postId: 'post-1',
-      afterExists: false,
-      afterStatus: null,
-      afterModerationState: null,
-    })).toBe(false);
+test('limpa destaque quando a publicação-alvo é excluída', () => {
+  assert.equal(shouldClearCommunityHighlightForPostTransition({
+    highlightedTargetType: 'feed_post',
+    highlightedTargetId: 'post-1',
+    postId: 'post-1',
+    afterExists: false,
+    afterStatus: null,
+    afterModerationState: null,
+  }), true);
+});
 
-    expect(shouldClearCommunityHighlightForPostTransition({
-      highlightedTargetType: 'feed_post',
-      highlightedTargetId: 'post-1',
-      postId: 'post-1',
-      afterExists: true,
-      afterStatus: 'active',
-      afterModerationState: 'active',
-    })).toBe(false);
-  });
+test('não interfere em outro destaque nem em atualização ainda ativa', () => {
+  assert.equal(shouldClearCommunityHighlightForPostTransition({
+    highlightedTargetType: 'feed_post',
+    highlightedTargetId: 'post-2',
+    postId: 'post-1',
+    afterExists: false,
+    afterStatus: null,
+    afterModerationState: null,
+  }), false);
 
-  it('limpa destaque ao pausar, moderar ou excluir a Comunidade', () => {
-    expect(shouldClearCommunityHighlightForCommunityTransition({
-      afterExists: true,
-      afterStatus: 'paused',
-      afterModerationState: 'active',
-    })).toBe(true);
-    expect(shouldClearCommunityHighlightForCommunityTransition({
-      afterExists: true,
-      afterStatus: 'active',
-      afterModerationState: 'suspended',
-    })).toBe(true);
-    expect(shouldClearCommunityHighlightForCommunityTransition({
-      afterExists: false,
-      afterStatus: null,
-      afterModerationState: null,
-    })).toBe(true);
-    expect(shouldClearCommunityHighlightForCommunityTransition({
-      afterExists: true,
-      afterStatus: 'active',
-      afterModerationState: 'active',
-    })).toBe(false);
-  });
+  assert.equal(shouldClearCommunityHighlightForPostTransition({
+    highlightedTargetType: 'feed_post',
+    highlightedTargetId: 'post-1',
+    postId: 'post-1',
+    afterExists: true,
+    afterStatus: 'active',
+    afterModerationState: 'active',
+  }), false);
+});
+
+test('limpa destaque ao pausar, moderar ou excluir a Comunidade', () => {
+  assert.equal(shouldClearCommunityHighlightForCommunityTransition({
+    afterExists: true,
+    afterStatus: 'paused',
+    afterModerationState: 'active',
+  }), true);
+  assert.equal(shouldClearCommunityHighlightForCommunityTransition({
+    afterExists: true,
+    afterStatus: 'active',
+    afterModerationState: 'suspended',
+  }), true);
+  assert.equal(shouldClearCommunityHighlightForCommunityTransition({
+    afterExists: false,
+    afterStatus: null,
+    afterModerationState: null,
+  }), true);
+  assert.equal(shouldClearCommunityHighlightForCommunityTransition({
+    afterExists: true,
+    afterStatus: 'active',
+    afterModerationState: 'active',
+  }), false);
 });
