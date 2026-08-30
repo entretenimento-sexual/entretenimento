@@ -17,8 +17,8 @@ import {
 } from './community-callable-security';
 import {
   normalizeCommunityHighlightRequest,
+  normalizeCommunityHighlightSnapshot,
   resolveCommunityHighlightExpiresAt,
-  type CommunityHighlightDuration,
   type CommunityHighlightRequest,
   type CommunityHighlightResponse,
   type CommunityHighlightSnapshot,
@@ -97,41 +97,6 @@ function throwDenied(reason: CommunityHighlightDenialReason | null): never {
     'Esta publicação não pode ser fixada no Mural.',
     { reason: reason ?? 'post_unavailable' }
   );
-}
-
-function parseStoredHighlight(value: unknown): CommunityHighlightSnapshot | null {
-  if (!value || typeof value !== 'object') return null;
-  const source = value as Record<string, unknown>;
-  const targetId = String(source['targetId'] ?? '').trim();
-  const duration = source['duration'];
-  const pinnedAt = Number(source['pinnedAt']);
-  const expiresAt = source['expiresAt'] === null
-    ? null
-    : Number(source['expiresAt']);
-
-  if (
-    source['targetType'] !== 'feed_post'
-    || !targetId
-    || (
-      duration !== '24h'
-      && duration !== '3d'
-      && duration !== '7d'
-      && duration !== '30d'
-      && duration !== 'until_unpinned'
-    )
-    || !Number.isFinite(pinnedAt)
-    || (expiresAt !== null && !Number.isFinite(expiresAt))
-  ) {
-    return null;
-  }
-
-  return {
-    targetType: 'feed_post',
-    targetId,
-    duration: duration as CommunityHighlightDuration,
-    pinnedAt: Math.trunc(pinnedAt),
-    expiresAt: expiresAt === null ? null : Math.trunc(expiresAt),
-  };
 }
 
 export const manageCommunityHighlight = onCall<CommunityHighlightRequest>(
@@ -217,7 +182,7 @@ export const manageCommunityHighlight = onCall<CommunityHighlightRequest>(
         return {
           communityId,
           action,
-          highlight: parseStoredHighlight(existing['highlight']),
+          highlight: normalizeCommunityHighlightSnapshot(existing['highlight']),
           changed: existing['changed'] === true,
           deduplicated: true,
           generatedAt: Math.trunc(generatedAt),
