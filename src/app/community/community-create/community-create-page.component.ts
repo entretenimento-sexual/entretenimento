@@ -64,6 +64,10 @@ import {
   MIN_COMMUNITY_TAGS,
 } from '../data-access/community-tag.model';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
+import {
+  COMMUNITY_CREATE_CODE_MESSAGES,
+  COMMUNITY_CREATE_REASON_MESSAGES,
+} from '../presentation/community-error.messages';
 import { CommunityCreationGateService } from './community-creation-gate.service';
 
 type CommunityCreateForm = FormGroup<{
@@ -94,34 +98,6 @@ type CommunityCreationState =
   | { status: 'loading'; capability: null }
   | { status: 'ready'; capability: CommunityCreationCapability }
   | { status: 'error'; capability: null };
-
-const COMMUNITY_CREATE_REASON_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
-    community_creation_limit_reached:
-      'Seu plano atingiu a quantidade de Comunidades próprias.',
-    community_creation_subscription_required:
-      'Uma assinatura Basic ou superior é necessária para criar Comunidades.',
-    community_capacity_upgrade_required:
-      'Seu plano atual não permite a capacidade escolhida para esta Comunidade.',
-    profile_incomplete:
-      'Complete seu perfil antes de criar uma Comunidade.',
-    adult_access_required:
-      'Confirme seu acesso adulto antes de criar uma Comunidade.',
-    account_restricted:
-      'Sua conta não pode criar Comunidades neste momento.',
-  });
-
-const COMMUNITY_CREATE_CODE_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
-    'already-exists':
-      'Não foi possível reservar esta Comunidade. Tente novamente.',
-    'permission-denied':
-      'Sua conta não pode criar esta Comunidade neste momento.',
-    'failed-precondition':
-      'Sua conta precisa de uma atualização antes de criar uma Comunidade.',
-    'invalid-argument':
-      'Revise os dados obrigatórios da Comunidade e tente novamente.',
-  });
 
 function communityTagCountValidator(): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
