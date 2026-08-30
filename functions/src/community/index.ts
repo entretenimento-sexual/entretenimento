@@ -9,6 +9,7 @@ export { getCommunityDiscoveryPage } from './get-community-discovery-page.handle
 export { getCommunityFeedPage } from './get-community-feed-page.handler';
 export { getCommunityFeedItems } from './get-community-feed-items.handler';
 export { createCommunityFeedPost } from './community-feed-write.handler';
+export { getCommunityHighlight } from './get-community-highlight.handler';
 export { manageCommunityHighlight } from './community-highlight.handler';
 export {
   createCommunityFeedComment,
