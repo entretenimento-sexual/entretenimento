@@ -269,12 +269,26 @@ app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) .fee
    estado; essa garantia fica no reducer do Mural.
 ----------------------------------------------------------------------------- */
 app-community-feed .community-feed__more {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.34rem;
   padding-block: 0.72rem 1rem;
   border-top-color: color-mix(
     in oklab,
     var(--surface-border, currentColor) 48%,
     transparent
   );
+}
+
+app-community-feed .community-feed__more .community-feed__composer-error {
+  max-width: 32rem;
+  color: color-mix(
+    in oklab,
+    var(--error-color, #b42318) 78%,
+    var(--text-color, #222)
+  );
+  font-size: 0.7rem;
+  line-height: 1.35;
 }
 
 app-community-feed .community-feed__more button {
@@ -304,7 +318,8 @@ app-community-feed .community-feed__more button:disabled {
   opacity: 0.72;
 }
 
-app-community-feed .community-feed__more button .fa-spinner {
+app-community-feed .community-feed__more button .fa-spinner,
+app-community-feed .community-feed__more button .fa-rotate-right {
   color: var(--primary-color, #d83768);
 }
 
@@ -356,4 +371,8 @@ html.high-contrast app-community-feed-comments .feed-comments:not(.feed-comments
 html.high-contrast app-community-feed .community-feed__more button {
   border-color: currentColor !important;
   background: var(--surface-color, Canvas) !important;
+}
+
+html.high-contrast app-community-feed .community-feed__more .community-feed__composer-error {
+  color: var(--text-color) !important;
 }
