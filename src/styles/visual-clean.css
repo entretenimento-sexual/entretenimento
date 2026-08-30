@@ -323,6 +323,64 @@ app-community-feed .community-feed__more button .fa-rotate-right {
   color: var(--primary-color, #d83768);
 }
 
+/* -----------------------------------------------------------------------------
+   Community Mural — navegação de referências
+
+   Uma resposta pode apontar para uma publicação fora da janela atualmente
+   renderizada. O próprio contexto informa hidratação dirigida e falha de forma
+   discreta, sem snackbar duplicado e sem perder a possibilidade de retry.
+----------------------------------------------------------------------------- */
+app-community-feed .community-post__reply-context.is-loading-reference {
+  border-inline-start-color: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 68%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color, transparent) 95%,
+    var(--primary-color, #d83768) 5%
+  );
+}
+
+app-community-feed .community-post__reply-context.is-reference-error {
+  border-inline-start-color: color-mix(
+    in oklab,
+    var(--error-color, #b42318) 68%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color, transparent) 97%,
+    var(--error-color, #b42318) 3%
+  );
+}
+
+app-community-feed .community-post__reply-context .community-post__reply-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  overflow: visible;
+  margin-top: 0.12rem;
+  color: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 70%,
+    var(--text-color, #222)
+  );
+  font-size: 0.64rem;
+  font-weight: 650;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+app-community-feed .community-post__reply-context .community-post__reply-status.is-error {
+  color: color-mix(
+    in oklab,
+    var(--error-color, #b42318) 78%,
+    var(--text-color, #222)
+  );
+}
+
 @media (max-width: 520px) {
   app-community-feed .community-post__identity .community-post__identity-line strong {
     font-size: 0.88rem;
@@ -373,6 +431,13 @@ html.high-contrast app-community-feed .community-feed__more button {
   background: var(--surface-color, Canvas) !important;
 }
 
-html.high-contrast app-community-feed .community-feed__more .community-feed__composer-error {
+html.high-contrast app-community-feed .community-feed__more .community-feed__composer-error,
+html.high-contrast app-community-feed .community-post__reply-context .community-post__reply-status {
   color: var(--text-color) !important;
+}
+
+html.high-contrast app-community-feed .community-post__reply-context.is-loading-reference,
+html.high-contrast app-community-feed .community-post__reply-context.is-reference-error {
+  border-inline-start-color: var(--text-color) !important;
+  background: var(--surface-color, Canvas) !important;
 }
