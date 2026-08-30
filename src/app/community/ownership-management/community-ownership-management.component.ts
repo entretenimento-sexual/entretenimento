@@ -39,6 +39,11 @@ import {
   CommunityOwnershipCandidateRole,
 } from '../data-access/community-ownership.model';
 import { CommunityOwnershipRepository } from '../data-access/community-ownership.repository';
+import {
+  COMMUNITY_OWNERSHIP_ACTION_CODE_MESSAGES,
+  COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES,
+  COMMUNITY_OWNERSHIP_REASON_MESSAGES,
+} from '../presentation/community-error.messages';
 
 type OwnershipCandidatesState =
   | { status: 'loading'; items: readonly CommunityOwnershipCandidate[] }
@@ -57,25 +62,6 @@ interface OwnershipCommand {
   kind: 'transfer' | 'archive';
   candidate: CommunityOwnershipCandidate | null;
 }
-
-const OWNERSHIP_REASON_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
-  'recent-authentication-required':
-    'Por segurança, saia e entre novamente antes de confirmar esta ação.',
-  community_source_not_supported:
-    'Esta ação não está disponível para este tipo de espaço.',
-  owner_required:
-    'Apenas o proprietário pode executar esta ação.',
-  ownership_inconsistent:
-    'A propriedade está inconsistente. A operação foi bloqueada para revisão.',
-  self_transfer_forbidden:
-    'Selecione outro membro para receber a propriedade.',
-  target_membership_ineligible:
-    'O participante selecionado não possui vínculo ativo elegível.',
-  target_account_ineligible:
-    'A conta selecionada não pode assumir a propriedade agora.',
-  community_lifecycle_hold:
-    'Esta Comunidade possui retenção operacional e não pode ser arquivada.',
-});
 
 @Component({
   selector: 'app-community-ownership-management',
@@ -269,11 +255,8 @@ export class CommunityOwnershipManagementComponent {
       fallbackMessage:
         'Não foi possível carregar os membros elegíveis à transferência.',
       notification: 'none',
-      reasonMessages: OWNERSHIP_REASON_MESSAGES,
-      codeMessages: {
-        'data-loss':
-          'A propriedade está inconsistente. A operação foi bloqueada para revisão.',
-      },
+      reasonMessages: COMMUNITY_OWNERSHIP_REASON_MESSAGES,
+      codeMessages: COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityOwnershipManagementComponent',
         communityId: this.communityId().trim(),
@@ -290,19 +273,8 @@ export class CommunityOwnershipManagementComponent {
       fallbackMessage: command.kind === 'transfer'
         ? 'Não foi possível transferir a propriedade agora.'
         : 'Não foi possível arquivar a Comunidade agora.',
-      reasonMessages: OWNERSHIP_REASON_MESSAGES,
-      codeMessages: {
-        'data-loss':
-          'A propriedade está inconsistente. A operação foi bloqueada para revisão.',
-        'permission-denied':
-          'Sua conta não pode executar esta ação administrativa.',
-        'failed-precondition':
-          'Esta ação não está disponível no estado atual da Comunidade.',
-        'invalid-argument':
-          'Não foi possível validar os dados desta ação.',
-        'not-found':
-          'Esta Comunidade ou participante não está mais disponível.',
-      },
+      reasonMessages: COMMUNITY_OWNERSHIP_REASON_MESSAGES,
+      codeMessages: COMMUNITY_OWNERSHIP_ACTION_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityOwnershipManagementComponent',
         communityId: this.communityId().trim(),
