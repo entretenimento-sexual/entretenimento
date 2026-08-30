@@ -6,6 +6,7 @@ import type {
 } from '../data-access/community-feed.model';
 import {
   INITIAL_COMMUNITY_FEED_STATE,
+  MAX_COMMUNITY_FEED_REFERENCE_ITEMS,
   reduceCommunityFeedState,
 } from './community-feed-state.model';
 
@@ -78,6 +79,7 @@ describe('community feed state', () => {
       'post-atual',
     ]);
     expect(refreshed.items.some((current) => current.postId === 'post-antigo')).toBe(false);
+    expect(refreshed.referenceOnlyIds).toEqual([]);
   });
 
   it('continua acumulando histórico apenas em paginação explícita', () => {
@@ -93,6 +95,60 @@ describe('community feed state', () => {
       page: page([item('post-1', 100)]),
     });
 
+    expect(paginated.items.map((current) => current.postId)).toEqual([
+      'post-2',
+      'post-1',
+    ]);
+  });
+
+  it('limita referências hidratadas sem expulsar conteúdo canônico do Mural', () => {
+    let state = reduceCommunityFeedState(INITIAL_COMMUNITY_FEED_STATE, {
+      type: 'success',
+      request: { cursor: null, append: false },
+      page: page([item('post-atual', 10_000)]),
+    });
+
+    for (let index = 1; index <= MAX_COMMUNITY_FEED_REFERENCE_ITEMS + 2; index += 1) {
+      state = reduceCommunityFeedState(state, {
+        type: 'reference',
+        item: item(`referencia-${index}`, 10_000 - index),
+      });
+    }
+
+    expect(state.referenceOnlyIds).toHaveLength(MAX_COMMUNITY_FEED_REFERENCE_ITEMS);
+    expect(state.referenceOnlyIds).toEqual([
+      'referencia-3',
+      'referencia-4',
+      'referencia-5',
+      'referencia-6',
+      'referencia-7',
+      'referencia-8',
+    ]);
+    expect(state.items.some((current) => current.postId === 'post-atual')).toBe(true);
+    expect(state.items.some((current) => current.postId === 'referencia-1')).toBe(false);
+    expect(state.items.some((current) => current.postId === 'referencia-2')).toBe(false);
+  });
+
+  it('promove uma referência quando a paginação passa a entregá-la canonicamente', () => {
+    const initial = reduceCommunityFeedState(INITIAL_COMMUNITY_FEED_STATE, {
+      type: 'success',
+      request: { cursor: null, append: false },
+      page: page([item('post-2', 200)]),
+    });
+    const referenced = reduceCommunityFeedState(initial, {
+      type: 'reference',
+      item: item('post-1', 100),
+    });
+
+    expect(referenced.referenceOnlyIds).toEqual(['post-1']);
+
+    const paginated = reduceCommunityFeedState(referenced, {
+      type: 'success',
+      request: { cursor: 'post-2', append: true },
+      page: page([item('post-1', 100)]),
+    });
+
+    expect(paginated.referenceOnlyIds).toEqual([]);
     expect(paginated.items.map((current) => current.postId)).toEqual([
       'post-2',
       'post-1',
