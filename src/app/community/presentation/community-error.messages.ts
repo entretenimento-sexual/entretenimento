@@ -13,6 +13,70 @@
 
 export type CommunityErrorMessageMap = Readonly<Record<string, string>>;
 
+export const COMMUNITY_CREATE_REASON_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    community_creation_limit_reached:
+      'Seu plano atingiu a quantidade de Comunidades próprias.',
+    community_creation_subscription_required:
+      'Uma assinatura Basic ou superior é necessária para criar Comunidades.',
+    community_capacity_upgrade_required:
+      'Seu plano atual não permite a capacidade escolhida para esta Comunidade.',
+    profile_incomplete:
+      'Complete seu perfil antes de criar uma Comunidade.',
+    adult_access_required:
+      'Confirme seu acesso adulto antes de criar uma Comunidade.',
+    account_restricted:
+      'Sua conta não pode criar Comunidades neste momento.',
+  });
+
+export const COMMUNITY_CREATE_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'already-exists':
+      'Não foi possível reservar esta Comunidade. Tente novamente.',
+    'permission-denied':
+      'Sua conta não pode criar esta Comunidade neste momento.',
+    'failed-precondition':
+      'Sua conta precisa de uma atualização antes de criar uma Comunidade.',
+    'invalid-argument':
+      'Revise os dados obrigatórios da Comunidade e tente novamente.',
+  });
+
+export const COMMUNITY_PREVIEW_LOAD_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'not-found': 'Esta Comunidade não está mais disponível.',
+    'permission-denied': 'Você não tem acesso a esta Comunidade.',
+  });
+
+export const COMMUNITY_MEMBERSHIP_ACTION_REASON_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    community_capacity_reached:
+      'A Comunidade atingiu a capacidade atual. Novas entradas estão pausadas.',
+    owner_transfer_required:
+      'Transfira a propriedade da Comunidade antes de sair.',
+    membership_blocked:
+      'Este vínculo está bloqueado e não pode ser alterado.',
+    invite_only:
+      'A entrada nesta Comunidade é feita somente por convite.',
+    actor_restricted:
+      'Sua conta não pode participar desta Comunidade neste momento.',
+    community_unavailable:
+      'Esta Comunidade não aceita novas entradas agora.',
+    membership_not_found:
+      'Você não possui participação ativa ou pendente nesta Comunidade.',
+  });
+
+export const COMMUNITY_MEMBERSHIP_ACTION_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'not-found': 'Esta Comunidade não está mais disponível.',
+    'permission-denied':
+      'Sua conta não tem permissão para realizar esta ação nesta Comunidade.',
+    'failed-precondition':
+      'Esta ação não está disponível no estado atual da Comunidade.',
+    'invalid-argument': 'Não foi possível validar esta Comunidade.',
+    'data-loss':
+      'Não foi possível validar o estado atual da Comunidade. Tente novamente.',
+  });
+
 export const COMMUNITY_INVITE_INBOX_REASON_MESSAGES: CommunityErrorMessageMap =
   Object.freeze({
     invite_expired: 'Este convite expirou.',
