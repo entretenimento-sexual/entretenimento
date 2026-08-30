@@ -106,25 +106,25 @@ describe('CommunityFeedComponent legacy comments access', () => {
     ).toBeNull();
   });
 
-  it('oculta contador visual de curtidas quando o total é zero sem perder o estado acessível', () => {
+  it('não desenha reação falsa quando não pode interagir e o total é zero', () => {
     const fixture = createFixture(0, 0);
     const reaction = fixture.nativeElement.querySelector(
       '.community-post__reaction, .community-post__action--static'
+    ) as HTMLElement | null;
+
+    expect(reaction).toBeNull();
+  });
+
+  it('exibe somente métrica neutra de curtidas quando existe atividade real', () => {
+    const fixture = createFixture(0, 3);
+    const reaction = fixture.nativeElement.querySelector(
+      '.community-post__action--static'
     ) as HTMLElement;
 
     expect(reaction).not.toBeNull();
-    expect(reaction.getAttribute('aria-label')).toBe('0 curtidas');
-    expect(reaction.querySelector('.community-post__action-count')).toBeNull();
-  });
-
-  it('exibe contador de curtidas quando existe atividade real', () => {
-    const fixture = createFixture(0, 3);
-    const reaction = fixture.nativeElement.querySelector(
-      '.community-post__reaction, .community-post__action--static'
-    ) as HTMLElement;
-
     expect(reaction.getAttribute('aria-label')).toBe('3 curtidas');
-    expect(reaction.querySelector('.community-post__action-count')?.textContent).toContain('3');
+    expect(reaction.textContent).toContain('3 curtidas');
+    expect(reaction.querySelector('button')).toBeNull();
   });
 
   it('oferece acesso secundário somente quando há mensagens anteriores do histórico legado', () => {
