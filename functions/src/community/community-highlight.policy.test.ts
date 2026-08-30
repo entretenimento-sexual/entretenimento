@@ -11,6 +11,7 @@ describe('community-highlight.policy', () => {
       expect(evaluateCommunityHighlightAction({
         action: 'pin',
         sourceType: 'community',
+        communityOperational: true,
         membershipStatus: 'active',
         viewerRole,
         targetPostStatus: 'active',
@@ -23,6 +24,7 @@ describe('community-highlight.policy', () => {
     expect(evaluateCommunityHighlightAction({
       action: 'pin',
       sourceType: 'community',
+      communityOperational: true,
       membershipStatus: 'active',
       viewerRole: 'member',
       targetPostStatus: 'active',
@@ -37,6 +39,7 @@ describe('community-highlight.policy', () => {
     expect(evaluateCommunityHighlightAction({
       action: 'unpin',
       sourceType: 'community',
+      communityOperational: true,
       membershipStatus: 'left',
       viewerRole: 'admin',
     })).toEqual({
@@ -45,10 +48,24 @@ describe('community-highlight.policy', () => {
     });
   });
 
+  it('não altera destaque quando a Comunidade não está operacional', () => {
+    expect(evaluateCommunityHighlightAction({
+      action: 'unpin',
+      sourceType: 'community',
+      communityOperational: false,
+      membershipStatus: 'active',
+      viewerRole: 'owner',
+    })).toEqual({
+      allowed: false,
+      denialReason: 'community_unavailable',
+    });
+  });
+
   it('não aplica destaque editorial a outro tipo de espaço', () => {
     expect(evaluateCommunityHighlightAction({
       action: 'unpin',
       sourceType: 'venue',
+      communityOperational: true,
       membershipStatus: 'active',
       viewerRole: 'owner',
     })).toEqual({
@@ -61,6 +78,7 @@ describe('community-highlight.policy', () => {
     expect(evaluateCommunityHighlightAction({
       action: 'pin',
       sourceType: 'community',
+      communityOperational: true,
       membershipStatus: 'active',
       viewerRole: 'moderator',
       targetPostStatus: 'removed',
@@ -75,6 +93,7 @@ describe('community-highlight.policy', () => {
     expect(evaluateCommunityHighlightAction({
       action: 'unpin',
       sourceType: 'community',
+      communityOperational: true,
       membershipStatus: 'active',
       viewerRole: 'moderator',
       targetPostStatus: 'removed',
