@@ -644,7 +644,11 @@ export class CommunityPreviewPageComponent {
             status: 'idle',
             kind: null,
           })
-        )
+        ),
+        catchError((navigationError: unknown) => {
+          this.reportAccessNavigationError(navigationError, community, kind);
+          return of<CommunityMembershipActionState>({ status: 'error', kind });
+        })
       );
     }
 
@@ -703,6 +707,25 @@ export class CommunityPreviewPageComponent {
       },
       metadata: {
         scope: 'CommunityPreviewPageComponent',
+        section: this.activeSection(),
+      },
+    });
+  }
+
+  private reportAccessNavigationError(
+    error: unknown,
+    community: CommunityPreviewCard,
+    kind: CommunityMembershipActionKind
+  ): void {
+    this.applicationError.report(error, {
+      feature: 'community',
+      operation: 'navigateMembershipAccess',
+      fallbackMessage: 'Não foi possível abrir a etapa necessária para continuar.',
+      metadata: {
+        scope: 'CommunityPreviewPageComponent',
+        communityId: community.communityId,
+        sourceType: community.source.type,
+        action: kind,
         section: this.activeSection(),
       },
     });
