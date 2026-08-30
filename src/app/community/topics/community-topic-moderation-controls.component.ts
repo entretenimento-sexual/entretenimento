@@ -34,44 +34,16 @@ import {
   CommunityTopicStatus,
 } from '../data-access/community-topic.model';
 import { CommunityTopicRepository } from '../data-access/community-topic.repository';
+import {
+  COMMUNITY_TOPIC_MODERATION_CODE_MESSAGES,
+  COMMUNITY_TOPIC_MODERATION_REASON_MESSAGES,
+} from '../presentation/community-error.messages';
 import { createCommunityTopicRequestId } from './community-topic-request-id';
 
 type CommunityTopicModerationWriteState =
   | { readonly status: 'idle' }
   | { readonly status: 'loading' }
   | { readonly status: 'error' };
-
-const TOPIC_MODERATION_REASON_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
-    community_topic_moderation_unavailable:
-      'A moderação de Discussões não está disponível neste momento.',
-    topic_moderation_forbidden:
-      'Sua função atual não permite moderar esta discussão.',
-    removal_reason_required:
-      'Informe um motivo com pelo menos 3 caracteres para remover a discussão.',
-    removal_reason_too_long:
-      'O motivo da remoção deve ter no máximo 240 caracteres.',
-    removed_topic:
-      'Uma discussão removida não pode ser reaberta.',
-    topic_transition_forbidden:
-      'O estado atual desta discussão não permite esta ação.',
-    topic_not_found:
-      'Esta discussão não está mais disponível.',
-    community_not_found:
-      'Esta Comunidade não está mais disponível.',
-    request_id_conflict:
-      'Esta tentativa de moderação não pôde ser confirmada com segurança.',
-    moderation_record_inconsistent:
-      'O registro desta moderação está inconsistente e exige revisão.',
-    topic_projection_inconsistent:
-      'A discussão está inconsistente e exige revisão antes de nova moderação.',
-    account_restricted:
-      'Sua conta não pode executar esta ação administrativa neste momento.',
-    adult_access_required:
-      'Confirme o acesso adulto antes de executar esta ação.',
-    profile_incomplete:
-      'Complete seu perfil antes de executar esta ação.',
-  });
 
 @Component({
   selector: 'app-community-topic-moderation-controls',
@@ -230,19 +202,8 @@ export class CommunityTopicModerationControlsComponent {
       feature: 'community',
       operation: 'moderateTopic',
       fallbackMessage: 'Não foi possível aplicar a moderação agora.',
-      reasonMessages: TOPIC_MODERATION_REASON_MESSAGES,
-      codeMessages: {
-        'permission-denied':
-          'Sua função atual não permite moderar esta discussão.',
-        'invalid-argument':
-          'Revise o motivo e tente novamente.',
-        'failed-precondition':
-          'O estado desta discussão mudou. Atualize a discussão antes de moderar novamente.',
-        'not-found':
-          'Esta discussão não está mais disponível.',
-        'data-loss':
-          'A discussão está inconsistente e exige revisão antes de nova moderação.',
-      },
+      reasonMessages: COMMUNITY_TOPIC_MODERATION_REASON_MESSAGES,
+      codeMessages: COMMUNITY_TOPIC_MODERATION_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityTopicModerationControlsComponent',
         communityId: this.communityId().trim(),
