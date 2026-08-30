@@ -9,6 +9,7 @@ export { getCommunityDiscoveryPage } from './get-community-discovery-page.handle
 export { getCommunityFeedPage } from './get-community-feed-page.handler';
 export { getCommunityFeedItems } from './get-community-feed-items.handler';
 export { createCommunityFeedPost } from './community-feed-write.handler';
+export { manageCommunityHighlight } from './community-highlight.handler';
 export {
   createCommunityFeedComment,
 } from './community-feed-comment-write.handler';
@@ -92,6 +93,9 @@ export {
 } from './sync-community-archive-projections.trigger';
 export { syncCommunityFeedActivity } from './sync-community-feed-activity.trigger';
 export { syncCommunityFeedRealtime } from './sync-community-feed-realtime.trigger';
+export {
+  syncCommunityHighlightTarget,
+} from './sync-community-highlight-target.trigger';
 export {
   syncCommunityMembershipActivity,
 } from './sync-community-membership-activity.trigger';
