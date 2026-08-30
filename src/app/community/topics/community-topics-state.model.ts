@@ -13,6 +13,7 @@ export interface CommunityTopicsState {
   readonly items: readonly CommunityTopicListItem[];
   readonly nextCursor: string | null;
   readonly loadingMore: boolean;
+  readonly loadMoreError: boolean;
 }
 
 export interface CommunityTopicRepliesState {
@@ -20,6 +21,7 @@ export interface CommunityTopicRepliesState {
   readonly items: readonly CommunityTopicReplyItem[];
   readonly nextCursor: string | null;
   readonly loadingMore: boolean;
+  readonly loadMoreError: boolean;
 }
 
 export interface CommunityTopicsLoadRequest {
@@ -50,6 +52,7 @@ export const INITIAL_COMMUNITY_TOPICS_STATE: CommunityTopicsState = Object.freez
   items: [],
   nextCursor: null,
   loadingMore: false,
+  loadMoreError: false,
 });
 
 export const INITIAL_COMMUNITY_TOPIC_REPLIES_STATE: CommunityTopicRepliesState = Object.freeze({
@@ -57,6 +60,7 @@ export const INITIAL_COMMUNITY_TOPIC_REPLIES_STATE: CommunityTopicRepliesState =
   items: [],
   nextCursor: null,
   loadingMore: false,
+  loadMoreError: false,
 });
 
 function mergeTopics(
@@ -85,14 +89,25 @@ export function reduceCommunityTopicsState(
 ): CommunityTopicsState {
   if (event.type === 'loading') {
     return event.request.append
-      ? { ...state, loadingMore: true }
+      ? { ...state, loadingMore: true, loadMoreError: false }
       : INITIAL_COMMUNITY_TOPICS_STATE;
   }
 
   if (event.type === 'error') {
     return event.request.append && state.items.length > 0
-      ? { ...state, status: 'ready', loadingMore: false }
-      : { status: 'error', items: [], nextCursor: null, loadingMore: false };
+      ? {
+          ...state,
+          status: 'ready',
+          loadingMore: false,
+          loadMoreError: true,
+        }
+      : {
+          status: 'error',
+          items: [],
+          nextCursor: null,
+          loadingMore: false,
+          loadMoreError: false,
+        };
   }
 
   const items = event.request.append
@@ -104,6 +119,7 @@ export function reduceCommunityTopicsState(
     items,
     nextCursor: event.page.nextCursor,
     loadingMore: false,
+    loadMoreError: false,
   };
 }
 
@@ -113,14 +129,25 @@ export function reduceCommunityTopicRepliesState(
 ): CommunityTopicRepliesState {
   if (event.type === 'loading') {
     return event.request.append
-      ? { ...state, loadingMore: true }
+      ? { ...state, loadingMore: true, loadMoreError: false }
       : INITIAL_COMMUNITY_TOPIC_REPLIES_STATE;
   }
 
   if (event.type === 'error') {
     return event.request.append && state.items.length > 0
-      ? { ...state, status: 'ready', loadingMore: false }
-      : { status: 'error', items: [], nextCursor: null, loadingMore: false };
+      ? {
+          ...state,
+          status: 'ready',
+          loadingMore: false,
+          loadMoreError: true,
+        }
+      : {
+          status: 'error',
+          items: [],
+          nextCursor: null,
+          loadingMore: false,
+          loadMoreError: false,
+        };
   }
 
   const items = event.request.append
@@ -132,5 +159,6 @@ export function reduceCommunityTopicRepliesState(
     items,
     nextCursor: event.page.nextCursor,
     loadingMore: false,
+    loadMoreError: false,
   };
 }
