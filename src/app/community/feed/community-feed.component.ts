@@ -86,6 +86,14 @@ import {
   CommunityPreviewSourceType,
   CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
+import {
+  COMMUNITY_FEED_POST_ACTION_CODE_MESSAGES,
+  COMMUNITY_FEED_POST_CODE_MESSAGES,
+  COMMUNITY_FEED_POST_REASON_MESSAGES,
+  COMMUNITY_FEED_REACTION_CODE_MESSAGES,
+  COMMUNITY_FEED_REACTION_REASON_MESSAGES,
+  COMMUNITY_FEED_REFERENCE_CODE_MESSAGES,
+} from '../presentation/community-error.messages';
 import { CommunityCameraCaptureComponent } from './community-camera-capture.component';
 import {
   CommunityComposerAttachment,
@@ -1469,6 +1477,7 @@ export class CommunityFeedComponent implements OnDestroy {
       fallbackMessage: action === 'delete_own'
         ? 'Não foi possível excluir a mensagem agora.'
         : 'Não foi possível remover a mensagem agora.',
+      codeMessages: COMMUNITY_FEED_POST_ACTION_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityFeedComponent',
         action,
@@ -1483,10 +1492,8 @@ export class CommunityFeedComponent implements OnDestroy {
       feature: 'community',
       operation: 'toggleReaction',
       fallbackMessage: 'Não foi possível atualizar sua reação agora.',
-      codeMessages: {
-        'resource-exhausted':
-          'Você reagiu muitas vezes em pouco tempo. Aguarde um instante.',
-      },
+      reasonMessages: COMMUNITY_FEED_REACTION_REASON_MESSAGES,
+      codeMessages: COMMUNITY_FEED_REACTION_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityFeedComponent',
         view: this.view(),
@@ -1500,24 +1507,8 @@ export class CommunityFeedComponent implements OnDestroy {
       feature: 'community',
       operation: 'createPost',
       fallbackMessage: 'Não foi possível enviar a mensagem agora.',
-      reasonMessages: {
-        community_feed_rate_limited:
-          'Você atingiu o limite temporário de mensagens. Tente mais tarde.',
-      },
-      recommendedActionMessages: {
-        upgrade_subscription:
-          'Seu plano atual não permite publicar neste espaço.',
-      },
-      codeMessages: {
-        'resource-exhausted':
-          'Você atingiu o limite temporário de mensagens. Tente mais tarde.',
-        'permission-denied':
-          'Sua conta não pode publicar neste espaço agora.',
-        'failed-precondition':
-          'Atualize sua conta antes de publicar neste espaço.',
-        'invalid-argument':
-          'Revise a mensagem e tente novamente.',
-      },
+      reasonMessages: COMMUNITY_FEED_POST_REASON_MESSAGES,
+      codeMessages: COMMUNITY_FEED_POST_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityFeedComponent',
         view: this.view(),
@@ -1569,10 +1560,7 @@ export class CommunityFeedComponent implements OnDestroy {
       fallbackMessage:
         'A publicação original não está disponível neste momento.',
       notification: 'none',
-      codeMessages: {
-        'not-found':
-          'A publicação original não está disponível neste momento.',
-      },
+      codeMessages: COMMUNITY_FEED_REFERENCE_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityFeedComponent',
         view: this.view(),
