@@ -40,6 +40,7 @@ import {
   CommunityMemberLimit,
   communityMemberLimitRequiredRole,
 } from '../data-access/community-capacity.model';
+import type { CommunityPreviewViewerRole } from '../data-access/community-preview.model';
 import {
   CommunityEditableSettings,
   CommunitySettingsJoinPolicy,
@@ -52,7 +53,10 @@ import {
   MIN_COMMUNITY_TAGS,
 } from '../data-access/community-tag.model';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
-import type { CommunityPreviewViewerRole } from '../data-access/community-preview.model';
+import {
+  COMMUNITY_SETTINGS_CODE_MESSAGES,
+  COMMUNITY_SETTINGS_REASON_MESSAGES,
+} from '../presentation/community-error.messages';
 
 type CommunitySettingsForm = FormGroup<{
   name: FormControl<string>;
@@ -77,30 +81,6 @@ type CommunitySettingsActionState =
 interface CommunitySettingsSaveCommand extends CommunityEditableSettings {
   requestId: string;
 }
-
-const COMMUNITY_SETTINGS_REASON_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
-    'recent-authentication-required':
-      'Por segurança, saia e entre novamente antes de alterar a capacidade.',
-    owner_required_for_capacity:
-      'Somente o proprietário pode alterar a capacidade de membros.',
-    community_capacity_below_member_count:
-      'O limite não pode ser menor que a quantidade atual de membros.',
-    community_capacity_upgrade_required:
-      'Seu plano atual não permite essa capacidade de membros.',
-    community_not_found:
-      'Esta Comunidade não está mais disponível.',
-    community_settings_forbidden:
-      'Seu acesso atual não permite alterar estas configurações.',
-    invalid_community_settings:
-      'Revise os dados das configurações e tente novamente.',
-    account_restricted:
-      'Sua conta não pode alterar estas configurações neste momento.',
-    adult_access_required:
-      'Confirme o acesso adulto antes de alterar estas configurações.',
-    profile_incomplete:
-      'Complete seu perfil antes de alterar estas configurações.',
-  });
 
 function communityTagCountValidator(): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
@@ -414,18 +394,7 @@ export class CommunitySettingsComponent {
       operation: 'updateCommunitySettings',
       fallbackMessage: 'Não foi possível salvar as configurações da Comunidade.',
       reasonMessages: COMMUNITY_SETTINGS_REASON_MESSAGES,
-      codeMessages: {
-        'permission-denied':
-          'Seu acesso atual não permite alterar estas configurações.',
-        'failed-precondition':
-          'Estas configurações não podem ser alteradas no estado atual.',
-        'invalid-argument':
-          'Revise os dados das configurações e tente novamente.',
-        'not-found':
-          'Esta Comunidade não está mais disponível.',
-        'resource-exhausted':
-          'Seu plano atual não permite essa capacidade de membros.',
-      },
+      codeMessages: COMMUNITY_SETTINGS_CODE_MESSAGES,
       metadata: {
         scope: 'CommunitySettingsComponent',
         communityId: this.communityId().trim(),
