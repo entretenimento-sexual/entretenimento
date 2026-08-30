@@ -55,7 +55,8 @@ function assertRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
   throw new HttpsError(
     'failed-precondition',
-    'A conversa do Mural ainda não está disponível neste ambiente.'
+    'A conversa do Mural ainda não está disponível neste ambiente.',
+    { reason: 'community_feed_conversation_unavailable' }
   );
 }
 
@@ -63,9 +64,19 @@ function assertAuthenticatedUid(
   auth: { uid?: string; token?: Record<string, unknown> } | undefined
 ): string {
   const uid = String(auth?.uid ?? '').trim();
-  if (!uid) throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+  if (!uid) {
+    throw new HttpsError(
+      'unauthenticated',
+      'Usuário não autenticado.',
+      { reason: 'authentication_required' }
+    );
+  }
   if (auth?.token?.['email_verified'] !== true) {
-    throw new HttpsError('failed-precondition', 'Verifique seu e-mail para continuar.');
+    throw new HttpsError(
+      'failed-precondition',
+      'Verifique seu e-mail para continuar.',
+      { reason: 'email_verification_required' }
+    );
   }
   return uid;
 }
@@ -94,12 +105,24 @@ function normalizeOptionalSafeId(value: unknown): string | null {
 
 function throwDenied(reason: string | null): never {
   if (reason === 'active_membership_required') {
-    throw new HttpsError('permission-denied', 'Participe da Comunidade para conversar.');
+    throw new HttpsError(
+      'permission-denied',
+      'Participe da Comunidade para conversar.',
+      { reason }
+    );
   }
   if (reason === 'post_unavailable') {
-    throw new HttpsError('failed-precondition', 'A publicação não aceita mensagens.');
+    throw new HttpsError(
+      'failed-precondition',
+      'A publicação não aceita mensagens.',
+      { reason }
+    );
   }
-  throw new HttpsError('failed-precondition', 'O Mural não aceita mensagens agora.');
+  throw new HttpsError(
+    'failed-precondition',
+    'O Mural não aceita mensagens agora.',
+    { reason: reason ?? 'community_unavailable' }
+  );
 }
 
 function existingResponse(
@@ -152,7 +175,11 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
       || (rawReplyToCommentId && !replyToCommentId)
       || replyToCommentId === command.requestId
     ) {
-      throw new HttpsError('invalid-argument', 'Mensagem inválida.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Mensagem inválida.',
+        { reason: 'invalid_conversation_message' }
+      );
     }
 
     const communityId = command.communityId;
@@ -170,14 +197,22 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
         replyToCommentId
       );
       if (!response) {
-        throw new HttpsError('already-exists', 'Este identificador já foi utilizado.');
+        throw new HttpsError(
+          'already-exists',
+          'Este identificador já foi utilizado.',
+          { reason: 'request_id_conflict' }
+        );
       }
       return response;
     }
 
     const context = await getCommunityViewerContext(actorUid, communityId);
     if (!context.canInteract) {
-      throw new HttpsError('permission-denied', 'Participe da Comunidade para conversar.');
+      throw new HttpsError(
+        'permission-denied',
+        'Participe da Comunidade para conversar.',
+        { reason: 'active_membership_required' }
+      );
     }
     await consumeBackendRateLimitQuota({
       action: 'createCommunityFeedComment',
@@ -256,18 +291,34 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
           replyToCommentId
         );
         if (!response) {
-          throw new HttpsError('already-exists', 'Este identificador já foi utilizado.');
+          throw new HttpsError(
+            'already-exists',
+            'Este identificador já foi utilizado.',
+            { reason: 'request_id_conflict' }
+          );
         }
         return response;
       }
       if (!communitySnapshot.exists) {
-        throw new HttpsError('not-found', 'Comunidade não encontrada.');
+        throw new HttpsError(
+          'not-found',
+          'Comunidade não encontrada.',
+          { reason: 'community_not_found' }
+        );
       }
       if (!postSnapshot.exists || !projectionSnapshot.exists) {
-        throw new HttpsError('not-found', 'Publicação não encontrada.');
+        throw new HttpsError(
+          'not-found',
+          'Publicação não encontrada.',
+          { reason: 'community_feed_post_not_found' }
+        );
       }
       if (commentSnapshot.exists) {
-        throw new HttpsError('already-exists', 'Esta mensagem já existe.');
+        throw new HttpsError(
+          'already-exists',
+          'Esta mensagem já existe.',
+          { reason: 'conversation_message_already_exists' }
+        );
       }
       assertCommunityMembershipActorEligible(
         userSnapshot.exists ? userSnapshot.data() : null,
@@ -286,7 +337,11 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
         projectionSnapshot.data()
       );
       if (!projection) {
-        throw new HttpsError('failed-precondition', 'A publicação não aceita mensagens.');
+        throw new HttpsError(
+          'failed-precondition',
+          'A publicação não aceita mensagens.',
+          { reason: 'post_unavailable' }
+        );
       }
 
       const replyTarget = replyToCommentId && replyTargetSnapshot
@@ -296,7 +351,11 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
         )
         : null;
       if (replyToCommentId && !replyTarget) {
-        throw new HttpsError('failed-precondition', 'A mensagem original não está disponível para resposta.');
+        throw new HttpsError(
+          'failed-precondition',
+          'A mensagem original não está disponível para resposta.',
+          { reason: 'referenced_message_unavailable' }
+        );
       }
 
       const decision = evaluateCommunityFeedCommentWrite({
