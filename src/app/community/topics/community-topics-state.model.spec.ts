@@ -45,22 +45,35 @@ describe('community-topics-state.model', () => {
     expect(appended.items).toHaveLength(1);
     expect(appended.items[0].title).toBe('Tema atualizado');
     expect(appended.loadingMore).toBe(false);
+    expect(appended.loadMoreError).toBe(false);
   });
 
-  it('preserva página carregada quando paginação adicional falha', () => {
+  it('preserva página e cursor quando paginação adicional falha e permite retry', () => {
     const ready = {
       status: 'ready' as const,
       items: [topic],
       nextCursor: 'topic-1',
-      loadingMore: true,
+      loadingMore: false,
+      loadMoreError: false,
     };
+    const failed = reduceCommunityTopicsState(ready, {
+      type: 'error',
+      request: { cursor: 'topic-1', append: true },
+    });
+    const retrying = reduceCommunityTopicsState(failed, {
+      type: 'loading',
+      request: { cursor: 'topic-1', append: true },
+    });
 
-    expect(
-      reduceCommunityTopicsState(ready, {
-        type: 'error',
-        request: { cursor: 'topic-1', append: true },
-      })
-    ).toEqual({ ...ready, loadingMore: false });
+    expect(failed).toEqual({
+      ...ready,
+      loadingMore: false,
+      loadMoreError: true,
+    });
+    expect(retrying.items).toEqual([topic]);
+    expect(retrying.nextCursor).toBe('topic-1');
+    expect(retrying.loadingMore).toBe(true);
+    expect(retrying.loadMoreError).toBe(false);
   });
 
   it('agrega respostas e usa empty quando não há conteúdo', () => {
@@ -77,12 +90,19 @@ describe('community-topics-state.model', () => {
       {
         type: 'success',
         request: { cursor: null, append: false },
-        page: { items: [reply], nextCursor: null, generatedAt: 1 },
+        page: { items: [reply], nextCursor: 'reply-1', generatedAt: 1 },
       }
     );
+    const failed = reduceCommunityTopicRepliesState(ready, {
+      type: 'error',
+      request: { cursor: 'reply-1', append: true },
+    });
 
     expect(empty.status).toBe('empty');
     expect(ready.status).toBe('ready');
     expect(ready.items[0].replyId).toBe('reply-1');
+    expect(failed.items).toEqual([reply]);
+    expect(failed.nextCursor).toBe('reply-1');
+    expect(failed.loadMoreError).toBe(true);
   });
 });
