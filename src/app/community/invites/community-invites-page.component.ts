@@ -28,6 +28,10 @@ import {
   CommunityInviteInboxItem,
 } from '../data-access/community-invite.model';
 import { CommunityInviteRepository } from '../data-access/community-invite.repository';
+import {
+  COMMUNITY_INVITE_INBOX_CODE_MESSAGES,
+  COMMUNITY_INVITE_INBOX_REASON_MESSAGES,
+} from '../presentation/community-error.messages';
 
 type CommunityInvitesStatus = 'loading' | 'ready' | 'empty' | 'error';
 type CommunityInviteAction = 'accept' | 'decline';
@@ -36,23 +40,6 @@ interface CommunityInvitesState {
   status: CommunityInvitesStatus;
   items: readonly CommunityInviteInboxItem[];
 }
-
-const COMMUNITY_INVITE_REASON_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
-    invite_expired: 'Este convite expirou.',
-    membership_blocked: 'Você não pode participar desta Comunidade.',
-    community_unavailable:
-      'Esta Comunidade não está disponível para entrada agora.',
-    community_capacity_reached:
-      'A Comunidade atingiu a capacidade atual. Novas entradas estão pausadas.',
-  });
-
-const COMMUNITY_INVITE_CODE_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
-    'not-found': 'Este convite não está mais disponível.',
-    'permission-denied': 'Este convite não está disponível para sua conta.',
-    'failed-precondition': 'Este convite não está mais disponível.',
-  });
 
 @Component({
   selector: 'app-community-invites-page',
@@ -187,8 +174,8 @@ export class CommunityInvitesPageComponent {
       feature: 'community',
       operation,
       fallbackMessage,
-      codeMessages: COMMUNITY_INVITE_CODE_MESSAGES,
-      reasonMessages: COMMUNITY_INVITE_REASON_MESSAGES,
+      codeMessages: COMMUNITY_INVITE_INBOX_CODE_MESSAGES,
+      reasonMessages: COMMUNITY_INVITE_INBOX_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityInvitesPageComponent',
       },
