@@ -32,6 +32,10 @@ import {
   CommunitySentInviteItem,
 } from '../data-access/community-invite.model';
 import { CommunityInviteRepository } from '../data-access/community-invite.repository';
+import {
+  COMMUNITY_INVITE_MANAGEMENT_CODE_MESSAGES,
+  COMMUNITY_INVITE_MANAGEMENT_REASON_MESSAGES,
+} from '../presentation/community-error.messages';
 
 type SentInvitesState =
   | { status: 'loading'; items: readonly CommunitySentInviteItem[] }
@@ -54,43 +58,6 @@ type InviteActionState =
   | { status: 'idle'; action: null; targetId: null }
   | { status: 'loading'; action: 'send' | 'revoke'; targetId: string }
   | { status: 'error'; action: 'send' | 'revoke'; targetId: string };
-
-const INVITE_REASON_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
-  community_invites_unavailable:
-    'Os convites desta Comunidade não estão disponíveis neste momento.',
-  invite_management_forbidden:
-    'Seu acesso atual não permite gerenciar convites desta Comunidade.',
-  inviter_not_allowed:
-    'Seu acesso atual não permite enviar ou revogar este convite.',
-  target_already_member:
-    'Este perfil já participa da Comunidade.',
-  target_blocked:
-    'Este perfil não pode receber convites desta Comunidade.',
-  community_unavailable:
-    'Esta Comunidade não aceita novos convites neste momento.',
-  community_capacity_reached:
-    'A Comunidade atingiu a capacidade atual. Novos convites estão pausados.',
-  self_invite_forbidden:
-    'Você não pode enviar um convite para si mesmo.',
-  invite_not_found:
-    'Este convite não está mais disponível.',
-  invite_not_pending:
-    'Este convite não está mais pendente.',
-  invite_contract_invalid:
-    'Este convite não pôde ser validado com segurança.',
-  invalid_invite_candidate_query:
-    'Revise o apelido informado e tente novamente.',
-  invalid_community_id:
-    'Não foi possível identificar esta Comunidade.',
-  community_not_found:
-    'Esta Comunidade não está mais disponível.',
-  account_restricted:
-    'Esta conta não pode participar de Comunidades neste momento.',
-  adult_access_required:
-    'Esta conta precisa confirmar o acesso adulto antes de participar.',
-  profile_incomplete:
-    'Esta conta precisa concluir o perfil antes de participar.',
-});
 
 @Component({
   selector: 'app-community-invite-management',
@@ -274,7 +241,7 @@ export class CommunityInviteManagementComponent {
       operation: 'loadSentInvites',
       fallbackMessage: 'Não foi possível carregar os convites pendentes.',
       notification: 'none',
-      reasonMessages: INVITE_REASON_MESSAGES,
+      reasonMessages: COMMUNITY_INVITE_MANAGEMENT_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityInviteManagementComponent',
         communityId: this.communityId().trim(),
@@ -288,7 +255,7 @@ export class CommunityInviteManagementComponent {
       operation: 'findInviteCandidate',
       fallbackMessage: 'Não foi possível localizar este perfil.',
       notification: 'none',
-      reasonMessages: INVITE_REASON_MESSAGES,
+      reasonMessages: COMMUNITY_INVITE_MANAGEMENT_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityInviteManagementComponent',
         communityId: this.communityId().trim(),
@@ -306,17 +273,8 @@ export class CommunityInviteManagementComponent {
       fallbackMessage: action === 'send'
         ? 'Não foi possível enviar este convite.'
         : 'Não foi possível revogar este convite.',
-      reasonMessages: INVITE_REASON_MESSAGES,
-      codeMessages: {
-        'already-exists': 'Este perfil já participa da Comunidade.',
-        'not-found': 'Este convite ou Comunidade não está mais disponível.',
-        'permission-denied':
-          'Seu acesso atual não permite executar esta ação de convite.',
-        'failed-precondition':
-          'Este convite não pode ser alterado nas condições atuais.',
-        'invalid-argument':
-          'Não foi possível validar os dados deste convite.',
-      },
+      reasonMessages: COMMUNITY_INVITE_MANAGEMENT_REASON_MESSAGES,
+      codeMessages: COMMUNITY_INVITE_MANAGEMENT_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityInviteManagementComponent',
         communityId: this.communityId().trim(),
