@@ -10,6 +10,10 @@
   color: var(--text-color, #222);
 }
 
+.community-topics__browse[hidden] {
+  display: none !important;
+}
+
 .community-topics__header {
   padding: 1rem;
   border-bottom: 1px solid var(--surface-border, #d5d5d5);
@@ -191,8 +195,16 @@
 
 .community-topics__load-more {
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  gap: 0.45rem;
   padding: 0.85rem 1rem;
+  text-align: center;
+}
+
+.community-topics__load-more .community-topics__write-error {
+  max-width: 34rem;
 }
 
 .community-topics__load-more button:disabled {
@@ -201,11 +213,7 @@
 }
 
 .community-topics__detail {
-  border-top: 0.55rem solid color-mix(
-    in oklab,
-    var(--surface-color, #fff) 82%,
-    var(--surface-border, #d5d5d5) 18%
-  );
+  border-top: 0;
 }
 
 .community-topics__detail-toolbar {
