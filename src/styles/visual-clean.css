@@ -212,6 +212,54 @@ app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comm
   font-size: 0.62rem;
 }
 
+/* -----------------------------------------------------------------------------
+   Community Mural — histórico anterior
+
+   A conversa legada continua acessível, mas deixa de alongar indefinidamente a
+   timeline. Cabeçalho e compositor ficam fora da rolagem; somente a lista de
+   mensagens ganha uma janela interna quando o histórico é grande.
+----------------------------------------------------------------------------- */
+app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) {
+  margin-top: 0.28rem;
+  padding-top: 0.38rem;
+  border-top-color: color-mix(
+    in oklab,
+    var(--surface-border, currentColor) 56%,
+    transparent
+  );
+}
+
+app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) .feed-comments__header {
+  padding-bottom: 0.28rem;
+}
+
+app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) .feed-comments__list {
+  max-height: min(27rem, 52vh);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  scroll-padding-block: 0.6rem;
+  border-block: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, currentColor) 38%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color, transparent) 99%,
+    var(--text-color, #222) 1%
+  );
+}
+
+app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) .feed-comments__more {
+  margin-block: 0.08rem 0.42rem;
+}
+
+app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) .feed-comments__composer {
+  margin-top: 0;
+  padding-top: 0.58rem;
+}
+
 @media (max-width: 520px) {
   app-community-feed .community-post__identity .community-post__identity-line strong {
     font-size: 0.88rem;
@@ -232,6 +280,11 @@ app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comm
   app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__composer > small {
     width: 100%;
   }
+
+  app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) .feed-comments__list {
+    max-height: min(23rem, 46vh);
+    scrollbar-gutter: auto;
+  }
 }
 
 html.high-contrast app-community-feed .community-post__identity .community-post__identity-line time,
@@ -243,6 +296,11 @@ html.high-contrast app-community-feed-comments .feed-comment__identity .feed-com
 
 html.high-contrast app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__reply-target,
 html.high-contrast app-community-feed-comments .feed-comments.feed-comments--quick-reply .feed-comments__composer-row textarea {
+  border-color: currentColor !important;
+  background: var(--surface-color, Canvas) !important;
+}
+
+html.high-contrast app-community-feed-comments .feed-comments:not(.feed-comments--quick-reply) .feed-comments__list {
   border-color: currentColor !important;
   background: var(--surface-color, Canvas) !important;
 }
