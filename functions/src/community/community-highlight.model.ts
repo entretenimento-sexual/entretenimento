@@ -24,6 +24,10 @@ export interface CommunityHighlightRequest {
   duration?: unknown;
 }
 
+export interface CommunityHighlightReadRequest {
+  communityId?: unknown;
+}
+
 export interface NormalizedCommunityHighlightRequest {
   requestId: string | null;
   communityId: string | null;
@@ -31,6 +35,10 @@ export interface NormalizedCommunityHighlightRequest {
   targetType: CommunityHighlightTargetType | null;
   targetId: string | null;
   duration: CommunityHighlightDuration | null;
+}
+
+export interface NormalizedCommunityHighlightReadRequest {
+  communityId: string | null;
 }
 
 export interface CommunityHighlightSnapshot {
@@ -47,6 +55,13 @@ export interface CommunityHighlightResponse {
   highlight: CommunityHighlightSnapshot | null;
   changed: boolean;
   deduplicated: boolean;
+  generatedAt: number;
+}
+
+export interface CommunityHighlightReadResponse {
+  communityId: string;
+  highlight: CommunityHighlightSnapshot | null;
+  canManage: boolean;
   generatedAt: number;
 }
 
@@ -110,6 +125,52 @@ export function normalizeCommunityHighlightRequest(
       ? suppliedDuration ?? DEFAULT_DURATION
       : null,
   };
+}
+
+export function normalizeCommunityHighlightReadRequest(
+  raw: CommunityHighlightReadRequest | null | undefined
+): NormalizedCommunityHighlightReadRequest {
+  return {
+    communityId: normalizeSafeId(raw?.communityId),
+  };
+}
+
+export function normalizeCommunityHighlightSnapshot(
+  value: unknown
+): CommunityHighlightSnapshot | null {
+  if (!value || typeof value !== 'object') return null;
+  const source = value as Record<string, unknown>;
+  const targetId = normalizeSafeId(source['targetId']);
+  const duration = normalizeDuration(source['duration']);
+  const pinnedAt = Number(source['pinnedAt']);
+  const expiresAt = source['expiresAt'] === null
+    ? null
+    : Number(source['expiresAt']);
+
+  if (
+    source['targetType'] !== 'feed_post'
+    || !targetId
+    || !duration
+    || !Number.isFinite(pinnedAt)
+    || (expiresAt !== null && !Number.isFinite(expiresAt))
+  ) {
+    return null;
+  }
+
+  return {
+    targetType: 'feed_post',
+    targetId,
+    duration,
+    pinnedAt: Math.trunc(pinnedAt),
+    expiresAt: expiresAt === null ? null : Math.trunc(expiresAt),
+  };
+}
+
+export function isCommunityHighlightActive(
+  highlight: CommunityHighlightSnapshot,
+  nowMs: number
+): boolean {
+  return highlight.expiresAt === null || highlight.expiresAt > nowMs;
 }
 
 export function resolveCommunityHighlightExpiresAt(
