@@ -156,6 +156,35 @@ describe('CommunityTopicsComponent', () => {
     ).toBeNull();
   });
 
+  it('abre detalhe em modo focado e volta para a lista preservada', () => {
+    const fixture = createFixture();
+    const browse = fixture.nativeElement.querySelector(
+      '.community-topics__browse'
+    ) as HTMLDivElement;
+    const card = fixture.nativeElement.querySelector(
+      '.community-topics__card'
+    ) as HTMLButtonElement;
+
+    expect(browse.hidden).toBe(false);
+    card.click();
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(browse.hidden).toBe(true);
+    expect(fixture.nativeElement.querySelector('#community-topic-detail')).not.toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Nova discussão');
+
+    const back = fixture.nativeElement.querySelector(
+      '.community-topics__back'
+    ) as HTMLButtonElement;
+    back.click();
+    fixture.detectChanges();
+
+    expect(browse.hidden).toBe(false);
+    expect(fixture.nativeElement.querySelector('#community-topic-detail')).toBeNull();
+    expect(repositoryMock.getPage$).toHaveBeenCalledTimes(1);
+  });
+
   it('abre detalhe e respostas somente após selecionar um Tópico', () => {
     const fixture = createFixture();
 
@@ -181,6 +210,28 @@ describe('CommunityTopicsComponent', () => {
     });
     expect(fixture.nativeElement.textContent).toContain('Texto integral do Tópico.');
     expect(fixture.nativeElement.textContent).toContain('Primeira resposta.');
+  });
+
+  it('preserva discussões carregadas e oferece retry quando carregar mais falha', () => {
+    repositoryMock.getPage$
+      .mockReturnValueOnce(
+        of({ items: [topic], nextCursor: 'topic-cursor', generatedAt: now })
+      )
+      .mockReturnValueOnce(
+        throwError(() => ({ code: 'functions/unavailable' }))
+      );
+    const fixture = createFixture();
+    const component = fixture.componentInstance;
+
+    component.loadMoreTopics('topic-cursor');
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Boas práticas da Comunidade');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Não foi possível carregar mais discussões. As já carregadas foram preservadas.'
+    );
+    expect(fixture.nativeElement.textContent).toContain('Tentar novamente');
   });
 
   it('informa quando Tópico encerrado não aceita resposta', () => {
