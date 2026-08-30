@@ -327,3 +327,75 @@ export const COMMUNITY_TOPIC_MODERATION_CODE_MESSAGES: CommunityErrorMessageMap 
     'data-loss':
       'A discussão está inconsistente e exige revisão antes de nova moderação.',
   });
+
+export const COMMUNITY_MEMBER_MANAGEMENT_REASON_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'recent-authentication-required':
+      'Por segurança, saia e entre novamente antes de confirmar esta ação administrativa.',
+    community_source_not_supported:
+      'Esta ação não está disponível para este tipo de espaço.',
+    manager_required:
+      'Sua função não permite gerenciar participantes desta Comunidade.',
+    self_action_forbidden:
+      'Use os controles da sua própria participação para alterar seu vínculo.',
+    owner_protected:
+      'O proprietário só pode ser alterado pelo fluxo de transferência de propriedade.',
+    target_unavailable:
+      'O vínculo deste participante não permite esta ação agora.',
+    role_change_forbidden:
+      'Sua função não permite atribuir este papel ao participante.',
+    action_forbidden:
+      'Sua função não permite executar esta ação sobre este participante.',
+  });
+
+export const COMMUNITY_MEMBER_MANAGEMENT_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'permission-denied':
+      'Sua função não permite executar esta ação sobre este participante.',
+    'failed-precondition':
+      'O vínculo deste participante não permite esta ação agora.',
+    'invalid-argument':
+      'Não foi possível validar esta alteração de participante.',
+    'not-found':
+      'Este participante ou Comunidade não está mais disponível.',
+  });
+
+export const COMMUNITY_OWNERSHIP_REASON_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'recent-authentication-required':
+      'Por segurança, saia e entre novamente antes de confirmar esta ação.',
+    community_source_not_supported:
+      'Esta ação não está disponível para este tipo de espaço.',
+    owner_required:
+      'Apenas o proprietário pode executar esta ação.',
+    ownership_inconsistent:
+      'A propriedade está inconsistente. A operação foi bloqueada para revisão.',
+    self_transfer_forbidden:
+      'Selecione outro membro para receber a propriedade.',
+    target_membership_ineligible:
+      'O participante selecionado não possui vínculo ativo elegível.',
+    target_account_ineligible:
+      'A conta selecionada não pode assumir a propriedade agora.',
+    community_lifecycle_hold:
+      'Esta Comunidade possui retenção operacional e não pode ser arquivada.',
+  });
+
+export const COMMUNITY_OWNERSHIP_LOAD_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'data-loss':
+      'A propriedade está inconsistente. A operação foi bloqueada para revisão.',
+  });
+
+export const COMMUNITY_OWNERSHIP_ACTION_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'data-loss':
+      'A propriedade está inconsistente. A operação foi bloqueada para revisão.',
+    'permission-denied':
+      'Sua conta não pode executar esta ação administrativa.',
+    'failed-precondition':
+      'Esta ação não está disponível no estado atual da Comunidade.',
+    'invalid-argument':
+      'Não foi possível validar os dados desta ação.',
+    'not-found':
+      'Esta Comunidade ou participante não está mais disponível.',
+  });
