@@ -284,7 +284,10 @@ describe('CommunityCreatePageComponent', () => {
     createCommunity$.mockReturnValue(
       throwError(() => ({
         code: 'functions/failed-precondition',
-        details: { recommendedAction: 'complete_profile' },
+        details: {
+          reason: 'profile_incomplete',
+          recommendedAction: 'complete_profile',
+        },
       }))
     );
 
