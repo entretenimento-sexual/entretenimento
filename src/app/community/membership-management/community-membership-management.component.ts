@@ -25,20 +25,24 @@ import {
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import type { CommunityCapacityPreview } from '../data-access/community-capacity.model';
 import {
   CommunityMembershipRequestItem,
   CommunityMembershipReviewAction,
 } from '../data-access/community-membership.model';
 import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
-import type { CommunityCapacityPreview } from '../data-access/community-capacity.model';
 import {
   CommunityPreviewSourceType,
   CommunityPreviewViewerRole,
 } from '../data-access/community-preview.model';
+import type { CommunityEditableSettings } from '../data-access/community-settings.model';
 import { CommunityMemberRosterManagementComponent } from '../member-roster-management/community-member-roster-management.component';
 import { CommunityOwnershipManagementComponent } from '../ownership-management/community-ownership-management.component';
+import {
+  COMMUNITY_MEMBERSHIP_REVIEW_CODE_MESSAGES,
+  COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
+} from '../presentation/community-error.messages';
 import { CommunitySettingsComponent } from '../community-settings/community-settings.component';
-import type { CommunityEditableSettings } from '../data-access/community-settings.model';
 
 type MembershipRequestsState =
   | { status: 'loading'; items: readonly CommunityMembershipRequestItem[] }
@@ -57,34 +61,6 @@ interface MembershipReviewCommand {
   request: CommunityMembershipRequestItem;
   action: CommunityMembershipReviewAction;
 }
-
-const MEMBERSHIP_REVIEW_REASON_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
-    community_capacity_reached:
-      'A capacidade atual foi atingida. A solicitação continua pendente.',
-    moderator_required:
-      'Seu acesso de moderação não permite revisar esta solicitação.',
-    self_review_forbidden:
-      'Você não pode revisar a própria solicitação.',
-    membership_blocked:
-      'Este vínculo está bloqueado e não pode ser alterado.',
-    protected_membership:
-      'Este participante possui uma função protegida nesta Comunidade.',
-    request_not_pending:
-      'Esta solicitação já foi processada ou não está mais pendente.',
-    account_restricted:
-      'A conta deste participante não está elegível para entrada neste momento.',
-    adult_access_required:
-      'A conta deste participante precisa confirmar o acesso adulto antes da entrada.',
-    profile_incomplete:
-      'A conta deste participante precisa concluir o perfil antes da entrada.',
-    community_not_manageable:
-      'Esta Comunidade não pode revisar solicitações no estado atual.',
-    community_not_found:
-      'Esta Comunidade não está mais disponível.',
-    invalid_membership_review:
-      'Não foi possível validar esta solicitação.',
-  });
 
 @Component({
   selector: 'app-community-membership-management',
@@ -231,7 +207,7 @@ export class CommunityMembershipManagementComponent {
         ? 'Não foi possível carregar as solicitações de acesso.'
         : 'Não foi possível carregar as solicitações de entrada.',
       notification: 'none',
-      reasonMessages: MEMBERSHIP_REVIEW_REASON_MESSAGES,
+      reasonMessages: COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityMembershipManagementComponent',
         communityId: this.communityId(),
@@ -250,17 +226,8 @@ export class CommunityMembershipManagementComponent {
       fallbackMessage: this.sourceType() === 'venue'
         ? 'Não foi possível revisar esta solicitação de acesso.'
         : 'Não foi possível revisar esta solicitação de entrada.',
-      reasonMessages: MEMBERSHIP_REVIEW_REASON_MESSAGES,
-      codeMessages: {
-        'permission-denied':
-          'Seu acesso atual não permite revisar esta solicitação.',
-        'failed-precondition':
-          'Esta solicitação não pode ser alterada no estado atual.',
-        'not-found':
-          'Esta solicitação ou Comunidade não está mais disponível.',
-        'invalid-argument':
-          'Não foi possível validar esta solicitação.',
-      },
+      reasonMessages: COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
+      codeMessages: COMMUNITY_MEMBERSHIP_REVIEW_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityMembershipManagementComponent',
         communityId: this.communityId(),
