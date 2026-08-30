@@ -402,18 +402,66 @@ export const COMMUNITY_OWNERSHIP_ACTION_CODE_MESSAGES: CommunityErrorMessageMap 
 
 export const COMMUNITY_FEED_POST_REASON_MESSAGES: CommunityErrorMessageMap =
   Object.freeze({
+    community_feed_unavailable:
+      'As publicações desta Comunidade não estão disponíveis neste momento.',
+    community_feed_actions_unavailable:
+      'As ações desta publicação não estão disponíveis neste momento.',
+    authentication_required:
+      'Entre novamente para continuar no Mural.',
+    email_verification_required:
+      'Verifique seu e-mail antes de publicar ou administrar o Mural.',
     community_feed_rate_limited:
       'Você atingiu o limite temporário de mensagens. Tente mais tarde.',
     active_membership_required:
       'Participe da Comunidade para publicar no Mural.',
     community_unavailable:
       'O Mural desta Comunidade não aceita publicações agora.',
+    invalid_post_request:
+      'Não foi possível validar esta publicação.',
+    multiple_attachments_not_allowed:
+      'Adicione apenas uma foto ou uma localização por publicação.',
+    empty_post:
+      'Escreva uma mensagem ou adicione uma foto ou localização.',
+    image_not_owned:
+      'A foto selecionada não pode ser usada por esta conta.',
+    invalid_image_type:
+      'A foto deve ser JPG, PNG ou WEBP.',
+    invalid_image:
+      'Não foi possível validar a foto enviada.',
+    image_too_large:
+      'A foto excede o limite de 10 MB.',
+    request_id_conflict:
+      'Esta tentativa não pôde ser confirmada com segurança. Tente novamente.',
+    community_not_found:
+      'Esta Comunidade não está mais disponível.',
+    community_feed_post_not_found:
+      'Esta publicação não está mais disponível.',
+    post_already_exists:
+      'Esta publicação já foi confirmada.',
+    referenced_post_unavailable:
+      'A publicação original não está disponível para resposta.',
+    post_author_required:
+      'Somente o autor pode excluir esta publicação.',
+    active_management_required:
+      'Somente a gestão ativa da Comunidade pode remover esta publicação.',
+    removal_reason_required:
+      'Informe um motivo com pelo menos 3 caracteres para remover a publicação.',
+    removal_reason_too_long:
+      'O motivo da remoção deve ter no máximo 240 caracteres.',
+    post_unavailable:
+      'Esta publicação não permite esta ação agora.',
+    invalid_post_action:
+      'Não foi possível validar esta ação sobre a publicação.',
+    moderation_record_inconsistent:
+      'O registro desta ação está inconsistente e exige revisão.',
+    post_projection_inconsistent:
+      'A publicação está inconsistente e exige revisão antes de nova ação.',
     account_restricted:
-      'Sua conta não pode publicar em Comunidades neste momento.',
+      'Sua conta não pode publicar ou administrar Comunidades neste momento.',
     adult_access_required:
-      'Confirme o acesso adulto antes de publicar nesta Comunidade.',
+      'Confirme o acesso adulto antes de continuar nesta Comunidade.',
     profile_incomplete:
-      'Complete seu perfil antes de publicar nesta Comunidade.',
+      'Complete seu perfil antes de continuar nesta Comunidade.',
   });
 
 export const COMMUNITY_FEED_POST_CODE_MESSAGES: CommunityErrorMessageMap =
@@ -500,6 +548,14 @@ export const COMMUNITY_FEED_REFERENCE_CODE_MESSAGES: CommunityErrorMessageMap =
 
 export const COMMUNITY_FEED_CONVERSATION_REASON_MESSAGES: CommunityErrorMessageMap =
   Object.freeze({
+    community_feed_conversation_unavailable:
+      'A conversa do Mural não está disponível neste momento.',
+    community_feed_comment_actions_unavailable:
+      'As ações desta mensagem não estão disponíveis neste momento.',
+    authentication_required:
+      'Entre novamente para continuar nesta conversa.',
+    email_verification_required:
+      'Verifique seu e-mail antes de responder nesta Comunidade.',
     community_feed_rate_limited:
       'Você enviou muitas mensagens em pouco tempo. Aguarde um instante.',
     active_membership_required:
@@ -508,6 +564,34 @@ export const COMMUNITY_FEED_CONVERSATION_REASON_MESSAGES: CommunityErrorMessageM
       'A conversa desta publicação não está disponível agora.',
     post_unavailable:
       'Esta publicação não aceita novas mensagens agora.',
+    invalid_conversation_message:
+      'Revise a mensagem e tente novamente.',
+    request_id_conflict:
+      'Esta tentativa não pôde ser confirmada com segurança. Tente novamente.',
+    community_not_found:
+      'Esta Comunidade não está mais disponível.',
+    community_feed_post_not_found:
+      'Esta publicação não está mais disponível.',
+    conversation_message_already_exists:
+      'Esta mensagem já foi confirmada.',
+    referenced_message_unavailable:
+      'A mensagem original não está disponível para resposta.',
+    comment_author_required:
+      'Somente o autor pode excluir esta mensagem.',
+    active_management_required:
+      'Somente a gestão ativa da Comunidade pode remover esta mensagem.',
+    removal_reason_required:
+      'Informe um motivo com pelo menos 3 caracteres para remover a mensagem.',
+    removal_reason_too_long:
+      'O motivo da remoção deve ter no máximo 240 caracteres.',
+    comment_unavailable:
+      'Esta mensagem não permite esta ação agora.',
+    invalid_comment_action:
+      'Não foi possível validar esta ação sobre a mensagem.',
+    moderation_record_inconsistent:
+      'O registro desta ação está inconsistente e exige revisão.',
+    community_feed_comment_not_found:
+      'Esta mensagem não está mais disponível.',
     account_restricted:
       'Sua conta não pode interagir em Comunidades neste momento.',
     adult_access_required:
