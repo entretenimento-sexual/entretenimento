@@ -410,12 +410,15 @@ export class CommunityTopicsComponent {
       this.replyForm.reset({ body: '' });
     }
     this.selectedTopicId.set(topicId);
+    queueMicrotask(() => this.scrollTopicDetailIntoView());
   }
 
   closeTopic(): void {
+    const topicId = this.selectedTopicId();
     this.pendingReplyRequest = null;
     this.replyForm.reset({ body: '' });
     this.selectedTopicId.set(null);
+    queueMicrotask(() => this.restoreTopicCardFocus(topicId));
   }
 
   loadMoreTopics(cursor: string | null): void {
@@ -448,6 +451,27 @@ export class CommunityTopicsComponent {
 
   dateTimeLabel(timestamp: number): string {
     return DATE_TIME_FORMATTER.format(new Date(timestamp));
+  }
+
+  private scrollTopicDetailIntoView(): void {
+    const detail = globalThis.document?.getElementById('community-topic-detail');
+    if (!detail || typeof detail.scrollIntoView !== 'function') return;
+    detail.scrollIntoView({ block: 'start', behavior: 'auto' });
+  }
+
+  private restoreTopicCardFocus(topicId: string | null): void {
+    if (!topicId || !globalThis.document) return;
+    const target = Array.from(
+      globalThis.document.querySelectorAll<HTMLElement>('.community-topics__card')
+    ).find((element) => element.dataset['topicId'] === topicId);
+    if (!target) return;
+
+    if (typeof target.focus === 'function') {
+      target.focus({ preventScroll: true });
+    }
+    if (typeof target.scrollIntoView === 'function') {
+      target.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+    }
   }
 
   private showSuccess(message: string): void {
