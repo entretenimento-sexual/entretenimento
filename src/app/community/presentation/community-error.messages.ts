@@ -221,3 +221,109 @@ export const COMMUNITY_SETTINGS_CODE_MESSAGES: CommunityErrorMessageMap =
     'resource-exhausted':
       'Seu plano atual não permite essa capacidade de membros.',
   });
+
+export const COMMUNITY_TOPIC_REASON_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    community_topics_unavailable:
+      'As Discussões desta Comunidade não estão disponíveis neste momento.',
+    community_topic_rate_limited:
+      'Você atingiu o limite temporário de interações em Discussões. Tente novamente mais tarde.',
+    community_interaction_forbidden:
+      'Sua participação atual não permite interagir nesta Comunidade.',
+    topic_creation_forbidden:
+      'Sua participação atual não permite criar discussões.',
+    topic_reply_forbidden:
+      'Sua participação atual não permite responder nesta discussão.',
+    topic_not_found:
+      'Esta discussão não está mais disponível.',
+    topic_not_replyable:
+      'Esta discussão não aceita novas respostas.',
+    invalid_topic_request:
+      'Revise o título e a mensagem da discussão.',
+    invalid_topic_reply:
+      'Revise a resposta e tente novamente.',
+    community_not_found:
+      'Esta Comunidade não está mais disponível.',
+    request_id_conflict:
+      'Esta tentativa não pôde ser confirmada com segurança. Tente novamente.',
+    account_restricted:
+      'Sua conta não pode interagir em Comunidades neste momento.',
+    adult_access_required:
+      'Confirme o acesso adulto antes de interagir nesta Comunidade.',
+    profile_incomplete:
+      'Complete seu perfil antes de interagir nesta Comunidade.',
+  });
+
+export const COMMUNITY_TOPIC_CREATE_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'resource-exhausted':
+      'Você atingiu o limite temporário de interações em Discussões. Tente novamente mais tarde.',
+    'permission-denied':
+      'Sua participação atual não permite criar discussões.',
+    'failed-precondition':
+      'Sua conta ou esta discussão precisa ser atualizada antes desta interação.',
+    'not-found':
+      'Esta Comunidade não está mais disponível.',
+    'invalid-argument':
+      'Revise o título e a mensagem da discussão.',
+  });
+
+export const COMMUNITY_TOPIC_REPLY_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'resource-exhausted':
+      'Você atingiu o limite temporário de interações em Discussões. Tente novamente mais tarde.',
+    'permission-denied':
+      'Sua participação atual não permite responder nesta discussão.',
+    'failed-precondition':
+      'Sua conta ou esta discussão precisa ser atualizada antes desta interação.',
+    'not-found':
+      'Esta discussão não está mais disponível.',
+    'invalid-argument':
+      'Revise a resposta e tente novamente.',
+  });
+
+export const COMMUNITY_TOPIC_MODERATION_REASON_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    community_topic_moderation_unavailable:
+      'A moderação de Discussões não está disponível neste momento.',
+    topic_moderation_forbidden:
+      'Sua função atual não permite moderar esta discussão.',
+    removal_reason_required:
+      'Informe um motivo com pelo menos 3 caracteres para remover a discussão.',
+    removal_reason_too_long:
+      'O motivo da remoção deve ter no máximo 240 caracteres.',
+    removed_topic:
+      'Uma discussão removida não pode ser reaberta.',
+    topic_transition_forbidden:
+      'O estado atual desta discussão não permite esta ação.',
+    topic_not_found:
+      'Esta discussão não está mais disponível.',
+    community_not_found:
+      'Esta Comunidade não está mais disponível.',
+    request_id_conflict:
+      'Esta tentativa de moderação não pôde ser confirmada com segurança.',
+    moderation_record_inconsistent:
+      'O registro desta moderação está inconsistente e exige revisão.',
+    topic_projection_inconsistent:
+      'A discussão está inconsistente e exige revisão antes de nova moderação.',
+    account_restricted:
+      'Sua conta não pode executar esta ação administrativa neste momento.',
+    adult_access_required:
+      'Confirme o acesso adulto antes de executar esta ação.',
+    profile_incomplete:
+      'Complete seu perfil antes de executar esta ação.',
+  });
+
+export const COMMUNITY_TOPIC_MODERATION_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'permission-denied':
+      'Sua função atual não permite moderar esta discussão.',
+    'invalid-argument':
+      'Revise o motivo e tente novamente.',
+    'failed-precondition':
+      'O estado desta discussão mudou. Atualize a discussão antes de moderar novamente.',
+    'not-found':
+      'Esta discussão não está mais disponível.',
+    'data-loss':
+      'A discussão está inconsistente e exige revisão antes de nova moderação.',
+  });
