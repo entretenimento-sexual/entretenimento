@@ -144,7 +144,7 @@ jobs:
               const actions = Array.from(document.querySelectorAll('button.community-post__action, a.community-post__action')).filter(visible).map(size);
               const composer = Array.from(document.querySelectorAll('.community-feed__composer-tool, .community-feed__send')).filter(visible).map(size);
               const locationSummaries = Array.from(document.querySelectorAll('.community-post__location-details > summary')).filter(visible);
-              const locationDirectLinks = Array.from(document.querySelectorAll('.community-post__location a[href*="google.com/maps/search"]')).filter(visible);
+              const locationDirectLinks = Array.from(document.querySelectorAll('.community-post__location a')).filter((anchor) => (anchor.getAttribute('href') ?? '').includes('google.com/maps/search')).filter(visible);
               const buttons = Array.from(document.querySelectorAll('button')).filter(visible);
               return {
                 viewportWidth: window.innerWidth,
@@ -203,7 +203,7 @@ jobs:
                 expanded: details?.hasAttribute('open') ?? false,
                 iframeCount: document.querySelectorAll('.community-post__location-map iframe').length,
                 iframeSrc: iframe?.getAttribute('src') ?? '',
-                directLinkCount: document.querySelectorAll('.community-post__location a[href*="google.com/maps/search"]').length,
+                directLinkCount: Array.from(document.querySelectorAll('.community-post__location a')).filter((anchor) => (anchor.getAttribute('href') ?? '').includes('google.com/maps/search')).length,
                 scrollWidth: document.documentElement.scrollWidth,
                 viewportWidth: window.innerWidth,
               };
@@ -272,7 +272,7 @@ jobs:
               const composer = Array.from(document.querySelectorAll('.community-feed__composer-tool, .community-feed__send')).map(size);
               const references = Array.from(document.querySelectorAll('.community-post__reply-context.is-navigable')).map((element) => element.getBoundingClientRect().height);
               const locationSummaries = Array.from(document.querySelectorAll('.community-post__location-details > summary'));
-              const locationDirectLinks = Array.from(document.querySelectorAll('.community-post__location a[href*="google.com/maps/search"]'));
+              const locationDirectLinks = Array.from(document.querySelectorAll('.community-post__location a')).filter((anchor) => (anchor.getAttribute('href') ?? '').includes('google.com/maps/search'));
               return {
                 viewportWidth: window.innerWidth,
                 scrollWidth: document.documentElement.scrollWidth,
