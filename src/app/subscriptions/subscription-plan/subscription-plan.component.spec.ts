@@ -231,7 +231,7 @@ describe('SubscriptionPlanComponent', () => {
     );
   });
 
-  it('deve continuar renderizando os cards dos planos', () => {
+  it('deve continuar renderizando os cards dos planos sem duplicar quotas autoritativas no frontend', () => {
     warningSubject.next(false);
     fixture.detectChanges();
 
@@ -239,8 +239,11 @@ describe('SubscriptionPlanComponent', () => {
     expect(text).toContain('Plano Básico');
     expect(text).toContain('Plano Premium');
     expect(text).toContain('Plano VIP');
-    expect(text).toContain('Crie 1 Comunidade pessoal');
-    expect(text).toContain('Crie até 3 Comunidades pessoais');
-    expect(text).toContain('Crie até 5 Comunidades pessoais');
+    expect(text).toContain('Criação e administração de Comunidade pessoal');
+    expect(text).toContain('Mais espaço para criar e administrar Comunidades pessoais');
+    expect(text).toContain('Maior liberdade para administrar Comunidades pessoais');
+    expect(text).not.toContain('Crie 1 Comunidade pessoal');
+    expect(text).not.toContain('Crie até 3 Comunidades pessoais');
+    expect(text).not.toContain('Crie até 5 Comunidades pessoais');
   });
 });
