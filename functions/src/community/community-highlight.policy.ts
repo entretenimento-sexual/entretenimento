@@ -10,6 +10,7 @@ import type { CommunityFeedWriterRole } from './community-feed-write.policy';
 
 export type CommunityHighlightDenialReason =
   | 'community_source_not_supported'
+  | 'community_unavailable'
   | 'active_management_required'
   | 'post_unavailable';
 
@@ -25,6 +26,7 @@ function isManagementRole(role: CommunityFeedWriterRole): boolean {
 export function evaluateCommunityHighlightAction(input: {
   action: CommunityHighlightAction;
   sourceType: unknown;
+  communityOperational: boolean;
   membershipStatus: unknown;
   viewerRole: CommunityFeedWriterRole;
   targetPostStatus?: unknown;
@@ -32,6 +34,10 @@ export function evaluateCommunityHighlightAction(input: {
 }): Readonly<CommunityHighlightDecision> {
   if (input.sourceType !== 'community') {
     return denied('community_source_not_supported');
+  }
+
+  if (!input.communityOperational) {
+    return denied('community_unavailable');
   }
 
   if (
