@@ -53,8 +53,13 @@ import {
 } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityFeedComponent } from '../feed/community-feed.component';
-import { CommunityMembershipManagementComponent } from '../membership-management/community-membership-management.component';
 import { CommunityInviteManagementComponent } from '../invite-management/community-invite-management.component';
+import { CommunityMembershipManagementComponent } from '../membership-management/community-membership-management.component';
+import {
+  COMMUNITY_MEMBERSHIP_ACTION_CODE_MESSAGES,
+  COMMUNITY_MEMBERSHIP_ACTION_REASON_MESSAGES,
+  COMMUNITY_PREVIEW_LOAD_CODE_MESSAGES,
+} from '../presentation/community-error.messages';
 import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
@@ -138,36 +143,6 @@ const ACCESS_REASONS = new Set<ContentAccessDenialReason>([
   'role_insufficient',
   'access_check_unavailable',
 ]);
-
-const COMMUNITY_MEMBERSHIP_REASON_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
-    community_capacity_reached:
-      'A Comunidade atingiu a capacidade atual. Novas entradas estão pausadas.',
-    owner_transfer_required:
-      'Transfira a propriedade da Comunidade antes de sair.',
-    membership_blocked:
-      'Este vínculo está bloqueado e não pode ser alterado.',
-    invite_only:
-      'A entrada nesta Comunidade é feita somente por convite.',
-    actor_restricted:
-      'Sua conta não pode participar desta Comunidade neste momento.',
-    community_unavailable:
-      'Esta Comunidade não aceita novas entradas agora.',
-    membership_not_found:
-      'Você não possui participação ativa ou pendente nesta Comunidade.',
-  });
-
-const COMMUNITY_MEMBERSHIP_CODE_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
-    'not-found': 'Esta Comunidade não está mais disponível.',
-    'permission-denied':
-      'Sua conta não tem permissão para realizar esta ação nesta Comunidade.',
-    'failed-precondition':
-      'Esta ação não está disponível no estado atual da Comunidade.',
-    'invalid-argument': 'Não foi possível validar esta Comunidade.',
-    'data-loss':
-      'Não foi possível validar o estado atual da Comunidade. Tente novamente.',
-  });
 
 const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | null>> =
   Object.freeze({
@@ -701,10 +676,7 @@ export class CommunityPreviewPageComponent {
       operation: 'loadPreview',
       fallbackMessage: 'Não foi possível carregar esta Comunidade agora.',
       notification: 'none',
-      codeMessages: {
-        'not-found': 'Esta Comunidade não está mais disponível.',
-        'permission-denied': 'Você não tem acesso a esta Comunidade.',
-      },
+      codeMessages: COMMUNITY_PREVIEW_LOAD_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityPreviewPageComponent',
         section: this.activeSection(),
@@ -749,8 +721,8 @@ export class CommunityPreviewPageComponent {
       feature: 'community',
       operation: kind === 'leave' ? 'leaveMembership' : 'requestMembership',
       fallbackMessage,
-      codeMessages: COMMUNITY_MEMBERSHIP_CODE_MESSAGES,
-      reasonMessages: COMMUNITY_MEMBERSHIP_REASON_MESSAGES,
+      codeMessages: COMMUNITY_MEMBERSHIP_ACTION_CODE_MESSAGES,
+      reasonMessages: COMMUNITY_MEMBERSHIP_ACTION_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityPreviewPageComponent',
         communityId: community.communityId,
