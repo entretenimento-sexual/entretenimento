@@ -54,6 +54,26 @@ export function evaluateCommunityHighlightAction(input: {
   return { allowed: true, denialReason: null };
 }
 
+export function shouldClearCommunityHighlightForPostTransition(input: {
+  highlightedTargetType: unknown;
+  highlightedTargetId: unknown;
+  postId: string;
+  afterExists: boolean;
+  afterStatus: unknown;
+  afterModerationState: unknown;
+}): boolean {
+  if (
+    input.highlightedTargetType !== 'feed_post'
+    || input.highlightedTargetId !== input.postId
+  ) {
+    return false;
+  }
+
+  return !input.afterExists
+    || input.afterStatus !== 'active'
+    || input.afterModerationState !== 'active';
+}
+
 function denied(
   denialReason: CommunityHighlightDenialReason
 ): CommunityHighlightDecision {
