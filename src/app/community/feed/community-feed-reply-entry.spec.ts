@@ -288,9 +288,7 @@ describe('CommunityFeedComponent conversation entry points', () => {
 
     reference.click();
     fixture.detectChanges();
-    await Promise.resolve();
-    fixture.detectChanges();
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 25));
     fixture.detectChanges();
 
     expect(feedRepository.getItems$).toHaveBeenCalledWith({
