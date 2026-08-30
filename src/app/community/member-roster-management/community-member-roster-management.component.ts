@@ -36,6 +36,10 @@ import {
   CommunityMemberManagementAction,
 } from '../data-access/community-member-management.model';
 import { CommunityMemberManagementRepository } from '../data-access/community-member-management.repository';
+import {
+  COMMUNITY_MEMBER_MANAGEMENT_CODE_MESSAGES,
+  COMMUNITY_MEMBER_MANAGEMENT_REASON_MESSAGES,
+} from '../presentation/community-error.messages';
 
 type ManagedMembersStatus = 'loading' | 'ready' | 'empty' | 'error';
 
@@ -85,26 +89,6 @@ type RoleChangeConfirmation = {
 };
 
 type ManagementConfirmation = DestructiveConfirmation | RoleChangeConfirmation;
-
-const MEMBER_MANAGEMENT_REASON_MESSAGES: Readonly<Record<string, string>> =
-  Object.freeze({
-    'recent-authentication-required':
-      'Por segurança, saia e entre novamente antes de confirmar esta ação administrativa.',
-    community_source_not_supported:
-      'Esta ação não está disponível para este tipo de espaço.',
-    manager_required:
-      'Sua função não permite gerenciar participantes desta Comunidade.',
-    self_action_forbidden:
-      'Use os controles da sua própria participação para alterar seu vínculo.',
-    owner_protected:
-      'O proprietário só pode ser alterado pelo fluxo de transferência de propriedade.',
-    target_unavailable:
-      'O vínculo deste participante não permite esta ação agora.',
-    role_change_forbidden:
-      'Sua função não permite atribuir este papel ao participante.',
-    action_forbidden:
-      'Sua função não permite executar esta ação sobre este participante.',
-  });
 
 function initialState(
   listStatus: CommunityManagedMemberListStatus
@@ -457,7 +441,7 @@ export class CommunityMemberRosterManagementComponent {
       operation: 'loadManagedMembers',
       fallbackMessage: 'Não foi possível carregar os participantes da Comunidade.',
       notification: 'none',
-      reasonMessages: MEMBER_MANAGEMENT_REASON_MESSAGES,
+      reasonMessages: COMMUNITY_MEMBER_MANAGEMENT_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityMemberRosterManagementComponent',
         communityId: this.communityId().trim(),
@@ -472,17 +456,8 @@ export class CommunityMemberRosterManagementComponent {
       feature: 'community',
       operation: 'manageCommunityMember',
       fallbackMessage: this.actionErrorMessage(command.action),
-      reasonMessages: MEMBER_MANAGEMENT_REASON_MESSAGES,
-      codeMessages: {
-        'permission-denied':
-          'Sua função não permite executar esta ação sobre este participante.',
-        'failed-precondition':
-          'O vínculo deste participante não permite esta ação agora.',
-        'invalid-argument':
-          'Não foi possível validar esta alteração de participante.',
-        'not-found':
-          'Este participante ou Comunidade não está mais disponível.',
-      },
+      reasonMessages: COMMUNITY_MEMBER_MANAGEMENT_REASON_MESSAGES,
+      codeMessages: COMMUNITY_MEMBER_MANAGEMENT_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityMemberRosterManagementComponent',
         communityId: this.communityId().trim(),
