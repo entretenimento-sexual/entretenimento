@@ -24,6 +24,7 @@ function communityPreview() {
       source: { type: 'community' as const, id: 'community-1' },
       avatarUrl: null,
       coverUrl: null,
+      tags: [],
       metrics: { memberCount: 10, postCount: 3, mediaCount: 2 },
       access: {
         join: 'open' as const,
