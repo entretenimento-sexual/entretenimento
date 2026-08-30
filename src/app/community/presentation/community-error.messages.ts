@@ -399,3 +399,151 @@ export const COMMUNITY_OWNERSHIP_ACTION_CODE_MESSAGES: CommunityErrorMessageMap 
     'not-found':
       'Esta Comunidade ou participante não está mais disponível.',
   });
+
+export const COMMUNITY_FEED_POST_REASON_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    community_feed_rate_limited:
+      'Você atingiu o limite temporário de mensagens. Tente mais tarde.',
+    active_membership_required:
+      'Participe da Comunidade para publicar no Mural.',
+    community_unavailable:
+      'O Mural desta Comunidade não aceita publicações agora.',
+    account_restricted:
+      'Sua conta não pode publicar em Comunidades neste momento.',
+    adult_access_required:
+      'Confirme o acesso adulto antes de publicar nesta Comunidade.',
+    profile_incomplete:
+      'Complete seu perfil antes de publicar nesta Comunidade.',
+  });
+
+export const COMMUNITY_FEED_POST_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'resource-exhausted':
+      'Você atingiu o limite temporário de mensagens. Tente mais tarde.',
+    'permission-denied':
+      'Sua participação atual não permite publicar no Mural.',
+    'failed-precondition':
+      'O Mural desta Comunidade não aceita publicações agora.',
+    'invalid-argument':
+      'Revise a mensagem e tente novamente.',
+    'not-found':
+      'Esta Comunidade ou publicação não está mais disponível.',
+    'already-exists':
+      'Esta tentativa de publicação não pôde ser confirmada com segurança. Tente novamente.',
+  });
+
+export const COMMUNITY_FEED_POST_ACTION_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'permission-denied':
+      'Sua função atual não permite executar esta ação sobre a publicação.',
+    'invalid-argument':
+      'Revise os dados da ação e tente novamente.',
+    'failed-precondition':
+      'Esta publicação não permite a ação solicitada agora.',
+    'not-found':
+      'Esta publicação ou Comunidade não está mais disponível.',
+    'data-loss':
+      'A publicação está inconsistente e exige revisão antes de nova ação.',
+    'already-exists':
+      'Esta tentativa não pôde ser confirmada com segurança. Tente novamente.',
+  });
+
+export const COMMUNITY_FEED_REACTION_REASON_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    community_feed_reactions_unavailable:
+      'As reações do Mural não estão disponíveis neste momento.',
+    community_feed_reaction_unavailable:
+      'Esta publicação não aceita reações agora.',
+    active_membership_required:
+      'Participe da Comunidade para curtir publicações.',
+    community_unavailable:
+      'Esta Comunidade não aceita interações agora.',
+    post_unavailable:
+      'Esta publicação não aceita reações agora.',
+    community_not_found:
+      'Esta Comunidade não está mais disponível.',
+    community_feed_post_not_found:
+      'Esta publicação não está mais disponível.',
+    invalid_reaction_request:
+      'Não foi possível validar esta reação.',
+    authentication_required:
+      'Entre novamente para reagir a esta publicação.',
+    email_verification_required:
+      'Verifique seu e-mail antes de reagir nesta Comunidade.',
+    account_restricted:
+      'Sua conta não pode interagir em Comunidades neste momento.',
+    adult_access_required:
+      'Confirme o acesso adulto antes de interagir nesta Comunidade.',
+    profile_incomplete:
+      'Complete seu perfil antes de interagir nesta Comunidade.',
+  });
+
+export const COMMUNITY_FEED_REACTION_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'resource-exhausted':
+      'Você reagiu muitas vezes em pouco tempo. Aguarde um instante.',
+    'permission-denied':
+      'Participe da Comunidade para curtir publicações.',
+    'failed-precondition':
+      'Esta publicação não aceita reações agora.',
+    'not-found':
+      'Esta publicação não está mais disponível.',
+    'invalid-argument':
+      'Não foi possível validar esta reação.',
+  });
+
+export const COMMUNITY_FEED_REFERENCE_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'not-found':
+      'A publicação original não está disponível neste momento.',
+  });
+
+export const COMMUNITY_FEED_CONVERSATION_REASON_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    community_feed_rate_limited:
+      'Você enviou muitas mensagens em pouco tempo. Aguarde um instante.',
+    active_membership_required:
+      'Participe da Comunidade para responder no Mural.',
+    community_unavailable:
+      'A conversa desta publicação não está disponível agora.',
+    post_unavailable:
+      'Esta publicação não aceita novas mensagens agora.',
+    account_restricted:
+      'Sua conta não pode interagir em Comunidades neste momento.',
+    adult_access_required:
+      'Confirme o acesso adulto antes de responder nesta Comunidade.',
+    profile_incomplete:
+      'Complete seu perfil antes de responder nesta Comunidade.',
+  });
+
+export const COMMUNITY_FEED_CONVERSATION_CREATE_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'resource-exhausted':
+      'Você enviou muitas mensagens em pouco tempo. Aguarde um instante.',
+    'permission-denied':
+      'Participe da Comunidade para responder no Mural.',
+    'failed-precondition':
+      'Esta publicação não aceita novas mensagens agora.',
+    'not-found':
+      'Esta publicação ou Comunidade não está mais disponível.',
+    'invalid-argument':
+      'Revise a mensagem e tente novamente.',
+    'already-exists':
+      'Esta tentativa não pôde ser confirmada com segurança. Tente novamente.',
+  });
+
+export const COMMUNITY_FEED_CONVERSATION_ACTION_CODE_MESSAGES: CommunityErrorMessageMap =
+  Object.freeze({
+    'permission-denied':
+      'Sua função atual não permite executar esta ação sobre a mensagem.',
+    'invalid-argument':
+      'Revise os dados da ação e tente novamente.',
+    'failed-precondition':
+      'Esta mensagem não permite a ação solicitada agora.',
+    'not-found':
+      'Esta mensagem ou Comunidade não está mais disponível.',
+    'data-loss':
+      'A mensagem está inconsistente e exige revisão antes de nova ação.',
+    'already-exists':
+      'Esta tentativa não pôde ser confirmada com segurança. Tente novamente.',
+  });
