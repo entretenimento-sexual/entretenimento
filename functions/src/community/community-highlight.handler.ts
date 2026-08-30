@@ -16,16 +16,16 @@ import {
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
 import {
-  CommunityHighlightRequest,
-  CommunityHighlightResponse,
-  CommunityHighlightSnapshot,
-  CommunityHighlightDuration,
   normalizeCommunityHighlightRequest,
   resolveCommunityHighlightExpiresAt,
+  type CommunityHighlightDuration,
+  type CommunityHighlightRequest,
+  type CommunityHighlightResponse,
+  type CommunityHighlightSnapshot,
 } from './community-highlight.model';
 import {
-  CommunityHighlightDenialReason,
   evaluateCommunityHighlightAction,
+  type CommunityHighlightDenialReason,
 } from './community-highlight.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import type { CommunityFeedWriterRole } from './community-feed-write.policy';
@@ -75,6 +75,13 @@ function throwDenied(reason: CommunityHighlightDenialReason | null): never {
     throw new HttpsError(
       'failed-precondition',
       'Este tipo de espaço não oferece destaque editorial.',
+      { reason }
+    );
+  }
+  if (reason === 'community_unavailable') {
+    throw new HttpsError(
+      'failed-precondition',
+      'Esta Comunidade não permite alterar o destaque neste momento.',
       { reason }
     );
   }
@@ -232,6 +239,9 @@ export const manageCommunityHighlight = onCall<CommunityHighlightRequest>(
 
       const community = communitySnapshot.data() ?? {};
       const source = (community['source'] ?? {}) as Record<string, unknown>;
+      const moderation = (community['moderation'] ?? {}) as Record<string, unknown>;
+      const communityOperational = community['status'] === 'active'
+        && moderation['state'] === 'active';
       const membership = membershipSnapshot.exists
         ? membershipSnapshot.data() ?? {}
         : {};
@@ -270,6 +280,7 @@ export const manageCommunityHighlight = onCall<CommunityHighlightRequest>(
       const decision = evaluateCommunityHighlightAction({
         action,
         sourceType: source['type'],
+        communityOperational,
         membershipStatus: membership['status'],
         viewerRole: actorRole,
         targetPostStatus,
