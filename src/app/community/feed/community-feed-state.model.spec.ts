@@ -52,6 +52,7 @@ describe('community feed pagination state', () => {
     });
 
     expect(afterRealtime.loadingMore).toBe(true);
+    expect(afterRealtime.loadMoreError).toBe(false);
     expect(afterRealtime.nextCursor).toBe('cursor-10');
     expect(afterRealtime.items.map((entry) => entry.postId)).toEqual([
       'post-11',
@@ -81,6 +82,7 @@ describe('community feed pagination state', () => {
     });
 
     expect(appended.loadingMore).toBe(false);
+    expect(appended.loadMoreError).toBe(false);
     expect(appended.nextCursor).toBe('cursor-8');
     expect(appended.items.map((entry) => entry.postId)).toEqual([
       'post-10',
@@ -89,7 +91,7 @@ describe('community feed pagination state', () => {
     ]);
   });
 
-  it('preserva histórico e cursor para permitir retry quando página adicional falha', () => {
+  it('preserva histórico, cursor e feedback para retry quando página adicional falha', () => {
     const ready = reduceCommunityFeedState(INITIAL_COMMUNITY_FEED_STATE, {
       type: 'success',
       request: { cursor: null, append: false },
@@ -111,10 +113,29 @@ describe('community feed pagination state', () => {
 
     expect(failed.status).toBe('ready');
     expect(failed.loadingMore).toBe(false);
+    expect(failed.loadMoreError).toBe(true);
     expect(failed.nextCursor).toBe('cursor-9');
     expect(failed.items.map((entry) => entry.postId)).toEqual([
       'post-10',
       'post-9',
     ]);
+
+    const afterRealtime = reduceCommunityFeedState(failed, {
+      type: 'realtime',
+      upserts: [item('post-11', 11_000)],
+      metricPatches: [],
+      removedIds: [],
+    });
+
+    expect(afterRealtime.loadMoreError).toBe(true);
+    expect(afterRealtime.nextCursor).toBe('cursor-9');
+
+    const retrying = reduceCommunityFeedState(afterRealtime, {
+      type: 'loading',
+      request: { cursor: 'cursor-9', append: true },
+    });
+
+    expect(retrying.loadingMore).toBe(true);
+    expect(retrying.loadMoreError).toBe(false);
   });
 });
