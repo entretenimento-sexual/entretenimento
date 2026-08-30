@@ -1104,10 +1104,8 @@ export class CommunityFeedComponent implements OnDestroy {
           throw new Error('Publicação original não encontrada no Mural.');
         }
         this.localFeedEvents$.next({
-          type: 'realtime',
-          upserts: [item],
-          metricPatches: [],
-          removedIds: [],
+          type: 'reference',
+          item,
         });
       }),
       map(() => undefined)
