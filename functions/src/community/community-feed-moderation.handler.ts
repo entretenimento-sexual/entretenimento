@@ -49,7 +49,8 @@ function assertFeedRuntime(): void {
 
   throw new HttpsError(
     'failed-precondition',
-    'As ações do Mural ainda não estão disponíveis neste ambiente.'
+    'As ações do Mural ainda não estão disponíveis neste ambiente.',
+    { reason: 'community_feed_actions_unavailable' }
   );
 }
 
@@ -57,9 +58,19 @@ function assertAuthenticatedUid(
   auth: { uid?: string; token?: Record<string, unknown> } | undefined
 ): string {
   const uid = String(auth?.uid ?? '').trim();
-  if (!uid) throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
+  if (!uid) {
+    throw new HttpsError(
+      'unauthenticated',
+      'Usuário não autenticado.',
+      { reason: 'authentication_required' }
+    );
+  }
   if (auth?.token?.['email_verified'] !== true) {
-    throw new HttpsError('failed-precondition', 'Verifique seu e-mail para continuar.');
+    throw new HttpsError(
+      'failed-precondition',
+      'Verifique seu e-mail para continuar.',
+      { reason: 'email_verification_required' }
+    );
   }
   return uid;
 }
@@ -90,15 +101,31 @@ function normalizeCount(value: unknown): number {
 
 function throwDenied(reason: string | null): never {
   if (reason === 'post_author_required') {
-    throw new HttpsError('permission-denied', 'Somente o autor pode excluir esta publicação.');
+    throw new HttpsError(
+      'permission-denied',
+      'Somente o autor pode excluir esta publicação.',
+      { reason }
+    );
   }
   if (reason === 'active_management_required') {
-    throw new HttpsError('permission-denied', 'A gestão ativa da Comunidade é necessária.');
+    throw new HttpsError(
+      'permission-denied',
+      'A gestão ativa da Comunidade é necessária.',
+      { reason }
+    );
   }
   if (reason === 'removal_reason_required') {
-    throw new HttpsError('invalid-argument', 'Informe um motivo com pelo menos 3 caracteres.');
+    throw new HttpsError(
+      'invalid-argument',
+      'Informe um motivo com pelo menos 3 caracteres.',
+      { reason }
+    );
   }
-  throw new HttpsError('failed-precondition', 'Esta publicação não permite a ação solicitada.');
+  throw new HttpsError(
+    'failed-precondition',
+    'Esta publicação não permite a ação solicitada.',
+    { reason: reason ?? 'post_unavailable' }
+  );
 }
 
 function stagePostPhotoCleanup(
@@ -141,10 +168,18 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
       || !command.postId
       || !command.action
     ) {
-      throw new HttpsError('invalid-argument', 'Ação de publicação inválida.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Ação de publicação inválida.',
+        { reason: 'invalid_post_action' }
+      );
     }
     if (command.reasonTooLong) {
-      throw new HttpsError('invalid-argument', 'O motivo deve ter no máximo 240 caracteres.');
+      throw new HttpsError(
+        'invalid-argument',
+        'O motivo deve ter no máximo 240 caracteres.',
+        { reason: 'removal_reason_too_long' }
+      );
     }
     const action = command.action;
 
@@ -201,12 +236,20 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
           || existing['postId'] !== postId
           || existing['action'] !== action
         ) {
-          throw new HttpsError('already-exists', 'Este identificador já foi utilizado.');
+          throw new HttpsError(
+            'already-exists',
+            'Este identificador já foi utilizado.',
+            { reason: 'request_id_conflict' }
+          );
         }
         const storedStatus = normalizeStatus(existing['status']);
         const completedAt = Number(existing['completedAt']);
         if (!storedStatus || !Number.isFinite(completedAt)) {
-          throw new HttpsError('data-loss', 'O registro desta ação está inconsistente.');
+          throw new HttpsError(
+            'data-loss',
+            'O registro desta ação está inconsistente.',
+            { reason: 'moderation_record_inconsistent' }
+          );
         }
         const post = postSnapshot.exists ? postSnapshot.data() ?? {} : {};
         return {
@@ -223,10 +266,18 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
       }
 
       if (!communitySnapshot.exists) {
-        throw new HttpsError('not-found', 'Comunidade não encontrada.');
+        throw new HttpsError(
+          'not-found',
+          'Comunidade não encontrada.',
+          { reason: 'community_not_found' }
+        );
       }
       if (!postSnapshot.exists) {
-        throw new HttpsError('not-found', 'Publicação não encontrada.');
+        throw new HttpsError(
+          'not-found',
+          'Publicação não encontrada.',
+          { reason: 'community_feed_post_not_found' }
+        );
       }
 
       assertCommunityMembershipActorEligible(
@@ -257,7 +308,11 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
         throwDenied(decision.denialReason);
       }
       if (!decision.idempotent && !projectionSnapshot.exists) {
-        throw new HttpsError('data-loss', 'A projeção desta publicação está inconsistente.');
+        throw new HttpsError(
+          'data-loss',
+          'A projeção desta publicação está inconsistente.',
+          { reason: 'post_projection_inconsistent' }
+        );
       }
 
       const nowMs = Date.now();
