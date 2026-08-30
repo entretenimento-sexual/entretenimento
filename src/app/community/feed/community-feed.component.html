@@ -627,14 +627,28 @@
 
       @if (state.nextCursor) {
         <div class="community-feed__more">
+          @if (state.loadMoreError) {
+            <p
+              class="community-feed__composer-error"
+              role="status"
+              aria-live="polite"
+              style="margin: 0; text-align: center;"
+            >
+              Não foi possível carregar publicações anteriores. O que já está no Mural foi preservado.
+            </p>
+          }
           <button
             type="button"
             [disabled]="state.loadingMore"
+            [attr.aria-label]="state.loadMoreError ? 'Tentar carregar publicações anteriores novamente' : 'Carregar publicações anteriores'"
             (click)="loadMore(state.nextCursor)"
           >
             @if (state.loadingMore) {
               <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
               <span>Carregando</span>
+            } @else if (state.loadMoreError) {
+              <i class="fas fa-rotate-right" aria-hidden="true"></i>
+              <span>Tentar novamente</span>
             } @else {
               <i class="fas fa-chevron-down" aria-hidden="true"></i>
               <span>Ver mais</span>
