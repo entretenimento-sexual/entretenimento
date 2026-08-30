@@ -140,9 +140,9 @@ describe('CommunityFeedComponent reference navigation', () => {
     ) as HTMLAnchorElement;
 
     expect(reference).not.toBeNull();
-    expect(fixture.nativeElement.textContent).not.toContain(
-      'Publicação original mais antiga.'
-    );
+    expect(
+      fixture.nativeElement.querySelector('#community-feed-post-post-original')
+    ).toBeNull();
 
     reference.click();
     fixture.detectChanges();
@@ -152,9 +152,9 @@ describe('CommunityFeedComponent reference navigation', () => {
       view: 'feed',
       postIds: ['post-original'],
     });
-    expect(fixture.nativeElement.textContent).toContain(
-      'Publicação original mais antiga.'
-    );
+    expect(
+      fixture.nativeElement.querySelector('#community-feed-post-post-original')
+    ).not.toBeNull();
 
     await vi.advanceTimersByTimeAsync(20);
     fixture.detectChanges();
