@@ -78,6 +78,10 @@ import {
   CommunityFeedComposerContext,
   CommunityFeedComposerFacade,
 } from './community-feed-composer.facade';
+import {
+  dismissOpenCommunityFeedDetailsOnEscape,
+  dismissOpenCommunityFeedDetailsOutside,
+} from './community-feed-disclosure-menu.util';
 import { CommunityFeedReactionFacade } from './community-feed-reaction.facade';
 import { CommunityFeedReferenceNavigationFacade } from './community-feed-reference-navigation.facade';
 import { createCommunityFeedRequestId } from './community-feed-request-id';
@@ -158,6 +162,7 @@ export class CommunityFeedComponent implements OnDestroy {
   private readonly postHighlightRequests$ = new Subject<string>();
   private readonly locationEmbedUrlCache = new Map<string, SafeResourceUrl>();
   private readonly postElements = viewChildren<ElementRef<HTMLElement>>('postElement');
+  private readonly postMenus = viewChildren<ElementRef<HTMLDetailsElement>>('postMenu');
   private readonly attachmentMenu = viewChild<ElementRef<HTMLDetailsElement>>('attachmentMenu');
   private readonly pendingOwnPostFollowId = signal<string | null>(null);
   private readonly unseenAnchorPostId = signal<string | null>(null);
@@ -639,16 +644,19 @@ export class CommunityFeedComponent implements OnDestroy {
 
   @HostListener('document:pointerdown', ['$event'])
   onDocumentPointerDown(event: Event): void {
-    const menu = this.attachmentMenu()?.nativeElement;
-    const target = event.target;
-    if (!menu?.open || !(target instanceof Node) || menu.contains(target)) return;
-    menu.open = false;
+    dismissOpenCommunityFeedDetailsOutside(
+      this.openableMenus(),
+      event.target
+    );
   }
 
-  @HostListener('document:keydown.escape')
-  onDocumentEscape(): void {
-    const menu = this.attachmentMenu()?.nativeElement;
-    if (menu?.open) menu.open = false;
+  @HostListener('document:keydown.escape', ['$event'])
+  onDocumentEscape(event?: KeyboardEvent): void {
+    const dismissed = dismissOpenCommunityFeedDetailsOnEscape(
+      this.openableMenus(),
+      globalThis.document?.activeElement ?? null
+    );
+    if (dismissed) event?.preventDefault();
   }
 
   @HostListener('window:scroll')
@@ -768,6 +776,13 @@ export class CommunityFeedComponent implements OnDestroy {
       sourceType: this.sourceType(),
       canInteract: this.canInteract(),
     };
+  }
+
+  private openableMenus(): HTMLDetailsElement[] {
+    const menus = this.postMenus().map((menu) => menu.nativeElement);
+    const attachmentMenu = this.attachmentMenu()?.nativeElement;
+    if (attachmentMenu) menus.push(attachmentMenu);
+    return menus;
   }
 
   private normalizedMapCoordinates(
