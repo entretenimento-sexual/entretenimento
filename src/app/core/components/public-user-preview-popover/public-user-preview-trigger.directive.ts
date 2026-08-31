@@ -22,25 +22,30 @@ import { PublicUserPreviewPopoverComponent } from './public-user-preview-popover
 
 const DESKTOP_POSITIONS: readonly ConnectedPosition[] = [
   {
-    originX: 'end',
+    originX: 'start',
     originY: 'center',
     overlayX: 'start',
     overlayY: 'center',
-    offsetX: 12,
   },
   {
-    originX: 'start',
+    originX: 'end',
     originY: 'center',
     overlayX: 'end',
     overlayY: 'center',
-    offsetX: -12,
   },
   {
     originX: 'center',
     originY: 'bottom',
     overlayX: 'center',
     overlayY: 'top',
-    offsetY: 10,
+    offsetY: 8,
+  },
+  {
+    originX: 'center',
+    originY: 'top',
+    overlayX: 'center',
+    overlayY: 'bottom',
+    offsetY: -8,
   },
 ];
 
@@ -56,6 +61,7 @@ const DESKTOP_POSITIONS: readonly ConnectedPosition[] = [
 export class PublicUserPreviewTriggerDirective {
   readonly appPublicUserPreviewTrigger = input<PublicUserPreview | null>(null);
   readonly publicUserPreviewRelationship = input<string | null>(null);
+  readonly publicUserPreviewProfileRoute = input<readonly string[] | null>(null);
   readonly isOpen = signal(false);
 
   private readonly overlay = inject(Overlay);
@@ -138,6 +144,10 @@ export class PublicUserPreviewTriggerDirective {
     componentRef.setInput(
       'relationshipLabel',
       this.publicUserPreviewRelationship()
+    );
+    componentRef.setInput(
+      'profileRoute',
+      this.publicUserPreviewProfileRoute()
     );
     this.isOpen.set(true);
 
