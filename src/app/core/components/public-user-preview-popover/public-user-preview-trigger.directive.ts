@@ -1,4 +1,5 @@
 // src/app/core/components/public-user-preview-popover/public-user-preview-trigger.directive.ts
+import { DOCUMENT } from '@angular/common';
 import {
   DestroyRef,
   Directive,
@@ -6,6 +7,7 @@ import {
   ViewContainerRef,
   inject,
   input,
+  signal,
 } from '@angular/core';
 import {
   ConnectedPosition,
@@ -54,15 +56,18 @@ const DESKTOP_POSITIONS: readonly ConnectedPosition[] = [
 export class PublicUserPreviewTriggerDirective {
   readonly appPublicUserPreviewTrigger = input<PublicUserPreview | null>(null);
   readonly publicUserPreviewRelationship = input<string | null>(null);
+  readonly isOpen = signal(false);
 
   private readonly overlay = inject(Overlay);
   private readonly elementRef = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly viewContainerRef = inject(ViewContainerRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly document = inject(DOCUMENT);
 
   private overlayRef: OverlayRef | null = null;
   private openTimer: ReturnType<typeof setTimeout> | null = null;
   private closeTimer: ReturnType<typeof setTimeout> | null = null;
+  private returnFocusTarget: HTMLElement | null = null;
 
   constructor() {
     this.destroyRef.onDestroy(() => this.disposeOverlay());
@@ -90,6 +95,14 @@ export class PublicUserPreviewTriggerDirective {
     if (this.overlayRef?.hasAttached()) {
       return;
     }
+
+    const activeElement = this.document.activeElement as HTMLElement | null;
+    this.returnFocusTarget = activeElement
+      && activeElement !== this.document.body
+      && activeElement !== this.document.documentElement
+      && typeof activeElement.focus === 'function'
+      ? activeElement
+      : null;
 
     this.disposeOverlay();
     const isCoarsePointer = this.isCoarsePointer();
@@ -126,6 +139,7 @@ export class PublicUserPreviewTriggerDirective {
       'relationshipLabel',
       this.publicUserPreviewRelationship()
     );
+    this.isOpen.set(true);
 
     overlayRef.outsidePointerEvents()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -136,14 +150,16 @@ export class PublicUserPreviewTriggerDirective {
         if (event.key !== 'Escape') return;
         event.preventDefault();
         event.stopPropagation();
+        const focusTarget = this.returnFocusTarget;
         this.close();
-        this.elementRef.nativeElement.focus({ preventScroll: true });
+        focusTarget?.focus({ preventScroll: true });
       });
     overlayRef.detachments()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         if (this.overlayRef === overlayRef) {
           this.overlayRef = null;
+          this.isOpen.set(false);
         }
       });
 
@@ -213,6 +229,7 @@ export class PublicUserPreviewTriggerDirective {
   private disposeOverlay(): void {
     const overlayRef = this.overlayRef;
     this.overlayRef = null;
+    this.isOpen.set(false);
     if (!overlayRef) return;
 
     overlayRef.overlayElement.removeEventListener(
