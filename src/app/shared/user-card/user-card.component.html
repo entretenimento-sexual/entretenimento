@@ -55,6 +55,7 @@
       type="button"
       class="user-card__quick-preview"
       [attr.aria-label]="'Ver resumo de ' + (profile.nickname || 'usuário')"
+      [attr.aria-expanded]="quickPreview.isOpen()"
       title="Ver resumo do perfil"
       (click)="quickPreview.open()"
     >
