@@ -4,9 +4,9 @@ import {
   Component,
   computed,
   input,
+  signal,
 } from '@angular/core';
 
-import { ImageFallbackDirective } from '../../../shared/directives/image-fallback.directive';
 import {
   normalizePublicUserIdentity,
   type PublicUserIdentity,
@@ -32,7 +32,6 @@ export type PublicUserIdentityInput =
 @Component({
   selector: 'app-public-user-identity',
   standalone: true,
-  imports: [ImageFallbackDirective],
   templateUrl: './public-user-identity.component.html',
   styleUrl: './public-user-identity.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -54,6 +53,8 @@ export class PublicUserIdentityComponent {
   readonly contextDateTime = input<string | null>(null);
   readonly contextTitle = input<string | null>(null);
 
+  private readonly failedAvatarUrl = signal<string | null>(null);
+
   readonly normalizedIdentity = computed(() =>
     normalizePublicUserIdentity(this.identity())
   );
@@ -62,9 +63,10 @@ export class PublicUserIdentityComponent {
     this.normalizedIdentity()?.nickname ?? 'Usuário'
   );
 
-  readonly avatarUrl = computed(() =>
-    this.normalizedIdentity()?.avatarUrl ?? null
-  );
+  readonly avatarUrl = computed(() => {
+    const url = this.normalizedIdentity()?.avatarUrl ?? null;
+    return url && this.failedAvatarUrl() !== url ? url : null;
+  });
 
   readonly fallbackInitial = computed(() => {
     const [firstCharacter] = Array.from(this.displayName().trim());
@@ -94,6 +96,10 @@ export class PublicUserIdentityComponent {
   readonly metaAriaLabel = computed(() =>
     this.metaParts().join('. ')
   );
+
+  onAvatarError(): void {
+    this.failedAvatarUrl.set(this.normalizedIdentity()?.avatarUrl ?? null);
+  }
 
   private normalizeInlineText(value: unknown): string | null {
     const normalized = String(value ?? '')
