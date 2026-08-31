@@ -27,6 +27,7 @@ describe('PublicUserPreviewPopoverComponent', () => {
     isOnline: true,
     approximateDistanceKm: 4.2,
     bioPreview: 'Conversas, encontros e novas amizades.',
+    highlights: ['Amizade', 'Tatuagens', 'BDSM'],
   };
 
   beforeEach(async () => {
@@ -56,6 +57,9 @@ describe('PublicUserPreviewPopoverComponent', () => {
     expect(text).toMatch(/4[,.]2 km/);
     expect(text).toContain('Vocês estão conectados');
     expect(text).toContain('Conversas, encontros e novas amizades.');
+    expect(text).toContain('Amizade');
+    expect(text).toContain('Tatuagens');
+    expect(text).toContain('BDSM');
   });
 
   it('usa rota pública explícita sem exigir profileId na identidade', () => {
