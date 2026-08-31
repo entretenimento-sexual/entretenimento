@@ -14,7 +14,6 @@ import {
   DestroyRef,
   ElementRef,
   HostListener,
-  Injector,
   OnDestroy,
   effect,
   inject,
@@ -26,7 +25,6 @@ import {
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormControl,
-  FormGroup,
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
@@ -51,31 +49,20 @@ import {
   Subject,
   switchMap,
   take,
-  takeLast,
   takeUntil,
-  takeWhile,
   tap,
   throwError,
   timer,
 } from 'rxjs';
 
-import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { StorageService } from 'src/app/core/services/image-handling/storage.service';
-import {
-  GeolocationError,
-  GeolocationErrorCode,
-  GeolocationService,
-} from 'src/app/core/services/geolocation/geolocation.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
 import {
   CommunityFeedItem,
   CommunityFeedPostAction,
   CommunityFeedPostActionRequest,
-  CommunityFeedPostCreateRequest,
-  CommunityFeedPostCreateResponse,
   CommunityFeedReactionRequest,
   CommunityFeedView,
 } from '../data-access/community-feed.model';
@@ -90,7 +77,6 @@ import {
 } from '../data-access/community-preview.model';
 import {
   COMMUNITY_FEED_POST_ACTION_CODE_MESSAGES,
-  COMMUNITY_FEED_POST_CODE_MESSAGES,
   COMMUNITY_FEED_POST_REASON_MESSAGES,
   COMMUNITY_FEED_REACTION_CODE_MESSAGES,
   COMMUNITY_FEED_REACTION_REASON_MESSAGES,
@@ -98,10 +84,10 @@ import {
 } from '../presentation/community-error.messages';
 import { CommunityCameraCaptureComponent } from './community-camera-capture.component';
 import {
-  CommunityComposerAttachment,
-  createCommunityComposerLocationAttachment,
-  validateCommunityComposerImage,
-} from './community-composer-attachment.model';
+  CommunityFeedComposerContext,
+  CommunityFeedComposerFacade,
+} from './community-feed-composer.facade';
+import { createCommunityFeedRequestId } from './community-feed-request-id';
 import {
   CommunityFeedLoadEvent,
   CommunityFeedLoadRequest,
@@ -118,11 +104,6 @@ export {
   INITIAL_COMMUNITY_FEED_STATE,
   reduceCommunityFeedState,
 } from './community-feed-state.model';
-
-type CommunityFeedPostWriteState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'error' };
 
 type CommunityFeedPostActionState =
   | { status: 'idle'; postId: null; action: null }
@@ -150,11 +131,6 @@ interface CommunityFeedReactionCommand {
   previous: CommunityFeedReactionOverride;
 }
 
-interface CommunityFeedComposerCommand {
-  request: CommunityFeedPostCreateRequest;
-  attachment: CommunityComposerAttachment | null;
-}
-
 interface CommunityFeedReferenceNavigationRequest {
   postId: string;
   sequence: number;
@@ -173,9 +149,6 @@ interface CommunityFeedMapCoordinates {
 
 const MAX_UNSEEN_NEW_POSTS = 99;
 const MAX_LOCATION_EMBED_URL_CACHE_ENTRIES = 64;
-const COMMUNITY_LOCATION_CAPTURE_WINDOW_MS = 8_000;
-const COMMUNITY_LOCATION_TARGET_ACCURACY_METERS = 30;
-const COMMUNITY_LOCATION_LOW_ACCURACY_WARNING_METERS = 250;
 const COMMUNITY_REFERENCE_RENDER_TIMEOUT_MS = 1_200;
 
 @Component({
@@ -191,6 +164,7 @@ const COMMUNITY_REFERENCE_RENDER_TIMEOUT_MS = 1_200;
     CommunityHighlightMenuActionComponent,
     CommunityCameraCaptureComponent,
   ],
+  providers: [CommunityFeedComposerFacade],
   templateUrl: './community-feed.component.html',
   styleUrls: [
     './community-feed.component.css',
@@ -203,15 +177,12 @@ export class CommunityFeedComponent implements OnDestroy {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
-  private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly geolocation = inject(GeolocationService);
+  private readonly composer = inject(CommunityFeedComposerFacade);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly loadRequests$ = new Subject<CommunityFeedLoadRequest>();
   private readonly realtimeHydrationRequests$ = new Subject<string>();
   private readonly localFeedEvents$ = new Subject<CommunityFeedLoadEvent>();
-  private readonly postCreateRequests$ =
-    new Subject<CommunityFeedComposerCommand>();
   private readonly postActionRequests$ =
     new Subject<CommunityFeedPostActionRequest>();
   private readonly reactionRequests$ = new Subject<CommunityFeedReactionCommand>();
@@ -224,7 +195,6 @@ export class CommunityFeedComponent implements OnDestroy {
   private readonly attachmentMenu = viewChild<ElementRef<HTMLDetailsElement>>('attachmentMenu');
   private readonly pendingOwnPostFollowId = signal<string | null>(null);
   private readonly unseenAnchorPostId = signal<string | null>(null);
-  private pendingPostRequestId: string | null = null;
   private pendingRealtimeFollowIntent: boolean | null = null;
   private referenceNavigationSequence = 0;
   private lastObservedLatestPostId: string | null = null;
@@ -235,10 +205,10 @@ export class CommunityFeedComponent implements OnDestroy {
   readonly sourceType = input<CommunityPreviewSourceType>('community');
   readonly canInteract = input<boolean>(false);
   readonly viewerRole = input<CommunityPreviewViewerRole | null>(null);
-  readonly composerExpanded = signal(false);
-  readonly selectedAttachment = signal<CommunityComposerAttachment | null>(null);
-  readonly uploadProgress = signal<number | null>(null);
-  readonly locationCaptureState = signal<'idle' | 'loading'>('idle');
+  readonly composerExpanded = this.composer.composerExpanded;
+  readonly selectedAttachment = this.composer.selectedAttachment;
+  readonly uploadProgress = this.composer.uploadProgress;
+  readonly locationCaptureState = this.composer.locationCaptureState;
   readonly actionPostId = signal<string | null>(null);
   readonly actionMode = signal<CommunityFeedPostAction | null>(null);
   readonly commentsPostId = signal<string | null>(null);
@@ -315,12 +285,7 @@ export class CommunityFeedComponent implements OnDestroy {
     this.postHighlightRequests$.next(navigation.request.postId);
   });
 
-  readonly postForm = new FormGroup({
-    text: new FormControl('', {
-      nonNullable: true,
-      validators: [Validators.maxLength(1_000)],
-    }),
-  });
+  readonly postForm = this.composer.postForm;
 
   readonly removalReason = new FormControl('', {
     nonNullable: true,
@@ -512,25 +477,7 @@ export class CommunityFeedComponent implements OnDestroy {
     });
   });
 
-  readonly postCreateState$ = this.postCreateRequests$.pipe(
-    exhaustMap((command) =>
-      this.createMessage$(command).pipe(
-        tap((result) => {
-          this.pendingPostRequestId = null;
-          this.postForm.reset({ text: '' });
-          this.clearSelectedAttachment();
-          this.composerExpanded.set(false);
-          this.followCreatedPost(result.postId);
-          this.showPostSuccess(result.deduplicated);
-        }),
-        map((): CommunityFeedPostWriteState => ({ status: 'idle' })),
-        startWith<CommunityFeedPostWriteState>({ status: 'loading' }),
-        catchError(() => of<CommunityFeedPostWriteState>({ status: 'error' }))
-      )
-    ),
-    startWith<CommunityFeedPostWriteState>({ status: 'idle' }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly postCreateState$ = this.composer.postCreateState$;
 
   readonly postActionState$ = this.postActionRequests$.pipe(
     exhaustMap((request) =>
@@ -608,54 +555,34 @@ export class CommunityFeedComponent implements OnDestroy {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  constructor() {
+    this.composer.postCreated$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => this.followCreatedPost(result.postId));
+  }
+
   ngOnDestroy(): void {
-    this.revokePreviewUrl(this.selectedImagePreviewUrl());
     this.locationEmbedUrlCache.clear();
   }
 
   canCreatePost(): boolean {
-    return this.view() === 'feed'
-      && this.sourceType() === 'community'
-      && this.canInteract();
+    return this.composer.canCreatePost(this.composerContext());
   }
 
   expandComposer(): void {
-    if (this.canCreatePost()) this.composerExpanded.set(true);
+    this.composer.expandComposer(this.composerContext());
   }
 
   cancelPost(): void {
-    this.pendingPostRequestId = null;
-    this.postForm.reset({ text: '' });
-    this.clearSelectedAttachment();
-    this.uploadProgress.set(null);
-    this.composerExpanded.set(false);
+    this.composer.cancelPost();
   }
 
   onPhotoSelected(event: Event): void {
-    if (!this.canCreatePost()) return;
-
-    const inputElement = event.target as HTMLInputElement | null;
-    const file = inputElement?.files?.[0] ?? null;
-    if (inputElement) inputElement.value = '';
-    if (!file) return;
-
-    const validation = validateCommunityComposerImage(file);
-    if (!validation.valid) {
-      this.errorNotifier.showWarning(validation.userMessage);
-      return;
-    }
-
-    this.clearSelectedAttachment();
-    this.selectedAttachment.set({
-      kind: 'image',
-      file,
-      previewUrl: this.createPreviewUrl(file),
-    });
-    this.composerExpanded.set(true);
+    this.composer.onPhotoSelected(event, this.composerContext());
   }
 
   removeSelectedPhoto(): void {
-    this.clearSelectedAttachment();
+    this.composer.removeSelectedPhoto();
   }
 
   // Nome preservado para não quebrar bindings/testes existentes. O fluxo agora
@@ -665,86 +592,15 @@ export class CommunityFeedComponent implements OnDestroy {
 
     const menu = this.attachmentMenu()?.nativeElement;
     if (menu) menu.open = false;
-    this.locationCaptureState.set('loading');
-
-    this.geolocation.watchPosition$({
-      enableHighAccuracy: true,
-      timeout: COMMUNITY_LOCATION_CAPTURE_WINDOW_MS,
-      maximumAge: 0,
-    }).pipe(
-      scan((best, current) =>
-        current.accuracy < best.accuracy ? current : best
-      ),
-      takeWhile(
-        (coordinates) =>
-          coordinates.accuracy > COMMUNITY_LOCATION_TARGET_ACCURACY_METERS,
-        true
-      ),
-      takeUntil(timer(COMMUNITY_LOCATION_CAPTURE_WINDOW_MS)),
-      takeLast(1),
-      defaultIfEmpty(null),
-      map((coordinates) => {
-        if (!coordinates) {
-          throw new Error('Nenhuma coordenada disponível durante a captura.');
-        }
-        return createCommunityComposerLocationAttachment(
-          coordinates.latitude,
-          coordinates.longitude,
-          coordinates.accuracy
-        );
-      }),
-      tap((attachment) => {
-        if (!attachment) {
-          throw new Error('Coordenadas inválidas para compartilhamento no Mural.');
-        }
-        this.clearSelectedAttachment();
-        this.selectedAttachment.set(attachment);
-        this.composerExpanded.set(true);
-
-        const accuracy = attachment.accuracyMeters;
-        if (
-          accuracy !== null
-          && accuracy > COMMUNITY_LOCATION_LOW_ACCURACY_WARNING_METERS
-        ) {
-          this.errorNotifier.showWarning(
-            `Localização adicionada, mas o dispositivo informou baixa precisão (${this.locationAccuracyLabel(accuracy)}).`
-          );
-        } else {
-          this.errorNotifier.showSuccess(
-            `Localização atual adicionada. ${this.locationAccuracyLabel(accuracy)}.`
-          );
-        }
-      }),
-      catchError((error: unknown) => {
-        this.reportLocationError(error);
-        return EMPTY;
-      }),
-      finalize(() => this.locationCaptureState.set('idle')),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe();
+    this.composer.shareApproximateLocation(this.composerContext());
   }
 
   approximateLocationLabel(latitude: number, longitude: number): string {
-    const formatCoordinate = (value: number) =>
-      Number(value.toFixed(6)).toString();
-    return `${formatCoordinate(latitude)}, ${formatCoordinate(longitude)}`;
+    return this.composer.approximateLocationLabel(latitude, longitude);
   }
 
   locationAccuracyLabel(accuracyMeters: number | null | undefined): string {
-    const parsed = Number(accuracyMeters);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      return 'Precisão não informada pelo dispositivo';
-    }
-
-    const roundedMeters = Math.max(0, Math.round(parsed));
-    if (roundedMeters < 1_000) {
-      return `Precisão estimada: ±${roundedMeters} m`;
-    }
-
-    const kilometers = Number((roundedMeters / 1_000).toFixed(1))
-      .toString()
-      .replace('.', ',');
-    return `Precisão estimada: ±${kilometers} km`;
+    return this.composer.locationAccuracyLabel(accuracyMeters);
   }
 
   locationMapEmbedUrl(item: CommunityFeedItem): SafeResourceUrl | null {
@@ -776,55 +632,11 @@ export class CommunityFeedComponent implements OnDestroy {
   }
 
   submitPostOnEnter(event: Event): void {
-    const keyboardEvent = event as KeyboardEvent;
-    if (keyboardEvent.isComposing || keyboardEvent.shiftKey) {
-      return;
-    }
-
-    event.preventDefault();
-    if (keyboardEvent.repeat) {
-      return;
-    }
-
-    this.submitPost();
+    this.composer.submitPostOnEnter(event, this.composerContext());
   }
 
   submitPost(): void {
-    if (!this.canCreatePost()) return;
-
-    const text = this.postForm.controls.text.value.trim();
-    const attachment = this.selectedAttachment();
-    if (this.postForm.invalid) {
-      this.postForm.markAllAsTouched();
-      this.errorNotifier.showWarning('A mensagem deve ter no máximo 1.000 caracteres.');
-      return;
-    }
-    if (!text && !attachment) {
-      this.errorNotifier.showWarning('Escreva uma mensagem ou adicione uma foto ou localização.');
-      return;
-    }
-
-    this.pendingPostRequestId ??= this.createRequestId();
-    this.postCreateRequests$.next({
-      request: {
-        requestId: this.pendingPostRequestId,
-        communityId: this.communityId().trim(),
-        text,
-        // Compatibilidade de transporte. O backend deriva a audiência efetiva
-        // exclusivamente da visibilidade configurada para a Comunidade.
-        audience: 'members_only',
-        imageUploadPath: null,
-        location: attachment?.kind === 'location'
-          ? {
-              latitude: attachment.latitude,
-              longitude: attachment.longitude,
-              precision: attachment.precision,
-              accuracyMeters: attachment.accuracyMeters,
-            }
-          : null,
-      },
-      attachment,
-    });
+    this.composer.submitPost(this.composerContext());
   }
 
   requestPostAction(item: CommunityFeedItem, action: CommunityFeedPostAction): void {
@@ -1057,6 +869,15 @@ export class CommunityFeedComponent implements OnDestroy {
 
   publishedLabel(publishedAt: number): string {
     return formatCommunityFeedTime(publishedAt, this.now());
+  }
+
+  private composerContext(): CommunityFeedComposerContext {
+    return {
+      communityId: this.communityId().trim(),
+      view: this.view(),
+      sourceType: this.sourceType(),
+      canInteract: this.canInteract(),
+    };
   }
 
   private normalizedMapCoordinates(
@@ -1331,110 +1152,8 @@ export class CommunityFeedComponent implements OnDestroy {
     }
   }
 
-  private createMessage$(
-    command: CommunityFeedComposerCommand
-  ): Observable<CommunityFeedPostCreateResponse> {
-    const publish = (imageUploadPath: string | null) =>
-      this.repository.createPost$({
-        ...command.request,
-        imageUploadPath,
-      }).pipe(
-        catchError((error: unknown) => {
-          this.reportPostWriteError(error);
-          return throwError(() => error);
-        })
-      );
-
-    if (!command.attachment || command.attachment.kind === 'location') {
-      return publish(null);
-    }
-
-    return this.uploadAttachment$(command.attachment).pipe(
-      switchMap((imageUploadPath) => publish(imageUploadPath))
-    );
-  }
-
-  private uploadAttachment$(
-    attachment: CommunityComposerAttachment
-  ): Observable<string> {
-    switch (attachment.kind) {
-      case 'image': {
-        const authSession = this.injector.get(AuthSessionService);
-        const storage = this.injector.get(StorageService);
-        const uid = authSession.currentAuthUser?.uid?.trim() || '';
-        if (!uid) {
-          const error = new Error('Sessão não encontrada para enviar a foto.');
-          this.applicationError.report(error, {
-            feature: 'community',
-            operation: 'uploadFeedImage',
-            fallbackMessage:
-              'Sua sessão precisa ser atualizada para enviar a foto.',
-            metadata: {
-              scope: 'CommunityFeedComponent',
-              view: this.view(),
-              sourceType: this.sourceType(),
-            },
-          });
-          return throwError(() => error);
-        }
-
-        this.uploadProgress.set(0);
-        return storage.uploadFile(
-          attachment.file,
-          'community-feed',
-          uid,
-          (progress) => this.uploadProgress.set(
-            Math.max(0, Math.min(100, Math.round(progress)))
-          )
-        ).pipe(finalize(() => this.uploadProgress.set(null)));
-      }
-      case 'location':
-        return throwError(() =>
-          new Error('Localização não requer upload de arquivo.')
-        );
-    }
-  }
-
-  private createPreviewUrl(file: File): string | null {
-    try {
-      return typeof URL?.createObjectURL === 'function'
-        ? URL.createObjectURL(file)
-        : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private selectedImagePreviewUrl(): string | null {
-    const attachment = this.selectedAttachment();
-    return attachment?.kind === 'image' ? attachment.previewUrl : null;
-  }
-
-  private revokePreviewUrl(previewUrl: string | null): void {
-    if (!previewUrl) return;
-    try {
-      URL.revokeObjectURL(previewUrl);
-    } catch {
-      // Preview local descartável; falha de revoke não afeta o fluxo.
-    }
-  }
-
-  private clearSelectedAttachment(): void {
-    this.revokePreviewUrl(this.selectedImagePreviewUrl());
-    this.selectedAttachment.set(null);
-  }
-
   private createRequestId(): string {
-    try {
-      const randomUuid = globalThis.crypto?.randomUUID?.();
-      if (randomUuid) return randomUuid;
-    } catch {
-      // O fallback mantém a idempotência deste rascunho.
-    }
-
-    return `mural-${Date.now().toString(36)}-${Math.random()
-      .toString(36)
-      .slice(2, 14)}`;
+    return createCommunityFeedRequestId();
   }
 
   private actionRequestKey(postId: string, action: CommunityFeedPostAction): string {
@@ -1443,16 +1162,6 @@ export class CommunityFeedComponent implements OnDestroy {
 
   private reactionKey(postId: string): string {
     return `${this.communityId().trim()}:${postId}`;
-  }
-
-  private showPostSuccess(deduplicated: boolean): void {
-    try {
-      this.errorNotifier.showSuccess(
-        deduplicated ? 'Mensagem confirmada.' : 'Mensagem enviada.'
-      );
-    } catch {
-      // A atualização reativa do Mural já confirma a operação visualmente.
-    }
   }
 
   private showPostActionSuccess(
@@ -1507,57 +1216,6 @@ export class CommunityFeedComponent implements OnDestroy {
     });
   }
 
-  private reportPostWriteError(error: unknown): void {
-    this.applicationError.report(error, {
-      feature: 'community',
-      operation: 'createPost',
-      fallbackMessage: 'Não foi possível enviar a mensagem agora.',
-      reasonMessages: COMMUNITY_FEED_POST_REASON_MESSAGES,
-      codeMessages: COMMUNITY_FEED_POST_CODE_MESSAGES,
-      metadata: {
-        scope: 'CommunityFeedComponent',
-        view: this.view(),
-        sourceType: this.sourceType(),
-      },
-    });
-  }
-
-  private reportLocationError(error: unknown): void {
-    let message = 'Não foi possível obter sua localização agora.';
-
-    if (error instanceof GeolocationError) {
-      switch (error.code) {
-        case GeolocationErrorCode.PERMISSION_DENIED:
-          message = 'Permita o acesso à localização no navegador para compartilhar sua posição.';
-          break;
-        case GeolocationErrorCode.TIMEOUT:
-          message = 'A localização demorou demais para responder. Tente novamente.';
-          break;
-        case GeolocationErrorCode.UNSUPPORTED:
-        case GeolocationErrorCode.INSECURE_CONTEXT:
-          message = 'A localização não está disponível neste navegador ou ambiente.';
-          break;
-        case GeolocationErrorCode.POSITION_UNAVAILABLE:
-          message = 'Sua posição não está disponível neste momento.';
-          break;
-        default:
-          break;
-      }
-    }
-
-    this.applicationError.report(error, {
-      feature: 'community',
-      operation: 'shareLocation',
-      fallbackMessage: message,
-      notification: 'warning',
-      metadata: {
-        scope: 'CommunityFeedComponent',
-        view: this.view(),
-        sourceType: this.sourceType(),
-      },
-    });
-  }
-
   private reportReferenceNavigationError(error: unknown): void {
     this.applicationError.report(error, {
       feature: 'community',
@@ -1598,13 +1256,11 @@ export class CommunityFeedComponent implements OnDestroy {
     error: unknown,
     op:
       | 'loadPage'
-      | 'createPost'
       | 'moderatePost'
       | 'toggleReaction'
       | 'watchRealtime'
       | 'hydrateRealtimeItem'
-      | 'navigateReference'
-      | 'shareLocation',
+      | 'navigateReference',
     view: CommunityFeedView = this.view()
   ): void {
     this.applicationError.report(error, {
