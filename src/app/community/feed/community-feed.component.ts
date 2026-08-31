@@ -35,7 +35,6 @@ import {
   catchError,
   combineLatest,
   concatMap,
-  defaultIfEmpty,
   distinctUntilChanged,
   exhaustMap,
   filter,
@@ -47,10 +46,7 @@ import {
   startWith,
   Subject,
   switchMap,
-  take,
-  takeUntil,
   tap,
-  throwError,
   timer,
 } from 'rxjs';
 
@@ -76,7 +72,6 @@ import {
 import {
   COMMUNITY_FEED_POST_ACTION_CODE_MESSAGES,
   COMMUNITY_FEED_POST_REASON_MESSAGES,
-  COMMUNITY_FEED_REFERENCE_CODE_MESSAGES,
 } from '../presentation/community-error.messages';
 import { CommunityCameraCaptureComponent } from './community-camera-capture.component';
 import {
@@ -84,6 +79,7 @@ import {
   CommunityFeedComposerFacade,
 } from './community-feed-composer.facade';
 import { CommunityFeedReactionFacade } from './community-feed-reaction.facade';
+import { CommunityFeedReferenceNavigationFacade } from './community-feed-reference-navigation.facade';
 import { createCommunityFeedRequestId } from './community-feed-request-id';
 import {
   CommunityFeedLoadEvent,
@@ -110,20 +106,6 @@ type CommunityFeedPostActionState =
       action: CommunityFeedPostAction;
     };
 
-type CommunityFeedReferenceNavigationState =
-  | { status: 'idle'; postId: null }
-  | { status: 'loading' | 'error'; postId: string };
-
-interface CommunityFeedReferenceNavigationRequest {
-  postId: string;
-  sequence: number;
-}
-
-interface CommunityFeedReferenceNavigationTarget {
-  request: CommunityFeedReferenceNavigationRequest;
-  target: ElementRef<HTMLElement>;
-}
-
 interface CommunityFeedMapCoordinates {
   latitude: number;
   longitude: number;
@@ -132,7 +114,6 @@ interface CommunityFeedMapCoordinates {
 
 const MAX_UNSEEN_NEW_POSTS = 99;
 const MAX_LOCATION_EMBED_URL_CACHE_ENTRIES = 64;
-const COMMUNITY_REFERENCE_RENDER_TIMEOUT_MS = 1_200;
 
 @Component({
   selector: 'app-community-feed',
@@ -150,6 +131,7 @@ const COMMUNITY_REFERENCE_RENDER_TIMEOUT_MS = 1_200;
   providers: [
     CommunityFeedComposerFacade,
     CommunityFeedReactionFacade,
+    CommunityFeedReferenceNavigationFacade,
   ],
   templateUrl: './community-feed.component.html',
   styleUrls: [
@@ -166,14 +148,13 @@ export class CommunityFeedComponent implements OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   private readonly composer = inject(CommunityFeedComposerFacade);
   private readonly reactions = inject(CommunityFeedReactionFacade);
+  private readonly references = inject(CommunityFeedReferenceNavigationFacade);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly loadRequests$ = new Subject<CommunityFeedLoadRequest>();
   private readonly realtimeHydrationRequests$ = new Subject<string>();
   private readonly localFeedEvents$ = new Subject<CommunityFeedLoadEvent>();
   private readonly postActionRequests$ =
     new Subject<CommunityFeedPostActionRequest>();
-  private readonly referenceNavigationRequests$ =
-    new Subject<CommunityFeedReferenceNavigationRequest>();
   private readonly postHighlightRequests$ = new Subject<string>();
   private readonly locationEmbedUrlCache = new Map<string, SafeResourceUrl>();
   private readonly postElements = viewChildren<ElementRef<HTMLElement>>('postElement');
@@ -181,7 +162,6 @@ export class CommunityFeedComponent implements OnDestroy {
   private readonly pendingOwnPostFollowId = signal<string | null>(null);
   private readonly unseenAnchorPostId = signal<string | null>(null);
   private pendingRealtimeFollowIntent: boolean | null = null;
-  private referenceNavigationSequence = 0;
   private lastObservedLatestPostId: string | null = null;
   private readonly pendingActionRequestIds = new Map<string, string>();
 
@@ -200,10 +180,7 @@ export class CommunityFeedComponent implements OnDestroy {
   readonly replyPostId = signal<string | null>(null);
   readonly postReplyRequestVersion = signal(0);
   readonly unseenNewPostCount = signal(0);
-  readonly referenceNavigationState = signal<CommunityFeedReferenceNavigationState>({
-    status: 'idle',
-    postId: null,
-  });
+  readonly referenceNavigationState = this.references.navigationState;
   readonly now = toSignal(this.timeTicker.now$, { initialValue: Date.now() });
   readonly highlightedPostId = toSignal(
     this.postHighlightRequests$.pipe(
@@ -219,53 +196,6 @@ export class CommunityFeedComponent implements OnDestroy {
   private readonly commentCountOverrides = signal<ReadonlyMap<string, number>>(
     new Map()
   );
-  private readonly referenceNavigationTarget = toSignal(
-    this.referenceNavigationRequests$.pipe(
-      switchMap((request) => {
-        this.referenceNavigationState.set({
-          status: 'loading',
-          postId: request.postId,
-        });
-
-        return this.ensureReferencedPost$(request.postId).pipe(
-          switchMap(() => this.waitForRenderedPost$(request.postId)),
-          map((target): CommunityFeedReferenceNavigationTarget => ({
-            request,
-            target,
-          })),
-          tap(() => {
-            this.referenceNavigationState.set({
-              status: 'idle',
-              postId: null,
-            });
-          }),
-          catchError((error: unknown) => {
-            this.referenceNavigationState.set({
-              status: 'error',
-              postId: request.postId,
-            });
-            this.reportReferenceNavigationError(error);
-            return EMPTY;
-          })
-        );
-      })
-    ),
-    { initialValue: null }
-  );
-  private readonly referenceNavigationEffect = effect(() => {
-    const navigation = this.referenceNavigationTarget();
-    if (!navigation) return;
-
-    const element = navigation.target.nativeElement;
-    if (typeof element.scrollIntoView === 'function') {
-      element.scrollIntoView({
-        block: 'start',
-        behavior: this.prefersReducedMotion() ? 'auto' : 'smooth',
-      });
-    }
-    element.focus({ preventScroll: true });
-    this.postHighlightRequests$.next(navigation.request.postId);
-  });
 
   readonly postForm = this.composer.postForm;
 
@@ -514,6 +444,29 @@ export class CommunityFeedComponent implements OnDestroy {
     this.composer.postCreated$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result) => this.followCreatedPost(result.postId));
+
+    this.references.referencedItem$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((item) => {
+        this.localFeedEvents$.next({
+          type: 'reference',
+          item,
+        });
+      });
+
+    this.references.navigationTarget$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((navigation) => {
+        const element = navigation.target.nativeElement;
+        if (typeof element.scrollIntoView === 'function') {
+          element.scrollIntoView({
+            block: 'start',
+            behavior: this.prefersReducedMotion() ? 'auto' : 'smooth',
+          });
+        }
+        element.focus({ preventScroll: true });
+        this.postHighlightRequests$.next(navigation.postId);
+      });
   }
 
   ngOnDestroy(): void {
@@ -665,11 +618,15 @@ export class CommunityFeedComponent implements OnDestroy {
     if (!normalizedPostId) return;
 
     event.preventDefault();
-    this.referenceNavigationSequence += 1;
-    this.referenceNavigationRequests$.next({
-      postId: normalizedPostId,
-      sequence: this.referenceNavigationSequence,
-    });
+    this.references.navigate(
+      normalizedPostId,
+      {
+        communityId: this.communityId().trim(),
+        view: this.view(),
+        sourceType: this.sourceType(),
+      },
+      (candidatePostId) => this.findRenderedPostElement(candidatePostId)
+    );
   }
 
   followCreatedPost(postId: string): void {
@@ -847,58 +804,6 @@ export class CommunityFeedComponent implements OnDestroy {
       longitude: normalizedLongitude,
       cacheKey: `${location.precision}:${normalizedLatitude.toFixed(decimals)},${normalizedLongitude.toFixed(decimals)}`,
     };
-  }
-
-  private ensureReferencedPost$(postId: string): Observable<void> {
-    if (this.findRenderedPostElement(postId)) {
-      return of(undefined);
-    }
-
-    const communityId = this.communityId().trim();
-    if (!communityId) {
-      return throwError(() => new Error('Comunidade não disponível para localizar a publicação original.'));
-    }
-
-    return this.repository.getItems$({
-      communityId,
-      view: this.view(),
-      postIds: [postId],
-    }).pipe(
-      map((page) => page.items.find((item) => item.postId === postId) ?? null),
-      tap((item) => {
-        if (!item) {
-          throw new Error('Publicação original não encontrada no Mural.');
-        }
-        this.localFeedEvents$.next({
-          type: 'reference',
-          item,
-        });
-      }),
-      map(() => undefined)
-    );
-  }
-
-  private waitForRenderedPost$(postId: string): Observable<ElementRef<HTMLElement>> {
-    const existing = this.findRenderedPostElement(postId);
-    if (existing) return of(existing);
-
-    return timer(0, 16).pipe(
-      map(() => this.findRenderedPostElement(postId)),
-      filter(
-        (target): target is ElementRef<HTMLElement> => target !== null
-      ),
-      take(1),
-      takeUntil(timer(COMMUNITY_REFERENCE_RENDER_TIMEOUT_MS)),
-      defaultIfEmpty(null),
-      map((target) => {
-        if (!target) {
-          throw new Error(
-            'A publicação original foi carregada, mas não pôde ser exibida no Mural.'
-          );
-        }
-        return target;
-      })
-    );
   }
 
   private findRenderedPostElement(postId: string): ElementRef<HTMLElement> | null {
@@ -1103,22 +1008,6 @@ export class CommunityFeedComponent implements OnDestroy {
     });
   }
 
-  private reportReferenceNavigationError(error: unknown): void {
-    this.applicationError.report(error, {
-      feature: 'community',
-      operation: 'navigateReference',
-      fallbackMessage:
-        'A publicação original não está disponível neste momento.',
-      notification: 'none',
-      codeMessages: COMMUNITY_FEED_REFERENCE_CODE_MESSAGES,
-      metadata: {
-        scope: 'CommunityFeedComponent',
-        view: this.view(),
-        sourceType: this.sourceType(),
-      },
-    });
-  }
-
   private reportLoadError(error: unknown, view: CommunityFeedView): void {
     const fallbackMessage = view === 'photos'
       ? 'Não foi possível carregar as fotos agora.'
@@ -1145,8 +1034,7 @@ export class CommunityFeedComponent implements OnDestroy {
       | 'loadPage'
       | 'moderatePost'
       | 'watchRealtime'
-      | 'hydrateRealtimeItem'
-      | 'navigateReference',
+      | 'hydrateRealtimeItem',
     view: CommunityFeedView = this.view()
   ): void {
     this.applicationError.report(error, {
