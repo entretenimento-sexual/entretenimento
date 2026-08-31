@@ -271,20 +271,28 @@ export class CommunityPreviewPageComponent {
 
     queryParamMap$
       .pipe(
-        map((params) => ({
-          section: this.sectionFromQuery(params.get('secao')),
-          returnTarget: this.resolveReturnTarget(params.get('retorno')),
-        })),
+        map((params) => {
+          const rawSection = String(params.get('secao') ?? '').trim().toLowerCase();
+          return {
+            section: this.sectionFromQuery(rawSection),
+            returnTarget: this.resolveReturnTarget(params.get('retorno')),
+            legacyTopics: rawSection === 'topicos',
+          };
+        }),
         distinctUntilChanged(
           (previous, current) =>
             previous.section === current.section
             && previous.returnTarget === current.returnTarget
+            && previous.legacyTopics === current.legacyTopics
         ),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe(({ section, returnTarget }) => {
+      .subscribe(({ section, returnTarget, legacyTopics }) => {
         this.activeSection.set(section);
         this.returnTarget.set(returnTarget);
+        if (legacyTopics) {
+          this.selectSection('feed', true);
+        }
       });
   }
 
