@@ -118,6 +118,36 @@
   font-size: 0.72rem;
 }
 
+.public-user-preview__highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+  min-width: 0;
+}
+
+.public-user-preview__highlight {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  min-height: 1.7rem;
+  padding: 0.28rem 0.48rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border) 78%,
+    transparent
+  );
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 94%,
+    var(--primary-color)
+  );
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  font-size: 0.68rem;
+  font-weight: 680;
+  line-height: 1.15;
+}
+
 .public-user-preview__bio {
   display: -webkit-box;
   overflow: hidden;
@@ -182,15 +212,20 @@
 :host-context(.high-contrast) .public-user-preview__demographics,
 :host-context(.high-contrast) .public-user-preview__signals,
 :host-context(.high-contrast) .public-user-preview__relationship,
+:host-context(.high-contrast) .public-user-preview__highlight,
 :host-context(.high-contrast) .public-user-preview__bio,
 :host-context(.high-contrast) .public-user-preview__profile-link {
   color: var(--text-color);
 }
 
-:host-context(.high-contrast) .public-user-preview__relationship {
-  border: 1px solid var(--text-color);
-  border-left-width: 3px;
+:host-context(.high-contrast) .public-user-preview__relationship,
+:host-context(.high-contrast) .public-user-preview__highlight {
+  border-color: var(--text-color);
   background: var(--background-color);
+}
+
+:host-context(.high-contrast) .public-user-preview__relationship {
+  border-left-width: 3px;
 }
 
 @media (max-width: 600px), (hover: none), (pointer: coarse) {
