@@ -12,7 +12,10 @@ const NOW = Date.UTC(2026, 7, 30, 12, 0, 0);
 
 function community(overrides: Record<string, unknown> = {}) {
   return {
-    description: 'Comunidade com descrição útil, objetiva e suficientemente completa para orientar novos participantes.',
+    description: [
+      'Comunidade com descrição útil, objetiva e suficientemente completa',
+      'para orientar novos participantes.',
+    ].join(' '),
     source: { type: 'community', id: 'community-1' },
     status: 'active',
     moderation: { state: 'active' },
