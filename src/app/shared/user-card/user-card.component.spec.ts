@@ -67,12 +67,36 @@ describe('UserCardComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('prioriza foto e identidade sem exibir plano ou status offline', () => {
+  it('usa a identidade pública canônica sobre a foto', () => {
     expect(fixture.debugElement.query(By.css('.user-card__media'))).toBeTruthy();
-    expect(fixture.debugElement.query(By.css('.user-card__name')).nativeElement.textContent)
-      .toContain('Perfil teste');
+
+    const identity = fixture.debugElement.query(
+      By.css('app-public-user-identity')
+    ).nativeElement as HTMLElement;
+
+    expect(identity.textContent).toContain('Perfil teste');
+    expect(identity.textContent).toContain('Mulher');
+    expect(identity.textContent).toContain('Niterói');
+    expect(identity.textContent).toContain('RJ');
     expect(fixture.debugElement.query(By.css('.user-card__tier'))).toBeNull();
     expect(fixture.debugElement.query(By.css('.user-card__presence'))).toBeNull();
+  });
+
+  it('normaliza o mesmo perfil legado para a prévia rápida', () => {
+    expect(fixture.componentInstance.publicPreview()).toMatchObject({
+      age: 31,
+      orientationLabel: 'bissexual',
+      identity: {
+        profileId: 'u1',
+        nickname: 'Perfil teste',
+        identityShortLabel: 'Mulher',
+        city: 'Niterói',
+        state: 'RJ',
+      },
+    });
+    expect(
+      fixture.debugElement.query(By.css('.user-card__quick-preview'))
+    ).toBeTruthy();
   });
 
   it('usa a imagem padrão quando a URL do perfil falha ao carregar', () => {
@@ -99,9 +123,10 @@ describe('UserCardComponent', () => {
     ).nativeElement as HTMLElement;
 
     expect(presence.textContent).toContain('Online');
+    expect(fixture.componentInstance.publicPreview()?.isOnline).toBe(true);
   });
 
-  it('consolida identidade sexual, localização e distância', () => {
+  it('mantém idade, orientação e distância como contexto sem duplicar identidade/localização', () => {
     fixture.componentRef.setInput('distanciaKm', 4.2);
     fixture.detectChanges();
 
@@ -112,11 +137,11 @@ describe('UserCardComponent', () => {
       By.css('.user-card__location')
     ).nativeElement as HTMLElement;
 
-    expect(metadata.textContent).toContain('Mulher');
     expect(metadata.textContent).toContain('31 anos');
     expect(metadata.textContent).toContain('Bissexual');
-    expect(location.textContent).toContain('Niterói');
+    expect(metadata.textContent).not.toContain('Mulher');
     expect(location.textContent).toMatch(/4[,.]2 km/);
+    expect(location.textContent).not.toContain('Niterói');
     expect(
       fixture.debugElement.query(By.css('.user-card__distance-unavailable'))
     ).toBeNull();
@@ -126,9 +151,6 @@ describe('UserCardComponent', () => {
     fixture.componentRef.setInput('distanciaKm', null);
     fixture.detectChanges();
 
-    const location = fixture.debugElement.query(
-      By.css('.user-card__location')
-    ).nativeElement as HTMLElement;
     const unavailableDebug = fixture.debugElement.query(
       By.css('.user-card__distance-unavailable')
     );
@@ -136,7 +158,6 @@ describe('UserCardComponent', () => {
     const accessibleText = unavailableDebug.query(By.css('.sr-only'))
       .nativeElement as HTMLElement;
 
-    expect(location.textContent).toContain('Niterói');
     expect(unavailable.textContent).toContain('—');
     expect(unavailable.getAttribute('title')).toBe('Distância não disponível');
     expect(accessibleText.textContent).toContain('Distância não disponível');
