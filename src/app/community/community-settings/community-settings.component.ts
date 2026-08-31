@@ -57,6 +57,9 @@ import {
   COMMUNITY_SETTINGS_CODE_MESSAGES,
   COMMUNITY_SETTINGS_REASON_MESSAGES,
 } from '../presentation/community-error.messages';
+import {
+  COMMUNITY_SETTINGS_REASON_PRESENTATIONS,
+} from '../presentation/community-error.presentations';
 
 type CommunitySettingsForm = FormGroup<{
   name: FormControl<string>;
@@ -394,6 +397,7 @@ export class CommunitySettingsComponent {
       operation: 'updateCommunitySettings',
       fallbackMessage: 'Não foi possível salvar as configurações da Comunidade.',
       reasonMessages: COMMUNITY_SETTINGS_REASON_MESSAGES,
+      reasonPresentations: COMMUNITY_SETTINGS_REASON_PRESENTATIONS,
       codeMessages: COMMUNITY_SETTINGS_CODE_MESSAGES,
       metadata: {
         scope: 'CommunitySettingsComponent',
