@@ -82,6 +82,8 @@ import {
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
 import type { CommunityFeedRealtimeChange } from '../data-access/community-feed-realtime.model';
 import { CommunityFeedCommentsComponent } from '../feed-comments/community-feed-comments.component';
+import { CommunityHighlightCardComponent } from '../highlight/community-highlight-card.component';
+import { CommunityHighlightMenuActionComponent } from '../highlight/community-highlight-menu-action.component';
 import {
   CommunityPreviewSourceType,
   CommunityPreviewViewerRole,
@@ -185,6 +187,8 @@ const COMMUNITY_REFERENCE_RENDER_TIMEOUT_MS = 1_200;
     ReactiveFormsModule,
     ReportContentButtonComponent,
     CommunityFeedCommentsComponent,
+    CommunityHighlightCardComponent,
+    CommunityHighlightMenuActionComponent,
     CommunityCameraCaptureComponent,
   ],
   templateUrl: './community-feed.component.html',
