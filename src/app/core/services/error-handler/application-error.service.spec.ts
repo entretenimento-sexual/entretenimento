@@ -6,15 +6,13 @@
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApplicationErrorService } from './application-error.service';
 import { ErrorNotificationService } from './error-notification.service';
 import { GlobalErrorHandlerService } from './global-error-handler.service';
-import { ApplicationErrorService } from './application-error.service';
 
 describe('ApplicationErrorService', () => {
   const notifier = {
-    showError: vi.fn(),
-    showWarning: vi.fn(),
-    showInfo: vi.fn(),
+    showApplicationError: vi.fn(),
   };
   const globalError = {
     handleError: vi.fn(),
@@ -64,11 +62,21 @@ describe('ApplicationErrorService', () => {
       userMessage:
         'Você atingiu o limite temporário de mensagens. Tente mais tarde.',
       retryable: true,
+      presentation: {
+        surface: 'snackbar',
+        severity: 'error',
+      },
     });
-    expect(notifier.showError).toHaveBeenCalledWith(
-      'Você atingiu o limite temporário de mensagens. Tente mais tarde.'
+    expect(notifier.showApplicationError).toHaveBeenCalledWith(
+      'Você atingiu o limite temporário de mensagens. Tente mais tarde.',
+      {
+        surface: 'snackbar',
+        severity: 'error',
+      }
     );
-    expect(notifier.showError.mock.calls[0]?.[0]).not.toContain('backend internal');
+    expect(notifier.showApplicationError.mock.calls[0]?.[0]).not.toContain(
+      'backend internal'
+    );
   });
 
   it('prioriza recommendedAction conhecida quando não há reason mapeado', () => {
@@ -98,6 +106,57 @@ describe('ApplicationErrorService', () => {
       'Seu plano atual não permite publicar neste espaço.'
     );
     expect(descriptor.recommendedAction).toBe('upgrade_subscription');
+  });
+
+  it('resolve apresentação por reason antes de fallback legado', () => {
+    const descriptor = service.normalize(
+      {
+        code: 'functions/failed-precondition',
+        details: { reason: 'recent-authentication-required' },
+      },
+      {
+        feature: 'community',
+        operation: 'updateSettings',
+        fallbackMessage: 'Não foi possível salvar.',
+        notification: 'warning',
+        reasonPresentations: {
+          'recent-authentication-required': {
+            surface: 'modal',
+            severity: 'warning',
+            title: 'Confirme sua identidade',
+          },
+        },
+      }
+    );
+
+    expect(descriptor.presentation).toEqual({
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Confirme sua identidade',
+    });
+  });
+
+  it('remove rota externa de uma apresentação acionável', () => {
+    const descriptor = service.normalize(
+      { code: 'functions/permission-denied' },
+      {
+        feature: 'community',
+        operation: 'updateSettings',
+        fallbackMessage: 'Não foi possível salvar.',
+        presentation: {
+          surface: 'modal',
+          severity: 'info',
+          primaryAction: {
+            label: 'Continuar',
+            route: 'https://example.com/fora',
+          },
+        },
+      }
+    );
+
+    expect(descriptor.presentation.primaryAction).toEqual({
+      label: 'Continuar',
+    });
   });
 
   it('usa mensagem canônica para indisponibilidade transitória', () => {
@@ -133,7 +192,7 @@ describe('ApplicationErrorService', () => {
     expect(descriptor.retryable).toBe(false);
   });
 
-  it('permite feedback warning sem duplicar notificação pelo global handler', () => {
+  it('preserva feedback warning legado sem duplicar pelo global handler', () => {
     service.report(
       { code: 'functions/not-found' },
       {
@@ -148,17 +207,22 @@ describe('ApplicationErrorService', () => {
       }
     );
 
-    expect(notifier.showWarning).toHaveBeenCalledWith(
-      'A publicação original não está disponível neste momento.'
+    expect(notifier.showApplicationError).toHaveBeenCalledWith(
+      'A publicação original não está disponível neste momento.',
+      {
+        surface: 'snackbar',
+        severity: 'warning',
+      }
     );
-    expect(notifier.showError).not.toHaveBeenCalled();
     expect(globalError.handleError).toHaveBeenCalledTimes(1);
 
     const diagnostic = globalError.handleError.mock.calls[0]?.[0] as Error & {
       context?: Record<string, unknown>;
       skipUserNotification?: boolean;
+      userFacingSurface?: string;
     };
     expect(diagnostic.skipUserNotification).toBe(true);
+    expect(diagnostic.userFacingSurface).toBe('snackbar');
     expect(diagnostic.context).toMatchObject({
       feature: 'community',
       operation: 'navigateReference',
@@ -166,8 +230,8 @@ describe('ApplicationErrorService', () => {
     });
   });
 
-  it('aceita diagnóstico silencioso para streams realtime', () => {
-    service.report(
+  it('preserva diagnóstico silencioso para streams realtime', () => {
+    const descriptor = service.report(
       { code: 'functions/unavailable' },
       {
         feature: 'community',
@@ -177,9 +241,17 @@ describe('ApplicationErrorService', () => {
       }
     );
 
-    expect(notifier.showError).not.toHaveBeenCalled();
-    expect(notifier.showWarning).not.toHaveBeenCalled();
-    expect(notifier.showInfo).not.toHaveBeenCalled();
+    expect(descriptor.presentation).toEqual({
+      surface: 'none',
+      severity: 'error',
+    });
+    expect(notifier.showApplicationError).toHaveBeenCalledWith(
+      'O serviço está temporariamente indisponível. Tente novamente em instantes.',
+      {
+        surface: 'none',
+        severity: 'error',
+      }
+    );
     expect(globalError.handleError).toHaveBeenCalledTimes(1);
   });
 });
