@@ -34,6 +34,7 @@ import {
   resolvePersonalCommunityCreationPolicy,
 } from './community-capacity.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { buildCommunityRankingProjectionPatch } from './community-ranking-sync.policy';
 import {
   CreateCommunityRequest,
   CreateCommunityResponse,
@@ -249,6 +250,35 @@ export const createCommunity = onCall<CreateCommunityRequest>(
         type: 'community',
         id: command.communityId,
       };
+      const lifecycle = {
+        lastMeaningfulActivityAt: now,
+        dormantAt: null,
+        archivedAt: null,
+        scheduledForDeletionAt: null,
+        interactionBlocked: false,
+        retentionHold: false,
+        policyVersion: 1,
+        updatedAt: now,
+      };
+      const moderation = {
+        state: 'active',
+        reviewedAt: now,
+        reviewedBy: actorUid,
+        reason: 'emulator-self-created',
+      };
+      const rankingPatch = buildCommunityRankingProjectionPatch(
+        {
+          description: command.description,
+          source,
+          moderation,
+          metrics,
+          lifecycle,
+          createdAt: now,
+          updatedAt: now,
+        },
+        { avatarUrl: null, coverUrl: null },
+        now
+      );
       const currentCreationRevision = Number.isSafeInteger(
         actorUser['communityCreationRevision']
       ) && Number(actorUser['communityCreationRevision']) >= 0
@@ -275,27 +305,13 @@ export const createCommunity = onCall<CreateCommunityRequest>(
         visibility: 'public_preview',
         ownerUid: actorUid,
         access,
-        moderation: {
-          state: 'active',
-          reviewedAt: now,
-          reviewedBy: actorUid,
-          reason: 'emulator-self-created',
-        },
+        moderation,
         metrics,
         capacity: {
           memberLimit: command.memberLimit,
           policyVersion: 1,
         },
-        lifecycle: {
-          lastMeaningfulActivityAt: now,
-          dormantAt: null,
-          archivedAt: null,
-          scheduledForDeletionAt: null,
-          interactionBlocked: false,
-          retentionHold: false,
-          policyVersion: 1,
-          updatedAt: now,
-        },
+        lifecycle,
         createdBy: actorUid,
         createdAt: now,
         updatedAt: now,
@@ -319,6 +335,7 @@ export const createCommunity = onCall<CreateCommunityRequest>(
         access,
         avatarUrl: null,
         coverUrl: null,
+        ...rankingPatch,
         rankScore: now,
         updatedAt: now,
       });
