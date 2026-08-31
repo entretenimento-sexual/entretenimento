@@ -58,13 +58,13 @@ export const PUBLIC_BODY_TRAIT_OPTIONS = [
   { key: 'curvy', label: 'Curvilíneo' },
 ] as const satisfies readonly PublicPreferenceOption[];
 
-const RELATIONSHIP_LABELS = new Map(
+const RELATIONSHIP_LABELS: ReadonlyMap<string, string> = new Map(
   PUBLIC_RELATIONSHIP_INTENT_OPTIONS.map(({ key, label }) => [key, label] as const)
 );
-const SEXUAL_PRACTICE_LABELS = new Map(
+const SEXUAL_PRACTICE_LABELS: ReadonlyMap<string, string> = new Map(
   PUBLIC_SEXUAL_PRACTICE_OPTIONS.map(({ key, label }) => [key, label] as const)
 );
-const BODY_TRAIT_LABELS = new Map(
+const BODY_TRAIT_LABELS: ReadonlyMap<string, string> = new Map(
   PUBLIC_BODY_TRAIT_OPTIONS.map(({ key, label }) => [key, label] as const)
 );
 
