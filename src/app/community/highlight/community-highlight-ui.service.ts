@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, Injector, inject } from '@angular/core';
 import {
   Observable,
   Subject,
@@ -63,8 +63,7 @@ const MAX_CACHED_COMMUNITY_CONTEXTS = 24;
 
 @Injectable({ providedIn: 'root' })
 export class CommunityHighlightUiService {
-  private readonly highlightRepository = inject(CommunityHighlightRepository);
-  private readonly feedRepository = inject(CommunityFeedRepository);
+  private readonly injector = inject(Injector);
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly contexts = new Map<string, CommunityHighlightContext>();
@@ -109,7 +108,9 @@ export class CommunityHighlightUiService {
   ): Observable<CommunityHighlightManageResponse> {
     const communityId = request.communityId.trim();
 
-    return defer(() => this.highlightRepository.manage$(request)).pipe(
+    return defer(() =>
+      this.injector.get(CommunityHighlightRepository).manage$(request)
+    ).pipe(
       tap((result) => {
         this.refresh(communityId);
         this.showSuccess(result);
@@ -134,7 +135,9 @@ export class CommunityHighlightUiService {
   }
 
   private loadState$(communityId: string): Observable<CommunityHighlightViewState> {
-    return this.highlightRepository.get$({ communityId }).pipe(
+    return defer(() =>
+      this.injector.get(CommunityHighlightRepository).get$({ communityId })
+    ).pipe(
       switchMap((response) => {
         if (!response.highlight) {
           return of<CommunityHighlightViewState>({
@@ -147,11 +150,13 @@ export class CommunityHighlightUiService {
         }
 
         const highlight = response.highlight;
-        return this.feedRepository.getItems$({
-          communityId,
-          view: 'feed',
-          postIds: [highlight.targetId],
-        }).pipe(
+        return defer(() =>
+          this.injector.get(CommunityFeedRepository).getItems$({
+            communityId,
+            view: 'feed',
+            postIds: [highlight.targetId],
+          })
+        ).pipe(
           map((page) =>
             page.items.find((item) => item.postId === highlight.targetId) ?? null
           ),
