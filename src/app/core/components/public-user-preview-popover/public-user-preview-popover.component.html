@@ -1,0 +1,63 @@
+<!-- src/app/core/components/public-user-preview-popover/public-user-preview-popover.component.html -->
+@if (preview(); as vm) {
+  <section
+    class="public-user-preview"
+    role="region"
+    [attr.aria-label]="'Prévia do perfil de ' + vm.identity.nickname"
+  >
+    <app-public-user-identity
+      [identity]="vm.identity"
+      density="comfortable"
+      emphasis="strong"
+    />
+
+    <div class="public-user-preview__facts" aria-label="Informações públicas do perfil">
+      @if (vm.age !== null) {
+        <span>{{ vm.age }} anos</span>
+      }
+
+      @if (vm.orientationLabel) {
+        <span>{{ vm.orientationLabel | titlecase }}</span>
+      }
+
+      @if (vm.isOnline) {
+        <span class="public-user-preview__online">
+          <span class="public-user-preview__online-dot" aria-hidden="true"></span>
+          Online
+        </span>
+      }
+
+      @if (vm.approximateDistanceKm !== null) {
+        <span>
+          <i class="fas fa-location-dot" aria-hidden="true"></i>
+          @if (vm.approximateDistanceKm < 1) {
+            &lt; 1 km
+          } @else {
+            {{ vm.approximateDistanceKm | number:'1.0-1' }} km
+          }
+        </span>
+      }
+    </div>
+
+    @if (relationshipLabel(); as relationship) {
+      <p class="public-user-preview__relationship">
+        <i class="fas fa-link" aria-hidden="true"></i>
+        {{ relationship }}
+      </p>
+    }
+
+    @if (vm.bioPreview) {
+      <p class="public-user-preview__bio">{{ vm.bioPreview }}</p>
+    }
+
+    @if (vm.identity.profileId) {
+      <a
+        class="public-user-preview__profile-link"
+        [routerLink]="['/perfil', vm.identity.profileId]"
+      >
+        Ver perfil
+        <i class="fas fa-arrow-right" aria-hidden="true"></i>
+      </a>
+    }
+  </section>
+}
