@@ -12,6 +12,7 @@ import type {
 } from '../data-access/community-feed.model';
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
+import { CommunityHighlightUiService } from '../highlight/community-highlight-ui.service';
 import { CommunityFeedComponent } from './community-feed.component';
 
 function item(
@@ -80,6 +81,17 @@ describe('CommunityFeedComponent reference navigation', () => {
     createComment$: vi.fn(),
     moderateComment$: vi.fn(),
   };
+  const highlightUiMock = {
+    state$: vi.fn(() => of({
+      status: 'ready' as const,
+      communityId: 'community-1',
+      highlight: null,
+      item: null,
+      canManage: false,
+    })),
+    manage$: vi.fn(),
+    refresh: vi.fn(),
+  };
   const errorNotifierMock = {
     showError: vi.fn(),
     showSuccess: vi.fn(),
@@ -109,6 +121,7 @@ describe('CommunityFeedComponent reference navigation', () => {
           provide: CommunityFeedCommentRepository,
           useValue: commentRepositoryMock,
         },
+        { provide: CommunityHighlightUiService, useValue: highlightUiMock },
         { provide: StorageService, useValue: { uploadFile: vi.fn() } },
         {
           provide: AuthSessionService,
