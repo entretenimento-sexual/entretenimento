@@ -8,17 +8,25 @@
 // - normalizar códigos de Firebase/Functions sem expor mensagens técnicas;
 // - extrair `reason` e `recommendedAction` de detalhes estruturados;
 // - resolver mensagens seguras por motivo, ação recomendada ou código;
+// - resolver a superfície visual canônica: snackbar/modal/inline/page/none;
 // - indicar se a falha pode ser tentada novamente;
 // - delegar feedback visual ao ErrorNotificationService;
 // - delegar diagnóstico sanitizado ao GlobalErrorHandlerService.
 //
 // O serviço não substitui regras de negócio e não confia em `error.message` como
-// texto de interface. Mensagens específicas devem ser declaradas pelo chamador
-// por código/motivo/ação, mantendo a tradução do domínio testável e previsível.
+// texto de interface. Mensagens e apresentações específicas devem ser declaradas
+// pelo chamador por código/motivo/ação, mantendo o domínio testável e previsível.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
 
+import {
+  DEFAULT_APPLICATION_ERROR_PRESENTATION,
+  type ApplicationErrorPresentation,
+  type ApplicationErrorPresentationMap,
+  type ApplicationErrorSeverity,
+  type ApplicationErrorSurface,
+} from './application-error-presentation.model';
 import { ErrorNotificationService } from './error-notification.service';
 import { GlobalErrorHandlerService } from './global-error-handler.service';
 
@@ -36,16 +44,22 @@ export interface ApplicationErrorDescriptor {
   readonly recommendedAction: string | null;
   readonly userMessage: string;
   readonly retryable: boolean;
+  readonly presentation: ApplicationErrorPresentation;
 }
 
 export interface ApplicationErrorReportOptions {
   readonly feature: string;
   readonly operation: string;
   readonly fallbackMessage: string;
+  /** API legada preservada; `presentation`/catálogos têm precedência. */
   readonly notification?: ApplicationErrorNotification;
+  readonly presentation?: ApplicationErrorPresentation;
   readonly codeMessages?: Readonly<Record<string, string>>;
   readonly reasonMessages?: Readonly<Record<string, string>>;
   readonly recommendedActionMessages?: Readonly<Record<string, string>>;
+  readonly codePresentations?: ApplicationErrorPresentationMap;
+  readonly reasonPresentations?: ApplicationErrorPresentationMap;
+  readonly recommendedActionPresentations?: ApplicationErrorPresentationMap;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
@@ -105,6 +119,29 @@ function safeMessage(value: unknown, fallback: string): string {
   return normalized ?? fallback;
 }
 
+function normalizeSurface(value: unknown): ApplicationErrorSurface {
+  return value === 'modal'
+    || value === 'inline'
+    || value === 'page'
+    || value === 'none'
+    || value === 'snackbar'
+    ? value
+    : DEFAULT_APPLICATION_ERROR_PRESENTATION.surface;
+}
+
+function normalizeSeverity(value: unknown): ApplicationErrorSeverity {
+  return value === 'warning' || value === 'info' || value === 'error'
+    ? value
+    : DEFAULT_APPLICATION_ERROR_PRESENTATION.severity;
+}
+
+function normalizeInternalRoute(value: unknown): string | null {
+  const route = safeString(value, 300);
+  return route && route.startsWith('/') && !route.startsWith('//')
+    ? route
+    : null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApplicationErrorService {
   private readonly notifier = inject(ErrorNotificationService);
@@ -138,6 +175,12 @@ export class ApplicationErrorService {
       ?? (code ? safeString(options.codeMessages?.[code], 280) : null)
       ?? (code ? COMMON_CODE_MESSAGES[code] : null)
       ?? fallbackMessage;
+    const presentation = this.resolvePresentation(
+      code,
+      reason,
+      recommendedAction,
+      options
+    );
 
     return {
       code,
@@ -145,6 +188,7 @@ export class ApplicationErrorService {
       recommendedAction,
       userMessage,
       retryable: code ? RETRYABLE_CODES.has(code) : false,
+      presentation,
     };
   }
 
@@ -154,30 +198,77 @@ export class ApplicationErrorService {
   ): ApplicationErrorDescriptor {
     const descriptor = this.normalize(error, options);
 
-    this.notify(descriptor.userMessage, options.notification ?? 'error');
+    this.notify(descriptor);
     this.reportTechnicalError(error, descriptor, options);
 
     return descriptor;
   }
 
-  private notify(
-    message: string,
-    notification: ApplicationErrorNotification
-  ): void {
+  private resolvePresentation(
+    code: string | null,
+    reason: string | null,
+    recommendedAction: string | null,
+    options: ApplicationErrorReportOptions
+  ): ApplicationErrorPresentation {
+    const mappedPresentation = options.presentation
+      ?? (reason ? options.reasonPresentations?.[reason] : undefined)
+      ?? (recommendedAction
+        ? options.recommendedActionPresentations?.[recommendedAction]
+        : undefined)
+      ?? (code ? options.codePresentations?.[code] : undefined)
+      ?? this.presentationFromLegacyNotification(options.notification);
+
+    return this.normalizePresentation(mappedPresentation);
+  }
+
+  private presentationFromLegacyNotification(
+    notification: ApplicationErrorNotification | undefined
+  ): ApplicationErrorPresentation {
+    switch (notification) {
+      case 'warning':
+        return { surface: 'snackbar', severity: 'warning' };
+      case 'info':
+        return { surface: 'snackbar', severity: 'info' };
+      case 'none':
+        return { surface: 'none', severity: 'error' };
+      case 'error':
+      default:
+        return DEFAULT_APPLICATION_ERROR_PRESENTATION;
+    }
+  }
+
+  private normalizePresentation(
+    raw: Readonly<ApplicationErrorPresentation>
+  ): ApplicationErrorPresentation {
+    const actionLabel = safeString(raw.primaryAction?.label, 80);
+    const actionRoute = normalizeInternalRoute(raw.primaryAction?.route);
+    const title = safeString(raw.title, 100);
+    const detail = safeString(raw.detail, 360);
+    const dismissLabel = safeString(raw.dismissLabel, 80);
+
+    return {
+      surface: normalizeSurface(raw.surface),
+      severity: normalizeSeverity(raw.severity),
+      ...(title ? { title } : {}),
+      ...(detail ? { detail } : {}),
+      ...(actionLabel
+        ? {
+            primaryAction: {
+              label: actionLabel,
+              ...(actionRoute ? { route: actionRoute } : {}),
+            },
+          }
+        : {}),
+      ...(dismissLabel ? { dismissLabel } : {}),
+    };
+  }
+
+  private notify(descriptor: ApplicationErrorDescriptor): void {
     try {
-      switch (notification) {
-        case 'error':
-          this.notifier.showError(message);
-          return;
-        case 'warning':
-          this.notifier.showWarning(message);
-          return;
-        case 'info':
-          this.notifier.showInfo(message);
-          return;
-        case 'none':
-          return;
-      }
+      this.notifier.showApplicationError(
+        descriptor.userMessage,
+        descriptor.presentation
+      );
     } catch {
       // A observabilidade técnica abaixo continua independente do feedback visual.
     }
@@ -199,6 +290,7 @@ export class ApplicationErrorService {
         context?: Readonly<Record<string, unknown>>;
         skipUserNotification?: boolean;
         userFacingMessage?: string;
+        userFacingSurface?: ApplicationErrorSurface;
       };
 
       diagnostic.name = 'ApplicationError';
@@ -214,6 +306,7 @@ export class ApplicationErrorService {
         ...(options.metadata ?? {}),
       };
       diagnostic.userFacingMessage = descriptor.userMessage;
+      diagnostic.userFacingSurface = descriptor.presentation.surface;
       diagnostic.skipUserNotification = true;
 
       this.globalError.handleError(diagnostic);
