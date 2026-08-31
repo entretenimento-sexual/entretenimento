@@ -25,6 +25,7 @@ import {
 } from './community-callable-security';
 import { evaluateOfficialSpaceCreationGrant } from './community-official-space.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { buildCommunityRankingProjectionPatch } from './community-ranking-sync.policy';
 import {
   CreateVenueCommunityRequest,
   CreateVenueCommunityResponse,
@@ -227,6 +228,23 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         join: command.joinPolicy,
       };
       const source = { type: 'venue', id: command.venueId };
+      const communityModeration = {
+        state: 'active',
+        reviewedAt: now,
+        reviewedBy: actorUid,
+      };
+      const rankingPatch = buildCommunityRankingProjectionPatch(
+        {
+          description: command.description,
+          source,
+          moderation: communityModeration,
+          metrics,
+          createdAt: now,
+          updatedAt: now,
+        },
+        { avatarUrl: null, coverUrl: null },
+        now
+      );
 
       transaction.create(venueRef, {
         name: command.name,
@@ -279,11 +297,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
           policyVersion: 1,
         },
         access,
-        moderation: {
-          state: 'active',
-          reviewedAt: now,
-          reviewedBy: actorUid,
-        },
+        moderation: communityModeration,
         metrics,
         capacity: {
           memberLimit: officialSpaceDecision.memberLimit,
@@ -310,6 +324,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         access,
         avatarUrl: null,
         coverUrl: null,
+        ...rankingPatch,
         rankScore: now,
         updatedAt: now,
       });
