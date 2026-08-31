@@ -50,6 +50,7 @@ import {
   timer,
 } from 'rxjs';
 
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
@@ -124,6 +125,7 @@ const MAX_LOCATION_EMBED_URL_CACHE_ENTRIES = 64;
   standalone: true,
   imports: [
     AsyncPipe,
+    PublicUserIdentityComponent,
     ImageFallbackDirective,
     ReactiveFormsModule,
     ReportContentButtonComponent,

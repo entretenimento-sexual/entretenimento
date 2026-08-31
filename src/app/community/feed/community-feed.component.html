@@ -247,54 +247,13 @@
               tabindex="-1"
             >
               <header class="community-post__header">
-                <span class="community-post__avatar" aria-hidden="true">
-                  @if (item.author.avatarUrl) {
-                    <img
-                      [src]="item.author.avatarUrl"
-                      alt=""
-                      loading="lazy"
-                      appImageFallback
-                    />
-                  } @else {
-                    <i class="fas fa-user-group"></i>
-                  }
-                </span>
-
-                <div class="community-post__identity">
-                  <div class="community-post__identity-line">
-                    <strong>{{ item.author.label }}</strong>
-                    <time [attr.datetime]="publishedIso(item.publishedAt)">
-                      {{ publishedLabel(item.publishedAt) }}
-                    </time>
-                  </div>
-                  @if (
-                    item.author.profileTypeLabel
-                    || item.author.city
-                    || item.author.state
-                  ) {
-                    <div
-                      class="community-post__author-context"
-                      [attr.aria-label]="'Informações públicas de ' + item.author.label"
-                    >
-                      @if (item.author.profileTypeLabel) {
-                        <span>{{ item.author.profileTypeLabel }}</span>
-                      }
-                      @if (item.author.city || item.author.state) {
-                        <span>
-                          @if (item.author.city) {
-                            {{ item.author.city }}
-                          }
-                          @if (item.author.city && item.author.state) {
-                            <span aria-hidden="true">/</span>
-                          }
-                          @if (item.author.state) {
-                            {{ item.author.state }}
-                          }
-                        </span>
-                      }
-                    </div>
-                  }
-                </div>
+                <app-public-user-identity
+                  style="grid-column: 1 / 3;"
+                  [identity]="item.author"
+                  [density]="view() === 'photos' ? 'compact' : 'standard'"
+                  [contextText]="publishedLabel(item.publishedAt)"
+                  [contextDateTime]="publishedIso(item.publishedAt)"
+                />
 
                 @if (
                   item.capabilities.canDeleteOwn
