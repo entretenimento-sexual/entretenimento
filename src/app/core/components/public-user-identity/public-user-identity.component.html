@@ -4,9 +4,9 @@
     @if (avatarUrl(); as avatar) {
       <img
         [src]="avatar"
-        appImageFallback
         alt=""
         loading="lazy"
+        (error)="onAvatarError()"
       />
     } @else {
       <span class="public-user-identity__avatar-fallback">
