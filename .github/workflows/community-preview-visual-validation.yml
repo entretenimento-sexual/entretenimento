@@ -179,7 +179,7 @@ jobs:
             if (
               metrics.scrollWidth > metrics.viewportWidth + 1
               || metrics.h1Count !== 1
-              || metrics.tabCount !== 4
+              || metrics.tabCount !== 3
               || metrics.postCount !== 3
               || !metrics.hasComposer
               || !metrics.hasCover
@@ -251,7 +251,7 @@ jobs:
               metrics.scrollWidth > metrics.viewportWidth + 1
               || metrics.contentWidth > metrics.viewportWidth + 1
               || metrics.tabsWidth > metrics.viewportWidth + 1
-              || metrics.tabCount !== 4
+              || metrics.tabCount !== 3
               || metrics.postCount !== 3
               || metrics.railCount !== 1
               || metrics.railVisible
