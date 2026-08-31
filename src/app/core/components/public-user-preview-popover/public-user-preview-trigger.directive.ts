@@ -23,29 +23,45 @@ import { PublicUserPreviewPopoverComponent } from './public-user-preview-popover
 const DESKTOP_POSITIONS: readonly ConnectedPosition[] = [
   {
     originX: 'start',
-    originY: 'center',
+    originY: 'bottom',
     overlayX: 'start',
-    overlayY: 'center',
+    overlayY: 'top',
+    offsetY: 10,
+  },
+  {
+    originX: 'start',
+    originY: 'top',
+    overlayX: 'start',
+    overlayY: 'bottom',
+    offsetY: -10,
+  },
+  {
+    originX: 'end',
+    originY: 'bottom',
+    overlayX: 'end',
+    overlayY: 'top',
+    offsetY: 10,
+  },
+  {
+    originX: 'end',
+    originY: 'top',
+    overlayX: 'end',
+    overlayY: 'bottom',
+    offsetY: -10,
   },
   {
     originX: 'end',
     originY: 'center',
+    overlayX: 'start',
+    overlayY: 'center',
+    offsetX: 10,
+  },
+  {
+    originX: 'start',
+    originY: 'center',
     overlayX: 'end',
     overlayY: 'center',
-  },
-  {
-    originX: 'center',
-    originY: 'bottom',
-    overlayX: 'center',
-    overlayY: 'top',
-    offsetY: 8,
-  },
-  {
-    originX: 'center',
-    originY: 'top',
-    overlayX: 'center',
-    overlayY: 'bottom',
-    offsetY: -8,
+    offsetX: -10,
   },
 ];
 
@@ -121,6 +137,7 @@ export class PublicUserPreviewTriggerDirective {
           .flexibleConnectedTo(this.elementRef)
           .withPositions([...DESKTOP_POSITIONS])
           .withPush(true)
+          .withViewportMargin(12)
           .withFlexibleDimensions(false);
 
     const overlayRef = this.overlay.create({
