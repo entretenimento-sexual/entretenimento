@@ -1,0 +1,89 @@
+:host {
+  display: block;
+  min-width: 0;
+  width: 100%;
+}
+
+.direct-chat-public-identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.direct-chat-public-identity app-public-user-identity {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.direct-chat-public-identity__preview {
+  display: inline-flex;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border) 72%,
+    transparent
+  );
+  border-radius: 50%;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 94%,
+    transparent
+  );
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
+  cursor: pointer;
+  transition:
+    background-color 130ms ease,
+    border-color 130ms ease,
+    color 130ms ease;
+}
+
+.direct-chat-public-identity__preview:hover {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color) 32%,
+    var(--surface-border)
+  );
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 6%,
+    var(--surface-color)
+  );
+  color: var(--primary-color);
+}
+
+.direct-chat-public-identity__preview:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+.direct-chat-public-identity__preview[aria-expanded='true'] {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color) 44%,
+    var(--surface-border)
+  );
+  color: var(--primary-color);
+}
+
+:host-context(.high-contrast) .direct-chat-public-identity__preview {
+  border: 2px solid var(--text-color);
+  background: var(--background-color);
+  color: var(--text-color);
+}
+
+@media (max-width: 600px), (hover: none), (pointer: coarse) {
+  .direct-chat-public-identity {
+    gap: 0.35rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .direct-chat-public-identity__preview {
+    transition: none;
+  }
+}
