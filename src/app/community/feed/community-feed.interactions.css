@@ -227,7 +227,7 @@
   box-shadow: none;
 }
 
-/* Responder expressa intenção; abrir Conversa expressa somente leitura. */
+/* Responder expressa intenção; abrir Comentários expressa somente leitura. */
 .community-post__reply:hover,
 .community-post__reply.is-replying {
   background: color-mix(
@@ -272,8 +272,30 @@
 }
 
 .community-post__metrics {
+  width: min(calc(100% - 3.17rem), 38rem);
   margin-left: 3.17rem;
-  gap: 0.12rem;
+  gap: 0.14rem;
+  padding-top: 0.22rem;
+  border-top: 1px solid color-mix(
+    in oklab,
+    var(--surface-border) 40%,
+    transparent
+  );
+}
+
+.community-post__metrics .community-post__action {
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.community-post__metrics button.community-post__action:hover:not(:disabled) {
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 93%,
+    var(--primary-color) 7%
+  );
+  color: color-mix(in oklab, var(--text-color) 72%, var(--primary-color));
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -521,6 +543,7 @@
   }
 
   .community-post__metrics {
+    width: 100%;
     margin-left: 0;
   }
 
@@ -622,14 +645,14 @@
   padding: 0.78rem 0.9rem;
   border-color: color-mix(
     in oklab,
-    var(--surface-border) 72%,
-    var(--text-color) 28%
+    var(--surface-border) 46%,
+    transparent
   );
   border-radius: 0.8rem;
   background: color-mix(
     in oklab,
-    var(--surface-color) 96%,
-    var(--text-color) 4%
+    var(--surface-color) 98%,
+    var(--text-color) 2%
   );
   font-size: 0.9rem;
   transition:
@@ -645,7 +668,7 @@
 .community-feed__composer textarea:focus {
   border-color: color-mix(
     in oklab,
-    var(--primary-color) 34%,
+    var(--primary-color) 30%,
     var(--surface-border)
   );
   background: var(--surface-color);
@@ -710,6 +733,10 @@
   box-shadow: none;
 }
 
+:host-context(.high-contrast) .community-post__metrics {
+  border-top-color: var(--text-color);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .community-feed__composer,
   .community-feed__composer textarea,
@@ -759,7 +786,7 @@
 }
 
 .community-feed:not(.community-feed--photos) .community-post__metrics {
-  margin-top: 0.16rem;
+  margin-top: 0.22rem;
 }
 
 .community-feed:not(.community-feed--photos)
