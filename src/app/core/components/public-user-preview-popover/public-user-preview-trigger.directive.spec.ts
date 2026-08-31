@@ -15,6 +15,7 @@ import { PublicUserPreviewTriggerDirective } from './public-user-preview-trigger
       type="button"
       [appPublicUserPreviewTrigger]="preview"
       [publicUserPreviewRelationship]="'Vocês estão conectados'"
+      [publicUserPreviewProfileRoute]="['/perfil', 'user-public-1']"
     >
       Perfil
     </button>
@@ -23,7 +24,7 @@ import { PublicUserPreviewTriggerDirective } from './public-user-preview-trigger
 class PreviewTriggerHostComponent {
   preview: PublicUserPreview | null = {
     identity: {
-      profileId: 'user-1',
+      profileId: null,
       nickname: 'serale',
       label: 'serale',
       avatarUrl: null,
@@ -75,12 +76,16 @@ describe('PublicUserPreviewTriggerDirective', () => {
     directive.open();
     fixture.detectChanges();
 
+    const overlay = overlayContainer.getContainerElement();
+    const profileLink = overlay.querySelector(
+      '.public-user-preview__profile-link'
+    ) as HTMLAnchorElement | null;
+
     expect(directive.isOpen()).toBe(true);
     expect(
-      overlayContainer.getContainerElement().querySelector(
-        'app-public-user-preview-popover'
-      )
+      overlay.querySelector('app-public-user-preview-popover')
     ).toBeTruthy();
+    expect(profileLink?.getAttribute('href')).toContain('/perfil/user-public-1');
 
     directive.close();
     fixture.detectChanges();
