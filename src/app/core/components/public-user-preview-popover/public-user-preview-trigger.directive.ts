@@ -23,10 +23,10 @@ import { PublicUserPreviewPopoverComponent } from './public-user-preview-popover
 /**
  * A prévia transitória permanece visualmente vinculada ao card de origem.
  *
- * No desktop ela é centralizada sobre o próprio card. Como o hover dura pouco,
- * essa associação direta reduz deslocamento visual e evita que a prévia pareça
- * pertencer ao card vizinho ou a outra área da grade. O CDK usa `withPush(true)`
- * apenas para impedir corte nas bordas do viewport.
+ * No desktop ela é centralizada exatamente sobre o próprio card. Não usamos
+ * `push` nesse modo porque o reposicionamento automático pode deslocar a prévia
+ * para fora do card e quebrar a associação visual. Em dispositivos touch a
+ * apresentação continua usando a superfície global própria para mobile.
  */
 const DESKTOP_POSITIONS: readonly ConnectedPosition[] = [
   {
@@ -108,7 +108,7 @@ export class PublicUserPreviewTriggerDirective {
       : this.overlay.position()
           .flexibleConnectedTo(this.elementRef)
           .withPositions([...DESKTOP_POSITIONS])
-          .withPush(true)
+          .withPush(false)
           .withViewportMargin(12)
           .withFlexibleDimensions(false);
 
