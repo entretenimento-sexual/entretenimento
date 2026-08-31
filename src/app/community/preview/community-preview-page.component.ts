@@ -61,6 +61,9 @@ import {
   COMMUNITY_PREVIEW_LOAD_CODE_MESSAGES,
 } from '../presentation/community-error.messages';
 import {
+  COMMUNITY_MEMBERSHIP_ACTION_REASON_PRESENTATIONS,
+} from '../presentation/community-error.presentations';
+import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
 } from '../presentation/community-visual-identity';
@@ -723,6 +726,7 @@ export class CommunityPreviewPageComponent {
       fallbackMessage,
       codeMessages: COMMUNITY_MEMBERSHIP_ACTION_CODE_MESSAGES,
       reasonMessages: COMMUNITY_MEMBERSHIP_ACTION_REASON_MESSAGES,
+      reasonPresentations: COMMUNITY_MEMBERSHIP_ACTION_REASON_PRESENTATIONS,
       metadata: {
         scope: 'CommunityPreviewPageComponent',
         communityId: community.communityId,
