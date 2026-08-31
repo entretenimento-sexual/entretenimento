@@ -831,3 +831,91 @@
   .community-feed:not(.community-feed--photos) .community-feed__items > li + li::before {
   background: var(--text-color);
 }
+
+/* MURAL-08: texto, mídia, contexto, localização e ações compartilham o mesmo
+   eixo. O limite continua confortável para leitura, mas deixa de desperdiçar a
+   largura já disponível na coluna principal do desktop. */
+.community-feed:not(.community-feed--photos) {
+  --community-feed-content-offset: 3.17rem;
+  --community-feed-content-max: 44rem;
+}
+
+.community-feed:not(.community-feed--photos) .community-post > p,
+.community-feed:not(.community-feed--photos) .community-post__media,
+.community-feed:not(.community-feed--photos) .community-post__reply-context,
+.community-feed:not(.community-feed--photos) .community-post__location,
+.community-feed:not(.community-feed--photos) .community-post__metrics,
+.community-feed:not(.community-feed--photos) .community-post__confirmation {
+  width: min(
+    calc(100% - var(--community-feed-content-offset)),
+    var(--community-feed-content-max)
+  );
+  max-width: none;
+  box-sizing: border-box;
+  margin-left: var(--community-feed-content-offset);
+}
+
+.community-feed:not(.community-feed--photos) .community-post__media img {
+  max-height: 42rem;
+}
+
+/* Metadados do autor voltam a ser contexto editorial, não microchips. */
+.community-feed:not(.community-feed--photos) .community-post__author-context {
+  gap: 0.18rem;
+}
+
+.community-feed:not(.community-feed--photos) .community-post__author-context > span {
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.community-feed:not(.community-feed--photos)
+  .community-post__author-context > span + span::before {
+  content: '·';
+  margin-right: 0.18rem;
+  color: color-mix(in oklab, var(--text-color) 34%, transparent);
+}
+
+/* Referência e localização permanecem claramente interativas, mas com menos
+   peso decorativo do que o conteúdo principal da publicação. */
+.community-feed:not(.community-feed--photos) .community-post__reply-context {
+  border-inline-start-color: color-mix(
+    in oklab,
+    var(--primary-color) 28%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 99%,
+    var(--primary-color) 1%
+  );
+}
+
+.community-feed:not(.community-feed--photos) .community-post__location {
+  border-color: color-mix(
+    in oklab,
+    var(--surface-border) 62%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 99%,
+    var(--primary-color) 1%
+  );
+}
+
+@media (max-width: 520px) {
+  .community-feed:not(.community-feed--photos) {
+    --community-feed-content-offset: 0rem;
+    --community-feed-content-max: 100%;
+  }
+}
+
+:host-context(.high-contrast)
+  .community-feed:not(.community-feed--photos) .community-post__reply-context,
+:host-context(.high-contrast)
+  .community-feed:not(.community-feed--photos) .community-post__location {
+  background: var(--surface-color);
+}
