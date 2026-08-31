@@ -110,7 +110,7 @@ describe('CommunityPreviewPageComponent / navegação e retry', () => {
     );
   }
 
-  it('sincroniza seção e retorno com query params navegáveis', () => {
+  it('redireciona a seção legada de tópicos para o Mural e preserva retorno', () => {
     queryParamMap$.next(
       convertToParamMap({
         secao: 'topicos',
@@ -120,7 +120,7 @@ describe('CommunityPreviewPageComponent / navegação e retry', () => {
 
     const component = createComponent();
 
-    expect(component.activeSection()).toBe('topics');
+    expect(component.activeSection()).toBe('feed');
     expect(component.returnTarget()).toBe(
       '/dashboard/comunidades?interesse=practice:bdsm'
     );
