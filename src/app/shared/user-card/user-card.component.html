@@ -6,6 +6,9 @@
     [class.user-card--pending]="relationshipVm().state === 'outgoing_pending' || relationshipVm().state === 'incoming_pending'"
     [attr.aria-labelledby]="'uc-title-' + (profile.uid || 'x')"
     [attr.aria-describedby]="profile.descricao ? 'uc-desc-' + (profile.uid || 'x') : null"
+    [appPublicUserPreviewTrigger]="publicPreview()"
+    [publicUserPreviewRelationship]="previewRelationshipLabel()"
+    #quickPreview="publicUserPreviewTrigger"
   >
     <a
       class="user-card__media"
@@ -31,14 +34,16 @@
         </span>
       }
 
-      <div class="user-card__identity">
-        <strong
-          class="user-card__name"
-          [ngClass]="nicknameClass()"
-          [attr.id]="'uc-title-' + (profile.uid || 'x')"
-        >
-          {{ profile.nickname || 'Usuário' }}
-        </strong>
+      <div
+        class="user-card__identity"
+        [attr.id]="'uc-title-' + (profile.uid || 'x')"
+      >
+        <app-public-user-identity
+          [identity]="publicPreview()?.identity"
+          density="standard"
+          emphasis="strong"
+          [showAvatar]="false"
+        />
 
         <span class="sr-only">
           {{ profile.isOnline ? 'Online' : 'Offline' }}
@@ -46,74 +51,71 @@
       </div>
     </a>
 
+    <button
+      type="button"
+      class="user-card__quick-preview"
+      [attr.aria-label]="'Ver resumo de ' + (profile.nickname || 'usuário')"
+      title="Ver resumo do perfil"
+      (click)="quickPreview.open()"
+    >
+      <i class="fas fa-circle-info" aria-hidden="true"></i>
+      <span class="sr-only">Ver resumo do perfil</span>
+    </button>
+
     <div class="user-card__body">
       <div class="user-card__summary">
-        <p class="user-card__meta">
-          @if (profile.gender) {
-            <span>{{ profile.gender | titlecase }}</span>
-          } @else {
-            <span>Perfil adulto</span>
-          }
+        @if (
+          profile.idade
+          || profile.orientation
+          || profile.partner1Orientation
+          || profile.partner2Orientation
+        ) {
+          <p class="user-card__meta">
+            @if (profile.idade) {
+              <span>{{ profile.idade }} anos</span>
+            }
 
-          @if (profile.idade) {
-            <span class="user-card__muted">• {{ profile.idade }} anos</span>
-          }
+            @if (profile.orientation) {
+              <span class="user-card__muted">· {{ profile.orientation | titlecase }}</span>
+            } @else if (profile.partner1Orientation || profile.partner2Orientation) {
+              <span class="user-card__muted">
+                ·
+                @if (profile.partner1Orientation) {
+                  {{ profile.partner1Orientation | titlecase }}
+                }
+                @if (profile.partner1Orientation && profile.partner2Orientation) {
+                  /
+                }
+                @if (profile.partner2Orientation) {
+                  {{ profile.partner2Orientation | titlecase }}
+                }
+              </span>
+            }
+          </p>
+        }
 
-          @if (profile.orientation) {
-            <span class="user-card__muted">• {{ profile.orientation | titlecase }}</span>
-          } @else if (profile.partner1Orientation || profile.partner2Orientation) {
-            <span class="user-card__muted">
-              •
-              @if (profile.partner1Orientation) {
-                {{ profile.partner1Orientation | titlecase }}
-              }
-              @if (profile.partner1Orientation && profile.partner2Orientation) {
-                /
-              }
-              @if (profile.partner2Orientation) {
-                {{ profile.partner2Orientation | titlecase }}
-              }
-            </span>
-          }
-        </p>
-
-        @if (profile.municipio || profile.estado || showDistance()) {
+        @if (showDistance()) {
           <p class="user-card__location">
             <i class="fas fa-location-dot" aria-hidden="true"></i>
 
             <span class="user-card__location-copy">
-              @if (profile.municipio || profile.estado) {
+              @if (distanciaKm() !== null) {
+                <strong class="user-card__distance">
+                  <span class="sr-only">Distância aproximada:</span>
+                  @if (distanciaKm()! < 1) {
+                    &lt; 1 km
+                  } @else {
+                    {{ distanciaKm() | number:'1.0-1' }} km
+                  }
+                </strong>
+              } @else {
                 <span
-                  class="user-card__place"
-                  [title]="(profile.municipio || '') + (profile.municipio && profile.estado ? ', ' : '') + (profile.estado || '')"
+                  class="user-card__distance-unavailable"
+                  title="Distância não disponível"
                 >
-                  {{ profile.municipio }}@if (profile.municipio && profile.estado) {, }{{ profile.estado }}
+                  <span aria-hidden="true">—</span>
+                  <span class="sr-only">Distância não disponível</span>
                 </span>
-              }
-
-              @if (showDistance()) {
-                @if (profile.municipio || profile.estado) {
-                  <span class="user-card__separator" aria-hidden="true">•</span>
-                }
-
-                @if (distanciaKm() !== null) {
-                  <strong class="user-card__distance">
-                    <span class="sr-only">Distância aproximada:</span>
-                    @if (distanciaKm()! < 1) {
-                      &lt; 1 km
-                    } @else {
-                      {{ distanciaKm() | number:'1.0-1' }} km
-                    }
-                  </strong>
-                } @else {
-                  <span
-                    class="user-card__distance-unavailable"
-                    title="Distância não disponível"
-                  >
-                    <span aria-hidden="true">—</span>
-                    <span class="sr-only">Distância não disponível</span>
-                  </span>
-                }
               }
             </span>
           </p>
