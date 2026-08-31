@@ -84,6 +84,44 @@ const COMMON_CODE_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   unknown: 'Não foi possível concluir a ação agora. Tente novamente.',
 });
 
+const COMMON_REASON_PRESENTATIONS: ApplicationErrorPresentationMap =
+  Object.freeze({
+    'recent-authentication-required': {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Confirme sua identidade novamente',
+      detail:
+        'Esta alteração é sensível e exige uma autenticação recente antes de continuar.',
+    },
+  });
+
+const COMMON_RECOMMENDED_ACTION_PRESENTATIONS:
+  ApplicationErrorPresentationMap = Object.freeze({
+    upgrade_subscription: {
+      surface: 'modal',
+      severity: 'info',
+      title: 'Seu plano atual precisa ser atualizado',
+      detail:
+        'A configuração atual permanece preservada. Compare os planos disponíveis para liberar esta opção.',
+      primaryAction: {
+        label: 'Ver planos',
+        route: '/subscription-plan',
+      },
+      dismissLabel: 'Agora não',
+    },
+  });
+
+const COMMON_CODE_PRESENTATIONS: ApplicationErrorPresentationMap =
+  Object.freeze({
+    'auth/requires-recent-login': {
+      surface: 'modal',
+      severity: 'warning',
+      title: 'Confirme sua identidade novamente',
+      detail:
+        'Esta alteração é sensível e exige uma autenticação recente antes de continuar.',
+    },
+  });
+
 const RETRYABLE_CODES = new Set([
   'resource-exhausted',
   'deadline-exceeded',
@@ -216,6 +254,11 @@ export class ApplicationErrorService {
         ? options.recommendedActionPresentations?.[recommendedAction]
         : undefined)
       ?? (code ? options.codePresentations?.[code] : undefined)
+      ?? (reason ? COMMON_REASON_PRESENTATIONS[reason] : undefined)
+      ?? (recommendedAction
+        ? COMMON_RECOMMENDED_ACTION_PRESENTATIONS[recommendedAction]
+        : undefined)
+      ?? (code ? COMMON_CODE_PRESENTATIONS[code] : undefined)
       ?? this.presentationFromLegacyNotification(options.notification);
 
     return this.normalizePresentation(mappedPresentation);
