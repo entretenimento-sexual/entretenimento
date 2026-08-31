@@ -22,6 +22,7 @@ import {
 } from './community-lifecycle-execution.policy';
 import { evaluateCommunityLifecycle } from './community-lifecycle.policy';
 import { sanitizeCommunityDocument } from './community-preview.model';
+import { buildCommunityRankingProjectionPatch } from './community-ranking-sync.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 const PAGE_SIZE = 50;
@@ -44,9 +45,14 @@ function buildActiveDiscoveryProjection(
   rawDiscovery: Record<string, unknown> | null,
   now: number
 ): Record<string, unknown> | null {
+  const activeCommunity = {
+    ...rawCommunity,
+    status: 'active',
+    updatedAt: now,
+  };
   const sanitized = sanitizeCommunityDocument(
     communityId,
-    { ...rawCommunity, status: 'active' }
+    activeCommunity
   );
 
   if (!sanitized) return null;
@@ -55,6 +61,11 @@ function buildActiveDiscoveryProjection(
   const visibility = rawCommunity['visibility'] === 'members_only'
     ? 'members_only'
     : 'public_preview';
+  const rankingPatch = buildCommunityRankingProjectionPatch(
+    activeCommunity,
+    rawDiscovery,
+    now
+  );
 
   return {
     communityId: sanitized.communityId,
@@ -78,6 +89,7 @@ function buildActiveDiscoveryProjection(
     },
     avatarUrl: rawDiscovery?.['avatarUrl'] ?? sanitized.avatarUrl,
     coverUrl: rawDiscovery?.['coverUrl'] ?? sanitized.coverUrl,
+    ...rankingPatch,
     rankScore: now,
     updatedAt: now,
   };
