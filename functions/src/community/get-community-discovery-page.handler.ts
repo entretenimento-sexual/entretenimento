@@ -2,13 +2,16 @@
 // -----------------------------------------------------------------------------
 // GET COMMUNITY DISCOVERY PAGE
 // -----------------------------------------------------------------------------
-// Descoberta paginada por projeção sanitizada e backend-only.
+// Descoberta paginada por projeção sanitizada e backend-only. A ordenação por
+// score novo só é ativada quando configuração, índice e backfill da versão atual
+// estiverem prontos; qualquer inconsistência mantém o `rankScore` legado.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { getCommunityDiscoveryRankingMode } from './community-discovery-ranking-mode.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   assertCommunityCallableAppCheck,
@@ -87,6 +90,8 @@ export const getCommunityDiscoveryPage =
         );
       }
 
+      const rankingMode = await getCommunityDiscoveryRankingMode();
+      const orderField = rankingMode.orderField;
       const effectiveSourceType = pageRequest.tagId
         ? 'community'
         : pageRequest.sourceType;
@@ -96,14 +101,14 @@ export const getCommunityDiscoveryPage =
         ? projection
           .where('source.type', '==', 'community')
           .where('tagIds', 'array-contains', pageRequest.tagId)
-          .orderBy('rankScore', 'desc')
+          .orderBy(orderField, 'desc')
           .limit(scanLimit)
         : effectiveSourceType
           ? projection
             .where('source.type', '==', effectiveSourceType)
-            .orderBy('rankScore', 'desc')
+            .orderBy(orderField, 'desc')
             .limit(scanLimit)
-          : projection.orderBy('rankScore', 'desc').limit(scanLimit);
+          : projection.orderBy(orderField, 'desc').limit(scanLimit);
 
       if (pageRequest.cursor) {
         const cursorSnapshot = await projection.doc(pageRequest.cursor).get();
@@ -139,6 +144,13 @@ export const getCommunityDiscoveryPage =
           throw new HttpsError(
             'invalid-argument',
             'O cursor não pertence a este filtro de interesse.'
+          );
+        }
+
+        if (!Number.isFinite(Number(cursorData[orderField]))) {
+          throw new HttpsError(
+            'invalid-argument',
+            'O cursor não pertence à versão atual da descoberta.'
           );
         }
 
