@@ -18,9 +18,8 @@ let cachedDecision: CommunityDiscoveryRankingModeDecision | null = null;
 let cachedAt = 0;
 let pendingDecision: Promise<CommunityDiscoveryRankingModeDecision> | null = null;
 
-async function loadCommunityDiscoveryRankingMode(): Promise<
-  CommunityDiscoveryRankingModeDecision
-> {
+async function loadCommunityDiscoveryRankingMode():
+  Promise<CommunityDiscoveryRankingModeDecision> {
   const [configSnapshot, runtimeSnapshot] = await Promise.all([
     db.collection('platform_config').doc('community').get(),
     db.collection('community_ranking_runtime').doc('daily').get(),
@@ -32,9 +31,8 @@ async function loadCommunityDiscoveryRankingMode(): Promise<
   );
 }
 
-export async function getCommunityDiscoveryRankingMode(): Promise<
-  CommunityDiscoveryRankingModeDecision
-> {
+export async function getCommunityDiscoveryRankingMode():
+  Promise<CommunityDiscoveryRankingModeDecision> {
   const now = Date.now();
 
   if (cachedDecision && now - cachedAt < CACHE_TTL_MS) {
