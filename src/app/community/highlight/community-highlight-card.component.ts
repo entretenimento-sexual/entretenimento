@@ -23,6 +23,11 @@ import { CommunityFeedItem } from '../data-access/community-feed.model';
 import { CommunityHighlightSnapshot } from '../data-access/community-highlight.model';
 import { CommunityHighlightUiService } from './community-highlight-ui.service';
 
+export interface CommunityHighlightNavigateRequest {
+  readonly event: Event;
+  readonly postId: string;
+}
+
 @Component({
   selector: 'app-community-highlight-card',
   standalone: true,
@@ -50,7 +55,7 @@ import { CommunityHighlightUiService } from './community-highlight-ui.service';
               class="highlight__content"
               type="button"
               [attr.aria-label]="'Ver publicação fixada de ' + item.author.label"
-              (click)="navigateRequested.emit(item.postId)"
+              (click)="navigate($event, item.postId)"
             >
               @if (item.image) {
                 <span class="highlight__thumb" aria-hidden="true">
@@ -308,7 +313,7 @@ export class CommunityHighlightCardComponent {
   private pendingRequestId: string | null = null;
 
   readonly communityId = input<string>('');
-  readonly navigateRequested = output<string>();
+  readonly navigateRequested = output<CommunityHighlightNavigateRequest>();
   readonly pending = signal(false);
   readonly actionError = signal(false);
 
@@ -345,6 +350,10 @@ export class CommunityHighlightCardComponent {
       minute: '2-digit',
     });
     return `Até ${formatter.format(new Date(highlight.expiresAt))}`;
+  }
+
+  navigate(event: Event, postId: string): void {
+    this.navigateRequested.emit({ event, postId });
   }
 
   unpin(communityId: string): void {
