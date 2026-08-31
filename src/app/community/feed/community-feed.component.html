@@ -60,7 +60,7 @@
 
           <div class="community-feed__composer-row">
             <label class="community-feed__sr-only" for="community-feed-post-text">
-              Escreva uma mensagem para a Comunidade
+              Criar uma publicação no Mural
             </label>
             <textarea
               id="community-feed-post-text"
@@ -68,7 +68,7 @@
               maxlength="1000"
               enterkeyhint="send"
               formControlName="text"
-              placeholder="Escreva uma mensagem..."
+              [placeholder]="sourceType() === 'venue' ? 'Compartilhe uma novidade...' : 'Compartilhe algo com a Comunidade...'"
               [attr.aria-invalid]="postForm.controls.text.invalid && postForm.controls.text.touched ? 'true' : null"
               aria-describedby="community-feed-post-help"
               (focus)="expandComposer()"
@@ -152,7 +152,7 @@
             <button
               class="community-feed__send is-primary"
               type="submit"
-              aria-label="Enviar mensagem"
+              aria-label="Publicar no Mural"
               [disabled]="postForm.invalid || writeState.status === 'loading' || (!postForm.controls.text.value.trim() && !selectedAttachment())"
             >
               @if (writeState.status === 'loading') {
@@ -500,8 +500,9 @@
                 item.capabilities.canReact
                 || reactionCount(item) > 0
                 || (view() === 'feed' && item.capabilities.canComment)
+                || (item.capabilities.canViewComments && commentCount(item) > 0)
               ) {
-                <footer class="community-post__metrics" aria-label="Ações e reações da publicação">
+                <footer class="community-post__metrics" aria-label="Ações da publicação">
                   @if (item.capabilities.canReact) {
                     <button
                       class="community-post__action community-post__reaction"
@@ -555,27 +556,22 @@
                       <span class="community-post__action-label">Responder</span>
                     </button>
                   }
-                </footer>
-              }
 
-              @if (item.capabilities.canViewComments && commentCount(item) > 0) {
-                <div class="community-post__metrics" aria-label="Histórico anterior da publicação">
-                  <button
-                    class="community-post__action community-post__comments-toggle"
-                    type="button"
-                    [attr.aria-expanded]="commentsOpen(item)"
-                    [attr.aria-controls]="'community-feed-comments-' + item.postId"
-                    [attr.aria-label]="(commentsOpen(item) ? 'Ocultar ' : 'Ver ') + commentCount(item) + (commentCount(item) === 1 ? ' mensagem anterior.' : ' mensagens anteriores.')"
-                    (click)="toggleComments(item)"
-                  >
-                    <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
-                    <span class="community-post__action-label">
-                      {{ commentsOpen(item) ? 'Ocultar' : 'Ver' }}
-                      {{ commentCount(item) }}
-                      {{ commentCount(item) === 1 ? 'mensagem anterior' : 'mensagens anteriores' }}
-                    </span>
-                  </button>
-                </div>
+                  @if (item.capabilities.canViewComments && commentCount(item) > 0) {
+                    <button
+                      class="community-post__action community-post__comments-toggle"
+                      type="button"
+                      [attr.aria-expanded]="commentsOpen(item)"
+                      [attr.aria-controls]="'community-feed-comments-' + item.postId"
+                      [attr.aria-label]="(commentsOpen(item) ? 'Ocultar comentários. ' : 'Ver comentários. ') + commentCount(item) + (commentCount(item) === 1 ? ' comentário.' : ' comentários.')"
+                      (click)="toggleComments(item)"
+                    >
+                      <i class="fas fa-comment" aria-hidden="true"></i>
+                      <span class="community-post__action-label">Comentários</span>
+                      <span class="community-post__action-count">{{ commentCount(item) }}</span>
+                    </button>
+                  }
+                </footer>
               }
 
               @if (commentsOpen(item)) {
