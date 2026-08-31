@@ -124,7 +124,7 @@ describe('DirectChatFacade session isolation', () => {
     selectedSubscription.unsubscribe();
   });
 
-  it('enriquece o chat com PublicUserIdentity e deriva aliases legados', () => {
+  it('enriquece o chat com identidade e prévia públicas e deriva aliases legados', () => {
     const uidSubject = new BehaviorSubject<string | null>('user-a');
     const chats = new BehaviorSubject<IChat[]>([
       buildChat('chat-identity', ['user-a', 'peer-couple']),
@@ -151,6 +151,14 @@ describe('DirectChatFacade session isolation', () => {
           identityDiscoveryGroup: 'couple',
           municipio: 'Rio de Janeiro',
           estado: 'RJ',
+          age: 34,
+          orientation: 'bissexual',
+          isOnline: true,
+          descricao: 'Perfil público para novas conexões.',
+          preferenceBadgesVisible: true,
+          publicRelationshipIntents: ['friendship'],
+          publicBodyTraits: ['tattoos'],
+          publicSexualPractices: ['bdsm'],
           cpf: 'não deve sair',
         },
       }),
@@ -184,9 +192,25 @@ describe('DirectChatFacade session isolation', () => {
       profileType: 'couple',
       profileTypeLabel: 'Casal',
     });
+    expect(item?.otherParticipantPreview).toMatchObject({
+      age: 34,
+      orientationLabel: 'bissexual',
+      isOnline: true,
+      approximateDistanceKm: null,
+      bioPreview: 'Perfil público para novas conexões.',
+      highlights: ['Amizade', 'Tatuagens', 'BDSM'],
+      identity: {
+        profileId: 'peer-couple',
+        nickname: 'casal_serale',
+        identityShortLabel: 'Casal',
+        city: 'Rio de Janeiro',
+        state: 'RJ',
+      },
+    });
     expect(item?.otherParticipantNickname).toBe('casal_serale');
     expect(item?.otherParticipantPhotoURL).toBe('https://example.com/casal.webp');
     expect('cpf' in (item?.otherParticipantIdentity ?? {})).toBe(false);
+    expect('cpf' in (item?.otherParticipantPreview ?? {})).toBe(false);
 
     subscription.unsubscribe();
   });
