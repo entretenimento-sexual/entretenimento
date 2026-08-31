@@ -9,7 +9,7 @@ describe('PublicUserPreviewPopoverComponent', () => {
 
   const preview: PublicUserPreview = {
     identity: {
-      profileId: 'user-1',
+      profileId: null,
       nickname: 'serale',
       label: 'serale',
       avatarUrl: 'https://example.test/avatar.webp',
@@ -40,10 +40,11 @@ describe('PublicUserPreviewPopoverComponent', () => {
     fixture = TestBed.createComponent(PublicUserPreviewPopoverComponent);
     fixture.componentRef.setInput('preview', preview);
     fixture.componentRef.setInput('relationshipLabel', 'Vocês estão conectados');
+    fixture.componentRef.setInput('profileRoute', ['/perfil', 'user-public-1']);
     fixture.detectChanges();
   });
 
-  it('renderiza identidade e contexto público de forma compacta', () => {
+  it('renderiza identidade e contexto público com hierarquia canônica', () => {
     const text = fixture.nativeElement.textContent as string;
 
     expect(text).toContain('serale');
@@ -57,14 +58,15 @@ describe('PublicUserPreviewPopoverComponent', () => {
     expect(text).toContain('Conversas, encontros e novas amizades.');
   });
 
-  it('oferece navegação ao perfil público sem expor campos administrativos', () => {
+  it('usa rota pública explícita sem exigir profileId na identidade', () => {
     const link = fixture.nativeElement.querySelector(
       '.public-user-preview__profile-link'
     ) as HTMLAnchorElement | null;
     const text = fixture.nativeElement.textContent as string;
 
+    expect(preview.identity.profileId).toBeNull();
     expect(link).toBeTruthy();
-    expect(link?.getAttribute('href')).toContain('/perfil/user-1');
+    expect(link?.getAttribute('href')).toContain('/perfil/user-public-1');
     expect(text).not.toContain('KYC');
     expect(text).not.toContain('e-mail');
     expect(text).not.toContain('documento');
