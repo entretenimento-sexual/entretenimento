@@ -9,6 +9,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { SharedModule } from '../shared/shared.module';
+import { PublicUserIdentityComponent } from '../core/components/public-user-identity/public-user-identity.component';
 
 import { ChatListComponent } from './chat-list/chat-list.component';
 import { ChatWindowComponent } from './chat-window/chat-window.component';
@@ -83,6 +84,7 @@ import { ChatReplyQuotePipe } from './pipes/chat-reply-quote.pipe';
     ContentStateComponent,
     TimeAgoPipe,
     DateFormatPipe,
+    PublicUserIdentityComponent,
   ],
 })
 export class ChatModule {}

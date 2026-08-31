@@ -114,57 +114,59 @@
                 [attr.aria-label]="getDirectChatAriaLabel(chat)"
                 [attr.aria-pressed]="isDirectChatSelected(chat.id)"
               >
-                <span class="conversation-card__avatar-wrap">
-                  <img
-                    class="conversation-card__avatar"
-                    [src]="getDirectChatPhotoURL(chat)"
-                    [alt]="'Foto de ' + getDirectChatTitle(chat)"
-                    loading="lazy"
-                  />
-
-                  @if (hasUnread(chat)) {
-                    <span
-                      class="conversation-card__unread-dot"
-                      aria-hidden="true"
-                    ></span>
-                  }
-                </span>
-
-                <span class="conversation-card__content">
-                  <span class="conversation-card__topline">
-                    <span class="conversation-card__name">
-                      {{ getDirectChatTitle(chat) }}
-                    </span>
-
-                    @if (getDirectChatActivityEpoch(chat); as activityEpoch) {
-                      <time
-                        class="conversation-card__time"
-                        [attr.title]="activityEpoch | dateFormat:'datetime'"
-                      >
-                        {{ activityEpoch | timeAgo }}
-                      </time>
-                    }
-                  </span>
-
-                  <span class="conversation-card__bottomline">
-                    <span class="conversation-card__meta">
-                      {{ getDirectChatPreview(chat) }}
-                    </span>
-
-                    @if (hasUnread(chat)) {
-                      <span
-                        class="conversation-card__badge"
-                        [attr.aria-label]="chat.unreadCount + ' mensagens não lidas'"
-                      >
-                        {{ getUnreadLabel(chat.unreadCount) }}
+                @if (getDirectChatActivityEpoch(chat); as activityEpoch) {
+                  <app-public-user-identity
+                    density="standard"
+                    [identity]="chat.otherParticipantIdentity"
+                    [emphasis]="hasUnread(chat) ? 'strong' : 'normal'"
+                    [contextText]="activityEpoch | timeAgo"
+                    [contextTitle]="activityEpoch | dateFormat:'datetime'"
+                  >
+                    <span publicUserIdentitySupplement class="conversation-card__bottomline">
+                      <span class="conversation-card__meta">
+                        {{ getDirectChatPreview(chat) }}
                       </span>
-                    }
-                  </span>
 
-                  <span class="conversation-card__status">
-                    {{ getDirectChatStatusLabel(chat) }}
-                  </span>
-                </span>
+                      @if (hasUnread(chat)) {
+                        <span
+                          class="conversation-card__badge"
+                          [attr.aria-label]="chat.unreadCount + ' mensagens não lidas'"
+                        >
+                          {{ getUnreadLabel(chat.unreadCount) }}
+                        </span>
+                      }
+                    </span>
+
+                    <span publicUserIdentitySupplement class="conversation-card__status">
+                      {{ getDirectChatStatusLabel(chat) }}
+                    </span>
+                  </app-public-user-identity>
+                } @else {
+                  <app-public-user-identity
+                    density="standard"
+                    [identity]="chat.otherParticipantIdentity"
+                    [emphasis]="hasUnread(chat) ? 'strong' : 'normal'"
+                  >
+                    <span publicUserIdentitySupplement class="conversation-card__bottomline">
+                      <span class="conversation-card__meta">
+                        {{ getDirectChatPreview(chat) }}
+                      </span>
+
+                      @if (hasUnread(chat)) {
+                        <span
+                          class="conversation-card__badge"
+                          [attr.aria-label]="chat.unreadCount + ' mensagens não lidas'"
+                        >
+                          {{ getUnreadLabel(chat.unreadCount) }}
+                        </span>
+                      }
+                    </span>
+
+                    <span publicUserIdentitySupplement class="conversation-card__status">
+                      {{ getDirectChatStatusLabel(chat) }}
+                    </span>
+                  </app-public-user-identity>
+                }
               </button>
             }
           </div>
