@@ -1,0 +1,166 @@
+/* src/app/core/components/public-user-preview-popover/public-user-preview-popover.component.css */
+:host {
+  display: block;
+  width: min(22rem, calc(100vw - 2rem));
+  max-width: 100%;
+}
+
+.public-user-preview {
+  display: grid;
+  gap: 0.78rem;
+  padding: 1rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border) 84%,
+    transparent
+  );
+  border-radius: 1rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 97%,
+    var(--primary-color) 3%
+  );
+  color: var(--text-color);
+  box-shadow:
+    0 18px 44px rgb(15 23 42 / 18%),
+    0 2px 8px rgb(15 23 42 / 8%);
+}
+
+.public-user-preview__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.public-user-preview__facts > span,
+.public-user-preview__relationship {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  min-height: 1.8rem;
+  margin: 0;
+  padding: 0.34rem 0.54rem;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 90%,
+    var(--text-color) 4%
+  );
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  font-size: 0.72rem;
+  font-weight: 680;
+  line-height: 1.15;
+}
+
+.public-user-preview__facts i,
+.public-user-preview__relationship i {
+  color: var(--primary-color);
+}
+
+.public-user-preview__online {
+  color: color-mix(in oklab, #15803d 88%, var(--text-color)) !important;
+}
+
+.public-user-preview__online-dot {
+  width: 0.46rem;
+  height: 0.46rem;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 2px color-mix(in oklab, #22c55e 18%, transparent);
+}
+
+.public-user-preview__relationship {
+  width: fit-content;
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 8%,
+    var(--surface-color)
+  );
+  color: color-mix(in oklab, var(--primary-color) 78%, var(--text-color));
+}
+
+.public-user-preview__bio {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.public-user-preview__profile-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color) 36%,
+    var(--surface-border)
+  );
+  border-radius: 0.78rem;
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 8%,
+    var(--surface-color)
+  );
+  color: var(--primary-color);
+  font-size: 0.78rem;
+  font-weight: 820;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.public-user-preview__profile-link:hover,
+.public-user-preview__profile-link:focus-visible {
+  border-color: var(--primary-color);
+  background: color-mix(
+    in oklab,
+    var(--primary-color) 13%,
+    var(--surface-color)
+  );
+}
+
+.public-user-preview__profile-link:focus-visible {
+  outline: var(--focus-ring, 2px solid var(--primary-color));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+:host-context(.high-contrast) .public-user-preview {
+  border: 2px solid var(--text-color);
+  background: var(--background-color);
+  box-shadow: none;
+}
+
+:host-context(.high-contrast) .public-user-preview__facts > span,
+:host-context(.high-contrast) .public-user-preview__relationship,
+:host-context(.high-contrast) .public-user-preview__profile-link {
+  border: 1px solid var(--text-color);
+  background: var(--background-color);
+  color: var(--text-color);
+}
+
+@media (max-width: 600px), (hover: none), (pointer: coarse) {
+  :host {
+    width: min(32rem, calc(100vw - 1rem));
+  }
+
+  .public-user-preview {
+    padding:
+      1rem
+      1rem
+      calc(1rem + env(safe-area-inset-bottom, 0px));
+    border-radius: 1.1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-user-preview__profile-link {
+    transition: none;
+  }
+}
