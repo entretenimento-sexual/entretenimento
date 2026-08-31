@@ -3,6 +3,12 @@
 // Mantém listas fora do componente visual para reduzir acoplamento e facilitar expansão.
 
 import {
+  PUBLIC_BODY_TRAIT_OPTIONS,
+  PUBLIC_RELATIONSHIP_INTENT_OPTIONS,
+  PUBLIC_SEXUAL_PRACTICE_OPTIONS,
+} from 'src/app/core/catalogs/public-preference-options.catalog';
+
+import {
   BodyPreference,
   DiscoveryMode,
   GenderInterest,
@@ -15,16 +21,12 @@ export interface PreferenceOption<T extends string> {
   label: string;
 }
 
-export const RELATIONSHIP_INTENT_OPTIONS: ReadonlyArray<PreferenceOption<RelationshipIntent>> = [
-  { key: 'friendship', label: 'Amizade' },
-  { key: 'casual', label: 'Casual' },
-  { key: 'dating', label: 'Dating' },
-  { key: 'serious', label: 'Sério' },
-  { key: 'open_relationship', label: 'Relacionamento aberto' },
-  { key: 'polyamory', label: 'Poliamor' },
-  { key: 'swing', label: 'Swing' },
-  { key: 'fetish_exploration', label: 'Exploração fetichista' },
-];
+/**
+ * Os três catálogos abaixo são aliases tipados do catálogo público canônico.
+ * Mantemos estes nomes por compatibilidade com o módulo de Preferências.
+ */
+export const RELATIONSHIP_INTENT_OPTIONS: ReadonlyArray<PreferenceOption<RelationshipIntent>> =
+  PUBLIC_RELATIONSHIP_INTENT_OPTIONS;
 
 export const GENDER_INTEREST_OPTIONS: ReadonlyArray<PreferenceOption<GenderInterest>> = [
   { key: 'men', label: 'Homens' },
@@ -45,40 +47,11 @@ export const GENDER_INTEREST_OPTIONS: ReadonlyArray<PreferenceOption<GenderInter
   { key: 'androgynous', label: 'Andrógino' },
 ];
 
-export const SEXUAL_PRACTICE_OPTIONS: ReadonlyArray<PreferenceOption<SexualPractice>> = [
-  { key: 'vanilla', label: 'Sexo baunilha' },
-  { key: 'bdsm', label: 'BDSM' },
-  { key: 'voyeurism', label: 'Voyeurismo' },
-  { key: 'exhibitionism', label: 'Exibicionismo' },
-  { key: 'swing', label: 'Swing' },
-  { key: 'menage', label: 'Menage' },
-  { key: 'group_sex', label: 'Sexo grupal' },
-  { key: 'roleplay', label: 'Roleplay' },
-  { key: 'tantra', label: 'Tantra' },
-  { key: 'dom_sub', label: 'Dominação e submissão' },
-  { key: 'outdoor', label: 'Ao ar livre' },
-  { key: 'fetishes', label: 'Fetiches' },
-  { key: 'edge_play', label: 'Edge play' },
-  { key: 'shibari', label: 'Shibari' },
-  { key: 'cuckold', label: 'Cuckold' },
-  { key: 'pegging', label: 'Pegging' },
-  { key: 'sensory_play', label: 'Sensory play' },
-  { key: 'dirty_talk', label: 'Dirty talk' },
-];
+export const SEXUAL_PRACTICE_OPTIONS: ReadonlyArray<PreferenceOption<SexualPractice>> =
+  PUBLIC_SEXUAL_PRACTICE_OPTIONS;
 
-export const BODY_PREFERENCE_OPTIONS: ReadonlyArray<PreferenceOption<BodyPreference>> = [
-  { key: 'athletic', label: 'Atlético' },
-  { key: 'plus_size', label: 'Plus size' },
-  { key: 'tattoos', label: 'Tatuagens' },
-  { key: 'piercings', label: 'Piercings' },
-  { key: 'beard', label: 'Barba' },
-  { key: 'long_hair', label: 'Cabelos longos' },
-  { key: 'curly_hair', label: 'Cabelos cacheados' },
-  { key: 'light_eyes', label: 'Olhos claros' },
-  { key: 'muscular', label: 'Musculoso' },
-  { key: 'slim', label: 'Magro' },
-  { key: 'curvy', label: 'Curvilíneo' },
-];
+export const BODY_PREFERENCE_OPTIONS: ReadonlyArray<PreferenceOption<BodyPreference>> =
+  PUBLIC_BODY_TRAIT_OPTIONS;
 
 export const DISCOVERY_MODE_OPTIONS: ReadonlyArray<PreferenceOption<DiscoveryMode>> = [
   { key: 'standard', label: 'Padrão' },
