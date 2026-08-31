@@ -39,7 +39,6 @@ import {
   distinctUntilChanged,
   exhaustMap,
   filter,
-  finalize,
   map,
   merge,
   of,
@@ -63,7 +62,6 @@ import {
   CommunityFeedItem,
   CommunityFeedPostAction,
   CommunityFeedPostActionRequest,
-  CommunityFeedReactionRequest,
   CommunityFeedView,
 } from '../data-access/community-feed.model';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
@@ -78,8 +76,6 @@ import {
 import {
   COMMUNITY_FEED_POST_ACTION_CODE_MESSAGES,
   COMMUNITY_FEED_POST_REASON_MESSAGES,
-  COMMUNITY_FEED_REACTION_CODE_MESSAGES,
-  COMMUNITY_FEED_REACTION_REASON_MESSAGES,
   COMMUNITY_FEED_REFERENCE_CODE_MESSAGES,
 } from '../presentation/community-error.messages';
 import { CommunityCameraCaptureComponent } from './community-camera-capture.component';
@@ -87,6 +83,7 @@ import {
   CommunityFeedComposerContext,
   CommunityFeedComposerFacade,
 } from './community-feed-composer.facade';
+import { CommunityFeedReactionFacade } from './community-feed-reaction.facade';
 import { createCommunityFeedRequestId } from './community-feed-request-id';
 import {
   CommunityFeedLoadEvent,
@@ -113,23 +110,9 @@ type CommunityFeedPostActionState =
       action: CommunityFeedPostAction;
     };
 
-type CommunityFeedReactionState =
-  | { status: 'idle'; postId: null }
-  | { status: 'loading' | 'error'; postId: string };
-
 type CommunityFeedReferenceNavigationState =
   | { status: 'idle'; postId: null }
   | { status: 'loading' | 'error'; postId: string };
-
-interface CommunityFeedReactionOverride {
-  reacted: boolean;
-  reactionCount: number;
-}
-
-interface CommunityFeedReactionCommand {
-  request: CommunityFeedReactionRequest;
-  previous: CommunityFeedReactionOverride;
-}
 
 interface CommunityFeedReferenceNavigationRequest {
   postId: string;
@@ -164,7 +147,10 @@ const COMMUNITY_REFERENCE_RENDER_TIMEOUT_MS = 1_200;
     CommunityHighlightMenuActionComponent,
     CommunityCameraCaptureComponent,
   ],
-  providers: [CommunityFeedComposerFacade],
+  providers: [
+    CommunityFeedComposerFacade,
+    CommunityFeedReactionFacade,
+  ],
   templateUrl: './community-feed.component.html',
   styleUrls: [
     './community-feed.component.css',
@@ -179,17 +165,16 @@ export class CommunityFeedComponent implements OnDestroy {
   private readonly timeTicker = inject(CommunityFeedTimeTickerService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly composer = inject(CommunityFeedComposerFacade);
+  private readonly reactions = inject(CommunityFeedReactionFacade);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly loadRequests$ = new Subject<CommunityFeedLoadRequest>();
   private readonly realtimeHydrationRequests$ = new Subject<string>();
   private readonly localFeedEvents$ = new Subject<CommunityFeedLoadEvent>();
   private readonly postActionRequests$ =
     new Subject<CommunityFeedPostActionRequest>();
-  private readonly reactionRequests$ = new Subject<CommunityFeedReactionCommand>();
   private readonly referenceNavigationRequests$ =
     new Subject<CommunityFeedReferenceNavigationRequest>();
   private readonly postHighlightRequests$ = new Subject<string>();
-  private readonly pendingReactionPostIds = new Set<string>();
   private readonly locationEmbedUrlCache = new Map<string, SafeResourceUrl>();
   private readonly postElements = viewChildren<ElementRef<HTMLElement>>('postElement');
   private readonly attachmentMenu = viewChild<ElementRef<HTMLDetailsElement>>('attachmentMenu');
@@ -231,9 +216,6 @@ export class CommunityFeedComponent implements OnDestroy {
     ),
     { initialValue: null }
   );
-  private readonly reactionOverrides = signal<
-    ReadonlyMap<string, CommunityFeedReactionOverride>
-  >(new Map());
   private readonly commentCountOverrides = signal<ReadonlyMap<string, number>>(
     new Map()
   );
@@ -344,7 +326,7 @@ export class CommunityFeedComponent implements OnDestroy {
       const realtimeEvents$ = this.repository
         .watchLatestChanges$(communityId, 20)
         .pipe(
-          tap((changes) => this.reconcileRealtimeOverrides(changes)),
+          tap((changes) => this.reconcileRealtimeOverrides(changes, communityId)),
           // Cada diff precisa concluir sua hidratação. Cancelar a chamada anterior
           // em uma rajada pode fazer um post já sinalizado nunca entrar no estado.
           concatMap((changes) =>
@@ -526,34 +508,7 @@ export class CommunityFeedComponent implements OnDestroy {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly reactionState$ = this.reactionRequests$.pipe(
-    concatMap((command) =>
-      this.repository.toggleReaction$(command.request).pipe(
-        tap((result) => {
-          this.setReactionOverride(result.postId, {
-            reacted: result.reacted,
-            reactionCount: result.reactionCount,
-          });
-        }),
-        map((): CommunityFeedReactionState => ({ status: 'idle', postId: null })),
-        startWith<CommunityFeedReactionState>({
-          status: 'loading',
-          postId: command.request.postId,
-        }),
-        catchError((error: unknown) => {
-          this.setReactionOverride(command.request.postId, command.previous);
-          this.reportReactionError(error);
-          return of<CommunityFeedReactionState>({
-            status: 'error',
-            postId: command.request.postId,
-          });
-        }),
-        finalize(() => this.pendingReactionPostIds.delete(command.request.postId))
-      )
-    ),
-    startWith<CommunityFeedReactionState>({ status: 'idle', postId: null }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly reactionState$ = this.reactions.reactionState$;
 
   constructor() {
     this.composer.postCreated$
@@ -690,41 +645,19 @@ export class CommunityFeedComponent implements OnDestroy {
   }
 
   toggleReaction(item: CommunityFeedItem): void {
-    if (!item.capabilities.canReact || this.pendingReactionPostIds.has(item.postId)) {
-      return;
-    }
-
-    const previous: CommunityFeedReactionOverride = {
-      reacted: this.viewerReacted(item),
-      reactionCount: this.reactionCount(item),
-    };
-    const optimistic: CommunityFeedReactionOverride = {
-      reacted: !previous.reacted,
-      reactionCount: previous.reacted
-        ? Math.max(0, previous.reactionCount - 1)
-        : Math.min(1_000_000_000, previous.reactionCount + 1),
-    };
-
-    this.pendingReactionPostIds.add(item.postId);
-    this.setReactionOverride(item.postId, optimistic);
-    this.reactionRequests$.next({
-      request: {
-        communityId: this.communityId().trim(),
-        postId: item.postId,
-        reacted: optimistic.reacted,
-      },
-      previous,
+    this.reactions.toggleReaction(item, {
+      communityId: this.communityId().trim(),
+      view: this.view(),
+      sourceType: this.sourceType(),
     });
   }
 
   reactionCount(item: CommunityFeedItem): number {
-    return this.reactionOverrides().get(this.reactionKey(item.postId))
-      ?.reactionCount ?? item.metrics.reactionCount;
+    return this.reactions.reactionCount(item, this.communityId().trim());
   }
 
   viewerReacted(item: CommunityFeedItem): boolean {
-    return this.reactionOverrides().get(this.reactionKey(item.postId))
-      ?.reacted ?? item.capabilities.viewerReacted;
+    return this.reactions.viewerReacted(item, this.communityId().trim());
   }
 
   navigateToReferencedPost(event: Event, postId: string): void {
@@ -1085,22 +1018,18 @@ export class CommunityFeedComponent implements OnDestroy {
   }
 
   private reconcileRealtimeOverrides(
-    changes: readonly CommunityFeedRealtimeChange[]
+    changes: readonly CommunityFeedRealtimeChange[],
+    communityId: string
   ): void {
-    let reactionMap: Map<string, CommunityFeedReactionOverride> | null = null;
+    this.reactions.reconcileRealtime(changes, communityId);
     let commentMap: Map<string, number> | null = null;
 
     for (const change of changes) {
       const postId = change.projection.postId;
-      const key = this.reactionKey(postId);
       const removed = change.type === 'removed'
         || change.projection.state === 'removed';
 
       if (removed) {
-        if (this.reactionOverrides().has(key)) {
-          reactionMap ??= new Map(this.reactionOverrides());
-          reactionMap.delete(key);
-        }
         if (this.commentCountOverrides().has(postId)) {
           commentMap ??= new Map(this.commentCountOverrides());
           commentMap.delete(postId);
@@ -1108,40 +1037,17 @@ export class CommunityFeedComponent implements OnDestroy {
         continue;
       }
 
-      const currentReaction = this.reactionOverrides().get(key);
-      if (currentReaction) {
-        reactionMap ??= new Map(this.reactionOverrides());
-        reactionMap.set(key, {
-          reacted: currentReaction.reacted,
-          reactionCount: change.projection.metrics.reactionCount,
-        });
-      }
       if (this.commentCountOverrides().has(postId)) {
         commentMap ??= new Map(this.commentCountOverrides());
         commentMap.set(postId, change.projection.metrics.commentCount);
       }
     }
 
-    if (reactionMap) this.reactionOverrides.set(reactionMap);
     if (commentMap) this.commentCountOverrides.set(commentMap);
   }
 
-  private setReactionOverride(
-    postId: string,
-    override: CommunityFeedReactionOverride
-  ): void {
-    const next = new Map(this.reactionOverrides());
-    next.set(this.reactionKey(postId), override);
-    this.reactionOverrides.set(next);
-  }
-
   private clearItemOverrides(postId: string): void {
-    const reactionKey = this.reactionKey(postId);
-    if (this.reactionOverrides().has(reactionKey)) {
-      const next = new Map(this.reactionOverrides());
-      next.delete(reactionKey);
-      this.reactionOverrides.set(next);
-    }
+    this.reactions.clearItem(postId, this.communityId().trim());
     if (this.commentCountOverrides().has(postId)) {
       const next = new Map(this.commentCountOverrides());
       next.delete(postId);
@@ -1158,10 +1064,6 @@ export class CommunityFeedComponent implements OnDestroy {
 
   private actionRequestKey(postId: string, action: CommunityFeedPostAction): string {
     return `${action}:${postId}`;
-  }
-
-  private reactionKey(postId: string): string {
-    return `${this.communityId().trim()}:${postId}`;
   }
 
   private showPostActionSuccess(
@@ -1195,21 +1097,6 @@ export class CommunityFeedComponent implements OnDestroy {
       metadata: {
         scope: 'CommunityFeedComponent',
         action,
-        view: this.view(),
-        sourceType: this.sourceType(),
-      },
-    });
-  }
-
-  private reportReactionError(error: unknown): void {
-    this.applicationError.report(error, {
-      feature: 'community',
-      operation: 'toggleReaction',
-      fallbackMessage: 'Não foi possível atualizar sua reação agora.',
-      reasonMessages: COMMUNITY_FEED_REACTION_REASON_MESSAGES,
-      codeMessages: COMMUNITY_FEED_REACTION_CODE_MESSAGES,
-      metadata: {
-        scope: 'CommunityFeedComponent',
         view: this.view(),
         sourceType: this.sourceType(),
       },
@@ -1257,7 +1144,6 @@ export class CommunityFeedComponent implements OnDestroy {
     op:
       | 'loadPage'
       | 'moderatePost'
-      | 'toggleReaction'
       | 'watchRealtime'
       | 'hydrateRealtimeItem'
       | 'navigateReference',
