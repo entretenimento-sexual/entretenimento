@@ -3,7 +3,9 @@
 // RUN COMMUNITY DISCOVERY RANKING
 // -----------------------------------------------------------------------------
 // Reavalia periodicamente o score para que o componente de frescor decaia mesmo
-// sem novas escritas. Também funciona como backfill idempotente das projeções.
+// sem novas escritas. O ciclo percorre a própria projeção de descoberta: assim,
+// a readiness só fica positiva quando todo documento consultável possui fonte
+// canônica compatível e score da versão atual.
 // `rankScore` legado continua intacto até a migração explícita da descoberta.
 // -----------------------------------------------------------------------------
 
@@ -13,6 +15,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import { COMMUNITY_DISCOVERY_SCORE_VERSION } from './community-ranking.policy';
 import {
   buildCommunityRankingProjectionPatch,
   isCommunityRankingProjectionCurrent,
@@ -26,6 +29,16 @@ const PAGE_SIZE = 100;
 function normalizeCursor(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
   return normalized ? normalized.slice(0, 1_500) : null;
+}
+
+function normalizeCount(value: unknown): number {
+  const parsed = Math.trunc(Number(value));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function normalizeTimestamp(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
 }
 
 export const runCommunityRanking = onSchedule(
@@ -53,18 +66,34 @@ export const runCommunityRanking = onSchedule(
     const runtime = runtimeSnapshot.exists ? runtimeSnapshot.data() ?? {} : {};
     const maxPerRun = resolveCommunityRankingMaxPerRun(config);
     let cursor = normalizeCursor(runtime['cursor']);
-    let processed = 0;
-    let updated = 0;
-    let unchanged = 0;
-    let unsupported = 0;
-    let missingProjection = 0;
+    const continuingCycle = cursor !== null;
+    const cycleStartedAt = continuingCycle
+      ? normalizeTimestamp(runtime['cycleStartedAt']) ?? now
+      : now;
+    let cycleProcessed = continuingCycle
+      ? normalizeCount(runtime['cycleProcessed'])
+      : 0;
+    let cycleUpdated = continuingCycle
+      ? normalizeCount(runtime['cycleUpdated'])
+      : 0;
+    let cycleUnchanged = continuingCycle
+      ? normalizeCount(runtime['cycleUnchanged'])
+      : 0;
+    let cycleOrphanProjections = continuingCycle
+      ? normalizeCount(runtime['cycleOrphanProjections'])
+      : 0;
+    let cycleUnsupported = continuingCycle
+      ? normalizeCount(runtime['cycleUnsupported'])
+      : 0;
+    let processedThisRun = 0;
     let reachedEnd = false;
+    let readinessInvalidated = false;
 
-    while (processed < maxPerRun && !reachedEnd) {
-      const remaining = maxPerRun - processed;
+    while (processedThisRun < maxPerRun && !reachedEnd) {
+      const remaining = maxPerRun - processedThisRun;
       const pageLimit = Math.min(PAGE_SIZE, remaining);
       let pageQuery = db
-        .collection('communities')
+        .collection('community_discovery_index')
         .orderBy(FieldPath.documentId())
         .limit(pageLimit);
 
@@ -78,27 +107,34 @@ export const runCommunityRanking = onSchedule(
         break;
       }
 
-      for (const document of pageSnapshot.docs) {
-        const community = document.data();
-        processed += 1;
-        cursor = document.id;
+      const communityRefs = pageSnapshot.docs.map((document) =>
+        db.collection('communities').doc(document.id)
+      );
+      const communitySnapshots = await db.getAll(...communityRefs);
+      const writeBatch = db.batch();
+      let pendingWrites = 0;
 
+      for (let index = 0; index < pageSnapshot.docs.length; index += 1) {
+        const discoveryDocument = pageSnapshot.docs[index];
+        const communitySnapshot = communitySnapshots[index];
+        processedThisRun += 1;
+        cycleProcessed += 1;
+        cursor = discoveryDocument.id;
+
+        if (!communitySnapshot.exists) {
+          cycleOrphanProjections += 1;
+          readinessInvalidated = true;
+          continue;
+        }
+
+        const community = communitySnapshot.data() ?? {};
         if (!isCommunityRankingSupportedDocument(community)) {
-          unsupported += 1;
+          cycleUnsupported += 1;
+          readinessInvalidated = true;
           continue;
         }
 
-        const discoveryRef = db
-          .collection('community_discovery_index')
-          .doc(document.id);
-        const discoverySnapshot = await discoveryRef.get();
-
-        if (!discoverySnapshot.exists) {
-          missingProjection += 1;
-          continue;
-        }
-
-        const discovery = discoverySnapshot.data() ?? {};
+        const discovery = discoveryDocument.data();
         const expected = buildCommunityRankingProjectionPatch(
           community,
           discovery,
@@ -106,12 +142,17 @@ export const runCommunityRanking = onSchedule(
         );
 
         if (isCommunityRankingProjectionCurrent(discovery, expected)) {
-          unchanged += 1;
+          cycleUnchanged += 1;
           continue;
         }
 
-        await discoveryRef.set(expected, { merge: true });
-        updated += 1;
+        writeBatch.set(discoveryDocument.ref, expected, { merge: true });
+        pendingWrites += 1;
+        cycleUpdated += 1;
+      }
+
+      if (pendingWrites > 0) {
+        await writeBatch.commit();
       }
 
       if (pageSnapshot.size < pageLimit) {
@@ -120,29 +161,72 @@ export const runCommunityRanking = onSchedule(
       }
     }
 
-    await runtimeRef.set(
-      {
-        cursor,
-        processed,
-        updated,
-        unchanged,
-        unsupported,
-        missingProjection,
-        reachedEnd,
-        scoreEvaluationAt: now,
-        updatedAt: now,
-      },
-      { merge: true }
-    );
+    const cycleReady = reachedEnd
+      && cycleOrphanProjections === 0
+      && cycleUnsupported === 0;
+    const previouslyReady = runtime['ready'] === true
+      && Number(runtime['completedScoreVersion'])
+        === COMMUNITY_DISCOVERY_SCORE_VERSION;
+    const ready = reachedEnd
+      ? cycleReady
+      : readinessInvalidated
+        ? false
+        : previouslyReady;
+    const runtimePatch: Record<string, unknown> = {
+      cursor: reachedEnd ? null : cursor,
+      ready,
+      scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      processedThisRun,
+      reachedEnd,
+      scoreEvaluationAt: now,
+      updatedAt: now,
+    };
+
+    if (reachedEnd) {
+      runtimePatch['cycleStartedAt'] = null;
+      runtimePatch['cycleProcessed'] = 0;
+      runtimePatch['cycleUpdated'] = 0;
+      runtimePatch['cycleUnchanged'] = 0;
+      runtimePatch['cycleOrphanProjections'] = 0;
+      runtimePatch['cycleUnsupported'] = 0;
+      runtimePatch['lastCycleCompletedAt'] = now;
+      runtimePatch['lastCycleReady'] = cycleReady;
+      runtimePatch['lastCycleStats'] = {
+        processed: cycleProcessed,
+        updated: cycleUpdated,
+        unchanged: cycleUnchanged,
+        orphanProjections: cycleOrphanProjections,
+        unsupported: cycleUnsupported,
+      };
+      runtimePatch['completedScoreVersion'] = cycleReady
+        ? COMMUNITY_DISCOVERY_SCORE_VERSION
+        : null;
+
+      if (cycleReady) {
+        runtimePatch['lastCompletedAt'] = now;
+      }
+    } else {
+      runtimePatch['cycleStartedAt'] = cycleStartedAt;
+      runtimePatch['cycleProcessed'] = cycleProcessed;
+      runtimePatch['cycleUpdated'] = cycleUpdated;
+      runtimePatch['cycleUnchanged'] = cycleUnchanged;
+      runtimePatch['cycleOrphanProjections'] = cycleOrphanProjections;
+      runtimePatch['cycleUnsupported'] = cycleUnsupported;
+    }
+
+    await runtimeRef.set(runtimePatch, { merge: true });
 
     logger.info('community_ranking_run_completed', {
-      processed,
-      updated,
-      unchanged,
-      unsupported,
-      missingProjection,
+      processedThisRun,
+      cycleProcessed,
+      cycleUpdated,
+      cycleUnchanged,
+      cycleOrphanProjections,
+      cycleUnsupported,
       reachedEnd,
-      nextCursor: cursor,
+      ready,
+      scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      nextCursor: reachedEnd ? null : cursor,
     });
   }
 );
