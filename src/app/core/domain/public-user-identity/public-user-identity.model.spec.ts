@@ -76,6 +76,25 @@ describe('normalizePublicUserIdentity', () => {
     expect(invalidLegacyIdentity?.identityShortLabel).toBeNull();
   });
 
+  it('aceita somente assets locais seguros além de mídia HTTPS/loopback', () => {
+    const relativeAsset = normalizePublicUserIdentity({
+      nickname: 'perfil_asset',
+      photoURL: 'assets/perfis/avatar.webp',
+    });
+    const rootedAsset = normalizePublicUserIdentity({
+      nickname: 'perfil_asset_root',
+      photoURL: '/assets/perfis/avatar.webp',
+    });
+    const traversal = normalizePublicUserIdentity({
+      nickname: 'perfil_traversal',
+      photoURL: 'assets/../segredo.webp',
+    });
+
+    expect(relativeAsset?.avatarUrl).toBe('assets/perfis/avatar.webp');
+    expect(rootedAsset?.avatarUrl).toBe('/assets/perfis/avatar.webp');
+    expect(traversal?.avatarUrl).toBeNull();
+  });
+
   it('falha fechado para UF e URL remota inseguras', () => {
     const identity = normalizePublicUserIdentity({
       nickname: 'perfil_seguro',
