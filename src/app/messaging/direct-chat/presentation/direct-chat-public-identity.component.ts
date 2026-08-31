@@ -2,9 +2,9 @@
 // -----------------------------------------------------------------------------
 // DIRECT CHAT PUBLIC IDENTITY ADAPTER
 // -----------------------------------------------------------------------------
-// Adaptador fino entre o estado canônico do DirectChatFacade e o componente
-// universal PublicUserIdentityComponent. Não possui contrato visual próprio,
-// não consulta Firestore e não mantém um segundo estado de identidade.
+// Adaptador fino entre o estado canônico do DirectChatFacade e os componentes
+// universais de identidade/prévia pública. Não consulta Firestore e não mantém
+// um segundo estado de perfil.
 // -----------------------------------------------------------------------------
 
 import { AsyncPipe } from '@angular/common';
@@ -23,10 +23,13 @@ import {
 } from 'rxjs';
 
 import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
+import { PublicUserPreviewTriggerDirective } from 'src/app/core/components/public-user-preview-popover/public-user-preview-trigger.directive';
 import {
   normalizePublicUserIdentity,
   type PublicUserIdentity,
 } from 'src/app/core/domain/public-user-identity/public-user-identity.model';
+import type { PublicUserPreview } from 'src/app/core/domain/public-user-preview/public-user-preview.model';
+import type { DirectChatListItem } from '../models/direct-chat.models';
 import { DirectChatFacade } from '../application/direct-chat.facade';
 
 const DIRECT_CHAT_IDENTITY_FALLBACK: PublicUserIdentity = {
@@ -35,20 +38,52 @@ const DIRECT_CHAT_IDENTITY_FALLBACK: PublicUserIdentity = {
   avatarUrl: null,
 };
 
+interface DirectChatPublicIdentityViewModel {
+  readonly identity: PublicUserIdentity;
+  readonly preview: PublicUserPreview | null;
+  readonly profileRoute: readonly string[] | null;
+}
+
 @Component({
   selector: 'app-direct-chat-public-identity',
   standalone: true,
-  imports: [AsyncPipe, PublicUserIdentityComponent],
+  imports: [
+    AsyncPipe,
+    PublicUserIdentityComponent,
+    PublicUserPreviewTriggerDirective,
+  ],
   template: `
-    @if (identity$ | async; as identity) {
-      <app-public-user-identity
-        [identity]="identity"
-        density="comfortable"
-        emphasis="strong"
-        [contextText]="contextText()"
-      />
+    @if (viewModel$ | async; as vm) {
+      <div
+        class="direct-chat-public-identity"
+        [appPublicUserPreviewTrigger]="vm.preview"
+        [publicUserPreviewProfileRoute]="vm.profileRoute"
+        #quickPreview="publicUserPreviewTrigger"
+      >
+        <app-public-user-identity
+          [identity]="vm.identity"
+          density="comfortable"
+          emphasis="strong"
+          [contextText]="contextText()"
+        />
+
+        @if (vm.preview) {
+          <button
+            type="button"
+            class="direct-chat-public-identity__preview"
+            [attr.aria-label]="'Ver resumo de ' + vm.identity.nickname"
+            [attr.aria-expanded]="quickPreview.isOpen()"
+            title="Ver resumo do perfil"
+            (click)="quickPreview.toggle()"
+          >
+            <i class="fas fa-circle-info" aria-hidden="true"></i>
+            <span class="sr-only">Ver resumo do perfil</span>
+          </button>
+        }
+      </div>
     }
   `,
+  styleUrl: './direct-chat-public-identity.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DirectChatPublicIdentityComponent {
@@ -59,19 +94,26 @@ export class DirectChatPublicIdentityComponent {
   readonly fallbackPhotoURL = input<string | null | undefined>(null);
   readonly contextText = input('Conversa direta');
 
-  readonly identity$ = combineLatest([
+  private readonly selectedItem$ = combineLatest([
     this.directChatFacade.items$,
     toObservable(this.chatId),
+  ]).pipe(
+    map(([items, chatId]): DirectChatListItem | null => {
+      const safeChatId = String(chatId ?? '').trim();
+      return safeChatId
+        ? (items ?? []).find((candidate) => candidate.id === safeChatId) ?? null
+        : null;
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly identity$ = combineLatest([
+    this.selectedItem$,
     toObservable(this.fallbackName),
     toObservable(this.fallbackPhotoURL),
   ]).pipe(
-    map(([items, chatId, fallbackName, fallbackPhotoURL]) => {
-      const safeChatId = String(chatId ?? '').trim();
-      const item = safeChatId
-        ? (items ?? []).find((candidate) => candidate.id === safeChatId) ?? null
-        : null;
-
-      return normalizePublicUserIdentity(
+    map(([item, fallbackName, fallbackPhotoURL]) =>
+      normalizePublicUserIdentity(
         item?.otherParticipantIdentity ?? {
           profileId: item?.otherParticipantUid ?? null,
           nickname:
@@ -81,8 +123,8 @@ export class DirectChatPublicIdentityComponent {
             item?.otherParticipantPhotoURL
             ?? String(fallbackPhotoURL ?? '').trim(),
         }
-      ) ?? DIRECT_CHAT_IDENTITY_FALLBACK;
-    }),
+      ) ?? DIRECT_CHAT_IDENTITY_FALLBACK
+    ),
     distinctUntilChanged((previous, current) =>
       previous.profileId === current.profileId
       && previous.nickname === current.nickname
@@ -92,6 +134,25 @@ export class DirectChatPublicIdentityComponent {
       && previous.city === current.city
       && previous.state === current.state
     ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly preview$ = this.selectedItem$.pipe(
+    map((item) => item?.otherParticipantPreview ?? null),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly viewModel$ = combineLatest([
+    this.identity$,
+    this.preview$,
+  ]).pipe(
+    map(([identity, preview]): DirectChatPublicIdentityViewModel => ({
+      identity,
+      preview,
+      profileRoute: preview?.identity.profileId
+        ? ['/perfil', preview.identity.profileId]
+        : null,
+    })),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 }
