@@ -15,6 +15,7 @@
 // ============================================================================
 
 import type { PublicUserIdentity } from 'src/app/core/domain/public-user-identity/public-user-identity.model';
+import type { PublicUserPreview } from 'src/app/core/domain/public-user-preview/public-user-preview.model';
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 
 export type DirectChatId = string;
@@ -58,6 +59,13 @@ export interface DirectChatListItem {
    * preferencial para novas superfícies de Chat.
    */
   otherParticipantIdentity?: PublicUserIdentity | null;
+
+  /**
+   * Prévia pública sanitizada derivada da mesma projeção pública usada pela
+   * identidade. Não dispara leitura adicional e nunca carrega documento
+   * privado de users/{uid}.
+   */
+  otherParticipantPreview?: PublicUserPreview | null;
 
   /**
    * Alias legado de otherParticipantIdentity.nickname.
