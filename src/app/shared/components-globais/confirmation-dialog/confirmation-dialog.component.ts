@@ -2,7 +2,7 @@
 // -----------------------------------------------------------------------------
 // CONFIRMATION DIALOG COMPONENT
 // -----------------------------------------------------------------------------
-// Modal global para confirmação de ações sensíveis.
+// Modal global para confirmação de ações sensíveis e feedback bloqueante.
 //
 // Uso recomendado:
 // - desfazer amizade/conexão;
@@ -10,7 +10,8 @@
 // - excluir foto;
 // - cancelar convite;
 // - sair de sala/grupo;
-// - qualquer ação que precise de decisão explícita do usuário.
+// - qualquer ação que precise de decisão explícita do usuário;
+// - feedback bloqueante que exija uma única ação de reconhecimento.
 //
 // Segurança/UX:
 // - substitui window.confirm(), que é pobre visualmente e pouco controlável;
@@ -38,6 +39,8 @@ export interface ConfirmationDialogData {
 
   confirmLabel?: string;
   cancelLabel?: string;
+  /** `false` transforma o modal em feedback de ação única. */
+  showCancel?: boolean;
 
   eyebrow?: string;
   icon?: string;
