@@ -28,6 +28,7 @@ import {
 } from 'rxjs/operators';
 
 import { normalizePublicUserIdentity } from 'src/app/core/domain/public-user-identity/public-user-identity.model';
+import { normalizePublicUserPreview } from 'src/app/core/domain/public-user-preview/public-user-preview.model';
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import {
   DirectChatListItem,
@@ -294,7 +295,7 @@ export class DirectChatFacade {
    * - não consulta o documento privado /users do participante;
    * - não grava snapshot do perfil dentro do documento de chat;
    * - mantém fallback somente de leitura para conversas legadas já existentes;
-   * - normaliza o perfil público pelo contrato universal PublicUserIdentity.
+   * - normaliza identidade e prévia pelo contrato universal do perfil público.
    */
   private enrichListItemsWithPublicProfiles$(
     items: DirectChatListItem[]
@@ -321,16 +322,24 @@ export class DirectChatFacade {
           const publicProfile = participantUid
             ? publicProfiles[participantUid]
             : undefined;
-          const identity = publicProfile
-            ? normalizePublicUserIdentity({
+          const preview = publicProfile
+            ? normalizePublicUserPreview({
                 ...publicProfile,
                 profileId: participantUid,
               })
             : null;
+          const identity = preview?.identity
+            ?? (publicProfile
+              ? normalizePublicUserIdentity({
+                  ...publicProfile,
+                  profileId: participantUid,
+                })
+              : null);
 
           return {
             ...item,
             otherParticipantIdentity: identity,
+            otherParticipantPreview: preview,
             // Aliases legados permanecem derivados da mesma identidade, evitando
             // duas fontes de verdade durante a migração do Chat.
             otherParticipantNickname: identity?.nickname ?? null,
@@ -368,6 +377,7 @@ export class DirectChatFacade {
       chat,
       otherParticipantUid,
       otherParticipantIdentity: null,
+      otherParticipantPreview: null,
       otherParticipantNickname: null,
       otherParticipantPhotoURL: null,
       unreadCount: Number((chat as any)?.unreadCount ?? 0),
