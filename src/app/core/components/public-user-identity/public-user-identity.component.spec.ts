@@ -64,7 +64,7 @@ describe('PublicUserIdentityComponent', () => {
     expect(element.textContent).not.toContain('null');
   });
 
-  it('troca imagem quebrada pelo fallback sem expor texto alternativo redundante', () => {
+  it('reutiliza o fallback visual canônico quando a imagem quebra', () => {
     fixture.componentRef.setInput('identity', {
       nickname: 'serale',
       label: 'serale',
@@ -78,7 +78,9 @@ describe('PublicUserIdentityComponent', () => {
     image.dispatchEvent(new Event('error'));
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('img')).toBeNull();
-    expect(fixture.nativeElement.textContent).toContain('S');
+    const fallbackImage = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+    expect(fallbackImage).toBeTruthy();
+    expect(fallbackImage.getAttribute('data-image-fallback')).toBe('applied');
+    expect(fallbackImage.src).toContain('/assets/imagem-padrao.webp');
   });
 });
