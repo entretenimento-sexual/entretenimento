@@ -15,19 +15,11 @@
     @if (selectedType && selectedChatId) {
       <header class="chat-shell__main-header">
         @if (selectedType === 'chat') {
-          <div class="chat-shell__main-context chat-shell__main-context--direct">
-            <img
-              [src]="activeChatPeerPhotoURL || '/assets/imagem-padrao.webp'"
-              alt="Foto do perfil da conversa ativa"
-              class="chat-shell__main-avatar"
-              loading="lazy"
-            />
-
-            <div class="chat-shell__main-context-copy">
-              <p class="chat-shell__main-kicker">Conversa direta</p>
-              <h2 class="chat-shell__main-title">{{ activeDirectChatTitle }}</h2>
-            </div>
-          </div>
+          <app-direct-chat-public-identity
+            [chatId]="selectedChatId"
+            [fallbackName]="activeDirectChatTitle"
+            [fallbackPhotoURL]="activeChatPeerPhotoURL"
+          />
         }
 
         @if (selectedType === 'room') {
