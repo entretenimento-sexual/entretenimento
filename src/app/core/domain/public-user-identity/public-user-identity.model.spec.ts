@@ -49,28 +49,29 @@ describe('normalizePublicUserIdentity', () => {
     expect('address' in (identity ?? {})).toBe(false);
   });
 
-  it('aceita gender legado somente quando ele pertence ao catálogo canônico', () => {
+  it('aceita gender legado somente quando ele pertence ao catálogo canônico sem promover uid privado', () => {
     const legacyIdentity = normalizePublicUserIdentity({
-      uid: 'legacy-1',
+      uid: 'legacy-private-id',
       nickname: 'perfil_legado',
       gender: 'mulher',
       municipio: 'Niterói',
       estado: 'RJ',
     });
     const invalidLegacyIdentity = normalizePublicUserIdentity({
-      uid: 'legacy-2',
+      uid: 'legacy-private-id-2',
       nickname: 'perfil_invalido',
       gender: 'valor-fora-do-catalogo',
     });
 
     expect(legacyIdentity).toMatchObject({
-      profileId: 'legacy-1',
+      profileId: null,
       identityCode: 'mulher',
       identityShortLabel: 'Mulher',
       discoveryGroup: 'woman',
       city: 'Niterói',
       state: 'RJ',
     });
+    expect(invalidLegacyIdentity?.profileId).toBeNull();
     expect(invalidLegacyIdentity?.identityCode).toBeNull();
     expect(invalidLegacyIdentity?.identityShortLabel).toBeNull();
   });
