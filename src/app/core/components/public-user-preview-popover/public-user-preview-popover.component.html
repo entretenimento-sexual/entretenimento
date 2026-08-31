@@ -62,6 +62,17 @@
         </div>
       }
 
+      @if (vm.highlights.length > 0) {
+        <div
+          class="public-user-preview__highlights"
+          aria-label="Destaques públicos do perfil"
+        >
+          @for (highlight of vm.highlights; track highlight) {
+            <span class="public-user-preview__highlight">{{ highlight }}</span>
+          }
+        </div>
+      }
+
       @if (vm.bioPreview) {
         <p class="public-user-preview__bio">{{ vm.bioPreview }}</p>
       }
