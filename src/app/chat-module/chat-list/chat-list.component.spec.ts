@@ -10,6 +10,7 @@ import { ChatListComponent } from './chat-list.component';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
+import { PublicUserPreviewTriggerDirective } from '../../core/components/public-user-preview-popover/public-user-preview-trigger.directive';
 import { DirectChatFacade } from '../../messaging/direct-chat/application/direct-chat.facade';
 import { RoomService } from '../../core/services/batepapo/room-services/room.service';
 import { RoomMessagesService } from '../../core/services/batepapo/room-services/room-messages.service';
@@ -36,7 +37,12 @@ describe('ChatListComponent', () => {
 
     TestBed.configureTestingModule({
       declarations: [ChatListComponent],
-      imports: [FormsModule, ActionStateDirective, ContentStateComponent],
+      imports: [
+        FormsModule,
+        ActionStateDirective,
+        ContentStateComponent,
+        PublicUserPreviewTriggerDirective,
+      ],
       providers: [
         {
           provide: AuthSessionService,
