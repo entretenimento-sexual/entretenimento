@@ -21,12 +21,19 @@
 import { Injectable, inject } from '@angular/core';
 
 import {
+  COMMON_APPLICATION_ERROR_CODE_PRESENTATIONS,
+  COMMON_APPLICATION_ERROR_REASON_PRESENTATIONS,
+  COMMON_APPLICATION_ERROR_RECOMMENDED_ACTION_PRESENTATIONS,
+} from './application-error-presentation.catalog';
+import {
   DEFAULT_APPLICATION_ERROR_PRESENTATION,
   type ApplicationErrorPresentation,
   type ApplicationErrorPresentationMap,
-  type ApplicationErrorSeverity,
   type ApplicationErrorSurface,
 } from './application-error-presentation.model';
+import {
+  normalizeApplicationErrorPresentation,
+} from './application-error-presentation.policy';
 import { ErrorNotificationService } from './error-notification.service';
 import { GlobalErrorHandlerService } from './global-error-handler.service';
 
@@ -84,44 +91,6 @@ const COMMON_CODE_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
   unknown: 'Não foi possível concluir a ação agora. Tente novamente.',
 });
 
-const COMMON_REASON_PRESENTATIONS: ApplicationErrorPresentationMap =
-  Object.freeze({
-    'recent-authentication-required': {
-      surface: 'modal',
-      severity: 'warning',
-      title: 'Confirme sua identidade novamente',
-      detail:
-        'Esta alteração é sensível e exige uma autenticação recente antes de continuar.',
-    },
-  });
-
-const COMMON_RECOMMENDED_ACTION_PRESENTATIONS:
-  ApplicationErrorPresentationMap = Object.freeze({
-    upgrade_subscription: {
-      surface: 'modal',
-      severity: 'info',
-      title: 'Seu plano atual precisa ser atualizado',
-      detail:
-        'A configuração atual permanece preservada. Compare os planos disponíveis para liberar esta opção.',
-      primaryAction: {
-        label: 'Ver planos',
-        route: '/subscription-plan',
-      },
-      dismissLabel: 'Agora não',
-    },
-  });
-
-const COMMON_CODE_PRESENTATIONS: ApplicationErrorPresentationMap =
-  Object.freeze({
-    'auth/requires-recent-login': {
-      surface: 'modal',
-      severity: 'warning',
-      title: 'Confirme sua identidade novamente',
-      detail:
-        'Esta alteração é sensível e exige uma autenticação recente antes de continuar.',
-    },
-  });
-
 const RETRYABLE_CODES = new Set([
   'resource-exhausted',
   'deadline-exceeded',
@@ -155,29 +124,6 @@ function normalizeTransportCode(value: unknown): string | null {
 function safeMessage(value: unknown, fallback: string): string {
   const normalized = safeString(value, 280);
   return normalized ?? fallback;
-}
-
-function normalizeSurface(value: unknown): ApplicationErrorSurface {
-  return value === 'modal'
-    || value === 'inline'
-    || value === 'page'
-    || value === 'none'
-    || value === 'snackbar'
-    ? value
-    : DEFAULT_APPLICATION_ERROR_PRESENTATION.surface;
-}
-
-function normalizeSeverity(value: unknown): ApplicationErrorSeverity {
-  return value === 'warning' || value === 'info' || value === 'error'
-    ? value
-    : DEFAULT_APPLICATION_ERROR_PRESENTATION.severity;
-}
-
-function normalizeInternalRoute(value: unknown): string | null {
-  const route = safeString(value, 300);
-  return route && route.startsWith('/') && !route.startsWith('//')
-    ? route
-    : null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -254,14 +200,18 @@ export class ApplicationErrorService {
         ? options.recommendedActionPresentations?.[recommendedAction]
         : undefined)
       ?? (code ? options.codePresentations?.[code] : undefined)
-      ?? (reason ? COMMON_REASON_PRESENTATIONS[reason] : undefined)
-      ?? (recommendedAction
-        ? COMMON_RECOMMENDED_ACTION_PRESENTATIONS[recommendedAction]
+      ?? (reason
+        ? COMMON_APPLICATION_ERROR_REASON_PRESENTATIONS[reason]
         : undefined)
-      ?? (code ? COMMON_CODE_PRESENTATIONS[code] : undefined)
+      ?? (recommendedAction
+        ? COMMON_APPLICATION_ERROR_RECOMMENDED_ACTION_PRESENTATIONS[
+            recommendedAction
+          ]
+        : undefined)
+      ?? (code ? COMMON_APPLICATION_ERROR_CODE_PRESENTATIONS[code] : undefined)
       ?? this.presentationFromLegacyNotification(options.notification);
 
-    return this.normalizePresentation(mappedPresentation);
+    return normalizeApplicationErrorPresentation(mappedPresentation);
   }
 
   private presentationFromLegacyNotification(
@@ -278,32 +228,6 @@ export class ApplicationErrorService {
       default:
         return DEFAULT_APPLICATION_ERROR_PRESENTATION;
     }
-  }
-
-  private normalizePresentation(
-    raw: Readonly<ApplicationErrorPresentation>
-  ): ApplicationErrorPresentation {
-    const actionLabel = safeString(raw.primaryAction?.label, 80);
-    const actionRoute = normalizeInternalRoute(raw.primaryAction?.route);
-    const title = safeString(raw.title, 100);
-    const detail = safeString(raw.detail, 360);
-    const dismissLabel = safeString(raw.dismissLabel, 80);
-
-    return {
-      surface: normalizeSurface(raw.surface),
-      severity: normalizeSeverity(raw.severity),
-      ...(title ? { title } : {}),
-      ...(detail ? { detail } : {}),
-      ...(actionLabel
-        ? {
-            primaryAction: {
-              label: actionLabel,
-              ...(actionRoute ? { route: actionRoute } : {}),
-            },
-          }
-        : {}),
-      ...(dismissLabel ? { dismissLabel } : {}),
-    };
   }
 
   private notify(descriptor: ApplicationErrorDescriptor): void {

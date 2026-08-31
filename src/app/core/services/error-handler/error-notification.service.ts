@@ -18,7 +18,7 @@
 // - `details` nunca é exibido em alerta, modal ou snackbar;
 // - detalhes técnicos podem ser enviados ao console somente em ambiente de
 //   desenvolvimento com debug habilitado;
-// - ações de modal aceitam somente rotas internas da aplicação;
+// - ações de modal aceitam somente rotas internas validadas pela política canônica;
 // - a interface recebe apenas mensagens previamente definidas como seguras.
 // -----------------------------------------------------------------------------
 
@@ -38,6 +38,9 @@ import {
   type ApplicationErrorPresentation,
   type ApplicationErrorSeverity,
 } from './application-error-presentation.model';
+import {
+  normalizeApplicationErrorInternalRoute,
+} from './application-error-presentation.policy';
 
 export type NotificationType = 'success' | 'error' | 'info' | 'warning';
 
@@ -237,42 +240,51 @@ export class ErrorNotificationService {
     if (this.activeModalKeys.has(modalKey)) return;
     this.activeModalKeys.add(modalKey);
 
-    const actionRoute = this.normalizeInternalRoute(
+    const actionRoute = normalizeApplicationErrorInternalRoute(
       presentation.primaryAction?.route
     );
     const hasNavigableAction = actionRoute !== null;
-    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
-      width: 'min(92vw, 480px)',
-      maxWidth: '92vw',
-      data: {
-        eyebrow: 'Atenção',
-        title,
-        message,
-        detail: this.normalizeOptionalUserMessage(presentation.detail),
-        tone: this.resolveDialogTone(presentation.severity),
-        confirmLabel: this.normalizeUserMessage(
-          presentation.primaryAction?.label,
-          'Entendi'
-        ),
-        cancelLabel: this.normalizeUserMessage(
-          presentation.dismissLabel,
-          'Agora não'
-        ),
-        showCancel: hasNavigableAction,
-      },
-    });
 
-    dialogRef.afterClosed().pipe(take(1)).subscribe((confirmed) => {
-      this.activeModalKeys.delete(modalKey);
-
-      if (!confirmed || !actionRoute) return;
-
-      void this.router.navigateByUrl(actionRoute).catch(() => {
-        this.showError(
-          'Não foi possível abrir a próxima etapa. Tente novamente.'
-        );
+    try {
+      const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
+        panelClass: 'confirmation-dialog-panel',
+        width: 'min(92vw, 480px)',
+        maxWidth: '92vw',
+        autoFocus: 'first-tabbable',
+        restoreFocus: true,
+        data: {
+          eyebrow: 'Atenção',
+          title,
+          message,
+          detail: this.normalizeOptionalUserMessage(presentation.detail),
+          tone: this.resolveDialogTone(presentation.severity),
+          confirmLabel: this.normalizeUserMessage(
+            presentation.primaryAction?.label,
+            'Entendi'
+          ),
+          cancelLabel: this.normalizeUserMessage(
+            presentation.dismissLabel,
+            'Agora não'
+          ),
+          showCancel: hasNavigableAction,
+        },
       });
-    });
+
+      dialogRef.afterClosed().pipe(take(1)).subscribe((confirmed) => {
+        this.activeModalKeys.delete(modalKey);
+
+        if (!confirmed || !actionRoute) return;
+
+        void this.router.navigateByUrl(actionRoute).catch(() => {
+          this.showError(
+            'Não foi possível abrir a próxima etapa. Tente novamente.'
+          );
+        });
+      });
+    } catch {
+      this.activeModalKeys.delete(modalKey);
+      this.showBySeverity(message, presentation.severity);
+    }
   }
 
   private resolveDialogTone(
@@ -299,15 +311,6 @@ export class ErrorNotificationService {
       default:
         return 'Não foi possível continuar';
     }
-  }
-
-  private normalizeInternalRoute(value: unknown): string | null {
-    if (typeof value !== 'string') return null;
-
-    const route = value.trim();
-    if (!route.startsWith('/') || route.startsWith('//')) return null;
-
-    return route;
   }
 
   /**

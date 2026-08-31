@@ -10,9 +10,15 @@
 import type {
   ApplicationErrorPresentationMap,
 } from 'src/app/core/services/error-handler/application-error-presentation.model';
+import {
+  COMMUNITY_CREATE_RETURN_URL,
+  subscriptionFlowUrl,
+} from 'src/app/subscriptions/domain/subscription-flow-context.model';
 
-const BASIC_PLAN_ROUTE =
-  '/subscription-plan?minimumRole=basic&returnUrl=%2Fdashboard%2Fcomunidades%2Fnova';
+const BASIC_PLAN_ROUTE = subscriptionFlowUrl({
+  minimumRole: 'basic',
+  returnUrl: COMMUNITY_CREATE_RETURN_URL,
+});
 
 export const COMMUNITY_CREATE_REASON_PRESENTATIONS:
   ApplicationErrorPresentationMap = Object.freeze({

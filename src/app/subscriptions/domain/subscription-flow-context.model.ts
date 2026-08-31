@@ -7,6 +7,7 @@
 
 import type { PlatformPlanKey } from 'src/app/payments-core/domain/models/billing-plan.model';
 
+export const SUBSCRIPTION_PLAN_ROUTE = '/subscription-plan' as const;
 export const COMMUNITY_CREATE_RETURN_URL =
   '/dashboard/comunidades/nova' as const;
 
@@ -56,6 +57,19 @@ export function subscriptionFlowQueryParams(
     ...(context.minimumRole ? { minimumRole: context.minimumRole } : {}),
     ...(context.returnUrl ? { returnUrl: context.returnUrl } : {}),
   };
+}
+
+/**
+ * URL interna canônica para iniciar o fluxo de assinatura preservando somente
+ * parâmetros previamente normalizados pelo contrato desta camada.
+ */
+export function subscriptionFlowUrl(
+  context: SubscriptionFlowContext
+): string {
+  const query = new URLSearchParams(subscriptionFlowQueryParams(context))
+    .toString();
+
+  return query ? `${SUBSCRIPTION_PLAN_ROUTE}?${query}` : SUBSCRIPTION_PLAN_ROUTE;
 }
 
 export function isCommunityCreationSubscriptionFlow(
