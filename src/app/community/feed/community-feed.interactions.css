@@ -611,7 +611,7 @@
 }
 
 .community-feed__composer-row {
-  align-items: center;
+  align-items: end;
   gap: 0.42rem;
 }
 
