@@ -5,22 +5,22 @@
         class="feed-comments"
         [class.feed-comments--quick-reply]="replyToPostRequested() && !replyTarget()"
         [id]="'community-feed-comments-' + postId()"
-        [attr.aria-label]="replyToPostRequested() && !replyTarget() ? 'Responder à publicação' : 'Conversa da publicação'"
+        [attr.aria-label]="replyToPostRequested() && !replyTarget() ? 'Responder à publicação' : 'Comentários da publicação'"
       >
         @if (!replyToPostRequested() || replyTarget()) {
           <header class="feed-comments__header">
             <div>
-              <h3>Conversa</h3>
+              <h3>Comentários</h3>
               <span>
                 {{ state.items.length }}
-                {{ state.items.length === 1 ? 'mensagem' : 'mensagens' }}
+                {{ state.items.length === 1 ? 'comentário' : 'comentários' }}
               </span>
             </div>
             <button
               class="feed-comments__close"
               type="button"
-              aria-label="Fechar conversa"
-              title="Fechar conversa"
+              aria-label="Fechar comentários"
+              title="Fechar comentários"
               (click)="requestClose()"
             >
               <i class="fas fa-xmark" aria-hidden="true"></i>
@@ -30,16 +30,16 @@
           @if (state.status === 'loading') {
             <p class="feed-comments__state" role="status">
               <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-              Carregando conversa...
+              Carregando comentários...
             </p>
           } @else if (state.status === 'error') {
             <div class="feed-comments__state" role="alert">
-              <span>Não foi possível carregar a conversa.</span>
+              <span>Não foi possível carregar os comentários.</span>
               <button type="button" (click)="retry()">Tentar novamente</button>
             </div>
           } @else if (state.status === 'empty') {
             <p class="feed-comments__state" role="status">
-              {{ canComment() ? 'Seja a primeira pessoa a conversar.' : 'Ainda não há mensagens.' }}
+              {{ canComment() ? 'Seja a primeira pessoa a comentar.' : 'Ainda não há comentários.' }}
             </p>
           } @else {
             @if (state.nextCursor) {
@@ -49,7 +49,7 @@
                 [disabled]="state.loadingMore"
                 (click)="loadMore(state.nextCursor)"
               >
-                {{ state.loadingMore ? 'Carregando...' : 'Ver mensagens anteriores' }}
+                {{ state.loadingMore ? 'Carregando...' : 'Ver comentários anteriores' }}
               </button>
             }
 
@@ -121,7 +121,7 @@
                           ) {
                             <details #commentMenu class="feed-comment__menu">
                               <summary
-                                [attr.aria-label]="'Mais ações da mensagem de ' + item.author.label"
+                                [attr.aria-label]="'Mais ações do comentário de ' + item.author.label"
                                 title="Mais ações"
                               >
                                 <i class="fas fa-ellipsis" aria-hidden="true"></i>
@@ -129,7 +129,7 @@
                               <div
                                 class="feed-comment__menu-panel"
                                 role="group"
-                                [attr.aria-label]="'Ações da mensagem de ' + item.author.label"
+                                [attr.aria-label]="'Ações do comentário de ' + item.author.label"
                               >
                                 @if (item.capabilities.canDeleteOwn) {
                                   <button
@@ -139,7 +139,7 @@
                                     (click)="commentMenu.open = false; requestAction(item, 'delete_own')"
                                   >
                                     <i class="fas fa-trash" aria-hidden="true"></i>
-                                    <span>Excluir mensagem</span>
+                                    <span>Excluir comentário</span>
                                   </button>
                                 }
                                 @if (item.capabilities.canModerate) {
@@ -150,7 +150,7 @@
                                     (click)="commentMenu.open = false; requestAction(item, 'remove')"
                                   >
                                     <i class="fas fa-shield-halved" aria-hidden="true"></i>
-                                    <span>Remover mensagem</span>
+                                    <span>Remover comentário</span>
                                   </button>
                                 }
                                 @if (item.capabilities.canReport) {
@@ -159,8 +159,8 @@
                                     [targetId]="item.commentId"
                                     [parentTargetId]="postId()"
                                     [containerTargetId]="communityId()"
-                                    label="Denunciar mensagem"
-                                    title="mensagem da conversa"
+                                    label="Denunciar comentário"
+                                    title="comentário da publicação"
                                     appearance="link"
                                     [disabled]="actionState.status === 'loading'"
                                     (click)="commentMenu.open = false"
@@ -176,12 +176,12 @@
                             class="feed-comment__quote"
                             type="button"
                             [disabled]="!reference.available"
-                            [attr.aria-label]="reference.available ? 'Ir para mensagem de ' + reference.authorLabel : 'Mensagem original indisponível'"
+                            [attr.aria-label]="reference.available ? 'Ir para comentário de ' + reference.authorLabel : 'Comentário original indisponível'"
                             (click)="reference.available && scrollToReferencedComment(reference.commentId)"
                           >
                             <strong>{{ reference.authorLabel }}</strong>
                             <span>
-                              {{ reference.available ? reference.textPreview : 'Mensagem indisponível' }}
+                              {{ reference.available ? reference.textPreview : 'Comentário indisponível' }}
                             </span>
                           </button>
                         } @else {
@@ -205,7 +205,7 @@
                           <button
                             type="button"
                             (click)="startReply(item)"
-                            [attr.aria-label]="'Responder à mensagem de ' + item.author.label"
+                            [attr.aria-label]="'Responder ao comentário de ' + item.author.label"
                           >
                             <i class="fas fa-reply" aria-hidden="true"></i>
                             Responder
@@ -219,7 +219,7 @@
                       ) {
                         <section class="feed-comment__confirmation">
                           @if (selectedAction === 'delete_own') {
-                            <p>Excluir esta mensagem?</p>
+                            <p>Excluir este comentário?</p>
                           } @else {
                             <label [for]="'comment-removal-reason-' + item.commentId">
                               Motivo da remoção
@@ -311,7 +311,7 @@
             }
 
             <label [for]="'community-comment-' + postId()">
-              {{ replyTarget() || replyToPostRequested() ? 'Responder' : 'Mensagem' }}
+              {{ replyTarget() || replyToPostRequested() ? 'Responder' : 'Comentário' }}
             </label>
             <div class="feed-comments__composer-row">
               <textarea
@@ -321,22 +321,22 @@
                 maxlength="500"
                 enterkeyhint="send"
                 formControlName="text"
-                [placeholder]="replyTarget() || replyToPostRequested() ? 'Escreva sua resposta' : 'Contribua com a conversa'"
+                [placeholder]="replyTarget() || replyToPostRequested() ? 'Escreva sua resposta' : 'Escreva um comentário'"
                 [attr.aria-invalid]="commentControl.invalid && commentControl.touched ? 'true' : null"
                 (keydown.enter)="submitCommentOnEnter($event)"
               ></textarea>
               <button
                 type="submit"
-                aria-label="Enviar mensagem"
+                aria-label="Publicar comentário"
                 [disabled]="commentForm.invalid || createState === 'loading'"
                 [attr.aria-busy]="createState === 'loading' ? 'true' : null"
               >
                 @if (createState === 'loading') {
                   <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                  <span class="feed-comments__send-label">Enviando</span>
+                  <span class="feed-comments__send-label">Publicando</span>
                 } @else {
                   <i class="fas fa-paper-plane" aria-hidden="true"></i>
-                  <span class="feed-comments__send-label">Enviar</span>
+                  <span class="feed-comments__send-label">Publicar</span>
                 }
               </button>
             </div>

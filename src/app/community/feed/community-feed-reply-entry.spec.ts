@@ -144,7 +144,7 @@ describe('CommunityFeedComponent conversation entry points', () => {
     expect(feedRepository.createPost$).toHaveBeenCalledTimes(1);
   });
 
-  it('chama comentários legados de mensagens anteriores, nunca de respostas do Mural', () => {
+  it('apresenta comentários legados como comentários, sem confundir com respostas do Mural', () => {
     feedRepository.getPage$.mockReturnValue(of({
       items: [{
         postId: 'post-1',
@@ -167,11 +167,11 @@ describe('CommunityFeedComponent conversation entry points', () => {
       '.community-post__comments-toggle'
     ) as HTMLButtonElement;
 
-    expect(toggle.textContent).toContain('Ver');
+    expect(toggle.textContent).toContain('Comentários');
     expect(toggle.textContent).toContain('1');
-    expect(toggle.textContent).toContain('mensagem anterior');
+    expect(toggle.textContent).not.toContain('mensagem anterior');
     expect(toggle.textContent).not.toContain('resposta');
-    expect(toggle.getAttribute('aria-label')).toContain('1 mensagem anterior');
+    expect(toggle.getAttribute('aria-label')).toContain('1 comentário');
   });
 
   it('publica resposta à publicação como novo item do Mural e não como comment filho', async () => {

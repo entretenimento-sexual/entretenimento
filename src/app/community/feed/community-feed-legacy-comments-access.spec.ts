@@ -96,7 +96,7 @@ describe('CommunityFeedComponent legacy comments access', () => {
     return fixture;
   }
 
-  it('não oferece conversa paralela quando não existe histórico legado', () => {
+  it('não oferece comentários quando não existe histórico legado', () => {
     const fixture = createFixture(0);
 
     expect(fixture.nativeElement.textContent).toContain('Responder');
@@ -127,23 +127,23 @@ describe('CommunityFeedComponent legacy comments access', () => {
     expect(reaction.querySelector('button')).toBeNull();
   });
 
-  it('oferece acesso secundário somente quando há mensagens anteriores do histórico legado', () => {
+  it('oferece acesso a comentários somente quando há comentários existentes', () => {
     const fixture = createFixture(2);
-    const legacyAccess = fixture.nativeElement.querySelector(
+    const commentsAccess = fixture.nativeElement.querySelector(
       '.community-post__comments-toggle'
     ) as HTMLButtonElement;
 
-    expect(legacyAccess).not.toBeNull();
-    expect(legacyAccess.textContent).toContain('Ver');
-    expect(legacyAccess.textContent).toContain('2');
-    expect(legacyAccess.textContent).toContain('mensagens anteriores');
-    expect(legacyAccess.textContent).not.toContain('respostas');
-    expect(legacyAccess.getAttribute('aria-label')).toContain('2 mensagens anteriores');
+    expect(commentsAccess).not.toBeNull();
+    expect(commentsAccess.textContent).toContain('Comentários');
+    expect(commentsAccess.textContent).toContain('2');
+    expect(commentsAccess.textContent).not.toContain('mensagens anteriores');
+    expect(commentsAccess.textContent).not.toContain('respostas');
+    expect(commentsAccess.getAttribute('aria-label')).toContain('2 comentários');
 
-    legacyAccess.click();
+    commentsAccess.click();
     fixture.detectChanges();
 
-    expect(legacyAccess.getAttribute('aria-expanded')).toBe('true');
+    expect(commentsAccess.getAttribute('aria-expanded')).toBe('true');
     expect(
       fixture.nativeElement.querySelector('app-community-feed-comments')
     ).not.toBeNull();
