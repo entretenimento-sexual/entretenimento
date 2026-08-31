@@ -125,10 +125,16 @@ export function normalizePublicUserIdentity(
   );
   if (nickname.length < 2) return null;
 
-  const identityCode = normalizeText(
+  const explicitIdentityCode = normalizeText(
     source['identityCode'] ?? source['declaredIdentityCode'],
     80
   ).toLowerCase() || null;
+  const legacyGenderOption = explicitIdentityCode
+    ? null
+    : resolveProfileIdentityOption(
+        normalizeText(source['gender'], 80).toLowerCase()
+      );
+  const identityCode = explicitIdentityCode ?? legacyGenderOption?.code ?? null;
   const identityOption = resolveProfileIdentityOption(identityCode);
   const discoveryGroup = identityOption?.discoveryGroup
     ?? normalizeDiscoveryGroup(
@@ -145,7 +151,7 @@ export function normalizePublicUserIdentity(
     ?? null;
 
   return {
-    profileId: normalizeText(source['profileId'], 128) || null,
+    profileId: normalizeText(source['profileId'] ?? source['uid'], 128) || null,
     nickname,
     label: nickname,
     avatarUrl: normalizeMediaUrl(source['avatarUrl'] ?? source['photoURL']),
