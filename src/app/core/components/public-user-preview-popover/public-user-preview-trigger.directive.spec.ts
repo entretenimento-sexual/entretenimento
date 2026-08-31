@@ -41,6 +41,7 @@ class PreviewTriggerHostComponent {
     isOnline: false,
     approximateDistanceKm: 3.4,
     bioPreview: 'Bio pública.',
+    highlights: ['Amizade'],
   };
 }
 
