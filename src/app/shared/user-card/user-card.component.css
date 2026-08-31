@@ -81,6 +81,7 @@
 
 .user-card__presence {
   position: absolute;
+  z-index: 2;
   top: 0.7rem;
   left: 0.7rem;
   display: inline-flex;
@@ -112,27 +113,46 @@
   bottom: 0.78rem;
   left: 0.8rem;
   min-width: 0;
-}
-
-.user-card__name {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  color: #ffffff;
-  font-size: 1.08rem;
-  font-weight: 900;
-  line-height: 1.08;
-  letter-spacing: -0.02em;
-  text-overflow: ellipsis;
   text-shadow: 0 2px 8px rgb(0 0 0 / 72%);
-  white-space: nowrap;
 }
 
-.nickname-online,
-.nickname-recent,
-.nickname-inactive,
-.nickname-offline {
+.user-card__identity app-public-user-identity {
+  --text-color: #ffffff;
+  --surface-color: #111827;
+  --surface-border: rgb(255 255 255 / 28%);
+  --primary-color: #ffffff;
+}
+
+.user-card__quick-preview {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  z-index: 4;
+  top: 0.55rem;
+  right: 0.55rem;
+  display: inline-grid;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 50%;
+  background: rgb(8 15 28 / 62%);
   color: #ffffff;
+  font: inherit;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.user-card__quick-preview:hover,
+.user-card__quick-preview:focus-visible {
+  background: rgb(8 15 28 / 78%);
+}
+
+.user-card__quick-preview:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
 }
 
 .user-card__body {
@@ -193,22 +213,10 @@
 .user-card__location-copy {
   display: flex;
   flex: 1 1 auto;
-  flex-wrap: nowrap;
   align-items: center;
   gap: 0.28rem;
   min-width: 0;
   overflow: hidden;
-}
-
-.user-card__place {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-card__separator {
-  flex: 0 0 auto;
 }
 
 .user-card__distance,
@@ -457,6 +465,20 @@ html.dark-mode.high-contrast .user-card__action--primary {
   color: #000000 !important;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .user-card__quick-preview {
+    opacity: 0;
+    transition:
+      opacity 140ms ease,
+      background-color 140ms ease;
+  }
+
+  .user-card:hover .user-card__quick-preview,
+  .user-card:focus-within .user-card__quick-preview {
+    opacity: 1;
+  }
+}
+
 @media (max-width: 767.98px) {
   .user-card {
     border-radius: 16px;
@@ -481,7 +503,8 @@ html.dark-mode.high-contrast .user-card__action--primary {
 
 @media (prefers-reduced-motion: reduce) {
   .user-card,
-  .user-card__action {
+  .user-card__action,
+  .user-card__quick-preview {
     transition: none;
   }
 
