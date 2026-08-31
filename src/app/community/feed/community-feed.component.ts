@@ -651,7 +651,7 @@ export class CommunityFeedComponent implements OnDestroy {
   }
 
   @HostListener('document:keydown.escape', ['$event'])
-  onDocumentEscape(event?: KeyboardEvent): void {
+  onDocumentEscape(event?: Event): void {
     const dismissed = dismissOpenCommunityFeedDetailsOnEscape(
       this.openableMenus(),
       globalThis.document?.activeElement ?? null
