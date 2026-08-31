@@ -44,6 +44,10 @@ describe('CommunityFeedComposerFacade', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    repositoryMock.createPost$.mockReset();
+    storageMock.uploadFile.mockReset();
+    geolocationMock.watchPosition$.mockReset();
+
     TestBed.configureTestingModule({
       providers: [
         CommunityFeedComposerFacade,
@@ -94,6 +98,9 @@ describe('CommunityFeedComposerFacade', () => {
   });
 
   it('preserva rascunho e anexo quando a criação do post falha', () => {
+    storageMock.uploadFile.mockReturnValue(
+      of('community-feed/u1/foto.webp')
+    );
     repositoryMock.createPost$.mockReturnValue(
       throwError(() => ({
         code: 'functions/resource-exhausted',
@@ -113,6 +120,19 @@ describe('CommunityFeedComposerFacade', () => {
 
     facade.submitPost(context);
 
+    expect(storageMock.uploadFile).toHaveBeenCalledWith(
+      file,
+      'community-feed',
+      'u1',
+      expect.any(Function)
+    );
+    expect(repositoryMock.createPost$).toHaveBeenCalledWith(
+      expect.objectContaining({
+        communityId: 'community-1',
+        text: 'Rascunho importante.',
+        imageUploadPath: 'community-feed/u1/foto.webp',
+      })
+    );
     expect(facade.postForm.controls.text.value).toBe('Rascunho importante.');
     expect(facade.selectedAttachment()).toBe(attachment);
     expect(applicationErrorMock.report).toHaveBeenCalledWith(
