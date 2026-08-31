@@ -151,7 +151,10 @@ export function normalizePublicUserIdentity(
     ?? null;
 
   return {
-    profileId: normalizeText(source['profileId'] ?? source['uid'], 128) || null,
+    // `uid` pode ser um identificador interno presente em projeções que
+    // deliberadamente omitem navegação de perfil. Só transportamos `profileId`
+    // quando a própria origem pública o declara explicitamente.
+    profileId: normalizeText(source['profileId'], 128) || null,
     nickname,
     label: nickname,
     avatarUrl: normalizeMediaUrl(source['avatarUrl'] ?? source['photoURL']),
