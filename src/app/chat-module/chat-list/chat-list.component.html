@@ -113,6 +113,8 @@
                 [class.conversation-card--unread]="hasUnread(chat)"
                 [attr.aria-label]="getDirectChatAriaLabel(chat)"
                 [attr.aria-pressed]="isDirectChatSelected(chat.id)"
+                [appPublicUserPreviewTrigger]="chat.otherParticipantPreview ?? null"
+                [publicUserPreviewProfileRoute]="chat.otherParticipantUid ? ['/perfil', chat.otherParticipantUid] : null"
               >
                 @if (getDirectChatActivityEpoch(chat); as activityEpoch) {
                   <app-public-user-identity
