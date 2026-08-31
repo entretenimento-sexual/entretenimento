@@ -20,11 +20,39 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { PublicUserPreview } from '../../domain/public-user-preview/public-user-preview.model';
 import { PublicUserPreviewPopoverComponent } from './public-user-preview-popover.component';
 
+/**
+ * A prévia de perfil permanece verticalmente associada ao card de origem.
+ *
+ * O CDK pode ajustar a posição dentro do viewport via `withPush(true)`, mas não
+ * deve deslocar a prévia para os lados: em grades de descoberta isso fazia cards
+ * equivalentes abrirem em direções diferentes conforme a coluna ocupada.
+ */
 const DESKTOP_POSITIONS: readonly ConnectedPosition[] = [
   {
+    originX: 'center',
+    originY: 'bottom',
+    overlayX: 'center',
+    overlayY: 'top',
+    offsetY: 10,
+  },
+  {
+    originX: 'center',
+    originY: 'top',
+    overlayX: 'center',
+    overlayY: 'bottom',
+    offsetY: -10,
+  },
+  {
     originX: 'start',
     originY: 'bottom',
     overlayX: 'start',
+    overlayY: 'top',
+    offsetY: 10,
+  },
+  {
+    originX: 'end',
+    originY: 'bottom',
+    overlayX: 'end',
     overlayY: 'top',
     offsetY: 10,
   },
@@ -37,31 +65,10 @@ const DESKTOP_POSITIONS: readonly ConnectedPosition[] = [
   },
   {
     originX: 'end',
-    originY: 'bottom',
-    overlayX: 'end',
-    overlayY: 'top',
-    offsetY: 10,
-  },
-  {
-    originX: 'end',
     originY: 'top',
     overlayX: 'end',
     overlayY: 'bottom',
     offsetY: -10,
-  },
-  {
-    originX: 'end',
-    originY: 'center',
-    overlayX: 'start',
-    overlayY: 'center',
-    offsetX: 10,
-  },
-  {
-    originX: 'start',
-    originY: 'center',
-    overlayX: 'end',
-    overlayY: 'center',
-    offsetX: -10,
   },
 ];
 
