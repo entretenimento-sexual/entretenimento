@@ -89,6 +89,7 @@ export { requestCommunityMembership } from './request-community-membership.handl
 export { updateCommunitySettings } from './update-community-settings.handler';
 export { runCommunityLifecycle } from './run-community-lifecycle.schedule';
 export { runCommunityPurge } from './run-community-purge.schedule';
+export { runCommunityRanking } from './run-community-ranking.schedule';
 export {
   syncCommunityArchiveProjections,
 } from './sync-community-archive-projections.trigger';
@@ -103,4 +104,8 @@ export {
 export {
   syncCommunityMembershipActivity,
 } from './sync-community-membership-activity.trigger';
+export {
+  syncCommunityRankingFromCommunity,
+  syncCommunityRankingFromDiscovery,
+} from './sync-community-ranking.trigger';
 export { syncCommunityUserIndex } from './sync-community-user-index.trigger';
