@@ -67,11 +67,9 @@ import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
 } from '../presentation/community-visual-identity';
-import { CommunityTopicsComponent } from '../topics/community-topics.component';
 
 export type CommunityPreviewSection =
   | 'feed'
-  | 'topics'
   | 'photos'
   | 'about'
   | 'invites'
@@ -150,7 +148,6 @@ const ACCESS_REASONS = new Set<ContentAccessDenialReason>([
 const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | null>> =
   Object.freeze({
     feed: null,
-    topics: 'topicos',
     photos: 'fotos',
     about: 'sobre',
     invites: 'convites',
@@ -167,7 +164,6 @@ const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | nu
     CommunityFeedComponent,
     CommunityInviteManagementComponent,
     CommunityMembershipManagementComponent,
-    CommunityTopicsComponent,
   ],
   templateUrl: './community-preview-page.component.html',
   styleUrl: './community-preview-page.component.css',
@@ -468,13 +464,11 @@ export class CommunityPreviewPageComponent {
 
   private ensureSectionAvailable(preview: CommunityPreviewResponse): void {
     const section = this.activeSection();
-    const allowed = section === 'topics'
-      ? preview.community.source.type === 'community'
-      : section === 'requests'
-        ? preview.canManageMemberships
-        : section === 'invites'
-          ? preview.canInviteCommunityMembers
-          : true;
+    const allowed = section === 'requests'
+      ? preview.canManageMemberships
+      : section === 'invites'
+        ? preview.canInviteCommunityMembers
+        : true;
 
     if (!allowed) {
       this.selectSection('about', true);
@@ -484,7 +478,8 @@ export class CommunityPreviewPageComponent {
   private sectionFromQuery(value: unknown): CommunityPreviewSection {
     switch (String(value ?? '').trim().toLowerCase()) {
       case 'topicos':
-        return 'topics';
+        // Compatibilidade com links antigos: Discussões foi incorporada ao Mural.
+        return 'feed';
       case 'fotos':
         return 'photos';
       case 'sobre':
