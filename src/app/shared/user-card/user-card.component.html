@@ -8,6 +8,7 @@
     [attr.aria-describedby]="profile.descricao ? 'uc-desc-' + (profile.uid || 'x') : null"
     [appPublicUserPreviewTrigger]="publicPreview()"
     [publicUserPreviewRelationship]="previewRelationshipLabel()"
+    [publicUserPreviewProfileRoute]="profile.uid ? ['/perfil', profile.uid] : null"
     #quickPreview="publicUserPreviewTrigger"
   >
     <a
