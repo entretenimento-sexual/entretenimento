@@ -21,54 +21,19 @@ import type { PublicUserPreview } from '../../domain/public-user-preview/public-
 import { PublicUserPreviewPopoverComponent } from './public-user-preview-popover.component';
 
 /**
- * A prévia de perfil permanece verticalmente associada ao card de origem.
+ * A prévia transitória permanece visualmente vinculada ao card de origem.
  *
- * O CDK pode ajustar a posição dentro do viewport via `withPush(true)`, mas não
- * deve deslocar a prévia para os lados: em grades de descoberta isso fazia cards
- * equivalentes abrirem em direções diferentes conforme a coluna ocupada.
+ * No desktop ela é centralizada sobre o próprio card. Como o hover dura pouco,
+ * essa associação direta reduz deslocamento visual e evita que a prévia pareça
+ * pertencer ao card vizinho ou a outra área da grade. O CDK usa `withPush(true)`
+ * apenas para impedir corte nas bordas do viewport.
  */
 const DESKTOP_POSITIONS: readonly ConnectedPosition[] = [
   {
     originX: 'center',
-    originY: 'bottom',
+    originY: 'center',
     overlayX: 'center',
-    overlayY: 'top',
-    offsetY: 10,
-  },
-  {
-    originX: 'center',
-    originY: 'top',
-    overlayX: 'center',
-    overlayY: 'bottom',
-    offsetY: -10,
-  },
-  {
-    originX: 'start',
-    originY: 'bottom',
-    overlayX: 'start',
-    overlayY: 'top',
-    offsetY: 10,
-  },
-  {
-    originX: 'end',
-    originY: 'bottom',
-    overlayX: 'end',
-    overlayY: 'top',
-    offsetY: 10,
-  },
-  {
-    originX: 'start',
-    originY: 'top',
-    overlayX: 'start',
-    overlayY: 'bottom',
-    offsetY: -10,
-  },
-  {
-    originX: 'end',
-    originY: 'top',
-    overlayX: 'end',
-    overlayY: 'bottom',
-    offsetY: -10,
+    overlayY: 'center',
   },
 ];
 
