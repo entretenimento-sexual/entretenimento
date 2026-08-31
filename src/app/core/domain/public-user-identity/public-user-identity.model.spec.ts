@@ -49,6 +49,32 @@ describe('normalizePublicUserIdentity', () => {
     expect('address' in (identity ?? {})).toBe(false);
   });
 
+  it('aceita gender legado somente quando ele pertence ao catálogo canônico', () => {
+    const legacyIdentity = normalizePublicUserIdentity({
+      uid: 'legacy-1',
+      nickname: 'perfil_legado',
+      gender: 'mulher',
+      municipio: 'Niterói',
+      estado: 'RJ',
+    });
+    const invalidLegacyIdentity = normalizePublicUserIdentity({
+      uid: 'legacy-2',
+      nickname: 'perfil_invalido',
+      gender: 'valor-fora-do-catalogo',
+    });
+
+    expect(legacyIdentity).toMatchObject({
+      profileId: 'legacy-1',
+      identityCode: 'mulher',
+      identityShortLabel: 'Mulher',
+      discoveryGroup: 'woman',
+      city: 'Niterói',
+      state: 'RJ',
+    });
+    expect(invalidLegacyIdentity?.identityCode).toBeNull();
+    expect(invalidLegacyIdentity?.identityShortLabel).toBeNull();
+  });
+
   it('falha fechado para UF e URL remota inseguras', () => {
     const identity = normalizePublicUserIdentity({
       nickname: 'perfil_seguro',
