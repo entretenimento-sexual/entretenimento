@@ -272,7 +272,6 @@
 
           <nav
             class="community-preview__tabs"
-            [class.has-topics]="preview.community.source.type === 'community'"
             [class.has-management]="preview.canManageMemberships"
             [class.has-invites]="preview.canInviteCommunityMembers"
             [attr.aria-label]="'Conteúdo do ' + sourceLabel(preview.community)"
@@ -287,19 +286,6 @@
               <i class="fas fa-comments" aria-hidden="true"></i>
               <span>{{ preview.community.source.type === 'venue' ? 'Novidades' : 'Mural' }}</span>
             </button>
-
-            @if (preview.community.source.type === 'community') {
-              <button
-                id="community-tab-topics"
-                type="button"
-                [attr.aria-pressed]="activeSection() === 'topics'"
-                [class.is-active]="activeSection() === 'topics'"
-                (click)="selectSection('topics')"
-              >
-                <i class="fas fa-list-ul" aria-hidden="true"></i>
-                <span>Discussões</span>
-              </button>
-            }
 
             <button
               id="community-tab-photos"
@@ -356,7 +342,6 @@
               preview.community.source.type === 'community'
               && (
                 activeSection() === 'feed'
-                || activeSection() === 'topics'
                 || activeSection() === 'photos'
               )
             "
@@ -370,17 +355,6 @@
                     [canInteract]="preview.canInteract"
                     [viewerRole]="preview.viewerRole"
                     view="feed"
-                  />
-                </section>
-              } @else if (
-                activeSection() === 'topics'
-                && preview.community.source.type === 'community'
-              ) {
-                <section id="community-panel-topics" aria-labelledby="community-tab-topics">
-                  <app-community-topics
-                    [communityId]="preview.community.communityId"
-                    [canInteract]="preview.canInteract"
-                    [viewerRole]="preview.viewerRole"
                   />
                 </section>
               } @else if (activeSection() === 'photos') {
@@ -523,7 +497,6 @@
               preview.community.source.type === 'community'
               && (
                 activeSection() === 'feed'
-                || activeSection() === 'topics'
                 || activeSection() === 'photos'
               )
             ) {
