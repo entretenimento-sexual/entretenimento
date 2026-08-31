@@ -8,6 +8,9 @@ import { Router, RouterModule } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { take } from 'rxjs/operators';
 
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
+import { PublicUserPreviewTriggerDirective } from 'src/app/core/components/public-user-preview-popover/public-user-preview-trigger.directive';
+import { normalizePublicUserPreview } from 'src/app/core/domain/public-user-preview/public-user-preview.model';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
@@ -74,7 +77,13 @@ interface UserCardRelationshipVm {
   templateUrl: './user-card.component.html',
   styleUrls: ['./user-card.component.css'],
   standalone: true,
-  imports: [CommonModule, RouterModule, ImageFallbackDirective],
+  imports: [
+    CommonModule,
+    RouterModule,
+    ImageFallbackDirective,
+    PublicUserIdentityComponent,
+    PublicUserPreviewTriggerDirective,
+  ],
 })
 export class UserCardComponent {
   readonly user = input.required<IUserDados | null>();
@@ -119,10 +128,6 @@ export class UserCardComponent {
   private readonly cancelingOutboundRequestIds = toSignal(
     this.store.select(selectCancelingOutboundRequestIds),
     { initialValue: [] }
-  );
-
-  readonly nicknameClass = computed(() =>
-    this.getUserNicknameClass(this.user())
   );
 
   readonly relationshipVm = computed<UserCardRelationshipVm>(() => {
@@ -201,22 +206,46 @@ export class UserCardComponent {
     return this.buildRelationshipVm('none', currentUid, targetUid);
   });
 
+  readonly publicPreview = computed(() =>
+    normalizePublicUserPreview(this.user(), {
+      approximateDistanceKm: this.showDistance() ? this.distanciaKm() : null,
+    })
+  );
+
+  readonly previewRelationshipLabel = computed(() => {
+    switch (this.relationshipVm().state) {
+      case 'self':
+        return 'Seu perfil';
+      case 'friends':
+        return 'Vocês estão conectados';
+      case 'incoming_pending':
+        return 'Interesse recebido';
+      case 'outgoing_pending':
+        return 'Interesse enviado';
+      case 'blocked_by_me':
+        return 'Perfil bloqueado';
+      case 'none':
+      default:
+        return null;
+    }
+  });
+
   readonly isEndingFriendship = computed(() => {
-  const targetUid = String(this.relationshipVm().targetUid ?? '').trim();
-  const endingUid = String(this.endingFriendshipUid() ?? '').trim();
+    const targetUid = String(this.relationshipVm().targetUid ?? '').trim();
+    const endingUid = String(this.endingFriendshipUid() ?? '').trim();
 
-  return !!targetUid && !!endingUid && targetUid === endingUid;
-});
+    return !!targetUid && !!endingUid && targetUid === endingUid;
+  });
 
-readonly isCancelingOutgoingRequest = computed(() => {
-  const requestId = String(this.relationshipVm().outboundRequestId ?? '').trim();
+  readonly isCancelingOutgoingRequest = computed(() => {
+    const requestId = String(this.relationshipVm().outboundRequestId ?? '').trim();
 
-  if (!requestId) {
-    return false;
-  }
+    if (!requestId) {
+      return false;
+    }
 
-  return (this.cancelingOutboundRequestIds() ?? []).includes(requestId);
-});
+    return (this.cancelingOutboundRequestIds() ?? []).includes(requestId);
+  });
 
   abrirDM(event: Event): void {
     event.preventDefault();
@@ -284,103 +313,103 @@ readonly isCancelingOutgoingRequest = computed(() => {
       });
   }
 
-desfazerAmizade(event: Event): void {
-  event.preventDefault();
-  event.stopPropagation();
+  desfazerAmizade(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
 
-  const profile = this.user();
-  const relationship = this.relationshipVm();
+    const profile = this.user();
+    const relationship = this.relationshipVm();
 
-  const currentUid = String(relationship.currentUid ?? '').trim();
-  const targetUid = String(relationship.targetUid ?? '').trim();
+    const currentUid = String(relationship.currentUid ?? '').trim();
+    const targetUid = String(relationship.targetUid ?? '').trim();
 
-  if (!profile || !currentUid || !targetUid) {
-    this.notifier.showInfo('Não foi possível identificar esta conexão.');
-    return;
-  }
+    if (!profile || !currentUid || !targetUid) {
+      this.notifier.showInfo('Não foi possível identificar esta conexão.');
+      return;
+    }
 
-  if (relationship.state !== 'friends') {
-    this.notifier.showInfo('Vocês não estão conectados.');
-    return;
-  }
+    if (relationship.state !== 'friends') {
+      this.notifier.showInfo('Vocês não estão conectados.');
+      return;
+    }
 
-  if (this.isEndingFriendship()) {
-  this.notifier.showInfo('Aguarde. Estamos desfazendo esta conexão.');
-  return;
-}
+    if (this.isEndingFriendship()) {
+      this.notifier.showInfo('Aguarde. Estamos desfazendo esta conexão.');
+      return;
+    }
 
-  const nickname = profile.nickname || 'este perfil';
+    const nickname = profile.nickname || 'este perfil';
 
-  const dialogData: ConfirmationDialogData = {
-    eyebrow: 'Conexão',
-    title: 'Desfazer conexão?',
-    message: `Você deixará de estar conectado com ${nickname}.`,
-    detail:
-  'Novas mensagens ficarão bloqueadas até que uma nova conexão seja aceita. O histórico existente será mantido por segurança e não será apagado automaticamente.',
-    confirmLabel: 'Desfazer conexão',
-    cancelLabel: 'Manter conexão',
-    icon: 'person_remove',
-    tone: 'danger',
-  };
+    const dialogData: ConfirmationDialogData = {
+      eyebrow: 'Conexão',
+      title: 'Desfazer conexão?',
+      message: `Você deixará de estar conectado com ${nickname}.`,
+      detail:
+        'Novas mensagens ficarão bloqueadas até que uma nova conexão seja aceita. O histórico existente será mantido por segurança e não será apagado automaticamente.',
+      confirmLabel: 'Desfazer conexão',
+      cancelLabel: 'Manter conexão',
+      icon: 'person_remove',
+      tone: 'danger',
+    };
 
-  const ref = this.dialog.open<
-    ConfirmationDialogComponent,
-    ConfirmationDialogData,
-    boolean
-  >(ConfirmationDialogComponent, {
-    panelClass: 'confirmation-dialog-panel',
-    width: 'min(94vw, 460px)',
-    maxWidth: '94vw',
-    autoFocus: false,
-    restoreFocus: true,
-    data: dialogData,
-  });
-
-  ref.afterClosed()
-    .pipe(take(1))
-    .subscribe((confirmed) => {
-      if (!confirmed) {
-        return;
-      }
-
-      this.store.dispatch(
-        FriendActions.endFriendship({
-          ownerUid: currentUid,
-          friendUid: targetUid,
-        })
-      );
+    const ref = this.dialog.open<
+      ConfirmationDialogComponent,
+      ConfirmationDialogData,
+      boolean
+    >(ConfirmationDialogComponent, {
+      panelClass: 'confirmation-dialog-panel',
+      width: 'min(94vw, 460px)',
+      maxWidth: '94vw',
+      autoFocus: false,
+      restoreFocus: true,
+      data: dialogData,
     });
-}
 
-cancelarSolicitacaoEnviada(event: Event): void {
-  event.preventDefault();
-  event.stopPropagation();
+    ref.afterClosed()
+      .pipe(take(1))
+      .subscribe((confirmed) => {
+        if (!confirmed) {
+          return;
+        }
 
-  const relationship = this.relationshipVm();
-  const requestId = String(relationship.outboundRequestId ?? '').trim();
-
-  if (relationship.state !== 'outgoing_pending') {
-    this.notifier.showInfo('Não há interesse enviado pendente para este perfil.');
-    return;
+        this.store.dispatch(
+          FriendActions.endFriendship({
+            ownerUid: currentUid,
+            friendUid: targetUid,
+          })
+        );
+      });
   }
 
-  if (!requestId) {
-    this.notifier.showInfo('Não foi possível identificar o interesse enviado.');
-    this.router.navigate(['/friends/requests']).catch(() => undefined);
-    return;
-  }
+  cancelarSolicitacaoEnviada(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
 
-  if (this.isCancelingOutgoingRequest()) {
-    this.notifier.showInfo('Aguarde. Estamos cancelando este interesse.');
-    return;
-  }
+    const relationship = this.relationshipVm();
+    const requestId = String(relationship.outboundRequestId ?? '').trim();
 
-  this.store.dispatch(
-    FriendActions.cancelFriendRequest({
-      requestId,
-    })
-  );
-}
+    if (relationship.state !== 'outgoing_pending') {
+      this.notifier.showInfo('Não há interesse enviado pendente para este perfil.');
+      return;
+    }
+
+    if (!requestId) {
+      this.notifier.showInfo('Não foi possível identificar o interesse enviado.');
+      this.router.navigate(['/friends/requests']).catch(() => undefined);
+      return;
+    }
+
+    if (this.isCancelingOutgoingRequest()) {
+      this.notifier.showInfo('Aguarde. Estamos cancelando este interesse.');
+      return;
+    }
+
+    this.store.dispatch(
+      FriendActions.cancelFriendRequest({
+        requestId,
+      })
+    );
+  }
 
   adicionarAmigo(): void {
     const target = this.user();
@@ -455,64 +484,13 @@ cancelarSolicitacaoEnviada(event: Event): void {
       });
   }
 
-  getUserNicknameClass(user: IUserDados | null): string {
-    if (!user) {
-      return '';
-    }
-
-    if (user.isOnline) {
-      return 'nickname-online';
-    }
-
-    if (!user.lastLogin) {
-      return '';
-    }
-
-    const toDate = (value: unknown): Date => {
-      if (value instanceof Date) {
-        return value;
-      }
-
-      if (typeof value === 'number') {
-        return new Date(value);
-      }
-
-      const maybeTimestamp = value as { toDate?: () => Date } | null | undefined;
-
-      if (typeof maybeTimestamp?.toDate === 'function') {
-        return maybeTimestamp.toDate();
-      }
-
-      return new Date(String(value));
-    };
-
-    const now = Date.now();
-    const last = toDate(user.lastLogin).getTime();
-
-    if (!Number.isFinite(last)) {
-      return '';
-    }
-
-    const days = Math.floor((now - last) / (1000 * 60 * 60 * 24));
-
-    if (days <= 7) {
-      return 'nickname-recent';
-    }
-
-    if (days > 30) {
-      return 'nickname-inactive';
-    }
-
-    return 'nickname-offline';
-  }
-
-private buildRelationshipVm(
-  state: UserRelationshipState,
-  currentUid: string | null,
-  targetUid: string | null,
-  inboundRequestId: string | null = null,
-  outboundRequestId: string | null = null
-): UserCardRelationshipVm {
+  private buildRelationshipVm(
+    state: UserRelationshipState,
+    currentUid: string | null,
+    targetUid: string | null,
+    inboundRequestId: string | null = null,
+    outboundRequestId: string | null = null
+  ): UserCardRelationshipVm {
     switch (state) {
       case 'self':
         return {
@@ -562,21 +540,21 @@ private buildRelationshipVm(
           label: 'Responder',
         };
 
-case 'outgoing_pending':
-  return {
-    state,
-    currentUid,
-    targetUid,
-    inboundRequestId,
-    outboundRequestId,
-    canMessage: false,
-    canConnect: false,
-    canRespond: false,
-    canCancelRequest: true,
-    isPending: true,
-    isBlocked: false,
-    label: 'Aguardando resposta',
-  };
+      case 'outgoing_pending':
+        return {
+          state,
+          currentUid,
+          targetUid,
+          inboundRequestId,
+          outboundRequestId,
+          canMessage: false,
+          canConnect: false,
+          canRespond: false,
+          canCancelRequest: true,
+          isPending: true,
+          isBlocked: false,
+          label: 'Aguardando resposta',
+        };
 
       case 'blocked_by_me':
         return {
