@@ -232,12 +232,41 @@ export class ApplicationErrorService {
 
   private notify(descriptor: ApplicationErrorDescriptor): void {
     try {
-      this.notifier.showApplicationError(
-        descriptor.userMessage,
-        descriptor.presentation
-      );
+      const showApplicationError = this.notifier.showApplicationError;
+      if (typeof showApplicationError === 'function') {
+        showApplicationError.call(
+          this.notifier,
+          descriptor.userMessage,
+          descriptor.presentation
+        );
+        return;
+      }
+
+      this.notifyLegacy(descriptor);
     } catch {
       // A observabilidade técnica abaixo continua independente do feedback visual.
+    }
+  }
+
+  private notifyLegacy(descriptor: ApplicationErrorDescriptor): void {
+    const { surface, severity } = descriptor.presentation;
+    if (surface === 'none' || surface === 'inline' || surface === 'page') return;
+
+    if (surface === 'modal') {
+      this.notifier.showError(descriptor.userMessage);
+      return;
+    }
+
+    switch (severity) {
+      case 'warning':
+        this.notifier.showWarning(descriptor.userMessage);
+        return;
+      case 'info':
+        this.notifier.showInfo(descriptor.userMessage);
+        return;
+      case 'error':
+      default:
+        this.notifier.showError(descriptor.userMessage);
     }
   }
 
