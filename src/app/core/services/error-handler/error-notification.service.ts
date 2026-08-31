@@ -3,11 +3,12 @@
 // ERROR NOTIFICATION SERVICE
 // -----------------------------------------------------------------------------
 //
-// Ponto central de feedback visual curto para o usuário.
+// Ponto central de feedback visual para o usuário.
 //
 // Responsabilidade:
 // - exibir snackbars de sucesso, erro, informação e aviso;
-// - evitar mensagens repetidas em curto intervalo;
+// - exibir modais somente para falhas explicitamente marcadas como bloqueantes;
+// - evitar mensagens/modais repetidos;
 // - preservar API atual utilizada em vários módulos da aplicação;
 // - impedir exposição de detalhes técnicos, stack traces ou mensagens internas
 //   vindas de Firebase, Functions, Storage, billing ou moderação.
@@ -17,16 +18,26 @@
 // - `details` nunca é exibido em alerta, modal ou snackbar;
 // - detalhes técnicos podem ser enviados ao console somente em ambiente de
 //   desenvolvimento com debug habilitado;
+// - ações de modal aceitam somente rotas internas da aplicação;
 // - a interface recebe apenas mensagens previamente definidas como seguras.
-//
-// Evolução futura:
-// - substituir mensagens dispersas por códigos/contexts normalizados;
-// - integrar observabilidade externa pelo GlobalErrorHandlerService;
-// - padronizar notificações de ação, loading e retry sem revelar internals.
-import { Injectable, inject } from '@angular/core';
-import { MatSnackBar } from '@angular/material/snack-bar';
+// -----------------------------------------------------------------------------
 
+import { Injectable, inject } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { Router } from '@angular/router';
+import { take } from 'rxjs';
+
+import {
+  ConfirmationDialogComponent,
+  type ConfirmationDialogTone,
+} from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 import { environment } from 'src/environments/environment';
+
+import {
+  type ApplicationErrorPresentation,
+  type ApplicationErrorSeverity,
+} from './application-error-presentation.model';
 
 export type NotificationType = 'success' | 'error' | 'info' | 'warning';
 
@@ -34,12 +45,15 @@ export type NotificationType = 'success' | 'error' | 'info' | 'warning';
   providedIn: 'root',
 })
 export class ErrorNotificationService {
-   private readonly snackBar = inject(MatSnackBar);
+  private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
+  private readonly router = inject(Router);
   private readonly defaultDuration = 5000;
   private readonly recentMessages = new Map<
     string,
     ReturnType<typeof setTimeout>
   >();
+  private readonly activeModalKeys = new Set<string>();
 
   constructor() {}
 
@@ -118,6 +132,33 @@ export class ErrorNotificationService {
   }
 
   /**
+   * Executa a superfície declarada pelo pipeline canônico de erros.
+   * `inline`, `page` e `none` não geram feedback global para evitar duplicidade.
+   */
+  showApplicationError(
+    message: string,
+    presentation: Readonly<ApplicationErrorPresentation>
+  ): void {
+    const safeMessage = this.normalizeUserMessage(
+      message,
+      'Não foi possível concluir a ação agora.'
+    );
+
+    switch (presentation.surface) {
+      case 'modal':
+        this.openApplicationErrorModal(safeMessage, presentation);
+        return;
+      case 'snackbar':
+        this.showBySeverity(safeMessage, presentation.severity);
+        return;
+      case 'inline':
+      case 'page':
+      case 'none':
+        return;
+    }
+  }
+
+  /**
    * Exibe erro genérico sem detalhes técnicos.
    */
   showGenericError(): void {
@@ -164,6 +205,109 @@ export class ErrorNotificationService {
         this.showWarning(message, duration);
         return;
     }
+  }
+
+  private showBySeverity(
+    message: string,
+    severity: ApplicationErrorSeverity
+  ): void {
+    switch (severity) {
+      case 'warning':
+        this.showWarning(message);
+        return;
+      case 'info':
+        this.showInfo(message);
+        return;
+      case 'error':
+      default:
+        this.showError(message);
+    }
+  }
+
+  private openApplicationErrorModal(
+    message: string,
+    presentation: Readonly<ApplicationErrorPresentation>
+  ): void {
+    const title = this.normalizeUserMessage(
+      presentation.title,
+      this.defaultModalTitle(presentation.severity)
+    );
+    const modalKey = `${presentation.severity}:${title}:${message}`;
+
+    if (this.activeModalKeys.has(modalKey)) return;
+    this.activeModalKeys.add(modalKey);
+
+    const actionRoute = this.normalizeInternalRoute(
+      presentation.primaryAction?.route
+    );
+    const hasNavigableAction = actionRoute !== null;
+    const dialogRef = this.dialog.open(ConfirmationDialogComponent, {
+      width: 'min(92vw, 480px)',
+      maxWidth: '92vw',
+      data: {
+        eyebrow: 'Atenção',
+        title,
+        message,
+        detail: this.normalizeOptionalUserMessage(presentation.detail),
+        tone: this.resolveDialogTone(presentation.severity),
+        confirmLabel: this.normalizeUserMessage(
+          presentation.primaryAction?.label,
+          'Entendi'
+        ),
+        cancelLabel: this.normalizeUserMessage(
+          presentation.dismissLabel,
+          'Agora não'
+        ),
+        showCancel: hasNavigableAction,
+      },
+    });
+
+    dialogRef.afterClosed().pipe(take(1)).subscribe((confirmed) => {
+      this.activeModalKeys.delete(modalKey);
+
+      if (!confirmed || !actionRoute) return;
+
+      void this.router.navigateByUrl(actionRoute).catch(() => {
+        this.showError(
+          'Não foi possível abrir a próxima etapa. Tente novamente.'
+        );
+      });
+    });
+  }
+
+  private resolveDialogTone(
+    severity: ApplicationErrorSeverity
+  ): ConfirmationDialogTone {
+    switch (severity) {
+      case 'info':
+        return 'info';
+      case 'warning':
+        return 'warning';
+      case 'error':
+      default:
+        return 'danger';
+    }
+  }
+
+  private defaultModalTitle(severity: ApplicationErrorSeverity): string {
+    switch (severity) {
+      case 'info':
+        return 'Informação importante';
+      case 'warning':
+        return 'Atenção necessária';
+      case 'error':
+      default:
+        return 'Não foi possível continuar';
+    }
+  }
+
+  private normalizeInternalRoute(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+
+    const route = value.trim();
+    if (!route.startsWith('/') || route.startsWith('//')) return null;
+
+    return route;
   }
 
   /**
@@ -219,6 +363,12 @@ export class ErrorNotificationService {
     const normalized = message.trim();
 
     return normalized || fallback;
+  }
+
+  private normalizeOptionalUserMessage(message: unknown): string | undefined {
+    if (typeof message !== 'string') return undefined;
+    const normalized = message.trim();
+    return normalized || undefined;
   }
 
   /**
