@@ -62,115 +62,73 @@
                     [class.is-recent]="recentCommentId() === item.commentId"
                     [class.is-highlighted]="highlightedCommentId() === item.commentId"
                   >
-                    <span class="feed-comment__avatar" aria-hidden="true">
-                      @if (item.author.avatarUrl) {
-                        <img
-                          [src]="item.author.avatarUrl"
-                          alt=""
-                          loading="lazy"
-                          appImageFallback
-                        />
-                      } @else {
-                        <i class="fas fa-user"></i>
+                    <header class="feed-comment__topline">
+                      <app-public-user-identity
+                        [identity]="item.author"
+                        density="compact"
+                        [contextText]="createdLabel(item.createdAt)"
+                        [contextDateTime]="createdIso(item.createdAt)"
+                      />
+
+                      @if (
+                        item.capabilities.canDeleteOwn
+                        || item.capabilities.canModerate
+                        || item.capabilities.canReport
+                      ) {
+                        <details #commentMenu class="feed-comment__menu">
+                          <summary
+                            [attr.aria-label]="'Mais ações do comentário de ' + item.author.label"
+                            title="Mais ações"
+                          >
+                            <i class="fas fa-ellipsis" aria-hidden="true"></i>
+                          </summary>
+                          <div
+                            class="feed-comment__menu-panel"
+                            role="group"
+                            [attr.aria-label]="'Ações do comentário de ' + item.author.label"
+                          >
+                            @if (item.capabilities.canDeleteOwn) {
+                              <button
+                                class="feed-comment__menu-action is-danger"
+                                type="button"
+                                [disabled]="actionState.status === 'loading'"
+                                (click)="commentMenu.open = false; requestAction(item, 'delete_own')"
+                              >
+                                <i class="fas fa-trash" aria-hidden="true"></i>
+                                <span>Excluir comentário</span>
+                              </button>
+                            }
+                            @if (item.capabilities.canModerate) {
+                              <button
+                                class="feed-comment__menu-action"
+                                type="button"
+                                [disabled]="actionState.status === 'loading'"
+                                (click)="commentMenu.open = false; requestAction(item, 'remove')"
+                              >
+                                <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                                <span>Remover comentário</span>
+                              </button>
+                            }
+                            @if (item.capabilities.canReport) {
+                              <app-report-content-button
+                                [targetType]="'community_feed_comment'"
+                                [targetId]="item.commentId"
+                                [parentTargetId]="postId()"
+                                [containerTargetId]="communityId()"
+                                label="Denunciar comentário"
+                                title="comentário da publicação"
+                                appearance="link"
+                                [disabled]="actionState.status === 'loading'"
+                                (click)="commentMenu.open = false"
+                              />
+                            }
+                          </div>
+                        </details>
                       }
-                    </span>
+                    </header>
 
                     <div class="feed-comment__body">
                       <div class="feed-comment__surface">
-                        <header>
-                          <div class="feed-comment__identity">
-                            <div class="feed-comment__identity-line">
-                              <strong>{{ item.author.label }}</strong>
-                              <time [attr.datetime]="createdIso(item.createdAt)">
-                                {{ createdLabel(item.createdAt) }}
-                              </time>
-                            </div>
-                            @if (
-                              item.author.profileTypeLabel
-                              || item.author.city
-                              || item.author.state
-                            ) {
-                              <div
-                                class="feed-comment__author-context"
-                                [attr.aria-label]="'Informações públicas de ' + item.author.label"
-                              >
-                                @if (item.author.profileTypeLabel) {
-                                  <span>{{ item.author.profileTypeLabel }}</span>
-                                }
-                                @if (item.author.city || item.author.state) {
-                                  <span>
-                                    @if (item.author.city) {
-                                      {{ item.author.city }}
-                                    }
-                                    @if (item.author.city && item.author.state) {
-                                      <span aria-hidden="true">/</span>
-                                    }
-                                    @if (item.author.state) {
-                                      {{ item.author.state }}
-                                    }
-                                  </span>
-                                }
-                              </div>
-                            }
-                          </div>
-
-                          @if (
-                            item.capabilities.canDeleteOwn
-                            || item.capabilities.canModerate
-                            || item.capabilities.canReport
-                          ) {
-                            <details #commentMenu class="feed-comment__menu">
-                              <summary
-                                [attr.aria-label]="'Mais ações do comentário de ' + item.author.label"
-                                title="Mais ações"
-                              >
-                                <i class="fas fa-ellipsis" aria-hidden="true"></i>
-                              </summary>
-                              <div
-                                class="feed-comment__menu-panel"
-                                role="group"
-                                [attr.aria-label]="'Ações do comentário de ' + item.author.label"
-                              >
-                                @if (item.capabilities.canDeleteOwn) {
-                                  <button
-                                    class="feed-comment__menu-action is-danger"
-                                    type="button"
-                                    [disabled]="actionState.status === 'loading'"
-                                    (click)="commentMenu.open = false; requestAction(item, 'delete_own')"
-                                  >
-                                    <i class="fas fa-trash" aria-hidden="true"></i>
-                                    <span>Excluir comentário</span>
-                                  </button>
-                                }
-                                @if (item.capabilities.canModerate) {
-                                  <button
-                                    class="feed-comment__menu-action"
-                                    type="button"
-                                    [disabled]="actionState.status === 'loading'"
-                                    (click)="commentMenu.open = false; requestAction(item, 'remove')"
-                                  >
-                                    <i class="fas fa-shield-halved" aria-hidden="true"></i>
-                                    <span>Remover comentário</span>
-                                  </button>
-                                }
-                                @if (item.capabilities.canReport) {
-                                  <app-report-content-button
-                                    [targetType]="'community_feed_comment'"
-                                    [targetId]="item.commentId"
-                                    [parentTargetId]="postId()"
-                                    [containerTargetId]="communityId()"
-                                    label="Denunciar comentário"
-                                    title="comentário da publicação"
-                                    appearance="link"
-                                    [disabled]="actionState.status === 'loading'"
-                                    (click)="commentMenu.open = false"
-                                  />
-                                }
-                              </div>
-                            </details>
-                          }
-                        </header>
-
                         @if (item.replyTo; as reference) {
                           <button
                             class="feed-comment__quote"

@@ -10,7 +10,7 @@
 }
 
 .feed-comments__header,
-.feed-comment header,
+.feed-comment__topline,
 .feed-comments__composer-row,
 .feed-comment__confirmation > div {
   display: flex;
@@ -49,7 +49,6 @@
 
 .feed-comments__header span,
 .feed-comments__composer small,
-.feed-comment time,
 .feed-comments__read-only {
   color: var(--text-secondary, #6b7280);
   font-size: 0.75rem;
@@ -119,33 +118,32 @@
 .feed-comment {
   position: relative;
   display: grid;
-  grid-template-columns: 2.35rem minmax(0, 1fr);
-  gap: 0.6rem;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  column-gap: 0.48rem;
+  row-gap: 0.12rem;
   align-items: start;
   padding: 0.62rem 0.55rem 0.45rem;
   scroll-margin-block: 5rem;
   transition: background-color 160ms ease, box-shadow 160ms ease;
 }
 
-.feed-comment__avatar {
-  width: 2.35rem;
-  height: 2.35rem;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--primary-color, #d83768) 20%, transparent);
-  border-radius: 50%;
-  background: color-mix(in oklab, var(--primary-color, #d83768) 10%, transparent);
+.feed-comment__topline {
+  grid-column: 1 / -1;
+  min-width: 0;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.35rem;
 }
 
-.feed-comment__avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.feed-comment__topline app-public-user-identity {
+  width: auto;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .feed-comment__body {
   min-width: 0;
+  grid-column: 2;
 }
 
 .feed-comment__surface {
@@ -165,32 +163,6 @@
 .feed-comment.is-highlighted {
   background: color-mix(in oklab, var(--primary-color, #d83768) 7%, transparent);
   box-shadow: inset 3px 0 0 color-mix(in oklab, var(--primary-color, #d83768) 55%, transparent);
-}
-
-.feed-comment header {
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.35rem;
-}
-
-.feed-comment__identity {
-  min-width: 0;
-  display: grid;
-  gap: 0.18rem;
-}
-
-.feed-comment__identity-line {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.22rem 0.4rem;
-}
-
-.feed-comment__identity strong {
-  color: var(--text-color, #222);
-  font-size: 0.84rem;
-  font-weight: 750;
 }
 
 .feed-comment__author-context {
@@ -527,16 +499,6 @@ button:disabled {
   .feed-comment,
   .feed-comments__composer {
     padding-inline: 0.35rem;
-  }
-
-  .feed-comment {
-    grid-template-columns: 2.2rem minmax(0, 1fr);
-    gap: 0.5rem;
-  }
-
-  .feed-comment__avatar {
-    width: 2.2rem;
-    height: 2.2rem;
   }
 
   .feed-comment__quote,

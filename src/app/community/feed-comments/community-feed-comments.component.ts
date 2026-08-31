@@ -48,10 +48,10 @@ import {
   tap,
 } from 'rxjs';
 
+import { PublicUserIdentityComponent } from 'src/app/core/components/public-user-identity/public-user-identity.component';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { ReportContentButtonComponent } from 'src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component';
-import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import {
   CommunityFeedCommentAction,
   CommunityFeedCommentActionRequest,
@@ -197,7 +197,7 @@ function reduceState(
   standalone: true,
   imports: [
     AsyncPipe,
-    ImageFallbackDirective,
+    PublicUserIdentityComponent,
     ReactiveFormsModule,
     ReportContentButtonComponent,
   ],
