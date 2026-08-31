@@ -17,6 +17,7 @@ import type {
   CommunityFeedPostCreateRequest,
   CommunityFeedReactionRequest,
 } from './community/data-access/community-feed.model';
+import { CommunityHighlightUiService } from './community/highlight/community-highlight-ui.service';
 
 const now = Date.now();
 const image = `data:image/svg+xml,${encodeURIComponent(`
@@ -210,12 +211,31 @@ const visualCommentRepository = {
   moderateReply$: () => NEVER,
 };
 
+const visualHighlightUi = {
+  state$: (communityId: string) => of({
+    status: 'ready' as const,
+    communityId,
+    highlight: {
+      targetType: 'feed_post' as const,
+      targetId: 'visual-photo',
+      duration: '7d' as const,
+      pinnedAt: now - 60_000,
+      expiresAt: now + 7 * 24 * 60 * 60_000,
+    },
+    item: page.items.find((item) => item.postId === 'visual-photo') ?? null,
+    canManage: false,
+  }),
+  refresh: () => undefined,
+  manage$: () => NEVER,
+};
+
 @Component({
   selector: 'app-root',
   standalone: false,
   providers: [
     { provide: CommunityFeedRepository, useValue: visualFeedRepository },
     { provide: CommunityFeedCommentRepository, useValue: visualCommentRepository },
+    { provide: CommunityHighlightUiService, useValue: visualHighlightUi },
     {
       provide: ErrorNotificationService,
       useValue: {
