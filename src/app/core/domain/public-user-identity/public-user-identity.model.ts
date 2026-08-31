@@ -51,6 +51,8 @@ const BRAZILIAN_UFS = new Set([
   'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
 ]);
 
+const SAFE_LOCAL_ASSET_PATTERN = /^\/?assets\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]+$/;
+
 function normalizeText(value: unknown, maxLength: number): string {
   return Array.from(String(value ?? ''))
     .map((character) => {
@@ -72,9 +74,24 @@ function isLoopbackHost(hostname: string): boolean {
     || normalized === '[::1]';
 }
 
+function normalizeLocalAssetUrl(value: string): string | null {
+  if (
+    !SAFE_LOCAL_ASSET_PATTERN.test(value)
+    || value.includes('..')
+    || value.includes('\\')
+  ) {
+    return null;
+  }
+
+  return value;
+}
+
 function normalizeMediaUrl(value: unknown): string | null {
   const normalized = normalizeText(value, 2_000);
   if (!normalized) return null;
+
+  const localAsset = normalizeLocalAssetUrl(normalized);
+  if (localAsset) return localAsset;
 
   try {
     const parsed = new URL(normalized);
