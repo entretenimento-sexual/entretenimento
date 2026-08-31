@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { normalizePublicUserPreview } from './public-user-preview.model';
 
 describe('normalizePublicUserPreview', () => {
-  it('separa identidade pública de contexto complementar', () => {
+  it('separa identidade pública de contexto complementar sem promover uid privado', () => {
     const preview = normalizePublicUserPreview({
       uid: 'user-1',
       nickname: 'serale',
@@ -28,7 +28,7 @@ describe('normalizePublicUserPreview', () => {
       approximateDistanceKm: 4.2,
       bioPreview: 'Conversas, encontros e novas amizades.',
       identity: {
-        profileId: 'user-1',
+        profileId: null,
         nickname: 'serale',
         identityShortLabel: 'Mulher',
         city: 'Rio de Janeiro',
