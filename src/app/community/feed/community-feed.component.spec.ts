@@ -15,6 +15,7 @@ import { CommunityFeedPage } from '../data-access/community-feed.model';
 import type { CommunityFeedRealtimeChange } from '../data-access/community-feed-realtime.model';
 import { CommunityFeedRepository } from '../data-access/community-feed.repository';
 import { CommunityFeedCommentRepository } from '../data-access/community-feed-comment.repository';
+import { CommunityHighlightUiService } from '../highlight/community-highlight-ui.service';
 
 function page(nextCursor: string | null = null): CommunityFeedPage {
   return {
@@ -83,6 +84,17 @@ describe('CommunityFeedComponent', () => {
     createComment$: vi.fn(),
     moderateComment$: vi.fn(),
   };
+  const highlightUiMock = {
+    state$: vi.fn(() => of({
+      status: 'ready' as const,
+      communityId: 'community-1',
+      highlight: null,
+      item: null,
+      canManage: false,
+    })),
+    manage$: vi.fn(),
+    refresh: vi.fn(),
+  };
   const storageMock = {
     uploadFile: vi.fn(),
   };
@@ -113,6 +125,7 @@ describe('CommunityFeedComponent', () => {
           provide: CommunityFeedCommentRepository,
           useValue: commentRepositoryMock,
         },
+        { provide: CommunityHighlightUiService, useValue: highlightUiMock },
         { provide: StorageService, useValue: storageMock },
         { provide: AuthSessionService, useValue: authSessionMock },
         { provide: ErrorNotificationService, useValue: errorNotifierMock },
