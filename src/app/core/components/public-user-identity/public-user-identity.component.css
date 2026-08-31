@@ -1,0 +1,156 @@
+/* src/app/core/components/public-user-identity/public-user-identity.component.css */
+:host {
+  --public-user-identity-avatar-size: 2.55rem;
+  --public-user-identity-gap: 0.62rem;
+  --public-user-identity-name-size: 0.86rem;
+  --public-user-identity-meta-size: 0.68rem;
+  --public-user-identity-context-size: 0.67rem;
+
+  min-width: 0;
+  display: grid;
+  grid-template-columns:
+    var(--public-user-identity-avatar-size)
+    minmax(0, 1fr);
+  align-items: center;
+  gap: var(--public-user-identity-gap);
+  color: var(--text-color);
+}
+
+:host(.public-user-identity--compact) {
+  --public-user-identity-avatar-size: 2rem;
+  --public-user-identity-gap: 0.48rem;
+  --public-user-identity-name-size: 0.8rem;
+  --public-user-identity-meta-size: 0.62rem;
+  --public-user-identity-context-size: 0.62rem;
+}
+
+:host(.public-user-identity--comfortable) {
+  --public-user-identity-avatar-size: 3rem;
+  --public-user-identity-gap: 0.72rem;
+  --public-user-identity-name-size: 0.94rem;
+  --public-user-identity-meta-size: 0.7rem;
+  --public-user-identity-context-size: 0.7rem;
+}
+
+:host(.public-user-identity--without-avatar) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.public-user-identity__avatar,
+.public-user-identity__avatar-fallback,
+.public-user-identity__avatar img {
+  width: var(--public-user-identity-avatar-size);
+  height: var(--public-user-identity-avatar-size);
+}
+
+.public-user-identity__avatar {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color) 20%,
+    var(--surface-border)
+  );
+  border-radius: 50%;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 90%,
+    var(--primary-color) 10%
+  );
+  color: var(--primary-color);
+  box-shadow: 0 0 0 2px color-mix(
+    in oklab,
+    var(--surface-color) 88%,
+    transparent
+  );
+}
+
+.public-user-identity__avatar img {
+  display: block;
+  object-fit: cover;
+}
+
+.public-user-identity__avatar-fallback {
+  display: grid;
+  place-items: center;
+  color: color-mix(in oklab, var(--text-color) 84%, transparent);
+  font-size: calc(var(--public-user-identity-name-size) * 1.02);
+  font-weight: 820;
+  line-height: 1;
+}
+
+.public-user-identity__copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.public-user-identity__primary-line {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.24rem 0.44rem;
+}
+
+.public-user-identity__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: var(--public-user-identity-name-size);
+  font-weight: 760;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:host(.public-user-identity--strong) .public-user-identity__name {
+  font-weight: 900;
+}
+
+.public-user-identity__context {
+  flex: 0 0 auto;
+  color: color-mix(in oklab, var(--text-color) 50%, transparent);
+  font-size: var(--public-user-identity-context-size);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.public-user-identity__meta {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.16rem;
+  overflow: hidden;
+  color: color-mix(in oklab, var(--text-color) 56%, transparent);
+  font-size: var(--public-user-identity-meta-size);
+  line-height: 1.25;
+}
+
+.public-user-identity__meta > span:not(.public-user-identity__separator) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-user-identity__separator {
+  flex: 0 0 auto;
+  color: color-mix(in oklab, var(--text-color) 30%, transparent);
+}
+
+:host-context(.high-contrast) .public-user-identity__avatar {
+  border-width: 2px;
+  border-color: var(--text-color);
+  background: var(--surface-color);
+  box-shadow: none;
+}
+
+:host-context(.high-contrast) .public-user-identity__name,
+:host-context(.high-contrast) .public-user-identity__context,
+:host-context(.high-contrast) .public-user-identity__meta,
+:host-context(.high-contrast) .public-user-identity__separator {
+  color: var(--text-color);
+}

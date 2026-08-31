@@ -1,0 +1,56 @@
+<!-- src/app/core/components/public-user-identity/public-user-identity.component.html -->
+@if (showAvatar()) {
+  <span class="public-user-identity__avatar" aria-hidden="true">
+    @if (avatarUrl(); as avatar) {
+      <img
+        [src]="avatar"
+        alt=""
+        loading="lazy"
+        (error)="onAvatarError()"
+      />
+    } @else {
+      <span class="public-user-identity__avatar-fallback">
+        {{ fallbackInitial() }}
+      </span>
+    }
+  </span>
+}
+
+<span class="public-user-identity__copy">
+  <span class="public-user-identity__primary-line">
+    <strong class="public-user-identity__name">{{ displayName() }}</strong>
+
+    @if (contextText(); as context) {
+      @if (contextDateTime(); as dateTime) {
+        <time
+          class="public-user-identity__context"
+          [attr.datetime]="dateTime"
+          [attr.title]="contextTitle()"
+        >
+          {{ context }}
+        </time>
+      } @else {
+        <span
+          class="public-user-identity__context"
+          [attr.title]="contextTitle()"
+        >
+          {{ context }}
+        </span>
+      }
+    }
+  </span>
+
+  @if (metaParts().length > 0) {
+    <span
+      class="public-user-identity__meta"
+      [attr.aria-label]="metaAriaLabel()"
+    >
+      @for (part of metaParts(); track $index) {
+        @if (!$first) {
+          <span class="public-user-identity__separator" aria-hidden="true">·</span>
+        }
+        <span aria-hidden="true">{{ part }}</span>
+      }
+    </span>
+  }
+</span>
