@@ -35,6 +35,7 @@ import {
   assertCommunityMembershipActorEligible,
 } from './community-membership-eligibility.service';
 import { normalizeCommunityId } from './community-preview.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface SendCommunityInviteRequest {
   communityId?: unknown;
@@ -113,6 +114,11 @@ export const sendCommunityInvite = onCall<SendCommunityInviteRequest>(
         { reason: 'self_invite_forbidden' }
       );
     }
+
+    await consumeCommunityRateLimit({
+      action: 'invite_send',
+      actorUid,
+    });
 
     const inviteId = buildCommunityInviteId(communityId, receiverId);
     const nowMs = Date.now();
