@@ -56,23 +56,23 @@ const EMPTY_VM: ProfileOfficialCommunitiesVm = Object.freeze({
 export class ProfileOfficialCommunitiesComponent {
   private readonly repository = inject(CommunityPreviewRepository);
   private readonly applicationError = inject(ApplicationErrorService);
-  private readonly profileUidSubject = new BehaviorSubject<string>('');
+  private readonly profileIdSubject = new BehaviorSubject<string>('');
   private readonly refreshSubject = new BehaviorSubject<number>(0);
 
   @Input({ required: true })
-  set profileUid(value: string | null | undefined) {
-    this.profileUidSubject.next(String(value ?? '').trim());
+  set profileId(value: string | null | undefined) {
+    this.profileIdSubject.next(String(value ?? '').trim().toLowerCase());
   }
 
   readonly vm$: Observable<ProfileOfficialCommunitiesVm> = combineLatest([
-    this.profileUidSubject.pipe(distinctUntilChanged()),
+    this.profileIdSubject.pipe(distinctUntilChanged()),
     this.refreshSubject,
   ]).pipe(
-    switchMap(([profileUid]) => {
-      if (!profileUid) return of(EMPTY_VM);
+    switchMap(([profileId]) => {
+      if (!profileId) return of(EMPTY_VM);
 
       return this.repository
-        .getProfileOfficialCommunities$(profileUid, 4)
+        .getProfileOfficialCommunities$(profileId, 4)
         .pipe(
           map((page): ProfileOfficialCommunitiesVm => ({
             status: page.items.length > 0 ? 'ready' : 'empty',
@@ -87,7 +87,7 @@ export class ProfileOfficialCommunitiesComponent {
               notification: 'warning',
               metadata: {
                 scope: 'ProfileOfficialCommunitiesComponent',
-                hasProfileUid: true,
+                hasProfileId: true,
               },
             });
 
