@@ -10,7 +10,6 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
-import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -20,6 +19,7 @@ import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.po
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import { evaluateCommunityFeedReaction } from './community-feed-reaction.policy';
 import type { CommunityViewerRole } from './community-preview.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { getCommunityViewerContext } from './community-viewer-access.service';
 
 interface ToggleCommunityFeedReactionRequest {
@@ -133,17 +133,9 @@ export const toggleCommunityFeedReaction = onCall<
         { reason: 'active_membership_required' }
       );
     }
-    await consumeBackendRateLimitQuota({
-      action: 'toggleCommunityFeedReaction',
-      subject: actorUid,
-      cost: 1,
-      config: {
-        burstWindowMs: 60 * 1_000,
-        burstMax: 40,
-        sustainedWindowMs: 10 * 60 * 1_000,
-        sustainedMax: 180,
-      },
-      message: 'Muitas reações foram enviadas em pouco tempo.',
+    await consumeCommunityRateLimit({
+      action: 'feed_reaction',
+      actorUid,
     });
 
     return db.runTransaction(async (transaction): Promise<ToggleCommunityFeedReactionResponse> => {
