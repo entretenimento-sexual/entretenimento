@@ -9,9 +9,9 @@ const communitySourceDirectory = path.resolve(
   '../../src/community'
 );
 const repositoryRoot = path.resolve(__dirname, '../../..');
-const communityErrorMessagesPath = path.join(
+const communityFrontendDirectory = path.join(
   repositoryRoot,
-  'src/app/community/presentation/community-error.messages.ts'
+  'src/app/community'
 );
 const contentAccessPolicyModelPath = path.join(
   repositoryRoot,
@@ -22,8 +22,7 @@ const ENFORCE_APP_CHECK_PATTERN =
   /enforceAppCheck:\s*REQUIRE_COMMUNITY_APP_CHECK/g;
 const DEFENSIVE_APP_CHECK_PATTERN =
   /assertCommunityCallableAppCheck\(request\.app\);/g;
-const COMMUNITY_REASON_MESSAGE_CATALOG_PATTERN =
-  /^COMMUNITY_.*_REASON_MESSAGES$/;
+const COMMUNITY_REASON_MESSAGE_CATALOG_PATTERN = /_REASON_MESSAGES$/;
 
 interface CommunityErrorContractEntry {
   readonly fileName: string;
@@ -35,20 +34,27 @@ function countMatches(source: string, pattern: RegExp): number {
   return Array.from(source.matchAll(pattern)).length;
 }
 
-function listCommunitySourceFiles(directory: string): readonly string[] {
+function listTypeScriptFiles(
+  directory: string,
+  options: { readonly excludeTests?: boolean } = {}
+): readonly string[] {
   return readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => {
       const entryPath = path.join(directory, entry.name);
 
       if (entry.isDirectory()) {
-        return listCommunitySourceFiles(entryPath);
+        return listTypeScriptFiles(entryPath, options);
       }
 
-      return entry.isFile()
-        && entry.name.endsWith('.ts')
-        && !entry.name.endsWith('.test.ts')
-        ? [entryPath]
-        : [];
+      if (!entry.isFile() || !entry.name.endsWith('.ts')) return [];
+      if (
+        options.excludeTests
+        && (entry.name.endsWith('.test.ts') || entry.name.endsWith('.spec.ts'))
+      ) {
+        return [];
+      }
+
+      return [entryPath];
     });
 }
 
@@ -107,7 +113,12 @@ function isHttpsErrorConstructor(expression: ts.Expression): boolean {
 function collectCommunityErrorContracts(): readonly CommunityErrorContractEntry[] {
   const entries: CommunityErrorContractEntry[] = [];
 
-  for (const filePath of listCommunitySourceFiles(communitySourceDirectory)) {
+  for (
+    const filePath of listTypeScriptFiles(
+      communitySourceDirectory,
+      { excludeTests: true }
+    )
+  ) {
     const sourceFile = parseTypeScriptFile(filePath);
 
     const visit = (node: ts.Node): void => {
@@ -187,6 +198,28 @@ function collectCatalogKeys(
         const key = propertyNameText(property.name);
         if (key) keys.add(key);
       }
+    }
+  }
+
+  return keys;
+}
+
+function collectCommunityFrontendReasonMessageKeys(): ReadonlySet<string> {
+  const keys = new Set<string>();
+
+  for (
+    const filePath of listTypeScriptFiles(
+      communityFrontendDirectory,
+      { excludeTests: true }
+    )
+  ) {
+    for (
+      const key of collectCatalogKeys(
+        filePath,
+        COMMUNITY_REASON_MESSAGE_CATALOG_PATTERN
+      )
+    ) {
+      keys.add(key);
     }
   }
 
@@ -276,10 +309,7 @@ describe('community-callable-security contract', () => {
 describe('community-error transport contract', () => {
   it('mantém todo reason literal emitido pelo backend coberto por mensagem segura', () => {
     const contracts = collectCommunityErrorContracts();
-    const reasonMessages = collectCatalogKeys(
-      communityErrorMessagesPath,
-      COMMUNITY_REASON_MESSAGE_CATALOG_PATTERN
-    );
+    const reasonMessages = collectCommunityFrontendReasonMessageKeys();
     const missing = contracts.filter(
       (entry) => entry.reason && !reasonMessages.has(entry.reason)
     );
