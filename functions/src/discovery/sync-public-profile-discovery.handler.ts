@@ -5,6 +5,10 @@ import {
   PROFILE_IDENTITY_CATALOG_VERSION,
   resolveProfileIdentityOption,
 } from '../identity/profile-identity.catalog';
+import {
+  normalizePublicProfileId,
+  resolveOrGeneratePublicProfileId,
+} from '../identity/public-profile-id';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
 import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
 import {
@@ -57,6 +61,17 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
       }
 
       const user = userSnapshot.data() ?? {};
+      const storedProfileId = normalizePublicProfileId(user['profileId']);
+      const profileId = storedProfileId
+        ?? resolveOrGeneratePublicProfileId(null);
+
+      if (!storedProfileId) {
+        transaction.set(
+          userRef,
+          { profileId },
+          { merge: true }
+        );
+      }
 
       if (isPublicProfileProjectionBlocked(user)) {
         if (publicProfileSnapshot.exists) {
@@ -91,6 +106,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
       const currentPublic = publicProfileSnapshot.data() ?? {};
 
       if (
+        currentPublic['profileId'] === profileId &&
         publicProfileDiscoveryProjectionMatches(currentPublic, canonical) &&
         publicIdentityProjectionMatches(currentPublic, publicIdentity) &&
         (currentPublic['age'] ?? null) === age &&
@@ -104,6 +120,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
       transaction.set(
         publicProfileRef,
         {
+          profileId,
           gender: publicIdentity.identityCode ?? currentPublic['gender'] ?? null,
           ...publicIdentity,
           ...publicAvatar,
