@@ -21,6 +21,7 @@ import {
   canReceiveCommunityEssentialNotification,
   type CommunityNotificationUser,
 } from './community-notification.policy';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface ReviewCommunityFeedPostReportRequest {
   reportId?: unknown;
@@ -103,6 +104,11 @@ export const reviewCommunityFeedPostReport = onCall<
     if (!reportId || !decision || resolution.length < 8) {
       throw new HttpsError('invalid-argument', 'Decisão de denúncia inválida.');
     }
+
+    await consumeCommunityRateLimit({
+      action: 'content_moderation',
+      actorUid: adminUid,
+    });
 
     await db.runTransaction(async (transaction) => {
       const reportRef = db.collection('moderation_reports').doc(reportId);
