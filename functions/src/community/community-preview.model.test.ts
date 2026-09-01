@@ -68,6 +68,16 @@ test('normaliza paginação, fonte, tag e limita o tamanho máximo', () => {
   );
 });
 
+test('preserva envelope opaco de cursor sem truncar id máximo', () => {
+  const documentId = 'a'.repeat(128);
+  const cursor = `cursor1:score_v2:${documentId}`;
+
+  assert.equal(
+    normalizeCommunityDiscoveryPageRequest({ cursor }).cursor,
+    cursor
+  );
+});
+
 test('descarta cursor, communityId e tag com formato ou catálogo inválido', () => {
   assert.equal(
     normalizeCommunityDiscoveryPageRequest({ cursor: 'https://example.com' }).cursor,
