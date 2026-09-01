@@ -133,6 +133,43 @@ describe('CommunityCreationGateService', () => {
     });
   });
 
+  it('trata assinatura inativa com Comunidade existente como regularização', async () => {
+    getCreationCapability$.mockReturnValue(of(capability({
+      canCreate: false,
+      reason: 'subscription_required',
+      sponsorRole: 'free',
+      recommendedUpgradeRole: 'basic',
+      currentOwnedCommunities: 2,
+      maxOwnedCommunities: 0,
+      memberLimit: 0,
+      memberLimitOptions: BASIC_OPTIONS.map((option) => ({
+        ...option,
+        allowed: false,
+      })),
+      allowedMemberLimits: [],
+    })));
+    const service = TestBed.inject(CommunityCreationGateService);
+    const request = firstValueFrom(service.requestCreation$());
+
+    expect(dialogOpen).toHaveBeenCalledWith(
+      ConfirmationDialogComponent,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eyebrow: 'Regularização de Comunidades',
+          title: 'Seu plano atual não cobre suas Comunidades',
+          confirmLabel: 'Regularizar plano',
+          cancelLabel: 'Gerenciar Comunidades',
+          message: expect.stringContaining('Nenhuma Comunidade ou membro será removido automaticamente'),
+        }),
+      })
+    );
+
+    dialogClosed$.next(false);
+    await request;
+
+    expect(navigate).toHaveBeenCalledWith(['/dashboard/comunidades/minhas']);
+  });
+
   it('oferece Premium somente quando a capability recomenda Premium', async () => {
     getCreationCapability$.mockReturnValue(of(capability({
       canCreate: false,
@@ -143,6 +180,42 @@ describe('CommunityCreationGateService', () => {
     })));
     const service = TestBed.inject(CommunityCreationGateService);
     const request = firstValueFrom(service.requestCreation$());
+
+    dialogClosed$.next(true);
+    await request;
+
+    expect(navigate).toHaveBeenCalledWith(['/subscription-plan'], {
+      queryParams: {
+        minimumRole: 'premium',
+        returnUrl: COMMUNITY_CREATE_RETURN_URL,
+      },
+    });
+  });
+
+  it('distingue downgrade acima da quota de apenas atingir o limite', async () => {
+    getCreationCapability$.mockReturnValue(of(capability({
+      canCreate: false,
+      reason: 'limit_reached',
+      sponsorRole: 'basic',
+      recommendedUpgradeRole: 'premium',
+      currentOwnedCommunities: 3,
+      maxOwnedCommunities: 1,
+    })));
+    const service = TestBed.inject(CommunityCreationGateService);
+    const request = firstValueFrom(service.requestCreation$());
+
+    expect(dialogOpen).toHaveBeenCalledWith(
+      ConfirmationDialogComponent,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eyebrow: 'Regularização de Comunidades',
+          title: 'Seu plano mudou e excede o limite atual',
+          message: expect.stringContaining('Nenhuma será excluída automaticamente'),
+          confirmLabel: 'Regularizar plano',
+          cancelLabel: 'Gerenciar Comunidades',
+        }),
+      })
+    );
 
     dialogClosed$.next(true);
     await request;
