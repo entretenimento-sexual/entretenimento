@@ -13,6 +13,7 @@ import type {
 } from './community-discovery-ranking-mode.policy';
 
 const CURSOR_ENVELOPE_VERSION = 'cursor1';
+const CURSOR_ENVELOPE_PATTERN = /^cursor\d+:/;
 const SAFE_DOCUMENT_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const SCORE_MODE_PATTERN = /^score_v[1-9]\d*$/;
 
@@ -52,6 +53,8 @@ export function parseCommunityDiscoveryCursor(
   if (!normalized) return null;
 
   if (!normalized.startsWith(`${CURSOR_ENVELOPE_VERSION}:`)) {
+    if (CURSOR_ENVELOPE_PATTERN.test(normalized)) return null;
+
     const documentId = normalizeDocumentId(normalized);
     return documentId
       ? { mode: 'legacy', documentId, legacyTransport: true }
