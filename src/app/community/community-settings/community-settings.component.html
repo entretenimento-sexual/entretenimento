@@ -80,6 +80,35 @@
               </strong>
             }
           </p>
+
+          @if (viewerRole() === 'owner' && capacityState.restrictedByOwnerPlan) {
+            <aside
+              class="community-settings__regularization"
+              role="status"
+              aria-labelledby="community-capacity-regularization-title"
+            >
+              <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+              <div>
+                <strong id="community-capacity-regularization-title">
+                  Regularização necessária
+                </strong>
+                <p>
+                  A capacidade configurada está acima do que sua conta permite agora.
+                  Nenhum membro existente será removido automaticamente. Novas entradas
+                  permanecem limitadas até você escolher uma capacidade disponível ou
+                  regularizar o plano.
+                </p>
+                <div class="community-settings__regularization-actions">
+                  <a routerLink="/subscription-plan">Ver planos</a>
+                  <span>
+                    Você também pode ajustar a capacidade abaixo ou usar a gestão de
+                    propriedade para transferir ou arquivar a Comunidade.
+                  </span>
+                </div>
+              </div>
+            </aside>
+          }
+
           @if (capacityState.memberLimitOptions.length > 0) {
             <div>
               @for (option of capacityState.memberLimitOptions; track option.memberLimit) {
@@ -140,7 +169,7 @@
               <div class="community-settings__tag-group">
                 <h3>{{ tagCategoryLabel(category) }}</h3>
                 <div aria-describedby="community-settings-tags-help">
-                  @for (tag of tagsForCategory(catalog.items, category); track tag.id) {
+                  @for (tag of tagsForCategory(catalog.items; track tag.id)) {
                     <button
                       type="button"
                       [class.is-selected]="isTagSelected(tag.id)"
