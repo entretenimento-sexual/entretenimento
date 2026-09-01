@@ -1,7 +1,7 @@
 // src/app/community/data-access/community-preview.repository.ts
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, map } from 'rxjs';
+import { Observable, defer, from, map, of } from 'rxjs';
 
 import {
   CommunityDiscoveryPage,
@@ -24,6 +24,11 @@ export class CommunityPreviewRepository {
     CommunityDiscoveryPageRequest,
     unknown
   >(this.functions, 'getMyCommunitiesPage');
+
+  private readonly getProfileOfficialCommunitiesCallable = httpsCallable<
+    { profileUid: string; limit?: number },
+    unknown
+  >(this.functions, 'getProfileOfficialCommunities');
 
   private readonly getPreviewCallable = httpsCallable<
     { communityId: string },
@@ -55,6 +60,31 @@ export class CommunityPreviewRepository {
         this.getMyCommunitiesPageCallable({
           limit: request.limit ?? 12,
           cursor: request.cursor ?? null,
+        })
+      )
+    ).pipe(
+      map((result) => normalizeCommunityDiscoveryPageResponse(result.data))
+    );
+  }
+
+  getProfileOfficialCommunities$(
+    profileUid: string,
+    limit = 4
+  ): Observable<CommunityDiscoveryPage> {
+    const normalizedUid = String(profileUid ?? '').trim();
+    if (!normalizedUid) {
+      return of({
+        items: [],
+        nextCursor: null,
+        generatedAt: Date.now(),
+      });
+    }
+
+    return defer(() =>
+      from(
+        this.getProfileOfficialCommunitiesCallable({
+          profileUid: normalizedUid,
+          limit: Math.min(Math.max(Math.trunc(limit), 1), 12),
         })
       )
     ).pipe(
