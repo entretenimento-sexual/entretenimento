@@ -2,7 +2,10 @@
 
 import { createAction, props } from '@ngrx/store';
 
-import type { CommunityDiscoveryPage } from 'src/app/community/data-access/community-preview.model';
+import type {
+  CommunityDiscoveryPage,
+  CommunityPreviewSourceType,
+} from 'src/app/community/data-access/community-preview.model';
 import type { CommunityDiscoveryCacheQuery } from 'src/app/community/discovery/community-discovery-cache.model';
 
 export const activateCommunityDiscoveryViewer = createAction(
@@ -22,7 +25,11 @@ export const storeCommunityDiscoveryPage = createAction(
 
 export const invalidateCommunityDiscoveryViewer = createAction(
   '[Community Discovery Cache] Invalidate Viewer',
-  props<{ viewerUid: string }>()
+  props<{
+    viewerUid: string;
+    sourceType?: CommunityPreviewSourceType;
+    communityId?: string;
+  }>()
 );
 
 export const clearCommunityDiscoveryCache = createAction(
