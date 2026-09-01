@@ -67,20 +67,21 @@
             <h2 id="community-create-gate-title">Pertencer continua gratuito</h2>
             <p>
               Você pode explorar, solicitar entrada, aceitar convites, conversar
-              e participar das Comunidades. O plano Basic acrescenta a criação e
-              a administração da sua própria Comunidade.
+              e participar das Comunidades. O plano
+              {{ creationUpgradePlanLabel(creationState.capability) }} acrescenta
+              a criação e a administração da sua própria Comunidade.
             </p>
             <div class="community-create__gate-actions">
               <a
                 class="community-create__upgrade"
                 routerLink="/subscription-plan"
                 [queryParams]="{
-                  minimumRole: 'basic',
+                  minimumRole: creationUpgradeRole(creationState.capability),
                   returnUrl: communityCreateReturnUrl
                 }"
               >
                 <i class="fas fa-crown" aria-hidden="true"></i>
-                Conhecer o plano Basic
+                Conhecer o plano {{ creationUpgradePlanLabel(creationState.capability) }}
               </a>
               <a routerLink="/dashboard/comunidades">Explorar Comunidades</a>
             </div>
@@ -103,7 +104,9 @@
         <div>
           <span>{{ preview.theme }}</span>
           <span>{{ preview.join }}</span>
-          <span>Até {{ memberLimitLabel(preview.memberLimit) }}</span>
+          @if (preview.memberLimit !== null) {
+            <span>Até {{ memberLimitLabel(preview.memberLimit) }}</span>
+          }
           @if (preview.tagCount > 0) {
             <span>{{ preview.tagCount }} afinidades</span>
           }
@@ -220,31 +223,31 @@
               Você poderá ajustar esses números depois.
           </p>
           <div class="community-create__capacity-options">
-            @for (memberLimit of memberLimitOptions; track memberLimit) {
+            @for (option of capability.memberLimitOptions; track option.memberLimit) {
               <button
                 type="button"
-                [class.is-selected]="isMemberLimitSelected(memberLimit)"
-                [class.is-locked]="!capability.allowedMemberLimits.includes(memberLimit)"
-                [attr.aria-pressed]="isMemberLimitSelected(memberLimit)"
+                [class.is-selected]="isMemberLimitSelected(option.memberLimit)"
+                [class.is-locked]="!option.allowed"
+                [attr.aria-pressed]="isMemberLimitSelected(option.memberLimit)"
                 [attr.aria-label]="
-                  'Até ' + memberLimitLabel(memberLimit) + ' membros. '
-                  + memberLimitDescription(memberLimit)
-                  + (!capability.allowedMemberLimits.includes(memberLimit)
-                    ? ' Requer plano ' + memberLimitPlanLabel(memberLimit) + '.'
+                  'Até ' + memberLimitLabel(option.memberLimit) + ' membros. '
+                  + memberLimitDescription(option.memberLimit)
+                  + (!option.allowed
+                    ? ' Requer ' + memberLimitPlanLabel(option) + '.'
                     : '')
                 "
-                (click)="selectMemberLimit(memberLimit, capability.allowedMemberLimits)"
+                (click)="selectMemberLimit(option)"
               >
                 <span>
                   <i
-                    class="fas {{ capability.allowedMemberLimits.includes(memberLimit) ? 'fa-people-group' : 'fa-lock' }}"
+                    class="fas {{ option.allowed ? 'fa-people-group' : 'fa-lock' }}"
                     aria-hidden="true"
                   ></i>
-                  <strong>{{ memberLimitLabel(memberLimit) }}</strong>
+                  <strong>{{ memberLimitLabel(option.memberLimit) }}</strong>
                 </span>
-                <small>{{ memberLimitDescription(memberLimit) }}</small>
-                @if (!capability.allowedMemberLimits.includes(memberLimit)) {
-                  <em>{{ memberLimitPlanLabel(memberLimit) }}</em>
+                <small>{{ memberLimitDescription(option.memberLimit) }}</small>
+                @if (!option.allowed) {
+                  <em>{{ memberLimitPlanLabel(option) }}</em>
                 }
               </button>
             }
