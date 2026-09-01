@@ -11,15 +11,26 @@ import { COMMUNITY_CREATE_RETURN_URL } from 'src/app/subscriptions/domain/subscr
 import { CommunityCreateRepository } from '../data-access/community-create.repository';
 import { CommunityCreationGateService } from './community-creation-gate.service';
 
+const BASIC_OPTIONS = [
+  { memberLimit: 25, requirement: 'basic', allowed: true },
+  { memberLimit: 50, requirement: 'basic', allowed: true },
+  { memberLimit: 100, requirement: 'basic', allowed: true },
+  { memberLimit: 250, requirement: 'premium', allowed: false },
+  { memberLimit: 500, requirement: 'vip', allowed: false },
+  { memberLimit: 1_000, requirement: 'special_access', allowed: false },
+] as const;
+
 function capability(overrides: Record<string, unknown> = {}) {
   return {
     canCreate: true,
     reason: null,
     sponsorRole: 'basic' as const,
     minimumRole: 'basic' as const,
+    recommendedUpgradeRole: null,
     currentOwnedCommunities: 0,
     maxOwnedCommunities: 1,
-    memberLimit: 100 as const,
+    memberLimit: 100,
+    memberLimitOptions: BASIC_OPTIONS,
     allowedMemberLimits: [25, 50, 100] as const,
     generatedAt: 100,
     ...overrides,
@@ -80,14 +91,19 @@ describe('CommunityCreationGateService', () => {
     expect(navigate).toHaveBeenCalledWith(['/dashboard/comunidades/nova']);
   });
 
-  it('mantém participação gratuita e oferece Basic antes de abrir o compositor', async () => {
+  it('mantém participação gratuita e usa a recomendação Basic do backend', async () => {
     getCreationCapability$.mockReturnValue(of(capability({
       canCreate: false,
       reason: 'subscription_required',
       sponsorRole: 'free',
+      recommendedUpgradeRole: 'basic',
       currentOwnedCommunities: 0,
       maxOwnedCommunities: 0,
       memberLimit: 0,
+      memberLimitOptions: BASIC_OPTIONS.map((option) => ({
+        ...option,
+        allowed: false,
+      })),
       allowedMemberLimits: [],
     })));
     const service = TestBed.inject(CommunityCreationGateService);
@@ -101,6 +117,7 @@ describe('CommunityCreationGateService', () => {
           title: 'Crie sua própria Comunidade',
           confirmLabel: 'Ver planos',
           cancelLabel: 'Continuar explorando',
+          detail: expect.not.stringContaining('100'),
         }),
       })
     );
@@ -116,10 +133,11 @@ describe('CommunityCreationGateService', () => {
     });
   });
 
-  it('oferece Premium quando o Basic atingiu sua cota', async () => {
+  it('oferece Premium somente quando a capability recomenda Premium', async () => {
     getCreationCapability$.mockReturnValue(of(capability({
       canCreate: false,
       reason: 'limit_reached',
+      recommendedUpgradeRole: 'premium',
       currentOwnedCommunities: 1,
       maxOwnedCommunities: 1,
     })));
@@ -137,14 +155,40 @@ describe('CommunityCreationGateService', () => {
     });
   });
 
+  it('não infere upgrade quando o backend não recomenda outro plano', async () => {
+    getCreationCapability$.mockReturnValue(of(capability({
+      canCreate: false,
+      reason: 'limit_reached',
+      recommendedUpgradeRole: null,
+      currentOwnedCommunities: 1,
+      maxOwnedCommunities: 1,
+    })));
+    const service = TestBed.inject(CommunityCreationGateService);
+    const request = firstValueFrom(service.requestCreation$());
+
+    dialogClosed$.next(true);
+    await request;
+
+    expect(navigate).toHaveBeenCalledWith(['/dashboard/comunidades/minhas']);
+    expect(navigate).not.toHaveBeenCalledWith(
+      ['/subscription-plan'],
+      expect.anything()
+    );
+  });
+
   it('direciona VIP sem upgrade disponível para a gestão das Comunidades', async () => {
     getCreationCapability$.mockReturnValue(of(capability({
       canCreate: false,
       reason: 'limit_reached',
       sponsorRole: 'vip',
+      recommendedUpgradeRole: null,
       currentOwnedCommunities: 5,
       maxOwnedCommunities: 5,
       memberLimit: 500,
+      memberLimitOptions: BASIC_OPTIONS.map((option) => ({
+        ...option,
+        allowed: option.memberLimit <= 500,
+      })),
       allowedMemberLimits: [25, 50, 100, 250, 500],
     })));
     const service = TestBed.inject(CommunityCreationGateService);
