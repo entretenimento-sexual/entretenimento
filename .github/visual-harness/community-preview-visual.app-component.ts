@@ -84,6 +84,41 @@ const preview: CommunityPreviewResponse = {
   generatedAt: now,
 };
 
+const ownerPreview: CommunityPreviewResponse = {
+  ...preview,
+  viewerMode: 'manager',
+  viewerRole: 'owner',
+  canManageMemberships: true,
+  canInviteCommunityMembers: true,
+  canManageCommunitySettings: true,
+  capacity: {
+    memberCount: 86,
+    configuredLimit: 100,
+    effectiveLimit: 100,
+    restrictedByOwnerPlan: false,
+    acceptingNewMembers: true,
+    memberLimitOptions: [25, 50, 100, 250, 500, 1000],
+    allowedMemberLimits: [25, 50, 100],
+  },
+  settings: {
+    name: 'Encontros & Conexões RJ',
+    description:
+      'Espaço para conhecer pessoas, trocar experiências e organizar encontros com respeito e consentimento.',
+    rules:
+      'Respeite os limites das outras pessoas. Não publique dados pessoais de terceiros e mantenha as conversas dentro do contexto da Comunidade.',
+    joinPolicy: 'approval',
+    membersCanInvite: true,
+    memberLimit: 100,
+    tagIds: ['intent:friendship', 'intent:dating', 'audience:rj'],
+  },
+  canLeaveMembership: false,
+};
+
+function currentPreview(): CommunityPreviewResponse {
+  const scenario = new URLSearchParams(window.location.search).get('scenario');
+  return scenario === 'owner' ? ownerPreview : preview;
+}
+
 const feedPage: CommunityFeedPage = {
   generatedAt: now,
   nextCursor: null,
@@ -175,7 +210,7 @@ const comments: CommunityFeedCommentPage = {
 };
 
 const previewRepository = {
-  getPreview$: () => of(preview),
+  getPreview$: () => of(currentPreview()),
 };
 
 const membershipRepository = {
