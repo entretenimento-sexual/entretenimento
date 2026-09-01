@@ -315,7 +315,6 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         visibility: 'public',
         status: 'active',
         officialAssociationKey,
-        participantLimit: officialSpaceDecision.memberLimit,
         moderation: {
           state: 'active',
           reviewedAt: now,
