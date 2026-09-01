@@ -7,6 +7,7 @@
 // - profileCompleted is a one-way, eligibility-checked registration transition;
 // - new accounts are private and interaction-blocked until completion;
 // - accepted terms start false and can only become true through trusted backend.
+// - profileId is generated and maintained only by trusted backend code.
 // ==============================================================
 
 match /users/{userId} {
@@ -168,6 +169,7 @@ match /users/{userId} {
 
   function selfChangingSensitiveKeys(changedKeys) {
     return changedKeys.hasAny([
+      "profileId",
       "adultConsent",
       "acceptedTerms",
       "registrationFlowVersion",
@@ -267,6 +269,7 @@ match /users/{userId} {
       ])
       && data.uid == uid()
       && !data.keys().hasAny([
+        "profileId",
         "adultConsent",
         "ageReverification",
         "ageReverificationRestrictedAt"
