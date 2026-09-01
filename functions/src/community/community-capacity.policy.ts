@@ -4,6 +4,10 @@
 // -----------------------------------------------------------------------------
 // A assinatura do proprietário define somente o teto de crescimento. O limite
 // escolhido pertence à Comunidade e nunca remove memberships existentes.
+//
+// Esta policy também é a fonte canônica das opções comerciais expostas ao
+// compositor. O cliente recebe capacidade, requisito e recomendação já resolvidos
+// e nunca deve reconstruir a relação entre quantidade de membros e plano.
 // -----------------------------------------------------------------------------
 
 import { normalizeCommunityMemberCount } from './community-member-count.policy';
@@ -31,11 +35,24 @@ export type PersonalCommunitySponsorRole = Exclude<
   CommunityCapacitySponsorRole,
   'official_space'
 >;
+export type CommunityPaidSubscriptionRole = 'basic' | 'premium' | 'vip';
+export type CommunityMemberLimitRequirement =
+  | CommunityPaidSubscriptionRole
+  | 'special_access';
+export type CommunityRecommendedUpgradeRole =
+  | CommunityPaidSubscriptionRole
+  | null;
 
 export interface PersonalCommunityCreationPolicy {
   canCreate: boolean;
   maxOwnedCommunities: number | null;
   memberLimit: CommunityEffectiveMemberLimit;
+}
+
+export interface CommunityMemberLimitCapabilityOption {
+  readonly memberLimit: CommunityMemberLimit;
+  readonly requirement: CommunityMemberLimitRequirement;
+  readonly allowed: boolean;
 }
 
 export type CommunityCreationCapabilityReason =
@@ -48,9 +65,15 @@ export interface CommunityCreationCapability {
   reason: CommunityCreationCapabilityReason;
   sponsorRole: PersonalCommunitySponsorRole;
   minimumRole: 'basic';
+  recommendedUpgradeRole: CommunityRecommendedUpgradeRole;
   currentOwnedCommunities: number;
   maxOwnedCommunities: number | null;
   memberLimit: CommunityEffectiveMemberLimit;
+  memberLimitOptions: readonly CommunityMemberLimitCapabilityOption[];
+  /**
+   * Compatibilidade temporária para consumidores já existentes. Novas UIs devem
+   * usar `memberLimitOptions`, que transporta também requisito e disponibilidade.
+   */
   allowedMemberLimits: readonly CommunityMemberLimit[];
 }
 
@@ -86,6 +109,22 @@ const PERSONAL_CREATION_LIMIT: Readonly<
   basic: 1,
   premium: 3,
   vip: 5,
+  admin: null,
+});
+
+const PUBLIC_SUBSCRIPTION_ROLE_ORDER = Object.freeze([
+  'basic',
+  'premium',
+  'vip',
+] as const);
+
+const PERSONAL_COMMUNITY_UPGRADE_ROLE: Readonly<
+  Record<PersonalCommunitySponsorRole, CommunityRecommendedUpgradeRole>
+> = Object.freeze({
+  free: 'basic',
+  basic: 'premium',
+  premium: 'vip',
+  vip: null,
   admin: null,
 });
 
@@ -144,6 +183,32 @@ export function isCommunityMemberLimitAllowed(
   return memberLimit <= resolveCommunityOwnerPlanLimit(role);
 }
 
+export function resolveCommunityMemberLimitRequirement(
+  memberLimit: CommunityMemberLimit
+): CommunityMemberLimitRequirement {
+  const minimumSubscriptionRole = PUBLIC_SUBSCRIPTION_ROLE_ORDER.find(
+    (role) => memberLimit <= resolveCommunityOwnerPlanLimit(role)
+  );
+
+  return minimumSubscriptionRole ?? 'special_access';
+}
+
+export function resolveCommunityMemberLimitCapabilityOptions(
+  role: CommunityCapacitySponsorRole
+): readonly CommunityMemberLimitCapabilityOption[] {
+  return COMMUNITY_MEMBER_LIMIT_OPTIONS.map((memberLimit) => ({
+    memberLimit,
+    requirement: resolveCommunityMemberLimitRequirement(memberLimit),
+    allowed: isCommunityMemberLimitAllowed(memberLimit, role),
+  }));
+}
+
+export function resolveRecommendedCommunityUpgradeRole(
+  role: PersonalCommunitySponsorRole
+): CommunityRecommendedUpgradeRole {
+  return PERSONAL_COMMUNITY_UPGRADE_ROLE[role];
+}
+
 export function resolvePersonalCommunityCreationPolicy(
   role: PersonalCommunitySponsorRole
 ): Readonly<PersonalCommunityCreationPolicy> {
@@ -168,19 +233,26 @@ export function resolveCommunityCreationCapability(input: {
   const limitReached =
     creationPolicy.maxOwnedCommunities !== null
     && currentOwnedCommunities >= creationPolicy.maxOwnedCommunities;
+  const reason: CommunityCreationCapabilityReason = subscriptionRequired
+    ? 'subscription_required'
+    : limitReached
+      ? 'limit_reached'
+      : null;
 
   return {
-    canCreate: !subscriptionRequired && !limitReached,
-    reason: subscriptionRequired
-      ? 'subscription_required'
-      : limitReached
-        ? 'limit_reached'
-        : null,
+    canCreate: reason === null,
+    reason,
     sponsorRole: input.sponsorRole,
     minimumRole: 'basic',
+    recommendedUpgradeRole: reason === null
+      ? null
+      : resolveRecommendedCommunityUpgradeRole(input.sponsorRole),
     currentOwnedCommunities,
     maxOwnedCommunities: creationPolicy.maxOwnedCommunities,
     memberLimit: creationPolicy.memberLimit,
+    memberLimitOptions: resolveCommunityMemberLimitCapabilityOptions(
+      input.sponsorRole
+    ),
     allowedMemberLimits: resolveCommunityMemberLimitOptions(input.sponsorRole),
   };
 }
