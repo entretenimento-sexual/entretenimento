@@ -13,6 +13,10 @@
 // -----------------------------------------------------------------------------
 
 import {
+  type CommunityOfficialAssociationPublic,
+  normalizeCommunityOfficialAssociationPublic,
+} from 'src/app/core/community/community-official-association.model';
+import {
   CommunityCapacityPreview,
   normalizeCommunityCapacityPreview,
 } from './community-capacity.model';
@@ -71,6 +75,8 @@ export interface CommunityPreviewCard {
     requiresActiveSubscription: boolean;
   };
   tags: readonly CommunityPreviewTag[];
+  /** Projeção pública derivada da associação oficial canônica. */
+  officialAssociation?: CommunityOfficialAssociationPublic | null;
   /** Presente apenas nas respostas privadas de Comunidades do próprio viewer. */
   viewerRole?: CommunityPreviewViewerRole | null;
 }
@@ -239,6 +245,9 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
   const description = normalizeText(source['description'], 240);
   const join = access['join'];
   const viewerRole = normalizeViewerRole(source['viewerRole']);
+  const officialAssociation = normalizeCommunityOfficialAssociationPublic(
+    source['officialAssociation']
+  );
 
   return {
     communityId,
@@ -260,6 +269,7 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
       requiresActiveSubscription: false,
     },
     tags: normalizeTags(source['tags']),
+    ...(officialAssociation ? { officialAssociation } : {}),
     ...(viewerRole ? { viewerRole } : {}),
   };
 }
