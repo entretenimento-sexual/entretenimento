@@ -1,14 +1,269 @@
 /* src/app/community/membership-management/community-membership-management.component.css */
 :host {
   min-width: 0;
+  display: block;
+}
+
+.community-management-hub {
+  min-width: 0;
   display: grid;
-  gap: 1rem;
+  gap: 0.9rem;
+  padding: 0.9rem;
+  color: var(--text-color, #222);
+}
+
+.community-management-hub__header {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.15rem 0.1rem 0;
+}
+
+.community-management-hub__heading {
+  min-width: 0;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.community-management-hub__eyebrow {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--primary-color, #d83768);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.community-management-hub__heading h2 {
+  margin: 0;
+  font-size: clamp(1.05rem, 3vw, 1.3rem);
+  line-height: 1.2;
+}
+
+.community-management-hub__heading p {
+  max-width: 46rem;
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  opacity: 0.72;
+}
+
+.community-management-hub__nav {
+  min-width: 0;
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding: 0.1rem 0.05rem 0.35rem;
+  scrollbar-width: none;
+}
+
+.community-management-hub__nav::-webkit-scrollbar {
+  display: none;
+}
+
+.community-management-hub__nav button {
+  min-height: var(--tap-target, 2.75rem);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  padding: 0.52rem 0.72rem;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-color, #222);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 760;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.community-management-hub__nav button.is-active {
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #d83768) 58%,
+    var(--surface-border, #d5d5d5)
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 86%,
+    var(--primary-color, #d83768) 14%
+  );
+  color: var(--primary-color, #d83768);
+}
+
+.community-management-hub__badge {
+  min-width: 1.35rem;
+  height: 1.35rem;
+  display: inline-grid;
+  place-items: center;
+  padding-inline: 0.28rem;
+  border-radius: 999px;
+  background: var(--primary-color, #d83768);
+  color: var(--on-primary-color, #fff);
+  font-size: 0.64rem;
+  font-weight: 850;
+}
+
+.community-management-hub__overview {
+  min-width: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.community-management-hub__capacity-alert {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.65rem;
+  padding: 0.78rem 0.82rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, #d5d5d5) 68%,
+    var(--warning-color, #a35f00) 32%
+  );
+  border-radius: 0.9rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 94%,
+    var(--warning-color, #a35f00) 6%
+  );
+}
+
+.community-management-hub__capacity-alert > i {
+  width: 1.1rem;
+  margin-top: 0.12rem;
+  color: var(--warning-color, #a35f00);
+  text-align: center;
+}
+
+.community-management-hub__capacity-alert div {
+  min-width: 0;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.community-management-hub__capacity-alert strong {
+  font-size: 0.8rem;
+}
+
+.community-management-hub__capacity-alert span {
+  overflow-wrap: anywhere;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  opacity: 0.78;
+}
+
+.community-management-hub__cards {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.58rem;
+}
+
+.community-management-hub__card {
+  min-width: 0;
+  min-height: 4.6rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.72rem 0.78rem;
+  border: 1px solid var(--surface-border, #d5d5d5);
+  border-radius: 0.9rem;
+  background: var(--surface-color, #fff);
+  color: var(--text-color, #222);
+  text-align: left;
+}
+
+button.community-management-hub__card {
+  font: inherit;
+  cursor: pointer;
+}
+
+button.community-management-hub__card:hover {
+  border-color: color-mix(
+    in oklab,
+    var(--surface-border, #d5d5d5) 55%,
+    var(--primary-color, #d83768) 45%
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 97%,
+    var(--primary-color, #d83768) 3%
+  );
+}
+
+.community-management-hub__card--status {
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 96%,
+    var(--primary-color, #d83768) 4%
+  );
+}
+
+.community-management-hub__card-icon {
+  width: 2.35rem;
+  height: 2.35rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 84%,
+    var(--primary-color, #d83768) 16%
+  );
+  color: var(--primary-color, #d83768);
+}
+
+.community-management-hub__card-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.14rem;
+}
+
+.community-management-hub__card-copy strong,
+.community-management-hub__card-copy span,
+.community-management-hub__card-copy small {
+  overflow-wrap: anywhere;
+}
+
+.community-management-hub__card-copy strong {
+  font-size: 0.8rem;
+}
+
+.community-management-hub__card-copy span {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  opacity: 0.72;
+}
+
+.community-management-hub__card-copy small {
+  color: var(--primary-color, #d83768);
+  font-size: 0.66rem;
+  font-weight: 760;
+}
+
+.community-management-hub__card > i:last-child {
+  color: var(--text-color, #222);
+  font-size: 0.72rem;
+  opacity: 0.48;
 }
 
 .community-membership-management {
+  min-width: 0;
   display: grid;
   gap: 0.85rem;
-  padding: 1rem;
+  padding: 0.15rem 0.1rem 0.35rem;
   color: var(--text-color, #222);
 }
 
@@ -25,9 +280,9 @@
   gap: 0.5rem;
 }
 
-.community-membership-management__header h2 {
+.community-membership-management__header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.95rem;
   line-height: 1.2;
 }
 
@@ -66,6 +321,8 @@
   opacity: 0.62;
 }
 
+.community-management-hub__nav button:focus-visible,
+.community-management-hub__card:focus-visible,
 .community-membership-management__refresh:focus-visible,
 .community-membership-management__actions button:focus-visible {
   outline: 3px solid color-mix(
@@ -77,14 +334,30 @@
 }
 
 .community-membership-management__state {
-  min-height: 9rem;
+  min-height: 8rem;
   display: grid;
   place-content: center;
   justify-items: center;
   gap: 0.6rem;
   text-align: center;
-  font-size: 0.86rem;
+  font-size: 0.82rem;
   opacity: 0.78;
+}
+
+.community-membership-management__state--compact {
+  min-height: auto;
+  grid-template-columns: auto minmax(0, 1fr);
+  place-content: initial;
+  justify-items: start;
+  align-items: start;
+  padding: 0.68rem 0.75rem;
+  border-radius: 0.8rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 94%,
+    var(--warning-color, #a35f00) 6%
+  );
+  text-align: left;
 }
 
 .community-membership-management__state i {
@@ -189,6 +462,16 @@
   color: var(--text-color, #222);
 }
 
+@media (min-width: 48rem) {
+  .community-management-hub {
+    padding: 1rem;
+  }
+
+  .community-management-hub__cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 38rem) {
   .community-membership-management__list li {
     grid-template-columns: auto minmax(0, 1fr);
@@ -201,8 +484,12 @@
 }
 
 @media (max-width: 24rem) {
-  .community-membership-management {
-    padding-inline: 0.75rem;
+  .community-management-hub {
+    padding-inline: 0.72rem;
+  }
+
+  .community-management-hub__nav button span:not(.community-management-hub__badge) {
+    font-size: 0.68rem;
   }
 
   .community-membership-management__actions button span {
@@ -220,6 +507,9 @@
   }
 }
 
+:host-context(.high-contrast) .community-management-hub__nav button,
+:host-context(.high-contrast) .community-management-hub__card,
+:host-context(.high-contrast) .community-management-hub__capacity-alert,
 :host-context(.high-contrast) .community-membership-management__refresh,
 :host-context(.high-contrast) .community-membership-management__list li,
 :host-context(.high-contrast) .community-membership-management__actions button {
@@ -228,6 +518,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .community-management-hub__nav,
   .community-membership-management__refresh,
   .community-membership-management__actions button {
     scroll-behavior: auto;
