@@ -28,7 +28,17 @@ const PROTECTED_CALLSITES: Readonly<Record<string, CommunityRateLimitAction>> =
     'report-community-feed-comment-reply.handler.ts': 'feed_report_reply',
     'send-community-invite.handler.ts': 'invite_send',
     'request-community-membership.handler.ts': 'membership_request',
+    'community-membership-management.handler.ts': 'membership_review',
     'community-member-management.handler.ts': 'member_management',
+    'update-community-settings.handler.ts': 'settings_update',
+    'community-ownership-lifecycle.handler.ts': 'ownership_mutation',
+    'community-feed-moderation.handler.ts': 'content_moderation',
+    'community-feed-comment-moderation.handler.ts': 'content_moderation',
+    'community-feed-comment-reply-moderation.handler.ts': 'content_moderation',
+    'community-topic-moderation.handler.ts': 'content_moderation',
+    'review-community-feed-post-report.handler.ts': 'content_moderation',
+    'review-community-feed-comment-report.handler.ts': 'content_moderation',
+    'review-community-feed-comment-reply-report.handler.ts': 'content_moderation',
   });
 
 function listProductionTypeScriptFiles(directory: string): readonly string[] {
