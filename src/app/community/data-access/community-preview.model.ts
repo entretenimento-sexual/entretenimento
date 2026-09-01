@@ -290,19 +290,8 @@ export function normalizeCommunityPreviewResponse(
   const settings = canManageCommunitySettings
     ? normalizeCommunityEditableSettings(source['settings'])
     : null;
-  const rawCapacity = source['capacity'];
   const capacity = community?.source.type === 'community'
-    ? normalizeCommunityCapacityPreview(rawCapacity)
-      ?? (rawCapacity === undefined && community
-        ? {
-          configuredLimit: 25,
-          effectiveLimit: 25,
-          memberCount: community.metrics.memberCount,
-          acceptingNewMembers: community.metrics.memberCount < 25,
-          restrictedByOwnerPlan: false,
-          allowedMemberLimits: [],
-        }
-        : null)
+    ? normalizeCommunityCapacityPreview(source['capacity'])
     : null;
 
   if (
