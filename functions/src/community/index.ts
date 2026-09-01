@@ -99,6 +99,9 @@ export { runCommunityRanking } from './run-community-ranking.schedule';
 export {
   syncCommunityArchiveProjections,
 } from './sync-community-archive-projections.trigger';
+export {
+  syncCommunityOfficialAssociation,
+} from './sync-community-official-association.trigger';
 export { syncCommunityFeedActivity } from './sync-community-feed-activity.trigger';
 export { syncCommunityFeedRealtime } from './sync-community-feed-realtime.trigger';
 export {
