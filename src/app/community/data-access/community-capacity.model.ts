@@ -183,16 +183,19 @@ export function normalizeCommunityCapacityPreview(
   const memberCount = typeof rawMemberCount === 'number'
     ? rawMemberCount
     : Number.NaN;
+  const rawLegacyAllowedMemberLimits = source['allowedMemberLimits'];
   const legacyAllowedMemberLimits = normalizeLegacyAllowedMemberLimits(
-    source['allowedMemberLimits']
+    rawLegacyAllowedMemberLimits
   );
   const rawMemberLimitOptions = source['memberLimitOptions'];
   const memberLimitOptions = rawMemberLimitOptions === undefined
-    ? legacyAllowedMemberLimits.map((memberLimit) => ({
-      memberLimit,
-      requirement: 'special_access' as const,
-      allowed: true,
-    }))
+    ? Array.isArray(rawLegacyAllowedMemberLimits)
+      ? legacyAllowedMemberLimits.map((memberLimit) => ({
+        memberLimit,
+        requirement: 'special_access' as const,
+        allowed: true,
+      }))
+      : null
     : normalizeCommunityMemberLimitCapabilityOptions(
       rawMemberLimitOptions,
       true
