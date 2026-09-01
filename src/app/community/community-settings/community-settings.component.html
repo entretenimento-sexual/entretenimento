@@ -80,32 +80,34 @@
               </strong>
             }
           </p>
-          <div>
-            @for (memberLimit of memberLimitOptions; track memberLimit) {
-              <button
-                type="button"
-                [class.is-selected]="form.controls.memberLimit.value === memberLimit"
-                [class.is-locked]="!capacityState.allowedMemberLimits.includes(memberLimit)"
-                [disabled]="viewerRole() !== 'owner'"
-                [attr.aria-pressed]="form.controls.memberLimit.value === memberLimit"
-                [attr.aria-label]="
-                  'Limite de ' + memberLimitLabel(memberLimit) + ' membros'
-                  + (!capacityState.allowedMemberLimits.includes(memberLimit)
-                    ? '. Requer plano ' + memberLimitPlanLabel(memberLimit)
-                    : '')
-                "
-                (click)="selectMemberLimit(memberLimit)"
-              >
-                @if (!capacityState.allowedMemberLimits.includes(memberLimit)) {
-                  <i class="fas fa-lock" aria-hidden="true"></i>
-                }
-                <span>{{ memberLimitLabel(memberLimit) }}</span>
-                @if (!capacityState.allowedMemberLimits.includes(memberLimit)) {
-                  <small>{{ memberLimitPlanLabel(memberLimit) }}</small>
-                }
-              </button>
-            }
-          </div>
+          @if (capacityState.memberLimitOptions.length > 0) {
+            <div>
+              @for (option of capacityState.memberLimitOptions; track option.memberLimit) {
+                <button
+                  type="button"
+                  [class.is-selected]="form.controls.memberLimit.value === option.memberLimit"
+                  [class.is-locked]="!option.allowed"
+                  [disabled]="viewerRole() !== 'owner'"
+                  [attr.aria-pressed]="form.controls.memberLimit.value === option.memberLimit"
+                  [attr.aria-label]="
+                    'Limite de ' + memberLimitLabel(option.memberLimit) + ' membros'
+                    + (!option.allowed
+                      ? '. Requer ' + memberLimitPlanLabel(option)
+                      : '')
+                  "
+                  (click)="selectMemberLimit(option)"
+                >
+                  @if (!option.allowed) {
+                    <i class="fas fa-lock" aria-hidden="true"></i>
+                  }
+                  <span>{{ memberLimitLabel(option.memberLimit) }}</span>
+                  @if (!option.allowed) {
+                    <small>{{ memberLimitPlanLabel(option) }}</small>
+                  }
+                </button>
+              }
+            </div>
+          }
           <small>
             @if (viewerRole() === 'owner') {
               Nenhum membro será removido caso seu plano mude futuramente.
