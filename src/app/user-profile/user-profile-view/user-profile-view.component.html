@@ -108,6 +108,12 @@
               </div>
             </section>
 
+            @if (usuario.profileId; as profileId) {
+              <app-profile-official-communities
+                [profileId]="profileId"
+              />
+            }
+
             <section class="profile-card" aria-label="Fotos do perfil">
               @if (uid; as currentUid) {
                 <app-user-photo-manager
