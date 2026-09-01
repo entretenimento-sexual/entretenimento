@@ -27,6 +27,7 @@ function logDecisionChange(
   const diagnosticKey = [
     decision.requestedMode,
     decision.effectiveMode,
+    decision.targetMode,
     decision.fallbackReason ?? 'ready',
     decision.scoreVersion,
   ].join(':');
@@ -35,18 +36,21 @@ function logDecisionChange(
   lastDiagnosticKey = diagnosticKey;
 
   if (
-    decision.requestedMode === 'score_v1'
+    decision.requestedMode !== 'legacy'
     && decision.effectiveMode === 'legacy'
   ) {
     logger.warn('community_discovery_ranking_fallback', {
+      requestedMode: decision.requestedMode,
+      targetMode: decision.targetMode,
       fallbackReason: decision.fallbackReason,
       scoreVersion: decision.scoreVersion,
     });
     return;
   }
 
-  if (decision.effectiveMode === 'score_v1') {
+  if (decision.effectiveMode !== 'legacy') {
     logger.info('community_discovery_ranking_score_enabled', {
+      effectiveMode: decision.effectiveMode,
       scoreVersion: decision.scoreVersion,
     });
   }
