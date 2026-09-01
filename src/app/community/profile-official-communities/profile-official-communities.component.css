@@ -1,0 +1,205 @@
+/* src/app/community/profile-official-communities/profile-official-communities.component.css */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.profile-official-communities {
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border-color, rgba(127, 127, 127, 0.22));
+  border-radius: 1rem;
+  background: var(--surface-color, rgba(255, 255, 255, 0.035));
+}
+
+.profile-official-communities--state {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.profile-official-communities--state button {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid currentColor;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.profile-official-communities__header h2 {
+  margin: 0.15rem 0 0;
+  font-size: clamp(1rem, 2.8vw, 1.2rem);
+}
+
+.profile-official-communities__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
+
+.profile-official-communities__list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-official-community {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  min-height: 4.5rem;
+  padding: 0.65rem;
+  border-radius: 0.85rem;
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+
+.profile-official-community:hover,
+.profile-official-community:focus-visible {
+  background: rgba(127, 127, 127, 0.11);
+}
+
+.profile-official-community:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.profile-official-community:active {
+  transform: scale(0.995);
+}
+
+.profile-official-community__avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  overflow: hidden;
+  border-radius: 0.8rem;
+  background: rgba(127, 127, 127, 0.16);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.profile-official-community__avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-official-community__body {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.profile-official-community__title-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+}
+
+.profile-official-community__title-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-official-community__verified {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.82;
+}
+
+.profile-official-community__description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  opacity: 0.75;
+}
+
+.profile-official-community__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  font-size: 0.74rem;
+  opacity: 0.7;
+}
+
+.profile-official-community__meta span:first-child {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.profile-official-community__chevron {
+  font-size: 0.78rem;
+  opacity: 0.55;
+}
+
+@media (max-width: 560px) {
+  .profile-official-communities {
+    padding: 0.8rem;
+    border-radius: 0.9rem;
+  }
+
+  .profile-official-communities--state {
+    grid-template-columns: auto 1fr;
+  }
+
+  .profile-official-communities--state button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .profile-official-community {
+    grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+    gap: 0.6rem;
+    padding-inline: 0.4rem;
+  }
+
+  .profile-official-community__avatar {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .profile-official-community__verified span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-official-community {
+    transition: none;
+  }
+}
