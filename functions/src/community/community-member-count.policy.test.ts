@@ -170,7 +170,7 @@ test('normaliza somente capacidades predefinidas', () => {
   assert.equal(normalizeCommunityMemberLimit('100'), null);
 });
 
-test('downgrade pausa crescimento sem reduzir membros existentes', () => {
+test('downgrade pausa crescimento, sinaliza regularização e preserva membros', () => {
   const state = evaluateCommunityCapacity({
     rawCommunity: {
       capacity: { memberLimit: 1_000 },
@@ -186,8 +186,40 @@ test('downgrade pausa crescimento sem reduzir membros existentes', () => {
     memberCount: 430,
     acceptingNewMembers: false,
     restrictedByOwnerPlan: true,
+    regularizationRequired: true,
+    regularizationReason: 'capacity_over_plan',
     atCapacity: true,
   });
+});
+
+test('assinatura inativa pausa novas entradas sem alterar membros existentes', () => {
+  const state = evaluateCommunityCapacity({
+    rawCommunity: {
+      capacity: { memberLimit: 100 },
+      metrics: { memberCount: 40 },
+    },
+    sponsorRole: 'free',
+  });
+
+  assert.equal(state.memberCount, 40);
+  assert.equal(state.effectiveLimit, 0);
+  assert.equal(state.acceptingNewMembers, false);
+  assert.equal(state.regularizationRequired, true);
+  assert.equal(state.regularizationReason, 'owner_subscription_required');
+});
+
+test('comunidade compatível com o plano não exige regularização', () => {
+  const state = evaluateCommunityCapacity({
+    rawCommunity: {
+      capacity: { memberLimit: 100 },
+      metrics: { memberCount: 40 },
+    },
+    sponsorRole: 'basic',
+  });
+
+  assert.equal(state.regularizationRequired, false);
+  assert.equal(state.regularizationReason, null);
+  assert.equal(state.acceptingNewMembers, true);
 });
 
 test('comunidade legada usa capacidade conservadora e falha fechada sem métrica', () => {
@@ -217,6 +249,7 @@ test('Espaço Oficial usa o teto comercial centralizado de mil participantes', (
   assert.equal(state.configuredLimit, 1_000);
   assert.equal(state.effectiveLimit, 1_000);
   assert.equal(state.acceptingNewMembers, true);
+  assert.equal(state.regularizationRequired, false);
 
   const serviceState = evaluateCommunityCapacityForOwner({
     rawCommunity: {
@@ -273,8 +306,10 @@ test('deriva capacidade do entitlement canônico do proprietário', () => {
 
   assert.equal(premium?.effectiveLimit, 250);
   assert.equal(premium?.acceptingNewMembers, true);
+  assert.equal(premium?.regularizationRequired, false);
   assert.equal(expired?.effectiveLimit, 0);
   assert.equal(expired?.acceptingNewMembers, false);
+  assert.equal(expired?.regularizationReason, 'owner_subscription_required');
 });
 
 test('libera Espaço Oficial somente para organização verificada e vigente', () => {
