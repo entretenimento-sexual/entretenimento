@@ -5,14 +5,16 @@ import {
   normalizeProfileOfficialCommunitiesRequest,
 } from './profile-official-communities.model';
 
-test('normaliza perfil e limita a quantidade pública de cards', () => {
+const PROFILE_ID = 'profile-123e4567-e89b-42d3-a456-426614174000';
+
+test('normaliza profileId e limita a quantidade pública de cards', () => {
   assert.deepEqual(
     normalizeProfileOfficialCommunitiesRequest({
-      profileUid: ' user-123 ',
+      profileId: ` ${PROFILE_ID.toUpperCase()} `,
       limit: 99,
     }),
     {
-      profileUid: 'user-123',
+      profileId: PROFILE_ID,
       limit: 12,
     }
   );
@@ -20,18 +22,25 @@ test('normaliza perfil e limita a quantidade pública de cards', () => {
 
 test('usa limite conservador quando não informado', () => {
   assert.deepEqual(
-    normalizeProfileOfficialCommunitiesRequest({ profileUid: 'user-123' }),
+    normalizeProfileOfficialCommunitiesRequest({ profileId: PROFILE_ID }),
     {
-      profileUid: 'user-123',
+      profileId: PROFILE_ID,
       limit: 4,
     }
   );
 });
 
-test('rejeita identificador de documento inseguro', () => {
+test('rejeita UID ou identificador público malformado', () => {
   assert.equal(
     normalizeProfileOfficialCommunitiesRequest({
-      profileUid: 'users/outro',
+      profileId: 'user-123',
+    }),
+    null
+  );
+
+  assert.equal(
+    normalizeProfileOfficialCommunitiesRequest({
+      profileId: 'profile-invalid',
     }),
     null
   );
