@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -66,6 +67,7 @@ describe('CommunitySettingsComponent', () => {
     TestBed.configureTestingModule({
       imports: [CommunitySettingsComponent],
       providers: [
+        provideRouter([]),
         { provide: CommunitySettingsRepository, useValue: repositoryMock },
         { provide: CommunityTagRepository, useValue: tagRepositoryMock },
         { provide: ErrorNotificationService, useValue: notificationsMock },
@@ -74,11 +76,14 @@ describe('CommunitySettingsComponent', () => {
     });
   });
 
-  function createFixture(role: 'owner' | 'admin' = 'owner') {
+  function createFixture(
+    role: 'owner' | 'admin' = 'owner',
+    capacity: CommunityCapacityPreview = CAPACITY
+  ) {
     const fixture = TestBed.createComponent(CommunitySettingsComponent);
     fixture.componentRef.setInput('communityId', 'community-1');
     fixture.componentRef.setInput('settings', SETTINGS);
-    fixture.componentRef.setInput('capacity', CAPACITY);
+    fixture.componentRef.setInput('capacity', capacity);
     fixture.componentRef.setInput('viewerRole', role);
     fixture.detectChanges();
     fixture.detectChanges();
@@ -103,6 +108,33 @@ describe('CommunitySettingsComponent', () => {
     expect(admin.nativeElement.textContent).toContain(
       'Somente o proprietário pode alterar a capacidade.'
     );
+  });
+
+  it('mostra regularização apenas ao proprietário quando o backend restringe capacidade', () => {
+    const restrictedCapacity: CommunityCapacityPreview = {
+      ...CAPACITY,
+      configuredLimit: 250,
+      effectiveLimit: 100,
+      memberCount: 80,
+      restrictedByOwnerPlan: true,
+      memberLimitOptions: CAPACITY_OPTIONS.map((option) => ({
+        ...option,
+        allowed: option.memberLimit <= 100,
+      })),
+    };
+    const owner = createFixture('owner', restrictedCapacity);
+    const admin = createFixture('admin', restrictedCapacity);
+
+    expect(owner.nativeElement.textContent).toContain('Regularização necessária');
+    expect(owner.nativeElement.textContent).toContain(
+      'Nenhum membro existente será removido automaticamente.'
+    );
+    expect(
+      owner.nativeElement.querySelector(
+        '.community-settings__regularization a'
+      )?.getAttribute('href')
+    ).toBe('/subscription-plan');
+    expect(admin.nativeElement.textContent).not.toContain('Regularização necessária');
   });
 
   it('permite aumentar capacidade com opção liberada pelo backend', () => {
