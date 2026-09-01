@@ -1,9 +1,15 @@
 // functions/src/discovery/public-profile-discovery-projection.ts
 // Comparações e projeções puras usadas pelo discovery público.
 import { normalizePublicIdentityMediaUrl } from '../identity/public-media-url.normalizer';
+import { normalizePublicProfileId } from '../identity/public-profile-id';
 import type {
   CanonicalProfileDiscoveryFields,
 } from './profile-discovery-normalization';
+
+export interface PublicProfileIdProjection {
+  /** Identificador social público opaco. Nunca é derivado do Firebase Auth UID. */
+  profileId: string | null;
+}
 
 export interface PublicLocationProjection {
   latitude: number | null;
@@ -60,6 +66,26 @@ export function publicProfileDiscoveryProjectionMatches(
       expected.interestedInOrientations
     )
   );
+}
+
+/**
+ * Projeta somente o identificador público já persistido no documento privado.
+ * A ausência/inconsistência resulta em null: esta camada nunca fabrica profileId
+ * e nunca usa UID como fallback, preservando a separação entre conta e identidade.
+ */
+export function buildPublicProfileIdProjection(
+  user: Record<string, unknown>
+): PublicProfileIdProjection {
+  return {
+    profileId: normalizePublicProfileId(user['profileId']),
+  };
+}
+
+export function publicProfileIdProjectionMatches(
+  current: Record<string, unknown>,
+  expected: PublicProfileIdProjection
+): boolean {
+  return (current['profileId'] ?? null) === expected.profileId;
 }
 
 /**
