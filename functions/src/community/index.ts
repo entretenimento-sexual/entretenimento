@@ -6,6 +6,9 @@ export {
 export { createVenueCommunity } from './create-venue-community.handler';
 export { getCommunityTagCatalog } from './get-community-tag-catalog.handler';
 export { getCommunityDiscoveryPage } from './get-community-discovery-page.handler';
+export {
+  getProfileOfficialCommunities,
+} from './get-profile-official-communities.handler';
 export { getCommunityFeedPage } from './get-community-feed-page.handler';
 export { getCommunityFeedItems } from './get-community-feed-items.handler';
 export { createCommunityFeedPost } from './community-feed-write.handler';
