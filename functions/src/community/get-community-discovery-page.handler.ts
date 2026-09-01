@@ -107,8 +107,8 @@ export const getCommunityDiscoveryPage =
 
       if (cursor && cursor.mode !== rankingMode.effectiveMode) {
         throw new HttpsError(
-          'failed-precondition',
-          'A ordem da descoberta foi atualizada. Atualize a lista para continuar.'
+          'aborted',
+          'A ordem da descoberta foi atualizada. Reinicie a paginação.'
         );
       }
 
