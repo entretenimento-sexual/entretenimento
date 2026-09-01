@@ -3,6 +3,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { auth, db, FieldValue } from '../firebaseApp';
+import {
+  generatePublicProfileId,
+  normalizePublicProfileId,
+} from '../identity/public-profile-id';
 import { buildInitialUserSeed } from './user-registration-seed';
 
 export interface RecoverRegistrationSeedResponse {
@@ -13,10 +17,12 @@ export interface RecoverRegistrationSeedResponse {
 }
 
 /**
- * Recupera users/{uid} apenas quando o documento realmente não existe.
+ * Recupera users/{uid} quando o documento não existe e corrige somente a
+ * identidade pública canônica quando uma conta antiga ainda não possui
+ * `profileId` válido.
  *
- * A operação é idempotente e não aceita payload do cliente. Todos os dados do
- * seed são derivados do Firebase Auth e de defaults seguros do backend.
+ * A operação é idempotente e não aceita payload do cliente. Todos os dados são
+ * derivados do Firebase Auth e de defaults seguros do backend.
  */
 export const recoverRegistrationSeed = onCall(
   { region: FUNCTIONS_REGION },
@@ -52,6 +58,20 @@ export const recoverRegistrationSeed = onCall(
       const existing = await transaction.get(userRef);
 
       if (existing.exists) {
+        if (!normalizePublicProfileId(existing.data()?.['profileId'])) {
+          transaction.update(userRef, {
+            profileId: generatePublicProfileId(),
+          });
+
+          transaction.create(auditRef, {
+            uid,
+            type: 'registration.public_profile_id_recovered',
+            source: 'callable',
+            createdAt: FieldValue.serverTimestamp(),
+            createdAtMs: recoveredAtMs,
+          });
+        }
+
         return false;
       }
 
