@@ -44,6 +44,7 @@ function preview(): CommunityPreviewResponse {
       memberCount: 12,
       acceptingNewMembers: true,
       restrictedByOwnerPlan: false,
+      memberLimitOptions: [],
       allowedMemberLimits: [],
     },
     settings: null,
