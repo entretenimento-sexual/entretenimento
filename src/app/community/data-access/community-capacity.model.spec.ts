@@ -54,21 +54,69 @@ describe('community capacity normalization', () => {
     expect(normalizeCommunityMemberLimit(0)).toBeNull();
   });
 
-  it('deriva o bloqueio de entrada da contagem e do limite efetivo', () => {
+  it('não confunde teto efetivo atual com capacidades liberadas pelo plano', () => {
     expect(normalizeCommunityCapacityPreview({
-      configuredLimit: 250,
+      configuredLimit: 25,
       effectiveLimit: 25,
-      memberCount: 25,
+      memberCount: 20,
       acceptingNewMembers: true,
       restrictedByOwnerPlan: false,
-      allowedMemberLimits: [25, 25, 90],
+      memberLimitOptions: PREMIUM_OPTIONS,
+      allowedMemberLimits: [25],
+    })).toEqual({
+      configuredLimit: 25,
+      effectiveLimit: 25,
+      memberCount: 20,
+      acceptingNewMembers: true,
+      restrictedByOwnerPlan: false,
+      memberLimitOptions: PREMIUM_OPTIONS,
+      allowedMemberLimits: [25, 50, 100, 250],
+    });
+  });
+
+  it('deriva bloqueio de entrada e restrição pelo estado efetivo', () => {
+    const basicOptions = PREMIUM_OPTIONS.map((option) => ({
+      ...option,
+      allowed: option.memberLimit <= 100,
+    }));
+
+    expect(normalizeCommunityCapacityPreview({
+      configuredLimit: 250,
+      effectiveLimit: 100,
+      memberCount: 100,
+      acceptingNewMembers: true,
+      restrictedByOwnerPlan: false,
+      memberLimitOptions: basicOptions,
     })).toEqual({
       configuredLimit: 250,
-      effectiveLimit: 25,
-      memberCount: 25,
+      effectiveLimit: 100,
+      memberCount: 100,
       acceptingNewMembers: false,
       restrictedByOwnerPlan: true,
-      allowedMemberLimits: [25],
+      memberLimitOptions: basicOptions,
+      allowedMemberLimits: [25, 50, 100],
+    });
+  });
+
+  it('preserva leitura transitória do contrato legado sem inferir plano', () => {
+    expect(normalizeCommunityCapacityPreview({
+      configuredLimit: 100,
+      effectiveLimit: 100,
+      memberCount: 20,
+      acceptingNewMembers: true,
+      allowedMemberLimits: [25, 50, 100],
+    }))?.toEqual({
+      configuredLimit: 100,
+      effectiveLimit: 100,
+      memberCount: 20,
+      acceptingNewMembers: true,
+      restrictedByOwnerPlan: false,
+      memberLimitOptions: [
+        { memberLimit: 25, requirement: 'special_access', allowed: true },
+        { memberLimit: 50, requirement: 'special_access', allowed: true },
+        { memberLimit: 100, requirement: 'special_access', allowed: true },
+      ],
+      allowedMemberLimits: [25, 50, 100],
     });
   });
 
@@ -92,6 +140,10 @@ describe('community capacity normalization', () => {
       memberCount: 40,
       acceptingNewMembers: true,
       restrictedByOwnerPlan: true,
+      memberLimitOptions: PREMIUM_OPTIONS.map((option) => ({
+        ...option,
+        allowed: false,
+      })),
       allowedMemberLimits: [],
     })?.acceptingNewMembers).toBe(false);
   });
