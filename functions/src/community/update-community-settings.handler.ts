@@ -40,6 +40,7 @@ import {
   evaluateCommunitySettingsUpdate,
 } from './community-settings.policy';
 import type { CommunityViewerRole } from './community-preview.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 function assertPreviewRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
@@ -153,6 +154,11 @@ export const updateCommunitySettings = onCall<UpdateCommunitySettingsRequest>(
         'Revise as configurações obrigatórias da Comunidade.'
       );
     }
+
+    await consumeCommunityRateLimit({
+      action: 'settings_update',
+      actorUid,
+    });
 
     const nextSettings = commandSettings(command);
 
