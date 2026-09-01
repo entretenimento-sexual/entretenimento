@@ -56,7 +56,9 @@ export class CommunityCreateRepository {
 
         return normalized;
       }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer())
+      tap(() => this.discoveryCache.invalidateCurrentViewer({
+        sourceType: 'community',
+      }))
     );
   }
 }
