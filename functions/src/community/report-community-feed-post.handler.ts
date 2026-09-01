@@ -12,7 +12,6 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { assertInteractionAccess } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
-import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -24,12 +23,8 @@ import {
   normalizeCommunityFeedReportRequest,
 } from './community-feed-report.model';
 import { sanitizeCommunityFeedProjection } from './community-feed.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { getCommunityViewerContext } from './community-viewer-access.service';
-
-const REPORT_BURST_WINDOW_MS = 60 * 1_000;
-const REPORT_BURST_MAX = 12;
-const REPORT_SUSTAINED_WINDOW_MS = 10 * 60 * 1_000;
-const REPORT_SUSTAINED_MAX = 48;
 
 function assertFeedRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
@@ -76,17 +71,9 @@ export const reportCommunityFeedPost = onCall<CommunityFeedReportRequest>(
       throw new HttpsError('invalid-argument', 'Denúncia de publicação inválida.');
     }
 
-    await consumeBackendRateLimitQuota({
-      action: 'reportCommunityFeedPost',
-      subject: reporterUid,
-      cost: 1,
-      config: {
-        burstWindowMs: REPORT_BURST_WINDOW_MS,
-        burstMax: REPORT_BURST_MAX,
-        sustainedWindowMs: REPORT_SUSTAINED_WINDOW_MS,
-        sustainedMax: REPORT_SUSTAINED_MAX,
-      },
-      message: 'Muitas denúncias foram enviadas em pouco tempo.',
+    await consumeCommunityRateLimit({
+      action: 'feed_report_post',
+      actorUid: reporterUid,
     });
     await assertInteractionAccess(reporterUid);
 
