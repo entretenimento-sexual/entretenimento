@@ -132,6 +132,7 @@ export interface NormalizedCommunityDiscoveryPageRequest {
 const DEFAULT_PAGE_LIMIT = 12;
 const MAX_PAGE_LIMIT = 24;
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const SAFE_DISCOVERY_CURSOR_PATTERN = /^[A-Za-z0-9:_-]{1,192}$/;
 
 function normalizeText(value: unknown, maxLength: number): string {
   return String(value ?? '')
@@ -160,6 +161,11 @@ function normalizeMultilineText(value: unknown, maxLength: number): string {
 function normalizeSafeId(value: unknown): string | null {
   const normalized = normalizeText(value, 128);
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
+function normalizeDiscoveryCursor(value: unknown): string | null {
+  const normalized = normalizeText(value, 192);
+  return SAFE_DISCOVERY_CURSOR_PATTERN.test(normalized) ? normalized : null;
 }
 
 function normalizeTagId(value: unknown): string | null {
@@ -305,7 +311,7 @@ export function normalizeCommunityDiscoveryPageRequest(
 
   return {
     limit,
-    cursor: normalizeSafeId(raw?.cursor),
+    cursor: normalizeDiscoveryCursor(raw?.cursor),
     sourceType: normalizeSourceType(raw?.sourceType),
     tagId: normalizeTagId(raw?.tagId),
   };
