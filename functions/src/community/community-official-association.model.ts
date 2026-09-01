@@ -90,6 +90,13 @@ function normalizeTargetType(
     : null;
 }
 
+function normalizePublicTarget(raw: unknown): CommunityOfficialTarget | null {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const type = normalizeTargetType(source['type']);
+  const id = normalizeSafeId(source['id']);
+  return type && id ? { type, id } : null;
+}
+
 export function buildCommunityOfficialAssociationKey(
   target: Readonly<CommunityOfficialTarget>
 ): string | null {
@@ -151,6 +158,21 @@ export function buildVerifiedVenueOfficialAssociation(input: {
   });
 }
 
+/** Normaliza somente a projeção já sanitizada destinada a UI/Discovery. */
+export function normalizeCommunityOfficialAssociationPublicProjection(
+  raw: unknown
+): CommunityOfficialAssociationPublicProjection | null {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const target = normalizePublicTarget(source['target']);
+
+  if (!target || source['verified'] !== true) return null;
+
+  return {
+    target,
+    verified: true,
+  };
+}
+
 /**
  * Converte o registro privado em projeção segura para UI/Discovery.
  * Qualquer inconsistência ou estado não verificado resulta em ausência de selo.
@@ -161,19 +183,17 @@ export function sanitizeCommunityOfficialAssociationPublicProjection(
   const source = (raw ?? {}) as Record<string, unknown>;
   if (source['status'] !== 'verified') return null;
 
-  const rawTarget = (source['target'] ?? {}) as Record<string, unknown>;
-  const type = normalizeTargetType(rawTarget['type']);
-  const id = normalizeSafeId(rawTarget['id']);
+  const target = normalizePublicTarget(source['target']);
   const communityId = normalizeSafeId(source['communityId']);
   const associationKey = normalizeSafeId(source['associationKey']);
 
-  if (!type || !id || !communityId || !associationKey) return null;
+  if (!target || !communityId || !associationKey) return null;
 
-  const expectedKey = buildCommunityOfficialAssociationKey({ type, id });
+  const expectedKey = buildCommunityOfficialAssociationKey(target);
   if (expectedKey !== associationKey) return null;
 
   return {
-    target: { type, id },
+    target,
     verified: true,
   };
 }
