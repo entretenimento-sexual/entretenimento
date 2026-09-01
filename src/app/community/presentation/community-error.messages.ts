@@ -61,6 +61,8 @@ export const COMMUNITY_MEMBERSHIP_ACTION_REASON_MESSAGES: CommunityErrorMessageM
       'Sua conta não pode participar desta Comunidade neste momento.',
     community_unavailable:
       'Esta Comunidade não aceita novas entradas agora.',
+    community_runtime_unavailable:
+      'As ações da Comunidade estão temporariamente indisponíveis. Tente novamente.',
     membership_not_found:
       'Você não possui participação ativa ou pendente nesta Comunidade.',
   });
@@ -80,6 +82,10 @@ export const COMMUNITY_MEMBERSHIP_ACTION_CODE_MESSAGES: CommunityErrorMessageMap
 export const COMMUNITY_INVITE_INBOX_REASON_MESSAGES: CommunityErrorMessageMap =
   Object.freeze({
     invite_expired: 'Este convite expirou.',
+    invalid_invite_identity:
+      'Não foi possível validar este convite.',
+    invalid_invite_id:
+      'Este convite não é válido ou não está mais disponível.',
     membership_blocked: 'Você não pode participar desta Comunidade.',
     community_unavailable:
       'Esta Comunidade não está disponível para entrada agora.',
@@ -118,6 +124,10 @@ export const COMMUNITY_INVITE_MANAGEMENT_REASON_MESSAGES: CommunityErrorMessageM
       'Este convite não está mais pendente.',
     invite_contract_invalid:
       'Este convite não pôde ser validado com segurança.',
+    invalid_invite_identity:
+      'Não foi possível validar este convite.',
+    invalid_invite_id:
+      'Este convite não é válido ou não está mais disponível.',
     invalid_invite_candidate_query:
       'Revise o apelido informado e tente novamente.',
     invalid_community_id:
@@ -286,6 +296,8 @@ export const COMMUNITY_TOPIC_MODERATION_REASON_MESSAGES: CommunityErrorMessageMa
   Object.freeze({
     community_topic_moderation_unavailable:
       'A moderação de Discussões não está disponível neste momento.',
+    invalid_topic_moderation_action:
+      'Esta ação de moderação da discussão não é válida.',
     topic_moderation_forbidden:
       'Sua função atual não permite moderar esta discussão.',
     removal_reason_required:
@@ -334,6 +346,14 @@ export const COMMUNITY_MEMBER_MANAGEMENT_REASON_MESSAGES: CommunityErrorMessageM
       'Por segurança, saia e entre novamente antes de confirmar esta ação administrativa.',
     community_source_not_supported:
       'Esta ação não está disponível para este tipo de espaço.',
+    community_management_unavailable:
+      'A gestão de participantes está temporariamente indisponível.',
+    invalid_management_query:
+      'Não foi possível carregar os participantes com este filtro.',
+    invalid_member_management_action:
+      'Esta ação de gestão não é válida.',
+    invalid_community_role:
+      'O papel selecionado não é válido para esta Comunidade.',
     manager_required:
       'Sua função não permite gerenciar participantes desta Comunidade.',
     self_action_forbidden:
@@ -566,14 +586,20 @@ export const COMMUNITY_FEED_CONVERSATION_REASON_MESSAGES: CommunityErrorMessageM
       'Esta publicação não aceita novas mensagens agora.',
     invalid_conversation_message:
       'Revise a mensagem e tente novamente.',
+    invalid_conversation_reply:
+      'Não foi possível publicar esta resposta. Atualize a conversa e tente novamente.',
     request_id_conflict:
       'Esta tentativa não pôde ser confirmada com segurança. Tente novamente.',
     community_not_found:
       'Esta Comunidade não está mais disponível.',
     community_feed_post_not_found:
       'Esta publicação não está mais disponível.',
+    community_feed_reply_not_found:
+      'Esta resposta não está mais disponível.',
     conversation_message_already_exists:
       'Esta mensagem já foi confirmada.',
+    conversation_reply_already_exists:
+      'Esta resposta já foi publicada.',
     referenced_message_unavailable:
       'A mensagem original não está disponível para resposta.',
     comment_author_required:
