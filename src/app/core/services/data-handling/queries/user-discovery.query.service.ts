@@ -362,6 +362,7 @@ export class UserDiscoveryQueryService {
 
     return {
       uid,
+      profileId: this.firstText(raw, ['profileId']),
       nickname,
       nicknameNormalized:
         this.firstText(raw, ['nicknameNormalized']) ??
