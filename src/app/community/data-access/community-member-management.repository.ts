@@ -68,10 +68,12 @@ export class CommunityMemberManagementRepository {
     action: CommunityMemberManagementAction,
     nextRole: CommunityAssignableMemberRole | null = null
   ): Observable<CommunityManageMemberResponse> {
+    const normalizedCommunityId = communityId.trim();
+
     return defer(() =>
       from(
         this.manageMemberCallable({
-          communityId: communityId.trim(),
+          communityId: normalizedCommunityId,
           memberId: memberId.trim(),
           action,
           nextRole,
@@ -87,7 +89,10 @@ export class CommunityMemberManagementRepository {
       }),
       tap(() => {
         if (action === 'remove' || action === 'block') {
-          this.discoveryCache.invalidateCurrentViewer();
+          this.discoveryCache.invalidateCurrentViewer({
+            sourceType: 'community',
+            communityId: normalizedCommunityId,
+          });
         }
       })
     );
