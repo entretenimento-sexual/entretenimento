@@ -9,7 +9,10 @@ import { CommunityMembershipRepository } from '../data-access/community-membersh
 import { CommunityPreviewViewerRole } from '../data-access/community-preview.model';
 import { CommunitySettingsRepository } from '../data-access/community-settings.repository';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
-import { CommunityMembershipManagementComponent } from './community-membership-management.component';
+import {
+  CommunityManagementPanel,
+  CommunityMembershipManagementComponent,
+} from './community-membership-management.component';
 
 describe('CommunityMembershipManagementComponent', () => {
   const repositoryMock = {
@@ -86,20 +89,49 @@ describe('CommunityMembershipManagementComponent', () => {
     return fixture;
   }
 
-  it('mostra estado vazio de Comunidade sem expor uma lista falsa', () => {
-    const fixture = createFixture();
+  function selectPanel(
+    fixture: ReturnType<typeof createFixture>,
+    panel: CommunityManagementPanel
+  ): void {
+    fixture.componentInstance.selectPanel(panel);
+    fixture.detectChanges();
+    fixture.detectChanges();
+  }
 
-    expect(repositoryMock.getMembershipRequests$).toHaveBeenCalledWith(
-      'community-1'
+  function seedPendingRequest(): void {
+    repositoryMock.getMembershipRequests$.mockReturnValue(
+      of({
+        items: [
+          {
+            memberId: 'member-1',
+            label: 'Pessoa Um',
+            avatarUrl: null,
+            requestedAt: 100,
+          },
+        ],
+        generatedAt: 200,
+      })
     );
-    expect(fixture.nativeElement.textContent).toContain(
-      'Nenhuma solicitação de entrada pendente.'
-    );
-    expect(fixture.nativeElement.querySelector('ul')).toBeNull();
+  }
+
+  it('abre em visão geral sem empilhar as ferramentas pesadas de gestão', () => {
+    const fixture = createFixture('community', 'moderator');
+
+    expect(fixture.componentInstance.activePanel()).toBe('overview');
+    expect(fixture.nativeElement.textContent).toContain('Gestão da Comunidade');
+    expect(fixture.nativeElement.textContent).toContain('Nenhuma solicitação pendente.');
+    expect(
+      fixture.nativeElement.querySelector('app-community-member-roster-management')
+    ).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('app-community-settings')
+    ).toBeNull();
+    expect(memberManagementRepositoryMock.getManagedMembersPage$).not.toHaveBeenCalled();
   });
 
   it('usa solicitações de acesso no contexto de Local', () => {
     const fixture = createFixture('venue');
+    selectPanel(fixture, 'requests');
 
     expect(fixture.nativeElement.textContent).toContain(
       'Solicitações de acesso'
@@ -109,8 +141,11 @@ describe('CommunityMembershipManagementComponent', () => {
     );
   });
 
-  it('compõe Participantes para gestão de Comunidade por moderador', () => {
+  it('carrega Participantes somente quando o moderador abre a área', () => {
     const fixture = createFixture('community', 'moderator');
+
+    expect(memberManagementRepositoryMock.getManagedMembersPage$).not.toHaveBeenCalled();
+    selectPanel(fixture, 'members');
 
     expect(
       fixture.nativeElement.querySelector('app-community-member-roster-management')
@@ -125,14 +160,16 @@ describe('CommunityMembershipManagementComponent', () => {
 
   it('não mistura gestão de papéis de Comunidade com Local', () => {
     const fixture = createFixture('venue', 'moderator');
+    selectPanel(fixture, 'members');
 
+    expect(fixture.componentInstance.activePanel()).toBe('overview');
     expect(
       fixture.nativeElement.querySelector('app-community-member-roster-management')
     ).toBeNull();
     expect(memberManagementRepositoryMock.getManagedMembersPage$).not.toHaveBeenCalled();
   });
 
-  it('compõe configurações somente quando o backend concede a capability', () => {
+  it('carrega configurações somente após capability e seleção explícita', () => {
     const fixture = createFixture('community', 'admin');
     fixture.componentRef.setInput('canManageCommunitySettings', true);
     fixture.componentRef.setInput('settings', {
@@ -148,26 +185,37 @@ describe('CommunityMembershipManagementComponent', () => {
 
     expect(
       fixture.nativeElement.querySelector('app-community-settings')
+    ).toBeNull();
+
+    selectPanel(fixture, 'settings');
+
+    expect(
+      fixture.nativeElement.querySelector('app-community-settings')
     ).not.toBeNull();
     expect(fixture.nativeElement.textContent).toContain('Dados e acesso');
   });
 
+  it('expõe atalhos de convite e moderação sem duplicar os fluxos', () => {
+    const fixture = createFixture('community', 'admin');
+    const inviteRequested = vi.fn();
+    const feedRequested = vi.fn();
+    fixture.componentRef.setInput('canInviteCommunityMembers', true);
+    fixture.componentInstance.inviteRequested.subscribe(inviteRequested);
+    fixture.componentInstance.feedRequested.subscribe(feedRequested);
+    fixture.detectChanges();
+
+    fixture.componentInstance.openInvites();
+    fixture.componentInstance.openModeration();
+
+    expect(inviteRequested).toHaveBeenCalledTimes(1);
+    expect(feedRequested).toHaveBeenCalledTimes(1);
+  });
+
   it('aprova pela callable, informa sucesso e atualiza a fila', () => {
-    repositoryMock.getMembershipRequests$.mockReturnValue(
-      of({
-        items: [
-          {
-            memberId: 'member-1',
-            label: 'Pessoa Um',
-            avatarUrl: null,
-            requestedAt: 100,
-          },
-        ],
-        generatedAt: 200,
-      })
-    );
+    seedPendingRequest();
 
     const fixture = createFixture();
+    selectPanel(fixture, 'requests');
     const action = fixture.nativeElement.querySelector(
       '.community-membership-management__actions .is-approve'
     ) as HTMLButtonElement;
@@ -188,21 +236,10 @@ describe('CommunityMembershipManagementComponent', () => {
   });
 
   it('aprova acesso de Local sem chamar a pessoa de membro de Comunidade', () => {
-    repositoryMock.getMembershipRequests$.mockReturnValue(
-      of({
-        items: [
-          {
-            memberId: 'member-1',
-            label: 'Pessoa Um',
-            avatarUrl: null,
-            requestedAt: 100,
-          },
-        ],
-        generatedAt: 200,
-      })
-    );
+    seedPendingRequest();
 
     const fixture = createFixture('venue');
+    selectPanel(fixture, 'requests');
     const action = fixture.nativeElement.querySelector(
       '.community-membership-management__actions .is-approve'
     ) as HTMLButtonElement;
@@ -215,21 +252,10 @@ describe('CommunityMembershipManagementComponent', () => {
   });
 
   it('recusa sem alterar a nomenclatura pública do repositório', () => {
-    repositoryMock.getMembershipRequests$.mockReturnValue(
-      of({
-        items: [
-          {
-            memberId: 'member-1',
-            label: 'Pessoa Um',
-            avatarUrl: null,
-            requestedAt: 100,
-          },
-        ],
-        generatedAt: 200,
-      })
-    );
+    seedPendingRequest();
 
     const fixture = createFixture();
+    selectPanel(fixture, 'requests');
     const action = fixture.nativeElement.querySelector(
       '.community-membership-management__actions .is-reject'
     ) as HTMLButtonElement;
@@ -256,25 +282,18 @@ describe('CommunityMembershipManagementComponent', () => {
 
     const fixture = createFixture();
 
-    expect(fixture.nativeElement.textContent).toContain('Fila indisponível.');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Fila temporariamente indisponível.'
+    );
     expect(errorNotifierMock.showError).not.toHaveBeenCalled();
     expect(handleError).toHaveBeenCalledTimes(1);
+
+    selectPanel(fixture, 'requests');
+    expect(fixture.nativeElement.textContent).toContain('Fila indisponível.');
   });
 
   it('traduz request_not_pending sem expor mensagem técnica do backend', () => {
-    repositoryMock.getMembershipRequests$.mockReturnValue(
-      of({
-        items: [
-          {
-            memberId: 'member-1',
-            label: 'Pessoa Um',
-            avatarUrl: null,
-            requestedAt: 100,
-          },
-        ],
-        generatedAt: 200,
-      })
-    );
+    seedPendingRequest();
     repositoryMock.reviewMembership$.mockReturnValue(
       throwError(() => ({
         code: 'functions/failed-precondition',
@@ -284,6 +303,7 @@ describe('CommunityMembershipManagementComponent', () => {
     );
 
     const fixture = createFixture();
+    selectPanel(fixture, 'requests');
     const action = fixture.nativeElement.querySelector(
       '.community-membership-management__actions .is-approve'
     ) as HTMLButtonElement;
@@ -295,6 +315,32 @@ describe('CommunityMembershipManagementComponent', () => {
     );
     expect(errorNotifierMock.showError.mock.calls[0]?.[0]).not.toContain(
       'internal state detail'
+    );
+    expect(handleError).toHaveBeenCalledTimes(1);
+  });
+
+  it('usa mensagem contextual quando a revisão é limitada por antiabuso', () => {
+    seedPendingRequest();
+    repositoryMock.reviewMembership$.mockReturnValue(
+      throwError(() => ({
+        code: 'functions/resource-exhausted',
+        details: {
+          reason: 'community_management_rate_limited',
+          recommendedAction: 'retry_later',
+        },
+      }))
+    );
+
+    const fixture = createFixture();
+    selectPanel(fixture, 'requests');
+    const action = fixture.nativeElement.querySelector(
+      '.community-membership-management__actions .is-approve'
+    ) as HTMLButtonElement;
+    action.click();
+    fixture.detectChanges();
+
+    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
+      'Muitas ações de gestão foram executadas em pouco tempo. Aguarde e tente novamente.'
     );
     expect(handleError).toHaveBeenCalledTimes(1);
   });
