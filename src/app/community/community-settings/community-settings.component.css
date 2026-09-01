@@ -118,6 +118,70 @@
   color: var(--warning-color, #9a5a00);
 }
 
+.community-settings__regularization {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: start;
+  padding: 0.8rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--warning-color, #9a5a00) 48%,
+    var(--surface-border, #d5d5d5)
+  );
+  border-radius: 0.85rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #fff) 92%,
+    var(--warning-color, #9a5a00) 8%
+  );
+}
+
+.community-settings__regularization > i {
+  margin-top: 0.12rem;
+  color: var(--warning-color, #9a5a00);
+}
+
+.community-settings__regularization > div,
+.community-settings__regularization-actions {
+  min-width: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.community-settings__regularization strong,
+.community-settings__regularization p,
+.community-settings__regularization-actions span {
+  margin: 0;
+}
+
+.community-settings__regularization strong {
+  font-size: 0.82rem;
+}
+
+.community-settings__regularization p,
+.community-settings__regularization-actions span {
+  color: var(--text-secondary-color, #666);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.community-settings__regularization-actions a {
+  width: fit-content;
+  min-height: var(--tap-target, 2.75rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--warning-color, #9a5a00);
+  border-radius: 999px;
+  color: var(--text-color, #222);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .community-settings__capacity > div {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -254,7 +318,8 @@
 .community-settings input:focus-visible,
 .community-settings textarea:focus-visible,
 .community-settings select:focus-visible,
-.community-settings button:focus-visible {
+.community-settings button:focus-visible,
+.community-settings a:focus-visible {
   outline: 3px solid color-mix(
     in oklab,
     var(--primary-color, #d83768) 34%,
@@ -287,6 +352,18 @@
   .community-settings__capacity > div {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .community-settings__regularization {
+    grid-template-columns: 1fr;
+  }
+
+  .community-settings__regularization > i {
+    display: none;
+  }
+
+  .community-settings__regularization-actions a {
+    width: 100%;
+  }
 }
 
 :host-context(.high-contrast) .community-settings,
@@ -294,8 +371,10 @@
 :host-context(.high-contrast) .community-settings textarea,
 :host-context(.high-contrast) .community-settings select,
 :host-context(.high-contrast) .community-settings button,
+:host-context(.high-contrast) .community-settings a,
 :host-context(.high-contrast) .community-settings__choices > label,
 :host-context(.high-contrast) .community-settings__capacity button,
+:host-context(.high-contrast) .community-settings__regularization,
 :host-context(.high-contrast) .community-settings__switch {
   border-color: currentColor;
   border-width: 2px;
