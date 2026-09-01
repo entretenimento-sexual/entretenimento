@@ -32,7 +32,21 @@ export class CommunitySettingsRepository {
 
         return normalized;
       }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer())
+      tap((result) => {
+        if (!result.updated) return;
+
+        if (result.changedFields.includes('tagIds')) {
+          this.discoveryCache.invalidateCurrentViewer({
+            sourceType: 'community',
+          });
+          return;
+        }
+
+        this.discoveryCache.invalidateCurrentViewer({
+          sourceType: 'community',
+          communityId: result.communityId,
+        });
+      })
     );
   }
 }
