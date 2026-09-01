@@ -2,151 +2,375 @@
 @if (state$ | async; as state) {
   @if (action$ | async; as action) {
     <section
-      class="community-membership-management"
-      aria-labelledby="community-membership-management-title"
+      class="community-management-hub"
+      aria-labelledby="community-management-hub-title"
     >
-      <header class="community-membership-management__header">
-        <div>
-          <h2 id="community-membership-management-title">{{ managementTitle() }}</h2>
-          @if (state.status === 'ready') {
-            <span aria-live="polite">{{ state.items.length }}</span>
-          }
+      <header class="community-management-hub__header">
+        <div class="community-management-hub__heading">
+          <span class="community-management-hub__eyebrow">
+            <i class="fas fa-shield-halved" aria-hidden="true"></i>
+            {{ viewerRoleLabel() }}
+          </span>
+          <h2 id="community-management-hub-title">{{ managementHubTitle() }}</h2>
+          <p>{{ managementHubDescription() }}</p>
         </div>
+      </header>
+
+      <nav
+        class="community-management-hub__nav"
+        [attr.aria-label]="'Áreas de ' + managementHubTitle().toLowerCase()"
+      >
+        <button
+          type="button"
+          [class.is-active]="activePanel() === 'overview'"
+          [attr.aria-pressed]="activePanel() === 'overview'"
+          (click)="selectPanel('overview')"
+        >
+          <i class="fas fa-grid-2" aria-hidden="true"></i>
+          <span>Visão geral</span>
+        </button>
 
         <button
           type="button"
-          class="community-membership-management__refresh"
-          [disabled]="state.status === 'loading' || action.status === 'loading'"
-          [attr.aria-label]="'Atualizar ' + managementTitle().toLowerCase()"
-          (click)="refresh()"
+          [class.is-active]="activePanel() === 'requests'"
+          [attr.aria-pressed]="activePanel() === 'requests'"
+          (click)="selectPanel('requests')"
         >
-          <i
-            class="fas {{ state.status === 'loading' ? 'fa-spinner fa-spin' : 'fa-rotate' }}"
-            aria-hidden="true"
-          ></i>
+          <i class="fas fa-user-clock" aria-hidden="true"></i>
+          <span>Solicitações</span>
+          @if (state.status === 'ready' && state.items.length > 0) {
+            <span class="community-management-hub__badge" aria-label="Solicitações pendentes">
+              {{ state.items.length }}
+            </span>
+          }
         </button>
-      </header>
 
-      @if (sourceType() === 'community' && capacity()?.acceptingNewMembers === false) {
-        <div class="community-membership-management__state" role="status">
-          <i class="fas fa-users-slash" aria-hidden="true"></i>
-          <span>
-            Novas entradas estão pausadas pela capacidade atual. As solicitações
-            podem ser recusadas ou permanecer pendentes.
-          </span>
-        </div>
-      }
+        @if (canManageMembersPanel()) {
+          <button
+            type="button"
+            [class.is-active]="activePanel() === 'members'"
+            [attr.aria-pressed]="activePanel() === 'members'"
+            (click)="selectPanel('members')"
+          >
+            <i class="fas fa-users" aria-hidden="true"></i>
+            <span>Participantes</span>
+          </button>
+        }
 
-      @if (state.status === 'loading') {
-        <div class="community-membership-management__state" role="status" aria-live="polite">
-          <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-          <span>Carregando solicitações...</span>
-        </div>
-      } @else if (state.status === 'error') {
-        <div class="community-membership-management__state" role="alert">
-          <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
-          <span>Fila indisponível.</span>
-        </div>
-      } @else if (state.items.length === 0) {
-        <div class="community-membership-management__state" role="status">
-          <i class="fas fa-circle-check" aria-hidden="true"></i>
-          <span>{{ emptyMessage() }}</span>
-        </div>
-      } @else {
-        <ul class="community-membership-management__list">
-          @for (request of state.items; track request.memberId) {
-            <li>
-              <span class="community-membership-management__avatar" aria-hidden="true">
-                @if (request.avatarUrl) {
-                  <img [src]="request.avatarUrl" alt="" />
-                } @else {
-                  <i class="fas fa-user" aria-hidden="true"></i>
-                }
-              </span>
+        @if (canManageSettingsPanel()) {
+          <button
+            type="button"
+            [class.is-active]="activePanel() === 'settings'"
+            [attr.aria-pressed]="activePanel() === 'settings'"
+            (click)="selectPanel('settings')"
+          >
+            <i class="fas fa-sliders" aria-hidden="true"></i>
+            <span>Configurações</span>
+          </button>
+        }
 
-              <div class="community-membership-management__copy">
-                <strong>{{ request.label }}</strong>
+        @if (canManageOwnershipPanel()) {
+          <button
+            type="button"
+            [class.is-active]="activePanel() === 'ownership'"
+            [attr.aria-pressed]="activePanel() === 'ownership'"
+            (click)="selectPanel('ownership')"
+          >
+            <i class="fas fa-key" aria-hidden="true"></i>
+            <span>Propriedade</span>
+          </button>
+        }
+      </nav>
+
+      @if (activePanel() === 'overview') {
+        <section
+          class="community-management-hub__overview"
+          aria-label="Resumo da gestão"
+        >
+          @if (
+            sourceType() === 'community'
+            && capacity()
+            && (
+              capacity()?.restrictedByOwnerPlan
+              || capacity()?.acceptingNewMembers === false
+            )
+          ) {
+            <div class="community-management-hub__capacity-alert" role="status">
+              <i class="fas fa-users-slash" aria-hidden="true"></i>
+              <div>
+                <strong>{{ capacityStatusLabel() }}</strong>
                 <span>
-                  Enviada em {{ request.requestedAt | date: 'short' }}
+                  {{ capacityLabel() }}.
+                  @if (capacity()?.restrictedByOwnerPlan) {
+                    Os integrantes atuais são preservados e novas entradas ficam
+                    pausadas até a regularização do limite.
+                  } @else {
+                    Libere espaço ou ajuste a capacidade antes de aprovar novas entradas.
+                  }
                 </span>
               </div>
-
-              <div class="community-membership-management__actions">
-                <button
-                  type="button"
-                  class="is-approve"
-                  [disabled]="action.status === 'loading' || capacity()?.acceptingNewMembers === false"
-                  [attr.aria-label]="'Aprovar solicitação de ' + request.label"
-                  (click)="review(request, 'approve')"
-                >
-                  @if (
-                    action.status === 'loading'
-                    && action.memberId === request.memberId
-                    && action.action === 'approve'
-                  ) {
-                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                  } @else {
-                    <i class="fas fa-check" aria-hidden="true"></i>
-                  }
-                  <span>Aprovar</span>
-                </button>
-
-                <button
-                  type="button"
-                  class="is-reject"
-                  [disabled]="action.status === 'loading'"
-                  [attr.aria-label]="'Recusar solicitação de ' + request.label"
-                  (click)="review(request, 'reject')"
-                >
-                  @if (
-                    action.status === 'loading'
-                    && action.memberId === request.memberId
-                    && action.action === 'reject'
-                  ) {
-                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-                  } @else {
-                    <i class="fas fa-xmark" aria-hidden="true"></i>
-                  }
-                  <span>Recusar</span>
-                </button>
-              </div>
-            </li>
+            </div>
           }
-        </ul>
+
+          <div class="community-management-hub__cards">
+            <button
+              type="button"
+              class="community-management-hub__card"
+              (click)="selectPanel('requests')"
+            >
+              <span class="community-management-hub__card-icon" aria-hidden="true">
+                <i class="fas fa-user-clock"></i>
+              </span>
+              <span class="community-management-hub__card-copy">
+                <strong>Solicitações</strong>
+                @if (state.status === 'loading') {
+                  <span>Atualizando a fila...</span>
+                } @else if (state.status === 'error') {
+                  <span>Fila temporariamente indisponível.</span>
+                } @else if (state.items.length === 0) {
+                  <span>Nenhuma solicitação pendente.</span>
+                } @else {
+                  <span>{{ state.items.length }} aguardando revisão.</span>
+                }
+              </span>
+              <i class="fas fa-chevron-right" aria-hidden="true"></i>
+            </button>
+
+            @if (canManageMembersPanel()) {
+              <button
+                type="button"
+                class="community-management-hub__card"
+                (click)="selectPanel('members')"
+              >
+                <span class="community-management-hub__card-icon" aria-hidden="true">
+                  <i class="fas fa-users"></i>
+                </span>
+                <span class="community-management-hub__card-copy">
+                  <strong>Participantes</strong>
+                  <span>Funções, remoções e bloqueios em um fluxo dedicado.</span>
+                </span>
+                <i class="fas fa-chevron-right" aria-hidden="true"></i>
+              </button>
+            }
+
+            @if (canInviteCommunityMembers()) {
+              <button
+                type="button"
+                class="community-management-hub__card"
+                (click)="openInvites()"
+              >
+                <span class="community-management-hub__card-icon" aria-hidden="true">
+                  <i class="fas fa-user-plus"></i>
+                </span>
+                <span class="community-management-hub__card-copy">
+                  <strong>Convites</strong>
+                  <span>Convide perfis sem sair da Comunidade.</span>
+                </span>
+                <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+              </button>
+            }
+
+            @if (canManageSettingsPanel()) {
+              <button
+                type="button"
+                class="community-management-hub__card"
+                (click)="selectPanel('settings')"
+              >
+                <span class="community-management-hub__card-icon" aria-hidden="true">
+                  <i class="fas fa-sliders"></i>
+                </span>
+                <span class="community-management-hub__card-copy">
+                  <strong>Configurações</strong>
+                  <span>
+                    Nome, regras, entrada e capacidade em uma área própria.
+                  </span>
+                </span>
+                <i class="fas fa-chevron-right" aria-hidden="true"></i>
+              </button>
+            }
+
+            @if (sourceType() === 'community') {
+              <button
+                type="button"
+                class="community-management-hub__card"
+                (click)="openModeration()"
+              >
+                <span class="community-management-hub__card-icon" aria-hidden="true">
+                  <i class="fas fa-shield"></i>
+                </span>
+                <span class="community-management-hub__card-copy">
+                  <strong>Moderação</strong>
+                  <span>As ações sobre conteúdo continuam no contexto do Mural.</span>
+                </span>
+                <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+              </button>
+            }
+
+            @if (sourceType() === 'community' && capacity()) {
+              <div class="community-management-hub__card community-management-hub__card--status">
+                <span class="community-management-hub__card-icon" aria-hidden="true">
+                  <i class="fas fa-gauge-high"></i>
+                </span>
+                <span class="community-management-hub__card-copy">
+                  <strong>Capacidade</strong>
+                  <span>{{ capacityLabel() }}</span>
+                  <small>{{ capacityStatusLabel() }}</small>
+                </span>
+              </div>
+            }
+
+            @if (canManageOwnershipPanel()) {
+              <button
+                type="button"
+                class="community-management-hub__card"
+                (click)="selectPanel('ownership')"
+              >
+                <span class="community-management-hub__card-icon" aria-hidden="true">
+                  <i class="fas fa-key"></i>
+                </span>
+                <span class="community-management-hub__card-copy">
+                  <strong>Propriedade</strong>
+                  <span>Transferência e arquivamento ficam isolados das rotinas diárias.</span>
+                </span>
+                <i class="fas fa-chevron-right" aria-hidden="true"></i>
+              </button>
+            }
+          </div>
+        </section>
+      } @else if (activePanel() === 'requests') {
+        <section
+          class="community-membership-management"
+          aria-labelledby="community-membership-management-title"
+        >
+          <header class="community-membership-management__header">
+            <div>
+              <h3 id="community-membership-management-title">{{ managementTitle() }}</h3>
+              @if (state.status === 'ready') {
+                <span aria-live="polite">{{ state.items.length }}</span>
+              }
+            </div>
+
+            <button
+              type="button"
+              class="community-membership-management__refresh"
+              [disabled]="state.status === 'loading' || action.status === 'loading'"
+              [attr.aria-label]="'Atualizar ' + managementTitle().toLowerCase()"
+              (click)="refresh()"
+            >
+              <i
+                class="fas {{ state.status === 'loading' ? 'fa-spinner fa-spin' : 'fa-rotate' }}"
+                aria-hidden="true"
+              ></i>
+            </button>
+          </header>
+
+          @if (sourceType() === 'community' && capacity()?.acceptingNewMembers === false) {
+            <div class="community-membership-management__state community-membership-management__state--compact" role="status">
+              <i class="fas fa-users-slash" aria-hidden="true"></i>
+              <span>
+                Novas entradas estão pausadas pela capacidade atual. As solicitações
+                podem ser recusadas ou permanecer pendentes.
+              </span>
+            </div>
+          }
+
+          @if (state.status === 'loading') {
+            <div class="community-membership-management__state" role="status" aria-live="polite">
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+              <span>Carregando solicitações...</span>
+            </div>
+          } @else if (state.status === 'error') {
+            <div class="community-membership-management__state" role="alert">
+              <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+              <span>Fila indisponível.</span>
+            </div>
+          } @else if (state.items.length === 0) {
+            <div class="community-membership-management__state" role="status">
+              <i class="fas fa-circle-check" aria-hidden="true"></i>
+              <span>{{ emptyMessage() }}</span>
+            </div>
+          } @else {
+            <ul class="community-membership-management__list">
+              @for (request of state.items; track request.memberId) {
+                <li>
+                  <span class="community-membership-management__avatar" aria-hidden="true">
+                    @if (request.avatarUrl) {
+                      <img [src]="request.avatarUrl" alt="" />
+                    } @else {
+                      <i class="fas fa-user" aria-hidden="true"></i>
+                    }
+                  </span>
+
+                  <div class="community-membership-management__copy">
+                    <strong>{{ request.label }}</strong>
+                    <span>
+                      Enviada em {{ request.requestedAt | date: 'short' }}
+                    </span>
+                  </div>
+
+                  <div class="community-membership-management__actions">
+                    <button
+                      type="button"
+                      class="is-approve"
+                      [disabled]="action.status === 'loading' || capacity()?.acceptingNewMembers === false"
+                      [attr.aria-label]="'Aprovar solicitação de ' + request.label"
+                      (click)="review(request, 'approve')"
+                    >
+                      @if (
+                        action.status === 'loading'
+                        && action.memberId === request.memberId
+                        && action.action === 'approve'
+                      ) {
+                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                      } @else {
+                        <i class="fas fa-check" aria-hidden="true"></i>
+                      }
+                      <span>Aprovar</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      class="is-reject"
+                      [disabled]="action.status === 'loading'"
+                      [attr.aria-label]="'Recusar solicitação de ' + request.label"
+                      (click)="review(request, 'reject')"
+                    >
+                      @if (
+                        action.status === 'loading'
+                        && action.memberId === request.memberId
+                        && action.action === 'reject'
+                      ) {
+                        <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                      } @else {
+                        <i class="fas fa-xmark" aria-hidden="true"></i>
+                      }
+                      <span>Recusar</span>
+                    </button>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+      } @else if (activePanel() === 'settings' && canManageSettingsPanel()) {
+        <app-community-settings
+          [communityId]="communityId()"
+          [settings]="settings()!"
+          [capacity]="capacity()"
+          [viewerRole]="viewerRole()"
+          (settingsChanged)="settingsChanged.emit()"
+        />
+      } @else if (activePanel() === 'members' && canManageMembersPanel()) {
+        <app-community-member-roster-management
+          [communityId]="communityId()"
+          (membershipChanged)="membershipChanged.emit()"
+        />
+      } @else if (activePanel() === 'ownership' && canManageOwnershipPanel()) {
+        <app-community-ownership-management
+          [communityId]="communityId()"
+          (ownershipChanged)="ownershipChanged.emit()"
+        />
       }
     </section>
-
-    @if (
-      sourceType() === 'community'
-      && canManageCommunitySettings()
-      && settings()
-    ) {
-      <app-community-settings
-        [communityId]="communityId()"
-        [settings]="settings()"
-        [capacity]="capacity()"
-        [viewerRole]="viewerRole()"
-        (settingsChanged)="settingsChanged.emit()"
-      />
-    }
-
-    @if (
-      sourceType() === 'community'
-      && (viewerRole() === 'owner'
-        || viewerRole() === 'admin'
-        || viewerRole() === 'moderator')
-    ) {
-      <app-community-member-roster-management
-        [communityId]="communityId()"
-        (membershipChanged)="membershipChanged.emit()"
-      />
-    }
-
-    @if (sourceType() === 'community' && viewerRole() === 'owner') {
-      <app-community-ownership-management
-        [communityId]="communityId()"
-        (ownershipChanged)="ownershipChanged.emit()"
-      />
-    }
   }
 }
