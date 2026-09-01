@@ -29,6 +29,7 @@ import {
   evaluateCommunityOwnershipTransfer,
 } from './community-ownership-lifecycle.policy';
 import { normalizeCommunityId } from './community-preview.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface CommunityIdPayload {
   communityId?: unknown;
@@ -435,6 +436,11 @@ export const transferCommunityOwnership =
         throw new HttpsError('invalid-argument', 'Transferência inválida.');
       }
 
+      await consumeCommunityRateLimit({
+        action: 'ownership_mutation',
+        actorUid,
+      });
+
       return db.runTransaction(async (transaction) => {
         const communityRef = db.collection('communities').doc(communityId);
         const actorMembershipRef = communityRef.collection('members').doc(actorUid);
@@ -656,6 +662,11 @@ export const archiveCommunity = onCall<CommunityArchivePayload>(
     if (!communityId || !requestId) {
       throw new HttpsError('invalid-argument', 'Arquivamento inválido.');
     }
+
+    await consumeCommunityRateLimit({
+      action: 'ownership_mutation',
+      actorUid,
+    });
 
     return db.runTransaction(async (transaction) => {
       const communityRef = db.collection('communities').doc(communityId);
