@@ -5,12 +5,18 @@
 // Descoberta paginada por projeção sanitizada e backend-only. A ordenação por
 // score novo só é ativada quando configuração, índice e backfill da versão atual
 // estiverem prontos; qualquer inconsistência mantém o `rankScore` legado.
+// O cursor carrega o modo de ranking que gerou a página e falha fechado se o
+// cutover/rollback ocorrer entre duas requisições de paginação.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
+import {
+  buildCommunityDiscoveryCursor,
+  parseCommunityDiscoveryCursor,
+} from './community-discovery-cursor.policy';
 import { getCommunityDiscoveryRankingMode } from './community-discovery-ranking-mode.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
@@ -91,6 +97,21 @@ export const getCommunityDiscoveryPage =
       }
 
       const rankingMode = await getCommunityDiscoveryRankingMode();
+      const cursor = pageRequest.cursor
+        ? parseCommunityDiscoveryCursor(pageRequest.cursor)
+        : null;
+
+      if (pageRequest.cursor && !cursor) {
+        throw new HttpsError('invalid-argument', 'Cursor de paginação inválido.');
+      }
+
+      if (cursor && cursor.mode !== rankingMode.effectiveMode) {
+        throw new HttpsError(
+          'failed-precondition',
+          'A ordem da descoberta foi atualizada. Atualize a lista para continuar.'
+        );
+      }
+
       const orderField = rankingMode.orderField;
       const effectiveSourceType = pageRequest.tagId
         ? 'community'
@@ -110,8 +131,8 @@ export const getCommunityDiscoveryPage =
             .limit(scanLimit)
           : projection.orderBy(orderField, 'desc').limit(scanLimit);
 
-      if (pageRequest.cursor) {
-        const cursorSnapshot = await projection.doc(pageRequest.cursor).get();
+      if (cursor) {
+        const cursorSnapshot = await projection.doc(cursor.documentId).get();
 
         if (!cursorSnapshot.exists) {
           throw new HttpsError(
@@ -193,11 +214,23 @@ export const getCommunityDiscoveryPage =
         && lastConsumedIndex < querySnapshot.docs.length - 1;
       const mayHaveAnotherPage =
         querySnapshot.docs.length === scanLimit || hasBufferedDocuments;
+      const nextCursor = mayHaveAnotherPage && lastConsumedDocument
+        ? buildCommunityDiscoveryCursor(
+          rankingMode.effectiveMode,
+          lastConsumedDocument.id
+        )
+        : null;
+
+      if (mayHaveAnotherPage && lastConsumedDocument && !nextCursor) {
+        throw new HttpsError(
+          'data-loss',
+          'Não foi possível construir o cursor seguro da descoberta.'
+        );
+      }
 
       return {
         items,
-        nextCursor:
-          mayHaveAnotherPage ? (lastConsumedDocument?.id ?? null) : null,
+        nextCursor,
         generatedAt: Date.now(),
       };
     }
