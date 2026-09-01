@@ -37,6 +37,11 @@ export interface CommunityCapacityPreview {
   memberCount: number;
   acceptingNewMembers: boolean;
   restrictedByOwnerPlan: boolean;
+  memberLimitOptions: readonly CommunityMemberLimitCapabilityOption[];
+  /**
+   * Compatibilidade de leitura. É sempre derivado de `memberLimitOptions` quando
+   * o contrato novo está presente.
+   */
   allowedMemberLimits: readonly CommunityMemberLimit[];
 }
 
@@ -113,9 +118,10 @@ function normalizeRecommendedUpgradeRole(
 }
 
 function normalizeCommunityMemberLimitCapabilityOptions(
-  raw: unknown
+  raw: unknown,
+  allowEmpty = false
 ): readonly CommunityMemberLimitCapabilityOption[] | null {
-  if (!Array.isArray(raw) || raw.length === 0) return null;
+  if (!Array.isArray(raw) || (!allowEmpty && raw.length === 0)) return null;
 
   const byLimit = new Map<number, CommunityMemberLimitCapabilityOption>();
 
@@ -151,6 +157,18 @@ function normalizeCommunityMemberLimitCapabilityOptions(
   );
 }
 
+function normalizeLegacyAllowedMemberLimits(
+  raw: unknown
+): readonly CommunityMemberLimit[] {
+  return Array.isArray(raw)
+    ? [...new Set(
+      raw
+        .map(normalizeCommunityMemberLimit)
+        .filter((limit): limit is CommunityMemberLimit => limit !== null)
+    )].sort((left, right) => left - right)
+    : [];
+}
+
 export function normalizeCommunityCapacityPreview(
   raw: unknown
 ): CommunityCapacityPreview | null {
@@ -165,11 +183,20 @@ export function normalizeCommunityCapacityPreview(
   const memberCount = typeof rawMemberCount === 'number'
     ? rawMemberCount
     : Number.NaN;
-  const allowedMemberLimits = Array.isArray(source['allowedMemberLimits'])
-    ? source['allowedMemberLimits']
-      .map(normalizeCommunityMemberLimit)
-      .filter((limit): limit is CommunityMemberLimit => limit !== null)
-    : [];
+  const legacyAllowedMemberLimits = normalizeLegacyAllowedMemberLimits(
+    source['allowedMemberLimits']
+  );
+  const rawMemberLimitOptions = source['memberLimitOptions'];
+  const memberLimitOptions = rawMemberLimitOptions === undefined
+    ? legacyAllowedMemberLimits.map((memberLimit) => ({
+      memberLimit,
+      requirement: 'special_access' as const,
+      allowed: true,
+    }))
+    : normalizeCommunityMemberLimitCapabilityOptions(
+      rawMemberLimitOptions,
+      true
+    );
 
   if (
     !configuredLimit
@@ -177,9 +204,14 @@ export function normalizeCommunityCapacityPreview(
     || !Number.isInteger(memberCount)
     || memberCount < 0
     || effectiveLimit > configuredLimit
+    || !memberLimitOptions
   ) {
     return null;
   }
+
+  const allowedMemberLimits = memberLimitOptions
+    .filter((option) => option.allowed)
+    .map((option) => option.memberLimit);
 
   return {
     configuredLimit,
@@ -188,9 +220,8 @@ export function normalizeCommunityCapacityPreview(
     acceptingNewMembers:
       source['acceptingNewMembers'] === true && memberCount < effectiveLimit,
     restrictedByOwnerPlan: configuredLimit > effectiveLimit,
-    allowedMemberLimits: [...new Set(allowedMemberLimits)]
-      .filter((limit) => limit <= effectiveLimit)
-      .sort((left, right) => left - right),
+    memberLimitOptions,
+    allowedMemberLimits,
   };
 }
 
