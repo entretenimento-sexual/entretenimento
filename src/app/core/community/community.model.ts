@@ -8,10 +8,14 @@
 //   mural, moderação e lifecycle próprios;
 // - `venue`: superfície social vinculada a um Local físico, reutilizando a
 //   infraestrutura comunitária sem transformar o Local em uma Comunidade;
+// - associação oficial identifica qual entidade canônica o espaço representa;
 // - Sala não é origem comunitária. Salas pertencem ao domínio de Conversas.
 // -----------------------------------------------------------------------------
 
 import type { ContentAccessPolicy } from '../access/content-access-policy.model';
+import type {
+  CommunityOfficialAssociationPublic,
+} from './community-official-association.model';
 
 export const COMMUNITY_SOURCE_TYPES = ['community', 'venue'] as const;
 
@@ -104,6 +108,8 @@ export interface ICommunity {
   access: ICommunityAccessPolicy;
   moderation: ICommunityModeration;
   metrics: ICommunityMetrics;
+  /** Projeção pública; dados de verificação permanecem backend-only. */
+  officialAssociation?: Readonly<CommunityOfficialAssociationPublic> | null;
   avatarUrl?: string | null;
   coverUrl?: string | null;
   createdAt?: number | null;
