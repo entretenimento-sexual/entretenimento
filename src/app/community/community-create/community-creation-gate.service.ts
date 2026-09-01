@@ -22,7 +22,10 @@ import {
   COMMUNITY_CREATE_RETURN_URL,
   subscriptionFlowQueryParams,
 } from 'src/app/subscriptions/domain/subscription-flow-context.model';
-import { CommunityCreationCapability } from '../data-access/community-capacity.model';
+import {
+  CommunityCreationCapability,
+  CommunityRecommendedUpgradeRole,
+} from '../data-access/community-capacity.model';
 import { CommunityCreateRepository } from '../data-access/community-create.repository';
 
 type CommunityCreationGateDestination =
@@ -31,7 +34,10 @@ type CommunityCreationGateDestination =
   | 'manage'
   | 'plans';
 
-type CommunityCreationUpgradeRole = 'basic' | 'premium' | 'vip';
+type CommunityCreationUpgradeRole = Exclude<
+  CommunityRecommendedUpgradeRole,
+  null
+>;
 
 interface CommunityCreationGateAction {
   destination: CommunityCreationGateDestination;
@@ -90,6 +96,22 @@ export class CommunityCreationGateService {
             : 'perfil Gratuito';
   }
 
+  upgradeRole(
+    capability: CommunityCreationCapability
+  ): CommunityCreationUpgradeRole | null {
+    return capability.recommendedUpgradeRole;
+  }
+
+  upgradePlanLabel(
+    capability: CommunityCreationCapability
+  ): string | null {
+    const role = this.upgradeRole(capability);
+    if (!role) return null;
+    if (role === 'basic') return 'Basic';
+    if (role === 'premium') return 'Premium';
+    return 'VIP';
+  }
+
   private openCreationGateDialog$(
     capability: CommunityCreationCapability
   ): Observable<CommunityCreationGateAction> {
@@ -117,25 +139,29 @@ export class CommunityCreationGateService {
     capability: CommunityCreationCapability
   ): CommunityCreationGateDialogConfig {
     if (capability.reason === 'subscription_required') {
+      const upgradeRole = capability.recommendedUpgradeRole
+        ?? capability.minimumRole;
+      const upgradePlanLabel = this.upgradePlanLabel(capability) ?? 'Basic';
+
       return {
         data: {
           eyebrow: 'Conta Gratuita',
           title: 'Crie sua própria Comunidade',
           message:
-            'Participar das Comunidades continua gratuito. Para criar e administrar a sua, é necessário o plano Basic ou superior.',
+            `Participar das Comunidades continua gratuito. Para criar e administrar a sua, é necessário o plano ${upgradePlanLabel} ou superior.`,
           detail:
-            'O Basic permite 1 Comunidade com até 100 membros. Premium e VIP ampliam a quantidade de Comunidades e a capacidade de cada uma.',
+            'As quantidades de Comunidades e as capacidades disponíveis são confirmadas pela sua conta antes da criação.',
           icon: 'groups',
           tone: 'info',
           confirmLabel: 'Ver planos',
           cancelLabel: 'Continuar explorando',
         },
-        confirmAction: { destination: 'plans', minimumRole: 'basic' },
+        confirmAction: { destination: 'plans', minimumRole: upgradeRole },
         cancelAction: { destination: 'communities', minimumRole: null },
       };
     }
 
-    const nextRole = this.nextUpgradeRole(capability.sponsorRole);
+    const nextRole = capability.recommendedUpgradeRole;
     const current = capability.currentOwnedCommunities;
     const maximum = capability.maxOwnedCommunities;
     const occupancy = maximum === null
@@ -175,15 +201,6 @@ export class CommunityCreationGateService {
       confirmAction: { destination: 'manage', minimumRole: null },
       cancelAction: { destination: 'communities', minimumRole: null },
     };
-  }
-
-  private nextUpgradeRole(
-    role: CommunityCreationCapability['sponsorRole']
-  ): CommunityCreationUpgradeRole | null {
-    if (role === 'free') return 'basic';
-    if (role === 'basic') return 'premium';
-    if (role === 'premium') return 'vip';
-    return null;
   }
 
   private navigate$(action: CommunityCreationGateAction): Observable<void> {
