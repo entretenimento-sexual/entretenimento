@@ -9,7 +9,6 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { assertInteractionAccess } from '../account_lifecycle/interaction-access.policy';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
-import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -26,6 +25,7 @@ import {
   normalizeCommunityFeedCommentReportRequest,
 } from './community-feed-report.model';
 import { sanitizeCommunityFeedProjection } from './community-feed.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { getCommunityViewerContext } from './community-viewer-access.service';
 
 function assertRuntime(): void {
@@ -86,17 +86,9 @@ export const reportCommunityFeedComment = onCall<
       throw new HttpsError('invalid-argument', 'Denúncia de comentário inválida.');
     }
 
-    await consumeBackendRateLimitQuota({
-      action: 'reportCommunityFeedComment',
-      subject: reporterUid,
-      cost: 1,
-      config: {
-        burstWindowMs: 60 * 1_000,
-        burstMax: 12,
-        sustainedWindowMs: 10 * 60 * 1_000,
-        sustainedMax: 48,
-      },
-      message: 'Muitas denúncias foram enviadas em pouco tempo.',
+    await consumeCommunityRateLimit({
+      action: 'feed_report_comment',
+      actorUid: reporterUid,
     });
     await assertInteractionAccess(reporterUid);
     const context = await getCommunityViewerContext(
