@@ -23,7 +23,11 @@ export type CommunityRateLimitAction =
   | 'feed_report_reply'
   | 'invite_send'
   | 'membership_request'
-  | 'member_management';
+  | 'membership_review'
+  | 'member_management'
+  | 'settings_update'
+  | 'ownership_mutation'
+  | 'content_moderation';
 
 export interface CommunityRateLimitPolicy {
   readonly backendAction: string;
@@ -129,6 +133,17 @@ const POLICY_BY_ACTION: Readonly<Record<
     reason: 'community_membership_rate_limited',
     message: 'Muitas solicitações de entrada foram feitas em pouco tempo.',
   }),
+  membership_review: Object.freeze({
+    backendAction: 'reviewCommunityMembership',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 20,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 100,
+    }),
+    reason: 'community_management_rate_limited',
+    message: 'Muitas solicitações foram revisadas em pouco tempo.',
+  }),
   member_management: Object.freeze({
     backendAction: 'manageCommunityMember',
     config: Object.freeze({
@@ -139,6 +154,41 @@ const POLICY_BY_ACTION: Readonly<Record<
     }),
     reason: 'community_management_rate_limited',
     message: 'Muitas ações de gestão foram executadas em pouco tempo.',
+  }),
+  settings_update: Object.freeze({
+    backendAction: 'updateCommunitySettings',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 10,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 40,
+    }),
+    reason: 'community_management_rate_limited',
+    message: 'Muitas alterações de configuração foram enviadas em pouco tempo.',
+  }),
+  ownership_mutation: Object.freeze({
+    // Transferência e arquivamento compartilham o mesmo orçamento sensível.
+    backendAction: 'communityOwnershipMutation',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 6,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 20,
+    }),
+    reason: 'community_management_rate_limited',
+    message: 'Muitas ações de propriedade foram executadas em pouco tempo.',
+  }),
+  content_moderation: Object.freeze({
+    // Todas as superfícies de moderação compartilham o orçamento por ator.
+    backendAction: 'communityContentModeration',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 30,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 180,
+    }),
+    reason: 'community_management_rate_limited',
+    message: 'Muitas ações de moderação foram executadas em pouco tempo.',
   }),
 });
 
