@@ -1,0 +1,15 @@
+// =============================================================================
+// COMMUNITY OFFICIAL ASSOCIATIONS
+// =============================================================================
+// A associação canônica contém organização patrocinadora, responsável e origem
+// da verificação. Nenhum desses dados pode ser consultado pelo navegador.
+// A UI recebe somente projeções sanitizadas por callable/Discovery.
+// =============================================================================
+
+match /community_official_associations/{associationKey} {
+  allow read, write: if false;
+}
+
+match /community_official_association_audit/{auditId} {
+  allow read, write: if false;
+}
