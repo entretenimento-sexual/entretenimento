@@ -4,10 +4,14 @@
 // -----------------------------------------------------------------------------
 // Implementa somente os namespaces autorizados pela política de purge. Auditoria,
 // denúncias, admin logs e evidências de compliance nunca são alvos de exclusão.
+// Associações oficiais são revogadas, não apagadas, preservando rastreabilidade.
 // `community_purge_audit` recebe apenas o recibo mínimo da operação destrutiva.
 // -----------------------------------------------------------------------------
 
 import { db, FieldValue } from '../firebaseApp';
+import {
+  normalizeCommunityOfficialAssociationKey,
+} from './community-official-association.model';
 import type {
   CommunityPurgeExecutionAdapter,
   CommunityPurgeReferenceKind,
@@ -31,6 +35,8 @@ const MAX_BATCH_WRITES = 450;
 const MEMBER_SCOPED_PAGE_SIZE = 200;
 const MEMBER_SCOPED_MAX_PAGES = 50;
 const PURGE_AUDIT_COLLECTION = 'community_purge_audit';
+const OFFICIAL_ASSOCIATION_AUDIT_COLLECTION =
+  'community_official_association_audit';
 const PURGE_POLICY_VERSION = 1;
 const PURGE_SOURCE = 'community-purge-executor';
 
@@ -127,6 +133,8 @@ implements CommunityPurgeExecutionAdapter {
       );
     });
 
+    await revokeOfficialAssociationForPurgedCommunity(communityId);
+
     const rootsProcessed = await deleteRootCollections(
       communityId,
       COMMUNITY_PURGE_FINAL_ROOT_COLLECTIONS
@@ -185,6 +193,70 @@ implements CommunityPurgeExecutionAdapter {
 
     return snapshot.size;
   }
+}
+
+async function revokeOfficialAssociationForPurgedCommunity(
+  communityId: string
+): Promise<void> {
+  const communitySnapshot = await db
+    .collection('communities')
+    .doc(communityId)
+    .get();
+
+  if (!communitySnapshot.exists) return;
+
+  const community = communitySnapshot.data() ?? {};
+  const associationKey = normalizeCommunityOfficialAssociationKey(
+    community['officialAssociationKey']
+  );
+
+  if (!associationKey) return;
+
+  const associationRef = db
+    .collection('community_official_associations')
+    .doc(associationKey);
+  const associationAuditRef = db
+    .collection(OFFICIAL_ASSOCIATION_AUDIT_COLLECTION)
+    .doc(`purge-${communityId}`);
+  const revokedAt = Date.now();
+
+  await db.runTransaction(async (transaction) => {
+    const associationSnapshot = await transaction.get(associationRef);
+    if (!associationSnapshot.exists) return;
+
+    const association = associationSnapshot.data() ?? {};
+    if (association['communityId'] !== communityId) return;
+    if (association['status'] === 'revoked') return;
+
+    if (association['status'] !== 'verified') {
+      const error = new Error(
+        'Purge bloqueado: associação oficial possui estado inconsistente.'
+      ) as Error & { code?: string };
+      error.code = 'community-purge-official-association-invalid-status';
+      throw error;
+    }
+
+    transaction.set(
+      associationRef,
+      {
+        status: 'revoked',
+        revokedAt,
+        updatedAt: revokedAt,
+      },
+      { merge: true }
+    );
+
+    transaction.set(associationAuditRef, {
+      action: 'official_association_revoked_by_community_purge',
+      associationKey,
+      communityId,
+      target: association['target'] ?? null,
+      actor: 'system',
+      previousStatus: 'verified',
+      nextStatus: 'revoked',
+      createdAt: revokedAt,
+    });
+  });
 }
 
 async function deleteUserScopedCommunityItems(
