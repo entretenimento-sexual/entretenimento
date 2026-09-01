@@ -8,10 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ConfirmationDialogComponent } from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
+import { COMMUNITY_CREATE_RETURN_URL } from 'src/app/subscriptions/domain/subscription-flow-context.model';
 import { CommunityCreateRepository } from '../data-access/community-create.repository';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
 import { CommunityCreatePageComponent } from './community-create-page.component';
-import { COMMUNITY_CREATE_RETURN_URL } from 'src/app/subscriptions/domain/subscription-flow-context.model';
 
 const TAG_CATALOG = [
   { id: 'intent:friendship', label: 'Amizade', category: 'intent' as const },
@@ -22,6 +22,32 @@ const TAG_CATALOG = [
   { id: 'audience:women', label: 'Mulheres', category: 'audience' as const },
   { id: 'audience:couple_mf', label: 'Casal MF', category: 'audience' as const },
 ] as const;
+
+const BASIC_CAPACITY_OPTIONS = [
+  { memberLimit: 25, requirement: 'basic', allowed: true },
+  { memberLimit: 50, requirement: 'basic', allowed: true },
+  { memberLimit: 100, requirement: 'basic', allowed: true },
+  { memberLimit: 250, requirement: 'premium', allowed: false },
+  { memberLimit: 500, requirement: 'vip', allowed: false },
+  { memberLimit: 1_000, requirement: 'special_access', allowed: false },
+] as const;
+
+function creationCapability(overrides: Record<string, unknown> = {}) {
+  return {
+    canCreate: true,
+    reason: null,
+    sponsorRole: 'basic' as const,
+    minimumRole: 'basic' as const,
+    recommendedUpgradeRole: null,
+    currentOwnedCommunities: 0,
+    maxOwnedCommunities: 1,
+    memberLimit: 100,
+    memberLimitOptions: BASIC_CAPACITY_OPTIONS,
+    allowedMemberLimits: [25, 50, 100] as const,
+    generatedAt: 100,
+    ...overrides,
+  };
+}
 
 describe('CommunityCreatePageComponent', () => {
   const createCommunity$ = vi.fn();
@@ -46,17 +72,7 @@ describe('CommunityCreatePageComponent', () => {
         created: true,
       })
     );
-    getCreationCapability$.mockReturnValue(of({
-      canCreate: true,
-      reason: null,
-      sponsorRole: 'basic',
-      minimumRole: 'basic',
-      currentOwnedCommunities: 0,
-      maxOwnedCommunities: 1,
-      memberLimit: 100,
-      allowedMemberLimits: [25, 50, 100],
-      generatedAt: 100,
-    }));
+    getCreationCapability$.mockReturnValue(of(creationCapability()));
     getCommunityTagCatalog$.mockReturnValue(
       of({ items: TAG_CATALOG, generatedAt: Date.now() })
     );
@@ -111,6 +127,27 @@ describe('CommunityCreatePageComponent', () => {
     expect(showWarning).toHaveBeenCalledWith(
       'Revise os campos obrigatórios da Comunidade.'
     );
+  });
+
+  it('inicializa a capacidade pela primeira opção liberada pelo backend', () => {
+    getCreationCapability$.mockReturnValue(of(creationCapability({
+      memberLimit: 80,
+      memberLimitOptions: [
+        { memberLimit: 40, requirement: 'basic', allowed: true },
+        { memberLimit: 80, requirement: 'basic', allowed: true },
+        { memberLimit: 160, requirement: 'premium', allowed: false },
+      ],
+      allowedMemberLimits: [40, 80],
+    })));
+    const fixture = TestBed.createComponent(CommunityCreatePageComponent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.form.controls.memberLimit.value).toBe(40);
+    expect(
+      fixture.nativeElement.querySelectorAll(
+        '.community-create__capacity-options button'
+      )
+    ).toHaveLength(3);
   });
 
   it('seleciona e remove tags pelo controle reativo', () => {
@@ -175,18 +212,21 @@ describe('CommunityCreatePageComponent', () => {
     ]);
   });
 
-  it('orienta o Gratuito por modal e encaminha para o plano mínimo', () => {
-    getCreationCapability$.mockReturnValue(of({
+  it('orienta o Gratuito por modal e encaminha para o plano recomendado', () => {
+    getCreationCapability$.mockReturnValue(of(creationCapability({
       canCreate: false,
       reason: 'subscription_required',
       sponsorRole: 'free',
-      minimumRole: 'basic',
+      recommendedUpgradeRole: 'basic',
       currentOwnedCommunities: 0,
       maxOwnedCommunities: 0,
       memberLimit: 0,
+      memberLimitOptions: BASIC_CAPACITY_OPTIONS.map((option) => ({
+        ...option,
+        allowed: false,
+      })),
       allowedMemberLimits: [],
-      generatedAt: 100,
-    }));
+    })));
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     const fixture = TestBed.createComponent(CommunityCreatePageComponent);
@@ -224,18 +264,15 @@ describe('CommunityCreatePageComponent', () => {
     });
   });
 
-  it('oferece um plano superior quando a cota de criação foi atingida', () => {
-    getCreationCapability$.mockReturnValue(of({
+  it('oferece o plano superior recomendado quando a cota foi atingida', () => {
+    getCreationCapability$.mockReturnValue(of(creationCapability({
       canCreate: false,
       reason: 'limit_reached',
       sponsorRole: 'basic',
-      minimumRole: 'basic',
+      recommendedUpgradeRole: 'premium',
       currentOwnedCommunities: 1,
       maxOwnedCommunities: 1,
-      memberLimit: 100,
-      allowedMemberLimits: [25, 50, 100],
-      generatedAt: 100,
-    }));
+    })));
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
@@ -266,8 +303,12 @@ describe('CommunityCreatePageComponent', () => {
     const fixture = TestBed.createComponent(CommunityCreatePageComponent);
     fixture.detectChanges();
     const component = fixture.componentInstance;
+    const premiumOption = BASIC_CAPACITY_OPTIONS.find(
+      (option) => option.memberLimit === 250
+    );
 
-    component.selectMemberLimit(250, [25]);
+    expect(premiumOption).toBeDefined();
+    component.selectMemberLimit(premiumOption!);
 
     expect(component.form.controls.memberLimit.value).toBe(25);
     expect(showWarning).toHaveBeenCalledWith(
@@ -277,7 +318,7 @@ describe('CommunityCreatePageComponent', () => {
       fixture.nativeElement.querySelectorAll(
         '.community-create__capacity-options button'
       )
-    ).toHaveLength(6);
+    ).toHaveLength(BASIC_CAPACITY_OPTIONS.length);
   });
 
   it('mantém feedback e diagnóstico centralizado quando o perfil está incompleto', () => {
