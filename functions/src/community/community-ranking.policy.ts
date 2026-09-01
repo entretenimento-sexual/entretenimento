@@ -3,13 +3,15 @@
 // COMMUNITY DISCOVERY RANKING POLICY
 // -----------------------------------------------------------------------------
 // Política pura e backend-only para o score orgânico das Comunidades/Locais.
-// O cliente nunca escolhe pesos, score ou versão. Nesta etapa o resultado é
-// persistível em `ranking`, mas o `rankScore` legado continua sendo a chave de
-// ordenação até que o backfill esteja concluído e a descoberta possa migrar sem
-// misturar escalas diferentes.
+// O cliente nunca escolhe pesos, score ou versão. Segurança e lifecycle atuam
+// como gate de elegibilidade; entre itens elegíveis, qualidade, atividade e
+// frescor definem a ordenação orgânica. `rankScore` permanece apenas como
+// fallback transitório até o rollout e a observação do score v2 serem concluídos.
 // -----------------------------------------------------------------------------
 
-export const COMMUNITY_DISCOVERY_SCORE_VERSION = 1;
+export const COMMUNITY_DISCOVERY_SCORE_VERSION = 2;
+export const COMMUNITY_DISCOVERY_RANKING_MODE =
+  `score_v${COMMUNITY_DISCOVERY_SCORE_VERSION}` as const;
 
 export interface CommunityDiscoveryRankingBreakdown {
   discoveryScore: number;
@@ -28,6 +30,11 @@ export interface CommunityDiscoveryRankingInput {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
+const DISCOVERY_SCORE_WEIGHTS = Object.freeze({
+  quality: 0.25,
+  activity: 0.45,
+  freshness: 0.30,
+});
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object'
@@ -169,7 +176,9 @@ function resolveFreshnessScore(
 
 function resolveSafetyScore(community: Record<string, unknown>): number {
   const moderation = asRecord(community['moderation']);
-  return moderation['state'] === 'active' ? 100 : 0;
+  return community['status'] === 'active' && moderation['state'] === 'active'
+    ? 100
+    : 0;
 }
 
 export function buildCommunityDiscoveryRanking(
@@ -185,12 +194,13 @@ export function buildCommunityDiscoveryRanking(
   const activityScore = resolveActivityScore(metrics);
   const freshnessScore = resolveFreshnessScore(community, now);
   const safetyScore = resolveSafetyScore(community);
-  const discoveryScore = normalizeScore(
-    qualityScore * 0.20
-      + activityScore * 0.35
-      + freshnessScore * 0.30
-      + safetyScore * 0.15
-  );
+  const discoveryScore = safetyScore === 100
+    ? normalizeScore(
+      qualityScore * DISCOVERY_SCORE_WEIGHTS.quality
+        + activityScore * DISCOVERY_SCORE_WEIGHTS.activity
+        + freshnessScore * DISCOVERY_SCORE_WEIGHTS.freshness
+    )
+    : 0;
 
   return {
     discoveryScore,
