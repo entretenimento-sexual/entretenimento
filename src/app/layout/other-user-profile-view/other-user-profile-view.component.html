@@ -222,9 +222,9 @@
           </section>
         }
 
-        @if (uid; as profileUid) {
+        @if (profile.profileId; as profileId) {
           <app-profile-official-communities
-            [profileUid]="profileUid"
+            [profileId]="profileId"
           />
         }
 
