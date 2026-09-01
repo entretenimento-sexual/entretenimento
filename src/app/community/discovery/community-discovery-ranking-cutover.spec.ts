@@ -109,6 +109,7 @@ describe('CommunityDiscoveryPageComponent / ranking cutover', () => {
     const component = TestBed.runInInjectionContext(
       () => new CommunityDiscoveryPageComponent()
     );
+    const persistentSubscription = component.state$.subscribe();
 
     const initialState = await firstValueFrom(
       component.state$.pipe(
@@ -118,14 +119,16 @@ describe('CommunityDiscoveryPageComponent / ranking cutover', () => {
     );
     expect(initialState.nextCursor).toBe('cursor1:legacy:community-1');
 
-    component.loadMore(initialState.nextCursor);
-
-    const refreshedState = await firstValueFrom(
+    const refreshedStatePromise = firstValueFrom(
       component.state$.pipe(
         filter((state) => state.items[0]?.name === 'Comunidade reordenada'),
         take(1)
       )
     );
+    component.loadMore(initialState.nextCursor);
+    const refreshedState = await refreshedStatePromise;
+
+    persistentSubscription.unsubscribe();
 
     expect(refreshedState.nextCursor).toBe('cursor1:score_v2:community-1');
     expect(getDiscoveryPage$).toHaveBeenNthCalledWith(2, expect.objectContaining({
