@@ -72,6 +72,8 @@ export interface IUserTermsAcceptance {
 
 export interface IUserDados {
   uid: string;
+  /** Identidade social pública opaca. Nunca deve ser inferida a partir do UID. */
+  profileId?: string | null;
   nickname?: string | null;
   roomIds?: string[];
 
