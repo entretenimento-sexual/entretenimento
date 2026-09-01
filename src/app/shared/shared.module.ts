@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 
+import { ProfileOfficialCommunitiesComponent } from '../community/profile-official-communities/profile-official-communities.component';
 import { ModalMensagemComponent } from './components-globais/modal-mensagem/modal-mensagem.component';
 import { TextoDialogComponent } from './components-globais/texto-dialog/texto-dialog.component';
 import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dialog/confirmacao-dialog.component';
@@ -38,12 +39,14 @@ import { FormValidationFocusDirective } from './form-validation-focus/form-valid
     ConfirmationDialogComponent,
     UniversalSidebarComponent,
     ReportContentButtonComponent,
+    ProfileOfficialCommunitiesComponent,
     ActionStateDirective,
     FormValidationFocusDirective,
   ],
   exports: [
     UniversalSidebarComponent,
     ReportContentButtonComponent,
+    ProfileOfficialCommunitiesComponent,
     ModalMensagemComponent,
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
