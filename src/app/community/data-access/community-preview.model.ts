@@ -105,6 +105,7 @@ export interface CommunityPreviewResponse {
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const SAFE_DISCOVERY_CURSOR_PATTERN = /^[A-Za-z0-9:_-]{1,192}$/;
 
 function normalizeText(value: unknown, maxLength: number): string {
   return [...String(value ?? '')]
@@ -137,6 +138,11 @@ function normalizeMultilineText(value: unknown, maxLength: number): string {
 function normalizeSafeId(value: unknown): string | null {
   const normalized = normalizeText(value, 128);
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
+function normalizeDiscoveryCursor(value: unknown): string | null {
+  const normalized = normalizeText(value, 192);
+  return SAFE_DISCOVERY_CURSOR_PATTERN.test(normalized) ? normalized : null;
 }
 
 function normalizeHttpsUrl(value: unknown): string | null {
@@ -262,7 +268,7 @@ export function normalizeCommunityDiscoveryPageResponse(
   raw: unknown
 ): CommunityDiscoveryPage {
   const source = (raw ?? {}) as Record<string, unknown>;
-  const rawCursor = normalizeSafeId(source['nextCursor']);
+  const rawCursor = normalizeDiscoveryCursor(source['nextCursor']);
   const generatedAt = Number(source['generatedAt']);
 
   return {
