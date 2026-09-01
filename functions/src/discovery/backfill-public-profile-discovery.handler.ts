@@ -2,7 +2,8 @@
 // -----------------------------------------------------------------------------
 // BACKFILL PUBLIC PROFILE DISCOVERY
 // -----------------------------------------------------------------------------
-// Callable administrativa para preencher em public_profiles:
+// Callable administrativa para preencher em users/public_profiles:
+// - profileId público canônico, opaco e separado do Firebase Auth UID;
 // - identidade normalizada e reciprocidade;
 // - avatar público canônico;
 // - idade pública adulta;
@@ -17,6 +18,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FieldPath } from 'firebase-admin/firestore';
 import { FieldValue, db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
+import {
+  normalizePublicProfileId,
+  resolveOrGeneratePublicProfileId,
+} from '../identity/public-profile-id';
 import { hasMinimumActiveDiscoveryPlan } from './discovery-subscription-access';
 import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
 import { buildPublicPreferenceProjection } from './public-preference-projection';
@@ -40,9 +45,12 @@ interface BackfillPublicProfileDiscoveryResult {
   hasMore: boolean;
   processed: number;
   updated: number;
+  profileIdsAssigned: number;
   skippedWithoutPublicProfile: number;
   skippedWithoutUid: number;
 }
+
+const MAX_PENDING_BATCH_WRITES = 400;
 
 function normalizeLimit(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -121,10 +129,19 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
     if (startAfterUid) usersQuery = usersQuery.startAfter(startAfterUid);
 
     const usersSnap = await usersQuery.limit(limit).get();
-    const batch = db.batch();
+    let batch = db.batch();
+    let pendingWrites = 0;
+
+    const flushPendingWrites = async (): Promise<void> => {
+      if (dryRun || pendingWrites === 0) return;
+      await batch.commit();
+      batch = db.batch();
+      pendingWrites = 0;
+    };
 
     let processed = 0;
     let updated = 0;
+    let profileIdsAssigned = 0;
     let skippedWithoutPublicProfile = 0;
     let skippedWithoutUid = 0;
 
@@ -136,6 +153,20 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
       }
 
       processed += 1;
+
+      const user = (userDoc.data() ?? {}) as Record<string, unknown>;
+      const storedProfileId = normalizePublicProfileId(user['profileId']);
+      const profileId = storedProfileId
+        ?? resolveOrGeneratePublicProfileId(null);
+
+      if (!storedProfileId) {
+        profileIdsAssigned += 1;
+
+        if (!dryRun) {
+          batch.set(userDoc.ref, { profileId }, { merge: true });
+          pendingWrites += 1;
+        }
+      }
 
       const publicProfileRef = db.collection('public_profiles').doc(uid);
       const preferenceRef = db
@@ -150,10 +181,13 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
 
       if (!publicProfileSnap.exists) {
         skippedWithoutPublicProfile += 1;
+
+        if (pendingWrites >= MAX_PENDING_BATCH_WRITES) {
+          await flushPendingWrites();
+        }
         continue;
       }
 
-      const user = (userDoc.data() ?? {}) as Record<string, unknown>;
       const canonical = normalizeProfileDiscoveryFields(user);
       const publicPreferences = buildPublicPreferenceProjection(
         preferenceSnap.exists
@@ -172,6 +206,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
         batch.set(
           publicProfileRef,
           {
+            profileId,
             ...publicAvatar,
             normalizedGender: canonical.normalizedGender,
             normalizedOrientation: canonical.normalizedOrientation,
@@ -187,12 +222,15 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
           },
           { merge: true }
         );
+        pendingWrites += 1;
+
+        if (pendingWrites >= MAX_PENDING_BATCH_WRITES) {
+          await flushPendingWrites();
+        }
       }
     }
 
-    if (!dryRun && updated > 0) {
-      await batch.commit();
-    }
+    await flushPendingWrites();
 
     const lastDoc = usersSnap.docs.at(-1) ?? null;
     const nextCursor = lastDoc?.id ?? null;
@@ -207,6 +245,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
       hasMore,
       processed,
       updated,
+      profileIdsAssigned,
       skippedWithoutPublicProfile,
       skippedWithoutUid,
     });
@@ -220,6 +259,7 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
       hasMore,
       processed,
       updated,
+      profileIdsAssigned,
       skippedWithoutPublicProfile,
       skippedWithoutUid,
     };
