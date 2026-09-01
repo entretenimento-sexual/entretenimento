@@ -10,7 +10,6 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, Timestamp } from '../firebaseApp';
-import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   buildBilateralBlockPaths,
@@ -43,6 +42,7 @@ import {
   type CommunityNotificationUser,
 } from './community-notification.policy';
 import type { CommunityViewerRole } from './community-preview.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { getCommunityViewerContext } from './community-viewer-access.service';
 
 type FlatConversationCreateRequest = CommunityFeedCommentCreateRequest & {
@@ -214,17 +214,9 @@ export const createCommunityFeedComment = onCall<FlatConversationCreateRequest>(
         { reason: 'active_membership_required' }
       );
     }
-    await consumeBackendRateLimitQuota({
-      action: 'createCommunityFeedComment',
-      subject: actorUid,
-      cost: 1,
-      config: {
-        burstWindowMs: 60 * 1_000,
-        burstMax: 12,
-        sustainedWindowMs: 10 * 60 * 1_000,
-        sustainedMax: 60,
-      },
-      message: 'Muitas mensagens foram enviadas em pouco tempo.',
+    await consumeCommunityRateLimit({
+      action: 'feed_conversation',
+      actorUid,
     });
 
     return db.runTransaction(async (transaction): Promise<CommunityFeedCommentCreateResponse> => {
