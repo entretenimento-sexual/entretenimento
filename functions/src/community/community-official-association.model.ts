@@ -147,7 +147,7 @@ export function buildVerifiedVenueOfficialAssociation(input: {
   const associationKey = buildCommunityOfficialAssociationKey(target);
   if (!associationKey) return null;
 
-  return Object.freeze({
+  const association: CommunityOfficialAssociationRecord = {
     associationKey,
     communityId,
     target,
@@ -165,7 +165,9 @@ export function buildVerifiedVenueOfficialAssociation(input: {
     revokedAt: null,
     createdAt: Math.trunc(verifiedAt),
     updatedAt: Math.trunc(verifiedAt),
-  });
+  };
+
+  return Object.freeze(association);
 }
 
 /** Normaliza somente a projeção já sanitizada destinada a UI/Discovery. */
