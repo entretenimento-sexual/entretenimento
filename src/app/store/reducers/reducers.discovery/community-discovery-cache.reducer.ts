@@ -3,10 +3,14 @@
 import { createReducer, on } from '@ngrx/store';
 
 import { buildCommunityDiscoveryCacheKey } from 'src/app/community/discovery/community-discovery-cache.model';
-import type { CommunityPreviewCard } from 'src/app/community/data-access/community-preview.model';
+import type {
+  CommunityPreviewCard,
+  CommunityPreviewSourceType,
+} from 'src/app/community/data-access/community-preview.model';
 
 import * as CommunityDiscoveryCacheActions from '../../actions/actions.discovery/community-discovery-cache.actions';
 import {
+  CommunityDiscoveryCacheSlice,
   CommunityDiscoveryCacheState,
   initialCommunityDiscoveryCacheState,
 } from '../../states/states.discovery/community-discovery-cache.state';
@@ -36,6 +40,22 @@ function scopeToViewer(
   };
 }
 
+function matchesInvalidationScope(
+  slice: CommunityDiscoveryCacheSlice,
+  sourceType: CommunityPreviewSourceType | undefined,
+  communityId: string | undefined
+): boolean {
+  if (sourceType && slice.query.sourceType !== sourceType) return false;
+  if (
+    communityId
+    && !slice.items.some((item) => item.communityId === communityId)
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 export const communityDiscoveryCacheReducer = createReducer(
   initialCommunityDiscoveryCacheState,
 
@@ -59,6 +79,7 @@ export const communityDiscoveryCacheReducer = createReducer(
         byQuery: {
           ...scoped.byQuery,
           [key]: {
+            query,
             items,
             nextCursor: page.nextCursor,
             lastLoadedAt: Math.max(0, Math.trunc(storedAt)),
@@ -70,17 +91,30 @@ export const communityDiscoveryCacheReducer = createReducer(
 
   on(
     CommunityDiscoveryCacheActions.invalidateCommunityDiscoveryViewer,
-    (state, { viewerUid }) => {
+    (state, { viewerUid, sourceType, communityId }) => {
       if (!viewerUid || state.activeViewerUid !== viewerUid) return state;
 
+      const normalizedCommunityId = communityId?.trim() || undefined;
+      let changed = false;
       const byQuery = Object.fromEntries(
-        Object.entries(state.byQuery).map(([key, slice]) => [
-          key,
-          { ...slice, lastLoadedAt: 0 },
-        ])
+        Object.entries(state.byQuery).map(([key, slice]) => {
+          if (
+            !matchesInvalidationScope(
+              slice,
+              sourceType,
+              normalizedCommunityId
+            )
+            || slice.lastLoadedAt === 0
+          ) {
+            return [key, slice];
+          }
+
+          changed = true;
+          return [key, { ...slice, lastLoadedAt: 0 }];
+        })
       );
 
-      return { ...state, byQuery };
+      return changed ? { ...state, byQuery } : state;
     }
   ),
 
