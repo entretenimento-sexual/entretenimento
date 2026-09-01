@@ -222,6 +222,12 @@
           </section>
         }
 
+        @if (uid; as profileUid) {
+          <app-profile-official-communities
+            [profileUid]="profileUid"
+          />
+        }
+
         <app-social-links-accordion
           class="other-profile-page__panel other-profile-page__social"
           [uid]="uid"
