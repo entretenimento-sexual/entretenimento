@@ -251,10 +251,7 @@ export class CommunityDiscoveryPageComponent {
     switchMap((request) =>
       this.resolveLoadEvents$(request).pipe(
         startWith<LoadEvent>({ type: 'loading', request }),
-        catchError((error: unknown) => {
-          this.reportError(error);
-          return of<LoadEvent>({ type: 'error', request });
-        })
+        catchError((error: unknown) => this.recoverLoadError$(error, request))
       )
     ),
     scan(reduceState, INITIAL_STATE),
@@ -442,6 +439,49 @@ export class CommunityDiscoveryPageComponent {
         })
       )
     );
+  }
+
+  private recoverLoadError$(
+    error: unknown,
+    request: LoadRequest
+  ): Observable<LoadEvent> {
+    const options = {
+      feature: 'community',
+      operation: 'loadDiscoveryPage',
+      fallbackMessage:
+        `Não foi possível carregar ${this.title.toLowerCase()}.`,
+      metadata: this.errorMetadata(),
+    } as const;
+    const descriptor = this.applicationError.normalize(error, options);
+
+    if (
+      request.append
+      && this.discoveryMode === 'explore'
+      && descriptor.code === 'aborted'
+    ) {
+      this.applicationError.report(error, {
+        ...options,
+        notification: 'none',
+      });
+      const resetRequest: LoadRequest = {
+        cursor: null,
+        append: false,
+        tagId: request.tagId,
+      };
+
+      return this.fetchPageEvent$(
+        resetRequest,
+        this.cacheContext(resetRequest.tagId)
+      ).pipe(
+        catchError((refreshError: unknown) => {
+          this.reportError(refreshError);
+          return of<LoadEvent>({ type: 'error', request });
+        })
+      );
+    }
+
+    this.applicationError.report(error, options);
+    return of<LoadEvent>({ type: 'error', request });
   }
 
   private cacheContext(tagId: string | null): CommunityDiscoveryCacheContext {
