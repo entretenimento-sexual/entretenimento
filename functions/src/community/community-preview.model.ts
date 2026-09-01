@@ -23,6 +23,10 @@ import type {
   CommunityMemberLimit,
   CommunityMemberLimitCapabilityOption,
 } from './community-capacity.policy';
+import {
+  type CommunityOfficialAssociationPublicProjection,
+  normalizeCommunityOfficialAssociationPublicProjection,
+} from './community-official-association.model';
 
 export type CommunitySourceType = 'community' | 'venue';
 export type CommunityJoinPolicy = 'open' | 'approval' | 'invite_only';
@@ -79,6 +83,8 @@ export interface CommunityPreviewCard {
   metrics: CommunityPreviewMetrics;
   access: CommunityPreviewAccess;
   tags: readonly CommunityPreviewTag[];
+  /** Projeção pública derivada da associação oficial canônica. */
+  officialAssociation?: CommunityOfficialAssociationPublicProjection | null;
   /** Presente apenas em projeções privadas ligadas ao membership do viewer. */
   viewerRole?: CommunityViewerRole | null;
 }
@@ -284,6 +290,10 @@ function buildPreviewCard(
   }
 
   const description = normalizeText(source['description'], 240);
+  const officialAssociation =
+    normalizeCommunityOfficialAssociationPublicProjection(
+      source['officialAssociation']
+    );
 
   return {
     communityId,
@@ -298,6 +308,7 @@ function buildPreviewCard(
     tags: communitySource.type === 'community'
       ? normalizeTags(source['tagIds'])
       : [],
+    ...(officialAssociation ? { officialAssociation } : {}),
   };
 }
 
