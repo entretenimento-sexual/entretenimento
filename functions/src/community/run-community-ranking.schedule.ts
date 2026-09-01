@@ -5,8 +5,9 @@
 // Reavalia periodicamente o score para que o componente de frescor decaia mesmo
 // sem novas escritas. O ciclo percorre a própria projeção de descoberta: assim,
 // a readiness só fica positiva quando todo documento consultável possui fonte
-// canônica compatível e score da versão atual.
-// `rankScore` legado continua intacto até a migração explícita da descoberta.
+// canônica compatível e score da versão atual. Mudança de versão reinicia o
+// cursor para impedir readiness com uma coleção parcialmente migrada.
+// `rankScore` legado permanece apenas como fallback de rollout/rollback.
 // -----------------------------------------------------------------------------
 
 import { FieldPath } from 'firebase-admin/firestore';
@@ -19,6 +20,7 @@ import { COMMUNITY_DISCOVERY_SCORE_VERSION } from './community-ranking.policy';
 import {
   buildCommunityRankingProjectionPatch,
   isCommunityRankingProjectionCurrent,
+  isCommunityRankingRuntimeCurrent,
   isCommunityRankingSupportedDocument,
   resolveCommunityRankingMaxPerRun,
 } from './community-ranking-sync.policy';
@@ -65,8 +67,9 @@ export const runCommunityRanking = onSchedule(
     const config = configSnapshot.exists ? configSnapshot.data() ?? {} : {};
     const runtime = runtimeSnapshot.exists ? runtimeSnapshot.data() ?? {} : {};
     const maxPerRun = resolveCommunityRankingMaxPerRun(config);
-    let cursor = normalizeCursor(runtime['cursor']);
-    const continuingCycle = cursor !== null;
+    const runtimeCurrent = isCommunityRankingRuntimeCurrent(runtime);
+    let cursor = runtimeCurrent ? normalizeCursor(runtime['cursor']) : null;
+    const continuingCycle = runtimeCurrent && cursor !== null;
     const cycleStartedAt = continuingCycle
       ? normalizeTimestamp(runtime['cycleStartedAt']) ?? now
       : now;
@@ -226,6 +229,7 @@ export const runCommunityRanking = onSchedule(
       reachedEnd,
       ready,
       scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      restartedForScoreVersion: runtimeSnapshot.exists && !runtimeCurrent,
       nextCursor: reachedEnd ? null : cursor,
     });
   }
