@@ -25,6 +25,10 @@ import {
   evaluateCommunityMembershipLeave,
 } from './community-membership-request.policy';
 import {
+  normalizeCommunityOfficialAssociationKey,
+  sanitizeCommunityOfficialAssociationPublicProjection,
+} from './community-official-association.model';
+import {
   CommunityPreviewCard,
   CommunityPreviewLifecycleStatus,
   CommunityPreviewResponse,
@@ -101,13 +105,13 @@ export async function getCommunityViewerContext(
   }
 
   const communityRaw = communitySnapshot.data() ?? null;
-  const community = sanitizeCommunityDocument(communityId, communityRaw);
+  const raw = (communityRaw ?? {}) as Record<string, unknown>;
+  let community = sanitizeCommunityDocument(communityId, communityRaw);
   const previewDetails = sanitizeCommunityPreviewDetails(communityRaw);
   const membershipRaw = membershipSnapshot.exists
     ? membershipSnapshot.data() ?? {}
     : {};
   const viewer = resolveCommunityViewerMode(membershipRaw);
-  const raw = (communityRaw ?? {}) as Record<string, unknown>;
   const moderation = (raw['moderation'] ?? {}) as Record<string, unknown>;
   const access = (raw['access'] ?? {}) as Record<string, unknown>;
   const moderationActive = moderation['state'] === 'active';
@@ -130,6 +134,32 @@ export async function getCommunityViewerContext(
       'permission-denied',
       'Você não possui acesso a esta comunidade.'
     );
+  }
+
+  const officialAssociationKey = normalizeCommunityOfficialAssociationKey(
+    raw['officialAssociationKey']
+  );
+
+  if (officialAssociationKey) {
+    const associationSnapshot = await db
+      .collection('community_official_associations')
+      .doc(officialAssociationKey)
+      .get();
+    const associationRaw = associationSnapshot.exists
+      ? associationSnapshot.data() ?? null
+      : null;
+    const associationSource = (associationRaw ?? {}) as Record<string, unknown>;
+    const officialAssociation =
+      associationSource['communityId'] === communityId
+        ? sanitizeCommunityOfficialAssociationPublicProjection(associationRaw)
+        : null;
+
+    if (officialAssociation) {
+      community = {
+        ...community,
+        officialAssociation,
+      };
+    }
   }
 
   const memberContentAccess = viewer.active;
