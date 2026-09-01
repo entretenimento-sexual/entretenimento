@@ -119,7 +119,9 @@ describe('CommunityMembershipManagementComponent', () => {
 
     expect(fixture.componentInstance.activePanel()).toBe('overview');
     expect(fixture.nativeElement.textContent).toContain('Gestão da Comunidade');
-    expect(fixture.nativeElement.textContent).toContain('Nenhuma solicitação pendente.');
+    expect(fixture.nativeElement.textContent).toContain(
+      'Nenhuma solicitação de entrada pendente.'
+    );
     expect(
       fixture.nativeElement.querySelector('app-community-member-roster-management')
     ).toBeNull();
