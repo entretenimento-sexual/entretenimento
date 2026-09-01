@@ -73,10 +73,18 @@ export interface CommunityOfficialAssociationPublicProjection {
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const SAFE_ASSOCIATION_KEY_PATTERN = /^[A-Za-z0-9:_-]{1,192}$/;
 
 function normalizeSafeId(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
+export function normalizeCommunityOfficialAssociationKey(
+  value: unknown
+): string | null {
+  const normalized = String(value ?? '').trim();
+  return SAFE_ASSOCIATION_KEY_PATTERN.test(normalized) ? normalized : null;
 }
 
 function normalizeTargetType(
@@ -102,7 +110,9 @@ export function buildCommunityOfficialAssociationKey(
 ): string | null {
   const type = normalizeTargetType(target.type);
   const id = normalizeSafeId(target.id);
-  return type && id ? `${type}:${id}` : null;
+  if (!type || !id) return null;
+
+  return normalizeCommunityOfficialAssociationKey(`${type}:${id}`);
 }
 
 export function buildVerifiedVenueOfficialAssociation(input: {
@@ -185,7 +195,9 @@ export function sanitizeCommunityOfficialAssociationPublicProjection(
 
   const target = normalizePublicTarget(source['target']);
   const communityId = normalizeSafeId(source['communityId']);
-  const associationKey = normalizeSafeId(source['associationKey']);
+  const associationKey = normalizeCommunityOfficialAssociationKey(
+    source['associationKey']
+  );
 
   if (!target || !communityId || !associationKey) return null;
 
