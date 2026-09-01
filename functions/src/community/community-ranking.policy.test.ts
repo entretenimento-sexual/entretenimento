@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  COMMUNITY_DISCOVERY_RANKING_MODE,
   COMMUNITY_DISCOVERY_SCORE_VERSION,
   buildCommunityDiscoveryRanking,
 } from './community-ranking.policy';
@@ -27,7 +28,7 @@ function community(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test('gera score versionado e limitado entre zero e cem', () => {
+test('gera score v2 versionado e limitado entre zero e cem', () => {
   const ranking = buildCommunityDiscoveryRanking({
     rawCommunity: community({
       metrics: {
@@ -43,6 +44,8 @@ test('gera score versionado e limitado entre zero e cem', () => {
     now: NOW,
   });
 
+  assert.equal(COMMUNITY_DISCOVERY_SCORE_VERSION, 2);
+  assert.equal(COMMUNITY_DISCOVERY_RANKING_MODE, 'score_v2');
   assert.equal(ranking.scoreVersion, COMMUNITY_DISCOVERY_SCORE_VERSION);
   assert.equal(ranking.scoreUpdatedAt, NOW);
 
@@ -97,7 +100,7 @@ test('volume bruto satura e não consegue ultrapassar cem', () => {
   assert.equal(ranking.discoveryScore <= 100, true);
 });
 
-test('moderação não ativa derruba o componente de segurança', () => {
+test('segurança e lifecycle são gate e não bônus constante do ranking', () => {
   const active = buildCommunityDiscoveryRanking({
     rawCommunity: community(),
     now: NOW,
@@ -106,10 +109,22 @@ test('moderação não ativa derruba o componente de segurança', () => {
     rawCommunity: community({ moderation: { state: 'restricted' } }),
     now: NOW,
   });
+  const paused = buildCommunityDiscoveryRanking({
+    rawCommunity: community({ status: 'paused' }),
+    now: NOW,
+  });
+  const expectedEligibleScore = Math.round(
+    active.qualityScore * 0.25
+      + active.activityScore * 0.45
+      + active.freshnessScore * 0.30
+  );
 
   assert.equal(active.safetyScore, 100);
+  assert.equal(active.discoveryScore, expectedEligibleScore);
   assert.equal(moderated.safetyScore, 0);
-  assert.equal(active.discoveryScore > moderated.discoveryScore, true);
+  assert.equal(moderated.discoveryScore, 0);
+  assert.equal(paused.safetyScore, 0);
+  assert.equal(paused.discoveryScore, 0);
 });
 
 test('aceita timestamp compatível com Firestore sem depender do SDK', () => {
