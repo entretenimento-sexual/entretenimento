@@ -21,6 +21,7 @@ import type { CommunityEditableSettings } from './community-settings.model';
 import type {
   CommunityEffectiveMemberLimit,
   CommunityMemberLimit,
+  CommunityMemberLimitCapabilityOption,
 } from './community-capacity.policy';
 
 export type CommunitySourceType = 'community' | 'venue';
@@ -106,6 +107,8 @@ export interface CommunityPreviewResponse {
     memberCount: number;
     acceptingNewMembers: boolean;
     restrictedByOwnerPlan: boolean;
+    memberLimitOptions: readonly CommunityMemberLimitCapabilityOption[];
+    /** Compatibilidade temporária com consumidores anteriores. */
     allowedMemberLimits: readonly CommunityMemberLimit[];
   } | null;
   /** Configurações privadas, somente quando a capability acima for verdadeira. */
