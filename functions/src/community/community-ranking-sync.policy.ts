@@ -3,10 +3,12 @@
 // COMMUNITY DISCOVERY RANKING SYNC POLICY
 // -----------------------------------------------------------------------------
 // Converte a política canônica de ranking em patch persistível da projeção de
-// descoberta e evita writes quando o score material não mudou.
+// descoberta, evita writes quando o score material não mudou e impede que um
+// cursor de backfill de versão anterior seja reutilizado pela versão atual.
 // -----------------------------------------------------------------------------
 
 import {
+  COMMUNITY_DISCOVERY_SCORE_VERSION,
   buildCommunityDiscoveryRanking,
   type CommunityDiscoveryRankingBreakdown,
 } from './community-ranking.policy';
@@ -100,6 +102,11 @@ export function haveCommunityRankingVisualInputsChanged(
   return normalizeText(before['description']) !== normalizeText(after['description'])
     || normalizeText(before['avatarUrl']) !== normalizeText(after['avatarUrl'])
     || normalizeText(before['coverUrl']) !== normalizeText(after['coverUrl']);
+}
+
+export function isCommunityRankingRuntimeCurrent(rawRuntime: unknown): boolean {
+  const runtime = asRecord(rawRuntime);
+  return Number(runtime['scoreVersion']) === COMMUNITY_DISCOVERY_SCORE_VERSION;
 }
 
 export function resolveCommunityRankingMaxPerRun(rawConfig: unknown): number {
