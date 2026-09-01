@@ -29,6 +29,26 @@ function card(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function communityCapacity(overrides: Record<string, unknown> = {}) {
+  return {
+    configuredLimit: 250,
+    effectiveLimit: 250,
+    memberCount: 8,
+    acceptingNewMembers: true,
+    restrictedByOwnerPlan: false,
+    memberLimitOptions: [
+      { memberLimit: 25, requirement: 'basic', allowed: true },
+      { memberLimit: 50, requirement: 'basic', allowed: true },
+      { memberLimit: 100, requirement: 'basic', allowed: true },
+      { memberLimit: 250, requirement: 'premium', allowed: true },
+      { memberLimit: 500, requirement: 'vip', allowed: false },
+      { memberLimit: 1_000, requirement: 'special_access', allowed: false },
+    ],
+    allowedMemberLimits: [25, 50, 100, 250],
+    ...overrides,
+  };
+}
+
 describe('community preview normalization', () => {
   it('normaliza Comunidade e Local como origens distintas', () => {
     const page = normalizeCommunityDiscoveryPageResponse({
@@ -113,14 +133,7 @@ describe('community preview normalization', () => {
       canManageMemberships: true,
       canInviteCommunityMembers: true,
       canManageCommunitySettings: true,
-      capacity: {
-        configuredLimit: 250,
-        effectiveLimit: 250,
-        memberCount: 8,
-        acceptingNewMembers: true,
-        restrictedByOwnerPlan: false,
-        allowedMemberLimits: [25, 50, 100, 250],
-      },
+      capacity: communityCapacity(),
       settings: {
         name: 'Comunidade do Centro',
         description: 'Grupo permanente de pessoas da região central.',
@@ -141,6 +154,8 @@ describe('community preview normalization', () => {
     expect(preview?.canManageCommunitySettings).toBe(true);
     expect(preview?.settings).not.toHaveProperty('accessTier');
     expect(preview?.capacity?.configuredLimit).toBe(250);
+    expect(preview?.capacity?.allowedMemberLimits).toEqual([25, 50, 100, 250]);
+    expect(preview?.capacity?.memberLimitOptions).toHaveLength(6);
     expect(preview?.canLeaveMembership).toBe(true);
     expect(preview?.viewerRole).toBe('owner');
     expect(preview?.community.tags).toHaveLength(2);
@@ -148,28 +163,16 @@ describe('community preview normalization', () => {
       'Respeite os participantes.\nPreserve a privacidade.'
     );
     expect(preview?.lifecycleStatus).toBe('active');
+  });
 
-    const failClosed = normalizeCommunityPreviewResponse({
+  it('falha fechado quando uma Comunidade não recebe capacidade canônica', () => {
+    expect(normalizeCommunityPreviewResponse({
       community: card(),
       rules: 'Respeite os participantes.',
       lifecycleStatus: 'active',
       viewerMode: 'manager',
       viewerRole: 'owner',
-    });
-    expect(failClosed?.canInteract).toBe(false);
-    expect(failClosed?.canManageMemberships).toBe(false);
-    expect(failClosed?.canInviteCommunityMembers).toBe(false);
-    expect(failClosed?.canManageCommunitySettings).toBe(false);
-    expect(failClosed?.settings).toBeNull();
-    expect(failClosed?.capacity).toEqual({
-      configuredLimit: 25,
-      effectiveLimit: 25,
-      memberCount: 8,
-      acceptingNewMembers: true,
-      restrictedByOwnerPlan: false,
-      allowedMemberLimits: [],
-    });
-    expect(failClosed?.canLeaveMembership).toBe(false);
+    })).toBeNull();
   });
 
   it('rejeita configurações privadas malformadas quando a capability é concedida', () => {
@@ -179,6 +182,7 @@ describe('community preview normalization', () => {
       lifecycleStatus: 'active',
       viewerMode: 'manager',
       viewerRole: 'owner',
+      capacity: communityCapacity(),
       canManageCommunitySettings: true,
       settings: { name: 'Incompleta' },
     })).toBeNull();
@@ -203,6 +207,7 @@ describe('community preview normalization', () => {
         community: card(),
         lifecycleStatus: 'active',
         viewerMode: 'root',
+        capacity: communityCapacity(),
       })
     ).toBeNull();
   });
@@ -214,6 +219,7 @@ describe('community preview normalization', () => {
         lifecycleStatus: 'active',
         viewerMode: 'manager',
         viewerRole: 'root',
+        capacity: communityCapacity(),
       })?.viewerRole
     ).toBeNull();
   });
@@ -224,6 +230,7 @@ describe('community preview normalization', () => {
         community: card(),
         lifecycleStatus: 'unknown',
         viewerMode: 'visitor',
+        capacity: communityCapacity(),
       })
     ).toBeNull();
 
