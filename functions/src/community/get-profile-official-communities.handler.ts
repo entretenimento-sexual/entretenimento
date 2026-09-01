@@ -2,30 +2,24 @@
 // -----------------------------------------------------------------------------
 // GET PROFILE OFFICIAL COMMUNITIES
 // -----------------------------------------------------------------------------
-// Recebe exclusivamente o profileId público canônico e devolve somente cards
-// públicos cuja associação oficial verificada aponta para esse perfil.
-// Memberships pessoais nunca entram nesta resposta e nenhum UID é resolvido ou
-// exposto por esta callable.
+// Compatibilidade nominal para consumidores existentes. A leitura real é a
+// consulta canônica por alvo oficial; nenhum UID é resolvido ou exposto aqui.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
-import { db } from '../firebaseApp';
 import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
 } from './community-callable-security';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
-import {
-  CommunityDiscoveryPageResponse,
-  CommunityPreviewCard,
-  sanitizeCommunityDiscoveryProjection,
-} from './community-preview.model';
+import type { CommunityDiscoveryPageResponse } from './community-preview.model';
 import {
   ProfileOfficialCommunitiesRequest,
   normalizeProfileOfficialCommunitiesRequest,
 } from './profile-official-communities.model';
+import { loadOfficialCommunitiesForTarget } from './official-communities.query';
 
 function assertRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
@@ -65,39 +59,9 @@ export const getProfileOfficialCommunities =
         );
       }
 
-      const scanLimit = Math.min(command.limit * 3, 24);
-      const projectionSnapshot = await db
-        .collection('community_discovery_index')
-        .where('officialAssociation.target.type', '==', 'profile')
-        .where('officialAssociation.target.id', '==', command.profileId)
-        .limit(scanLimit)
-        .get();
-
-      const items = projectionSnapshot.docs
-        .map((document) =>
-          sanitizeCommunityDiscoveryProjection(
-            document.id,
-            document.data()
-          )
-        )
-        .filter((item): item is CommunityPreviewCard => {
-          const official = item?.officialAssociation;
-          return !!item
-            && official?.verified === true
-            && official.target.type === 'profile'
-            && official.target.id === command.profileId;
-        })
-        .sort((left, right) => {
-          const memberDelta =
-            right.metrics.memberCount - left.metrics.memberCount;
-          return memberDelta || left.name.localeCompare(right.name, 'pt-BR');
-        })
-        .slice(0, command.limit);
-
-      return {
-        items,
-        nextCursor: null,
-        generatedAt: Date.now(),
-      };
+      return loadOfficialCommunitiesForTarget(
+        { type: 'profile', id: command.profileId },
+        command.limit
+      );
     }
   );
