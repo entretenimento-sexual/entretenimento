@@ -26,7 +26,7 @@
           [attr.aria-pressed]="activePanel() === 'overview'"
           (click)="selectPanel('overview')"
         >
-          <i class="fas fa-grid-2" aria-hidden="true"></i>
+          <i class="fas fa-table-cells-large" aria-hidden="true"></i>
           <span>Visão geral</span>
         </button>
 
@@ -128,7 +128,7 @@
                 } @else if (state.status === 'error') {
                   <span>Fila temporariamente indisponível.</span>
                 } @else if (state.items.length === 0) {
-                  <span>Nenhuma solicitação pendente.</span>
+                  <span>{{ emptyMessage() }}</span>
                 } @else {
                   <span>{{ state.items.length }} aguardando revisão.</span>
                 }
