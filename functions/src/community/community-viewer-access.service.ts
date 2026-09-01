@@ -9,7 +9,9 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import { db } from '../firebaseApp';
-import { COMMUNITY_MEMBER_LIMIT_OPTIONS } from './community-capacity.policy';
+import {
+  resolveCommunityMemberLimitCapabilityOptionsForCeiling,
+} from './community-capacity.policy';
 import { getCommunityCapacityForOwner } from './community-capacity.service';
 import {
   isCommunityMemberActivityEnabledStatus,
@@ -181,6 +183,11 @@ export async function getCommunityViewerContext(
     existingStatus: normalizeMembershipStatus(membershipRaw['status']),
     existingRole: viewer.role,
   });
+  const memberLimitOptions = capacityState && viewer.role === 'owner'
+    ? resolveCommunityMemberLimitCapabilityOptionsForCeiling(
+      capacityState.ownerPlanLimit
+    )
+    : [];
 
   return {
     community,
@@ -205,11 +212,10 @@ export async function getCommunityViewerContext(
         memberCount: capacityState.memberCount,
         acceptingNewMembers: capacityState.acceptingNewMembers,
         restrictedByOwnerPlan: capacityState.restrictedByOwnerPlan,
-        allowedMemberLimits: viewer.role === 'owner'
-          ? COMMUNITY_MEMBER_LIMIT_OPTIONS.filter(
-            (limit) => limit <= capacityState.ownerPlanLimit
-          )
-          : [],
+        memberLimitOptions,
+        allowedMemberLimits: memberLimitOptions
+          .filter((option) => option.allowed)
+          .map((option) => option.memberLimit),
       }
       : null,
     settings,
