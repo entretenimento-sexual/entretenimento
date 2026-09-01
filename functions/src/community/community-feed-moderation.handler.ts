@@ -38,6 +38,7 @@ import {
   type CommunityNotificationUser,
 } from './community-notification.policy';
 import type { CommunityViewerRole } from './community-preview.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface PostActionTransactionResult {
   response: CommunityFeedPostActionResponse;
@@ -182,6 +183,13 @@ export const moderateCommunityFeedPost = onCall<CommunityFeedPostActionRequest>(
       );
     }
     const action = command.action;
+
+    if (action === 'remove') {
+      await consumeCommunityRateLimit({
+        action: 'content_moderation',
+        actorUid,
+      });
+    }
 
     const transactionResult = await db.runTransaction(async (transaction): Promise<PostActionTransactionResult> => {
       const communityId = command.communityId!;
