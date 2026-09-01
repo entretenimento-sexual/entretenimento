@@ -7,7 +7,10 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import * as CommunityDiscoveryCacheActions from 'src/app/store/actions/actions.discovery/community-discovery-cache.actions';
 import { selectCommunityDiscoveryCacheSlice } from 'src/app/store/selectors/selectors.discovery/community-discovery-cache.selectors';
 import type { AppState } from 'src/app/store/states/app.state';
-import type { CommunityDiscoveryPage } from '../data-access/community-preview.model';
+import type {
+  CommunityDiscoveryPage,
+  CommunityPreviewSourceType,
+} from '../data-access/community-preview.model';
 import {
   COMMUNITY_DISCOVERY_CACHE_TTL_MS,
   CommunityDiscoveryCacheContext,
@@ -19,6 +22,16 @@ import {
 export interface CommunityDiscoveryCacheSnapshot {
   readonly page: CommunityDiscoveryPage;
   readonly fresh: boolean;
+}
+
+export interface CommunityDiscoveryCacheInvalidationScope {
+  readonly sourceType?: CommunityPreviewSourceType;
+  /**
+   * Quando informado, invalida apenas consultas que já contêm a Comunidade.
+   * Para mutações que podem inserir/remover um card de uma lista (criação,
+   * entrada/saída), use somente `sourceType`.
+   */
+  readonly communityId?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -94,13 +107,18 @@ export class CommunityDiscoveryCacheService {
     );
   }
 
-  invalidateCurrentViewer(): void {
+  invalidateCurrentViewer(
+    scope: CommunityDiscoveryCacheInvalidationScope = {}
+  ): void {
     const viewerUid = this.resolveCurrentViewerUid();
     if (!viewerUid) return;
 
+    const communityId = scope.communityId?.trim() || undefined;
     this.store.dispatch(
       CommunityDiscoveryCacheActions.invalidateCommunityDiscoveryViewer({
         viewerUid,
+        ...(scope.sourceType ? { sourceType: scope.sourceType } : {}),
+        ...(communityId ? { communityId } : {}),
       })
     );
   }
