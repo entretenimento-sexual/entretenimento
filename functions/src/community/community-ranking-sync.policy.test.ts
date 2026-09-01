@@ -6,9 +6,11 @@ import {
   buildCommunityRankingProjectionPatch,
   haveCommunityRankingVisualInputsChanged,
   isCommunityRankingProjectionCurrent,
+  isCommunityRankingRuntimeCurrent,
   isCommunityRankingSupportedDocument,
   resolveCommunityRankingMaxPerRun,
 } from './community-ranking-sync.policy';
+import { COMMUNITY_DISCOVERY_SCORE_VERSION } from './community-ranking.policy';
 
 const NOW = Date.UTC(2026, 7, 30, 12, 0, 0);
 
@@ -16,6 +18,7 @@ function community(overrides: Record<string, unknown> = {}) {
   return {
     description: 'Comunidade ativa com contexto suficiente para descoberta.',
     source: { type: 'community', id: 'community-1' },
+    status: 'active',
     moderation: { state: 'active' },
     metrics: { memberCount: 20, postCount: 30, mediaCount: 4 },
     lifecycle: { lastMeaningfulActivityAt: NOW },
@@ -35,6 +38,7 @@ test('gera patch persistível sem depender de rankScore legado', () => {
   assert.equal(patch.discoveryScore, patch.ranking.discoveryScore);
   assert.equal('rankScore' in patch, false);
   assert.equal(patch.ranking.scoreUpdatedAt, NOW);
+  assert.equal(patch.ranking.scoreVersion, COMMUNITY_DISCOVERY_SCORE_VERSION);
 });
 
 test('considera projeção atual mesmo com scoreUpdatedAt antigo', () => {
@@ -115,6 +119,24 @@ test('aceita somente documentos sociais suportados', () => {
     ),
     false
   );
+});
+
+test('não reutiliza runtime de backfill de outra versão', () => {
+  assert.equal(
+    isCommunityRankingRuntimeCurrent({
+      scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
+      cursor: 'community-500',
+    }),
+    true
+  );
+  assert.equal(
+    isCommunityRankingRuntimeCurrent({
+      scoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION - 1,
+      cursor: 'community-500',
+    }),
+    false
+  );
+  assert.equal(isCommunityRankingRuntimeCurrent({}), false);
 });
 
 test('limita lote diário configurável', () => {
