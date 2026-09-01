@@ -4,8 +4,9 @@ import { normalizePublicUserIdentity } from './public-user-identity.model';
 
 describe('normalizePublicUserIdentity', () => {
   it('normaliza a mesma identidade para qualquer superfície social', () => {
+    const profileId = 'profile-11111111-1111-4111-8111-111111111111';
     const identity = normalizePublicUserIdentity({
-      profileId: 'user-1',
+      profileId,
       nickname: 'serale',
       avatarUrl: 'https://example.com/avatar.webp',
       identityCode: 'mulher',
@@ -17,7 +18,7 @@ describe('normalizePublicUserIdentity', () => {
     });
 
     expect(identity).toMatchObject({
-      profileId: 'user-1',
+      profileId,
       nickname: 'serale',
       label: 'serale',
       identityCode: 'mulher',
