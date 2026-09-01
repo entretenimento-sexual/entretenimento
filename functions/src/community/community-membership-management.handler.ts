@@ -33,6 +33,7 @@ import {
   evaluateCommunityMembershipReview,
 } from './community-membership-request.policy';
 import { normalizeCommunityId } from './community-preview.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface CommunityIdPayload {
   communityId?: unknown;
@@ -564,6 +565,11 @@ export const reviewCommunityMembership =
           { reason: 'invalid_membership_review' }
         );
       }
+
+      await consumeCommunityRateLimit({
+        action: 'membership_review',
+        actorUid,
+      });
 
       return db.runTransaction(async (transaction) => {
         const communityRef = db.collection('communities').doc(communityId);
