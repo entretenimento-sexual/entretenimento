@@ -20,13 +20,21 @@ const SETTINGS: CommunityEditableSettings = {
   tagIds: ['intent:friendship'],
 };
 
+const CAPACITY_OPTIONS = [
+  { memberLimit: 25, requirement: 'basic', allowed: true },
+  { memberLimit: 50, requirement: 'basic', allowed: true },
+  { memberLimit: 100, requirement: 'basic', allowed: true },
+  { memberLimit: 250, requirement: 'premium', allowed: false },
+] as const;
+
 const CAPACITY: CommunityCapacityPreview = {
   configuredLimit: 25,
   effectiveLimit: 25,
   memberCount: 8,
   acceptingNewMembers: true,
   restrictedByOwnerPlan: false,
-  allowedMemberLimits: [25],
+  memberLimitOptions: CAPACITY_OPTIONS,
+  allowedMemberLimits: [25, 50, 100],
 };
 
 describe('CommunitySettingsComponent', () => {
@@ -94,6 +102,28 @@ describe('CommunitySettingsComponent', () => {
     expect(admin.componentInstance.form.controls.memberLimit.disabled).toBe(true);
     expect(admin.nativeElement.textContent).toContain(
       'Somente o proprietário pode alterar a capacidade.'
+    );
+  });
+
+  it('permite aumentar capacidade com opção liberada pelo backend', () => {
+    const fixture = createFixture('owner');
+    const option = CAPACITY_OPTIONS.find((item) => item.memberLimit === 100)!;
+
+    fixture.componentInstance.selectMemberLimit(option);
+
+    expect(fixture.componentInstance.form.controls.memberLimit.value).toBe(100);
+    expect(notificationsMock.showWarning).not.toHaveBeenCalled();
+  });
+
+  it('não infere acesso a capacidade bloqueada no Angular', () => {
+    const fixture = createFixture('owner');
+    const option = CAPACITY_OPTIONS.find((item) => item.memberLimit === 250)!;
+
+    fixture.componentInstance.selectMemberLimit(option);
+
+    expect(fixture.componentInstance.form.controls.memberLimit.value).toBe(25);
+    expect(notificationsMock.showWarning).toHaveBeenCalledWith(
+      'Premium é necessário para escolher essa capacidade.'
     );
   });
 
