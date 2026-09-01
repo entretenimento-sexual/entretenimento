@@ -17,6 +17,7 @@ import {
   ValidatorFn,
   Validators,
 } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import {
   catchError,
   combineLatest,
@@ -98,7 +99,7 @@ function communityTagCountValidator(): ValidatorFn {
 @Component({
   selector: 'app-community-settings',
   standalone: true,
-  imports: [AsyncPipe, ReactiveFormsModule],
+  imports: [AsyncPipe, ReactiveFormsModule, RouterLink],
   templateUrl: './community-settings.component.html',
   styleUrl: './community-settings.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
