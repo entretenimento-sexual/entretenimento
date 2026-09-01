@@ -4,7 +4,8 @@
 // -----------------------------------------------------------------------------
 // Comunidade é um grupo permanente de pessoas unidas por interesse, identidade,
 // região ou objetivo. O formulário é mobile-first, tipado e reativo; propriedade,
-// moderação, entitlement e identificadores permanecem sob autoridade da Function.
+// moderação, entitlement, capacidades e identificadores permanecem sob autoridade
+// da Function.
 // -----------------------------------------------------------------------------
 
 import { AsyncPipe } from '@angular/common';
@@ -39,6 +40,7 @@ import {
   Subject,
   switchMap,
   take,
+  tap,
 } from 'rxjs';
 
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
@@ -46,11 +48,11 @@ import { ApplicationErrorService } from 'src/app/core/services/error-handler/app
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { COMMUNITY_CREATE_RETURN_URL } from 'src/app/subscriptions/domain/subscription-flow-context.model';
 import {
-  COMMUNITY_MEMBER_LIMIT_OPTIONS,
   CommunityCreationCapability,
   CommunityEffectiveMemberLimit,
   CommunityMemberLimit,
-  communityMemberLimitRequiredRole,
+  CommunityMemberLimitCapabilityOption,
+  communityMemberLimitRequirementLabel,
 } from '../data-access/community-capacity.model';
 import {
   CommunityCreateJoinPolicy,
@@ -79,7 +81,7 @@ type CommunityCreateForm = FormGroup<{
   description: FormControl<string>;
   rules: FormControl<string>;
   joinPolicy: FormControl<CommunityCreateJoinPolicy>;
-  memberLimit: FormControl<CommunityMemberLimit>;
+  memberLimit: FormControl<CommunityMemberLimit | null>;
   tagIds: FormControl<readonly string[]>;
 }>;
 
@@ -88,7 +90,7 @@ interface CommunityCreatePreviewVm {
   initials: string;
   theme: string;
   join: string;
-  memberLimit: CommunityMemberLimit;
+  memberLimit: CommunityMemberLimit | null;
   tagCount: number;
 }
 
@@ -135,7 +137,6 @@ export class CommunityCreatePageComponent {
   readonly submitting = signal(false);
   readonly communityDefinition = getSocialSpaceDefinition('community');
   readonly maxCommunityTags = MAX_COMMUNITY_TAGS;
-  readonly memberLimitOptions = COMMUNITY_MEMBER_LIMIT_OPTIONS;
 
   readonly themeOptions: ReadonlyArray<{
     value: CommunityCreateTheme;
@@ -225,8 +226,7 @@ export class CommunityCreatePageComponent {
       nonNullable: true,
       validators: [Validators.required],
     }),
-    memberLimit: new FormControl<CommunityMemberLimit>(25, {
-      nonNullable: true,
+    memberLimit: new FormControl<CommunityMemberLimit | null>(null, {
       validators: [Validators.required],
     }),
     tagIds: new FormControl<readonly string[]>([], {
@@ -239,6 +239,7 @@ export class CommunityCreatePageComponent {
     this.creationCapabilityReload$.pipe(
       startWith(undefined),
       switchMap(() => this.repository.getCreationCapability$().pipe(
+        tap((capability) => this.syncMemberLimit(capability)),
         map((capability): CommunityCreationState => ({
           status: 'ready',
           capability,
@@ -268,6 +269,7 @@ export class CommunityCreatePageComponent {
       distinctUntilChanged((previous, current) =>
         previous.reason === current.reason
         && previous.sponsorRole === current.sponsorRole
+        && previous.recommendedUpgradeRole === current.recommendedUpgradeRole
         && previous.currentOwnedCommunities === current.currentOwnedCommunities
         && previous.maxOwnedCommunities === current.maxOwnedCommunities
       ),
@@ -330,6 +332,14 @@ export class CommunityCreatePageComponent {
     return this.creationGate.planLabel(capability);
   }
 
+  creationUpgradeRole(capability: CommunityCreationCapability): string {
+    return this.creationGate.upgradeRole(capability) ?? capability.minimumRole;
+  }
+
+  creationUpgradePlanLabel(capability: CommunityCreationCapability): string {
+    return this.creationGate.upgradePlanLabel(capability) ?? 'Basic';
+  }
+
   tagsForCategory(
     items: readonly CommunityTagDefinition[],
     category: CommunityTagCategory
@@ -367,18 +377,15 @@ export class CommunityCreatePageComponent {
     control.markAsTouched();
   }
 
-  selectMemberLimit(
-    memberLimit: CommunityMemberLimit,
-    allowed: readonly CommunityMemberLimit[]
-  ): void {
-    if (!allowed.includes(memberLimit)) {
+  selectMemberLimit(option: CommunityMemberLimitCapabilityOption): void {
+    if (!option.allowed) {
       this.notifications.showWarning(
-        `${communityMemberLimitRequiredRole(memberLimit)} é necessário para escolher essa capacidade.`
+        `${communityMemberLimitRequirementLabel(option.requirement)} é necessário para escolher essa capacidade.`
       );
       return;
     }
 
-    this.form.controls.memberLimit.setValue(memberLimit);
+    this.form.controls.memberLimit.setValue(option.memberLimit);
     this.form.controls.memberLimit.markAsDirty();
   }
 
@@ -391,14 +398,13 @@ export class CommunityCreatePageComponent {
   }
 
   memberLimitDescription(memberLimit: CommunityMemberLimit): string {
-    if (memberLimit <= 25) return 'Um círculo próximo e fácil de acompanhar.';
-    if (memberLimit <= 100) return 'Espaço para uma comunidade em crescimento.';
-    if (memberLimit <= 250) return 'Uma rede ampla com gestão estruturada.';
-    return 'Grande alcance para comunidades consolidadas.';
+    return `Capacidade para até ${this.memberLimitLabel(memberLimit)} membros ativos.`;
   }
 
-  memberLimitPlanLabel(memberLimit: CommunityMemberLimit): string {
-    return communityMemberLimitRequiredRole(memberLimit);
+  memberLimitPlanLabel(
+    option: CommunityMemberLimitCapabilityOption
+  ): string {
+    return communityMemberLimitRequirementLabel(option.requirement);
   }
 
   submit(): void {
@@ -440,6 +446,13 @@ export class CommunityCreatePageComponent {
     }
 
     const value = this.form.getRawValue();
+    if (value.memberLimit === null) {
+      this.notifications.showWarning(
+        'Escolha uma capacidade disponível para a Comunidade.'
+      );
+      return;
+    }
+
     this.submitting.set(true);
 
     this.repository
@@ -468,6 +481,23 @@ export class CommunityCreatePageComponent {
         },
         error: (error: unknown) => this.reportError(error),
       });
+  }
+
+  private syncMemberLimit(capability: CommunityCreationCapability): void {
+    const control = this.form.controls.memberLimit;
+    const allowedOptions = capability.memberLimitOptions.filter(
+      (option) => option.allowed
+    );
+    const current = control.value;
+
+    if (
+      current !== null
+      && allowedOptions.some((option) => option.memberLimit === current)
+    ) {
+      return;
+    }
+
+    control.setValue(allowedOptions[0]?.memberLimit ?? null);
   }
 
   private optional(value: string): string | null {
