@@ -29,6 +29,7 @@ import {
   evaluateCommunityMembershipRequest,
 } from './community-membership-request.policy';
 import { normalizeCommunityId } from './community-preview.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface RequestCommunityMembershipPayload {
   communityId?: unknown;
@@ -132,6 +133,11 @@ export const requestCommunityMembership =
       if (!communityId) {
         throw new HttpsError('invalid-argument', 'Comunidade inválida.');
       }
+
+      await consumeCommunityRateLimit({
+        action: 'membership_request',
+        actorUid: uid,
+      });
 
       return db.runTransaction(async (transaction) => {
         const communityRef = db.collection('communities').doc(communityId);
