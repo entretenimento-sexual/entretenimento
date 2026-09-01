@@ -193,14 +193,22 @@ export function resolveCommunityMemberLimitRequirement(
   return minimumSubscriptionRole ?? 'special_access';
 }
 
-export function resolveCommunityMemberLimitCapabilityOptions(
-  role: CommunityCapacitySponsorRole
+export function resolveCommunityMemberLimitCapabilityOptionsForCeiling(
+  ceiling: CommunityEffectiveMemberLimit
 ): readonly CommunityMemberLimitCapabilityOption[] {
   return COMMUNITY_MEMBER_LIMIT_OPTIONS.map((memberLimit) => ({
     memberLimit,
     requirement: resolveCommunityMemberLimitRequirement(memberLimit),
-    allowed: isCommunityMemberLimitAllowed(memberLimit, role),
+    allowed: memberLimit <= ceiling,
   }));
+}
+
+export function resolveCommunityMemberLimitCapabilityOptions(
+  role: CommunityCapacitySponsorRole
+): readonly CommunityMemberLimitCapabilityOption[] {
+  return resolveCommunityMemberLimitCapabilityOptionsForCeiling(
+    resolveCommunityOwnerPlanLimit(role)
+  );
 }
 
 export function resolveRecommendedCommunityUpgradeRole(
