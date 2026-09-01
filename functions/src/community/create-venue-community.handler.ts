@@ -5,13 +5,14 @@
 // Cria, em uma única transação idempotente:
 // - o Local;
 // - a comunidade social vinculada;
+// - a associação oficial canônica;
 // - a projeção de descoberta;
 // - o membership do criador como owner;
-// - o índice privado do usuário e a auditoria.
+// - os índices privados e trilhas de auditoria.
 //
 // Nesta etapa o fluxo permanece restrito ao Functions Emulator, assim como a
 // experiência comunitária já existente. O cliente nunca escolhe ownerUid,
-// communityId, venueId, estado de moderação ou métricas.
+// communityId, venueId, estado de moderação, verificação oficial ou métricas.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -23,7 +24,15 @@ import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
-import { evaluateOfficialSpaceCreationGrant } from './community-official-space.policy';
+import {
+  buildCommunityOfficialAssociationKey,
+  buildVerifiedVenueOfficialAssociation,
+  sanitizeCommunityOfficialAssociationPublicProjection,
+} from './community-official-association.model';
+import {
+  OFFICIAL_SPACE_CREATION_POLICY_VERSION,
+  evaluateOfficialSpaceCreationGrant,
+} from './community-official-space.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import { buildCommunityRankingProjectionPatch } from './community-ranking-sync.policy';
 import {
@@ -83,6 +92,18 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
       );
     }
 
+    const officialAssociationKey = buildCommunityOfficialAssociationKey({
+      type: 'venue',
+      id: command.venueId,
+    });
+
+    if (!officialAssociationKey) {
+      throw new HttpsError(
+        'data-loss',
+        'Não foi possível preparar a identidade oficial deste local.'
+      );
+    }
+
     return db.runTransaction(async (transaction) => {
       const requestRef = db
         .collection('venue_community_creation_requests')
@@ -94,6 +115,9 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
       const creationGrantRef = db
         .collection('official_space_creation_grants')
         .doc(actorUid);
+      const officialAssociationRef = db
+        .collection('community_official_associations')
+        .doc(officialAssociationKey);
       const discoveryRef = db
         .collection('community_discovery_index')
         .doc(command.communityId);
@@ -102,8 +126,11 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         .doc(actorUid)
         .collection('items')
         .doc(command.communityId);
-      const auditRef = db
+      const membershipAuditRef = db
         .collection('community_membership_audit')
+        .doc(`venue-create-${command.requestId}`);
+      const officialAssociationAuditRef = db
+        .collection('community_official_association_audit')
         .doc(`venue-create-${command.requestId}`);
 
       const [
@@ -112,12 +139,14 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         creationGrantSnapshot,
         venueSnapshot,
         communitySnapshot,
+        officialAssociationSnapshot,
       ] = await Promise.all([
         transaction.get(requestRef),
         transaction.get(userRef),
         transaction.get(creationGrantRef),
         transaction.get(venueRef),
         transaction.get(communityRef),
+        transaction.get(officialAssociationRef),
       ]);
 
       if (requestSnapshot.exists) {
@@ -177,12 +206,14 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
 
       if (officialSpaceDecision.maxOfficialSpaces !== null) {
         const ownedOfficialSpacesQuery = db
-          .collection('venues')
+          .collection('community_official_associations')
           .where(
-            'officialSpace.organizationId',
+            'sponsorOrganizationId',
             '==',
             officialSpaceDecision.organizationId
           )
+          .where('target.type', '==', 'venue')
+          .where('status', '==', 'verified')
           .limit(officialSpaceDecision.maxOfficialSpaces + 1);
         const ownedOfficialSpacesSnapshot = await transaction.get(
           ownedOfficialSpacesQuery
@@ -204,7 +235,11 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         }
       }
 
-      if (venueSnapshot.exists || communitySnapshot.exists) {
+      if (
+        venueSnapshot.exists
+        || communitySnapshot.exists
+        || officialAssociationSnapshot.exists
+      ) {
         throw new HttpsError(
           'already-exists',
           'Não foi possível reservar os identificadores deste local.'
@@ -212,6 +247,30 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
       }
 
       const now = Date.now();
+      const officialAssociation = buildVerifiedVenueOfficialAssociation({
+        venueId: command.venueId,
+        communityId: command.communityId,
+        sponsorOrganizationId: officialSpaceDecision.organizationId,
+        holderUid: actorUid,
+        verifiedAt: now,
+        verificationPolicyVersion: OFFICIAL_SPACE_CREATION_POLICY_VERSION,
+      });
+      const officialAssociationPublic =
+        sanitizeCommunityOfficialAssociationPublicProjection(
+          officialAssociation
+        );
+
+      if (
+        !officialAssociation
+        || officialAssociation.associationKey !== officialAssociationKey
+        || !officialAssociationPublic
+      ) {
+        throw new HttpsError(
+          'data-loss',
+          'A identidade oficial deste local ficou inconsistente.'
+        );
+      }
+
       const region = {
         uf: command.region.uf,
         city: command.region.city,
@@ -255,12 +314,8 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         addressHint: command.addressHint,
         visibility: 'public',
         status: 'active',
-        officialSpace: {
-          organizationId: officialSpaceDecision.organizationId,
-          verificationStatus: 'verified',
-          participantLimit: officialSpaceDecision.memberLimit,
-          policyVersion: 1,
-        },
+        officialAssociationKey,
+        participantLimit: officialSpaceDecision.memberLimit,
         moderation: {
           state: 'active',
           reviewedAt: now,
@@ -291,11 +346,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         status: 'active',
         visibility: 'public_preview',
         ownerUid: actorUid,
-        officialSpace: {
-          organizationId: officialSpaceDecision.organizationId,
-          verificationStatus: 'verified',
-          policyVersion: 1,
-        },
+        officialAssociationKey,
         access,
         moderation: communityModeration,
         metrics,
@@ -306,6 +357,8 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         createdAt: now,
         updatedAt: now,
       });
+
+      transaction.create(officialAssociationRef, officialAssociation);
 
       transaction.create(discoveryRef, {
         communityId: command.communityId,
@@ -322,6 +375,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
           policyVersion: 1,
         },
         access,
+        officialAssociation: officialAssociationPublic,
         avatarUrl: null,
         coverUrl: null,
         ...rankingPatch,
@@ -354,7 +408,7 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         updatedAt: now,
       });
 
-      transaction.create(auditRef, {
+      transaction.create(membershipAuditRef, {
         action: 'venue_community_created',
         communityId: command.communityId,
         venueId: command.venueId,
@@ -368,9 +422,26 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         createdAt: now,
       });
 
+      transaction.create(officialAssociationAuditRef, {
+        action: 'official_association_verified',
+        associationKey: officialAssociation.associationKey,
+        communityId: command.communityId,
+        target: officialAssociation.target,
+        actorUid,
+        sponsorOrganizationId: officialSpaceDecision.organizationId,
+        authorityRole: officialAssociation.authority.role,
+        verificationSource: officialAssociation.verification.source,
+        verificationPolicyVersion:
+          officialAssociation.verification.policyVersion,
+        previousStatus: null,
+        nextStatus: 'verified',
+        createdAt: now,
+      });
+
       transaction.create(requestRef, {
         actorUid,
         organizationId: officialSpaceDecision.organizationId,
+        officialAssociationKey,
         venueId: command.venueId,
         communityId: command.communityId,
         status: 'completed',
