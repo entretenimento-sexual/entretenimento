@@ -7,6 +7,7 @@
 // -----------------------------------------------------------------------------
 
 import { normalizePublicIdentityMediaUrl } from './public-media-url.normalizer';
+import { normalizePublicProfileId } from './public-profile-id';
 import {
   resolveProfileIdentityOption,
   type ProfileIdentityDiscoveryGroup,
@@ -113,7 +114,7 @@ export function buildPublicUserIdentity(
     || identityLabel;
 
   return {
-    profileId: null,
+    profileId: normalizePublicProfileId(source['profileId']),
     nickname,
     label: nickname,
     avatarUrl:
