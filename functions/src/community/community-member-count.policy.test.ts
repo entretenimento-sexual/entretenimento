@@ -11,8 +11,11 @@ import {
   normalizeCommunityMemberLimit,
   resolveCommunityCapacitySponsorRole,
   resolveCommunityCreationCapability,
+  resolveCommunityMemberLimitCapabilityOptions,
   resolveCommunityMemberLimitOptions,
+  resolveCommunityMemberLimitRequirement,
   resolvePersonalCommunityCreationPolicy,
+  resolveRecommendedCommunityUpgradeRole,
 } from './community-capacity.policy';
 import { evaluateCommunityCapacityForOwner } from './community-capacity.service';
 import {
@@ -20,6 +23,15 @@ import {
 } from './community-official-space.policy';
 
 const OFFICIAL_SPACE_NOW = 1_800_000_000_000;
+
+const ALL_CAPACITY_OPTIONS = [
+  { memberLimit: 25, requirement: 'basic', allowed: false },
+  { memberLimit: 50, requirement: 'basic', allowed: false },
+  { memberLimit: 100, requirement: 'basic', allowed: false },
+  { memberLimit: 250, requirement: 'premium', allowed: false },
+  { memberLimit: 500, requirement: 'vip', allowed: false },
+  { memberLimit: 1_000, requirement: 'special_access', allowed: false },
+] as const;
 
 test('normaliza somente contagem numérica finita e não negativa', () => {
   assert.equal(normalizeCommunityMemberCount(8), 8);
@@ -57,6 +69,25 @@ test('limita a capacidade conforme o plano ativo do proprietário', () => {
   assert.equal(isCommunityMemberLimitAllowed(250, 'premium'), true);
 });
 
+test('projeta requisitos e disponibilidade a partir da policy canônica', () => {
+  assert.equal(resolveCommunityMemberLimitRequirement(25), 'basic');
+  assert.equal(resolveCommunityMemberLimitRequirement(250), 'premium');
+  assert.equal(resolveCommunityMemberLimitRequirement(500), 'vip');
+  assert.equal(resolveCommunityMemberLimitRequirement(1_000), 'special_access');
+
+  assert.deepEqual(
+    resolveCommunityMemberLimitCapabilityOptions('free'),
+    ALL_CAPACITY_OPTIONS
+  );
+  assert.deepEqual(
+    resolveCommunityMemberLimitCapabilityOptions('premium'),
+    ALL_CAPACITY_OPTIONS.map((option) => ({
+      ...option,
+      allowed: option.memberLimit <= 250,
+    }))
+  );
+});
+
 test('centraliza criação e quantidade de Comunidades pessoais por plano', () => {
   assert.deepEqual(resolvePersonalCommunityCreationPolicy('free'), {
     canCreate: false,
@@ -80,6 +111,14 @@ test('centraliza criação e quantidade de Comunidades pessoais por plano', () =
   });
 });
 
+test('centraliza a recomendação de upgrade sem inferência no cliente', () => {
+  assert.equal(resolveRecommendedCommunityUpgradeRole('free'), 'basic');
+  assert.equal(resolveRecommendedCommunityUpgradeRole('basic'), 'premium');
+  assert.equal(resolveRecommendedCommunityUpgradeRole('premium'), 'vip');
+  assert.equal(resolveRecommendedCommunityUpgradeRole('vip'), null);
+  assert.equal(resolveRecommendedCommunityUpgradeRole('admin'), null);
+});
+
 test('expõe capability autoritativa antes de montar o compositor', () => {
   assert.deepEqual(resolveCommunityCreationCapability({
     sponsorRole: 'free',
@@ -89,9 +128,11 @@ test('expõe capability autoritativa antes de montar o compositor', () => {
     reason: 'subscription_required',
     sponsorRole: 'free',
     minimumRole: 'basic',
+    recommendedUpgradeRole: 'basic',
     currentOwnedCommunities: 0,
     maxOwnedCommunities: 0,
     memberLimit: 0,
+    memberLimitOptions: ALL_CAPACITY_OPTIONS,
     allowedMemberLimits: [],
   });
 
@@ -103,16 +144,23 @@ test('expõe capability autoritativa antes de montar o compositor', () => {
     reason: null,
     sponsorRole: 'basic',
     minimumRole: 'basic',
+    recommendedUpgradeRole: null,
     currentOwnedCommunities: 0,
     maxOwnedCommunities: 1,
     memberLimit: 100,
+    memberLimitOptions: ALL_CAPACITY_OPTIONS.map((option) => ({
+      ...option,
+      allowed: option.memberLimit <= 100,
+    })),
     allowedMemberLimits: [25, 50, 100],
   });
 
-  assert.equal(resolveCommunityCreationCapability({
+  const premiumAtLimit = resolveCommunityCreationCapability({
     sponsorRole: 'premium',
     currentOwnedCommunities: 3,
-  }).reason, 'limit_reached');
+  });
+  assert.equal(premiumAtLimit.reason, 'limit_reached');
+  assert.equal(premiumAtLimit.recommendedUpgradeRole, 'vip');
 });
 
 test('normaliza somente capacidades predefinidas', () => {
