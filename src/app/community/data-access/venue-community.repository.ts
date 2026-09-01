@@ -33,7 +33,9 @@ export class VenueCommunityRepository {
 
         return normalized;
       }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer())
+      tap(() => this.discoveryCache.invalidateCurrentViewer({
+        sourceType: 'venue',
+      }))
     );
   }
 }
