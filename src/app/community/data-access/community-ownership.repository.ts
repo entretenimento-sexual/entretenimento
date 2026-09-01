@@ -65,11 +65,12 @@ export class CommunityOwnershipRepository {
     targetUid: string
   ): Observable<CommunityOwnershipTransferResponse> {
     const requestId = this.createRequestId('transfer');
+    const normalizedCommunityId = communityId.trim();
 
     return defer(() =>
       from(
         this.transferOwnershipCallable({
-          communityId: communityId.trim(),
+          communityId: normalizedCommunityId,
           targetUid: targetUid.trim(),
           requestId,
         })
@@ -86,7 +87,10 @@ export class CommunityOwnershipRepository {
 
         return normalized;
       }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer())
+      tap(() => this.discoveryCache.invalidateCurrentViewer({
+        sourceType: 'community',
+        communityId: normalizedCommunityId,
+      }))
     );
   }
 
@@ -95,12 +99,13 @@ export class CommunityOwnershipRepository {
     reason?: string | null
   ): Observable<CommunityArchiveResponse> {
     const requestId = this.createRequestId('archive');
+    const normalizedCommunityId = communityId.trim();
     const safeReason = this.normalizeOptionalReason(reason);
 
     return defer(() =>
       from(
         this.archiveCommunityCallable({
-          communityId: communityId.trim(),
+          communityId: normalizedCommunityId,
           requestId,
           reason: safeReason,
         })
@@ -115,7 +120,10 @@ export class CommunityOwnershipRepository {
 
         return normalized;
       }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer())
+      tap(() => this.discoveryCache.invalidateCurrentViewer({
+        sourceType: 'community',
+        communityId: normalizedCommunityId,
+      }))
     );
   }
 
