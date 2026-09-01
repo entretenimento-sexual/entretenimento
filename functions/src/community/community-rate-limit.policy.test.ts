@@ -16,7 +16,11 @@ const ACTIONS: readonly CommunityRateLimitAction[] = [
   'feed_report_reply',
   'invite_send',
   'membership_request',
+  'membership_review',
   'member_management',
+  'settings_update',
+  'ownership_mutation',
+  'content_moderation',
 ];
 
 test('todas as mutações cobertas possuem política válida e ação backend estável', () => {
@@ -73,8 +77,25 @@ test('convites e entrada limitam abuso global por ator em janela horária', () =
 
 test('gestão permite operação legítima em lote sem deixar a ação ilimitada', () => {
   const management = getCommunityRateLimitPolicy('member_management');
+  const review = getCommunityRateLimitPolicy('membership_review');
+  const moderation = getCommunityRateLimitPolicy('content_moderation');
 
   assert.equal(management.backendAction, 'manageCommunityMember');
   assert.equal(management.config.burstMax, 20);
   assert.equal(management.config.sustainedMax, 100);
+  assert.equal(review.config.sustainedMax, 100);
+  assert.equal(moderation.backendAction, 'communityContentModeration');
+  assert.equal(moderation.config.sustainedMax, 180);
+});
+
+test('ações sensíveis de configuração e propriedade têm orçamento mais restrito', () => {
+  const settings = getCommunityRateLimitPolicy('settings_update');
+  const ownership = getCommunityRateLimitPolicy('ownership_mutation');
+
+  assert.equal(settings.backendAction, 'updateCommunitySettings');
+  assert.equal(settings.config.burstMax, 10);
+  assert.equal(settings.config.sustainedMax, 40);
+  assert.equal(ownership.backendAction, 'communityOwnershipMutation');
+  assert.equal(ownership.config.burstMax, 6);
+  assert.equal(ownership.config.sustainedMax, 20);
 });
