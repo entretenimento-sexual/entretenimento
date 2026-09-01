@@ -1,6 +1,7 @@
 import type { UserRecord } from 'firebase-admin/auth';
 
 import { FieldValue } from '../firebaseApp';
+import { generatePublicProfileId } from '../identity/public-profile-id';
 
 export const INITIAL_TERMS_VERSION = 'v1';
 export const REGISTRATION_FLOW_VERSION = 'v2';
@@ -32,6 +33,7 @@ export function buildInitialUserSeed(
 
   return {
     uid: user.uid,
+    profileId: generatePublicProfileId(),
     email: user.email ?? null,
     nickname: '',
     ...(photoURL ? { photoURL } : {}),
