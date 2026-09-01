@@ -51,6 +51,8 @@ export const COMMUNITY_PURGE_PROTECTED_COLLECTIONS = Object.freeze([
   'community_topic_audit',
   'community_lifecycle_audit',
   'community_purge_audit',
+  'community_official_associations',
+  'community_official_association_audit',
   'moderation_reports',
   'admin_logs',
   'compliance_audit',
