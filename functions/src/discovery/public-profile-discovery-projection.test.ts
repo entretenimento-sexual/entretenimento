@@ -4,9 +4,11 @@ import test from 'node:test';
 import {
   buildPublicAvatarProjection,
   buildPublicLocationProjection,
+  buildPublicProfileIdProjection,
   publicAvatarProjectionMatches,
   publicLocationProjectionMatches,
   publicProfileDiscoveryProjectionMatches,
+  publicProfileIdProjectionMatches,
 } from './public-profile-discovery-projection';
 import {
   buildPublicPreferenceProjection,
@@ -20,6 +22,8 @@ const CANONICAL = {
   interestedInOrientations: ['heterosexual', 'bisexual'] as const,
   compatibilityReady: true,
 };
+
+const PUBLIC_PROFILE_ID = 'profile-123e4567-e89b-42d3-a456-426614174000';
 
 test('ignora billing quando discovery já está sincronizado', () => {
   assert.equal(publicProfileDiscoveryProjectionMatches({
@@ -42,6 +46,36 @@ test('detecta alteração real de compatibilidade', () => {
 
 test('detecta projeção ausente para backfill', () => {
   assert.equal(publicProfileDiscoveryProjectionMatches({}, CANONICAL), false);
+});
+
+test('projeta profileId público sem usar UID como fallback', () => {
+  assert.deepEqual(buildPublicProfileIdProjection({
+    profileId: PUBLIC_PROFILE_ID,
+    uid: 'firebase-auth-uid',
+  }), {
+    profileId: PUBLIC_PROFILE_ID,
+  });
+
+  assert.deepEqual(buildPublicProfileIdProjection({
+    uid: 'firebase-auth-uid',
+  }), {
+    profileId: null,
+  });
+});
+
+test('normaliza e compara somente profileId público válido', () => {
+  const expected = buildPublicProfileIdProjection({
+    profileId: PUBLIC_PROFILE_ID.toUpperCase(),
+  });
+
+  assert.deepEqual(expected, { profileId: PUBLIC_PROFILE_ID });
+  assert.equal(publicProfileIdProjectionMatches({
+    profileId: PUBLIC_PROFILE_ID,
+    uid: 'internal-id',
+  }, expected), true);
+  assert.equal(publicProfileIdProjectionMatches({
+    profileId: 'internal-id',
+  }, expected), false);
 });
 
 test('projeta photoURL legado como avatar público canônico', () => {
