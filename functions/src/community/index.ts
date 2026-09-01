@@ -9,6 +9,9 @@ export { getCommunityDiscoveryPage } from './get-community-discovery-page.handle
 export {
   getProfileOfficialCommunities,
 } from './get-profile-official-communities.handler';
+export {
+  getOfficialCommunitiesForTarget,
+} from './get-official-communities-for-target.handler';
 export { getCommunityFeedPage } from './get-community-feed-page.handler';
 export { getCommunityFeedItems } from './get-community-feed-items.handler';
 export { createCommunityFeedPost } from './community-feed-write.handler';
