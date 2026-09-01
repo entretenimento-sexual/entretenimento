@@ -385,11 +385,14 @@
                     [sourceType]="preview.community.source.type"
                     [viewerRole]="preview.viewerRole"
                     [canManageCommunitySettings]="preview.canManageCommunitySettings"
+                    [canInviteCommunityMembers]="preview.canInviteCommunityMembers"
                     [settings]="preview.settings"
                     [capacity]="preview.capacity"
                     (membershipChanged)="membershipReviewed()"
                     (settingsChanged)="membershipReviewed()"
                     (ownershipChanged)="selectSection('about'); membershipReviewed()"
+                    (inviteRequested)="selectSection('invites')"
+                    (feedRequested)="selectSection('feed')"
                   />
                 </section>
               } @else {
