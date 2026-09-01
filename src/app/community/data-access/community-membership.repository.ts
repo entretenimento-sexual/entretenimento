@@ -65,7 +65,9 @@ export class CommunityMembershipRepository {
 
         return normalized;
       }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer())
+      tap(() => this.discoveryCache.invalidateCurrentViewer({
+        sourceType: 'community',
+      }))
     );
   }
 
@@ -84,7 +86,9 @@ export class CommunityMembershipRepository {
 
         return normalized;
       }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer())
+      tap(() => this.discoveryCache.invalidateCurrentViewer({
+        sourceType: 'community',
+      }))
     );
   }
 
@@ -135,7 +139,10 @@ export class CommunityMembershipRepository {
 
         return normalized;
       }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer())
+      tap(() => this.discoveryCache.invalidateCurrentViewer({
+        sourceType: 'community',
+        communityId,
+      }))
     );
   }
 }
