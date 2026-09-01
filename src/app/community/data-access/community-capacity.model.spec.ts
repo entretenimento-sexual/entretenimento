@@ -105,7 +105,7 @@ describe('community capacity normalization', () => {
       memberCount: 20,
       acceptingNewMembers: true,
       allowedMemberLimits: [25, 50, 100],
-    }))?.toEqual({
+    })).toEqual({
       configuredLimit: 100,
       effectiveLimit: 100,
       memberCount: 20,
