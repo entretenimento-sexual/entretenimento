@@ -26,7 +26,7 @@ export class CommunityPreviewRepository {
   >(this.functions, 'getMyCommunitiesPage');
 
   private readonly getProfileOfficialCommunitiesCallable = httpsCallable<
-    { profileUid: string; limit?: number },
+    { profileId: string; limit?: number },
     unknown
   >(this.functions, 'getProfileOfficialCommunities');
 
@@ -68,11 +68,11 @@ export class CommunityPreviewRepository {
   }
 
   getProfileOfficialCommunities$(
-    profileUid: string,
+    profileId: string,
     limit = 4
   ): Observable<CommunityDiscoveryPage> {
-    const normalizedUid = String(profileUid ?? '').trim();
-    if (!normalizedUid) {
+    const normalizedProfileId = String(profileId ?? '').trim().toLowerCase();
+    if (!normalizedProfileId) {
       return of({
         items: [],
         nextCursor: null,
@@ -83,7 +83,7 @@ export class CommunityPreviewRepository {
     return defer(() =>
       from(
         this.getProfileOfficialCommunitiesCallable({
-          profileUid: normalizedUid,
+          profileId: normalizedProfileId,
           limit: Math.min(Math.max(Math.trunc(limit), 1), 12),
         })
       )
