@@ -129,6 +129,7 @@ describe('DirectChatFacade session isolation', () => {
     const chats = new BehaviorSubject<IChat[]>([
       buildChat('chat-identity', ['user-a', 'peer-couple']),
     ]);
+    const publicProfileId = 'profile-22222222-2222-4222-8222-222222222222';
 
     const directChatService = {
       getMyDirectChats$: () => chats.asObservable(),
@@ -142,6 +143,7 @@ describe('DirectChatFacade session isolation', () => {
     const firestoreUserQuery = {
       getUsersPublicMap$: () => of({
         'peer-couple': {
+          profileId: publicProfileId,
           nickname: 'casal_serale',
           avatarUrl: 'https://example.com/casal.webp',
           identityCode: 'casal-ele-ela',
@@ -179,7 +181,7 @@ describe('DirectChatFacade session isolation', () => {
 
     const item = last(emissions)?.[0];
     expect(item?.otherParticipantIdentity).toEqual({
-      profileId: 'peer-couple',
+      profileId: publicProfileId,
       nickname: 'casal_serale',
       label: 'casal_serale',
       avatarUrl: 'https://example.com/casal.webp',
@@ -200,7 +202,7 @@ describe('DirectChatFacade session isolation', () => {
       bioPreview: 'Perfil público para novas conexões.',
       highlights: ['Amizade', 'Tatuagens', 'BDSM'],
       identity: {
-        profileId: 'peer-couple',
+        profileId: publicProfileId,
         nickname: 'casal_serale',
         identityShortLabel: 'Casal',
         city: 'Rio de Janeiro',
