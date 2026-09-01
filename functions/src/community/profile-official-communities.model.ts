@@ -16,6 +16,13 @@ export interface NormalizedProfileOfficialCommunitiesRequest {
 const DEFAULT_LIMIT = 4;
 const MAX_LIMIT = 12;
 
+function hasControlCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || code === 127;
+  });
+}
+
 function normalizeProfileUid(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
 
@@ -23,7 +30,7 @@ function normalizeProfileUid(value: unknown): string | null {
     !normalized
     || normalized.length > 128
     || normalized.includes('/')
-    || /[\u0000-\u001F\u007F]/.test(normalized)
+    || hasControlCharacter(normalized)
   ) {
     return null;
   }
