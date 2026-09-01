@@ -42,6 +42,10 @@ export type CommunityMemberLimitRequirement =
 export type CommunityRecommendedUpgradeRole =
   | CommunityPaidSubscriptionRole
   | null;
+export type CommunityCapacityRegularizationReason =
+  | 'owner_subscription_required'
+  | 'capacity_over_plan'
+  | null;
 
 export interface PersonalCommunityCreationPolicy {
   canCreate: boolean;
@@ -84,6 +88,8 @@ export interface CommunityCapacityState {
   memberCount: number | null;
   acceptingNewMembers: boolean;
   restrictedByOwnerPlan: boolean;
+  regularizationRequired: boolean;
+  regularizationReason: CommunityCapacityRegularizationReason;
   atCapacity: boolean;
 }
 
@@ -280,6 +286,13 @@ export function evaluateCommunityCapacity(input: {
   const memberCount = normalizeCommunityMemberCount(metrics['memberCount']);
   const acceptingNewMembers =
     memberCount !== null && memberCount < effectiveLimit;
+  const restrictedByOwnerPlan = configuredLimit > ownerPlanLimit;
+  const regularizationReason: CommunityCapacityRegularizationReason =
+    !restrictedByOwnerPlan
+      ? null
+      : ownerPlanLimit === 0
+        ? 'owner_subscription_required'
+        : 'capacity_over_plan';
 
   return {
     configuredLimit,
@@ -287,7 +300,9 @@ export function evaluateCommunityCapacity(input: {
     effectiveLimit,
     memberCount,
     acceptingNewMembers,
-    restrictedByOwnerPlan: configuredLimit > ownerPlanLimit,
+    restrictedByOwnerPlan,
+    regularizationRequired: regularizationReason !== null,
+    regularizationReason,
     atCapacity: !acceptingNewMembers,
   };
 }
