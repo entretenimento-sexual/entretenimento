@@ -3,7 +3,8 @@
 // INSPECT COMMUNITY RANKING READINESS
 // -----------------------------------------------------------------------------
 // Diagnóstico administrativo somente-leitura para homologar a troca do ranking
-// legado para score v1. Não altera configuração, runtime, índices ou projeções.
+// legado para a versão atual do score. Não altera configuração, runtime, índices
+// ou projeções.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
@@ -15,14 +16,21 @@ import {
   REQUIRE_COMMUNITY_APP_CHECK,
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
-import { resolveCommunityDiscoveryRankingMode } from './community-discovery-ranking-mode.policy';
+import {
+  type CommunityDiscoveryRankingMode,
+  resolveCommunityDiscoveryRankingMode,
+} from './community-discovery-ranking-mode.policy';
 import { hasCommunityOperationsPermission } from './community-operations.authorization';
-import { COMMUNITY_DISCOVERY_SCORE_VERSION } from './community-ranking.policy';
+import {
+  COMMUNITY_DISCOVERY_RANKING_MODE,
+  COMMUNITY_DISCOVERY_SCORE_VERSION,
+} from './community-ranking.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 interface CommunityRankingReadinessInspection {
-  requestedMode: 'legacy' | 'score_v1';
-  effectiveMode: 'legacy' | 'score_v1';
+  requestedMode: CommunityDiscoveryRankingMode;
+  effectiveMode: CommunityDiscoveryRankingMode;
+  targetMode: typeof COMMUNITY_DISCOVERY_RANKING_MODE;
   orderField: 'rankScore' | 'discoveryScore';
   fallbackReason: string | null;
   policyScoreVersion: number;
@@ -41,10 +49,11 @@ interface CommunityRankingReadinessInspection {
     };
   };
   config: {
-    scoreRequested: boolean;
+    configuredMode: string | null;
+    targetScoreRequested: boolean;
     scoreIndexReady: boolean;
   };
-  canEnableScoreV1: boolean;
+  canEnableTargetScore: boolean;
   generatedAt: number;
 }
 
@@ -67,6 +76,11 @@ function normalizeTimestamp(value: unknown): number | null {
 function normalizeVersion(value: unknown): number | null {
   const parsed = Math.trunc(Number(value));
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function normalizeConfiguredMode(value: unknown): string | null {
+  const normalized = String(value ?? '').trim();
+  return normalized ? normalized.slice(0, 64) : null;
 }
 
 function assertRuntime(): void {
@@ -136,9 +150,15 @@ export const inspectCommunityRankingReadiness = onCall(
     const runtime = runtimeSnapshot.exists ? runtimeSnapshot.data() ?? {} : {};
     const decision = resolveCommunityDiscoveryRankingMode(config, runtime);
     const lastCycleStats = asRecord(runtime['lastCycleStats']);
+    const configuredMode = normalizeConfiguredMode(config['discoveryRankingMode']);
+    const scoreIndexReady = config['discoveryScoreIndexReady'] === true;
+    const runtimeReadyForTarget = runtime['ready'] === true
+      && Number(runtime['completedScoreVersion'])
+        === COMMUNITY_DISCOVERY_SCORE_VERSION;
     const inspection: CommunityRankingReadinessInspection = {
       requestedMode: decision.requestedMode,
       effectiveMode: decision.effectiveMode,
+      targetMode: decision.targetMode,
       orderField: decision.orderField,
       fallbackReason: decision.fallbackReason,
       policyScoreVersion: COMMUNITY_DISCOVERY_SCORE_VERSION,
@@ -157,12 +177,11 @@ export const inspectCommunityRankingReadiness = onCall(
         },
       },
       config: {
-        scoreRequested: config['discoveryRankingMode'] === 'score_v1',
-        scoreIndexReady: config['discoveryScoreIndexReady'] === true,
+        configuredMode,
+        targetScoreRequested: configuredMode === COMMUNITY_DISCOVERY_RANKING_MODE,
+        scoreIndexReady,
       },
-      canEnableScoreV1: runtime['ready'] === true
-        && Number(runtime['completedScoreVersion'])
-          === COMMUNITY_DISCOVERY_SCORE_VERSION,
+      canEnableTargetScore: scoreIndexReady && runtimeReadyForTarget,
       generatedAt: Date.now(),
     };
 
@@ -170,10 +189,11 @@ export const inspectCommunityRankingReadiness = onCall(
       actorUid,
       requestedMode: inspection.requestedMode,
       effectiveMode: inspection.effectiveMode,
+      targetMode: inspection.targetMode,
       fallbackReason: inspection.fallbackReason,
       runtimeReady: inspection.runtime.ready,
       completedScoreVersion: inspection.runtime.completedScoreVersion,
-      canEnableScoreV1: inspection.canEnableScoreV1,
+      canEnableTargetScore: inspection.canEnableTargetScore,
     });
 
     return inspection;
