@@ -2,17 +2,16 @@
 // -----------------------------------------------------------------------------
 // GET PROFILE OFFICIAL COMMUNITIES
 // -----------------------------------------------------------------------------
-// Resolve o UID usado pela rota pública para o profileId canônico projetado em
-// public_profiles e devolve somente cards públicos cuja associação oficial
-// verificada aponta para aquele profileId. Memberships pessoais nunca entram
-// nesta resposta.
+// Recebe exclusivamente o profileId público canônico e devolve somente cards
+// públicos cuja associação oficial verificada aponta para esse perfil.
+// Memberships pessoais nunca entram nesta resposta e nenhum UID é resolvido ou
+// exposto por esta callable.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
-import { normalizePublicProfileId } from '../identity/public-profile-id';
 import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -35,14 +34,6 @@ function assertRuntime(): void {
     'failed-precondition',
     'As comunidades ainda não estão disponíveis neste ambiente.'
   );
-}
-
-function emptyResponse(): CommunityDiscoveryPageResponse {
-  return {
-    items: [],
-    nextCursor: null,
-    generatedAt: Date.now(),
-  };
 }
 
 export const getProfileOfficialCommunities =
@@ -74,28 +65,11 @@ export const getProfileOfficialCommunities =
         );
       }
 
-      const publicProfileSnapshot = await db
-        .collection('public_profiles')
-        .doc(command.profileUid)
-        .get();
-
-      if (!publicProfileSnapshot.exists) {
-        return emptyResponse();
-      }
-
-      const profileId = normalizePublicProfileId(
-        publicProfileSnapshot.data()?.['profileId']
-      );
-
-      if (!profileId) {
-        return emptyResponse();
-      }
-
       const scanLimit = Math.min(command.limit * 3, 24);
       const projectionSnapshot = await db
         .collection('community_discovery_index')
         .where('officialAssociation.target.type', '==', 'profile')
-        .where('officialAssociation.target.id', '==', profileId)
+        .where('officialAssociation.target.id', '==', command.profileId)
         .limit(scanLimit)
         .get();
 
@@ -111,7 +85,7 @@ export const getProfileOfficialCommunities =
           return !!item
             && official?.verified === true
             && official.target.type === 'profile'
-            && official.target.id === profileId;
+            && official.target.id === command.profileId;
         })
         .sort((left, right) => {
           const memberDelta =
