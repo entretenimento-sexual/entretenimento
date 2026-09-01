@@ -19,6 +19,18 @@ import { CommunityPreviewPageComponent } from './community-preview-page.componen
 
 type JoinPolicy = 'open' | 'approval' | 'invite_only';
 
+function visitorCapacity(memberCount = 12): CommunityPreviewResponse['capacity'] {
+  return {
+    configuredLimit: 25,
+    effectiveLimit: 25,
+    memberCount,
+    acceptingNewMembers: memberCount < 25,
+    restrictedByOwnerPlan: false,
+    memberLimitOptions: [],
+    allowedMemberLimits: [],
+  };
+}
+
 function buildPreview(join: JoinPolicy): CommunityPreviewResponse {
   return {
     community: {
@@ -48,14 +60,7 @@ function buildPreview(join: JoinPolicy): CommunityPreviewResponse {
     canManageMemberships: false,
     canInviteCommunityMembers: false,
     canManageCommunitySettings: false,
-    capacity: {
-      configuredLimit: 25,
-      effectiveLimit: 25,
-      memberCount: 12,
-      acceptingNewMembers: true,
-      restrictedByOwnerPlan: false,
-      allowedMemberLimits: [],
-    },
+    capacity: visitorCapacity(),
     settings: null,
     canLeaveMembership: false,
     generatedAt: 123,
@@ -155,14 +160,7 @@ describe('CommunityPreviewPageComponent / comunicação de adesão', () => {
 
   it('substitui a ação de entrada por um estado claro ao atingir a capacidade', () => {
     const fixture = createFixture('open', {
-      capacity: {
-        configuredLimit: 25,
-        effectiveLimit: 25,
-        memberCount: 25,
-        acceptingNewMembers: false,
-        restrictedByOwnerPlan: false,
-        allowedMemberLimits: [],
-      },
+      capacity: visitorCapacity(25),
     });
 
     expect(
