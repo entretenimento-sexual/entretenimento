@@ -6,6 +6,7 @@ import {
   inject,
   input,
   output,
+  signal,
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import {
@@ -42,6 +43,9 @@ import {
   COMMUNITY_MEMBERSHIP_REVIEW_CODE_MESSAGES,
   COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
 } from '../presentation/community-error.messages';
+import {
+  COMMUNITY_RATE_LIMIT_REASON_MESSAGES,
+} from '../presentation/community-rate-limit.messages';
 import { CommunitySettingsComponent } from '../community-settings/community-settings.component';
 
 type MembershipRequestsState =
@@ -61,6 +65,18 @@ interface MembershipReviewCommand {
   request: CommunityMembershipRequestItem;
   action: CommunityMembershipReviewAction;
 }
+
+export type CommunityManagementPanel =
+  | 'overview'
+  | 'requests'
+  | 'members'
+  | 'settings'
+  | 'ownership';
+
+const MEMBERSHIP_REVIEW_REASON_MESSAGES = Object.freeze({
+  ...COMMUNITY_RATE_LIMIT_REASON_MESSAGES,
+  ...COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
+});
 
 @Component({
   selector: 'app-community-membership-management',
@@ -87,11 +103,15 @@ export class CommunityMembershipManagementComponent {
   readonly sourceType = input<CommunityPreviewSourceType>('community');
   readonly viewerRole = input<CommunityPreviewViewerRole | null>(null);
   readonly canManageCommunitySettings = input(false);
+  readonly canInviteCommunityMembers = input(false);
   readonly settings = input<CommunityEditableSettings | null>(null);
   readonly capacity = input<CommunityCapacityPreview | null>(null);
   readonly membershipChanged = output<void>();
   readonly ownershipChanged = output<void>();
   readonly settingsChanged = output<void>();
+  readonly inviteRequested = output<void>();
+  readonly feedRequested = output<void>();
+  readonly activePanel = signal<CommunityManagementPanel>('overview');
 
   private readonly communityId$ = toObservable(this.communityId).pipe(
     map((communityId) => communityId.trim()),
@@ -176,10 +196,73 @@ export class CommunityMembershipManagementComponent {
       : 'Solicitações de entrada';
   }
 
+  managementHubTitle(): string {
+    return this.sourceType() === 'venue' ? 'Gestão do Local' : 'Gestão da Comunidade';
+  }
+
+  managementHubDescription(): string {
+    return this.sourceType() === 'venue'
+      ? 'Acompanhe solicitações sem sair da experiência do Local.'
+      : 'Acompanhe pessoas, acesso e configurações sem transformar a Comunidade em um painel administrativo.';
+  }
+
+  viewerRoleLabel(): string {
+    if (this.viewerRole() === 'owner') return 'Proprietário';
+    if (this.viewerRole() === 'admin') return 'Administração';
+    if (this.viewerRole() === 'moderator') return 'Moderação';
+    return 'Gestão';
+  }
+
   emptyMessage(): string {
     return this.sourceType() === 'venue'
       ? 'Nenhuma solicitação de acesso pendente.'
       : 'Nenhuma solicitação de entrada pendente.';
+  }
+
+  canManageMembersPanel(): boolean {
+    return this.sourceType() === 'community'
+      && (this.viewerRole() === 'owner'
+        || this.viewerRole() === 'admin'
+        || this.viewerRole() === 'moderator');
+  }
+
+  canManageSettingsPanel(): boolean {
+    return this.sourceType() === 'community'
+      && this.canManageCommunitySettings()
+      && this.settings() !== null;
+  }
+
+  canManageOwnershipPanel(): boolean {
+    return this.sourceType() === 'community' && this.viewerRole() === 'owner';
+  }
+
+  selectPanel(panel: CommunityManagementPanel): void {
+    if (!this.isPanelAvailable(panel)) return;
+    this.activePanel.set(panel);
+  }
+
+  openInvites(): void {
+    if (!this.canInviteCommunityMembers()) return;
+    this.inviteRequested.emit();
+  }
+
+  openModeration(): void {
+    if (this.sourceType() !== 'community') return;
+    this.feedRequested.emit();
+  }
+
+  capacityLabel(): string {
+    const capacity = this.capacity();
+    if (!capacity) return 'Capacidade indisponível';
+    return `${capacity.memberCount} de ${capacity.configuredLimit} integrantes`;
+  }
+
+  capacityStatusLabel(): string {
+    const capacity = this.capacity();
+    if (!capacity) return 'Sem dados de capacidade';
+    if (capacity.restrictedByOwnerPlan) return 'Ajuste de plano necessário';
+    if (!capacity.acceptingNewMembers) return 'Novas entradas pausadas';
+    return 'Recebendo novos integrantes';
   }
 
   refresh(): void {
@@ -191,6 +274,13 @@ export class CommunityMembershipManagementComponent {
     action: CommunityMembershipReviewAction
   ): void {
     this.reviewRequests$.next({ request, action });
+  }
+
+  private isPanelAvailable(panel: CommunityManagementPanel): boolean {
+    if (panel === 'overview' || panel === 'requests') return true;
+    if (panel === 'members') return this.canManageMembersPanel();
+    if (panel === 'settings') return this.canManageSettingsPanel();
+    return this.canManageOwnershipPanel();
   }
 
   private approvalSuccessMessage(label: string): string {
@@ -207,7 +297,7 @@ export class CommunityMembershipManagementComponent {
         ? 'Não foi possível carregar as solicitações de acesso.'
         : 'Não foi possível carregar as solicitações de entrada.',
       notification: 'none',
-      reasonMessages: COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
+      reasonMessages: MEMBERSHIP_REVIEW_REASON_MESSAGES,
       metadata: {
         scope: 'CommunityMembershipManagementComponent',
         communityId: this.communityId(),
@@ -226,7 +316,7 @@ export class CommunityMembershipManagementComponent {
       fallbackMessage: this.sourceType() === 'venue'
         ? 'Não foi possível revisar esta solicitação de acesso.'
         : 'Não foi possível revisar esta solicitação de entrada.',
-      reasonMessages: COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
+      reasonMessages: MEMBERSHIP_REVIEW_REASON_MESSAGES,
       codeMessages: COMMUNITY_MEMBERSHIP_REVIEW_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityMembershipManagementComponent',
