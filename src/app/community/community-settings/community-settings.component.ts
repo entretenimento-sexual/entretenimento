@@ -34,11 +34,11 @@ import {
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
-  COMMUNITY_MEMBER_LIMIT_OPTIONS,
   CommunityCapacityPreview,
   CommunityEffectiveMemberLimit,
   CommunityMemberLimit,
-  communityMemberLimitRequiredRole,
+  CommunityMemberLimitCapabilityOption,
+  communityMemberLimitRequirementLabel,
 } from '../data-access/community-capacity.model';
 import type { CommunityPreviewViewerRole } from '../data-access/community-preview.model';
 import {
@@ -67,7 +67,7 @@ type CommunitySettingsForm = FormGroup<{
   rules: FormControl<string>;
   joinPolicy: FormControl<CommunitySettingsJoinPolicy>;
   membersCanInvite: FormControl<boolean>;
-  memberLimit: FormControl<CommunityMemberLimit>;
+  memberLimit: FormControl<CommunityMemberLimit | null>;
   tagIds: FormControl<readonly string[]>;
 }>;
 
@@ -118,7 +118,6 @@ export class CommunitySettingsComponent {
   readonly capacity = input<CommunityCapacityPreview | null>(null);
   readonly settingsChanged = output<void>();
   readonly maxCommunityTags = MAX_COMMUNITY_TAGS;
-  readonly memberLimitOptions = COMMUNITY_MEMBER_LIMIT_OPTIONS;
   readonly tagCategories: readonly CommunityTagCategory[] = [
     'intent',
     'practice',
@@ -173,8 +172,7 @@ export class CommunitySettingsComponent {
       validators: [Validators.required],
     }),
     membersCanInvite: new FormControl(false, { nonNullable: true }),
-    memberLimit: new FormControl<CommunityMemberLimit>(25, {
-      nonNullable: true,
+    memberLimit: new FormControl<CommunityMemberLimit | null>(null, {
       validators: [Validators.required],
     }),
     tagIds: new FormControl<readonly string[]>([], {
@@ -303,25 +301,25 @@ export class CommunitySettingsComponent {
     control.markAsDirty();
   }
 
-  selectMemberLimit(memberLimit: CommunityMemberLimit): void {
+  selectMemberLimit(option: CommunityMemberLimitCapabilityOption): void {
     if (this.viewerRole() !== 'owner') return;
     const capacity = this.capacity();
 
-    if (!capacity?.allowedMemberLimits.includes(memberLimit)) {
+    if (!capacity || !option.allowed) {
       this.notifications.showWarning(
-        `${communityMemberLimitRequiredRole(memberLimit)} é necessário para escolher essa capacidade.`
+        `${communityMemberLimitRequirementLabel(option.requirement)} é necessário para escolher essa capacidade.`
       );
       return;
     }
 
-    if (memberLimit < capacity.memberCount) {
+    if (option.memberLimit < capacity.memberCount) {
       this.notifications.showWarning(
         `O limite não pode ser menor que os ${capacity.memberCount} membros atuais.`
       );
       return;
     }
 
-    this.form.controls.memberLimit.setValue(memberLimit);
+    this.form.controls.memberLimit.setValue(option.memberLimit);
     this.form.controls.memberLimit.markAsDirty();
   }
 
@@ -329,8 +327,10 @@ export class CommunitySettingsComponent {
     return new Intl.NumberFormat('pt-BR').format(memberLimit);
   }
 
-  memberLimitPlanLabel(memberLimit: CommunityMemberLimit): string {
-    return communityMemberLimitRequiredRole(memberLimit);
+  memberLimitPlanLabel(
+    option: CommunityMemberLimitCapabilityOption
+  ): string {
+    return communityMemberLimitRequirementLabel(option.requirement);
   }
 
   save(): void {
@@ -348,6 +348,13 @@ export class CommunitySettingsComponent {
     }
 
     const value = this.form.getRawValue();
+    if (value.memberLimit === null) {
+      this.notifications.showWarning(
+        'Não foi possível validar a capacidade atual da Comunidade.'
+      );
+      return;
+    }
+
     this.saveRequests$.next({
       requestId: this.createRequestId(),
       name: value.name.trim(),
