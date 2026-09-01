@@ -28,6 +28,7 @@ import {
   evaluateCommunityMemberManagement,
 } from './community-member-management.policy';
 import { normalizeCommunityId } from './community-preview.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 interface ManagedMembersPagePayload {
   communityId?: unknown;
@@ -535,6 +536,11 @@ export const manageCommunityMember = onCall<ManageCommunityMemberPayload>(
         { reason: 'invalid_community_role' }
       );
     }
+
+    await consumeCommunityRateLimit({
+      action: 'member_management',
+      actorUid,
+    });
 
     return db.runTransaction(async (transaction) => {
       const communityRef = db.collection('communities').doc(communityId);
