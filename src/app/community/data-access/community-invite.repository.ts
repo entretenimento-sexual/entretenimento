@@ -71,7 +71,9 @@ export class CommunityInviteRepository {
 
   acceptInvite$(inviteId: string): Observable<CommunityInviteResult> {
     return this.respond$(this.acceptInviteCallable, inviteId, 'accepted').pipe(
-      tap(() => this.discoveryCache.invalidateCurrentViewer())
+      tap(() => this.discoveryCache.invalidateCurrentViewer({
+        sourceType: 'community',
+      }))
     );
   }
 
