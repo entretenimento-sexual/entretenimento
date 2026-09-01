@@ -31,6 +31,7 @@ import {
   type CommunityNotificationUser,
 } from './community-notification.policy';
 import type { CommunityViewerRole } from './community-preview.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 
 function assertRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
@@ -157,6 +158,13 @@ export const moderateCommunityFeedCommentReply = onCall<
     const replyId = command.replyId;
     const action = command.action;
     const requestId = command.requestId;
+
+    if (action === 'remove') {
+      await consumeCommunityRateLimit({
+        action: 'content_moderation',
+        actorUid,
+      });
+    }
 
     return db.runTransaction(async (transaction): Promise<CommunityFeedCommentReplyActionResponse> => {
       const communityRef = db.collection('communities').doc(communityId);
