@@ -18,6 +18,7 @@ import {
 } from './community-callable-security';
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { canViewerModerateCommunityTopic } from './community-topic-access.policy';
 import {
   CommunityTopicModerationAction,
@@ -188,6 +189,11 @@ export const moderateCommunityTopic = onCall<CommunityTopicModerationRequest>(
         { reason: 'topic_moderation_forbidden' }
       );
     }
+
+    await consumeCommunityRateLimit({
+      action: 'content_moderation',
+      actorUid,
+    });
 
     const communityId = command.communityId;
     const topicId = command.topicId;
