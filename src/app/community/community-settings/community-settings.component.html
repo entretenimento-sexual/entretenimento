@@ -169,7 +169,7 @@
               <div class="community-settings__tag-group">
                 <h3>{{ tagCategoryLabel(category) }}</h3>
                 <div aria-describedby="community-settings-tags-help">
-                  @for (tag of tagsForCategory(catalog.items; track tag.id)) {
+                  @for (tag of tagsForCategory(catalog.items, category); track tag.id) {
                     <button
                       type="button"
                       [class.is-selected]="isTagSelected(tag.id)"
