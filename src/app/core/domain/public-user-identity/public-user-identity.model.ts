@@ -12,6 +12,7 @@ import {
   resolveProfileIdentityOption,
   type ProfileIdentityDiscoveryGroup,
 } from '../profile-identity/profile-identity.catalog';
+import { normalizePublicProfileId } from './public-profile-id.model';
 
 export interface PublicUserIdentity {
   /** Identificador público opcional. Algumas projeções deliberadamente o omitem. */
@@ -170,8 +171,9 @@ export function normalizePublicUserIdentity(
   return {
     // `uid` pode ser um identificador interno presente em projeções que
     // deliberadamente omitem navegação de perfil. Só transportamos `profileId`
-    // quando a própria origem pública o declara explicitamente.
-    profileId: normalizeText(source['profileId'], 128) || null,
+    // quando a própria origem pública o declara explicitamente e ele obedece ao
+    // contrato canônico gerado pelo backend.
+    profileId: normalizePublicProfileId(source['profileId']),
     nickname,
     label: nickname,
     avatarUrl: normalizeMediaUrl(source['avatarUrl'] ?? source['photoURL']),
