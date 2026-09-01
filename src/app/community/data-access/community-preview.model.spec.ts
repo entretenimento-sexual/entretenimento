@@ -78,6 +78,18 @@ describe('community preview normalization', () => {
     expect(page.nextCursor).toBe('community-venue-1');
   });
 
+  it('preserva cursor opaco vinculado à versão do ranking', () => {
+    const documentId = 'a'.repeat(128);
+    const cursor = `cursor1:score_v2:${documentId}`;
+    const page = normalizeCommunityDiscoveryPageResponse({
+      items: [],
+      nextCursor: cursor,
+      generatedAt: 100,
+    });
+
+    expect(page.nextCursor).toBe(cursor);
+  });
+
   it('normaliza papel válido em card privado e descarta papel desconhecido', () => {
     const page = normalizeCommunityDiscoveryPageResponse({
       items: [
