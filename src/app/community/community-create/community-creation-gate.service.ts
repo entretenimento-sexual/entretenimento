@@ -138,10 +138,34 @@ export class CommunityCreationGateService {
   private buildDialogConfig(
     capability: CommunityCreationCapability
   ): CommunityCreationGateDialogConfig {
+    const current = capability.currentOwnedCommunities;
+    const maximum = capability.maxOwnedCommunities;
+    const ownsCommunities = current > 0;
+    const aboveCurrentLimit = maximum !== null && current > maximum;
+
     if (capability.reason === 'subscription_required') {
       const upgradeRole = capability.recommendedUpgradeRole
         ?? capability.minimumRole;
       const upgradePlanLabel = this.upgradePlanLabel(capability) ?? 'Basic';
+
+      if (ownsCommunities) {
+        return {
+          data: {
+            eyebrow: 'Regularização de Comunidades',
+            title: 'Seu plano atual não cobre suas Comunidades',
+            message:
+              `Você possui ${current} ${current === 1 ? 'Comunidade' : 'Comunidades'} e sua assinatura atual não libera a criação. Nenhuma Comunidade ou membro será removido automaticamente.`,
+            detail:
+              'Novas entradas podem ficar pausadas conforme a capacidade disponível. Regularize o plano ou use a gestão das Comunidades para transferir ou arquivar quando fizer sentido.',
+            icon: 'manage_accounts',
+            tone: 'warning',
+            confirmLabel: 'Regularizar plano',
+            cancelLabel: 'Gerenciar Comunidades',
+          },
+          confirmAction: { destination: 'plans', minimumRole: upgradeRole },
+          cancelAction: { destination: 'manage', minimumRole: null },
+        };
+      }
 
       return {
         data: {
@@ -162,11 +186,50 @@ export class CommunityCreationGateService {
     }
 
     const nextRole = capability.recommendedUpgradeRole;
-    const current = capability.currentOwnedCommunities;
-    const maximum = capability.maxOwnedCommunities;
     const occupancy = maximum === null
       ? `${current} Comunidades próprias`
       : `${current} de ${maximum} ${maximum === 1 ? 'Comunidade' : 'Comunidades'}`;
+
+    if (aboveCurrentLimit) {
+      const overage = current - (maximum ?? current);
+      const overageLabel = `${overage} ${overage === 1 ? 'Comunidade está' : 'Comunidades estão'}`;
+
+      if (nextRole) {
+        return {
+          data: {
+            eyebrow: 'Regularização de Comunidades',
+            title: 'Seu plano mudou e excede o limite atual',
+            message:
+              `${occupancy}. ${overageLabel} acima do limite do ${this.planLabel(capability)}. Nenhuma será excluída automaticamente.`,
+            detail:
+              'Você pode comparar um plano compatível ou gerenciar as Comunidades atuais para transferir ou arquivar as que não pretende manter sob sua propriedade.',
+            icon: 'manage_accounts',
+            tone: 'warning',
+            confirmLabel: 'Regularizar plano',
+            cancelLabel: 'Gerenciar Comunidades',
+          },
+          confirmAction: { destination: 'plans', minimumRole: nextRole },
+          cancelAction: { destination: 'manage', minimumRole: null },
+        };
+      }
+
+      return {
+        data: {
+          eyebrow: 'Regularização de Comunidades',
+          title: 'Você possui mais Comunidades que o limite atual',
+          message:
+            `${occupancy}. ${overageLabel} acima do limite atual, mas nenhuma será excluída automaticamente.`,
+          detail:
+            'Use a gestão para transferir ou arquivar Comunidades até que sua propriedade volte a ficar compatível.',
+          icon: 'manage_accounts',
+          tone: 'warning',
+          confirmLabel: 'Gerenciar Comunidades',
+          cancelLabel: 'Continuar explorando',
+        },
+        confirmAction: { destination: 'manage', minimumRole: null },
+        cancelAction: { destination: 'communities', minimumRole: null },
+      };
+    }
 
     if (nextRole) {
       return {
