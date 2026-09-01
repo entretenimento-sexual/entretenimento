@@ -38,6 +38,7 @@ import {
 import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import { buildCommunityPublicAuthor } from './community-public-author.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { getCommunityViewerContext } from './community-viewer-access.service';
 
 const ALLOWED_COMMUNITY_IMAGE_TYPES = new Set([
@@ -285,6 +286,11 @@ export const createCommunityFeedPost = onCall<CommunityFeedPostCreateRequest>(
     ) {
       throwWriteDecision('active_membership_required');
     }
+
+    await consumeCommunityRateLimit({
+      action: 'feed_post',
+      actorUid,
+    });
 
     let promotedStoragePath: string | null = null;
 
