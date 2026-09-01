@@ -1,0 +1,103 @@
+<!-- src/app/community/profile-official-communities/profile-official-communities.component.html -->
+@if (vm$ | async; as vm) {
+  @if (vm.status === 'loading') {
+    <section
+      class="profile-official-communities profile-official-communities--state"
+      aria-label="Comunidades oficiais"
+      aria-busy="true"
+      role="status"
+      aria-live="polite"
+    >
+      <span class="profile-official-communities__spinner" aria-hidden="true">
+        <i class="fas fa-spinner fa-spin"></i>
+      </span>
+      <span>Carregando comunidades oficiais.</span>
+    </section>
+  } @else if (vm.status === 'error') {
+    <section
+      class="profile-official-communities profile-official-communities--state"
+      aria-label="Comunidades oficiais"
+      role="status"
+    >
+      <span>As comunidades oficiais não puderam ser carregadas.</span>
+      <button type="button" (click)="retry()">Tentar novamente</button>
+    </section>
+  } @else if (vm.status === 'ready') {
+    <section
+      class="profile-official-communities"
+      aria-labelledby="profile-official-communities-title"
+    >
+      <header class="profile-official-communities__header">
+        <div>
+          <p class="profile-official-communities__eyebrow">
+            <i class="fas fa-circle-check" aria-hidden="true"></i>
+            Vínculo verificado
+          </p>
+          <h2 id="profile-official-communities-title">Comunidades oficiais</h2>
+        </div>
+      </header>
+
+      <ul
+        class="profile-official-communities__list"
+        aria-label="Comunidades oficialmente vinculadas a este perfil"
+      >
+        @for (item of vm.items; track item.communityId) {
+          <li>
+            <a
+              class="profile-official-community"
+              [routerLink]="detailsRoute(item)"
+              [attr.aria-label]="'Abrir comunidade oficial ' + item.name"
+            >
+              <span
+                class="profile-official-community__avatar"
+                [attr.data-visual-variant]="communityVisualVariant(item)"
+                aria-hidden="true"
+              >
+                <span>{{ communityInitials(item) }}</span>
+                @if (item.avatarUrl) {
+                  <img
+                    [src]="item.avatarUrl"
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    appImageFallback
+                  />
+                }
+              </span>
+
+              <span class="profile-official-community__body">
+                <span class="profile-official-community__title-row">
+                  <strong>{{ item.name }}</strong>
+                  <span class="profile-official-community__verified">
+                    <i class="fas fa-circle-check" aria-hidden="true"></i>
+                    <span>Oficial</span>
+                  </span>
+                </span>
+
+                @if (item.description) {
+                  <span class="profile-official-community__description">
+                    {{ item.description }}
+                  </span>
+                }
+
+                <span class="profile-official-community__meta">
+                  <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
+                    <i class="fas fa-users" aria-hidden="true"></i>
+                    {{ item.metrics.memberCount }}
+                  </span>
+                  <span aria-hidden="true">•</span>
+                  <span>Ver comunidade</span>
+                </span>
+              </span>
+
+              <i
+                class="fas fa-chevron-right profile-official-community__chevron"
+                aria-hidden="true"
+              ></i>
+            </a>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+}
