@@ -149,6 +149,8 @@ export function assertCommunityAcceptingNewMembers(
         effectiveLimit: state.effectiveLimit,
         memberCount: state.memberCount,
         restrictedByOwnerPlan: state.restrictedByOwnerPlan,
+        regularizationRequired: state.regularizationRequired,
+        regularizationReason: state.regularizationReason,
       }
     );
   }
