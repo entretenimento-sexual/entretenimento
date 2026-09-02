@@ -148,20 +148,26 @@ async function assertAuthorized(
 function toOfficialShadowEntries(
   documents: readonly { id: string; data(): Record<string, unknown> }[]
 ): CommunityRankingShadowEntry[] {
-  return documents.map((document) => ({
-    communityId: document.id,
-    score: Number(document.data()['discoveryScore']),
-  }));
+  return documents.map((document) => {
+    const data = document.data();
+    return {
+      communityId: document.id,
+      score: Number(data['discoveryScore']),
+      communityCreatedAt: normalizeTimestamp(data['communityCreatedAt']),
+    };
+  });
 }
 
 function toCandidateShadowEntries(
   documents: readonly { id: string; data(): Record<string, unknown> }[]
 ): CommunityRankingShadowEntry[] {
   return documents.map((document) => {
-    const candidate = asRecord(document.data()['rankingCandidate']);
+    const data = document.data();
+    const candidate = asRecord(data['rankingCandidate']);
     return {
       communityId: document.id,
       score: Number(candidate['discoveryScore']),
+      communityCreatedAt: normalizeTimestamp(data['communityCreatedAt']),
     };
   });
 }
@@ -193,6 +199,7 @@ async function inspectShadowComparison(
     officialTop: toOfficialShadowEntries(officialSnapshot.docs),
     candidateTop: toCandidateShadowEntries(candidateSnapshot.docs),
     topK: SHADOW_COMPARISON_TOP_K,
+    now: Date.now(),
   });
 
   return {
@@ -278,6 +285,14 @@ export const inspectCommunityRankingReadiness = onCall(
         inspection.shadowComparison.diagnostics?.overlapRate ?? null,
       shadowRankAgreement:
         inspection.shadowComparison.diagnostics?.rankAgreement ?? null,
+      shadowColdStartOfficialCoverage:
+        inspection.shadowComparison.diagnostics?.coldStart
+          .officialAgeCoverageRate ?? null,
+      shadowColdStartCandidateCoverage:
+        inspection.shadowComparison.diagnostics?.coldStart
+          .candidateAgeCoverageRate ?? null,
+      shadowColdStartNewShareDelta:
+        inspection.shadowComparison.diagnostics?.coldStart.newShareDelta ?? null,
     });
 
     return inspection;
