@@ -43,14 +43,14 @@ function signalMatchesProfile(
   profile: Readonly<PreferenceProfile>
 ): boolean {
   if (signal.domain === 'relationshipIntent') {
-    return profile.relationshipIntents.includes(signal.key as never);
+    return profile.relationshipIntents.some((value) => value === signal.key);
   }
 
   if (signal.domain === 'sexualPractice') {
-    return profile.softRules.sexualPractices.includes(signal.key as never);
+    return profile.softRules.sexualPractices.some((value) => value === signal.key);
   }
 
-  return profile.hardRules.acceptedGenders.includes(signal.key as never);
+  return profile.hardRules.acceptedGenders.some((value) => value === signal.key);
 }
 
 export function resolveCommunityContextualRelevance(
