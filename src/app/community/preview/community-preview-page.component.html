@@ -585,13 +585,21 @@
                     </div>
                     <div class="community-preview__rail-actions">
                       @if (preview.canManageMemberships) {
-                        <button type="button" (click)="selectSection('requests')">
+                        <button
+                          type="button"
+                          aria-label="Abrir gestão da Comunidade"
+                          (click)="selectSection('requests')"
+                        >
                           <i class="fas fa-users-gear" aria-hidden="true"></i>
                           Gestão
                         </button>
                       }
                       @if (preview.canInviteCommunityMembers) {
-                        <button type="button" (click)="selectSection('invites')">
+                        <button
+                          type="button"
+                          aria-label="Abrir convites da Comunidade"
+                          (click)="selectSection('invites')"
+                        >
                           <i class="fas fa-user-plus" aria-hidden="true"></i>
                           Convidar
                         </button>
