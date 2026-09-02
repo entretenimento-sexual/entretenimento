@@ -9,6 +9,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import type { PreferenceProfile } from 'src/app/preferences/models/preference-profile.model';
 import { ProfilePreferencesService } from 'src/app/preferences/services/profile-preferences.service';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
+import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import type { CommunityPreviewCard } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
@@ -113,6 +114,14 @@ describe('CommunityDiscoveryPageComponent / apresentação contextual', () => {
           useValue: {
             getDiscoveryPage$: vi.fn(() => of(organicPage)),
             getMyCommunitiesPage$: vi.fn(),
+          },
+        },
+        {
+          provide: CommunityMembershipRepository,
+          useValue: {
+            getMembershipContext$: vi.fn(() =>
+              of({ activeCommunityIds: [], generatedAt: 123 })
+            ),
           },
         },
         {
