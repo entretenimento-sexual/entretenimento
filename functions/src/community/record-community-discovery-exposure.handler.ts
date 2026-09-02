@@ -7,7 +7,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
-import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
+import { consumeBackendRateLimitQuota } from '../shared/security/backend-rate-limit.service';
 import {
   assertCommunityCallableAppCheck,
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -51,20 +51,17 @@ function assertActor(
 }
 
 async function consumeExposureQuota(uid: string): Promise<void> {
-  await Promise.all([
-    consumeBackendRateLimitQuota({
-      scope: 'community_discovery_exposure_burst',
-      subject: uid,
-      maxRequests: COMMUNITY_DISCOVERY_EXPOSURE_BURST_MAX_BATCHES,
-      windowMs: COMMUNITY_DISCOVERY_EXPOSURE_BURST_WINDOW_MS,
-    }),
-    consumeBackendRateLimitQuota({
-      scope: 'community_discovery_exposure_hourly',
-      subject: uid,
-      maxRequests: COMMUNITY_DISCOVERY_EXPOSURE_HOURLY_MAX_BATCHES,
-      windowMs: COMMUNITY_DISCOVERY_EXPOSURE_HOURLY_WINDOW_MS,
-    }),
-  ]);
+  await consumeBackendRateLimitQuota({
+    action: 'community_discovery_exposure',
+    subject: uid,
+    config: {
+      burstWindowMs: COMMUNITY_DISCOVERY_EXPOSURE_BURST_WINDOW_MS,
+      burstMax: COMMUNITY_DISCOVERY_EXPOSURE_BURST_MAX_BATCHES,
+      sustainedWindowMs: COMMUNITY_DISCOVERY_EXPOSURE_HOURLY_WINDOW_MS,
+      sustainedMax: COMMUNITY_DISCOVERY_EXPOSURE_HOURLY_MAX_BATCHES,
+    },
+    message: 'Muitas atualizações de descoberta foram recebidas em pouco tempo.',
+  });
 }
 
 export const recordCommunityDiscoveryExposure =
@@ -86,10 +83,8 @@ export const recordCommunityDiscoveryExposure =
         );
       }
 
-      await Promise.all([
-        assertCommunitySocialAccessForUid(uid),
-        consumeExposureQuota(uid),
-      ]);
+      await assertCommunitySocialAccessForUid(uid);
+      await consumeExposureQuota(uid);
 
       const projectionRefs = command.communityIds.map((communityId) =>
         db.collection('community_discovery_index').doc(communityId)
