@@ -8,9 +8,15 @@
 // cutover do candidato shadow-only.
 // -----------------------------------------------------------------------------
 
+import {
+  buildCommunityRankingColdStartDiagnostics,
+  type CommunityRankingColdStartDiagnostics,
+} from './community-ranking-cold-start-diagnostics.policy';
+
 export interface CommunityRankingShadowEntry {
   communityId: string;
   score: number;
+  communityCreatedAt?: number | null;
 }
 
 export interface CommunityRankingShadowDiagnostics {
@@ -26,6 +32,7 @@ export interface CommunityRankingShadowDiagnostics {
   candidateEntrants: number;
   candidateExits: number;
   meanCandidateScoreDelta: number;
+  coldStart: CommunityRankingColdStartDiagnostics;
 }
 
 function normalizeTopK(value: unknown): number {
@@ -40,6 +47,11 @@ function normalizeScore(value: unknown): number {
   return Number.isFinite(parsed)
     ? Math.max(0, Math.min(100, parsed))
     : 0;
+}
+
+function normalizeTimestamp(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
 }
 
 function normalizeEntries(
@@ -57,6 +69,7 @@ function normalizeEntries(
     normalized.push({
       communityId,
       score: normalizeScore(entry.score),
+      communityCreatedAt: normalizeTimestamp(entry.communityCreatedAt),
     });
 
     if (normalized.length >= topK) break;
@@ -74,8 +87,12 @@ export function buildCommunityRankingShadowDiagnostics(input: {
   officialTop: readonly CommunityRankingShadowEntry[];
   candidateTop: readonly CommunityRankingShadowEntry[];
   topK?: number;
+  now?: number;
 }): CommunityRankingShadowDiagnostics {
   const topK = normalizeTopK(input.topK);
+  const now = Number.isFinite(input.now) && Number(input.now) > 0
+    ? Math.trunc(Number(input.now))
+    : Date.now();
   const officialTop = normalizeEntries(input.officialTop, topK);
   const candidateTop = normalizeEntries(input.candidateTop, topK);
   const officialPositions = new Map(
@@ -145,5 +162,10 @@ export function buildCommunityRankingShadowDiagnostics(input: {
     candidateEntrants,
     candidateExits,
     meanCandidateScoreDelta: round(meanCandidateScoreDelta),
+    coldStart: buildCommunityRankingColdStartDiagnostics({
+      officialTop,
+      candidateTop,
+      now,
+    }),
   };
 }
