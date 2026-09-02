@@ -66,3 +66,82 @@ async function consumeExposureQuota(uid: string): Promise<void> {
     }),
   ]);
 }
+
+export const recordCommunityDiscoveryExposure =
+  onCall<CommunityDiscoveryExposureRequest>(
+    {
+      region: FUNCTIONS_REGION,
+      enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
+    },
+    async (request): Promise<CommunityDiscoveryExposureResponse> => {
+      assertRuntime();
+      assertCommunityCallableAppCheck(request.app);
+      const uid = assertActor(request.auth);
+      const command = normalizeCommunityDiscoveryExposureRequest(request.data);
+
+      if (!command) {
+        throw new HttpsError(
+          'invalid-argument',
+          'Lote de visibilidade de Comunidades inválido.'
+        );
+      }
+
+      await Promise.all([
+        assertCommunitySocialAccessForUid(uid),
+        consumeExposureQuota(uid),
+      ]);
+
+      const projectionRefs = command.communityIds.map((communityId) =>
+        db.collection('community_discovery_index').doc(communityId)
+      );
+      const projectionSnapshots = await db.getAll(...projectionRefs);
+      const eligibleCommunityIds = projectionSnapshots
+        .filter((snapshot) =>
+          snapshot.exists
+          && isCommunityDiscoveryExposureEligibleProjection(
+            snapshot.data(),
+            command.sourceType
+          )
+        )
+        .map((snapshot) => snapshot.id);
+      const now = Date.now();
+
+      if (eligibleCommunityIds.length > 0) {
+        const day = resolveCommunityDiscoveryExposureDay(now);
+        const batch = db.batch();
+        const dayRef = db.collection('community_discovery_exposure_daily').doc(day);
+
+        for (const communityId of eligibleCommunityIds) {
+          const shard = randomInt(COMMUNITY_DISCOVERY_EXPOSURE_COUNTER_SHARDS);
+          const shardRef = dayRef
+            .collection('communities')
+            .doc(communityId)
+            .collection('shards')
+            .doc(String(shard));
+
+          batch.set(
+            shardRef,
+            {
+              count: FieldValue.increment(1),
+              sourceType: command.sourceType,
+              updatedAt: now,
+            },
+            { merge: true }
+          );
+        }
+
+        await batch.commit();
+      }
+
+      logger.debug('community_discovery_exposure_recorded', {
+        sourceType: command.sourceType,
+        submitted: command.communityIds.length,
+        accepted: eligibleCommunityIds.length,
+      });
+
+      return {
+        accepted: eligibleCommunityIds.length,
+        generatedAt: now,
+      };
+    }
+  );
