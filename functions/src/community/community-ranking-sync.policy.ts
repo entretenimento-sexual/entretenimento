@@ -5,8 +5,13 @@
 // Converte a política canônica de ranking em patch persistível da projeção de
 // descoberta, evita writes quando o score material não mudou e impede que um
 // cursor de backfill de versão anterior seja reutilizado pela versão atual.
+// O candidato v3 é shadow-only e nunca substitui discoveryScore nesta fase.
 // -----------------------------------------------------------------------------
 
+import {
+  buildCommunityDiscoveryRankingCandidateV3,
+  type CommunityDiscoveryRankingCandidateV3,
+} from './community-ranking-candidate-v3.policy';
 import {
   COMMUNITY_DISCOVERY_SCORE_VERSION,
   buildCommunityDiscoveryRanking,
@@ -16,6 +21,7 @@ import {
 export interface CommunityRankingProjectionPatch {
   discoveryScore: number;
   ranking: CommunityDiscoveryRankingBreakdown;
+  rankingCandidate: CommunityDiscoveryRankingCandidateV3;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -46,6 +52,61 @@ function sameScore(value: unknown, expected: number): boolean {
   return Number.isFinite(parsed) && Math.round(parsed) === expected;
 }
 
+function sameMomentum(value: unknown, expected: number): boolean {
+  const parsed = Number(value);
+  return Number.isFinite(parsed)
+    && Math.abs(parsed - expected) < 0.0001;
+}
+
+function sameCount(value: unknown, expected: number): boolean {
+  const parsed = Math.trunc(Number(value));
+  return Number.isFinite(parsed) && parsed === expected;
+}
+
+function isCandidateV3Current(
+  rawCandidate: unknown,
+  expected: Readonly<CommunityDiscoveryRankingCandidateV3>
+): boolean {
+  const candidate = asRecord(rawCandidate);
+  const baseline = asRecord(candidate['activityBaseline']);
+  const momentum = asRecord(candidate['activityMomentum']);
+
+  return sameScore(candidate['discoveryScore'], expected.discoveryScore)
+    && sameScore(candidate['qualityScore'], expected.qualityScore)
+    && sameScore(candidate['activityScore'], expected.activityScore)
+    && sameScore(candidate['freshnessScore'], expected.freshnessScore)
+    && sameScore(candidate['safetyScore'], expected.safetyScore)
+    && Number(candidate['scoreVersion']) === expected.scoreVersion
+    && sameCount(
+      baseline['memberCount'],
+      expected.activityBaseline.memberCount
+    )
+    && sameCount(
+      baseline['postCount'],
+      expected.activityBaseline.postCount
+    )
+    && sameCount(
+      baseline['mediaCount'],
+      expected.activityBaseline.mediaCount
+    )
+    && sameMomentum(
+      momentum['shortTerm'],
+      expected.activityMomentum.shortTerm
+    )
+    && sameMomentum(
+      momentum['mediumTerm'],
+      expected.activityMomentum.mediumTerm
+    )
+    && sameMomentum(
+      momentum['churnShortTerm'],
+      expected.activityMomentum.churnShortTerm
+    )
+    && sameMomentum(
+      momentum['churnMediumTerm'],
+      expected.activityMomentum.churnMediumTerm
+    );
+}
+
 export function isCommunityRankingSupportedDocument(
   rawCommunity: unknown
 ): boolean {
@@ -65,10 +126,16 @@ export function buildCommunityRankingProjectionPatch(
     rawDiscovery,
     now,
   });
+  const rankingCandidate = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity,
+    rawDiscovery,
+    now,
+  });
 
   return {
     discoveryScore: ranking.discoveryScore,
     ranking,
+    rankingCandidate,
   };
 }
 
@@ -86,7 +153,11 @@ export function isCommunityRankingProjectionCurrent(
     && sameScore(ranking['activityScore'], target.activityScore)
     && sameScore(ranking['freshnessScore'], target.freshnessScore)
     && sameScore(ranking['safetyScore'], target.safetyScore)
-    && Number(ranking['scoreVersion']) === target.scoreVersion;
+    && Number(ranking['scoreVersion']) === target.scoreVersion
+    && isCandidateV3Current(
+      discovery['rankingCandidate'],
+      expected.rankingCandidate
+    );
 }
 
 export function haveCommunityRankingVisualInputsChanged(
