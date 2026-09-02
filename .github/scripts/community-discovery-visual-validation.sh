@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# O filtro por tags possui rolagem horizontal interna intencional. No mobile,
+# overflow da página é validado por body + window.scrollX; html.scrollWidth fica
+# apenas como diagnóstico porque também contabiliza conteúdo de scrollers filhos.
 OUT='artifacts/community-discovery'
 BASE='http://127.0.0.1:4200/'
 mkdir -p "$OUT/explore/desktop" "$OUT/explore/mobile" "$OUT/venues/mobile" "$OUT/profile/desktop" "$OUT/profile/mobile" "$OUT/browser-console"
