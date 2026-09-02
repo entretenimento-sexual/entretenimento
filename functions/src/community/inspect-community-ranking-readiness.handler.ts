@@ -5,7 +5,7 @@
 // Diagnóstico administrativo somente-leitura para homologar a troca do ranking
 // legado para a versão atual do score. Não altera configuração, runtime, índices
 // ou projeções. A comparação v2 x v3 e a exploração permanecem shadow-only.
-// A exposição é diagnosticada somente para o ranking efetivamente servido.
+// A exposição é diagnosticada somente para a ordenação efetivamente servida.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
@@ -52,13 +52,14 @@ import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 const SHADOW_COMPARISON_TOP_K = 25;
 
+type CommunityRankingOrderField = 'rankScore' | 'discoveryScore';
 type CommunityRankingShadowUnavailableReason = 'ranking_cycle_not_ready';
 
 interface CommunityRankingReadinessInspection {
   requestedMode: CommunityDiscoveryRankingMode;
   effectiveMode: CommunityDiscoveryRankingMode;
   targetMode: typeof COMMUNITY_DISCOVERY_RANKING_MODE;
-  orderField: 'rankScore' | 'discoveryScore';
+  orderField: CommunityRankingOrderField;
   fallbackReason: string | null;
   policyScoreVersion: number;
   runtime: {
@@ -87,6 +88,7 @@ interface CommunityRankingReadinessInspection {
     diagnostics: CommunityRankingShadowDiagnostics | null;
     servedExposure: {
       day: string;
+      orderField: CommunityRankingOrderField;
       diagnostics: CommunityRankingExposureDiagnostics;
     } | null;
     explorationSimulation: CommunityRankingExplorationSimulation | null;
@@ -211,9 +213,11 @@ function toExplorationEntries(
 
 async function inspectServedExposure(
   documents: readonly { id: string; data(): Record<string, unknown> }[],
-  now: number
+  now: number,
+  orderField: CommunityRankingOrderField
 ): Promise<{
   day: string;
+  orderField: CommunityRankingOrderField;
   diagnostics: CommunityRankingExposureDiagnostics;
 }> {
   const day = resolveCommunityDiscoveryExposureDay(now);
@@ -251,6 +255,7 @@ async function inspectServedExposure(
 
   return {
     day,
+    orderField,
     diagnostics: buildCommunityRankingExposureDiagnostics({
       now,
       entries: documents.map((document) => ({
@@ -263,21 +268,41 @@ async function inspectServedExposure(
   };
 }
 
+async function queryServedDocuments(
+  orderField: CommunityRankingOrderField
+) {
+  return db
+    .collection('community_discovery_index')
+    .orderBy(orderField, 'desc')
+    .limit(SHADOW_COMPARISON_TOP_K)
+    .get();
+}
+
 async function inspectShadowComparison(
-  runtimeReadyForTarget: boolean
+  runtimeReadyForTarget: boolean,
+  servedOrderField: CommunityRankingOrderField
 ): Promise<CommunityRankingReadinessInspection['shadowComparison']> {
+  const projection = db.collection('community_discovery_index');
+  const now = Date.now();
+
   if (!runtimeReadyForTarget) {
+    const servedSnapshot = await queryServedDocuments(servedOrderField);
+    const servedExposure = await inspectServedExposure(
+      servedSnapshot.docs,
+      now,
+      servedOrderField
+    );
+
     return {
       available: false,
       candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
       unavailableReason: 'ranking_cycle_not_ready',
       diagnostics: null,
-      servedExposure: null,
+      servedExposure,
       explorationSimulation: null,
     };
   }
 
-  const projection = db.collection('community_discovery_index');
   const [officialSnapshot, candidateSnapshot] = await Promise.all([
     projection
       .orderBy('discoveryScore', 'desc')
@@ -288,10 +313,13 @@ async function inspectShadowComparison(
       .limit(COMMUNITY_EXPLORATION_SCAN_DEPTH)
       .get(),
   ]);
-  const now = Date.now();
+  const servedDocuments = servedOrderField === 'discoveryScore'
+    ? officialSnapshot.docs
+    : (await queryServedDocuments(servedOrderField)).docs;
   const servedExposure = await inspectServedExposure(
-    officialSnapshot.docs,
-    now
+    servedDocuments,
+    now,
+    servedOrderField
   );
   const diagnostics = buildCommunityRankingShadowDiagnostics({
     officialTop: toOfficialShadowEntries(officialSnapshot.docs),
@@ -342,7 +370,10 @@ export const inspectCommunityRankingReadiness = onCall(
     const runtimeReadyForTarget = runtime['ready'] === true
       && Number(runtime['completedScoreVersion'])
         === COMMUNITY_DISCOVERY_SCORE_VERSION;
-    const shadowComparison = await inspectShadowComparison(runtimeReadyForTarget);
+    const shadowComparison = await inspectShadowComparison(
+      runtimeReadyForTarget,
+      decision.orderField
+    );
     const inspection: CommunityRankingReadinessInspection = {
       requestedMode: decision.requestedMode,
       effectiveMode: decision.effectiveMode,
@@ -399,6 +430,8 @@ export const inspectCommunityRankingReadiness = onCall(
         inspection.shadowComparison.diagnostics?.coldStart.newShareDelta ?? null,
       servedExposureDay:
         inspection.shadowComparison.servedExposure?.day ?? null,
+      servedExposureOrderField:
+        inspection.shadowComparison.servedExposure?.orderField ?? null,
       servedQualifiedExposures:
         inspection.shadowComparison.servedExposure?.diagnostics
           .totalQualifiedExposures ?? null,
