@@ -1,6 +1,19 @@
 // src/app/community/discovery/community-discovery-session-behavior.service.ts
-import { Injectable } from '@angular/core';
-import { BehaviorSubject, distinctUntilChanged, map, Observable } from 'rxjs';
+import { DestroyRef, Injectable, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router } from '@angular/router';
+import {
+  BehaviorSubject,
+  distinctUntilChanged,
+  filter,
+  map,
+  merge,
+  Observable,
+  of,
+  switchMap,
+  tap,
+  timer,
+} from 'rxjs';
 
 export interface CommunityDiscoverySessionSignal {
   readonly meaningfulOpenCount: number;
@@ -13,6 +26,7 @@ export interface CommunityDiscoverySessionBehaviorState {
   readonly signals: Readonly<Record<string, CommunityDiscoverySessionSignal>>;
 }
 
+const MEANINGFUL_OPEN_DELAY_MS = 4_000;
 const OPEN_DEDUP_MS = 5 * 60 * 1_000;
 const MAX_SESSION_OPENS = 5;
 const INITIAL_SIGNAL: CommunityDiscoverySessionSignal = Object.freeze({
@@ -30,13 +44,47 @@ function normalizeCommunityId(value: unknown): string {
   return /^[A-Za-z0-9:_-]{1,128}$/.test(normalized) ? normalized : '';
 }
 
+function communityIdFromUrl(rawUrl: unknown): string {
+  const path = String(rawUrl ?? '').split('?')[0].split('#')[0];
+  const segments = path.split('/').filter(Boolean);
+  if (segments[0] !== 'dashboard' || segments[1] !== 'comunidades') return '';
+
+  const third = segments[2] ?? '';
+  if (third === 'minhas') return normalizeCommunityId(segments[3]);
+  if (!third || third === 'convites' || third === 'nova') return '';
+  return normalizeCommunityId(third);
+}
+
 @Injectable({ providedIn: 'root' })
 export class CommunityDiscoverySessionBehaviorService {
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly stateSubject =
     new BehaviorSubject<CommunityDiscoverySessionBehaviorState>(INITIAL_STATE);
 
   readonly state$: Observable<CommunityDiscoverySessionBehaviorState> =
     this.stateSubject.asObservable();
+
+  constructor() {
+    merge(
+      of(this.router.url),
+      this.router.events.pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        map((event) => event.urlAfterRedirects)
+      )
+    ).pipe(
+      map(communityIdFromUrl),
+      distinctUntilChanged(),
+      switchMap((communityId) =>
+        communityId
+          ? timer(MEANINGFUL_OPEN_DELAY_MS).pipe(map(() => communityId))
+          : of('')
+      ),
+      filter((communityId) => communityId.length > 0),
+      tap((communityId) => this.recordMeaningfulOpen(communityId)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
+  }
 
   recordMeaningfulOpen(communityId: string, now = Date.now()): void {
     const id = normalizeCommunityId(communityId);
