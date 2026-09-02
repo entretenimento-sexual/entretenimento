@@ -30,6 +30,9 @@ import {
   normalizeCommunityDiscoveryPageRequest,
   sanitizeCommunityDiscoveryProjection,
 } from './community-preview.model';
+import {
+  assertCommunitySocialAccessForUid,
+} from './community-social-access.service';
 
 function assertPreviewRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) {
@@ -74,16 +77,19 @@ export const getCommunityDiscoveryPage =
       assertCommunityCallableAppCheck(request.app);
       assertPreviewRuntime();
 
-      if (!request.auth?.uid) {
+      const uid = String(request.auth?.uid ?? '').trim();
+      if (!uid) {
         throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
       }
 
-      if (request.auth.token.email_verified !== true) {
+      if (request.auth?.token?.email_verified !== true) {
         throw new HttpsError(
           'failed-precondition',
           'Verifique seu e-mail para continuar.'
         );
       }
+
+      await assertCommunitySocialAccessForUid(uid);
 
       const pageRequest = normalizeCommunityDiscoveryPageRequest(request.data);
       assertValidCursor(request.data, pageRequest.cursor);
