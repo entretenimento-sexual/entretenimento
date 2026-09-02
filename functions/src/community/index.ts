@@ -127,3 +127,4 @@ export {
   syncCommunityRankingFromDiscovery,
 } from './sync-community-ranking.trigger';
 export { syncCommunityUserIndex } from './sync-community-user-index.trigger';
+export { syncVenuePublicLocation } from './sync-venue-public-location.trigger';
