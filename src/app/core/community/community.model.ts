@@ -140,6 +140,11 @@ export interface ICommunityMembership {
    * Ausência equivale a `hidden` e nunca deve ser promovida automaticamente.
    */
   profileVisibility?: CommunityMemberProfileVisibility | null;
+  /**
+   * Versão da policy de disclosure aceita quando o membro escolheu `visible`.
+   * Versão divergente invalida a exposição até novo consentimento explícito.
+   */
+  profileVisibilityPolicyVersion?: number | null;
   joinedAt?: number | null;
   updatedAt?: number | null;
 }
