@@ -16,9 +16,24 @@ describe('normalizeCommunityTagCatalog', () => {
     });
 
     expect(result.items).toEqual([
-      { id: 'intent:friendship', label: 'Amizade duplicada', category: 'intent' },
-      { id: 'practice:bdsm', label: 'BDSM', category: 'practice' },
-      { id: 'audience:couple_mf', label: 'Casal MF', category: 'audience' },
+      {
+        id: 'intent:friendship',
+        label: 'Amizade duplicada',
+        category: 'intent',
+        preferenceSignals: [],
+      },
+      {
+        id: 'practice:bdsm',
+        label: 'BDSM',
+        category: 'practice',
+        preferenceSignals: [],
+      },
+      {
+        id: 'audience:couple_mf',
+        label: 'Casal MF',
+        category: 'audience',
+        preferenceSignals: [],
+      },
     ]);
     expect(result.generatedAt).toBe(123);
   });
