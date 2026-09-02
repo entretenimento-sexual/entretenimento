@@ -43,6 +43,9 @@ import {
   sanitizeCommunityEditableSettings,
 } from './community-settings.model';
 import { evaluateCommunitySettingsUpdate } from './community-settings.policy';
+import {
+  assertCommunitySocialAccessForUid,
+} from './community-social-access.service';
 
 export interface CommunityViewerContext {
   community: CommunityPreviewCard;
@@ -93,6 +96,8 @@ export async function getCommunityViewerContext(
   uid: string,
   communityId: string
 ): Promise<CommunityViewerContext> {
+  await assertCommunitySocialAccessForUid(uid);
+
   const communityRef = db.collection('communities').doc(communityId);
   const membershipRef = communityRef.collection('members').doc(uid);
   const [communitySnapshot, membershipSnapshot] = await Promise.all([
