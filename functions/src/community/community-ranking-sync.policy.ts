@@ -20,6 +20,7 @@ import {
 
 export interface CommunityRankingProjectionPatch {
   discoveryScore: number;
+  communityCreatedAt: number | null;
   ranking: CommunityDiscoveryRankingBreakdown;
   rankingCandidate: CommunityDiscoveryRankingCandidateV3;
 }
@@ -43,6 +44,39 @@ function normalizeInteger(
     : fallback;
 }
 
+function normalizeTimestamp(value: unknown): number | null {
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? Math.trunc(value) : null;
+  }
+
+  if (value && typeof value === 'object') {
+    const source = value as {
+      toMillis?: () => number;
+      seconds?: unknown;
+      nanoseconds?: unknown;
+    };
+
+    if (typeof source.toMillis === 'function') {
+      const time = Number(source.toMillis());
+      return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
+    }
+
+    const seconds = Number(source.seconds);
+    const nanoseconds = Number(source.nanoseconds ?? 0);
+    if (Number.isFinite(seconds) && Number.isFinite(nanoseconds)) {
+      const time = seconds * 1_000 + Math.trunc(nanoseconds / 1_000_000);
+      return Number.isFinite(time) && time > 0 ? Math.trunc(time) : null;
+    }
+  }
+
+  return null;
+}
+
 function normalizeText(value: unknown): string {
   return String(value ?? '').trim();
 }
@@ -61,6 +95,10 @@ function sameMomentum(value: unknown, expected: number): boolean {
 function sameCount(value: unknown, expected: number): boolean {
   const parsed = Math.trunc(Number(value));
   return Number.isFinite(parsed) && parsed === expected;
+}
+
+function sameTimestamp(value: unknown, expected: number | null): boolean {
+  return normalizeTimestamp(value) === expected;
 }
 
 function isCandidateV3Current(
@@ -136,6 +174,7 @@ export function buildCommunityRankingProjectionPatch(
   rawDiscovery: unknown,
   now: number
 ): CommunityRankingProjectionPatch {
+  const community = asRecord(rawCommunity);
   const ranking = buildCommunityDiscoveryRanking({
     rawCommunity,
     rawDiscovery,
@@ -149,6 +188,7 @@ export function buildCommunityRankingProjectionPatch(
 
   return {
     discoveryScore: ranking.discoveryScore,
+    communityCreatedAt: normalizeTimestamp(community['createdAt']),
     ranking,
     rankingCandidate,
   };
@@ -163,6 +203,10 @@ export function isCommunityRankingProjectionCurrent(
   const target = expected.ranking;
 
   return sameScore(discovery['discoveryScore'], expected.discoveryScore)
+    && sameTimestamp(
+      discovery['communityCreatedAt'],
+      expected.communityCreatedAt
+    )
     && sameScore(ranking['discoveryScore'], target.discoveryScore)
     && sameScore(ranking['qualityScore'], target.qualityScore)
     && sameScore(ranking['activityScore'], target.activityScore)
