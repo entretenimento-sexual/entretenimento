@@ -70,6 +70,9 @@ export {
 } from './community-invite-management.handler';
 export { getMyCommunitiesPage } from './get-my-communities-page.handler';
 export {
+  getCommunityMembershipContext,
+} from './get-community-membership-context.handler';
+export {
   getCommunityMembersForManagement,
   manageCommunityMember,
 } from './community-member-management.handler';
