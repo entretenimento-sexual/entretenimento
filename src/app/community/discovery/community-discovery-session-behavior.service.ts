@@ -57,7 +57,7 @@ function communityIdFromUrl(rawUrl: unknown): string {
 
 @Injectable({ providedIn: 'root' })
 export class CommunityDiscoverySessionBehaviorService {
-  private readonly router = inject(Router);
+  private readonly router = inject(Router, { optional: true });
   private readonly destroyRef = inject(DestroyRef);
   private readonly stateSubject =
     new BehaviorSubject<CommunityDiscoverySessionBehaviorState>(INITIAL_STATE);
@@ -66,6 +66,8 @@ export class CommunityDiscoverySessionBehaviorService {
     this.stateSubject.asObservable();
 
   constructor() {
+    if (!this.router) return;
+
     merge(
       of(this.router.url),
       this.router.events.pipe(
