@@ -70,6 +70,7 @@ playwright-cli screenshot --full-page --filename="$OUT/explore/desktop/full-page
 
 playwright-cli resize 390 844
 playwright-cli reload
+playwright-cli screenshot --filename="$OUT/explore/mobile/precheck.viewport.png"
 
 run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
   await page.waitForSelector('.community-discovery__grid', { state: 'visible' });
@@ -80,10 +81,50 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
     const firstCard = document.querySelector('.community-card')?.getBoundingClientRect();
     const nav = document.querySelector('.community-discovery__scope-nav');
     const filters = document.querySelector('.community-discovery__filter-strip');
+    const filtersSection = document.querySelector('.community-discovery__filters');
+    const main = document.querySelector('.community-discovery');
+    const header = document.querySelector('.community-discovery__header');
     const create = document.querySelector('.community-discovery__create');
+    const overflowElements = Array.from(document.querySelectorAll('body *'))
+      .filter((element) => {
+        const rect = element.getBoundingClientRect();
+        if (rect.right <= window.innerWidth + 1 && rect.left >= -1) return false;
+        let ancestor = element.parentElement;
+        while (ancestor && ancestor !== document.body) {
+          const style = getComputedStyle(ancestor);
+          const overflowX = style.overflowX;
+          if (overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'hidden' || overflowX === 'clip') {
+            return false;
+          }
+          ancestor = ancestor.parentElement;
+        }
+        return true;
+      })
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName.toLowerCase(),
+          className: String(element.className ?? '').slice(0, 140),
+          left: Math.round(rect.left * 10) / 10,
+          right: Math.round(rect.right * 10) / 10,
+          width: Math.round(rect.width * 10) / 10,
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        };
+      })
+      .sort((left, right) => right.right - left.right)
+      .slice(0, 12);
     return {
       viewportWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      mainWidth: main?.getBoundingClientRect().width ?? 0,
+      mainClientWidth: main?.clientWidth ?? 0,
+      mainScrollWidth: main?.scrollWidth ?? 0,
+      headerWidth: header?.getBoundingClientRect().width ?? 0,
+      navClientWidth: nav?.clientWidth ?? 0,
+      navScrollWidth: nav?.scrollWidth ?? 0,
+      filtersSectionWidth: filtersSection?.getBoundingClientRect().width ?? 0,
       gridColumns: gridStyle?.gridTemplateColumns?.split(/\\s+/).filter(Boolean).length ?? 0,
       gridWidth: gridRect?.width ?? 0,
       firstCardWidth: firstCard?.width ?? 0,
@@ -93,6 +134,7 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
       officialBadgeCount: document.querySelectorAll('.community-card .community-official-badge').length,
       dismissCount: document.querySelectorAll('.community-card__dismiss').length,
       createHeight: create?.getBoundingClientRect().height ?? 0,
+      overflowElements,
     };
   });
   if (
