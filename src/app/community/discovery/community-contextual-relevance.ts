@@ -32,7 +32,6 @@ export type CommunityContextualPreviewCard = CommunityPreviewCard & {
 };
 
 interface ContextualCandidate {
-  readonly organicIndex: number;
   readonly card: CommunityContextualPreviewCard;
 }
 
@@ -181,8 +180,7 @@ export function personalizeCommunityDiscoveryCards(
   catalog: readonly CommunityTagDefinition[],
   profile: Readonly<PreferenceProfile>
 ): readonly CommunityContextualPreviewCard[] {
-  const remaining: ContextualCandidate[] = items.map((item, organicIndex) => ({
-    organicIndex,
+  const remaining: ContextualCandidate[] = items.map((item) => ({
     card: {
       ...item,
       contextualRelevance: resolveCommunityContextualRelevance(
