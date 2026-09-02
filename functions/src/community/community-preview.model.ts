@@ -27,6 +27,10 @@ import {
   type CommunityOfficialAssociationPublicProjection,
   normalizeCommunityOfficialAssociationPublicProjection,
 } from './community-official-association.model';
+import {
+  type CommunityPublicLocation,
+  normalizeCommunityPublicLocation,
+} from './community-public-location.model';
 
 export type CommunitySourceType = 'community' | 'venue';
 export type CommunityJoinPolicy = 'open' | 'approval' | 'invite_only';
@@ -83,6 +87,8 @@ export interface CommunityPreviewCard {
   metrics: CommunityPreviewMetrics;
   access: CommunityPreviewAccess;
   tags: readonly CommunityPreviewTag[];
+  /** Localização pública coarse; nunca inclui endereço preciso ou coordenadas. */
+  publicLocation?: CommunityPublicLocation | null;
   /** Projeção pública derivada da associação oficial canônica. */
   officialAssociation?: CommunityOfficialAssociationPublicProjection | null;
   /** Presente apenas em projeções privadas ligadas ao membership do viewer. */
@@ -290,6 +296,9 @@ function buildPreviewCard(
   }
 
   const description = normalizeText(source['description'], 240);
+  const publicLocation = communitySource.type === 'venue'
+    ? normalizeCommunityPublicLocation(source['publicLocation'])
+    : null;
   const officialAssociation =
     normalizeCommunityOfficialAssociationPublicProjection(
       source['officialAssociation']
@@ -308,6 +317,7 @@ function buildPreviewCard(
     tags: communitySource.type === 'community'
       ? normalizeTags(source['tagIds'])
       : [],
+    ...(publicLocation ? { publicLocation } : {}),
     ...(officialAssociation ? { officialAssociation } : {}),
   };
 }
