@@ -70,6 +70,7 @@ function isCandidateV3Current(
   const candidate = asRecord(rawCandidate);
   const baseline = asRecord(candidate['activityBaseline']);
   const momentum = asRecord(candidate['activityMomentum']);
+  const confidence = asRecord(candidate['activityConfidence']);
 
   return sameScore(candidate['discoveryScore'], expected.discoveryScore)
     && sameScore(candidate['qualityScore'], expected.qualityScore)
@@ -108,6 +109,16 @@ function isCandidateV3Current(
     && sameMomentum(
       momentum['churnMediumTerm'],
       expected.activityMomentum.churnMediumTerm
+    )
+    && Number(confidence['modelVersion'])
+      === expected.activityConfidence.modelVersion
+    && sameMomentum(
+      confidence['effectiveEvidence'],
+      expected.activityConfidence.effectiveEvidence
+    )
+    && sameMomentum(
+      confidence['confidence'],
+      expected.activityConfidence.confidence
     );
 }
 
