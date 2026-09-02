@@ -41,6 +41,7 @@ test('bootstrap v3 cria baseline sem transformar volume histórico em atividade 
       memberCount: 200,
       postCount: 20_000,
       mediaCount: 5_000,
+      interactionCount: 80_000,
     }),
     rawDiscovery: visualDiscovery,
     now: NOW,
@@ -55,6 +56,7 @@ test('bootstrap v3 cria baseline sem transformar volume histórico em atividade 
     memberLoss: 0,
     postGrowth: 0,
     mediaGrowth: 0,
+    interactionGrowth: 0,
   });
   assert.deepEqual(candidate.activityMomentum, {
     shortTerm: 0,
@@ -67,12 +69,22 @@ test('bootstrap v3 cria baseline sem transformar volume histórico em atividade 
 
 test('crescimento entre medições aumenta momento e atividade', () => {
   const first = buildCommunityDiscoveryRankingCandidateV3({
-    rawCommunity: community({ memberCount: 20, postCount: 30, mediaCount: 4 }),
+    rawCommunity: community({
+      memberCount: 20,
+      postCount: 30,
+      mediaCount: 4,
+      interactionCount: 10,
+    }),
     rawDiscovery: visualDiscovery,
     now: NOW,
   });
   const second = buildCommunityDiscoveryRankingCandidateV3({
-    rawCommunity: community({ memberCount: 23, postCount: 35, mediaCount: 6 }),
+    rawCommunity: community({
+      memberCount: 23,
+      postCount: 35,
+      mediaCount: 6,
+      interactionCount: 18,
+    }),
     rawDiscovery: {
       ...visualDiscovery,
       rankingCandidate: first,
@@ -85,26 +97,69 @@ test('crescimento entre medições aumenta momento e atividade', () => {
     memberLoss: 0,
     postGrowth: 5,
     mediaGrowth: 2,
+    interactionGrowth: 8,
   });
   assert.equal(second.activityMomentum.shortTerm > 0, true);
   assert.equal(second.activityMomentum.mediumTerm > 0, true);
   assert.equal(second.activityScore > first.activityScore, true);
 });
 
+test('interação real alimenta o candidato mesmo sem nova publicação', () => {
+  const first = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community({
+      memberCount: 20,
+      postCount: 30,
+      mediaCount: 4,
+      interactionCount: 10,
+    }),
+    rawDiscovery: visualDiscovery,
+    now: NOW,
+  });
+  const interacted = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community({
+      memberCount: 20,
+      postCount: 30,
+      mediaCount: 4,
+      interactionCount: 25,
+    }),
+    rawDiscovery: { ...visualDiscovery, rankingCandidate: first },
+    now: NOW + DAY_MS,
+  });
+
+  assert.equal(interacted.activityDelta.interactionGrowth, 15);
+  assert.equal(interacted.activityDelta.postGrowth, 0);
+  assert.equal(interacted.activityScore > first.activityScore, true);
+});
+
 test('momento decai sem novas métricas e reduz atividade ao longo do tempo', () => {
   const first = buildCommunityDiscoveryRankingCandidateV3({
-    rawCommunity: community({ memberCount: 20, postCount: 30, mediaCount: 4 }),
+    rawCommunity: community({
+      memberCount: 20,
+      postCount: 30,
+      mediaCount: 4,
+      interactionCount: 10,
+    }),
     rawDiscovery: visualDiscovery,
     now: NOW,
   });
   const active = buildCommunityDiscoveryRankingCandidateV3({
-    rawCommunity: community({ memberCount: 22, postCount: 40, mediaCount: 8 }),
+    rawCommunity: community({
+      memberCount: 22,
+      postCount: 40,
+      mediaCount: 8,
+      interactionCount: 30,
+    }),
     rawDiscovery: { ...visualDiscovery, rankingCandidate: first },
     now: NOW + DAY_MS,
   });
   const decayed = buildCommunityDiscoveryRankingCandidateV3({
     rawCommunity: community(
-      { memberCount: 22, postCount: 40, mediaCount: 8 },
+      {
+        memberCount: 22,
+        postCount: 40,
+        mediaCount: 8,
+        interactionCount: 30,
+      },
       {
         lifecycle: {
           lastMeaningfulActivityAt: NOW + DAY_MS,
@@ -129,12 +184,22 @@ test('momento decai sem novas métricas e reduz atividade ao longo do tempo', ()
 
 test('perda de membros gera churn em vez de bônus de atividade', () => {
   const first = buildCommunityDiscoveryRankingCandidateV3({
-    rawCommunity: community({ memberCount: 100, postCount: 40, mediaCount: 5 }),
+    rawCommunity: community({
+      memberCount: 100,
+      postCount: 40,
+      mediaCount: 5,
+      interactionCount: 20,
+    }),
     rawDiscovery: visualDiscovery,
     now: NOW,
   });
   const churned = buildCommunityDiscoveryRankingCandidateV3({
-    rawCommunity: community({ memberCount: 80, postCount: 40, mediaCount: 5 }),
+    rawCommunity: community({
+      memberCount: 80,
+      postCount: 40,
+      mediaCount: 5,
+      interactionCount: 20,
+    }),
     rawDiscovery: { ...visualDiscovery, rankingCandidate: first },
     now: NOW + DAY_MS,
   });
@@ -148,18 +213,33 @@ test('perda de membros gera churn em vez de bônus de atividade', () => {
 
 test('comunidade menor e realmente ativa pode superar comunidade grande estagnada', () => {
   const smallBaseline = buildCommunityDiscoveryRankingCandidateV3({
-    rawCommunity: community({ memberCount: 10, postCount: 10, mediaCount: 1 }),
+    rawCommunity: community({
+      memberCount: 10,
+      postCount: 10,
+      mediaCount: 1,
+      interactionCount: 4,
+    }),
     rawDiscovery: visualDiscovery,
     now: NOW,
   });
   const smallActive = buildCommunityDiscoveryRankingCandidateV3({
-    rawCommunity: community({ memberCount: 14, postCount: 22, mediaCount: 5 }),
+    rawCommunity: community({
+      memberCount: 14,
+      postCount: 22,
+      mediaCount: 5,
+      interactionCount: 30,
+    }),
     rawDiscovery: { ...visualDiscovery, rankingCandidate: smallBaseline },
     now: NOW + DAY_MS,
   });
   const largeStagnant = buildCommunityDiscoveryRankingCandidateV3({
     rawCommunity: community(
-      { memberCount: 500, postCount: 20_000, mediaCount: 3_000 },
+      {
+        memberCount: 500,
+        postCount: 20_000,
+        mediaCount: 3_000,
+        interactionCount: 100_000,
+      },
       {
         lifecycle: { lastMeaningfulActivityAt: NOW - 180 * DAY_MS },
         updatedAt: NOW - 180 * DAY_MS,
@@ -176,7 +256,12 @@ test('comunidade menor e realmente ativa pode superar comunidade grande estagnad
 test('segurança continua gate absoluto no candidato v3', () => {
   const candidate = buildCommunityDiscoveryRankingCandidateV3({
     rawCommunity: community(
-      { memberCount: 30, postCount: 60, mediaCount: 8 },
+      {
+        memberCount: 30,
+        postCount: 60,
+        mediaCount: 8,
+        interactionCount: 20,
+      },
       { moderation: { state: 'restricted' } }
     ),
     rawDiscovery: visualDiscovery,
