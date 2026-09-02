@@ -295,7 +295,8 @@ export class DirectChatFacade {
    * - não consulta o documento privado /users do participante;
    * - não grava snapshot do perfil dentro do documento de chat;
    * - mantém fallback somente de leitura para conversas legadas já existentes;
-   * - normaliza identidade e prévia pelo contrato universal do perfil público.
+   * - normaliza identidade e prévia pelo contrato universal do perfil público;
+   * - UID localiza o participante, mas nunca substitui o profileId público.
    */
   private enrichListItemsWithPublicProfiles$(
     items: DirectChatListItem[]
@@ -323,17 +324,11 @@ export class DirectChatFacade {
             ? publicProfiles[participantUid]
             : undefined;
           const preview = publicProfile
-            ? normalizePublicUserPreview({
-                ...publicProfile,
-                profileId: participantUid,
-              })
+            ? normalizePublicUserPreview(publicProfile)
             : null;
           const identity = preview?.identity
             ?? (publicProfile
-              ? normalizePublicUserIdentity({
-                  ...publicProfile,
-                  profileId: participantUid,
-                })
+              ? normalizePublicUserIdentity(publicProfile)
               : null);
 
           return {
