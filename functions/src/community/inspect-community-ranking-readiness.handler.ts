@@ -5,6 +5,7 @@
 // Diagnóstico administrativo somente-leitura para homologar a troca do ranking
 // legado para a versão atual do score. Não altera configuração, runtime, índices
 // ou projeções. A comparação v2 x v3 permanece agregada e shadow-only.
+// A exposição é diagnosticada somente para o ranking efetivamente servido.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
@@ -17,6 +18,10 @@ import {
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
 import {
+  COMMUNITY_DISCOVERY_EXPOSURE_COUNTER_SHARDS,
+  resolveCommunityDiscoveryExposureDay,
+} from './community-discovery-exposure.policy';
+import {
   type CommunityDiscoveryRankingMode,
   resolveCommunityDiscoveryRankingMode,
 } from './community-discovery-ranking-mode.policy';
@@ -24,6 +29,10 @@ import { hasCommunityOperationsPermission } from './community-operations.authori
 import {
   COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
 } from './community-ranking-candidate-v3.policy';
+import {
+  buildCommunityRankingExposureDiagnostics,
+  type CommunityRankingExposureDiagnostics,
+} from './community-ranking-exposure-diagnostics.policy';
 import {
   buildCommunityRankingShadowDiagnostics,
   type CommunityRankingShadowDiagnostics,
@@ -70,6 +79,10 @@ interface CommunityRankingReadinessInspection {
     candidateScoreVersion: typeof COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION;
     unavailableReason: CommunityRankingShadowUnavailableReason | null;
     diagnostics: CommunityRankingShadowDiagnostics | null;
+    servedExposure: {
+      day: string;
+      diagnostics: CommunityRankingExposureDiagnostics;
+    } | null;
   };
   canEnableTargetScore: boolean;
   generatedAt: number;
@@ -172,6 +185,60 @@ function toCandidateShadowEntries(
   });
 }
 
+async function inspectServedExposure(
+  documents: readonly { id: string; data(): Record<string, unknown> }[],
+  now: number
+): Promise<{
+  day: string;
+  diagnostics: CommunityRankingExposureDiagnostics;
+}> {
+  const day = resolveCommunityDiscoveryExposureDay(now);
+  const dayRef = db.collection('community_discovery_exposure_daily').doc(day);
+  const shardDescriptors = documents.flatMap((document) =>
+    Array.from(
+      { length: COMMUNITY_DISCOVERY_EXPOSURE_COUNTER_SHARDS },
+      (_, shard) => ({
+        communityId: document.id,
+        ref: dayRef
+          .collection('communities')
+          .doc(document.id)
+          .collection('shards')
+          .doc(String(shard)),
+      })
+    )
+  );
+  const exposureByCommunity = new Map<string, number>();
+
+  if (shardDescriptors.length > 0) {
+    const snapshots = await db.getAll(
+      ...shardDescriptors.map(({ ref }) => ref)
+    );
+
+    snapshots.forEach((snapshot, index) => {
+      const descriptor = shardDescriptors[index];
+      if (!descriptor || !snapshot.exists) return;
+      const count = normalizeCount(snapshot.data()?.['count']);
+      exposureByCommunity.set(
+        descriptor.communityId,
+        (exposureByCommunity.get(descriptor.communityId) ?? 0) + count
+      );
+    });
+  }
+
+  return {
+    day,
+    diagnostics: buildCommunityRankingExposureDiagnostics({
+      now,
+      entries: documents.map((document) => ({
+        exposureCount: exposureByCommunity.get(document.id) ?? 0,
+        communityCreatedAt: normalizeTimestamp(
+          document.data()['communityCreatedAt']
+        ),
+      })),
+    }),
+  };
+}
+
 async function inspectShadowComparison(
   runtimeReadyForTarget: boolean
 ): Promise<CommunityRankingReadinessInspection['shadowComparison']> {
@@ -181,6 +248,7 @@ async function inspectShadowComparison(
       candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
       unavailableReason: 'ranking_cycle_not_ready',
       diagnostics: null,
+      servedExposure: null,
     };
   }
 
@@ -195,11 +263,15 @@ async function inspectShadowComparison(
       .limit(SHADOW_COMPARISON_TOP_K)
       .get(),
   ]);
+  const now = Date.now();
+  const [servedExposure] = await Promise.all([
+    inspectServedExposure(officialSnapshot.docs, now),
+  ]);
   const diagnostics = buildCommunityRankingShadowDiagnostics({
     officialTop: toOfficialShadowEntries(officialSnapshot.docs),
     candidateTop: toCandidateShadowEntries(candidateSnapshot.docs),
     topK: SHADOW_COMPARISON_TOP_K,
-    now: Date.now(),
+    now,
   });
 
   return {
@@ -207,6 +279,7 @@ async function inspectShadowComparison(
     candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
     unavailableReason: null,
     diagnostics,
+    servedExposure,
   };
 }
 
@@ -293,6 +366,17 @@ export const inspectCommunityRankingReadiness = onCall(
           .candidateAgeCoverageRate ?? null,
       shadowColdStartNewShareDelta:
         inspection.shadowComparison.diagnostics?.coldStart.newShareDelta ?? null,
+      servedExposureDay:
+        inspection.shadowComparison.servedExposure?.day ?? null,
+      servedQualifiedExposures:
+        inspection.shadowComparison.servedExposure?.diagnostics
+          .totalQualifiedExposures ?? null,
+      servedExposureHhi:
+        inspection.shadowComparison.servedExposure?.diagnostics.exposureHhi
+          ?? null,
+      servedNewCommunityExposureShare:
+        inspection.shadowComparison.servedExposure?.diagnostics
+          .newCommunityExposureShare ?? null,
     });
 
     return inspection;
