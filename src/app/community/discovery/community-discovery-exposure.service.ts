@@ -8,7 +8,9 @@ import {
   catchError,
   concat,
   concatMap,
+  defer,
   filter,
+  tap,
 } from 'rxjs';
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
@@ -17,6 +19,8 @@ import { CommunityPreviewSourceType } from '../data-access/community-preview.mod
 
 const EXPOSURE_BATCH_INTERVAL_MS = 1_200;
 const EXPOSURE_BATCH_SIZE = 12;
+const EXPOSURE_INITIAL_RETRY_DELAY_MS = 60_000;
+const EXPOSURE_MAX_RETRY_DELAY_MS = 15 * 60_000;
 
 interface QualifiedExposure {
   readonly communityId: string;
@@ -29,6 +33,8 @@ export class CommunityDiscoveryExposureService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly qualifiedExposure$ = new Subject<QualifiedExposure>();
   private readonly recordedThisSession = new Set<string>();
+  private telemetryDisabledUntil = 0;
+  private retryDelayMs = EXPOSURE_INITIAL_RETRY_DELAY_MS;
 
   constructor() {
     this.qualifiedExposure$.pipe(
@@ -43,6 +49,8 @@ export class CommunityDiscoveryExposureService {
     communityId: string,
     sourceType: CommunityPreviewSourceType
   ): void {
+    if (this.isTelemetryTemporarilyDisabled()) return;
+
     const normalizedId = String(communityId ?? '').trim();
     if (!normalizedId) return;
 
@@ -79,26 +87,53 @@ export class CommunityDiscoveryExposureService {
     sourceType: CommunityPreviewSourceType,
     communityIds: readonly string[]
   ) {
-    const repository = this.injector.get(CommunityDiscoveryExposureRepository);
-    const applicationError = this.injector.get(ApplicationErrorService);
+    return defer(() => {
+      if (this.isTelemetryTemporarilyDisabled()) return EMPTY;
 
-    return repository.recordQualifiedExposure$({
-      sourceType,
-      communityIds,
-    }).pipe(
-      catchError((error: unknown) => {
-        applicationError.report(error, {
-          feature: 'community',
-          operation: 'recordDiscoveryExposure',
-          fallbackMessage: 'Não foi possível registrar a telemetria de descoberta.',
-          notification: 'none',
-          metadata: {
-            sourceType,
-            batchSize: communityIds.length,
-          },
-        });
-        return EMPTY;
-      })
+      const repository = this.injector.get(CommunityDiscoveryExposureRepository);
+      const applicationError = this.injector.get(ApplicationErrorService);
+
+      return repository.recordQualifiedExposure$({
+        sourceType,
+        communityIds,
+      }).pipe(
+        tap(() => this.closeTelemetryCircuit()),
+        catchError((error: unknown) => {
+          const retryDelayMs = this.openTelemetryCircuit();
+
+          applicationError.report(error, {
+            feature: 'community',
+            operation: 'recordDiscoveryExposure',
+            fallbackMessage: 'Não foi possível registrar a telemetria de descoberta.',
+            notification: 'none',
+            metadata: {
+              sourceType,
+              batchSize: communityIds.length,
+              retryDelayMs,
+            },
+          });
+          return EMPTY;
+        })
+      );
+    });
+  }
+
+  private isTelemetryTemporarilyDisabled(now = Date.now()): boolean {
+    return this.telemetryDisabledUntil > now;
+  }
+
+  private openTelemetryCircuit(now = Date.now()): number {
+    const retryDelayMs = this.retryDelayMs;
+    this.telemetryDisabledUntil = now + retryDelayMs;
+    this.retryDelayMs = Math.min(
+      retryDelayMs * 2,
+      EXPOSURE_MAX_RETRY_DELAY_MS
     );
+    return retryDelayMs;
+  }
+
+  private closeTelemetryCircuit(): void {
+    this.telemetryDisabledUntil = 0;
+    this.retryDelayMs = EXPOSURE_INITIAL_RETRY_DELAY_MS;
   }
 }
