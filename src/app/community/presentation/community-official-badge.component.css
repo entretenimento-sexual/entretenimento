@@ -1,10 +1,16 @@
 /* src/app/community/presentation/community-official-badge.component.css */
 :host {
   display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.42rem;
+  max-width: 100%;
   min-width: 0;
+  vertical-align: middle;
 }
 
 .community-official-badge {
+  flex: 0 1 auto;
   display: inline-flex;
   align-items: center;
   gap: 0.28rem;
@@ -19,18 +25,46 @@
   white-space: nowrap;
 }
 
-.community-official-badge span {
+.community-official-badge span,
+.community-official-location span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.community-official-badge i {
+.community-official-badge i,
+.community-official-location i {
   flex: 0 0 auto;
 }
 
+.community-official-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  min-width: 0;
+  color: color-mix(in srgb, currentColor 72%, transparent);
+  font-size: 0.7rem;
+  font-weight: 620;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.community-official-location i {
+  font-size: 0.68rem;
+}
+
 @media (max-width: 560px) {
+  :host {
+    gap: 0.24rem 0.34rem;
+  }
+
   .community-official-badge {
     padding-inline: 0.38rem;
     font-size: 0.68rem;
+  }
+
+  .community-official-location {
+    font-size: 0.66rem;
   }
 }
