@@ -29,119 +29,52 @@ jobs:
 
           css_path = Path('src/app/community/discovery/community-discovery-page.component.css')
           css = css_path.read_text()
-          old_css = """.community-discovery__grid > li {
-            min-width: 0;
-          }
-
-          .community-card {
-          """
-          new_css = """.community-discovery__grid > li {
-            min-width: 0;
-          }
-
-          .community-card-shell {
-            display: grid;
-            grid-template-rows: minmax(0, 1fr) auto;
-            gap: 0.45rem;
-            align-items: stretch;
-          }
-
-          .community-card__dismiss {
-            max-width: 100%;
-            justify-self: start;
-          }
-
-          .community-card {
-          """
+          old_css = ".community-discovery__grid > li {\n  min-width: 0;\n}\n\n.community-card {\n"
+          new_css = ".community-discovery__grid > li {\n  min-width: 0;\n}\n\n.community-card-shell {\n  display: grid;\n  grid-template-rows: minmax(0, 1fr) auto;\n  gap: 0.45rem;\n  align-items: stretch;\n}\n\n.community-card__dismiss {\n  max-width: 100%;\n  justify-self: start;\n}\n\n.community-card {\n"
           if old_css not in css:
               raise SystemExit('Expected Community card shell anchor not found')
-          css_path.write_text(css.replace(old_css, new_css, 1))
+          css = css.replace(old_css, new_css, 1)
 
           script_path = Path('.github/scripts/community-discovery-visual-validation.sh')
           script = script_path.read_text()
 
-          old_desktop_setup = """    const cards = Array.from(document.querySelectorAll('.community-card'));
-              const dismissButtons = Array.from(document.querySelectorAll('.community-card__dismiss'));
-              const create = document.querySelector('.community-discovery__create');
-          """
-          new_desktop_setup = """    const cards = Array.from(document.querySelectorAll('.community-card'));
-              const dismissButtons = Array.from(document.querySelectorAll('.community-card__dismiss'));
-              const dismissOverlapsCards = dismissButtons.some((button) => {
-                const buttonRect = button.getBoundingClientRect();
-                return cards.some((card) => {
-                  const cardRect = card.getBoundingClientRect();
-                  return buttonRect.left < cardRect.right
-                    && buttonRect.right > cardRect.left
-                    && buttonRect.top < cardRect.bottom
-                    && buttonRect.bottom > cardRect.top;
-                });
-              });
-              const create = document.querySelector('.community-discovery__create');
-          """
+          old_desktop_setup = "    const cards = Array.from(document.querySelectorAll('.community-card'));\n    const dismissButtons = Array.from(document.querySelectorAll('.community-card__dismiss'));\n    const create = document.querySelector('.community-discovery__create');\n"
+          new_desktop_setup = "    const cards = Array.from(document.querySelectorAll('.community-card'));\n    const dismissButtons = Array.from(document.querySelectorAll('.community-card__dismiss'));\n    const dismissOverlapsCards = dismissButtons.some((button) => {\n      const buttonRect = button.getBoundingClientRect();\n      return cards.some((card) => {\n        const cardRect = card.getBoundingClientRect();\n        return buttonRect.left < cardRect.right\n          && buttonRect.right > cardRect.left\n          && buttonRect.top < cardRect.bottom\n          && buttonRect.bottom > cardRect.top;\n      });\n    });\n    const create = document.querySelector('.community-discovery__create');\n"
           if old_desktop_setup not in script:
               raise SystemExit('Expected desktop visual setup anchor not found')
           script = script.replace(old_desktop_setup, new_desktop_setup, 1)
 
-          old_desktop_field = """      dismissMinHeight: dismissButtons.length
-                ? Math.min(...dismissButtons.map((button) => button.getBoundingClientRect().height))
-                : 0,
-          """
-          new_desktop_field = """      dismissMinHeight: dismissButtons.length
-                ? Math.min(...dismissButtons.map((button) => button.getBoundingClientRect().height))
-                : 0,
-              dismissOverlapsCards,
-          """
+          old_desktop_field = "      dismissMinHeight: dismissButtons.length\n        ? Math.min(...dismissButtons.map((button) => button.getBoundingClientRect().height))\n        : 0,\n"
+          new_desktop_field = "      dismissMinHeight: dismissButtons.length\n        ? Math.min(...dismissButtons.map((button) => button.getBoundingClientRect().height))\n        : 0,\n      dismissOverlapsCards,\n"
           if old_desktop_field not in script:
               raise SystemExit('Expected desktop visual field anchor not found')
           script = script.replace(old_desktop_field, new_desktop_field, 1)
 
-          old_desktop_check = """    || metrics.createHeight < 44
-              || metrics.dismissMinHeight < 44
-          """
-          new_desktop_check = """    || metrics.createHeight < 44
-              || metrics.dismissMinHeight < 44
-              || metrics.dismissOverlapsCards
-          """
+          old_desktop_check = "    || metrics.createHeight < 44\n    || metrics.dismissMinHeight < 44\n"
+          new_desktop_check = "    || metrics.createHeight < 44\n    || metrics.dismissMinHeight < 44\n    || metrics.dismissOverlapsCards\n"
           if old_desktop_check not in script:
               raise SystemExit('Expected desktop visual check anchor not found')
           script = script.replace(old_desktop_check, new_desktop_check, 1)
 
-          old_mobile_measure = """    const create = document.querySelector('.community-discovery__create');
-              const overflowElements = Array.from(document.querySelectorAll('body *'))
-          """
-          new_mobile_measure = """    const create = document.querySelector('.community-discovery__create');
-              const currentScrollY = window.scrollY;
-              window.scrollTo(9999, currentScrollY);
-              const windowScrollX = window.scrollX;
-              window.scrollTo(0, currentScrollY);
-              const overflowElements = Array.from(document.querySelectorAll('body *'))
-          """
+          old_mobile_measure = "    const create = document.querySelector('.community-discovery__create');\n    const overflowElements = Array.from(document.querySelectorAll('body *'))\n"
+          new_mobile_measure = "    const create = document.querySelector('.community-discovery__create');\n    const currentScrollY = window.scrollY;\n    window.scrollTo(9999, currentScrollY);\n    const windowScrollX = window.scrollX;\n    window.scrollTo(0, currentScrollY);\n    const overflowElements = Array.from(document.querySelectorAll('body *'))\n"
           if old_mobile_measure not in script:
               raise SystemExit('Expected mobile scroll measurement anchor not found')
           script = script.replace(old_mobile_measure, new_mobile_measure, 1)
 
-          old_mobile_field = """      bodyScrollWidth: document.body.scrollWidth,
-              mainWidth: main?.getBoundingClientRect().width ?? 0,
-          """
-          new_mobile_field = """      bodyScrollWidth: document.body.scrollWidth,
-              windowScrollX,
-              mainWidth: main?.getBoundingClientRect().width ?? 0,
-          """
+          old_mobile_field = "      bodyScrollWidth: document.body.scrollWidth,\n      mainWidth: main?.getBoundingClientRect().width ?? 0,\n"
+          new_mobile_field = "      bodyScrollWidth: document.body.scrollWidth,\n      windowScrollX,\n      mainWidth: main?.getBoundingClientRect().width ?? 0,\n"
           if old_mobile_field not in script:
               raise SystemExit('Expected mobile metric field anchor not found')
           script = script.replace(old_mobile_field, new_mobile_field, 1)
 
-          old_mobile_check = """    metrics.scrollWidth > metrics.viewportWidth + 1
-              || metrics.gridColumns !== 1
-          """
-          new_mobile_check = """    metrics.bodyScrollWidth > metrics.viewportWidth + 1
-              || metrics.windowScrollX > 1
-              || metrics.gridColumns !== 1
-          """
+          old_mobile_check = "    metrics.scrollWidth > metrics.viewportWidth + 1\n    || metrics.gridColumns !== 1\n"
+          new_mobile_check = "    metrics.bodyScrollWidth > metrics.viewportWidth + 1\n    || metrics.windowScrollX > 1\n    || metrics.gridColumns !== 1\n"
           if old_mobile_check not in script:
               raise SystemExit('Expected mobile overflow check anchor not found')
           script = script.replace(old_mobile_check, new_mobile_check, 1)
 
+          css_path.write_text(css)
           script_path.write_text(script)
           PY
 
