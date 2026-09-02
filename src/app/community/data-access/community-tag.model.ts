@@ -7,11 +7,26 @@
 // -----------------------------------------------------------------------------
 
 export type CommunityTagCategory = 'intent' | 'practice' | 'audience';
+export type CommunityPreferenceSignalDomain =
+  | 'relationshipIntent'
+  | 'sexualPractice'
+  | 'genderInterest';
+
+export interface CommunityPreferenceSignal {
+  domain: CommunityPreferenceSignalDomain;
+  key: string;
+}
 
 export interface CommunityTagDefinition {
   id: string;
   label: string;
   category: CommunityTagCategory;
+  /**
+   * Metadado canônico de correlação. Não contém preferências do usuário e pode
+   * permanecer ausente em fixtures/clientes antigos; o normalizador atual sempre
+   * devolve uma coleção segura.
+   */
+  preferenceSignals?: readonly CommunityPreferenceSignal[];
 }
 
 export interface CommunityTagCatalog {
@@ -23,6 +38,7 @@ export const MIN_COMMUNITY_TAGS = 1;
 export const MAX_COMMUNITY_TAGS = 6;
 
 const SAFE_TAG_ID_PATTERN = /^(intent|practice|audience):[a-z0-9_]{1,64}$/;
+const SAFE_SIGNAL_KEY_PATTERN = /^[a-z0-9_]{1,64}$/;
 
 function normalizeText(value: unknown, maxLength: number): string {
   return String(value ?? '')
@@ -42,6 +58,35 @@ export function normalizeCommunityTagId(value: unknown): string | null {
   return SAFE_TAG_ID_PATTERN.test(id) ? id : null;
 }
 
+function normalizePreferenceSignalDomain(
+  value: unknown
+): CommunityPreferenceSignalDomain | null {
+  return value === 'relationshipIntent'
+    || value === 'sexualPractice'
+    || value === 'genderInterest'
+    ? value
+    : null;
+}
+
+function normalizePreferenceSignals(
+  raw: unknown
+): readonly CommunityPreferenceSignal[] {
+  if (!Array.isArray(raw)) return [];
+
+  const signals = new Map<string, CommunityPreferenceSignal>();
+
+  for (const value of raw.slice(0, 8)) {
+    const source = (value ?? {}) as Record<string, unknown>;
+    const domain = normalizePreferenceSignalDomain(source['domain']);
+    const key = normalizeText(source['key'], 64);
+
+    if (!domain || !SAFE_SIGNAL_KEY_PATTERN.test(key)) continue;
+    signals.set(`${domain}:${key}`, { domain, key });
+  }
+
+  return [...signals.values()];
+}
+
 function normalizeTag(raw: unknown): CommunityTagDefinition | null {
   const source = (raw ?? {}) as Record<string, unknown>;
   const id = normalizeCommunityTagId(source['id']);
@@ -58,7 +103,12 @@ function normalizeTag(raw: unknown): CommunityTagDefinition | null {
     return null;
   }
 
-  return { id, label, category };
+  return {
+    id,
+    label,
+    category,
+    preferenceSignals: normalizePreferenceSignals(source['preferenceSignals']),
+  };
 }
 
 export function normalizeCommunityTagCatalog(raw: unknown): CommunityTagCatalog {
