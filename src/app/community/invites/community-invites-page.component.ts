@@ -159,6 +159,7 @@ export class CommunityInvitesPageComponent {
       operation: 'loadInvites',
       fallbackMessage:
         'Não foi possível carregar seus convites de Comunidades.',
+      notification: 'none',
       metadata: {
         scope: 'CommunityInvitesPageComponent',
       },
