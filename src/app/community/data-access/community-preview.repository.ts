@@ -3,10 +3,11 @@ import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, map, of } from 'rxjs';
 
-import type {
-  CommunityOfficialTargetType,
-} from 'src/app/core/community/community-official-association.model';
 import { normalizeCommunityDiscoveryPageSize } from './community-discovery.contract';
+import {
+  CommunityOfficialTarget,
+  retainCommunitiesForOfficialTarget,
+} from './community-official-target.policy';
 import {
   CommunityDiscoveryPage,
   CommunityDiscoveryPageRequest,
@@ -14,11 +15,6 @@ import {
   normalizeCommunityDiscoveryPageResponse,
   normalizeCommunityPreviewResponse,
 } from './community-preview.model';
-
-interface OfficialCommunitiesTarget {
-  readonly type: CommunityOfficialTargetType;
-  readonly id: string;
-}
 
 @Injectable({ providedIn: 'root' })
 export class CommunityPreviewRepository {
@@ -35,7 +31,7 @@ export class CommunityPreviewRepository {
   >(this.functions, 'getMyCommunitiesPage');
 
   private readonly getOfficialCommunitiesForTargetCallable = httpsCallable<
-    { target: OfficialCommunitiesTarget; limit?: number },
+    { target: CommunityOfficialTarget; limit?: number },
     unknown
   >(this.functions, 'getOfficialCommunitiesForTarget');
 
@@ -77,7 +73,7 @@ export class CommunityPreviewRepository {
   }
 
   getOfficialCommunitiesForTarget$(
-    target: OfficialCommunitiesTarget,
+    target: CommunityOfficialTarget,
     limit = 4
   ): Observable<CommunityDiscoveryPage> {
     const targetId = String(target?.id ?? '').trim();
@@ -85,18 +81,21 @@ export class CommunityPreviewRepository {
       return of(this.emptyDiscoveryPage());
     }
 
+    const normalizedTarget: CommunityOfficialTarget = {
+      type: target.type,
+      id: targetId,
+    };
+
     return defer(() =>
       from(
         this.getOfficialCommunitiesForTargetCallable({
-          target: {
-            type: target.type,
-            id: targetId,
-          },
+          target: normalizedTarget,
           limit: this.normalizeLimit(limit),
         })
       )
     ).pipe(
-      map((result) => normalizeCommunityDiscoveryPageResponse(result.data))
+      map((result) => normalizeCommunityDiscoveryPageResponse(result.data)),
+      map((page) => retainCommunitiesForOfficialTarget(page, normalizedTarget))
     );
   }
 
