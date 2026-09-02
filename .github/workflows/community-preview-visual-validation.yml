@@ -79,8 +79,20 @@ jobs:
           import { NgModule } from '@angular/core';
           import { BrowserModule } from '@angular/platform-browser';
           import { RouterModule } from '@angular/router';
+          import { NEVER, of } from 'rxjs';
           import { AppComponent } from './app.component';
+          import { CommunityHighlightRepository } from './community/data-access/community-highlight.repository';
           import { CommunityPreviewPageComponent } from './community/preview/community-preview-page.component';
+
+          const visualCommunityHighlightRepository = {
+            get$: ({ communityId }: { communityId: string }) => of({
+              communityId,
+              highlight: null,
+              canManage: false,
+              generatedAt: Date.now(),
+            }),
+            manage$: () => NEVER,
+          };
 
           @NgModule({
             declarations: [AppComponent],
@@ -88,6 +100,12 @@ jobs:
               BrowserModule,
               RouterModule.forRoot([]),
               CommunityPreviewPageComponent,
+            ],
+            providers: [
+              {
+                provide: CommunityHighlightRepository,
+                useValue: visualCommunityHighlightRepository,
+              },
             ],
             bootstrap: [AppComponent],
           })
@@ -126,12 +144,48 @@ jobs:
           exit 1
 
       - name: Capture current Community page desktop and mobile
+        id: capture
         shell: bash
         env:
           PLAYWRIGHT_CLI_SESSION: community-page
         run: .github/scripts/community-preview-visual-validation.sh
 
+      - name: Collect and assert browser console
+        if: always()
+        shell: bash
+        env:
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/community-page/browser-console
+
+          while IFS= read -r console_file; do
+            cp "$console_file" "artifacts/community-page/browser-console/$(basename "$console_file")"
+          done < <(find .playwright-cli -type f -name 'console-*.log' -print 2>/dev/null || true)
+
+          shopt -s nullglob
+          console_files=(artifacts/community-page/browser-console/console-*.log)
+          if [[ "$CAPTURE_OUTCOME" == 'success' && ${#console_files[@]} -eq 0 ]]; then
+            echo 'A captura visual terminou sem produzir logs de console do navegador.' >&2
+            exit 1
+          fi
+
+          console_error_count=0
+          for console_file in "${console_files[@]}"; do
+            if grep -q '\[ERROR\]' "$console_file"; then
+              echo "Erro inesperado de console em ${console_file}:" >&2
+              cat "$console_file" >&2
+              console_error_count=$((console_error_count + 1))
+            fi
+          done
+
+          if (( console_error_count > 0 )); then
+            echo "A validação visual encontrou erros de console em ${console_error_count} sessão(ões)." >&2
+            exit 1
+          fi
+
       - name: Upload current Community page visual evidence
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: community-page-visual-${{ github.run_id }}
