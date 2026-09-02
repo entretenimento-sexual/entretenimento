@@ -191,7 +191,11 @@
     } @else {
       <ul class="community-discovery__grid" [attr.aria-label]="title + ' disponíveis'">
         @for (item of state.items; track item.communityId) {
-          <li class="community-card-shell">
+          <li
+            class="community-card-shell"
+            [appCommunityDiscoveryVisibility]="item.communityId"
+            (qualifiedExposure)="recordQualifiedExposure($event)"
+          >
             <a
               class="community-card"
               [class.community-card--mine]="discoveryMode === 'mine'"
