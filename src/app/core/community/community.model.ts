@@ -9,6 +9,7 @@
 // - `venue`: superfície social vinculada a um Local físico, reutilizando a
 //   infraestrutura comunitária sem transformar o Local em uma Comunidade;
 // - associação oficial identifica qual entidade canônica o espaço representa;
+// - participação comum permanece privada por padrão e possui policy própria;
 // - Sala não é origem comunitária. Salas pertencem ao domínio de Conversas.
 // -----------------------------------------------------------------------------
 
@@ -16,6 +17,10 @@ import type { ContentAccessPolicy } from '../access/content-access-policy.model'
 import type {
   CommunityOfficialAssociationPublic,
 } from './community-official-association.model';
+import type {
+  CommunityMemberProfileVisibility,
+  CommunityMembershipDisclosurePolicy,
+} from './community-membership-visibility.model';
 
 export const COMMUNITY_SOURCE_TYPES = ['community', 'venue'] as const;
 
@@ -108,6 +113,11 @@ export interface ICommunity {
   access: ICommunityAccessPolicy;
   moderation: ICommunityModeration;
   metrics: ICommunityMetrics;
+  /**
+   * Controla se membros podem optar por exibir a participação no próprio perfil.
+   * Ausência equivale a `disabled`; nunca significa consentimento implícito.
+   */
+  membershipDisclosure?: Readonly<CommunityMembershipDisclosurePolicy> | null;
   /** Projeção pública; dados de verificação permanecem backend-only. */
   officialAssociation?: Readonly<CommunityOfficialAssociationPublic> | null;
   avatarUrl?: string | null;
@@ -125,6 +135,11 @@ export interface ICommunityMembership {
   uid: string;
   role: CommunityMemberRole;
   status: CommunityMemberStatus;
+  /**
+   * Consentimento granular do próprio membro para aquela Comunidade.
+   * Ausência equivale a `hidden` e nunca deve ser promovida automaticamente.
+   */
+  profileVisibility?: CommunityMemberProfileVisibility | null;
   joinedAt?: number | null;
   updatedAt?: number | null;
 }
