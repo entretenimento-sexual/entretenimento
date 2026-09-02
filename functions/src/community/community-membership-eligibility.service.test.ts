@@ -11,8 +11,13 @@ function eligibleUser(overrides: Record<string, unknown> = {}) {
     accountStatus: 'active',
     profileCompleted: true,
     idade: 30,
+    acceptedTerms: {
+      accepted: true,
+      version: 'v3',
+      acknowledgedPrivacyNotice: true,
+    },
     initialAdultConsentRequired: true,
-    adultConsent: { accepted: true },
+    adultConsent: { accepted: true, version: 'v1' },
     ageReverification: { status: 'NONE' },
     ...overrides,
   };
@@ -51,7 +56,7 @@ test('nega perfil divergente, restrito, incompleto ou sem acesso adulto', () => 
   assert.throws(
     () =>
       assertCommunityMembershipActorEligible(
-        eligibleUser({ adultConsent: { accepted: false } }),
+        eligibleUser({ adultConsent: { accepted: false, version: 'v1' } }),
         'user-1'
       ),
     (error: unknown) =>
