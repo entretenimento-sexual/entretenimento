@@ -10,7 +10,10 @@ function buildCommunity(overrides: Record<string, unknown> = {}) {
     visibility: 'public_preview',
     status: 'active',
     moderation: { state: 'active' },
-    membershipDisclosure: { profileMembership: 'opt_in' },
+    membershipDisclosure: {
+      profileMembership: 'opt_in',
+      policyVersion: 2,
+    },
     ...overrides,
   };
 }
@@ -19,11 +22,12 @@ function buildMembership(overrides: Record<string, unknown> = {}) {
   return {
     status: 'active',
     profileVisibility: 'visible',
+    profileVisibilityPolicyVersion: 2,
     ...overrides,
   };
 }
 
-test('permite somente Comunidade pública e membro com opt-in explícito', () => {
+test('permite somente Comunidade pública e membro com opt-in da mesma policy', () => {
   assert.deepEqual(
     resolveCommunityMembershipVisibility(buildCommunity(), buildMembership()),
     { visible: true, reason: 'eligible' }
@@ -36,6 +40,21 @@ test('mantém participação privada quando política de disclosure está ausent
   assert.deepEqual(
     resolveCommunityMembershipVisibility(community, buildMembership()),
     { visible: false, reason: 'community_disclosure_disabled' }
+  );
+});
+
+test('rejeita policy de disclosure sem versão válida', () => {
+  assert.deepEqual(
+    resolveCommunityMembershipVisibility(
+      buildCommunity({
+        membershipDisclosure: {
+          profileMembership: 'opt_in',
+          policyVersion: 0,
+        },
+      }),
+      buildMembership()
+    ),
+    { visible: false, reason: 'community_disclosure_policy_invalid' }
   );
 });
 
@@ -87,5 +106,15 @@ test('não expõe membership inativo nem ausência de opt-in do membro', () => {
       buildMembership({ profileVisibility: undefined })
     ),
     { visible: false, reason: 'member_not_opted_in' }
+  );
+});
+
+test('não reutiliza consentimento concedido para versão antiga da policy', () => {
+  assert.deepEqual(
+    resolveCommunityMembershipVisibility(
+      buildCommunity(),
+      buildMembership({ profileVisibilityPolicyVersion: 1 })
+    ),
+    { visible: false, reason: 'consent_policy_mismatch' }
   );
 });
