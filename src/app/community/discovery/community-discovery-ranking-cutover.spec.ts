@@ -8,6 +8,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ProfilePreferencesService } from 'src/app/preferences/services/profile-preferences.service';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
+import { CommunityMembershipRepository } from '../data-access/community-membership.repository';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
 import { CommunityDiscoveryCacheService } from './community-discovery-cache.service';
@@ -34,6 +35,7 @@ function communityCard(name: string) {
 
 describe('CommunityDiscoveryPageComponent / ranking cutover', () => {
   const getDiscoveryPage$ = vi.fn();
+  const getMembershipContext$ = vi.fn();
   const readSnapshot$ = vi.fn();
   const rememberPage = vi.fn();
   const showError = vi.fn();
@@ -42,6 +44,9 @@ describe('CommunityDiscoveryPageComponent / ranking cutover', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     readSnapshot$.mockReturnValue(of(null));
+    getMembershipContext$.mockReturnValue(
+      of({ activeCommunityIds: [], generatedAt: 123 })
+    );
 
     TestBed.configureTestingModule({
       imports: [CommunityDiscoveryPageComponent],
@@ -68,6 +73,10 @@ describe('CommunityDiscoveryPageComponent / ranking cutover', () => {
         {
           provide: CommunityPreviewRepository,
           useValue: { getDiscoveryPage$ },
+        },
+        {
+          provide: CommunityMembershipRepository,
+          useValue: { getMembershipContext$ },
         },
         {
           provide: CommunityTagRepository,
