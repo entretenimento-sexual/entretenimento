@@ -17,7 +17,7 @@ export interface CommunityRankingExposureDiagnostics {
   readonly exposedCommunityCount: number;
   readonly zeroExposureCommunityCount: number;
   readonly totalQualifiedExposures: number;
-  readonly topFiveExposureShare: number;
+  readonly topRankedFiveExposureShare: number;
   readonly exposureHhi: number;
   readonly knownAgeExposureShare: number;
   readonly newCommunityExposureShare: number;
@@ -51,7 +51,7 @@ export function buildCommunityRankingExposureDiagnostics(input: {
   const counts = input.entries.map((entry) => normalizeCount(entry.exposureCount));
   const totalQualifiedExposures = counts.reduce((sum, count) => sum + count, 0);
   const exposedCommunityCount = counts.filter((count) => count > 0).length;
-  const topFiveExposures = counts
+  const topRankedFiveExposures = counts
     .slice(0, 5)
     .reduce((sum, count) => sum + count, 0);
   let hhi = 0;
@@ -79,8 +79,8 @@ export function buildCommunityRankingExposureDiagnostics(input: {
     exposedCommunityCount,
     zeroExposureCommunityCount: input.entries.length - exposedCommunityCount,
     totalQualifiedExposures,
-    topFiveExposureShare: totalQualifiedExposures > 0
-      ? round((topFiveExposures / totalQualifiedExposures) * 100)
+    topRankedFiveExposureShare: totalQualifiedExposures > 0
+      ? round((topRankedFiveExposures / totalQualifiedExposures) * 100)
       : 0,
     exposureHhi: totalQualifiedExposures > 0 ? round(hhi * 10_000) : 0,
     knownAgeExposureShare: totalQualifiedExposures > 0
