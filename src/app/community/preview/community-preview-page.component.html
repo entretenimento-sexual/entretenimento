@@ -50,6 +50,7 @@
             <div class="community-preview__copy">
               <div class="community-preview__labels">
                 <span>{{ sourceLabel(preview.community) }}</span>
+                <app-community-official-badge [community]="preview.community" />
                 @if (
                   preview.viewerMode === 'moderator'
                   || preview.viewerMode === 'manager'

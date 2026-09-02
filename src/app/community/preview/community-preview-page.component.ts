@@ -63,6 +63,7 @@ import {
 import {
   COMMUNITY_MEMBERSHIP_ACTION_REASON_PRESENTATIONS,
 } from '../presentation/community-error.presentations';
+import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
 import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
@@ -164,6 +165,7 @@ const SECTION_QUERY_VALUES: Readonly<Record<CommunityPreviewSection, string | nu
     CommunityFeedComponent,
     CommunityInviteManagementComponent,
     CommunityMembershipManagementComponent,
+    CommunityOfficialBadgeComponent,
   ],
   templateUrl: './community-preview-page.component.html',
   styleUrl: './community-preview-page.component.css',

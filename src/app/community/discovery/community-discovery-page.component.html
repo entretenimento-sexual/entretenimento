@@ -233,6 +233,7 @@
                     @if (item.source.type === 'venue') {
                       <span class="community-card__kind">{{ sourceLabel(item) }}</span>
                     }
+                    <app-community-official-badge [community]="item" />
                     @if (membershipRoleLabel(item); as membershipRole) {
                       <span class="community-card__viewer-role">
                         <i class="fas fa-user-check" aria-hidden="true"></i>

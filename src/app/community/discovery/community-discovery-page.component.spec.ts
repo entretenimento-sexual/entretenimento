@@ -31,6 +31,10 @@ function venueCard() {
       requiresActiveSubscription: false,
     },
     tags: [],
+    officialAssociation: {
+      target: { type: 'venue' as const, id: 'venue-local-1' },
+      verified: true as const,
+    },
   };
 }
 
@@ -150,6 +154,7 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
     ).toBeNull();
     expect(fixture.nativeElement.querySelectorAll('h1')).toHaveLength(1);
     expect(fixture.nativeElement.textContent).toContain('Locais');
+    expect(fixture.nativeElement.textContent).toContain('Local oficial');
     expect(fixture.nativeElement.textContent).not.toContain('Salas');
   });
 });

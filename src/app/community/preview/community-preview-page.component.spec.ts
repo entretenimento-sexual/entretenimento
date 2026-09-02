@@ -48,6 +48,10 @@ function basePreview(): CommunityPreviewResponse {
         requiresActiveSubscription: false,
       },
       tags: [],
+      officialAssociation: {
+        target: { type: 'venue', id: 'venue-1' },
+        verified: true,
+      },
     },
     rules: null,
     lifecycleStatus: null,
@@ -158,6 +162,7 @@ describe('CommunityPreviewPageComponent / Local', () => {
     expect(
       fixture.nativeElement.querySelectorAll('.community-preview__tabs button')
     ).toHaveLength(3);
+    expect(fixture.nativeElement.textContent).toContain('Local oficial');
     expect(fixture.nativeElement.textContent).toContain('Novidades');
     expect(fixture.nativeElement.textContent).toContain('Fotos');
     expect(fixture.nativeElement.textContent).toContain('Sobre');

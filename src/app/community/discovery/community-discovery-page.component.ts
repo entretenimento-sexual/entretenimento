@@ -53,6 +53,7 @@ import {
   normalizeCommunityTagId,
 } from '../data-access/community-tag.model';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
+import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
 import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
@@ -172,6 +173,7 @@ function reduceState(
     RouterLink,
     RouterLinkActive,
     ImageFallbackDirective,
+    CommunityOfficialBadgeComponent,
   ],
   templateUrl: './community-discovery-page.component.html',
   styleUrl: './community-discovery-page.component.css',
