@@ -41,24 +41,18 @@
           routerLinkActive="is-active"
           ariaCurrentWhenActive="page"
           [routerLinkActiveOptions]="{ exact: true }"
-        >
-          Explorar
-        </a>
+        >Explorar</a>
         <a
           routerLink="/dashboard/comunidades/minhas"
           routerLinkActive="is-active"
           ariaCurrentWhenActive="page"
           [routerLinkActiveOptions]="{ exact: true }"
-        >
-          Minhas
-        </a>
+        >Minhas</a>
         <a
           routerLink="/dashboard/comunidades/convites"
           routerLinkActive="is-active"
           ariaCurrentWhenActive="page"
-        >
-          Convites
-        </a>
+        >Convites</a>
       </nav>
     } @else {
       <p class="community-discovery__definition">{{ description }}</p>
@@ -73,11 +67,7 @@
               Carregando interesses
             </span>
           } @else if (tagFilterState.status === 'error') {
-            <button
-              class="community-discovery__filter-retry"
-              type="button"
-              (click)="retryTagCatalog()"
-            >
+            <button class="community-discovery__filter-retry" type="button" (click)="retryTagCatalog()">
               Tentar novamente
             </button>
           } @else {
@@ -88,9 +78,7 @@
                 [class.is-active]="selectedTagId() === null"
                 [attr.aria-pressed]="selectedTagId() === null"
                 (click)="selectTagFilter(null)"
-              >
-                Todos
-              </button>
+              >Todos</button>
 
               @for (tag of quickFilterTags(tagFilterState.items); track tag.id) {
                 <button
@@ -100,9 +88,7 @@
                   [class.is-active]="selectedTagId() === tag.id"
                   [attr.aria-pressed]="selectedTagId() === tag.id"
                   (click)="selectTagFilter(tag.id)"
-                >
-                  {{ tag.label }}
-                </button>
+                >{{ tag.label }}</button>
               }
 
               <label class="community-discovery__filter-control">
@@ -136,6 +122,17 @@
       }
     }
 
+    @if (hiddenCommunityFeedback(); as hiddenFeedback) {
+      <div
+        class="community-discovery__session-feedback"
+        role="status"
+        aria-live="polite"
+      >
+        <span><strong>{{ hiddenFeedback.name }}</strong> foi ocultada nesta sessão.</span>
+        <button type="button" (click)="restoreHiddenCommunity()">Desfazer</button>
+      </div>
+    }
+
     @if (state.status === 'loading') {
       <div class="community-discovery__state" role="status" aria-live="polite">
         <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
@@ -153,10 +150,7 @@
           <i class="fas fa-user-group" aria-hidden="true"></i>
           <strong>Você ainda não participa de Comunidades</strong>
           <p>Explore espaços que combinam com seus interesses e entre quando quiser.</p>
-          <a
-            class="community-discovery__empty-explore"
-            routerLink="/dashboard/comunidades"
-          >
+          <a class="community-discovery__empty-explore" routerLink="/dashboard/comunidades">
             Explorar Comunidades
           </a>
         </div>
@@ -165,10 +159,7 @@
           <i class="fas fa-compass" aria-hidden="true"></i>
           <span>{{ selectedTagId() ? 'Nenhuma Comunidade encontrada com este interesse.' : emptyMessage }}</span>
           @if (canCreateVenue) {
-            <a
-              class="community-discovery__empty-create"
-              routerLink="/dashboard/locais/novo"
-            >
+            <a class="community-discovery__empty-create" routerLink="/dashboard/locais/novo">
               Cadastrar Espaço Oficial
             </a>
           } @else if (canCreateCommunity) {
@@ -190,7 +181,7 @@
     } @else {
       <ul class="community-discovery__grid" [attr.aria-label]="title + ' disponíveis'">
         @for (item of state.items; track item.communityId) {
-          <li>
+          <li class="community-card-shell">
             <a
               class="community-card"
               [class.community-card--mine]="discoveryMode === 'mine'"
@@ -213,29 +204,15 @@
                 aria-hidden="true"
               >
                 @if (item.coverUrl) {
-                  <img
-                    class="community-card__cover"
-                    [src]="item.coverUrl"
-                    alt=""
-                    loading="lazy"
-                    appImageFallback
-                  />
+                  <img class="community-card__cover" [src]="item.coverUrl" alt="" loading="lazy" appImageFallback />
                 }
-
                 <span
                   class="community-card__identity"
                   [class.community-card__identity--overlay]="!!item.coverUrl"
                 >
-                  <span class="community-card__initials">
-                    {{ communityInitials(item) }}
-                  </span>
+                  <span class="community-card__initials">{{ communityInitials(item) }}</span>
                   @if (item.avatarUrl) {
-                    <img
-                      [src]="item.avatarUrl"
-                      alt=""
-                      loading="lazy"
-                      appImageFallback
-                    />
+                    <img [src]="item.avatarUrl" alt="" loading="lazy" appImageFallback />
                   }
                 </span>
               </div>
@@ -244,9 +221,7 @@
                 <div class="community-card__heading">
                   <div>
                     @if (item.source.type === 'venue') {
-                      <span class="community-card__kind">
-                        {{ sourceLabel(item) }}
-                      </span>
+                      <span class="community-card__kind">{{ sourceLabel(item) }}</span>
                     }
                     @if (membershipRoleLabel(item); as membershipRole) {
                       <span class="community-card__viewer-role">
@@ -272,17 +247,12 @@
                 }
 
                 @if (discoveryMode === 'explore' && item.tags.length > 0) {
-                  <div
-                    class="community-card__tags"
-                    aria-label="Interesses desta Comunidade"
-                  >
+                  <div class="community-card__tags" aria-label="Interesses desta Comunidade">
                     @for (tag of item.tags.slice(0, 2); track tag.id) {
                       <span>#{{ tag.label }}</span>
                     }
                     @if (item.tags.length > 2) {
-                      <span aria-label="Mais {{ item.tags.length - 2 }} interesses">
-                        +{{ item.tags.length - 2 }}
-                      </span>
+                      <span aria-label="Mais {{ item.tags.length - 2 }} interesses">+{{ item.tags.length - 2 }}</span>
                     }
                   </div>
                 }
@@ -295,52 +265,40 @@
                   [attr.aria-label]="'Resumo do ' + sourceLabel(item)"
                 >
                   @if (discoveryMode === 'mine') {
-                    <span [attr.aria-label]="item.metrics.postCount + ' publicações'">
-                      <i class="fas fa-message" aria-hidden="true"></i>
-                      {{ item.metrics.postCount }}
-                    </span>
-                    <span [attr.aria-label]="item.metrics.mediaCount + ' mídias'">
-                      <i class="fas fa-image" aria-hidden="true"></i>
-                      {{ item.metrics.mediaCount }}
-                    </span>
-                    <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
-                      <i class="fas fa-users" aria-hidden="true"></i>
-                      {{ item.metrics.memberCount }}
-                    </span>
+                    <span [attr.aria-label]="item.metrics.postCount + ' publicações'"><i class="fas fa-message" aria-hidden="true"></i>{{ item.metrics.postCount }}</span>
+                    <span [attr.aria-label]="item.metrics.mediaCount + ' mídias'"><i class="fas fa-image" aria-hidden="true"></i>{{ item.metrics.mediaCount }}</span>
+                    <span [attr.aria-label]="item.metrics.memberCount + ' membros'"><i class="fas fa-users" aria-hidden="true"></i>{{ item.metrics.memberCount }}</span>
                   } @else {
-                    <span [attr.aria-label]="item.metrics.memberCount + ' membros'">
-                      <i class="fas fa-users" aria-hidden="true"></i>
-                      {{ item.metrics.memberCount }}
-                    </span>
-                    <span [attr.aria-label]="item.metrics.postCount + ' publicações'">
-                      <i class="fas fa-message" aria-hidden="true"></i>
-                      {{ item.metrics.postCount }}
-                    </span>
-                    <span [attr.aria-label]="item.metrics.mediaCount + ' mídias'">
-                      <i class="fas fa-image" aria-hidden="true"></i>
-                      {{ item.metrics.mediaCount }}
-                    </span>
+                    <span [attr.aria-label]="item.metrics.memberCount + ' membros'"><i class="fas fa-users" aria-hidden="true"></i>{{ item.metrics.memberCount }}</span>
+                    <span [attr.aria-label]="item.metrics.postCount + ' publicações'"><i class="fas fa-message" aria-hidden="true"></i>{{ item.metrics.postCount }}</span>
+                    <span [attr.aria-label]="item.metrics.mediaCount + ' mídias'"><i class="fas fa-image" aria-hidden="true"></i>{{ item.metrics.mediaCount }}</span>
                   }
                 </div>
               </div>
             </a>
+
+            @if (canFilterByTags) {
+              <button
+                class="community-card__dismiss"
+                type="button"
+                [attr.aria-label]="'Não tenho interesse em ' + item.name + ' nesta sessão'"
+                title="Não tenho interesse"
+                (click)="hideCommunity(item, $event)"
+              >
+                <i class="fas fa-xmark" aria-hidden="true"></i>
+              </button>
+            }
           </li>
         }
       </ul>
 
       @if (state.nextCursor) {
         <div class="community-discovery__more">
-          <button
-            type="button"
-            [disabled]="state.loadingMore"
-            (click)="loadMore(state.nextCursor)"
-          >
+          <button type="button" [disabled]="state.loadingMore" (click)="loadMore(state.nextCursor)">
             @if (state.loadingMore) {
-              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-              <span>Carregando</span>
+              <i class="fas fa-spinner fa-spin" aria-hidden="true"></i><span>Carregando</span>
             } @else {
-              <i class="fas fa-chevron-down" aria-hidden="true"></i>
-              <span>Ver mais</span>
+              <i class="fas fa-chevron-down" aria-hidden="true"></i><span>Ver mais</span>
             }
           </button>
         </div>
