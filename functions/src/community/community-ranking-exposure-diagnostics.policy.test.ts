@@ -22,7 +22,7 @@ test('mede concentração e exposição de comunidades novas sem IDs', () => {
   assert.equal(diagnostics.totalQualifiedExposures, 100);
   assert.equal(diagnostics.exposedCommunityCount, 3);
   assert.equal(diagnostics.zeroExposureCommunityCount, 1);
-  assert.equal(diagnostics.topFiveExposureShare, 100);
+  assert.equal(diagnostics.topRankedFiveExposureShare, 100);
   assert.equal(diagnostics.exposureHhi, 3800);
   assert.equal(diagnostics.knownAgeExposureShare, 100);
   assert.equal(diagnostics.newCommunityExposureShare, 70);
@@ -52,7 +52,7 @@ test('retorna zeros estáveis quando ainda não há telemetria', () => {
   });
 
   assert.equal(diagnostics.totalQualifiedExposures, 0);
-  assert.equal(diagnostics.topFiveExposureShare, 0);
+  assert.equal(diagnostics.topRankedFiveExposureShare, 0);
   assert.equal(diagnostics.exposureHhi, 0);
   assert.equal(diagnostics.newCommunityExposureShare, 0);
 });
