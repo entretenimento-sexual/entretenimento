@@ -652,6 +652,7 @@ export class CommunityFeedCommentsComponent implements OnDestroy {
           ? 'createConversationMessage'
           : 'moderateConversationMessage',
       fallbackMessage,
+      notification: operation === 'load' ? 'none' : 'error',
       codeMessages: operation === 'create'
         ? COMMUNITY_FEED_CONVERSATION_CREATE_CODE_MESSAGES
         : operation === 'moderate'
