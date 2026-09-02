@@ -65,6 +65,7 @@ import {
   communityContextualMatchLabel,
   personalizeCommunityDiscoveryCards,
 } from './community-contextual-relevance';
+import { CommunityDiscoverySessionBehaviorService } from './community-discovery-session-behavior.service';
 
 type CommunityDiscoveryStatus = 'loading' | 'ready' | 'empty' | 'error';
 type CommunityTagFilterState =
@@ -85,6 +86,11 @@ interface LoadRequest {
   tagId: string | null;
 }
 
+interface HiddenCommunityFeedback {
+  readonly communityId: string;
+  readonly name: string;
+}
+
 type LoadEvent =
   | { type: 'loading'; request: LoadRequest }
   | { type: 'success'; request: LoadRequest; page: CommunityDiscoveryPage }
@@ -97,10 +103,6 @@ const INITIAL_STATE: CommunityDiscoveryState = Object.freeze({
   loadingMore: false,
 });
 
-/**
- * Os IDs apenas definem prioridade visual dos atalhos. Rótulos e existência
- * continuam vindo exclusivamente do catálogo autoritativo das Functions.
- */
 const COMMUNITY_QUICK_FILTER_TAG_IDS = Object.freeze([
   'intent:friendship',
   'intent:casual',
@@ -136,11 +138,6 @@ function reduceState(
   }
 
   if (event.type === 'error') {
-    /**
-     * Um refresh stale-while-revalidate nunca derruba conteúdo já restaurado do
-     * cache. O diagnóstico e o feedback de erro permanecem ativos, mas o usuário
-     * conserva a lista e a posição de navegação que já possuía.
-     */
     if (state.items.length > 0) {
       return { ...state, loadingMore: false };
     }
@@ -183,6 +180,9 @@ export class CommunityDiscoveryPageComponent {
   private readonly tagRepository = inject(CommunityTagRepository);
   private readonly creationGate = inject(CommunityCreationGateService);
   private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
+  private readonly sessionBehavior = inject(
+    CommunityDiscoverySessionBehaviorService
+  );
   private readonly authSession = inject(AuthSessionService);
   private readonly profilePreferences = inject(ProfilePreferencesService);
   private readonly applicationError = inject(ApplicationErrorService);
@@ -228,6 +228,7 @@ export class CommunityDiscoveryPageComponent {
 
   readonly selectedTagId = signal<string | null>(this.initialTagId);
   readonly creationGateBusy = signal(false);
+  readonly hiddenCommunityFeedback = signal<HiddenCommunityFeedback | null>(null);
 
   readonly tagFilterState$: Observable<CommunityTagFilterState> =
     this.tagCatalogReload$.pipe(
@@ -284,42 +285,38 @@ export class CommunityDiscoveryPageComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  /**
-   * A personalização é propositalmente pós-cache e pós-ranking orgânico.
-   * Preferências privadas nunca entram no snapshot do NgRx nem no Firestore.
-   */
   readonly viewState$: Observable<CommunityDiscoveryState> = combineLatest([
     this.state$,
     this.tagFilterState$,
     this.contextualPreferenceProfile$,
+    this.sessionBehavior.state$,
   ]).pipe(
-    map(([state, tagState, profile]) => {
+    map(([state, tagState, profile, sessionBehavior]) => {
       if (
         !this.canFilterByTags
         || state.status !== 'ready'
         || tagState.status !== 'ready'
-        || !profile
       ) {
         return state;
       }
 
+      const items = personalizeCommunityDiscoveryCards(
+        state.items,
+        tagState.items,
+        profile,
+        sessionBehavior
+      );
+
       return {
         ...state,
-        items: personalizeCommunityDiscoveryCards(
-          state.items,
-          tagState.items,
-          profile
-        ),
+        status: items.length > 0 ? 'ready' : 'empty',
+        items,
       };
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
   constructor() {
-    /**
-     * A URL passa a ser parte do estado navegável da descoberta. Voltar/avançar
-     * no navegador reaplica o interesse sem depender de estado imperativo local.
-     */
     this.route.queryParamMap
       .pipe(
         map((params) =>
@@ -374,6 +371,26 @@ export class CommunityDiscoveryPageComponent {
     const target = event.target;
     const rawValue = target instanceof HTMLSelectElement ? target.value : '';
     this.applyTagFilter(normalizeCommunityTagId(rawValue), true);
+  }
+
+  hideCommunity(item: CommunityPreviewCard, event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.canFilterByTags) return;
+
+    this.sessionBehavior.hideCommunity(item.communityId);
+    this.hiddenCommunityFeedback.set({
+      communityId: item.communityId,
+      name: item.name,
+    });
+  }
+
+  restoreHiddenCommunity(): void {
+    const feedback = this.hiddenCommunityFeedback();
+    if (!feedback) return;
+
+    this.sessionBehavior.restoreCommunity(feedback.communityId);
+    this.hiddenCommunityFeedback.set(null);
   }
 
   quickFilterTags(
