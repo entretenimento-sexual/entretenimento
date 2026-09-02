@@ -6,8 +6,19 @@
 // snapshots de "Minhas" nunca sejam reutilizados entre sessões diferentes.
 // -----------------------------------------------------------------------------
 
+import {
+  DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+  normalizeCommunityDiscoveryPageSize,
+} from '../data-access/community-discovery.contract';
 import type { CommunityPreviewSourceType } from '../data-access/community-preview.model';
 import { normalizeCommunityTagId } from '../data-access/community-tag.model';
+
+export {
+  DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
+  MAX_COMMUNITY_DISCOVERY_PAGE_SIZE,
+  MIN_COMMUNITY_DISCOVERY_PAGE_SIZE,
+  normalizeCommunityDiscoveryPageSize,
+} from '../data-access/community-discovery.contract';
 
 export type CommunityDiscoveryMode = 'explore' | 'mine';
 
@@ -23,7 +34,6 @@ export interface CommunityDiscoveryCacheQuery
   readonly viewerUid: string;
 }
 
-export const DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE = 12;
 export const COMMUNITY_DISCOVERY_CACHE_TTL_MS = 30_000;
 
 const SAFE_UID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
@@ -32,15 +42,6 @@ const COMMUNITY_DISCOVERY_CACHE_PREFIX = 'community:discovery:v1';
 export function normalizeCommunityDiscoveryViewerUid(value: unknown): string {
   const uid = String(value ?? '').trim();
   return SAFE_UID_PATTERN.test(uid) ? uid : '';
-}
-
-export function normalizeCommunityDiscoveryPageSize(value: unknown): number {
-  const parsed = Number(value);
-  const size = Number.isFinite(parsed)
-    ? Math.trunc(parsed)
-    : DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE;
-
-  return Math.min(48, Math.max(6, size));
 }
 
 export function normalizeCommunityDiscoveryCacheContext(

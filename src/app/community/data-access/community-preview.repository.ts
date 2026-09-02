@@ -6,6 +6,7 @@ import { Observable, defer, from, map, of } from 'rxjs';
 import type {
   CommunityOfficialTargetType,
 } from 'src/app/core/community/community-official-association.model';
+import { normalizeCommunityDiscoveryPageSize } from './community-discovery.contract';
 import {
   CommunityDiscoveryPage,
   CommunityDiscoveryPageRequest,
@@ -49,7 +50,7 @@ export class CommunityPreviewRepository {
     return defer(() =>
       from(
         this.getDiscoveryPageCallable({
-          limit: request.limit ?? 12,
+          limit: normalizeCommunityDiscoveryPageSize(request.limit),
           cursor: request.cursor ?? null,
           sourceType: request.sourceType ?? null,
           tagId: request.tagId ?? null,
@@ -66,7 +67,7 @@ export class CommunityPreviewRepository {
     return defer(() =>
       from(
         this.getMyCommunitiesPageCallable({
-          limit: request.limit ?? 12,
+          limit: normalizeCommunityDiscoveryPageSize(request.limit),
           cursor: request.cursor ?? null,
         })
       )
