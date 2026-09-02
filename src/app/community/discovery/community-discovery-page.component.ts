@@ -291,7 +291,7 @@ export class CommunityDiscoveryPageComponent {
     this.contextualPreferenceProfile$,
     this.sessionBehavior.state$,
   ]).pipe(
-    map(([state, tagState, profile, sessionBehavior]) => {
+    map(([state, tagState, profile, sessionBehavior]): CommunityDiscoveryState => {
       if (
         !this.canFilterByTags
         || state.status !== 'ready'
