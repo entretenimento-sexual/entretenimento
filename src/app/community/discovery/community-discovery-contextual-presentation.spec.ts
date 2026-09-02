@@ -73,13 +73,14 @@ function card(
 }
 
 describe('CommunityDiscoveryPageComponent / apresentação contextual', () => {
-  it('personaliza somente a apresentação e preserva a página orgânica no cache', () => {
+  it('personaliza somente a apresentação, preserva a âncora orgânica e não altera o cache', () => {
     const organicFirst = card('community-organic', 'Primeira orgânica', []);
+    const neutralSecond = card('community-neutral', 'Segunda orgânica', []);
     const relevant = card('community-swing', 'Swing relevante', [
       { id: 'intent:swing', label: 'Swing', category: 'intent' },
     ]);
     const organicPage = {
-      items: [organicFirst, relevant],
+      items: [organicFirst, neutralSecond, relevant],
       nextCursor: null,
       generatedAt: 456,
     };
@@ -167,7 +168,11 @@ describe('CommunityDiscoveryPageComponent / apresentação contextual', () => {
       '.community-card__contextual-match'
     ) as HTMLElement | null;
 
-    expect(headings).toEqual(['Swing relevante', 'Primeira orgânica']);
+    expect(headings).toEqual([
+      'Primeira orgânica',
+      'Swing relevante',
+      'Segunda orgânica',
+    ]);
     expect(contextualBadge?.textContent).toContain('Combina com 1 interesse seu');
     expect(contextualBadge?.textContent).not.toMatch(/%/);
     expect(rememberPage).toHaveBeenCalledWith(
@@ -177,6 +182,7 @@ describe('CommunityDiscoveryPageComponent / apresentação contextual', () => {
     );
     expect(organicPage.items.map((item) => item.communityId)).toEqual([
       'community-organic',
+      'community-neutral',
       'community-swing',
     ]);
   });
