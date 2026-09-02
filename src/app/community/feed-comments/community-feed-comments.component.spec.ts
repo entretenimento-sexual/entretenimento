@@ -107,6 +107,24 @@ describe('CommunityFeedCommentsComponent', () => {
     expect(fixture.nativeElement.querySelector('.feed-comment__actions button')).toBeNull();
   });
 
+  it('mantém falha de carga na conversa sem toast redundante', () => {
+    repositoryMock.getPage$.mockReturnValue(throwError(
+      () => Object.assign(new Error('load failed'), {
+        code: 'functions/unavailable',
+      })
+    ));
+
+    const fixture = create(false);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain(
+      'Não foi possível carregar os comentários.'
+    );
+    expect(fixture.nativeElement.textContent).toContain('Tentar novamente');
+    expect(notificationMock.showError).not.toHaveBeenCalled();
+    expect(globalErrorMock.handleError).toHaveBeenCalledOnce();
+  });
+
   it('oferece Responder somente na mensagem e abre uma citação no compositor', () => {
     repositoryMock.getPage$.mockReturnValue(of(page()));
     const fixture = create(true);
