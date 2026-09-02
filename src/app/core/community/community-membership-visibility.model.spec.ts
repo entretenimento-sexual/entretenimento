@@ -9,32 +9,59 @@ describe('community membership visibility contract', () => {
   it('falha fechado quando a Comunidade não declara política de exposição', () => {
     expect(normalizeCommunityMembershipDisclosurePolicy(null)).toEqual({
       profileMembership: 'disabled',
+      policyVersion: 1,
     });
   });
 
   it('falha fechado quando o membro não declarou visibilidade', () => {
     expect(normalizeCommunityMemberVisibilityPreference(undefined)).toEqual({
       profileVisibility: 'hidden',
+      profileVisibilityPolicyVersion: null,
     });
   });
 
-  it('aceita somente opt-in explícito de ambas as partes', () => {
+  it('aceita somente opt-in explícito associado a uma versão válida', () => {
     expect(normalizeCommunityMembershipDisclosurePolicy({
       profileMembership: 'opt_in',
-    })).toEqual({ profileMembership: 'opt_in' });
+      policyVersion: 3,
+    })).toEqual({
+      profileMembership: 'opt_in',
+      policyVersion: 3,
+    });
 
     expect(normalizeCommunityMemberVisibilityPreference({
       profileVisibility: 'visible',
-    })).toEqual({ profileVisibility: 'visible' });
+      profileVisibilityPolicyVersion: 3,
+    })).toEqual({
+      profileVisibility: 'visible',
+      profileVisibilityPolicyVersion: 3,
+    });
+  });
+
+  it('não promove opt-in sem versão correspondente', () => {
+    expect(normalizeCommunityMemberVisibilityPreference({
+      profileVisibility: 'visible',
+    })).toEqual({
+      profileVisibility: 'visible',
+      profileVisibilityPolicyVersion: null,
+    });
   });
 
   it('não promove valores desconhecidos para visível', () => {
     expect(normalizeCommunityMembershipDisclosurePolicy({
       profileMembership: 'public',
-    })).toEqual({ profileMembership: 'disabled' });
+      policyVersion: 0,
+    })).toEqual({
+      profileMembership: 'disabled',
+      policyVersion: 1,
+    });
 
     expect(normalizeCommunityMemberVisibilityPreference({
       profileVisibility: true,
-    })).toEqual({ profileVisibility: 'hidden' });
+      profileVisibilityPolicyVersion: 7,
+    })).toEqual({
+      profileVisibility: 'hidden',
+      profileVisibilityPolicyVersion: null,
+    });
   });
 });
