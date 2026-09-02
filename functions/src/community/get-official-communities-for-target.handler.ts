@@ -20,6 +20,9 @@ import {
   normalizeOfficialCommunitiesForTargetRequest,
 } from './official-communities-for-target.model';
 import { loadOfficialCommunitiesForTarget } from './official-communities.query';
+import {
+  assertCommunitySocialAccessForUid,
+} from './community-social-access.service';
 
 function assertRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
@@ -40,16 +43,19 @@ export const getOfficialCommunitiesForTarget =
       assertCommunityCallableAppCheck(request.app);
       assertRuntime();
 
-      if (!request.auth?.uid) {
+      const uid = String(request.auth?.uid ?? '').trim();
+      if (!uid) {
         throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
       }
 
-      if (request.auth.token?.['email_verified'] !== true) {
+      if (request.auth?.token?.['email_verified'] !== true) {
         throw new HttpsError(
           'failed-precondition',
           'Verifique seu e-mail para continuar.'
         );
       }
+
+      await assertCommunitySocialAccessForUid(uid);
 
       const command = normalizeOfficialCommunitiesForTargetRequest(request.data);
       if (!command) {
