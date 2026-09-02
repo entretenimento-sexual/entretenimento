@@ -89,6 +89,10 @@ function isCandidateV3Current(
       baseline['mediaCount'],
       expected.activityBaseline.mediaCount
     )
+    && sameCount(
+      baseline['interactionCount'],
+      expected.activityBaseline.interactionCount
+    )
     && sameMomentum(
       momentum['shortTerm'],
       expected.activityMomentum.shortTerm
