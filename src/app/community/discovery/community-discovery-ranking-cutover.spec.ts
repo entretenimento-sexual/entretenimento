@@ -3,8 +3,10 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { filter, firstValueFrom, of, take, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ProfilePreferencesService } from 'src/app/preferences/services/profile-preferences.service';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
@@ -54,6 +56,14 @@ describe('CommunityDiscoveryPageComponent / ranking cutover', () => {
             },
             queryParamMap: of(convertToParamMap({})),
           },
+        },
+        {
+          provide: AuthSessionService,
+          useValue: { uid$: of(null) },
+        },
+        {
+          provide: ProfilePreferencesService,
+          useValue: { getProfile$: vi.fn(() => of(null)) },
         },
         {
           provide: CommunityPreviewRepository,
