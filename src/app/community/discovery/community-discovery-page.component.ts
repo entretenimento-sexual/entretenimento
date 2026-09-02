@@ -68,7 +68,9 @@ import {
   communityContextualMatchLabel,
   personalizeCommunityDiscoveryCards,
 } from './community-contextual-relevance';
+import { CommunityDiscoveryExposureService } from './community-discovery-exposure.service';
 import { CommunityDiscoverySessionBehaviorService } from './community-discovery-session-behavior.service';
+import { CommunityDiscoveryVisibilityDirective } from './community-discovery-visibility.directive';
 
 type CommunityDiscoveryStatus = 'loading' | 'ready' | 'empty' | 'error';
 type CommunityTagFilterState =
@@ -174,6 +176,7 @@ function reduceState(
     RouterLinkActive,
     ImageFallbackDirective,
     CommunityOfficialBadgeComponent,
+    CommunityDiscoveryVisibilityDirective,
   ],
   templateUrl: './community-discovery-page.component.html',
   styleUrl: './community-discovery-page.component.css',
@@ -185,6 +188,7 @@ export class CommunityDiscoveryPageComponent {
   private readonly tagRepository = inject(CommunityTagRepository);
   private readonly creationGate = inject(CommunityCreationGateService);
   private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
+  private readonly exposureService = inject(CommunityDiscoveryExposureService);
   private readonly sessionBehavior = inject(
     CommunityDiscoverySessionBehaviorService
   );
@@ -369,6 +373,11 @@ export class CommunityDiscoveryPageComponent {
 
   retryTagCatalog(): void {
     this.tagCatalogReload$.next();
+  }
+
+  recordQualifiedExposure(communityId: string): void {
+    if (this.discoveryMode !== 'explore') return;
+    this.exposureService.recordQualifiedExposure(communityId, this.sourceType);
   }
 
   selectTagFilter(tagId: string | null): void {
