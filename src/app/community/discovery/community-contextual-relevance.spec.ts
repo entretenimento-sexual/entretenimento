@@ -19,6 +19,14 @@ const CATALOG: readonly CommunityTagDefinition[] = [
     ],
   },
   {
+    id: 'intent:dating',
+    label: 'Encontros',
+    category: 'intent',
+    preferenceSignals: [
+      { domain: 'relationshipIntent', key: 'dating' },
+    ],
+  },
+  {
     id: 'intent:swing',
     label: 'Swing',
     category: 'intent',
@@ -40,7 +48,7 @@ const CATALOG: readonly CommunityTagDefinition[] = [
 function profile(): PreferenceProfile {
   return {
     userId: 'viewer-1',
-    relationshipIntents: ['friendship'],
+    relationshipIntents: ['friendship', 'dating'],
     hardRules: {
       acceptedGenders: [],
       acceptedRelationshipIntents: [],
@@ -131,10 +139,11 @@ describe('community contextual relevance', () => {
     expect(relevance?.rank).toBe(3);
   });
 
-  it('reordena apenas a página corrente e preserva a ordem orgânica no empate', () => {
+  it('mantém a primeira posição orgânica e personaliza somente a janela próxima', () => {
     const personalized = personalizeCommunityDiscoveryCards(
       [
         card('organic-first', []),
+        card('neutral', []),
         card('friendship', ['intent:friendship']),
         card('bdsm', ['practice:bdsm']),
         card('organic-last', []),
@@ -144,10 +153,79 @@ describe('community contextual relevance', () => {
     );
 
     expect(personalized.map((item) => item.communityId)).toEqual([
+      'organic-first',
       'friendship',
       'bdsm',
-      'organic-first',
+      'neutral',
       'organic-last',
+    ]);
+  });
+
+  it('limita a promoção contextual a três posições da sequência orgânica disponível', () => {
+    const personalized = personalizeCommunityDiscoveryCards(
+      [
+        card('organic-first', []),
+        card('neutral-1', []),
+        card('neutral-2', []),
+        card('neutral-3', []),
+        card('neutral-4', []),
+        card('neutral-5', []),
+        card('friendship', ['intent:friendship']),
+      ],
+      CATALOG,
+      profile()
+    );
+
+    expect(personalized.map((item) => item.communityId)).toEqual([
+      'organic-first',
+      'neutral-1',
+      'neutral-2',
+      'friendship',
+      'neutral-3',
+      'neutral-4',
+      'neutral-5',
+    ]);
+  });
+
+  it('preserva âncoras orgânicas periódicas mesmo com candidatos contextuais próximos', () => {
+    const personalized = personalizeCommunityDiscoveryCards(
+      [
+        card('organic-first', []),
+        card('organic-anchor', []),
+        card('friendship', ['intent:friendship']),
+        card('dating', ['intent:dating']),
+        card('bdsm', ['practice:bdsm']),
+      ],
+      CATALOG,
+      profile()
+    );
+
+    expect(personalized.map((item) => item.communityId)).toEqual([
+      'organic-first',
+      'friendship',
+      'dating',
+      'bdsm',
+      'organic-anchor',
+    ]);
+  });
+
+  it('reduz repetição recente quando candidatos têm afinidade equivalente', () => {
+    const personalized = personalizeCommunityDiscoveryCards(
+      [
+        card('organic-first', []),
+        card('friendship-a', ['intent:friendship']),
+        card('friendship-b', ['intent:friendship']),
+        card('dating', ['intent:dating']),
+      ],
+      CATALOG,
+      profile()
+    );
+
+    expect(personalized.map((item) => item.communityId)).toEqual([
+      'organic-first',
+      'friendship-a',
+      'dating',
+      'friendship-b',
     ]);
   });
 
