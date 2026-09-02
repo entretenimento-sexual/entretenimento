@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 // Camada de apresentação derivada e efêmera. Não altera `discoveryScore`, não é
 // persistida no Firestore e não entra no cache orgânico. A ordem original da
-// página continua sendo o desempate, preservando o ranking autoritativo backend.
+// página continua sendo a autoridade de qualidade e paginação do backend.
 // -----------------------------------------------------------------------------
 
 import type { PreferenceProfile } from 'src/app/preferences/models/preference-profile.model';
@@ -31,12 +31,34 @@ export type CommunityContextualPreviewCard = CommunityPreviewCard & {
   readonly contextualRelevance: CommunityContextualRelevance | null;
 };
 
+interface ContextualCandidate {
+  readonly organicIndex: number;
+  readonly card: CommunityContextualPreviewCard;
+}
+
 const SIGNAL_WEIGHTS: Readonly<Record<CommunityPreferenceSignalDomain, number>> =
   Object.freeze({
     relationshipIntent: 4,
     sexualPractice: 3,
     genderInterest: 2,
   });
+
+/**
+ * A personalização só olha os quatro próximos cards orgânicos. Assim nenhum
+ * item atravessa a página inteira por afinidade privada e a posição autoritativa
+ * do backend continua exercendo forte influência na apresentação.
+ */
+const CONTEXTUAL_CANDIDATE_WINDOW = 4;
+
+/**
+ * A cada quatro posições, a primeira comunidade ainda não apresentada na ordem
+ * orgânica vira uma âncora. Isso reserva 25% da sequência para qualidade,
+ * frescor e exploração que já foram calculados pelo ranking backend.
+ */
+const ORGANIC_ANCHOR_INTERVAL = 4;
+
+/** Penaliza repetição imediata sem transformar diversidade em filtro rígido. */
+const CONTEXTUAL_DIVERSITY_LOOKBACK = 2;
 
 function signalMatchesProfile(
   signal: Readonly<CommunityPreferenceSignal>,
@@ -51,6 +73,73 @@ function signalMatchesProfile(
   }
 
   return profile.hardRules.acceptedGenders.some((value) => value === signal.key);
+}
+
+function recentContextualTagIds(
+  selected: readonly ContextualCandidate[]
+): ReadonlySet<string> {
+  const recentTags = new Set<string>();
+
+  for (const candidate of selected.slice(-CONTEXTUAL_DIVERSITY_LOOKBACK)) {
+    for (const match of candidate.card.contextualRelevance?.matches ?? []) {
+      recentTags.add(match.tagId);
+    }
+  }
+
+  return recentTags;
+}
+
+function contextualSelectionRank(
+  candidate: Readonly<ContextualCandidate>,
+  recentTags: ReadonlySet<string>
+): { adjustedRank: number; novelMatches: number } {
+  const relevance = candidate.card.contextualRelevance;
+  if (!relevance) return { adjustedRank: 0, novelMatches: 0 };
+
+  const repeatedMatches = relevance.matches.filter((match) =>
+    recentTags.has(match.tagId)
+  ).length;
+  const novelMatches = relevance.matches.length - repeatedMatches;
+
+  return {
+    adjustedRank: Math.max(0, relevance.rank - repeatedMatches),
+    novelMatches,
+  };
+}
+
+function chooseContextualCandidateIndex(
+  remaining: readonly ContextualCandidate[],
+  selected: readonly ContextualCandidate[],
+  targetIndex: number
+): number {
+  if (
+    targetIndex % ORGANIC_ANCHOR_INTERVAL === 0
+    || remaining.length <= 1
+  ) {
+    return 0;
+  }
+
+  const recentTags = recentContextualTagIds(selected);
+  const candidateWindow = remaining.slice(0, CONTEXTUAL_CANDIDATE_WINDOW);
+  let bestWindowIndex = 0;
+  let bestRank = contextualSelectionRank(candidateWindow[0], recentTags);
+
+  for (let index = 1; index < candidateWindow.length; index += 1) {
+    const currentRank = contextualSelectionRank(candidateWindow[index], recentTags);
+
+    if (
+      currentRank.adjustedRank > bestRank.adjustedRank
+      || (
+        currentRank.adjustedRank === bestRank.adjustedRank
+        && currentRank.novelMatches > bestRank.novelMatches
+      )
+    ) {
+      bestWindowIndex = index;
+      bestRank = currentRank;
+    }
+  }
+
+  return bestWindowIndex;
 }
 
 export function resolveCommunityContextualRelevance(
@@ -92,28 +181,30 @@ export function personalizeCommunityDiscoveryCards(
   catalog: readonly CommunityTagDefinition[],
   profile: Readonly<PreferenceProfile>
 ): readonly CommunityContextualPreviewCard[] {
-  return items
-    .map((item, organicIndex) => ({
-      organicIndex,
-      card: {
-        ...item,
-        contextualRelevance: resolveCommunityContextualRelevance(
-          item,
-          catalog,
-          profile
-        ),
-      } satisfies CommunityContextualPreviewCard,
-    }))
-    .sort((left, right) => {
-      const relevanceDifference =
-        (right.card.contextualRelevance?.rank ?? 0)
-        - (left.card.contextualRelevance?.rank ?? 0);
+  const remaining: ContextualCandidate[] = items.map((item, organicIndex) => ({
+    organicIndex,
+    card: {
+      ...item,
+      contextualRelevance: resolveCommunityContextualRelevance(
+        item,
+        catalog,
+        profile
+      ),
+    } satisfies CommunityContextualPreviewCard,
+  }));
+  const selected: ContextualCandidate[] = [];
 
-      return relevanceDifference !== 0
-        ? relevanceDifference
-        : left.organicIndex - right.organicIndex;
-    })
-    .map(({ card }) => card);
+  while (remaining.length > 0) {
+    const candidateIndex = chooseContextualCandidateIndex(
+      remaining,
+      selected,
+      selected.length
+    );
+    const [candidate] = remaining.splice(candidateIndex, 1);
+    selected.push(candidate);
+  }
+
+  return selected.map(({ card }) => card);
 }
 
 export function communityContextualMatchLabel(
