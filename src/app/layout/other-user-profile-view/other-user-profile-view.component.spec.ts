@@ -9,11 +9,14 @@ import { Store } from '@ngrx/store';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CommunityPreviewRepository } from '../../community/data-access/community-preview.repository';
+import { ProfileOfficialCommunitiesComponent } from '../../community/profile-official-communities/profile-official-communities.component';
 import { OtherUserProfileViewComponent } from './other-user-profile-view.component';
 import { AccessControlService } from '../../core/services/autentication/auth/access-control.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
+import { ApplicationErrorService } from '../../core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { FriendshipService } from '../../core/services/interactions/friendship/friendship.service';
@@ -62,6 +65,7 @@ describe('OtherUserProfileViewComponent', () => {
             getPublicUserById$: vi.fn(() =>
               of({
                 uid: targetUid,
+                profileId: targetUid,
                 nickname: 'Pessoa alvo',
                 email: null,
                 photoURL: 'https://example.test/profile.jpg',
@@ -79,6 +83,20 @@ describe('OtherUserProfileViewComponent', () => {
                 preferences: ['Encontros', 'Casais'],
               })
             ),
+          },
+        },
+        {
+          provide: CommunityPreviewRepository,
+          useValue: {
+            getProfileOfficialCommunities$: vi.fn(() =>
+              of({ items: [], nextCursor: null, generatedAt: Date.now() })
+            ),
+          },
+        },
+        {
+          provide: ApplicationErrorService,
+          useValue: {
+            report: vi.fn(),
           },
         },
         {
@@ -229,6 +247,21 @@ describe('OtherUserProfileViewComponent', () => {
     expect(sidebar.getAttribute('aria-label')).toBe(
       'Informações públicas do perfil'
     );
+  });
+
+  it('expõe somente comunidades oficiais vinculadas ao perfil visitado', () => {
+    const repository = TestBed.inject(CommunityPreviewRepository);
+    const officialCommunities = fixture.debugElement.query(
+      By.directive(ProfileOfficialCommunitiesComponent)
+    );
+
+    expect(officialCommunities).toBeTruthy();
+    expect(
+      repository.getProfileOfficialCommunities$
+    ).toHaveBeenCalledWith(targetUid, 4);
+    expect(
+      fixture.debugElement.query(By.css('app-profile-communities'))
+    ).toBeNull();
   });
 
   it('move descrição e localização para Sobre sem duplicar no hero', () => {
