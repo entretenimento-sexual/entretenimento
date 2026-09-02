@@ -49,6 +49,10 @@ test('gera score v2 autoritativo e candidato v3 shadow no mesmo patch', () => {
     patch.rankingCandidate.activityBaseline.memberCount,
     20
   );
+  assert.equal(
+    patch.rankingCandidate.activityConfidence.modelVersion,
+    1
+  );
 });
 
 test('considera projeção atual mesmo com timestamps diagnósticos antigos', () => {
@@ -76,6 +80,26 @@ test('considera projeção atual mesmo com timestamps diagnósticos antigos', ()
   assert.equal(
     isCommunityRankingProjectionCurrent(persisted, expected),
     true
+  );
+});
+
+test('detecta candidato v3 antigo sem modelo de confiança e força recomputação', () => {
+  const expected = buildCommunityRankingProjectionPatch(
+    community(),
+    {},
+    NOW
+  );
+  const { activityConfidence: _removed, ...legacyCandidate } =
+    expected.rankingCandidate;
+  const persisted = {
+    discoveryScore: expected.discoveryScore,
+    ranking: expected.ranking,
+    rankingCandidate: legacyCandidate,
+  };
+
+  assert.equal(
+    isCommunityRankingProjectionCurrent(persisted, expected),
+    false
   );
 });
 
