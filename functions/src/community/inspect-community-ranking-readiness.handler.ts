@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 // Diagnóstico administrativo somente-leitura para homologar a troca do ranking
 // legado para a versão atual do score. Não altera configuração, runtime, índices
-// ou projeções. A comparação v2 x v3 permanece agregada e shadow-only.
+// ou projeções. A comparação v2 x v3 e a exploração permanecem shadow-only.
 // A exposição é diagnosticada somente para o ranking efetivamente servido.
 // -----------------------------------------------------------------------------
 
@@ -29,6 +29,12 @@ import { hasCommunityOperationsPermission } from './community-operations.authori
 import {
   COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
 } from './community-ranking-candidate-v3.policy';
+import {
+  buildCommunityRankingExplorationSimulation,
+  COMMUNITY_EXPLORATION_SCAN_DEPTH,
+  type CommunityRankingExplorationEntry,
+  type CommunityRankingExplorationSimulation,
+} from './community-ranking-exploration-simulation.policy';
 import {
   buildCommunityRankingExposureDiagnostics,
   type CommunityRankingExposureDiagnostics,
@@ -83,6 +89,7 @@ interface CommunityRankingReadinessInspection {
       day: string;
       diagnostics: CommunityRankingExposureDiagnostics;
     } | null;
+    explorationSimulation: CommunityRankingExplorationSimulation | null;
   };
   canEnableTargetScore: boolean;
   generatedAt: number;
@@ -185,6 +192,23 @@ function toCandidateShadowEntries(
   });
 }
 
+function toExplorationEntries(
+  documents: readonly { id: string; data(): Record<string, unknown> }[]
+): CommunityRankingExplorationEntry[] {
+  return documents.map((document) => {
+    const data = document.data();
+    const candidate = asRecord(data['rankingCandidate']);
+    return {
+      communityId: document.id,
+      discoveryScore: Number(candidate['discoveryScore']),
+      qualityScore: Number(candidate['qualityScore']),
+      freshnessScore: Number(candidate['freshnessScore']),
+      safetyScore: Number(candidate['safetyScore']),
+      communityCreatedAt: normalizeTimestamp(data['communityCreatedAt']),
+    };
+  });
+}
+
 async function inspectServedExposure(
   documents: readonly { id: string; data(): Record<string, unknown> }[],
   now: number
@@ -249,6 +273,7 @@ async function inspectShadowComparison(
       unavailableReason: 'ranking_cycle_not_ready',
       diagnostics: null,
       servedExposure: null,
+      explorationSimulation: null,
     };
   }
 
@@ -260,17 +285,22 @@ async function inspectShadowComparison(
       .get(),
     projection
       .orderBy('rankingCandidate.discoveryScore', 'desc')
-      .limit(SHADOW_COMPARISON_TOP_K)
+      .limit(COMMUNITY_EXPLORATION_SCAN_DEPTH)
       .get(),
   ]);
   const now = Date.now();
-  const [servedExposure] = await Promise.all([
-    inspectServedExposure(officialSnapshot.docs, now),
-  ]);
+  const servedExposure = await inspectServedExposure(
+    officialSnapshot.docs,
+    now
+  );
   const diagnostics = buildCommunityRankingShadowDiagnostics({
     officialTop: toOfficialShadowEntries(officialSnapshot.docs),
     candidateTop: toCandidateShadowEntries(candidateSnapshot.docs),
     topK: SHADOW_COMPARISON_TOP_K,
+    now,
+  });
+  const explorationSimulation = buildCommunityRankingExplorationSimulation({
+    candidateScan: toExplorationEntries(candidateSnapshot.docs),
     now,
   });
 
@@ -280,6 +310,7 @@ async function inspectShadowComparison(
     unavailableReason: null,
     diagnostics,
     servedExposure,
+    explorationSimulation,
   };
 }
 
@@ -377,6 +408,18 @@ export const inspectCommunityRankingReadiness = onCall(
       servedNewCommunityExposureShare:
         inspection.shadowComparison.servedExposure?.diagnostics
           .newCommunityExposureShare ?? null,
+      explorationEligiblePool:
+        inspection.shadowComparison.explorationSimulation?.eligiblePoolCount
+          ?? null,
+      explorationSelected:
+        inspection.shadowComparison.explorationSimulation
+          ?.selectedExplorationCount ?? null,
+      explorationNewShareAfter:
+        inspection.shadowComparison.explorationSimulation?.simulatedNewShare
+          ?? null,
+      explorationMeanScoreCost:
+        inspection.shadowComparison.explorationSimulation?.meanScoreCost
+          ?? null,
     });
 
     return inspection;
