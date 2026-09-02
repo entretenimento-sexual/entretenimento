@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  COMMUNITY_ACTIVITY_CONFIDENCE_MODEL_VERSION,
   COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
   buildCommunityDiscoveryRankingCandidateV3,
 } from './community-ranking-candidate-v3.policy';
@@ -64,6 +65,11 @@ test('bootstrap v3 cria baseline sem transformar volume histórico em atividade 
     churnShortTerm: 0,
     churnMediumTerm: 0,
   });
+  assert.deepEqual(candidate.activityConfidence, {
+    modelVersion: COMMUNITY_ACTIVITY_CONFIDENCE_MODEL_VERSION,
+    effectiveEvidence: 0,
+    confidence: 0,
+  });
   assert.equal(candidate.activityScore <= 15, true);
 });
 
@@ -101,7 +107,81 @@ test('crescimento entre medições aumenta momento e atividade', () => {
   });
   assert.equal(second.activityMomentum.shortTerm > 0, true);
   assert.equal(second.activityMomentum.mediumTerm > 0, true);
+  assert.equal(second.activityConfidence.confidence > 0, true);
   assert.equal(second.activityScore > first.activityScore, true);
+});
+
+test('amostra mínima recebe confiança baixa em vez de bônus cheio', () => {
+  const baseline = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community({
+      memberCount: 2,
+      postCount: 1,
+      mediaCount: 0,
+      interactionCount: 0,
+    }),
+    rawDiscovery: visualDiscovery,
+    now: NOW,
+  });
+  const singleInteraction = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community({
+      memberCount: 2,
+      postCount: 1,
+      mediaCount: 0,
+      interactionCount: 1,
+    }),
+    rawDiscovery: { ...visualDiscovery, rankingCandidate: baseline },
+    now: NOW + DAY_MS,
+  });
+
+  assert.equal(singleInteraction.activityDelta.interactionGrowth, 1);
+  assert.equal(singleInteraction.activityConfidence.effectiveEvidence > 0, true);
+  assert.equal(singleInteraction.activityConfidence.confidence < 0.10, true);
+  assert.equal(singleInteraction.activityScore <= 10, true);
+});
+
+test('evidência sustentada aumenta confiança e supera pico isolado', () => {
+  const baseline = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community({
+      memberCount: 4,
+      postCount: 2,
+      mediaCount: 0,
+      interactionCount: 1,
+    }),
+    rawDiscovery: visualDiscovery,
+    now: NOW,
+  });
+  const isolated = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community({
+      memberCount: 4,
+      postCount: 2,
+      mediaCount: 0,
+      interactionCount: 2,
+    }),
+    rawDiscovery: { ...visualDiscovery, rankingCandidate: baseline },
+    now: NOW + DAY_MS,
+  });
+  const supported = buildCommunityDiscoveryRankingCandidateV3({
+    rawCommunity: community({
+      memberCount: 5,
+      postCount: 4,
+      mediaCount: 1,
+      interactionCount: 12,
+    }),
+    rawDiscovery: { ...visualDiscovery, rankingCandidate: baseline },
+    now: NOW + DAY_MS,
+  });
+
+  assert.equal(
+    supported.activityConfidence.effectiveEvidence
+      > isolated.activityConfidence.effectiveEvidence,
+    true
+  );
+  assert.equal(
+    supported.activityConfidence.confidence
+      > isolated.activityConfidence.confidence,
+    true
+  );
+  assert.equal(supported.activityScore > isolated.activityScore, true);
 });
 
 test('interação real alimenta o candidato mesmo sem nova publicação', () => {
@@ -128,10 +208,11 @@ test('interação real alimenta o candidato mesmo sem nova publicação', () => 
 
   assert.equal(interacted.activityDelta.interactionGrowth, 15);
   assert.equal(interacted.activityDelta.postGrowth, 0);
+  assert.equal(interacted.activityConfidence.confidence > 0, true);
   assert.equal(interacted.activityScore > first.activityScore, true);
 });
 
-test('momento decai sem novas métricas e reduz atividade ao longo do tempo', () => {
+test('momento e confiança decaem sem novas métricas', () => {
   const first = buildCommunityDiscoveryRankingCandidateV3({
     rawCommunity: community({
       memberCount: 20,
@@ -179,10 +260,14 @@ test('momento decai sem novas métricas e reduz atividade ao longo do tempo', ()
     decayed.activityMomentum.mediumTerm < active.activityMomentum.mediumTerm,
     true
   );
+  assert.equal(
+    decayed.activityConfidence.confidence < active.activityConfidence.confidence,
+    true
+  );
   assert.equal(decayed.activityScore < active.activityScore, true);
 });
 
-test('perda de membros gera churn em vez de bônus de atividade', () => {
+test('perda de membros gera churn sem ser mascarada por baixa confiança positiva', () => {
   const first = buildCommunityDiscoveryRankingCandidateV3({
     rawCommunity: community({
       memberCount: 100,
@@ -208,6 +293,7 @@ test('perda de membros gera churn em vez de bônus de atividade', () => {
   assert.equal(churned.activityDelta.memberGrowth, 0);
   assert.equal(churned.activityMomentum.churnShortTerm > 0, true);
   assert.equal(churned.activityMomentum.churnMediumTerm > 0, true);
+  assert.equal(churned.activityConfidence.confidence, 0);
   assert.equal(churned.activityScore < first.activityScore, true);
 });
 
@@ -249,6 +335,7 @@ test('comunidade menor e realmente ativa pode superar comunidade grande estagnad
     now: NOW + DAY_MS,
   });
 
+  assert.equal(smallActive.activityConfidence.confidence > 0.80, true);
   assert.equal(smallActive.activityScore > largeStagnant.activityScore, true);
   assert.equal(smallActive.discoveryScore > largeStagnant.discoveryScore, true);
 });
