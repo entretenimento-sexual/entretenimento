@@ -13,10 +13,12 @@ import { defer, from, map, Observable, tap } from 'rxjs';
 import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
 import { CommunityDiscoverySessionBehaviorService } from '../discovery/community-discovery-session-behavior.service';
 import {
+  CommunityMembershipContextResponse,
   CommunityMembershipRequestResponse,
   CommunityMembershipRequestsResponse,
   CommunityMembershipReviewAction,
   CommunityMembershipReviewResponse,
+  normalizeCommunityMembershipContextResponse,
   normalizeCommunityMembershipRequestsResponse,
   normalizeCommunityMembershipResponse,
   normalizeCommunityMembershipReviewResponse,
@@ -39,6 +41,11 @@ export class CommunityMembershipRepository {
     { communityId: string },
     unknown
   >(this.functions, 'leaveCommunityMembership');
+
+  private readonly getMembershipContextCallable = httpsCallable<
+    { communityIds: readonly string[] },
+    unknown
+  >(this.functions, 'getCommunityMembershipContext');
 
   private readonly getMembershipRequestsCallable = httpsCallable<
     { communityId: string },
@@ -104,6 +111,28 @@ export class CommunityMembershipRepository {
         this.discoveryCache.invalidateCurrentViewer({
           sourceType: 'community',
         });
+      })
+    );
+  }
+
+  getMembershipContext$(
+    communityIds: readonly string[]
+  ): Observable<CommunityMembershipContextResponse> {
+    const normalizedIds = [...new Set(
+      communityIds.map((communityId) => communityId.trim()).filter(Boolean)
+    )].slice(0, 24);
+
+    return defer(() =>
+      from(this.getMembershipContextCallable({ communityIds: normalizedIds }))
+    ).pipe(
+      map((result) => {
+        const normalized = normalizeCommunityMembershipContextResponse(result.data);
+
+        if (!normalized) {
+          throw new Error('Contexto de participação comunitária inválido.');
+        }
+
+        return normalized;
       })
     );
   }
