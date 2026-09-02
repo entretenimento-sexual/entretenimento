@@ -1,0 +1,152 @@
+name: Community Discovery Visual Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/app/community/discovery/**'
+      - 'src/app/community/profile-official-communities/**'
+      - 'src/app/community/presentation/**'
+      - 'src/app/community/data-access/community-preview*.ts'
+      - 'src/app/community/data-access/community-tag*.ts'
+      - 'src/app/core/community/community-official-association.model.ts'
+      - 'src/styles/**'
+      - '.github/visual-harness/community-discovery-visual.app-component.ts'
+      - '.github/scripts/community-discovery-visual-validation.sh'
+      - '.github/workflows/community-discovery-visual-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: community-discovery-visual-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual:
+    name: Community discovery, official venues and profile
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Restore visual node_modules cache
+        id: visual-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: community-discovery-visual-node22-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies when cache is cold
+        if: steps.visual-node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      - name: Prepare Community discovery visual harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .github/visual-harness/community-discovery-visual.app-component.ts src/app/app.component.ts
+
+          cat > src/main.ts <<'TS'
+          import 'zone.js';
+          import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
+          import { AppModule } from './app/app.module';
+
+          platformBrowserDynamic()
+            .bootstrapModule(AppModule)
+            .catch((error: unknown) => console.error(error));
+          TS
+
+          cat > src/app/app.module.ts <<'TS'
+          import { NgModule } from '@angular/core';
+          import { BrowserModule } from '@angular/platform-browser';
+          import { RouterModule } from '@angular/router';
+          import { AppComponent } from './app.component';
+          import { CommunityDiscoveryPageComponent } from './community/discovery/community-discovery-page.component';
+          import { ProfileOfficialCommunitiesComponent } from './community/profile-official-communities/profile-official-communities.component';
+
+          @NgModule({
+            declarations: [AppComponent],
+            imports: [
+              BrowserModule,
+              RouterModule.forRoot([]),
+              CommunityDiscoveryPageComponent,
+              ProfileOfficialCommunitiesComponent,
+            ],
+            bootstrap: [AppComponent],
+          })
+          export class AppModule {}
+          TS
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global @playwright/cli@0.1.17
+          playwright-cli install-browser --with-deps
+
+      - name: Start current Community discovery template
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          nohup npx ng serve \
+            --configuration=dev-emu \
+            --hmr \
+            --host=127.0.0.1 \
+            --port=4200 \
+            > artifacts/community-discovery-ng-serve.log 2>&1 &
+          echo $! > artifacts/community-discovery-ng-serve.pid
+
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent --show-error 'http://127.0.0.1:4200/?visualState=explore' >/dev/null; then
+              echo "Community discovery visual harness ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat artifacts/community-discovery-ng-serve.log >&2 || true
+          exit 1
+
+      - name: Capture Community discovery visual evidence
+        id: capture
+        continue-on-error: true
+        shell: bash
+        env:
+          PLAYWRIGHT_CLI_SESSION: community-discovery
+        run: bash .github/scripts/community-discovery-visual-validation.sh
+
+      - name: Upload Community discovery visual evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: community-discovery-visual-${{ github.run_id }}
+          path: |
+            artifacts/community-discovery
+            artifacts/community-discovery-ng-serve.log
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Enforce Community discovery visual result
+        if: always()
+        shell: bash
+        env:
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$CAPTURE_OUTCOME" != 'success' ]]; then
+            echo "Community discovery visual validation failed with outcome: $CAPTURE_OUTCOME" >&2
+            exit 1
+          fi
