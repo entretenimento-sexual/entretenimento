@@ -15,8 +15,15 @@ export interface CommunityMembershipVisibilityDecision {
     | 'community_not_active'
     | 'community_not_moderation_active'
     | 'community_disclosure_disabled'
+    | 'community_disclosure_policy_invalid'
     | 'membership_not_active'
-    | 'member_not_opted_in';
+    | 'member_not_opted_in'
+    | 'consent_policy_mismatch';
+}
+
+function normalizePositiveInteger(value: unknown): number | null {
+  const parsed = Math.trunc(Number(value));
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : null;
 }
 
 export function resolveCommunityMembershipVisibility(
@@ -44,12 +51,24 @@ export function resolveCommunityMembershipVisibility(
     return { visible: false, reason: 'community_disclosure_disabled' };
   }
 
+  const policyVersion = normalizePositiveInteger(disclosure['policyVersion']);
+  if (!policyVersion) {
+    return { visible: false, reason: 'community_disclosure_policy_invalid' };
+  }
+
   if (membership['status'] !== 'active') {
     return { visible: false, reason: 'membership_not_active' };
   }
 
   if (membership['profileVisibility'] !== 'visible') {
     return { visible: false, reason: 'member_not_opted_in' };
+  }
+
+  const consentPolicyVersion = normalizePositiveInteger(
+    membership['profileVisibilityPolicyVersion']
+  );
+  if (consentPolicyVersion !== policyVersion) {
+    return { visible: false, reason: 'consent_policy_mismatch' };
   }
 
   return { visible: true, reason: 'eligible' };
