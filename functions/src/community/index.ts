@@ -7,6 +7,9 @@ export { createVenueCommunity } from './create-venue-community.handler';
 export { getCommunityTagCatalog } from './get-community-tag-catalog.handler';
 export { getCommunityDiscoveryPage } from './get-community-discovery-page.handler';
 export {
+  recordCommunityDiscoveryExposure,
+} from './record-community-discovery-exposure.handler';
+export {
   getProfileOfficialCommunities,
 } from './get-profile-official-communities.handler';
 export {
