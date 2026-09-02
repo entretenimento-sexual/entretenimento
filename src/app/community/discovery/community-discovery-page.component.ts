@@ -16,6 +16,7 @@ import {
 } from '@angular/router';
 import {
   catchError,
+  combineLatest,
   concat,
   distinctUntilChanged,
   finalize,
@@ -31,7 +32,10 @@ import {
 } from 'rxjs';
 
 import { getSocialSpaceDefinition } from 'src/app/core/domain/social-space.definition';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
+import type { PreferenceProfile } from 'src/app/preferences/models/preference-profile.model';
+import { ProfilePreferencesService } from 'src/app/preferences/services/profile-preferences.service';
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { CommunityCreationGateService } from '../community-create/community-creation-gate.service';
 import {
@@ -57,6 +61,10 @@ import {
   DEFAULT_COMMUNITY_DISCOVERY_PAGE_SIZE,
 } from './community-discovery-cache.model';
 import { CommunityDiscoveryCacheService } from './community-discovery-cache.service';
+import {
+  communityContextualMatchLabel,
+  personalizeCommunityDiscoveryCards,
+} from './community-contextual-relevance';
 
 type CommunityDiscoveryStatus = 'loading' | 'ready' | 'empty' | 'error';
 type CommunityTagFilterState =
@@ -175,6 +183,8 @@ export class CommunityDiscoveryPageComponent {
   private readonly tagRepository = inject(CommunityTagRepository);
   private readonly creationGate = inject(CommunityCreationGateService);
   private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
+  private readonly authSession = inject(AuthSessionService);
+  private readonly profilePreferences = inject(ProfilePreferencesService);
   private readonly applicationError = inject(ApplicationErrorService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -242,6 +252,22 @@ export class CommunityDiscoveryPageComponent {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  private readonly contextualPreferenceProfile$: Observable<PreferenceProfile | null> =
+    this.canFilterByTags
+      ? this.authSession.uid$.pipe(
+          map((uid) => String(uid ?? '').trim()),
+          distinctUntilChanged(),
+          switchMap((uid) =>
+            uid
+              ? this.profilePreferences.getProfile$(uid).pipe(
+                  map((profile): PreferenceProfile | null => profile)
+                )
+              : of<PreferenceProfile | null>(null)
+          ),
+          shareReplay({ bufferSize: 1, refCount: true })
+        )
+      : of(null);
+
   readonly state$ = this.loadRequests$.pipe(
     startWith<LoadRequest>({
       cursor: null,
@@ -255,6 +281,37 @@ export class CommunityDiscoveryPageComponent {
       )
     ),
     scan(reduceState, INITIAL_STATE),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  /**
+   * A personalização é propositalmente pós-cache e pós-ranking orgânico.
+   * Preferências privadas nunca entram no snapshot do NgRx nem no Firestore.
+   */
+  readonly viewState$: Observable<CommunityDiscoveryState> = combineLatest([
+    this.state$,
+    this.tagFilterState$,
+    this.contextualPreferenceProfile$,
+  ]).pipe(
+    map(([state, tagState, profile]) => {
+      if (
+        !this.canFilterByTags
+        || state.status !== 'ready'
+        || tagState.status !== 'ready'
+        || !profile
+      ) {
+        return state;
+      }
+
+      return {
+        ...state,
+        items: personalizeCommunityDiscoveryCards(
+          state.items,
+          tagState.items,
+          profile
+        ),
+      };
+    }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -359,6 +416,12 @@ export class CommunityDiscoveryPageComponent {
 
   communityVisualVariant(item: CommunityPreviewCard): number {
     return resolveCommunityVisualVariant(item);
+  }
+
+  contextualMatchLabel(item: CommunityPreviewCard): string | null {
+    return this.canFilterByTags
+      ? communityContextualMatchLabel(item)
+      : null;
   }
 
   membershipRoleLabel(item: CommunityPreviewCard): string | null {
