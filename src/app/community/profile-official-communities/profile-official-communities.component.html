@@ -46,7 +46,7 @@
             <a
               class="profile-official-community"
               [routerLink]="detailsRoute(item)"
-              [attr.aria-label]="'Abrir comunidade oficial ' + item.name"
+              [attr.aria-label]="'Abrir comunidade ' + item.name"
             >
               <span
                 class="profile-official-community__avatar"
@@ -68,10 +68,7 @@
               <span class="profile-official-community__body">
                 <span class="profile-official-community__title-row">
                   <strong>{{ item.name }}</strong>
-                  <span class="profile-official-community__verified">
-                    <i class="fas fa-circle-check" aria-hidden="true"></i>
-                    <span>Oficial</span>
-                  </span>
+                  <app-community-official-badge [community]="item" />
                 </span>
 
                 @if (item.description) {

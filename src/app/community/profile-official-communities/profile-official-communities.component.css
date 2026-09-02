@@ -111,6 +111,7 @@
 
 .profile-official-community__title-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
   min-width: 0;
@@ -120,16 +121,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.profile-official-community__verified {
-  display: inline-flex;
-  flex: 0 0 auto;
-  gap: 0.25rem;
-  align-items: center;
-  font-size: 0.72rem;
-  font-weight: 700;
-  opacity: 0.82;
 }
 
 .profile-official-community__description {
@@ -186,15 +177,6 @@
   .profile-official-community__avatar {
     width: 2.75rem;
     height: 2.75rem;
-  }
-
-  .profile-official-community__verified span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
   }
 }
 

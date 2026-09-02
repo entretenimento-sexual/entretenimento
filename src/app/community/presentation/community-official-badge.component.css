@@ -1,0 +1,36 @@
+/* src/app/community/presentation/community-official-badge.component.css */
+:host {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.community-official-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  max-width: 100%;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.community-official-badge span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.community-official-badge i {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 560px) {
+  .community-official-badge {
+    padding-inline: 0.38rem;
+    font-size: 0.68rem;
+  }
+}

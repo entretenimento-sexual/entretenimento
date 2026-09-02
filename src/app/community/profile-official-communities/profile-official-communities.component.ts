@@ -24,6 +24,7 @@ import { ApplicationErrorService } from 'src/app/core/services/error-handler/app
 import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 import { CommunityPreviewCard } from '../data-access/community-preview.model';
 import { CommunityPreviewRepository } from '../data-access/community-preview.repository';
+import { CommunityOfficialBadgeComponent } from '../presentation/community-official-badge.component';
 import {
   communityInitials as buildCommunityInitials,
   communityVisualVariant as resolveCommunityVisualVariant,
@@ -48,7 +49,12 @@ const EMPTY_VM: ProfileOfficialCommunitiesVm = Object.freeze({
 @Component({
   selector: 'app-profile-official-communities',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, ImageFallbackDirective],
+  imports: [
+    AsyncPipe,
+    RouterLink,
+    ImageFallbackDirective,
+    CommunityOfficialBadgeComponent,
+  ],
   templateUrl: './profile-official-communities.component.html',
   styleUrl: './profile-official-communities.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
