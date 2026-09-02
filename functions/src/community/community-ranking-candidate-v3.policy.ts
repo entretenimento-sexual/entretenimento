@@ -15,6 +15,7 @@ export interface CommunityRankingActivityBaselineV3 {
   memberCount: number;
   postCount: number;
   mediaCount: number;
+  interactionCount: number;
   measuredAt: number;
 }
 
@@ -30,6 +31,7 @@ export interface CommunityRankingActivityDeltaV3 {
   memberLoss: number;
   postGrowth: number;
   mediaGrowth: number;
+  interactionGrowth: number;
 }
 
 export interface CommunityDiscoveryRankingCandidateV3 {
@@ -116,6 +118,7 @@ function currentBaseline(
     memberCount: normalizeCount(metrics['memberCount']),
     postCount: normalizeCount(metrics['postCount']),
     mediaCount: normalizeCount(metrics['mediaCount']),
+    interactionCount: normalizeCount(metrics['interactionCount']),
     measuredAt,
   };
 }
@@ -142,6 +145,7 @@ function previousBaseline(
     memberCount: normalizeCount(baseline['memberCount']),
     postCount: normalizeCount(baseline['postCount']),
     mediaCount: normalizeCount(baseline['mediaCount']),
+    interactionCount: normalizeCount(baseline['interactionCount']),
     measuredAt,
   };
 }
@@ -186,6 +190,7 @@ function resolveActivityState(
         memberLoss: 0,
         postGrowth: 0,
         mediaGrowth: 0,
+        interactionGrowth: 0,
       },
     };
   }
@@ -198,13 +203,18 @@ function resolveActivityState(
   const memberLoss = Math.max(previous.memberCount - baseline.memberCount, 0);
   const postGrowth = Math.max(baseline.postCount - previous.postCount, 0);
   const mediaGrowth = Math.max(baseline.mediaCount - previous.mediaCount, 0);
+  const interactionGrowth = Math.max(
+    baseline.interactionCount - previous.interactionCount,
+    0
+  );
 
-  // Publicar é o sinal principal; mídia adiciona esforço editorial e crescimento
-  // de membros adiciona saúde de rede. Todos os sinais saturam no score final.
+  // Publicação é o sinal principal. Interação entra com peso menor e saturação;
+  // crescimento de membros representa saúde de rede, não popularidade histórica.
   const engagementUnits =
     postGrowth * 4
     + mediaGrowth * 2
-    + memberGrowth * 2;
+    + memberGrowth * 2
+    + interactionGrowth;
   const churnUnits = memberLoss * 3;
 
   return {
@@ -228,6 +238,7 @@ function resolveActivityState(
       memberLoss,
       postGrowth,
       mediaGrowth,
+      interactionGrowth,
     },
   };
 }
