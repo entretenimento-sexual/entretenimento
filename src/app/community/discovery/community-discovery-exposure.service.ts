@@ -1,5 +1,5 @@
 // src/app/community/discovery/community-discovery-exposure.service.ts
-import { DestroyRef, Injectable, inject } from '@angular/core';
+import { DestroyRef, Injectable, Injector, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   EMPTY,
@@ -25,8 +25,7 @@ interface QualifiedExposure {
 
 @Injectable({ providedIn: 'root' })
 export class CommunityDiscoveryExposureService {
-  private readonly repository = inject(CommunityDiscoveryExposureRepository);
-  private readonly applicationError = inject(ApplicationErrorService);
+  private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
   private readonly qualifiedExposure$ = new Subject<QualifiedExposure>();
   private readonly recordedThisSession = new Set<string>();
@@ -80,12 +79,15 @@ export class CommunityDiscoveryExposureService {
     sourceType: CommunityPreviewSourceType,
     communityIds: readonly string[]
   ) {
-    return this.repository.recordQualifiedExposure$({
+    const repository = this.injector.get(CommunityDiscoveryExposureRepository);
+    const applicationError = this.injector.get(ApplicationErrorService);
+
+    return repository.recordQualifiedExposure$({
       sourceType,
       communityIds,
     }).pipe(
       catchError((error: unknown) => {
-        this.applicationError.report(error, {
+        applicationError.report(error, {
           feature: 'community',
           operation: 'recordDiscoveryExposure',
           fallbackMessage: 'Não foi possível registrar a telemetria de descoberta.',
