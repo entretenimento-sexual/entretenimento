@@ -13,6 +13,11 @@ export interface CommunityMembershipRequestResponse {
   canInteract: boolean;
 }
 
+export interface CommunityMembershipContextResponse {
+  activeCommunityIds: string[];
+  generatedAt: number;
+}
+
 export interface CommunityMembershipRequestItem {
   memberId: string;
   label: string;
@@ -82,6 +87,29 @@ export function normalizeCommunityMembershipResponse(
   }
 
   return null;
+}
+
+export function normalizeCommunityMembershipContextResponse(
+  raw: unknown
+): CommunityMembershipContextResponse | null {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const generatedAt = normalizeEpoch(source['generatedAt']);
+  const rawIds = source['activeCommunityIds'];
+
+  if (!Array.isArray(rawIds) || !generatedAt || rawIds.length > 24) {
+    return null;
+  }
+
+  const activeCommunityIds = rawIds
+    .map((value) => normalizeText(value, 128))
+    .filter((communityId) => SAFE_ID_PATTERN.test(communityId));
+
+  if (activeCommunityIds.length !== rawIds.length) return null;
+
+  return {
+    activeCommunityIds: [...new Set(activeCommunityIds)],
+    generatedAt,
+  };
 }
 
 export function normalizeCommunityMembershipRequestsResponse(
