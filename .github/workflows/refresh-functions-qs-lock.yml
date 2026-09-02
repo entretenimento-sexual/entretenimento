@@ -1,0 +1,49 @@
+name: Refresh Functions qs lock
+
+on:
+  push:
+    paths:
+      - .github/workflows/refresh-functions-qs-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Pin patched qs and regenerate lockfile
+        run: |
+          npm --prefix functions pkg set overrides.qs=6.16.0
+          npm --prefix functions install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Validate clean install
+        run: npm --prefix functions ci --ignore-scripts --no-audit --no-fund
+
+      - name: Validate production dependency audit
+        run: npm --prefix functions audit --omit=dev --audit-level=moderate
+
+      - name: Commit synchronized dependency metadata
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add functions/package.json functions/package-lock.json
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No dependency metadata changes were required."
+            exit 0
+          fi
+          git commit -m "fix(functions): sync patched qs lockfile"
+          git push origin HEAD:main
