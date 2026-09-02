@@ -15,6 +15,7 @@ import {
 import { COMMUNITY_DISCOVERY_SCORE_VERSION } from './community-ranking.policy';
 
 const NOW = Date.UTC(2026, 7, 30, 12, 0, 0);
+const DAY_MS = 24 * 60 * 60 * 1_000;
 
 function community(overrides: Record<string, unknown> = {}) {
   return {
@@ -38,6 +39,7 @@ test('gera score v2 autoritativo e candidato v3 shadow no mesmo patch', () => {
   );
 
   assert.equal(patch.discoveryScore, patch.ranking.discoveryScore);
+  assert.equal(patch.communityCreatedAt, NOW);
   assert.equal('rankScore' in patch, false);
   assert.equal(patch.ranking.scoreUpdatedAt, NOW);
   assert.equal(patch.ranking.scoreVersion, COMMUNITY_DISCOVERY_SCORE_VERSION);
@@ -55,6 +57,17 @@ test('gera score v2 autoritativo e candidato v3 shadow no mesmo patch', () => {
   );
 });
 
+test('normaliza timestamp canônico do Firestore na projeção', () => {
+  const createdAt = NOW - (45 * DAY_MS);
+  const patch = buildCommunityRankingProjectionPatch(
+    community({ createdAt: { toMillis: () => createdAt } }),
+    {},
+    NOW
+  );
+
+  assert.equal(patch.communityCreatedAt, createdAt);
+});
+
 test('considera projeção atual mesmo com timestamps diagnósticos antigos', () => {
   const expected = buildCommunityRankingProjectionPatch(
     community(),
@@ -63,6 +76,7 @@ test('considera projeção atual mesmo com timestamps diagnósticos antigos', ()
   );
   const persisted = {
     discoveryScore: expected.discoveryScore,
+    communityCreatedAt: expected.communityCreatedAt,
     ranking: {
       ...expected.ranking,
       scoreUpdatedAt: NOW - 86_400_000,
@@ -83,6 +97,25 @@ test('considera projeção atual mesmo com timestamps diagnósticos antigos', ()
   );
 });
 
+test('detecta projeção antiga sem idade canônica e força backfill', () => {
+  const expected = buildCommunityRankingProjectionPatch(
+    community({ createdAt: NOW - (60 * DAY_MS) }),
+    {},
+    NOW
+  );
+  const persisted = {
+    discoveryScore: expected.discoveryScore,
+    ranking: expected.ranking,
+    rankingCandidate: expected.rankingCandidate,
+  };
+
+  assert.equal(expected.communityCreatedAt, NOW - (60 * DAY_MS));
+  assert.equal(
+    isCommunityRankingProjectionCurrent(persisted, expected),
+    false
+  );
+});
+
 test('detecta candidato v3 antigo sem modelo de confiança e força recomputação', () => {
   const expected = buildCommunityRankingProjectionPatch(
     community(),
@@ -93,6 +126,7 @@ test('detecta candidato v3 antigo sem modelo de confiança e força recomputaç�
     expected.rankingCandidate;
   const persisted = {
     discoveryScore: expected.discoveryScore,
+    communityCreatedAt: expected.communityCreatedAt,
     ranking: expected.ranking,
     rankingCandidate: legacyCandidate,
   };
@@ -111,6 +145,7 @@ test('detecta mudança material no breakdown autoritativo', () => {
   );
   const persisted = {
     discoveryScore: expected.discoveryScore,
+    communityCreatedAt: expected.communityCreatedAt,
     ranking: {
       ...expected.ranking,
       activityScore: Math.max(expected.ranking.activityScore - 1, 0),
@@ -132,6 +167,7 @@ test('detecta mudança material no candidato v3 sem alterar discoveryScore v2', 
   );
   const persisted = {
     discoveryScore: expected.discoveryScore,
+    communityCreatedAt: expected.communityCreatedAt,
     ranking: expected.ranking,
     rankingCandidate: {
       ...expected.rankingCandidate,
@@ -287,18 +323,127 @@ test('diagnóstico shadow evidencia renovação parcial do top-K', () => {
   assert.equal(diagnostics.candidateExits, 2);
 });
 
+test('diagnóstico cold-start mede cobertura e inclui o limite de 30 dias', () => {
+  const diagnostics = buildCommunityRankingShadowDiagnostics({
+    officialTop: [
+      {
+        communityId: 'community-a',
+        score: 90,
+        communityCreatedAt: NOW - (30 * DAY_MS),
+      },
+      {
+        communityId: 'community-b',
+        score: 80,
+        communityCreatedAt: NOW - (31 * DAY_MS),
+      },
+      { communityId: 'community-c', score: 70 },
+    ],
+    candidateTop: [
+      {
+        communityId: 'community-a',
+        score: 92,
+        communityCreatedAt: NOW - (30 * DAY_MS),
+      },
+      {
+        communityId: 'community-d',
+        score: 85,
+        communityCreatedAt: NOW - DAY_MS,
+      },
+      {
+        communityId: 'community-e',
+        score: 84,
+        communityCreatedAt: NOW + DAY_MS,
+      },
+    ],
+    topK: 3,
+    now: NOW,
+  });
+
+  assert.equal(diagnostics.coldStart.windowDays, 30);
+  assert.equal(diagnostics.coldStart.officialKnownAgeCount, 2);
+  assert.equal(diagnostics.coldStart.candidateKnownAgeCount, 2);
+  assert.equal(diagnostics.coldStart.officialAgeCoverageRate, 66.67);
+  assert.equal(diagnostics.coldStart.candidateAgeCoverageRate, 66.67);
+  assert.equal(diagnostics.coldStart.officialNewCount, 1);
+  assert.equal(diagnostics.coldStart.candidateNewCount, 2);
+  assert.equal(diagnostics.coldStart.officialNewShare, 50);
+  assert.equal(diagnostics.coldStart.candidateNewShare, 100);
+  assert.equal(diagnostics.coldStart.newShareDelta, 50);
+});
+
+test('diagnóstico cold-start evidencia supressão de comunidades novas', () => {
+  const diagnostics = buildCommunityRankingShadowDiagnostics({
+    officialTop: [
+      {
+        communityId: 'community-new',
+        score: 90,
+        communityCreatedAt: NOW - DAY_MS,
+      },
+    ],
+    candidateTop: [
+      {
+        communityId: 'community-old',
+        score: 95,
+        communityCreatedAt: NOW - (120 * DAY_MS),
+      },
+    ],
+    topK: 1,
+    now: NOW,
+  });
+
+  assert.equal(diagnostics.coldStart.officialNewShare, 100);
+  assert.equal(diagnostics.coldStart.candidateNewShare, 0);
+  assert.equal(diagnostics.coldStart.newShareDelta, -100);
+});
+
+test('diagnóstico cold-start vazio não fabrica cobertura ou participação', () => {
+  const diagnostics = buildCommunityRankingShadowDiagnostics({
+    officialTop: [],
+    candidateTop: [],
+    topK: 25,
+    now: NOW,
+  });
+
+  assert.equal(diagnostics.coldStart.officialAgeCoverageRate, 0);
+  assert.equal(diagnostics.coldStart.candidateAgeCoverageRate, 0);
+  assert.equal(diagnostics.coldStart.officialNewShare, 0);
+  assert.equal(diagnostics.coldStart.candidateNewShare, 0);
+  assert.equal(diagnostics.coldStart.newShareDelta, 0);
+});
+
 test('diagnóstico shadow deduplica IDs e não devolve identificadores', () => {
   const diagnostics = buildCommunityRankingShadowDiagnostics({
     officialTop: [
-      { communityId: 'community-a', score: 90 },
-      { communityId: 'community-a', score: 89 },
-      { communityId: 'community-b', score: 80 },
+      {
+        communityId: 'community-a',
+        score: 90,
+        communityCreatedAt: NOW - DAY_MS,
+      },
+      {
+        communityId: 'community-a',
+        score: 89,
+        communityCreatedAt: NOW - DAY_MS,
+      },
+      {
+        communityId: 'community-b',
+        score: 80,
+        communityCreatedAt: NOW - (90 * DAY_MS),
+      },
     ],
     candidateTop: [
-      { communityId: 'community-a', score: 92 },
-      { communityId: 'community-b', score: 81 },
+      {
+        communityId: 'community-a',
+        score: 92,
+        communityCreatedAt: NOW - DAY_MS,
+      },
+      {
+        communityId: 'community-b',
+        score: 81,
+        communityCreatedAt: NOW - (90 * DAY_MS),
+      },
     ],
     topK: 2,
+    now: NOW,
   });
   const serialized = JSON.stringify(diagnostics);
 
