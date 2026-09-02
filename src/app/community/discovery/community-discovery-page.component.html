@@ -1,5 +1,5 @@
 <!-- src/app/community/discovery/community-discovery-page.component.html -->
-@if (state$ | async; as state) {
+@if (viewState$ | async; as state) {
   <main class="community-discovery" aria-labelledby="community-discovery-title">
     <header class="community-discovery__header">
       <h1 id="community-discovery-title">{{ hubTitle }}</h1>
@@ -56,7 +56,6 @@
           routerLink="/dashboard/comunidades/convites"
           routerLinkActive="is-active"
           ariaCurrentWhenActive="page"
-          [routerLinkActiveOptions]="{ exact: true }"
         >
           Convites
         </a>
@@ -253,6 +252,15 @@
                       <span class="community-card__viewer-role">
                         <i class="fas fa-user-check" aria-hidden="true"></i>
                         {{ membershipRole }}
+                      </span>
+                    }
+                    @if (contextualMatchLabel(item); as contextualMatch) {
+                      <span
+                        class="community-card__viewer-role community-card__contextual-match"
+                        [attr.aria-label]="contextualMatch"
+                      >
+                        <i class="fas fa-star" aria-hidden="true"></i>
+                        {{ contextualMatch }}
                       </span>
                     }
                     <h2>{{ item.name }}</h2>
