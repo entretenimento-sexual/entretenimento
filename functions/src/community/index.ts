@@ -109,6 +109,9 @@ export { runCommunityLifecycle } from './run-community-lifecycle.schedule';
 export { runCommunityPurge } from './run-community-purge.schedule';
 export { runCommunityRanking } from './run-community-ranking.schedule';
 export {
+  runCommunityDiscoveryExposureRetention,
+} from './run-community-discovery-exposure-retention.schedule';
+export {
   syncCommunityArchiveProjections,
 } from './sync-community-archive-projections.trigger';
 export {
