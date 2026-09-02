@@ -5,11 +5,14 @@
 // Candidato shadow-only. O score v2 continua sendo o discoveryScore autoritativo.
 // Esta policy mede atividade por deltas entre métricas acumuladas e mantém apenas
 // momento agregado com decaimento temporal; não cria histórico por usuário.
+// Sinais positivos recentes passam por shrinkage de confiança para impedir que
+// amostras mínimas recebam o mesmo peso de atividade sustentada.
 // -----------------------------------------------------------------------------
 
 import { buildCommunityDiscoveryRanking } from './community-ranking.policy';
 
 export const COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION = 3;
+export const COMMUNITY_ACTIVITY_CONFIDENCE_MODEL_VERSION = 1;
 
 export interface CommunityRankingActivityBaselineV3 {
   memberCount: number;
@@ -34,6 +37,12 @@ export interface CommunityRankingActivityDeltaV3 {
   interactionGrowth: number;
 }
 
+export interface CommunityRankingActivityConfidenceV3 {
+  modelVersion: 1;
+  effectiveEvidence: number;
+  confidence: number;
+}
+
 export interface CommunityDiscoveryRankingCandidateV3 {
   discoveryScore: number;
   qualityScore: number;
@@ -45,6 +54,7 @@ export interface CommunityDiscoveryRankingCandidateV3 {
   activityBaseline: CommunityRankingActivityBaselineV3;
   activityMomentum: CommunityRankingActivityMomentumV3;
   activityDelta: CommunityRankingActivityDeltaV3;
+  activityConfidence: CommunityRankingActivityConfidenceV3;
 }
 
 export interface CommunityDiscoveryRankingCandidateV3Input {
@@ -57,6 +67,8 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
 const SHORT_HALF_LIFE_DAYS = 7;
 const MEDIUM_HALF_LIFE_DAYS = 30;
 const MAX_MOMENTUM = 10_000;
+const ACTIVITY_CONFIDENCE_PRIOR_UNITS = 18;
+const MEDIUM_TERM_EVIDENCE_WEIGHT = 0.20;
 const V3_SCORE_WEIGHTS = Object.freeze({
   quality: 0.15,
   activity: 0.55,
@@ -94,6 +106,10 @@ function normalizeMomentum(value: unknown): number {
 
 function roundMomentum(value: number): number {
   return Math.round(Math.max(0, Math.min(value, MAX_MOMENTUM)) * 10_000) / 10_000;
+}
+
+function roundRatio(value: number): number {
+  return Math.round(Math.max(0, Math.min(value, 1)) * 10_000) / 10_000;
 }
 
 function logarithmicSignal(value: number, saturationAt: number): number {
@@ -243,19 +259,46 @@ function resolveActivityState(
   };
 }
 
+function resolveActivityConfidence(
+  momentum: Readonly<CommunityRankingActivityMomentumV3>
+): CommunityRankingActivityConfidenceV3 {
+  // O curto prazo representa a evidência principal. Uma fração do médio prazo
+  // mantém continuidade sem contabilizar duas vezes, com peso cheio, o mesmo
+  // conjunto de eventos. O prior equivalente exige evidência sustentada antes de
+  // liberar integralmente o bônus positivo de atividade.
+  const effectiveEvidence = roundMomentum(
+    momentum.shortTerm
+    + momentum.mediumTerm * MEDIUM_TERM_EVIDENCE_WEIGHT
+  );
+  const confidence = effectiveEvidence > 0
+    ? effectiveEvidence / (effectiveEvidence + ACTIVITY_CONFIDENCE_PRIOR_UNITS)
+    : 0;
+
+  return {
+    modelVersion: COMMUNITY_ACTIVITY_CONFIDENCE_MODEL_VERSION,
+    effectiveEvidence,
+    confidence: roundRatio(confidence),
+  };
+}
+
 function resolveActivityScore(
   baseline: Readonly<CommunityRankingActivityBaselineV3>,
-  momentum: Readonly<CommunityRankingActivityMomentumV3>
+  momentum: Readonly<CommunityRankingActivityMomentumV3>,
+  activityConfidence: Readonly<CommunityRankingActivityConfidenceV3>
 ): number {
   const shortSignal = logarithmicSignal(momentum.shortTerm, 80) * 60;
   const mediumSignal = logarithmicSignal(momentum.mediumTerm, 300) * 25;
+  const positiveMomentumSignal =
+    (shortSignal + mediumSignal) * activityConfidence.confidence;
   const memberHealthSignal = logarithmicSignal(baseline.memberCount, 250) * 15;
   const churnPenalty =
     logarithmicSignal(momentum.churnShortTerm, 40) * 20
     + logarithmicSignal(momentum.churnMediumTerm, 150) * 10;
 
+  // Shrinkage só reduz bônus positivo incerto. Saúde estrutural de membros e
+  // churn continuam independentes para que uma amostra pequena não esconda risco.
   return normalizeScore(
-    shortSignal + mediumSignal + memberHealthSignal - churnPenalty
+    positiveMomentumSignal + memberHealthSignal - churnPenalty
   );
 }
 
@@ -275,9 +318,13 @@ export function buildCommunityDiscoveryRankingCandidateV3(
     input.rawDiscovery,
     now
   );
+  const activityConfidence = resolveActivityConfidence(
+    activityState.momentum
+  );
   const activityScore = resolveActivityScore(
     activityState.baseline,
-    activityState.momentum
+    activityState.momentum,
+    activityConfidence
   );
   const discoveryScore = v2.safetyScore === 100
     ? normalizeScore(
@@ -298,5 +345,6 @@ export function buildCommunityDiscoveryRankingCandidateV3(
     activityBaseline: activityState.baseline,
     activityMomentum: activityState.momentum,
     activityDelta: activityState.delta,
+    activityConfidence,
   };
 }
