@@ -1,3 +1,4 @@
+# Temporary one-shot lockfile refresh; removed after validation.
 name: Refresh Functions qs lock
 
 on:
