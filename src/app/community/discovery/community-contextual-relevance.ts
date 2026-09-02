@@ -14,6 +14,10 @@ import type {
   CommunityPreferenceSignalDomain,
   CommunityTagDefinition,
 } from '../data-access/community-tag.model';
+import type {
+  CommunityDiscoverySessionBehaviorState,
+  CommunityDiscoverySessionSignal,
+} from './community-discovery-session-behavior.service';
 
 export interface CommunityContextualMatch {
   readonly tagId: string;
@@ -24,6 +28,8 @@ export interface CommunityContextualMatch {
 export interface CommunityContextualRelevance {
   /** Peso interno de ordenação contextual; nunca deve ser mostrado como score. */
   readonly rank: number;
+  readonly explicitPreferenceRank: number;
+  readonly sessionBehaviorRank: number;
   readonly matches: readonly CommunityContextualMatch[];
 }
 
@@ -42,21 +48,8 @@ const SIGNAL_WEIGHTS: Readonly<Record<CommunityPreferenceSignalDomain, number>> 
     genderInterest: 2,
   });
 
-/**
- * A personalização só olha os quatro próximos cards orgânicos. Assim nenhum
- * item atravessa a página inteira por afinidade privada e a posição autoritativa
- * do backend continua exercendo forte influência na apresentação.
- */
 const CONTEXTUAL_CANDIDATE_WINDOW = 4;
-
-/**
- * A cada quatro posições, a primeira comunidade ainda não apresentada na ordem
- * orgânica vira uma âncora. Isso reserva 25% da sequência para qualidade,
- * frescor e exploração que já foram calculados pelo ranking backend.
- */
 const ORGANIC_ANCHOR_INTERVAL = 4;
-
-/** Penaliza repetição imediata sem transformar diversidade em filtro rígido. */
 const CONTEXTUAL_DIVERSITY_LOOKBACK = 2;
 
 function signalMatchesProfile(
@@ -72,6 +65,18 @@ function signalMatchesProfile(
   }
 
   return profile.hardRules.acceptedGenders.some((value) => value === signal.key);
+}
+
+function sessionBehaviorRank(
+  signal: Readonly<CommunityDiscoverySessionSignal> | undefined
+): number {
+  if (!signal) return 0;
+
+  // O comportamento nunca supera sozinho uma preferência explícita forte.
+  if (signal.memberActive) return 2;
+  if (signal.meaningfulOpenCount >= 4) return 2;
+  if (signal.meaningfulOpenCount >= 2) return 1;
+  return 0;
 }
 
 function recentContextualTagIds(
@@ -146,50 +151,72 @@ export function resolveCommunityContextualRelevance(
   catalog: readonly CommunityTagDefinition[],
   profile: Readonly<PreferenceProfile>
 ): CommunityContextualRelevance | null {
+  return resolveCommunityCombinedRelevance(card, catalog, profile, undefined);
+}
+
+function resolveCommunityCombinedRelevance(
+  card: Readonly<CommunityPreviewCard>,
+  catalog: readonly CommunityTagDefinition[],
+  profile: Readonly<PreferenceProfile> | null,
+  sessionSignal: Readonly<CommunityDiscoverySessionSignal> | undefined
+): CommunityContextualRelevance | null {
   const catalogById = new Map(catalog.map((tag) => [tag.id, tag] as const));
   const matches: CommunityContextualMatch[] = [];
-  let rank = 0;
+  let explicitPreferenceRank = 0;
 
-  for (const cardTag of card.tags) {
-    const definition = catalogById.get(cardTag.id);
-    const matchingSignals = (definition?.preferenceSignals ?? []).filter(
-      (signal) => signalMatchesProfile(signal, profile)
-    );
+  if (profile) {
+    for (const cardTag of card.tags) {
+      const definition = catalogById.get(cardTag.id);
+      const matchingSignals = (definition?.preferenceSignals ?? []).filter(
+        (signal) => signalMatchesProfile(signal, profile)
+      );
 
-    if (!definition || matchingSignals.length === 0) continue;
+      if (!definition || matchingSignals.length === 0) continue;
 
-    // Uma tag que representa mais de um domínio (ex.: Swing) conta apenas uma
-    // vez. O maior peso sinaliza a afinidade mais forte sem inflar o resultado.
-    rank += Math.max(
-      ...matchingSignals.map((signal) => SIGNAL_WEIGHTS[signal.domain])
-    );
-    matches.push({
-      tagId: definition.id,
-      label: definition.label,
-      category: definition.category,
-    });
+      explicitPreferenceRank += Math.max(
+        ...matchingSignals.map((signal) => SIGNAL_WEIGHTS[signal.domain])
+      );
+      matches.push({
+        tagId: definition.id,
+        label: definition.label,
+        category: definition.category,
+      });
+    }
   }
 
-  return rank > 0 && matches.length > 0
-    ? { rank, matches }
+  const behaviorRank = sessionBehaviorRank(sessionSignal);
+  const rank = explicitPreferenceRank + behaviorRank;
+
+  return rank > 0
+    ? {
+        rank,
+        explicitPreferenceRank,
+        sessionBehaviorRank: behaviorRank,
+        matches,
+      }
     : null;
 }
 
 export function personalizeCommunityDiscoveryCards(
   items: readonly CommunityPreviewCard[],
   catalog: readonly CommunityTagDefinition[],
-  profile: Readonly<PreferenceProfile>
+  profile: Readonly<PreferenceProfile> | null,
+  sessionBehavior?: Readonly<CommunityDiscoverySessionBehaviorState>
 ): readonly CommunityContextualPreviewCard[] {
-  const remaining: ContextualCandidate[] = items.map((item) => ({
-    card: {
-      ...item,
-      contextualRelevance: resolveCommunityContextualRelevance(
-        item,
-        catalog,
-        profile
-      ),
-    } satisfies CommunityContextualPreviewCard,
-  }));
+  const hidden = new Set(sessionBehavior?.hiddenCommunityIds ?? []);
+  const remaining: ContextualCandidate[] = items
+    .filter((item) => !hidden.has(item.communityId))
+    .map((item) => ({
+      card: {
+        ...item,
+        contextualRelevance: resolveCommunityCombinedRelevance(
+          item,
+          catalog,
+          profile,
+          sessionBehavior?.signals[item.communityId]
+        ),
+      } satisfies CommunityContextualPreviewCard,
+    }));
   const selected: ContextualCandidate[] = [];
 
   while (remaining.length > 0) {
