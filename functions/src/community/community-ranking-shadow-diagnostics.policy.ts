@@ -90,8 +90,9 @@ export function buildCommunityRankingShadowDiagnostics(input: {
   now?: number;
 }): CommunityRankingShadowDiagnostics {
   const topK = normalizeTopK(input.topK);
-  const now = Number.isFinite(input.now) && Number(input.now) > 0
-    ? Math.trunc(Number(input.now))
+  const parsedNow = Number(input.now);
+  const now = Number.isFinite(parsedNow) && parsedNow > 0
+    ? Math.trunc(parsedNow)
     : Date.now();
   const officialTop = normalizeEntries(input.officialTop, topK);
   const candidateTop = normalizeEntries(input.candidateTop, topK);
