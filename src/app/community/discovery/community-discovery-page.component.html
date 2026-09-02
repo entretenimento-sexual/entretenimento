@@ -129,7 +129,11 @@
         aria-live="polite"
       >
         <span><strong>{{ hiddenFeedback.name }}</strong> foi ocultada nesta sessão.</span>
-        <button type="button" (click)="restoreHiddenCommunity()">Desfazer</button>
+        <button
+          class="community-discovery__empty-explore"
+          type="button"
+          (click)="restoreHiddenCommunity()"
+        >Desfazer</button>
       </div>
     }
 
@@ -157,12 +161,18 @@
       } @else {
         <div class="community-discovery__state" role="status">
           <i class="fas fa-compass" aria-hidden="true"></i>
-          <span>{{ selectedTagId() ? 'Nenhuma Comunidade encontrada com este interesse.' : emptyMessage }}</span>
+          <span>
+            @if (hiddenCommunityFeedback()) {
+              Você ocultou as Comunidades visíveis desta sessão.
+            } @else {
+              {{ selectedTagId() ? 'Nenhuma Comunidade encontrada com este interesse.' : emptyMessage }}
+            }
+          </span>
           @if (canCreateVenue) {
             <a class="community-discovery__empty-create" routerLink="/dashboard/locais/novo">
               Cadastrar Espaço Oficial
             </a>
-          } @else if (canCreateCommunity) {
+          } @else if (canCreateCommunity && !hiddenCommunityFeedback()) {
             <a
               class="community-discovery__empty-create"
               href="/dashboard/comunidades/nova"
@@ -279,13 +289,13 @@
 
             @if (canFilterByTags) {
               <button
-                class="community-card__dismiss"
+                class="community-card__dismiss community-discovery__empty-explore"
                 type="button"
                 [attr.aria-label]="'Não tenho interesse em ' + item.name + ' nesta sessão'"
-                title="Não tenho interesse"
                 (click)="hideCommunity(item, $event)"
               >
                 <i class="fas fa-xmark" aria-hidden="true"></i>
+                <span>Não tenho interesse</span>
               </button>
             }
           </li>
