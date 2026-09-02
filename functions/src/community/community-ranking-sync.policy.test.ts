@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION } from './community-ranking-candidate-v3.policy';
 import {
   buildCommunityRankingProjectionPatch,
   haveCommunityRankingVisualInputsChanged,
@@ -28,7 +29,7 @@ function community(overrides: Record<string, unknown> = {}) {
   };
 }
 
-test('gera patch persistível sem depender de rankScore legado', () => {
+test('gera score v2 autoritativo e candidato v3 shadow no mesmo patch', () => {
   const patch = buildCommunityRankingProjectionPatch(
     community(),
     { avatarUrl: 'https://cdn.example.com/avatar.webp' },
@@ -39,9 +40,17 @@ test('gera patch persistível sem depender de rankScore legado', () => {
   assert.equal('rankScore' in patch, false);
   assert.equal(patch.ranking.scoreUpdatedAt, NOW);
   assert.equal(patch.ranking.scoreVersion, COMMUNITY_DISCOVERY_SCORE_VERSION);
+  assert.equal(
+    patch.rankingCandidate.scoreVersion,
+    COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION
+  );
+  assert.equal(
+    patch.rankingCandidate.activityBaseline.memberCount,
+    20
+  );
 });
 
-test('considera projeção atual mesmo com scoreUpdatedAt antigo', () => {
+test('considera projeção atual mesmo com timestamps diagnósticos antigos', () => {
   const expected = buildCommunityRankingProjectionPatch(
     community(),
     {},
@@ -53,6 +62,14 @@ test('considera projeção atual mesmo com scoreUpdatedAt antigo', () => {
       ...expected.ranking,
       scoreUpdatedAt: NOW - 86_400_000,
     },
+    rankingCandidate: {
+      ...expected.rankingCandidate,
+      scoreUpdatedAt: NOW - 86_400_000,
+      activityBaseline: {
+        ...expected.rankingCandidate.activityBaseline,
+        measuredAt: NOW - 86_400_000,
+      },
+    },
   };
 
   assert.equal(
@@ -61,7 +78,7 @@ test('considera projeção atual mesmo com scoreUpdatedAt antigo', () => {
   );
 });
 
-test('detecta mudança material no breakdown', () => {
+test('detecta mudança material no breakdown autoritativo', () => {
   const expected = buildCommunityRankingProjectionPatch(
     community(),
     {},
@@ -73,12 +90,38 @@ test('detecta mudança material no breakdown', () => {
       ...expected.ranking,
       activityScore: Math.max(expected.ranking.activityScore - 1, 0),
     },
+    rankingCandidate: expected.rankingCandidate,
   };
 
   assert.equal(
     isCommunityRankingProjectionCurrent(persisted, expected),
     false
   );
+});
+
+test('detecta mudança material no candidato v3 sem alterar discoveryScore v2', () => {
+  const expected = buildCommunityRankingProjectionPatch(
+    community(),
+    {},
+    NOW
+  );
+  const persisted = {
+    discoveryScore: expected.discoveryScore,
+    ranking: expected.ranking,
+    rankingCandidate: {
+      ...expected.rankingCandidate,
+      activityMomentum: {
+        ...expected.rankingCandidate.activityMomentum,
+        shortTerm: expected.rankingCandidate.activityMomentum.shortTerm + 1,
+      },
+    },
+  };
+
+  assert.equal(
+    isCommunityRankingProjectionCurrent(persisted, expected),
+    false
+  );
+  assert.equal(expected.discoveryScore, expected.ranking.discoveryScore);
 });
 
 test('trigger visual reage somente a descrição, avatar ou capa', () => {
