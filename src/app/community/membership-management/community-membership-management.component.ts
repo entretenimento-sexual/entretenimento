@@ -44,6 +44,9 @@ import {
   COMMUNITY_MEMBERSHIP_REVIEW_REASON_MESSAGES,
 } from '../presentation/community-error.messages';
 import {
+  COMMUNITY_MEMBERSHIP_ACTION_REASON_PRESENTATIONS,
+} from '../presentation/community-error.presentations';
+import {
   COMMUNITY_RATE_LIMIT_REASON_MESSAGES,
 } from '../presentation/community-rate-limit.messages';
 import { CommunitySettingsComponent } from '../community-settings/community-settings.component';
@@ -317,6 +320,7 @@ export class CommunityMembershipManagementComponent {
         ? 'Não foi possível revisar esta solicitação de acesso.'
         : 'Não foi possível revisar esta solicitação de entrada.',
       reasonMessages: MEMBERSHIP_REVIEW_REASON_MESSAGES,
+      reasonPresentations: COMMUNITY_MEMBERSHIP_ACTION_REASON_PRESENTATIONS,
       codeMessages: COMMUNITY_MEMBERSHIP_REVIEW_CODE_MESSAGES,
       metadata: {
         scope: 'CommunityMembershipManagementComponent',
