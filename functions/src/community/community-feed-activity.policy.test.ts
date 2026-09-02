@@ -2,7 +2,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isCommunityFeedTransitionMeaningful } from './community-feed-activity.policy';
+import {
+  isCommunityFeedTransitionMeaningful,
+  resolveCommunityFeedInteractionDelta,
+} from './community-feed-activity.policy';
 
 function projection(overrides: Record<string, unknown> = {}) {
   return {
@@ -19,33 +22,48 @@ test('nova publicação ativa é atividade significativa', () => {
     isCommunityFeedTransitionMeaningful(null, projection()),
     true
   );
+  assert.equal(resolveCommunityFeedInteractionDelta(null, projection()), 0);
 });
 
-test('reativação de publicação moderada é atividade significativa', () => {
-  assert.equal(
-    isCommunityFeedTransitionMeaningful(
-      projection({ status: 'hidden' }),
-      projection()
-    ),
-    true
-  );
+test('reativação de publicação moderada é atividade significativa sem fabricar interação', () => {
+  const before = projection({ status: 'hidden' });
+  const after = projection();
+
+  assert.equal(isCommunityFeedTransitionMeaningful(before, after), true);
+  assert.equal(resolveCommunityFeedInteractionDelta(before, after), 0);
 });
 
-test('crescimento de comentário ou reação renova atividade', () => {
-  assert.equal(
-    isCommunityFeedTransitionMeaningful(
-      projection(),
-      projection({ metrics: { commentCount: 1, reactionCount: 0 } })
-    ),
-    true
-  );
-  assert.equal(
-    isCommunityFeedTransitionMeaningful(
-      projection(),
-      projection({ metrics: { commentCount: 0, reactionCount: 1 } })
-    ),
-    true
-  );
+test('crescimento de comentário ou reação renova atividade e retorna o delta real', () => {
+  const before = projection({
+    metrics: { commentCount: 3, reactionCount: 4 },
+  });
+  const after = projection({
+    metrics: { commentCount: 5, reactionCount: 7 },
+  });
+
+  assert.equal(isCommunityFeedTransitionMeaningful(before, after), true);
+  assert.equal(resolveCommunityFeedInteractionDelta(before, after), 5);
+});
+
+test('redução de métricas não vira atividade positiva', () => {
+  const before = projection({
+    metrics: { commentCount: 8, reactionCount: 9 },
+  });
+  const after = projection({
+    metrics: { commentCount: 7, reactionCount: 5 },
+  });
+
+  assert.equal(isCommunityFeedTransitionMeaningful(before, after), false);
+  assert.equal(resolveCommunityFeedInteractionDelta(before, after), 0);
+});
+
+test('limita saltos anormais de interação antes de atualizar o agregado', () => {
+  const before = projection();
+  const after = projection({
+    metrics: { commentCount: 50_000, reactionCount: 50_000 },
+  });
+
+  assert.equal(resolveCommunityFeedInteractionDelta(before, after), 1_000);
 });
 
 test('edição sem novo engajamento não renova o relógio', () => {
