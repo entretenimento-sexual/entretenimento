@@ -11,6 +11,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { defer, from, map, Observable, tap } from 'rxjs';
 
 import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
+import { CommunityDiscoverySessionBehaviorService } from '../discovery/community-discovery-session-behavior.service';
 import {
   CommunityMembershipRequestResponse,
   CommunityMembershipRequestsResponse,
@@ -25,6 +26,9 @@ import {
 export class CommunityMembershipRepository {
   private readonly functions = inject(Functions);
   private readonly discoveryCache = inject(CommunityDiscoveryCacheService);
+  private readonly sessionBehavior = inject(
+    CommunityDiscoverySessionBehaviorService
+  );
 
   private readonly requestMembershipCallable = httpsCallable<
     { communityId: string },
@@ -53,8 +57,10 @@ export class CommunityMembershipRepository {
   requestMembership$(
     communityId: string
   ): Observable<CommunityMembershipRequestResponse> {
+    const normalizedCommunityId = communityId.trim();
+
     return defer(() =>
-      from(this.requestMembershipCallable({ communityId: communityId.trim() }))
+      from(this.requestMembershipCallable({ communityId: normalizedCommunityId }))
     ).pipe(
       map((result) => {
         const normalized = normalizeCommunityMembershipResponse(result.data);
@@ -65,17 +71,24 @@ export class CommunityMembershipRepository {
 
         return normalized;
       }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer({
-        sourceType: 'community',
-      }))
+      tap((result) => {
+        if (result.status === 'active') {
+          this.sessionBehavior.setMembershipActive(normalizedCommunityId, true);
+        }
+        this.discoveryCache.invalidateCurrentViewer({
+          sourceType: 'community',
+        });
+      })
     );
   }
 
   leaveMembership$(
     communityId: string
   ): Observable<CommunityMembershipRequestResponse> {
+    const normalizedCommunityId = communityId.trim();
+
     return defer(() =>
-      from(this.leaveMembershipCallable({ communityId: communityId.trim() }))
+      from(this.leaveMembershipCallable({ communityId: normalizedCommunityId }))
     ).pipe(
       map((result) => {
         const normalized = normalizeCommunityMembershipResponse(result.data);
@@ -86,9 +99,12 @@ export class CommunityMembershipRepository {
 
         return normalized;
       }),
-      tap(() => this.discoveryCache.invalidateCurrentViewer({
-        sourceType: 'community',
-      }))
+      tap(() => {
+        this.sessionBehavior.setMembershipActive(normalizedCommunityId, false);
+        this.discoveryCache.invalidateCurrentViewer({
+          sourceType: 'community',
+        });
+      })
     );
   }
 
