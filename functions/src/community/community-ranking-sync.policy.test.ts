@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION } from './community-ranking-candidate-v3.policy';
+import { buildCommunityRankingShadowDiagnostics } from './community-ranking-shadow-diagnostics.policy';
 import {
   buildCommunityRankingProjectionPatch,
   haveCommunityRankingVisualInputsChanged,
@@ -192,4 +193,94 @@ test('limita lote diário configurável', () => {
     resolveCommunityRankingMaxPerRun({ rankingMaxCommunitiesPerRun: 50_000 }),
     10_000
   );
+});
+
+test('diagnóstico shadow reconhece top-K idêntico sem deslocamento', () => {
+  const diagnostics = buildCommunityRankingShadowDiagnostics({
+    officialTop: [
+      { communityId: 'community-a', score: 90 },
+      { communityId: 'community-b', score: 80 },
+      { communityId: 'community-c', score: 70 },
+    ],
+    candidateTop: [
+      { communityId: 'community-a', score: 92 },
+      { communityId: 'community-b', score: 82 },
+      { communityId: 'community-c', score: 72 },
+    ],
+    topK: 3,
+  });
+
+  assert.equal(diagnostics.overlapRate, 100);
+  assert.equal(diagnostics.rankAgreement, 100);
+  assert.equal(diagnostics.meanAbsoluteRankShift, 0);
+  assert.equal(diagnostics.maxAbsoluteRankShift, 0);
+  assert.equal(diagnostics.candidateEntrants, 0);
+  assert.equal(diagnostics.candidateExits, 0);
+  assert.equal(diagnostics.meanCandidateScoreDelta, 2);
+});
+
+test('diagnóstico shadow mede reordenação sem confundir com entrada ou saída', () => {
+  const diagnostics = buildCommunityRankingShadowDiagnostics({
+    officialTop: [
+      { communityId: 'community-a', score: 90 },
+      { communityId: 'community-b', score: 80 },
+      { communityId: 'community-c', score: 70 },
+    ],
+    candidateTop: [
+      { communityId: 'community-c', score: 95 },
+      { communityId: 'community-a', score: 85 },
+      { communityId: 'community-b', score: 75 },
+    ],
+    topK: 3,
+  });
+
+  assert.equal(diagnostics.overlapRate, 100);
+  assert.equal(diagnostics.meanAbsoluteRankShift, 1.33);
+  assert.equal(diagnostics.maxAbsoluteRankShift, 2);
+  assert.equal(diagnostics.rankAgreement, 33.33);
+  assert.equal(diagnostics.candidateEntrants, 0);
+  assert.equal(diagnostics.candidateExits, 0);
+});
+
+test('diagnóstico shadow evidencia renovação parcial do top-K', () => {
+  const diagnostics = buildCommunityRankingShadowDiagnostics({
+    officialTop: [
+      { communityId: 'community-a', score: 90 },
+      { communityId: 'community-b', score: 80 },
+      { communityId: 'community-c', score: 70 },
+    ],
+    candidateTop: [
+      { communityId: 'community-a', score: 91 },
+      { communityId: 'community-d', score: 85 },
+      { communityId: 'community-e', score: 84 },
+    ],
+    topK: 3,
+  });
+
+  assert.equal(diagnostics.overlapCount, 1);
+  assert.equal(diagnostics.overlapRate, 33.33);
+  assert.equal(diagnostics.candidateEntrants, 2);
+  assert.equal(diagnostics.candidateExits, 2);
+});
+
+test('diagnóstico shadow deduplica IDs e não devolve identificadores', () => {
+  const diagnostics = buildCommunityRankingShadowDiagnostics({
+    officialTop: [
+      { communityId: 'community-a', score: 90 },
+      { communityId: 'community-a', score: 89 },
+      { communityId: 'community-b', score: 80 },
+    ],
+    candidateTop: [
+      { communityId: 'community-a', score: 92 },
+      { communityId: 'community-b', score: 81 },
+    ],
+    topK: 2,
+  });
+  const serialized = JSON.stringify(diagnostics);
+
+  assert.equal(diagnostics.officialTopCount, 2);
+  assert.equal(diagnostics.candidateTopCount, 2);
+  assert.equal(serialized.includes('community-a'), false);
+  assert.equal(serialized.includes('community-b'), false);
+  assert.equal(serialized.includes('communityId'), false);
 });
