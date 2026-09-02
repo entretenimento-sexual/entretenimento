@@ -5,6 +5,7 @@
 // Mantém o score orgânico derivado sem acoplar cada callable ao ranking.
 // Mudanças na Comunidade atualizam atividade/frescor/segurança; mudanças visuais
 // na projeção atualizam qualidade. `rankScore` legado não é alterado aqui.
+// O candidato v3 permanece shadow-only; o log compara ambos para diagnóstico.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
@@ -54,6 +55,10 @@ async function persistCommunityRanking(
     communityId,
     discoveryScore: expected.discoveryScore,
     scoreVersion: expected.ranking.scoreVersion,
+    candidateDiscoveryScore: expected.rankingCandidate.discoveryScore,
+    candidateScoreVersion: expected.rankingCandidate.scoreVersion,
+    candidateActivityScore: expected.rankingCandidate.activityScore,
+    candidateActivityDelta: expected.rankingCandidate.activityDelta,
   });
 }
 
