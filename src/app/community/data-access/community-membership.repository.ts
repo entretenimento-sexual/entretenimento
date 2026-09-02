@@ -8,7 +8,7 @@
 
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { defer, from, map, Observable, tap } from 'rxjs';
+import { defer, forkJoin, from, map, Observable, of, tap } from 'rxjs';
 
 import { CommunityDiscoveryCacheService } from '../discovery/community-discovery-cache.service';
 import { CommunityDiscoverySessionBehaviorService } from '../discovery/community-discovery-session-behavior.service';
@@ -23,6 +23,8 @@ import {
   normalizeCommunityMembershipResponse,
   normalizeCommunityMembershipReviewResponse,
 } from './community-membership.model';
+
+const COMMUNITY_MEMBERSHIP_CONTEXT_BATCH_SIZE = 24;
 
 @Injectable({ providedIn: 'root' })
 export class CommunityMembershipRepository {
@@ -120,20 +122,37 @@ export class CommunityMembershipRepository {
   ): Observable<CommunityMembershipContextResponse> {
     const normalizedIds = [...new Set(
       communityIds.map((communityId) => communityId.trim()).filter(Boolean)
-    )].slice(0, 24);
+    )];
 
-    return defer(() =>
-      from(this.getMembershipContextCallable({ communityIds: normalizedIds }))
+    if (normalizedIds.length === 0) {
+      return of({ activeCommunityIds: [], generatedAt: Date.now() });
+    }
+
+    const batches: string[][] = [];
+    for (
+      let index = 0;
+      index < normalizedIds.length;
+      index += COMMUNITY_MEMBERSHIP_CONTEXT_BATCH_SIZE
+    ) {
+      batches.push(
+        normalizedIds.slice(
+          index,
+          index + COMMUNITY_MEMBERSHIP_CONTEXT_BATCH_SIZE
+        )
+      );
+    }
+
+    return forkJoin(
+      batches.map((batch) => this.getMembershipContextBatch$(batch))
     ).pipe(
-      map((result) => {
-        const normalized = normalizeCommunityMembershipContextResponse(result.data);
-
-        if (!normalized) {
-          throw new Error('Contexto de participação comunitária inválido.');
-        }
-
-        return normalized;
-      })
+      map((responses) => ({
+        activeCommunityIds: [...new Set(
+          responses.flatMap((response) => response.activeCommunityIds)
+        )],
+        generatedAt: Math.max(
+          ...responses.map((response) => response.generatedAt)
+        ),
+      }))
     );
   }
 
@@ -188,6 +207,24 @@ export class CommunityMembershipRepository {
         sourceType: 'community',
         communityId,
       }))
+    );
+  }
+
+  private getMembershipContextBatch$(
+    communityIds: readonly string[]
+  ): Observable<CommunityMembershipContextResponse> {
+    return defer(() =>
+      from(this.getMembershipContextCallable({ communityIds }))
+    ).pipe(
+      map((result) => {
+        const normalized = normalizeCommunityMembershipContextResponse(result.data);
+
+        if (!normalized) {
+          throw new Error('Contexto de participação comunitária inválido.');
+        }
+
+        return normalized;
+      })
     );
   }
 }
