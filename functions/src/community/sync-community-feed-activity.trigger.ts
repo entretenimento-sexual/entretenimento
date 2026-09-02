@@ -4,7 +4,8 @@
 // -----------------------------------------------------------------------------
 // A projeção community_public_feed é backend-only. Novas publicações válidas e
 // crescimento real de comentários/reações atualizam o relógio de lifecycle.
-// Comunidades arquivadas ou agendadas para exclusão permanecem congeladas.
+// O contador agregado de interação alimenta o ranking temporal sem persistir
+// identidade individual dos participantes.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
@@ -13,7 +14,10 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import { canSyncCommunityActivity } from './community-activity-sync.policy';
-import { isCommunityFeedTransitionMeaningful } from './community-feed-activity.policy';
+import {
+  isCommunityFeedTransitionMeaningful,
+  resolveCommunityFeedInteractionDelta,
+} from './community-feed-activity.policy';
 
 export const syncCommunityFeedActivity = onDocumentWritten(
   {
@@ -40,14 +44,25 @@ export const syncCommunityFeedActivity = onDocumentWritten(
     const community = communitySnapshot.data() ?? {};
     if (!canSyncCommunityActivity(community)) return;
 
+    const interactionDelta = resolveCommunityFeedInteractionDelta(
+      before,
+      after
+    );
     const now = FieldValue.serverTimestamp();
-    await communityRef.update({
+    const patch: Record<string, unknown> = {
       'lifecycle.lastMeaningfulActivityAt': now,
       updatedAt: now,
-    });
+    };
+
+    if (interactionDelta > 0) {
+      patch['metrics.interactionCount'] = FieldValue.increment(interactionDelta);
+    }
+
+    await communityRef.update(patch);
 
     logger.debug('community_feed_activity_synced', {
       communityId,
+      interactionDelta,
     });
   }
 );
