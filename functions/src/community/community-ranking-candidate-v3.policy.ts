@@ -281,10 +281,10 @@ export function buildCommunityDiscoveryRankingCandidateV3(
   );
   const discoveryScore = v2.safetyScore === 100
     ? normalizeScore(
-        v2.qualityScore * V3_SCORE_WEIGHTS.quality
-        + activityScore * V3_SCORE_WEIGHTS.activity
-        + v2.freshnessScore * V3_SCORE_WEIGHTS.freshness
-      )
+      v2.qualityScore * V3_SCORE_WEIGHTS.quality
+      + activityScore * V3_SCORE_WEIGHTS.activity
+      + v2.freshnessScore * V3_SCORE_WEIGHTS.freshness
+    )
     : 0;
 
   return {
