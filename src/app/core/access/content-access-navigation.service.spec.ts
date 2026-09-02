@@ -93,6 +93,34 @@ describe('resolveContentAccessNavigationTarget', () => {
       )
     ).toEqual({ commands: ['/register/finalizar-cadastro'] });
   });
+
+  it('usa as rotas canônicas para termos e reverificação de maioridade', () => {
+    expect(
+      resolveContentAccessNavigationTarget(
+        createDecision({
+          recommendedAction: 'accept_current_terms',
+          minimumRole: null,
+        }),
+        '/dashboard/comunidades'
+      )
+    ).toEqual({
+      commands: ['/register/aceitar-termos'],
+      queryParams: { returnUrl: '/dashboard/comunidades' },
+    });
+
+    expect(
+      resolveContentAccessNavigationTarget(
+        createDecision({
+          recommendedAction: 'complete_age_reverification',
+          minimumRole: null,
+        }),
+        '/dashboard/comunidades'
+      )
+    ).toEqual({
+      commands: ['/adulto/revalidar'],
+      queryParams: { returnUrl: '/dashboard/comunidades' },
+    });
+  });
 });
 
 describe('ContentAccessNavigationService', () => {
