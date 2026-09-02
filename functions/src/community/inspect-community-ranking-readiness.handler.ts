@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 // Diagnóstico administrativo somente-leitura para homologar a troca do ranking
 // legado para a versão atual do score. Não altera configuração, runtime, índices
-// ou projeções.
+// ou projeções. A comparação v2 x v3 permanece agregada e shadow-only.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
@@ -22,10 +22,22 @@ import {
 } from './community-discovery-ranking-mode.policy';
 import { hasCommunityOperationsPermission } from './community-operations.authorization';
 import {
+  COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+} from './community-ranking-candidate-v3.policy';
+import {
+  buildCommunityRankingShadowDiagnostics,
+  type CommunityRankingShadowDiagnostics,
+  type CommunityRankingShadowEntry,
+} from './community-ranking-shadow-diagnostics.policy';
+import {
   COMMUNITY_DISCOVERY_RANKING_MODE,
   COMMUNITY_DISCOVERY_SCORE_VERSION,
 } from './community-ranking.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
+
+const SHADOW_COMPARISON_TOP_K = 25;
+
+type CommunityRankingShadowUnavailableReason = 'ranking_cycle_not_ready';
 
 interface CommunityRankingReadinessInspection {
   requestedMode: CommunityDiscoveryRankingMode;
@@ -52,6 +64,12 @@ interface CommunityRankingReadinessInspection {
     configuredMode: string | null;
     targetScoreRequested: boolean;
     scoreIndexReady: boolean;
+  };
+  shadowComparison: {
+    available: boolean;
+    candidateScoreVersion: typeof COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION;
+    unavailableReason: CommunityRankingShadowUnavailableReason | null;
+    diagnostics: CommunityRankingShadowDiagnostics | null;
   };
   canEnableTargetScore: boolean;
   generatedAt: number;
@@ -127,6 +145,64 @@ async function assertAuthorized(
   );
 }
 
+function toOfficialShadowEntries(
+  documents: readonly { id: string; data(): Record<string, unknown> }[]
+): CommunityRankingShadowEntry[] {
+  return documents.map((document) => ({
+    communityId: document.id,
+    score: Number(document.data()['discoveryScore']),
+  }));
+}
+
+function toCandidateShadowEntries(
+  documents: readonly { id: string; data(): Record<string, unknown> }[]
+): CommunityRankingShadowEntry[] {
+  return documents.map((document) => {
+    const candidate = asRecord(document.data()['rankingCandidate']);
+    return {
+      communityId: document.id,
+      score: Number(candidate['discoveryScore']),
+    };
+  });
+}
+
+async function inspectShadowComparison(
+  runtimeReadyForTarget: boolean
+): Promise<CommunityRankingReadinessInspection['shadowComparison']> {
+  if (!runtimeReadyForTarget) {
+    return {
+      available: false,
+      candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+      unavailableReason: 'ranking_cycle_not_ready',
+      diagnostics: null,
+    };
+  }
+
+  const projection = db.collection('community_discovery_index');
+  const [officialSnapshot, candidateSnapshot] = await Promise.all([
+    projection
+      .orderBy('discoveryScore', 'desc')
+      .limit(SHADOW_COMPARISON_TOP_K)
+      .get(),
+    projection
+      .orderBy('rankingCandidate.discoveryScore', 'desc')
+      .limit(SHADOW_COMPARISON_TOP_K)
+      .get(),
+  ]);
+  const diagnostics = buildCommunityRankingShadowDiagnostics({
+    officialTop: toOfficialShadowEntries(officialSnapshot.docs),
+    candidateTop: toCandidateShadowEntries(candidateSnapshot.docs),
+    topK: SHADOW_COMPARISON_TOP_K,
+  });
+
+  return {
+    available: true,
+    candidateScoreVersion: COMMUNITY_DISCOVERY_CANDIDATE_SCORE_VERSION,
+    unavailableReason: null,
+    diagnostics,
+  };
+}
+
 export const inspectCommunityRankingReadiness = onCall(
   {
     region: FUNCTIONS_REGION,
@@ -155,6 +231,7 @@ export const inspectCommunityRankingReadiness = onCall(
     const runtimeReadyForTarget = runtime['ready'] === true
       && Number(runtime['completedScoreVersion'])
         === COMMUNITY_DISCOVERY_SCORE_VERSION;
+    const shadowComparison = await inspectShadowComparison(runtimeReadyForTarget);
     const inspection: CommunityRankingReadinessInspection = {
       requestedMode: decision.requestedMode,
       effectiveMode: decision.effectiveMode,
@@ -181,6 +258,7 @@ export const inspectCommunityRankingReadiness = onCall(
         targetScoreRequested: configuredMode === COMMUNITY_DISCOVERY_RANKING_MODE,
         scoreIndexReady,
       },
+      shadowComparison,
       canEnableTargetScore: scoreIndexReady && runtimeReadyForTarget,
       generatedAt: Date.now(),
     };
@@ -194,6 +272,12 @@ export const inspectCommunityRankingReadiness = onCall(
       runtimeReady: inspection.runtime.ready,
       completedScoreVersion: inspection.runtime.completedScoreVersion,
       canEnableTargetScore: inspection.canEnableTargetScore,
+      shadowAvailable: inspection.shadowComparison.available,
+      shadowTopK: inspection.shadowComparison.diagnostics?.topK ?? null,
+      shadowOverlapRate:
+        inspection.shadowComparison.diagnostics?.overlapRate ?? null,
+      shadowRankAgreement:
+        inspection.shadowComparison.diagnostics?.rankAgreement ?? null,
     });
 
     return inspection;
