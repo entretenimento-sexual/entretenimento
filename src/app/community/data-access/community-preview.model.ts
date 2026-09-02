@@ -53,6 +53,12 @@ export interface CommunityPreviewTag {
   category: CommunityTagCategory;
 }
 
+export interface CommunityPreviewPublicLocation {
+  readonly uf: string;
+  readonly city: string;
+  readonly district: string | null;
+}
+
 export interface CommunityPreviewCard {
   communityId: string;
   name: string;
@@ -75,6 +81,8 @@ export interface CommunityPreviewCard {
     requiresActiveSubscription: boolean;
   };
   tags: readonly CommunityPreviewTag[];
+  /** Localização pública coarse; nunca inclui endereço preciso ou coordenadas. */
+  publicLocation?: CommunityPreviewPublicLocation | null;
   /** Projeção pública derivada da associação oficial canônica. */
   officialAssociation?: CommunityOfficialAssociationPublic | null;
   /** Presente apenas nas respostas privadas de Comunidades do próprio viewer. */
@@ -112,6 +120,11 @@ export interface CommunityPreviewResponse {
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const SAFE_DISCOVERY_CURSOR_PATTERN = /^[A-Za-z0-9:_-]{1,192}$/;
+const BRAZILIAN_UFS = new Set([
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
+  'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC',
+  'SP', 'SE', 'TO',
+]);
 
 function normalizeText(value: unknown, maxLength: number): string {
   return [...String(value ?? '')]
@@ -221,6 +234,25 @@ function normalizeTags(raw: unknown): readonly CommunityPreviewTag[] {
   return [...tags.values()];
 }
 
+function normalizePublicLocation(
+  raw: unknown
+): CommunityPreviewPublicLocation | null {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  const uf = normalizeText(source['uf'], 2).toUpperCase();
+  const city = normalizeText(source['city'], 80);
+  const district = normalizeText(source['district'], 80);
+
+  if (!BRAZILIAN_UFS.has(uf) || city.length < 1) {
+    return null;
+  }
+
+  return {
+    uf,
+    city,
+    district: district || null,
+  };
+}
+
 function normalizeCard(raw: unknown): CommunityPreviewCard | null {
   const source = (raw ?? {}) as Record<string, unknown>;
   const sourceData = (source['source'] ?? {}) as Record<string, unknown>;
@@ -245,6 +277,9 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
   const description = normalizeText(source['description'], 240);
   const join = access['join'];
   const viewerRole = normalizeViewerRole(source['viewerRole']);
+  const publicLocation = sourceType === 'venue'
+    ? normalizePublicLocation(source['publicLocation'])
+    : null;
   const officialAssociation = normalizeCommunityOfficialAssociationPublic(
     source['officialAssociation']
   );
@@ -269,6 +304,7 @@ function normalizeCard(raw: unknown): CommunityPreviewCard | null {
       requiresActiveSubscription: false,
     },
     tags: normalizeTags(source['tags']),
+    ...(publicLocation ? { publicLocation } : {}),
     ...(officialAssociation ? { officialAssociation } : {}),
     ...(viewerRole ? { viewerRole } : {}),
   };
