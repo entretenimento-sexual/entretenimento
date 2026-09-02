@@ -31,6 +31,16 @@ run_checked "$OUT/explore/desktop/metrics.log" "async (page) => {
     const gridStyle = grid ? getComputedStyle(grid) : null;
     const cards = Array.from(document.querySelectorAll('.community-card'));
     const dismissButtons = Array.from(document.querySelectorAll('.community-card__dismiss'));
+    const dismissOverlapsCards = dismissButtons.some((button) => {
+      const buttonRect = button.getBoundingClientRect();
+      return cards.some((card) => {
+        const cardRect = card.getBoundingClientRect();
+        return buttonRect.left < cardRect.right
+          && buttonRect.right > cardRect.left
+          && buttonRect.top < cardRect.bottom
+          && buttonRect.bottom > cardRect.top;
+      });
+    });
     const create = document.querySelector('.community-discovery__create');
     const filters = document.querySelector('.community-discovery__filter-strip');
     return {
@@ -47,6 +57,7 @@ run_checked "$OUT/explore/desktop/metrics.log" "async (page) => {
       dismissMinHeight: dismissButtons.length
         ? Math.min(...dismissButtons.map((button) => button.getBoundingClientRect().height))
         : 0,
+      dismissOverlapsCards,
     };
   });
   if (
@@ -59,6 +70,7 @@ run_checked "$OUT/explore/desktop/metrics.log" "async (page) => {
     || metrics.filterChipCount < 6
     || metrics.createHeight < 44
     || metrics.dismissMinHeight < 44
+    || metrics.dismissOverlapsCards
   ) {
     throw new Error('Community discovery desktop validation failed: ' + JSON.stringify(metrics));
   }
@@ -85,6 +97,10 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
     const main = document.querySelector('.community-discovery');
     const header = document.querySelector('.community-discovery__header');
     const create = document.querySelector('.community-discovery__create');
+    const currentScrollY = window.scrollY;
+    window.scrollTo(9999, currentScrollY);
+    const windowScrollX = window.scrollX;
+    window.scrollTo(0, currentScrollY);
     const overflowElements = Array.from(document.querySelectorAll('body *'))
       .filter((element) => {
         const rect = element.getBoundingClientRect();
@@ -118,6 +134,7 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
       viewportWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
       bodyScrollWidth: document.body.scrollWidth,
+      windowScrollX,
       mainWidth: main?.getBoundingClientRect().width ?? 0,
       mainClientWidth: main?.clientWidth ?? 0,
       mainScrollWidth: main?.scrollWidth ?? 0,
@@ -138,7 +155,8 @@ run_checked "$OUT/explore/mobile/metrics.log" "async (page) => {
     };
   });
   if (
-    metrics.scrollWidth > metrics.viewportWidth + 1
+    metrics.bodyScrollWidth > metrics.viewportWidth + 1
+    || metrics.windowScrollX > 1
     || metrics.gridColumns !== 1
     || metrics.gridWidth < metrics.viewportWidth * 0.9
     || Math.abs(metrics.firstCardWidth - metrics.gridWidth) > 1

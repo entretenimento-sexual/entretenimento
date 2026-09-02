@@ -301,6 +301,18 @@
   min-width: 0;
 }
 
+.community-card-shell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: stretch;
+}
+
+.community-card__dismiss {
+  max-width: 100%;
+  justify-self: start;
+}
+
 .community-card {
   min-width: 0;
   height: 100%;
