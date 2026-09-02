@@ -15,6 +15,7 @@ import {
   normalizeCommunityDiscoveryPageResponse,
   normalizeCommunityPreviewResponse,
 } from './community-preview.model';
+import { sanitizeCommunityPublicDiscoveryPage } from './community-public-visibility.policy';
 
 @Injectable({ providedIn: 'root' })
 export class CommunityPreviewRepository {
@@ -53,7 +54,8 @@ export class CommunityPreviewRepository {
         })
       )
     ).pipe(
-      map((result) => normalizeCommunityDiscoveryPageResponse(result.data))
+      map((result) => normalizeCommunityDiscoveryPageResponse(result.data)),
+      map(sanitizeCommunityPublicDiscoveryPage)
     );
   }
 
@@ -95,6 +97,7 @@ export class CommunityPreviewRepository {
       )
     ).pipe(
       map((result) => normalizeCommunityDiscoveryPageResponse(result.data)),
+      map(sanitizeCommunityPublicDiscoveryPage),
       map((page) => retainCommunitiesForOfficialTarget(page, normalizedTarget))
     );
   }
