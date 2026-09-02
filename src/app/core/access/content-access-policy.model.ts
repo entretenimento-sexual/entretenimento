@@ -34,6 +34,8 @@ export type ContentAccessDenialReason =
 export type ContentAccessRecommendedAction =
   | 'sign_in'
   | 'review_account'
+  | 'accept_current_terms'
+  | 'complete_age_reverification'
   | 'confirm_adult_access'
   | 'complete_profile'
   | 'upgrade_subscription'
