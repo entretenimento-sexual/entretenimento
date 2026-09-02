@@ -1,7 +1,7 @@
 // src/app/community/invites/community-invites-page.component.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { filter, firstValueFrom, of, Subject, take } from 'rxjs';
+import { filter, firstValueFrom, of, Subject, take, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -88,6 +88,28 @@ describe('CommunityInvitesPageComponent', () => {
     expect(getInvites$).toHaveBeenCalledTimes(1);
     expect(state.items).toHaveLength(1);
     expect(state.items[0]?.communityName).toBe('Casais SP');
+  });
+
+  it('mantém falha de carga na própria página sem toast redundante', async () => {
+    getInvites$.mockReturnValue(throwError(
+      () => Object.assign(new Error('load failed'), {
+        code: 'functions/unavailable',
+      })
+    ));
+
+    const component = TestBed.runInInjectionContext(
+      () => new CommunityInvitesPageComponent()
+    );
+    const state = await firstValueFrom(
+      component.state$.pipe(
+        filter((value) => value.status === 'error'),
+        take(1)
+      )
+    );
+
+    expect(state.items).toEqual([]);
+    expect(showError).not.toHaveBeenCalled();
+    expect(handleError).toHaveBeenCalledOnce();
   });
 
   it('mostra o contexto do convite sem repetir eyebrow em cada card', () => {
