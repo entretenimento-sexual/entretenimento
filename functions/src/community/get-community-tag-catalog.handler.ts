@@ -5,6 +5,10 @@
 // Retorna somente metadados editoriais sanitizados. Como o catálogo contém
 // afinidades adultas, a mesma elegibilidade de participação é revalidada antes
 // de expor os rótulos ao cliente.
+//
+// `preferenceSignals` descreve apenas a relação canônica entre uma tag pública e
+// os domínios de Preferences. Não contém escolhas do usuário nem copia qualquer
+// preferência privada para a Comunidade; serve para derivação contextual local.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -18,6 +22,7 @@ import {
 } from './community-callable-security';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
 import {
+  CommunityPreferenceSignal,
   CommunityTagCategory,
   getCommunityTagCatalog as getCanonicalCommunityTagCatalog,
 } from './community-tag.catalog';
@@ -26,6 +31,7 @@ export interface CommunityTagCatalogItemResponse {
   id: string;
   label: string;
   category: CommunityTagCategory;
+  preferenceSignals: readonly CommunityPreferenceSignal[];
 }
 
 export interface CommunityTagCatalogResponse {
@@ -70,10 +76,14 @@ export const getCommunityTagCatalog = onCall(
     );
 
     return {
-      items: getCanonicalCommunityTagCatalog().map(({ id, label, category }) => ({
-        id,
-        label,
-        category,
+      items: getCanonicalCommunityTagCatalog().map((tag) => ({
+        id: tag.id,
+        label: tag.label,
+        category: tag.category,
+        preferenceSignals: tag.preferenceSignals.map(({ domain, key }) => ({
+          domain,
+          key,
+        })),
       })),
       generatedAt: Date.now(),
     };
