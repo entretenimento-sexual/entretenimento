@@ -24,6 +24,9 @@ import {
   resolveCommunityViewerMode,
   sanitizeCommunityDocument,
 } from './community-preview.model';
+import {
+  assertCommunitySocialAccessForUid,
+} from './community-social-access.service';
 
 function assertPreviewRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) return;
@@ -62,6 +65,8 @@ export const getMyCommunitiesPage = onCall<CommunityDiscoveryPageRequest>(
     assertCommunityCallableAppCheck(request.app);
     assertPreviewRuntime();
     const uid = assertAuthenticatedUid(request.auth);
+    await assertCommunitySocialAccessForUid(uid);
+
     const pageRequest = normalizeCommunityDiscoveryPageRequest(request.data);
     const providedCursor = String(request.data?.cursor ?? '').trim();
 
