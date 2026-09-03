@@ -28,6 +28,7 @@ import {
   type CommunityHighlightDenialReason,
 } from './community-highlight.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import type { CommunityFeedWriterRole } from './community-feed-write.policy';
 
 function assertHighlightRuntime(): void {
@@ -127,6 +128,11 @@ export const manageCommunityHighlight = onCall<CommunityHighlightRequest>(
         { reason: 'invalid_highlight_target' }
       );
     }
+
+    await consumeCommunityRateLimit({
+      action: 'highlight_management',
+      actorUid,
+    });
 
     return db.runTransaction(async (transaction): Promise<CommunityHighlightResponse> => {
       const communityId = command.communityId!;

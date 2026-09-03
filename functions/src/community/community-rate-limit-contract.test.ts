@@ -56,6 +56,8 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   createCommunityFeedPost: 'feed_post',
   createCommunityFeedComment: 'feed_conversation',
   createCommunityFeedCommentReply: 'feed_conversation',
+  createCommunityTopic: 'topic_conversation',
+  createCommunityTopicReply: 'topic_conversation',
   toggleCommunityFeedReaction: 'feed_reaction',
   reportCommunityFeedPost: 'feed_report_post',
   reportCommunityFeedComment: 'feed_report_comment',
@@ -64,6 +66,7 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   requestCommunityMembership: 'membership_request',
   reviewCommunityMembership: 'membership_review',
   manageCommunityMember: 'member_management',
+  manageCommunityHighlight: 'highlight_management',
   updateCommunitySettings: 'settings_update',
   transferCommunityOwnership: 'ownership_mutation',
   archiveCommunity: 'ownership_mutation',
@@ -81,18 +84,6 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
 // escrita não entra aqui automaticamente: ela deve adotar o adapter canônico ou
 // ser classificada conscientemente, com justificativa e prioridade de remoção.
 const DEFERRED_MUTATION_RATE_LIMIT_EXCEPTIONS = new Map<string, string>([
-  [
-    'manageCommunityHighlight',
-    'P1: destaque editorial ainda será integrado ao orçamento de gestão.',
-  ],
-  [
-    'createCommunityTopic',
-    'P1: mantém quota funcional própria; antiabuso operacional será centralizado.',
-  ],
-  [
-    'createCommunityTopicReply',
-    'P1: mantém quota funcional própria; antiabuso operacional será centralizado.',
-  ],
   [
     'leaveCommunityMembership',
     'P2: autosserviço de saída possui baixo potencial de amplificação.',

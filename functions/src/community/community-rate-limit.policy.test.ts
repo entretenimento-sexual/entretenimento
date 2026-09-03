@@ -12,6 +12,7 @@ const ACTIONS: readonly CommunityRateLimitAction[] = [
   'official_space_create',
   'feed_post',
   'feed_conversation',
+  'topic_conversation',
   'feed_reaction',
   'feed_report_post',
   'feed_report_comment',
@@ -20,6 +21,7 @@ const ACTIONS: readonly CommunityRateLimitAction[] = [
   'membership_request',
   'membership_review',
   'member_management',
+  'highlight_management',
   'settings_update',
   'ownership_mutation',
   'content_moderation',
@@ -83,6 +85,20 @@ test('preserva identificadores e limites já usados por conversa e reação', ()
   });
 });
 
+test('tópicos e respostas compartilham orçamento operacional sem substituir a quota de 24h', () => {
+  assert.deepEqual(getCommunityRateLimitPolicy('topic_conversation'), {
+    backendAction: 'communityTopicConversation',
+    config: {
+      burstWindowMs: 60_000,
+      burstMax: 12,
+      sustainedWindowMs: 600_000,
+      sustainedMax: 60,
+    },
+    reason: 'community_topic_rate_limited',
+    message: 'Muitas interações em Tópicos foram realizadas em pouco tempo.',
+  });
+});
+
 test('convites e entrada limitam abuso global por ator em janela horária', () => {
   const invite = getCommunityRateLimitPolicy('invite_send');
   const membership = getCommunityRateLimitPolicy('membership_request');
@@ -98,12 +114,17 @@ test('convites e entrada limitam abuso global por ator em janela horária', () =
 test('gestão permite operação legítima em lote sem deixar a ação ilimitada', () => {
   const management = getCommunityRateLimitPolicy('member_management');
   const review = getCommunityRateLimitPolicy('membership_review');
+  const highlight = getCommunityRateLimitPolicy('highlight_management');
   const moderation = getCommunityRateLimitPolicy('content_moderation');
 
   assert.equal(management.backendAction, 'manageCommunityMember');
   assert.equal(management.config.burstMax, 20);
   assert.equal(management.config.sustainedMax, 100);
   assert.equal(review.config.sustainedMax, 100);
+  assert.equal(highlight.backendAction, 'manageCommunityHighlight');
+  assert.equal(highlight.config.burstMax, 10);
+  assert.equal(highlight.config.sustainedMax, 40);
+  assert.equal(highlight.reason, 'community_management_rate_limited');
   assert.equal(moderation.backendAction, 'communityContentModeration');
   assert.equal(moderation.config.sustainedMax, 180);
 });

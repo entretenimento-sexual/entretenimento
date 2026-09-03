@@ -17,6 +17,8 @@ export const COMMUNITY_RATE_LIMIT_REASON_MESSAGES: Readonly<Record<string, strin
       'Você publicou muitas vezes em pouco tempo. Aguarde um instante e tente novamente.',
     community_feed_conversation_rate_limited:
       'Você enviou muitas mensagens em pouco tempo. Aguarde um instante e tente novamente.',
+    community_topic_rate_limited:
+      'Você realizou muitas interações em Tópicos em pouco tempo. Aguarde um instante e tente novamente.',
     community_feed_reaction_rate_limited:
       'Você reagiu muitas vezes em pouco tempo. Aguarde um instante e tente novamente.',
     community_report_rate_limited:

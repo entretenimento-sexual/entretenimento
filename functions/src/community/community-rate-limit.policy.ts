@@ -19,6 +19,7 @@ export type CommunityRateLimitAction =
   | 'official_space_create'
   | 'feed_post'
   | 'feed_conversation'
+  | 'topic_conversation'
   | 'feed_reaction'
   | 'feed_report_post'
   | 'feed_report_comment'
@@ -27,6 +28,7 @@ export type CommunityRateLimitAction =
   | 'membership_request'
   | 'membership_review'
   | 'member_management'
+  | 'highlight_management'
   | 'settings_update'
   | 'ownership_mutation'
   | 'content_moderation'
@@ -92,6 +94,19 @@ const POLICY_BY_ACTION: Readonly<Record<
     }),
     reason: 'community_feed_conversation_rate_limited',
     message: 'Muitas mensagens foram enviadas em pouco tempo.',
+  }),
+  topic_conversation: Object.freeze({
+    // Tópicos e respostas compartilham o orçamento operacional. As quotas
+    // funcionais de 24h continuam independentes em community-topic-write.policy.
+    backendAction: 'communityTopicConversation',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 12,
+      sustainedWindowMs: 10 * MINUTE_MS,
+      sustainedMax: 60,
+    }),
+    reason: 'community_topic_rate_limited',
+    message: 'Muitas interações em Tópicos foram realizadas em pouco tempo.',
   }),
   feed_reaction: Object.freeze({
     // Preserva o identificador já utilizado em produção para não zerar quota.
@@ -181,6 +196,17 @@ const POLICY_BY_ACTION: Readonly<Record<
     }),
     reason: 'community_management_rate_limited',
     message: 'Muitas ações de gestão foram executadas em pouco tempo.',
+  }),
+  highlight_management: Object.freeze({
+    backendAction: 'manageCommunityHighlight',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 10,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 40,
+    }),
+    reason: 'community_management_rate_limited',
+    message: 'Muitas alterações de destaque foram realizadas em pouco tempo.',
   }),
   settings_update: Object.freeze({
     backendAction: 'updateCommunitySettings',

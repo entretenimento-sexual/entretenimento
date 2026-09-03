@@ -20,6 +20,7 @@ import { isCommunityMemberActivityEnabledStatus } from './community-lifecycle.po
 import {
   assertCommunityMembershipActorEligible,
 } from './community-membership-eligibility.service';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import {
   CommunityTopicCreateRequest,
   CommunityTopicReplyCreateRequest,
@@ -175,6 +176,11 @@ export const createCommunityTopic = onCall<CommunityTopicCreateRequest>(
         'Participe da Comunidade para criar Tópicos.'
       );
     }
+
+    await consumeCommunityRateLimit({
+      action: 'topic_conversation',
+      actorUid,
+    });
 
     const nowMs = Date.now();
     const topicId = command.requestId;
@@ -386,6 +392,11 @@ export const createCommunityTopicReply = onCall<CommunityTopicReplyCreateRequest
         'Participe da Comunidade para responder aos Tópicos.'
       );
     }
+
+    await consumeCommunityRateLimit({
+      action: 'topic_conversation',
+      actorUid,
+    });
 
     const nowMs = Date.now();
     const replyId = command.requestId;
