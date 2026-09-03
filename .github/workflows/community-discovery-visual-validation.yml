@@ -1,5 +1,7 @@
 name: Community Discovery Visual Validation
 
+# O harness isola dependências auxiliares de telemetria para validar a UI sem
+# mascarar erros de console do Angular ou depender de serviços externos reais.
 on:
   workflow_dispatch:
   push:
