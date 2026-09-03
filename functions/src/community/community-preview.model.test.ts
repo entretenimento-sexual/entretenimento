@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  filterCommunityDiscoveryCardForViewer,
   normalizeCommunityDiscoveryPageRequest,
   normalizeCommunityId,
   resolveCommunityViewerMode,
@@ -112,6 +113,30 @@ test('sanitiza uma projeção comunitária pública válida com tags canônicas'
     { id: 'intent:friendship', label: 'Amizade', category: 'intent' },
     { id: 'practice:bdsm', label: 'BDSM', category: 'practice' },
   ]);
+});
+
+test('não devolve nenhum metadado do card para viewer bloqueado', () => {
+  const card = sanitizeCommunityDiscoveryProjection(
+    'community-1',
+    projection()
+  );
+
+  assert.ok(card);
+  assert.equal(
+    filterCommunityDiscoveryCardForViewer(
+      card,
+      { status: 'blocked', role: 'owner' }
+    ),
+    null
+  );
+  assert.equal(filterCommunityDiscoveryCardForViewer(card, null), card);
+  assert.equal(
+    filterCommunityDiscoveryCardForViewer(
+      card,
+      { status: 'active', role: 'member' }
+    ),
+    card
+  );
 });
 
 test('expõe regras e lifecycle somente nos detalhes do preview autenticado', () => {

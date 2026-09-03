@@ -27,12 +27,21 @@ import {
   CommunityDiscoveryPageRequest,
   CommunityDiscoveryPageResponse,
   CommunityPreviewCard,
+  filterCommunityDiscoveryCardForViewer,
   normalizeCommunityDiscoveryPageRequest,
   sanitizeCommunityDiscoveryProjection,
 } from './community-preview.model';
 import {
   assertCommunitySocialAccessForUid,
 } from './community-social-access.service';
+
+const MIN_VIEWER_MEMBERSHIP_BATCH_SIZE = 12;
+const MAX_VIEWER_MEMBERSHIP_BATCH_SIZE = 24;
+
+interface CommunityDiscoveryCandidate {
+  readonly index: number;
+  readonly item: CommunityPreviewCard;
+}
 
 function assertPreviewRuntime(): void {
   if (isCommunityPreviewRuntimeAvailable()) {
@@ -65,6 +74,67 @@ function assertValidTag(
   if (provided && !normalized) {
     throw new HttpsError('invalid-argument', 'Filtro de interesse inválido.');
   }
+}
+
+function collectDiscoveryCandidates(
+  documents: readonly FirebaseFirestore.QueryDocumentSnapshot[],
+  startIndex: number,
+  endIndex: number,
+  effectiveSourceType: CommunityPreviewCard['source']['type'] | null,
+  tagId: string | null
+): readonly CommunityDiscoveryCandidate[] {
+  const candidates: CommunityDiscoveryCandidate[] = [];
+
+  for (let index = startIndex; index < endIndex; index += 1) {
+    const document = documents[index];
+    const item = sanitizeCommunityDiscoveryProjection(
+      document.id,
+      document.data()
+    );
+
+    if (
+      item
+      && (!effectiveSourceType || item.source.type === effectiveSourceType)
+      && (!tagId || item.tags.some((tag) => tag.id === tagId))
+    ) {
+      candidates.push({ index, item });
+    }
+  }
+
+  return candidates;
+}
+
+async function resolveVisibleDiscoveryCandidates(
+  uid: string,
+  candidates: readonly CommunityDiscoveryCandidate[]
+): Promise<ReadonlyMap<number, CommunityPreviewCard>> {
+  if (candidates.length === 0) {
+    return new Map<number, CommunityPreviewCard>();
+  }
+
+  const membershipRefs = candidates.map(({ item }) =>
+    db
+      .collection('communities')
+      .doc(item.communityId)
+      .collection('members')
+      .doc(uid)
+  );
+  const membershipSnapshots = await db.getAll(...membershipRefs);
+  const visibleCandidates = new Map<number, CommunityPreviewCard>();
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[index];
+    const visibleItem = filterCommunityDiscoveryCardForViewer(
+      candidate.item,
+      membershipSnapshots[index].data()
+    );
+
+    if (visibleItem) {
+      visibleCandidates.set(candidate.index, visibleItem);
+    }
+  }
+
+  return visibleCandidates;
 }
 
 export const getCommunityDiscoveryPage =
@@ -187,27 +257,43 @@ export const getCommunityDiscoveryPage =
       const querySnapshot = await pageQuery.get();
       const items: CommunityPreviewCard[] = [];
       let lastConsumedIndex = -1;
+      const membershipBatchSize = Math.min(
+        Math.max(pageRequest.limit, MIN_VIEWER_MEMBERSHIP_BATCH_SIZE),
+        MAX_VIEWER_MEMBERSHIP_BATCH_SIZE
+      );
 
-      for (let index = 0; index < querySnapshot.docs.length; index += 1) {
-        const document = querySnapshot.docs[index];
-        lastConsumedIndex = index;
-
-        const item = sanitizeCommunityDiscoveryProjection(
-          document.id,
-          document.data()
+      for (
+        let batchStart = 0;
+        batchStart < querySnapshot.docs.length && items.length < pageRequest.limit;
+        batchStart += membershipBatchSize
+      ) {
+        const batchEnd = Math.min(
+          batchStart + membershipBatchSize,
+          querySnapshot.docs.length
+        );
+        const candidates = collectDiscoveryCandidates(
+          querySnapshot.docs,
+          batchStart,
+          batchEnd,
+          effectiveSourceType,
+          pageRequest.tagId
+        );
+        const visibleCandidates = await resolveVisibleDiscoveryCandidates(
+          uid,
+          candidates
         );
 
-        if (
-          item
-          && (!effectiveSourceType || item.source.type === effectiveSourceType)
-          && (!pageRequest.tagId
-            || item.tags.some((tag) => tag.id === pageRequest.tagId))
-        ) {
-          items.push(item);
-        }
+        for (let index = batchStart; index < batchEnd; index += 1) {
+          lastConsumedIndex = index;
+          const item = visibleCandidates.get(index);
 
-        if (items.length >= pageRequest.limit) {
-          break;
+          if (item) {
+            items.push(item);
+          }
+
+          if (items.length >= pageRequest.limit) {
+            break;
+          }
         }
       }
 

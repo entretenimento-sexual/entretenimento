@@ -445,3 +445,16 @@ export function resolveCommunityViewerMode(rawMembership: unknown): {
 
   return { mode: 'member', role, active: true, blocked: false };
 }
+
+/**
+ * Último gate do card público antes de ele sair pela descoberta autenticada.
+ * Uma membership bloqueada prevalece sobre `public_preview`, alinhando callable
+ * e Firestore Rules. Ausência de membership e demais estados não restringem o
+ * preview que já passou pela sanitização pública.
+ */
+export function filterCommunityDiscoveryCardForViewer(
+  card: CommunityPreviewCard,
+  rawMembership: unknown
+): CommunityPreviewCard | null {
+  return resolveCommunityViewerMode(rawMembership).blocked ? null : card;
+}
