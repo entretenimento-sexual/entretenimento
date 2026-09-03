@@ -34,7 +34,7 @@ run_checked "$OUT/desktop/feed.metrics.log" "async (page) => {
     const bodyRect = body?.getBoundingClientRect();
     const cover = document.querySelector('.community-preview__cover');
     const title = document.querySelector('.community-preview h1');
-    const actions = Array.from(document.querySelectorAll('.community-post__action'));
+    const actions = Array.from(document.querySelectorAll('button.community-post__action, a.community-post__action, .community-post__location-details > summary'));
     return {
       viewportWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -126,7 +126,7 @@ run_checked "$OUT/mobile/feed.metrics.log" "async (page) => {
     const content = document.querySelector('.community-preview__content')?.getBoundingClientRect();
     const rail = document.querySelector('.community-preview__rail');
     const cover = document.querySelector('.community-preview__cover');
-    const actions = Array.from(document.querySelectorAll('.community-post__action'));
+    const actions = Array.from(document.querySelectorAll('button.community-post__action, a.community-post__action, .community-post__location-details > summary'));
     return {
       viewportWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
