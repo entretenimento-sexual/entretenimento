@@ -83,7 +83,15 @@ const PREFERENCE_REJECTION_REASONS = new Set<DiscoveryPreferenceRejectionReason>
   'reciprocal_mismatch',
 ]);
 
-@Injectable({ providedIn: 'root' })
+/**
+ * Facade reativo da página /dashboard/explorar.
+ *
+ * O provider é deliberadamente definido na rota, não no root injector. Dessa
+ * forma, DestroyRef encerra presença, localização, overlays e recomposição dos
+ * cards assim que o usuário sai do Explorar, enquanto o cache NgRx permanece
+ * disponível para a plataforma.
+ */
+@Injectable()
 export class DiscoveryPublicProfilesFacade {
   private readonly destroyRef = inject(DestroyRef);
   private readonly store = inject(Store<AppState>);
