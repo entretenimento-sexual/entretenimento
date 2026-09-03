@@ -347,7 +347,66 @@ const route = {
     },
     { provide: PhotoEditorLauncherService, useValue: { open$: () => NEVER } },
   ],
-  template: `<app-community-preview-page />`,
-  styles: [`:host { display: block; min-height: 100vh; }`],
+  template: `
+    <div class="visual-auth-shell">
+      <aside class="visual-auth-shell__sidebar" aria-hidden="true"></aside>
+      <section class="visual-auth-shell__content-area">
+        <main class="visual-auth-shell__content">
+          <app-community-preview-page />
+        </main>
+      </section>
+    </div>
+  `,
+  styles: [`
+    :host {
+      display: block;
+      min-height: 100vh;
+      --visual-sidebar-width: clamp(272px, 18vw, 320px);
+      --visual-sidebar-gap: clamp(12px, 1.2vw, 20px);
+    }
+
+    .visual-auth-shell {
+      position: relative;
+      display: flex;
+      min-height: 100vh;
+      min-width: 0;
+    }
+
+    .visual-auth-shell__sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: var(--visual-sidebar-width);
+      pointer-events: none;
+    }
+
+    .visual-auth-shell__content-area {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      min-width: 0;
+      margin-left: calc(var(--visual-sidebar-width) + var(--visual-sidebar-gap));
+    }
+
+    .visual-auth-shell__content {
+      flex: 1;
+      min-width: 0;
+      padding: clamp(12px, 1.2vw, 24px);
+      overflow-x: hidden;
+    }
+
+    @media (max-width: 767.98px) {
+      .visual-auth-shell__sidebar {
+        display: none;
+      }
+
+      .visual-auth-shell__content-area {
+        margin-left: 0;
+      }
+
+      .visual-auth-shell__content {
+        padding: 10px 10px 102px;
+      }
+    }
+  `],
 })
 export class AppComponent {}
