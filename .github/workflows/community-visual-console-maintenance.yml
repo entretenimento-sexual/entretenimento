@@ -45,8 +45,8 @@ jobs:
 
           script = Path('.github/scripts/community-discovery-visual-validation.sh')
           text = script.read_text()
-          old = "    if grep -q '\\\\[ERROR\\\\]' \"$console_file\"; then"
-          new = "    if ! grep -q '^Console: 0 errors,' \"$console_file\"; then"
+          old = r'''    if grep -q '\[ERROR\]' "$console_file"; then'''
+          new = r'''    if ! grep -q '^Console: 0 errors,' "$console_file"; then'''
           if old not in text:
               raise SystemExit('console enforcement anchor not found')
           text = text.replace(old, new, 1)
