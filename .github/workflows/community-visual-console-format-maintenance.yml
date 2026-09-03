@@ -1,0 +1,82 @@
+name: Community visual console format maintenance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/community-visual-console-format-maintenance.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Normalize Playwright console parsing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          discovery = Path('.github/scripts/community-discovery-visual-validation.sh')
+          text = discovery.read_text()
+          old = '''for console_file in "${console_files[@]}"; do
+            if ! grep -q '^Console: 0 errors,' "$console_file"; then
+              echo "Unexpected browser console error or invalid console summary in $console_file" >&2
+              cat "$console_file" >&2
+              console_error_count=$((console_error_count + 1))
+            fi
+          done
+'''
+          new = '''for console_file in "${console_files[@]}"; do
+            if sed -E $'s/\\x1B\\\\[[0-9;]*[mK]//g' "$console_file" \\
+              | grep -Eqi '(\\[ERROR\\]|(^|[[:space:]])error[[:space:]]*<)'; then
+              echo "Unexpected browser console error in $console_file" >&2
+              cat "$console_file" >&2
+              console_error_count=$((console_error_count + 1))
+            fi
+          done
+'''
+          if old not in text:
+              raise SystemExit('discovery console block not found')
+          discovery.write_text(text.replace(old, new, 1))
+
+          page = Path('.github/workflows/community-preview-visual-validation.yml')
+          text = page.read_text()
+          old = '''          console_error_count=0
+          for console_file in "${console_files[@]}"; do
+            if ! grep -q '^Console: 0 errors,' "$console_file"; then
+              echo "Erro inesperado de console ou resumo inválido em ${console_file}:" >&2
+              cat "$console_file" >&2
+              console_error_count=$((console_error_count + 1))
+            fi
+          done
+'''
+          new = '''          console_error_count=0
+          for console_file in "${console_files[@]}"; do
+            if sed -E $'s/\\x1B\\\\[[0-9;]*[mK]//g' "$console_file" \\
+              | grep -Eqi '(\\[ERROR\\]|(^|[[:space:]])error[[:space:]]*<)'; then
+              echo "Erro inesperado de console em ${console_file}:" >&2
+              cat "$console_file" >&2
+              console_error_count=$((console_error_count + 1))
+            fi
+          done
+'''
+          if old not in text:
+              raise SystemExit('page console block not found')
+          page.write_text(text.replace(old, new, 1))
+          PY
+
+          git diff --check
+          git rm .github/workflows/community-visual-console-format-maintenance.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/scripts/community-discovery-visual-validation.sh .github/workflows/community-preview-visual-validation.yml
+          git commit -m 'test(community): normalize visual console error parsing'
+          git push origin HEAD:main
