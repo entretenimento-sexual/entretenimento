@@ -349,7 +349,6 @@
                   >
                     <summary
                       class="community-post__location-meta"
-                      style="justify-content: space-between; cursor: pointer; list-style: none;"
                       [attr.aria-expanded]="locationMapDetails.open"
                       [attr.aria-label]="(locationMapDetails.open ? 'Ocultar' : 'Ver') + ' mapa da localização compartilhada. ' + locationAccuracyLabel(location.accuracyMeters)"
                     >
@@ -390,10 +389,9 @@
                     }
                   </details>
 
-                  <div class="community-post__location-meta" style="justify-content: flex-end; padding-top: 0;">
+                  <div class="community-post__location-meta community-post__location-external">
                     <a
                       class="community-post__action"
-                      style="text-decoration: none;"
                       [href]="locationMapUrl(item)"
                       target="_blank"
                       rel="noopener noreferrer"

@@ -22,8 +22,8 @@
 
 .community-feed__composer {
   display: grid;
-  gap: 0.55rem;
-  padding: 0.7rem 0.85rem;
+  gap: 0.62rem;
+  padding: 0.8rem 1rem;
   border-bottom: 1px solid var(--surface-border);
   background: color-mix(
     in oklab,
@@ -51,8 +51,8 @@
   background: var(--surface-color);
   color: var(--text-color);
   font: inherit;
-  font-size: 0.88rem;
-  line-height: 1.4;
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .community-feed__composer.is-expanded textarea {
@@ -268,14 +268,14 @@
 .community-feed__items > li + li {
   border-top: 1px solid color-mix(
     in oklab,
-    var(--surface-border) 68%,
+    var(--surface-border) 78%,
     transparent
   );
 }
 
 .community-post {
   min-width: 0;
-  padding: 0.82rem 1rem;
+  padding: 0.98rem 1.1rem;
   background: transparent;
   scroll-margin-block-start: 6rem;
 }
@@ -285,8 +285,8 @@
   display: grid;
   grid-template-columns: 2.55rem minmax(0, 1fr) 2.75rem;
   align-items: center;
-  gap: 0.62rem;
-  margin-bottom: 0.5rem;
+  gap: 0.68rem;
+  margin-bottom: 0.58rem;
 }
 
 .community-post__avatar {
@@ -490,14 +490,14 @@
   overflow-wrap: anywhere;
   margin: 0 0 0 3.17rem;
   color: var(--text-color);
-  font-size: 0.9rem;
-  line-height: 1.48;
+  font-size: 0.96rem;
+  line-height: 1.55;
 }
 
 .community-post__media {
   overflow: hidden;
-  max-width: 34rem;
-  margin: 0.62rem 0 0 3.17rem;
+  max-width: 38rem;
+  margin: 0.74rem 0 0 3.17rem;
   border-radius: 0.9rem;
   background: color-mix(
     in oklab,
@@ -508,7 +508,7 @@
 
 .community-post__media img {
   width: 100%;
-  max-height: 34rem;
+  max-height: 38rem;
   display: block;
   object-fit: contain;
 }
@@ -518,10 +518,10 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.2rem;
-  margin: 0.5rem 0 0 2.94rem;
-  color: color-mix(in oklab, var(--text-color) 62%, transparent);
-  font-size: 0.74rem;
+  gap: 0.26rem;
+  margin: 0.62rem 0 0 2.94rem;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.8rem;
 }
 
 .community-post__action {
@@ -531,7 +531,7 @@
   justify-content: center;
   gap: 0.34rem;
   box-sizing: border-box;
-  padding: 0.45rem 0.72rem;
+  padding: 0.5rem 0.78rem;
   border: 0;
   border-radius: 999px;
   background: transparent;
@@ -701,6 +701,236 @@ button.community-post__action {
   opacity: 0.62;
 }
 
+
+/* A localização e o contexto de resposta fazem parte do conteúdo do post.
+   O tratamento abaixo concentra a apresentação no CSS e mantém alvos de 44px. */
+.community-feed__location-preview {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border) 76%,
+    var(--primary-color) 24%
+  );
+  border-radius: 0.9rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 95%,
+    var(--primary-color) 5%
+  );
+}
+
+.community-feed__location-preview > i {
+  width: 1.35rem;
+  color: var(--primary-color);
+  text-align: center;
+}
+
+.community-feed__location-preview > span {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.community-feed__location-preview strong {
+  color: var(--text-color);
+  font-size: 0.8rem;
+}
+
+.community-feed__location-preview small {
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  font-size: 0.7rem;
+}
+
+.community-feed__location-preview button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.community-post__location,
+.community-post__reply-context {
+  min-width: 0;
+  margin: 0.72rem 0 0 3.17rem;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border) 78%,
+    var(--primary-color) 22%
+  );
+  border-radius: 0.82rem;
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 97%,
+    var(--primary-color) 3%
+  );
+}
+
+.community-post__location {
+  overflow: hidden;
+}
+
+.community-post__location-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.community-post__location-meta {
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem 0.72rem;
+}
+
+.community-post__location-details > .community-post__location-meta {
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+}
+
+.community-post__location-label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.62rem;
+}
+
+.community-post__location-label > i {
+  width: 1.15rem;
+  flex: 0 0 1.15rem;
+  color: var(--primary-color);
+  text-align: center;
+}
+
+.community-post__location-label > span {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.community-post__location-label strong {
+  color: var(--text-color);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.community-post__location-label small {
+  overflow-wrap: anywhere;
+  color: color-mix(in oklab, var(--text-color) 60%, transparent);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.community-post__location-details > .community-post__location-meta .community-post__action {
+  flex: 0 0 auto;
+}
+
+.community-post__location-map {
+  aspect-ratio: 16 / 9;
+  min-height: 13rem;
+  border-top: 1px solid color-mix(
+    in oklab,
+    var(--surface-border) 74%,
+    transparent
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 90%,
+    var(--text-color) 10%
+  );
+}
+
+.community-post__location-map iframe {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+}
+
+.community-post__location-external {
+  justify-content: flex-end;
+  padding-top: 0;
+  border-top: 1px solid color-mix(
+    in oklab,
+    var(--surface-border) 64%,
+    transparent
+  );
+}
+
+.community-post__location-external a {
+  text-decoration: none;
+}
+
+.community-post__reply-context {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.62rem 0.78rem;
+  border-inline-start: 3px solid color-mix(
+    in oklab,
+    var(--primary-color) 72%,
+    transparent
+  );
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+  text-decoration: none;
+}
+
+.community-post__reply-context strong {
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  color: var(--text-color);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.community-post__reply-context > span {
+  overflow: hidden;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.74rem;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.community-post__reply-context.is-navigable {
+  cursor: pointer;
+}
+
+.community-post__reply-context.is-navigable:hover {
+  border-color: color-mix(
+    in oklab,
+    var(--surface-border) 56%,
+    var(--primary-color) 44%
+  );
+  background: color-mix(
+    in oklab,
+    var(--surface-color) 93%,
+    var(--primary-color) 7%
+  );
+}
+
+.community-post__reply-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  white-space: normal;
+}
+
+.community-post__reply-status.is-error {
+  color: var(--error-color, #b42318);
+}
+
 /* Fotos é somente uma compilação dos itens photo da mesma timeline. */
 .community-feed--photos .community-feed__items {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -833,7 +1063,9 @@ button.community-post__action {
   }
 
   .community-post p,
-  .community-post__media {
+  .community-post__media,
+  .community-post__location,
+  .community-post__reply-context {
     margin-left: 0;
   }
 
@@ -873,6 +1105,8 @@ button.community-post__action {
 :host-context(.high-contrast) .community-feed__photo-preview,
 :host-context(.high-contrast) .community-post__menu-panel,
 :host-context(.high-contrast) .community-post__confirmation,
+:host-context(.high-contrast) .community-post__location,
+:host-context(.high-contrast) .community-post__reply-context,
 :host-context(.high-contrast) .community-feed--photos .community-post {
   border-color: var(--text-color);
   border-width: 2px;
