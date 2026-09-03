@@ -6,6 +6,8 @@ O Mural deve preservar alvos interativos de pelo menos 44 px, separação percep
 
 O harness visual permanente deve manter exemplos determinísticos de contexto de resposta e localização compartilhada. O gate mede também a presença desses blocos, altura mínima da capa, escala mínima do título e altura dos controles realmente interativos dos posts, para que uma página sem overflow mas visualmente miniaturizada não seja considerada válida. Elementos meramente decorativos dentro de um controle não entram na medição do alvo de toque.
 
+A validação desktop não deve renderizar a Comunidade em largura standalone irreal. O harness reproduz o envelope horizontal do `LayoutShell` autenticado: sidebar entre 272 e 320 px, gap responsivo e padding da área principal. Assim, largura do feed, rail, capa e targets são avaliados sob a mesma restrição estrutural da navegação real. No mobile, esse rail global deixa de consumir largura e o harness reproduz o padding do conteúdo autenticado com espaço reservado para a navegação inferior.
+
 Em mobile, o layout permanece em uma coluna, sem overflow horizontal da página. Capa, identidade, abas, composer, posts, mídia, respostas e localização devem caber no viewport sem reduzir targets de toque. O rail contextual não deve ocupar espaço visual em telas estreitas; as mesmas informações continuam acessíveis pelas áreas próprias da Comunidade.
 
 A validação automatizada cobre geometria, presença das regiões essenciais, responsividade e console. A evidência em screenshot continua sendo revisada quando houver alteração estrutural, porque ausência de overflow isoladamente não comprova qualidade visual percebida.
