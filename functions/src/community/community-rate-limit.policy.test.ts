@@ -8,6 +8,8 @@ import {
 } from './community-rate-limit.policy';
 
 const ACTIONS: readonly CommunityRateLimitAction[] = [
+  'community_create',
+  'official_space_create',
   'feed_post',
   'feed_conversation',
   'feed_reaction',
@@ -21,6 +23,7 @@ const ACTIONS: readonly CommunityRateLimitAction[] = [
   'settings_update',
   'ownership_mutation',
   'content_moderation',
+  'operations_ranking',
 ];
 
 test('todas as mutações cobertas possuem política válida e ação backend estável', () => {
@@ -35,6 +38,23 @@ test('todas as mutações cobertas possuem política válida e ação backend es
     assert.equal(policy.config.sustainedWindowMs >= policy.config.burstWindowMs, true);
     assert.equal(policy.config.sustainedMax >= policy.config.burstMax, true);
   }
+});
+
+test('criações pessoais e oficiais possuem orçamentos independentes e restritos', () => {
+  const personal = getCommunityRateLimitPolicy('community_create');
+  const official = getCommunityRateLimitPolicy('official_space_create');
+
+  assert.equal(personal.backendAction, 'createCommunity');
+  assert.equal(personal.config.burstMax, 3);
+  assert.equal(personal.config.sustainedWindowMs, 3_600_000);
+  assert.equal(personal.config.sustainedMax, 10);
+  assert.equal(personal.reason, 'community_creation_rate_limited');
+
+  assert.equal(official.backendAction, 'createVenueCommunity');
+  assert.equal(official.config.burstMax, 2);
+  assert.equal(official.config.sustainedWindowMs, 3_600_000);
+  assert.equal(official.config.sustainedMax, 6);
+  assert.equal(official.reason, 'official_space_creation_rate_limited');
 });
 
 test('preserva identificadores e limites já usados por conversa e reação', () => {
@@ -88,9 +108,10 @@ test('gestão permite operação legítima em lote sem deixar a ação ilimitada
   assert.equal(moderation.config.sustainedMax, 180);
 });
 
-test('ações sensíveis de configuração e propriedade têm orçamento mais restrito', () => {
+test('ações sensíveis de configuração, propriedade e ranking permanecem restritas', () => {
   const settings = getCommunityRateLimitPolicy('settings_update');
   const ownership = getCommunityRateLimitPolicy('ownership_mutation');
+  const ranking = getCommunityRateLimitPolicy('operations_ranking');
 
   assert.equal(settings.backendAction, 'updateCommunitySettings');
   assert.equal(settings.config.burstMax, 10);
@@ -98,4 +119,8 @@ test('ações sensíveis de configuração e propriedade têm orçamento mais re
   assert.equal(ownership.backendAction, 'communityOwnershipMutation');
   assert.equal(ownership.config.burstMax, 6);
   assert.equal(ownership.config.sustainedMax, 20);
+  assert.equal(ranking.backendAction, 'configureCommunityRankingMode');
+  assert.equal(ranking.config.burstMax, 4);
+  assert.equal(ranking.config.sustainedMax, 12);
+  assert.equal(ranking.reason, 'community_operations_rate_limited');
 });

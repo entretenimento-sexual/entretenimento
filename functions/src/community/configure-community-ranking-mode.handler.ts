@@ -10,6 +10,7 @@
 import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
+import { assertRecentAuthentication } from '../account_lifecycle/_shared';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db } from '../firebaseApp';
 import {
@@ -17,6 +18,7 @@ import {
   assertCommunityCallableAppCheck,
 } from './community-callable-security';
 import { hasCommunityOperationsPermission } from './community-operations.authorization';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import {
   type CommunityRankingRolloutAction,
   evaluateCommunityRankingRollout,
@@ -125,6 +127,16 @@ export const configureCommunityRankingMode =
         request.auth?.uid ?? null,
         (request.auth?.token ?? {}) as Record<string, unknown>
       );
+      assertRecentAuthentication(
+        (request.auth?.token ?? undefined) as
+          | Record<string, unknown>
+          | undefined
+      );
+      await consumeCommunityRateLimit({
+        action: 'operations_ranking',
+        actorUid,
+      });
+
       const now = Date.now();
       const configRef = db.collection('platform_config').doc('community');
       const runtimeRef = db.collection('community_ranking_runtime').doc('daily');

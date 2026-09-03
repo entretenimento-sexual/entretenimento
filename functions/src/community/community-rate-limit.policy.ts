@@ -15,6 +15,8 @@ import type {
 } from '../media/application/backend-fixed-window-rate-limit';
 
 export type CommunityRateLimitAction =
+  | 'community_create'
+  | 'official_space_create'
   | 'feed_post'
   | 'feed_conversation'
   | 'feed_reaction'
@@ -27,7 +29,8 @@ export type CommunityRateLimitAction =
   | 'member_management'
   | 'settings_update'
   | 'ownership_mutation'
-  | 'content_moderation';
+  | 'content_moderation'
+  | 'operations_ranking';
 
 export interface CommunityRateLimitPolicy {
   readonly backendAction: string;
@@ -43,6 +46,28 @@ const POLICY_BY_ACTION: Readonly<Record<
   CommunityRateLimitAction,
   CommunityRateLimitPolicy
 >> = Object.freeze({
+  community_create: Object.freeze({
+    backendAction: 'createCommunity',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 3,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 10,
+    }),
+    reason: 'community_creation_rate_limited',
+    message: 'Muitas tentativas de criação de Comunidades foram feitas em pouco tempo.',
+  }),
+  official_space_create: Object.freeze({
+    backendAction: 'createVenueCommunity',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 2,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 6,
+    }),
+    reason: 'official_space_creation_rate_limited',
+    message: 'Muitas tentativas de criação de Espaços Oficiais foram feitas em pouco tempo.',
+  }),
   feed_post: Object.freeze({
     backendAction: 'createCommunityFeedPost',
     config: Object.freeze({
@@ -56,6 +81,8 @@ const POLICY_BY_ACTION: Readonly<Record<
   }),
   feed_conversation: Object.freeze({
     // Preserva o identificador já utilizado em produção para não zerar quota.
+    // Comentários e respostas compartilham este orçamento para impedir que um
+    // cliente contorne o antiabuso alternando as duas superfícies da conversa.
     backendAction: 'createCommunityFeedComment',
     config: Object.freeze({
       burstWindowMs: MINUTE_MS,
@@ -189,6 +216,17 @@ const POLICY_BY_ACTION: Readonly<Record<
     }),
     reason: 'community_management_rate_limited',
     message: 'Muitas ações de moderação foram executadas em pouco tempo.',
+  }),
+  operations_ranking: Object.freeze({
+    backendAction: 'configureCommunityRankingMode',
+    config: Object.freeze({
+      burstWindowMs: MINUTE_MS,
+      burstMax: 4,
+      sustainedWindowMs: HOUR_MS,
+      sustainedMax: 12,
+    }),
+    reason: 'community_operations_rate_limited',
+    message: 'Muitas alterações operacionais de ranking foram solicitadas em pouco tempo.',
   }),
 });
 

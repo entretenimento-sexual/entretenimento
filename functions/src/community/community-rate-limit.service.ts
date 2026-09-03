@@ -9,7 +9,7 @@
 
 import { HttpsError } from 'firebase-functions/v2/https';
 
-import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
+import { consumeBackendRateLimitQuota } from '../shared/security/backend-rate-limit.service';
 import {
   type CommunityRateLimitAction,
   getCommunityRateLimitPolicy,

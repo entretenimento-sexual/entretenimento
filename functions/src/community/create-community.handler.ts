@@ -34,6 +34,7 @@ import {
   resolvePersonalCommunityCreationPolicy,
 } from './community-capacity.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { buildCommunityRankingProjectionPatch } from './community-ranking-sync.policy';
 import {
   CreateCommunityRequest,
@@ -91,6 +92,11 @@ export const createCommunity = onCall<CreateCommunityRequest>(
         'Revise os dados obrigatórios da Comunidade.'
       );
     }
+
+    await consumeCommunityRateLimit({
+      action: 'community_create',
+      actorUid,
+    });
 
     return db.runTransaction(async (transaction) => {
       const requestRef = db

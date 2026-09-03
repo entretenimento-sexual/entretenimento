@@ -13,7 +13,6 @@ import {
   buildBilateralBlockPaths,
   isBilateralBlockActive,
 } from '../friendship/application/bilateral-block-access.policy';
-import { consumeBackendRateLimitQuota } from '../media/application/backend-rate-limit.service';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   REQUIRE_COMMUNITY_APP_CHECK,
@@ -40,6 +39,7 @@ import {
   type CommunityNotificationUser,
 } from './community-notification.policy';
 import type { CommunityViewerRole } from './community-preview.model';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { getCommunityViewerContext } from './community-viewer-access.service';
 
 function assertRuntime(): void {
@@ -202,17 +202,9 @@ export const createCommunityFeedCommentReply = onCall<
       );
     }
 
-    await consumeBackendRateLimitQuota({
-      action: 'createCommunityFeedCommentReply',
-      subject: actorUid,
-      cost: 1,
-      config: {
-        burstWindowMs: 60 * 1_000,
-        burstMax: 16,
-        sustainedWindowMs: 10 * 60 * 1_000,
-        sustainedMax: 72,
-      },
-      message: 'Muitas respostas foram enviadas em pouco tempo.',
+    await consumeCommunityRateLimit({
+      action: 'feed_conversation',
+      actorUid,
     });
 
     return db.runTransaction(async (transaction): Promise<CommunityFeedCommentReplyCreateResponse> => {

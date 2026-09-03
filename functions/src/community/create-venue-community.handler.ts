@@ -34,6 +34,7 @@ import {
   evaluateOfficialSpaceCreationGrant,
 } from './community-official-space.policy';
 import { assertCommunityMembershipActorEligible } from './community-membership-eligibility.service';
+import { consumeCommunityRateLimit } from './community-rate-limit.service';
 import { buildCommunityRankingProjectionPatch } from './community-ranking-sync.policy';
 import {
   CreateVenueCommunityRequest,
@@ -91,6 +92,11 @@ export const createVenueCommunity = onCall<CreateVenueCommunityRequest>(
         'Revise os dados obrigatórios do local.'
       );
     }
+
+    await consumeCommunityRateLimit({
+      action: 'official_space_create',
+      actorUid,
+    });
 
     const officialAssociationKey = buildCommunityOfficialAssociationKey({
       type: 'venue',
