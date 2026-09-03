@@ -295,8 +295,8 @@ if (( ${#console_files[@]} == 0 )); then
 fi
 
 for console_file in "${console_files[@]}"; do
-  if grep -q '\[ERROR\]' "$console_file"; then
-    echo "Unexpected browser console error in $console_file" >&2
+  if ! grep -q '^Console: 0 errors,' "$console_file"; then
+    echo "Unexpected browser console error or invalid console summary in $console_file" >&2
     cat "$console_file" >&2
     console_error_count=$((console_error_count + 1))
   fi

@@ -11,6 +11,7 @@ import { CommunityPreviewRepository } from './community/data-access/community-pr
 import type { CommunityPreviewCard } from './community/data-access/community-preview.model';
 import { CommunityTagRepository } from './community/data-access/community-tag.repository';
 import { CommunityDiscoveryCacheService } from './community/discovery/community-discovery-cache.service';
+import { CommunityDiscoveryExposureService } from './community/discovery/community-discovery-exposure.service';
 import { CommunityDiscoverySessionBehaviorService } from './community/discovery/community-discovery-session-behavior.service';
 
 const now = Date.now();
@@ -260,6 +261,7 @@ const sessionBehavior = {
     { provide: CommunityMembershipRepository, useValue: membershipRepository },
     { provide: CommunityTagRepository, useValue: tagRepository },
     { provide: CommunityDiscoveryCacheService, useValue: discoveryCache },
+    { provide: CommunityDiscoveryExposureService, useValue: { recordQualifiedExposure: () => undefined } },
     { provide: CommunityDiscoverySessionBehaviorService, useValue: sessionBehavior },
     { provide: CommunityCreationGateService, useValue: { requestCreation$: () => NEVER } },
     { provide: AuthSessionService, useValue: { uid$: of('visual-user') } },
