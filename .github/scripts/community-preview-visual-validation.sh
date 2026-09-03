@@ -32,6 +32,9 @@ run_checked "$OUT/desktop/feed.metrics.log" "async (page) => {
     const railRect = rail?.getBoundingClientRect();
     const primaryRect = primary?.getBoundingClientRect();
     const bodyRect = body?.getBoundingClientRect();
+    const cover = document.querySelector('.community-preview__cover');
+    const title = document.querySelector('.community-preview h1');
+    const actions = Array.from(document.querySelectorAll('.community-post__action'));
     return {
       viewportWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -45,6 +48,13 @@ run_checked "$OUT/desktop/feed.metrics.log" "async (page) => {
       railWidth: railRect?.width ?? 0,
       primaryWidth: primaryRect?.width ?? 0,
       bodyWidth: bodyRect?.width ?? 0,
+      coverHeight: cover?.getBoundingClientRect().height ?? 0,
+      titleFontSize: title ? Number.parseFloat(getComputedStyle(title).fontSize) : 0,
+      minPostActionHeight: actions.length
+        ? Math.min(...actions.map((action) => action.getBoundingClientRect().height))
+        : 0,
+      locationCount: document.querySelectorAll('.community-post__location').length,
+      replyContextCount: document.querySelectorAll('.community-post__reply-context').length,
       railHasAbout: (rail?.textContent ?? '').includes('Sobre'),
       railHasMetrics: (rail?.textContent ?? '').includes('Comunidade agora'),
       railHasRules: (rail?.textContent ?? '').includes('Regras'),
@@ -62,6 +72,11 @@ run_checked "$OUT/desktop/feed.metrics.log" "async (page) => {
     || metrics.railWidth < 240
     || metrics.primaryWidth < 700
     || metrics.bodyWidth <= metrics.primaryWidth
+    || metrics.coverHeight < 120
+    || metrics.titleFontSize < 20
+    || metrics.minPostActionHeight < 44
+    || metrics.locationCount !== 1
+    || metrics.replyContextCount !== 1
     || !metrics.railHasAbout
     || !metrics.railHasMetrics
     || !metrics.railHasRules
@@ -110,6 +125,8 @@ run_checked "$OUT/mobile/feed.metrics.log" "async (page) => {
     const tabs = document.querySelector('.community-preview__tabs')?.getBoundingClientRect();
     const content = document.querySelector('.community-preview__content')?.getBoundingClientRect();
     const rail = document.querySelector('.community-preview__rail');
+    const cover = document.querySelector('.community-preview__cover');
+    const actions = Array.from(document.querySelectorAll('.community-post__action'));
     return {
       viewportWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -119,6 +136,12 @@ run_checked "$OUT/mobile/feed.metrics.log" "async (page) => {
       postCount: document.querySelectorAll('.community-post').length,
       railCount: document.querySelectorAll('.community-preview__rail').length,
       railVisible: Boolean(rail && getComputedStyle(rail).display !== 'none'),
+      coverHeight: cover?.getBoundingClientRect().height ?? 0,
+      minPostActionHeight: actions.length
+        ? Math.min(...actions.map((action) => action.getBoundingClientRect().height))
+        : 0,
+      locationCount: document.querySelectorAll('.community-post__location').length,
+      replyContextCount: document.querySelectorAll('.community-post__reply-context').length,
     };
   });
   if (
@@ -129,6 +152,10 @@ run_checked "$OUT/mobile/feed.metrics.log" "async (page) => {
     || metrics.postCount !== 3
     || metrics.railCount !== 1
     || metrics.railVisible
+    || metrics.coverHeight < 100
+    || metrics.minPostActionHeight < 44
+    || metrics.locationCount !== 1
+    || metrics.replyContextCount !== 1
   ) {
     throw new Error('Community page mobile validation failed: ' + JSON.stringify(metrics));
   }

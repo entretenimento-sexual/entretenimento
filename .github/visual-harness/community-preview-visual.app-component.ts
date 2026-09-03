@@ -143,7 +143,12 @@ const feedPage: CommunityFeedPage = {
       text: 'Quem anima combinar alguma coisa tranquila no fim de semana? Podemos decidir pelo grupo.',
       image: null,
       location: null,
-      replyTo: null,
+      replyTo: {
+        postId: 'visual-community-reference-post',
+        authorLabel: 'Clara',
+        textPreview: 'Podemos começar por um café mais tranquilo e decidir o restante pelo grupo.',
+        available: true,
+      },
       metrics: { commentCount: 4, reactionCount: 13 },
       capabilities: {
         canDeleteOwn: false,
