@@ -296,8 +296,8 @@ fi
 
 for console_file in "${console_files[@]}"; do
   # Playwright CLI já usou tanto "[ERROR]" quanto "error <...>" colorizado.
-  # A busca textual funciona nos dois formatos sem depender de cabeçalho-resumo.
-  if grep -Eqi '(\[ERROR\]|(^|[[:space:]])error([[:space:]]|\x1b\[[0-9;]*m)*<)' "$console_file"; then
+  # O trecho "error.*<" atravessa os códigos ANSI e não depende de cabeçalho-resumo.
+  if grep -Eqi '(\[ERROR\]|error.*<)' "$console_file"; then
     echo "Unexpected browser console error in $console_file" >&2
     cat "$console_file" >&2
     console_error_count=$((console_error_count + 1))
