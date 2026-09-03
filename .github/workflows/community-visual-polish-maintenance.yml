@@ -1,0 +1,37 @@
+name: Community visual polish maintenance
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/community-visual-polish-maintenance.py'
+      - '.github/workflows/community-visual-polish-maintenance.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Apply Community visual hierarchy patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/community-visual-polish-maintenance.py
+          git diff --check
+          git rm .github/scripts/community-visual-polish-maintenance.py
+          git rm .github/workflows/community-visual-polish-maintenance.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/app/community/preview/community-preview-page.component.css
+          git add src/app/community/feed/community-feed.component.css
+          git add src/app/community/feed/community-feed.component.html
+          git commit -m 'style(community): strengthen page visual hierarchy'
+          git push origin HEAD:main
