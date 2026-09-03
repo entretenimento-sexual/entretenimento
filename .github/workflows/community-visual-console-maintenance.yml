@@ -45,14 +45,14 @@ jobs:
 
           script = Path('.github/scripts/community-discovery-visual-validation.sh')
           text = script.read_text()
-          old = r'''    if grep -q '\[ERROR\]' "$console_file"; then'''
-          new = r'''    if ! grep -q '^Console: 0 errors,' "$console_file"; then'''
+          old = r'''  if grep -q '\[ERROR\]' "$console_file"; then'''
+          new = r'''  if ! grep -q '^Console: 0 errors,' "$console_file"; then'''
           if old not in text:
               raise SystemExit('console enforcement anchor not found')
           text = text.replace(old, new, 1)
           text = text.replace(
-              '      echo "Unexpected browser console error in $console_file" >&2',
-              '      echo "Unexpected browser console error or invalid console summary in $console_file" >&2',
+              '    echo "Unexpected browser console error in $console_file" >&2',
+              '    echo "Unexpected browser console error or invalid console summary in $console_file" >&2',
               1,
           )
           script.write_text(text)
