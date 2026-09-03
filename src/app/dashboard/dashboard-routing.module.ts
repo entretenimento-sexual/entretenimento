@@ -8,6 +8,7 @@ import { ChatRoomsComponent } from '../chat-module/chat-rooms/chat-rooms.compone
 import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
 import { OnlineUsersComponent } from './online/online-users/online-users.component';
 import { OnlineUsersFullComponent } from './online/online-users-full/online-users-full.component';
+import { DiscoveryPublicProfilesFacade } from './discovery/application/discovery-public-profiles.facade';
 
 import { authGuard } from '../core/guards/auth-guard/auth.guard';
 import { requireFeatureFlag } from '../core/guards/access-guard/feature-flag.guard';
@@ -48,10 +49,16 @@ const routes: Routes = [
        * - Novos
        *
        * Por enquanto, /dashboard/online permanece intacta para evitar quebra.
+       *
+       * O facade fica no injector desta rota para que streams de presença,
+       * localização e enriquecimento terminem ao sair do Explorar. O cache NgRx
+       * continua transversal, mas trabalho reativo específico da tela não vaza
+       * para Comunidades ou outras áreas do dashboard.
        */
       {
         path: 'explorar',
         canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        providers: [DiscoveryPublicProfilesFacade],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
