@@ -295,8 +295,10 @@ if (( ${#console_files[@]} == 0 )); then
 fi
 
 for console_file in "${console_files[@]}"; do
-  if ! grep -q '^Console: 0 errors,' "$console_file"; then
-    echo "Unexpected browser console error or invalid console summary in $console_file" >&2
+  # Playwright CLI já usou tanto "[ERROR]" quanto "error <...>" colorizado.
+  # A busca textual funciona nos dois formatos sem depender de cabeçalho-resumo.
+  if grep -Eqi '(\[ERROR\]|(^|[[:space:]])error([[:space:]]|\x1b\[[0-9;]*m)*<)' "$console_file"; then
+    echo "Unexpected browser console error in $console_file" >&2
     cat "$console_file" >&2
     console_error_count=$((console_error_count + 1))
   fi
