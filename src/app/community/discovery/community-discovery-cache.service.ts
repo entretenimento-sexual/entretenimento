@@ -42,7 +42,7 @@ export class CommunityDiscoveryCacheService {
   private activeViewerUid: string | null = null;
 
   constructor() {
-    this.session.uid$
+    this.session.readyUid$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((uid) => {
         const viewerUid = normalizeCommunityDiscoveryViewerUid(uid) || null;
@@ -58,7 +58,7 @@ export class CommunityDiscoveryCacheService {
   readSnapshot$(
     context: CommunityDiscoveryCacheContext
   ): Observable<CommunityDiscoveryCacheSnapshot | null> {
-    return this.session.uid$.pipe(
+    return this.session.readyUid$.pipe(
       take(1),
       switchMap((uid) => {
         const query = buildCommunityDiscoveryCacheQuery(uid, context);
@@ -124,10 +124,6 @@ export class CommunityDiscoveryCacheService {
   }
 
   private resolveCurrentViewerUid(): string | null {
-    return this.activeViewerUid
-      || normalizeCommunityDiscoveryViewerUid(
-        this.session.currentAuthUser?.uid
-      )
-      || null;
+    return this.activeViewerUid;
   }
 }
