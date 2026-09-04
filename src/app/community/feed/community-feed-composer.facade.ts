@@ -119,7 +119,12 @@ export class CommunityFeedComposerFacade implements OnDestroy {
         }),
         map((): CommunityFeedPostWriteState => ({ status: 'idle' })),
         startWith<CommunityFeedPostWriteState>({ status: 'loading' }),
-        catchError(() => of<CommunityFeedPostWriteState>({ status: 'error' }))
+        catchError(() => {
+          // Falha de envio é um motivo real para revelar o feedback inline;
+          // foco/entrada de texto, isoladamente, não devem alterar a geometria.
+          this.composerExpanded.set(true);
+          return of<CommunityFeedPostWriteState>({ status: 'error' });
+        })
       )
     ),
     startWith<CommunityFeedPostWriteState>({ status: 'idle' }),
@@ -139,7 +144,11 @@ export class CommunityFeedComposerFacade implements OnDestroy {
   }
 
   expandComposer(context: CommunityFeedComposerContext): void {
-    if (this.canCreatePost(context)) this.composerExpanded.set(true);
+    // O binding de foco é preservado por compatibilidade, mas a expansão visual
+    // só ocorre quando existe conteúdo estrutural que realmente precisa de espaço.
+    if (this.canCreatePost(context) && this.selectedAttachment()) {
+      this.composerExpanded.set(true);
+    }
   }
 
   cancelPost(): void {
@@ -175,6 +184,7 @@ export class CommunityFeedComposerFacade implements OnDestroy {
 
   removeSelectedPhoto(): void {
     this.clearSelectedAttachment();
+    this.composerExpanded.set(false);
   }
 
   shareApproximateLocation(context: CommunityFeedComposerContext): void {

@@ -65,6 +65,29 @@ describe('CommunityFeedComposerFacade', () => {
     return TestBed.inject(CommunityFeedComposerFacade);
   }
 
+  it('mantém o composer compacto em foco/texto e expande apenas quando há conteúdo estrutural', () => {
+    const facade = createFacade();
+
+    facade.postForm.controls.text.setValue('Texto curto sem anexo.');
+    facade.expandComposer(context);
+
+    expect(facade.composerExpanded()).toBe(false);
+
+    facade.selectedAttachment.set({
+      kind: 'image',
+      file: new File(['photo'], 'foto.webp', { type: 'image/webp' }),
+      previewUrl: null,
+    });
+    facade.expandComposer(context);
+
+    expect(facade.composerExpanded()).toBe(true);
+
+    facade.removeSelectedPhoto();
+
+    expect(facade.selectedAttachment()).toBeNull();
+    expect(facade.composerExpanded()).toBe(false);
+  });
+
   it('publica, emite o item criado e limpa o rascunho somente após sucesso', () => {
     repositoryMock.createPost$.mockReturnValue(of({
       communityId: 'community-1',
@@ -135,6 +158,7 @@ describe('CommunityFeedComposerFacade', () => {
     );
     expect(facade.postForm.controls.text.value).toBe('Rascunho importante.');
     expect(facade.selectedAttachment()).toBe(attachment);
+    expect(facade.composerExpanded()).toBe(true);
     expect(applicationErrorMock.report).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -178,6 +202,7 @@ describe('CommunityFeedComposerFacade', () => {
     expect(facade.postForm.controls.text.value).toBe('Legenda preservada.');
     expect(facade.selectedAttachment()?.kind).toBe('image');
     expect(facade.uploadProgress()).toBeNull();
+    expect(facade.composerExpanded()).toBe(true);
   });
 
   it('mantém a regra canônica de criação restrita ao Mural da Comunidade', () => {
