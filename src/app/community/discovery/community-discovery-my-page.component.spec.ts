@@ -70,7 +70,10 @@ describe('CommunityDiscoveryPageComponent / Minhas comunidades', () => {
         },
         {
           provide: AuthSessionService,
-          useValue: { uid$: of(null) },
+          useValue: {
+            uid$: of(null),
+            readyUid$: of(null),
+          },
         },
         {
           provide: ProfilePreferencesService,

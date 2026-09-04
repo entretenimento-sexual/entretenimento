@@ -103,7 +103,10 @@ describe('CommunityDiscoveryPageComponent / apresentação contextual', () => {
         },
         {
           provide: AuthSessionService,
-          useValue: { uid$: of('viewer-1') },
+          useValue: {
+            uid$: of('viewer-1'),
+            readyUid$: of('viewer-1'),
+          },
         },
         {
           provide: ProfilePreferencesService,

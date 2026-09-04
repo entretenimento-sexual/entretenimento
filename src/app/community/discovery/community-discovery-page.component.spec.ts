@@ -74,7 +74,10 @@ describe('CommunityDiscoveryPageComponent / Locais', () => {
         },
         {
           provide: AuthSessionService,
-          useValue: { uid$: of(null) },
+          useValue: {
+            uid$: of(null),
+            readyUid$: of(null),
+          },
         },
         {
           provide: ProfilePreferencesService,
