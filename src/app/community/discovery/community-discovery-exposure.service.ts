@@ -13,6 +13,7 @@ import {
   tap,
 } from 'rxjs';
 
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { CommunityDiscoveryExposureRepository } from '../data-access/community-discovery-exposure.repository';
 import { CommunityPreviewSourceType } from '../data-access/community-preview.model';
@@ -23,6 +24,8 @@ const EXPOSURE_INITIAL_RETRY_DELAY_MS = 60_000;
 const EXPOSURE_MAX_RETRY_DELAY_MS = 15 * 60_000;
 
 interface QualifiedExposure {
+  readonly viewerUid: string;
+  readonly viewerSession: number;
   readonly communityId: string;
   readonly sourceType: CommunityPreviewSourceType;
 }
@@ -31,12 +34,27 @@ interface QualifiedExposure {
 export class CommunityDiscoveryExposureService {
   private readonly injector = inject(Injector);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly session = inject(AuthSessionService);
   private readonly qualifiedExposure$ = new Subject<QualifiedExposure>();
   private readonly recordedThisSession = new Set<string>();
+  private activeViewerUid: string | null = null;
+  private activeViewerSession = 0;
   private telemetryDisabledUntil = 0;
   private retryDelayMs = EXPOSURE_INITIAL_RETRY_DELAY_MS;
 
   constructor() {
+    this.session.readyUid$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((uid) => {
+        const viewerUid = String(uid ?? '').trim() || null;
+        if (viewerUid === this.activeViewerUid) return;
+
+        this.activeViewerUid = viewerUid;
+        this.activeViewerSession += 1;
+        this.recordedThisSession.clear();
+        this.closeTelemetryCircuit();
+      });
+
     this.qualifiedExposure$.pipe(
       bufferTime(EXPOSURE_BATCH_INTERVAL_MS, undefined, EXPOSURE_BATCH_SIZE),
       filter((batch) => batch.length > 0),
@@ -51,32 +69,59 @@ export class CommunityDiscoveryExposureService {
   ): void {
     if (this.isTelemetryTemporarilyDisabled()) return;
 
+    const viewerUid = this.activeViewerUid;
+    if (!viewerUid) return;
+
     const normalizedId = String(communityId ?? '').trim();
     if (!normalizedId) return;
 
-    const sessionKey = `${sourceType}:${normalizedId}`;
+    const viewerSession = this.activeViewerSession;
+    const sessionKey = `${viewerSession}:${sourceType}:${normalizedId}`;
     if (this.recordedThisSession.has(sessionKey)) return;
 
     this.recordedThisSession.add(sessionKey);
     this.qualifiedExposure$.next({
+      viewerUid,
+      viewerSession,
       communityId: normalizedId,
       sourceType,
     });
   }
 
   private persistBatch$(batch: readonly QualifiedExposure[]) {
-    const communityIds = batch
+    const viewerUid = this.activeViewerUid;
+    const viewerSession = this.activeViewerSession;
+    if (!viewerUid) return EMPTY;
+
+    const activeBatch = batch.filter(
+      (entry) =>
+        entry.viewerUid === viewerUid
+        && entry.viewerSession === viewerSession
+    );
+    if (activeBatch.length === 0) return EMPTY;
+
+    const communityIds = activeBatch
       .filter((entry) => entry.sourceType === 'community')
       .map((entry) => entry.communityId);
-    const venueIds = batch
+    const venueIds = activeBatch
       .filter((entry) => entry.sourceType === 'venue')
       .map((entry) => entry.communityId);
     const requests = [
       communityIds.length > 0
-        ? this.persistSourceBatch$('community', communityIds)
+        ? this.persistSourceBatch$(
+          'community',
+          communityIds,
+          viewerUid,
+          viewerSession
+        )
         : EMPTY,
       venueIds.length > 0
-        ? this.persistSourceBatch$('venue', venueIds)
+        ? this.persistSourceBatch$(
+          'venue',
+          venueIds,
+          viewerUid,
+          viewerSession
+        )
         : EMPTY,
     ];
 
@@ -85,10 +130,18 @@ export class CommunityDiscoveryExposureService {
 
   private persistSourceBatch$(
     sourceType: CommunityPreviewSourceType,
-    communityIds: readonly string[]
+    communityIds: readonly string[],
+    viewerUid: string,
+    viewerSession: number
   ) {
     return defer(() => {
-      if (this.isTelemetryTemporarilyDisabled()) return EMPTY;
+      if (
+        this.isTelemetryTemporarilyDisabled()
+        || this.activeViewerUid !== viewerUid
+        || this.activeViewerSession !== viewerSession
+      ) {
+        return EMPTY;
+      }
 
       const repository = this.injector.get(CommunityDiscoveryExposureRepository);
       const applicationError = this.injector.get(ApplicationErrorService);
