@@ -23,6 +23,7 @@ function createUser(role: IUserDados['role'] = 'free'): IUserDados {
     tier: role === 'admin' ? 'free' : role,
     lastLogin: 1,
     profileCompleted: true,
+    isSubscriber: role !== 'free' && role !== 'admin',
   } as IUserDados;
 }
 
@@ -50,12 +51,19 @@ function createSubscriptionState(
 
 describe('AccessControlService canonical subscription roles', () => {
   let user$: BehaviorSubject<IUserDados | null | undefined>;
+  let authReady$: BehaviorSubject<boolean>;
+  let authUser$: BehaviorSubject<{ uid: string; emailVerified: boolean } | null>;
   let subscriptionState$: BehaviorSubject<PlatformSubscriptionAccessState>;
   let subscriptionIsFree$: BehaviorSubject<boolean>;
   let subscriptionIsSubscriber$: BehaviorSubject<boolean>;
 
   beforeEach(() => {
     user$ = new BehaviorSubject<IUserDados | null | undefined>(createUser());
+    authReady$ = new BehaviorSubject<boolean>(true);
+    authUser$ = new BehaviorSubject<{ uid: string; emailVerified: boolean } | null>({
+      uid: 'user-1',
+      emailVerified: true,
+    });
     subscriptionState$ = new BehaviorSubject<PlatformSubscriptionAccessState>(
       createSubscriptionState(null)
     );
@@ -68,14 +76,10 @@ describe('AccessControlService canonical subscription roles', () => {
         {
           provide: AuthSessionService,
           useValue: {
-            ready$: new BehaviorSubject(true),
-            authUser$: new BehaviorSubject({
-              uid: 'user-1',
-              emailVerified: true,
-            }),
-            currentAuthUser: {
-              uid: 'user-1',
-              emailVerified: true,
+            ready$: authReady$.asObservable(),
+            authUser$: authUser$.asObservable(),
+            get currentAuthUser() {
+              return authUser$.value;
             },
           },
         },
@@ -174,5 +178,37 @@ describe('AccessControlService canonical subscription roles', () => {
 
     freeSubscription.unsubscribe();
     subscriberSubscription.unsubscribe();
+  });
+
+  it('falha fechado enquanto o perfil do usuário autenticado não foi hidratado', async () => {
+    user$.next(undefined);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('unknown');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canRunApp$)).toBe(false);
+  });
+
+  it('trata lock técnico como lifecycle bloqueado mesmo com status nominal ativo', async () => {
+    user$.next({
+      ...createUser(),
+      accountStatus: 'active',
+      accountLocked: true,
+    });
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('locked');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(true);
+    expect(await firstValueFrom(service.canEnterCore$)).toBe(false);
+  });
+
+  it('não classifica guest resolvido como conta bloqueada', async () => {
+    authUser$.next(null);
+    user$.next(null);
+    const service = TestBed.inject(AccessControlService);
+
+    expect(await firstValueFrom(service.accountStatus$)).toBe('active');
+    expect(await firstValueFrom(service.isLifecycleBlocked$)).toBe(false);
+    expect(await firstValueFrom(service.isAuthenticated$)).toBe(false);
   });
 });

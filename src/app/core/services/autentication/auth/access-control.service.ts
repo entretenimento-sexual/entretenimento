@@ -46,6 +46,11 @@ import { AuthSessionService } from './auth-session.service';
 import { CurrentUserStoreService } from './current-user-store.service';
 import { AuthAppBlockService } from './auth-app-block.service';
 import { AuthRouteContextService } from './auth-route-context.service';
+import {
+  isRuntimeAccountLifecycleBlocked,
+  resolveRuntimeAccountLifecycleStatus,
+  type RuntimeAccountLifecycleStatus,
+} from './account-lifecycle.policy';
 
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
@@ -62,13 +67,6 @@ export type AccessState =
   | 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_PENDING'
   | 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_BLOCKED'
   | 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_OK';
-
-type LifecycleAccountStatus =
-  | 'active'
-  | 'self_suspended'
-  | 'moderation_suspended'
-  | 'pending_deletion'
-  | 'deleted';
 
 const ROLE_RANK: Record<string, number> = {
   visitante: 0,
@@ -130,36 +128,6 @@ export class AccessControlService {
       typeof municipio === 'string' &&
       municipio.trim() !== ''
     );
-  }
-
-  private normalizeAccountStatus(
-    user: IUserDados | null | undefined
-  ): LifecycleAccountStatus {
-    const raw = String((user as any)?.accountStatus ?? '')
-      .trim()
-      .toLowerCase();
-
-    if (
-      raw === 'active' ||
-      raw === 'self_suspended' ||
-      raw === 'moderation_suspended' ||
-      raw === 'pending_deletion' ||
-      raw === 'deleted'
-    ) {
-      return raw;
-    }
-
-    if ((user as any)?.suspended === true) {
-      return (user as any)?.suspensionSource === 'self'
-        ? 'self_suspended'
-        : 'moderation_suspended';
-    }
-
-    return 'active';
-  }
-
-  private isLifecycleBlockedStatus(status: LifecycleAccountStatus): boolean {
-    return status !== 'active';
   }
 
   private handleStreamError<T>(
@@ -312,10 +280,25 @@ export class AccessControlService {
   // Lifecycle da conta
   // ---------------------------------------------------------------------------
 
-  readonly accountStatus$: Observable<LifecycleAccountStatus> = this.appUser$.pipe(
-    map(
-      (user): LifecycleAccountStatus =>
-        this.normalizeAccountStatus(user as IUserDados | null | undefined)
+  /**
+   * Lifecycle canônico e fail-closed:
+   * - guest confirmado continua livre;
+   * - sessão autenticada sem perfil hidratado => unknown;
+   * - UID divergente, lock ou status inesperado => bloqueado até reconciliação.
+   */
+  readonly accountStatus$: Observable<RuntimeAccountLifecycleStatus> = combineLatest([
+    this.ready$,
+    this.authUid$,
+    this.appUserResolved$,
+    this.appUser$,
+  ]).pipe(
+    map(([ready, authUid, userResolved, user]) =>
+      resolveRuntimeAccountLifecycleStatus({
+        authReady: ready,
+        authUid,
+        userResolved,
+        user: user as IUserDados | null | undefined,
+      })
     ),
     distinctUntilChanged(),
     tap((accountStatus) => {
@@ -326,25 +309,26 @@ export class AccessControlService {
       this.dbg('accountStatus$', {
         accountStatus,
         uid: user?.uid,
+        authUid: this.session.currentAuthUser?.uid ?? null,
         rawAccountStatus: user?.accountStatus,
         suspended: user?.suspended,
-        suspensionSource: user?.suspensionSource,
+        accountLocked: user?.accountLocked,
       });
     }),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(
-      this.handleStreamError<LifecycleAccountStatus>(
+      this.handleStreamError<RuntimeAccountLifecycleStatus>(
         'accountStatus$',
-        'active'
+        'unknown'
       )
     )
   );
 
   readonly isLifecycleBlocked$: Observable<boolean> = this.accountStatus$.pipe(
-    map((status) => this.isLifecycleBlockedStatus(status)),
+    map((status) => isRuntimeAccountLifecycleBlocked(status)),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(this.handleStreamError('isLifecycleBlocked$', false))
+    catchError(this.handleStreamError('isLifecycleBlocked$', true))
   );
 
   readonly isBlocked$: Observable<boolean> = combineLatest([
@@ -354,7 +338,7 @@ export class AccessControlService {
     map(([reason, lifecycleBlocked]) => !!reason || lifecycleBlocked),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(this.handleStreamError('isBlocked$', false))
+    catchError(this.handleStreamError('isBlocked$', true))
   );
 
   // ---------------------------------------------------------------------------

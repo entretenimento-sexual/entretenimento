@@ -50,6 +50,12 @@ import {
 import { AuthSessionMonitorService } from './auth-session-monitor.service';
 import { AuthPostLoginEffectsService } from './auth-post-login-effects.service';
 import { AuthAppBlockService } from './auth-app-block.service';
+import {
+  isRuntimeAccountLifecycleBlocked,
+  isRuntimeAccountLifecycleResolved,
+  resolveRuntimeAccountLifecycleStatus,
+  type RuntimeAccountLifecycleStatus,
+} from './account-lifecycle.policy';
 import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -64,13 +70,6 @@ import {
 } from './auth.types';
 import { UserRepositoryService } from '../../data-handling/firestore/repositories/user-repository.service';
 
-type OrchestratorLifecycleStatus =
-  | 'active'
-  | 'self_suspended'
-  | 'moderation_suspended'
-  | 'pending_deletion'
-  | 'deleted';
-
 type OrchestratorContext = {
   ready: boolean;
   routerReady: boolean;
@@ -82,7 +81,7 @@ type OrchestratorContext = {
   unverified: boolean;
   blockedReason: TerminateReason | null;
 
-  accountStatus: OrchestratorLifecycleStatus;
+  accountStatus: RuntimeAccountLifecycleStatus;
   lifecycleBlocked: boolean;
 };
 
@@ -131,50 +130,32 @@ export class AuthOrchestratorService {
   ) {}
 
   /**
- * Debug seguro do orquestrador de autenticação.
- *
- * Canal:
- * localStorage.setItem('DEBUG_AUTH_ORCHESTRATOR', '1');
- *
- * O AuthOrchestrator revela dados sensíveis:
- * - UID da sessão;
- * - rota atual;
- * - navPath;
- * - estado de bloqueio;
- * - ciclo de vida da conta;
- * - início/parada de watchers.
- *
- * Por isso, o log passa pelo PrivacyDebugLoggerService.
- */
-private dbg(message: string, extra?: unknown): void {
-  this.privacyDebug.log('auth-orchestrator', message, extra);
-}
-
-  private normalizeAccountStatus(user: any): OrchestratorLifecycleStatus {
-  const raw = String(user?.accountStatus ?? '').trim().toLowerCase();
-
-  if (raw === 'active') return 'active';
-  if (raw === 'self_suspended') return 'self_suspended';
-  if (raw === 'moderation_suspended') return 'moderation_suspended';
-  if (raw === 'pending_deletion') return 'pending_deletion';
-  if (raw === 'deleted') return 'deleted';
-
-  if (user?.suspended === true) {
-    return user?.suspensionSource === 'self'
-      ? 'self_suspended'
-      : 'moderation_suspended';
+   * Debug seguro do orquestrador de autenticação.
+   *
+   * Canal:
+   * localStorage.setItem('DEBUG_AUTH_ORCHESTRATOR', '1');
+   *
+   * O AuthOrchestrator revela dados sensíveis:
+   * - UID da sessão;
+   * - rota atual;
+   * - navPath;
+   * - estado de bloqueio;
+   * - ciclo de vida da conta;
+   * - início/parada de watchers.
+   *
+   * Por isso, o log passa pelo PrivacyDebugLoggerService.
+   */
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('auth-orchestrator', message, extra);
   }
 
-  return 'active';
-}
+  private navigateToAccountStatus(replaceUrl = true): void {
+    const target = '/conta/status';
 
-private navigateToAccountStatus(replaceUrl = true): void {
-  const target = '/conta/status';
+    if ((this.router.url || '').startsWith(target)) return;
 
-  if ((this.router.url || '').startsWith(target)) return;
-
-  this.router.navigate([target], { replaceUrl }).catch(() => {});
-}
+    this.router.navigate([target], { replaceUrl }).catch(() => {});
+  }
 
   /**
    * Liga o orquestrador uma única vez.
@@ -183,34 +164,39 @@ private navigateToAccountStatus(replaceUrl = true): void {
     if (this.started) return;
     this.started = true;
 
-      combineLatest([
-        this.authSession.ready$,
-        this.authSession.authUser$,
-        this.appBlock.reason$,
-        this.routeContext.context$,
-        this.currentUserStore.user$,
-      ])
+    combineLatest([
+      this.authSession.ready$,
+      this.authSession.authUser$,
+      this.appBlock.reason$,
+      this.routeContext.context$,
+      this.currentUserStore.user$,
+    ])
       .pipe(
         filter(() => typeof window !== 'undefined' && typeof document !== 'undefined'),
 
-      map(([ready, authUser, blockedReason, routeCtx, appUser]): OrchestratorContext => {
-        const uid = authUser?.uid ?? null;
-        const accountStatus = this.normalizeAccountStatus(appUser);
+        map(([ready, authUser, blockedReason, routeCtx, appUser]): OrchestratorContext => {
+          const uid = authUser?.uid ?? null;
+          const accountStatus = resolveRuntimeAccountLifecycleStatus({
+            authReady: ready,
+            authUid: uid,
+            userResolved: appUser !== undefined,
+            user: appUser,
+          });
 
-        return {
-          ready,
-          routerReady: routeCtx.routerReady,
-          authUser,
-          uid,
-          url: routeCtx.currentUrl,
-          navPath: routeCtx.navPath,
-          inReg: routeCtx.inRegistrationFlow,
-          unverified: authUser ? authUser.emailVerified !== true : false,
-          blockedReason,
-          accountStatus,
-          lifecycleBlocked: accountStatus !== 'active',
-        };
-      }),
+          return {
+            ready,
+            routerReady: routeCtx.routerReady,
+            authUser,
+            uid,
+            url: routeCtx.currentUrl,
+            navPath: routeCtx.navPath,
+            inReg: routeCtx.inRegistrationFlow,
+            unverified: authUser ? authUser.emailVerified !== true : false,
+            blockedReason,
+            accountStatus,
+            lifecycleBlocked: isRuntimeAccountLifecycleBlocked(accountStatus),
+          };
+        }),
 
         distinctUntilChanged((prev, curr) => this.isSameContext(prev, curr)),
 
@@ -244,6 +230,16 @@ private navigateToAccountStatus(replaceUrl = true): void {
           }
 
           this.refreshGraceWindow(ctx.authUser);
+
+          /**
+           * Perfil autenticado ainda não reconciliado não é interpretado como
+           * conta ativa nem como punição. Paramos infraestrutura dependente do
+           * usuário e aguardamos a hidratação canônica Firestore -> Store.
+           */
+          if (!isRuntimeAccountLifecycleResolved(ctx.accountStatus)) {
+            this.stopRuntimeSideEffects();
+            return of(null);
+          }
 
           if (ctx.lifecycleBlocked) {
             this.stopRuntimeSideEffects();
@@ -317,16 +313,16 @@ private navigateToAccountStatus(replaceUrl = true): void {
    * - email já está verificado
    * - app não está bloqueado
    */
-    private shouldRunAppMode(ctx: OrchestratorContext): boolean {
-      return (
-        !!ctx.uid &&
-        !!ctx.authUser &&
-        !ctx.inReg &&
-        !ctx.unverified &&
-        !ctx.blockedReason &&
-        !ctx.lifecycleBlocked
-      );
-    }
+  private shouldRunAppMode(ctx: OrchestratorContext): boolean {
+    return (
+      !!ctx.uid &&
+      !!ctx.authUser &&
+      !ctx.inReg &&
+      !ctx.unverified &&
+      !ctx.blockedReason &&
+      !ctx.lifecycleBlocked
+    );
+  }
 
   /**
    * Sincroniza toda a infraestrutura que só deve existir em "app-mode".

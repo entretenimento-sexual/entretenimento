@@ -10,7 +10,6 @@
 // campos novos — especialmente versão e período de assinatura — sejam
 // descartados por um comparador manual desatualizado.
 import { Injectable } from '@angular/core';
-import { Auth } from '@angular/fire/auth';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { distinctUntilChanged, filter, map, take } from 'rxjs/operators';
 
@@ -18,30 +17,93 @@ import { IUserDados } from '@core/interfaces/iuser-dados';
 import { CacheService } from '@core/services/general/cache/cache.service';
 import { AuthSessionService } from './auth-session.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
+import {
+  isRuntimeAccountLifecycleBlocked,
+  normalizeUserAccountLifecycleStatus,
+} from './account-lifecycle.policy';
 
 type UserTriState = IUserDados | null | undefined;
 
-const RESTRICTED_ACCOUNT_STATUSES = new Set([
-  'self_suspended',
-  'moderation_suspended',
-  'pending_deletion',
-  'deleted',
+/**
+ * Campos que representam identidade técnica, autorização, billing, compliance
+ * administrativo ou lifecycle projetado pelo backend. `patch()` é somente uma
+ * conveniência de runtime/UX e não pode fabricar autoridade local nesses campos.
+ *
+ * A assinatura de `patch(Partial<IUserDados>)` é preservada para não quebrar os
+ * consumidores existentes; a defesa ocorre também em runtime.
+ */
+const SERVER_MANAGED_RUNTIME_PATCH_KEYS = new Set<string>([
+  'uid',
+  'profileId',
+  'emailVerified',
+  'role',
+  'tier',
+  'isSubscriber',
+  'monthlyPayer',
+  'billingProjectionVersion',
+  'subscriptionStatus',
+  'subscriptionScope',
+  'subscriptionStartedAt',
+  'subscriptionEndsAt',
+  'subscriptionExpires',
+  'lastBillingCheckoutSessionId',
+  'lastBillingTransactionId',
+  'billingUpdatedAt',
+  'singleRoomCreationRightExpires',
+  'roomCreationSubscriptionExpires',
+  'initialAdultConsentRequired',
+  'ageReverification',
+  'ageReverificationRestrictedAt',
+  'identityCode',
+  'identityLabel',
+  'identityShortLabel',
+  'identityDiscoveryGroup',
+  'normalizedGender',
+  'normalizedOrientation',
+  'compatibilityReady',
+  'interestedInGenders',
+  'interestedInOrientations',
+  'discoveryPreferencesUpdatedAt',
+  'publicRelationshipIntents',
+  'publicSexualPractices',
+  'publicBodyTraits',
+  'preferenceBadgesVisible',
+  'publicPreferencesUpdatedAt',
+  'accountStatus',
+  'publicVisibility',
+  'interactionBlocked',
+  'loginAllowed',
+  'statusUpdatedAt',
+  'statusUpdatedBy',
   'suspended',
-  'locked',
+  'suspensionReason',
+  'suspensionSource',
+  'suspensionEndsAt',
+  'suspendedAtMs',
+  'suspendedBy',
+  'unsuspendedAtMs',
+  'unsuspendedBy',
+  'accountLocked',
+  'lockedAtMs',
+  'lockedBy',
+  'unlockedAtMs',
+  'unlockedBy',
+  'deletionRequestedAt',
+  'deletionRequestedBy',
+  'deletionUndoUntil',
+  'purgeAfter',
+  'deletedAt',
+  'legalHold',
+  'billingHold',
 ]);
 
 /** Defesa de runtime para todas as origens de autenticação. */
 export function normalizeCurrentUserRuntimeVisibility(
   user: IUserDados
 ): IUserDados {
-  const status = String(user.accountStatus ?? 'active')
-    .trim()
-    .toLowerCase();
+  const lifecycleStatus = normalizeUserAccountLifecycleStatus(user);
   const profileIncomplete = user.profileCompleted !== true;
-  const lifecycleRestricted =
-    RESTRICTED_ACCOUNT_STATUSES.has(status) ||
-    user.suspended === true ||
-    user.accountLocked === true;
+  const lifecycleRestricted = isRuntimeAccountLifecycleBlocked(lifecycleStatus);
 
   if (!profileIncomplete && !lifecycleRestricted) return user;
 
@@ -70,7 +132,6 @@ export class CurrentUserStoreService {
   constructor(
     private readonly cache: CacheService,
     private readonly authSession: AuthSessionService,
-    private readonly auth: Auth,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
@@ -99,7 +160,18 @@ export class CurrentUserStoreService {
     const current = this.userSubject.value;
     if (!current || current === null) return;
 
-    const merged = { ...current, ...partial } as IUserDados;
+    const { safePartial, blockedKeys } = this.sanitizeRuntimePatch(partial);
+
+    if (blockedKeys.length > 0) {
+      this.dbg('patch(user) ignored server-managed keys', {
+        uid: current.uid,
+        blockedKeys,
+      });
+    }
+
+    if (Object.keys(safePartial).length === 0) return;
+
+    const merged = { ...current, ...safePartial } as IUserDados;
     const next = normalizeCurrentUserRuntimeVisibility(merged);
     if (!next.uid || this.areUsersEquivalent(current, next)) return;
 
@@ -109,7 +181,7 @@ export class CurrentUserStoreService {
 
     this.dbg('patch(user)', {
       uid: next.uid,
-      keys: Object.keys(partial ?? {}),
+      keys: Object.keys(safePartial),
       normalizedVisibility: next !== merged,
     });
   }
@@ -121,10 +193,7 @@ export class CurrentUserStoreService {
 
     this.cache.delete(this.keyUser);
 
-    const authUid =
-      this.authSession.currentAuthUser?.uid ??
-      this.auth.currentUser?.uid ??
-      null;
+    const authUid = this.authSession.currentAuthUser?.uid ?? null;
 
     if (authUid) {
       this.cache.set(this.keyUid, authUid, undefined, { persist: false });
@@ -186,15 +255,12 @@ export class CurrentUserStoreService {
     return this.authSession.uid$.pipe(distinctUntilChanged());
   }
 
+  /**
+   * Snapshot síncrono do UID estritamente a partir da sessão Firebase canônica.
+   * Cache e perfil runtime nunca podem promover um UID sem sessão confirmada.
+   */
   getLoggedUserUIDSnapshot(): string | null {
-    return (
-      this.auth.currentUser?.uid ??
-      this.cache.getSync<string>(this.keyUid) ??
-      (this.userSubject.value && this.userSubject.value !== null
-        ? this.userSubject.value.uid
-        : null) ??
-      null
-    );
+    return this.authSession.currentAuthUser?.uid?.trim() || null;
   }
 
   getLoggedUserUIDOnce$(): Observable<string | null> {
@@ -202,11 +268,7 @@ export class CurrentUserStoreService {
   }
 
   restoreFromCache(): IUserDados | null {
-    const uid =
-      this.authSession.currentAuthUser?.uid ??
-      this.auth.currentUser?.uid ??
-      null;
-
+    const uid = this.authSession.currentAuthUser?.uid ?? null;
     return this.restoreFromCacheForUid(uid);
   }
 
@@ -264,6 +326,24 @@ export class CurrentUserStoreService {
       take(1),
       map(() => this.restoreFromCache())
     );
+  }
+
+  private sanitizeRuntimePatch(partial: Partial<IUserDados>): {
+    safePartial: Partial<IUserDados>;
+    blockedKeys: string[];
+  } {
+    const safePartial = { ...(partial ?? {}) } as Partial<IUserDados>;
+    const blockedKeys: string[] = [];
+    const writable = safePartial as Record<string, unknown>;
+
+    for (const key of Object.keys(writable)) {
+      if (!SERVER_MANAGED_RUNTIME_PATCH_KEYS.has(key)) continue;
+      blockedKeys.push(key);
+      delete writable[key];
+    }
+
+    blockedKeys.sort();
+    return { safePartial, blockedKeys };
   }
 
   private areUsersEquivalent(

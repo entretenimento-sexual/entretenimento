@@ -2,13 +2,12 @@
 // utilizando ferramentas nativas
 import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
-import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
-
-import { Auth } from '@angular/fire/auth';
+import { describe, beforeEach, it, expect, vi } from 'vitest';
 
 import { CurrentUserStoreService } from './current-user-store.service';
 import { CacheService } from '../../general/cache/cache.service';
 import { AuthSessionService } from './auth-session.service';
+import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 
 class MockCacheService {
@@ -29,15 +28,6 @@ describe('CurrentUserStoreService', () => {
   let cache: MockCacheService;
   let authSession: MockAuthSessionService;
 
-  // backing field mutável para contornar o readonly de Auth.currentUser
-  let authCurrentUserMock: { uid: string } | null;
-
-  const authMock: Partial<Auth> = {
-    get currentUser() {
-      return authCurrentUserMock as any;
-    },
-  };
-
   const userMock: IUserDados = {
     uid: 'u1',
     email: 'alex@test.com',
@@ -53,7 +43,10 @@ describe('CurrentUserStoreService', () => {
         CurrentUserStoreService,
         { provide: CacheService, useClass: MockCacheService },
         { provide: AuthSessionService, useClass: MockAuthSessionService },
-        { provide: Auth, useValue: authMock },
+        {
+          provide: PrivacyDebugLoggerService,
+          useValue: { log: vi.fn(), canLog: vi.fn(() => false) },
+        },
       ],
     });
 
@@ -62,7 +55,6 @@ describe('CurrentUserStoreService', () => {
     authSession = TestBed.inject(AuthSessionService) as any;
 
     vi.clearAllMocks();
-    authCurrentUserMock = null;
     authSession.currentAuthUser = null;
     authSession.ready$.next(false);
     authSession.uid$.next(null);
@@ -95,7 +87,7 @@ describe('CurrentUserStoreService', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
-  it('patch() deve mesclar os dados do usuário atual', () => {
+  it('patch() deve mesclar os dados editáveis do usuário atual', () => {
     service.set(userMock);
     vi.clearAllMocks();
 
@@ -128,7 +120,36 @@ describe('CurrentUserStoreService', () => {
     );
   });
 
-  it('patch() deve publicar mudanças de termos e consentimento adulto', () => {
+  it('patch() ignora campos de autoridade gerenciados pelo backend', () => {
+    service.set(userMock);
+    vi.clearAllMocks();
+
+    service.patch({
+      nickname: 'apelido-seguro',
+      uid: 'other-user',
+      role: 'admin',
+      tier: 'vip',
+      isSubscriber: false,
+      accountStatus: 'deleted',
+      accountLocked: true,
+      subscriptionStatus: 'active',
+      legalHold: true,
+    } as Partial<IUserDados>);
+
+    expect(service.getSnapshot()).toEqual(expect.objectContaining({
+      uid: 'u1',
+      nickname: 'apelido-seguro',
+      role: 'premium',
+      isSubscriber: true,
+    }));
+    expect(service.getSnapshot()?.tier).toBeUndefined();
+    expect(service.getSnapshot()?.accountStatus).toBeUndefined();
+    expect(service.getSnapshot()?.accountLocked).toBeUndefined();
+    expect(service.getSnapshot()?.subscriptionStatus).toBeUndefined();
+    expect(service.getSnapshot()?.legalHold).toBeUndefined();
+  });
+
+  it('patch() deve publicar mudanças explícitas de termos e consentimento adulto', () => {
     const initialUser: IUserDados = {
       ...userMock,
       acceptedTerms: {
@@ -208,32 +229,20 @@ describe('CurrentUserStoreService', () => {
     expect(service.getSnapshot()).toBeUndefined();
   });
 
-  it('getLoggedUserUIDSnapshot() deve priorizar auth.currentUser.uid', () => {
-    authCurrentUserMock = { uid: 'auth-uid' };
+  it('getLoggedUserUIDSnapshot() usa somente a sessão canônica', () => {
+    authSession.currentAuthUser = { uid: 'auth-uid' };
     cache.getSync.mockReturnValue('cache-uid');
-
-    const uid = service.getLoggedUserUIDSnapshot();
-
-    expect(uid).toBe('auth-uid');
-  });
-
-  it('getLoggedUserUIDSnapshot() deve usar cache quando auth.currentUser não existir', () => {
-    authCurrentUserMock = null;
-    cache.getSync.mockReturnValue('cache-uid');
-
-    const uid = service.getLoggedUserUIDSnapshot();
-
-    expect(uid).toBe('cache-uid');
-  });
-
-  it('getLoggedUserUIDSnapshot() deve usar userSubject quando auth/cache não existirem', () => {
-    authCurrentUserMock = null;
-    cache.getSync.mockReturnValue(null);
     service.set(userMock);
 
-    const uid = service.getLoggedUserUIDSnapshot();
+    expect(service.getLoggedUserUIDSnapshot()).toBe('auth-uid');
+  });
 
-    expect(uid).toBe('u1');
+  it('getLoggedUserUIDSnapshot() não promove UID de cache ou perfil sem sessão', () => {
+    authSession.currentAuthUser = null;
+    cache.getSync.mockReturnValue('cache-uid');
+    service.set(userMock);
+
+    expect(service.getLoggedUserUIDSnapshot()).toBeNull();
   });
 
   it('restoreFromCacheForUid() deve restaurar do cache quando uid bater', () => {
@@ -265,7 +274,7 @@ describe('CurrentUserStoreService', () => {
     expect(cache.delete).not.toHaveBeenCalled();
   });
 
-  it('restoreFromCache() deve usar authSession.currentAuthUser.uid primeiro', () => {
+  it('restoreFromCache() deve usar somente authSession.currentAuthUser.uid', () => {
     authSession.currentAuthUser = { uid: 'u1' };
     cache.getSync.mockReturnValue(userMock);
 
@@ -274,14 +283,14 @@ describe('CurrentUserStoreService', () => {
     expect(restored).toEqual(userMock);
   });
 
-  it('restoreFromCache() deve cair para auth.currentUser.uid quando currentAuthUser não existir', () => {
+  it('restoreFromCache() não restaura perfil sem UID autenticado', () => {
     authSession.currentAuthUser = null;
-    authCurrentUserMock = { uid: 'u1' };
     cache.getSync.mockReturnValue(userMock);
 
     const restored = service.restoreFromCache();
 
-    expect(restored).toEqual(userMock);
+    expect(restored).toBeNull();
+    expect(service.getSnapshot()).toBeUndefined();
   });
 
   it('getLoggedUserUID$() deve refletir o uid$ do AuthSessionService', async () => {
