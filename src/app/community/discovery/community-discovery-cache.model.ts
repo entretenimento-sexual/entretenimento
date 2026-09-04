@@ -35,6 +35,11 @@ export interface CommunityDiscoveryCacheQuery
 }
 
 export const COMMUNITY_DISCOVERY_CACHE_TTL_MS = 30_000;
+/**
+ * Limite por viewer ativo. Evita crescimento indefinido quando a pessoa alterna
+ * entre muitos filtros/tags numa sessão longa, especialmente em mobile/PWA.
+ */
+export const COMMUNITY_DISCOVERY_CACHE_MAX_QUERIES = 24;
 
 const SAFE_UID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const COMMUNITY_DISCOVERY_CACHE_PREFIX = 'community:discovery:v1';
