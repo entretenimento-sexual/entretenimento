@@ -55,10 +55,6 @@
   line-height: 1.45;
 }
 
-.community-feed__composer.is-expanded textarea {
-  min-height: 3.4rem;
-}
-
 .community-feed__photo-input {
   display: none;
 }
