@@ -71,6 +71,7 @@ export const recordCommunityDiscoveryExposure =
       enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
     },
     async (request): Promise<CommunityDiscoveryExposureResponse> => {
+      const startedAt = Date.now();
       assertRuntime();
       assertCommunityCallableAppCheck(request.app);
       const uid = assertActor(request.auth);
@@ -132,6 +133,10 @@ export const recordCommunityDiscoveryExposure =
         sourceType: command.sourceType,
         submitted: command.communityIds.length,
         accepted: eligibleCommunityIds.length,
+        projectionReads: projectionSnapshots.length,
+        counterWrites: eligibleCommunityIds.length,
+        writeBatchCommitted: eligibleCommunityIds.length > 0,
+        durationMs: Date.now() - startedAt,
       });
 
       return {
