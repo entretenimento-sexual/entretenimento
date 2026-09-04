@@ -99,6 +99,8 @@ describe('CommunityFeedComponent', () => {
     uploadFile: vi.fn(),
   };
   const authSessionMock = {
+    ready$: of(true),
+    readyUid$: of('u1'),
     currentAuthUser: { uid: 'u1' },
   };
   const errorNotifierMock = {
