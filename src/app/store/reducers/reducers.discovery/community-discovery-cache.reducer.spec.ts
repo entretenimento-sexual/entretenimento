@@ -3,7 +3,10 @@ import type {
   CommunityPreviewCard,
   CommunityPreviewSourceType,
 } from 'src/app/community/data-access/community-preview.model';
-import { buildCommunityDiscoveryCacheQuery } from 'src/app/community/discovery/community-discovery-cache.model';
+import {
+  COMMUNITY_DISCOVERY_CACHE_MAX_QUERIES,
+  buildCommunityDiscoveryCacheQuery,
+} from 'src/app/community/discovery/community-discovery-cache.model';
 import * as Actions from '../../actions/actions.discovery/community-discovery-cache.actions';
 import { initialCommunityDiscoveryCacheState } from '../../states/states.discovery/community-discovery-cache.state';
 import { communityDiscoveryCacheReducer } from './community-discovery-cache.reducer';
@@ -160,5 +163,45 @@ describe('communityDiscoveryCacheReducer', () => {
     expect(
       slices.find((slice) => slice.query.pageSize === 24)?.lastLoadedAt
     ).toBe(200);
+  });
+
+  it('limita consultas por viewer e remove primeiro a menos recente', () => {
+    let state = initialCommunityDiscoveryCacheState;
+
+    for (let index = 0; index <= COMMUNITY_DISCOVERY_CACHE_MAX_QUERIES; index += 1) {
+      const cacheQuery = buildCommunityDiscoveryCacheQuery('viewer-1', {
+        sourceType: 'community',
+        discoveryMode: 'explore',
+        tagId: `intent:cache_${index}`,
+        pageSize: 12,
+      })!;
+
+      state = communityDiscoveryCacheReducer(
+        state,
+        Actions.storeCommunityDiscoveryPage({
+          query: cacheQuery,
+          page: {
+            items: [card(`community-${index}`)],
+            nextCursor: null,
+            generatedAt: 100 + index,
+          },
+          append: false,
+          storedAt: 100 + index,
+        })
+      );
+    }
+
+    const slices = Object.values(state.byQuery);
+    expect(slices).toHaveLength(COMMUNITY_DISCOVERY_CACHE_MAX_QUERIES);
+    expect(
+      slices.some((slice) => slice.query.tagId === 'intent:cache_0')
+    ).toBe(false);
+    expect(
+      slices.some(
+        (slice) =>
+          slice.query.tagId
+          === `intent:cache_${COMMUNITY_DISCOVERY_CACHE_MAX_QUERIES}`
+      )
+    ).toBe(true);
   });
 });
