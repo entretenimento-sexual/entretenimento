@@ -8,20 +8,21 @@ import { AuthSessionService } from '@core/services/autentication/auth/auth-sessi
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import {
   isRestrictedAccountStatus,
-  normalizeAccountStatus,
+  resolveAccountStatus,
 } from './account-lifecycle-status.util';
 
 /**
  * Guard para rotas protegidas do app.
  *
  * Regras:
- * - conta ativa => segue
- * - conta suspensa / exclusão pendente / deleted => manda para /conta/status
- * - não assume active enquanto CurrentUser ainda está unresolved
+ * - conta ativa e coerente com a sessão => segue;
+ * - lifecycle restrito, lock técnico ou estado desconhecido => /conta/status;
+ * - não assume active enquanto CurrentUser ainda está unresolved;
+ * - UID do perfil runtime precisa coincidir com o Auth canônico.
  *
  * Observação:
- * - este guard pode coexistir com o auth guard atual
- * - se não houver sessão, o auth guard existente continua cuidando do redirect
+ * - este guard pode coexistir com o auth guard atual;
+ * - se não houver sessão, o auth guard existente continua cuidando do redirect.
  */
 export const accountLifecycleGuard: CanActivateFn = (
   _route,
@@ -37,9 +38,9 @@ export const accountLifecycleGuard: CanActivateFn = (
     currentUserStore.user$,
   ]).pipe(
     /**
-     * Espera:
-     * - Auth pronto
-     * - se autenticado, runtime do usuário precisa ter saído de undefined
+     * Auth precisa estar pronto. Para sessão autenticada, esperamos apenas a
+     * saída do tri-state `undefined`; `null` já é uma resolução real e será
+     * tratada como `unknown` pela política canônica, sem fail-open.
      */
     filter(([ready, authUser, appUser]) => {
       if (!ready) return false;
@@ -47,16 +48,17 @@ export const accountLifecycleGuard: CanActivateFn = (
       return appUser !== undefined;
     }),
     take(1),
-    map(([_, authUser, appUser]) => {
+    map(([ready, authUser, appUser]) => {
       if (!authUser) {
-        /**
-         * Auth guard principal deve tratar isso.
-         * Aqui não forçamos outro redirect para evitar duplicidade.
-         */
         return true;
       }
 
-      const status = normalizeAccountStatus(appUser);
+      const status = resolveAccountStatus({
+        authReady: ready,
+        authUid: authUser.uid,
+        userResolved: appUser !== undefined,
+        user: appUser,
+      });
 
       if (isRestrictedAccountStatus(status)) {
         return router.createUrlTree(['/conta/status'], {

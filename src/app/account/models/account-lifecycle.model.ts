@@ -7,6 +7,12 @@ export type AccountStatus =
   | 'pending_deletion'
   | 'deleted';
 
+/**
+ * Estado efetivo no runtime. `locked` é um bloqueio técnico/administrativo e
+ * `unknown` impede fail-open enquanto sessão e perfil não estão coerentes.
+ */
+export type RuntimeAccountStatus = AccountStatus | 'locked' | 'unknown';
+
 export type AccountLifecycleSource =
   | 'self'
   | 'moderator'
@@ -33,7 +39,7 @@ export interface AccountLifecycleDialogConfirmEvent {
 }
 
 export interface AccountLifecycleState {
-  accountStatus: AccountStatus;
+  accountStatus: RuntimeAccountStatus;
 
   publicVisibility: 'visible' | 'hidden';
   interactionBlocked: boolean;
@@ -70,12 +76,16 @@ export interface AccountStatusVm {
   purgeAfter: number | null;
 }
 
+/**
+ * Estado inicial seguro: ausência de hidratação nunca é interpretada como conta
+ * ativa. O facade substitui este estado assim que Auth + perfil resolvem.
+ */
 export const DEFAULT_ACCOUNT_LIFECYCLE_STATE: AccountLifecycleState = {
-  accountStatus: 'active',
+  accountStatus: 'unknown',
 
-  publicVisibility: 'visible',
-  interactionBlocked: false,
-  loginAllowed: true,
+  publicVisibility: 'hidden',
+  interactionBlocked: true,
+  loginAllowed: false,
 
   statusUpdatedAt: null,
   statusUpdatedBy: null,

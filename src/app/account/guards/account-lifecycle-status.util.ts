@@ -1,68 +1,54 @@
 // src/app/account/guards/account-lifecycle-status.util.ts
 // -----------------------------------------------------------------------------
-// Normalização compartilhada do ciclo de vida da conta.
+// Adaptador de compatibilidade para a política canônica de lifecycle.
 // -----------------------------------------------------------------------------
-// Motivo:
-// - os guards de conta e de página de status precisam interpretar o mesmo estado
-//   com a mesma regra;
-// - duplicar essa lógica aumenta risco de divergência em fluxos sensíveis como
-//   suspensão, exclusão pendente e conta deletada;
-// - em uma rede social adulta, o bloqueio de navegação por status de conta deve
-//   ser previsível, auditável e seguro por padrão.
+// Os nomes públicos existentes são preservados para não quebrar consumidores,
+// mas a interpretação do estado passa a delegar integralmente para a política
+// única mantida no core de autenticação.
 
-export type LifecycleAccountStatus =
-  | 'active'
-  | 'self_suspended'
-  | 'moderation_suspended'
-  | 'pending_deletion'
-  | 'deleted';
+import type { IUserDados } from '@core/interfaces/iuser-dados';
+import {
+  isRuntimeAccountLifecycleBlocked,
+  isRuntimeAccountLifecycleResolved,
+  normalizeUserAccountLifecycleStatus,
+  resolveRuntimeAccountLifecycleStatus,
+  type RuntimeAccountLifecycleContext,
+  type RuntimeAccountLifecycleStatus,
+} from '@core/services/autentication/auth/account-lifecycle.policy';
 
-export type LifecycleAccountStatusResolution =
-  | LifecycleAccountStatus
-  | 'unresolved';
+export type LifecycleAccountStatus = RuntimeAccountLifecycleStatus;
+export type LifecycleAccountStatusResolution = RuntimeAccountLifecycleStatus;
 
-type AccountStatusSource = {
-  accountStatus?: unknown;
-  suspended?: unknown;
-  suspensionSource?: unknown;
-} | null;
-
+/**
+ * Compatibilidade para consumidores que já possuem o documento de usuário.
+ * `null`, `undefined`, lock técnico e status inesperado falham fechado.
+ */
 export function normalizeAccountStatus(
   user: unknown
 ): LifecycleAccountStatusResolution {
-  if (user === undefined) return 'unresolved';
+  return normalizeUserAccountLifecycleStatus(
+    user as IUserDados | null | undefined
+  );
+}
 
-  const account = user as AccountStatusSource;
-  const raw = String(account?.accountStatus ?? '')
-    .trim()
-    .toLowerCase();
-
-  if (raw === 'active') return 'active';
-  if (raw === 'self_suspended') return 'self_suspended';
-  if (raw === 'moderation_suspended') return 'moderation_suspended';
-  if (raw === 'pending_deletion') return 'pending_deletion';
-  if (raw === 'deleted') return 'deleted';
-
-  if (account?.suspended === true) {
-    return account.suspensionSource === 'self'
-      ? 'self_suspended'
-      : 'moderation_suspended';
-  }
-
-  /**
-   * Se a leitura já resolveu e não há estado especial conhecido, a conta segue
-   * como ativa. O estado `unresolved` é reservado apenas para user === undefined.
-   */
-  return 'active';
+/**
+ * Resolução completa para guards: considera Auth pronto, UID canônico e
+ * reconciliação do perfil runtime antes de liberar a navegação.
+ */
+export function resolveAccountStatus(
+  context: RuntimeAccountLifecycleContext
+): LifecycleAccountStatusResolution {
+  return resolveRuntimeAccountLifecycleStatus(context);
 }
 
 export function isRestrictedAccountStatus(
   status: LifecycleAccountStatusResolution
 ): boolean {
-  return (
-    status === 'self_suspended' ||
-    status === 'moderation_suspended' ||
-    status === 'pending_deletion' ||
-    status === 'deleted'
-  );
+  return isRuntimeAccountLifecycleBlocked(status);
+}
+
+export function isResolvedAccountStatus(
+  status: LifecycleAccountStatusResolution
+): boolean {
+  return isRuntimeAccountLifecycleResolved(status);
 }

@@ -2,9 +2,10 @@
 // -----------------------------------------------------------------------------
 // ACCOUNT LIFECYCLE FACADE
 // -----------------------------------------------------------------------------
-// - Deriva o estado canônico da conta a partir do CurrentUserStore.
+// - Deriva o estado canônico da conta a partir de Auth + CurrentUserStore.
 // - Atualiza permissões temporais, como cancelamento de exclusão, sem reload.
 // - Não executa comandos, navegação ou subscribe interno.
+// - Nunca interpreta sessão/perfil ainda incoerentes como conta ativa.
 // -----------------------------------------------------------------------------
 import { Injectable, inject } from '@angular/core';
 import { combineLatest, Observable, timer } from 'rxjs';
@@ -15,6 +16,11 @@ import {
 } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import {
+  resolveRuntimeAccountLifecycleStatus,
+  type RuntimeAccountLifecycleStatus,
+} from '@core/services/autentication/auth/account-lifecycle.policy';
 import { IUserDados } from '@core/interfaces/iuser-dados';
 
 import {
@@ -26,18 +32,31 @@ import {
 @Injectable({ providedIn: 'root' })
 export class AccountLifecycleFacade {
   private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly authSession = inject(AuthSessionService);
 
   readonly currentUser$ = this.currentUserStore.user$.pipe(
     distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly lifecycleState$: Observable<AccountLifecycleState> =
-    this.currentUser$.pipe(
-      map((user) => this.mapUserToLifecycleState(user)),
-      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
+  readonly lifecycleState$: Observable<AccountLifecycleState> = combineLatest([
+    this.authSession.ready$,
+    this.authSession.authUser$,
+    this.currentUser$,
+  ]).pipe(
+    map(([ready, authUser, user]) => {
+      const accountStatus = resolveRuntimeAccountLifecycleStatus({
+        authReady: ready,
+        authUid: authUser?.uid ?? null,
+        userResolved: user !== undefined,
+        user,
+      });
+
+      return this.mapUserToLifecycleState(user, accountStatus);
+    }),
+    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   /** Atualiza prazos visuais a cada 30 segundos sem polling de rede. */
   private readonly clock$ = timer(0, 30_000).pipe(
@@ -103,23 +122,30 @@ export class AccountLifecycleFacade {
   );
 
   private mapUserToLifecycleState(
-    user: IUserDados | null | undefined
+    user: IUserDados | null | undefined,
+    accountStatus: RuntimeAccountLifecycleStatus
   ): AccountLifecycleState {
-    if (!user) return DEFAULT_ACCOUNT_LIFECYCLE_STATE;
+    if (!user) {
+      return {
+        ...DEFAULT_ACCOUNT_LIFECYCLE_STATE,
+        accountStatus,
+      };
+    }
 
-    const accountStatus = this.normalizeAccountStatus(user);
     const blocked = this.isBlockedStatus(accountStatus);
 
     return {
       accountStatus,
-      publicVisibility:
-        (user.publicVisibility ?? (blocked ? 'hidden' : 'visible')) ===
-        'hidden'
+      publicVisibility: blocked
+        ? 'hidden'
+        : user.publicVisibility === 'hidden'
           ? 'hidden'
           : 'visible',
-      interactionBlocked: user.interactionBlocked ?? blocked,
+      interactionBlocked: blocked ? true : user.interactionBlocked ?? false,
       loginAllowed:
-        user.loginAllowed ?? this.defaultLoginAllowed(accountStatus),
+        accountStatus === 'deleted' || accountStatus === 'unknown'
+          ? false
+          : user.loginAllowed ?? this.defaultLoginAllowed(accountStatus),
       statusUpdatedAt: this.normalizeEpoch(user.statusUpdatedAt),
       statusUpdatedBy: user.statusUpdatedBy ?? null,
       suspensionReason: user.suspensionReason ?? null,
@@ -211,6 +237,38 @@ export class AccountLifecycleFacade {
           purgeAfter: state.purgeAfter,
         };
 
+      case 'locked':
+        return {
+          title: 'Sua conta está temporariamente bloqueada',
+          description:
+            'O acesso às áreas sociais permanece bloqueado enquanto este estado administrativo estiver ativo. Consulte suas notificações para orientações adicionais.',
+          badgeLabel: 'Conta bloqueada',
+          isBlocked: true,
+          canReactivateSelfSuspension: false,
+          canCancelDeletion: false,
+          canGoToAccountHome: false,
+          suspensionReason: null,
+          suspensionEndsAt: null,
+          deletionUndoUntil: null,
+          purgeAfter: null,
+        };
+
+      case 'unknown':
+        return {
+          title: 'Estamos verificando o estado da sua conta',
+          description:
+            'A sessão está ativa, mas ainda não foi possível confirmar com segurança o estado do seu perfil. As áreas sociais permanecem bloqueadas até a reconciliação.',
+          badgeLabel: 'Verificação em andamento',
+          isBlocked: true,
+          canReactivateSelfSuspension: false,
+          canCancelDeletion: false,
+          canGoToAccountHome: false,
+          suspensionReason: null,
+          suspensionEndsAt: null,
+          deletionUndoUntil: null,
+          purgeAfter: null,
+        };
+
       case 'active':
       default:
         return {
@@ -230,32 +288,6 @@ export class AccountLifecycleFacade {
     }
   }
 
-  private normalizeAccountStatus(
-    user: IUserDados
-  ): AccountLifecycleState['accountStatus'] {
-    const rawStatus = String(user.accountStatus ?? '')
-      .trim()
-      .toLowerCase();
-
-    if (
-      rawStatus === 'active' ||
-      rawStatus === 'self_suspended' ||
-      rawStatus === 'moderation_suspended' ||
-      rawStatus === 'pending_deletion' ||
-      rawStatus === 'deleted'
-    ) {
-      return rawStatus;
-    }
-
-    if (user.suspended === true) {
-      return user.suspensionSource === 'self'
-        ? 'self_suspended'
-        : 'moderation_suspended';
-    }
-
-    return 'active';
-  }
-
   private normalizeEpoch(value: unknown): number | null {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed > 0
@@ -272,6 +304,6 @@ export class AccountLifecycleFacade {
   private defaultLoginAllowed(
     status: AccountLifecycleState['accountStatus']
   ): boolean {
-    return status !== 'deleted';
+    return status !== 'deleted' && status !== 'unknown';
   }
 }

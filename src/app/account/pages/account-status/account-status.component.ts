@@ -9,7 +9,15 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { finalize, switchMap } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import {
+  filter,
+  finalize,
+  map,
+  switchMap,
+  take,
+  timeout,
+} from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AccountLifecycleFacade } from '../../application/account-lifecycle.facade';
@@ -19,10 +27,13 @@ import {
   AccountLifecycleDialogConfirmEvent,
   AccountLifecycleDialogIntent,
   AccountReauthenticationMode,
-  AccountStatus,
 } from '../../models/account-lifecycle.model';
 import { AccountLifecycleDialogComponent } from '../../components/account-lifecycle-dialog/account-lifecycle-dialog.component';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
+import {
+  normalizeUserAccountLifecycleStatus,
+  type RuntimeAccountLifecycleStatus,
+} from '@core/services/autentication/auth/account-lifecycle.policy';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
 @Component({
@@ -111,37 +122,31 @@ export class AccountStatusComponent {
         switchMap(() =>
           this.accountLifecycleService.reactivateSelfSuspension$()
         ),
+        switchMap((result) =>
+          this.waitForLifecycleChange$('self_suspended').pipe(
+            map((accountStatus) => ({ result, accountStatus }))
+          )
+        ),
         finalize(() => this.busyAction.set(null)),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
-        next: (result) => {
-          const publicVisibility =
-            result.publicVisibility === 'visible' ? 'visible' : 'hidden';
-          const interactionBlocked =
-            typeof result.interactionBlocked === 'boolean'
-              ? result.interactionBlocked
-              : publicVisibility !== 'visible';
-
-          this.currentUserStore.patch({
-            accountStatus: 'active',
-            publicVisibility,
-            interactionBlocked,
-            loginAllowed: true,
-            suspended: false,
-            suspensionReason: null,
-            suspensionSource: null,
-            suspensionEndsAt: null,
-            statusUpdatedAt:
-              this.normalizeEpoch(result.statusUpdatedAt) ?? Date.now(),
-            statusUpdatedBy: 'self',
-          });
-
+        next: ({ result, accountStatus }) => {
           this.lifecycleDialogIntent.set(null);
           this.notify.showSuccess(
             result.message ?? 'Conta reativada com sucesso.'
           );
-          this.router.navigate(['/conta'], { replaceUrl: true });
+
+          if (accountStatus === 'active') {
+            this.router.navigate(['/conta'], { replaceUrl: true });
+            return;
+          }
+
+          if (accountStatus === null) {
+            this.notify.showInfo(
+              'A alteração foi salva, mas a atualização do estado da conta ainda está em andamento.'
+            );
+          }
         },
         error: () => {
           // Reautenticação e lifecycle centralizam diagnóstico e feedback.
@@ -160,52 +165,16 @@ export class AccountStatusComponent {
         switchMap(() =>
           this.accountLifecycleService.cancelAccountDeletion$()
         ),
+        switchMap((result) =>
+          this.waitForLifecycleChange$('pending_deletion').pipe(
+            map((accountStatus) => ({ result, accountStatus }))
+          )
+        ),
         finalize(() => this.busyAction.set(null)),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
-        next: (result) => {
-          const accountStatus = this.normalizeAccountStatus(
-            result.accountStatus
-          );
-          const publicVisibility =
-            result.publicVisibility === 'visible' ? 'visible' : 'hidden';
-          const interactionBlocked =
-            typeof result.interactionBlocked === 'boolean'
-              ? result.interactionBlocked
-              : accountStatus !== 'active' || publicVisibility !== 'visible';
-          const restricted =
-            accountStatus !== 'active' || interactionBlocked;
-
-          this.currentUserStore.patch({
-            accountStatus,
-            publicVisibility,
-            interactionBlocked,
-            loginAllowed: true,
-            suspended: result.suspended ?? accountStatus !== 'active',
-            suspensionReason: restricted
-              ? result.suspensionReason ?? null
-              : null,
-            suspensionSource: restricted
-              ? result.suspensionSource ??
-                (accountStatus === 'self_suspended'
-                  ? 'self'
-                  : accountStatus === 'moderation_suspended'
-                    ? 'moderator'
-                    : null)
-              : null,
-            suspensionEndsAt: restricted
-              ? this.normalizeEpoch(result.suspensionEndsAt)
-              : null,
-            deletionRequestedAt: null,
-            deletionRequestedBy: null,
-            deletionUndoUntil: null,
-            purgeAfter: null,
-            statusUpdatedAt:
-              this.normalizeEpoch(result.statusUpdatedAt) ?? Date.now(),
-            statusUpdatedBy: 'self',
-          });
-
+        next: ({ result, accountStatus }) => {
           this.lifecycleDialogIntent.set(null);
           this.notify.showSuccess(
             result.message ?? 'Exclusão cancelada com sucesso.'
@@ -213,6 +182,13 @@ export class AccountStatusComponent {
 
           if (accountStatus === 'active') {
             this.router.navigate(['/conta'], { replaceUrl: true });
+            return;
+          }
+
+          if (accountStatus === null) {
+            this.notify.showInfo(
+              'A alteração foi salva, mas a atualização do estado da conta ainda está em andamento.'
+            );
           }
         },
         error: () => {
@@ -221,16 +197,24 @@ export class AccountStatusComponent {
       });
   }
 
-  private normalizeAccountStatus(value: unknown): AccountStatus {
-    return value === 'self_suspended' || value === 'moderation_suspended'
-      ? value
-      : 'active';
-  }
-
-  private normalizeEpoch(value: unknown): number | null {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0
-      ? Math.trunc(parsed)
-      : null;
+  /**
+   * O backend é a autoridade do lifecycle. Depois da callable, aguardamos a
+   * hidratação oficial Firestore -> Store em vez de fabricar um estado local por
+   * `CurrentUserStoreService.patch()`.
+   */
+  private waitForLifecycleChange$(
+    previousStatus: RuntimeAccountLifecycleStatus
+  ): Observable<RuntimeAccountLifecycleStatus | null> {
+    return this.currentUserStore.user$.pipe(
+      map((user) => normalizeUserAccountLifecycleStatus(user)),
+      filter(
+        (status) => status !== 'unknown' && status !== previousStatus
+      ),
+      take(1),
+      timeout({
+        first: 5_000,
+        with: () => of(null),
+      })
+    );
   }
 }

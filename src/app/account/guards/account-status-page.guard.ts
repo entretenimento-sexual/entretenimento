@@ -8,16 +8,16 @@ import { AuthSessionService } from '@core/services/autentication/auth/auth-sessi
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import {
   isRestrictedAccountStatus,
-  normalizeAccountStatus,
+  resolveAccountStatus,
 } from './account-lifecycle-status.util';
 
 /**
- * Guard da rota /conta/status
+ * Guard da rota /conta/status.
  *
  * Regras:
- * - se conta ainda está bloqueada => permite
- * - se conta está ativa => manda para /conta
- * - se não há sessão, o auth guard já redireciona para login
+ * - lifecycle restrito, lock ou estado desconhecido => permite a página segura;
+ * - conta ativa e coerente com a sessão => manda para /conta;
+ * - se não há sessão, o auth guard já redireciona para login.
  */
 export const accountStatusPageGuard: CanActivateFn = (): Observable<boolean | UrlTree> => {
   const router = inject(Router);
@@ -35,10 +35,15 @@ export const accountStatusPageGuard: CanActivateFn = (): Observable<boolean | Ur
       return appUser !== undefined;
     }),
     take(1),
-    map(([_, authUser, appUser]) => {
+    map(([ready, authUser, appUser]) => {
       if (!authUser) return true;
 
-      const status = normalizeAccountStatus(appUser);
+      const status = resolveAccountStatus({
+        authReady: ready,
+        authUid: authUser.uid,
+        userResolved: appUser !== undefined,
+        user: appUser,
+      });
 
       if (isRestrictedAccountStatus(status)) {
         return true;
