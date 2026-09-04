@@ -117,6 +117,9 @@ export {
 export {
   syncCommunityOfficialAssociation,
 } from './sync-community-official-association.trigger';
+export {
+  syncCommunityOfficialAssociationLifecycle,
+} from './sync-community-official-association-lifecycle.trigger';
 export { syncCommunityFeedActivity } from './sync-community-feed-activity.trigger';
 export { syncCommunityFeedRealtime } from './sync-community-feed-realtime.trigger';
 export {
