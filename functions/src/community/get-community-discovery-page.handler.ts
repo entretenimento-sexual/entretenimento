@@ -9,6 +9,7 @@
 // cutover/rollback ocorrer entre duas requisições de paginação.
 // -----------------------------------------------------------------------------
 
+import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
@@ -18,6 +19,9 @@ import {
   parseCommunityDiscoveryCursor,
 } from './community-discovery-cursor.policy';
 import { getCommunityDiscoveryRankingMode } from './community-discovery-ranking-mode.service';
+import {
+  buildCommunityDiscoveryTelemetry,
+} from './community-discovery-telemetry.policy';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 import {
   assertCommunityCallableAppCheck,
@@ -41,6 +45,12 @@ const MAX_VIEWER_MEMBERSHIP_BATCH_SIZE = 24;
 interface CommunityDiscoveryCandidate {
   readonly index: number;
   readonly item: CommunityPreviewCard;
+}
+
+interface VisibleDiscoveryCandidatesResult {
+  readonly visibleCandidates: ReadonlyMap<number, CommunityPreviewCard>;
+  readonly membershipReads: number;
+  readonly blockedExcluded: number;
 }
 
 function assertPreviewRuntime(): void {
@@ -107,9 +117,13 @@ function collectDiscoveryCandidates(
 async function resolveVisibleDiscoveryCandidates(
   uid: string,
   candidates: readonly CommunityDiscoveryCandidate[]
-): Promise<ReadonlyMap<number, CommunityPreviewCard>> {
+): Promise<VisibleDiscoveryCandidatesResult> {
   if (candidates.length === 0) {
-    return new Map<number, CommunityPreviewCard>();
+    return {
+      visibleCandidates: new Map<number, CommunityPreviewCard>(),
+      membershipReads: 0,
+      blockedExcluded: 0,
+    };
   }
 
   const membershipRefs = candidates.map(({ item }) =>
@@ -121,6 +135,7 @@ async function resolveVisibleDiscoveryCandidates(
   );
   const membershipSnapshots = await db.getAll(...membershipRefs);
   const visibleCandidates = new Map<number, CommunityPreviewCard>();
+  let blockedExcluded = 0;
 
   for (let index = 0; index < candidates.length; index += 1) {
     const candidate = candidates[index];
@@ -131,10 +146,16 @@ async function resolveVisibleDiscoveryCandidates(
 
     if (visibleItem) {
       visibleCandidates.set(candidate.index, visibleItem);
+    } else {
+      blockedExcluded += 1;
     }
   }
 
-  return visibleCandidates;
+  return {
+    visibleCandidates,
+    membershipReads: membershipSnapshots.length,
+    blockedExcluded,
+  };
 }
 
 export const getCommunityDiscoveryPage =
@@ -144,6 +165,7 @@ export const getCommunityDiscoveryPage =
       enforceAppCheck: REQUIRE_COMMUNITY_APP_CHECK,
     },
     async (request): Promise<CommunityDiscoveryPageResponse> => {
+      const startedAt = Date.now();
       assertCommunityCallableAppCheck(request.app);
       assertPreviewRuntime();
 
@@ -257,6 +279,10 @@ export const getCommunityDiscoveryPage =
       const querySnapshot = await pageQuery.get();
       const items: CommunityPreviewCard[] = [];
       let lastConsumedIndex = -1;
+      let candidatesEvaluated = 0;
+      let membershipReads = 0;
+      let membershipBatches = 0;
+      let blockedExcluded = 0;
       const membershipBatchSize = Math.min(
         Math.max(pageRequest.limit, MIN_VIEWER_MEMBERSHIP_BATCH_SIZE),
         MAX_VIEWER_MEMBERSHIP_BATCH_SIZE
@@ -278,14 +304,21 @@ export const getCommunityDiscoveryPage =
           effectiveSourceType,
           pageRequest.tagId
         );
-        const visibleCandidates = await resolveVisibleDiscoveryCandidates(
+        candidatesEvaluated += candidates.length;
+
+        const visibilityResult = await resolveVisibleDiscoveryCandidates(
           uid,
           candidates
         );
+        membershipReads += visibilityResult.membershipReads;
+        blockedExcluded += visibilityResult.blockedExcluded;
+        if (visibilityResult.membershipReads > 0) {
+          membershipBatches += 1;
+        }
 
         for (let index = batchStart; index < batchEnd; index += 1) {
           lastConsumedIndex = index;
-          const item = visibleCandidates.get(index);
+          const item = visibilityResult.visibleCandidates.get(index);
 
           if (item) {
             items.push(item);
@@ -319,6 +352,28 @@ export const getCommunityDiscoveryPage =
           'Não foi possível construir o cursor seguro da descoberta.'
         );
       }
+
+      logger.info(
+        'community_discovery_page_served',
+        buildCommunityDiscoveryTelemetry({
+          requestedLimit: pageRequest.limit,
+          scanLimit,
+          projectionDocumentsFetched: querySnapshot.size,
+          projectionDocumentsConsumed: lastConsumedIndex + 1,
+          candidatesEvaluated,
+          membershipReads,
+          membershipBatches,
+          blockedExcluded,
+          cardsReturned: items.length,
+          cursorProjectionReads: cursor ? 1 : 0,
+          durationMs: Date.now() - startedAt,
+          hasCursor: Boolean(cursor),
+          hasTagFilter: Boolean(pageRequest.tagId),
+          sourceType: effectiveSourceType,
+          rankingMode: rankingMode.effectiveMode,
+          hasNextPage: Boolean(nextCursor),
+        })
+      );
 
       return {
         items,
