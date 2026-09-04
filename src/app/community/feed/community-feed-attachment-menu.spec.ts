@@ -83,7 +83,14 @@ describe('CommunityFeedComponent attachment menu', () => {
         },
         { provide: GlobalErrorHandlerService, useValue: { handleError: vi.fn() } },
         { provide: GeolocationService, useValue: geolocationMock },
-        { provide: AuthSessionService, useValue: { currentAuthUser: { uid: 'u1' } } },
+        {
+          provide: AuthSessionService,
+          useValue: {
+            ready$: of(true),
+            readyUid$: of('u1'),
+            currentAuthUser: { uid: 'u1' },
+          },
+        },
         { provide: StorageService, useValue: { uploadFile: vi.fn() } },
         { provide: CameraCaptureService, useValue: cameraCaptureMock },
         { provide: PhotoEditorLauncherService, useValue: { open$: vi.fn() } },
@@ -117,6 +124,37 @@ describe('CommunityFeedComponent attachment menu', () => {
       'Localização',
     ]));
     expect(labels).toHaveLength(3);
+  });
+
+  it('só referencia o helper do composer quando ele realmente existe no DOM', () => {
+    const fixture = createFixture();
+    let textarea = fixture.nativeElement.querySelector(
+      '#community-feed-post-text'
+    ) as HTMLTextAreaElement;
+
+    expect(textarea.getAttribute('aria-describedby')).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('#community-feed-post-help')
+    ).toBeNull();
+
+    fixture.componentInstance.selectedAttachment.set({
+      kind: 'image',
+      file: new File(['photo'], 'foto.webp', { type: 'image/webp' }),
+      previewUrl: null,
+    });
+    fixture.detectChanges();
+
+    textarea = fixture.nativeElement.querySelector(
+      '#community-feed-post-text'
+    ) as HTMLTextAreaElement;
+    const helper = fixture.nativeElement.querySelector(
+      '#community-feed-post-help'
+    ) as HTMLElement | null;
+
+    expect(textarea.getAttribute('aria-describedby')).toBe(
+      'community-feed-post-help'
+    );
+    expect(helper).not.toBeNull();
   });
 
   it('fecha o menu ao pressionar fora da superfície de anexos', () => {

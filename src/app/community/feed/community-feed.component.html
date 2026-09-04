@@ -70,7 +70,7 @@
               formControlName="text"
               [placeholder]="sourceType() === 'venue' ? 'Compartilhe uma novidade...' : 'Compartilhe algo com a Comunidade...'"
               [attr.aria-invalid]="postForm.controls.text.invalid && postForm.controls.text.touched ? 'true' : null"
-              aria-describedby="community-feed-post-help"
+              [attr.aria-describedby]="composerExpanded() || selectedAttachment() ? 'community-feed-post-help' : null"
               (focus)="expandComposer()"
               (keydown.enter)="submitPostOnEnter($event)"
             ></textarea>

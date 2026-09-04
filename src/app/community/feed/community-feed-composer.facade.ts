@@ -17,6 +17,7 @@ import {
   catchError,
   defaultIfEmpty,
   exhaustMap,
+  filter,
   finalize,
   map,
   of,
@@ -24,6 +25,7 @@ import {
   shareReplay,
   startWith,
   switchMap,
+  take,
   takeLast,
   takeUntil,
   takeWhile,
@@ -80,6 +82,7 @@ interface CommunityFeedComposerCommand {
 const COMMUNITY_LOCATION_CAPTURE_WINDOW_MS = 8_000;
 const COMMUNITY_LOCATION_TARGET_ACCURACY_METERS = 30;
 const COMMUNITY_LOCATION_LOW_ACCURACY_WARNING_METERS = 250;
+const COMMUNITY_UPLOAD_SESSION_ERROR_CODE = 'community/session-required';
 
 @Injectable()
 export class CommunityFeedComposerFacade implements OnDestroy {
@@ -364,37 +367,29 @@ export class CommunityFeedComposerFacade implements OnDestroy {
   ): Observable<string> {
     switch (attachment.kind) {
       case 'image': {
-        const authSession = this.injector.get(AuthSessionService);
         const storage = this.injector.get(StorageService);
-        const uid = authSession.currentAuthUser?.uid?.trim() || '';
-        if (!uid) {
-          const error = new Error('Sessão não encontrada para enviar a foto.');
-          this.applicationError.report(error, {
-            feature: 'community',
-            operation: 'uploadFeedImage',
-            fallbackMessage:
-              'Sua sessão precisa ser atualizada para enviar a foto.',
-            metadata: this.errorMetadata(context),
-          });
-          return throwError(() => error);
-        }
 
-        this.uploadProgress.set(0);
-        return storage.uploadFile(
-          attachment.file,
-          'community-feed',
-          uid,
-          (progress) => this.uploadProgress.set(
-            Math.max(0, Math.min(100, Math.round(progress)))
-          )
-        ).pipe(
+        return this.resolveUploadUid$(context).pipe(
+          tap(() => this.uploadProgress.set(0)),
+          switchMap((uid) =>
+            storage.uploadFile(
+              attachment.file,
+              'community-feed',
+              uid,
+              (progress) => this.uploadProgress.set(
+                Math.max(0, Math.min(100, Math.round(progress)))
+              )
+            )
+          ),
           catchError((error: unknown) => {
-            this.applicationError.report(error, {
-              feature: 'community',
-              operation: 'uploadFeedImage',
-              fallbackMessage: 'Não foi possível enviar a foto agora.',
-              metadata: this.errorMetadata(context),
-            });
+            if (!this.isUploadSessionError(error)) {
+              this.applicationError.report(error, {
+                feature: 'community',
+                operation: 'uploadFeedImage',
+                fallbackMessage: 'Não foi possível enviar a foto agora.',
+                metadata: this.errorMetadata(context),
+              });
+            }
             return throwError(() => error);
           }),
           finalize(() => this.uploadProgress.set(null))
@@ -405,6 +400,42 @@ export class CommunityFeedComposerFacade implements OnDestroy {
           new Error('Localização não requer upload de arquivo.')
         );
     }
+  }
+
+  /**
+   * Resolve o UID para escrita somente depois de a sessão canônica estar pronta.
+   * Cache/perfil runtime não participam desta decisão de identidade.
+   */
+  private resolveUploadUid$(
+    context: CommunityFeedComposerContext
+  ): Observable<string> {
+    const authSession = this.injector.get(AuthSessionService);
+
+    return authSession.ready$.pipe(
+      filter((ready) => ready === true),
+      take(1),
+      switchMap(() => authSession.readyUid$.pipe(take(1))),
+      switchMap((uid) => {
+        const cleanUid = String(uid ?? '').trim();
+        if (cleanUid) return of(cleanUid);
+
+        const error = new Error('Sessão não encontrada para enviar a foto.');
+        (error as Error & { code?: string }).code = COMMUNITY_UPLOAD_SESSION_ERROR_CODE;
+        this.applicationError.report(error, {
+          feature: 'community',
+          operation: 'uploadFeedImage',
+          fallbackMessage:
+            'Sua sessão precisa ser atualizada para enviar a foto.',
+          metadata: this.errorMetadata(context),
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private isUploadSessionError(error: unknown): boolean {
+    return String((error as { code?: unknown } | null)?.code ?? '')
+      === COMMUNITY_UPLOAD_SESSION_ERROR_CODE;
   }
 
   private createPreviewUrl(file: File): string | null {

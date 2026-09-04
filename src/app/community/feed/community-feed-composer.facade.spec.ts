@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { BehaviorSubject, of, throwError } from 'rxjs';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -27,8 +27,11 @@ describe('CommunityFeedComposerFacade', () => {
   const storageMock = {
     uploadFile: vi.fn(),
   };
+  const authReady$ = new BehaviorSubject<boolean>(true);
+  const authReadyUid$ = new BehaviorSubject<string | null>('u1');
   const authSessionMock = {
-    currentAuthUser: { uid: 'u1' },
+    ready$: authReady$.asObservable(),
+    readyUid$: authReadyUid$.asObservable(),
   };
   const geolocationMock = {
     watchPosition$: vi.fn(),
@@ -47,6 +50,8 @@ describe('CommunityFeedComposerFacade', () => {
     repositoryMock.createPost$.mockReset();
     storageMock.uploadFile.mockReset();
     geolocationMock.watchPosition$.mockReset();
+    authReady$.next(true);
+    authReadyUid$.next('u1');
 
     TestBed.configureTestingModule({
       providers: [
@@ -203,6 +208,63 @@ describe('CommunityFeedComposerFacade', () => {
     expect(facade.selectedAttachment()?.kind).toBe('image');
     expect(facade.uploadProgress()).toBeNull();
     expect(facade.composerExpanded()).toBe(true);
+  });
+
+  it('aguarda a sessão canônica pronta antes de iniciar upload e usa o UID reativo', () => {
+    authReady$.next(false);
+    authReadyUid$.next(null);
+    storageMock.uploadFile.mockReturnValue(of('community-feed/u2/foto.webp'));
+    repositoryMock.createPost$.mockReturnValue(of({
+      communityId: 'community-1',
+      postId: 'post-created',
+      created: true,
+      deduplicated: false,
+    }));
+
+    const facade = createFacade();
+    const file = new File(['photo'], 'foto.webp', { type: 'image/webp' });
+    facade.postCreateState$.subscribe();
+    facade.postForm.controls.text.setValue('Foto com sessão reativa.');
+    facade.selectedAttachment.set({ kind: 'image', file, previewUrl: null });
+
+    facade.submitPost(context);
+
+    expect(storageMock.uploadFile).not.toHaveBeenCalled();
+
+    authReadyUid$.next('u2');
+    authReady$.next(true);
+
+    expect(storageMock.uploadFile).toHaveBeenCalledWith(
+      file,
+      'community-feed',
+      'u2',
+      expect.any(Function)
+    );
+    expect(repositoryMock.createPost$).toHaveBeenCalledWith(
+      expect.objectContaining({ imageUploadPath: 'community-feed/u2/foto.webp' })
+    );
+  });
+
+  it('falha com feedback específico quando a sessão pronta não possui UID', () => {
+    authReady$.next(true);
+    authReadyUid$.next(null);
+    const facade = createFacade();
+    const file = new File(['photo'], 'foto.webp', { type: 'image/webp' });
+    facade.postCreateState$.subscribe();
+    facade.selectedAttachment.set({ kind: 'image', file, previewUrl: null });
+
+    facade.submitPost(context);
+
+    expect(storageMock.uploadFile).not.toHaveBeenCalled();
+    expect(applicationErrorMock.report).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        feature: 'community',
+        operation: 'uploadFeedImage',
+        fallbackMessage: 'Sua sessão precisa ser atualizada para enviar a foto.',
+      })
+    );
+    expect(facade.selectedAttachment()?.kind).toBe('image');
   });
 
   it('mantém a regra canônica de criação restrita ao Mural da Comunidade', () => {
