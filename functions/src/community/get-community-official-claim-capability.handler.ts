@@ -16,6 +16,10 @@ import {
   normalizeCommunityOfficialAssociationKey,
 } from './community-official-association.model';
 import {
+  REQUIRE_COMMUNITY_APP_CHECK,
+  assertCommunityCallableAppCheck,
+} from './community-callable-security';
+import {
   resolveCommunityOfficialClaimCapability,
   type CommunityOfficialClaimCapabilityCandidate,
   type CommunityOfficialClaimCapabilityReason,
