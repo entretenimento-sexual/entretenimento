@@ -106,7 +106,7 @@ export class CommunityOfficialClaimPanelComponent {
             this.reportError(
               error,
               'getCommunityOfficialClaimCapability',
-              'Não foi possível consultar a elegibilidade para Comunidade Oficial.'
+              'Não foi possível consultar os vínculos disponíveis para Comunidade Oficial.'
             );
             return of<CapabilityState>({ status: 'error', capability: null });
           }),
@@ -175,7 +175,7 @@ export class CommunityOfficialClaimPanelComponent {
             this.declarationAccepted.setValue(false);
             this.notifications.showSuccess(
               result.submitted
-                ? 'Solicitação de Comunidade Oficial enviada para análise.'
+                ? 'Solicitação do selo oficial enviada para análise.'
                 : 'O andamento da solicitação foi atualizado.'
             );
             this.claimReload$.next();
@@ -186,7 +186,7 @@ export class CommunityOfficialClaimPanelComponent {
             this.reportError(
               error,
               'submitCommunityOfficialClaim',
-              'Não foi possível enviar a solicitação de Comunidade Oficial.'
+              'Não foi possível solicitar o selo oficial.'
             );
             return of<SubmissionState>('idle');
           }),
@@ -214,7 +214,7 @@ export class CommunityOfficialClaimPanelComponent {
   submit(): void {
     if (!this.declarationAccepted.value) {
       this.notifications.showWarning(
-        'Confirme a declaração de responsabilidade antes de enviar.'
+        'Confirme a declaração antes de solicitar o selo oficial.'
       );
       return;
     }
@@ -231,7 +231,7 @@ export class CommunityOfficialClaimPanelComponent {
     );
     if (!candidate) {
       this.notifications.showWarning(
-        'Selecione um Local ou uma Organização elegível para a Comunidade Oficial.'
+        'Escolha um vínculo disponível para solicitar o selo oficial.'
       );
       return;
     }
@@ -266,15 +266,17 @@ export class CommunityOfficialClaimPanelComponent {
   capabilityMessage(capability: CommunityOfficialClaimCapabilityResponse): string {
     switch (capability.reason) {
     case 'community_already_official':
-      return 'Esta Comunidade já possui um vínculo oficial verificado.';
+      return 'Esta comunidade já possui um selo oficial verificado.';
     case 'verification_inactive':
-      return 'A verificação necessária para um dos seus vínculos está inativa ou vencida. Regularize-a antes de solicitar o vínculo oficial.';
+      return 'Uma verificação necessária está vencida ou inativa. Regularize-a para solicitar o selo oficial.';
     case 'verification_required':
-      return 'É necessária uma verificação válida para reivindicar um Local ou uma Organização. Locais usam a verificação comercial; Organizações exigem KYB e representação ativa.';
+      return 'Para solicitar o selo oficial, conclua primeiro a verificação necessária da sua conta ou do vínculo que você representa.';
     case 'no_eligible_target':
-      return 'Nenhum Local ou Organização ativo sob sua autoridade está disponível para esta reivindicação.';
+      return 'No momento, não há nenhum vínculo disponível para transformar esta comunidade em oficial.';
     case 'eligible':
-      return 'Selecione o Local ou a Organização. Sua autoridade será confirmada novamente pelo servidor antes do envio.';
+      return capability.candidates.length === 1
+        ? 'Encontramos um vínculo disponível para esta comunidade.'
+        : 'Escolha o vínculo que esta comunidade representa.';
     }
   }
 
