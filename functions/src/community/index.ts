@@ -23,6 +23,9 @@ export {
   getMyCommunityOfficialClaim,
 } from './get-my-community-official-claim.handler';
 export {
+  getCommunityOfficialClaimCapability,
+} from './get-community-official-claim-capability.handler';
+export {
   getCommunityOfficialClaimReviewQueue,
 } from './get-community-official-claim-review-queue.handler';
 export { getCommunityFeedPage } from './get-community-feed-page.handler';
