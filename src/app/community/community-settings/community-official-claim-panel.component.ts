@@ -24,9 +24,10 @@ import {
 
 import { ApplicationErrorService } from 'src/app/core/services/error-handler/application-error.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import type {
-  CommunityOfficialClaimCapabilityCandidate,
-  CommunityOfficialClaimCapabilityResponse,
+import {
+  buildCommunityOfficialClaimCapabilityCandidateKey,
+  type CommunityOfficialClaimCapabilityCandidate,
+  type CommunityOfficialClaimCapabilityResponse,
 } from '../data-access/community-official-claim-capability.model';
 import type {
   CommunityOfficialClaimStatus,
@@ -66,7 +67,7 @@ export class CommunityOfficialClaimPanelComponent {
     new Subject<CommunityOfficialClaimCapabilityCandidate>();
 
   readonly communityId = input.required<string>();
-  readonly targetId = new FormControl('', { nonNullable: true });
+  readonly targetKey = new FormControl('', { nonNullable: true });
   readonly declarationAccepted = new FormControl(false, { nonNullable: true });
 
   private latestCapability: CommunityOfficialClaimCapabilityResponse | null = null;
@@ -82,16 +83,18 @@ export class CommunityOfficialClaimPanelComponent {
         .pipe(
           tap((capability) => {
             this.latestCapability = capability;
-            const currentTargetId = this.targetId.value;
+            const currentTargetKey = this.targetKey.value;
             const currentStillAvailable = capability.candidates.some(
-              (candidate) => candidate.target.id === currentTargetId
+              (candidate) => this.candidateKey(candidate) === currentTargetKey
             );
-            const nextTargetId = currentStillAvailable
-              ? currentTargetId
-              : capability.candidates[0]?.target.id ?? '';
+            const nextTargetKey = currentStillAvailable
+              ? currentTargetKey
+              : capability.candidates[0]
+                ? this.candidateKey(capability.candidates[0])
+                : '';
 
-            if (nextTargetId !== currentTargetId) {
-              this.targetId.setValue(nextTargetId);
+            if (nextTargetKey !== currentTargetKey) {
+              this.targetKey.setValue(nextTargetKey);
             }
           }),
           map((capability): CapabilityState => ({
@@ -115,17 +118,17 @@ export class CommunityOfficialClaimPanelComponent {
 
   readonly claimState$: Observable<ClaimState> = combineLatest([
     this.capabilityState$,
-    this.targetId.valueChanges.pipe(startWith(this.targetId.value)),
+    this.targetKey.valueChanges.pipe(startWith(this.targetKey.value)),
     this.claimReload$.pipe(startWith(undefined)),
   ]).pipe(
-    switchMap(([capabilityState, targetId]) => {
-      if (capabilityState.status !== 'ready' || !targetId) {
+    switchMap(([capabilityState, targetKey]) => {
+      if (capabilityState.status !== 'ready' || !targetKey) {
         this.latestClaim = null;
         return of<ClaimState>({ status: 'idle', claim: null });
       }
 
       const candidate = capabilityState.capability.candidates.find(
-        (item) => item.target.id === targetId
+        (item) => this.candidateKey(item) === targetKey
       );
       if (!candidate) {
         this.latestClaim = null;
@@ -195,7 +198,7 @@ export class CommunityOfficialClaimPanelComponent {
     );
 
   constructor() {
-    this.targetId.valueChanges
+    this.targetKey.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.latestClaim = null;
@@ -224,16 +227,24 @@ export class CommunityOfficialClaimPanelComponent {
     }
 
     const candidate = this.latestCapability?.candidates.find(
-      (item) => item.target.id === this.targetId.value
+      (item) => this.candidateKey(item) === this.targetKey.value
     );
     if (!candidate) {
       this.notifications.showWarning(
-        'Selecione um Local elegível para a Comunidade Oficial.'
+        'Selecione um Local ou uma Organização elegível para a Comunidade Oficial.'
       );
       return;
     }
 
     this.submissionRequests$.next(candidate);
+  }
+
+  candidateKey(candidate: CommunityOfficialClaimCapabilityCandidate): string {
+    return buildCommunityOfficialClaimCapabilityCandidateKey(candidate);
+  }
+
+  targetTypeLabel(candidate: CommunityOfficialClaimCapabilityCandidate): string {
+    return candidate.target.type === 'organization' ? 'Organização' : 'Local';
   }
 
   canResubmit(status: CommunityOfficialClaimStatus): boolean {
@@ -257,18 +268,22 @@ export class CommunityOfficialClaimPanelComponent {
     case 'community_already_official':
       return 'Esta Comunidade já possui um vínculo oficial verificado.';
     case 'verification_inactive':
-      return 'Sua verificação comercial está inativa. Regularize-a para solicitar um vínculo oficial.';
+      return 'A verificação necessária para um dos seus vínculos está inativa ou vencida. Regularize-a antes de solicitar o vínculo oficial.';
     case 'verification_required':
-      return 'É necessária uma verificação comercial ativa antes de reivindicar um Local.';
+      return 'É necessária uma verificação válida para reivindicar um Local ou uma Organização. Locais usam a verificação comercial; Organizações exigem KYB e representação ativa.';
     case 'no_eligible_target':
-      return 'Nenhum Local ativo sob sua responsabilidade está disponível para esta reivindicação.';
+      return 'Nenhum Local ou Organização ativo sob sua autoridade está disponível para esta reivindicação.';
     case 'eligible':
-      return 'Selecione o Local cuja autoridade será confirmada novamente pelo servidor.';
+      return 'Selecione o Local ou a Organização. Sua autoridade será confirmada novamente pelo servidor antes do envio.';
     }
   }
 
   authorityLabel(candidate: CommunityOfficialClaimCapabilityCandidate): string {
-    return candidate.authorityRole === 'owner' ? 'Proprietário' : 'Gestor autorizado';
+    switch (candidate.authorityRole) {
+    case 'owner': return 'Proprietário';
+    case 'authorized_representative': return 'Representante autorizado';
+    case 'manager': return 'Gestor autorizado';
+    }
   }
 
   private createRequestId(): string {
