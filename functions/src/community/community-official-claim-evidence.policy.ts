@@ -10,6 +10,12 @@
 import {
   resolveCanonicalResourceAuthority,
 } from '../authority/canonical-resource-authority.resolver';
+import {
+  evaluateOrganizationResourceAuthority,
+} from '../organization/organization-authority.policy';
+import {
+  buildOrganizationRepresentationId,
+} from '../organization/organization-representation.policy';
 import type {
   CommunityOfficialAuthorityRole,
 } from './community-official-association.model';
@@ -24,7 +30,11 @@ export type CommunityOfficialClaimEvidenceDenialReason =
   | 'authority_grant_inactive'
   | 'sponsor_organization_mismatch'
   | 'venue_not_active'
-  | 'venue_authority_mismatch';
+  | 'venue_authority_mismatch'
+  | 'organization_kyb_invalid'
+  | 'organization_kyb_inactive'
+  | 'organization_not_active'
+  | 'organization_authority_mismatch';
 
 export interface CommunityOfficialClaimEvidenceDecision {
   readonly allowed: boolean;
@@ -66,6 +76,21 @@ function canonicalDenialReason(
   return 'venue_authority_mismatch';
 }
 
+function organizationDenialReason(
+  denialReason: ReturnType<typeof evaluateOrganizationResourceAuthority>['denialReason']
+): CommunityOfficialClaimEvidenceDenialReason {
+  if (denialReason === 'verification_inactive') {
+    return 'organization_kyb_inactive';
+  }
+  if (denialReason === 'verification_required') {
+    return 'organization_kyb_invalid';
+  }
+  if (denialReason === 'target_inactive') {
+    return 'organization_not_active';
+  }
+  return 'organization_authority_mismatch';
+}
+
 function authorityRoleMatches(
   claimedRole: CommunityOfficialAuthorityRole,
   canonicalRole: 'owner' | 'manager'
@@ -76,6 +101,81 @@ function authorityRoleMatches(
   // de Local eram registrados como `authorized_representative`.
   return claimedRole === 'authorized_representative'
     && canonicalRole === 'manager';
+}
+
+/**
+ * Revalida Organização no momento da aprovação. KYB e representação precisam
+ * continuar vigentes e a referência de representação precisa ser exatamente a
+ * canônica para Organização + titular do claim.
+ */
+export function evaluateOrganizationOfficialClaimAuthority(input: {
+  readonly claimantUid: string;
+  readonly organizationId: string;
+  readonly authorityRole: CommunityOfficialAuthorityRole;
+  readonly sponsorOrganizationId: string | null;
+  readonly kybReferenceId: string;
+  readonly authorityReferenceId: string;
+  readonly rawOrganization: unknown;
+  readonly rawKyb: unknown;
+  readonly rawRepresentation: unknown;
+  readonly now?: number;
+}): Readonly<CommunityOfficialClaimEvidenceDecision> {
+  const claimantUid = normalizeId(input.claimantUid);
+  const organizationId = normalizeId(input.organizationId);
+  const kybReferenceId = normalizeId(input.kybReferenceId);
+  const authorityReferenceId = normalizeId(input.authorityReferenceId);
+  const expectedRepresentationId = buildOrganizationRepresentationId(
+    organizationId,
+    claimantUid
+  );
+
+  if (
+    !claimantUid
+    || !organizationId
+    || !kybReferenceId
+    || kybReferenceId !== organizationId
+    || !authorityReferenceId
+    || !expectedRepresentationId
+    || authorityReferenceId !== expectedRepresentationId
+  ) {
+    return denied('authority_reference_mismatch');
+  }
+
+  const sponsorOrganizationId = input.sponsorOrganizationId === null
+    ? null
+    : normalizeId(input.sponsorOrganizationId);
+  if (sponsorOrganizationId !== organizationId) {
+    return denied('sponsor_organization_mismatch');
+  }
+
+  const authority = evaluateOrganizationResourceAuthority({
+    actorUid: claimantUid,
+    organizationId,
+    rawOrganization: input.rawOrganization,
+    rawKyb: input.rawKyb,
+    rawRepresentation: input.rawRepresentation,
+    requiredScope: 'community_official_claim',
+    now: input.now,
+  });
+
+  if (
+    !authority.allowed
+    || !authority.authorityRole
+    || !authority.verificationPolicyVersion
+  ) {
+    return denied(organizationDenialReason(authority.denialReason));
+  }
+
+  if (authority.authorityRole !== input.authorityRole) {
+    return denied('organization_authority_mismatch');
+  }
+
+  return Object.freeze({
+    allowed: true,
+    sponsorOrganizationId: organizationId,
+    verificationPolicyVersion: authority.verificationPolicyVersion,
+    denialReason: null,
+  });
 }
 
 /**
