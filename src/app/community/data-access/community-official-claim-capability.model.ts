@@ -8,10 +8,13 @@ export type CommunityOfficialClaimCapabilityReason =
   | 'no_eligible_target'
   | 'community_already_official';
 
+export type CommunityOfficialClaimCapabilityTarget =
+  CommunityOfficialTarget & { readonly type: 'organization' | 'venue' };
+
 export interface CommunityOfficialClaimCapabilityCandidate {
-  readonly target: CommunityOfficialTarget & { readonly type: 'venue' };
+  readonly target: CommunityOfficialClaimCapabilityTarget;
   readonly label: string;
-  readonly authorityRole: 'owner' | 'manager';
+  readonly authorityRole: 'owner' | 'authorized_representative' | 'manager';
 }
 
 export interface CommunityOfficialClaimCapabilityResponse {
@@ -43,6 +46,28 @@ function cleanReason(value: unknown): CommunityOfficialClaimCapabilityReason | n
     : null;
 }
 
+function cleanTargetType(
+  value: unknown
+): CommunityOfficialClaimCapabilityTarget['type'] | null {
+  return value === 'organization' || value === 'venue' ? value : null;
+}
+
+function cleanAuthorityRole(
+  value: unknown
+): CommunityOfficialClaimCapabilityCandidate['authorityRole'] | null {
+  return value === 'owner'
+    || value === 'authorized_representative'
+    || value === 'manager'
+    ? value
+    : null;
+}
+
+export function buildCommunityOfficialClaimCapabilityCandidateKey(
+  candidate: Pick<CommunityOfficialClaimCapabilityCandidate, 'target'>
+): string {
+  return `${candidate.target.type}:${candidate.target.id}`;
+}
+
 export function normalizeCommunityOfficialClaimCapabilityResponse(
   raw: unknown
 ): CommunityOfficialClaimCapabilityResponse | null {
@@ -60,31 +85,31 @@ export function normalizeCommunityOfficialClaimCapabilityResponse(
   }
 
   const candidates: CommunityOfficialClaimCapabilityCandidate[] = [];
-  const ids = new Set<string>();
+  const keys = new Set<string>();
   for (const rawCandidate of source['candidates']) {
     const candidate = (rawCandidate ?? {}) as Record<string, unknown>;
     const target = (candidate['target'] ?? {}) as Record<string, unknown>;
+    const type = cleanTargetType(target['type']);
     const id = cleanId(target['id']);
     const label = String(candidate['label'] ?? '').replace(/\s+/g, ' ').trim();
-    const authorityRole = candidate['authorityRole'];
+    const authorityRole = cleanAuthorityRole(candidate['authorityRole']);
 
-    if (
-      target['type'] !== 'venue'
-      || !id
-      || !label
-      || label.length > 80
-      || (authorityRole !== 'owner' && authorityRole !== 'manager')
-      || ids.has(id)
-    ) {
+    if (!type || !id || !label || label.length > 80 || !authorityRole) {
       return null;
     }
 
-    ids.add(id);
-    candidates.push({
-      target: { type: 'venue', id },
+    const normalizedCandidate: CommunityOfficialClaimCapabilityCandidate = {
+      target: { type, id },
       label,
       authorityRole,
-    });
+    };
+    const key = buildCommunityOfficialClaimCapabilityCandidateKey(
+      normalizedCandidate
+    );
+    if (keys.has(key)) return null;
+
+    keys.add(key);
+    candidates.push(normalizedCandidate);
   }
 
   if (
