@@ -134,6 +134,7 @@ export async function assertCommunityOfficialClaimEvidence(input: {
 
   const decision = evaluateVenueOfficialClaimAuthorityGrant({
     claimantUid,
+    venueId: input.target.id,
     authorityRole: input.authorityRole,
     sponsorOrganizationId: input.sponsorOrganizationId,
     authorityReferenceId: authorityReference.referenceId,
