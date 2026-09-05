@@ -17,16 +17,19 @@ import {
 } from './community-official-association.model';
 import { assertCommunityOfficialClaimEvidence } from './community-official-claim-evidence.service';
 import { resolveCommunityOfficialClaimIdempotentStatus } from './community-official-claim-idempotency.policy';
+import { resolveCommunityOfficialClaimSubmission } from './community-official-claim-submission.policy';
 import {
   COMMUNITY_OFFICIAL_CLAIM_POLICY_VERSION,
   normalizeCommunityOfficialClaimStatus,
   normalizeReviewCommunityOfficialClaimRequest,
+  normalizeSubmitCommunityOfficialClaimIntentRequest,
   normalizeSubmitCommunityOfficialClaimRequest,
   resolveCommunityOfficialClaimNextStatus,
   shouldRevokeAssociationForClaimDecision,
   type CommunityOfficialClaimRecord,
   type CommunityOfficialClaimStatus,
   type ReviewCommunityOfficialClaimRequest,
+  type SubmitCommunityOfficialClaimCommand,
   type SubmitCommunityOfficialClaimRequest,
 } from './community-official-claim.model';
 import {
@@ -120,11 +123,16 @@ export const submitCommunityOfficialClaim =
       const actorUid = assertAuthenticatedUid(request.auth);
       await assertCommunitySocialAccessForUid(actorUid);
 
-      const command = normalizeSubmitCommunityOfficialClaimRequest(request.data);
-      if (!command) {
+      const explicitCommand = normalizeSubmitCommunityOfficialClaimRequest(
+        request.data
+      );
+      const intent = explicitCommand
+        ? explicitCommand
+        : normalizeSubmitCommunityOfficialClaimIntentRequest(request.data);
+      if (!intent) {
         throw new HttpsError(
           'invalid-argument',
-          'Revise o vínculo oficial, a autoridade declarada e as referências de verificação.'
+          'Revise a Comunidade, o alvo oficial e a declaração de responsabilidade.'
         );
       }
 
@@ -135,14 +143,14 @@ export const submitCommunityOfficialClaim =
 
       const requestRef = db
         .collection('community_official_claim_requests')
-        .doc(`${actorUid}:${command.requestId}`);
+        .doc(`${actorUid}:${intent.requestId}`);
       const claimRef = db
         .collection('community_official_claims')
-        .doc(command.associationKey);
+        .doc(intent.associationKey);
       const associationRef = db
         .collection('community_official_associations')
-        .doc(command.associationKey);
-      const communityRef = db.collection('communities').doc(command.communityId);
+        .doc(intent.associationKey);
+      const communityRef = db.collection('communities').doc(intent.communityId);
       const auditRef = db.collection('community_official_claim_audit').doc();
 
       return db.runTransaction(async (transaction) => {
@@ -162,8 +170,8 @@ export const submitCommunityOfficialClaim =
           const existing = requestSnapshot.data() ?? {};
           if (
             existing['actorUid'] !== actorUid
-            || existing['associationKey'] !== command.associationKey
-            || existing['communityId'] !== command.communityId
+            || existing['associationKey'] !== intent.associationKey
+            || existing['communityId'] !== intent.communityId
           ) {
             throw new HttpsError(
               'already-exists',
@@ -173,8 +181,8 @@ export const submitCommunityOfficialClaim =
 
           const status = resolveCommunityOfficialClaimIdempotentStatus({
             actorUid,
-            associationKey: command.associationKey,
-            communityId: command.communityId,
+            associationKey: intent.associationKey,
+            communityId: intent.communityId,
             claimRecord: claimSnapshot.exists
               ? claimSnapshot.data() ?? {}
               : null,
@@ -187,10 +195,39 @@ export const submitCommunityOfficialClaim =
           }
 
           return {
-            associationKey: command.associationKey,
+            associationKey: intent.associationKey,
             status,
             submitted: false,
           };
+        }
+
+        let command: SubmitCommunityOfficialClaimCommand;
+        if (explicitCommand) {
+          command = explicitCommand;
+        } else {
+          const rawTarget = intent.target.type === 'venue'
+            ? await transaction.get(db.collection('venues').doc(intent.target.id))
+            : null;
+          const grantSnapshot = await transaction.get(
+            db.collection('official_space_creation_grants').doc(actorUid)
+          );
+          const derived = resolveCommunityOfficialClaimSubmission({
+            actorUid,
+            intent,
+            rawGrant: grantSnapshot.exists ? grantSnapshot.data() : null,
+            rawTarget: rawTarget?.exists ? rawTarget.data() : null,
+          });
+
+          if (!derived.command) {
+            throw new HttpsError(
+              'failed-precondition',
+              'Não foi possível confirmar sua autoridade sobre este alvo oficial.',
+              {
+                reason: `official_claim_${derived.denialReason ?? 'unsupported_target'}`,
+              }
+            );
+          }
+          command = derived.command;
         }
 
         if (!communitySnapshot.exists) {
