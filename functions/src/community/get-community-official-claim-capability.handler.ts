@@ -6,6 +6,7 @@
 // Grants comerciais, organização patrocinadora e evidências permanecem privados.
 // -----------------------------------------------------------------------------
 
+import type { DocumentReference } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
@@ -96,9 +97,7 @@ async function resolveVenueOfficialOccupancy(input: {
   activeOfficialVenueIds: readonly string[];
   communityAlreadyOfficial: boolean;
 }>> {
-  const associationRefs = new Map<string, ReturnType<typeof db.collection>['doc'] extends (
-    path?: string
-  ) => infer Reference ? Reference : never>();
+  const associationRefs = new Map<string, DocumentReference>();
 
   for (const rawVenue of input.rawVenues) {
     const venueId = cleanId(rawVenue['id']);
