@@ -58,14 +58,13 @@ export function evaluateOfficialSpaceCreationGrant(input: {
   });
 
   if (!commercialAuthority.allowed) {
+    const inactive = commercialAuthority.denialReason === 'authority_inactive';
     return {
       allowed: false,
-      organizationId: commercialAuthority.organizationId,
+      organizationId: inactive ? commercialAuthority.organizationId : null,
       maxOfficialSpaces: null,
       memberLimit: OFFICIAL_SPACE_MEMBER_LIMIT,
-      denialReason: commercialAuthority.denialReason === 'authority_inactive'
-        ? 'grant_inactive'
-        : 'verification_required',
+      denialReason: inactive ? 'grant_inactive' : 'verification_required',
     };
   }
 
@@ -79,7 +78,7 @@ export function evaluateOfficialSpaceCreationGrant(input: {
   if (!hasOfficialSpaceCapability) {
     return {
       allowed: false,
-      organizationId: commercialAuthority.organizationId,
+      organizationId: null,
       maxOfficialSpaces: null,
       memberLimit: OFFICIAL_SPACE_MEMBER_LIMIT,
       denialReason: 'verification_required',
