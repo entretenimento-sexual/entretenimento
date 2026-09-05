@@ -46,12 +46,71 @@ function denied(
 export function resolveCommunityOfficialClaimSubmission(input: {
   readonly actorUid: string;
   readonly intent: SubmitCommunityOfficialClaimIntentCommand;
-  readonly rawGrant: unknown;
+  readonly rawGrant?: unknown;
   readonly rawTarget: unknown;
+  readonly rawOrganizationKyb?: unknown;
+  readonly rawOrganizationRepresentation?: unknown;
+  readonly organizationRepresentationReferenceId?: unknown;
   readonly now?: number;
 }): Readonly<CommunityOfficialClaimSubmissionDecision> {
   const actorUid = cleanId(input.actorUid);
-  if (!actorUid || input.intent.target.type !== 'venue') {
+  if (!actorUid) {
+    return denied('target_authority_mismatch');
+  }
+
+  if (input.intent.target.type === 'organization') {
+    const representationReferenceId = cleanId(
+      input.organizationRepresentationReferenceId
+    );
+    if (!representationReferenceId) {
+      return denied('target_authority_mismatch');
+    }
+
+    const canonicalAuthority = resolveCanonicalResourceAuthority({
+      actorUid,
+      targetType: 'organization',
+      targetId: input.intent.target.id,
+      rawTarget: input.rawTarget,
+      rawOrganizationKyb: input.rawOrganizationKyb,
+      rawOrganizationRepresentation: input.rawOrganizationRepresentation,
+      requiredOrganizationScope: 'community_official_claim',
+      now: input.now,
+    });
+
+    if (!canonicalAuthority.allowed) {
+      return denied(
+        canonicalAuthority.denialReason ?? 'target_authority_mismatch'
+      );
+    }
+
+    if (
+      !canonicalAuthority.organizationId
+      || !canonicalAuthority.authorityRole
+      || canonicalAuthority.organizationId !== input.intent.target.id
+    ) {
+      return denied('target_authority_mismatch');
+    }
+
+    const command: SubmitCommunityOfficialClaimCommand = {
+      ...input.intent,
+      authorityRole: canonicalAuthority.authorityRole,
+      sponsorOrganizationId: canonicalAuthority.organizationId,
+      evidenceReferences: [
+        {
+          type: 'organization_kyb_record',
+          referenceId: canonicalAuthority.organizationId,
+        },
+        {
+          type: 'authority_record',
+          referenceId: representationReferenceId,
+        },
+      ],
+    };
+
+    return Object.freeze({ command, denialReason: null });
+  }
+
+  if (input.intent.target.type !== 'venue') {
     return denied('unsupported_target');
   }
 
