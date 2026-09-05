@@ -12,10 +12,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
-  COMMUNITY_OFFICIAL_ASSOCIATION_POLICY_VERSION,
   buildVerifiedCommunityOfficialAssociation,
   normalizeCommunityOfficialAssociationKey,
 } from './community-official-association.model';
+import { assertCommunityOfficialClaimEvidence } from './community-official-claim-evidence.service';
 import {
   COMMUNITY_OFFICIAL_CLAIM_POLICY_VERSION,
   normalizeCommunityOfficialClaimStatus,
@@ -500,6 +500,10 @@ export const reviewCommunityOfficialClaim =
           }
         }
 
+        let verifiedEvidence: Awaited<
+          ReturnType<typeof assertCommunityOfficialClaimEvidence>
+        > | null = null;
+
         if (command.decision === 'approve') {
           if (community['status'] !== 'active') {
             throw new HttpsError(
@@ -536,16 +540,26 @@ export const reviewCommunityOfficialClaim =
             );
           }
 
+          verifiedEvidence = await assertCommunityOfficialClaimEvidence({
+            transaction,
+            target: { type: targetType, id: targetId },
+            claimantUid,
+            authorityRole,
+            sponsorOrganizationId,
+            evidenceReferences: claim['evidenceReferences'],
+            now,
+          });
+
           const officialAssociation = buildVerifiedCommunityOfficialAssociation({
             target: { type: targetType, id: targetId },
             communityId,
-            sponsorOrganizationId,
+            sponsorOrganizationId: verifiedEvidence.sponsorOrganizationId,
             holderUid: claimantUid,
             authorityRole,
-            verificationSource: 'platform_review',
+            verificationSource: verifiedEvidence.verificationSource,
             verifiedAt: now,
             verificationPolicyVersion:
-              COMMUNITY_OFFICIAL_ASSOCIATION_POLICY_VERSION,
+              verifiedEvidence.verificationPolicyVersion,
             revalidationDueAt: command.revalidationDueAt,
             verificationExpiresAt: command.verificationExpiresAt,
             createdAt: association
@@ -627,6 +641,8 @@ export const reviewCommunityOfficialClaim =
           claimPatch['verificationExpiresAt'] = command.verificationExpiresAt;
           claimPatch['revalidationDueAt'] = command.revalidationDueAt;
           claimPatch['revalidationRequestedAt'] = null;
+          claimPatch['sponsorOrganizationId'] =
+            verifiedEvidence?.sponsorOrganizationId ?? null;
         } else if (command.decision === 'request_revalidation') {
           claimPatch['revalidationRequestedAt'] = now;
         } else if (
@@ -649,6 +665,8 @@ export const reviewCommunityOfficialClaim =
           previousStatus: currentStatus,
           nextStatus,
           resolution: command.resolution,
+          verificationSource: verifiedEvidence?.verificationSource ?? null,
+          verifiedEvidenceType: verifiedEvidence?.evidenceType ?? null,
           verificationExpiresAt: command.verificationExpiresAt,
           revalidationDueAt: command.revalidationDueAt,
           policyVersion: COMMUNITY_OFFICIAL_CLAIM_POLICY_VERSION,
