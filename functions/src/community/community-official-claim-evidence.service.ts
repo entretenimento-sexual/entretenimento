@@ -11,6 +11,9 @@ import type { Transaction } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 
 import { db } from '../firebaseApp';
+import {
+  buildOrganizationRepresentationId,
+} from '../organization/organization-representation.policy';
 import type {
   CommunityOfficialAuthorityRole,
   CommunityOfficialTarget,
@@ -21,6 +24,7 @@ import type {
   CommunityOfficialClaimEvidenceType,
 } from './community-official-claim.model';
 import {
+  evaluateOrganizationOfficialClaimAuthority,
   evaluateVenueOfficialClaimAuthorityGrant,
   type CommunityOfficialClaimEvidenceDenialReason,
 } from './community-official-claim-evidence.policy';
@@ -86,11 +90,8 @@ function evidenceFailure(
 
 /**
  * Valida a evidência necessária para promover um claim a `verified`.
- *
- * Atualmente o repositório possui uma única fonte autoritativa completa para
- * claims genéricos: o grant comercial de Espaço Oficial, usado para Local.
- * KYC/KYB/event authorization permanecem aceitos como referências privadas no
- * claim, mas não podem gerar selo até existir seu verificador server-side.
+ * Local e Organização possuem fontes canônicas backend-only revalidadas na
+ * aprovação. Profile e Event permanecem fail-closed até seus resolvers próprios.
  */
 export async function assertCommunityOfficialClaimEvidence(input: {
   readonly transaction: Transaction;
@@ -108,9 +109,76 @@ export async function assertCommunityOfficialClaimEvidence(input: {
     throw evidenceFailure('unsupported_source');
   }
 
+  if (input.target.type === 'organization') {
+    const representationId = buildOrganizationRepresentationId(
+      input.target.id,
+      claimantUid
+    );
+    const kybReference = references.find(
+      (reference) =>
+        reference.type === 'organization_kyb_record'
+        && reference.referenceId === input.target.id
+    );
+    const authorityReference = references.find(
+      (reference) =>
+        reference.type === 'authority_record'
+        && reference.referenceId === representationId
+    );
+
+    if (!representationId || !kybReference || !authorityReference) {
+      throw evidenceFailure('authority_reference_mismatch');
+    }
+
+    const organizationRef = db.collection('organizations').doc(input.target.id);
+    const kybRef = db
+      .collection('organization_kyb_records')
+      .doc(kybReference.referenceId);
+    const representationRef = db
+      .collection('organization_representations')
+      .doc(authorityReference.referenceId);
+    const [organizationSnapshot, kybSnapshot, representationSnapshot] =
+      await Promise.all([
+        input.transaction.get(organizationRef),
+        input.transaction.get(kybRef),
+        input.transaction.get(representationRef),
+      ]);
+
+    const decision = evaluateOrganizationOfficialClaimAuthority({
+      claimantUid,
+      organizationId: input.target.id,
+      authorityRole: input.authorityRole,
+      sponsorOrganizationId: input.sponsorOrganizationId,
+      kybReferenceId: kybReference.referenceId,
+      authorityReferenceId: authorityReference.referenceId,
+      rawOrganization: organizationSnapshot.exists
+        ? organizationSnapshot.data()
+        : null,
+      rawKyb: kybSnapshot.exists ? kybSnapshot.data() : null,
+      rawRepresentation: representationSnapshot.exists
+        ? representationSnapshot.data()
+        : null,
+      now: input.now,
+    });
+
+    if (
+      !decision.allowed
+      || !decision.sponsorOrganizationId
+      || !decision.verificationPolicyVersion
+    ) {
+      throw evidenceFailure(
+        decision.denialReason ?? 'organization_authority_mismatch'
+      );
+    }
+
+    return Object.freeze({
+      verificationSource: 'organization_verification',
+      verificationPolicyVersion: decision.verificationPolicyVersion,
+      sponsorOrganizationId: decision.sponsorOrganizationId,
+      evidenceType: kybReference.type,
+    });
+  }
+
   if (input.target.type !== 'venue') {
-    // Fail closed até profile KYC, organization KYB e event authorization terem
-    // fontes canônicas backend-only verificáveis neste projeto.
     throw evidenceFailure('unsupported_source');
   }
 
