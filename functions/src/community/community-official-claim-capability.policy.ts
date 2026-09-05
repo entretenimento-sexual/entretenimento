@@ -93,6 +93,7 @@ export function resolveCommunityOfficialClaimCapability(input: {
     });
   }
 
+  const hasCanonicalOccupancy = input.activeOfficialVenueIds !== undefined;
   const activeOfficialVenueIds = new Set(
     (input.activeOfficialVenueIds ?? [])
       .map(cleanId)
@@ -104,7 +105,16 @@ export function resolveCommunityOfficialClaimCapability(input: {
     if (unique.size >= MAX_COMMUNITY_OFFICIAL_CLAIM_CANDIDATES) break;
 
     const venueId = cleanId(rawVenue['id']);
-    if (!venueId || activeOfficialVenueIds.has(venueId)) continue;
+    if (!venueId) continue;
+
+    if (hasCanonicalOccupancy) {
+      if (activeOfficialVenueIds.has(venueId)) continue;
+    } else if (cleanId(rawVenue['officialAssociationKey'])) {
+      // Compatibilidade temporária para callers internos antigos. O handler
+      // oficial sempre fornece `activeOfficialVenueIds`, portanto produção não
+      // decide disponibilidade por esta projeção potencialmente stale.
+      continue;
+    }
 
     const authority = resolveCanonicalResourceAuthority({
       actorUid,
