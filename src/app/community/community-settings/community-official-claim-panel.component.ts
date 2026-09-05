@@ -1,4 +1,4 @@
-import { AsyncPipe, DatePipe } from '@angular/common';
+import { AsyncPipe, DatePipe, NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -50,7 +50,7 @@ type SubmissionState = 'idle' | 'loading';
 @Component({
   selector: 'app-community-official-claim-panel',
   standalone: true,
-  imports: [AsyncPipe, DatePipe, ReactiveFormsModule],
+  imports: [AsyncPipe, DatePipe, NgTemplateOutlet, ReactiveFormsModule],
   templateUrl: './community-official-claim-panel.component.html',
   styleUrl: './community-official-claim-panel.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
