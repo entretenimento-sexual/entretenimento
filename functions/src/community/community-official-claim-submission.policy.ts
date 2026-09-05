@@ -8,8 +8,14 @@
 // -----------------------------------------------------------------------------
 
 import {
+  normalizeCanonicalAuthorityResourceId,
+} from '../authority/canonical-resource-authority.model';
+import {
   resolveCanonicalResourceAuthority,
 } from '../authority/canonical-resource-authority.resolver';
+import {
+  buildOrganizationRepresentationId,
+} from '../organization/organization-representation.policy';
 import {
   evaluateOfficialSpaceCreationGrant,
 } from './community-official-space.policy';
@@ -30,12 +36,10 @@ export interface CommunityOfficialClaimSubmissionDecision {
   readonly denialReason: CommunityOfficialClaimSubmissionDenialReason | null;
 }
 
-const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const SAFE_REFERENCE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,320}$/;
 
 function cleanId(value: unknown): string | null {
-  const normalized = String(value ?? '').trim();
-  return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+  return normalizeCanonicalAuthorityResourceId(value);
 }
 
 function cleanReferenceId(value: unknown): string | null {
@@ -68,7 +72,15 @@ export function resolveCommunityOfficialClaimSubmission(input: {
     const representationReferenceId = cleanReferenceId(
       input.organizationRepresentationReferenceId
     );
-    if (!representationReferenceId) {
+    const expectedRepresentationReferenceId = buildOrganizationRepresentationId(
+      input.intent.target.id,
+      actorUid
+    );
+    if (
+      !representationReferenceId
+      || !expectedRepresentationReferenceId
+      || representationReferenceId !== expectedRepresentationReferenceId
+    ) {
       return denied('target_authority_mismatch');
     }
 

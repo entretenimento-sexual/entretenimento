@@ -98,6 +98,8 @@ test('expõe somente Local ativo em que o solicitante possui autoridade canônic
         ownerUid: 'user-1',
       },
     ],
+    activeOfficialVenueIds: ['venue-3'],
+    activeOfficialOrganizationIds: [],
   });
 
   assert.equal(result.canSubmit, true);
@@ -116,12 +118,37 @@ test('expõe somente Local ativo em que o solicitante possui autoridade canônic
   ]);
 });
 
+test('ignora officialAssociationKey stale e usa apenas ocupação canônica', () => {
+  const result = resolveCommunityOfficialClaimCapability({
+    actorUid: 'user-1',
+    rawGrant: activeGrant(),
+    rawVenues: [{
+      id: 'venue-1',
+      name: 'Casa Um',
+      status: 'active',
+      ownerUid: 'user-1',
+      adminUids: [],
+      officialAssociationKey: 'venue:venue-1',
+    }],
+    activeOfficialVenueIds: [],
+    activeOfficialOrganizationIds: [],
+    communityAlreadyOfficial: false,
+    now: NOW,
+  });
+
+  assert.equal(result.canSubmit, true);
+  assert.deepEqual(result.candidates.map((candidate) => candidate.target), [
+    { type: 'venue', id: 'venue-1' },
+  ]);
+});
+
 test('expõe Organização somente com KYB e representação escopada vigentes', () => {
   const result = resolveCommunityOfficialClaimCapability({
     actorUid: 'user-1',
     rawGrant: null,
     rawVenues: [],
     rawOrganizationAuthorities: [organizationAuthority()],
+    activeOfficialVenueIds: [],
     activeOfficialOrganizationIds: [],
     communityAlreadyOfficial: false,
     now: NOW,
@@ -145,6 +172,7 @@ test('não expõe Organização com KYB expirado ou revogado', () => {
       rawGrant: null,
       rawVenues: [],
       rawOrganizationAuthorities: [organizationAuthority({ kyb: { status } })],
+      activeOfficialVenueIds: [],
       activeOfficialOrganizationIds: [],
       communityAlreadyOfficial: false,
       now: NOW,
@@ -170,6 +198,7 @@ test('não expõe Organização sem representação válida ou sem escopo', () =
       rawOrganizationAuthorities: [organizationAuthority({
         representation,
       })],
+      activeOfficialVenueIds: [],
       activeOfficialOrganizationIds: [],
       communityAlreadyOfficial: false,
       now: NOW,
@@ -186,6 +215,7 @@ test('não oferece Organização que já possui associação oficial ativa', () 
     rawGrant: null,
     rawVenues: [],
     rawOrganizationAuthorities: [organizationAuthority()],
+    activeOfficialVenueIds: [],
     activeOfficialOrganizationIds: ['organization-1'],
     communityAlreadyOfficial: false,
     now: NOW,
@@ -202,6 +232,8 @@ test('falha fechado quando verificação comercial não está ativa', () => {
     communityAlreadyOfficial: false,
     now: NOW,
     rawVenues: [],
+    activeOfficialVenueIds: [],
+    activeOfficialOrganizationIds: [],
   });
 
   assert.equal(result.canSubmit, false);
@@ -216,6 +248,8 @@ test('não oferece nova reivindicação para Comunidade já oficial', () => {
     communityAlreadyOfficial: true,
     now: NOW,
     rawVenues: [],
+    activeOfficialVenueIds: [],
+    activeOfficialOrganizationIds: [],
   });
 
   assert.equal(result.canSubmit, false);

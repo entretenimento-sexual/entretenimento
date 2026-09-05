@@ -13,19 +13,18 @@ import type {
   OrganizationAuthorityScope,
 } from '../organization/organization-representation.policy';
 import {
+  normalizeCanonicalAuthorityResourceId,
+  type CanonicalAuthorityTargetType,
+  type CanonicalResourceAuthorityRole,
+} from './canonical-resource-authority.model';
+import {
   evaluateVerifiedCommercialAuthority,
 } from './verified-commercial-authority.policy';
 
-export type CanonicalAuthorityTargetType =
-  | 'profile'
-  | 'organization'
-  | 'venue'
-  | 'event';
-
-export type CanonicalResourceAuthorityRole =
-  | 'owner'
-  | 'authorized_representative'
-  | 'manager';
+export type {
+  CanonicalAuthorityTargetType,
+  CanonicalResourceAuthorityRole,
+} from './canonical-resource-authority.model';
 
 export type CanonicalResourceAuthorityDenialReason =
   | 'unsupported_target'
@@ -41,20 +40,15 @@ export interface CanonicalResourceAuthorityDecision {
   readonly organizationId: string | null;
   readonly authorityUid: string | null;
   readonly authorityRole: CanonicalResourceAuthorityRole | null;
+  /** Versão da prova de verificação quando a fonte canônica a fornece. */
+  readonly verificationPolicyVersion: number | null;
   readonly denialReason: CanonicalResourceAuthorityDenialReason | null;
-}
-
-const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
-
-function cleanId(value: unknown): string | null {
-  const normalized = String(value ?? '').trim();
-  return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
 function cleanAdminUids(value: unknown): readonly string[] {
   return Array.isArray(value)
     ? value
-      .map(cleanId)
+      .map(normalizeCanonicalAuthorityResourceId)
       .filter((uid): uid is string => uid !== null)
     : [];
 }
@@ -77,6 +71,7 @@ function denied(input: {
     organizationId: input.organizationId ?? null,
     authorityUid: input.authorityUid ?? null,
     authorityRole: null,
+    verificationPolicyVersion: null,
     denialReason: input.denialReason,
   });
 }
@@ -92,8 +87,8 @@ export function resolveCanonicalResourceAuthority(input: {
   readonly requiredOrganizationScope?: OrganizationAuthorityScope;
   readonly now?: number;
 }): Readonly<CanonicalResourceAuthorityDecision> {
-  const actorUid = cleanId(input.actorUid);
-  const targetId = cleanId(input.targetId) ?? '';
+  const actorUid = normalizeCanonicalAuthorityResourceId(input.actorUid);
+  const targetId = normalizeCanonicalAuthorityResourceId(input.targetId) ?? '';
 
   if (!actorUid || !targetId) {
     return denied({
@@ -131,10 +126,14 @@ export function resolveCanonicalResourceAuthority(input: {
       organizationId: authority.organizationId,
       authorityUid: authority.authorityUid,
       authorityRole: authority.authorityRole,
+      verificationPolicyVersion: authority.verificationPolicyVersion,
       denialReason: null,
     });
   }
 
+  // Profile e Event são tipos conhecidos pelo contrato, mas permanecem
+  // deliberadamente fail-closed até existir fonte canônica backend-only própria.
+  // Em especial, `creatorUid` de Evento nunca é interpretado como autoridade.
   if (input.targetType !== 'venue') {
     return denied({
       targetType: input.targetType,
@@ -171,7 +170,7 @@ export function resolveCanonicalResourceAuthority(input: {
     });
   }
 
-  const ownerUid = cleanId(input.rawTarget['ownerUid']);
+  const ownerUid = normalizeCanonicalAuthorityResourceId(input.rawTarget['ownerUid']);
   const adminUids = cleanAdminUids(input.rawTarget['adminUids']);
   const authorityRole = ownerUid === actorUid
     ? 'owner' as const
@@ -196,6 +195,7 @@ export function resolveCanonicalResourceAuthority(input: {
     organizationId: commercialAuthority.organizationId,
     authorityUid: commercialAuthority.holderUid,
     authorityRole,
+    verificationPolicyVersion: null,
     denialReason: null,
   });
 }

@@ -8,6 +8,10 @@
 // -----------------------------------------------------------------------------
 
 import {
+  normalizeCanonicalAuthorityResourceId,
+  type CanonicalResourceAuthorityRole,
+} from '../authority/canonical-resource-authority.model';
+import {
   resolveCanonicalResourceAuthority,
 } from '../authority/canonical-resource-authority.resolver';
 import {
@@ -23,13 +27,18 @@ export type CommunityOfficialClaimCapabilityReason =
   | 'no_eligible_target'
   | 'community_already_official';
 
+type CommunityOfficialClaimCandidateAuthorityRole = Extract<
+  CanonicalResourceAuthorityRole,
+  'owner' | 'authorized_representative' | 'manager'
+>;
+
 export interface CommunityOfficialClaimCapabilityCandidate {
   readonly target: {
     readonly type: 'organization' | 'venue';
     readonly id: string;
   };
   readonly label: string;
-  readonly authorityRole: 'owner' | 'authorized_representative' | 'manager';
+  readonly authorityRole: CommunityOfficialClaimCandidateAuthorityRole;
 }
 
 export interface CommunityOfficialClaimOrganizationAuthorityInput {
@@ -45,11 +54,8 @@ export interface CommunityOfficialClaimCapabilityDecision {
   readonly candidates: readonly CommunityOfficialClaimCapabilityCandidate[];
 }
 
-const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
-
 function cleanId(value: unknown): string | null {
-  const normalized = String(value ?? '').trim();
-  return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+  return normalizeCanonicalAuthorityResourceId(value);
 }
 
 function cleanLabel(value: unknown, fallback: string): string {
@@ -96,7 +102,8 @@ export function resolveCommunityOfficialClaimCapability(input: {
   let sawVerificationInactive = !grant.allowed
     && grant.denialReason === 'grant_inactive';
 
-  const hasCanonicalVenueOccupancy = input.activeOfficialVenueIds !== undefined;
+  // Ocupação oficial é decidida somente pela associação canônica. A projeção
+  // `officialAssociationKey` eventualmente presente em Local é ignorada aqui.
   const activeOfficialVenueIds = new Set(
     (input.activeOfficialVenueIds ?? [])
       .map(cleanId)
@@ -114,16 +121,7 @@ export function resolveCommunityOfficialClaimCapability(input: {
       if (unique.size >= MAX_COMMUNITY_OFFICIAL_CLAIM_CANDIDATES) break;
 
       const venueId = cleanId(rawVenue['id']);
-      if (!venueId) continue;
-
-      if (hasCanonicalVenueOccupancy) {
-        if (activeOfficialVenueIds.has(venueId)) continue;
-      } else if (cleanId(rawVenue['officialAssociationKey'])) {
-        // Compatibilidade temporária para callers internos antigos. O handler
-        // oficial sempre fornece `activeOfficialVenueIds`, portanto produção não
-        // decide disponibilidade por esta projeção potencialmente stale.
-        continue;
-      }
+      if (!venueId || activeOfficialVenueIds.has(venueId)) continue;
 
       const authority = resolveCanonicalResourceAuthority({
         actorUid,
@@ -172,6 +170,14 @@ export function resolveCommunityOfficialClaimCapability(input: {
     if (!authority.allowed || !authority.authorityRole) {
       sawVerificationInactive ||= authority.denialReason === 'verification_inactive';
       sawVerificationRequired ||= authority.denialReason === 'verification_required';
+      continue;
+    }
+
+    if (
+      authority.authorityRole !== 'owner'
+      && authority.authorityRole !== 'authorized_representative'
+      && authority.authorityRole !== 'manager'
+    ) {
       continue;
     }
 

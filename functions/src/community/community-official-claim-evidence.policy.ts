@@ -8,11 +8,11 @@
 // -----------------------------------------------------------------------------
 
 import {
+  normalizeCanonicalAuthorityResourceId,
+} from '../authority/canonical-resource-authority.model';
+import {
   resolveCanonicalResourceAuthority,
 } from '../authority/canonical-resource-authority.resolver';
-import {
-  evaluateOrganizationResourceAuthority,
-} from '../organization/organization-authority.policy';
 import {
   buildOrganizationRepresentationId,
 } from '../organization/organization-representation.policy';
@@ -43,12 +43,10 @@ export interface CommunityOfficialClaimEvidenceDecision {
   readonly denialReason: CommunityOfficialClaimEvidenceDenialReason | null;
 }
 
-const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const SAFE_REFERENCE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,320}$/;
 
 function normalizeId(value: unknown): string | null {
-  const normalized = String(value ?? '').trim();
-  return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+  return normalizeCanonicalAuthorityResourceId(value);
 }
 
 function normalizeReferenceId(value: unknown): string | null {
@@ -67,7 +65,7 @@ function denied(
   });
 }
 
-function canonicalDenialReason(
+function venueDenialReason(
   denialReason: ReturnType<typeof resolveCanonicalResourceAuthority>['denialReason']
 ): CommunityOfficialClaimEvidenceDenialReason {
   if (denialReason === 'verification_inactive') {
@@ -83,7 +81,7 @@ function canonicalDenialReason(
 }
 
 function organizationDenialReason(
-  denialReason: ReturnType<typeof evaluateOrganizationResourceAuthority>['denialReason']
+  denialReason: ReturnType<typeof resolveCanonicalResourceAuthority>['denialReason']
 ): CommunityOfficialClaimEvidenceDenialReason {
   if (denialReason === 'verification_inactive') {
     return 'organization_kyb_inactive';
@@ -154,13 +152,14 @@ export function evaluateOrganizationOfficialClaimAuthority(input: {
     return denied('sponsor_organization_mismatch');
   }
 
-  const authority = evaluateOrganizationResourceAuthority({
+  const authority = resolveCanonicalResourceAuthority({
     actorUid: claimantUid,
-    organizationId,
-    rawOrganization: input.rawOrganization,
-    rawKyb: input.rawKyb,
-    rawRepresentation: input.rawRepresentation,
-    requiredScope: 'community_official_claim',
+    targetType: 'organization',
+    targetId: organizationId,
+    rawTarget: input.rawOrganization,
+    rawOrganizationKyb: input.rawKyb,
+    rawOrganizationRepresentation: input.rawRepresentation,
+    requiredOrganizationScope: 'community_official_claim',
     now: input.now,
   });
 
@@ -255,7 +254,7 @@ export function evaluateVenueOfficialClaimAuthorityGrant(input: {
   });
 
   if (!authorityDecision.allowed || !authorityDecision.authorityRole) {
-    return denied(canonicalDenialReason(authorityDecision.denialReason));
+    return denied(venueDenialReason(authorityDecision.denialReason));
   }
 
   if (

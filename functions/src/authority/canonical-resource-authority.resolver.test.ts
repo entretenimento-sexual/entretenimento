@@ -67,6 +67,7 @@ test('resolve owner do Local a partir das fontes canônicas', () => {
     organizationId: 'organization-1',
     authorityUid: 'user-1',
     authorityRole: 'owner',
+    verificationPolicyVersion: null,
     denialReason: null,
   });
 });
@@ -87,6 +88,7 @@ test('resolve manager do Local sem promover role comunitária', () => {
 
   assert.equal(result.allowed, true);
   assert.equal(result.authorityRole, 'manager');
+  assert.equal(result.verificationPolicyVersion, null);
 });
 
 test('resolve Organização por KYB + representação canônica escopada', () => {
@@ -111,6 +113,7 @@ test('resolve Organização por KYB + representação canônica escopada', () =>
     organizationId: 'organization-1',
     authorityUid: 'user-1',
     authorityRole: 'authorized_representative',
+    verificationPolicyVersion: 1,
     denialReason: null,
   });
 });
@@ -155,6 +158,25 @@ test('falha fechado para tipos ainda sem fonte canônica', () => {
       'unsupported_target'
     );
   }
+});
+
+test('Evento não deriva autoridade de creatorUid sem fonte canônica', () => {
+  const result = resolveCanonicalResourceAuthority({
+    actorUid: 'user-1',
+    targetType: 'event',
+    targetId: 'event-1',
+    rawTarget: {
+      status: 'active',
+      creatorUid: 'user-1',
+      organizerUid: 'user-1',
+    },
+    now: NOW,
+  });
+
+  assert.equal(result.allowed, false);
+  assert.equal(result.authorityRole, null);
+  assert.equal(result.verificationPolicyVersion, null);
+  assert.equal(result.denialReason, 'unsupported_target');
 });
 
 test('rejeita Local inativo ou usuário sem autoridade no recurso', () => {
