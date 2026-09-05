@@ -8,6 +8,9 @@
 // -----------------------------------------------------------------------------
 
 import {
+  resolveCanonicalResourceAuthority,
+} from '../authority/canonical-resource-authority.resolver';
+import {
   evaluateOfficialSpaceCreationGrant,
 } from './community-official-space.policy';
 import type {
@@ -32,14 +35,6 @@ const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 function cleanId(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
-}
-
-function cleanAdminUids(value: unknown): readonly string[] {
-  return Array.isArray(value)
-    ? value
-      .map(cleanId)
-      .filter((uid): uid is string => uid !== null)
-    : [];
 }
 
 function denied(
@@ -74,26 +69,30 @@ export function resolveCommunityOfficialClaimSubmission(input: {
     );
   }
 
-  const target = (input.rawTarget ?? {}) as Record<string, unknown>;
-  if (target['status'] !== 'active') {
-    return denied('target_inactive');
+  const canonicalAuthority = resolveCanonicalResourceAuthority({
+    actorUid,
+    targetType: input.intent.target.type,
+    targetId: input.intent.target.id,
+    rawCommercialGrant: input.rawGrant,
+    rawTarget: input.rawTarget,
+    now: input.now,
+  });
+
+  if (!canonicalAuthority.allowed) {
+    return denied(canonicalAuthority.denialReason ?? 'target_authority_mismatch');
   }
 
-  const ownerUid = cleanId(target['ownerUid']);
-  const adminUids = cleanAdminUids(target['adminUids']);
-  const authorityRole = ownerUid === actorUid
-    ? 'owner' as const
-    : adminUids.includes(actorUid)
-      ? 'manager' as const
-      : null;
-  if (!authorityRole) {
+  if (
+    !canonicalAuthority.organizationId
+    || !canonicalAuthority.authorityRole
+  ) {
     return denied('target_authority_mismatch');
   }
 
   const command: SubmitCommunityOfficialClaimCommand = {
     ...input.intent,
-    authorityRole,
-    sponsorOrganizationId: grant.organizationId,
+    authorityRole: canonicalAuthority.authorityRole,
+    sponsorOrganizationId: canonicalAuthority.organizationId,
     evidenceReferences: [
       { type: 'authority_record', referenceId: actorUid },
     ],
