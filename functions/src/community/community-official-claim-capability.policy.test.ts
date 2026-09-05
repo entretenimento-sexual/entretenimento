@@ -21,6 +21,48 @@ function activeGrant() {
   };
 }
 
+function organizationAuthority(overrides: {
+  organization?: Record<string, unknown>;
+  kyb?: Record<string, unknown> | null;
+  representation?: Record<string, unknown> | null;
+} = {}) {
+  return {
+    organizationId: 'organization-1',
+    rawOrganization: {
+      organizationId: 'organization-1',
+      displayName: 'Organização Um',
+      status: 'active',
+      countryCode: 'BR',
+      ...overrides.organization,
+    },
+    rawKyb: overrides.kyb === null
+      ? null
+      : {
+        organizationId: 'organization-1',
+        status: 'verified',
+        policyVersion: 2,
+        verifiedAt: NOW - 10_000,
+        revalidationDueAt: NOW + 20_000,
+        expiresAt: NOW + 30_000,
+        revokedAt: null,
+        ...overrides.kyb,
+      },
+    rawRepresentation: overrides.representation === null
+      ? null
+      : {
+        organizationId: 'organization-1',
+        holderUid: 'user-1',
+        role: 'legal_representative',
+        scopes: ['community_official_claim'],
+        status: 'active',
+        startsAt: NOW - 10_000,
+        endsAt: NOW + 30_000,
+        revokedAt: null,
+        ...overrides.representation,
+      },
+  };
+}
+
 test('expõe somente Local ativo em que o solicitante possui autoridade canônica', () => {
   const result = resolveCommunityOfficialClaimCapability({
     actorUid: 'user-1',
@@ -72,6 +114,85 @@ test('expõe somente Local ativo em que o solicitante possui autoridade canônic
       authorityRole: 'manager',
     },
   ]);
+});
+
+test('expõe Organização somente com KYB e representação escopada vigentes', () => {
+  const result = resolveCommunityOfficialClaimCapability({
+    actorUid: 'user-1',
+    rawGrant: null,
+    rawVenues: [],
+    rawOrganizationAuthorities: [organizationAuthority()],
+    activeOfficialOrganizationIds: [],
+    communityAlreadyOfficial: false,
+    now: NOW,
+  });
+
+  assert.equal(result.canSubmit, true);
+  assert.equal(result.reason, 'eligible');
+  assert.deepEqual(result.candidates, [
+    {
+      target: { type: 'organization', id: 'organization-1' },
+      label: 'Organização Um',
+      authorityRole: 'authorized_representative',
+    },
+  ]);
+});
+
+test('não expõe Organização com KYB expirado ou revogado', () => {
+  for (const status of ['expired', 'revoked'] as const) {
+    const result = resolveCommunityOfficialClaimCapability({
+      actorUid: 'user-1',
+      rawGrant: null,
+      rawVenues: [],
+      rawOrganizationAuthorities: [organizationAuthority({ kyb: { status } })],
+      activeOfficialOrganizationIds: [],
+      communityAlreadyOfficial: false,
+      now: NOW,
+    });
+
+    assert.equal(result.canSubmit, false);
+    assert.equal(result.reason, 'verification_inactive');
+    assert.deepEqual(result.candidates, []);
+  }
+});
+
+test('não expõe Organização sem representação válida ou sem escopo', () => {
+  for (const representation of [
+    null,
+    { status: 'revoked' },
+    { scopes: ['manage_organization'] },
+    { holderUid: 'user-2' },
+  ]) {
+    const result = resolveCommunityOfficialClaimCapability({
+      actorUid: 'user-1',
+      rawGrant: null,
+      rawVenues: [],
+      rawOrganizationAuthorities: [organizationAuthority({
+        representation,
+      })],
+      activeOfficialOrganizationIds: [],
+      communityAlreadyOfficial: false,
+      now: NOW,
+    });
+
+    assert.equal(result.canSubmit, false);
+    assert.deepEqual(result.candidates, []);
+  }
+});
+
+test('não oferece Organização que já possui associação oficial ativa', () => {
+  const result = resolveCommunityOfficialClaimCapability({
+    actorUid: 'user-1',
+    rawGrant: null,
+    rawVenues: [],
+    rawOrganizationAuthorities: [organizationAuthority()],
+    activeOfficialOrganizationIds: ['organization-1'],
+    communityAlreadyOfficial: false,
+    now: NOW,
+  });
+
+  assert.equal(result.canSubmit, false);
+  assert.deepEqual(result.candidates, []);
 });
 
 test('falha fechado quando verificação comercial não está ativa', () => {
