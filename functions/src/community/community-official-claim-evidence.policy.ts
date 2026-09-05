@@ -44,10 +44,16 @@ export interface CommunityOfficialClaimEvidenceDecision {
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const SAFE_REFERENCE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,320}$/;
 
 function normalizeId(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
+function normalizeReferenceId(value: unknown): string | null {
+  const normalized = String(value ?? '').trim();
+  return SAFE_REFERENCE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
 function denied(
@@ -123,7 +129,7 @@ export function evaluateOrganizationOfficialClaimAuthority(input: {
   const claimantUid = normalizeId(input.claimantUid);
   const organizationId = normalizeId(input.organizationId);
   const kybReferenceId = normalizeId(input.kybReferenceId);
-  const authorityReferenceId = normalizeId(input.authorityReferenceId);
+  const authorityReferenceId = normalizeReferenceId(input.authorityReferenceId);
   const expectedRepresentationId = buildOrganizationRepresentationId(
     organizationId,
     claimantUid
