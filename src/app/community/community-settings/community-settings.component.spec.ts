@@ -5,8 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { CommunityEditableSettings } from '../data-access/community-settings.model';
 import { CommunityCapacityPreview } from '../data-access/community-capacity.model';
+import { CommunityOfficialClaimRepository } from '../data-access/community-official-claim.repository';
+import { CommunityEditableSettings } from '../data-access/community-settings.model';
 import { CommunitySettingsRepository } from '../data-access/community-settings.repository';
 import { CommunityTagRepository } from '../data-access/community-tag.repository';
 import { CommunitySettingsComponent } from './community-settings.component';
@@ -41,6 +42,9 @@ const CAPACITY: CommunityCapacityPreview = {
 describe('CommunitySettingsComponent', () => {
   const repositoryMock = { updateSettings$: vi.fn() };
   const tagRepositoryMock = { getCommunityTagCatalog$: vi.fn() };
+  const officialClaimRepositoryMock = {
+    getCommunityOfficialClaimCapability$: vi.fn(),
+  };
   const notificationsMock = {
     showError: vi.fn(),
     showSuccess: vi.fn(),
@@ -63,6 +67,12 @@ describe('CommunitySettingsComponent', () => {
       ],
       generatedAt: 100,
     }));
+    officialClaimRepositoryMock.getCommunityOfficialClaimCapability$.mockReturnValue(of({
+      canSubmit: false,
+      reason: 'verification_required',
+      candidates: [],
+      generatedAt: 100,
+    }));
 
     TestBed.configureTestingModule({
       imports: [CommunitySettingsComponent],
@@ -70,6 +80,10 @@ describe('CommunitySettingsComponent', () => {
         provideRouter([]),
         { provide: CommunitySettingsRepository, useValue: repositoryMock },
         { provide: CommunityTagRepository, useValue: tagRepositoryMock },
+        {
+          provide: CommunityOfficialClaimRepository,
+          useValue: officialClaimRepositoryMock,
+        },
         { provide: ErrorNotificationService, useValue: notificationsMock },
         { provide: GlobalErrorHandlerService, useValue: globalErrorMock },
       ],
