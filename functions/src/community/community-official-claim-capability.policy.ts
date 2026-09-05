@@ -4,7 +4,7 @@
 // -----------------------------------------------------------------------------
 // Resolve somente alvos cuja autoridade já pode ser comprovada por fonte
 // canônica backend-only. O cliente recebe alvo, rótulo e papel, nunca grant,
-// organização patrocinadora ou referência de evidência.
+// KYB, organização patrocinadora ou referência de evidência.
 // -----------------------------------------------------------------------------
 
 import {
@@ -25,11 +25,18 @@ export type CommunityOfficialClaimCapabilityReason =
 
 export interface CommunityOfficialClaimCapabilityCandidate {
   readonly target: {
-    readonly type: 'venue';
+    readonly type: 'organization' | 'venue';
     readonly id: string;
   };
   readonly label: string;
-  readonly authorityRole: 'owner' | 'manager';
+  readonly authorityRole: 'owner' | 'authorized_representative' | 'manager';
+}
+
+export interface CommunityOfficialClaimOrganizationAuthorityInput {
+  readonly organizationId: string;
+  readonly rawOrganization: Readonly<Record<string, unknown>> | null;
+  readonly rawKyb: unknown;
+  readonly rawRepresentation: unknown;
 }
 
 export interface CommunityOfficialClaimCapabilityDecision {
@@ -54,7 +61,9 @@ export function resolveCommunityOfficialClaimCapability(input: {
   readonly actorUid: string;
   readonly rawGrant: unknown;
   readonly rawVenues: readonly Readonly<Record<string, unknown>>[];
+  readonly rawOrganizationAuthorities?: readonly CommunityOfficialClaimOrganizationAuthorityInput[];
   readonly activeOfficialVenueIds?: readonly string[];
+  readonly activeOfficialOrganizationIds?: readonly string[];
   readonly communityAlreadyOfficial: boolean;
   readonly now?: number;
 }): Readonly<CommunityOfficialClaimCapabilityDecision> {
@@ -82,69 +91,119 @@ export function resolveCommunityOfficialClaimCapability(input: {
     rawGrant: input.rawGrant,
     now: input.now,
   });
+  let sawVerificationRequired = !grant.allowed
+    && grant.denialReason !== 'grant_inactive';
+  let sawVerificationInactive = !grant.allowed
+    && grant.denialReason === 'grant_inactive';
 
-  if (!grant.allowed) {
-    return Object.freeze({
-      canSubmit: false,
-      reason: grant.denialReason === 'grant_inactive'
-        ? 'verification_inactive'
-        : 'verification_required',
-      candidates: Object.freeze([]),
-    });
-  }
-
-  const hasCanonicalOccupancy = input.activeOfficialVenueIds !== undefined;
+  const hasCanonicalVenueOccupancy = input.activeOfficialVenueIds !== undefined;
   const activeOfficialVenueIds = new Set(
     (input.activeOfficialVenueIds ?? [])
       .map(cleanId)
       .filter((venueId): venueId is string => venueId !== null)
   );
+  const activeOfficialOrganizationIds = new Set(
+    (input.activeOfficialOrganizationIds ?? [])
+      .map(cleanId)
+      .filter((organizationId): organizationId is string => organizationId !== null)
+  );
   const unique = new Map<string, CommunityOfficialClaimCapabilityCandidate>();
 
-  for (const rawVenue of input.rawVenues) {
+  if (grant.allowed) {
+    for (const rawVenue of input.rawVenues) {
+      if (unique.size >= MAX_COMMUNITY_OFFICIAL_CLAIM_CANDIDATES) break;
+
+      const venueId = cleanId(rawVenue['id']);
+      if (!venueId) continue;
+
+      if (hasCanonicalVenueOccupancy) {
+        if (activeOfficialVenueIds.has(venueId)) continue;
+      } else if (cleanId(rawVenue['officialAssociationKey'])) {
+        // Compatibilidade temporária para callers internos antigos. O handler
+        // oficial sempre fornece `activeOfficialVenueIds`, portanto produção não
+        // decide disponibilidade por esta projeção potencialmente stale.
+        continue;
+      }
+
+      const authority = resolveCanonicalResourceAuthority({
+        actorUid,
+        targetType: 'venue',
+        targetId: venueId,
+        rawCommercialGrant: input.rawGrant,
+        rawTarget: rawVenue,
+        now: input.now,
+      });
+
+      if (
+        !authority.allowed
+        || (authority.authorityRole !== 'owner'
+          && authority.authorityRole !== 'manager')
+      ) {
+        continue;
+      }
+
+      unique.set(`venue:${venueId}`, Object.freeze({
+        target: Object.freeze({ type: 'venue' as const, id: venueId }),
+        label: cleanLabel(rawVenue['name'], 'Local sem nome'),
+        authorityRole: authority.authorityRole,
+      }));
+    }
+  }
+
+  for (const source of input.rawOrganizationAuthorities ?? []) {
     if (unique.size >= MAX_COMMUNITY_OFFICIAL_CLAIM_CANDIDATES) break;
 
-    const venueId = cleanId(rawVenue['id']);
-    if (!venueId) continue;
-
-    if (hasCanonicalOccupancy) {
-      if (activeOfficialVenueIds.has(venueId)) continue;
-    } else if (cleanId(rawVenue['officialAssociationKey'])) {
-      // Compatibilidade temporária para callers internos antigos. O handler
-      // oficial sempre fornece `activeOfficialVenueIds`, portanto produção não
-      // decide disponibilidade por esta projeção potencialmente stale.
+    const organizationId = cleanId(source.organizationId);
+    if (!organizationId || activeOfficialOrganizationIds.has(organizationId)) {
       continue;
     }
 
     const authority = resolveCanonicalResourceAuthority({
       actorUid,
-      targetType: 'venue',
-      targetId: venueId,
-      rawCommercialGrant: input.rawGrant,
-      rawTarget: rawVenue,
+      targetType: 'organization',
+      targetId: organizationId,
+      rawTarget: source.rawOrganization,
+      rawOrganizationKyb: source.rawKyb,
+      rawOrganizationRepresentation: source.rawRepresentation,
+      requiredOrganizationScope: 'community_official_claim',
       now: input.now,
     });
 
-    if (
-      !authority.allowed
-      || (authority.authorityRole !== 'owner'
-        && authority.authorityRole !== 'manager')
-    ) {
+    if (!authority.allowed || !authority.authorityRole) {
+      sawVerificationInactive ||= authority.denialReason === 'verification_inactive';
+      sawVerificationRequired ||= authority.denialReason === 'verification_required';
       continue;
     }
 
-    unique.set(venueId, Object.freeze({
-      target: Object.freeze({ type: 'venue' as const, id: venueId }),
-      label: cleanLabel(rawVenue['name'], 'Local sem nome'),
+    unique.set(`organization:${organizationId}`, Object.freeze({
+      target: Object.freeze({
+        type: 'organization' as const,
+        id: organizationId,
+      }),
+      label: cleanLabel(
+        source.rawOrganization?.['displayName'],
+        'Organização sem nome'
+      ),
       authorityRole: authority.authorityRole,
     }));
   }
 
   const candidates = Object.freeze([...unique.values()]);
+  if (candidates.length > 0) {
+    return Object.freeze({
+      canSubmit: true,
+      reason: 'eligible',
+      candidates,
+    });
+  }
 
   return Object.freeze({
-    canSubmit: candidates.length > 0,
-    reason: candidates.length > 0 ? 'eligible' : 'no_eligible_target',
+    canSubmit: false,
+    reason: sawVerificationInactive
+      ? 'verification_inactive'
+      : sawVerificationRequired
+        ? 'verification_required'
+        : 'no_eligible_target',
     candidates,
   });
 }
