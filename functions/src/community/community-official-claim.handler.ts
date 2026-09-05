@@ -12,6 +12,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  buildOrganizationRepresentationId,
+} from '../organization/organization-representation.policy';
+import {
   buildVerifiedCommunityOfficialAssociation,
   normalizeCommunityOfficialAssociationKey,
 } from './community-official-association.model';
@@ -23,7 +26,6 @@ import {
   normalizeCommunityOfficialClaimStatus,
   normalizeReviewCommunityOfficialClaimRequest,
   normalizeSubmitCommunityOfficialClaimIntentRequest,
-  normalizeSubmitCommunityOfficialClaimRequest,
   resolveCommunityOfficialClaimNextStatus,
   shouldRevokeAssociationForClaimDecision,
   type CommunityOfficialClaimRecord,
@@ -123,12 +125,9 @@ export const submitCommunityOfficialClaim =
       const actorUid = assertAuthenticatedUid(request.auth);
       await assertCommunitySocialAccessForUid(actorUid);
 
-      const explicitCommand = normalizeSubmitCommunityOfficialClaimRequest(
+      const intent = normalizeSubmitCommunityOfficialClaimIntentRequest(
         request.data
       );
-      const intent = explicitCommand
-        ? explicitCommand
-        : normalizeSubmitCommunityOfficialClaimIntentRequest(request.data);
       if (!intent) {
         throw new HttpsError(
           'invalid-argument',
@@ -201,34 +200,59 @@ export const submitCommunityOfficialClaim =
           };
         }
 
-        let command: SubmitCommunityOfficialClaimCommand;
-        if (explicitCommand) {
-          command = explicitCommand;
-        } else {
-          const rawTarget = intent.target.type === 'venue'
-            ? await transaction.get(db.collection('venues').doc(intent.target.id))
+        const organizationRepresentationId = intent.target.type === 'organization'
+          ? buildOrganizationRepresentationId(intent.target.id, actorUid)
+          : null;
+        const targetRef = intent.target.type === 'venue'
+          ? db.collection('venues').doc(intent.target.id)
+          : intent.target.type === 'organization'
+            ? db.collection('organizations').doc(intent.target.id)
             : null;
-          const grantSnapshot = await transaction.get(
+        const targetSnapshot = targetRef
+          ? await transaction.get(targetRef)
+          : null;
+        const grantSnapshot = intent.target.type === 'venue'
+          ? await transaction.get(
             db.collection('official_space_creation_grants').doc(actorUid)
-          );
-          const derived = resolveCommunityOfficialClaimSubmission({
-            actorUid,
-            intent,
-            rawGrant: grantSnapshot.exists ? grantSnapshot.data() : null,
-            rawTarget: rawTarget?.exists ? rawTarget.data() : null,
-          });
+          )
+          : null;
+        const organizationKybSnapshot = intent.target.type === 'organization'
+          ? await transaction.get(
+            db.collection('organization_kyb_records').doc(intent.target.id)
+          )
+          : null;
+        const organizationRepresentationSnapshot = organizationRepresentationId
+          ? await transaction.get(
+            db
+              .collection('organization_representations')
+              .doc(organizationRepresentationId)
+          )
+          : null;
 
-          if (!derived.command) {
-            throw new HttpsError(
-              'failed-precondition',
-              'Não foi possível confirmar sua autoridade sobre este alvo oficial.',
-              {
-                reason: `official_claim_${derived.denialReason ?? 'unsupported_target'}`,
-              }
-            );
-          }
-          command = derived.command;
+        const derived = resolveCommunityOfficialClaimSubmission({
+          actorUid,
+          intent,
+          rawGrant: grantSnapshot?.exists ? grantSnapshot.data() : null,
+          rawTarget: targetSnapshot?.exists ? targetSnapshot.data() : null,
+          rawOrganizationKyb: organizationKybSnapshot?.exists
+            ? organizationKybSnapshot.data()
+            : null,
+          rawOrganizationRepresentation: organizationRepresentationSnapshot?.exists
+            ? organizationRepresentationSnapshot.data()
+            : null,
+          organizationRepresentationReferenceId: organizationRepresentationId,
+        });
+
+        if (!derived.command) {
+          throw new HttpsError(
+            'failed-precondition',
+            'Não foi possível confirmar sua autoridade sobre este alvo oficial.',
+            {
+              reason: `official_claim_${derived.denialReason ?? 'unsupported_target'}`,
+            }
+          );
         }
+        const command: SubmitCommunityOfficialClaimCommand = derived.command;
 
         if (!communitySnapshot.exists) {
           throw new HttpsError(
