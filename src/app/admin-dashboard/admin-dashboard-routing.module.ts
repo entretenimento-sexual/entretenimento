@@ -27,6 +27,12 @@ const routes: Routes = [
       },
       { path: 'denuncias', component: ModerationReportsComponent },
       { path: 'videos', component: VideoModerationComponent },
+      {
+        path: 'comunidades-oficiais',
+        loadComponent: () =>
+          import('./community-official-claims/community-official-claims.component')
+            .then((module) => module.CommunityOfficialClaimsComponent),
+      },
     ],
   },
 ];
