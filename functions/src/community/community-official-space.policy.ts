@@ -6,6 +6,9 @@
 // determina a quantidade de Espaços Oficiais que podem ser criados.
 // -----------------------------------------------------------------------------
 
+import {
+  evaluateVerifiedCommercialAuthority,
+} from '../authority/verified-commercial-authority.policy';
 import { OFFICIAL_SPACE_MEMBER_LIMIT } from './community-capacity.policy';
 
 export const OFFICIAL_SPACE_CREATION_POLICY_VERSION = 1;
@@ -19,14 +22,6 @@ export interface OfficialSpaceCreationDecision {
   denialReason: 'verification_required' | 'grant_inactive' | null;
 }
 
-const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
-
-function finiteEpoch(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value)
-    ? value
-    : null;
-}
-
 function normalizeMaximum(value: unknown): number | null {
   return typeof value === 'number'
     && Number.isInteger(value)
@@ -36,14 +31,16 @@ function normalizeMaximum(value: unknown): number | null {
     : null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 export function evaluateOfficialSpaceCreationGrant(input: {
   actorUid: string;
   actorUserRole: unknown;
   rawGrant: unknown;
   now?: number;
 }): Readonly<OfficialSpaceCreationDecision> {
-  const now = input.now ?? Date.now();
-
   if (input.actorUserRole === 'admin') {
     return {
       allowed: true,
@@ -54,49 +51,46 @@ export function evaluateOfficialSpaceCreationGrant(input: {
     };
   }
 
-  const grant = (input.rawGrant ?? {}) as Record<string, unknown>;
-  const organizationId = String(grant['organizationId'] ?? '').trim();
-  const startsAt = finiteEpoch(grant['startsAt']);
-  const endsAt = grant['endsAt'] === null
-    ? null
-    : finiteEpoch(grant['endsAt']);
-  const maxOfficialSpaces = normalizeMaximum(grant['maxOfficialSpaces']);
-  const structurallyVerified =
-    grant['holderUid'] === input.actorUid
-    && grant['scope'] === 'official_space_creation'
-    && grant['verificationStatus'] === 'verified'
-    && grant['policyVersion'] === OFFICIAL_SPACE_CREATION_POLICY_VERSION
-    && SAFE_ID_PATTERN.test(organizationId)
-    && maxOfficialSpaces !== null;
+  const commercialAuthority = evaluateVerifiedCommercialAuthority({
+    actorUid: input.actorUid,
+    rawGrant: input.rawGrant,
+    now: input.now,
+  });
 
-  if (!structurallyVerified) {
+  if (!commercialAuthority.allowed) {
     return {
       allowed: false,
-      organizationId: null,
+      organizationId: commercialAuthority.organizationId,
+      maxOfficialSpaces: null,
+      memberLimit: OFFICIAL_SPACE_MEMBER_LIMIT,
+      denialReason: commercialAuthority.denialReason === 'authority_inactive'
+        ? 'grant_inactive'
+        : 'verification_required',
+    };
+  }
+
+  const grant = isRecord(input.rawGrant) ? input.rawGrant : {};
+  const maxOfficialSpaces = normalizeMaximum(grant['maxOfficialSpaces']);
+  const hasOfficialSpaceCapability =
+    grant['scope'] === 'official_space_creation'
+    && grant['policyVersion'] === OFFICIAL_SPACE_CREATION_POLICY_VERSION
+    && maxOfficialSpaces !== null;
+
+  if (!hasOfficialSpaceCapability) {
+    return {
+      allowed: false,
+      organizationId: commercialAuthority.organizationId,
       maxOfficialSpaces: null,
       memberLimit: OFFICIAL_SPACE_MEMBER_LIMIT,
       denialReason: 'verification_required',
     };
   }
 
-  const active = grant['active'] === true
-    && startsAt !== null
-    && startsAt <= now
-    && (endsAt === null || endsAt > now);
-
-  return active
-    ? {
-      allowed: true,
-      organizationId,
-      maxOfficialSpaces,
-      memberLimit: OFFICIAL_SPACE_MEMBER_LIMIT,
-      denialReason: null,
-    }
-    : {
-      allowed: false,
-      organizationId,
-      maxOfficialSpaces,
-      memberLimit: OFFICIAL_SPACE_MEMBER_LIMIT,
-      denialReason: 'grant_inactive',
-    };
+  return {
+    allowed: true,
+    organizationId: commercialAuthority.organizationId,
+    maxOfficialSpaces,
+    memberLimit: OFFICIAL_SPACE_MEMBER_LIMIT,
+    denialReason: null,
+  };
 }
