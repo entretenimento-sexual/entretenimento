@@ -15,6 +15,10 @@ export {
 export {
   getOfficialCommunitiesForTarget,
 } from './get-official-communities-for-target.handler';
+export {
+  submitCommunityOfficialClaim,
+  reviewCommunityOfficialClaim,
+} from './community-official-claim.handler';
 export { getCommunityFeedPage } from './get-community-feed-page.handler';
 export { getCommunityFeedItems } from './get-community-feed-items.handler';
 export { createCommunityFeedPost } from './community-feed-write.handler';
@@ -106,6 +110,9 @@ export {
 export { requestCommunityMembership } from './request-community-membership.handler';
 export { updateCommunitySettings } from './update-community-settings.handler';
 export { runCommunityLifecycle } from './run-community-lifecycle.schedule';
+export {
+  runCommunityOfficialAssociationLifecycle,
+} from './run-community-official-association-lifecycle.schedule';
 export { runCommunityPurge } from './run-community-purge.schedule';
 export { runCommunityRanking } from './run-community-ranking.schedule';
 export {

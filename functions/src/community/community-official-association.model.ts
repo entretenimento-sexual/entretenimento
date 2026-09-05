@@ -61,7 +61,12 @@ export interface CommunityOfficialAssociationRecord {
     source: CommunityOfficialVerificationSource;
     policyVersion: number;
     verifiedAt: number;
+    revalidationDueAt: number | null;
+    expiresAt: number | null;
   };
+  /** Campos operacionais privados usados pelo lifecycle automático. */
+  activeRevalidationDueAt: number | null;
+  activeVerificationExpiresAt: number | null;
   revokedAt: number | null;
   createdAt: number;
   updatedAt: number;
@@ -98,11 +103,50 @@ function normalizeTargetType(
     : null;
 }
 
+function normalizeAuthorityRole(
+  value: unknown
+): CommunityOfficialAuthorityRole | null {
+  return value === 'self'
+    || value === 'owner'
+    || value === 'authorized_representative'
+    || value === 'manager'
+    || value === 'organizer'
+    || value === 'promoter'
+    ? value
+    : null;
+}
+
+function normalizeVerificationSource(
+  value: unknown
+): CommunityOfficialVerificationSource | null {
+  return value === 'profile_verification'
+    || value === 'organization_verification'
+    || value === 'official_space_creation_grant'
+    || value === 'event_authorization'
+    || value === 'platform_review'
+    ? value
+    : null;
+}
+
 function normalizePublicTarget(raw: unknown): CommunityOfficialTarget | null {
   const source = (raw ?? {}) as Record<string, unknown>;
   const type = normalizeTargetType(source['type']);
   const id = normalizeSafeId(source['id']);
   return type && id ? { type, id } : null;
+}
+
+function normalizeOptionalFutureEpoch(
+  value: unknown,
+  verifiedAt: number
+): number | null | undefined {
+  if (value === null || value === undefined) return null;
+
+  const normalized = Math.trunc(Number(value));
+  if (!Number.isFinite(normalized) || normalized <= verifiedAt) {
+    return undefined;
+  }
+
+  return normalized;
 }
 
 export function buildCommunityOfficialAssociationKey(
@@ -115,35 +159,74 @@ export function buildCommunityOfficialAssociationKey(
   return normalizeCommunityOfficialAssociationKey(`${type}:${id}`);
 }
 
-export function buildVerifiedVenueOfficialAssociation(input: {
-  venueId: string;
+export function buildVerifiedCommunityOfficialAssociation(input: {
+  target: CommunityOfficialTarget;
   communityId: string;
-  sponsorOrganizationId: string;
+  sponsorOrganizationId: string | null;
   holderUid: string;
+  authorityRole: CommunityOfficialAuthorityRole;
+  verificationSource: CommunityOfficialVerificationSource;
   verifiedAt: number;
   verificationPolicyVersion: number;
+  revalidationDueAt?: number | null;
+  verificationExpiresAt?: number | null;
+  createdAt?: number;
 }): Readonly<CommunityOfficialAssociationRecord> | null {
-  const venueId = normalizeSafeId(input.venueId);
+  const target = normalizePublicTarget(input.target);
   const communityId = normalizeSafeId(input.communityId);
-  const sponsorOrganizationId = normalizeSafeId(input.sponsorOrganizationId);
   const holderUid = normalizeSafeId(input.holderUid);
-  const verifiedAt = Number(input.verifiedAt);
-  const verificationPolicyVersion = Number(input.verificationPolicyVersion);
+  const authorityRole = normalizeAuthorityRole(input.authorityRole);
+  const verificationSource = normalizeVerificationSource(
+    input.verificationSource
+  );
+  const sponsorOrganizationId = input.sponsorOrganizationId === null
+    ? null
+    : normalizeSafeId(input.sponsorOrganizationId);
+  const verifiedAt = Math.trunc(Number(input.verifiedAt));
+  const policyVersion = Math.trunc(Number(input.verificationPolicyVersion));
+  const createdAt = input.createdAt === undefined
+    ? verifiedAt
+    : Math.trunc(Number(input.createdAt));
 
   if (
-    !venueId
+    !target
     || !communityId
-    || !sponsorOrganizationId
     || !holderUid
+    || !authorityRole
+    || !verificationSource
+    || (input.sponsorOrganizationId !== null && !sponsorOrganizationId)
     || !Number.isFinite(verifiedAt)
     || verifiedAt <= 0
-    || !Number.isInteger(verificationPolicyVersion)
-    || verificationPolicyVersion <= 0
+    || !Number.isInteger(policyVersion)
+    || policyVersion <= 0
+    || !Number.isFinite(createdAt)
+    || createdAt <= 0
+    || createdAt > verifiedAt
   ) {
     return null;
   }
 
-  const target: CommunityOfficialTarget = { type: 'venue', id: venueId };
+  const revalidationDueAt = normalizeOptionalFutureEpoch(
+    input.revalidationDueAt,
+    verifiedAt
+  );
+  const verificationExpiresAt = normalizeOptionalFutureEpoch(
+    input.verificationExpiresAt,
+    verifiedAt
+  );
+
+  if (
+    revalidationDueAt === undefined
+    || verificationExpiresAt === undefined
+    || (
+      revalidationDueAt !== null
+      && verificationExpiresAt !== null
+      && revalidationDueAt >= verificationExpiresAt
+    )
+  ) {
+    return null;
+  }
+
   const associationKey = buildCommunityOfficialAssociationKey(target);
   if (!associationKey) return null;
 
@@ -155,19 +238,48 @@ export function buildVerifiedVenueOfficialAssociation(input: {
     sponsorOrganizationId,
     authority: {
       holderUid,
-      role: 'authorized_representative',
+      role: authorityRole,
     },
     verification: {
-      source: 'official_space_creation_grant',
-      policyVersion: verificationPolicyVersion,
-      verifiedAt: Math.trunc(verifiedAt),
+      source: verificationSource,
+      policyVersion,
+      verifiedAt,
+      revalidationDueAt,
+      expiresAt: verificationExpiresAt,
     },
+    activeRevalidationDueAt: revalidationDueAt,
+    activeVerificationExpiresAt: verificationExpiresAt,
     revokedAt: null,
-    createdAt: Math.trunc(verifiedAt),
-    updatedAt: Math.trunc(verifiedAt),
+    createdAt,
+    updatedAt: verifiedAt,
   };
 
   return Object.freeze(association);
+}
+
+export function buildVerifiedVenueOfficialAssociation(input: {
+  venueId: string;
+  communityId: string;
+  sponsorOrganizationId: string;
+  holderUid: string;
+  verifiedAt: number;
+  verificationPolicyVersion: number;
+}): Readonly<CommunityOfficialAssociationRecord> | null {
+  const venueId = normalizeSafeId(input.venueId);
+  if (!venueId) return null;
+
+  return buildVerifiedCommunityOfficialAssociation({
+    target: { type: 'venue', id: venueId },
+    communityId: input.communityId,
+    sponsorOrganizationId: input.sponsorOrganizationId,
+    holderUid: input.holderUid,
+    authorityRole: 'authorized_representative',
+    verificationSource: 'official_space_creation_grant',
+    verifiedAt: input.verifiedAt,
+    verificationPolicyVersion: input.verificationPolicyVersion,
+    revalidationDueAt: null,
+    verificationExpiresAt: null,
+  });
 }
 
 /** Normaliza somente a projeção já sanitizada destinada a UI/Discovery. */
@@ -205,6 +317,18 @@ export function sanitizeCommunityOfficialAssociationPublicProjection(
 
   const expectedKey = buildCommunityOfficialAssociationKey(target);
   if (expectedKey !== associationKey) return null;
+
+  const verification = (source['verification'] ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const expiresAt = verification['expiresAt'];
+  if (expiresAt !== null && expiresAt !== undefined) {
+    const normalizedExpiresAt = Math.trunc(Number(expiresAt));
+    if (!Number.isFinite(normalizedExpiresAt) || normalizedExpiresAt <= Date.now()) {
+      return null;
+    }
+  }
 
   return {
     target,

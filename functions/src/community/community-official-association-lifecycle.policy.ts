@@ -49,11 +49,6 @@ function resolveTerminalReason(
   return null;
 }
 
-/**
- * Retorna transição apenas quando o estado terminal ou a chave oficial mudou.
- * Isso evita uma leitura adicional da associação em updates irrelevantes de uma
- * Comunidade que já está arquivada.
- */
 export function resolveCommunityOfficialAssociationTerminalTransition(
   rawBeforeCommunity: unknown,
   rawAfterCommunity: unknown
@@ -82,11 +77,6 @@ export function resolveCommunityOfficialAssociationTerminalTransition(
   return { associationKey, reason };
 }
 
-/**
- * Valida que o documento apontado pela Comunidade realmente representa aquele
- * mesmo vínculo antes de revogá-lo. Inconsistências falham fechadas para impedir
- * a revogação acidental da associação de outra entidade.
- */
 export function evaluateCommunityOfficialAssociationRevocation(input: {
   readonly rawAssociation: unknown;
   readonly expectedAssociationKey: string;
@@ -142,6 +132,8 @@ export function evaluateCommunityOfficialAssociationRevocation(input: {
     patch: Object.freeze({
       status: 'revoked',
       revokedAt: Math.trunc(revokedAt),
+      activeRevalidationDueAt: null,
+      activeVerificationExpiresAt: null,
       updatedAt: Math.trunc(revokedAt),
     }),
   };

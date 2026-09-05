@@ -7,9 +7,16 @@ import {
 } from './community-official-association-lifecycle.policy';
 import {
   buildCommunityOfficialAssociationKey,
+  buildVerifiedCommunityOfficialAssociation,
   buildVerifiedVenueOfficialAssociation,
   sanitizeCommunityOfficialAssociationPublicProjection,
 } from './community-official-association.model';
+import {
+  normalizeReviewCommunityOfficialClaimRequest,
+  normalizeSubmitCommunityOfficialClaimRequest,
+  resolveCommunityOfficialClaimNextStatus,
+  shouldRevokeAssociationForClaimDecision,
+} from './community-official-claim.model';
 
 test('gera chave determinística por entidade oficial', () => {
   assert.equal(buildCommunityOfficialAssociationKey({
@@ -80,17 +87,125 @@ test('não publica associação revogada ou estruturalmente inconsistente', () =
   }), null);
 });
 
+test('não publica associação cuja validade privada já expirou', () => {
+  assert.equal(sanitizeCommunityOfficialAssociationPublicProjection({
+    associationKey: 'profile:profile-1',
+    communityId: 'community-1',
+    target: { type: 'profile', id: 'profile-1' },
+    status: 'verified',
+    verification: { expiresAt: Date.now() - 1 },
+  }), null);
+});
+
+test('constrói associação verificada genérica com prazos privados indexáveis', () => {
+  const verifiedAt = Date.now();
+  const revalidationDueAt = verifiedAt + 10_000;
+  const expiresAt = verifiedAt + 20_000;
+  const association = buildVerifiedCommunityOfficialAssociation({
+    target: { type: 'event', id: 'event-1' },
+    communityId: 'community-1',
+    sponsorOrganizationId: 'organization-1',
+    holderUid: 'user-1',
+    authorityRole: 'organizer',
+    verificationSource: 'platform_review',
+    verifiedAt,
+    verificationPolicyVersion: 1,
+    revalidationDueAt,
+    verificationExpiresAt: expiresAt,
+  });
+
+  assert.ok(association);
+  assert.equal(association.activeRevalidationDueAt, revalidationDueAt);
+  assert.equal(association.activeVerificationExpiresAt, expiresAt);
+  assert.deepEqual(
+    sanitizeCommunityOfficialAssociationPublicProjection(association),
+    {
+      target: { type: 'event', id: 'event-1' },
+      verified: true,
+    }
+  );
+});
+
+test('normaliza claim privado exigindo declaração, autoridade e evidência compatíveis', () => {
+  const command = normalizeSubmitCommunityOfficialClaimRequest({
+    requestId: 'request-1',
+    communityId: 'community-1',
+    target: { type: 'profile', id: 'profile-1' },
+    authorityRole: 'self',
+    sponsorOrganizationId: null,
+    evidenceReferences: [
+      { type: 'profile_kyc_record', referenceId: 'kyc-1' },
+    ],
+    declarationAccepted: true,
+  });
+
+  assert.ok(command);
+  assert.equal(command.associationKey, 'profile:profile-1');
+  assert.equal(command.evidenceReferences.length, 1);
+
+  assert.equal(normalizeSubmitCommunityOfficialClaimRequest({
+    requestId: 'request-2',
+    communityId: 'community-1',
+    target: { type: 'profile', id: 'profile-1' },
+    authorityRole: 'owner',
+    sponsorOrganizationId: null,
+    evidenceReferences: [
+      { type: 'authority_record', referenceId: 'authority-1' },
+    ],
+    declarationAccepted: true,
+  }), null);
+});
+
+test('review de aprovação exige validade futura e revalidação anterior ao vencimento', () => {
+  const now = 1_700_000_000_000;
+  const command = normalizeReviewCommunityOfficialClaimRequest({
+    associationKey: 'organization:organization-1',
+    decision: 'approve',
+    resolution: 'Documentação e autoridade confirmadas.',
+    verificationExpiresAt: now + 20_000,
+    revalidationDueAt: now + 10_000,
+  }, now);
+
+  assert.ok(command);
+  assert.equal(command.verificationExpiresAt, now + 20_000);
+
+  assert.equal(normalizeReviewCommunityOfficialClaimRequest({
+    associationKey: 'organization:organization-1',
+    decision: 'approve',
+    resolution: 'Documentação e autoridade confirmadas.',
+    verificationExpiresAt: now + 10_000,
+    revalidationDueAt: now + 20_000,
+  }, now), null);
+});
+
+test('máquina de estados distingue revalidação de revogação pública', () => {
+  assert.equal(
+    resolveCommunityOfficialClaimNextStatus('verified', 'request_revalidation'),
+    'under_review'
+  );
+  assert.equal(
+    shouldRevokeAssociationForClaimDecision('verified', 'request_revalidation'),
+    false
+  );
+  assert.equal(
+    resolveCommunityOfficialClaimNextStatus('verified', 'mark_disputed'),
+    'disputed'
+  );
+  assert.equal(
+    shouldRevokeAssociationForClaimDecision('verified', 'mark_disputed'),
+    true
+  );
+  assert.equal(
+    resolveCommunityOfficialClaimNextStatus('rejected', 'revoke'),
+    null
+  );
+});
+
 test('detecta somente entrada terminal relevante para associação oficial', () => {
   assert.deepEqual(
     resolveCommunityOfficialAssociationTerminalTransition(
-      {
-        status: 'active',
-        officialAssociationKey: 'profile:profile-1',
-      },
-      {
-        status: 'archived',
-        officialAssociationKey: 'profile:profile-1',
-      }
+      { status: 'active', officialAssociationKey: 'profile:profile-1' },
+      { status: 'archived', officialAssociationKey: 'profile:profile-1' }
     ),
     {
       associationKey: 'profile:profile-1',
@@ -100,10 +215,7 @@ test('detecta somente entrada terminal relevante para associação oficial', () 
 
   assert.deepEqual(
     resolveCommunityOfficialAssociationTerminalTransition(
-      {
-        status: 'archived',
-        officialAssociationKey: 'profile:profile-1',
-      },
+      { status: 'archived', officialAssociationKey: 'profile:profile-1' },
       {
         status: 'scheduled_for_deletion',
         officialAssociationKey: 'profile:profile-1',
@@ -117,18 +229,11 @@ test('detecta somente entrada terminal relevante para associação oficial', () 
 
   assert.equal(
     resolveCommunityOfficialAssociationTerminalTransition(
-      {
-        status: 'archived',
-        officialAssociationKey: 'profile:profile-1',
-      },
-      {
-        status: 'archived',
-        officialAssociationKey: 'profile:profile-1',
-      }
+      { status: 'archived', officialAssociationKey: 'profile:profile-1' },
+      { status: 'archived', officialAssociationKey: 'profile:profile-1' }
     ),
     null
   );
-
   assert.equal(
     resolveCommunityOfficialAssociationTerminalTransition(
       { status: 'active' },
@@ -170,6 +275,8 @@ test('revoga vínculo verificado sem apagar identidade ou trilha privada', () =>
   assert.deepEqual(decision.patch, {
     status: 'revoked',
     revokedAt: 1_700_000_100_000,
+    activeRevalidationDueAt: null,
+    activeVerificationExpiresAt: null,
     updatedAt: 1_700_000_100_000,
   });
   assert.equal('authority' in decision.patch, false);
