@@ -88,6 +88,7 @@ function authorityRoleMatches(
  */
 export function evaluateVenueOfficialClaimAuthorityGrant(input: {
   readonly claimantUid: string;
+  readonly venueId: string;
   readonly authorityRole: CommunityOfficialAuthorityRole;
   readonly sponsorOrganizationId: string | null;
   readonly authorityReferenceId: string;
@@ -96,10 +97,12 @@ export function evaluateVenueOfficialClaimAuthorityGrant(input: {
   readonly now?: number;
 }): Readonly<CommunityOfficialClaimEvidenceDecision> {
   const claimantUid = normalizeId(input.claimantUid);
+  const venueId = normalizeId(input.venueId);
   const authorityReferenceId = normalizeId(input.authorityReferenceId);
 
   if (
     !claimantUid
+    || !venueId
     || !authorityReferenceId
     || authorityReferenceId !== claimantUid
   ) {
@@ -136,12 +139,10 @@ export function evaluateVenueOfficialClaimAuthorityGrant(input: {
     return denied('sponsor_organization_mismatch');
   }
 
-  const venue = (input.rawVenue ?? {}) as Record<string, unknown>;
-  const targetId = normalizeId(venue['id']) ?? 'claim-venue';
   const authorityDecision = resolveCanonicalResourceAuthority({
     actorUid: claimantUid,
     targetType: 'venue',
-    targetId,
+    targetId: venueId,
     rawCommercialGrant: input.rawGrant,
     rawTarget: input.rawVenue,
     now: input.now,
