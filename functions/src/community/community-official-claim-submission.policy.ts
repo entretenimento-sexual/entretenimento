@@ -90,15 +90,17 @@ export function resolveCommunityOfficialClaimSubmission(input: {
     return denied('target_authority_mismatch');
   }
 
+  const command: SubmitCommunityOfficialClaimCommand = {
+    ...input.intent,
+    authorityRole,
+    sponsorOrganizationId: grant.organizationId,
+    evidenceReferences: [
+      { type: 'authority_record', referenceId: actorUid },
+    ],
+  };
+
   return Object.freeze({
-    command: {
-      ...input.intent,
-      authorityRole,
-      sponsorOrganizationId: grant.organizationId,
-      evidenceReferences: [
-        { type: 'authority_record', referenceId: actorUid },
-      ],
-    },
+    command,
     denialReason: null,
   });
 }
