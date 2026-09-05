@@ -61,6 +61,7 @@ import {
 import {
   COMMUNITY_SETTINGS_REASON_PRESENTATIONS,
 } from '../presentation/community-error.presentations';
+import { CommunityOfficialClaimPanelComponent } from './community-official-claim-panel.component';
 
 type CommunitySettingsForm = FormGroup<{
   name: FormControl<string>;
@@ -99,7 +100,12 @@ function communityTagCountValidator(): ValidatorFn {
 @Component({
   selector: 'app-community-settings',
   standalone: true,
-  imports: [AsyncPipe, ReactiveFormsModule, RouterLink],
+  imports: [
+    AsyncPipe,
+    ReactiveFormsModule,
+    RouterLink,
+    CommunityOfficialClaimPanelComponent,
+  ],
   templateUrl: './community-settings.component.html',
   styleUrl: './community-settings.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
