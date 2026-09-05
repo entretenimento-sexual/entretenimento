@@ -2,34 +2,53 @@
 // -----------------------------------------------------------------------------
 // RUN COMMUNITY OFFICIAL ASSOCIATION LIFECYCLE
 // -----------------------------------------------------------------------------
-// Revalidação e expiração automáticas dos vínculos oficiais criados por review.
-// Campos operacionais são nullificados após uso para não reprocessar registros.
+// Revalida e expira automaticamente vínculos oficiais. O fluxo normal não cria
+// fila humana: fonte canônica válida renova o selo; fonte inválida o expira.
+// Falhas transitórias são relançadas para retry e nunca revogam confiança.
 // -----------------------------------------------------------------------------
 
 import { logger } from 'firebase-functions';
+import { HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
+import {
+  isCanonicalResourceAuthorityRoleForTarget,
+  normalizeCanonicalAuthorityResourceId,
+  normalizeCanonicalAuthorityTargetType,
+  normalizeCanonicalResourceAuthorityRole,
+} from '../authority/canonical-resource-authority.model';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { db, FieldValue } from '../firebaseApp';
 import {
+  buildVerifiedCommunityOfficialAssociation,
   normalizeCommunityOfficialAssociationKey,
 } from './community-official-association.model';
+import { assertCommunityOfficialClaimEvidence } from './community-official-claim-evidence.service';
 import {
   normalizeCommunityOfficialClaimStatus,
 } from './community-official-claim.model';
 import { isCommunityPreviewRuntimeAvailable } from './community-runtime.guard';
 
 const PAGE_SIZE = 50;
-const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 
 function cleanId(value: unknown): string | null {
-  const normalized = String(value ?? '').trim();
-  return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+  return normalizeCanonicalAuthorityResourceId(value);
 }
 
 function cleanDueEpoch(value: unknown): number | null {
   const normalized = Math.trunc(Number(value));
   return Number.isFinite(normalized) && normalized > 0 ? normalized : null;
+}
+
+function normalizeCreatedAt(value: unknown, fallback: number): number {
+  const normalized = Math.trunc(Number(value));
+  return Number.isFinite(normalized) && normalized > 0 && normalized <= fallback
+    ? normalized
+    : fallback;
+}
+
+function isCanonicalEvidenceDenial(error: unknown): boolean {
+  return error instanceof HttpsError && error.code === 'failed-precondition';
 }
 
 async function expireAssociation(
@@ -109,12 +128,17 @@ async function expireAssociation(
 
     if (
       claimSnapshot.exists
-      && (claimStatus === 'verified' || claimStatus === 'under_review')
+      && (
+        claimStatus === 'verified'
+        || claimStatus === 'under_review'
+        || claimStatus === 'pending'
+      )
     ) {
       transaction.update(claimRef, {
         status: 'expired',
         verificationExpiresAt: null,
         revalidationDueAt: null,
+        revalidationRequestedAt: null,
         reviewedAt: now,
         reviewedBy: 'system',
         reviewResolution:
@@ -138,10 +162,11 @@ async function expireAssociation(
   });
 }
 
-async function requestRevalidation(
+async function revalidateAssociation(
   associationKey: string,
-  now: number
-): Promise<'requested' | 'skipped' | 'inconsistent'> {
+  now: number,
+  options: { readonly allowLegacyUnderReviewWithoutDue?: boolean } = {}
+): Promise<'revalidated' | 'expired' | 'skipped' | 'inconsistent'> {
   const associationRef = db
     .collection('community_official_associations')
     .doc(associationKey);
@@ -169,6 +194,18 @@ async function requestRevalidation(
     );
     const communityId = cleanId(association['communityId']);
     const claimCommunityId = cleanId(claim['communityId']);
+    const claimantUid = cleanId(claim['claimantUid']);
+    const targetSource = (claim['target'] ?? {}) as Record<string, unknown>;
+    const targetType = normalizeCanonicalAuthorityTargetType(
+      targetSource['type']
+    );
+    const targetId = cleanId(targetSource['id']);
+    const authorityRole = normalizeCanonicalResourceAuthorityRole(
+      claim['authorityRole']
+    );
+    const sponsorOrganizationId = claim['sponsorOrganizationId'] === null
+      ? null
+      : cleanId(claim['sponsorOrganizationId']);
     const revalidationDueAt = cleanDueEpoch(
       association['activeRevalidationDueAt']
     );
@@ -176,47 +213,154 @@ async function requestRevalidation(
       association['activeVerificationExpiresAt']
     );
     const claimStatus = normalizeCommunityOfficialClaimStatus(claim['status']);
+    const legacyUnderReview =
+      options.allowLegacyUnderReviewWithoutDue === true
+      && claimStatus === 'under_review'
+      && revalidationDueAt === null;
 
     if (
       storedAssociationKey !== associationKey
       || claimAssociationKey !== associationKey
       || !communityId
       || claimCommunityId !== communityId
+      || !claimantUid
+      || !targetType
+      || !targetId
+      || !authorityRole
+      || !isCanonicalResourceAuthorityRoleForTarget(targetType, authorityRole)
+      || (
+        claim['sponsorOrganizationId'] !== null
+        && sponsorOrganizationId === null
+      )
     ) {
       return 'inconsistent';
     }
     if (
       association['status'] !== 'verified'
-      || claimStatus !== 'verified'
-      || !revalidationDueAt
-      || revalidationDueAt > now
+      || (claimStatus !== 'verified' && claimStatus !== 'under_review')
+      || (!legacyUnderReview && (!revalidationDueAt || revalidationDueAt > now))
       || (expiresAt !== null && expiresAt <= now)
     ) {
       return 'skipped';
     }
 
-    transaction.update(associationRef, {
-      activeRevalidationDueAt: null,
-      updatedAt: now,
+    const communityRef = db.collection('communities').doc(communityId);
+    const communitySnapshot = await transaction.get(communityRef);
+    if (!communitySnapshot.exists) return 'inconsistent';
+
+    let verifiedEvidence: Awaited<
+      ReturnType<typeof assertCommunityOfficialClaimEvidence>
+    >;
+    try {
+      verifiedEvidence = await assertCommunityOfficialClaimEvidence({
+        transaction,
+        target: { type: targetType, id: targetId },
+        claimantUid,
+        authorityRole,
+        sponsorOrganizationId,
+        evidenceReferences: claim['evidenceReferences'],
+        now,
+      });
+    } catch (error: unknown) {
+      if (!isCanonicalEvidenceDenial(error)) throw error;
+
+      transaction.update(associationRef, {
+        status: 'revoked',
+        revokedAt: now,
+        activeRevalidationDueAt: null,
+        activeVerificationExpiresAt: null,
+        updatedAt: now,
+      });
+      if (
+        normalizeCommunityOfficialAssociationKey(
+          communitySnapshot.data()?.['officialAssociationKey']
+        ) === associationKey
+      ) {
+        transaction.update(communityRef, {
+          officialAssociationKey: FieldValue.delete(),
+          updatedAt: now,
+        });
+      }
+      transaction.update(claimRef, {
+        status: 'expired',
+        sponsorOrganizationId,
+        verificationExpiresAt: null,
+        revalidationDueAt: null,
+        revalidationRequestedAt: null,
+        reviewedAt: now,
+        reviewedBy: 'system',
+        reviewResolution:
+          'O vínculo deixou de atender automaticamente aos requisitos da fonte canônica.',
+        updatedAt: now,
+      });
+      transaction.create(auditRef, {
+        action: 'official_claim_auto_revalidation_failed',
+        associationKey,
+        communityId,
+        target: { type: targetType, id: targetId },
+        claimantUid,
+        previousStatus: claimStatus,
+        nextStatus: 'expired',
+        actorUid: 'system',
+        createdAt: now,
+      });
+      return 'expired';
+    }
+
+    const refreshedAssociation = buildVerifiedCommunityOfficialAssociation({
+      target: { type: targetType, id: targetId },
+      communityId,
+      sponsorOrganizationId: verifiedEvidence.sponsorOrganizationId,
+      holderUid: claimantUid,
+      authorityRole,
+      verificationSource: verifiedEvidence.verificationSource,
+      verifiedAt: now,
+      verificationPolicyVersion: verifiedEvidence.verificationPolicyVersion,
+      revalidationDueAt: verifiedEvidence.revalidationDueAt,
+      verificationExpiresAt: verifiedEvidence.verificationExpiresAt,
+      createdAt: normalizeCreatedAt(association['createdAt'], now),
     });
+    if (!refreshedAssociation) return 'inconsistent';
+
+    transaction.set(associationRef, refreshedAssociation);
     transaction.update(claimRef, {
-      status: 'under_review',
-      revalidationRequestedAt: now,
+      status: 'verified',
+      sponsorOrganizationId: verifiedEvidence.sponsorOrganizationId,
+      verificationExpiresAt: verifiedEvidence.verificationExpiresAt,
+      revalidationDueAt: verifiedEvidence.revalidationDueAt,
+      revalidationRequestedAt: null,
+      reviewedAt: now,
+      reviewedBy: 'system',
+      reviewResolution: 'Vínculo oficial revalidado automaticamente.',
       updatedAt: now,
     });
+    if (
+      normalizeCommunityOfficialAssociationKey(
+        communitySnapshot.data()?.['officialAssociationKey']
+      ) !== associationKey
+    ) {
+      transaction.update(communityRef, {
+        officialAssociationKey: associationKey,
+        updatedAt: now,
+      });
+    }
     transaction.create(auditRef, {
-      action: 'official_claim_revalidation_due',
+      action: 'official_claim_auto_revalidated',
       associationKey,
       communityId,
-      previousStatus: 'verified',
-      nextStatus: 'under_review',
-      revalidationDueAt,
-      verificationExpiresAt: expiresAt,
+      target: { type: targetType, id: targetId },
+      claimantUid,
+      previousStatus: claimStatus,
+      nextStatus: 'verified',
+      verificationSource: verifiedEvidence.verificationSource,
+      verificationPolicyVersion: verifiedEvidence.verificationPolicyVersion,
+      verificationExpiresAt: verifiedEvidence.verificationExpiresAt,
+      revalidationDueAt: verifiedEvidence.revalidationDueAt,
       actorUid: 'system',
       createdAt: now,
     });
 
-    return 'requested';
+    return 'revalidated';
   });
 }
 
@@ -242,7 +386,10 @@ export const runCommunityOfficialAssociationLifecycle = onSchedule(
       .get();
 
     let expired = 0;
+    let revalidated = 0;
+    let revalidationExpired = 0;
     let inconsistent = 0;
+
     for (const document of expiredSnapshot.docs) {
       const result = await expireAssociation(document.id, now);
       if (result === 'expired') expired += 1;
@@ -255,19 +402,45 @@ export const runCommunityOfficialAssociationLifecycle = onSchedule(
       .limit(PAGE_SIZE)
       .get();
 
-    let revalidationRequested = 0;
     for (const document of revalidationSnapshot.docs) {
-      const result = await requestRevalidation(document.id, now);
-      if (result === 'requested') revalidationRequested += 1;
+      const result = await revalidateAssociation(document.id, now);
+      if (result === 'revalidated') revalidated += 1;
+      if (result === 'expired') revalidationExpired += 1;
+      if (result === 'inconsistent') inconsistent += 1;
+    }
+
+    // Cura registros deixados em `under_review` pelo lifecycle antigo, que
+    // limpava o campo de due date e passava a depender de intervenção humana.
+    const legacyUnderReviewSnapshot = await db
+      .collection('community_official_claims')
+      .where('status', '==', 'under_review')
+      .limit(PAGE_SIZE)
+      .get();
+
+    for (const document of legacyUnderReviewSnapshot.docs) {
+      const associationKey = normalizeCommunityOfficialAssociationKey(
+        document.data()?.['associationKey']
+      );
+      if (!associationKey) {
+        inconsistent += 1;
+        continue;
+      }
+      const result = await revalidateAssociation(associationKey, now, {
+        allowLegacyUnderReviewWithoutDue: true,
+      });
+      if (result === 'revalidated') revalidated += 1;
+      if (result === 'expired') revalidationExpired += 1;
       if (result === 'inconsistent') inconsistent += 1;
     }
 
     logger.info('community_official_association_lifecycle_completed', {
       expired,
-      revalidationRequested,
+      revalidated,
+      revalidationExpired,
       inconsistent,
       expiredScanned: expiredSnapshot.size,
       revalidationScanned: revalidationSnapshot.size,
+      legacyUnderReviewScanned: legacyUnderReviewSnapshot.size,
     });
   }
 );

@@ -28,8 +28,9 @@ describe('CommunityOfficialClaimPanelComponent', () => {
       generatedAt: 100,
     }));
     repositoryMock.submitCommunityOfficialClaim$.mockReturnValue(of({
+      associationKey: 'venue:venue-1',
+      status: 'verified',
       submitted: true,
-      generatedAt: 100,
     }));
 
     TestBed.configureTestingModule({
@@ -54,7 +55,7 @@ describe('CommunityOfficialClaimPanelComponent', () => {
     return fixture;
   }
 
-  it('elimina o seletor quando existe apenas um vínculo elegível', () => {
+  it('elimina seletor e declaração quando existe apenas um vínculo elegível', () => {
     const fixture = createFixture({
       canSubmit: true,
       reason: 'eligible',
@@ -67,9 +68,12 @@ describe('CommunityOfficialClaimPanelComponent', () => {
 
     const text = fixture.nativeElement.textContent as string;
     expect(fixture.nativeElement.querySelector('select')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[type="checkbox"]')).toBeNull();
     expect(text).toContain('Casa Aurora');
     expect(text).toContain('Local');
-    expect(text).toContain('Solicitar selo oficial');
+    expect(text).toContain('Ativar selo oficial');
+    expect(text).toContain('automaticamente');
+    expect(text).not.toContain('Declaro');
     expect(text).not.toContain('Proprietário');
     expect(text).not.toContain('KYB');
   });
@@ -100,6 +104,36 @@ describe('CommunityOfficialClaimPanelComponent', () => {
     expect(text).toContain('Aurora Produções — Organização');
     expect(text).not.toContain('Gestor autorizado');
     expect(text).not.toContain('Representante autorizado');
+  });
+
+  it('ativa o selo sem enviar declaração do usuário', () => {
+    const fixture = createFixture({
+      canSubmit: true,
+      reason: 'eligible',
+      candidates: [{
+        target: { type: 'venue', id: 'venue-1' },
+        label: 'Casa Aurora',
+      }],
+      generatedAt: 100,
+    });
+
+    const button = fixture.nativeElement.querySelector(
+      '.official-claim__submit'
+    ) as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+
+    expect(repositoryMock.submitCommunityOfficialClaim$).toHaveBeenCalledTimes(1);
+    const submittedInput =
+      repositoryMock.submitCommunityOfficialClaim$.mock.calls[0]?.[0];
+    expect(submittedInput).toMatchObject({
+      communityId: 'community-1',
+      target: { type: 'venue', id: 'venue-1' },
+    });
+    expect(submittedInput).not.toHaveProperty('declarationAccepted');
+    expect(notificationsMock.showSuccess).toHaveBeenCalledWith(
+      'Selo oficial ativado automaticamente.'
+    );
   });
 
   it('traduz verificação obrigatória para linguagem de produto', () => {

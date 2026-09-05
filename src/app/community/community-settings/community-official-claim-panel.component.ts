@@ -69,7 +69,6 @@ export class CommunityOfficialClaimPanelComponent {
 
   readonly communityId = input.required<string>();
   readonly targetKey = new FormControl('', { nonNullable: true });
-  readonly declarationAccepted = new FormControl(false, { nonNullable: true });
 
   private latestCapability: CommunityOfficialClaimCapabilityResponse | null = null;
   private latestClaim: CommunityOfficialClaimView | null = null;
@@ -153,7 +152,7 @@ export class CommunityOfficialClaimPanelComponent {
           this.reportError(
             error,
             'getMyCommunityOfficialClaim',
-            'Não foi possível consultar o andamento da verificação oficial.'
+            'Não foi possível consultar o estado atual do selo oficial.'
           );
           return of<ClaimState>({ status: 'error', claim: null });
         }),
@@ -170,14 +169,12 @@ export class CommunityOfficialClaimPanelComponent {
           requestId: this.createRequestId(),
           communityId: this.communityId().trim(),
           target: candidate.target,
-          declarationAccepted: true,
         }).pipe(
           tap((result) => {
-            this.declarationAccepted.setValue(false);
             this.notifications.showSuccess(
-              result.submitted
-                ? 'Solicitação do selo oficial enviada para análise.'
-                : 'O andamento da solicitação foi atualizado.'
+              result.status === 'verified'
+                ? 'Selo oficial ativado automaticamente.'
+                : 'O estado do selo oficial foi atualizado.'
             );
             this.claimReload$.next();
             this.capabilityReload$.next();
@@ -187,7 +184,7 @@ export class CommunityOfficialClaimPanelComponent {
             this.reportError(
               error,
               'submitCommunityOfficialClaim',
-              'Não foi possível solicitar o selo oficial.'
+              'Não foi possível verificar e ativar o selo oficial.'
             );
             return of<SubmissionState>('idle');
           }),
@@ -203,7 +200,6 @@ export class CommunityOfficialClaimPanelComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.latestClaim = null;
-        this.declarationAccepted.setValue(false, { emitEvent: false });
       });
   }
 
@@ -213,16 +209,9 @@ export class CommunityOfficialClaimPanelComponent {
   }
 
   submit(): void {
-    if (!this.declarationAccepted.value) {
-      this.notifications.showWarning(
-        'Confirme a declaração antes de solicitar o selo oficial.'
-      );
-      return;
-    }
-
     if (this.latestClaim && !this.canResubmit(this.latestClaim.status)) {
       this.notifications.showWarning(
-        'Esta solicitação já possui um andamento que impede novo envio.'
+        'Este vínculo já possui um selo ou estado que impede nova ativação.'
       );
       return;
     }
@@ -232,7 +221,7 @@ export class CommunityOfficialClaimPanelComponent {
     );
     if (!candidate) {
       this.notifications.showWarning(
-        'Escolha um vínculo disponível para solicitar o selo oficial.'
+        'Escolha um vínculo disponível para ativar o selo oficial.'
       );
       return;
     }
@@ -254,10 +243,10 @@ export class CommunityOfficialClaimPanelComponent {
 
   statusLabel(status: CommunityOfficialClaimStatus): string {
     switch (status) {
-    case 'pending': return 'Aguardando análise';
-    case 'under_review': return 'Em análise';
+    case 'pending': return 'Verificação pendente';
+    case 'under_review': return 'Verificação em andamento';
     case 'verified': return 'Comunidade Oficial verificada';
-    case 'rejected': return 'Solicitação rejeitada';
+    case 'rejected': return 'Verificação não concluída';
     case 'disputed': return 'Vínculo contestado';
     case 'revoked': return 'Verificação revogada';
     case 'expired': return 'Verificação expirada';
@@ -269,14 +258,14 @@ export class CommunityOfficialClaimPanelComponent {
     case 'community_already_official':
       return 'Esta comunidade já possui um selo oficial verificado.';
     case 'verification_inactive':
-      return 'Uma verificação necessária está vencida ou inativa. Regularize-a para solicitar o selo oficial.';
+      return 'Uma verificação necessária está vencida ou inativa. Regularize-a para ativar o selo oficial.';
     case 'verification_required':
-      return 'Para solicitar o selo oficial, conclua primeiro a verificação necessária da sua conta ou do vínculo que você representa.';
+      return 'Para ativar o selo oficial, conclua primeiro a verificação necessária da sua conta ou do vínculo que você representa.';
     case 'no_eligible_target':
       return 'No momento, não há nenhum vínculo disponível para transformar esta comunidade em oficial.';
     case 'eligible':
       return capability.candidates.length === 1
-        ? 'Encontramos um vínculo disponível para esta comunidade.'
+        ? 'Encontramos um vínculo que pode ser verificado automaticamente.'
         : 'Escolha o vínculo que esta comunidade representa.';
     }
   }

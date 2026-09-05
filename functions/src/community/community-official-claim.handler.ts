@@ -3,7 +3,7 @@
 // COMMUNITY OFFICIAL CLAIM HANDLERS
 // -----------------------------------------------------------------------------
 // Fluxo canônico backend-only de claim/revisão de Comunidades Oficiais.
-// Evidências permanecem privadas; somente associação `verified` é projetável.
+// O caminho normal é automático; revisão humana fica restrita a exceções.
 // -----------------------------------------------------------------------------
 
 import type { DocumentReference } from 'firebase-admin/firestore';
@@ -131,7 +131,7 @@ export const submitCommunityOfficialClaim =
       if (!intent) {
         throw new HttpsError(
           'invalid-argument',
-          'Revise a Comunidade, o alvo oficial e a declaração de responsabilidade.'
+          'Revise a Comunidade e o vínculo oficial selecionado.'
         );
       }
 
@@ -200,6 +200,7 @@ export const submitCommunityOfficialClaim =
           };
         }
 
+        const now = Date.now();
         const organizationRepresentationId = intent.target.type === 'organization'
           ? buildOrganizationRepresentationId(intent.target.id, actorUid)
           : null;
@@ -241,18 +242,20 @@ export const submitCommunityOfficialClaim =
             ? organizationRepresentationSnapshot.data()
             : null,
           organizationRepresentationReferenceId: organizationRepresentationId,
+          now,
         });
 
-        if (!derived.command) {
+        if (!derived.command || !derived.verification) {
           throw new HttpsError(
             'failed-precondition',
-            'Não foi possível confirmar sua autoridade sobre este alvo oficial.',
+            'Não foi possível confirmar automaticamente este vínculo oficial.',
             {
               reason: `official_claim_${derived.denialReason ?? 'unsupported_target'}`,
             }
           );
         }
         const command: SubmitCommunityOfficialClaimCommand = derived.command;
+        const verification = derived.verification;
 
         if (!communitySnapshot.exists) {
           throw new HttpsError(
@@ -285,15 +288,26 @@ export const submitCommunityOfficialClaim =
           );
         }
 
-        if (associationSnapshot.exists) {
-          const association = associationSnapshot.data() ?? {};
-          if (association['status'] === 'verified') {
+        const existingAssociation = associationSnapshot.exists
+          ? associationSnapshot.data() ?? {}
+          : null;
+        if (existingAssociation) {
+          const existingAssociationCommunityId = cleanId(
+            existingAssociation['communityId']
+          );
+          if (existingAssociation['status'] === 'verified') {
+            if (existingAssociationCommunityId === command.communityId) {
+              throw new HttpsError(
+                'already-exists',
+                'Este vínculo oficial já está verificado para esta Comunidade.'
+              );
+            }
             throw new HttpsError(
               'already-exists',
               'Esta entidade já possui uma Comunidade Oficial verificada.'
             );
           }
-          if (association['status'] !== 'revoked') {
+          if (existingAssociation['status'] !== 'revoked') {
             throw new HttpsError(
               'data-loss',
               'O vínculo oficial existente está em um estado inconsistente.'
@@ -301,13 +315,17 @@ export const submitCommunityOfficialClaim =
           }
         }
 
-        const now = Date.now();
         const existingClaim = claimSnapshot.exists
           ? claimSnapshot.data() ?? {}
           : null;
         const existingStatus = normalizeCommunityOfficialClaimStatus(
           existingClaim?.['status']
         );
+        const sameClaim = !existingClaim
+          || (
+            cleanId(existingClaim['claimantUid']) === actorUid
+            && cleanId(existingClaim['communityId']) === command.communityId
+          );
 
         if (
           existingClaim
@@ -317,33 +335,31 @@ export const submitCommunityOfficialClaim =
             || existingStatus === 'disputed'
             || existingStatus === 'verified'
           )
+          && !sameClaim
         ) {
-          const sameClaim = cleanId(existingClaim['claimantUid']) === actorUid
-            && cleanId(existingClaim['communityId']) === command.communityId;
-          if (!sameClaim) {
-            throw new HttpsError(
-              'already-exists',
-              'Já existe uma solicitação ativa para esta entidade oficial.'
-            );
-          }
-          if (existingStatus === 'verified') {
-            throw new HttpsError(
-              'already-exists',
-              'Este vínculo oficial já foi verificado.'
-            );
-          }
-
+          throw new HttpsError(
+            'already-exists',
+            'Já existe uma solicitação ativa para esta entidade oficial.'
+          );
+        }
+        if (existingStatus === 'verified') {
+          throw new HttpsError(
+            'already-exists',
+            'Este vínculo oficial já foi verificado.'
+          );
+        }
+        if (existingStatus === 'disputed') {
           transaction.create(requestRef, {
             actorUid,
             associationKey: command.associationKey,
             communityId: command.communityId,
-            status: existingStatus,
+            status: 'disputed',
             createdAt: now,
             updatedAt: now,
           });
           return {
             associationKey: command.associationKey,
-            status: existingStatus,
+            status: 'disputed' as const,
             submitted: false,
           };
         }
@@ -354,6 +370,29 @@ export const submitCommunityOfficialClaim =
         const createdAt = existingClaim
           ? normalizeCreatedAt(existingClaim['createdAt'], now)
           : now;
+        const associationCreatedAt = existingAssociation
+          ? normalizeCreatedAt(existingAssociation['createdAt'], now)
+          : now;
+        const officialAssociation = buildVerifiedCommunityOfficialAssociation({
+          target: command.target,
+          communityId: command.communityId,
+          sponsorOrganizationId: command.sponsorOrganizationId,
+          holderUid: actorUid,
+          authorityRole: command.authorityRole,
+          verificationSource: verification.verificationSource,
+          verifiedAt: now,
+          verificationPolicyVersion: verification.verificationPolicyVersion,
+          revalidationDueAt: verification.revalidationDueAt,
+          verificationExpiresAt: verification.verificationExpiresAt,
+          createdAt: associationCreatedAt,
+        });
+        if (!officialAssociation) {
+          throw new HttpsError(
+            'data-loss',
+            'Não foi possível construir a associação oficial automática.'
+          );
+        }
+
         const claim: CommunityOfficialClaimRecord = {
           claimId: command.associationKey,
           associationKey: command.associationKey,
@@ -363,31 +402,37 @@ export const submitCommunityOfficialClaim =
           authorityRole: command.authorityRole,
           sponsorOrganizationId: command.sponsorOrganizationId,
           evidenceReferences: command.evidenceReferences,
-          status: 'pending',
+          status: 'verified',
           policyVersion: COMMUNITY_OFFICIAL_CLAIM_POLICY_VERSION,
           submissionAttempt,
           submittedAt: now,
           revalidationRequestedAt: null,
-          reviewedAt: null,
-          reviewedBy: null,
-          reviewResolution: null,
-          verificationExpiresAt: null,
-          revalidationDueAt: null,
+          reviewedAt: now,
+          reviewedBy: 'system',
+          reviewResolution:
+            'Vínculo confirmado automaticamente pelas fontes canônicas vigentes.',
+          verificationExpiresAt: verification.verificationExpiresAt,
+          revalidationDueAt: verification.revalidationDueAt,
           createdAt,
           updatedAt: now,
         };
 
+        transaction.set(associationRef, officialAssociation);
+        transaction.update(communityRef, {
+          officialAssociationKey: command.associationKey,
+          updatedAt: now,
+        });
         transaction.set(claimRef, claim);
         transaction.create(requestRef, {
           actorUid,
           associationKey: command.associationKey,
           communityId: command.communityId,
-          status: 'pending',
+          status: 'verified',
           createdAt: now,
           updatedAt: now,
         });
         transaction.create(auditRef, {
-          action: 'official_claim_submitted',
+          action: 'official_claim_auto_verified',
           associationKey: command.associationKey,
           communityId: command.communityId,
           target: command.target,
@@ -395,16 +440,21 @@ export const submitCommunityOfficialClaim =
           authorityRole: command.authorityRole,
           sponsorOrganizationId: command.sponsorOrganizationId,
           evidenceReferenceCount: command.evidenceReferences.length,
+          verificationSource: verification.verificationSource,
+          verificationPolicyVersion: verification.verificationPolicyVersion,
+          verificationExpiresAt: verification.verificationExpiresAt,
+          revalidationDueAt: verification.revalidationDueAt,
           submissionAttempt,
           policyVersion: COMMUNITY_OFFICIAL_CLAIM_POLICY_VERSION,
           previousStatus: existingStatus,
-          nextStatus: 'pending',
+          nextStatus: 'verified',
+          actorUid: 'system',
           createdAt: now,
         });
 
         return {
           associationKey: command.associationKey,
-          status: 'pending' as const,
+          status: 'verified' as const,
           submitted: true,
         };
       });

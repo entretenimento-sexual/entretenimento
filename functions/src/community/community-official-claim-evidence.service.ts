@@ -2,9 +2,8 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY OFFICIAL CLAIM EVIDENCE SERVICE
 // -----------------------------------------------------------------------------
-// Resolve e valida, dentro da mesma transação da revisão, a fonte autoritativa
-// referenciada por um claim. Tipos sem fonte canônica implementada falham
-// fechados: revisão humana não transforma uma referência opaca em prova válida.
+// Resolve e valida, dentro da mesma transação, a fonte autoritativa referenciada
+// por um claim. Tipos sem fonte canônica implementada falham fechados.
 // -----------------------------------------------------------------------------
 
 import type { Transaction } from 'firebase-admin/firestore';
@@ -28,6 +27,9 @@ import {
   evaluateVenueOfficialClaimAuthorityGrant,
   type CommunityOfficialClaimEvidenceDenialReason,
 } from './community-official-claim-evidence.policy';
+import {
+  resolveCommunityOfficialVerificationWindow,
+} from './community-official-verification-window.policy';
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const SAFE_REFERENCE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,320}$/;
@@ -38,6 +40,8 @@ export interface VerifiedCommunityOfficialClaimEvidence {
   readonly verificationPolicyVersion: number;
   readonly sponsorOrganizationId: string | null;
   readonly evidenceType: CommunityOfficialClaimEvidenceType;
+  readonly revalidationDueAt: number | null;
+  readonly verificationExpiresAt: number | null;
 }
 
 function normalizeId(value: unknown): string | null {
@@ -95,9 +99,9 @@ function evidenceFailure(
 }
 
 /**
- * Valida a evidência necessária para promover um claim a `verified`.
- * Local e Organização possuem fontes canônicas backend-only revalidadas na
- * aprovação. Profile e Event permanecem fail-closed até seus resolvers próprios.
+ * Valida a evidência necessária para manter/promover um claim a `verified`.
+ * Local e Organização possuem fontes canônicas backend-only. Profile e Event
+ * permanecem fail-closed até seus resolvers próprios.
  */
 export async function assertCommunityOfficialClaimEvidence(input: {
   readonly transaction: Transaction;
@@ -149,6 +153,10 @@ export async function assertCommunityOfficialClaimEvidence(input: {
         input.transaction.get(representationRef),
       ]);
 
+    const rawKyb = kybSnapshot.exists ? kybSnapshot.data() : null;
+    const rawRepresentation = representationSnapshot.exists
+      ? representationSnapshot.data()
+      : null;
     const decision = evaluateOrganizationOfficialClaimAuthority({
       claimantUid,
       organizationId: input.target.id,
@@ -159,10 +167,8 @@ export async function assertCommunityOfficialClaimEvidence(input: {
       rawOrganization: organizationSnapshot.exists
         ? organizationSnapshot.data()
         : null,
-      rawKyb: kybSnapshot.exists ? kybSnapshot.data() : null,
-      rawRepresentation: representationSnapshot.exists
-        ? representationSnapshot.data()
-        : null,
+      rawKyb,
+      rawRepresentation,
       now: input.now,
     });
 
@@ -176,11 +182,24 @@ export async function assertCommunityOfficialClaimEvidence(input: {
       );
     }
 
+    const kyb = (rawKyb ?? {}) as Record<string, unknown>;
+    const representation = (rawRepresentation ?? {}) as Record<string, unknown>;
+    const window = resolveCommunityOfficialVerificationWindow({
+      now: input.now,
+      sourceRevalidationDueAt: kyb['revalidationDueAt'],
+      sourceExpiryCandidates: [
+        kyb['expiresAt'],
+        representation['endsAt'],
+      ],
+    });
+
     return Object.freeze({
       verificationSource: 'organization_verification',
       verificationPolicyVersion: decision.verificationPolicyVersion,
       sponsorOrganizationId: decision.sponsorOrganizationId,
       evidenceType: kybReference.type,
+      revalidationDueAt: window.revalidationDueAt,
+      verificationExpiresAt: window.verificationExpiresAt,
     });
   }
 
@@ -205,6 +224,7 @@ export async function assertCommunityOfficialClaimEvidence(input: {
     input.transaction.get(grantRef),
     input.transaction.get(venueRef),
   ]);
+  const rawGrant = grantSnapshot.exists ? grantSnapshot.data() : null;
 
   const decision = evaluateVenueOfficialClaimAuthorityGrant({
     claimantUid,
@@ -212,7 +232,7 @@ export async function assertCommunityOfficialClaimEvidence(input: {
     authorityRole: input.authorityRole,
     sponsorOrganizationId: input.sponsorOrganizationId,
     authorityReferenceId: authorityReference.referenceId,
-    rawGrant: grantSnapshot.exists ? grantSnapshot.data() : null,
+    rawGrant,
     rawVenue: venueSnapshot.exists ? venueSnapshot.data() : null,
     now: input.now,
   });
@@ -225,10 +245,18 @@ export async function assertCommunityOfficialClaimEvidence(input: {
     throw evidenceFailure(decision.denialReason ?? 'unsupported_source');
   }
 
+  const grant = (rawGrant ?? {}) as Record<string, unknown>;
+  const window = resolveCommunityOfficialVerificationWindow({
+    now: input.now,
+    sourceExpiryCandidates: [grant['endsAt']],
+  });
+
   return Object.freeze({
     verificationSource: 'official_space_creation_grant',
     verificationPolicyVersion: decision.verificationPolicyVersion,
     sponsorOrganizationId: decision.sponsorOrganizationId,
     evidenceType: authorityReference.type,
+    revalidationDueAt: window.revalidationDueAt,
+    verificationExpiresAt: window.verificationExpiresAt,
   });
 }

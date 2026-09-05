@@ -32,7 +32,7 @@
             <article class="official-claim__target-card" aria-label="Vínculo disponível">
               <span>{{ targetTypeLabel(candidate) }}</span>
               <strong>{{ candidate.label }}</strong>
-              <small>Você pode representar este vínculo na plataforma.</small>
+              <small>Este vínculo pode ser verificado automaticamente.</small>
             </article>
           }
         } @else {
@@ -46,7 +46,7 @@
               }
             </select>
             <small>
-              Mostramos somente vínculos disponíveis para a sua conta.
+              Mostramos somente vínculos que podem ser confirmados pela plataforma.
             </small>
           </div>
         }
@@ -55,11 +55,11 @@
           @if (claimState.status === 'loading') {
             <div class="official-claim__state" role="status" aria-live="polite">
               <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-              Consultando solicitação atual…
+              Consultando selo atual…
             </div>
           } @else if (claimState.status === 'error') {
             <div class="official-claim__state official-claim__state--error" role="alert">
-              <span>Não foi possível consultar o andamento atual.</span>
+              <span>Não foi possível consultar o estado atual.</span>
               <button type="button" (click)="retry()">Atualizar</button>
             </div>
           } @else if (claimState.status === 'ready') {
@@ -72,13 +72,13 @@
                 <div>
                   <strong>{{ statusLabel(claim.status) }}</strong>
                   <small>
-                    Solicitação enviada em {{ claim.submittedAt | date:'dd/MM/yyyy' }}.
+                    Verificação iniciada em {{ claim.submittedAt | date:'dd/MM/yyyy' }}.
                   </small>
                 </div>
 
                 @if (claim.revalidationDueAt) {
                   <p>
-                    Revalidação prevista para
+                    Nova checagem automática prevista para
                     <strong>{{ claim.revalidationDueAt | date:'dd/MM/yyyy' }}</strong>.
                   </p>
                 }
@@ -111,27 +111,23 @@
   <ng-template #submissionForm>
     @if (submissionState$ | async; as submissionState) {
       <div class="official-claim__submission">
-        <label class="official-claim__declaration">
-          <input type="checkbox" [formControl]="declarationAccepted" />
-          <span>
-            Declaro que estou autorizado a representar o vínculo selecionado e que
-            as informações são verdadeiras.
-          </span>
-        </label>
+        <small class="official-claim__automation-note">
+          A plataforma confirma o vínculo automaticamente antes de ativar o selo.
+        </small>
 
         <button
           type="button"
           class="official-claim__submit"
-          [disabled]="submissionState === 'loading' || !declarationAccepted.value"
+          [disabled]="submissionState === 'loading'"
           [attr.aria-busy]="submissionState === 'loading' ? 'true' : 'false'"
           (click)="submit()"
         >
           @if (submissionState === 'loading') {
             <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
-            Enviando…
+            Verificando…
           } @else {
             <i class="fas fa-shield-check" aria-hidden="true"></i>
-            Solicitar selo oficial
+            Ativar selo oficial
           }
         </button>
       </div>

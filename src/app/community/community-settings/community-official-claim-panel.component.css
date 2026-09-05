@@ -99,7 +99,8 @@
 }
 
 .official-claim__field small,
-.official-claim__status-card small {
+.official-claim__status-card small,
+.official-claim__automation-note {
   line-height: 1.4;
   opacity: 0.72;
 }
@@ -147,23 +148,8 @@
 
 .official-claim__submission {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.65rem;
   padding-top: 0.25rem;
-}
-
-.official-claim__declaration {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 0.7rem;
-  line-height: 1.45;
-  cursor: pointer;
-}
-
-.official-claim__declaration input {
-  width: 1.15rem;
-  height: 1.15rem;
-  margin-top: 0.15rem;
 }
 
 .official-claim__submit {
@@ -189,8 +175,7 @@
 }
 
 .official-claim button:focus-visible,
-.official-claim select:focus-visible,
-.official-claim input:focus-visible {
+.official-claim select:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 2px;
 }

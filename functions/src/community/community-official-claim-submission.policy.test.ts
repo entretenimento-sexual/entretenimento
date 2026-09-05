@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import {
+  COMMUNITY_OFFICIAL_AUTOMATED_REVALIDATION_INTERVAL_MS,
+} from './community-official-verification-window.policy';
 import { resolveCommunityOfficialClaimSubmission } from './community-official-claim-submission.policy';
 
 const NOW = 1_800_000_000_000;
@@ -17,7 +20,7 @@ const organizationIntent = {
   associationKey: 'organization:organization-1',
 };
 
-function activeGrant() {
+function activeGrant(overrides: Record<string, unknown> = {}) {
   return {
     holderUid: 'user-1',
     scope: 'official_space_creation',
@@ -28,6 +31,7 @@ function activeGrant() {
     active: true,
     startsAt: NOW - 1_000,
     endsAt: NOW + 10_000,
+    ...overrides,
   };
 }
 
@@ -83,7 +87,7 @@ function submitOrganization(overrides: Partial<Parameters<
   });
 }
 
-test('deriva organização, papel e evidência do Local sem confiar no cliente', () => {
+test('deriva organização, papel, evidência e validade do Local sem confiar no cliente', () => {
   const result = resolveCommunityOfficialClaimSubmission({
     actorUid: 'user-1',
     intent: venueIntent,
@@ -105,7 +109,35 @@ test('deriva organização, papel e evidência do Local sem confiar no cliente',
         { type: 'authority_record', referenceId: 'user-1' },
       ],
     },
+    verification: {
+      verificationSource: 'official_space_creation_grant',
+      verificationPolicyVersion: 1,
+      revalidationDueAt: null,
+      verificationExpiresAt: NOW + 10_000,
+    },
     denialReason: null,
+  });
+});
+
+test('agenda revalidação automática para grant de Local sem expiração', () => {
+  const result = resolveCommunityOfficialClaimSubmission({
+    actorUid: 'user-1',
+    intent: venueIntent,
+    rawGrant: activeGrant({ endsAt: null }),
+    rawTarget: {
+      status: 'active',
+      ownerUid: 'user-1',
+      adminUids: [],
+    },
+    now: NOW,
+  });
+
+  assert.deepEqual(result.verification, {
+    verificationSource: 'official_space_creation_grant',
+    verificationPolicyVersion: 1,
+    revalidationDueAt:
+      NOW + COMMUNITY_OFFICIAL_AUTOMATED_REVALIDATION_INTERVAL_MS,
+    verificationExpiresAt: null,
   });
 });
 
@@ -143,6 +175,12 @@ test('deriva Organização por KYB e representação canônica escopada', () => 
           referenceId: 'organization-1:user-1',
         },
       ],
+    },
+    verification: {
+      verificationSource: 'organization_verification',
+      verificationPolicyVersion: 2,
+      revalidationDueAt: NOW + 20_000,
+      verificationExpiresAt: NOW + 30_000,
     },
     denialReason: null,
   });
@@ -191,6 +229,7 @@ test('Organização falha fechado sem KYB vigente', () => {
   ]) {
     const result = submitOrganization({ rawOrganizationKyb });
     assert.equal(result.command, null);
+    assert.equal(result.verification, null);
     assert.equal(result.denialReason, 'verification_required');
   }
 
@@ -202,6 +241,7 @@ test('Organização falha fechado sem KYB vigente', () => {
   ]) {
     const result = submitOrganization({ rawOrganizationKyb });
     assert.equal(result.command, null);
+    assert.equal(result.verification, null);
     assert.equal(result.denialReason, 'verification_inactive');
   }
 });
@@ -220,6 +260,7 @@ test('Organização falha fechado para representação inválida ou sem escopo',
   for (const rawOrganizationRepresentation of cases) {
     const result = submitOrganization({ rawOrganizationRepresentation });
     assert.equal(result.command, null);
+    assert.equal(result.verification, null);
     assert.equal(result.denialReason, 'target_authority_mismatch');
   }
 });
@@ -230,37 +271,38 @@ test('Organização falha fechado para referência de representação divergente
   });
 
   assert.equal(result.command, null);
+  assert.equal(result.verification, null);
   assert.equal(result.denialReason, 'target_authority_mismatch');
 });
 
 test('falha fechado para alvo sem fonte canônica ou sem autoridade', () => {
-  assert.equal(
-    resolveCommunityOfficialClaimSubmission({
-      actorUid: 'user-1',
-      intent: {
-        ...venueIntent,
-        target: { type: 'profile', id: 'profile-1' },
-        associationKey: 'profile:profile-1',
-      },
-      rawGrant: activeGrant(),
-      rawTarget: null,
-      now: NOW,
-    }).denialReason,
-    'unsupported_target'
-  );
+  const unsupported = resolveCommunityOfficialClaimSubmission({
+    actorUid: 'user-1',
+    intent: {
+      ...venueIntent,
+      target: { type: 'profile', id: 'profile-1' },
+      associationKey: 'profile:profile-1',
+    },
+    rawGrant: activeGrant(),
+    rawTarget: null,
+    now: NOW,
+  });
+  assert.equal(unsupported.command, null);
+  assert.equal(unsupported.verification, null);
+  assert.equal(unsupported.denialReason, 'unsupported_target');
 
-  assert.equal(
-    resolveCommunityOfficialClaimSubmission({
-      actorUid: 'user-1',
-      intent: venueIntent,
-      rawGrant: activeGrant(),
-      rawTarget: {
-        status: 'active',
-        ownerUid: 'outro-user',
-        adminUids: [],
-      },
-      now: NOW,
-    }).denialReason,
-    'target_authority_mismatch'
-  );
+  const unauthorized = resolveCommunityOfficialClaimSubmission({
+    actorUid: 'user-1',
+    intent: venueIntent,
+    rawGrant: activeGrant(),
+    rawTarget: {
+      status: 'active',
+      ownerUid: 'outro-user',
+      adminUids: [],
+    },
+    now: NOW,
+  });
+  assert.equal(unauthorized.command, null);
+  assert.equal(unauthorized.verification, null);
+  assert.equal(unauthorized.denialReason, 'target_authority_mismatch');
 });

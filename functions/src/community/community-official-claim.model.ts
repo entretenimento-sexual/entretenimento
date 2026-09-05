@@ -79,6 +79,7 @@ export interface SubmitCommunityOfficialClaimRequest {
   authorityRole?: unknown;
   sponsorOrganizationId?: unknown;
   evidenceReferences?: unknown;
+  /** Legado aceito e ignorado. Autoridade é comprovada no backend. */
   declarationAccepted?: unknown;
 }
 
@@ -227,12 +228,7 @@ export function normalizeSubmitCommunityOfficialClaimIntentRequest(
   const communityId = cleanId(source.communityId);
   const target = cleanTarget(source.target);
 
-  if (
-    source.declarationAccepted !== true
-    || !requestId
-    || !communityId
-    || !target
-  ) {
+  if (!requestId || !communityId || !target) {
     return null;
   }
 

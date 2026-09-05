@@ -6,7 +6,6 @@ export interface SubmitCommunityOfficialClaimInput {
   readonly requestId: string;
   readonly communityId: string;
   readonly target: CommunityOfficialTarget;
-  readonly declarationAccepted: true;
 }
 
 export interface SubmitCommunityOfficialClaimResponse {
@@ -70,7 +69,6 @@ export function normalizeSubmitCommunityOfficialClaimInput(
       && targetType !== 'venue'
       && targetType !== 'event'
     )
-    || input.declarationAccepted !== true
   ) {
     return null;
   }
@@ -79,6 +77,5 @@ export function normalizeSubmitCommunityOfficialClaimInput(
     requestId,
     communityId,
     target: { type: targetType, id: targetId },
-    declarationAccepted: true,
   };
 }
