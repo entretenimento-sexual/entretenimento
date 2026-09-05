@@ -22,6 +22,7 @@ import { Injectable, inject } from '@angular/core';
 
 import {
   COMMON_APPLICATION_ERROR_CODE_PRESENTATIONS,
+  COMMON_APPLICATION_ERROR_REASON_MESSAGES,
   COMMON_APPLICATION_ERROR_REASON_PRESENTATIONS,
   COMMON_APPLICATION_ERROR_RECOMMENDED_ACTION_PRESENTATIONS,
 } from './application-error-presentation.catalog';
@@ -150,6 +151,9 @@ export class ApplicationErrorService {
     );
     const userMessage =
       (reason ? safeString(options.reasonMessages?.[reason], 280) : null)
+      ?? (reason
+        ? safeString(COMMON_APPLICATION_ERROR_REASON_MESSAGES[reason], 280)
+        : null)
       ?? (recommendedAction
         ? safeString(
             options.recommendedActionMessages?.[recommendedAction],
