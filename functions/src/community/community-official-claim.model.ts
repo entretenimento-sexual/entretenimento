@@ -160,23 +160,23 @@ function roleMatchesTarget(
   role: CommunityOfficialAuthorityRole
 ): boolean {
   switch (target.type) {
-    case 'profile':
-      return role === 'self';
-    case 'organization':
-      return role === 'owner'
-        || role === 'authorized_representative'
-        || role === 'manager';
-    case 'venue':
-      return role === 'owner'
-        || role === 'authorized_representative'
-        || role === 'manager';
-    case 'event':
-      return role === 'organizer'
-        || role === 'promoter'
-        || role === 'authorized_representative'
-        || role === 'manager';
-    default:
-      return false;
+  case 'profile':
+    return role === 'self';
+  case 'organization':
+    return role === 'owner'
+      || role === 'authorized_representative'
+      || role === 'manager';
+  case 'venue':
+    return role === 'owner'
+      || role === 'authorized_representative'
+      || role === 'manager';
+  case 'event':
+    return role === 'organizer'
+      || role === 'promoter'
+      || role === 'authorized_representative'
+      || role === 'manager';
+  default:
+    return false;
   }
 }
 
