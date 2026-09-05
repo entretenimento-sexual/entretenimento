@@ -11,6 +11,7 @@ import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import {
   catchError,
   combineLatest,
+  defer,
   exhaustMap,
   map,
   Observable,
@@ -118,7 +119,7 @@ export class CommunityOfficialClaimPanelComponent {
 
   readonly claimState$: Observable<ClaimState> = combineLatest([
     this.capabilityState$,
-    this.targetKey.valueChanges.pipe(startWith(this.targetKey.value)),
+    defer(() => this.targetKey.valueChanges.pipe(startWith(this.targetKey.value))),
     this.claimReload$.pipe(startWith(undefined)),
   ]).pipe(
     switchMap(([capabilityState, targetKey]) => {
@@ -277,14 +278,6 @@ export class CommunityOfficialClaimPanelComponent {
       return capability.candidates.length === 1
         ? 'Encontramos um vínculo disponível para esta comunidade.'
         : 'Escolha o vínculo que esta comunidade representa.';
-    }
-  }
-
-  authorityLabel(candidate: CommunityOfficialClaimCapabilityCandidate): string {
-    switch (candidate.authorityRole) {
-    case 'owner': return 'Proprietário';
-    case 'authorized_representative': return 'Representante autorizado';
-    case 'manager': return 'Gestor autorizado';
     }
   }
 
