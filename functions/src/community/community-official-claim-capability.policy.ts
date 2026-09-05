@@ -125,7 +125,13 @@ export function resolveCommunityOfficialClaimCapability(input: {
       now: input.now,
     });
 
-    if (!authority.allowed || !authority.authorityRole) continue;
+    if (
+      !authority.allowed
+      || (authority.authorityRole !== 'owner'
+        && authority.authorityRole !== 'manager')
+    ) {
+      continue;
+    }
 
     unique.set(venueId, Object.freeze({
       target: Object.freeze({ type: 'venue' as const, id: venueId }),

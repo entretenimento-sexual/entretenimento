@@ -152,6 +152,13 @@ export function evaluateVenueOfficialClaimAuthorityGrant(input: {
     return denied(canonicalDenialReason(authorityDecision.denialReason));
   }
 
+  if (
+    authorityDecision.authorityRole !== 'owner'
+    && authorityDecision.authorityRole !== 'manager'
+  ) {
+    return denied('venue_authority_mismatch');
+  }
+
   if (!authorityRoleMatches(input.authorityRole, authorityDecision.authorityRole)) {
     return denied('venue_authority_mismatch');
   }
