@@ -1,0 +1,28 @@
+// firestore-rules/organizations.rules
+// ============================================================================
+// ORGANIZATIONS / KYB / REPRESENTATION
+// ============================================================================
+// Fonte canônica e registros de compliance permanecem backend-only. O cliente
+// receberá somente projections sanitizados por callable/read model próprio.
+// Isso evita que uma futura inclusão acidental de documento fiscal, evidência,
+// UID de representante ou metadado de KYB em organizations gere vazamento.
+// ============================================================================
+match /organizations/{organizationId} {
+  allow read, write: if false;
+}
+
+match /organization_kyb_records/{organizationId} {
+  allow read, write: if false;
+}
+
+match /organization_kyb_audit/{auditId} {
+  allow read, write: if false;
+}
+
+match /organization_representations/{representationId} {
+  allow read, write: if false;
+}
+
+match /organization_representation_audit/{auditId} {
+  allow read, write: if false;
+}

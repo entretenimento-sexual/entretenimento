@@ -2,11 +2,16 @@
 // -----------------------------------------------------------------------------
 // CANONICAL RESOURCE AUTHORITY RESOLVER
 // -----------------------------------------------------------------------------
-// Centraliza a prova backend-only de autoridade comercial sobre recursos.
-// Novos tipos só podem ser habilitados quando existir uma fonte canônica de
-// autoridade para o domínio; até lá, o resolver falha fechado.
+// Centraliza a prova backend-only de autoridade sobre recursos. Cada domínio
+// fornece sua fonte canônica; tipos ainda sem fonte implementada falham fechado.
 // -----------------------------------------------------------------------------
 
+import {
+  evaluateOrganizationResourceAuthority,
+} from '../organization/organization-authority.policy';
+import type {
+  OrganizationAuthorityScope,
+} from '../organization/organization-representation.policy';
 import {
   evaluateVerifiedCommercialAuthority,
 } from './verified-commercial-authority.policy';
@@ -17,7 +22,10 @@ export type CanonicalAuthorityTargetType =
   | 'venue'
   | 'event';
 
-export type CanonicalResourceAuthorityRole = 'owner' | 'manager';
+export type CanonicalResourceAuthorityRole =
+  | 'owner'
+  | 'authorized_representative'
+  | 'manager';
 
 export type CanonicalResourceAuthorityDenialReason =
   | 'unsupported_target'
@@ -77,8 +85,11 @@ export function resolveCanonicalResourceAuthority(input: {
   readonly actorUid: string;
   readonly targetType: CanonicalAuthorityTargetType;
   readonly targetId: string;
-  readonly rawCommercialGrant: unknown;
+  readonly rawCommercialGrant?: unknown;
   readonly rawTarget: unknown;
+  readonly rawOrganizationKyb?: unknown;
+  readonly rawOrganizationRepresentation?: unknown;
+  readonly requiredOrganizationScope?: OrganizationAuthorityScope;
   readonly now?: number;
 }): Readonly<CanonicalResourceAuthorityDecision> {
   const actorUid = cleanId(input.actorUid);
@@ -89,6 +100,38 @@ export function resolveCanonicalResourceAuthority(input: {
       targetType: input.targetType,
       targetId,
       denialReason: 'target_authority_mismatch',
+    });
+  }
+
+  if (input.targetType === 'organization') {
+    const authority = evaluateOrganizationResourceAuthority({
+      actorUid,
+      organizationId: targetId,
+      rawOrganization: input.rawTarget,
+      rawKyb: input.rawOrganizationKyb,
+      rawRepresentation: input.rawOrganizationRepresentation,
+      requiredScope: input.requiredOrganizationScope ?? 'manage_organization',
+      now: input.now,
+    });
+
+    if (!authority.allowed || !authority.authorityRole) {
+      return denied({
+        targetType: input.targetType,
+        targetId,
+        organizationId: authority.organizationId,
+        authorityUid: authority.authorityUid,
+        denialReason: authority.denialReason ?? 'target_authority_mismatch',
+      });
+    }
+
+    return Object.freeze({
+      allowed: true,
+      targetType: input.targetType,
+      targetId,
+      organizationId: authority.organizationId,
+      authorityUid: authority.authorityUid,
+      authorityRole: authority.authorityRole,
+      denialReason: null,
     });
   }
 

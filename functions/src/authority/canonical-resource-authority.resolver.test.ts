@@ -19,6 +19,33 @@ function activeGrant(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function organizationKyb(overrides: Record<string, unknown> = {}) {
+  return {
+    organizationId: 'organization-1',
+    status: 'verified',
+    policyVersion: 1,
+    verifiedAt: NOW - 1_000,
+    revalidationDueAt: NOW + 10_000,
+    expiresAt: NOW + 20_000,
+    revokedAt: null,
+    ...overrides,
+  };
+}
+
+function organizationRepresentation(overrides: Record<string, unknown> = {}) {
+  return {
+    organizationId: 'organization-1',
+    holderUid: 'user-1',
+    role: 'legal_representative',
+    scopes: ['community_official_claim'],
+    status: 'active',
+    startsAt: NOW - 1_000,
+    endsAt: NOW + 10_000,
+    revokedAt: null,
+    ...overrides,
+  };
+}
+
 test('resolve owner do Local a partir das fontes canônicas', () => {
   const result = resolveCanonicalResourceAuthority({
     actorUid: 'user-1',
@@ -62,8 +89,60 @@ test('resolve manager do Local sem promover role comunitária', () => {
   assert.equal(result.authorityRole, 'manager');
 });
 
+test('resolve Organização por KYB + representação canônica escopada', () => {
+  const result = resolveCanonicalResourceAuthority({
+    actorUid: 'user-1',
+    targetType: 'organization',
+    targetId: 'organization-1',
+    rawTarget: {
+      organizationId: 'organization-1',
+      status: 'active',
+    },
+    rawOrganizationKyb: organizationKyb(),
+    rawOrganizationRepresentation: organizationRepresentation(),
+    requiredOrganizationScope: 'community_official_claim',
+    now: NOW,
+  });
+
+  assert.deepEqual(result, {
+    allowed: true,
+    targetType: 'organization',
+    targetId: 'organization-1',
+    organizationId: 'organization-1',
+    authorityUid: 'user-1',
+    authorityRole: 'authorized_representative',
+    denialReason: null,
+  });
+});
+
+test('Organização falha fechado com KYB inativo ou representação sem escopo', () => {
+  assert.equal(resolveCanonicalResourceAuthority({
+    actorUid: 'user-1',
+    targetType: 'organization',
+    targetId: 'organization-1',
+    rawTarget: { organizationId: 'organization-1', status: 'active' },
+    rawOrganizationKyb: organizationKyb({ status: 'revoked' }),
+    rawOrganizationRepresentation: organizationRepresentation(),
+    requiredOrganizationScope: 'community_official_claim',
+    now: NOW,
+  }).denialReason, 'verification_inactive');
+
+  assert.equal(resolveCanonicalResourceAuthority({
+    actorUid: 'user-1',
+    targetType: 'organization',
+    targetId: 'organization-1',
+    rawTarget: { organizationId: 'organization-1', status: 'active' },
+    rawOrganizationKyb: organizationKyb(),
+    rawOrganizationRepresentation: organizationRepresentation({
+      scopes: ['manage_organization'],
+    }),
+    requiredOrganizationScope: 'community_official_claim',
+    now: NOW,
+  }).denialReason, 'target_authority_mismatch');
+});
+
 test('falha fechado para tipos ainda sem fonte canônica', () => {
-  for (const targetType of ['profile', 'organization', 'event'] as const) {
+  for (const targetType of ['profile', 'event'] as const) {
     assert.equal(
       resolveCanonicalResourceAuthority({
         actorUid: 'user-1',
