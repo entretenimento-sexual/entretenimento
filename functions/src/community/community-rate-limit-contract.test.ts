@@ -22,6 +22,7 @@ const frontendRateLimitMessagesPath = path.join(
 
 const READ_ONLY_CALLABLES = new Set([
   'getCommunityCreationCapability',
+  'getCommunityOfficialClaimCapability',
   'getCommunityTagCatalog',
   'getCommunityDiscoveryPage',
   'getProfileOfficialCommunities',
