@@ -34,7 +34,7 @@ test('mantém capacidade comunitária separada da autoridade comercial', () => {
       allowed: true,
       organizationId: 'organization-1',
       maxOfficialSpaces: 10,
-      memberLimit: 5000,
+      memberLimit: 1000,
       denialReason: null,
     }
   );
