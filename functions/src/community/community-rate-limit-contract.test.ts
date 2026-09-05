@@ -26,6 +26,7 @@ const READ_ONLY_CALLABLES = new Set([
   'getCommunityDiscoveryPage',
   'getProfileOfficialCommunities',
   'getOfficialCommunitiesForTarget',
+  'getMyCommunityOfficialClaim',
   'getCommunityFeedPage',
   'getCommunityFeedItems',
   'getCommunityHighlight',
