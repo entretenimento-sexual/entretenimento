@@ -34,14 +34,15 @@ function normalizeSafeId(value: unknown): string | null {
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
-export function resolveCanonicalOfficialCommunityReference(
-  target: Readonly<CommunityOfficialTarget>,
+/**
+ * Valida uma associação por seus próprios campos canônicos, sem confiar em
+ * projeções gravadas na Comunidade ou no alvo. Somente vínculo verificado,
+ * vigente e estruturalmente consistente produz referência utilizável.
+ */
+export function resolveCanonicalOfficialCommunityReferenceFromAssociation(
   rawAssociation: unknown
 ): CanonicalOfficialCommunityReference | null {
-  const expectedAssociationKey = buildCommunityOfficialAssociationKey(target);
-  if (!expectedAssociationKey || rawAssociation === null || rawAssociation === undefined) {
-    return null;
-  }
+  if (rawAssociation === null || rawAssociation === undefined) return null;
 
   const association = rawAssociation as Record<string, unknown>;
   const associationKey = normalizeCommunityOfficialAssociationKey(
@@ -51,13 +52,12 @@ export function resolveCanonicalOfficialCommunityReference(
   const publicAssociation =
     sanitizeCommunityOfficialAssociationPublicProjection(association);
 
-  if (
-    associationKey !== expectedAssociationKey
-    || !communityId
-    || !publicAssociation
-    || publicAssociation.target.type !== target.type
-    || publicAssociation.target.id !== target.id
-  ) {
+  if (!associationKey || !communityId || !publicAssociation) return null;
+
+  const expectedAssociationKey = buildCommunityOfficialAssociationKey(
+    publicAssociation.target
+  );
+  if (!expectedAssociationKey || associationKey !== expectedAssociationKey) {
     return null;
   }
 
@@ -66,6 +66,29 @@ export function resolveCanonicalOfficialCommunityReference(
     communityId,
     target: publicAssociation.target,
   });
+}
+
+export function resolveCanonicalOfficialCommunityReference(
+  target: Readonly<CommunityOfficialTarget>,
+  rawAssociation: unknown
+): CanonicalOfficialCommunityReference | null {
+  const expectedAssociationKey = buildCommunityOfficialAssociationKey(target);
+  if (!expectedAssociationKey) return null;
+
+  const reference = resolveCanonicalOfficialCommunityReferenceFromAssociation(
+    rawAssociation
+  );
+
+  if (
+    !reference
+    || reference.associationKey !== expectedAssociationKey
+    || reference.target.type !== target.type
+    || reference.target.id !== target.id
+  ) {
+    return null;
+  }
+
+  return reference;
 }
 
 export function resolveOfficialCommunityCardForCanonicalReference(
