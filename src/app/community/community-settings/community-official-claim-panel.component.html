@@ -52,39 +52,41 @@
               <span>Não foi possível consultar o andamento atual.</span>
               <button type="button" (click)="retry()">Atualizar</button>
             </div>
-          } @else if (claimState.status === 'ready' && claimState.claim; as claim) {
-            <article
-              class="official-claim__status-card"
-              [attr.data-status]="claim.status"
-              aria-live="polite"
-            >
-              <div>
-                <strong>{{ statusLabel(claim.status) }}</strong>
-                <small>
-                  Solicitação enviada em {{ claim.submittedAt | date:'dd/MM/yyyy' }}.
-                </small>
-              </div>
+          } @else if (claimState.status === 'ready') {
+            @if (claimState.claim; as claim) {
+              <article
+                class="official-claim__status-card"
+                [attr.data-status]="claim.status"
+                aria-live="polite"
+              >
+                <div>
+                  <strong>{{ statusLabel(claim.status) }}</strong>
+                  <small>
+                    Solicitação enviada em {{ claim.submittedAt | date:'dd/MM/yyyy' }}.
+                  </small>
+                </div>
 
-              @if (claim.revalidationDueAt) {
-                <p>
-                  Revalidação prevista para
-                  <strong>{{ claim.revalidationDueAt | date:'dd/MM/yyyy' }}</strong>.
-                </p>
+                @if (claim.revalidationDueAt) {
+                  <p>
+                    Revalidação prevista para
+                    <strong>{{ claim.revalidationDueAt | date:'dd/MM/yyyy' }}</strong>.
+                  </p>
+                }
+
+                @if (claim.verificationExpiresAt) {
+                  <p>
+                    Validade atual até
+                    <strong>{{ claim.verificationExpiresAt | date:'dd/MM/yyyy' }}</strong>.
+                  </p>
+                }
+              </article>
+
+              @if (canResubmit(claim.status)) {
+                <ng-container [ngTemplateOutlet]="submissionForm"></ng-container>
               }
-
-              @if (claim.verificationExpiresAt) {
-                <p>
-                  Validade atual até
-                  <strong>{{ claim.verificationExpiresAt | date:'dd/MM/yyyy' }}</strong>.
-                </p>
-              }
-            </article>
-
-            @if (canResubmit(claim.status)) {
+            } @else {
               <ng-container [ngTemplateOutlet]="submissionForm"></ng-container>
             }
-          } @else if (claimState.status === 'ready') {
-            <ng-container [ngTemplateOutlet]="submissionForm"></ng-container>
           }
         }
       } @else if (capabilityState.capability.reason === 'community_already_official') {
