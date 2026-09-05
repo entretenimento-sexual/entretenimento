@@ -148,6 +148,41 @@ test('deriva Organização por KYB e representação canônica escopada', () => 
   });
 });
 
+test('aceita referência canônica composta acima de 128 caracteres', () => {
+  const organizationId = `org_${'a'.repeat(100)}`;
+  const actorUid = `user_${'b'.repeat(100)}`;
+  const representationReferenceId = `${organizationId}:${actorUid}`;
+  const intent = {
+    requestId: 'request-long-reference',
+    communityId: 'community-1',
+    target: { type: 'organization' as const, id: organizationId },
+    associationKey: `organization:${organizationId}`,
+  };
+
+  assert.ok(representationReferenceId.length > 128);
+
+  const result = resolveCommunityOfficialClaimSubmission({
+    actorUid,
+    intent,
+    rawTarget: activeOrganization({ organizationId }),
+    rawOrganizationKyb: verifiedKyb({ organizationId }),
+    rawOrganizationRepresentation: activeRepresentation({
+      organizationId,
+      holderUid: actorUid,
+    }),
+    organizationRepresentationReferenceId: representationReferenceId,
+    now: NOW,
+  });
+
+  assert.equal(result.denialReason, null);
+  assert.equal(
+    result.command?.evidenceReferences.find(
+      (reference) => reference.type === 'authority_record'
+    )?.referenceId,
+    representationReferenceId
+  );
+});
+
 test('Organização falha fechado sem KYB vigente', () => {
   for (const rawOrganizationKyb of [
     null,
