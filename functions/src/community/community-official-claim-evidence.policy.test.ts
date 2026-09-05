@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  evaluateOrganizationOfficialClaimAuthority,
   evaluateVenueOfficialClaimAuthorityGrant,
 } from './community-official-claim-evidence.policy';
 import { OFFICIAL_SPACE_CREATION_POLICY_VERSION } from './community-official-space.policy';
@@ -32,6 +33,45 @@ function venue(overrides: Record<string, unknown> = {}): Record<string, unknown>
   };
 }
 
+function organization(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    organizationId: 'organization-1',
+    displayName: 'Organização Um',
+    status: 'active',
+    countryCode: 'BR',
+    ...overrides,
+  };
+}
+
+function kyb(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    organizationId: 'organization-1',
+    status: 'verified',
+    policyVersion: 3,
+    verifiedAt: NOW - 10_000,
+    revalidationDueAt: NOW + 20_000,
+    expiresAt: NOW + 30_000,
+    revokedAt: null,
+    ...overrides,
+  };
+}
+
+function representation(
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
+  return {
+    organizationId: 'organization-1',
+    holderUid: 'user-1',
+    role: 'legal_representative',
+    scopes: ['community_official_claim'],
+    status: 'active',
+    startsAt: NOW - 10_000,
+    endsAt: NOW + 30_000,
+    revokedAt: null,
+    ...overrides,
+  };
+}
+
 function evaluate(overrides: Partial<Parameters<
   typeof evaluateVenueOfficialClaimAuthorityGrant
 >[0]> = {}) {
@@ -43,6 +83,24 @@ function evaluate(overrides: Partial<Parameters<
     authorityReferenceId: 'user-1',
     rawGrant: grant(),
     rawVenue: venue(),
+    now: NOW,
+    ...overrides,
+  });
+}
+
+function evaluateOrganization(overrides: Partial<Parameters<
+  typeof evaluateOrganizationOfficialClaimAuthority
+>[0]> = {}) {
+  return evaluateOrganizationOfficialClaimAuthority({
+    claimantUid: 'user-1',
+    organizationId: 'organization-1',
+    authorityRole: 'authorized_representative',
+    sponsorOrganizationId: 'organization-1',
+    kybReferenceId: 'organization-1',
+    authorityReferenceId: 'organization-1:user-1',
+    rawOrganization: organization(),
+    rawKyb: kyb(),
+    rawRepresentation: representation(),
     now: NOW,
     ...overrides,
   });
@@ -133,5 +191,63 @@ describe('community official claim evidence policy', () => {
 
     assert.equal(decision.allowed, false);
     assert.equal(decision.denialReason, 'venue_not_active');
+  });
+
+  it('revalida Organização com KYB e representação vigentes', () => {
+    assert.deepEqual(evaluateOrganization(), {
+      allowed: true,
+      sponsorOrganizationId: 'organization-1',
+      verificationPolicyVersion: 3,
+      denialReason: null,
+    });
+  });
+
+  it('rejeita KYB expirado ou revogado na aprovação', () => {
+    for (const rawKyb of [
+      kyb({ status: 'expired' }),
+      kyb({ status: 'revoked' }),
+      kyb({ expiresAt: NOW }),
+      kyb({ revalidationDueAt: NOW }),
+    ]) {
+      const decision = evaluateOrganization({ rawKyb });
+      assert.equal(decision.allowed, false);
+      assert.equal(decision.denialReason, 'organization_kyb_inactive');
+    }
+  });
+
+  it('rejeita representação revogada, expirada ou sem escopo na aprovação', () => {
+    for (const rawRepresentation of [
+      representation({ status: 'revoked' }),
+      representation({ endsAt: NOW }),
+      representation({ startsAt: NOW + 1 }),
+      representation({ scopes: ['manage_organization'] }),
+    ]) {
+      const decision = evaluateOrganization({ rawRepresentation });
+      assert.equal(decision.allowed, false);
+      assert.equal(decision.denialReason, 'organization_authority_mismatch');
+    }
+  });
+
+  it('rejeita troca de representante, papel ou referência após submissão', () => {
+    assert.equal(
+      evaluateOrganization({
+        rawRepresentation: representation({ holderUid: 'user-2' }),
+      }).denialReason,
+      'organization_authority_mismatch'
+    );
+    assert.equal(
+      evaluateOrganization({ authorityRole: 'owner' }).denialReason,
+      'organization_authority_mismatch'
+    );
+    assert.equal(
+      evaluateOrganization({
+        authorityReferenceId: 'organization-1:user-2',
+      }).denialReason,
+      'authority_reference_mismatch'
+    );
+    assert.equal(
+      evaluateOrganization({ sponsorOrganizationId: 'organization-2' }).denialReason,
+      'sponsor_organization_mismatch'
+    );
   });
 });
