@@ -32,36 +32,37 @@ function venue(overrides: Record<string, unknown> = {}): Record<string, unknown>
   };
 }
 
+function evaluate(overrides: Partial<Parameters<
+  typeof evaluateVenueOfficialClaimAuthorityGrant
+>[0]> = {}) {
+  return evaluateVenueOfficialClaimAuthorityGrant({
+    claimantUid: 'user-1',
+    venueId: 'venue-1',
+    authorityRole: 'owner',
+    sponsorOrganizationId: 'org-1',
+    authorityReferenceId: 'user-1',
+    rawGrant: grant(),
+    rawVenue: venue(),
+    now: NOW,
+    ...overrides,
+  });
+}
+
 describe('community official claim evidence policy', () => {
   it('aceita grant vigente e autoridade atual sobre o Local', () => {
-    assert.deepEqual(
-      evaluateVenueOfficialClaimAuthorityGrant({
-        claimantUid: 'user-1',
-        authorityRole: 'owner',
-        sponsorOrganizationId: 'org-1',
-        authorityReferenceId: 'user-1',
-        rawGrant: grant(),
-        rawVenue: venue(),
-        now: NOW,
-      }),
-      {
-        allowed: true,
-        sponsorOrganizationId: 'org-1',
-        verificationPolicyVersion: OFFICIAL_SPACE_CREATION_POLICY_VERSION,
-        denialReason: null,
-      }
-    );
+    assert.deepEqual(evaluate(), {
+      allowed: true,
+      sponsorOrganizationId: 'org-1',
+      verificationPolicyVersion: OFFICIAL_SPACE_CREATION_POLICY_VERSION,
+      denialReason: null,
+    });
   });
 
   it('resolve a organização canônica do grant quando o claim não a informa', () => {
-    const decision = evaluateVenueOfficialClaimAuthorityGrant({
-      claimantUid: 'user-1',
+    const decision = evaluate({
       authorityRole: 'authorized_representative',
       sponsorOrganizationId: null,
-      authorityReferenceId: 'user-1',
-      rawGrant: grant(),
       rawVenue: venue({ ownerUid: 'owner-2', adminUids: ['user-1'] }),
-      now: NOW,
     });
 
     assert.equal(decision.allowed, true);
@@ -69,59 +70,38 @@ describe('community official claim evidence policy', () => {
   });
 
   it('rejeita referência que não seja o grant canônico do solicitante', () => {
-    const decision = evaluateVenueOfficialClaimAuthorityGrant({
-      claimantUid: 'user-1',
-      authorityRole: 'owner',
-      sponsorOrganizationId: 'org-1',
-      authorityReferenceId: 'user-2',
-      rawGrant: grant(),
-      rawVenue: venue(),
-      now: NOW,
-    });
+    const decision = evaluate({ authorityReferenceId: 'user-2' });
+
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.denialReason, 'authority_reference_mismatch');
+  });
+
+  it('rejeita identificador de Local inválido antes da revalidação', () => {
+    const decision = evaluate({ venueId: 'venue inválido' });
 
     assert.equal(decision.allowed, false);
     assert.equal(decision.denialReason, 'authority_reference_mismatch');
   });
 
   it('rejeita grant inativo ou expirado', () => {
-    const decision = evaluateVenueOfficialClaimAuthorityGrant({
-      claimantUid: 'user-1',
-      authorityRole: 'owner',
-      sponsorOrganizationId: 'org-1',
-      authorityReferenceId: 'user-1',
-      rawGrant: grant({ endsAt: NOW - 1 }),
-      rawVenue: venue(),
-      now: NOW,
-    });
+    const decision = evaluate({ rawGrant: grant({ endsAt: NOW - 1 }) });
 
     assert.equal(decision.allowed, false);
     assert.equal(decision.denialReason, 'authority_grant_inactive');
   });
 
   it('rejeita grant pertencente a outro responsável', () => {
-    const decision = evaluateVenueOfficialClaimAuthorityGrant({
-      claimantUid: 'user-1',
-      authorityRole: 'owner',
-      sponsorOrganizationId: 'org-1',
-      authorityReferenceId: 'user-1',
-      rawGrant: grant({ holderUid: 'user-2' }),
-      rawVenue: venue(),
-      now: NOW,
-    });
+    const decision = evaluate({ rawGrant: grant({ holderUid: 'user-2' }) });
 
     assert.equal(decision.allowed, false);
     assert.equal(decision.denialReason, 'authority_grant_invalid');
   });
 
   it('rejeita organização patrocinadora divergente do registro verificado', () => {
-    const decision = evaluateVenueOfficialClaimAuthorityGrant({
-      claimantUid: 'user-1',
+    const decision = evaluate({
       authorityRole: 'manager',
       sponsorOrganizationId: 'org-2',
-      authorityReferenceId: 'user-1',
-      rawGrant: grant(),
       rawVenue: venue({ ownerUid: 'owner-2', adminUids: ['user-1'] }),
-      now: NOW,
     });
 
     assert.equal(decision.allowed, false);
@@ -129,14 +109,19 @@ describe('community official claim evidence policy', () => {
   });
 
   it('rejeita solicitante sem autoridade atual sobre o Local alvo', () => {
-    const decision = evaluateVenueOfficialClaimAuthorityGrant({
-      claimantUid: 'user-1',
+    const decision = evaluate({
       authorityRole: 'authorized_representative',
-      sponsorOrganizationId: 'org-1',
-      authorityReferenceId: 'user-1',
-      rawGrant: grant(),
       rawVenue: venue({ ownerUid: 'owner-2', adminUids: ['user-3'] }),
-      now: NOW,
+    });
+
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.denialReason, 'venue_authority_mismatch');
+  });
+
+  it('rejeita papel de owner quando a fonte canônica comprova apenas manager', () => {
+    const decision = evaluate({
+      authorityRole: 'owner',
+      rawVenue: venue({ ownerUid: 'owner-2', adminUids: ['user-1'] }),
     });
 
     assert.equal(decision.allowed, false);
@@ -144,15 +129,7 @@ describe('community official claim evidence policy', () => {
   });
 
   it('rejeita Local que deixou de estar ativo', () => {
-    const decision = evaluateVenueOfficialClaimAuthorityGrant({
-      claimantUid: 'user-1',
-      authorityRole: 'owner',
-      sponsorOrganizationId: 'org-1',
-      authorityReferenceId: 'user-1',
-      rawGrant: grant(),
-      rawVenue: venue({ status: 'archived' }),
-      now: NOW,
-    });
+    const decision = evaluate({ rawVenue: venue({ status: 'archived' }) });
 
     assert.equal(decision.allowed, false);
     assert.equal(decision.denialReason, 'venue_not_active');
