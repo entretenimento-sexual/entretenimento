@@ -61,7 +61,6 @@ describe('CommunityOfficialClaimPanelComponent', () => {
       candidates: [{
         target: { type: 'venue', id: 'venue-1' },
         label: 'Casa Aurora',
-        authorityRole: 'owner',
       }],
       generatedAt: 100,
     });
@@ -83,12 +82,10 @@ describe('CommunityOfficialClaimPanelComponent', () => {
         {
           target: { type: 'venue', id: 'venue-1' },
           label: 'Casa Aurora',
-          authorityRole: 'manager',
         },
         {
           target: { type: 'organization', id: 'organization-1' },
           label: 'Aurora Produções',
-          authorityRole: 'authorized_representative',
         },
       ],
       generatedAt: 100,

@@ -11,10 +11,15 @@ export type CommunityOfficialClaimCapabilityReason =
 export type CommunityOfficialClaimCapabilityTarget =
   CommunityOfficialTarget & { readonly type: 'organization' | 'venue' };
 
+/**
+ * Projeção mínima usada pela UI. O papel técnico que concede autoridade
+ * pertence ao backend e não participa da escolha nem do envio do usuário.
+ * Respostas legadas podem continuar trazendo `authorityRole`; o normalizador
+ * simplesmente não o projeta para a aplicação.
+ */
 export interface CommunityOfficialClaimCapabilityCandidate {
   readonly target: CommunityOfficialClaimCapabilityTarget;
   readonly label: string;
-  readonly authorityRole: 'owner' | 'authorized_representative' | 'manager';
 }
 
 export interface CommunityOfficialClaimCapabilityResponse {
@@ -52,16 +57,6 @@ function cleanTargetType(
   return value === 'organization' || value === 'venue' ? value : null;
 }
 
-function cleanAuthorityRole(
-  value: unknown
-): CommunityOfficialClaimCapabilityCandidate['authorityRole'] | null {
-  return value === 'owner'
-    || value === 'authorized_representative'
-    || value === 'manager'
-    ? value
-    : null;
-}
-
 export function buildCommunityOfficialClaimCapabilityCandidateKey(
   candidate: Pick<CommunityOfficialClaimCapabilityCandidate, 'target'>
 ): string {
@@ -92,16 +87,14 @@ export function normalizeCommunityOfficialClaimCapabilityResponse(
     const type = cleanTargetType(target['type']);
     const id = cleanId(target['id']);
     const label = String(candidate['label'] ?? '').replace(/\s+/g, ' ').trim();
-    const authorityRole = cleanAuthorityRole(candidate['authorityRole']);
 
-    if (!type || !id || !label || label.length > 80 || !authorityRole) {
+    if (!type || !id || !label || label.length > 80) {
       return null;
     }
 
     const normalizedCandidate: CommunityOfficialClaimCapabilityCandidate = {
       target: { type, id },
       label,
-      authorityRole,
     };
     const key = buildCommunityOfficialClaimCapabilityCandidateKey(
       normalizedCandidate
