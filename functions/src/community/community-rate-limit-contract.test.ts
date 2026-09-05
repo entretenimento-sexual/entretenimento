@@ -53,6 +53,7 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
 >> = Object.freeze({
   createCommunity: 'community_create',
   createVenueCommunity: 'official_space_create',
+  submitCommunityOfficialClaim: 'official_space_create',
   createCommunityFeedPost: 'feed_post',
   createCommunityFeedComment: 'feed_conversation',
   createCommunityFeedCommentReply: 'feed_conversation',
@@ -77,6 +78,7 @@ const EXPECTED_CANONICAL_ACTION_BY_CALLABLE: Readonly<Record<
   reviewCommunityFeedPostReport: 'content_moderation',
   reviewCommunityFeedCommentReport: 'content_moderation',
   reviewCommunityFeedCommentReplyReport: 'content_moderation',
+  reviewCommunityOfficialClaim: 'content_moderation',
   configureCommunityRankingMode: 'operations_ranking',
 });
 
