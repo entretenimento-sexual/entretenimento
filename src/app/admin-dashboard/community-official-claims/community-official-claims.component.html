@@ -1,0 +1,192 @@
+<section class="official-claims" aria-labelledby="official-claims-title">
+  <header class="official-claims__header">
+    <div>
+      <p class="official-claims__kicker">Comunidades</p>
+      <h2 id="official-claims-title">Vínculos oficiais</h2>
+      <p>
+        Revise solicitações de Perfis, Organizações, Locais e Eventos sem expor
+        documentos KYC/KYB ao cliente público.
+      </p>
+    </div>
+
+    <button type="button" class="official-claims__refresh" (click)="refresh()">
+      Atualizar
+    </button>
+  </header>
+
+  @if (loadErrorSubject | async; as loadError) {
+    <div class="official-claims__feedback" role="alert">
+      <span>{{ loadError }}</span>
+      <button type="button" (click)="refresh()">Tentar novamente</button>
+    </div>
+  }
+
+  @if (queue$ | async; as queue) {
+    @if (queue.items.length === 0 && !(loadErrorSubject | async)) {
+      <p class="official-claims__empty" role="status">
+        Não há solicitações pendentes de revisão.
+      </p>
+    } @else {
+      <div class="official-claims__list" aria-label="Fila de revisão">
+        @for (item of queue.items; track item.associationKey) {
+          <article class="official-claims__card">
+            <div class="official-claims__card-head">
+              <div>
+                <span class="official-claims__status">
+                  {{ statusLabel(item.status) }}
+                </span>
+                <h3>
+                  {{ targetLabel(item.target.type) }} · {{ item.target.id }}
+                </h3>
+              </div>
+              <time [attr.datetime]="item.updatedAt | date:'yyyy-MM-ddTHH:mm:ss'">
+                {{ item.updatedAt | date:'dd/MM/yyyy HH:mm' }}
+              </time>
+            </div>
+
+            <dl class="official-claims__meta">
+              <div>
+                <dt>Comunidade</dt>
+                <dd>{{ item.communityId }}</dd>
+              </div>
+              <div>
+                <dt>Solicitante</dt>
+                <dd>{{ item.claimantUid }}</dd>
+              </div>
+              <div>
+                <dt>Autoridade declarada</dt>
+                <dd>{{ item.authorityRole }}</dd>
+              </div>
+              @if (item.sponsorOrganizationId) {
+                <div>
+                  <dt>Organização</dt>
+                  <dd>{{ item.sponsorOrganizationId }}</dd>
+                </div>
+              }
+            </dl>
+
+            <div class="official-claims__evidence" aria-label="Referências de verificação">
+              <strong>Referências privadas</strong>
+              @if (item.evidenceReferences.length === 0) {
+                <span>Nenhuma referência válida recebida.</span>
+              } @else {
+                <ul>
+                  @for (reference of item.evidenceReferences; track reference.type + ':' + reference.referenceId) {
+                    <li>
+                      <span>{{ reference.type }}</span>
+                      <code>{{ reference.referenceId }}</code>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+
+            <div class="official-claims__actions" aria-label="Ações de revisão">
+              <button
+                type="button"
+                class="official-claims__action official-claims__action--primary"
+                (click)="beginReview(item, 'approve')"
+              >
+                Aprovar
+              </button>
+
+              @if (canReject(item)) {
+                <button
+                  type="button"
+                  class="official-claims__action"
+                  (click)="beginReview(item, 'reject')"
+                >
+                  Rejeitar
+                </button>
+              }
+
+              @if (canDispute(item)) {
+                <button
+                  type="button"
+                  class="official-claims__action"
+                  (click)="beginReview(item, 'mark_disputed')"
+                >
+                  Contestar
+                </button>
+              }
+
+              @if (canRevoke(item)) {
+                <button
+                  type="button"
+                  class="official-claims__action official-claims__action--danger"
+                  (click)="beginReview(item, 'revoke')"
+                >
+                  Revogar
+                </button>
+              }
+            </div>
+
+            @if (
+              selectedItem?.associationKey === item.associationKey
+              && selectedDecision
+            ) {
+              <form
+                class="official-claims__review"
+                [formGroup]="reviewForm"
+                (ngSubmit)="submitReview()"
+                [attr.aria-busy]="(busySubject | async) ? 'true' : 'false'"
+              >
+                <h4>{{ decisionLabel(selectedDecision) }}</h4>
+
+                <label>
+                  <span>Justificativa</span>
+                  <textarea
+                    rows="4"
+                    formControlName="resolution"
+                    maxlength="900"
+                    autocomplete="off"
+                    required
+                  ></textarea>
+                </label>
+
+                @if (selectedDecision === 'approve') {
+                  <div class="official-claims__dates">
+                    <label>
+                      <span>Validade da verificação</span>
+                      <input
+                        type="datetime-local"
+                        formControlName="verificationExpiresAt"
+                        required
+                      />
+                    </label>
+
+                    <label>
+                      <span>Revalidar em</span>
+                      <input
+                        type="datetime-local"
+                        formControlName="revalidationDueAt"
+                      />
+                    </label>
+                  </div>
+                }
+
+                <div class="official-claims__review-actions">
+                  <button
+                    type="button"
+                    class="official-claims__action"
+                    (click)="cancelReview()"
+                    [disabled]="(busySubject | async) === true"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    class="official-claims__action official-claims__action--primary"
+                    [disabled]="(busySubject | async) === true"
+                  >
+                    {{ (busySubject | async) ? 'Salvando...' : 'Confirmar decisão' }}
+                  </button>
+                </div>
+              </form>
+            }
+          </article>
+        }
+      </div>
+    }
+  }
+</section>
