@@ -30,6 +30,7 @@ import {
 } from './community-official-claim-evidence.policy';
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const SAFE_REFERENCE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,320}$/;
 const MAX_EVIDENCE_REFERENCES = 8;
 
 export interface VerifiedCommunityOfficialClaimEvidence {
@@ -42,6 +43,11 @@ export interface VerifiedCommunityOfficialClaimEvidence {
 function normalizeId(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
+function normalizeReferenceId(value: unknown): string | null {
+  const normalized = String(value ?? '').trim();
+  return SAFE_REFERENCE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
 function normalizeEvidenceType(
@@ -70,7 +76,7 @@ function normalizeEvidenceReferences(
   for (const item of raw) {
     const source = (item ?? {}) as Record<string, unknown>;
     const type = normalizeEvidenceType(source['type']);
-    const referenceId = normalizeId(source['referenceId']);
+    const referenceId = normalizeReferenceId(source['referenceId']);
     if (!type || !referenceId) return null;
     references.set(`${type}:${referenceId}`, { type, referenceId });
   }
