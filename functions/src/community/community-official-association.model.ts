@@ -3,36 +3,27 @@
 // COMMUNITY OFFICIAL ASSOCIATION
 // -----------------------------------------------------------------------------
 // Fonte canônica backend-only que vincula uma Comunidade a uma entidade oficial.
-//
-// Responsabilidades separadas:
-// - grants/entitlements respondem quem pode criar ou administrar em nome de uma
-//   organização;
-// - esta associação responde qual entidade canônica a Comunidade representa;
-// - projeções públicas recebem apenas alvo + estado verificado, sem organização,
-//   UID do responsável, evidência de KYC/KYB ou trilha interna de verificação.
+// Autoridade real usa o contrato transversal de authority; este model mantém
+// somente estado, verificação e projeção próprios do domínio Comunidades.
 // -----------------------------------------------------------------------------
+
+import {
+  CANONICAL_AUTHORITY_TARGET_TYPES,
+  normalizeCanonicalAuthorityResourceId,
+  normalizeCanonicalAuthorityTargetType,
+  normalizeCanonicalResourceAuthorityRole,
+  type CanonicalAuthorityTargetType,
+  type CanonicalResourceAuthorityRole,
+} from '../authority/canonical-resource-authority.model';
 
 export const COMMUNITY_OFFICIAL_ASSOCIATION_POLICY_VERSION = 1;
 
-export const COMMUNITY_OFFICIAL_TARGET_TYPES = [
-  'profile',
-  'organization',
-  'venue',
-  'event',
-] as const;
-
-export type CommunityOfficialTargetType =
-  typeof COMMUNITY_OFFICIAL_TARGET_TYPES[number];
+// Alias mantido para compatibilidade de imports; a lista existe em uma só fonte.
+export const COMMUNITY_OFFICIAL_TARGET_TYPES = CANONICAL_AUTHORITY_TARGET_TYPES;
+export type CommunityOfficialTargetType = CanonicalAuthorityTargetType;
+export type CommunityOfficialAuthorityRole = CanonicalResourceAuthorityRole;
 
 export type CommunityOfficialAssociationStatus = 'verified' | 'revoked';
-
-export type CommunityOfficialAuthorityRole =
-  | 'self'
-  | 'owner'
-  | 'authorized_representative'
-  | 'manager'
-  | 'organizer'
-  | 'promoter';
 
 export type CommunityOfficialVerificationSource =
   | 'profile_verification'
@@ -77,12 +68,10 @@ export interface CommunityOfficialAssociationPublicProjection {
   verified: true;
 }
 
-const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const SAFE_ASSOCIATION_KEY_PATTERN = /^[A-Za-z0-9:_-]{1,192}$/;
 
 function normalizeSafeId(value: unknown): string | null {
-  const normalized = String(value ?? '').trim();
-  return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+  return normalizeCanonicalAuthorityResourceId(value);
 }
 
 export function normalizeCommunityOfficialAssociationKey(
@@ -90,30 +79,6 @@ export function normalizeCommunityOfficialAssociationKey(
 ): string | null {
   const normalized = String(value ?? '').trim();
   return SAFE_ASSOCIATION_KEY_PATTERN.test(normalized) ? normalized : null;
-}
-
-function normalizeTargetType(
-  value: unknown
-): CommunityOfficialTargetType | null {
-  return value === 'profile'
-    || value === 'organization'
-    || value === 'venue'
-    || value === 'event'
-    ? value
-    : null;
-}
-
-function normalizeAuthorityRole(
-  value: unknown
-): CommunityOfficialAuthorityRole | null {
-  return value === 'self'
-    || value === 'owner'
-    || value === 'authorized_representative'
-    || value === 'manager'
-    || value === 'organizer'
-    || value === 'promoter'
-    ? value
-    : null;
 }
 
 function normalizeVerificationSource(
@@ -130,7 +95,7 @@ function normalizeVerificationSource(
 
 function normalizePublicTarget(raw: unknown): CommunityOfficialTarget | null {
   const source = (raw ?? {}) as Record<string, unknown>;
-  const type = normalizeTargetType(source['type']);
+  const type = normalizeCanonicalAuthorityTargetType(source['type']);
   const id = normalizeSafeId(source['id']);
   return type && id ? { type, id } : null;
 }
@@ -152,7 +117,7 @@ function normalizeOptionalFutureEpoch(
 export function buildCommunityOfficialAssociationKey(
   target: Readonly<CommunityOfficialTarget>
 ): string | null {
-  const type = normalizeTargetType(target.type);
+  const type = normalizeCanonicalAuthorityTargetType(target.type);
   const id = normalizeSafeId(target.id);
   if (!type || !id) return null;
 
@@ -175,7 +140,9 @@ export function buildVerifiedCommunityOfficialAssociation(input: {
   const target = normalizePublicTarget(input.target);
   const communityId = normalizeSafeId(input.communityId);
   const holderUid = normalizeSafeId(input.holderUid);
-  const authorityRole = normalizeAuthorityRole(input.authorityRole);
+  const authorityRole = normalizeCanonicalResourceAuthorityRole(
+    input.authorityRole
+  );
   const verificationSource = normalizeVerificationSource(
     input.verificationSource
   );

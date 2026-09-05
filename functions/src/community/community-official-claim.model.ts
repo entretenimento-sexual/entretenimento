@@ -2,16 +2,17 @@
 // -----------------------------------------------------------------------------
 // COMMUNITY OFFICIAL CLAIM
 // -----------------------------------------------------------------------------
-// Modelo privado do pedido de associação oficial.
-//
-// Princípios:
-// - evidências são somente referências opacas a registros privados já existentes;
-// - KYC/KYB, documentos, notas internas e UIDs nunca compõem projeção pública;
-// - um alvo canônico possui no máximo um claim corrente, identificado pela mesma
-//   associationKey usada pela associação oficial;
-// - toda decisão administrativa é validada por uma máquina de estados explícita.
+// Modelo privado do pedido de associação oficial. Tipos/papéis de autoridade
+// real vêm do contrato canônico transversal; este arquivo mantém apenas regras
+// de claim, evidência e máquina de estados próprias de Comunidades.
 // -----------------------------------------------------------------------------
 
+import {
+  isCanonicalResourceAuthorityRoleForTarget,
+  normalizeCanonicalAuthorityResourceId,
+  normalizeCanonicalAuthorityTargetType,
+  normalizeCanonicalResourceAuthorityRole,
+} from '../authority/canonical-resource-authority.model';
 import {
   buildCommunityOfficialAssociationKey,
   type CommunityOfficialAuthorityRole,
@@ -111,15 +112,13 @@ export interface ReviewCommunityOfficialClaimCommand {
   revalidationDueAt: number | null;
 }
 
-const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
 const SAFE_REFERENCE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,320}$/;
 const SAFE_ASSOCIATION_KEY_PATTERN = /^[A-Za-z0-9:_-]{1,192}$/;
 const MAX_EVIDENCE_REFERENCES = 8;
 const MAX_VERIFICATION_WINDOW_MS = 730 * 24 * 60 * 60 * 1_000;
 
 function cleanId(value: unknown): string | null {
-  const normalized = String(value ?? '').trim();
-  return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+  return normalizeCanonicalAuthorityResourceId(value);
 }
 
 function cleanReferenceId(value: unknown): string | null {
@@ -134,60 +133,22 @@ function cleanAssociationKey(value: unknown): string | null {
 
 function cleanTarget(value: unknown): CommunityOfficialTarget | null {
   const source = (value ?? {}) as Record<string, unknown>;
-  const type = source['type'];
+  const type = normalizeCanonicalAuthorityTargetType(source['type']);
   const id = cleanId(source['id']);
-
-  if (
-    !id
-    || (
-      type !== 'profile'
-      && type !== 'organization'
-      && type !== 'venue'
-      && type !== 'event'
-    )
-  ) {
-    return null;
-  }
-
-  return { type, id };
+  return type && id ? { type, id } : null;
 }
 
 function cleanAuthorityRole(
   value: unknown
 ): CommunityOfficialAuthorityRole | null {
-  return value === 'self'
-    || value === 'owner'
-    || value === 'authorized_representative'
-    || value === 'manager'
-    || value === 'organizer'
-    || value === 'promoter'
-    ? value
-    : null;
+  return normalizeCanonicalResourceAuthorityRole(value);
 }
 
 function roleMatchesTarget(
   target: CommunityOfficialTarget,
   role: CommunityOfficialAuthorityRole
 ): boolean {
-  switch (target.type) {
-  case 'profile':
-    return role === 'self';
-  case 'organization':
-    return role === 'owner'
-      || role === 'authorized_representative'
-      || role === 'manager';
-  case 'venue':
-    return role === 'owner'
-      || role === 'authorized_representative'
-      || role === 'manager';
-  case 'event':
-    return role === 'organizer'
-      || role === 'promoter'
-      || role === 'authorized_representative'
-      || role === 'manager';
-  default:
-    return false;
-  }
+  return isCanonicalResourceAuthorityRoleForTarget(target.type, role);
 }
 
 function cleanEvidenceType(
