@@ -28,16 +28,16 @@
 
       @if (capabilityState.capability.canSubmit) {
         <div class="official-claim__field">
-          <label for="official-claim-target">Local vinculado</label>
-          <select id="official-claim-target" [formControl]="targetId">
-            @for (candidate of capabilityState.capability.candidates; track candidate.target.id) {
-              <option [value]="candidate.target.id">
-                {{ candidate.label }} — {{ authorityLabel(candidate) }}
+          <label for="official-claim-target">Vínculo oficial</label>
+          <select id="official-claim-target" [formControl]="targetKey">
+            @for (candidate of capabilityState.capability.candidates; track candidateKey(candidate)) {
+              <option [value]="candidateKey(candidate)">
+                {{ targetTypeLabel(candidate) }} — {{ candidate.label }} — {{ authorityLabel(candidate) }}
               </option>
             }
           </select>
           <small>
-            A autoridade e a verificação comercial são confirmadas novamente no servidor ao enviar.
+            A autoridade e a verificação exigida para o vínculo são confirmadas novamente no servidor ao enviar.
           </small>
         </div>
 
@@ -104,8 +104,8 @@
         <label class="official-claim__declaration">
           <input type="checkbox" [formControl]="declarationAccepted" />
           <span>
-            Declaro que sou responsável pelo Local selecionado e que as informações
-            usadas para validar este vínculo podem ser revisadas pela plataforma.
+            Declaro que tenho autoridade para representar o Local ou a Organização
+            selecionada e que esse vínculo pode ser revisado pela plataforma.
           </span>
         </label>
 
