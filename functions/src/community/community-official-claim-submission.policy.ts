@@ -31,10 +31,16 @@ export interface CommunityOfficialClaimSubmissionDecision {
 }
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,128}$/;
+const SAFE_REFERENCE_ID_PATTERN = /^[A-Za-z0-9:_-]{1,320}$/;
 
 function cleanId(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
   return SAFE_ID_PATTERN.test(normalized) ? normalized : null;
+}
+
+function cleanReferenceId(value: unknown): string | null {
+  const normalized = String(value ?? '').trim();
+  return SAFE_REFERENCE_ID_PATTERN.test(normalized) ? normalized : null;
 }
 
 function denied(
@@ -59,7 +65,7 @@ export function resolveCommunityOfficialClaimSubmission(input: {
   }
 
   if (input.intent.target.type === 'organization') {
-    const representationReferenceId = cleanId(
+    const representationReferenceId = cleanReferenceId(
       input.organizationRepresentationReferenceId
     );
     if (!representationReferenceId) {
